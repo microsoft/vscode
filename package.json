@@ -40,7 +40,7 @@
     "v8-profiler": "jrieken/v8-profiler#vscode",
     "vscode-debugprotocol": "1.19.0",
     "vscode-ripgrep": "0.0.12",
-    "vscode-textmate": "^3.1.4",
+    "vscode-textmate": "^3.1.5",
     "winreg": "1.2.0",
     "xterm": "Tyriar/xterm.js#vscode-release/1.13",
     "yauzl": "2.3.1"
