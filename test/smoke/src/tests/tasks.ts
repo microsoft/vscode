@@ -32,6 +32,7 @@ export function testTasks() {
 
 		it(`is able to select 'Git' output`, async function () {
 			await tasks.build();
+			await app.wait();
 			await tasks.selectOutputViewType('Git');
 			const viewType = await tasks.getOutputViewType();
 			assert.equal(viewType, 'Git');

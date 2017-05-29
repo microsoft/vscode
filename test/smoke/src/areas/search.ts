@@ -45,6 +45,6 @@ export class Search {
 	}
 
 	public dismissResult(): any {
-		return this.spectron.client.click('.action-label.icon.action-remove')
+		return this.spectron.client.click('.action-label.icon.action-remove');
 	}
 }
