@@ -9,6 +9,7 @@ import nls = require('vs/nls');
 import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, Action } from 'vs/base/common/actions';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMessageService, CloseAction, Severity } from 'vs/platform/message/common/message';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
@@ -300,35 +301,43 @@ export class LightUpdateContribution implements IGlobalActivity {
 	}
 
 	getActions(): IAction[] {
+		return [
+			new Action('showCommandPalette', nls.localize('commandPalette', "Command Palette..."), undefined, true, () => this.commandService.executeCommand('workbench.action.showCommands')),
+			new Separator(),
+			new Action('openKeybindings', nls.localize('settings', "Settings"), null, true, () => this.commandService.executeCommand('workbench.action.openGlobalSettings')),
+			new Action('openSettings', nls.localize('keyboardShortcuts', "Keyboard Shortcuts"), null, true, () => this.commandService.executeCommand('workbench.action.openGlobalKeybindings')),
+			new Separator(),
+			this.getUpdateAction()
+		];
+	}
+
+	private getUpdateAction(): IAction {
 		switch (this.updateService.state) {
 			case UpdateState.Uninitialized:
-				return [new Action('update.notavailable', nls.localize('not available', "Updates Not Available"), undefined, false)];
+				return new Action('update.notavailable', nls.localize('not available', "Updates Not Available"), undefined, false);
 
 			case UpdateState.CheckingForUpdate:
-				return [new Action('update.checking', nls.localize('checkingForUpdates', "Checking For Updates..."), undefined, false)];
+				return new Action('update.checking', nls.localize('checkingForUpdates', "Checking For Updates..."), undefined, false);
 
 			case UpdateState.UpdateAvailable:
 				if (isLinux) {
-					return [new Action('update.linux.available', nls.localize('DownloadUpdate', "Download Available Update"), undefined, true, () =>
-						this.updateService.quitAndInstall()
-					)];
+					return new Action('update.linux.available', nls.localize('DownloadUpdate', "Download Available Update"), undefined, true, () =>
+						this.updateService.quitAndInstall());
 				}
 
 				const updateAvailableLabel = isWindows
 					? nls.localize('DownloadingUpdate', "Downloading Update...")
 					: nls.localize('InstallingUpdate', "Installing Update...");
 
-				return [new Action('update.available', updateAvailableLabel, undefined, false)];
+				return new Action('update.available', updateAvailableLabel, undefined, false);
 
 			case UpdateState.UpdateDownloaded:
-				return [new Action('update.restart', nls.localize('restartToUpdate', "Restart To Update..."), undefined, true, () =>
-					this.updateService.quitAndInstall()
-				)];
+				return new Action('update.restart', nls.localize('restartToUpdate', "Restart To Update..."), undefined, true, () =>
+					this.updateService.quitAndInstall());
 
 			default:
-				return [new Action('update.check', nls.localize('checkForUpdates', "Check For Updates..."), undefined, this.updateService.state === UpdateState.Idle, () =>
-					this.updateService.checkForUpdates(true)
-				)];
+				return new Action('update.check', nls.localize('checkForUpdates', "Check For Updates..."), undefined, this.updateService.state === UpdateState.Idle, () =>
+					this.updateService.checkForUpdates(true));
 		}
 	}
 }
