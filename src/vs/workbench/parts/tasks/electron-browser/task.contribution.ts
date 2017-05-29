@@ -686,7 +686,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				toExecute = resolver.resolve(task);
 			} else {
 				requested = task.name;
-				toExecute = resolver.resolve(task._id);
+				toExecute = task;
 			}
 			if (!toExecute) {
 				throw new TaskError(Severity.Info, nls.localize('TaskServer.noTask', 'Requested task {0} to execute not found.', requested), TaskErrors.TaskNotFound);
@@ -738,6 +738,7 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	private createRunnableTask(sets: TaskSet[], group: TaskGroup): { task: Task; resolver: ITaskResolver } {
 		let uuidMap: IStringDictionary<Task> = Object.create(null);
+		let labelMap: IStringDictionary<Task> = Object.create(null);
 		let identifierMap: IStringDictionary<Task> = Object.create(null);
 
 		let workspaceTasks: Task[] = [];
@@ -745,6 +746,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		sets.forEach((set) => {
 			set.tasks.forEach((task) => {
 				uuidMap[task._id] = task;
+				labelMap[computeTaskLabel(task)] = task;
 				identifierMap[task.identifier] = task;
 				if (group && task.group === group) {
 					if (task._source.kind === TaskSourceKind.Workspace) {
@@ -757,11 +759,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		});
 		let resolver: ITaskResolver = {
 			resolve: (id: string) => {
-				let result = uuidMap[id];
-				if (result) {
-					return result;
-				}
-				return identifierMap[id];
+				return uuidMap[id] || labelMap[id] || identifierMap[id];
 			}
 		};
 		if (workspaceTasks.length > 0) {
@@ -791,22 +789,18 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	private createResolver(sets: TaskSet[]): ITaskResolver {
-		let uuidMap: IStringDictionary<Task> = Object.create(null);
+		let labelMap: IStringDictionary<Task> = Object.create(null);
 		let identifierMap: IStringDictionary<Task> = Object.create(null);
 
 		sets.forEach((set) => {
 			set.tasks.forEach((task) => {
-				uuidMap[task._id] = task;
+				labelMap[computeTaskLabel(task)] = task;
 				identifierMap[task.identifier] = task;
 			});
 		});
 		return {
 			resolve: (id: string) => {
-				let result = uuidMap[id];
-				if (result) {
-					return result;
-				}
-				return identifierMap[id];
+				return labelMap[id] || identifierMap[id];
 			}
 		};
 	}
