@@ -78,6 +78,8 @@ export class SearchViewlet extends Viewlet {
 
 	private viewletVisible: IContextKey<boolean>;
 	private inputBoxFocussed: IContextKey<boolean>;
+	private inputPatternIncludesFocussed: IContextKey<boolean>;
+	private inputPatternExclusionsFocussed: IContextKey<boolean>;
 	private firstMatchFocussed: IContextKey<boolean>;
 	private fileMatchOrMatchFocussed: IContextKey<boolean>;
 	private fileMatchFocussed: IContextKey<boolean>;
@@ -129,6 +131,8 @@ export class SearchViewlet extends Viewlet {
 		this.toDispose = [];
 		this.viewletVisible = Constants.SearchViewletVisibleKey.bindTo(contextKeyService);
 		this.inputBoxFocussed = Constants.InputBoxFocussedKey.bindTo(this.contextKeyService);
+		this.inputPatternIncludesFocussed = Constants.PatternIncludesFocussedKey.bindTo(this.contextKeyService);
+		this.inputPatternExclusionsFocussed = Constants.PatternExcludesFocussedKey.bindTo(this.contextKeyService);
 		this.firstMatchFocussed = Constants.FirstMatchFocusKey.bindTo(contextKeyService);
 		this.fileMatchOrMatchFocussed = Constants.FileMatchOrMatchFocusKey.bindTo(contextKeyService);
 		this.fileMatchFocussed = Constants.FileFocusKey.bindTo(contextKeyService);
@@ -217,7 +221,7 @@ export class SearchViewlet extends Viewlet {
 					});
 
 				this.inputPatternIncludes.onSubmit(() => this.onQueryChanged(true, true));
-				this.trackInputBox(this.inputPatternIncludes.inputFocusTracker);
+				this.trackInputBox(this.inputPatternIncludes.inputFocusTracker, this.inputPatternIncludesFocussed);
 			});
 
 			//pattern exclusion list
@@ -240,7 +244,7 @@ export class SearchViewlet extends Viewlet {
 					});
 
 				this.inputPatternExclusions.onSubmit(() => this.onQueryChanged(true, true));
-				this.trackInputBox(this.inputPatternExclusions.inputFocusTracker);
+				this.trackInputBox(this.inputPatternExclusions.inputFocusTracker, this.inputPatternExclusionsFocussed);
 			});
 
 			// add hint if we have global exclusion
@@ -288,6 +292,14 @@ export class SearchViewlet extends Viewlet {
 		return this.searchWidget;
 	}
 
+	public get searchIncludePattern(): PatternInputWidget {
+		return this.inputPatternIncludes;
+	}
+
+	public get searchExcludePattern(): PatternInputWidget {
+		return this.inputPatternExclusions;
+	}
+
 	private createSearchWidget(builder: Builder): void {
 		let contentPattern = this.viewletSettings['query.contentPattern'] || '';
 		let isRegex = this.viewletSettings['query.regex'] === true;
@@ -326,15 +338,21 @@ export class SearchViewlet extends Viewlet {
 		this.trackInputBox(this.searchWidget.replaceInputFocusTracker);
 	}
 
-	private trackInputBox(inputFocusTracker: dom.IFocusTracker): void {
+	private trackInputBox(inputFocusTracker: dom.IFocusTracker, contextKey?: IContextKey<boolean>): void {
 		this.toUnbind.push(inputFocusTracker.addFocusListener(() => {
 			this.inputBoxFocussed.set(true);
+			if (contextKey) {
+				contextKey.set(true);
+			}
 		}));
 		this.toUnbind.push(inputFocusTracker.addBlurListener(() => {
 			this.inputBoxFocussed.set(this.searchWidget.searchInputHasFocus()
 				|| this.searchWidget.replaceInputHasFocus()
 				|| this.inputPatternIncludes.inputHasFocus()
 				|| this.inputPatternExclusions.inputHasFocus());
+			if (contextKey) {
+				contextKey.set(false);
+			}
 		}));
 	}
 

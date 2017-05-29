@@ -88,6 +88,70 @@ export class ToggleRegexAction extends Action {
 	}
 }
 
+export class ShowNextSearchIncludeAction extends Action {
+
+	public static ID = 'search.history.showNextIncludePattern';
+	public static LABEL = nls.localize('nextSearchIncludePattern', "Show Next Search Include Pattern");
+
+	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let searchAndReplaceWidget = (<SearchViewlet>this.viewletService.getActiveViewlet()).searchIncludePattern;
+		searchAndReplaceWidget.showNextTerm();
+		return TPromise.as(null);
+	}
+}
+
+export class ShowPreviousSearchIncludeAction extends Action {
+
+	public static ID = 'search.history.showPreviousIncludePattern';
+	public static LABEL = nls.localize('previousSearchIncludePattern', "Show Previous Search Include Pattern");
+
+	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let searchAndReplaceWidget = (<SearchViewlet>this.viewletService.getActiveViewlet()).searchIncludePattern;
+		searchAndReplaceWidget.showPreviousTerm();
+		return TPromise.as(null);
+	}
+}
+
+export class ShowNextSearchExcludeAction extends Action {
+
+	public static ID = 'search.history.showNextExcludePattern';
+	public static LABEL = nls.localize('nextSearchExcludePattern', "Show Next Search Exclude Pattern");
+
+	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let searchAndReplaceWidget = (<SearchViewlet>this.viewletService.getActiveViewlet()).searchExcludePattern;
+		searchAndReplaceWidget.showNextTerm();
+		return TPromise.as(null);
+	}
+}
+
+export class ShowPreviousSearchExcludeAction extends Action {
+
+	public static ID = 'search.history.showPreviousExcludePattern';
+	public static LABEL = nls.localize('previousSearchExcludePattern', "Show Previous Search Exclude Pattern");
+
+	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let searchAndReplaceWidget = (<SearchViewlet>this.viewletService.getActiveViewlet()).searchExcludePattern;
+		searchAndReplaceWidget.showPreviousTerm();
+		return TPromise.as(null);
+	}
+}
+
 export class ShowNextSearchTermAction extends Action {
 
 	public static ID = 'search.history.showNext';

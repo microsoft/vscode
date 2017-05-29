@@ -20,6 +20,7 @@ import CommonEvent, { Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { HistoryNavigator } from 'vs/base/common/history';
 
 export interface IOptions {
 	placeholder?: string;
@@ -45,11 +46,14 @@ export class PatternInputWidget extends Widget {
 	private inputNode: HTMLInputElement;
 	protected inputBox: InputBox;
 
+	private history: HistoryNavigator<string>;
+
 	private _onSubmit = this._register(new Emitter<boolean>());
 	public onSubmit: CommonEvent<boolean> = this._onSubmit.event;
 
 	constructor(parent: HTMLElement, private contextViewProvider: IContextViewProvider, protected themeService: IThemeService, options: IOptions = Object.create(null)) {
 		super();
+		this.history = new HistoryNavigator<string>();
 		this.onOptionChange = null;
 		this.width = options.width || 100;
 		this.placeholder = options.placeholder || '';
@@ -185,6 +189,26 @@ export class PatternInputWidget extends Widget {
 		return this.pattern.width();
 	}
 
+	public showNextTerm() {
+		let next = this.history.next();
+		if (next) {
+			this.setValue(next);
+		}
+	}
+
+	public showPreviousTerm() {
+		let previous;
+		if (this.getValue().length === 0) {
+			previous = this.history.current();
+		} else {
+			this.history.addIfNotPresent(this.getValue());
+			previous = this.history.previous();
+		}
+		if (previous) {
+			this.setValue(previous);
+		}
+	}
+
 	private render(): void {
 		this.domNode = document.createElement('div');
 		this.domNode.style.width = this.width + 'px';
@@ -220,6 +244,13 @@ export class PatternInputWidget extends Widget {
 			}
 		});
 		this._register(attachCheckboxStyler(this.pattern, this.themeService));
+
+		this._register(this.onSubmit(() => {
+			let value = this.getValue();
+			if (value.length > 0) {
+				this.history.add(this.getValue());
+			}
+		}));
 
 		$(this.pattern.domNode).on('mouseover', () => {
 			if (this.isGlobPattern()) {
