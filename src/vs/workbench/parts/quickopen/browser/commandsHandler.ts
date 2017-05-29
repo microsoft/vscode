@@ -28,7 +28,7 @@ import { IMessageService, Severity, IMessageWithAction } from 'vs/platform/messa
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { editorAction, EditorAction } from "vs/editor/common/editorCommonExtensions";
+import { editorAction, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 
 export const ALL_COMMANDS_PREFIX = '>';
 export const EDITOR_COMMANDS_PREFIX = '$';

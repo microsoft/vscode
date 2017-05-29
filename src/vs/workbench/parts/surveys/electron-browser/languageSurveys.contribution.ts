@@ -31,12 +31,12 @@ class LanguageSurvey {
 		fileService: IFileService,
 		modelService: IModelService
 	) {
-		const SESSION_COUNT_KEY = `${data.languageId}.sessionCount`;
-		const LAST_SESSION_DATE_KEY = `${data.languageId}.lastSessionDate`;
-		const SKIP_VERSION_KEY = `${data.languageId}.skipVersion`;
-		const IS_CANDIDATE_KEY = `${data.languageId}.isCandidate`;
-		const EDITED_LANGUAGE_COUNT_KEY = `${data.languageId}.editedCount`;
-		const EDITED_LANGUAGE_DATE_KEY = `${data.languageId}.editedDate`;
+		const SESSION_COUNT_KEY = `${data.surveyId}.sessionCount`;
+		const LAST_SESSION_DATE_KEY = `${data.surveyId}.lastSessionDate`;
+		const SKIP_VERSION_KEY = `${data.surveyId}.skipVersion`;
+		const IS_CANDIDATE_KEY = `${data.surveyId}.isCandidate`;
+		const EDITED_LANGUAGE_COUNT_KEY = `${data.surveyId}.editedCount`;
+		const EDITED_LANGUAGE_DATE_KEY = `${data.surveyId}.editedDate`;
 
 		const skipVersion = storageService.get(SKIP_VERSION_KEY, StorageScope.GLOBAL, '');
 		if (skipVersion) {
@@ -88,7 +88,7 @@ class LanguageSurvey {
 		const message = nls.localize('helpUs', "Help us improve our support for {0}", data.languageId);
 
 		const takeSurveyAction = new Action('takeSurvey', nls.localize('takeShortSurvey', "Take Short Survey"), '', true, () => {
-			telemetryService.publicLog(`${data.languageId}.survey/takeShortSurvey`);
+			telemetryService.publicLog(`${data.surveyId}.survey/takeShortSurvey`);
 			return telemetryService.getTelemetryInfo().then(info => {
 				window.open(`${data.surveyUrl}?o=${encodeURIComponent(process.platform)}&v=${encodeURIComponent(pkg.version)}&m=${encodeURIComponent(info.machineId)}`);
 				storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
@@ -97,20 +97,20 @@ class LanguageSurvey {
 		});
 
 		const remindMeLaterAction = new Action('later', nls.localize('remindLater', "Remind Me later"), '', true, () => {
-			telemetryService.publicLog(`${data.languageId}.survey/remindMeLater`);
+			telemetryService.publicLog(`${data.surveyId}.survey/remindMeLater`);
 			storageService.store(SESSION_COUNT_KEY, sessionCount - 3, StorageScope.GLOBAL);
 			return TPromise.as(null);
 		});
 
 		const neverAgainAction = new Action('never', nls.localize('neverAgain', "Don't Show Again"), '', true, () => {
-			telemetryService.publicLog(`${data.languageId}.survey/dontShowAgain`);
+			telemetryService.publicLog(`${data.surveyId}.survey/dontShowAgain`);
 			storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
 			storageService.store(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
 			return TPromise.as(null);
 		});
 
 		const actions = [neverAgainAction, remindMeLaterAction, takeSurveyAction];
-		telemetryService.publicLog(`${data.languageId}.survey/userAsked`);
+		telemetryService.publicLog(`${data.surveyId}.survey/userAsked`);
 		messageService.show(Severity.Info, { message, actions });
 	}
 
@@ -128,7 +128,7 @@ class LanguageSurveysContribution implements IWorkbenchContribution {
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService
 	) {
-		this.surveys = product.surveys.filter(surveyData => surveyData.editCount && surveyData.languageId && surveyData.surveyUrl && surveyData.userProbability).map(surveyData =>
+		this.surveys = product.surveys.filter(surveyData => surveyData.surveyId && surveyData.editCount && surveyData.languageId && surveyData.surveyUrl && surveyData.userProbability).map(surveyData =>
 			new LanguageSurvey(surveyData, instantiationService, storageService, messageService, telemetryService, fileService, modelService));
 	}
 

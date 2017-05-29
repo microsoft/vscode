@@ -26,6 +26,7 @@
 	"command.undoCommit": "前回のコミットを元に戻す",
 	"command.checkout": "チェックアウト先...",
 	"command.branch": "分岐の作成...",
+	"command.deleteBranch": "ブランチの削除...",
 	"command.pull": "プル",
 	"command.pullRebase": "プル (リベース)",
 	"command.push": "プッシュ",

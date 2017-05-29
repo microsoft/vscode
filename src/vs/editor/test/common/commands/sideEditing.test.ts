@@ -11,7 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { ILineEdit, ModelLine, LineMarker, MarkersTracker } from 'vs/editor/common/model/modelLine';
-import { withMockCodeEditor } from "vs/editor/test/common/mocks/mockCodeEditor";
+import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 
 const NO_TAB_SIZE = 0;
 

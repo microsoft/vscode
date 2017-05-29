@@ -37,7 +37,7 @@ import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/pref
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
-import { CoreEditingCommands } from "vs/editor/common/controller/coreCommands";
+import { CoreEditingCommands } from 'vs/editor/common/controller/coreCommands';
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;

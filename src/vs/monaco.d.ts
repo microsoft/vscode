@@ -1068,19 +1068,19 @@ declare module monaco.editor {
 	export interface IModelDecorationOverviewRulerOptions {
 		/**
 		 * CSS color to render in the overview ruler.
-		 * e.g.: rgba(100, 100, 100, 0.5)
+		 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 		 */
-		color: string;
+		color: string | ThemeColor;
 		/**
 		 * CSS color to render in the overview ruler.
-		 * e.g.: rgba(100, 100, 100, 0.5)
+		 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 		 */
-		darkColor: string;
+		darkColor: string | ThemeColor;
 		/**
 		 * CSS color to render in the overview ruler.
-		 * e.g.: rgba(100, 100, 100, 0.5)
+		 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 		 */
-		hcColor?: string;
+		hcColor?: string | ThemeColor;
 		/**
 		 * The position in the overview ruler.
 		 */
@@ -2158,6 +2158,10 @@ declare module monaco.editor {
 		restoreViewState?(state: any): void;
 	}
 
+	export interface ThemeColor {
+		id: string;
+	}
+
 	export interface ICommonCodeEditor extends IEditor {
 		/**
 		 * An event emitted when the content of the current model has changed.
@@ -2628,6 +2632,20 @@ declare module monaco.editor {
 	}
 
 	/**
+	 * Configuration options for editor find widget
+	 */
+	export interface IEditorFindOptions {
+		/**
+		 * Controls if we seed search string in the Find Widget with editor selection.
+		 */
+		seedSearchStringFromSelection?: boolean;
+		/**
+		 * Controls if Find in Selection flag is turned on when multiple lines of text are selected in the editor.
+		 */
+		autoFindInSelection: boolean;
+	}
+
+	/**
 	 * Configuration options for editor minimap
 	 */
 	export interface IEditorMinimapOptions {
@@ -2652,11 +2670,6 @@ declare module monaco.editor {
 	 * Configuration options for the editor.
 	 */
 	export interface IEditorOptions {
-		/**
-		 * Enable experimental screen reader support.
-		 * Defaults to `true`.
-		 */
-		experimentalScreenReader?: boolean;
 		/**
 		 * The aria label for the editor's textarea (when it is focused).
 		 */
@@ -2734,6 +2747,10 @@ declare module monaco.editor {
 		 * Control the behavior and rendering of the minimap.
 		 */
 		minimap?: IEditorMinimapOptions;
+		/**
+		 * Control the behavior of the find widget.
+		 */
+		find?: IEditorFindOptions;
 		/**
 		 * Display overflow widgets as `fixed`.
 		 * Defaults to `false`.
@@ -2859,6 +2876,11 @@ declare module monaco.editor {
 		 * Defaults to 1.
 		 */
 		mouseWheelScrollSensitivity?: number;
+		/**
+		 * The modifier to be used to add multiple cursors with the mouse.
+		 * Defaults to 'alt'
+		 */
+		multicursorModifier?: 'cmd' | 'ctrl' | 'alt';
 		/**
 		 * Enable quick suggestions (shadow suggestions)
 		 * Defaults to true.
@@ -3153,6 +3175,11 @@ declare module monaco.editor {
 		readonly maxColumn: number;
 	}
 
+	export interface InternalEditorFindOptions {
+		readonly seedSearchStringFromSelection: boolean;
+		readonly autoFindInSelection: boolean;
+	}
+
 	export interface EditorWrappingInfo {
 		readonly inDiffEditor: boolean;
 		readonly isDominatedByLongLines: boolean;
@@ -3168,7 +3195,6 @@ declare module monaco.editor {
 	export interface InternalEditorViewOptions {
 		readonly extraEditorClassName: string;
 		readonly disableMonospaceOptimizations: boolean;
-		readonly experimentalScreenReader: boolean;
 		readonly rulers: number[];
 		readonly ariaLabel: string;
 		readonly renderLineNumbers: boolean;
@@ -3223,6 +3249,7 @@ declare module monaco.editor {
 		readonly folding: boolean;
 		readonly showFoldingControls: 'always' | 'mouseover';
 		readonly matchBrackets: boolean;
+		readonly find: InternalEditorFindOptions;
 	}
 
 	/**
@@ -3235,6 +3262,7 @@ declare module monaco.editor {
 		readonly editorClassName: string;
 		readonly lineHeight: number;
 		readonly readOnly: boolean;
+		readonly multicursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 		readonly wordSeparators: string;
 		readonly autoClosingBrackets: boolean;
 		readonly useTabStops: boolean;
@@ -3365,6 +3393,8 @@ declare module monaco.editor {
 		readonly editorClassName: boolean;
 		readonly lineHeight: boolean;
 		readonly readOnly: boolean;
+		readonly accessibilitySupport: boolean;
+		readonly multicursorModifier: boolean;
 		readonly wordSeparators: boolean;
 		readonly autoClosingBrackets: boolean;
 		readonly useTabStops: boolean;

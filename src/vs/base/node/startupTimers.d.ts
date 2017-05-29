@@ -26,13 +26,13 @@ declare interface TickController {
 	stop(stopped?: number): void;
 }
 
-export function startTimer(name: string, started?: number): TickController;
+export function startTimer(name: string): TickController;
 
-export function stopTimer(name: string, stopped?: number);
+export function stopTimer(name: string);
 
 export function ticks(): Tick[];
 
-export function tick(name:string):Tick;
+export function tick(name: string): Tick;
 
 export function setProfileList(names: string[]): void;
 

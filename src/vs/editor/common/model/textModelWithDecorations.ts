@@ -840,9 +840,9 @@ function cleanClassName(className: string): string {
 }
 
 export class ModelDecorationOverviewRulerOptions implements editorCommon.IModelDecorationOverviewRulerOptions {
-	readonly color: string;
-	readonly darkColor: string;
-	readonly hcColor: string;
+	readonly color: string | editorCommon.ThemeColor;
+	readonly darkColor: string | editorCommon.ThemeColor;
+	readonly hcColor: string | editorCommon.ThemeColor;
 	readonly position: editorCommon.OverviewRulerLane;
 
 	constructor(options: editorCommon.IModelDecorationOverviewRulerOptions) {
@@ -880,7 +880,7 @@ let lastStaticId = 0;
 
 export class ModelDecorationOptions implements editorCommon.IModelDecorationOptions {
 
-	public static EMPTY = ModelDecorationOptions.register({});
+	public static EMPTY: ModelDecorationOptions;
 
 	public static register(options: editorCommon.IModelDecorationOptions): ModelDecorationOptions {
 		return new ModelDecorationOptions(++lastStaticId, options);
@@ -944,6 +944,7 @@ export class ModelDecorationOptions implements editorCommon.IModelDecorationOpti
 		);
 	}
 }
+ModelDecorationOptions.EMPTY = ModelDecorationOptions.register({});
 
 class ModelDeltaDecoration implements editorCommon.IModelDeltaDecoration {
 

@@ -22,10 +22,10 @@ import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ICodeLensData, getCodeLensData } from '../common/codelens';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
-import { editorCodeLensForeground } from "vs/editor/common/view/editorColorRegistry";
-import { registerThemingParticipant } from "vs/platform/theme/common/themeService";
-import { editorActiveLinkForeground } from "vs/platform/theme/common/colorRegistry";
-import { ModelDecorationOptions } from "vs/editor/common/model/textModelWithDecorations";
+import { editorCodeLensForeground } from 'vs/editor/common/view/editorColorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 
 class CodeLensViewZone implements editorBrowser.IViewZone {

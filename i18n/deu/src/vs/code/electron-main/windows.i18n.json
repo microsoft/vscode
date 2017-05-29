@@ -7,7 +7,6 @@
 	"ok": "OK",
 	"pathNotExistTitle": "Der Pfad ist nicht vorhanden.",
 	"pathNotExistDetail": "Der Pfad \"{0}\" scheint auf dem Datenträger nicht mehr vorhanden zu sein.",
-	"accessibilityOptionsWindowTitle": "Optionen für erleichterte Bedienung",
 	"reopen": "Erneut öffnen",
 	"wait": "Bitte warten.",
 	"close": "Schließen",

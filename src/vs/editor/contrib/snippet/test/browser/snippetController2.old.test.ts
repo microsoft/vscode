@@ -10,8 +10,8 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { MockCodeEditor, withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import { Cursor } from 'vs/editor/common/controller/cursor';
-import { IContextKeyService } from "vs/platform/contextkey/common/contextkey";
-import { ICommonCodeEditor } from "vs/editor/common/editorCommon";
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 
 class TestSnippetController extends SnippetController2 {
 

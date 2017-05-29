@@ -26,5 +26,7 @@
 	"workbench.action.terminal.scrollUp": "上にスクロール (行)",
 	"workbench.action.terminal.scrollUpPage": "スクロール アップ (ページ)",
 	"workbench.action.terminal.scrollToTop": "一番上にスクロール",
-	"workbench.action.terminal.clear": "クリア"
+	"workbench.action.terminal.clear": "クリア",
+	"workbench.action.terminal.allowWorkspaceShell": "ワークスペースでシェルを構成することを許可する",
+	"workbench.action.terminal.disallowWorkspaceShell": "ワークスペースでシェルを構成することを許可しない"
 }

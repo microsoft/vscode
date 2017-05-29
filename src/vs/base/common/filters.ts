@@ -448,15 +448,32 @@ _seps['\''] = true;
 _seps['"'] = true;
 _seps[':'] = true;
 
+const _ws: { [ch: string]: boolean } = Object.create(null);
+_ws[' '] = true;
+_ws['\t'] = true;
+
 const enum Arrow { Top = 0b1, Diag = 0b10, Left = 0b100 }
 
-export function fuzzyScore(pattern: string, word: string, patternOffset: number = 0, wordOffset: number = 0): [number, number[]] {
+export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 
 	const patternLen = pattern.length > 100 ? 100 : pattern.length;
 	const wordLen = word.length > 100 ? 100 : word.length;
 
-	if (patternLen === 0) {
-		return [-1, []];
+	// Check for leading whitespace in the pattern and
+	// start matching just after that position. This is
+	// like `pattern = pattern.rtrim()` but doesn't create
+	// a new string
+	let patternStartPos = 0;
+	for (const ch of pattern) {
+		if (_ws[ch]) {
+			patternStartPos += 1;
+		} else {
+			break;
+		}
+	}
+
+	if (patternLen === patternStartPos) {
+		return [-100, []];
 	}
 
 	if (patternLen > wordLen) {
@@ -465,8 +482,9 @@ export function fuzzyScore(pattern: string, word: string, patternOffset: number 
 
 	const lowPattern = pattern.toLowerCase();
 	const lowWord = word.toLowerCase();
-	let patternPos = patternOffset;
-	let wordPos = wordOffset;
+
+	let patternPos = patternStartPos;
+	let wordPos = 0;
 
 	while (patternPos < patternLen && wordPos < wordLen) {
 		if (lowPattern[patternPos] === lowWord[wordPos]) {
@@ -482,17 +500,17 @@ export function fuzzyScore(pattern: string, word: string, patternOffset: number 
 	// keep track of the maximum score
 	let maxScore = -1;
 
-	for (patternPos = patternOffset + 1; patternPos <= patternLen; patternPos++) {
+	for (patternPos = patternStartPos + 1; patternPos <= patternLen; patternPos++) {
 
 		let lastLowWordChar = '';
 
-		for (wordPos = wordOffset + 1; wordPos <= wordLen; wordPos++) {
+		for (wordPos = 1; wordPos <= wordLen; wordPos++) {
 
 			let score = -1;
 			let lowWordChar = lowWord[wordPos - 1];
 			if (lowPattern[patternPos - 1] === lowWordChar) {
 
-				if (wordPos === wordOffset + 1) {
+				if (wordPos === 1) {
 					if (pattern[patternPos - 1] === word[wordPos - 1]) {
 						score = 7;
 					} else {
@@ -562,7 +580,7 @@ export function fuzzyScore(pattern: string, word: string, patternOffset: number 
 	}
 
 	let bucket: [number, number[]][] = [];
-	findAllMatches(patternLen, patternLen, patternOffset, wordLen, wordOffset, 0, [], bucket, false);
+	findAllMatches(patternLen, patternLen, patternStartPos, wordLen, 0, [], bucket, false);
 
 	if (bucket.length === 0) {
 		return undefined;
@@ -580,7 +598,7 @@ export function fuzzyScore(pattern: string, word: string, patternOffset: number 
 	return topMatch;
 }
 
-function findAllMatches(patternLen: number, patternPos: number, patternOffset: number, wordPos: number, wordOffset: number, total: number, matches: number[], bucket: [number, number[]][], lastMatched: boolean): void {
+function findAllMatches(patternLen: number, patternPos: number, patternStartPos: number, wordPos: number, total: number, matches: number[], bucket: [number, number[]][], lastMatched: boolean): void {
 
 	if (bucket.length >= 10) {
 		return;
@@ -588,7 +606,7 @@ function findAllMatches(patternLen: number, patternPos: number, patternOffset: n
 
 	let simpleMatchCount = 0;
 
-	while (patternPos > patternOffset && wordPos > wordOffset) {
+	while (patternPos > patternStartPos && wordPos > 0) {
 
 		let score = _scores[patternPos][wordPos];
 		let arrow = _arrows[patternPos][wordPos];
@@ -609,8 +627,8 @@ function findAllMatches(patternLen: number, patternPos: number, patternOffset: n
 			if (arrow & Arrow.Left) {
 				// left
 				findAllMatches(
-					patternLen, patternPos, patternOffset,
-					wordPos - 1, wordOffset,
+					patternLen, patternPos, patternStartPos,
+					wordPos - 1,
 					matches.length !== 0 ? total - 1 : total,
 					matches.slice(0), bucket, lastMatched
 				);
@@ -635,7 +653,7 @@ function findAllMatches(patternLen: number, patternPos: number, patternOffset: n
 		}
 	}
 
-	if (matches.length !== patternLen) {
+	if (matches.length !== patternLen - patternStartPos) {
 		// doesn't cover whole pattern
 		return undefined;
 	}

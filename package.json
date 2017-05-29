@@ -2,7 +2,7 @@
   "name": "code-oss-dev",
   "version": "1.13.0",
   "electronVersion": "1.6.6",
-  "distro": "4de68ec7f643597f97a2bd849d6afeba2ae6a729",
+  "distro": "20d9b7ca9af07894c19dbabde24c7c954510fb5b",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -18,7 +18,8 @@
     "monaco-editor-test": "mocha --only-monaco-editor",
     "precommit": "node build/gulpfile.hygiene.js",
     "gulp": "gulp --max_old_space_size=4096",
-    "7z": "7z"
+    "7z": "7z",
+    "update-grammars": "node build/npm/update-all-grammars.js"
   },
   "dependencies": {
     "applicationinsights": "0.17.1",
@@ -39,7 +40,7 @@
     "v8-profiler": "jrieken/v8-profiler#vscode",
     "vscode-debugprotocol": "1.19.0",
     "vscode-ripgrep": "0.0.12",
-    "vscode-textmate": "^3.1.4",
+    "vscode-textmate": "^3.1.5",
     "winreg": "1.2.0",
     "xterm": "Tyriar/xterm.js#vscode-release/1.13",
     "yauzl": "2.3.1"

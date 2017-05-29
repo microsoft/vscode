@@ -21,7 +21,7 @@
   },
   "scripts": {
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript ./tsconfig.json",
-    "update-grammars": "node ./build/update-grammars.js"
+    "update-grammar": "node ./build/update-grammars.js"
   },
   "activationEvents": [
     "onLanguage:javascript",
@@ -34,7 +34,10 @@
     "onCommand:typescript.selectTypeScriptVersion",
     "onCommand:javascript.goToProjectConfig",
     "onCommand:typescript.goToProjectConfig",
-    "onCommand:typescript.openTsServerLog"
+    "onCommand:typescript.openTsServerLog",
+    "onCommand:workbench.action.tasks.runTask",
+    "onCommand:workbench.action.tasks.build",
+    "onCommand:workbench.action.tasks.test"
   ],
   "main": "./out/typescriptMain",
   "contributes": {
@@ -312,6 +315,15 @@
           "type": "boolean",
           "default": true,
           "description": "%javascript.nameSuggestions%"
+        },
+        "typescript.tsc.autoDetect": {
+          "type": "string",
+          "default": "on",
+          "enum": [
+            "on",
+            "off"
+          ],
+          "description": "%typescript.tsc.autoDetect%"
         }
       }
     },
@@ -344,6 +356,11 @@
       {
         "command": "typescript.openTsServerLog",
         "title": "%typescript.openTsServerLog.title%",
+        "category": "TypeScript"
+      },
+      {
+        "command": "typescript.restartTsServer",
+        "title": "%typescript.restartTsServer%",
         "category": "TypeScript"
       }
     ],

@@ -22,7 +22,7 @@ import product from 'vs/platform/node/product';
 import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
 import { IWindowSettings, MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-
+import { KeyboardLayoutMonitor } from 'vs/code/node/keyboard';
 
 export interface IWindowState {
 	width?: number;
@@ -79,9 +79,10 @@ export interface IWindowConfiguration extends ParsedArgs {
 	userEnv: platform.IProcessEnvironment;
 
 	/**
-	 * The physical keyboard is of ISO type (on OSX)
+	 * The physical keyboard is of ISO type (on OSX).
 	 */
 	isISOKeyboard?: boolean;
+
 	zoomLevel?: number;
 	fullscreen?: boolean;
 	highContrast?: boolean;
@@ -554,6 +555,9 @@ export class VSCodeWindow {
 		windowConfiguration.highContrast = platform.isWindows && systemPreferences.isInvertedColorScheme() && (!windowConfig || windowConfig.autoDetectHighContrast);
 		windowConfiguration.accessibilitySupport = app.isAccessibilitySupportEnabled();
 
+		// Set Keyboard Config
+		windowConfiguration.isISOKeyboard = KeyboardLayoutMonitor.INSTANCE.isISOKeyboard();
+
 		// Theme
 		windowConfiguration.baseTheme = this.getBaseTheme();
 		windowConfiguration.backgroundColor = this.getBackgroundColor();
@@ -817,6 +821,33 @@ export class VSCodeWindow {
 				});
 				break;
 		};
+	}
+
+	public onWindowTitleDoubleClick(): void {
+
+		// Respect system settings on mac with regards to title click on windows title
+		if (platform.isMacintosh) {
+			const action = systemPreferences.getUserDefault('AppleActionOnDoubleClick', 'string');
+			switch (action) {
+				case 'Minimize':
+					this.win.minimize();
+					break;
+				case 'None':
+					break;
+				case 'Maximize':
+				default:
+					this.win.maximize();
+			}
+		}
+
+		// Linux/Windows: just toggle maximize/minimized state
+		else {
+			if (this.win.isMaximized()) {
+				this.win.unmaximize();
+			} else {
+				this.win.maximize();
+			}
+		}
 	}
 
 	public sendWhenReady(channel: string, ...args: any[]): void {

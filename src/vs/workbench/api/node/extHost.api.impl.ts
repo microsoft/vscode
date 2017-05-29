@@ -448,9 +448,9 @@ export function createApiFactory(
 			getConfiguration: (section?: string): vscode.WorkspaceConfiguration => {
 				return extHostConfiguration.getConfiguration(section);
 			},
-			registerTaskProvider: proposedApiFunction(extension, (provider: vscode.TaskProvider) => {
+			registerTaskProvider: (provider: vscode.TaskProvider) => {
 				return extHostTask.registerTaskProvider(extension, provider);
-			})
+			}
 		};
 
 		class SCM {
@@ -534,9 +534,8 @@ export function createApiFactory(
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
 			ProgressLocation: extHostTypes.ProgressLocation,
 			TreeItemCollapsibleState: extHostTypes.TreeItemCollapsibleState,
+			ThemeColor: extHostTypes.ThemeColor,
 			// functions
-			FileLocationKind: extHostTypes.FileLocationKind,
-			ApplyToKind: extHostTypes.ApplyToKind,
 			RevealKind: extHostTypes.RevealKind,
 			TaskGroup: extHostTypes.TaskGroup,
 			ShellTask: extHostTypes.ShellTask,

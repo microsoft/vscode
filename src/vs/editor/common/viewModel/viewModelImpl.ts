@@ -19,7 +19,7 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { MinimapTokensColorTracker } from 'vs/editor/common/view/minimapCharRenderer';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
-import { CharacterHardWrappingLineMapperFactory } from "vs/editor/common/viewModel/characterHardWrappingLineMapper";
+import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
 import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
 
 export class CoordinatesConverter implements ICoordinatesConverter {
@@ -178,7 +178,11 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
 			this.decorations.onLineMappingChanged();
 			this.viewLayout.onFlushed(this.getLineCount());
-			revealPreviousCenteredModelRange = true;
+
+			if (this.viewLayout.getScrollTop() !== 0) {
+				// Never change the scroll position from 0 to something else...
+				revealPreviousCenteredModelRange = true;
+			}
 		}
 
 		if (e.readOnly) {

@@ -6,8 +6,8 @@
 'use strict';
 
 import { IStandaloneThemeData } from 'vs/editor/common/services/standaloneThemeService';
-import { editorBackground, editorForeground, editorSelectionHighlight, editorInactiveSelection } from "vs/platform/theme/common/colorRegistry";
-import { editorIndentGuides } from "vs/editor/common/view/editorColorRegistry";
+import { editorBackground, editorForeground, editorSelectionHighlight, editorInactiveSelection } from 'vs/platform/theme/common/colorRegistry';
+import { editorIndentGuides } from 'vs/editor/common/view/editorColorRegistry';
 
 /* -------------------------------- Begin vs theme -------------------------------- */
 export const vs: IStandaloneThemeData = {

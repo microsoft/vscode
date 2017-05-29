@@ -22,6 +22,8 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerColor, textPreformatForeground } from 'vs/platform/theme/common/colorRegistry';
 
 interface Key {
 	id: string;
@@ -233,3 +235,23 @@ Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
 
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
 	.registerWorkbenchAction(new SyncActionDescriptor(HideWelcomeOverlayAction, HideWelcomeOverlayAction.ID, HideWelcomeOverlayAction.LABEL, { primary: KeyCode.Escape }, OVERLAY_VISIBLE), 'Help: Hide Interface Overview', localize('help', "Help"));
+
+// theming
+
+const foreground = registerColor('welcomeOverlay.foreground', { dark: '#fff', light: '#000', hc: '#fff' }, localize('welcomeOverlay.foreground', 'Foreground color for the Interface Overview.'));
+const background = registerColor('welcomeOverlay.background', { dark: '#00000085', light: '#FFFFFF85', hc: '#00000085' }, localize('welcomeOverlay.background', 'Background color for the Interface Overview.'));
+
+registerThemingParticipant((theme, collector) => {
+	const key = theme.getColor(foreground);
+	if (key) {
+		collector.addRule(`.monaco-workbench > .welcomeOverlay > .key { color: ${key}; }`);
+	}
+	const backgroundColor = theme.getColor(background);
+	if (backgroundColor) {
+		collector.addRule(`.monaco-workbench > .welcomeOverlay { background: ${backgroundColor}; }`);
+	}
+	const shortcut = theme.getColor(textPreformatForeground);
+	if (shortcut) {
+		collector.addRule(`.monaco-workbench > .welcomeOverlay > .key > .shortcut { color: ${shortcut}; }`);
+	}
+});

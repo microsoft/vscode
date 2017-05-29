@@ -23,7 +23,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { editorWidgetBackground, widgetShadow } from "vs/platform/theme/common/colorRegistry";
+import { editorWidgetBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 
 class KeybindingInputWidget extends Widget {
 

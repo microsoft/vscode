@@ -9,20 +9,6 @@ import * as Types from 'vs/base/common/types';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
 
-export interface CommandOptions {
-	/**
-	 * The current working directory of the executed program or shell.
-	 * If omitted VSCode's current workspace root is used.
-	 */
-	cwd?: string;
-
-	/**
-	 * The environment of the executed program or shell. If omitted
-	 * the parent process' environment is used.
-	 */
-	env?: { [key: string]: string; };
-}
-
 export interface ShellConfiguration {
 	/**
 	 * The shell executable.
@@ -41,16 +27,101 @@ export namespace ShellConfiguration {
 	}
 }
 
+export interface CommandOptions {
+
+	/**
+	 * The shell to use if the task is a shell command.
+	 */
+	shell?: ShellConfiguration;
+
+	/**
+	 * The current working directory of the executed program or shell.
+	 * If omitted VSCode's current workspace root is used.
+	 */
+	cwd?: string;
+
+	/**
+	 * The environment of the executed program or shell. If omitted
+	 * the parent process' environment is used.
+	 */
+	env?: { [key: string]: string; };
+}
+
+export enum RevealKind {
+	/**
+	 * Always brings the terminal to front if the task is executed.
+	 */
+	Always = 1,
+
+	/**
+	 * Only brings the terminal to front if a problem is detected executing the task
+	 * (e.g. the task couldn't be started because).
+	 */
+	Silent = 2,
+
+	/**
+	 * The terminal never comes to front when the task is executed.
+	 */
+	Never = 3
+}
+
+export namespace RevealKind {
+	export function fromString(value: string): RevealKind {
+		switch (value.toLowerCase()) {
+			case 'always':
+				return RevealKind.Always;
+			case 'silent':
+				return RevealKind.Silent;
+			case 'never':
+				return RevealKind.Never;
+			default:
+				return RevealKind.Always;
+		}
+	}
+}
+
+export interface TerminalBehavior {
+	/**
+	 * Controls whether the terminal executing a task is brought to front or not.
+	 * Defaults to `RevealKind.Always`.
+	 */
+	reveal: RevealKind;
+
+	/**
+	 * Controls whether the executed command is printed to the output window or terminal as well.
+	 */
+	echo: boolean;
+}
+
+export enum CommandType {
+	Shell = 1,
+	Process = 2
+}
+
+export namespace CommandType {
+	export function fromString(value: string): CommandType {
+		switch (value.toLowerCase()) {
+			case 'shell':
+				return CommandType.Shell;
+			case 'process':
+				return CommandType.Process;
+			default:
+				return CommandType.Process;
+		}
+	}
+}
+
 export interface CommandConfiguration {
+
+	/**
+	 * The task type
+	 */
+	type: CommandType;
+
 	/**
 	 * The command to execute
 	 */
 	name: string;
-
-	/**
-	 * Whether the command is a shell command or not
-	 */
-	isShellCommand: boolean | ShellConfiguration;
 
 	/**
 	 * Additional command options.
@@ -68,30 +139,9 @@ export interface CommandConfiguration {
 	taskSelector?: string;
 
 	/**
-	 * Controls whether the executed command is printed to the output windows as well.
+	 * Describes how the terminal is supposed to behave.
 	 */
-	echo: boolean;
-}
-
-export enum ShowOutput {
-	Always = 1,
-	Silent = 2,
-	Never = 3
-}
-
-export namespace ShowOutput {
-	export function fromString(value: string): ShowOutput {
-		value = value.toLowerCase();
-		if (value === 'always') {
-			return ShowOutput.Always;
-		} else if (value === 'silent') {
-			return ShowOutput.Silent;
-		} else if (value === 'never') {
-			return ShowOutput.Never;
-		} else {
-			return undefined;
-		}
-	}
+	terminal: TerminalBehavior;
 }
 
 export namespace TaskGroup {
@@ -103,7 +153,7 @@ export namespace TaskGroup {
 
 	export const Test: 'test' = 'test';
 
-	export function is(value: string): value is TaskGroup {
+	export function is(value: string): value is string {
 		return value === Clean || value === Build || value === RebuildAll || value === Test;
 	}
 }
@@ -118,6 +168,7 @@ export enum TaskSourceKind {
 
 export interface TaskSource {
 	kind: TaskSourceKind;
+	label: string;
 	detail?: string;
 }
 
@@ -149,7 +200,7 @@ export interface Task {
 	/**
 	 * the task's group;
 	 */
-	group?: TaskGroup;
+	group?: string;
 
 	/**
 	 * The command configuration
@@ -176,12 +227,6 @@ export interface Task {
 	 * Whether the task should prompt on close for confirmation if running.
 	 */
 	promptOnClose?: boolean;
-
-	/**
-	 * Controls whether the output of the running tasks is shown or not. Default
-	 * value is "always".
-	 */
-	showOutput: ShowOutput;
 
 	/**
 	 * The other tasks this task depends on.

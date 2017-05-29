@@ -241,13 +241,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private onTitleDoubleclick(): void {
-		this.windowService.isMaximized().then(maximized => {
-			if (maximized) {
-				this.windowService.unmaximizeWindow().done(null, errors.onUnexpectedError);
-			} else {
-				this.windowService.maximizeWindow().done(null, errors.onUnexpectedError);
-			}
-		}, errors.onUnexpectedError);
+		this.windowService.onWindowTitleDoubleClick().then(null, errors.onUnexpectedError);
 	}
 
 	private onContextMenu(e: MouseEvent): void {

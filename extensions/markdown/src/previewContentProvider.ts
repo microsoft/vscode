@@ -166,7 +166,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 	private computeCustomStyleSheetIncludes(uri: vscode.Uri): string {
 		if (this.config.styles && Array.isArray(this.config.styles)) {
 			return this.config.styles.map((style) => {
-				return `<link rel="stylesheet" data-source="${style.replace(/"/g, '&quot;')}" onerror="onStyleLoadError(event)" href="${this.fixHref(uri, style)}" type="text/css" media="screen">`;
+				return `<link rel="stylesheet" class="code-user-style" data-source="${style.replace(/"/g, '&quot;')}" href="${this.fixHref(uri, style)}" type="text/css" media="screen">`;
 			}).join('\n');
 		}
 		return '';

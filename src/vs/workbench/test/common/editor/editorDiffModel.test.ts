@@ -12,15 +12,15 @@ import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorMo
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { ResourceEditorInput } from "vs/workbench/common/editor/resourceEditorInput";
-import URI from "vs/base/common/uri";
-import { ITextModelResolverService } from "vs/editor/common/services/resolverService";
-import { ITextFileService } from "vs/workbench/services/textfile/common/textfiles";
-import { IUntitledEditorService } from "vs/workbench/services/untitled/common/untitledEditorService";
-import { TestTextFileService, workbenchInstantiationService } from "vs/workbench/test/workbenchTestServices";
+import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import URI from 'vs/base/common/uri';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import { TPromise } from "vs/base/common/winjs.base";
-import { IModel } from "vs/editor/common/editorCommon";
-import { IInstantiationService } from "vs/platform/instantiation/common/instantiation";
+import { IModel } from 'vs/editor/common/editorCommon';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 class MyEditorModel extends EditorModel { }
 class MyTextEditorModel extends BaseTextEditorModel { }

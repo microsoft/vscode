@@ -6,5 +6,6 @@
 {
 	"copyValue": "値のコピー",
 	"copy": "コピー",
+	"copyAll": "すべてコピー",
 	"copyStackTrace": "呼び出し履歴のコピー"
 }

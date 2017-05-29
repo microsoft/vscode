@@ -273,7 +273,8 @@ export const GitErrorCodes = {
 	CantCreatePipe: 'CantCreatePipe',
 	CantAccessRemote: 'CantAccessRemote',
 	RepositoryNotFound: 'RepositoryNotFound',
-	RepositoryIsLocked: 'RepositoryIsLocked'
+	RepositoryIsLocked: 'RepositoryIsLocked',
+	BranchNotFullyMerged: 'BranchNotFullyMerged'
 };
 
 function getGitErrorCode(stderr: string): string | undefined {
@@ -291,6 +292,8 @@ function getGitErrorCode(stderr: string): string | undefined {
 		return GitErrorCodes.RepositoryNotFound;
 	} else if (/unable to access/.test(stderr)) {
 		return GitErrorCodes.CantAccessRemote;
+	} else if (/branch '.+' is not fully merged/.test(stderr)) {
+		return GitErrorCodes.BranchNotFullyMerged;
 	}
 
 	return void 0;
@@ -647,6 +650,11 @@ export class Repository {
 
 	async branch(name: string, checkout: boolean): Promise<void> {
 		const args = checkout ? ['checkout', '-q', '-b', name] : ['branch', '-q', name];
+		await this.run(args);
+	}
+
+	async deleteBranch(name: string, force?: boolean): Promise<void> {
+		const args = ['branch', force ? '-D' : '-d', name];
 		await this.run(args);
 	}
 

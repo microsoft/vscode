@@ -60,6 +60,23 @@ class CheckoutRemoteHeadItem extends CheckoutItem {
 	}
 }
 
+class BranchDeleteItem implements QuickPickItem {
+
+	private get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
+	get branchName(): string | undefined { return this.ref.name; }
+	get label(): string { return this.branchName || ''; }
+	get description(): string { return this.shortCommit; }
+
+	constructor(private ref: Ref) { }
+
+	async run(model: Model, force?: boolean): Promise<void> {
+		if (!this.branchName) {
+			return;
+		}
+		await model.deleteBranch(this.branchName, force);
+	}
+}
+
 interface Command {
 	commandId: string;
 	key: string;
@@ -132,7 +149,7 @@ export class CommandCenter {
 			return await commands.executeCommand<void>('vscode.open', right);
 		}
 
-		return await commands.executeCommand<void>('vscode.diff', left, right, title);
+		return await commands.executeCommand<void>('vscode.diff', left, right, title, { preview: true });
 	}
 
 	private getLeftResource(resource: Resource): Uri | undefined {
@@ -697,6 +714,43 @@ export class CommandCenter {
 
 		const name = result.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$/g, '-');
 		await this.model.branch(name);
+	}
+
+	@command('git.deleteBranch')
+	async deleteBranch(name: string, force?: boolean): Promise<void> {
+		let run: (force?: boolean) => Promise<void>;
+		if (typeof name === 'string') {
+			run = force => this.model.deleteBranch(name, force);
+		} else {
+			const currentHead = this.model.HEAD && this.model.HEAD.name;
+			const heads = this.model.refs.filter(ref => ref.type === RefType.Head && ref.name !== currentHead)
+				.map(ref => new BranchDeleteItem(ref));
+
+			const placeHolder = localize('select branch to delete', 'Select a branch to delete');
+			const choice = await window.showQuickPick<BranchDeleteItem>(heads, { placeHolder });
+
+			if (!choice || !choice.branchName) {
+				return;
+			}
+			name = choice.branchName;
+			run = force => choice.run(this.model, force);
+		}
+
+		try {
+			await run(force);
+		} catch (err) {
+			if (err.gitErrorCode !== GitErrorCodes.BranchNotFullyMerged) {
+				throw err;
+			}
+
+			const message = localize('confirm force delete branch', "The branch '{0}' is not fully merged. Delete anyway?", name);
+			const yes = localize('delete branch', "Delete Branch");
+			const pick = await window.showWarningMessage(message, yes);
+
+			if (pick === yes) {
+				await run(true);
+			}
+		}
 	}
 
 	@command('git.pull')

@@ -39,7 +39,7 @@ import pfs = require('vs/base/node/pfs');
 import colorThemeSchema = require('vs/workbench/services/themes/common/colorThemeSchema');
 import fileIconThemeSchema = require('vs/workbench/services/themes/common/fileIconThemeSchema');
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { getParseErrorMessage } from "vs/base/common/jsonErrorMessages";
+import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 
 // implementation
 
@@ -51,6 +51,7 @@ const PERSISTED_THEME_STORAGE_KEY = 'colorThemeData';
 const defaultThemeExtensionId = 'vscode-theme-defaults';
 const oldDefaultThemeExtensionId = 'vscode-theme-colorful-defaults';
 
+const DEFAULT_ICON_THEME_SETTING_VALUE = 'vs-seti';
 const fileIconsEnabledClass = 'file-icons-enabled';
 
 const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingContribution);
@@ -396,10 +397,6 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		themeId = validateThemeId(themeId); // migrate theme ids
 
-		if (this.themingParticipantChangeListener) {
-			this.themingParticipantChangeListener.dispose();
-			this.themingParticipantChangeListener = null;
-		}
 
 		return this.findThemeData(themeId, DEFAULT_THEME_ID).then(themeData => {
 			if (themeData) {
@@ -446,7 +443,9 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			$(this.container).addClass(newTheme.id);
 		}
 		this.currentColorTheme = newTheme;
-		this.themingParticipantChangeListener = themingRegistry.onThemingParticipantAdded(p => this.updateDynamicCSSRules(this.currentColorTheme));
+		if (!this.themingParticipantChangeListener) {
+			this.themingParticipantChangeListener = themingRegistry.onThemingParticipantAdded(p => this.updateDynamicCSSRules(this.currentColorTheme));
+		}
 
 		this.sendTelemetry(newTheme.id, newTheme.extensionData, 'color');
 
@@ -964,7 +963,7 @@ const colorThemeSettingSchema: IJSONSchema = {
 };
 const iconThemeSettingSchema: IJSONSchema = {
 	type: ['string', 'null'],
-	default: null,
+	default: DEFAULT_ICON_THEME_SETTING_VALUE,
 	description: nls.localize('iconTheme', "Specifies the icon theme used in the workbench."),
 	enum: [null],
 	enumDescriptions: [nls.localize('noIconThemeDesc', 'No file icons')],

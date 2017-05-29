@@ -8,8 +8,8 @@
 import 'vs/css!./countBadge';
 import { $, append } from 'vs/base/browser/dom';
 import { format } from 'vs/base/common/strings';
-import { Color } from "vs/base/common/color";
-import { mixin } from "vs/base/common/objects";
+import { Color } from 'vs/base/common/color';
+import { mixin } from 'vs/base/common/objects';
 
 export interface ICountBadgeOptions extends ICountBadgetyles {
 	count?: number;

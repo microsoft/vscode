@@ -739,7 +739,7 @@ ${tableHeader}\n${table};
 		// 2000 chars is browsers de-facto limit for URLs, 400 chars are allowed for other string parts of the issue URL
 		// http://stackoverflow.com/questions/417142/what-is-the-maximum-length-of-a-url-in-different-browsers
 		if (encodeURIComponent(extensionTable).length > 1600) {
-			return 'the listing exceeds the lower minimum of browsers\' URL characters limit';
+			return 'the listing length exceeds browsers\' URL characters limit';
 		}
 
 		return extensionTable;

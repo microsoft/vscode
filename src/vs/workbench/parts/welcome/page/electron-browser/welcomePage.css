@@ -16,9 +16,6 @@
 	max-width: 1200px;
 	font-size: 10px;
 }
-.vs .monaco-workbench > .part.editor > .content .welcomePage {
-	color: #6C6C6C;
-}
 
 .monaco-workbench > .part.editor > .content .welcomePage .row {
 	display: flex;
@@ -41,12 +38,7 @@
 }
 
 .monaco-workbench > .part.editor > .content .welcomePage a {
-	color: #2e70c0;
 	text-decoration: none;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content .welcomePage a {
-	color: #4080D0;
 }
 
 .monaco-workbench > .part.editor > .content .welcomePage a:focus {
@@ -54,34 +46,13 @@
 	outline-offset: -1px;
 }
 
-.monaco-workbench > .part.editor > .content .welcomePage a:hover {
-	color: #6ea0dc;
-}
-
-.hc-black .monaco-workbench > .part.editor > .content .welcomePage a {
-	color: #0b9eff;
-}
-
-.hc-black .monaco-workbench > .part.editor > .content .welcomePage a:hover {
-	color: #f38518;
-}
-
 .monaco-workbench > .part.editor > .content .welcomePage h1 {
 	padding: 0;
 	margin: 0;
 	border: none;
 	font-weight: normal;
-	color: rgba(0,0,0,.8);
 	font-size: 3.6em;
 	white-space: nowrap;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content .welcomePage h1 {
-	color: rgba(255,255,255,.76);
-}
-
-.hc-black .monaco-workbench > .part.editor > .content .welcomePage h1 {
-	color: white;
 }
 
 .monaco-workbench > .part.editor > .content .welcomePage .title {
@@ -89,18 +60,14 @@
 	margin-bottom: 1em;
 	flex: 1 100%;
 }
+
 .monaco-workbench > .part.editor > .content .welcomePage .subtitle {
 	margin-top: .8em;
 	font-size: 2.6em;
-	color: rgba(0,0,0,.53);
 	display: block;
-}
-.vs-dark .monaco-workbench > .part.editor > .content .welcomePage .subtitle {
-	color: rgba(255,255,255,.46);
 }
 
 .hc-black .monaco-workbench > .part.editor > .content .welcomePage .subtitle {
-	color: white;
 	font-weight: 200;
 }
 
@@ -150,22 +117,6 @@
 }
 .monaco-workbench > .part.editor > .content .welcomePage .splash .recent .path {
 	padding-left: 1em;
-	color: rgba(255,255,255,.46);
-}
-
-.monaco-workbench > .part.editor > .content .welcomePage .splash .recent .none,
-.monaco-workbench > .part.editor > .content .welcomePage .splash .recent .path {
-	color: rgba(0,0,0,.53);
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content .welcomePage .splash .recent .none,
-.vs-dark .monaco-workbench > .part.editor > .content .welcomePage .splash .recent .path {
-	color: rgba(255,255,255,.46);
-}
-
-.hc-black .monaco-workbench > .part.editor > .content .welcomePage .splash .recent .none,
-.hc-black .monaco-workbench > .part.editor > .content .welcomePage .splash .recent .path {
-	color: white;
 }
 
 .monaco-workbench > .part.editor > .content .welcomePage .splash .title,
@@ -207,25 +158,12 @@
 	margin-bottom: .25em;
 }
 
-.vs .monaco-workbench > .part.editor > .content .welcomePage .commands li button h3 {
-	color: #2c2c2c;
-}
-
 .monaco-workbench > .part.editor > .content .welcomePage .commands li button {
-	color: #6c6c6c;
 	border: none;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content .welcomePage .commands li button > h3 {
-	color: #ccc;
 }
 
 .hc-black .monaco-workbench > .part.editor > .content .welcomePage .commands li button > h3 {
 	font-weight: bold;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content .welcomePage .commands li button {
-	color: #828282;
 }
 
 .monaco-workbench > .part.editor > .content .welcomePage .commands li button:focus {
@@ -234,14 +172,13 @@
 }
 
 .hc-black .monaco-workbench > .part.editor > .content .welcomePage .commands li button {
-	color: white;
-	border-color: #f38518;
 	border-width: 1px;
 	border-style: solid;
 }
 
 .hc-black .monaco-workbench > .part.editor > .content .welcomePage .commands li button:hover {
-	outline: 1px dashed #f38518;
+	outline-width: 1px;
+	outline-style: dashed;
 	outline-offset: -5px;
 }
 

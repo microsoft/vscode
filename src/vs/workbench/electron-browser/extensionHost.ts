@@ -32,6 +32,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { MainProcessExtensionService } from 'vs/workbench/api/electron-browser/mainThreadExtensionService';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { ICrashReporterService } from 'vs/workbench/services/crashReporter/common/crashReporterService';
 
 export const EXTENSION_LOG_BROADCAST_CHANNEL = 'vscode:extensionLog';
 export const EXTENSION_ATTACH_BROADCAST_CHANNEL = 'vscode:extensionAttach';
@@ -92,7 +93,9 @@ export class ExtensionHostProcessWorker {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@ICrashReporterService private crashReporterService: ICrashReporterService
+
 	) {
 		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
 		this.isExtensionDevelopmentHost = environmentService.isExtensionDevelopment;
@@ -111,7 +114,7 @@ export class ExtensionHostProcessWorker {
 			const [server, hook] = <[Server, string]>data[0];
 			const port = <number>data[1];
 
-			let opts = {
+			const opts = {
 				env: objects.mixin(objects.clone(process.env), {
 					AMD_ENTRYPOINT: 'vs/workbench/node/extensionHostProcess',
 					PIPE_LOGGING: 'true',
@@ -129,6 +132,11 @@ export class ExtensionHostProcessWorker {
 					? ['--nolazy', (this.isExtensionDevelopmentDebugBrk ? '--debug-brk=' : '--debug=') + port]
 					: undefined
 			};
+
+			const crashReporterOptions = this.crashReporterService.getChildProcessStartOptions('extensionHost');
+			if (crashReporterOptions) {
+				opts.env.CRASH_REPORTER_START_OPTIONS = JSON.stringify(crashReporterOptions);
+			}
 
 			// Run Extension Host as fork of current process
 			this.extensionHostProcess = fork(URI.parse(require.toUrl('bootstrap')).fsPath, ['--type=extensionHost'], opts);

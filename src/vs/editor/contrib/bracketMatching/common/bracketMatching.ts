@@ -14,9 +14,9 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, commonEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { registerThemingParticipant } from "vs/platform/theme/common/themeService";
-import { editorBracketMatchBackground, editorBracketMatchBorder } from "vs/editor/common/view/editorColorRegistry";
-import { ModelDecorationOptions } from "vs/editor/common/model/textModelWithDecorations";
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorBracketMatchBackground, editorBracketMatchBorder } from 'vs/editor/common/view/editorColorRegistry';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 @editorAction
 class SelectBracketAction extends EditorAction {
@@ -82,7 +82,16 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		this._matchBrackets = this._editor.getConfiguration().contribInfo.matchBrackets;
 
 		this._updateBracketsSoon.schedule();
-		this._register(editor.onDidChangeCursorPosition((e) => this._updateBracketsSoon.schedule()));
+		this._register(editor.onDidChangeCursorPosition((e) => {
+
+			if (!this._matchBrackets) {
+				// Early exit if nothing needs to be done!
+				// Leave some form of early exit check here if you wish to continue being a cursor position change listener ;)
+				return;
+			}
+
+			this._updateBracketsSoon.schedule();
+		}));
 		this._register(editor.onDidChangeModel((e) => { this._decorations = []; this._updateBracketsSoon.schedule(); }));
 		this._register(editor.onDidChangeConfiguration((e) => {
 			this._matchBrackets = this._editor.getConfiguration().contribInfo.matchBrackets;

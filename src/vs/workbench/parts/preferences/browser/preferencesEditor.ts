@@ -53,8 +53,8 @@ import { FindController } from 'vs/editor/contrib/find/browser/find';
 import { SelectionHighlighter } from 'vs/editor/contrib/find/common/findController';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { attachStylerCallback } from "vs/platform/theme/common/styler";
-import { scrollbarShadow } from "vs/platform/theme/common/colorRegistry";
+import { attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	public static ID: string = 'workbench.editorinputs.preferencesEditorInput';

@@ -207,11 +207,11 @@ export class ExplorerViewlet extends Viewlet {
 		const views = [];
 
 		const viewsState = JSON.parse(this.storageService.get(ExplorerViewlet.EXPLORER_VIEWS_STATE, this.contextService.hasWorkspace() ? StorageScope.WORKSPACE : StorageScope.GLOBAL, '{}'));
-		for (const viewDescrirptor of viewDescriptors) {
-			const view = this.instantiationService.createInstance(viewDescrirptor.ctor, viewDescrirptor.id, {
-				name: viewDescrirptor.name,
+		for (const viewDescriptor of viewDescriptors) {
+			const view = this.instantiationService.createInstance(viewDescriptor.ctor, viewDescriptor.id, {
+				name: viewDescriptor.name,
 				actionRunner: this.getActionRunner(),
-				collapsed: viewsState[viewDescrirptor.id] ? (<IViewState>viewsState[viewDescrirptor.id]).collapsed : true
+				collapsed: viewsState[viewDescriptor.id] ? (<IViewState>viewsState[viewDescriptor.id]).collapsed : true
 			});
 			views.push(view);
 			this.views.push(view);

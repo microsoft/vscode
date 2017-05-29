@@ -5,18 +5,13 @@
 'use strict';
 
 import { TextAreaInput, ITextAreaInputHost } from 'vs/editor/browser/controller/textAreaInput';
-import { ISimpleModel, TextAreaState, IENarratorStrategy, NVDAPagedStrategy } from 'vs/editor/browser/controller/textAreaState';
+import { ISimpleModel, TextAreaState, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/textAreaState';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { createFastDomNode } from 'vs/base/browser/fastDomNode';
 import * as browser from 'vs/base/browser/browser';
 
 // To run this test, open imeTester.html
-
-const enum TextAreaStrategy {
-	IENarrator,
-	NVDA
-}
 
 class SingleLineTestModel implements ISimpleModel {
 
@@ -67,7 +62,7 @@ class TestView {
 	}
 }
 
-function doCreateTest(strategy: TextAreaStrategy, description: string, inputStr: string, expectedStr: string): HTMLElement {
+function doCreateTest(description: string, inputStr: string, expectedStr: string): HTMLElement {
 	let cursorOffset: number = 0;
 	let cursorLength: number = 0;
 
@@ -77,17 +72,7 @@ function doCreateTest(strategy: TextAreaStrategy, description: string, inputStr:
 	let title = document.createElement('div');
 	title.className = 'title';
 
-	const toStr = (value: TextAreaStrategy): string => {
-		if (value === TextAreaStrategy.IENarrator) {
-			return 'IENarrator';
-		}
-		if (value === TextAreaStrategy.NVDA) {
-			return 'NVDA';
-		}
-		return '???';
-	};
-
-	title.innerHTML = toStr(strategy) + ' strategy: ' + description + '. Type <strong>' + inputStr + '</strong>';
+	title.innerHTML = description + '. Type <strong>' + inputStr + '</strong>';
 	container.appendChild(title);
 
 	let startBtn = document.createElement('button');
@@ -114,11 +99,7 @@ function doCreateTest(strategy: TextAreaStrategy, description: string, inputStr:
 
 			const selection = new Range(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength);
 
-			if (strategy === TextAreaStrategy.IENarrator) {
-				return IENarratorStrategy.fromEditorSelection(currentState, model, selection);
-			}
-
-			return NVDAPagedStrategy.fromEditorSelection(currentState, model, selection);
+			return PagedScreenReaderStrategy.fromEditorSelection(currentState, model, selection);
 		}
 	};
 
@@ -194,6 +175,5 @@ const TESTS = [
 ];
 
 TESTS.forEach((t) => {
-	document.body.appendChild(doCreateTest(TextAreaStrategy.NVDA, t.description, t.in, t.out));
-	document.body.appendChild(doCreateTest(TextAreaStrategy.IENarrator, t.description, t.in, t.out));
+	document.body.appendChild(doCreateTest(t.description, t.in, t.out));
 });

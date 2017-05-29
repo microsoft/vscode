@@ -219,7 +219,16 @@ export class FoldingController implements IFoldingController {
 		this.localToDispose.push(this.cursorChangedScheduler);
 
 		this.localToDispose.push(this.editor.onDidChangeModelContent(e => this.contentChangedScheduler.schedule()));
-		this.localToDispose.push(this.editor.onDidChangeCursorPosition(e => this.cursorChangedScheduler.schedule()));
+		this.localToDispose.push(this.editor.onDidChangeCursorPosition((e) => {
+
+			if (!this._isEnabled) {
+				// Early exit if nothing needs to be done!
+				// Leave some form of early exit check here if you wish to continue being a cursor position change listener ;)
+				return;
+			}
+
+			this.cursorChangedScheduler.schedule();
+		}));
 		this.localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this.localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
 
@@ -278,7 +287,7 @@ export class FoldingController implements IFoldingController {
 			return;
 		}
 		let range = e.target.range;
-		if (!range || !range.isEmpty) {
+		if (!range) {
 			return;
 		}
 		if (!e.event.leftButton) {
@@ -294,7 +303,7 @@ export class FoldingController implements IFoldingController {
 				break;
 			case MouseTargetType.CONTENT_EMPTY:
 			case MouseTargetType.CONTENT_TEXT:
-				if (range.isEmpty && range.startColumn === model.getLineMaxColumn(range.startLineNumber)) {
+				if (range.startColumn === model.getLineMaxColumn(range.startLineNumber)) {
 					break;
 				}
 				return;
@@ -313,7 +322,7 @@ export class FoldingController implements IFoldingController {
 		let iconClicked = this.mouseDownInfo.iconClicked;
 
 		let range = e.target.range;
-		if (!range || !range.isEmpty || range.startLineNumber !== lineNumber) {
+		if (!range || range.startLineNumber !== lineNumber) {
 			return;
 		}
 

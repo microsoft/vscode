@@ -599,12 +599,14 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				this.messageElement.textContent = SuggestWidget.LOADING_MESSAGE;
 				hide(this.listElement, this.details.element);
 				show(this.messageElement);
+				removeClass(this.element, 'docs-side');
 				this.show();
 				break;
 			case State.Empty:
 				this.messageElement.textContent = SuggestWidget.NO_SUGGESTIONS_MESSAGE;
 				hide(this.listElement, this.details.element);
 				show(this.messageElement);
+				removeClass(this.element, 'docs-side');
 				this.show();
 				break;
 			case State.Open:
@@ -946,14 +948,47 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	}
 
 	private adjustListPosition(): void {
-		if (hasClass(this.element, 'widget-above')
-			&& hasClass(this.element, 'docs-side')
-			&& this.details.element.offsetHeight > this.listElement.offsetHeight) {
-			// Docs is bigger than list and widget is above cursor, apply margin-top so that list appears right above cursor
-			this.listElement.style.marginTop = `${this.details.element.offsetHeight - this.listElement.offsetHeight}px`;
-		} else {
-			this.listElement.style.marginTop = '0px';
+
+
+		if (hasClass(this.element, 'docs-side')) {
+
+			if (this.details.element.offsetHeight > this.listElement.offsetHeight) {
+
+				// Fix for #26416
+				// Docs is bigger than list and widget is above cursor, apply margin-top so that list appears right above cursor
+				if (hasClass(this.element, 'widget-above')) {
+					this.listElement.style.marginTop = `${this.details.element.offsetHeight - this.listElement.offsetHeight}px`;
+				}
+
+				// Fix for #26244
+				if (hasClass(this.element, 'list-right')) {
+					addClass(this.listElement, 'empty-left-border');
+					removeClass(this.listElement, 'empty-right-border');
+				} else {
+					addClass(this.listElement, 'empty-right-border');
+					removeClass(this.listElement, 'empty-left-border');
+				}
+
+				removeClass(this.details.element, 'empty-left-border');
+				removeClass(this.details.element, 'empty-right-border');
+				return;
+			} else {
+				// Fix for #26244
+				if (hasClass(this.element, 'list-right')) {
+					addClass(this.details.element, 'empty-right-border');
+					removeClass(this.details.element, 'empty-left-border');
+				} else {
+					addClass(this.details.element, 'empty-left-border');
+					removeClass(this.details.element, 'empty-right-border');
+				}
+
+				removeClass(this.listElement, 'empty-right-border');
+				removeClass(this.listElement, 'empty-left-border');
+			}
 		}
+
+		// Reset margin-top that was set as Fix for #26416
+		this.listElement.style.marginTop = '0px';
 	}
 
 	private renderDetails(): void {

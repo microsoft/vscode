@@ -254,6 +254,24 @@ export const diffRemoved = registerColor('diffEditor.removedTextBackground', { d
 export const diffInsertedOutline = registerColor('diffEditor.insertedTextBorder', { dark: null, light: null, hc: '#33ff2eff' }, nls.localize('diffEditorInsertedOutline', 'Outline color for the text that got inserted.'));
 export const diffRemovedOutline = registerColor('diffEditor.removedTextBorder', { dark: null, light: null, hc: '#FF008F' }, nls.localize('diffEditorRemovedOutline', 'Outline color for text that got removed.'));
 
+/**
+ * Merge-conflict colors
+ */
+
+const headerTransparency = 0.5;
+const currentBaseColor = Color.fromHex('#40C8AE').transparent(headerTransparency);
+const incomingBaseColor = Color.fromHex('#40A6FF').transparent(headerTransparency);
+const contentTransparency = 0.4;
+const rulerTransparency = 1;
+
+export const mergeCurrentHeaderBackground = registerColor('merge.currentHeaderBackground', { dark: currentBaseColor, light: currentBaseColor, hc: currentBaseColor }, nls.localize('mergeCurrentHeaderBackground', 'Current header background in inline merge-conflict.'));
+export const mergeCurrentContentBackground = registerColor('merge.currentContentBackground', { dark: transparent(mergeCurrentHeaderBackground, contentTransparency), light: transparent(mergeCurrentHeaderBackground, contentTransparency), hc: transparent(mergeCurrentHeaderBackground, contentTransparency) }, nls.localize('mergeCurrentContentBackground', 'Current content background in inline merge-conflict.'));
+export const mergeIncomingHeaderBackground = registerColor('merge.incomingHeaderBackground', { dark: incomingBaseColor, light: incomingBaseColor, hc: incomingBaseColor }, nls.localize('mergeIncomingHeaderBackground', 'Incoming header background in inline merge-conflict.'));
+export const mergeIncomingContentBackground = registerColor('merge.incomingContentBackground', { dark: transparent(mergeIncomingHeaderBackground, contentTransparency), light: transparent(mergeIncomingHeaderBackground, contentTransparency), hc: transparent(mergeIncomingHeaderBackground, contentTransparency) }, nls.localize('mergeIncomingContentBackground', 'Incoming content background in inline merge-conflict.'));
+
+export const overviewRulerCurrentContentForeground = registerColor('overviewRuler.currentContentForeground', { dark: transparent(mergeCurrentHeaderBackground, rulerTransparency), light: transparent(mergeCurrentHeaderBackground, rulerTransparency), hc: transparent(mergeCurrentHeaderBackground, rulerTransparency) }, nls.localize('overviewRulerCurrentContentForeground', 'Current overview ruler foreground for inline merge-conflict.'));
+export const overviewRulerIncomingContentForeground = registerColor('overviewRuler.incomingContentForeground', { dark: transparent(mergeIncomingHeaderBackground, rulerTransparency), light: transparent(mergeIncomingHeaderBackground, rulerTransparency), hc: transparent(mergeIncomingHeaderBackground, rulerTransparency) }, nls.localize('overviewRulerIncomingContentForeground', 'Incoming overview ruler foreground for inline merge-conflict.'));
+
 // ----- color functions
 
 export function darken(colorValue: ColorValue, factor: number): ColorFunction {

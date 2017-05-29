@@ -34,6 +34,10 @@ const extensions = [
 	'git',
 	'gulp',
 	'grunt',
+	'jake',
+	'merge-conflict',
+	'emmet',
+	'npm',
 	'jake'
 ];
 

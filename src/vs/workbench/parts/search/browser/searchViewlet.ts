@@ -9,7 +9,7 @@ import 'vs/css!./media/searchviewlet';
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Emitter, debounceEvent } from 'vs/base/common/event';
-import { ICommonCodeEditor, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, isCommonCodeEditor, isCommonDiffEditor } from 'vs/editor/common/editorCommon';
 import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
 import aria = require('vs/base/browser/ui/aria/aria');
@@ -27,7 +27,6 @@ import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { Scope } from 'vs/workbench/common/memento';
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { getOutOfWorkspaceEditorResources } from 'vs/workbench/common/editor';
 import { FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { Match, FileMatch, SearchModel, FileMatchOrMatch, IChangeEvent, ISearchWorkbenchService } from 'vs/workbench/parts/search/common/searchModel';
@@ -61,6 +60,7 @@ import FileResultsNavigation from 'vs/workbench/browser/fileResultsNavigation';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { Color } from 'vs/base/common/color';
+import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
 
 export class SearchViewlet extends Viewlet {
 
@@ -498,7 +498,7 @@ export class SearchViewlet extends Viewlet {
 				}
 			}));
 
-			this.toUnbind.push(this.tree.addListener('focus', (event: any) => {
+			this.toUnbind.push(this.tree.onDOMFocus(e => {
 				const focus = this.tree.getFocus();
 				this.firstMatchFocussed.set(this.tree.getNavigator().first() === this.tree.getFocus());
 				this.fileMatchOrMatchFocussed.set(true);
@@ -797,7 +797,15 @@ export class SearchViewlet extends Viewlet {
 			return null;
 		}
 
-		let editorControl: any = this.editorService.getActiveEditor().getControl();
+		let editorControl = this.editorService.getActiveEditor().getControl();
+		if (isCommonDiffEditor(editorControl)) {
+			if (editorControl.getOriginalEditor().isFocused()) {
+				editorControl = editorControl.getOriginalEditor();
+			} else {
+				editorControl = editorControl.getModifiedEditor();
+			}
+		}
+
 		if (!isCommonCodeEditor(editorControl)) {
 			return null;
 		}
@@ -903,22 +911,9 @@ export class SearchViewlet extends Viewlet {
 		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
 		const contentPattern = this.searchWidget.searchInput.getValue();
 		const patternExcludes = this.inputPatternExclusions.getValue().trim();
-		const exclusionsUsePattern = this.inputPatternExclusions.isGlobPattern();
 		const patternIncludes = this.inputPatternIncludes.getValue().trim();
-		const includesUsePattern = this.inputPatternIncludes.isGlobPattern();
 		const useIgnoreFiles = this.inputPatternExclusions.useIgnoreFiles();
 		const useExcludeSettings = this.inputPatternExclusions.useExcludeSettings();
-
-		// store memento
-		this.viewletSettings['query.contentPattern'] = contentPattern;
-		this.viewletSettings['query.regex'] = isRegex;
-		this.viewletSettings['query.wholeWords'] = isWholeWords;
-		this.viewletSettings['query.caseSensitive'] = isCaseSensitive;
-		this.viewletSettings['query.folderExclusions'] = patternExcludes;
-		this.viewletSettings['query.exclusionsUsePattern'] = exclusionsUsePattern;
-		this.viewletSettings['query.folderIncludes'] = patternIncludes;
-		this.viewletSettings['query.includesUsePattern'] = includesUsePattern;
-		this.viewletSettings['query.useIgnoreFiles'] = useIgnoreFiles;
 
 		if (!rerunQuery) {
 			return;
@@ -1346,6 +1341,32 @@ export class SearchViewlet extends Viewlet {
 			this.actionRegistry['vs.tree.collapse'],
 			this.actionRegistry['clearSearchResults']
 		];
+	}
+
+	public shutdown(): void {
+		const isRegex = this.searchWidget.searchInput.getRegex();
+		const isWholeWords = this.searchWidget.searchInput.getWholeWords();
+		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
+		const contentPattern = this.searchWidget.searchInput.getValue();
+		const patternExcludes = this.inputPatternExclusions.getValue().trim();
+		const exclusionsUsePattern = this.inputPatternExclusions.isGlobPattern();
+		const patternIncludes = this.inputPatternIncludes.getValue().trim();
+		const includesUsePattern = this.inputPatternIncludes.isGlobPattern();
+		const useIgnoreFiles = this.inputPatternExclusions.useIgnoreFiles();
+
+		// store memento
+		this.viewletSettings['query.contentPattern'] = contentPattern;
+		this.viewletSettings['query.regex'] = isRegex;
+		this.viewletSettings['query.wholeWords'] = isWholeWords;
+		this.viewletSettings['query.caseSensitive'] = isCaseSensitive;
+		this.viewletSettings['query.folderExclusions'] = patternExcludes;
+		this.viewletSettings['query.exclusionsUsePattern'] = exclusionsUsePattern;
+		this.viewletSettings['query.folderIncludes'] = patternIncludes;
+		this.viewletSettings['query.includesUsePattern'] = includesUsePattern;
+		this.viewletSettings['query.useIgnoreFiles'] = useIgnoreFiles;
+		this.viewletSettings['query.contentPattern'] = contentPattern;
+
+		super.shutdown();
 	}
 
 	public dispose(): void {

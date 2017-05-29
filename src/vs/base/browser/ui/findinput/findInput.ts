@@ -13,6 +13,7 @@ import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview
 import { Widget } from 'vs/base/browser/ui/widget';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { CaseSensitiveCheckbox, WholeWordsCheckbox, RegexCheckbox } from 'vs/base/browser/ui/findinput/findInputCheckboxes';
 import { Color } from 'vs/base/common/color';
@@ -69,6 +70,9 @@ export class FindInput extends Widget {
 	private _onKeyDown = this._register(new Emitter<IKeyboardEvent>());
 	public onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
 
+	private _onMouseDown = this._register(new Emitter<IMouseEvent>());
+	public onMouseDown: Event<IMouseEvent> = this._onMouseDown.event;
+
 	private _onInput = this._register(new Emitter<void>());
 	public onInput: Event<void> = this._onInput.event;
 
@@ -113,6 +117,7 @@ export class FindInput extends Widget {
 		this.onkeydown(this.inputBox.inputElement, (e) => this._onKeyDown.fire(e));
 		this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp.fire(e));
 		this.oninput(this.inputBox.inputElement, (e) => this._onInput.fire());
+		this.onmousedown(this.inputBox.inputElement, (e) => this._onMouseDown.fire(e));
 	}
 
 	public enable(): void {

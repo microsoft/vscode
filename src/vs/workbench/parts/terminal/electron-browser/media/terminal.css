@@ -9,12 +9,9 @@
 	display: flex;
 	flex-direction: column;
 	background-color: transparent!important;
-	color: #333;
-	-webkit-user-select: initial;
+	user-select: initial;
 	position: relative;
 }
-.vs-dark .monaco-workbench .panel.integrated-terminal { color: #CCC; }
-.hc-black .monaco-workbench .panel.integrated-terminal { color: #FFF; }
 
 .monaco-workbench .panel.integrated-terminal .terminal-outer-container {
 	height: 100%;

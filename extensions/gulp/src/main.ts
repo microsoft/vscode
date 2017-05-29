@@ -114,7 +114,7 @@ async function getGulpTasks(): Promise<vscode.Task[]> {
 				if (line.length === 0) {
 					continue;
 				}
-				let task = new vscode.ShellTask(`gulp: ${line}`, `${gulpCommand} ${line}`);
+				let task = new vscode.ShellTask(line, `${gulpCommand} ${line}`);
 				task.identifier = `gulp.${line}`;
 				result.push(task);
 				let lowerCaseLine = line.toLowerCase();

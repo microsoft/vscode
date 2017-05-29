@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
 
 import { CancellationToken, Uri, Event } from 'vscode';
 import * as Proto from './protocol';

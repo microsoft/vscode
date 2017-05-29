@@ -40,7 +40,6 @@
 	"formatOnType": "Steuert, ob der Editor Zeilen automatisch nach der Eingabe formatiert.",
 	"formatOnPaste": "Steuert, ob der Editor den eingefügten Inhalt automatisch formatiert.",
 	"suggestOnTriggerCharacters": "Steuert, ob Vorschläge automatisch bei der Eingabe von Triggerzeichen angezeigt werden.",
-	"acceptSuggestionOnEnter": "Steuert, ob Vorschläge über die Eingabetaste (zusätzlich zur TAB-Taste) angenommen werden sollen. Vermeidet Mehrdeutigkeit zwischen dem Einfügen neuer Zeilen oder dem Annehmen von Vorschlägen.",
 	"acceptSuggestionOnCommitCharacter": "Steuert, ob Vorschläge über Commitzeichen angenommen werden sollen. In JavaScript kann ein Semikolon (\";\") beispielsweise ein Commitzeichen sein, das einen Vorschlag annimmt und dieses Zeichen eingibt.",
 	"snippetSuggestions": "Steuert, ob Codeausschnitte mit anderen Vorschlägen angezeigt und wie diese sortiert werden.",
 	"emptySelectionClipboard": "Steuert, ob ein Kopiervorgang ohne Auswahl die aktuelle Zeile kopiert.",

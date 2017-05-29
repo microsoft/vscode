@@ -40,7 +40,6 @@
 	"formatOnType": "입력 후 편집기에서 자동으로 줄의 서식을 지정할지 여부를 제어합니다.",
 	"formatOnPaste": "붙여넣은 콘텐츠의 서식을 편집기에서 자동으로 지정할지 여부를 제어합니다. 포맷터는 반드시 사용할 수 있어야 하며 문서에서 범위의 서식을 지정할 수 있어야 합니다.",
 	"suggestOnTriggerCharacters": "트리거 문자를 입력할 때 제안을 자동으로 표시할지 여부를 제어합니다.",
-	"acceptSuggestionOnEnter": "'Tab' 키 외에 'Enter' 키에 대한 제안도 허용할지를 제어합니다. 새 줄을 삽입하는 동작과 제안을 허용하는 동작 간의 모호함을 없앨 수 있습니다.",
 	"acceptSuggestionOnCommitCharacter": "커밋 문자에 대한 제안을 허용할지를 제어합니다. 예를 들어 JavaScript에서는 세미콜론(';')이 제안을 허용하고 해당 문자를 입력하는 커밋 문자일 수 있습니다.",
 	"snippetSuggestions": "코드 조각이 다른 추천과 함께 표시되는지 여부 및 정렬 방법을 제어합니다.",
 	"emptySelectionClipboard": "선택 영역 없이 현재 줄 복사 여부를 제어합니다.",

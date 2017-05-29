@@ -23,15 +23,15 @@ import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { CoreNavigationCommands, CoreEditingCommands } from 'vs/editor/common/controller/coreCommands';
-import { withMockCodeEditor, MockCodeEditor } from "vs/editor/test/common/mocks/mockCodeEditor";
-import { TextModel } from "vs/editor/common/model/textModel";
-import { ViewModel } from "vs/editor/common/viewModel/viewModelImpl";
+import { withMockCodeEditor, MockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ScreenReaderMessageGenerator } from "vs/editor/common/controller/accGenerator";
+import { ScreenReaderMessageGenerator } from 'vs/editor/common/controller/accGenerator';
 import {
 	CursorWordLeft, CursorWordLeftSelect, CursorWordRight, CursorWordRightSelect
 } from 'vs/editor/contrib/wordOperations/common/wordOperations';
-import { EditorCommand } from "vs/editor/common/editorCommonExtensions";
+import { EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 let H = Handler;
 
 // --------- utils
@@ -3357,7 +3357,9 @@ suite('cursor screen reader message', () => {
 
 			callback(editor, cursor);
 
-			assert.equal(actualScreenReaderMessage, expectedScreenReaderMessage);
+			// Disabled for now
+			assert.equal(actualScreenReaderMessage, null);
+			// assert.equal(actualScreenReaderMessage, expectedScreenReaderMessage);
 		});
 	}
 

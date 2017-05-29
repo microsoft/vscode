@@ -1,4 +1,9 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/atom/language-go/blob/master/grammars/go.cson",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
 	"scopeName": "source.go",
 	"name": "Go",
 	"comment": "Go language",
@@ -624,6 +629,5 @@
 				}
 			]
 		}
-	},
-	"version": "https://github.com/atom/language-go/commit/c1fe618ccf2dcd17118c5600c49b1c539f26d5c5"
+	}
 }

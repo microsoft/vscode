@@ -16,7 +16,6 @@
 	"associations": "Configurez les associations entre les fichiers et les langages (par exemple, \"*.extension\": \"html\"). Celles-ci ont priorité sur les associations par défaut des langages installés.",
 	"encoding": "Encodage du jeu de caractères par défaut à utiliser durant la lecture et l'écriture des fichiers.",
 	"autoGuessEncoding": "Quand cette option est activée, tente de deviner l'encodage du jeu de caractères à l'ouverture des fichiers",
-	"eol": "Caractère de fin de ligne par défaut.",
 	"trimTrailingWhitespace": "Si l'option est activée, l'espace blanc de fin est supprimé au moment de l'enregistrement d'un fichier.",
 	"insertFinalNewline": "Quand l'option est activée, une nouvelle ligne finale est insérée à la fin du fichier au moment de son enregistrement.",
 	"files.autoSave.off": "Un fichier dont l'intégrité est compromise n'est jamais enregistré automatiquement.",
