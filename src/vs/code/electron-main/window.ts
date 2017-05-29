@@ -823,6 +823,33 @@ export class VSCodeWindow {
 		};
 	}
 
+	public onWindowTitleDoubleClick(): void {
+
+		// Respect system settings on mac with regards to title click on windows title
+		if (platform.isMacintosh) {
+			const action = systemPreferences.getUserDefault('AppleActionOnDoubleClick', 'string');
+			switch (action) {
+				case 'Minimize':
+					this.win.minimize();
+					break;
+				case 'None':
+					break;
+				case 'Maximize':
+				default:
+					this.win.maximize();
+			}
+		}
+
+		// Linux/Windows: just toggle maximize/minimized state
+		else {
+			if (this.win.isMaximized()) {
+				this.win.unmaximize();
+			} else {
+				this.win.maximize();
+			}
+		}
+	}
+
 	public sendWhenReady(channel: string, ...args: any[]): void {
 		this.ready().then(() => {
 			this.send(channel, ...args);

@@ -847,6 +847,10 @@ export class TestWindowService implements IWindowService {
 	unmaximizeWindow(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
+	onWindowTitleDoubleClick(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
 }
 
 export class TestLifecycleService implements ILifecycleService {
@@ -942,6 +946,9 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 	unmaximizeWindow(windowId: number): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+	onWindowTitleDoubleClick(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 	setDocumentEdited(windowId: number, flag: boolean): TPromise<void> {

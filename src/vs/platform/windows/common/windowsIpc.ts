@@ -31,6 +31,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'isMaximized', arg: number): TPromise<boolean>;
 	call(command: 'maximizeWindow', arg: number): TPromise<void>;
 	call(command: 'unmaximizeWindow', arg: number): TPromise<void>;
+	call(command: 'onWindowTitleDoubleClick', arg: number): TPromise<void>;
 	call(command: 'setDocumentEdited', arg: [number, boolean]): TPromise<void>;
 	call(command: 'quit'): TPromise<void>;
 	call(command: 'openWindow', arg: [string[], { forceNewWindow?: boolean, forceReuseWindow?: boolean }]): TPromise<void>;
@@ -81,6 +82,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'isMaximized': return this.service.isMaximized(arg);
 			case 'maximizeWindow': return this.service.maximizeWindow(arg);
 			case 'unmaximizeWindow': return this.service.unmaximizeWindow(arg);
+			case 'onWindowTitleDoubleClick': return this.service.onWindowTitleDoubleClick(arg);
 			case 'setDocumentEdited': return this.service.setDocumentEdited(arg[0], arg[1]);
 			case 'openWindow': return this.service.openWindow(arg[0], arg[1]);
 			case 'openNewWindow': return this.service.openNewWindow();
@@ -183,6 +185,10 @@ export class WindowsChannelClient implements IWindowsService {
 
 	unmaximizeWindow(windowId: number): TPromise<void> {
 		return this.channel.call('unmaximizeWindow', windowId);
+	}
+
+	onWindowTitleDoubleClick(windowId: number): TPromise<void> {
+		return this.channel.call('onWindowTitleDoubleClick', windowId);
 	}
 
 	setDocumentEdited(windowId: number, flag: boolean): TPromise<void> {

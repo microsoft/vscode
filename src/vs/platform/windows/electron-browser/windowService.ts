@@ -90,6 +90,10 @@ export class WindowService implements IWindowService {
 		return this.windowsService.unmaximizeWindow(this.windowId);
 	}
 
+	onWindowTitleDoubleClick(): TPromise<void> {
+		return this.windowsService.onWindowTitleDoubleClick(this.windowId);
+	}
+
 	setDocumentEdited(flag: boolean): TPromise<void> {
 		return this.windowsService.setDocumentEdited(this.windowId, flag);
 	}
