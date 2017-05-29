@@ -198,7 +198,7 @@ export abstract class AbstractScrollbar extends Widget {
 	private _onMouseDown(e: IMouseEvent): void {
 		let domNodePosition = DomUtils.getDomNodePagePosition(this.domNode.domNode);
 		let desiredSliderPosition = this._mouseDownRelativePosition(e, domNodePosition) - this._scrollbarState.getArrowSize() - this._scrollbarState.getSliderSize() / 2;
-		this.setDesiredScrollPosition(this._scrollbarState.convertSliderPositionToScrollPosition(desiredSliderPosition));
+		this.setDesiredScrollPosition(this._scrollbarState.convertSliderPositionToScrollPosition(desiredSliderPosition), 0/* immediate */);
 		this._sliderMouseDown(e);
 	}
 
@@ -217,10 +217,10 @@ export abstract class AbstractScrollbar extends Widget {
 					// console.log(initialMouseOrthogonalPosition + ' -> ' + mouseOrthogonalPosition + ': ' + mouseOrthogonalDelta);
 					if (Platform.isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
 						// The mouse has wondered away from the scrollbar => reset dragging
-						this.setDesiredScrollPosition(initialScrollPosition);
+						this.setDesiredScrollPosition(initialScrollPosition, 0/* immediate */);
 					} else {
 						let desiredSliderPosition = this._sliderMousePosition(mouseMoveData) - draggingDelta;
-						this.setDesiredScrollPosition(this._scrollbarState.convertSliderPositionToScrollPosition(desiredSliderPosition));
+						this.setDesiredScrollPosition(this._scrollbarState.convertSliderPositionToScrollPosition(desiredSliderPosition), 0/* immediate */);
 					}
 				},
 				() => {
@@ -238,7 +238,7 @@ export abstract class AbstractScrollbar extends Widget {
 		return this._scrollbarState.validateScrollPosition(desiredScrollPosition);
 	}
 
-	public setDesiredScrollPosition(desiredScrollPosition: number, smoothScrollDuration?: number): boolean {
+	public setDesiredScrollPosition(desiredScrollPosition: number, smoothScrollDuration: number): boolean {
 		desiredScrollPosition = this.validateScrollPosition(desiredScrollPosition);
 
 		let oldScrollPosition = this._getScrollPosition();
@@ -260,5 +260,5 @@ export abstract class AbstractScrollbar extends Widget {
 	protected abstract _sliderMousePosition(e: IMouseMoveEventData): number;
 	protected abstract _sliderOrthogonalMousePosition(e: IMouseMoveEventData): number;
 	protected abstract _getScrollPosition(): number;
-	protected abstract _setScrollPosition(elementScrollPosition: number, smoothScrollDuration?: number): void;
+	protected abstract _setScrollPosition(elementScrollPosition: number, smoothScrollDuration: number): void;
 }

@@ -34,7 +34,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		this.scrollable.updateState({
 			width: configuration.editor.layoutInfo.contentWidth,
 			height: configuration.editor.layoutInfo.contentHeight
-		});
+		}, 0/* immediate */);
 		this.onDidScroll = this.scrollable.onScroll;
 
 		this._updateHeight();
@@ -62,7 +62,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 			this.scrollable.updateState({
 				width: this._configuration.editor.layoutInfo.contentWidth,
 				height: this._configuration.editor.layoutInfo.contentHeight
-			});
+			}, 0/* immediate */);
 		}
 		this._updateHeight();
 	}
@@ -109,7 +109,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	private _updateHeight(): void {
 		this.scrollable.updateState({
 			scrollHeight: this._getTotalHeight()
-		});
+		}, 0/* immediate */);
 	}
 
 	// ---- Layouting logic
@@ -136,7 +136,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		let newScrollWidth = this._computeScrollWidth(maxLineWidth, this.getCurrentViewport().width);
 		this.scrollable.updateState({
 			scrollWidth: newScrollWidth
-		});
+		}, 0/* immediate */);
 
 		// The height might depend on the fact that there is a horizontal scrollbar or not
 		this._updateHeight();
@@ -164,7 +164,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		this.scrollable.updateState({
 			scrollLeft: state.scrollLeft,
 			scrollTop: restoreScrollTop
-		});
+		}, 0/* immediate */);
 	}
 
 	// ---- IVerticalLayoutProvider
@@ -247,7 +247,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 			}
 			// Otherwise update scroll position immediately
 			else {
-				this.scrollable.updateState(position);
+				this.scrollable.updateState(position, 0/* immediate */);
 			}
 		}
 	}

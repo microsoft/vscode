@@ -106,7 +106,7 @@ export class VerticalScrollbar extends AbstractScrollbar {
 		return scrollState.scrollTop;
 	}
 
-	protected _setScrollPosition(scrollPosition: number, smoothScrollDuration?: number): void {
+	protected _setScrollPosition(scrollPosition: number, smoothScrollDuration: number): void {
 		this._scrollable.updateState({
 			scrollTop: scrollPosition
 		}, smoothScrollDuration);

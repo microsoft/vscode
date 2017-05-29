@@ -101,7 +101,7 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 		return scrollState.scrollLeft;
 	}
 
-	protected _setScrollPosition(scrollPosition: number, smoothScrollDuration?: number) {
+	protected _setScrollPosition(scrollPosition: number, smoothScrollDuration: number) {
 		this._scrollable.updateState({
 			scrollLeft: scrollPosition
 		}, smoothScrollDuration);

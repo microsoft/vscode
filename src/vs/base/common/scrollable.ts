@@ -177,10 +177,10 @@ export class Scrollable extends Disposable {
 		return this._smoothScrolling ? this._smoothScrollAnimationParams.newState : this._state;
 	}
 
-	public updateState(update: INewScrollState, smoothScrollDuration?: number): void {
+	public updateState(update: INewScrollState, smoothScrollDuration: number): void {
 
 		// If smooth scroll duration is not specified, then assume that the invoker intends to do an immediate update.
-		if (smoothScrollDuration === undefined) {
+		if (smoothScrollDuration === 0) {
 			const newState = this._state.createUpdated(update);
 
 			// If smooth scrolling is in progress, terminate it.
