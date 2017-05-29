@@ -15,7 +15,7 @@ import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
 import URI from 'vs/base/common/uri';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IActivityBarService, DotBadge } from 'vs/workbench/services/activity/common/activityBarService';
+import { IActivityBarService, TextBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ReleaseNotesInput } from 'vs/workbench/parts/update/electron-browser/releaseNotesInput';
 import { IGlobalActivity } from 'vs/workbench/browser/activity';
@@ -280,7 +280,7 @@ export class UpdateContribution implements IWorkbenchContribution {
 export class LightUpdateContribution implements IGlobalActivity {
 
 	get id() { return 'vs.update'; }
-	get name() { return 'VS Code'; }
+	get name() { return ''; }
 	get cssClass() { return 'update-activity'; }
 
 	constructor(
@@ -293,7 +293,7 @@ export class LightUpdateContribution implements IGlobalActivity {
 		@IActivityBarService activityBarService: IActivityBarService
 	) {
 		this.updateService.onUpdateReady(() => {
-			const badge = new DotBadge(() => nls.localize('updateIsReady', "New update available."));
+			const badge = new TextBadge('\u21e9', () => nls.localize('updateIsReady', "New update available."));
 			activityBarService.showGlobalActivity(this.id, badge);
 		});
 

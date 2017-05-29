@@ -67,16 +67,6 @@
 	text-align: center;
 }
 
-.monaco-workbench > .activitybar > .content .monaco-action-bar .badge.dot-badge .badge-content {
-	box-sizing: border-box;
-	content: '';
-	top: 9px;
-	width: 11px;
-	height: 11px;
-	min-width: inherit;
-	padding: 0;
-}
-
 /* Right aligned */
 
 .monaco-workbench > .activitybar.right > .content .monaco-action-bar .action-label {

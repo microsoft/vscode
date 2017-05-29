@@ -13,7 +13,7 @@ import { Builder, $ } from 'vs/base/browser/builder';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { Action } from 'vs/base/common/actions';
 import { BaseActionItem, Separator, IBaseActionItemOptions } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IActivityBarService, DotBadge, ProgressBadge, TextBadge, NumberBadge, IconBadge, IBadge } from 'vs/workbench/services/activity/common/activityBarService';
+import { IActivityBarService, ProgressBadge, TextBadge, NumberBadge, IconBadge, IBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -203,13 +203,6 @@ export class ActivityActionItem extends BaseActionItem {
 
 			// Text
 			else if (badge instanceof IconBadge) {
-				this.$badge.show();
-			}
-
-			// Dot
-			else if (badge instanceof DotBadge) {
-				this.$badge.addClass('dot-badge');
-				this.$badge.title(badge.getDescription());
 				this.$badge.show();
 			}
 
