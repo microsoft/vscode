@@ -155,6 +155,11 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			.filter(e => !!e)
 			.on(this.openExtension, this, this.disposables);
 
+		chain(this.list.onPin)
+			.map(e => e.elements[0])
+			.filter(e => !!e)
+			.on(this.pin, this, this.disposables);
+
 		return TPromise.as(null);
 	}
 
@@ -435,6 +440,13 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 	private openExtension(extension: IExtension): void {
 		this.extensionsWorkbenchService.open(extension).done(null, err => this.onError(err));
+	}
+
+	private pin(): void {
+		const activeEditor = this.editorService.getActiveEditor();
+		const activeEditorInput = this.editorService.getActiveEditorInput();
+
+		this.editorInputService.pinEditor(activeEditor.position, activeEditorInput);
 	}
 
 	private onEnter(): void {
