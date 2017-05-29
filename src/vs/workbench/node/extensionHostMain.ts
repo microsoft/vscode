@@ -130,7 +130,8 @@ export class ExtensionHostMain {
 			// `workspaceGlob` or something along those lines?
 			if (p.indexOf('*') > -1 || p.indexOf('?') > -1) {
 				if (!this._diskSearch) {
-					this._diskSearch = new DiskSearch(false);
+					// Shut down this search process after 1s
+					this._diskSearch = new DiskSearch(false, 1000);
 				}
 
 				const query: ISearchQuery = {
