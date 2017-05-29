@@ -815,9 +815,47 @@ export namespace CoreNavigationCommands {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textFocus,
 			primary: KeyCode.Home,
-			mac: { primary: KeyCode.Home, secondary: [KeyMod.CtrlCmd | KeyCode.LeftArrow, KeyMod.WinCtrl | KeyCode.KEY_A] }
+			mac: { primary: KeyCode.Home, secondary: [KeyMod.CtrlCmd | KeyCode.LeftArrow] }
 		}
 	}));
+
+	export const CursorLineStart: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
+		constructor() {
+			super({
+				id: 'cursorLineStart',
+				precondition: null,
+				kbOpts: {
+					weight: CORE_WEIGHT,
+					kbExpr: EditorContextKeys.textFocus,
+					primary: 0,
+					mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_A }
+				}
+			});
+		}
+
+		public runCoreEditorCommand(cursors: ICursors, args: any): void {
+			cursors.context.model.pushStackElement();
+			cursors.setStates(
+				args.source,
+				CursorChangeReason.Explicit,
+				CursorState.ensureInEditableRange(
+					cursors.context,
+					this._exec(cursors.context, cursors.getAll())
+				)
+			);
+			cursors.reveal(true, RevealTarget.Primary);
+		}
+
+		private _exec(context: CursorContext, cursors: CursorState[]): CursorState[] {
+			let result: CursorState[] = [];
+			for (let i = 0, len = cursors.length; i < len; i++) {
+				const cursor = cursors[i];
+				const lineNumber = cursor.modelState.position.lineNumber;
+				result[i] = CursorState.fromModelState(cursor.modelState.move(false, lineNumber, 1, 0));
+			}
+			return result;
+		}
+	});
 
 	export const CursorHomeSelect: CoreEditorCommand = registerEditorCommand(new HomeCommand({
 		inSelectionMode: true,
