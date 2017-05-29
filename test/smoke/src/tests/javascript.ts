@@ -37,8 +37,8 @@ export function testJavaScript() {
 
 		it(`finds 'All References' to 'app'`, async function () {
 			await common.openFirstMatchFile('bin/www');
-			await app.wait();
 			await js.findAppReferences();
+			await app.wait();
 			const titleCount = await js.getTitleReferencesCount();
 			assert.equal(titleCount, 3);
 			const treeCount = await js.getTreeReferencesCount();
@@ -79,6 +79,7 @@ export function testJavaScript() {
 		it(`verifies that 'Peek Definition' works`, async function () {
 			await common.openFirstMatchFile('app.js');
 			await js.peekExpressDefinition();
+			await app.wait();
 			const definitionFilename = await js.getPeekExpressResultName();
 			assert.equal(definitionFilename, 'index.d.ts');
 		});
