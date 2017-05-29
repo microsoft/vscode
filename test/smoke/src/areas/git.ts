@@ -39,8 +39,8 @@ export class Git {
 	}
 
 	public async stageFile(fileName: string): Promise<any> {
-		console.log('Stage file' + fileName);
 		await this.spectron.client.moveToObject(`div[class="monaco-icon-label file-icon ${fileName}-name-file-icon ${this.commonActions.getExtensionSelector(fileName)}"`);
+		await this.spectron.wait();
 		await this.spectron.client.click('.action-label.icon.contrib-cmd-icon-4');
 		return this.spectron.wait();
 	}
@@ -56,18 +56,15 @@ export class Git {
 	}
 
 	public focusOnCommitBox(): Promise<any> {
-		console.log('Focus on commit box');
 		return this.spectron.client.click('div[id="workbench.view.scm"] textarea');
 	}
 
 	public async pressCommit(): Promise<any> {
-		console.log('Press commit');
 		await this.spectron.client.click('.action-label.icon.contrib-cmd-icon-10');
 		return this.spectron.wait();
 	}
 
 	public getOutgoingChanges(): Promise<string> {
-		console.log('Get outgoing code');
 		return this.spectron.client.getText('a[title="Synchronize changes"]');
 	}
 }

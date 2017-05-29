@@ -18,7 +18,7 @@ import { testTasks } from "./tests/tasks";
 import { testExtensions } from "./tests/extensions";
 import { testLocalization } from "./tests/localization";
 
-describe('Smoke Test Suite', async () => {
+describe('Smoke Test Suite', () => {
 	testDataMigration();
 	testDataLoss();
 	testExplorer();
