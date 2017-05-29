@@ -120,6 +120,7 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 	private executeTask(task: Task, trigger: string = Triggers.command): ITaskExecuteResult {
 		let telemetryEvent: TelemetryEvent = {
 			trigger: trigger,
+			runner: 'output',
 			command: 'other',
 			success: true
 		};
