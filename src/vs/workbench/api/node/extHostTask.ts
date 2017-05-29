@@ -316,7 +316,7 @@ namespace Tasks {
 				detail: extension.id
 			},
 			name: task.name,
-			identifier: task.identifier,
+			identifier: task.identifier ? task.identifier : `${extension.id}.${task.name}`,
 			group: types.TaskGroup.is(task.group) ? task.group : undefined,
 			command: command,
 			isBackground: !!task.isBackground,

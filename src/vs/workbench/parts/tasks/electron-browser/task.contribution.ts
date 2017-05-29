@@ -71,7 +71,7 @@ import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
 import { ITaskSystem, ITaskResolver, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskSystemEvents } from 'vs/workbench/parts/tasks/common/taskSystem';
-import { Task, TaskSet, TaskGroup, ExecutionEngine, TaskSourceKind } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, TaskSet, TaskGroup, ExecutionEngine, TaskSourceKind, computeLabel as computeTaskLabel } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, TaskServiceEvents, ITaskProvider } from 'vs/workbench/parts/tasks/common/taskService';
 import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
@@ -709,7 +709,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			return TPromise.as<void>(undefined);
 		}
 		let fileConfig = configuration.config;
-		let customize = { taskName: task.name };
+		let customize = { taskName: computeTaskLabel(task), identifier: task.identifier };
 		if (!fileConfig) {
 			fileConfig = {
 				version: '2.0.0',
@@ -931,6 +931,7 @@ class TaskService extends EventEmitter implements ITaskService {
 								let annotatingTask = annotatingTasks.byIdentifier[task.identifier] || annotatingTasks.byName[task.name];
 								if (annotatingTask) {
 									TaskConfig.mergeTasks(task, annotatingTask);
+									task.name = annotatingTask.name;
 									task._source.kind = TaskSourceKind.Workspace;
 									continue;
 								}
@@ -940,6 +941,7 @@ class TaskService extends EventEmitter implements ITaskService {
 								if (legacyAnnotatingTask) {
 									TaskConfig.mergeTasks(task, legacyAnnotatingTask);
 									task._source.kind = TaskSourceKind.Workspace;
+									task.name = legacyAnnotatingTask.name;
 									workspaceTasksToDelete.push(legacyAnnotatingTask);
 									continue;
 								}

@@ -1030,7 +1030,6 @@ export class BaseTask {
 			throw illegalArgument('name');
 		}
 		this._name = name;
-		this._identifier = name;
 		this._problemMatchers = problemMatchers || [];
 		this._isBackground = false;
 		this._terminal = Object.create(null);
@@ -1041,11 +1040,11 @@ export class BaseTask {
 	}
 
 	set identifier(value: string) {
-		if (typeof value !== 'string') {
-			throw illegalArgument('identifier');
+		if (value === void 0 || value === null) {
+			this._identifier = undefined;
 		}
-		if (value.indexOf(':') !== -1) {
-			throw illegalArgument('identifier must not contain \':\'');
+		if (typeof value !== 'string' || value.length === 0) {
+			throw illegalArgument('identifier must be a string of length > 0');
 		}
 		this._identifier = value;
 	}

@@ -67,20 +67,25 @@ const group: IJSONSchema = {
 	type: 'string',
 	enum: ['none', 'clean', 'build', 'rebuildAll', 'test'],
 	default: 'none',
-	description: nls.localize('JsonSchema.tasks.group', 'Defines to which execution group this task belongs to. If omitted the task belongs to no group')
+	description: nls.localize('JsonSchema.tasks.group', 'Defines to which execution group this task belongs to. If omitted the task belongs to no group.')
 };
 
 const taskType: IJSONSchema = {
 	type: 'string',
 	enum: ['shell', 'process'],
 	default: 'process',
-	description: nls.localize('JsonSchema.tasks.type', 'Defines whether the task is run as a process or as a command inside a shell. Default is process')
+	description: nls.localize('JsonSchema.tasks.type', 'Defines whether the task is run as a process or as a command inside a shell. Default is process.')
 };
 
 const version: IJSONSchema = {
 	type: 'string',
 	enum: ['2.0.0'],
-	description: nls.localize('JsonSchema.version', 'The config\'s version number')
+	description: nls.localize('JsonSchema.version', 'The config\'s version number.')
+};
+
+const identifier: IJSONSchema = {
+	type: 'string',
+	description: nls.localize('JsonSchema.tasks.identifier', 'A unique identifier of the task.')
 };
 
 const schema: IJSONSchema = {
@@ -123,6 +128,7 @@ definitions.showOutputType.deprecationMessage = nls.localize('JsonSchema.tasks.s
 definitions.taskDescription.properties.echoCommand.deprecationMessage = nls.localize('JsonSchema.tasks.echoCommand.deprecated', 'The property echoCommand is deprecated. Use the terminal property instead.');
 definitions.taskDescription.properties.isBuildCommand.deprecationMessage = nls.localize('JsonSchema.tasks.isBuildCommand.deprecated', 'The property isBuildCommand is deprecated. Use the group property instead.');
 definitions.taskDescription.properties.isTestCommand.deprecationMessage = nls.localize('JsonSchema.tasks.isTestCommand.deprecated', 'The property isTestCommand is deprecated. Use the group property instead.');
+definitions.taskDescription.properties.identifier = identifier;
 definitions.taskDescription.properties.type = Objects.deepClone(taskType);
 definitions.taskDescription.properties.terminal = terminal;
 definitions.taskDescription.properties.group = group;

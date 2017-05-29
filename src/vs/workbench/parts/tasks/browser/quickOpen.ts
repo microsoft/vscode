@@ -13,7 +13,7 @@ import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
-import { Task, TaskSourceKind } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, TaskSourceKind, computeLabel } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
 import { ActionBarContributor, ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
 
@@ -23,11 +23,7 @@ export class TaskEntry extends Model.QuickOpenEntry {
 
 	constructor(protected taskService: ITaskService, protected _task: Task, highlights: Model.IHighlight[] = []) {
 		super(highlights);
-		if (_task._source.kind === TaskSourceKind.Extension) {
-			this._label = nls.localize('taskEntry.label', '{0}: {1}', _task._source.label, _task.name);
-		} else {
-			this._label = _task.name;
-		}
+		this._label = computeLabel(_task);
 	}
 
 	public getLabel(): string {

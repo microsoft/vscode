@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import nls = require('vs/nls');
 import * as Types from 'vs/base/common/types';
 
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -248,4 +249,12 @@ export enum ExecutionEngine {
 export interface TaskSet {
 	tasks: Task[];
 	extension?: IExtensionDescription;
+}
+
+export function computeLabel(task: Task): string {
+	if (task._source.kind === TaskSourceKind.Extension) {
+		return nls.localize('taskEntry.label', '{0}: {1}', task._source.label, task.name);
+	} else {
+		return task.name;
+	}
 }

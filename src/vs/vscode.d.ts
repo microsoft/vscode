@@ -3626,10 +3626,10 @@ declare module 'vscode' {
 		readonly name: string;
 
 		/**
-		 * The task's identifier. If omitted the name is
-		 * used as an identifier.
+		 * The task's identifier. If omitted the internal identifier will
+		 * be `${extensionName}:${name}`
 		 */
-		identifier: string;
+		identifier: string | undefined;
 
 		/**
 		 * Whether the task is a background task or not.
@@ -3759,10 +3759,10 @@ declare module 'vscode' {
 		readonly name: string;
 
 		/**
-		 * The task's identifier. If omitted the name is
-		 * used as an identifier.
+		 * The task's identifier. If omitted the internal identifier will
+		 * be `${extensionName}:${name}`
 		 */
-		identifier: string;
+		identifier: string | undefined;
 
 		/**
 		 * Whether the task is a background task or not.
