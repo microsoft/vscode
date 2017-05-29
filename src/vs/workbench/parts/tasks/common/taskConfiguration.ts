@@ -137,11 +137,18 @@ export interface TaskDescription extends PlatformTaskDescription {
 	promptOnClose?: boolean;
 
 	/**
+	 * Defines the group the task belongs too.
+	 */
+	group?: string;
+
+	/**
+	 * @deprecated Use `group` instead.
 	 * Whether this task maps to the default build command.
 	 */
 	isBuildCommand?: boolean;
 
 	/**
+	 * @deprecated Use `group` instead.
 	 * Whether this task maps to the default test command.
 	 */
 	isTestCommand?: boolean;
@@ -766,8 +773,8 @@ namespace TaskDescription {
 		}
 		let parsedTasks: Tasks.Task[] = [];
 		let annotatingTasks: Tasks.Task[] = [];
-		let defaultBuildTask: { task: Tasks.Task; rank: number; } = { task: null, rank: -1 };
-		let defaultTestTask: { task: Tasks.Task; rank: number; } = { task: null, rank: -1 };
+		let defaultBuildTask: { task: Tasks.Task; rank: number; } = { task: undefined, rank: -1 };
+		let defaultTestTask: { task: Tasks.Task; rank: number; } = { task: undefined, rank: -1 };
 		tasks.forEach((externalTask) => {
 			let taskName = externalTask.taskName;
 			if (!taskName) {
@@ -799,6 +806,16 @@ namespace TaskDescription {
 			}
 			if (externalTask.promptOnClose !== void 0) {
 				task.promptOnClose = !!externalTask.promptOnClose;
+			}
+			if (Tasks.TaskGroup.is(externalTask.group)) {
+				task.group = externalTask.group;
+			}
+			if (task.group === void 0) {
+				if (Types.isBoolean(externalTask.isBuildCommand) && externalTask.isBuildCommand) {
+					task.group = Tasks.TaskGroup.Build;
+				} else if (Types.isBoolean(externalTask.isTestCommand && externalTask.isTestCommand)) {
+					task.group = Tasks.TaskGroup.Test;
+				}
 			}
 			if (externalTask.command !== void 0) {
 				// if the task has its own command then we suppress the
@@ -848,26 +865,24 @@ namespace TaskDescription {
 			}
 			if (addTask) {
 				parsedTasks.push(task);
-				if (!Types.isUndefined(externalTask.isBuildCommand) && externalTask.isBuildCommand && defaultBuildTask.rank < 2) {
+				if (task.group === Tasks.TaskGroup.Build && defaultBuildTask.rank < 2) {
 					defaultBuildTask.task = task;
 					defaultBuildTask.rank = 2;
-				} else if (taskName === 'build' && defaultBuildTask.rank < 2) {
-					defaultBuildTask.task = task;
-					defaultBuildTask.rank = 1;
-				}
-				if (!Types.isUndefined(externalTask.isTestCommand) && externalTask.isTestCommand && defaultTestTask.rank < 2) {
+				} else if (task.group === Tasks.TaskGroup.Test && defaultTestTask.rank < 2) {
 					defaultTestTask.task = task;
 					defaultTestTask.rank = 2;
-				} else if (taskName === 'test' && defaultTestTask.rank < 2) {
+				} else if (task.name === 'build' && defaultBuildTask.rank < 1) {
+					defaultBuildTask.task = task;
+					defaultBuildTask.rank = 1;
+				} else if (task.name === 'test' && defaultTestTask.rank < 1) {
 					defaultTestTask.task = task;
 					defaultTestTask.rank = 1;
 				}
 			}
 		});
-		if (defaultBuildTask.task) {
+		if (defaultBuildTask.rank > -1 && defaultBuildTask.rank < 2) {
 			defaultBuildTask.task.group = Tasks.TaskGroup.Build;
-		}
-		if (defaultTestTask.task) {
+		} else if (defaultTestTask.rank > -1 && defaultTestTask.rank < 2) {
 			defaultTestTask.task.group = Tasks.TaskGroup.Test;
 		}
 		return parsedTasks.length === 0 && annotatingTasks.length === 0 ? undefined : { tasks: parsedTasks, annotatingTasks: annotatingTasks };

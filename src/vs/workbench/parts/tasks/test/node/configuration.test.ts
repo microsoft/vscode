@@ -512,7 +512,7 @@ function assertProblemPattern(actual: ProblemPattern, expected: ProblemPattern) 
 	assert.strictEqual(actual.loop, expected.loop);
 }
 
-suite('Tasks Configuration parsing tests', () => {
+suite('Tasks version 0.1.0', () => {
 	test('tasks: all default', () => {
 		let builder = new ConfiguationBuilder();
 		builder.task('tsc', 'tsc').
@@ -1358,6 +1358,29 @@ suite('Tasks Configuration parsing tests', () => {
 		builder.task('taskNameOne', 'tsc').command().type(Tasks.CommandType.Process);
 		testConfiguration(external, builder);
 	});
+});
+
+suite('Tasks version 2.0.0', () => {
+	test('Build workspace task', () => {
+		let external: ExternalTaskRunnerConfiguration = {
+			version: '2.0.0',
+			tasks: [
+				{
+					taskName: 'dir',
+					command: 'dir',
+					type: 'shell',
+					group: 'build'
+				}
+			]
+		};
+		let builder = new ConfiguationBuilder();
+		builder.task('dir', 'dir').
+			suppressTaskName(true).
+			group(Tasks.TaskGroup.Build).
+			command().type(Tasks.CommandType.Shell);
+		testConfiguration(external, builder);
+	});
+
 });
 
 suite('Bugs / regression tests', () => {

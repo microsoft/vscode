@@ -740,21 +740,21 @@ class TaskService extends EventEmitter implements ITaskService {
 		let uuidMap: IStringDictionary<Task> = Object.create(null);
 		let identifierMap: IStringDictionary<Task> = Object.create(null);
 
-		let primaryTasks: Task[] = [];
+		let workspaceTasks: Task[] = [];
+		let extensionTasks: Task[] = [];
 		sets.forEach((set) => {
 			set.tasks.forEach((task) => {
 				uuidMap[task._id] = task;
 				identifierMap[task.identifier] = task;
 				if (group && task.group === group) {
-					primaryTasks.push(task);
+					if (task._source.kind === TaskSourceKind.Workspace) {
+						workspaceTasks.push(task);
+					} else {
+						extensionTasks.push(task);
+					}
 				}
 			});
 		});
-		if (primaryTasks.length === 0) {
-			return undefined;
-		}
-		// check for a WORKSPACE build task and use that onemptied.apply
-
 		let resolver: ITaskResolver = {
 			resolve: (id: string) => {
 				let result = uuidMap[id];
@@ -764,8 +764,18 @@ class TaskService extends EventEmitter implements ITaskService {
 				return identifierMap[id];
 			}
 		};
-		if (primaryTasks.length === 1) {
-			return { task: primaryTasks[0], resolver };
+		if (workspaceTasks.length > 0) {
+			if (workspaceTasks.length > 1) {
+				this._outputChannel.append(nls.localize('moreThanOneBuildTask', 'There are many build tasks defined in the tasks.json. Executing the first one.\n'));
+			}
+			return { task: workspaceTasks[0], resolver };
+		}
+		if (extensionTasks.length === 0) {
+			return undefined;
+		}
+
+		if (extensionTasks.length === 1) {
+			return { task: extensionTasks[0], resolver };
 		} else {
 			let id: string = UUID.generateUuid();
 			let task: Task = {
@@ -773,7 +783,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				_source: { kind: TaskSourceKind.Generic },
 				name: id,
 				identifier: id,
-				dependsOn: primaryTasks.map(task => task._id),
+				dependsOn: extensionTasks.map(task => task._id),
 				command: undefined,
 			};
 			return { task, resolver };
