@@ -20,6 +20,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
+import { IActivity } from 'vs/workbench/browser/activity';
 import { dispose } from 'vs/base/common/lifecycle';
 import { IViewletService, } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
@@ -31,8 +32,12 @@ export class ActivityAction extends Action {
 	private badge: IBadge;
 	private _onDidChangeBadge = new Emitter<this>();
 
-	constructor(id: string, name: string, clazz: string) {
-		super(id, name, clazz);
+	get activity(): IActivity {
+		return this._activity;
+	}
+
+	constructor(private _activity: IActivity) {
+		super(_activity.id, _activity.name, _activity.cssClass);
 
 		this.badge = null;
 	}
@@ -74,7 +79,7 @@ export class ViewletActivityAction extends ActivityAction {
 		@IViewletService private viewletService: IViewletService,
 		@IPartService private partService: IPartService
 	) {
-		super(viewlet.id, viewlet.name, viewlet.cssClass);
+		super(viewlet);
 	}
 
 	public run(event): TPromise<any> {
@@ -102,7 +107,15 @@ export class ViewletActivityAction extends ActivityAction {
 	}
 }
 
-export abstract class ThemableActivityActionItem extends BaseActionItem {
+export class ActivityActionItem extends BaseActionItem {
+
+	protected $label: Builder;
+	protected $badge: Builder;
+	private $badgeContent: Builder;
+
+	protected get activity(): IActivity {
+		return (this._action as ActivityAction).activity;
+	}
 
 	constructor(
 		action: ActivityAction,
@@ -112,53 +125,6 @@ export abstract class ThemableActivityActionItem extends BaseActionItem {
 		super(null, action, options);
 
 		this.themeService.onThemeChange(this.onThemeChange, this, this._callOnDispose);
-	}
-
-	private onThemeChange(theme: ITheme): void {
-		this.updateStyles();
-	}
-
-	protected abstract updateStyles(): void;
-}
-
-export class ActivityActionItem extends ThemableActivityActionItem {
-
-	private static manageExtensionAction: ManageExtensionAction;
-	private static toggleViewletPinnedAction: ToggleViewletPinnedAction;
-	private static draggedViewlet: ViewletDescriptor;
-
-	private $container: Builder;
-	private $label: Builder;
-	private name: string;
-	private _keybinding: string;
-	private cssClass: string;
-	private $badge: Builder;
-	private $badgeContent: Builder;
-	private mouseUpTimeout: number;
-
-	constructor(
-		action: ActivityAction,
-		private viewlet: ViewletDescriptor,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IActivityBarService private activityBarService: IActivityBarService,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService
-	) {
-		super(action, { draggable: true }, themeService);
-
-		this.cssClass = action.class;
-		this.name = viewlet.name;
-		this._keybinding = this.getKeybindingLabel(viewlet.id);
-
-		if (!ActivityActionItem.manageExtensionAction) {
-			ActivityActionItem.manageExtensionAction = instantiationService.createInstance(ManageExtensionAction);
-		}
-
-		if (!ActivityActionItem.toggleViewletPinnedAction) {
-			ActivityActionItem.toggleViewletPinnedAction = instantiationService.createInstance(ToggleViewletPinnedAction, void 0);
-		}
-
 		action.onDidChangeBadge(this.handleBadgeChangeEvenet, this, this._callOnDispose);
 	}
 
@@ -184,6 +150,118 @@ export class ActivityActionItem extends ThemableActivityActionItem {
 			this.$badgeContent.style('border-style', contrastBorderColor ? 'solid' : null);
 			this.$badgeContent.style('border-width', contrastBorderColor ? '1px' : null);
 			this.$badgeContent.style('border-color', contrastBorderColor ? contrastBorderColor.toString() : null);
+		}
+	}
+
+	public render(container: HTMLElement): void {
+		super.render(container);
+
+		container.title = this.activity.name;
+
+		// Label
+		this.$label = $('a.action-label').appendTo(this.builder);
+		if (this.activity.cssClass) {
+			this.$label.addClass(this.activity.cssClass);
+		}
+
+		this.$badge = this.builder.clone().div({ 'class': 'badge' }, (badge: Builder) => {
+			this.$badgeContent = badge.div({ 'class': 'badge-content' });
+		});
+
+		this.$badge.hide();
+
+		this.updateStyles();
+	}
+
+	private onThemeChange(theme: ITheme): void {
+		this.updateStyles();
+	}
+
+	public setBadge(badge: IBadge): void {
+		this.updateBadge(badge);
+	}
+
+	protected updateBadge(badge: IBadge): void {
+		this.$badgeContent.empty();
+		this.$badge.hide();
+
+		if (badge) {
+
+			// Number
+			if (badge instanceof NumberBadge) {
+				if (badge.number) {
+					this.$badgeContent.text(badge.number > 99 ? '99+' : badge.number.toString());
+					this.$badge.show();
+				}
+			}
+
+			// Text
+			else if (badge instanceof TextBadge) {
+				this.$badgeContent.text(badge.text);
+				this.$badge.show();
+			}
+
+			// Text
+			else if (badge instanceof IconBadge) {
+				this.$badge.show();
+			}
+
+			// Progress
+			else if (badge instanceof ProgressBadge) {
+				this.$badge.show();
+			}
+
+			this.$label.attr('aria-label', `${this.activity.name} - ${badge.getDescription()}`);
+		}
+	}
+
+	private handleBadgeChangeEvenet(): void {
+		const action = this.getAction();
+		if (action instanceof ActivityAction) {
+			this.updateBadge(action.getBadge());
+		}
+	}
+
+	public dispose(): void {
+		super.dispose();
+		this.$badge.destroy();
+	}
+}
+
+export class ViewletActionItem extends ActivityActionItem {
+
+	private static manageExtensionAction: ManageExtensionAction;
+	private static toggleViewletPinnedAction: ToggleViewletPinnedAction;
+	private static draggedViewlet: ViewletDescriptor;
+
+	private $container: Builder;
+	private _keybinding: string;
+	private cssClass: string;
+	private mouseUpTimeout: number;
+
+	private get viewlet(): ViewletDescriptor {
+		return this.action.activity as ViewletDescriptor;
+	}
+
+	constructor(
+		private action: ViewletActivityAction,
+		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IActivityBarService private activityBarService: IActivityBarService,
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService
+	) {
+		super(action, { draggable: true }, themeService);
+
+		this.cssClass = action.class;
+		this._keybinding = this.getKeybindingLabel(this.viewlet.id);
+
+		if (!ViewletActionItem.manageExtensionAction) {
+			ViewletActionItem.manageExtensionAction = instantiationService.createInstance(ManageExtensionAction);
+		}
+
+		if (!ViewletActionItem.toggleViewletPinnedAction) {
+			ViewletActionItem.toggleViewletPinnedAction = instantiationService.createInstance(ToggleViewletPinnedAction, void 0);
 		}
 	}
 
@@ -240,7 +318,7 @@ export class ActivityActionItem extends ThemableActivityActionItem {
 		// Drag enter
 		let counter = 0; // see https://github.com/Microsoft/vscode/issues/14470
 		this.$container.on(DOM.EventType.DRAG_ENTER, (e: DragEvent) => {
-			const draggedViewlet = ActivityActionItem.getDraggedViewlet();
+			const draggedViewlet = ViewletActionItem.getDraggedViewlet();
 			if (draggedViewlet && draggedViewlet.id !== this.viewlet.id) {
 				counter++;
 				this.updateFromDragging(container, true);
@@ -249,7 +327,7 @@ export class ActivityActionItem extends ThemableActivityActionItem {
 
 		// Drag leave
 		this.$container.on(DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
-			const draggedViewlet = ActivityActionItem.getDraggedViewlet();
+			const draggedViewlet = ViewletActionItem.getDraggedViewlet();
 			if (draggedViewlet) {
 				counter--;
 				if (counter === 0) {
@@ -260,12 +338,12 @@ export class ActivityActionItem extends ThemableActivityActionItem {
 
 		// Drag end
 		this.$container.on(DOM.EventType.DRAG_END, (e: DragEvent) => {
-			const draggedViewlet = ActivityActionItem.getDraggedViewlet();
+			const draggedViewlet = ViewletActionItem.getDraggedViewlet();
 			if (draggedViewlet) {
 				counter = 0;
 				this.updateFromDragging(container, false);
 
-				ActivityActionItem.clearDraggedViewlet();
+				ViewletActionItem.clearDraggedViewlet();
 			}
 		});
 
@@ -273,34 +351,21 @@ export class ActivityActionItem extends ThemableActivityActionItem {
 		this.$container.on(DOM.EventType.DROP, (e: DragEvent) => {
 			DOM.EventHelper.stop(e, true);
 
-			const draggedViewlet = ActivityActionItem.getDraggedViewlet();
+			const draggedViewlet = ViewletActionItem.getDraggedViewlet();
 			if (draggedViewlet && draggedViewlet.id !== this.viewlet.id) {
 				this.updateFromDragging(container, false);
-				ActivityActionItem.clearDraggedViewlet();
+				ViewletActionItem.clearDraggedViewlet();
 
 				this.activityBarService.move(draggedViewlet.id, this.viewlet.id);
 			}
 		});
-
-		// Label
-		this.$label = $('a.action-label').appendTo(this.builder);
-		if (this.cssClass) {
-			this.$label.addClass(this.cssClass);
-		}
-
-		// Badge
-		this.$badge = this.builder.div({ 'class': 'badge' }, (badge: Builder) => {
-			this.$badgeContent = badge.div({ 'class': 'badge-content' });
-		});
-
-		this.$badge.hide();
 
 		// Keybinding
 		this.keybinding = this._keybinding; // force update
 
 		// Activate on drag over to reveal targets
 		[this.$badge, this.$label].forEach(b => new DelayedDragHandler(b.getHTMLElement(), () => {
-			if (!ActivityActionItem.getDraggedViewlet() && !this.getAction().checked) {
+			if (!ViewletActionItem.getDraggedViewlet() && !this.getAction().checked) {
 				this.getAction().run();
 			}
 		}));
@@ -316,29 +381,29 @@ export class ActivityActionItem extends ThemableActivityActionItem {
 	}
 
 	public static getDraggedViewlet(): ViewletDescriptor {
-		return ActivityActionItem.draggedViewlet;
+		return ViewletActionItem.draggedViewlet;
 	}
 
 	private setDraggedViewlet(viewlet: ViewletDescriptor): void {
-		ActivityActionItem.draggedViewlet = viewlet;
+		ViewletActionItem.draggedViewlet = viewlet;
 	}
 
 	public static clearDraggedViewlet(): void {
-		ActivityActionItem.draggedViewlet = void 0;
+		ViewletActionItem.draggedViewlet = void 0;
 	}
 
 	private showContextMenu(container: HTMLElement): void {
-		const actions: Action[] = [ActivityActionItem.toggleViewletPinnedAction];
+		const actions: Action[] = [ViewletActionItem.toggleViewletPinnedAction];
 		if (this.viewlet.extensionId) {
 			actions.push(new Separator());
-			actions.push(ActivityActionItem.manageExtensionAction);
+			actions.push(ViewletActionItem.manageExtensionAction);
 		}
 
 		const isPinned = this.activityBarService.isPinned(this.viewlet.id);
 		if (isPinned) {
-			ActivityActionItem.toggleViewletPinnedAction.label = nls.localize('removeFromActivityBar', "Remove from Activity Bar");
+			ViewletActionItem.toggleViewletPinnedAction.label = nls.localize('removeFromActivityBar', "Remove from Activity Bar");
 		} else {
-			ActivityActionItem.toggleViewletPinnedAction.label = nls.localize('keepInActivityBar', "Keep in Activity Bar");
+			ViewletActionItem.toggleViewletPinnedAction.label = nls.localize('keepInActivityBar', "Keep in Activity Bar");
 		}
 
 		this.contextMenuService.showContextMenu({
@@ -352,10 +417,6 @@ export class ActivityActionItem extends ThemableActivityActionItem {
 		this.$container.domFocus();
 	}
 
-	public setBadge(badge: IBadge): void {
-		this.updateBadge(badge);
-	}
-
 	public set keybinding(keybinding: string) {
 		this._keybinding = keybinding;
 
@@ -365,47 +426,13 @@ export class ActivityActionItem extends ThemableActivityActionItem {
 
 		let title: string;
 		if (keybinding) {
-			title = nls.localize('titleKeybinding', "{0} ({1})", this.name, keybinding);
+			title = nls.localize('titleKeybinding', "{0} ({1})", this.activity.name, keybinding);
 		} else {
-			title = this.name;
+			title = this.activity.name;
 		}
 
 		this.$label.title(title);
 		this.$badge.title(title);
-	}
-
-	private updateBadge(badge: IBadge): void {
-		this.$badgeContent.empty();
-		this.$badge.hide();
-
-		if (badge) {
-
-			// Number
-			if (badge instanceof NumberBadge) {
-				if (badge.number) {
-					this.$badgeContent.text(badge.number > 99 ? '99+' : badge.number.toString());
-					this.$badge.show();
-				}
-			}
-
-			// Text
-			else if (badge instanceof TextBadge) {
-				this.$badgeContent.text(badge.text);
-				this.$badge.show();
-			}
-
-			// Text
-			else if (badge instanceof IconBadge) {
-				this.$badge.show();
-			}
-
-			// Progress
-			else if (badge instanceof ProgressBadge) {
-				this.$badge.show();
-			}
-
-			this.$label.attr('aria-label', `${this.name} - ${badge.getDescription()}`);
-		}
 	}
 
 	protected _updateClass(): void {
@@ -425,13 +452,6 @@ export class ActivityActionItem extends ThemableActivityActionItem {
 		}
 	}
 
-	private handleBadgeChangeEvenet(): void {
-		const action = this.getAction();
-		if (action instanceof ActivityAction) {
-			this.updateBadge(action.getBadge());
-		}
-	}
-
 	protected _updateEnabled(): void {
 		if (this.getAction().enabled) {
 			this.builder.removeClass('disabled');
@@ -443,13 +463,12 @@ export class ActivityActionItem extends ThemableActivityActionItem {
 	public dispose(): void {
 		super.dispose();
 
-		ActivityActionItem.clearDraggedViewlet();
+		ViewletActionItem.clearDraggedViewlet();
 
 		if (this.mouseUpTimeout) {
 			clearTimeout(this.mouseUpTimeout);
 		}
 
-		this.$badge.destroy();
 		this.$label.destroy();
 	}
 }
@@ -459,7 +478,11 @@ export class ViewletOverflowActivityAction extends ActivityAction {
 	constructor(
 		private showMenu: () => void
 	) {
-		super('activitybar.additionalViewlets.action', nls.localize('additionalViews', "Additional Views"), 'toggle-more');
+		super({
+			id: 'activitybar.additionalViewlets.action',
+			name: nls.localize('additionalViews', "Additional Views"),
+			cssClass: 'toggle-more'
+		});
 	}
 
 	public run(event): TPromise<any> {
@@ -469,8 +492,8 @@ export class ViewletOverflowActivityAction extends ActivityAction {
 	}
 }
 
-export class ViewletOverflowActivityActionItem extends ThemableActivityActionItem {
-	private $label: Builder;
+export class ViewletOverflowActivityActionItem extends ActivityActionItem {
+
 	private name: string;
 	private cssClass: string;
 	private actions: OpenViewletAction[];
