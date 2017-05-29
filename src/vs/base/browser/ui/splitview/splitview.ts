@@ -611,8 +611,10 @@ export class SplitView implements
 		this.onViewChange(deadView, 0);
 
 		let sashIndex = Math.max(index - 1, 0);
-		this.sashes[sashIndex].dispose();
-		this.sashes.splice(sashIndex, 1);
+		if (sashIndex < this.sashes.length) {
+			this.sashes[sashIndex].dispose();
+			this.sashes.splice(sashIndex, 1);
+		}
 
 		this.viewChangeListeners[index].dispose();
 		this.viewChangeListeners.splice(index, 1);

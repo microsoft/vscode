@@ -301,6 +301,8 @@ export interface IViewletView extends IView, IThemable {
 	shutdown(): void;
 	focusBody(): void;
 	isExpanded(): boolean;
+	expand(): void;
+	collapse(): void;
 }
 
 /**

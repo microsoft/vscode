@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/explorerviewlet';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Dimension, Builder } from 'vs/base/browser/builder';
@@ -61,6 +61,7 @@ export class ExplorerViewlet extends Viewlet {
 	private dimension: Dimension;
 
 	private viewletVisibleContextKey: IContextKey<boolean>;
+	private disposables: IDisposable[] = [];
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -71,7 +72,7 @@ export class ExplorerViewlet extends Viewlet {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService,
+		@IThemeService themeService: IThemeService
 	) {
 		super(VIEWLET_ID, telemetryService, themeService);
 
@@ -81,8 +82,9 @@ export class ExplorerViewlet extends Viewlet {
 		this.viewletVisibleContextKey = ExplorerViewletVisibleContext.bindTo(contextKeyService);
 
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
-		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config));
-		ViewsRegistry.onViewsRegistered(viewDescriptors => this.addViews(viewDescriptors.filter(viewDescriptor => ViewLocation.Explorer === viewDescriptor.location)));
+
+		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config), this, this.disposables);
+		ViewsRegistry.onViewsRegistered(viewDescriptors => this.addCustomViews(viewDescriptors.filter(viewDescriptor => ViewLocation.Explorer === viewDescriptor.location), true), this, this.disposables);
 	}
 
 	public create(parent: Builder): TPromise<void> {
@@ -134,11 +136,7 @@ export class ExplorerViewlet extends Viewlet {
 
 		// custom views
 		for (const view of customViews) {
-			this.views.push(this.instantiationService.createInstance(view.ctor, view.id, {
-				name: view.name,
-				actionRunner: this.getActionRunner(),
-				collapsed: viewsState[view.id] ? (<IViewState>viewsState[view.id]).collapsed : true
-			}));
+			this.addCustomView(view, viewsState[view.id], -1);
 		}
 
 		for (let i = 0; i < this.views.length; i++) {
@@ -150,16 +148,7 @@ export class ExplorerViewlet extends Viewlet {
 		this.lastFocusedView = this.explorerView;
 
 		return TPromise.join(this.views.map(view => view.create())).then(() => void 0).then(() => {
-			if (this.views.length === 1) {
-				this.views[0].hideHeader();
-
-			}
-			if (this.dimension) {
-				this.layout(this.dimension);
-			}
-
-			// Update title area since the title actions have changed.
-			this.updateTitleArea();
+			this.onViewsUpdated();
 			return this.setVisible(this.isVisible()).then(() => this.focus()); // Focus the viewlet since that triggers a rerender.
 		});
 	}
@@ -188,47 +177,61 @@ export class ExplorerViewlet extends Viewlet {
 			this.splitView.removeView(this.openEditorsView);
 			this.openEditorsView.dispose();
 			this.openEditorsView = null;
-
-			if (this.views.length === 1) {
-				this.views[0].hideHeader();
-			}
-			if (this.dimension) {
-				this.layout(this.dimension);
-			}
-			// Update title area since the title actions have changed.
-			this.updateTitleArea();
+			this.onViewsUpdated();
 		}
 	}
 
-	private addViews(viewDescriptors: IViewDescriptor[]): void {
+	private addCustomViews(viewDescriptors: IViewDescriptor[], end: boolean): void {
 		if (!this.splitView || !viewDescriptors.length) {
 			return;
 		}
 		const views = [];
 
+		const registered = ViewsRegistry.getViews(ViewLocation.Explorer);
 		const viewsState = JSON.parse(this.storageService.get(ExplorerViewlet.EXPLORER_VIEWS_STATE, this.contextService.hasWorkspace() ? StorageScope.WORKSPACE : StorageScope.GLOBAL, '{}'));
 		for (const viewDescriptor of viewDescriptors) {
-			const view = this.instantiationService.createInstance(viewDescriptor.ctor, viewDescriptor.id, {
-				name: viewDescriptor.name,
-				actionRunner: this.getActionRunner(),
-				collapsed: viewsState[viewDescriptor.id] ? (<IViewState>viewsState[viewDescriptor.id]).collapsed : true
-			});
+			let index = end ? -1 : this.openEditorsView ? registered.indexOf(viewDescriptor) + 2 : registered.indexOf(viewDescriptor) + 1;
+			const view = this.addCustomView(viewDescriptor, viewsState[viewDescriptor.id], index);
 			views.push(view);
-			this.views.push(view);
 			attachHeaderViewStyler(view, this.themeService);
-			this.splitView.addView(view, viewsState[view.id] ? (<IViewState>viewsState[view.id]).size : void 0);
+			this.splitView.addView(view, viewsState[view.id] ? (<IViewState>viewsState[view.id]).size : void 0, end ? void 0 : index);
 		}
 
 		TPromise.join(views.map(view => view.create())).then(() => void 0).then(() => {
-			this.views[0].showHeader();
-
-			if (this.dimension) {
-				this.layout(this.dimension);
-			}
-
-			// Update title area since the title actions have changed.
-			this.updateTitleArea();
+			this.onViewsUpdated();
 		});
+	}
+
+	private addCustomView(viewDescriptor: IViewDescriptor, viewState: IViewState, index: number): IViewletView {
+		const view = this.instantiationService.createInstance(viewDescriptor.ctor, viewDescriptor.id, {
+			name: viewDescriptor.name,
+			actionRunner: this.getActionRunner(),
+			collapsed: viewState ? viewState.collapsed : true
+		});
+		if (index !== -1) {
+			this.views.splice(index, 0, view);
+		} else {
+			this.views.push(view);
+		}
+		return view;
+	}
+
+	private onViewsUpdated(): void {
+		if (this.views.length > 1) {
+			this.views[0].showHeader();
+		} else {
+			this.views[0].hideHeader();
+			if (!this.views[0].isExpanded()) {
+				this.views[0].expand();
+			}
+		}
+
+		if (this.dimension) {
+			this.layout(this.dimension);
+		}
+
+		// Update title area since the title actions have changed.
+		this.updateTitleArea();
 	}
 
 	private onConfigurationUpdated(config: IFilesConfiguration): void {
@@ -395,15 +398,17 @@ export class ExplorerViewlet extends Viewlet {
 	}
 
 	public shutdown(): void {
+		this.saveViewsState();
+		this.views.forEach((view) => view.shutdown());
+		super.shutdown();
+	}
+
+	private saveViewsState(): void {
 		const viewletState = this.views.reduce((result, view) => {
 			result[view.id] = this.getViewState(view);
 			return result;
 		}, {});
 		this.storageService.store(ExplorerViewlet.EXPLORER_VIEWS_STATE, JSON.stringify(viewletState), this.contextService.hasWorkspace() ? StorageScope.WORKSPACE : StorageScope.GLOBAL);
-
-		this.views.forEach((view) => view.shutdown());
-
-		super.shutdown();
 	}
 
 	private getViewState(view: IViewletView): IViewState {
@@ -439,5 +444,9 @@ export class ExplorerViewlet extends Viewlet {
 			this.focusListener.dispose();
 			this.focusListener = null;
 		}
+
+		this.disposables = dispose(this.disposables);
+
+		super.dispose();
 	}
 }
