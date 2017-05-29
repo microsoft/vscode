@@ -12,6 +12,7 @@ import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService'
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IConfigurationChangedEvent, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class EmbeddedCodeEditorWidget extends CodeEditor {
 
@@ -25,9 +26,10 @@ export class EmbeddedCodeEditorWidget extends CodeEditor {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(domElement, parentEditor.getRawConfiguration(), instantiationService, codeEditorService, commandService, contextKeyService);
+		super(domElement, parentEditor.getRawConfiguration(), instantiationService, codeEditorService, commandService, contextKeyService, themeService);
 
 		this._parentEditor = parentEditor;
 		this._overwriteOptions = options;

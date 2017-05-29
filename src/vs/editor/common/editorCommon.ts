@@ -23,7 +23,7 @@ import {
 } from 'vs/editor/common/model/textModelEvents';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { ICursors } from 'vs/editor/common/controller/cursorCommon';
+import { ICursors, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -41,19 +41,19 @@ export enum OverviewRulerLane {
 export interface IModelDecorationOverviewRulerOptions {
 	/**
 	 * CSS color to render in the overview ruler.
-	 * e.g.: rgba(100, 100, 100, 0.5)
+	 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 	 */
-	color: string;
+	color: string | ThemeColor;
 	/**
 	 * CSS color to render in the overview ruler.
-	 * e.g.: rgba(100, 100, 100, 0.5)
+	 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 	 */
-	darkColor: string;
+	darkColor: string | ThemeColor;
 	/**
 	 * CSS color to render in the overview ruler.
-	 * e.g.: rgba(100, 100, 100, 0.5)
+	 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 	 */
-	hcColor?: string;
+	hcColor?: string | ThemeColor;
 	/**
 	 * The position in the overview ruler.
 	 */
@@ -86,9 +86,10 @@ export interface IModelDecorationOptions {
 	 */
 	isWholeLine?: boolean;
 	/**
-	 * @deprecated : Use `overviewRuler` instead
+	 * Always render the decoration (even when the range it encompasses is collapsed).
+	 * @internal
 	 */
-	showInOverviewRuler?: string;
+	readonly showIfCollapsed?: boolean;
 	/**
 	 * If set, render this decoration in the overview ruler.
 	 */
@@ -292,6 +293,14 @@ export interface IEditOperationBuilder {
 	addEditOperation(range: Range, text: string): void;
 
 	/**
+	 * Add a new edit operation (a replace operation).
+	 * The inverse edits will be accessible in `ICursorStateComputerData.getInverseEditOperations()`
+	 * @param range The range to replace (delete). May be empty to represent a simple insert.
+	 * @param text The text to replace with. May be null to represent a simple delete.
+	 */
+	addTrackedEditOperation(range: Range, text: string): void;
+
+	/**
 	 * Track `selection` when applying edit operations.
 	 * A best effort will be made to not grow/expand the selection.
 	 * An empty selection will clamp to a nearby character.
@@ -323,12 +332,20 @@ export interface ICursorStateComputerData {
  * A command that modifies text / cursor state on a model.
  */
 export interface ICommand {
+
+	/**
+	 * Signal that this command is inserting automatic whitespace that should be trimmed if possible.
+	 * @internal
+	 */
+	readonly insertsAutoWhitespace?: boolean;
+
 	/**
 	 * Get the edit operations needed to execute this command.
 	 * @param model The model the command will execute on.
 	 * @param builder A helper to collect the needed edit operations and to track selections.
 	 */
 	getEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder): void;
+
 	/**
 	 * Compute the cursor state after the edit operations were applied.
 	 * @param model The model the commad has executed on.
@@ -384,6 +401,11 @@ export interface IIdentifiedSingleEditOperation {
 	 * that can be removed on next model edit operation if `config.trimAutoWhitespace` is true.
 	 */
 	isAutoWhitespaceEdit?: boolean;
+	/**
+	 * This indicates that this operation is in a set of operations that are tracked and should not be "simplified".
+	 * @internal
+	 */
+	_isTracked?: boolean;
 }
 
 /**
@@ -685,46 +707,46 @@ export interface ITextModel {
 	 * @param searchOnlyEditableRange Limit the searching to only search inside the editable range of the model.
 	 * @param isRegex Used to indicate that `searchString` is a regular expression.
 	 * @param matchCase Force the matching to match lower/upper case exactly.
-	 * @param wholeWord Force the matching to match entire words only.
+	 * @param wordSeparators Force the matching to match entire words only. Pass null otherwise.
 	 * @param captureMatches The result will contain the captured groups.
 	 * @param limitResultCount Limit the number of results
 	 * @return The ranges where the matches are. It is empty if not matches have been found.
 	 */
-	findMatches(searchString: string, searchOnlyEditableRange: boolean, isRegex: boolean, matchCase: boolean, wholeWord: boolean, captureMatches: boolean, limitResultCount?: number): FindMatch[];
+	findMatches(searchString: string, searchOnlyEditableRange: boolean, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean, limitResultCount?: number): FindMatch[];
 	/**
 	 * Search the model.
 	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
 	 * @param searchScope Limit the searching to only search inside this range.
 	 * @param isRegex Used to indicate that `searchString` is a regular expression.
 	 * @param matchCase Force the matching to match lower/upper case exactly.
-	 * @param wholeWord Force the matching to match entire words only.
+	 * @param wordSeparators Force the matching to match entire words only. Pass null otherwise.
 	 * @param captureMatches The result will contain the captured groups.
 	 * @param limitResultCount Limit the number of results
 	 * @return The ranges where the matches are. It is empty if no matches have been found.
 	 */
-	findMatches(searchString: string, searchScope: IRange, isRegex: boolean, matchCase: boolean, wholeWord: boolean, captureMatches: boolean, limitResultCount?: number): FindMatch[];
+	findMatches(searchString: string, searchScope: IRange, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean, limitResultCount?: number): FindMatch[];
 	/**
 	 * Search the model for the next match. Loops to the beginning of the model if needed.
 	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
 	 * @param searchStart Start the searching at the specified position.
 	 * @param isRegex Used to indicate that `searchString` is a regular expression.
 	 * @param matchCase Force the matching to match lower/upper case exactly.
-	 * @param wholeWord Force the matching to match entire words only.
+	 * @param wordSeparators Force the matching to match entire words only. Pass null otherwise.
 	 * @param captureMatches The result will contain the captured groups.
 	 * @return The range where the next match is. It is null if no next match has been found.
 	 */
-	findNextMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean, captureMatches: boolean): FindMatch;
+	findNextMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean): FindMatch;
 	/**
 	 * Search the model for the previous match. Loops to the end of the model if needed.
 	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
 	 * @param searchStart Start the searching at the specified position.
 	 * @param isRegex Used to indicate that `searchString` is a regular expression.
 	 * @param matchCase Force the matching to match lower/upper case exactly.
-	 * @param wholeWord Force the matching to match entire words only.
+	 * @param wordSeparators Force the matching to match entire words only. Pass null otherwise.
 	 * @param captureMatches The result will contain the captured groups.
 	 * @return The range where the previous match is. It is null if no previous match has been found.
 	 */
-	findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean, captureMatches: boolean): FindMatch;
+	findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean): FindMatch;
 }
 
 export class FindMatch {
@@ -1599,19 +1621,30 @@ export interface IEditorContribution {
 	restoreViewState?(state: any): void;
 }
 
+export interface ThemeColor {
+	id: string;
+}
+
+/**
+ * @internal
+ */
+export function isThemeColor(o): o is ThemeColor {
+	return o && typeof o.id === 'string';
+}
+
 /**
  * @internal
  */
 export interface IThemeDecorationRenderOptions {
-	backgroundColor?: string;
+	backgroundColor?: string | ThemeColor;
 
 	outline?: string;
-	outlineColor?: string;
+	outlineColor?: string | ThemeColor;
 	outlineStyle?: string;
 	outlineWidth?: string;
 
 	border?: string;
-	borderColor?: string;
+	borderColor?: string | ThemeColor;
 	borderRadius?: string;
 	borderSpacing?: string;
 	borderStyle?: string;
@@ -1619,13 +1652,13 @@ export interface IThemeDecorationRenderOptions {
 
 	textDecoration?: string;
 	cursor?: string;
-	color?: string;
+	color?: string | ThemeColor;
 	letterSpacing?: string;
 
 	gutterIconPath?: string | URI;
 	gutterIconSize?: string;
 
-	overviewRulerColor?: string;
+	overviewRulerColor?: string | ThemeColor;
 
 	before?: IContentDecorationRenderOptions;
 	after?: IContentDecorationRenderOptions;
@@ -1639,9 +1672,10 @@ export interface IContentDecorationRenderOptions {
 	contentIconPath?: string | URI;
 
 	border?: string;
+	borderColor?: string | ThemeColor;
 	textDecoration?: string;
-	color?: string;
-	backgroundColor?: string;
+	color?: string | ThemeColor;
+	backgroundColor?: string | ThemeColor;
 
 	margin?: string;
 	width?: string;
@@ -1803,7 +1837,7 @@ export interface ICommonCodeEditor extends IEditor {
 	getConfiguration(): editorOptions.InternalEditorOptions;
 
 	/**
-	 * Returns the 'raw' editor's configuration, as it was applied over the defaults, but without any computed members.
+	 * Returns the 'raw' editor's configuration (without any validation or defaults).
 	 * @internal
 	 */
 	getRawConfiguration(): editorOptions.IEditorOptions;
@@ -1860,6 +1894,7 @@ export interface ICommonCodeEditor extends IEditor {
 
 	/**
 	 * Execute a command on the editor.
+	 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
 	 * @param source The source of the call.
 	 * @param command The command to execute
 	 */
@@ -1872,6 +1907,7 @@ export interface ICommonCodeEditor extends IEditor {
 
 	/**
 	 * Execute edits on the editor.
+	 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
 	 * @param source The source of the call.
 	 * @param edits The edits to execute.
 	 * @param endCursoState Cursor state after the edits were applied.
@@ -1889,6 +1925,11 @@ export interface ICommonCodeEditor extends IEditor {
 	 * @internal
 	 */
 	_getCursors(): ICursors;
+
+	/**
+	 * @internal
+	 */
+	_getCursorConfiguration(): CursorConfiguration;
 
 	/**
 	 * Get all the decorations on a line (filtering out decorations from other editors).
@@ -2038,28 +2079,8 @@ export var Handler = {
 	CompositionEnd: 'compositionEnd',
 	Paste: 'paste',
 
-	Tab: 'tab',
-	Indent: 'indent',
-	Outdent: 'outdent',
-
-	DeleteLeft: 'deleteLeft',
-	DeleteRight: 'deleteRight',
-
 	Cut: 'cut',
 
 	Undo: 'undo',
 	Redo: 'redo',
-
-	LineInsertBefore: 'lineInsertBefore',
-	LineInsertAfter: 'lineInsertAfter',
-	LineBreakInsert: 'lineBreakInsert',
 };
-
-/**
- * @internal
- */
-export const enum ThemeType {
-	Light = 1,
-	Dark = 2,
-	HighContrast = 3
-}

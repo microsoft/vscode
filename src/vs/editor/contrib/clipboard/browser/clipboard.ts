@@ -13,7 +13,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, IActionOptions, EditorAction } from 'vs/editor/common/editorCommonExtensions';
-import { CopyOptions } from 'vs/editor/common/controller/textAreaHandler';
+import { CopyOptions } from 'vs/editor/browser/controller/textAreaInput';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
@@ -81,9 +81,9 @@ class ExecCommandCutAction extends ExecCommandAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
-		var enableEmptySelectionClipboard = editor.getConfiguration().contribInfo.emptySelectionClipboard && browser.enableEmptySelectionClipboard;
+		const emptySelectionClipboard = editor.getConfiguration().emptySelectionClipboard;
 
-		if (!enableEmptySelectionClipboard && editor.getSelection().isEmpty()) {
+		if (!emptySelectionClipboard && editor.getSelection().isEmpty()) {
 			return;
 		}
 
@@ -113,9 +113,9 @@ class ExecCommandCopyAction extends ExecCommandAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
-		var enableEmptySelectionClipboard = editor.getConfiguration().contribInfo.emptySelectionClipboard && browser.enableEmptySelectionClipboard;
+		const emptySelectionClipboard = editor.getConfiguration().emptySelectionClipboard;
 
-		if (!enableEmptySelectionClipboard && editor.getSelection().isEmpty()) {
+		if (!emptySelectionClipboard && editor.getSelection().isEmpty()) {
 			return;
 		}
 
@@ -162,9 +162,9 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends ExecCommandAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
-		var enableEmptySelectionClipboard = editor.getConfiguration().contribInfo.emptySelectionClipboard && browser.enableEmptySelectionClipboard;
+		const emptySelectionClipboard = editor.getConfiguration().emptySelectionClipboard;
 
-		if (!enableEmptySelectionClipboard && editor.getSelection().isEmpty()) {
+		if (!emptySelectionClipboard && editor.getSelection().isEmpty()) {
 			return;
 		}
 

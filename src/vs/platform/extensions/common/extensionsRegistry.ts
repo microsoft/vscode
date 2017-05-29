@@ -17,19 +17,27 @@ const schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONCon
 
 export class ExtensionMessageCollector {
 
-	private _messageHandler: (msg: IMessage) => void;
-	private _source: string;
+	private readonly _messageHandler: (msg: IMessage) => void;
+	private readonly _extension: IExtensionDescription;
+	private readonly _extensionPointId: string;
 
-	constructor(messageHandler: (msg: IMessage) => void, source: string) {
+	constructor(
+		messageHandler: (msg: IMessage) => void,
+		extension: IExtensionDescription,
+		extensionPointId: string
+	) {
 		this._messageHandler = messageHandler;
-		this._source = source;
+		this._extension = extension;
+		this._extensionPointId = extensionPointId;
 	}
 
 	private _msg(type: Severity, message: string): void {
 		this._messageHandler({
 			type: type,
 			message: message,
-			source: this._source
+			source: this._extension.extensionFolderPath,
+			extensionId: this._extension.id,
+			extensionPointId: this._extensionPointId
 		});
 	}
 
@@ -139,7 +147,7 @@ const schema: IJSONSchema = {
 			uniqueItems: true,
 			items: {
 				type: 'string',
-				enum: ['Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Other', 'Keymaps', 'Formatters', 'Extension Packs']
+				enum: ['Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Other', 'Keymaps', 'Formatters', 'Extension Packs', 'SCM Providers']
 			}
 		},
 		galleryBanner: {

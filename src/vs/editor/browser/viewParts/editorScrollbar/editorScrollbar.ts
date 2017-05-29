@@ -9,36 +9,32 @@ import { ScrollableElementCreationOptions, ScrollableElementChangeOptions } from
 import { IOverviewRulerLayoutInfo, ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { INewScrollPosition } from 'vs/editor/common/editorCommon';
 import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
-import { Scrollable } from 'vs/base/common/scrollable';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 
 export class EditorScrollbar extends ViewPart {
 
-	private scrollable: Scrollable;
 	private scrollbar: ScrollableElement;
 	private scrollbarDomNode: FastDomNode<HTMLElement>;
 
 	constructor(
 		context: ViewContext,
-		scrollable: Scrollable,
 		linesContent: FastDomNode<HTMLElement>,
 		viewDomNode: FastDomNode<HTMLElement>,
 		overflowGuardDomNode: FastDomNode<HTMLElement>
 	) {
 		super(context);
 
-		this.scrollable = scrollable;
-
-		const viewInfo = this._context.configuration.editor.viewInfo;
-		const configScrollbarOpts = viewInfo.scrollbar;
+		const editor = this._context.configuration.editor;
+		const configScrollbarOpts = editor.viewInfo.scrollbar;
 
 		let scrollbarOptions: ScrollableElementCreationOptions = {
-			canUseTranslate3d: viewInfo.canUseTranslate3d,
+			canUseTranslate3d: editor.canUseTranslate3d,
 			listenOnDomNode: viewDomNode.domNode,
-			className: 'editor-scrollable' + ' ' + viewInfo.theme,
+			className: 'editor-scrollable' + ' ' + getThemeTypeSelector(context.theme.type),
 			useShadows: false,
 			lazyRender: true,
 
@@ -55,7 +51,7 @@ export class EditorScrollbar extends ViewPart {
 			mouseWheelScrollSensitivity: configScrollbarOpts.mouseWheelScrollSensitivity,
 		};
 
-		this.scrollbar = this._register(new ScrollableElement(linesContent.domNode, scrollbarOptions, this.scrollable));
+		this.scrollbar = this._register(new ScrollableElement(linesContent.domNode, scrollbarOptions, this._context.viewLayout.scrollable));
 		PartFingerprints.write(this.scrollbar.getDomNode(), PartFingerprint.ScrollableElement);
 
 		this.scrollbarDomNode = createFastDomNode(this.scrollbar.getDomNode());
@@ -67,13 +63,12 @@ export class EditorScrollbar extends ViewPart {
 		// changing the .scrollTop of this.linesContent
 
 		let onBrowserDesperateReveal = (domNode: HTMLElement, lookAtScrollTop: boolean, lookAtScrollLeft: boolean) => {
-			const scrollState = this.scrollable.getState();
 			let newScrollPosition: INewScrollPosition = {};
 
 			if (lookAtScrollTop) {
 				let deltaTop = domNode.scrollTop;
 				if (deltaTop) {
-					newScrollPosition.scrollTop = scrollState.scrollTop + deltaTop;
+					newScrollPosition.scrollTop = this._context.viewLayout.getScrollTop() + deltaTop;
 					domNode.scrollTop = 0;
 				}
 			}
@@ -81,12 +76,12 @@ export class EditorScrollbar extends ViewPart {
 			if (lookAtScrollLeft) {
 				let deltaLeft = domNode.scrollLeft;
 				if (deltaLeft) {
-					newScrollPosition.scrollLeft = scrollState.scrollLeft + deltaLeft;
+					newScrollPosition.scrollLeft = this._context.viewLayout.getScrollLeft() + deltaLeft;
 					domNode.scrollLeft = 0;
 				}
 			}
 
-			this.scrollable.updateState(newScrollPosition);
+			this._context.viewLayout.setScrollPosition(newScrollPosition);
 		};
 
 		// I've seen this happen both on the view dom node & on the lines content dom node.
@@ -126,14 +121,12 @@ export class EditorScrollbar extends ViewPart {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		const viewInfo = this._context.configuration.editor.viewInfo;
-
-		this.scrollbar.updateClassName('editor-scrollable' + ' ' + viewInfo.theme);
-		if (e.viewInfo.scrollbar || e.viewInfo.canUseTranslate3d) {
+		if (e.viewInfo || e.canUseTranslate3d) {
+			const editor = this._context.configuration.editor;
 			let newOpts: ScrollableElementChangeOptions = {
-				canUseTranslate3d: viewInfo.canUseTranslate3d,
-				handleMouseWheel: viewInfo.scrollbar.handleMouseWheel,
-				mouseWheelScrollSensitivity: viewInfo.scrollbar.mouseWheelScrollSensitivity
+				canUseTranslate3d: editor.canUseTranslate3d,
+				handleMouseWheel: editor.viewInfo.scrollbar.handleMouseWheel,
+				mouseWheelScrollSensitivity: editor.viewInfo.scrollbar.mouseWheelScrollSensitivity
 			};
 			this.scrollbar.updateOptions(newOpts);
 		}
@@ -142,44 +135,12 @@ export class EditorScrollbar extends ViewPart {
 		}
 		return true;
 	}
-	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
-		return false;
-	}
-	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
-		return false;
-	}
-	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
-		return false;
-	}
-	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		return false;
-	}
-	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
-		return false;
-	}
-	public onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): boolean {
-		return false;
-	}
-	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
-		return false;
-	}
-	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		return false;
-	}
-	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
-		return false;
-	}
-	public onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
-		return false;
-	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return true;
 	}
-	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
-		return false;
-	}
-	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
-		return false;
+	public onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
+		this.scrollbar.updateClassName('editor-scrollable' + ' ' + getThemeTypeSelector(this._context.theme.type));
+		return true;
 	}
 
 	// --- end event handlers

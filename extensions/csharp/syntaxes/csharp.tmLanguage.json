@@ -1,4 +1,9 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/dotnet/csharp-tmLanguage/blob/master/grammars/csharp.tmLanguage",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
 	"name": "C#",
 	"scopeName": "source.cs",
 	"fileTypes": [
@@ -4186,6 +4191,5 @@
 				}
 			}
 		}
-	},
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/4d0e50c51f336645c98689737db1be321d212d3d"
+	}
 }

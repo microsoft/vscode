@@ -1,4 +1,7 @@
 {
+	"rulesDirectory": [
+		"build/lib/tslint"
+	],
 	"rules": {
 		"no-unused-expression": true,
 		"no-duplicate-variable": true,

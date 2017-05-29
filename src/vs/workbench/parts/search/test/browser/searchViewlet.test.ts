@@ -69,7 +69,7 @@ suite('Search - Viewlet', () => {
 			resource: uri.file('C:\\' + path),
 			lineMatches: lineMatches
 		};
-		return instantiation.createInstance(FileMatch, null, searchResult, rawMatch);
+		return instantiation.createInstance(FileMatch, null, null, searchResult, rawMatch);
 	}
 
 	function stubModelService(instantiationService: TestInstantiationService): IModelService {

@@ -124,7 +124,8 @@ export const enum RawContentChangedType {
 	Flush = 1,
 	LineChanged = 2,
 	LinesDeleted = 3,
-	LinesInserted = 4
+	LinesInserted = 4,
+	EOLChanged = 5
 }
 
 /**
@@ -204,9 +205,17 @@ export class ModelRawLinesInserted {
 }
 
 /**
+ * An event describing that a model has had its EOL changed.
  * @internal
  */
-export type ModelRawChange = ModelRawFlush | ModelRawLineChanged | ModelRawLinesDeleted | ModelRawLinesInserted;
+export class ModelRawEOLChanged {
+	public readonly changeType = RawContentChangedType.EOLChanged;
+}
+
+/**
+ * @internal
+ */
+export type ModelRawChange = ModelRawFlush | ModelRawLineChanged | ModelRawLinesDeleted | ModelRawLinesInserted | ModelRawEOLChanged;
 
 /**
  * An event describing a change in the text of a model.
@@ -233,5 +242,15 @@ export class ModelRawContentChangedEvent {
 		this.versionId = versionId;
 		this.isUndoing = isUndoing;
 		this.isRedoing = isRedoing;
+	}
+
+	public containsEvent(type: RawContentChangedType): boolean {
+		for (let i = 0, len = this.changes.length; i < len; i++) {
+			const change = this.changes[i];
+			if (change.changeType === type) {
+				return true;
+			}
+		}
+		return false;
 	}
 }

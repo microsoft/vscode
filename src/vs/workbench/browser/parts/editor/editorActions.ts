@@ -60,8 +60,7 @@ export class SplitEditorAction extends Action {
 		let options: EditorOptions;
 		const codeEditor = getCodeEditor(editorToSplit);
 		if (codeEditor) {
-			options = new TextEditorOptions();
-			(<TextEditorOptions>options).fromEditor(codeEditor);
+			options = TextEditorOptions.fromEditor(codeEditor);
 		} else {
 			options = new EditorOptions();
 		}
@@ -317,9 +316,7 @@ export abstract class BaseFocusSideGroupAction extends Action {
 			let options: EditorOptions;
 			const codeEditor = getCodeEditor(referenceEditor);
 			if (codeEditor) {
-				options = new TextEditorOptions();
-				options.pinned = true;
-				(<TextEditorOptions>options).fromEditor(codeEditor);
+				options = TextEditorOptions.fromEditor(codeEditor, { pinned: true });
 			} else {
 				options = EditorOptions.create({ pinned: true });
 			}
@@ -1318,6 +1315,38 @@ export class OpenPreviousEditorFromHistoryAction extends Action {
 		this.quickOpenService.show(null, { quickNavigateConfiguration: { keybindings: keys } });
 
 		return TPromise.as(true);
+	}
+}
+
+export class OpenNextRecentlyUsedEditorAction extends Action {
+
+	public static ID = 'workbench.action.openNextRecentlyUsedEditor';
+	public static LABEL = nls.localize('openNextRecentlyUsedEditor', "Open Next Recently Used Editor");
+
+	constructor(id: string, label: string, @IHistoryService private historyService: IHistoryService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		this.historyService.forward(true);
+
+		return TPromise.as(null);
+	}
+}
+
+export class OpenPreviousRecentlyUsedEditorAction extends Action {
+
+	public static ID = 'workbench.action.openPreviousRecentlyUsedEditor';
+	public static LABEL = nls.localize('openPreviousRecentlyUsedEditor', "Open Previous Recently Used Editor");
+
+	constructor(id: string, label: string, @IHistoryService private historyService: IHistoryService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		this.historyService.back(true);
+
+		return TPromise.as(null);
 	}
 }
 

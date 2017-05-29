@@ -44,12 +44,26 @@ export interface IEditorConstructionOptions extends IEditorOptions {
 	 * To not create automatically a model, use `model: null`.
 	 */
 	language?: string;
+	/**
+	 * Initial theme to be used for rendering.
+	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+	 * You can create custom themes via `monaco.editor.defineTheme`.
+	 * To switch a theme, use `monaco.editor.setTheme`
+	 */
+	theme?: string;
 }
 
 /**
  * The options to create a diff editor.
  */
 export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
+	/**
+	 * Initial theme to be used for rendering.
+	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+	 * You can create custom themes via `monaco.editor.defineTheme`.
+	 * To switch a theme, use `monaco.editor.setTheme`
+	 */
+	theme?: string;
 }
 
 export interface IStandaloneCodeEditor extends ICodeEditor {
@@ -83,9 +97,10 @@ export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeE
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService);
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, themeService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = keybindingService;
@@ -192,7 +207,6 @@ export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeE
 export class StandaloneEditor extends StandaloneCodeEditor implements IStandaloneCodeEditor {
 
 	private _contextViewService: IEditorContextViewService;
-	private _standaloneThemeService: IStandaloneThemeService;
 	private _ownsModel: boolean;
 
 	constructor(
@@ -205,26 +219,23 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IStandaloneThemeService standaloneThemeService: IStandaloneThemeService
+		@IStandaloneThemeService themeService: IStandaloneThemeService
 	) {
 		options = options || {};
 		if (typeof options.theme === 'string') {
-			options.theme = standaloneThemeService.setTheme(options.theme);
+			themeService.setTheme(options.theme);
 		}
-
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService);
+		let model: IModel = options.model;
+		delete options.model;
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService, themeService);
 
 		this._contextViewService = <IEditorContextViewService>contextViewService;
-		this._standaloneThemeService = standaloneThemeService;
 		this._register(toDispose);
 
-		let model: IModel = null;
-		if (typeof options.model === 'undefined') {
+		if (typeof model === 'undefined') {
 			model = (<any>self).monaco.editor.createModel(options.value || '', options.language || 'text/plain');
 			this._ownsModel = true;
 		} else {
-			model = options.model;
-			delete options.model;
 			this._ownsModel = false;
 		}
 
@@ -246,13 +257,6 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		this.dispose();
 	}
 
-	public updateOptions(newOptions: IEditorOptions): void {
-		if (typeof newOptions.theme === 'string') {
-			newOptions.theme = this._standaloneThemeService.setTheme(newOptions.theme);
-		}
-		super.updateOptions(newOptions);
-	}
-
 	_attachModel(model: IModel): void {
 		super._attachModel(model);
 		if (this._view) {
@@ -272,7 +276,6 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 export class StandaloneDiffEditor extends DiffEditorWidget implements IStandaloneDiffEditor {
 
 	private _contextViewService: IEditorContextViewService;
-	private _standaloneThemeService: IStandaloneThemeService;
 	private _standaloneKeybindingService: StandaloneKeybindingService;
 
 	constructor(
@@ -283,14 +286,13 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IStandaloneThemeService standaloneColorService: IStandaloneThemeService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IThemeService themeService: IThemeService
+		@IStandaloneThemeService themeService: IStandaloneThemeService
 	) {
 		options = options || {};
 		if (typeof options.theme === 'string') {
-			options.theme = standaloneColorService.setTheme(options.theme);
+			options.theme = themeService.setTheme(options.theme);
 		}
 
 		super(domElement, options, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService);
@@ -300,7 +302,6 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		}
 
 		this._contextViewService = <IEditorContextViewService>contextViewService;
-		this._standaloneThemeService = standaloneColorService;
 
 		this._register(toDispose);
 
@@ -313,13 +314,6 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 
 	public destroy(): void {
 		this.dispose();
-	}
-
-	public updateOptions(newOptions: IEditorOptions): void {
-		if (typeof newOptions.theme === 'string') {
-			newOptions.theme = this._standaloneThemeService.setTheme(newOptions.theme);
-		}
-		super.updateOptions(newOptions);
 	}
 
 	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: IEditorOptions): CodeEditor {

@@ -60,7 +60,7 @@ export class ResourceLabel extends IconLabel {
 	}
 
 	public setLabel(label: IEditorLabel, options?: IResourceLabelOptions): void {
-		const hasResourceChanged = this.hasResourceChanged(label);
+		const hasResourceChanged = this.hasResourceChanged(label, options);
 
 		this.label = label;
 		this.options = options;
@@ -68,9 +68,16 @@ export class ResourceLabel extends IconLabel {
 		this.render(hasResourceChanged);
 	}
 
-	private hasResourceChanged(label: IEditorLabel): boolean {
+	private hasResourceChanged(label: IEditorLabel, options: IResourceLabelOptions): boolean {
 		const newResource = label ? label.resource : void 0;
 		const oldResource = this.label ? this.label.resource : void 0;
+
+		const newIsFolder = options ? options.isFolder : false;
+		const oldIsFolder = this.options ? this.options.isFolder : false;
+
+		if (newIsFolder !== oldIsFolder) {
+			return true; // same resource but different kind (file, folder)
+		}
 
 		if (newResource && oldResource) {
 			return newResource.toString() !== oldResource.toString();

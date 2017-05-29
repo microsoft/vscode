@@ -688,6 +688,10 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const keyBinding = KeybindingIO.readKeybinding(key || rawKeyBinding.key, OS);
+		if (!keyBinding) {
+			return null;
+		}
+
 		return this.keybindingService.resolveKeybinding(keyBinding)[0];
 	}
 

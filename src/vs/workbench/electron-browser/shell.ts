@@ -16,7 +16,6 @@ import aria = require('vs/base/browser/ui/aria/aria');
 import { dispose, IDisposable, Disposables } from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { stopProfiling } from 'vs/base/node/profiler';
 import product from 'vs/platform/node/product';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import pkg from 'vs/platform/node/package';
@@ -53,7 +52,7 @@ import { IntegrityServiceImpl } from 'vs/platform/integrity/node/integrityServic
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { MainProcessExtensionService } from 'vs/workbench/api/node/mainThreadExtensionService';
+import { MainProcessExtensionService } from 'vs/workbench/api/electron-browser/mainThreadExtensionService';
 import { IOptions } from 'vs/workbench/common/options';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -74,7 +73,8 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { WorkbenchModeServiceImpl } from 'vs/workbench/services/mode/common/workbenchModeService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { CrashReporter } from 'vs/workbench/electron-browser/crashReporter';
+import { ICrashReporterService, NullCrashReporterService } from 'vs/workbench/services/crashReporter/common/crashReporterService';
+import { CrashReporterService } from 'vs/workbench/services/crashReporter/electron-browser/crashReporterService';
 import { NodeCachedDataManager } from 'vs/workbench/electron-browser/nodeCachedDataManager';
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
@@ -88,7 +88,6 @@ import { URLChannelClient } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { IBackupService } from 'vs/platform/backup/common/backup';
 import { BackupChannelClient } from 'vs/platform/backup/common/backupIpc';
-import { ReportPerformanceIssueAction } from 'vs/workbench/electron-browser/actions';
 import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
 import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { remote, ipcRenderer as ipc } from 'electron';
@@ -97,14 +96,11 @@ import { MainProcessTextMateSyntax } from 'vs/editor/electron-browser/textMate/T
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { restoreFontInfo, readFontInfo, saveFontInfo } from 'vs/editor/browser/config/configuration';
 import * as browser from 'vs/base/browser/browser';
-import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
-import { readdir } from 'vs/base/node/pfs';
-import { join } from 'path';
 import 'vs/platform/opener/browser/opener.contribution';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { foreground, focus, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
+import { foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 
 /**
  * Services that we require for the Shell
@@ -136,6 +132,7 @@ export class WorkbenchShell {
 	private windowIPCService: IWindowIPCService;
 	private timerService: ITimerService;
 	private themeService: WorkbenchThemeService;
+	private lifecycleService: ILifecycleService;
 
 	private container: HTMLElement;
 	private toUnbind: IDisposable[];
@@ -171,11 +168,6 @@ export class WorkbenchShell {
 
 		// Instantiation service with services
 		const [instantiationService, serviceCollection] = this.initServiceCollection(parent.getHTMLElement());
-
-		//crash reporting
-		if (!!product.crashReporter) {
-			instantiationService.createInstance(CrashReporter, product.crashReporter);
-		}
 
 		// Workbench
 		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.options, serviceCollection);
@@ -221,7 +213,10 @@ export class WorkbenchShell {
 			theme: this.themeService.getColorTheme().id,
 			language: platform.language,
 			experiments: this.telemetryService.getExperiments(),
-			pinnedViewlets: info.pinnedViewlets
+			pinnedViewlets: info.pinnedViewlets,
+			restoredViewlet: info.restoredViewlet,
+			restoredEditors: info.restoredEditors.length,
+			startupKind: this.lifecycleService.startupKind
 		});
 
 		// Telemetry: startup metrics
@@ -239,39 +234,6 @@ export class WorkbenchShell {
 
 		if ((platform.isLinux || platform.isMacintosh) && process.getuid() === 0) {
 			this.messageService.show(Severity.Warning, nls.localize('runningAsRoot', "It is recommended not to run Code as 'root'."));
-		}
-
-		// Profiler: startup cpu profile
-		const { profileStartup } = this.environmentService;
-		if (profileStartup) {
-			this.extensionService.onReady().then(() => stopProfiling(profileStartup.dir, profileStartup.prefix)).then(() => {
-
-				readdir(profileStartup.dir).then(files => {
-					return files.filter(value => value.indexOf(profileStartup.prefix) === 0);
-				}).then(files => {
-
-					const profileFiles = files.reduce((prev, cur) => `${prev}${join(profileStartup.dir, cur)}\n`, '\n');
-
-					const primaryButton = this.messageService.confirm({
-						type: 'info',
-						message: nls.localize('prof.message', "Successfully created profiles."),
-						detail: nls.localize('prof.detail', "Please create an issue and manually attach the following files:\n{0}", profileFiles),
-						primaryButton: nls.localize('prof.restartAndFileIssue', "Create Issue and Restart"),
-						secondaryButton: nls.localize('prof.restart', "Restart")
-					});
-
-					let createIssue = TPromise.as<void>(void 0);
-					if (primaryButton) {
-						const action = this.workbench.getInstantiationService().createInstance(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL);
-
-						createIssue = action.run(`:warning: Make sure to **attach** these files: :warning:\n${files.map(file => `-\`${join(profileStartup.dir, file)}\``).join('\n')}`).then(() => {
-							return this.windowsService.showItemInFolder(profileFiles[0]);
-						});
-					}
-					createIssue.then(() => this.windowsService.relaunch({ removeArgs: ['--prof-startup'] }));
-				});
-
-			}, err => console.error(err));
 		}
 	}
 
@@ -349,6 +311,12 @@ export class WorkbenchShell {
 		serviceCollection.set(ITelemetryService, this.telemetryService);
 		disposables.add(configurationTelemetry(this.telemetryService, this.configurationService));
 
+		let crashReporterService = NullCrashReporterService;
+		if (product.crashReporter && product.hockeyApp) {
+			crashReporterService = instantiationService.createInstance(CrashReporterService);
+		}
+		serviceCollection.set(ICrashReporterService, crashReporterService);
+
 		this.messageService = instantiationService.createInstance(MessageService, container);
 		serviceCollection.set(IMessageService, this.messageService);
 		serviceCollection.set(IChoiceService, this.messageService);
@@ -358,6 +326,7 @@ export class WorkbenchShell {
 		this.toUnbind.push(lifecycleService.onShutdown(reason => saveFontInfo(this.storageService)));
 		serviceCollection.set(ILifecycleService, lifecycleService);
 		disposables.add(lifecycleTelemetry(this.telemetryService, lifecycleService));
+		this.lifecycleService = lifecycleService;
 
 		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));
 		serviceCollection.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementChannelClient, extensionManagementChannel));
@@ -372,9 +341,7 @@ export class WorkbenchShell {
 
 		this.timerService.beforeExtensionLoad = Date.now();
 
-		// TODO@Joao: remove
-		const disabledExtensions = SCMPreview.enabled ? [] : ['vscode.git'];
-		this.extensionService = instantiationService.createInstance(MainProcessExtensionService, disabledExtensions);
+		this.extensionService = instantiationService.createInstance(MainProcessExtensionService);
 		serviceCollection.set(IExtensionService, this.extensionService);
 		extensionHostProcessWorker.start(this.extensionService);
 		this.extensionService.onReady().done(() => {
@@ -518,6 +485,30 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`.monaco-shell { color: ${windowForeground}; }`);
 	}
 
+	// Selection
+	const windowSelectionBackground = theme.getColor(selectionBackground);
+	if (windowSelectionBackground) {
+		collector.addRule(`.monaco-shell ::selection { background-color: ${windowSelectionBackground}; }`);
+	}
+
+	// Input placeholder
+	const placeholderForeground = theme.getColor(inputPlaceholderForeground);
+	if (placeholderForeground) {
+		collector.addRule(`.monaco-shell input::-webkit-input-placeholder { color: ${placeholderForeground}; }`);
+		collector.addRule(`.monaco-shell textarea::-webkit-input-placeholder { color: ${placeholderForeground}; }`);
+	}
+
+	// List highlight
+	const listHighlightForegroundColor = theme.getColor(listHighlightForeground);
+	if (listHighlightForegroundColor) {
+		collector.addRule(`
+			.monaco-shell .monaco-tree .monaco-tree-row .monaco-highlighted-label .highlight,
+			.monaco-shell .monaco-list .monaco-list-row .monaco-highlighted-label .highlight {
+				color: ${listHighlightForegroundColor};
+			}
+		`);
+	}
+
 	// We need to set the workbench background color so that on Windows we get subpixel-antialiasing.
 	let workbenchBackground: string;
 	switch (theme.type) {
@@ -578,7 +569,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	}
 
 	// Focus outline
-	const focusOutline = theme.getColor(focus);
+	const focusOutline = theme.getColor(focusBorder);
 	if (focusOutline) {
 		collector.addRule(`
 			.monaco-shell [tabindex="0"]:focus,

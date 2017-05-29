@@ -9,5 +9,6 @@
 	"configuration.validate.executablePath": "Указывает на исполняемый файл PHP.",
 	"configuration.validate.run": "Запускается ли анализатор кода при сохранении или при печати.",
 	"configuration.title": "PHP",
-	"commands.categroy.php": "PHP"
+	"commands.categroy.php": "PHP",
+	"command.untrustValidationExecutable": "Запретить исполняемый файл проверки PHP (определяется как параметр рабочей области)"
 }

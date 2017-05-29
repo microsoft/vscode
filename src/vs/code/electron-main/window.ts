@@ -22,7 +22,7 @@ import product from 'vs/platform/node/product';
 import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
 import { IWindowSettings, MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-
+import { KeyboardLayoutMonitor } from 'vs/code/node/keyboard';
 
 export interface IWindowState {
 	width?: number;
@@ -30,6 +30,7 @@ export interface IWindowState {
 	x?: number;
 	y?: number;
 	mode?: WindowMode;
+	display?: number;
 }
 
 export interface IWindowCreationOptions {
@@ -41,7 +42,7 @@ export interface IWindowCreationOptions {
 export enum WindowMode {
 	Maximized,
 	Normal,
-	Minimized,
+	Minimized, // not used anymore, but also cannot remove due to existing stored UI state (needs migration)
 	Fullscreen
 }
 
@@ -76,6 +77,11 @@ export interface IWindowConfiguration extends ParsedArgs {
 	execPath: string;
 
 	userEnv: platform.IProcessEnvironment;
+
+	/**
+	 * The physical keyboard is of ISO type (on OSX).
+	 */
+	isISOKeyboard?: boolean;
 
 	zoomLevel?: number;
 	fullscreen?: boolean;
@@ -239,14 +245,14 @@ export class VSCodeWindow {
 		}
 
 		if (isFullscreenOrMaximized) {
-			this.win.maximize();
+			this._win.maximize();
 
 			if (this.currentWindowMode === WindowMode.Fullscreen) {
-				this.win.setFullScreen(true);
+				this._win.setFullScreen(true);
 			}
 
-			if (!this.win.isVisible()) {
-				this.win.show(); // to reduce flicker from the default window size to maximize, we only show after maximize
+			if (!this._win.isVisible()) {
+				this._win.show(); // to reduce flicker from the default window size to maximize, we only show after maximize
 			}
 		}
 
@@ -353,16 +359,16 @@ export class VSCodeWindow {
 		return this._readyState;
 	}
 
-	private registerNavigationListenerOn(command: 'swipe' | 'app-command', back: 'left' | 'browser-backward', forward: 'right' | 'browser-forward') {
+	private registerNavigationListenerOn(command: 'swipe' | 'app-command', back: 'left' | 'browser-backward', forward: 'right' | 'browser-forward', acrossEditors: boolean) {
 		this._win.on(command, (e, cmd) => {
 			if (this.readyState !== ReadyState.READY) {
 				return; // window must be ready
 			}
 
 			if (cmd === back) {
-				this.send('vscode:runAction', 'workbench.action.navigateBack');
+				this.send('vscode:runAction', acrossEditors ? 'workbench.action.openPreviousRecentlyUsedEditor' : 'workbench.action.navigateBack');
 			} else if (cmd === forward) {
-				this.send('vscode:runAction', 'workbench.action.navigateForward');
+				this.send('vscode:runAction', acrossEditors ? 'workbench.action.openNextRecentlyUsedEditor' : 'workbench.action.navigateForward');
 			}
 		});
 	}
@@ -381,19 +387,19 @@ export class VSCodeWindow {
 			}
 
 			// To prevent flashing, we set the window visible after the page has finished to load but before VSCode is loaded
-			if (!this.win.isVisible()) {
+			if (!this._win.isVisible()) {
 				if (this.currentWindowMode === WindowMode.Maximized) {
-					this.win.maximize();
+					this._win.maximize();
 				}
 
-				if (!this.win.isVisible()) { // maximize also makes visible
-					this.win.show();
+				if (!this._win.isVisible()) { // maximize also makes visible
+					this._win.show();
 				}
 			}
 		});
 
 		// App commands support
-		this.registerNavigationListenerOn('app-command', 'browser-backward', 'browser-forward');
+		this.registerNavigationListenerOn('app-command', 'browser-backward', 'browser-forward', false);
 
 		// Handle code that wants to open links
 		this._win.webContents.on('new-window', (event: Event, url: string) => {
@@ -457,7 +463,7 @@ export class VSCodeWindow {
 		if (platform.isMacintosh) {
 			const config = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
 			if (config && config.workbench && config.workbench.editor && config.workbench.editor.swipeToNavigate) {
-				this.registerNavigationListenerOn('swipe', 'left', 'right');
+				this.registerNavigationListenerOn('swipe', 'left', 'right', true);
 			} else {
 				this._win.removeAllListeners('swipe');
 			}
@@ -549,6 +555,9 @@ export class VSCodeWindow {
 		windowConfiguration.highContrast = platform.isWindows && systemPreferences.isInvertedColorScheme() && (!windowConfig || windowConfig.autoDetectHighContrast);
 		windowConfiguration.accessibilitySupport = app.isAccessibilitySupportEnabled();
 
+		// Set Keyboard Config
+		windowConfiguration.isISOKeyboard = KeyboardLayoutMonitor.INSTANCE.isISOKeyboard();
+
 		// Theme
 		windowConfiguration.baseTheme = this.getBaseTheme();
 		windowConfiguration.backgroundColor = this.getBackgroundColor();
@@ -595,9 +604,15 @@ export class VSCodeWindow {
 	}
 
 	public serializeWindowState(): IWindowState {
-		if (this.win.isFullScreen()) {
+
+		// fullscreen gets special treatment
+		if (this._win.isFullScreen()) {
+			const display = screen.getDisplayMatching(this.getBounds());
+
 			return {
 				mode: WindowMode.Fullscreen,
+				display: display ? display.id : void 0,
+
 				// still carry over window dimensions from previous sessions!
 				width: this.windowState.width,
 				height: this.windowState.height,
@@ -610,10 +625,8 @@ export class VSCodeWindow {
 		let mode: WindowMode;
 
 		// get window mode
-		if (!platform.isMacintosh && this.win.isMaximized()) {
+		if (!platform.isMacintosh && this._win.isMaximized()) {
 			mode = WindowMode.Maximized;
-		} else if (this.win.isMinimized()) {
-			mode = WindowMode.Minimized;
 		} else {
 			mode = WindowMode.Normal;
 		}
@@ -621,19 +634,18 @@ export class VSCodeWindow {
 		// we don't want to save minimized state, only maximized or normal
 		if (mode === WindowMode.Maximized) {
 			state.mode = WindowMode.Maximized;
-		} else if (mode !== WindowMode.Minimized) {
+		} else {
 			state.mode = WindowMode.Normal;
 		}
 
 		// only consider non-minimized window states
 		if (mode === WindowMode.Normal || mode === WindowMode.Maximized) {
-			const pos = this.win.getPosition();
-			const size = this.win.getSize();
+			const bounds = this.getBounds();
 
-			state.x = pos[0];
-			state.y = pos[1];
-			state.width = size[0];
-			state.height = size[1];
+			state.x = bounds.x;
+			state.y = bounds.y;
+			state.width = bounds.width;
+			state.height = bounds.height;
 		}
 
 		return state;
@@ -709,7 +721,19 @@ export class VSCodeWindow {
 			return state;
 		}
 
-		// Multi Monitor: be less strict because metrics can be crazy
+		// Multi Montior (fullscreen): try to find the previously used display
+		if (state.display && state.mode === WindowMode.Fullscreen) {
+			const display = displays.filter(d => d.id === state.display)[0];
+			if (display && display.bounds && typeof display.bounds.x === 'number' && typeof display.bounds.y === 'number') {
+				const defaults = defaultWindowState(WindowMode.Fullscreen); // make sure we have good values when the user restores the window
+				defaults.x = display.bounds.x; // carefull to use displays x/y position so that the window ends up on the correct monitor
+				defaults.y = display.bounds.y;
+
+				return defaults;
+			}
+		}
+
+		// Multi Monitor (non-fullscreen): be less strict because metrics can be crazy
 		const bounds = { x: state.x, y: state.y, width: state.width, height: state.height };
 		const display = screen.getDisplayMatching(bounds);
 		if (display && display.bounds.x + display.bounds.width > bounds.x && display.bounds.y + display.bounds.height > bounds.y) {
@@ -728,17 +752,17 @@ export class VSCodeWindow {
 	}
 
 	public getBounds(): Electron.Rectangle {
-		const pos = this.win.getPosition();
-		const dimension = this.win.getSize();
+		const pos = this._win.getPosition();
+		const dimension = this._win.getSize();
 
 		return { x: pos[0], y: pos[1], width: dimension[0], height: dimension[1] };
 	}
 
 	public toggleFullScreen(): void {
-		const willBeFullScreen = !this.win.isFullScreen();
+		const willBeFullScreen = !this._win.isFullScreen();
 
 		// set fullscreen flag on window
-		this.win.setFullScreen(willBeFullScreen);
+		this._win.setFullScreen(willBeFullScreen);
 
 		// respect configured menu bar visibility or default to toggle if not set
 		this.setMenuBarVisibility(this.currentMenuBarVisibility, false);
@@ -763,22 +787,22 @@ export class VSCodeWindow {
 			return; // ignore for macOS platform
 		}
 
-		const isFullscreen = this.win.isFullScreen();
+		const isFullscreen = this._win.isFullScreen();
 
 		switch (visibility) {
 			case ('default'):
-				this.win.setMenuBarVisibility(!isFullscreen);
-				this.win.setAutoHideMenuBar(isFullscreen);
+				this._win.setMenuBarVisibility(!isFullscreen);
+				this._win.setAutoHideMenuBar(isFullscreen);
 				break;
 
 			case ('visible'):
-				this.win.setMenuBarVisibility(true);
-				this.win.setAutoHideMenuBar(false);
+				this._win.setMenuBarVisibility(true);
+				this._win.setAutoHideMenuBar(false);
 				break;
 
 			case ('toggle'):
-				this.win.setMenuBarVisibility(false);
-				this.win.setAutoHideMenuBar(true);
+				this._win.setMenuBarVisibility(false);
+				this._win.setAutoHideMenuBar(true);
 
 				if (notify) {
 					this.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', "You can still access the menu bar by pressing the **Alt** key."));
@@ -792,11 +816,38 @@ export class VSCodeWindow {
 				// fact that we want to hide the menu without being able to bring it back via Alt key makes Electron
 				// still show the menu. Unable to reproduce from a simple Hello World application though...
 				setTimeout(() => {
-					this.win.setMenuBarVisibility(false);
-					this.win.setAutoHideMenuBar(false);
+					this._win.setMenuBarVisibility(false);
+					this._win.setAutoHideMenuBar(false);
 				});
 				break;
 		};
+	}
+
+	public onWindowTitleDoubleClick(): void {
+
+		// Respect system settings on mac with regards to title click on windows title
+		if (platform.isMacintosh) {
+			const action = systemPreferences.getUserDefault('AppleActionOnDoubleClick', 'string');
+			switch (action) {
+				case 'Minimize':
+					this.win.minimize();
+					break;
+				case 'None':
+					break;
+				case 'Maximize':
+				default:
+					this.win.maximize();
+			}
+		}
+
+		// Linux/Windows: just toggle maximize/minimized state
+		else {
+			if (this.win.isMaximized()) {
+				this.win.unmaximize();
+			} else {
+				this.win.maximize();
+			}
+		}
 	}
 
 	public sendWhenReady(channel: string, ...args: any[]): void {

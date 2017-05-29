@@ -15,5 +15,9 @@
 	"schema.brackets": "インデントを増減する角かっこを定義します。",
 	"schema.autoClosingPairs": "角かっこのペアを定義します。左角かっこが入力されると、右角かっこが自動的に挿入されます。",
 	"schema.autoClosingPairs.notIn": "自動ペアが無効なスコープの一覧を定義します。",
-	"schema.surroundingPairs": "選択文字列を囲むときに使用できる角かっこのペアを定義します。"
+	"schema.surroundingPairs": "選択文字列を囲むときに使用できる角かっこのペアを定義します。",
+	"schema.wordPattern": "言語のための単語の定義。",
+	"schema.wordPattern.pattern": "言葉の照合に使用する正規表現パターン。",
+	"schema.wordPattern.flags": "言葉の照合に使用する正規表現フラグ。",
+	"schema.wordPattern.flags.errorMessage": "`/^([gimuy]+)$/` パターンに一致する必要があります。"
 }

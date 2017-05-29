@@ -55,6 +55,7 @@ export interface IPatternInfo {
 	pattern: string;
 	isRegExp?: boolean;
 	isWordMatch?: boolean;
+	wordSeparators?: string;
 	isMultiline?: boolean;
 	isCaseSensitive?: boolean;
 }
@@ -137,6 +138,9 @@ export interface ISearchConfiguration extends IFilesConfiguration {
 		exclude: IExpression;
 		useRipgrep: boolean;
 		useIgnoreFilesByDefault: boolean;
+	};
+	editor: {
+		wordSeparators: string;
 	};
 }
 

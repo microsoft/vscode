@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as cp from 'child_process';
+import * as os from 'os';
 import * as path from 'path';
-import DOM = require('vs/base/browser/dom');
+import * as lifecycle from 'vs/base/common/lifecycle';
+import * as nls from 'vs/nls';
+import * as platform from 'vs/base/common/platform';
+import * as dom from 'vs/base/browser/dom';
 import Event, { Emitter } from 'vs/base/common/event';
-import URI from 'vs/base/common/uri';
-import cp = require('child_process');
-import lifecycle = require('vs/base/common/lifecycle');
-import nls = require('vs/nls');
-import os = require('os');
-import platform = require('vs/base/common/platform');
+import Uri from 'vs/base/common/uri';
 import xterm = require('xterm');
 import { Dimension } from 'vs/base/browser/builder';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -29,6 +29,8 @@ import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { TerminalLinkHandler } from 'vs/workbench/parts/terminal/electron-browser/terminalLinkHandler';
 import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
+import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground } from 'vs/platform/theme/common/colorRegistry';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -37,7 +39,7 @@ class StandardTerminalProcessFactory implements ITerminalProcessFactory {
 	public create(env: { [key: string]: string }): cp.ChildProcess {
 		return cp.fork('./terminalProcess', [], {
 			env,
-			cwd: URI.parse(path.dirname(require.toUrl('./terminalProcess'))).fsPath
+			cwd: Uri.parse(path.dirname(require.toUrl('./terminalProcess'))).fsPath
 		});
 	}
 }
@@ -215,10 +217,10 @@ export class TerminalInstance implements ITerminalInstance {
 
 		this._container = container;
 		this._wrapperElement = document.createElement('div');
-		DOM.addClass(this._wrapperElement, 'terminal-wrapper');
+		dom.addClass(this._wrapperElement, 'terminal-wrapper');
 		this._xtermElement = document.createElement('div');
 
-		this._xterm.open(this._xtermElement);
+		this._xterm.open(this._xtermElement, false);
 		this._xterm.attachCustomKeydownHandler((event: KeyboardEvent) => {
 			// Disable all input if the terminal is exiting
 			if (this._isExiting) {
@@ -240,7 +242,7 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 			return undefined;
 		});
-		this._instanceDisposables.push(DOM.addDisposableListener(this._xterm.element, 'mouseup', (event: KeyboardEvent) => {
+		this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'mouseup', (event: KeyboardEvent) => {
 			// Wait until mouseup has propogated through the DOM before evaluating the new selection
 			// state.
 			setTimeout(() => {
@@ -249,7 +251,7 @@ export class TerminalInstance implements ITerminalInstance {
 		}));
 
 		// xterm.js currently drops selection on keyup as we need to handle this case.
-		this._instanceDisposables.push(DOM.addDisposableListener(this._xterm.element, 'keyup', (event: KeyboardEvent) => {
+		this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'keyup', (event: KeyboardEvent) => {
 			// Wait until keyup has propogated through the DOM before evaluating the new selection
 			// state.
 			setTimeout(() => {
@@ -260,10 +262,10 @@ export class TerminalInstance implements ITerminalInstance {
 		const xtermHelper: HTMLElement = this._xterm.element.querySelector('.xterm-helpers');
 		const focusTrap: HTMLElement = document.createElement('div');
 		focusTrap.setAttribute('tabindex', '0');
-		DOM.addClass(focusTrap, 'focus-trap');
-		this._instanceDisposables.push(DOM.addDisposableListener(focusTrap, 'focus', (event: FocusEvent) => {
+		dom.addClass(focusTrap, 'focus-trap');
+		this._instanceDisposables.push(dom.addDisposableListener(focusTrap, 'focus', (event: FocusEvent) => {
 			let currentElement = focusTrap;
-			while (!DOM.hasClass(currentElement, 'part')) {
+			while (!dom.hasClass(currentElement, 'part')) {
 				currentElement = currentElement.parentElement;
 			}
 			const hidePanelElement = <HTMLElement>currentElement.querySelector('.hide-panel-action');
@@ -271,17 +273,17 @@ export class TerminalInstance implements ITerminalInstance {
 		}));
 		xtermHelper.insertBefore(focusTrap, this._xterm.textarea);
 
-		this._instanceDisposables.push(DOM.addDisposableListener(this._xterm.textarea, 'focus', (event: KeyboardEvent) => {
+		this._instanceDisposables.push(dom.addDisposableListener(this._xterm.textarea, 'focus', (event: KeyboardEvent) => {
 			this._terminalFocusContextKey.set(true);
 		}));
-		this._instanceDisposables.push(DOM.addDisposableListener(this._xterm.textarea, 'blur', (event: KeyboardEvent) => {
+		this._instanceDisposables.push(dom.addDisposableListener(this._xterm.textarea, 'blur', (event: KeyboardEvent) => {
 			this._terminalFocusContextKey.reset();
 			this._refreshSelectionContextKey();
 		}));
-		this._instanceDisposables.push(DOM.addDisposableListener(this._xterm.element, 'focus', (event: KeyboardEvent) => {
+		this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'focus', (event: KeyboardEvent) => {
 			this._terminalFocusContextKey.set(true);
 		}));
-		this._instanceDisposables.push(DOM.addDisposableListener(this._xterm.element, 'blur', (event: KeyboardEvent) => {
+		this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'blur', (event: KeyboardEvent) => {
 			this._terminalFocusContextKey.reset();
 			this._refreshSelectionContextKey();
 		}));
@@ -297,6 +299,12 @@ export class TerminalInstance implements ITerminalInstance {
 		this.layout(new Dimension(width, height));
 		this.setVisible(this._isVisible);
 		this.updateConfig();
+
+		// If IShellLaunchConfig.waitOnExit was true and the process finished before the terminal
+		// panel was initialized.
+		if (this._xterm.getOption('disableStdin')) {
+			this._attachPressAnyKeyToCloseListener();
+		}
 	}
 
 	public registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, element: HTMLElement, callback: (isValid: boolean) => void) => void): number {
@@ -320,12 +328,15 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public clearSelection(): void {
-		document.getSelection().empty();
+		window.getSelection().empty();
 	}
 
 	public dispose(): void {
+		if (this._linkHandler) {
+			this._linkHandler.dispose();
+		}
 		if (this._xterm && this._xterm.element) {
-			this._hadFocusOnExit = DOM.hasClass(this._xterm.element, 'focus');
+			this._hadFocusOnExit = dom.hasClass(this._xterm.element, 'focus');
 		}
 		if (this._wrapperElement) {
 			this._container.removeChild(this._wrapperElement);
@@ -378,7 +389,7 @@ export class TerminalInstance implements ITerminalInstance {
 	public setVisible(visible: boolean): void {
 		this._isVisible = visible;
 		if (this._wrapperElement) {
-			DOM.toggleClass(this._wrapperElement, 'active', visible);
+			dom.toggleClass(this._wrapperElement, 'active', visible);
 		}
 		if (visible && this._xterm) {
 			// Trigger a manual scroll event which will sync the viewport and scroll bar. This is
@@ -462,9 +473,9 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		const env = TerminalInstance.createTerminalEnv(process.env, shell, this._getCwd(shell, workspace), locale, this._cols, this._rows);
 		this._title = shell.name || '';
-		this._process = cp.fork('./terminalProcess', [], {
-			env: env,
-			cwd: URI.parse(path.dirname(require.toUrl('./terminalProcess'))).fsPath
+		this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], {
+			env,
+			cwd: Uri.parse(path.dirname(require.toUrl('../node/terminalProcess'))).fsPath
 		});
 		if (!shell.name) {
 			// Only listen for process title changes when a name is not provided
@@ -492,9 +503,6 @@ export class TerminalInstance implements ITerminalInstance {
 			if (this._widgetManager) {
 				this._widgetManager.closeMessage();
 			}
-			if (this._linkHandler) {
-				this._linkHandler.disposeTooltipListeners();
-			}
 			if (this._xterm) {
 				this._xterm.write(message.content);
 			}
@@ -521,14 +529,14 @@ export class TerminalInstance implements ITerminalInstance {
 			if (exitCode) {
 				this._xterm.writeln(exitCodeMessage);
 			}
-			this._xterm.writeln(nls.localize('terminal.integrated.waitOnExit', 'Press any key to close the terminal'));
+			let message = typeof this._shellLaunchConfig.waitOnExit === 'string'
+				? this._shellLaunchConfig.waitOnExit
+				: nls.localize('terminal.integrated.waitOnExit', 'Press any key to close the terminal');
+			this._xterm.writeln(message);
 			// Disable all input if the terminal is exiting and listen for next keypress
 			this._xterm.setOption('disableStdin', true);
 			if (this._xterm.textarea) {
-				this._processDisposables.push(DOM.addDisposableListener(this._xterm.textarea, 'keypress', (event: KeyboardEvent) => {
-					this.dispose();
-					event.preventDefault();
-				}));
+				this._attachPressAnyKeyToCloseListener();
 			}
 		} else {
 			this.dispose();
@@ -551,6 +559,13 @@ export class TerminalInstance implements ITerminalInstance {
 				}
 			}
 		}
+	}
+
+	private _attachPressAnyKeyToCloseListener() {
+		this._processDisposables.push(dom.addDisposableListener(this._xterm.textarea, 'keypress', (event: KeyboardEvent) => {
+			this.dispose();
+			event.preventDefault();
+		}));
 	}
 
 	public reuseTerminal(shell?: IShellLaunchConfig): void {
@@ -610,6 +625,7 @@ export class TerminalInstance implements ITerminalInstance {
 			env['PTYCOLS'] = cols.toString();
 			env['PTYROWS'] = rows.toString();
 		}
+		env['AMD_ENTRYPOINT'] = 'vs/workbench/parts/terminal/node/terminalProcess';
 		return env;
 	}
 
@@ -746,3 +762,26 @@ export class TerminalInstance implements ITerminalInstance {
 		this._terminalProcessFactory = factory;
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+
+	// Scrollbar
+	const scrollbarSliderBackgroundColor = theme.getColor(scrollbarSliderBackground);
+	if (scrollbarSliderBackgroundColor) {
+		collector.addRule(`
+			.monaco-workbench .panel.integrated-terminal .xterm.focus .xterm-viewport,
+			.monaco-workbench .panel.integrated-terminal .xterm:focus .xterm-viewport,
+			.monaco-workbench .panel.integrated-terminal .xterm:hover .xterm-viewport { background-color: ${scrollbarSliderBackgroundColor}; }`
+		);
+	}
+
+	const scrollbarSliderHoverBackgroundColor = theme.getColor(scrollbarSliderHoverBackground);
+	if (scrollbarSliderHoverBackgroundColor) {
+		collector.addRule(`.monaco-workbench .panel.integrated-terminal .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover { background-color: ${scrollbarSliderHoverBackgroundColor}; }`);
+	}
+
+	const scrollbarSliderActiveBackgroundColor = theme.getColor(scrollbarSliderActiveBackground);
+	if (scrollbarSliderActiveBackgroundColor) {
+		collector.addRule(`.monaco-workbench .panel.integrated-terminal .xterm .xterm-viewport::-webkit-scrollbar-thumb:active { background-color: ${scrollbarSliderActiveBackgroundColor}; }`);
+	}
+});

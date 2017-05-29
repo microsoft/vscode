@@ -198,7 +198,13 @@ export abstract class EditorGroupPicker extends BaseEditorPicker {
 			return super.getAutoFocus(searchValue);
 		}
 
-		const isShiftNavigate = (quickNavigateConfiguration && quickNavigateConfiguration.keybindings.some(k => !k.isChord() && k.hasShiftModifier()));
+		const isShiftNavigate = (quickNavigateConfiguration && quickNavigateConfiguration.keybindings.some(k => {
+			const [firstPart, chordPart] = k.getParts();
+			if (chordPart) {
+				return false;
+			}
+			return firstPart.shiftKey;
+		}));
 		if (isShiftNavigate) {
 			return {
 				autoFocusLastEntry: true

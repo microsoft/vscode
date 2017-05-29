@@ -7,9 +7,10 @@ import 'vs/css!./media/scrollbar';
 import 'vs/css!./media/terminal';
 import 'vs/css!./media/xterm';
 import 'vs/css!./media/widgets';
+import * as debugActions from 'vs/workbench/parts/debug/browser/debugActions';
+import * as nls from 'vs/nls';
 import * as panel from 'vs/workbench/browser/panel';
 import * as platform from 'vs/base/common/platform';
-import nls = require('vs/nls');
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { GlobalQuickOpenAction } from 'vs/workbench/browser/parts/quickopen/quickopen.contribution';
 import { ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, TERMINAL_DEFAULT_RIGHT_CLICK_COPY_PASTE, TerminalCursorStyle } from 'vs/workbench/parts/terminal/common/terminal';
@@ -17,17 +18,16 @@ import { TERMINAL_DEFAULT_SHELL_LINUX, TERMINAL_DEFAULT_SHELL_OSX, TERMINAL_DEFA
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KillTerminalAction, CopyTerminalSelectionAction, CreateNewTerminalAction, FocusActiveTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, FocusTerminalAtIndexAction, SelectDefaultShellWindowsTerminalAction, RunSelectedTextInTerminalAction, RunActiveFileInTerminalAction, ScrollDownTerminalAction, ScrollDownPageTerminalAction, ScrollToBottomTerminalAction, ScrollUpTerminalAction, ScrollUpPageTerminalAction, ScrollToTopTerminalAction, TerminalPasteAction, ToggleTerminalAction, ClearTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import { KillTerminalAction, CopyTerminalSelectionAction, CreateNewTerminalAction, FocusActiveTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, FocusTerminalAtIndexAction, SelectDefaultShellWindowsTerminalAction, RunSelectedTextInTerminalAction, RunActiveFileInTerminalAction, ScrollDownTerminalAction, ScrollDownPageTerminalAction, ScrollToBottomTerminalAction, ScrollUpTerminalAction, ScrollUpPageTerminalAction, ScrollToTopTerminalAction, TerminalPasteAction, ToggleTerminalAction, ClearTerminalAction, AllowWorkspaceShellTerminalCommand, DisallowWorkspaceShellTerminalCommand } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Registry } from 'vs/platform/platform';
 import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { TerminalService } from 'vs/workbench/parts/terminal/electron-browser/terminalService';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import debugActions = require('vs/workbench/parts/debug/browser/debugActions');
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { OpenNextRecentlyUsedEditorInGroupAction, OpenPreviousRecentlyUsedEditorInGroupAction, FocusActiveGroupAction, FocusFirstGroupAction, FocusSecondGroupAction, FocusThirdGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
-import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
+import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { registerColors } from './terminalColorRegistry';
 
 let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
@@ -96,7 +96,7 @@ configurationRegistry.registerConfiguration({
 		'terminal.integrated.fontSize': {
 			'description': nls.localize('terminal.integrated.fontSize', "Controls the font size in pixels of the terminal."),
 			'type': 'number',
-			'default': DefaultConfig.editor.fontSize
+			'default': EDITOR_FONT_DEFAULTS.fontSize
 		},
 		'terminal.integrated.lineHeight': {
 			'description': nls.localize('terminal.integrated.lineHeight', "Controls the line height of the terminal, this number is multipled by the terminal font size to get the actual line-height in pixels."),
@@ -266,5 +266,7 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClearTerminalAct
 if (platform.isWindows) {
 	actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectDefaultShellWindowsTerminalAction, SelectDefaultShellWindowsTerminalAction.ID, SelectDefaultShellWindowsTerminalAction.LABEL), 'Terminal: Select Default Shell', category);
 }
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(AllowWorkspaceShellTerminalCommand, AllowWorkspaceShellTerminalCommand.ID, AllowWorkspaceShellTerminalCommand.LABEL), 'Terminal: Allow Workspace Shell Configuration', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(DisallowWorkspaceShellTerminalCommand, DisallowWorkspaceShellTerminalCommand.ID, DisallowWorkspaceShellTerminalCommand.LABEL), 'Terminal: Disallow Workspace Shell Configuration', category);
 
 registerColors();

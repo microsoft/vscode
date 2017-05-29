@@ -13,7 +13,6 @@ const minimatch = require('minimatch');
 const istanbul = require('istanbul');
 const i_remap = require('remap-istanbul/lib/remap');
 
-
 let _tests_glob = '**/test/**/*.test.js';
 let loader;
 let _out;
@@ -66,13 +65,13 @@ function createCoverageReport(opts) {
 				return str.charAt(0).toUpperCase() + str.substr(1);
 			}
 			return str;
-		};
+		}
 		function toLowerDriveLetter(str) {
 			if (/^[A-Z]:/.test(str)) {
 				return str.charAt(0).toLowerCase() + str.substr(1);
 			}
 			return str;
-		};
+		}
 
 		const REPO_PATH = toUpperDriveLetter(path.join(__dirname, '../..'));
 		const fixPath = function (brokenPath) {
@@ -180,6 +179,58 @@ function loadTests(opts) {
 	});
 }
 
+function serializeSuite(suite) {
+	return {
+		title: suite.title,
+		fullTitle: suite.fullTitle(),
+		timeout: suite.timeout(),
+		retries: suite.retries(),
+		enableTimeouts: suite.enableTimeouts(),
+		slow: suite.slow(),
+		bail: suite.bail()
+	};
+}
+
+function serializeRunnable(runnable) {
+	return {
+		title: runnable.title,
+		fullTitle: runnable.fullTitle(),
+		async: runnable.async,
+		slow: runnable.slow(),
+		speed: runnable.speed,
+		duration: runnable.duration
+	};
+}
+
+function serializeError(err) {
+	return {
+		message: err.message,
+		stack: err.stack,
+		actual: err.actual,
+		expected: err.expected,
+		uncaught: err.uncaught,
+		showDiff: err.showDiff,
+		inspect: typeof err.inspect === 'function' ? err.inspect() : ''
+	};
+}
+
+class IPCReporter {
+
+	constructor(runner) {
+		runner.on('start', () => ipcRenderer.send('start'));
+		runner.on('end', () => ipcRenderer.send('end'));
+		runner.on('suite', suite => ipcRenderer.send('suite', serializeSuite(suite)));
+		runner.on('suite end', suite => ipcRenderer.send('suite end', serializeSuite(suite)));
+		runner.on('test', test => ipcRenderer.send('test', serializeRunnable(test)));
+		runner.on('test end', test => ipcRenderer.send('test end', serializeRunnable(test)));
+		runner.on('hook', hook => ipcRenderer.send('hook', serializeRunnable(hook)));
+		runner.on('hook end', hook => ipcRenderer.send('hook end', serializeRunnable(hook)));
+		runner.on('pass', test => ipcRenderer.send('pass', serializeRunnable(test)));
+		runner.on('fail', (test, err) => ipcRenderer.send('fail', serializeRunnable(test), serializeError(err)));
+		runner.on('pending', test => ipcRenderer.send('pending', serializeRunnable(test)));
+	}
+}
+
 function runTests(opts) {
 
 	return loadTests(opts).then(() => {
@@ -188,23 +239,14 @@ function runTests(opts) {
 			mocha.grep(opts.grep);
 		}
 
-		const runner = mocha.run(() => {
+		if (!opts.debug) {
+			mocha.reporter(IPCReporter);
+		}
+
+		mocha.run(() => {
 			createCoverageReport(opts).then(() => {
-				ipcRenderer.send('done');
+				ipcRenderer.send('all done');
 			});
-		});
-
-		runner.on('fail', function (test) {
-			ipcRenderer.send('fail', {
-				title: test.fullTitle(),
-				stack: test.err.stack
-			});
-			console.error(test.fullTitle());
-			console.error(test.err.stack);
-		});
-
-		runner.on('pass', function () {
-			ipcRenderer.send('pass');
 		});
 	});
 }

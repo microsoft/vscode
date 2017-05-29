@@ -12,7 +12,13 @@ import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKe
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { OS } from 'vs/base/common/platform';
 
-const createContext = ctx => ({ getValue: key => ctx[key] });
+function createContext(ctx: any) {
+	return {
+		getValue: (key: string) => {
+			return ctx[key];
+		}
+	};
+}
 
 suite('KeybindingResolver', () => {
 

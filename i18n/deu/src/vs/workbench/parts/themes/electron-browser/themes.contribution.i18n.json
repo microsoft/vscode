@@ -6,13 +6,13 @@
 {
 	"selectTheme.label": "Farbdesign",
 	"installColorThemes": "Zusätzliche Farbschemas installieren...",
-	"problemChangingTheme": "Problem beim Festlegen des Designs: {0}",
-	"themes.selectTheme": "Farbdesign auswählen",
 	"selectIconTheme.label": "Dateisymboldesign",
 	"installIconThemes": "Zusätzliche Dateisymbolschemas installieren...",
 	"noIconThemeLabel": "Keine",
 	"noIconThemeDesc": "Dateisymbole deaktivieren",
 	"problemChangingIconTheme": "Problem beim Festlegen des Symboldesigns: {0}",
 	"themes.selectIconTheme": "Dateisymboldesign auswählen",
-	"preferences": "Einstellungen"
+	"generateColorTheme.label": "Farbdesign aus aktuellen Einstellungen erstellen",
+	"preferences": "Einstellungen",
+	"developer": "Entwickler"
 }

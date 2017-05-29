@@ -1,4 +1,9 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/atom/language-clojure/blob/master/grammars/clojure.cson",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
 	"scopeName": "source.clojure",
 	"fileTypes": [
 		"boot",
@@ -64,14 +69,11 @@
 		},
 		{
 			"include": "#symbol"
-		},
-		{
-			"include": "#whitespace"
 		}
 	],
 	"repository": {
 		"comment": {
-			"begin": ";",
+			"begin": "(?<!\\\\);",
 			"beginCaptures": {
 				"0": {
 					"name": "punctuation.definition.comment.clojure"
@@ -217,18 +219,15 @@
 					"name": "punctuation.section.expression.begin.clojure"
 				}
 			},
-			"end": "(\\))(\\n)|(\\)(?=[\\}\\]\\)\\s]*(?:;|$)))|(\\))",
+			"end": "(\\))$|(\\)(?=[\\}\\]\\)\\s]*(?:;|$)))|(\\))",
 			"endCaptures": {
 				"1": {
 					"name": "punctuation.section.expression.end.trailing.clojure"
 				},
 				"2": {
-					"name": "meta.after-expression.clojure"
-				},
-				"3": {
 					"name": "punctuation.section.expression.end.trailing.clojure"
 				},
-				"4": {
+				"3": {
 					"name": "punctuation.section.expression.end.clojure"
 				}
 			},
@@ -240,8 +239,18 @@
 			]
 		},
 		"regexp": {
-			"begin": "#\\\"",
-			"end": "\\\"",
+			"begin": "#\"",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.regexp.begin.clojure"
+				}
+			},
+			"end": "\"",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.regexp.end.clojure"
+				}
+			},
 			"name": "string.regexp.clojure",
 			"patterns": [
 				{
@@ -283,25 +292,22 @@
 					"name": "punctuation.section.expression.begin.clojure"
 				}
 			},
-			"end": "(\\))(\\n)|(\\)(?=[\\}\\]\\)\\s]*(?:;|$)))|(\\))",
+			"end": "(\\))$|(\\)(?=[\\}\\]\\)\\s]*(?:;|$)))|(\\))",
 			"endCaptures": {
 				"1": {
 					"name": "punctuation.section.expression.end.trailing.clojure"
 				},
 				"2": {
-					"name": "meta.after-expression.clojure"
-				},
-				"3": {
 					"name": "punctuation.section.expression.end.trailing.clojure"
 				},
-				"4": {
+				"3": {
 					"name": "punctuation.section.expression.end.clojure"
 				}
 			},
 			"name": "meta.expression.clojure",
 			"patterns": [
 				{
-					"begin": "(?<=\\()(ns|def|def-|defn|defn-|defvar|defvar-|defmacro|defmacro-|deftest)\\s+",
+					"begin": "(?<=\\()(ns|declare|def[\\w\\d._:+=><!?*-]*|[\\w._:+=><!?*-][\\w\\d._:+=><!?*-]*/def[\\w\\d._:+=><!?*-]*)\\s+",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.control.clojure"
@@ -438,11 +444,6 @@
 					"include": "$self"
 				}
 			]
-		},
-		"whitespace": {
-			"match": "\\s+$",
-			"name": "invalid.trailing-whitespace"
 		}
-	},
-	"version": "https://github.com/atom/language-clojure/commit/9a79169ec89e25476214c42fe2d5702dfa9ebb83"
+	}
 }

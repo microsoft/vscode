@@ -152,7 +152,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 							nls.localize('install', "Yes"),
 							nls.localize('doNotInstall', "No")
 						];
-						return this.choiceService.choose(Severity.Info, message, options, true)
+						return this.choiceService.choose(Severity.Info, message, options, 1, true)
 							.then(value => {
 								if (value === 0) {
 									return this.installWithDependencies(compatibleVersion);
@@ -268,26 +268,28 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	private installExtension(zipPath: string, id: string, metadata: IGalleryMetadata = null): TPromise<ILocalExtension> {
 		const extensionPath = path.join(this.extensionsPath, id);
 
-		return extract(zipPath, extensionPath, { sourcePath: 'extension', overwrite: true })
-			.then(() => readManifest(extensionPath))
-			.then(({ manifest }) => {
-				return pfs.readdir(extensionPath).then(children => {
-					const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
-					const readmeUrl = readme ? URI.file(path.join(extensionPath, readme)).toString() : null;
-					const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
-					const changelogUrl = changelog ? URI.file(path.join(extensionPath, changelog)).toString() : null;
-					const type = LocalExtensionType.User;
+		return pfs.rimraf(extensionPath).then(() => {
+			return extract(zipPath, extensionPath, { sourcePath: 'extension', overwrite: true })
+				.then(() => readManifest(extensionPath))
+				.then(({ manifest }) => {
+					return pfs.readdir(extensionPath).then(children => {
+						const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
+						const readmeUrl = readme ? URI.file(path.join(extensionPath, readme)).toString() : null;
+						const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
+						const changelogUrl = changelog ? URI.file(path.join(extensionPath, changelog)).toString() : null;
+						const type = LocalExtensionType.User;
 
-					const local: ILocalExtension = { type, id, manifest, metadata, path: extensionPath, readmeUrl, changelogUrl };
-					const manifestPath = path.join(extensionPath, 'package.json');
+						const local: ILocalExtension = { type, id, manifest, metadata, path: extensionPath, readmeUrl, changelogUrl };
+						const manifestPath = path.join(extensionPath, 'package.json');
 
-					return pfs.readFile(manifestPath, 'utf8')
-						.then(raw => parseManifest(raw))
-						.then(({ manifest }) => assign(manifest, { __metadata: metadata }))
-						.then(manifest => pfs.writeFile(manifestPath, JSON.stringify(manifest, null, '\t')))
-						.then(() => local);
+						return pfs.readFile(manifestPath, 'utf8')
+							.then(raw => parseManifest(raw))
+							.then(({ manifest }) => assign(manifest, { __metadata: metadata }))
+							.then(manifest => pfs.writeFile(manifestPath, JSON.stringify(manifest, null, '\t')))
+							.then(() => local);
+					});
 				});
-			});
+		});
 	}
 
 	uninstall(extension: ILocalExtension, force = false): TPromise<void> {
@@ -330,7 +332,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			nls.localize('uninstallAll', "All"),
 			nls.localize('cancel', "Cancel")
 		];
-		return this.choiceService.choose(Severity.Info, message, options, true)
+		return this.choiceService.choose(Severity.Info, message, options, 2, true)
 			.then<void>(value => {
 				if (value === 0) {
 					return this.uninstallWithDependencies(extension, [], installed);
@@ -353,7 +355,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			nls.localize('ok', "OK"),
 			nls.localize('cancel', "Cancel")
 		];
-		return this.choiceService.choose(Severity.Info, message, options, true)
+		return this.choiceService.choose(Severity.Info, message, options, 1, true)
 			.then<void>(value => {
 				if (value === 0) {
 					return this.uninstallWithDependencies(extension, [], installed);

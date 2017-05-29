@@ -6,6 +6,5 @@
 {
 	"defineKeybinding.start": "キー バインドの定義",
 	"defineKeybinding.kbLayoutInfoMessage": "現在のキーボード レイアウト用に",
-	"defineKeybinding.kbLayoutErrorMessage": "現在のキーボード レイアウトでは、このキーの組み合わせを生成することはできません。",
-	"DefineKeybindingAction": "キー バインドの定義"
+	"defineKeybinding.kbLayoutErrorMessage": "現在のキーボード レイアウトでは、このキーの組み合わせを生成することはできません。"
 }

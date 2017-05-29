@@ -6,5 +6,6 @@
 {
 	"copyValue": "Copiar valor",
 	"copy": "Copiar",
+	"copyAll": "Copiar todo",
 	"copyStackTrace": "Copiar pila de llamadas"
 }

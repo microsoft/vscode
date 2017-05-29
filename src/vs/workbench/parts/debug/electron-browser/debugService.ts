@@ -7,6 +7,7 @@ import * as nls from 'vs/nls';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as paths from 'vs/base/common/paths';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import * as strings from 'vs/base/common/strings';
 import { generateUuid } from 'vs/base/common/uuid';
 import uri from 'vs/base/common/uri';
@@ -79,6 +80,7 @@ export class DebugService implements debug.IDebugService {
 	private debugType: IContextKey<string>;
 	private debugState: IContextKey<string>;
 	private breakpointsToSendOnResourceSaved: Set<string>;
+	private callStackScheduler: RunOnceScheduler;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -117,6 +119,17 @@ export class DebugService implements debug.IDebugService {
 			this.loadExceptionBreakpoints(), this.loadWatchExpressions());
 		this.toDispose.push(this.model);
 		this.viewModel = new ViewModel(this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE, null));
+		this.callStackScheduler = new RunOnceScheduler(() => {
+			const focusedThread = this.viewModel.focusedThread;
+			if (focusedThread) {
+				const callStack = focusedThread.getCallStack();
+				// Some adapters might not respect the number levels in StackTraceRequest and might
+				// return more stackFrames than requested. For those do not send an additional stackTrace request.
+				if (callStack.length <= 1) {
+					this.model.fetchCallStack(focusedThread).done(undefined, errors.onUnexpectedError);
+				}
+			}
+		}, 420);
 
 		this.registerListeners(lifecycleService);
 	}
@@ -291,13 +304,17 @@ export class DebugService implements debug.IDebugService {
 
 				const thread = process && process.getThread(threadId);
 				if (thread) {
-					thread.fetchCallStack().then(callStack => {
+					// Call fetch call stack twice, the first only return the top stack frame.
+					// Second retrieves the rest of the call stack. For performance reasons #25605
+					this.model.fetchCallStack(thread).then(() => {
+						const callStack = thread.getCallStack();
+						this.callStackScheduler.schedule();
 						if (callStack.length > 0 && !this.viewModel.focusedStackFrame) {
 							// focus first stack frame from top that has source location if no other stack frame is focussed
-							const stackFrameToFocus = first(callStack, sf => !!sf.source, callStack[0]);
+							const stackFrameToFocus = first(callStack, sf => sf.source && sf.source.available, callStack[0]);
 							this.focusStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
 							this.windowService.getWindow().focus();
-							aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", event.body.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.lineNumber));
+							aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", event.body.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.range.startLineNumber));
 
 							return stackFrameToFocus.openInEditor(this.editorService);
 						}
@@ -318,8 +335,8 @@ export class DebugService implements debug.IDebugService {
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidTerminateDebugee(event => {
 			aria.status(nls.localize('debuggingStopped', "Debugging stopped."));
 			if (session && session.getId() === event.body.sessionId) {
-				if (event.body && typeof event.body.restart === 'boolean' && event.body.restart && process) {
-					this.restartProcess(process, true).done(null, err => this.messageService.show(severity.Error, err.message));
+				if (event.body && event.body.restart && process) {
+					this.restartProcess(process, event.body.restart).done(null, err => this.messageService.show(severity.Error, err.message));
 				} else {
 					session.disconnect().done(null, errors.onUnexpectedError);
 				}
@@ -407,7 +424,7 @@ export class DebugService implements debug.IDebugService {
 		let result: Breakpoint[];
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((breakpoint: any) => {
-				return new Breakpoint(uri.parse(breakpoint.uri.external || breakpoint.source.uri.external), breakpoint.lineNumber, breakpoint.respectColumn ? breakpoint.column : undefined, breakpoint.enabled, breakpoint.condition, breakpoint.hitCondition, breakpoint.respectColumn);
+				return new Breakpoint(uri.parse(breakpoint.uri.external || breakpoint.source.uri.external), breakpoint.lineNumber, breakpoint.column, breakpoint.enabled, breakpoint.condition, breakpoint.hitCondition);
 			});
 		} catch (e) { }
 
@@ -453,7 +470,7 @@ export class DebugService implements debug.IDebugService {
 			return debug.State.Stopped;
 		}
 		const focusedProcess = this.viewModel.focusedProcess;
-		if (focusedProcess) {
+		if (focusedProcess && this.sessionStates.has(focusedProcess.getId())) {
 			return this.sessionStates.get(focusedProcess.getId());
 		}
 		if (this.sessionStates.size > 0) {
@@ -765,7 +782,9 @@ export class DebugService implements debug.IDebugService {
 				if (!this.viewModel.focusedProcess) {
 					this.focusStackFrameAndEvaluate(null, process);
 				}
-				if (configuration.internalConsoleOptions === 'openOnSessionStart' || (!this.viewModel.changedWorkbenchViewState && configuration.internalConsoleOptions !== 'neverOpen')) {
+
+				const internalConsoleOptions = configuration.internalConsoleOptions || this.configurationService.getConfiguration<debug.IDebugConfiguration>('debug').internalConsoleOptions;
+				if (internalConsoleOptions === 'openOnSessionStart' || (!this.viewModel.changedWorkbenchViewState && internalConsoleOptions === 'openOnFirstSessionStart')) {
 					this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
 				}
 
@@ -872,7 +891,7 @@ export class DebugService implements debug.IDebugService {
 		this.model.deemphasizeSource(uri);
 	}
 
-	public restartProcess(process: debug.IProcess, internalRestart?: boolean): TPromise<any> {
+	public restartProcess(process: debug.IProcess, restartData?: any): TPromise<any> {
 		if (process.session.capabilities.supportsRestartRequest) {
 			return process.session.custom('restart', null);
 		}
@@ -888,7 +907,7 @@ export class DebugService implements debug.IDebugService {
 						// Take the type from the process since the debug extension might overwrite it #21316
 						config.type = process.configuration.type;
 						config.noDebug = process.configuration.noDebug;
-						config.__restart = internalRestart;
+						config.__restart = restartData;
 					}
 					this.createProcess(config || process.configuration).then(() => c(null), err => e(err));
 				}, 300);
@@ -941,9 +960,9 @@ export class DebugService implements debug.IDebugService {
 
 		if (this.model.getProcesses().length === 0) {
 			// set breakpoints back to unverified since the session ended.
-			const data: { [id: string]: { line: number, verified: boolean, column: number } } = {};
+			const data: { [id: string]: { line: number, verified: boolean, column: number, endLine: number, endColumn: number } } = {};
 			this.model.getBreakpoints().forEach(bp => {
-				data[bp.getId()] = { line: bp.lineNumber, verified: false, column: bp.column };
+				data[bp.getId()] = { line: bp.lineNumber, verified: false, column: bp.column, endLine: bp.endLineNumber, endColumn: bp.endColumn };
 			});
 			this.model.updateBreakpoints(data);
 
@@ -1004,7 +1023,7 @@ export class DebugService implements debug.IDebugService {
 					return;
 				}
 
-				const data: { [id: string]: { line?: number, column?: number, verified: boolean } } = {};
+				const data: { [id: string]: DebugProtocol.Breakpoint } = {};
 				for (let i = 0; i < breakpointsToSend.length; i++) {
 					data[breakpointsToSend[i].getId()] = response.body.breakpoints[i];
 					if (!breakpointsToSend[i].column) {

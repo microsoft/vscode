@@ -23,6 +23,7 @@ export interface ISCMResourceDecorations {
 	icon?: URI;
 	iconDark?: URI;
 	strikeThrough?: boolean;
+	faded?: boolean;
 }
 
 export interface ISCMResource {

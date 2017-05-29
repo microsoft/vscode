@@ -13,7 +13,7 @@ import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { FindModelBoundToEditorModel } from 'vs/editor/contrib/find/common/findModel';
 import { FindReplaceState } from 'vs/editor/contrib/find/common/findState';
 import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
-import { CoreCommands } from 'vs/editor/common/controller/coreCommands';
+import { CoreNavigationCommands } from 'vs/editor/common/controller/coreCommands';
 
 suite('FindModel', () => {
 
@@ -303,7 +303,7 @@ suite('FindModel', () => {
 			]
 		);
 
-		cursor.trigger('mouse', CoreCommands.MoveTo.id, {
+		editor.trigger('mouse', CoreNavigationCommands.MoveTo.id, {
 			position: new Position(6, 20)
 		});
 
@@ -663,7 +663,7 @@ suite('FindModel', () => {
 			]
 		);
 
-		cursor.trigger('mouse', CoreCommands.MoveTo.id, {
+		editor.trigger('mouse', CoreNavigationCommands.MoveTo.id, {
 			position: new Position(6, 20)
 		});
 		assertFindState(
@@ -1150,7 +1150,7 @@ suite('FindModel', () => {
 			]
 		);
 
-		cursor.trigger('mouse', CoreCommands.MoveTo.id, {
+		editor.trigger('mouse', CoreNavigationCommands.MoveTo.id, {
 			position: new Position(6, 20)
 		});
 		assertFindState(
@@ -1311,7 +1311,7 @@ suite('FindModel', () => {
 			]
 		);
 
-		cursor.trigger('mouse', CoreCommands.MoveTo.id, {
+		editor.trigger('mouse', CoreNavigationCommands.MoveTo.id, {
 			position: new Position(6, 20)
 		});
 		assertFindState(
@@ -1741,7 +1741,7 @@ suite('FindModel', () => {
 		findState.change({ searchString: 'hello(?=\\sworld)', replaceString: 'hi', isRegex: true }, false);
 		let findModel = new FindModelBoundToEditorModel(editor, findState);
 
-		cursor.trigger('mouse', CoreCommands.MoveTo.id, {
+		editor.trigger('mouse', CoreNavigationCommands.MoveTo.id, {
 			position: new Position(8, 14)
 		});
 

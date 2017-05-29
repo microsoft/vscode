@@ -20,6 +20,7 @@
 	"showVersions": "使用 --list-extension 時，顯示安裝的擴充功能版本。",
 	"installExtension": "安裝擴充功能。",
 	"uninstallExtension": "解除安裝擴充功能。",
+	"experimentalApis": "為延伸模組啟用建議的 API 功能。",
 	"disableExtensions": "停用所有已安裝的擴充功能。",
 	"disableGPU": "停用 GPU 硬體加速。",
 	"version": "列印版本。",

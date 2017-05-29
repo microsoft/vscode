@@ -10,5 +10,15 @@
 	"caret": "エディターのカーソルの色。",
 	"editorWhitespaces": "エディターのスペース文字の色。",
 	"editorIndentGuides": "エディター インデント ガイドの色。",
-	"editorLineNumbers": "エディターの行番号の色。"
+	"editorLineNumbers": "エディターの行番号の色。",
+	"editorRuler": "エディター ルーラーの色。",
+	"editorCodeLensForeground": "CodeLens エディターの前景色。",
+	"editorBracketMatchBackground": "一致するかっこの背景色",
+	"editorBracketMatchBorder": "一致するかっこ内のボックスの色",
+	"editorOverviewRulerBorder": "概要ルーラーの境界色。",
+	"editorGutter": "エディターの余白の背景色。余白にはグリフ マージンと行番号が含まれます。",
+	"errorForeground": "エディターでエラーを示す波線の前景色。",
+	"errorBorder": "エディターでエラーを示す波線の境界線の色。",
+	"warningForeground": "エディターで警告を示す波線の前景色。",
+	"warningBorder": "エディターで警告を示す波線の境界線の色。"
 }

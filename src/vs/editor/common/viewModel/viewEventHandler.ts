@@ -37,10 +37,7 @@ export class ViewEventHandler extends Disposable {
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		return false;
 	}
-	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
-		return false;
-	}
-	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
+	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		return false;
 	}
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
@@ -70,9 +67,6 @@ export class ViewEventHandler extends Disposable {
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return false;
 	}
-	public onScrollRequest(e: viewEvents.ViewScrollRequestEvent): boolean { // TODO@cursor
-		return false;
-	}
 	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
 		return false;
 	}
@@ -80,6 +74,9 @@ export class ViewEventHandler extends Disposable {
 		return false;
 	}
 	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
+		return false;
+	}
+	public onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
 		return false;
 	}
 
@@ -100,14 +97,8 @@ export class ViewEventHandler extends Disposable {
 					}
 					break;
 
-				case viewEvents.ViewEventType.ViewCursorPositionChanged:
-					if (this.onCursorPositionChanged(e)) {
-						shouldRender = true;
-					}
-					break;
-
-				case viewEvents.ViewEventType.ViewCursorSelectionChanged:
-					if (this.onCursorSelectionChanged(e)) {
+				case viewEvents.ViewEventType.ViewCursorStateChanged:
+					if (this.onCursorStateChanged(e)) {
 						shouldRender = true;
 					}
 					break;
@@ -166,12 +157,6 @@ export class ViewEventHandler extends Disposable {
 					}
 					break;
 
-				case viewEvents.ViewEventType.ViewScrollRequest:
-					if (this.onScrollRequest(e)) {
-						shouldRender = true;
-					}
-					break;
-
 				case viewEvents.ViewEventType.ViewTokensChanged:
 					if (this.onTokensChanged(e)) {
 						shouldRender = true;
@@ -186,6 +171,13 @@ export class ViewEventHandler extends Disposable {
 
 				case viewEvents.ViewEventType.ViewZonesChanged:
 					if (this.onZonesChanged(e)) {
+						shouldRender = true;
+					}
+					break;
+
+
+				case viewEvents.ViewEventType.ViewThemeChanged:
+					if (this.onThemeChanged(e)) {
 						shouldRender = true;
 					}
 					break;

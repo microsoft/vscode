@@ -57,17 +57,11 @@
 	margin-right: 0.3em;
 	height: 20px;
 	flex-shrink: 1;
-	border: 1px solid #dddddd;
 	margin-top: 7px;
 }
 
 .monaco-workbench.mac > .part > .title > .title-actions .start-debug-action-item {
 	border-radius: 4px;
-}
-
-.vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item,
-.hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item {
-	border-color: #3c3c3c;
 }
 
 .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon {
@@ -82,15 +76,6 @@
 .vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon,
 .hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon {
 	background: url('continue-inverse.svg') center center no-repeat;
-}
-
-.monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration {
-	border-left: 1px solid #dddddd;
-}
-
-.vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration,
-.hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration {
-	border-color: #3c3c3c;
 }
 
 .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .select-box {
@@ -219,6 +204,10 @@
 
 .debug-viewlet .debug-call-stack .stack-frame.label {
 	text-align: center;
+	font-style: italic;
+}
+
+.debug-viewlet .debug-call-stack .stack-frame.subtle {
 	font-style: italic;
 }
 

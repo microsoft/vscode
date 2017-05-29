@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { INewScrollPosition, IModelDecoration, EndOfLinePreference } from 'vs/editor/common/editorCommon';
+import { INewScrollPosition, IModelDecoration, EndOfLinePreference, IViewState } from 'vs/editor/common/editorCommon';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ViewEvent } from 'vs/editor/common/view/viewEvents';
+import { ViewEvent, IViewEventListener } from 'vs/editor/common/view/viewEvents';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { Scrollable } from 'vs/base/common/scrollable';
+import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 
 export interface IViewWhitespaceViewportData {
 	readonly id: number;
@@ -37,6 +40,8 @@ export class Viewport {
 
 export interface IViewLayout {
 
+	readonly scrollable: Scrollable;
+
 	onMaxLineWidthChanged(width: number): void;
 
 	getScrollLeft(): number;
@@ -44,8 +49,19 @@ export interface IViewLayout {
 	getScrollHeight(): number;
 	getScrollTop(): number;
 	getCurrentViewport(): Viewport;
-	getVerticalOffsetForLineNumber(lineNumber: number): number;
 	setScrollPosition(position: INewScrollPosition): void;
+
+	getLinesViewportData(): IPartialViewLinesViewportData;
+	getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData;
+	getWhitespaces(): IEditorWhitespace[];
+
+	saveState(): IViewState;
+	restoreState(state: IViewState): void;
+
+	isAfterLines(verticalOffset: number): boolean;
+	getLineNumberAtVerticalOffset(verticalOffset: number): number;
+	getVerticalOffsetForLineNumber(lineNumber: number): number;
+	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData;
 
 	// --------------- Begin vertical whitespace management
 
@@ -67,6 +83,9 @@ export interface IViewLayout {
 	 */
 	getWhitespaceViewportData(): IViewWhitespaceViewportData[];
 
+	// TODO@Alex whitespace management should work via a change accessor sort of thing
+	onHeightMaybeChanged(): void;
+
 	// --------------- End vertical whitespace management
 }
 
@@ -85,15 +104,13 @@ export interface ICoordinatesConverter {
 	modelPositionIsVisible(modelPosition: Position): boolean;
 }
 
-export interface IViewModelListener {
-	(events: ViewEvent[]): void;
-}
-
 export interface IViewModel {
 
-	addEventListener(listener: IViewModelListener): IDisposable;
+	addEventListener(listener: IViewEventListener): IDisposable;
 
 	readonly coordinatesConverter: ICoordinatesConverter;
+
+	readonly viewLayout: IViewLayout;
 
 	/**
 	 * Gives a hint that a lot of requests are about to come in for these line numbers.
@@ -103,6 +120,8 @@ export interface IViewModel {
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
 	getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
 	getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): MinimapLinesRenderingData;
+	getCompletelyVisibleViewRange(): Range;
+	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
 
 	getTabSize(): number;
 	getLineCount(): number;
@@ -110,17 +129,16 @@ export interface IViewModel {
 	getLineIndentGuide(lineNumber: number): number;
 	getLineMinColumn(lineNumber: number): number;
 	getLineMaxColumn(lineNumber: number): number;
-	getLineRenderLineNumber(lineNumber: number): string;
+	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
+	getLineLastNonWhitespaceColumn(lineNumber: number): number;
 	getAllOverviewRulerDecorations(): ViewModelDecoration[];
-	getEOL(): string;
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 
-	getModelLineContent(modelLineNumber: number): string;
 	getModelLineMaxColumn(modelLineNumber: number): number;
 	validateModelPosition(modelPosition: IPosition): Position;
 
-	getPlainTextToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string;
-	getHTMLToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string;
+	getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean): string;
+	getHTMLToCopy(ranges: Range[], emptySelectionClipboard: boolean): string;
 }
 
 export class MinimapLinesRenderingData {

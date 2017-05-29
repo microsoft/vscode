@@ -28,6 +28,7 @@ import gracefulFs = require('graceful-fs');
 import { IPath, IOpenFileRequest } from 'vs/workbench/electron-browser/common';
 import { IInitData } from 'vs/workbench/services/timer/common/timerService';
 import { TimerService } from 'vs/workbench/services/timer/node/timerService';
+import { KeyboardMapperFactory } from "vs/workbench/services/keybinding/electron-browser/keybindingService";
 
 import { webFrame } from 'electron';
 
@@ -35,6 +36,14 @@ import fs = require('fs');
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
 export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
+
+	/**
+	 * The physical keyboard is of ISO type (on OSX).
+	 */
+	isISOKeyboard?: boolean;
+
+	accessibilitySupport?: boolean;
+
 	appRoot: string;
 	execPath: string;
 
@@ -50,8 +59,16 @@ export function startup(configuration: IWindowConfiguration): TPromise<void> {
 
 	// Ensure others can listen to zoom level changes
 	browser.setZoomFactor(webFrame.getZoomFactor());
-	browser.setZoomLevel(webFrame.getZoomLevel());
+
+	// See https://github.com/Microsoft/vscode/issues/26151
+	// Can be trusted because we are not setting it ourselves.
+	browser.setZoomLevel(webFrame.getZoomLevel(), true /* isTrusted */);
+
 	browser.setFullscreen(!!configuration.fullscreen);
+
+	KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged(configuration.isISOKeyboard);
+
+	browser.setAccessibilitySupport(configuration.accessibilitySupport ? platform.AccessibilitySupport.Enabled : platform.AccessibilitySupport.Disabled);
 
 	// Setup Intl
 	comparer.setFileNameComparer(new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }));

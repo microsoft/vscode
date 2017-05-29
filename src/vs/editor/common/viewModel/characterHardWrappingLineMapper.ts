@@ -162,13 +162,13 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 				let breakBeforeOffset: number;
 				let restoreVisibleColumnFrom: number;
 
-				if (niceBreakOffset !== -1) {
+				if (niceBreakOffset !== -1 && niceBreakVisibleColumn <= breakingColumn) {
 
 					// We will break before `niceBreakLastOffset`
 					breakBeforeOffset = niceBreakOffset;
 					restoreVisibleColumnFrom = niceBreakVisibleColumn;
 
-				} else if (obtrusiveBreakOffset !== -1) {
+				} else if (obtrusiveBreakOffset !== -1 && obtrusiveBreakVisibleColumn <= breakingColumn) {
 
 					// We will break before `obtrusiveBreakLastOffset`
 					breakBeforeOffset = obtrusiveBreakOffset;

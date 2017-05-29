@@ -26,16 +26,22 @@ export interface ShutdownEvent {
 export enum ShutdownReason {
 
 	/** Window is closed */
-	CLOSE,
+	CLOSE = 1,
 
 	/** Application is quit */
-	QUIT,
+	QUIT = 2,
 
 	/** Window is reloaded */
-	RELOAD,
+	RELOAD = 3,
 
 	/** Other configuration loaded into window */
-	LOAD
+	LOAD = 4
+}
+
+export enum StartupKind {
+	NewWindow = 1,
+	ReloadedWindow = 3,
+	ReopenedWindow = 4,
 }
 
 /**
@@ -47,16 +53,21 @@ export interface ILifecycleService {
 	_serviceBrand: any;
 
 	/**
+	 * Value indicates how this window got loaded.
+	 */
+	readonly startupKind: StartupKind;
+
+	/**
 	 * A flag indicating if the application is in the process of shutting down. This will be true
 	 * before the onWillShutdown event is fired and false if the shutdown is being vetoed.
 	 */
-	willShutdown: boolean;
+	readonly willShutdown: boolean;
 
 	/**
 	 * Fired before shutdown happens. Allows listeners to veto against the
 	 * shutdown.
 	 */
-	onWillShutdown: Event<ShutdownEvent>;
+	readonly onWillShutdown: Event<ShutdownEvent>;
 
 	/**
 	 * Fired when no client is preventing the shutdown from happening. Can be used to dispose heavy resources
@@ -64,11 +75,12 @@ export interface ILifecycleService {
 	 *
 	 * The event carries a shutdown reason that indicates how the shutdown was triggered.
 	 */
-	onShutdown: Event<ShutdownReason>;
+	readonly onShutdown: Event<ShutdownReason>;
 }
 
 export const NullLifecycleService: ILifecycleService = {
 	_serviceBrand: null,
+	startupKind: StartupKind.NewWindow,
 	willShutdown: false,
 	onWillShutdown: () => ({ dispose() { } }),
 	onShutdown: (reason) => ({ dispose() { } })

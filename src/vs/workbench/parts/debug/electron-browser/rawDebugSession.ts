@@ -79,7 +79,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 		super(id);
 		this.emittedStopped = false;
 		this.readyForBreakpoints = false;
-		this.allThreadsContinued = false;
+		this.allThreadsContinued = true;
 		this.sentPromises = [];
 
 		this._onDidInitialize = new Emitter<DebugProtocol.InitializedEvent>();

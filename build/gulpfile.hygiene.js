@@ -40,13 +40,17 @@ const eolFilter = [
 	'!**/*.{svg,exe,png,bmp,scpt,bat,cmd,cur,ttf,woff,eot}',
 	'!build/{lib,tslintRules}/**/*.js',
 	'!build/monaco/**',
-	'!build/win32/**'
+	'!build/win32/**',
+	'!build/**/*.sh',
+	'!build/tfs/**/*.js',
+	'!**/Dockerfile'
 ];
 
 const indentationFilter = [
 	'**',
 	'!ThirdPartyNotices.txt',
 	'!**/*.md',
+	'!**/*.ps1',
 	'!**/*.template',
 	'!**/*.yml',
 	'!**/lib/**',

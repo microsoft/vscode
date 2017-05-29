@@ -23,13 +23,6 @@ export interface Modifiers {
 	readonly metaKey: boolean;
 }
 
-export const NO_MODIFIERS: Modifiers = {
-	ctrlKey: false,
-	shiftKey: false,
-	altKey: false,
-	metaKey: false
-};
-
 export class ModifierLabelProvider {
 
 	public readonly modifierLabels: ModifierLabels[];

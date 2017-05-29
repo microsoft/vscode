@@ -31,8 +31,9 @@ import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/toggleEdi
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
-import { attachListStyler } from 'vs/platform/theme/common/styler';
+import { attachListStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 const $ = dom.$;
 
@@ -41,6 +42,8 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	private static MEMENTO_COLLAPSED = 'openEditors.memento.collapsed';
 	private static DEFAULT_VISIBLE_OPEN_EDITORS = 9;
 	private static DEFAULT_DYNAMIC_HEIGHT = true;
+
+	readonly id: string = 'workbench.explorer.openEditorsView';
 
 	private settings: any;
 	private visibleOpenEditors: number;
@@ -87,6 +90,20 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		titleSpan.textContent = nls.localize({ key: 'openEditors', comment: ['Open is an adjective'] }, "Open Editors");
 
 		this.dirtyCountElement = dom.append(titleDiv, $('.monaco-count-badge'));
+
+		this.toDispose.push((attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
+			const background = colors.badgeBackground ? colors.badgeBackground.toString() : null;
+			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : null;
+			const border = colors.contrastBorder ? colors.contrastBorder.toString() : null;
+
+			this.dirtyCountElement.style.backgroundColor = background;
+			this.dirtyCountElement.style.color = foreground;
+
+			this.dirtyCountElement.style.borderWidth = border ? '1px' : null;
+			this.dirtyCountElement.style.borderStyle = border ? 'solid' : null;
+			this.dirtyCountElement.style.borderColor = border;
+		})));
+
 		this.updateDirtyIndicator();
 
 		super.renderHeader(container);

@@ -20,6 +20,7 @@
 	"showVersions": "使用 --list-extension 时，显示已安装扩展的版本。",
 	"installExtension": "安装扩展。",
 	"uninstallExtension": "卸载扩展。",
+	"experimentalApis": "启用扩展程序实验性 api 功能。",
 	"disableExtensions": "禁用所有已安装的扩展。",
 	"disableGPU": "禁用 GPU 硬件加速。",
 	"version": "打印版本。",

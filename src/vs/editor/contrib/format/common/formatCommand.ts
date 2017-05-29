@@ -17,7 +17,9 @@ export class EditOperationsCommand implements editorCommon.ICommand {
 		if (typeof cmd._newEol === 'number') {
 			editor.getModel().setEOL(cmd._newEol);
 		}
+		editor.pushUndoStop();
 		editor.executeCommand('formatEditsCommand', cmd);
+		editor.pushUndoStop();
 	}
 
 	private _edits: TextEdit[];

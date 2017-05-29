@@ -10,12 +10,11 @@ import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/v
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { getOrCreateMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
-import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { MinimapCharRenderer, MinimapTokensColorTracker, Constants } from 'vs/editor/common/view/minimapCharRenderer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CharCode } from 'vs/base/common/charCode';
-import { IViewLayout, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
+import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { ColorId } from 'vs/editor/common/modes';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -26,7 +25,8 @@ import { RGBA } from 'vs/base/common/color';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
 import * as platform from 'vs/base/common/platform';
-import { VerticalRevealType } from 'vs/editor/common/controller/cursorEvents';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground, scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 
 const enum RenderMinimap {
 	None = 0,
@@ -105,7 +105,7 @@ class MinimapOptions {
 	public readonly canvasOuterHeight: number;
 
 	constructor(configuration: editorCommon.IConfiguration) {
-		const pixelRatio = browser.getPixelRatio();
+		const pixelRatio = configuration.editor.pixelRatio;
 		const layoutInfo = configuration.editor.layoutInfo;
 
 		this.renderMinimap = layoutInfo.renderMinimap | 0;
@@ -413,7 +413,6 @@ class MinimapBuffers {
 
 export class Minimap extends ViewPart {
 
-	private readonly _viewLayout: IViewLayout;
 	private readonly _editorScrollbar: EditorScrollbar;
 
 	private readonly _domNode: FastDomNode<HTMLElement>;
@@ -431,9 +430,8 @@ export class Minimap extends ViewPart {
 	private _lastRenderData: RenderData;
 	private _buffers: MinimapBuffers;
 
-	constructor(context: ViewContext, viewLayout: IViewLayout, editorScrollbar: EditorScrollbar) {
+	constructor(context: ViewContext, editorScrollbar: EditorScrollbar) {
 		super(context);
-		this._viewLayout = viewLayout;
 		this._editorScrollbar = editorScrollbar;
 
 		this._options = new MinimapOptions(this._context.configuration);
@@ -444,6 +442,8 @@ export class Minimap extends ViewPart {
 		PartFingerprints.write(this._domNode, PartFingerprint.Minimap);
 		this._domNode.setClassName('minimap');
 		this._domNode.setPosition('absolute');
+		this._domNode.setAttribute('role', 'presentation');
+		this._domNode.setAttribute('aria-hidden', 'true');
 		this._domNode.setRight(this._context.configuration.editor.layoutInfo.verticalScrollbarWidth);
 
 		this._shadow = createFastDomNode(document.createElement('div'));
@@ -485,7 +485,7 @@ export class Minimap extends ViewPart {
 
 			this._context.privateViewEventBus.emit(new viewEvents.ViewRevealRangeRequestEvent(
 				new Range(lineNumber, 1, lineNumber, 1),
-				VerticalRevealType.Center,
+				viewEvents.VerticalRevealType.Center,
 				false
 			));
 		});
@@ -497,7 +497,7 @@ export class Minimap extends ViewPart {
 
 			if (e.leftButton) {
 				const initialMouseOrthogonalPosition = e.posx;
-				const initialScrollTop = this._viewLayout.getScrollTop();
+				const initialScrollTop = this._context.viewLayout.getScrollTop();
 				const initialSliderCenter = (this._slider.getTop() + this._slider.getHeight() / 2);
 				const draggingDeltaCenter = e.posy - initialSliderCenter;
 				this._slider.toggleClassName('active', true);
@@ -509,7 +509,7 @@ export class Minimap extends ViewPart {
 						const mouseOrthogonalDelta = Math.abs(mouseOrthogonalPosition - initialMouseOrthogonalPosition);
 						if (platform.isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
 							// The mouse has wondered away from the slider => reset dragging
-							this._viewLayout.setScrollPosition({
+							this._context.viewLayout.setScrollPosition({
 								scrollTop: initialScrollTop
 							});
 						} else {
@@ -523,13 +523,13 @@ export class Minimap extends ViewPart {
 							if (this._context.configuration.editor.viewInfo.scrollBeyondLastLine) {
 								discountScrollHeight = this._canvas.getHeight() - this._context.configuration.editor.lineHeight;
 							}
-							const scrollHeight = this._viewLayout.getScrollHeight() - discountScrollHeight;
+							const scrollHeight = this._context.viewLayout.getScrollHeight() - discountScrollHeight;
 
 							const desiredSliderCenter = mouseMoveData.posy - draggingDeltaCenter;
 							const desiredScrollCenter = desiredSliderCenter * (scrollHeight / representableHeight);
 							const desiredScrollTop = desiredScrollCenter - this._canvas.getHeight() / 2;
 
-							this._viewLayout.setScrollPosition({
+							this._context.viewLayout.setScrollPosition({
 								scrollTop: desiredScrollTop
 							});
 						}
@@ -799,7 +799,7 @@ export class Minimap extends ViewPart {
 	private static _renderLine(
 		target: ImageData,
 		backgroundColor: RGBA,
-		useLighterFont,
+		useLighterFont: boolean,
 		renderMinimap: RenderMinimap,
 		colorTracker: MinimapTokensColorTracker,
 		minimapCharRenderer: MinimapCharRenderer,
@@ -854,3 +854,22 @@ export class Minimap extends ViewPart {
 		}
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let sliderBackground = theme.getColor(scrollbarSliderBackground);
+	if (sliderBackground) {
+		collector.addRule(`.monaco-editor .minimap-slider { background: ${sliderBackground}; }`);
+	}
+	let sliderHoverBackground = theme.getColor(scrollbarSliderHoverBackground);
+	if (sliderHoverBackground) {
+		collector.addRule(`.monaco-editor .minimap-slider:hover { background: ${sliderHoverBackground}; }`);
+	}
+	let sliderActiveBackground = theme.getColor(scrollbarSliderActiveBackground);
+	if (sliderActiveBackground) {
+		collector.addRule(`.monaco-editor .minimap-slider.active { background: ${sliderActiveBackground}; }`);
+	}
+	let shadow = theme.getColor(scrollbarShadow);
+	if (shadow) {
+		collector.addRule(`.monaco-editor .minimap-shadow-visible { box-shadow: ${shadow} -6px 0 6px -6px inset; }`);
+	}
+});

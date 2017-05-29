@@ -197,9 +197,7 @@ export class ToggleMenuBarAction extends Action {
 			newVisibilityValue = 'default';
 		}
 
-		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ToggleMenuBarAction.menuBarVisibilityKey, value: newVisibilityValue }).then(null, error => {
-			this.messageService.show(Severity.Error, error);
-		});
+		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ToggleMenuBarAction.menuBarVisibilityKey, value: newVisibilityValue });
 
 		return TPromise.as(null);
 	}
@@ -242,10 +240,13 @@ export abstract class BaseZoomAction extends Action {
 		const applyZoom = () => {
 			webFrame.setZoomLevel(level);
 			browser.setZoomFactor(webFrame.getZoomFactor());
-			browser.setZoomLevel(level); // Ensure others can listen to zoom level changes
+			// See https://github.com/Microsoft/vscode/issues/26151
+			// Cannot be trusted because the webFrame might take some time
+			// until it really applies the new zoom level
+			browser.setZoomLevel(webFrame.getZoomLevel(), /*isTrusted*/false);
 		};
 
-		this.configurationEditingService.writeConfiguration(target, { key: BaseZoomAction.SETTING_KEY, value: level }).done(() => applyZoom(), error => applyZoom());
+		this.configurationEditingService.writeConfiguration(target, { key: BaseZoomAction.SETTING_KEY, value: level }, { donotNotifyError: true }).done(() => applyZoom(), error => applyZoom());
 	}
 }
 
@@ -738,7 +739,7 @@ ${tableHeader}\n${table};
 		// 2000 chars is browsers de-facto limit for URLs, 400 chars are allowed for other string parts of the issue URL
 		// http://stackoverflow.com/questions/417142/what-is-the-maximum-length-of-a-url-in-different-browsers
 		if (encodeURIComponent(extensionTable).length > 1600) {
-			return 'the listing exceeds the lower minimum of browsers\' URL characters limit';
+			return 'the listing length exceeds browsers\' URL characters limit';
 		}
 
 		return extensionTable;

@@ -9,7 +9,7 @@ export const ID = 'editor.contrib.folding';
 
 export interface IFoldingController extends IEditorContribution {
 
-	foldAll();
-	unfoldAll();
+	foldAll(): void;
+	unfoldAll(): void;
 
 }

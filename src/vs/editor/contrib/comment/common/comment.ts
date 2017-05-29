@@ -35,7 +35,9 @@ abstract class CommentLineAction extends EditorAction {
 			commands.push(new LineCommentCommand(selections[i], opts.tabSize, this._type));
 		}
 
+		editor.pushUndoStop();
 		editor.executeCommands(this.id, commands);
+		editor.pushUndoStop();
 	}
 
 }
@@ -113,6 +115,8 @@ class BlockCommentAction extends EditorAction {
 			commands.push(new BlockCommentCommand(selections[i]));
 		}
 
+		editor.pushUndoStop();
 		editor.executeCommands(this.id, commands);
+		editor.pushUndoStop();
 	}
 }

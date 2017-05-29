@@ -8,7 +8,7 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditStack } from 'vs/editor/common/model/editStack';
 import { ILineEdit, LineMarker, ModelLine, MarkersTracker } from 'vs/editor/common/model/modelLine';
-import { TextModelWithDecorations } from 'vs/editor/common/model/textModelWithDecorations';
+import { TextModelWithDecorations, ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import * as strings from 'vs/base/common/strings';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
@@ -289,10 +289,14 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 		let mightContainRTL = this._mightContainRTL;
 		let mightContainNonBasicASCII = this._mightContainNonBasicASCII;
+		let canReduceOperations = true;
 
 		let operations: IValidatedEditOperation[] = [];
 		for (let i = 0; i < rawOperations.length; i++) {
 			let op = rawOperations[i];
+			if (canReduceOperations && op._isTracked) {
+				canReduceOperations = false;
+			}
 			let validatedRange = this.validateRange(op.range);
 			if (!mightContainRTL && op.text) {
 				// check if the new inserted text contains RTL
@@ -325,7 +329,9 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			}
 		}
 
-		operations = this._reduceOperations(operations);
+		if (canReduceOperations) {
+			operations = this._reduceOperations(operations);
+		}
 
 		let editableRange = this.getEditableRange();
 		let editableRangeStart = editableRange.getStartPosition();
@@ -807,12 +813,14 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 			if (range) {
 				this._hasEditableRange = true;
-				this._editableRangeId = changeAccessor.addDecoration(range, {
-					stickiness: editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
-				});
+				this._editableRangeId = changeAccessor.addDecoration(range, EditableTextModel._DECORATION_OPTION);
 			}
 		});
 	}
+
+	private static _DECORATION_OPTION = ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+	});
 
 	public hasEditableRange(): boolean {
 		return this._hasEditableRange;

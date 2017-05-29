@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { MessageItem, workspace, Disposable, ProgressLocation, window, commands, Uri } from 'vscode';
 import { ITypescriptServiceClient } from '../typescriptService';
 import { loadMessageBundle } from 'vscode-nls';

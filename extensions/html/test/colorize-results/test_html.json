@@ -645,7 +645,7 @@
 			"light_plus": "support.constant.color: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.color: #0451A5",
-			"hc_black": "support.constant.color: #B5CEA8"
+			"hc_black": "support.constant.color: #CE9178"
 		}
 	},
 	{
@@ -711,7 +711,7 @@
 			"light_plus": "constant.other.color.rgb-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "constant.other.color.rgb-value: #0451A5",
-			"hc_black": "constant.other.color.rgb-value: #B5CEA8"
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
@@ -722,7 +722,7 @@
 			"light_plus": "constant.other.color.rgb-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "constant.other.color.rgb-value: #0451A5",
-			"hc_black": "constant.other.color.rgb-value: #B5CEA8"
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
@@ -1459,7 +1459,7 @@
 			"light_plus": "variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -1481,7 +1481,7 @@
 			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
@@ -1569,7 +1569,7 @@
 			"light_plus": "variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -1591,7 +1591,7 @@
 			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
@@ -1635,7 +1635,7 @@
 			"light_plus": "meta.object-literal.key: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "meta.object-literal.key: #9CDCFE"
 		}
 	},
 	{
@@ -1646,7 +1646,7 @@
 			"light_plus": "meta.object-literal.key: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "meta.object-literal.key: #9CDCFE"
 		}
 	},
 	{
@@ -1723,7 +1723,7 @@
 			"light_plus": "meta.object-literal.key: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "meta.object-literal.key: #9CDCFE"
 		}
 	},
 	{
@@ -1734,7 +1734,7 @@
 			"light_plus": "meta.object-literal.key: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "meta.object-literal.key: #9CDCFE"
 		}
 	},
 	{
@@ -1778,7 +1778,7 @@
 			"light_plus": "meta.object-literal.key: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "meta.object-literal.key: #9CDCFE"
 		}
 	},
 	{
@@ -1789,7 +1789,7 @@
 			"light_plus": "meta.object-literal.key: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "meta.object-literal.key: #9CDCFE"
 		}
 	},
 	{
@@ -1921,7 +1921,7 @@
 			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.function: #DCDCAA"
 		}
 	},
 	{
@@ -1965,7 +1965,7 @@
 			"light_plus": "variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -2108,7 +2108,7 @@
 			"light_plus": "variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -2130,7 +2130,7 @@
 			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "entity.name.function: #DCDCAA"
 		}
 	},
 	{

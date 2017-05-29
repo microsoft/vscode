@@ -25,8 +25,8 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { highContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, SIDE_BAR_BORDER } from 'vs/workbench/common/theme';
 
 export class SidebarPart extends CompositePart<Viewlet> {
 
@@ -63,7 +63,7 @@ export class SidebarPart extends CompositePart<Viewlet> {
 			Scope.VIEWLET,
 			SIDE_BAR_TITLE_FOREGROUND,
 			id,
-			{ hasTitle: true }
+			{ hasTitle: true, borderWidth: () => (this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder)) ? 1 : 0 }
 		);
 	}
 
@@ -82,15 +82,16 @@ export class SidebarPart extends CompositePart<Viewlet> {
 		const container = this.getContainer();
 
 		container.style('background-color', this.getColor(SIDE_BAR_BACKGROUND));
+		container.style('color', this.getColor(SIDE_BAR_FOREGROUND));
 
-		const hcBorder = this.getColor(highContrastBorder);
+		const borderColor = this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder);
 		const isPositionLeft = this.partService.getSideBarPosition() === SideBarPosition.LEFT;
-		container.style('border-right-width', hcBorder && isPositionLeft ? '1px' : null);
-		container.style('border-right-style', hcBorder && isPositionLeft ? 'solid' : null);
-		container.style('border-right-color', isPositionLeft ? hcBorder : null);
-		container.style('border-left-width', hcBorder && !isPositionLeft ? '1px' : null);
-		container.style('border-left-style', hcBorder && !isPositionLeft ? 'solid' : null);
-		container.style('border-left-color', !isPositionLeft ? hcBorder : null);
+		container.style('border-right-width', borderColor && isPositionLeft ? '1px' : null);
+		container.style('border-right-style', borderColor && isPositionLeft ? 'solid' : null);
+		container.style('border-right-color', isPositionLeft ? borderColor : null);
+		container.style('border-left-width', borderColor && !isPositionLeft ? '1px' : null);
+		container.style('border-left-style', borderColor && !isPositionLeft ? 'solid' : null);
+		container.style('border-left-color', !isPositionLeft ? borderColor : null);
 	}
 
 	public openViewlet(id: string, focus?: boolean): TPromise<Viewlet> {

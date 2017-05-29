@@ -13,7 +13,7 @@ import { IAction, Action } from 'vs/base/common/actions';
 import errors = require('vs/base/common/errors');
 import DOM = require('vs/base/browser/dom');
 import { TPromise } from 'vs/base/common/winjs.base';
-import { BaseEditor, IEditorInputActionContext } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { isCommonCodeEditor, isCommonDiffEditor } from 'vs/editor/common/editorCommon';
 import arrays = require('vs/base/common/arrays');
@@ -303,16 +303,11 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 			// Editor Control Actions
 			let editorActions = this.mapActionsToEditors[control.getId()];
 			if (!editorActions) {
-				editorActions = this.getEditorActionsForContext(control);
+				editorActions = { primary: control.getActions(), secondary: control.getSecondaryActions() };
 				this.mapActionsToEditors[control.getId()] = editorActions;
 			}
 			primary.push(...editorActions.primary);
 			secondary.push(...editorActions.secondary);
-
-			// Editor Input Actions
-			const editorInputActions = this.getEditorActionsForContext({ input: control.input, editor: control, position: control.position });
-			primary.push(...editorInputActions.primary);
-			secondary.push(...editorInputActions.secondary);
 
 			// MenuItems
 			// TODO This isn't very proper but needed as we have failed to
@@ -329,29 +324,6 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		}
 
 		return { primary, secondary };
-	}
-
-	private getEditorActionsForContext(context: BaseEditor | IEditorInputActionContext): IToolbarActions {
-		const primaryActions: IAction[] = [];
-		const secondaryActions: IAction[] = [];
-
-		// From Editor
-		if (context instanceof BaseEditor) {
-			primaryActions.push(...(<BaseEditor>context).getActions());
-			secondaryActions.push(...(<BaseEditor>context).getSecondaryActions());
-		}
-
-		// From Contributions
-		else {
-			const actionBarRegistry = Registry.as<IActionBarRegistry>(Extensions.Actionbar);
-			primaryActions.push(...actionBarRegistry.getActionBarActionsForContext(Scope.EDITOR, context));
-			secondaryActions.push(...actionBarRegistry.getSecondaryActionBarActionsForContext(Scope.EDITOR, context));
-		}
-
-		return {
-			primary: primaryActions,
-			secondary: secondaryActions
-		};
 	}
 
 	protected updateEditorActionsToolbar(): void {

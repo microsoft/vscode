@@ -86,12 +86,7 @@
 }
 
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .highlight {
-	color: #007ACC;
 	font-weight: bold;
-}
-
-.vs-dark .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .highlight {
-	color: #0097FB;
 }
 
 .markers-panel .icon {

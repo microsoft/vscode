@@ -95,7 +95,7 @@
 			"light_plus": "variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -106,7 +106,7 @@
 			"light_plus": "variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -139,7 +139,7 @@
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #569CD6"
+			"hc_black": "keyword.control: #C586C0"
 		}
 	},
 	{
@@ -161,7 +161,7 @@
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #569CD6"
+			"hc_black": "keyword.control: #C586C0"
 		}
 	},
 	{
@@ -216,7 +216,7 @@
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #569CD6"
+			"hc_black": "keyword.control: #C586C0"
 		}
 	},
 	{
@@ -264,7 +264,29 @@
 		}
 	},
 	{
-		"c": "set",
+		"c": "call",
+		"t": "source.dosbatch keyword.control.statement.dosbatch",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.dosbatch",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "echo",
 		"t": "source.dosbatch keyword.command.dosbatch",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
@@ -275,7 +297,7 @@
 		}
 	},
 	{
-		"c": " VSCODE_DEV=1",
+		"c": " ",
 		"t": "source.dosbatch",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -286,91 +308,14 @@
 		}
 	},
 	{
-		"c": "set",
-		"t": "source.dosbatch keyword.command.dosbatch",
+		"c": "%%LINE:rem +=%%",
+		"t": "source.dosbatch variable.other.parsetime.dosbatch",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
-		}
-	},
-	{
-		"c": " ELECTRON_DEFAULT_ERROR_MODE=1",
-		"t": "source.dosbatch",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "set",
-		"t": "source.dosbatch keyword.command.dosbatch",
-		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
-		}
-	},
-	{
-		"c": " ELECTRON_ENABLE_LOGGING=1",
-		"t": "source.dosbatch",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "set",
-		"t": "source.dosbatch keyword.command.dosbatch",
-		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
-		}
-	},
-	{
-		"c": " ELECTRON_ENABLE_STACK_DUMPING=1",
-		"t": "source.dosbatch",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": ":: Launch Code",
-		"t": "source.dosbatch comment.line.colons.dosbatch",
-		"r": {
-			"dark_plus": "comment: #608B4E",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
-		}
-	},
-	{
-		"c": ".\\.build\\electron\\electron.exe . %*",
-		"t": "source.dosbatch",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{

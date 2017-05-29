@@ -8,5 +8,9 @@
 	"showRecommendations": "Mostrar recomendaciones",
 	"neverShowAgain": "No volver a mostrar",
 	"close": "Cerrar",
-	"workspaceRecommended": "Esta área de trabajo tiene recomendaciones de extensión."
+	"workspaceRecommended": "Esta área de trabajo tiene recomendaciones de extensión.",
+	"ignoreExtensionRecommendations": "¿Desea despreciar todas las recomendaciones de extensión?",
+	"ignoreAll": "Sí, despreciar todas.",
+	"no": "No",
+	"cancel": "Cancelar"
 }

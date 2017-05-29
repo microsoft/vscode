@@ -24,7 +24,6 @@ const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingC
 
 class StandaloneTheme implements IStandaloneTheme {
 	id: string;
-	selector: string;
 	private rules: ITokenThemeRule[];
 	base: string;
 	private colors: { [colorId: string]: Color };
@@ -34,10 +33,8 @@ class StandaloneTheme implements IStandaloneTheme {
 	constructor(base: string, name: string, colors: IColors, rules: ITokenThemeRule[]) {
 		if (name.length > 0) {
 			this.id = base + ' ' + name;
-			this.selector = base + '.' + name;
 		} else {
 			this.id = base;
-			this.selector = base;
 		}
 		this.base = base;
 		this.rules = rules;
@@ -67,13 +64,8 @@ class StandaloneTheme implements IStandaloneTheme {
 		return color;
 	}
 
-	public isDefault(colorId: ColorIdentifier): boolean {
-		if (!this.colors.hasOwnProperty(colorId)) {
-			return true;
-		}
-		let color = this.colors[colorId];
-		let defaultValue = this.getDefault(colorId);
-		return color ? !!defaultValue : color.equals(defaultValue);
+	public defines(colorId: ColorIdentifier): boolean {
+		return this.colors.hasOwnProperty(colorId);
 	}
 
 	public get type() {
@@ -180,8 +172,8 @@ export class StandaloneThemeServiceImpl implements IStandaloneThemeService {
 		}
 		this._theme = theme;
 
-		let cssRules = [];
-		let hasRule = {};
+		let cssRules: string[] = [];
+		let hasRule: { [rule: string]: boolean; } = {};
 		let ruleCollector: ICssStyleCollector = {
 			addRule: (rule: string) => {
 				if (!hasRule[rule]) {

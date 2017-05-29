@@ -15,6 +15,8 @@ import { ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from '
 import { MDDocumentContentProvider, getMarkdownUri, isMarkdownFile } from './previewContentProvider';
 import { TableOfContentsProvider } from './tableOfContentsProvider';
 import { Logger } from "./logger";
+import * as nls from 'vscode-nls';
+const localize = nls.loadMessageBundle();
 
 interface IPackageInfo {
 	name: string;
@@ -59,7 +61,7 @@ export function activate(context: vscode.ExtensionContext) {
 				continue;
 			}
 
-			let styles = contributes['markdown.preview'] && contributes['markdown.preview'].styles;
+			let styles = contributes['markdown.previewStyles'];
 			if (styles) {
 				if (!Array.isArray(styles)) {
 					styles = [styles];
@@ -73,7 +75,7 @@ export function activate(context: vscode.ExtensionContext) {
 				}
 			}
 
-			let scripts = contributes['markdown.preview'] && contributes['markdown.preview'].scripts;
+			let scripts = contributes['markdown.previewScripts'];
 			if (scripts) {
 				if (!Array.isArray(scripts)) {
 					scripts = [scripts];
@@ -164,6 +166,10 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreviewSecuritySelector', (resource: string | undefined) => {
 		previewSecuritySelector.showSecutitySelectorForWorkspace(resource ? vscode.Uri.parse(resource).query : undefined);
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('_markdown.onPreviewStyleLoadError', (resources: string[]) => {
+		vscode.window.showWarningMessage(localize('onPreviewStyleLoadError', "Could not load 'markdown.styles': {0}", resources.join(', ')));
 	}));
 
 	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(document => {

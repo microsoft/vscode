@@ -16,6 +16,9 @@ import { IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { InPlaceReplaceCommand } from './inPlaceReplaceCommand';
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/common/core/editorState';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorBracketMatchBorder } from 'vs/editor/common/view/editorColorRegistry';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 @commonEditorContribution
 class InPlaceReplaceController implements IEditorContribution {
@@ -26,9 +29,9 @@ class InPlaceReplaceController implements IEditorContribution {
 		return editor.getContribution<InPlaceReplaceController>(InPlaceReplaceController.ID);
 	}
 
-	private static DECORATION = {
+	private static DECORATION = ModelDecorationOptions.register({
 		className: 'valueSetReplacement'
-	};
+	});
 
 	private editor: ICommonCodeEditor;
 	private requestIdPool: number;
@@ -110,7 +113,10 @@ class InPlaceReplaceController implements IEditorContribution {
 
 			// Insert new text
 			var command = new InPlaceReplaceCommand(editRange, selection, result.value);
+
+			this.editor.pushUndoStop();
 			this.editor.executeCommand(source, command);
+			this.editor.pushUndoStop();
 
 			// add decoration
 			this.decorationIds = this.editor.deltaDecorations(this.decorationIds, [{
@@ -179,3 +185,10 @@ class InPlaceReplaceDown extends EditorAction {
 		return controller.run(this.id, false);
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let border = theme.getColor(editorBracketMatchBorder);
+	if (border) {
+		collector.addRule(`.monaco-editor.vs .valueSetReplacement { outline: solid 2px ${border}; }`);
+	}
+});

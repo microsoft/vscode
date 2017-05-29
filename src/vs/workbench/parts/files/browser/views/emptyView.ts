@@ -13,24 +13,32 @@ import { IActionRunner, IAction } from 'vs/base/common/actions';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { $ } from 'vs/base/browser/builder';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CollapsibleView } from 'vs/base/browser/ui/splitview/splitview';
+import { CollapsibleView, CollapsibleState } from 'vs/base/browser/ui/splitview/splitview';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IViewOptions } from 'vs/workbench/parts/views/browser/views';
 
 export class EmptyView extends CollapsibleView {
-	private openFolderButton: Button;
 
+	public static ID: string = 'workbench.explorer.emptyView';
+
+	public readonly id: string = EmptyView.ID;
+
+	private openFolderButton: Button;
+	private actionRunner: IActionRunner;
 	constructor(
-		private actionRunner: IActionRunner,
+		options: IViewOptions,
 		@IThemeService private themeService: IThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super({
-			minimumSize: 2 * 22,
-			ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section")
+			minimumSize: 5 * 22,
+			ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section"),
+			initialState: options.collapsed ? CollapsibleState.COLLAPSED : CollapsibleState.EXPANDED
 		});
+		this.actionRunner = options.actionRunner;
 	}
 
 	public renderHeader(container: HTMLElement): void {

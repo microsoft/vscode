@@ -7,7 +7,7 @@
 	"entryAriaLabel": "{0}、ビューの選択",
 	"views": "ビュー",
 	"panels": "パネル",
-	"terminals": "端末",
+	"terminals": "ターミナル",
 	"terminalTitle": "{0}: {1}",
 	"channels": "出力",
 	"openView": "ビューを開く",

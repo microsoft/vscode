@@ -26,6 +26,8 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/work
 import { Color } from 'vs/base/common/color';
 import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
+import { registerThemingParticipant, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
+import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
 
 @editorContribution
 class InspectTMScopesController extends Disposable implements IEditorContribution {
@@ -251,7 +253,7 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 		let tokenText = this._model.getLineContent(position.lineNumber).substring(tokenStartIndex, tokenEndIndex);
 		result += `<h2 class="tm-token">${renderTokenText(tokenText)}<span class="tm-token-length">(${tokenText.length} ${tokenText.length === 1 ? 'char' : 'chars'})</span></h2>`;
 
-		result += `<hr style="clear:both"/>`;
+		result += `<hr class="tm-metadata-separator" style="clear:both"/>`;
 
 		let metadata = this._decodeMetadata(data.tokens2[(token2Index << 1) + 1]);
 		result += `<table class="tm-metadata-table"><tbody>`;
@@ -263,7 +265,7 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 		result += `</tbody></table>`;
 
 		let theme = this._themeService.getColorTheme();
-		result += `<hr/>`;
+		result += `<hr class="tm-metadata-separator"/>`;
 		let matchingRule = findMatchingThemeRule(theme, data.tokens1[token1Index].scopes);
 		if (matchingRule) {
 			result += `<code class="tm-theme-selector">${matchingRule.rawSelector}\n${JSON.stringify(matchingRule.settings, null, '\t')}</code>`;
@@ -271,7 +273,7 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 			result += `<span class="tm-theme-selector">No theme selector.</span>`;
 		}
 
-		result += `<hr/>`;
+		result += `<hr class="tm-metadata-separator"/>`;
 
 		result += `<ul>`;
 		for (let i = data.tokens1[token1Index].scopes.length - 1; i >= 0; i--) {
@@ -363,3 +365,16 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 		};
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let border = theme.getColor(editorHoverBorder);
+	if (border) {
+		let borderWidth = theme.type === HIGH_CONTRAST ? 2 : 1;
+		collector.addRule(`.monaco-editor .tm-inspect-widget { border: ${borderWidth}px solid ${border}; }`);
+		collector.addRule(`.monaco-editor .tm-inspect-widget .tm-metadata-separator { background-color: ${border}; }`);
+	}
+	let background = theme.getColor(editorHoverBackground);
+	if (background) {
+		collector.addRule(`.monaco-editor .tm-inspect-widget { background-color: ${background}; }`);
+	}
+});

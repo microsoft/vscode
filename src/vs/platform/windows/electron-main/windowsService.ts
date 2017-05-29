@@ -209,6 +209,16 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return TPromise.as(null);
 	}
 
+	onWindowTitleDoubleClick(windowId: number): TPromise<void> {
+		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (vscodeWindow) {
+			vscodeWindow.onWindowTitleDoubleClick();
+		}
+
+		return TPromise.as(null);
+	}
+
 	setDocumentEdited(windowId: number, flag: boolean): TPromise<void> {
 		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
 

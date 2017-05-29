@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
-import os = require('os');
+import * as nls from 'vs/nls';
+import * as os from 'os';
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
@@ -494,6 +494,42 @@ export class ClearTerminalAction extends Action {
 		if (terminalInstance) {
 			terminalInstance.clear();
 		}
+		return TPromise.as(void 0);
+	}
+}
+
+export class AllowWorkspaceShellTerminalCommand extends Action {
+
+	public static ID = 'workbench.action.terminal.allowWorkspaceShell';
+	public static LABEL = nls.localize('workbench.action.terminal.allowWorkspaceShell', "Allow Workspace Shell Configuration");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		this.terminalService.setWorkspaceShellAllowed(true);
+		return TPromise.as(void 0);
+	}
+}
+
+export class DisallowWorkspaceShellTerminalCommand extends Action {
+
+	public static ID = 'workbench.action.terminal.disallowWorkspaceShell';
+	public static LABEL = nls.localize('workbench.action.terminal.disallowWorkspaceShell', "Disallow Workspace Shell Configuration");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		this.terminalService.setWorkspaceShellAllowed(false);
 		return TPromise.as(void 0);
 	}
 }

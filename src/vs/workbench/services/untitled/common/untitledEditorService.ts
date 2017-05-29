@@ -161,7 +161,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 		let hasAssociatedFilePath = false;
 		if (resource) {
 			hasAssociatedFilePath = (resource.scheme === 'file');
-			resource = this.resourceToUntitled(resource); // ensure we have the right scheme
+			resource = resource.with({ scheme: UntitledEditorInput.SCHEMA }); // ensure we have the right scheme
 
 			if (hasAssociatedFilePath) {
 				UntitledEditorService.KNOWN_ASSOCIATED_FILE_PATHS.set(resource, true); // remember for future lookups
@@ -229,14 +229,6 @@ export class UntitledEditorService implements IUntitledEditorService {
 		UntitledEditorService.CACHE.set(resource, input);
 
 		return input;
-	}
-
-	private resourceToUntitled(resource: URI): URI {
-		if (resource.scheme === UntitledEditorInput.SCHEMA) {
-			return resource;
-		}
-
-		return URI.from({ scheme: UntitledEditorInput.SCHEMA, path: resource.fsPath });
 	}
 
 	public hasAssociatedFilePath(resource: URI): boolean {

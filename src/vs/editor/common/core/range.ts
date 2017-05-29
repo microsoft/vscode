@@ -290,6 +290,10 @@ export class Range {
 
 	// ---
 
+	public static fromPositions(start: IPosition, end: IPosition = start): Range {
+		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
+	}
+
 	/**
 	 * Create a `Range` from an `IRange`.
 	 */

@@ -8,5 +8,7 @@
 	"merge changes": "Esegui merge delle modifiche",
 	"staged changes": "Modifiche preparate per il commit",
 	"changes": "Modifiche",
-	"ok": "OK"
+	"ok": "OK",
+	"neveragain": "Non visualizzare più questo messaggio",
+	"huge": "Il repository git '{0}' ha troppe modifiche attive - verrà attivato solo un sottoinsieme delle funzionalità di Git."
 }
