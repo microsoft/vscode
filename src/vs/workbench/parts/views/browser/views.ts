@@ -49,7 +49,7 @@ export interface IViewDescriptor {
 	readonly ctor: IViewConstructorSignature;
 
 	readonly order?: number;
-	
+
 }
 
 export interface ITreeItem {
