@@ -368,7 +368,10 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		let options = this.resolveOptions(task.command.options);
 		let { command, args } = this.resolveCommandAndArgs(task);
 		let terminalName = nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', task.name);
-		let waitOnExit = task.command.terminal.reveal !== RevealKind.Never || !task.isBackground;
+		let waitOnExit: boolean | string = false;
+		if (task.command.terminal.reveal !== RevealKind.Never || !task.isBackground) {
+			waitOnExit = nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.');
+		};
 		let shellLaunchConfig: IShellLaunchConfig = undefined;
 		let isShellCommand = task.command.type === CommandType.Shell;
 		if (isShellCommand) {
