@@ -529,7 +529,10 @@ export class TerminalInstance implements ITerminalInstance {
 			if (exitCode) {
 				this._xterm.writeln(exitCodeMessage);
 			}
-			this._xterm.writeln(nls.localize('terminal.integrated.waitOnExit', 'Press any key to close the terminal'));
+			let message = typeof this._shellLaunchConfig.waitOnExit === 'string'
+				? this._shellLaunchConfig.waitOnExit
+				: nls.localize('terminal.integrated.waitOnExit', 'Press any key to close the terminal');
+			this._xterm.writeln(message);
 			// Disable all input if the terminal is exiting and listen for next keypress
 			this._xterm.setOption('disableStdin', true);
 			if (this._xterm.textarea) {

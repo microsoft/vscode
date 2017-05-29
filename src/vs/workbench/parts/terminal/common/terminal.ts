@@ -109,8 +109,10 @@ export interface IShellLaunchConfig {
 	 * shell is being launched by an extension).
 	 */
 	ignoreConfigurationCwd?: boolean;
+
 	/** Whether to wait for a key press before closing the terminal. */
-	waitOnExit?: boolean;
+	waitOnExit?: boolean | string;
+
 	/**
 	 * A string including ANSI escape sequences that will be written to the terminal emulator
 	 * _before_ the terminal process has launched, a trailing \n is added at the end of the string.
