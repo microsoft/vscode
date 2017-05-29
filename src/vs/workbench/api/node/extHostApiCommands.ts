@@ -219,7 +219,7 @@ export class ExtHostApiCommands {
 				label,
 				undefined,
 				editorOptions,
-				options ? typeConverters.fromViewColumn(options.viewColumn) : undefined
+				options && options.viewColumn !== undefined ? typeConverters.fromViewColumn(options.viewColumn) : undefined
 			]);
 		}, {
 				description: 'Opens the provided resources in the diff editor to compare their contents.',

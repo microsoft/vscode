@@ -13,7 +13,6 @@ import { TextEditorSelectionChangeKind } from './extHostTypes';
 import * as TypeConverters from './extHostTypeConverters';
 import { TextEditorDecorationType, ExtHostTextEditor } from './extHostTextEditor';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
-import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
 import { MainContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData, IResolvedTextEditorConfiguration, ISelectionChangeEvent } from './extHost.protocol';
 import * as vscode from 'vscode';
 
@@ -67,14 +66,14 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 			};
 		} else if (typeof columnOrOptions === 'object') {
 			options = {
-				position: TypeConverters.fromViewColumn(columnOrOptions.viewColumn),
+				position: columnOrOptions.viewColumn !== undefined ? TypeConverters.fromViewColumn(columnOrOptions.viewColumn) : undefined,
 				preserveFocus: columnOrOptions.preserveFocus,
 				selection: typeof columnOrOptions.selection === 'object' ? TypeConverters.fromRange(columnOrOptions.selection) : undefined,
 				pinned: typeof columnOrOptions.preview === 'boolean' ? !columnOrOptions.preview : undefined
 			};
 		} else {
 			options = {
-				position: EditorPosition.ONE,
+				position: undefined,
 				preserveFocus: false
 			};
 		}
