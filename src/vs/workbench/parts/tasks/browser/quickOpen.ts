@@ -125,7 +125,7 @@ class CustomizeTaskAction extends Action {
 	private static ID = 'workbench.action.tasks.customizeTask';
 	private static LABEL = nls.localize('customizeTask', "Customize Task");
 
-	constructor(private taskService: ITaskService, private task: Task) {
+	constructor(private taskService: ITaskService, private quickOpenService: IQuickOpenService, private task: Task) {
 		super(CustomizeTaskAction.ID, CustomizeTaskAction.LABEL);
 		this.updateClass();
 	}
@@ -134,37 +134,44 @@ class CustomizeTaskAction extends Action {
 		this.class = 'quick-open-task-configure';
 	}
 
-	public run(context: any): TPromise<boolean> {
-		return this.taskService.customize(this.task, true).then(_ => false, _ => false);
+	public run(context: any): TPromise<any> {
+		return this.taskService.customize(this.task, true).then(() => {
+			this.quickOpenService.close();
+		});
 	}
 }
 
 export class QuickOpenActionContributor extends ActionBarContributor {
 
-	constructor( @ITaskService private taskService: ITaskService) {
+	constructor( @ITaskService private taskService: ITaskService, @IQuickOpenService private quickOpenService: IQuickOpenService) {
 		super();
 	}
 
 	public hasActions(context: any): boolean {
-		const entry = this.getEntry(context);
+		let task = this.getTask(context);
 
-		return !!entry;
+		return !!task;
 	}
 
 	public getActions(context: any): IAction[] {
-		const actions: Action[] = [];
-
-		const entry = this.getEntry(context);
-		if (entry && entry.task._source.kind === TaskSourceKind.Extension) {
-			actions.push(new CustomizeTaskAction(this.taskService, entry.task));
+		let actions: Action[] = [];
+		let task = this.getTask(context);
+		if (task && task._source.kind === TaskSourceKind.Extension) {
+			actions.push(new CustomizeTaskAction(this.taskService, this.quickOpenService, task));
 		}
 		return actions;
 	}
 
-	private getEntry(context: any): TaskEntry {
-		if (!context || !(context.element instanceof TaskEntry)) {
+	private getTask(context: any): Task {
+		if (!context) {
 			return undefined;
 		}
-		return context.element as TaskEntry;
+		let element = context.element;
+		if (element instanceof TaskEntry) {
+			return element.task;
+		} else if (element instanceof TaskGroupEntry) {
+			return (element.getEntry() as TaskEntry).task;
+		}
+		return undefined;
 	}
 }
