@@ -49,7 +49,7 @@ declare module 'vscode' {
 
 	export interface TreeItem {
 		/**
-		 * Label of the tree item
+		 * A human-readable string describing this item
 		 */
 		readonly label: string;
 
@@ -60,19 +60,34 @@ declare module 'vscode' {
 
 		/**
 		 * The [command](#Command) which should be run when the tree item
-		 * is open in the Source Control viewlet.
+		 * is selected
 		 */
 		readonly command?: Command;
 
 		/**
-		 * Context value of the tree node
-		 */
-		readonly contextValue?: string;
-
-		/**
-		 * Collapsible state of the tree item.
+		 * [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item.
 		 */
 		readonly collapsibleState?: TreeItemCollapsibleState;
+
+		/**
+		 * Context value of the tree item. This can be used to contribute item specific actions in the tree.
+		 * For example, a tree item is given a context value as `folder`. When contribution actions to `view/item/context`
+		 * using `menus` extension point, you can specify context value for key `viewItem` in `when` expression like `viewItem == folder`.
+		 * ```
+		 *	"contributes": {
+			"menus": {
+				"view/item/context": [
+					{
+						"command": "extension.deleteFolder",
+						"when": "viewItem == folder"
+					}
+				]
+			}
+		}
+		 * ```
+		 * This will show action `extension.deleteFolder` only for items with `contextValue` is `folder`.
+		 */
+		readonly contextValue?: string;
 	}
 
 	/**
