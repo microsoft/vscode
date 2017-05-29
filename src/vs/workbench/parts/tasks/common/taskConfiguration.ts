@@ -835,11 +835,12 @@ namespace TaskDescription {
 			if (problemMatchers) {
 				task.problemMatchers = problemMatchers;
 			}
-			mergeGlobals(task, globals);
 			if (context.isTermnial && isAnnotating(task)) {
+				mergeGlobalsIntoAnnnotation(task, globals);
 				annotatingTasks.push(task);
 				return;
 			}
+			mergeGlobals(task, globals);
 			fillDefaults(task);
 			let addTask: boolean = true;
 			if (context.isTermnial && task.command && task.command.name && task.command.type === Tasks.CommandType.Shell && task.command.args && task.command.args.length > 0) {
@@ -886,7 +887,10 @@ namespace TaskDescription {
 		} else if (defaultTestTask.rank > -1 && defaultTestTask.rank < 2) {
 			defaultTestTask.task.group = Tasks.TaskGroup.Test;
 		}
-		return parsedTasks.length === 0 && annotatingTasks.length === 0 ? undefined : { tasks: parsedTasks, annotatingTasks: annotatingTasks };
+		return {
+			tasks: parsedTasks.length > 0 ? parsedTasks : undefined,
+			annotatingTasks: annotatingTasks.length > 0 ? annotatingTasks : undefined
+		};
 	}
 
 	export function mergeTasks(target: Tasks.Task[], source: Tasks.Task[]): Tasks.Task[] {
@@ -940,6 +944,9 @@ namespace TaskDescription {
 		if (task.suppressTaskName === void 0 && globals.suppressTaskName !== void 0) {
 			task.suppressTaskName = globals.suppressTaskName;
 		}
+	}
+
+	export function mergeGlobalsIntoAnnnotation(task: Tasks.Task, globals: Globals): void {
 	}
 
 	export function fillDefaults(task: Tasks.Task): void {
