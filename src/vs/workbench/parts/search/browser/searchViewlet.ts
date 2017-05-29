@@ -9,7 +9,7 @@ import 'vs/css!./media/searchviewlet';
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Emitter, debounceEvent } from 'vs/base/common/event';
-import { ICommonCodeEditor, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, isCommonCodeEditor, isCommonDiffEditor } from 'vs/editor/common/editorCommon';
 import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
 import aria = require('vs/base/browser/ui/aria/aria');
@@ -797,7 +797,15 @@ export class SearchViewlet extends Viewlet {
 			return null;
 		}
 
-		let editorControl: any = this.editorService.getActiveEditor().getControl();
+		let editorControl = this.editorService.getActiveEditor().getControl();
+		if (isCommonDiffEditor(editorControl)) {
+			if (editorControl.getOriginalEditor().isFocused()) {
+				editorControl = editorControl.getOriginalEditor();
+			} else {
+				editorControl = editorControl.getModifiedEditor();
+			}
+		}
+
 		if (!isCommonCodeEditor(editorControl)) {
 			return null;
 		}
