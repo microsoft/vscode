@@ -7,7 +7,6 @@
 	"ok": "OK",
 	"pathNotExistTitle": "Le chemin d'accès n'existe pas",
 	"pathNotExistDetail": "Le chemin d'accès '{0}' ne semble plus exister sur le disque.",
-	"accessibilityOptionsWindowTitle": "Options d'accessibilité",
 	"reopen": "Rouvrir",
 	"wait": "Continuer à attendre",
 	"close": "Fermer",

@@ -182,7 +182,7 @@ let properties: { [path: string]: IJSONSchema; } = {
 			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.openFilesInNewWindow.off' }, "Files will open in the window with the files' folder open or the last active window"),
 			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.openFilesInNewWindow.default' }, "Files will open in the window with the files' folder open or the last active window unless opened via the dock or from finder (macOS only)")
 		],
-		'default': 'default',
+		'default': 'off',
 		'description':
 		nls.localize('openFilesInNewWindow',
 			`Controls if files should open in a new window.

@@ -171,7 +171,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			'extensions.autoUpdate': {
 				type: 'boolean',
 				description: localize('extensionsAutoUpdate', "Automatically update extensions"),
-				default: false
+				default: true
 			},
 			'extensions.ignoreRecommendations': {
 				type: 'boolean',

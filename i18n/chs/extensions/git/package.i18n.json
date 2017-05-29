@@ -26,6 +26,7 @@
 	"command.undoCommit": "撤消上次提交",
 	"command.checkout": "签出到...",
 	"command.branch": "创建分支...",
+	"command.deleteBranch": "删除分支...",
 	"command.pull": "拉取",
 	"command.pullRebase": "拉取(变基)",
 	"command.push": "推送",

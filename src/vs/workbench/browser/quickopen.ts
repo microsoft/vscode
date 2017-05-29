@@ -5,7 +5,7 @@
 'use strict';
 
 import nls = require('vs/nls');
-import { TPromise } from 'vs/base/common/winjs.base';
+import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import * as objects from 'vs/base/common/objects';
 import filters = require('vs/base/common/filters');
 import arrays = require('vs/base/common/arrays');
@@ -34,7 +34,7 @@ export class QuickOpenHandler {
 	 * As such, returning the same model instance across multiple searches will yield best
 	 * results in terms of performance when many items are shown.
 	 */
-	public getResults(searchValue: string): TPromise<IModel<any>> {
+	public getResults(searchValue: string): PPromise<IModel<any>, IModel<any>> {
 		return TPromise.as(null);
 	}
 
