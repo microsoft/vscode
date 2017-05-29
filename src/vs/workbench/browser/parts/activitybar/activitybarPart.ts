@@ -15,11 +15,11 @@ import { Builder, $, Dimension } from 'vs/base/browser/builder';
 import { Action } from 'vs/base/common/actions';
 import { ActionsOrientation, ActionBar, IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
-import { IGlobalActivity, GlobalActivityExtensions, IGlobalActivityRegistry } from 'vs/workbench/browser/activity';
+import { GlobalActivityExtensions, IGlobalActivityRegistry } from 'vs/workbench/browser/activity';
 import { Registry } from 'vs/platform/platform';
 import { Part } from 'vs/workbench/browser/part';
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { ToggleViewletPinnedAction, ViewletActivityAction, ActivityAction, ActivityActionItem, ViewletActionItem, ViewletOverflowActivityAction, ViewletOverflowActivityActionItem } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
+import { ToggleViewletPinnedAction, ViewletActivityAction, ActivityAction, GlobalActivityActionItem, ViewletActionItem, ViewletOverflowActivityAction, ViewletOverflowActivityActionItem, GlobalActivityAction, IViewletActivity } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IActivityBarService, IBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import { IPartService, Position as SideBarPosition } from 'vs/workbench/services/part/common/partService';
@@ -34,45 +34,6 @@ import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-
-interface IViewletActivity {
-	badge: IBadge;
-	clazz: string;
-}
-
-class GlobalActivityAction extends ActivityAction {
-
-	constructor(activity: IGlobalActivity) {
-		super(activity);
-	}
-}
-
-class GlobalActivityActionItem extends ActivityActionItem {
-
-	constructor(
-		action: GlobalActivityAction,
-		@IThemeService themeService: IThemeService,
-		@IContextMenuService protected contextMenuService: IContextMenuService
-	) {
-		super(action, { draggable: false }, themeService);
-	}
-
-	onClick(e: MouseEvent): void {
-		const globalAction = this._action as GlobalActivityAction;
-		const activity = globalAction.activity as IGlobalActivity;
-		const actions = activity.getActions();
-
-		const event = new StandardMouseEvent(e);
-		event.stopPropagation();
-		event.preventDefault();
-
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => ({ x: event.posx, y: event.posy }),
-			getActions: () => TPromise.as(actions),
-			onHide: () => dispose(actions)
-		});
-	}
-}
 
 export class ActivitybarPart extends Part implements IActivityBarService {
 
@@ -170,12 +131,12 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		}
 
 		const action = this.globalActivityIdToActions[globalActivityId];
-
 		if (!action) {
 			throw illegalArgument('globalActivityId');
 		}
 
 		action.setBadge(badge);
+
 		return toDisposable(() => action.setBadge(undefined));
 	}
 
@@ -572,6 +533,11 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		if (this.viewletSwitcherBar) {
 			this.viewletSwitcherBar.dispose();
 			this.viewletSwitcherBar = null;
+		}
+
+		if (this.globalActionBar) {
+			this.globalActionBar.dispose();
+			this.globalActionBar = null;
 		}
 
 		super.dispose();

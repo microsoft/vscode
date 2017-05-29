@@ -20,26 +20,32 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
-import { IActivity } from 'vs/workbench/browser/activity';
+import { IActivity, IGlobalActivity } from 'vs/workbench/browser/activity';
 import { dispose } from 'vs/base/common/lifecycle';
 import { IViewletService, } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IThemeService, ITheme, registerThemingParticipant, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { contrastBorder, activeContrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { StandardMouseEvent } from "vs/base/browser/mouseEvent";
+
+export interface IViewletActivity {
+	badge: IBadge;
+	clazz: string;
+}
 
 export class ActivityAction extends Action {
 	private badge: IBadge;
 	private _onDidChangeBadge = new Emitter<this>();
 
-	get activity(): IActivity {
-		return this._activity;
-	}
-
 	constructor(private _activity: IActivity) {
 		super(_activity.id, _activity.name, _activity.cssClass);
 
 		this.badge = null;
+	}
+
+	public get activity(): IActivity {
+		return this._activity;
 	}
 
 	public get onDidChangeBadge(): Event<this> {
@@ -108,14 +114,12 @@ export class ViewletActivityAction extends ActivityAction {
 }
 
 export class ActivityActionItem extends BaseActionItem {
-
+	protected $container: Builder;
 	protected $label: Builder;
 	protected $badge: Builder;
-	private $badgeContent: Builder;
 
-	protected get activity(): IActivity {
-		return (this._action as ActivityAction).activity;
-	}
+	private $badgeContent: Builder;
+	private mouseUpTimeout: number;
 
 	constructor(
 		action: ActivityAction,
@@ -126,6 +130,10 @@ export class ActivityActionItem extends BaseActionItem {
 
 		this.themeService.onThemeChange(this.onThemeChange, this, this._callOnDispose);
 		action.onDidChangeBadge(this.handleBadgeChangeEvenet, this, this._callOnDispose);
+	}
+
+	protected get activity(): IActivity {
+		return (this._action as ActivityAction).activity;
 	}
 
 	protected updateStyles(): void {
@@ -156,7 +164,27 @@ export class ActivityActionItem extends BaseActionItem {
 	public render(container: HTMLElement): void {
 		super.render(container);
 
-		container.title = this.activity.name;
+		// Make the container tab-able for keyboard navigation
+		this.$container = $(container).attr({
+			tabIndex: '0',
+			role: 'button',
+			title: this.activity.name
+		});
+
+		// Try hard to prevent keyboard only focus feedback when using mouse
+		this.$container.on(DOM.EventType.MOUSE_DOWN, () => {
+			this.$container.addClass('clicked');
+		});
+
+		this.$container.on(DOM.EventType.MOUSE_UP, () => {
+			if (this.mouseUpTimeout) {
+				clearTimeout(this.mouseUpTimeout);
+			}
+
+			this.mouseUpTimeout = setTimeout(() => {
+				this.$container.removeClass('clicked');
+			}, 800); // delayed to prevent focus feedback from showing on mouse up
+		});
 
 		// Label
 		this.$label = $('a.action-label').appendTo(this.builder);
@@ -224,6 +252,11 @@ export class ActivityActionItem extends BaseActionItem {
 
 	public dispose(): void {
 		super.dispose();
+
+		if (this.mouseUpTimeout) {
+			clearTimeout(this.mouseUpTimeout);
+		}
+
 		this.$badge.destroy();
 	}
 }
@@ -234,14 +267,8 @@ export class ViewletActionItem extends ActivityActionItem {
 	private static toggleViewletPinnedAction: ToggleViewletPinnedAction;
 	private static draggedViewlet: ViewletDescriptor;
 
-	private $container: Builder;
 	private _keybinding: string;
 	private cssClass: string;
-	private mouseUpTimeout: number;
-
-	private get viewlet(): ViewletDescriptor {
-		return this.action.activity as ViewletDescriptor;
-	}
 
 	constructor(
 		private action: ViewletActivityAction,
@@ -265,6 +292,10 @@ export class ViewletActionItem extends ActivityActionItem {
 		}
 	}
 
+	private get viewlet(): ViewletDescriptor {
+		return this.action.activity as ViewletDescriptor;
+	}
+
 	private getKeybindingLabel(id: string): string {
 		const kb = this.keybindingService.lookupKeybinding(id);
 		if (kb) {
@@ -276,27 +307,6 @@ export class ViewletActionItem extends ActivityActionItem {
 
 	public render(container: HTMLElement): void {
 		super.render(container);
-
-		// Make the container tab-able for keyboard navigation
-		this.$container = $(container).attr({
-			tabIndex: '0',
-			role: 'button'
-		});
-
-		// Try hard to prevent keyboard only focus feedback when using mouse
-		this.$container.on(DOM.EventType.MOUSE_DOWN, () => {
-			this.$container.addClass('clicked');
-		});
-
-		this.$container.on(DOM.EventType.MOUSE_UP, () => {
-			if (this.mouseUpTimeout) {
-				clearTimeout(this.mouseUpTimeout);
-			}
-
-			this.mouseUpTimeout = setTimeout(() => {
-				this.$container.removeClass('clicked');
-			}, 800); // delayed to prevent focus feedback from showing on mouse up
-		});
 
 		this.$container.on('contextmenu', e => {
 			DOM.EventHelper.stop(e, true);
@@ -465,10 +475,6 @@ export class ViewletActionItem extends ActivityActionItem {
 
 		ViewletActionItem.clearDraggedViewlet();
 
-		if (this.mouseUpTimeout) {
-			clearTimeout(this.mouseUpTimeout);
-		}
-
 		this.$label.destroy();
 	}
 }
@@ -493,7 +499,6 @@ export class ViewletOverflowActivityAction extends ActivityAction {
 }
 
 export class ViewletOverflowActivityActionItem extends ActivityActionItem {
-
 	private name: string;
 	private cssClass: string;
 	private actions: OpenViewletAction[];
@@ -644,6 +649,40 @@ export class ToggleViewletPinnedAction extends Action {
 		}
 
 		return TPromise.as(true);
+	}
+}
+
+export class GlobalActivityAction extends ActivityAction {
+
+	constructor(activity: IGlobalActivity) {
+		super(activity);
+	}
+}
+
+export class GlobalActivityActionItem extends ActivityActionItem {
+
+	constructor(
+		action: GlobalActivityAction,
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService protected contextMenuService: IContextMenuService
+	) {
+		super(action, { draggable: false }, themeService);
+	}
+
+	public onClick(e: MouseEvent): void {
+		const globalAction = this._action as GlobalActivityAction;
+		const activity = globalAction.activity as IGlobalActivity;
+		const actions = activity.getActions();
+
+		const event = new StandardMouseEvent(e);
+		event.stopPropagation();
+		event.preventDefault();
+
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => ({ x: event.posx, y: event.posy }),
+			getActions: () => TPromise.as(actions),
+			onHide: () => dispose(actions)
+		});
 	}
 }
 
