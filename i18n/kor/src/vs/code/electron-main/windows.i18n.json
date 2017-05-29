@@ -7,7 +7,6 @@
 	"ok": "확인",
 	"pathNotExistTitle": "경로가 없습니다.",
 	"pathNotExistDetail": "'{0}' 경로가 디스크에 더 이상 없는 것 같습니다.",
-	"accessibilityOptionsWindowTitle": "접근성 옵션",
 	"reopen": "다시 열기",
 	"wait": "계속 대기",
 	"close": "닫기",

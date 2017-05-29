@@ -131,7 +131,7 @@ suite('SnippetController2', function () {
 		assertContextKeys(contextKeys, true, false, true);
 		assertSelections(editor, new Selection(1, 1, 1, 7), new Selection(2, 5, 2, 11));
 
-		editor.trigger('test', 'deleteLeft', {});
+		editor.trigger('test', 'cut', {});
 		assertContextKeys(contextKeys, true, false, true);
 		assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5));
 
@@ -148,17 +148,37 @@ suite('SnippetController2', function () {
 		// assertContextKeys(contextKeys, false, false, false);
 	});
 
-	test('insert, insert nested', function () {
+	test('insert, nested snippet', function () {
+		const ctrl = new SnippetController2(editor, contextKeys);
+		ctrl.insert('${1:foobar}$0');
+		assertContextKeys(contextKeys, true, false, true);
+		assertSelections(editor, new Selection(1, 1, 1, 7), new Selection(2, 5, 2, 11));
+
+		ctrl.insert('far$1boo$0');
+		assertSelections(editor, new Selection(1, 4, 1, 4), new Selection(2, 8, 2, 8));
+		assertContextKeys(contextKeys, true, false, true);
+
+		ctrl.next();
+		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
+		assertContextKeys(contextKeys, true, true, true);
+
+		ctrl.next();
+		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
+		assertContextKeys(contextKeys, false, false, false);
+	});
+
+	test('insert, nested plain text', function () {
 		const ctrl = new SnippetController2(editor, contextKeys);
 		ctrl.insert('${1:foobar}$0');
 		assertContextKeys(contextKeys, true, false, true);
 		assertSelections(editor, new Selection(1, 1, 1, 7), new Selection(2, 5, 2, 11));
 
 		ctrl.insert('farboo');
-		assertContextKeys(contextKeys, true, false, true);
 		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
+		assertContextKeys(contextKeys, true, false, true);
 
 		ctrl.next();
+		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
 		assertContextKeys(contextKeys, false, false, false);
 	});
 });

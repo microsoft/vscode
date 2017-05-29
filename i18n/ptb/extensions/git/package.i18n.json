@@ -26,6 +26,7 @@
 	"command.undoCommit": "Desfazer Ultima Confirmação",
 	"command.checkout": "Fazer checkout para...",
 	"command.branch": "Criar Ramificação...",
+	"command.deleteBranch": "Excluir Ramificação...",
 	"command.pull": "Efetuar pull",
 	"command.pullRebase": "Efetuar pull (Rebase)",
 	"command.push": "Enviar por push",

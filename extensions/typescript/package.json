@@ -315,6 +315,15 @@
           "type": "boolean",
           "default": true,
           "description": "%javascript.nameSuggestions%"
+        },
+        "typescript.tsc.autoDetect": {
+          "type": "string",
+          "default": "on",
+          "enum": [
+            "on",
+            "off"
+          ],
+          "description": "%typescript.tsc.autoDetect%"
         }
       }
     },

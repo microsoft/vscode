@@ -24,7 +24,7 @@ class TaskEntry extends base.TaskEntry {
 		if (mode === QuickOpen.Mode.PREVIEW) {
 			return false;
 		}
-		this.taskService.restart(this.task._id);
+		this.taskService.restart(this._task._id);
 		return true;
 	}
 }

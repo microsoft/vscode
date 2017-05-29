@@ -9,5 +9,6 @@
 	"vscode.extension.contributes.snippets-path": "Caminho do arquivo de trechos de código. O caminho é relativo à pasta de extensão e normalmente começa com '. /snippets/'.",
 	"invalid.language": "Linguagem desconhecida em `contributes.{0}.language`. Valor fornecido: {1}",
 	"invalid.path.0": "Esperada uma string em `contributes.{0}.path`. Valor informado: {1}",
-	"invalid.path.1": "É esperado que `contributes.{0}.path` ({1}) seja incluído na pasta da extensão ({2}). Isto pode tornar a extensão não portável."
+	"invalid.path.1": "É esperado que `contributes.{0}.path` ({1}) seja incluído na pasta da extensão ({2}). Isto pode tornar a extensão não portável.",
+	"badVariableUse": "O trecho de código \"{0}\" muito provavelmente confunde as variáveis de trecho de código e espaços reservados do trecho de código. Consulte https://code.visualstudio.com/docs/editor/userdefinedsnippets#_snippet-syntax para obter mais detalhes."
 }

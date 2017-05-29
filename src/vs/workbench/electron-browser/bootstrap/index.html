@@ -30,8 +30,9 @@
 					if (!backgroundColor) {
 						backgroundColor = baseTheme === 'hc-black' ? '#000000' : (baseTheme === 'vs' ? '#FFFFFF' : '#1E1E1E');
 					}
+					let foregroundColor = baseTheme === 'hc-black' ? '#FFFFFF' : (baseTheme === 'vs' ? '#6C6C6C' : '#CCCCCC');
 					let style = document.createElement('style');
-					style.innerHTML = '.monaco-shell { background-color:' + backgroundColor + '; }';
+					style.innerHTML = '.monaco-shell { background-color:' + backgroundColor + '; color:' + foregroundColor + '; }';
 					document.head.appendChild(style);
 
 				} catch (error) {

@@ -26,7 +26,7 @@ class TaskEntry extends base.TaskEntry {
 		if (mode === QuickOpen.Mode.PREVIEW) {
 			return false;
 		}
-		this.taskService.run(this.task);
+		this.taskService.run(this._task);
 		return true;
 	}
 }

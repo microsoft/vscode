@@ -7,7 +7,6 @@
 	"ok": "确定",
 	"pathNotExistTitle": "路径不存在",
 	"pathNotExistDetail": "磁盘上似乎不再存在路径“{0}”。",
-	"accessibilityOptionsWindowTitle": "辅助功能选项",
 	"reopen": "重新打开",
 	"wait": "保持等待",
 	"close": "关闭",

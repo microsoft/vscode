@@ -2053,7 +2053,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	wordWrapBreakAfterCharacters: ' \t})]?|&,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ’”〉》」』】〕）］｝｣',
 	wordWrapBreakObtrusiveCharacters: '.',
 	autoClosingBrackets: true,
-	dragAndDrop: false,
+	dragAndDrop: true,
 	emptySelectionClipboard: true,
 	useTabStops: true,
 	multicursorModifier: 'altKey',
@@ -2081,7 +2081,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		renderWhitespace: 'none',
 		renderControlCharacters: false,
 		fontLigatures: false,
-		renderIndentGuides: false,
+		renderIndentGuides: true,
 		renderLineHighlight: 'line',
 		scrollbar: {
 			vertical: ScrollbarVisibility.Auto,
@@ -2098,7 +2098,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			mouseWheelScrollSensitivity: 1,
 		},
 		minimap: {
-			enabled: false,
+			enabled: true,
 			renderCharacters: true,
 			maxColumn: 120
 		},
@@ -2114,7 +2114,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		parameterHints: true,
 		iconsInSuggestions: true,
 		formatOnType: false,
-		formatOnPaste: false,
+		formatOnPaste: true,
 		suggestOnTriggerCharacters: true,
 		acceptSuggestionOnEnter: 'on',
 		acceptSuggestionOnCommitCharacter: true,

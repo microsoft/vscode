@@ -90,6 +90,8 @@ async function getNpmScriptsAsTasks(): Promise<vscode.Task[]> {
 			}
 			result.push(task);
 		});
+		// add some 'well known' npm tasks
+		result.push(new vscode.ShellTask(`npm: install`, `npm install`));
 		return Promise.resolve(result);
 	} catch (e) {
 		return Promise.resolve(emptyTasks);

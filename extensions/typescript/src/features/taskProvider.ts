@@ -21,7 +21,10 @@ const exists = (file: string): Promise<boolean> =>
 		});
 	});
 
-export default class TypeScriptTaskProvider implements vscode.TaskProvider {
+/**
+ * Provides tasks for building `tsconfig.json` files in a project.
+ */
+class TscTaskProvider implements vscode.TaskProvider {
 	private readonly tsconfigProvider: TsConfigProvider;
 
 	public constructor(
@@ -45,21 +48,21 @@ export default class TypeScriptTaskProvider implements vscode.TaskProvider {
 
 		return projects.map(configFile => {
 			const configFileName = path.relative(rootPath, configFile);
-			const buildTask = new vscode.ShellTask(`tsc: build ${configFileName}`, `${command} -p ${configFile}`, '$tsc');
+			const buildTask = new vscode.ShellTask(`tsc: build ${configFileName}`, `${command} -p "${configFile}"`, '$tsc');
 			buildTask.group = vscode.TaskGroup.Build;
 			return buildTask;
 		});
 	}
 
 	private async getAllTsConfigs(token: vscode.CancellationToken): Promise<string[]> {
-		const out: string[] = [];
+		const out = new Set<string>();
 		const configs = (await this.getTsConfigForActiveFile(token)).concat(await this.getTsConfigsInWorkspace());
 		for (const config of configs) {
 			if (await exists(config)) {
-				out.push(config);
+				out.add(config);
 			}
 		}
-		return out;
+		return Array.from(out);
 	}
 
 	private async getTsConfigForActiveFile(token: vscode.CancellationToken): Promise<string[]> {
@@ -115,5 +118,40 @@ export default class TypeScriptTaskProvider implements vscode.TaskProvider {
 			}
 		}
 		return null;
+	}
+}
+
+type AutoDetect = 'on' | 'off';
+
+/**
+ * Manages registrations of TypeScript task provides with VScode.
+ */
+export default class TypeScriptTaskProviderManager {
+	private taskProviderSub: vscode.Disposable | undefined = undefined;
+	private readonly disposables: vscode.Disposable[] = [];
+
+	constructor(
+		private readonly lazyClient: () => TypeScriptServiceClient
+	) {
+		vscode.workspace.onDidChangeConfiguration(this.onConfigurationChanged, this, this.disposables);
+		this.onConfigurationChanged();
+	}
+
+	dispose() {
+		if (this.taskProviderSub) {
+			this.taskProviderSub.dispose();
+			this.taskProviderSub = undefined;
+		}
+		this.disposables.forEach(x => x.dispose());
+	}
+
+	private onConfigurationChanged() {
+		let autoDetect = vscode.workspace.getConfiguration('typescript.tsc').get<AutoDetect>('autoDetect');
+		if (this.taskProviderSub && autoDetect === 'off') {
+			this.taskProviderSub.dispose();
+			this.taskProviderSub = undefined;
+		} else if (!this.taskProviderSub && autoDetect === 'on') {
+			this.taskProviderSub = vscode.workspace.registerTaskProvider(new TscTaskProvider(this.lazyClient));
+		}
 	}
 }

@@ -51,6 +51,7 @@ const PERSISTED_THEME_STORAGE_KEY = 'colorThemeData';
 const defaultThemeExtensionId = 'vscode-theme-defaults';
 const oldDefaultThemeExtensionId = 'vscode-theme-colorful-defaults';
 
+const DEFAULT_ICON_THEME_SETTING_VALUE = 'vs-seti';
 const fileIconsEnabledClass = 'file-icons-enabled';
 
 const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingContribution);
@@ -962,7 +963,7 @@ const colorThemeSettingSchema: IJSONSchema = {
 };
 const iconThemeSettingSchema: IJSONSchema = {
 	type: ['string', 'null'],
-	default: null,
+	default: DEFAULT_ICON_THEME_SETTING_VALUE,
 	description: nls.localize('iconTheme', "Specifies the icon theme used in the workbench."),
 	enum: [null],
 	enumDescriptions: [nls.localize('noIconThemeDesc', 'No file icons')],

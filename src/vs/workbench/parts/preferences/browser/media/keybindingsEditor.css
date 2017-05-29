@@ -68,6 +68,12 @@
 	display: flex;
 }
 
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row.even:not(.focused):not(.selected):not(:hover),
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:not(:focus) .monaco-list-row.focused.even:not(.selected):not(:hover),
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:not(.focused) .monaco-list-row.focused.even:not(.selected):not(:hover) {
+	background-color: rgba(130, 130, 130, 0.04);
+}
+
 .keybindings-editor > .keybindings-body .keybindings-list-container .monaco-list-row > .header {
 	text-align: left;
 	font-weight: bold;
