@@ -22,9 +22,7 @@
   },
   "main": "./out/main",
   "activationEvents": [
-    "onCommand:workbench.action.tasks.runTask",
-    "onCommand:workbench.action.tasks.build",
-    "onCommand:workbench.action.tasks.test"
+    "onCommand:workbench.action.tasks.runTask"
   ],
   "contributes": {
     "configuration": {
