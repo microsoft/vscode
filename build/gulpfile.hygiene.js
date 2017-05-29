@@ -40,17 +40,23 @@ const eolFilter = [
 	'!**/*.{svg,exe,png,bmp,scpt,bat,cmd,cur,ttf,woff,eot}',
 	'!build/{lib,tslintRules}/**/*.js',
 	'!build/monaco/**',
-	'!build/win32/**'
+	'!build/win32/**',
+	'!build/**/*.sh',
+	'!build/tfs/**/*.js',
+	'!**/Dockerfile'
 ];
 
 const indentationFilter = [
 	'**',
 	'!ThirdPartyNotices.txt',
 	'!**/*.md',
+	'!**/*.ps1',
 	'!**/*.template',
 	'!**/*.yml',
 	'!**/lib/**',
-	'!**/*.d.ts',
+	'!extensions/**/*.d.ts',
+	'!src/typings/**/*.d.ts',
+	'!src/vs/*/**/*.d.ts',
 	'!**/*.d.ts.recipe',
 	'!test/assert.js',
 	'!**/package.json',
@@ -92,7 +98,6 @@ const copyrightFilter = [
 const tslintFilter = [
 	'src/**/*.ts',
 	'extensions/**/*.ts',
-	'!**/*.d.ts',
 	'!**/fixtures/**',
 	'!**/typings/**',
 	'!**/node_modules/**',
@@ -237,6 +242,14 @@ if (require.main === module) {
 
 	cp.exec('git config core.autocrlf', (err, out) => {
 		const skipEOL = out.trim() === 'true';
+
+		if (process.argv.length > 2) {
+			return hygiene(process.argv.slice(2), { skipEOL: skipEOL }).on('error', err => {
+				console.error();
+				console.error(err);
+				process.exit(1);
+			});
+		}
 
 		cp.exec('git diff --cached --name-only', { maxBuffer: 2000 * 1024 }, (err, out) => {
 			if (err) {

@@ -58,12 +58,6 @@
 	white-space: nowrap;
 }
 
-.extension-editor > .header > .details > .title .extension-status {
-	width: 10px;
-	height: 10px;
-	margin-left: 10px;
-}
-
 .extension-editor > .header > .details > .subtitle {
 	padding-top: 10px;
 	white-space: nowrap;
@@ -149,6 +143,10 @@
 
 .extension-editor > .body > .content {
 	height: calc(100% - 36px);
+}
+
+.extension-editor > .body > .content.loading {
+	background: url('loading.svg') center center no-repeat;
 }
 
 .extension-editor > .body > .content > .monaco-scrollable-element {

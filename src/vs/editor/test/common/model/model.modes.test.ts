@@ -13,6 +13,7 @@ import { Model } from 'vs/editor/common/model/model';
 import * as modes from 'vs/editor/common/modes';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { TokenIterator, ITokenInfo } from 'vs/editor/common/model/tokenIterator';
 
 // --------- utils
 
@@ -59,98 +60,98 @@ suite('Editor Model - Model Modes 1', () => {
 	});
 
 	test('model calls syntax highlighter 1', () => {
-		thisModel.getLineTokens(1);
+		thisModel.forceTokenization(1);
 		checkAndClear(['1']);
 	});
 
 	test('model calls syntax highlighter 2', () => {
-		thisModel.getLineTokens(2);
+		thisModel.forceTokenization(2);
 		checkAndClear(['1', '2']);
 
-		thisModel.getLineTokens(2);
+		thisModel.forceTokenization(2);
 		checkAndClear([]);
 	});
 
 	test('model caches states', () => {
-		thisModel.getLineTokens(1);
+		thisModel.forceTokenization(1);
 		checkAndClear(['1']);
 
-		thisModel.getLineTokens(2);
+		thisModel.forceTokenization(2);
 		checkAndClear(['2']);
 
-		thisModel.getLineTokens(3);
+		thisModel.forceTokenization(3);
 		checkAndClear(['3']);
 
-		thisModel.getLineTokens(4);
+		thisModel.forceTokenization(4);
 		checkAndClear(['4']);
 
-		thisModel.getLineTokens(5);
+		thisModel.forceTokenization(5);
 		checkAndClear(['5']);
 
-		thisModel.getLineTokens(5);
+		thisModel.forceTokenization(5);
 		checkAndClear([]);
 	});
 
 	test('model invalidates states for one line insert', () => {
-		thisModel.getLineTokens(5);
+		thisModel.forceTokenization(5);
 		checkAndClear(['1', '2', '3', '4', '5']);
 
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), '-')]);
-		thisModel.getLineTokens(5);
+		thisModel.forceTokenization(5);
 		checkAndClear(['-']);
 
-		thisModel.getLineTokens(5);
+		thisModel.forceTokenization(5);
 		checkAndClear([]);
 	});
 
 	test('model invalidates states for many lines insert', () => {
-		thisModel.getLineTokens(5);
+		thisModel.forceTokenization(5);
 		checkAndClear(['1', '2', '3', '4', '5']);
 
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), '0\n-\n+')]);
 		assert.equal(thisModel.getLineCount(), 7);
-		thisModel.getLineTokens(7);
+		thisModel.forceTokenization(7);
 		checkAndClear(['0', '-', '+']);
 
-		thisModel.getLineTokens(7);
+		thisModel.forceTokenization(7);
 		checkAndClear([]);
 	});
 
 	test('model invalidates states for one new line', () => {
-		thisModel.getLineTokens(5);
+		thisModel.forceTokenization(5);
 		checkAndClear(['1', '2', '3', '4', '5']);
 
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 2), '\n')]);
 		thisModel.applyEdits([EditOperation.insert(new Position(2, 1), 'a')]);
-		thisModel.getLineTokens(6);
+		thisModel.forceTokenization(6);
 		checkAndClear(['1', 'a']);
 	});
 
 	test('model invalidates states for one line delete', () => {
-		thisModel.getLineTokens(5);
+		thisModel.forceTokenization(5);
 		checkAndClear(['1', '2', '3', '4', '5']);
 
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 2), '-')]);
-		thisModel.getLineTokens(5);
+		thisModel.forceTokenization(5);
 		checkAndClear(['1']);
 
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 2))]);
-		thisModel.getLineTokens(5);
+		thisModel.forceTokenization(5);
 		checkAndClear(['-']);
 
-		thisModel.getLineTokens(5);
+		thisModel.forceTokenization(5);
 		checkAndClear([]);
 	});
 
 	test('model invalidates states for many lines delete', () => {
-		thisModel.getLineTokens(5);
+		thisModel.forceTokenization(5);
 		checkAndClear(['1', '2', '3', '4', '5']);
 
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 3, 1))]);
-		thisModel.getLineTokens(3);
+		thisModel.forceTokenization(3);
 		checkAndClear(['3']);
 
-		thisModel.getLineTokens(3);
+		thisModel.forceTokenization(3);
 		checkAndClear([]);
 	});
 });
@@ -227,17 +228,17 @@ suite('Editor Model - Model Modes 2', () => {
 	});
 
 	test('getTokensForInvalidLines one text insert', () => {
-		thisModel.getLineTokens(5);
+		thisModel.forceTokenization(5);
 		statesEqual(thisModel, ['', 'Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 6), '-')]);
 		invalidEqual(thisModel, [0]);
 		statesEqual(thisModel, ['', 'Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
-		thisModel.getLineTokens(5);
+		thisModel.forceTokenization(5);
 		statesEqual(thisModel, ['', 'Line1-', 'Line2', 'Line3', 'Line4', 'Line5']);
 	});
 
 	test('getTokensForInvalidLines two text insert', () => {
-		thisModel.getLineTokens(5);
+		thisModel.forceTokenization(5);
 		statesEqual(thisModel, ['', 'Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
 		thisModel.applyEdits([
 			EditOperation.insert(new Position(1, 6), '-'),
@@ -245,46 +246,46 @@ suite('Editor Model - Model Modes 2', () => {
 		]);
 
 		invalidEqual(thisModel, [0, 2]);
-		thisModel.getLineTokens(5);
+		thisModel.forceTokenization(5);
 		statesEqual(thisModel, ['', 'Line1-', 'Line2', 'Line3-', 'Line4', 'Line5']);
 	});
 
 	test('getTokensForInvalidLines one multi-line text insert, one small text insert', () => {
-		thisModel.getLineTokens(5);
+		thisModel.forceTokenization(5);
 		statesEqual(thisModel, ['', 'Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 6), '\nNew line\nAnother new line')]);
 		thisModel.applyEdits([EditOperation.insert(new Position(5, 6), '-')]);
 		invalidEqual(thisModel, [0, 4]);
-		thisModel.getLineTokens(7);
+		thisModel.forceTokenization(7);
 		statesEqual(thisModel, ['', 'Line1', 'New line', 'Another new line', 'Line2', 'Line3-', 'Line4', 'Line5']);
 	});
 
 	test('getTokensForInvalidLines one delete text', () => {
-		thisModel.getLineTokens(5);
+		thisModel.forceTokenization(5);
 		statesEqual(thisModel, ['', 'Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 5))]);
 		invalidEqual(thisModel, [0]);
-		thisModel.getLineTokens(5);
+		thisModel.forceTokenization(5);
 		statesEqual(thisModel, ['', '1', 'Line2', 'Line3', 'Line4', 'Line5']);
 	});
 
 	test('getTokensForInvalidLines one line delete text', () => {
-		thisModel.getLineTokens(5);
+		thisModel.forceTokenization(5);
 		statesEqual(thisModel, ['', 'Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 2, 1))]);
 		invalidEqual(thisModel, [0]);
 		statesEqual(thisModel, ['', 'Line2', 'Line3', 'Line4', 'Line5']);
-		thisModel.getLineTokens(4);
+		thisModel.forceTokenization(4);
 		statesEqual(thisModel, ['', 'Line2', 'Line3', 'Line4', 'Line5']);
 	});
 
 	test('getTokensForInvalidLines multiple lines delete text', () => {
-		thisModel.getLineTokens(5);
+		thisModel.forceTokenization(5);
 		statesEqual(thisModel, ['', 'Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 3, 3))]);
 		invalidEqual(thisModel, [0]);
 		statesEqual(thisModel, ['', 'Line3', 'Line4', 'Line5']);
-		thisModel.getLineTokens(3);
+		thisModel.forceTokenization(3);
 		statesEqual(thisModel, ['', 'ne3', 'Line4', 'Line5']);
 	});
 });
@@ -331,6 +332,13 @@ suite('Editor Model - Token Iterator', () => {
 		languageRegistration = null;
 	});
 
+	function tokenIterator(model: Model, position: Position, callback: (it: TokenIterator) => any): any {
+		let iter = new TokenIterator(model, model.validatePosition(position));
+		let result = callback(iter);
+		iter._invalidate();
+		return result;
+	}
+
 	test('all tokens with ranges', () => {
 		var calls = 0;
 		var ranges = [
@@ -338,8 +346,8 @@ suite('Editor Model - Token Iterator', () => {
 			[1, 4, 4, 7, 7, 10, 10, 13],
 			[1, 4, 4, 7, 7, 10, 10, 13],
 		];
-		thisModel.tokenIterator(new Position(1, 1), (iter) => {
-			var a = [], line = 0;
+		tokenIterator(thisModel, new Position(1, 1), (iter) => {
+			var a: number[] = [], line = 0;
 			while (iter.hasNext()) {
 				calls++;
 				if (a.length === 0) {
@@ -357,7 +365,7 @@ suite('Editor Model - Token Iterator', () => {
 
 	test('all tokens from beginning with next', () => {
 		var n = 0;
-		thisModel.tokenIterator(new Position(1, 1), (iter) => {
+		tokenIterator(thisModel, new Position(1, 1), (iter) => {
 			while (iter.hasNext()) {
 				iter.next();
 				n++;
@@ -368,7 +376,7 @@ suite('Editor Model - Token Iterator', () => {
 
 	test('all tokens from beginning with prev', () => {
 		var n = 0;
-		thisModel.tokenIterator(new Position(1, 1), (iter) => {
+		tokenIterator(thisModel, new Position(1, 1), (iter) => {
 			while (iter.hasPrev()) {
 				iter.prev();
 				n++;
@@ -379,7 +387,7 @@ suite('Editor Model - Token Iterator', () => {
 
 	test('all tokens from end with prev', () => {
 		var n = 0;
-		thisModel.tokenIterator(new Position(3, 12), (iter) => {
+		tokenIterator(thisModel, new Position(3, 12), (iter) => {
 			while (iter.hasPrev()) {
 				iter.prev();
 				n++;
@@ -390,7 +398,7 @@ suite('Editor Model - Token Iterator', () => {
 
 	test('all tokens from end with next', () => {
 		var n = 0;
-		thisModel.tokenIterator(new Position(3, 12), (iter) => {
+		tokenIterator(thisModel, new Position(3, 12), (iter) => {
 			while (iter.hasNext()) {
 				iter.next();
 				n++;
@@ -401,7 +409,7 @@ suite('Editor Model - Token Iterator', () => {
 
 	test('prev and next are assert.equal at start', () => {
 		var calls = 0;
-		thisModel.tokenIterator(new Position(1, 2), (iter) => {
+		tokenIterator(thisModel, new Position(1, 2), (iter) => {
 			calls++;
 			var next = iter.next();
 			var prev = iter.prev();
@@ -413,7 +421,7 @@ suite('Editor Model - Token Iterator', () => {
 	test('position variance within token', () => {
 		var calls = 0;
 
-		thisModel.tokenIterator(new Position(1, 4), (iter) => {
+		tokenIterator(thisModel, new Position(1, 4), (iter) => {
 			calls++;
 			var next = iter.next();
 			assert.equal(next.lineNumber, 1);
@@ -421,7 +429,7 @@ suite('Editor Model - Token Iterator', () => {
 			assert.equal(next.endColumn, 7);
 		});
 
-		thisModel.tokenIterator(new Position(1, 5), (iter) => {
+		tokenIterator(thisModel, new Position(1, 5), (iter) => {
 			calls++;
 			var next = iter.next();
 			assert.equal(next.lineNumber, 1);
@@ -429,7 +437,7 @@ suite('Editor Model - Token Iterator', () => {
 			assert.equal(next.endColumn, 7);
 		});
 
-		thisModel.tokenIterator(new Position(1, 6), (iter) => {
+		tokenIterator(thisModel, new Position(1, 6), (iter) => {
 			calls++;
 			var next = iter.next();
 			assert.equal(next.lineNumber, 1);
@@ -442,8 +450,8 @@ suite('Editor Model - Token Iterator', () => {
 
 	test('iterator allows next/prev', () => {
 		var n = 0;
-		var up = [], down = [];
-		thisModel.tokenIterator(new Position(1, 1), (iter) => {
+		var up: ITokenInfo[] = [], down: ITokenInfo[] = [];
+		tokenIterator(thisModel, new Position(1, 1), (iter) => {
 			while (iter.hasNext()) {
 				var next = iter.next();
 				up.push(next);
@@ -465,8 +473,8 @@ suite('Editor Model - Token Iterator', () => {
 
 	test('iterator allows prev/next', () => {
 		var n = 0;
-		var up = [], down = [];
-		thisModel.tokenIterator(new Position(3, 12), (iter) => {
+		var up: ITokenInfo[] = [], down: ITokenInfo[] = [];
+		tokenIterator(thisModel, new Position(3, 12), (iter) => {
 			while (iter.hasPrev()) {
 				var prev = iter.prev();
 				down.push(prev);
@@ -488,8 +496,8 @@ suite('Editor Model - Token Iterator', () => {
 
 
 	test('iterator can not be used outside of callback', () => {
-		var illegalIterReference;
-		thisModel.tokenIterator(new Position(3, 12), (iter) => {
+		var illegalIterReference: TokenIterator;
+		tokenIterator(thisModel, new Position(3, 12), (iter) => {
 			illegalIterReference = iter;
 		});
 

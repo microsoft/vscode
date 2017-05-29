@@ -17,7 +17,7 @@ import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
-import { ViewLineData, ViewEventsCollector } from 'vs/editor/common/viewModel/viewModel';
+import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { Range } from 'vs/editor/common/core/range';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
@@ -205,17 +205,10 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		].join('\n');
 
 		withSplitLinesCollection(text, (model, linesCollection) => {
-			linesCollection.setHiddenAreas(new ViewEventsCollector(), [{
-				startLineNumber: 1,
-				startColumn: 1,
-				endLineNumber: 3,
-				endColumn: 1
-			}, {
-				startLineNumber: 5,
-				startColumn: 1,
-				endLineNumber: 6,
-				endColumn: 1
-			}]);
+			linesCollection.setHiddenAreas([
+				new Range(1, 1, 3, 1),
+				new Range(5, 1, 6, 1)
+			]);
 
 			let viewLineCount = linesCollection.getViewLineCount();
 			assert.equal(viewLineCount, 1, 'getOutputLineCount()');
@@ -352,7 +345,7 @@ suite('SplitLinesCollection', () => {
 		languageRegistration = modes.TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
 		model = Model.createFromString(_text.join('\n'), undefined, new modes.LanguageIdentifier(LANGUAGE_ID, 0));
 		// force tokenization
-		model.getLineTokens(model.getLineCount(), false);
+		model.forceTokenization(model.getLineCount());
 	});
 
 	teardown(() => {
@@ -537,7 +530,7 @@ suite('SplitLinesCollection', () => {
 				_expected[7],
 			]);
 
-			splitLinesCollection.setHiddenAreas(new ViewEventsCollector(), [new Range(2, 1, 4, 1)]);
+			splitLinesCollection.setHiddenAreas([new Range(2, 1, 4, 1)]);
 			assert.equal(splitLinesCollection.getViewLineCount(), 5);
 			assert.equal(splitLinesCollection.modelPositionIsVisible(1, 1), true);
 			assert.equal(splitLinesCollection.modelPositionIsVisible(2, 1), false);
@@ -559,7 +552,7 @@ suite('SplitLinesCollection', () => {
 	});
 
 	test('getViewLinesData - with wrapping', () => {
-		withSplitLinesCollection(model, 'fixed', 30, (splitLinesCollection) => {
+		withSplitLinesCollection(model, 'wordWrapColumn', 30, (splitLinesCollection) => {
 			assert.equal(splitLinesCollection.getViewLineCount(), 12);
 			assert.equal(splitLinesCollection.modelPositionIsVisible(1, 1), true);
 			assert.equal(splitLinesCollection.modelPositionIsVisible(2, 1), true);
@@ -707,7 +700,7 @@ suite('SplitLinesCollection', () => {
 				_expected[11],
 			]);
 
-			splitLinesCollection.setHiddenAreas(new ViewEventsCollector(), [new Range(2, 1, 4, 1)]);
+			splitLinesCollection.setHiddenAreas([new Range(2, 1, 4, 1)]);
 			assert.equal(splitLinesCollection.getViewLineCount(), 8);
 			assert.equal(splitLinesCollection.modelPositionIsVisible(1, 1), true);
 			assert.equal(splitLinesCollection.modelPositionIsVisible(2, 1), false);
@@ -731,7 +724,7 @@ suite('SplitLinesCollection', () => {
 		});
 	});
 
-	function withSplitLinesCollection(model: Model, wordWrap: 'on' | 'off' | 'fixed' | 'clamped', wordWrapColumn: number, callback: (splitLinesCollection: SplitLinesCollection) => void): void {
+	function withSplitLinesCollection(model: Model, wordWrap: 'on' | 'off' | 'wordWrapColumn' | 'bounded', wordWrapColumn: number, callback: (splitLinesCollection: SplitLinesCollection) => void): void {
 		let configuration = new TestConfiguration({
 			wordWrap: wordWrap,
 			wordWrapColumn: wordWrapColumn,
@@ -777,7 +770,7 @@ function createLineMapping(breakingLengths: number[], wrappedLinesPrefix: string
 
 function createModel(text: string): IModel {
 	return {
-		getLineTokens: (lineNumber: number, inaccurateTokensAcceptable?: boolean) => {
+		getLineTokens: (lineNumber: number) => {
 			return null;
 		},
 		getLineContent: (lineNumber: number) => {

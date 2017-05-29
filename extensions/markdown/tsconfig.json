@@ -3,7 +3,7 @@
 		"module": "commonjs",
 		"target": "es5",
 		"lib": [
-			"es5",
+			"es6",
 			"es2015.promise"
 		],
 		"outDir": "./out",
@@ -14,7 +14,7 @@
 		"noUnusedLocals": true,
 		"noUnusedParameters": true
 	},
-	"exclude": [
-		"node_modules"
+	"include": [
+		"src/**/*"
 	]
 }

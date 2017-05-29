@@ -14,10 +14,9 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import types = require('vs/base/common/types');
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/editorCommon';
+import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
-import { TextEditorOptions, TextDiffEditorOptions, EditorModel, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID } from 'vs/workbench/common/editor';
-import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
+import { TextEditorOptions, TextDiffEditorOptions, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID, IFileEditorInput } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { DiffNavigator } from 'vs/editor/contrib/diffNavigator/common/diffNavigator';
@@ -31,10 +30,11 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IEditorInput } from 'vs/platform/editor/common/editor';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -76,7 +76,8 @@ export class TextDiffEditor extends BaseTextEditor {
 		this.previousDiffAction = new NavigateAction(this, false);
 
 		// Support navigation within the diff editor by overriding the editor service within
-		const delegatingEditorService = this.instantiationService.createInstance(DelegatingWorkbenchEditorService, (input: EditorInput, options?: EditorOptions, arg3?: any) => {
+		const delegatingEditorService = this.instantiationService.createInstance(DelegatingWorkbenchEditorService);
+		delegatingEditorService.setEditorOpenHandler((input: EditorInput, options?: EditorOptions, arg3?: any) => {
 
 			// Check if arg4 is a position argument that differs from this editors position
 			if (types.isUndefinedOrNull(arg3) || arg3 === false || arg3 === this.position) {
@@ -134,7 +135,7 @@ export class TextDiffEditor extends BaseTextEditor {
 		}
 
 		// Different Input (Reload)
-		return input.resolve(true).then((resolvedModel: EditorModel) => {
+		return input.resolve(true).then(resolvedModel => {
 
 			// Assert Model Instance
 			if (!(resolvedModel instanceof TextDiffEditorModel) && this.openAsBinary(input, options)) {
@@ -161,7 +162,7 @@ export class TextDiffEditor extends BaseTextEditor {
 			this.diffNavigator = new DiffNavigator(diffEditor, {
 				alwaysRevealFirst: autoRevealFirstChange
 			});
-			this.diffNavigator.addListener2(DiffNavigator.Events.UPDATED, () => {
+			this.diffNavigator.addListener(DiffNavigator.Events.UPDATED, () => {
 				this.nextDiffAction.updateEnablement();
 				this.previousDiffAction.updateEnablement();
 			});
@@ -170,7 +171,7 @@ export class TextDiffEditor extends BaseTextEditor {
 			if (options && types.isFunction((<TextEditorOptions>options).apply)) {
 				(<TextEditorOptions>options).apply(<IDiffEditor>diffEditor);
 			}
-		}, (error) => {
+		}, error => {
 
 			// In case we tried to open a file and the response indicates that this is not a text file, fallback to binary diff.
 			if (this.isFileBinaryError(error) && this.openAsBinary(input, options)) {
@@ -188,6 +189,15 @@ export class TextDiffEditor extends BaseTextEditor {
 			const modifiedInput = input.modifiedInput;
 
 			const binaryDiffInput = new DiffEditorInput(input.getName(), input.getDescription(), originalInput, modifiedInput, true);
+
+			// Forward binary flag to input if supported
+			if (types.isFunction(((originalInput as IEditorInput) as IFileEditorInput).setForceOpenAsBinary)) {
+				((originalInput as IEditorInput) as IFileEditorInput).setForceOpenAsBinary();
+			}
+
+			if (types.isFunction(((modifiedInput as IEditorInput) as IFileEditorInput).setForceOpenAsBinary)) {
+				((modifiedInput as IEditorInput) as IFileEditorInput).setForceOpenAsBinary();
+			}
 
 			this.editorService.openEditor(binaryDiffInput, options, this.position).done(null, onUnexpectedError);
 
@@ -238,7 +248,7 @@ export class TextDiffEditor extends BaseTextEditor {
 		if (input instanceof DiffEditorInput) {
 			const modifiedInput = input.modifiedInput;
 
-			return modifiedInput instanceof StringEditorInput || modifiedInput instanceof ResourceEditorInput;
+			return modifiedInput instanceof ResourceEditorInput;
 		}
 
 		return false;
@@ -249,7 +259,7 @@ export class TextDiffEditor extends BaseTextEditor {
 	private isFileBinaryError(error: any): boolean {
 		if (types.isArray(error)) {
 			const errors = <Error[]>error;
-			return errors.some((e) => this.isFileBinaryError(e));
+			return errors.some(e => this.isFileBinaryError(e));
 		}
 
 		return (<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY;

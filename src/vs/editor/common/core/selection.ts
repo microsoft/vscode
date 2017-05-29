@@ -5,7 +5,30 @@
 'use strict';
 
 import { Range } from 'vs/editor/common/core/range';
-import { ISelection } from 'vs/editor/common/editorCommon';
+import { Position, IPosition } from 'vs/editor/common/core/position';
+
+/**
+ * A selection in the editor.
+ * The selection is a range that has an orientation.
+ */
+export interface ISelection {
+	/**
+	 * The line number on which the selection has started.
+	 */
+	readonly selectionStartLineNumber: number;
+	/**
+	 * The column on `selectionStartLineNumber` where the selection has started.
+	 */
+	readonly selectionStartColumn: number;
+	/**
+	 * The line number on which the selection has ended.
+	 */
+	readonly positionLineNumber: number;
+	/**
+	 * The column on `positionLineNumber` where the selection has ended.
+	 */
+	readonly positionColumn: number;
+}
 
 /**
  * The direction of a selection.
@@ -107,6 +130,13 @@ export class Selection extends Range {
 	}
 
 	/**
+	 * Get the position at `positionLineNumber` and `positionColumn`.
+	 */
+	public getPosition(): Position {
+		return new Position(this.positionLineNumber, this.positionColumn);
+	}
+
+	/**
 	 * Create a new selection with a different `selectionStartLineNumber` and `selectionStartColumn`.
 	 */
 	public setStartPosition(startLineNumber: number, startColumn: number): Selection {
@@ -117,6 +147,13 @@ export class Selection extends Range {
 	}
 
 	// ----
+
+	/**
+	 * Create a `Selection` from one or two positions
+	 */
+	public static fromPositions(start: IPosition, end: IPosition = start): Selection {
+		return new Selection(start.lineNumber, start.column, end.lineNumber, end.column);
+	}
 
 	/**
 	 * Create a `Selection` from an `ISelection`.

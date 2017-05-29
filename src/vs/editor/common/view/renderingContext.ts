@@ -11,12 +11,11 @@ import { Position } from 'vs/editor/common/core/position';
 
 export interface IViewLines {
 	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[];
-	visibleRangesForRange2(range: Range, deltaTop: number): VisibleRange[];
+	visibleRangesForRange2(range: Range): HorizontalRange[];
 }
 
-export class RenderingContext implements IRenderingContext {
-
-	_renderingContextBrand: void;
+export abstract class RestrictedRenderingContext {
+	_restrictedRenderingContextBrand: void;
 
 	public readonly viewportData: ViewportData;
 
@@ -26,16 +25,15 @@ export class RenderingContext implements IRenderingContext {
 	public readonly visibleRange: Range;
 	public readonly bigNumbersDelta: number;
 
-	public readonly viewportTop: number;
+	public readonly scrollTop: number;
+	public readonly scrollLeft: number;
+
 	public readonly viewportWidth: number;
 	public readonly viewportHeight: number;
-	public readonly viewportLeft: number;
 
 	private readonly _viewLayout: IViewLayout;
-	private readonly _viewLines: IViewLines;
 
-	constructor(viewLines: IViewLines, viewLayout: IViewLayout, viewportData: ViewportData) {
-		this._viewLines = viewLines;
+	constructor(viewLayout: IViewLayout, viewportData: ViewportData) {
 		this._viewLayout = viewLayout;
 		this.viewportData = viewportData;
 
@@ -46,26 +44,24 @@ export class RenderingContext implements IRenderingContext {
 		this.bigNumbersDelta = this.viewportData.bigNumbersDelta;
 
 		const vInfo = this._viewLayout.getCurrentViewport();
+		this.scrollTop = vInfo.top;
+		this.scrollLeft = vInfo.left;
 		this.viewportWidth = vInfo.width;
 		this.viewportHeight = vInfo.height;
-		this.viewportLeft = vInfo.left;
-		this.viewportTop = vInfo.top;
 	}
 
 	public getScrolledTopFromAbsoluteTop(absoluteTop: number): number {
-		return this._viewLayout.getScrolledTopFromAbsoluteTop(absoluteTop);
+		return absoluteTop - this.scrollTop;
 	}
 
-	public getViewportVerticalOffsetForLineNumber(lineNumber: number): number {
-		const verticalOffset = this._viewLayout.getVerticalOffsetForLineNumber(lineNumber);
-		const scrolledTop = this._viewLayout.getScrolledTopFromAbsoluteTop(verticalOffset);
-		return scrolledTop;
+	public getVerticalOffsetForLineNumber(lineNumber: number): number {
+		return this._viewLayout.getVerticalOffsetForLineNumber(lineNumber);
 	}
 
 	public lineIsVisible(lineNumber: number): boolean {
 		return (
-			this.viewportData.visibleRange.startLineNumber <= lineNumber
-			&& lineNumber <= this.viewportData.visibleRange.endLineNumber
+			this.visibleRange.startLineNumber <= lineNumber
+			&& lineNumber <= this.visibleRange.endLineNumber
 		);
 	}
 
@@ -73,49 +69,31 @@ export class RenderingContext implements IRenderingContext {
 		return this.viewportData.getDecorationsInViewport();
 	}
 
+}
+
+export class RenderingContext extends RestrictedRenderingContext {
+	_renderingContextBrand: void;
+
+	private readonly _viewLines: IViewLines;
+
+	constructor(viewLayout: IViewLayout, viewportData: ViewportData, viewLines: IViewLines) {
+		super(viewLayout, viewportData);
+		this._viewLines = viewLines;
+	}
+
 	public linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] {
 		return this._viewLines.linesVisibleRangesForRange(range, includeNewLines);
 	}
 
-	public visibleRangeForPosition(position: Position): VisibleRange {
-		const deltaTop = this.viewportData.visibleRangesDeltaTop;
+	public visibleRangeForPosition(position: Position): HorizontalRange {
 		const visibleRanges = this._viewLines.visibleRangesForRange2(
-			new Range(position.lineNumber, position.column, position.lineNumber, position.column),
-			deltaTop
+			new Range(position.lineNumber, position.column, position.lineNumber, position.column)
 		);
 		if (!visibleRanges) {
 			return null;
 		}
 		return visibleRanges[0];
 	}
-}
-
-export interface IRestrictedRenderingContext {
-	readonly viewportData: ViewportData;
-
-	readonly scrollWidth: number;
-	readonly scrollHeight: number;
-
-	readonly visibleRange: Range;
-	readonly bigNumbersDelta: number;
-
-	readonly viewportTop: number;
-	readonly viewportWidth: number;
-	readonly viewportHeight: number;
-	readonly viewportLeft: number;
-
-	getScrolledTopFromAbsoluteTop(absoluteTop: number): number;
-	getViewportVerticalOffsetForLineNumber(lineNumber: number): number;
-	lineIsVisible(lineNumber: number): boolean;
-
-	getDecorationsInViewport(): ViewModelDecoration[];
-}
-
-export interface IRenderingContext extends IRestrictedRenderingContext {
-
-	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[];
-
-	visibleRangeForPosition(position: Position): VisibleRange;
 }
 
 export class LineVisibleRanges {
@@ -127,20 +105,6 @@ export class LineVisibleRanges {
 	constructor(lineNumber: number, ranges: HorizontalRange[]) {
 		this.lineNumber = lineNumber;
 		this.ranges = ranges;
-	}
-}
-
-export class VisibleRange {
-	_visibleRangeBrand: void;
-
-	public top: number;
-	public left: number;
-	public width: number;
-
-	constructor(top: number, left: number, width: number) {
-		this.top = top | 0;
-		this.left = left | 0;
-		this.width = width | 0;
 	}
 }
 

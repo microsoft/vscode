@@ -51,7 +51,7 @@ suite('RenderedLinesCollection onLinesDeleted', () => {
 			new TestLine('old9')
 		]);
 		let actualDeleted1 = col.onLinesDeleted(deleteFromLineNumber, deleteToLineNumber);
-		let actualDeleted = [];
+		let actualDeleted: string[] = [];
 		if (actualDeleted1) {
 			actualDeleted = actualDeleted1.map(line => line.id);
 		}
@@ -325,7 +325,7 @@ suite('RenderedLinesCollection onLineChanged', () => {
 			new TestLine('old8'),
 			new TestLine('old9')
 		]);
-		let actualPinged = col.onLineChanged(changedLineNumber);
+		let actualPinged = col.onLinesChanged(changedLineNumber, changedLineNumber);
 		assert.deepEqual(actualPinged, expectedPinged);
 		assertState(col, expectedState);
 	}
@@ -407,7 +407,7 @@ suite('RenderedLinesCollection onLinesInserted', () => {
 			new TestLine('old9')
 		]);
 		let actualDeleted1 = col.onLinesInserted(insertFromLineNumber, insertToLineNumber);
-		let actualDeleted = [];
+		let actualDeleted: string[] = [];
 		if (actualDeleted1) {
 			actualDeleted = actualDeleted1.map(line => line.id);
 		}

@@ -4,47 +4,44 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { IEditorOptions } from 'vs/editor/common/editorCommon';
+import { CommonEditorConfiguration, IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import { AccessibilitySupport } from 'vs/base/common/platform';
 
 export class TestConfiguration extends CommonEditorConfiguration {
 
 	constructor(opts: IEditorOptions) {
 		super(opts);
+		this._recomputeOptions();
 	}
 
-	protected _getEditorClassName(theme: string, fontLigatures: boolean): string {
-		return '';
-	}
-
-	protected getOuterWidth(): number {
-		return 100;
-	}
-
-	protected getOuterHeight(): number {
-		return 100;
-	}
-
-	protected _getCanUseTranslate3d(): boolean {
-		return true;
-	}
-
-	protected _getPixelRatio(): number {
-		return 1;
+	protected _getEnvConfiguration(): IEnvConfiguration {
+		return {
+			extraEditorClassName: '',
+			outerWidth: 100,
+			outerHeight: 100,
+			canUseTranslate3d: true,
+			emptySelectionClipboard: true,
+			pixelRatio: 1,
+			zoomLevel: 0,
+			accessibilitySupport: AccessibilitySupport.Unknown
+		};
 	}
 
 	protected readConfiguration(styling: BareFontInfo): FontInfo {
 		return new FontInfo({
+			zoomLevel: 0,
 			fontFamily: 'mockFont',
 			fontWeight: 'normal',
 			fontSize: 14,
 			lineHeight: 19,
+			letterSpacing: 1.5,
 			isMonospace: true,
 			typicalHalfwidthCharacterWidth: 10,
 			typicalFullwidthCharacterWidth: 20,
 			spaceWidth: 10,
 			maxDigitWidth: 10,
-		});
+		}, true);
 	}
 }

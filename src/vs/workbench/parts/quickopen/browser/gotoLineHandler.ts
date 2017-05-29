@@ -12,11 +12,12 @@ import { IEntryRunContext, Mode, IAutoFocus } from 'vs/base/parts/quickopen/comm
 import { QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { KeyMod } from 'vs/base/common/keyCodes';
 import { QuickOpenHandler, EditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
-import { IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IRange, IEditorViewState, ITextModel, IDiffEditorModel } from 'vs/editor/common/editorCommon';
+import { IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IEditorViewState, ITextModel, IDiffEditorModel } from 'vs/editor/common/editorCommon';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position, IEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
+import { IRange } from 'vs/editor/common/core/range';
 
 export const GOTO_LINE_PREFIX = ':';
 
@@ -43,7 +44,7 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 	}
 
 	private parseInput(line: string) {
-		let numbers = line.split(/,|:|#/).map(part => parseInt(part, 10)).filter(part => !isNaN(part));
+		const numbers = line.split(/,|:|#/).map(part => parseInt(part, 10)).filter(part => !isNaN(part));
 		this.line = numbers[0];
 		this.column = numbers[1];
 	}
@@ -51,7 +52,7 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 	public getLabel(): string {
 
 		// Inform user about valid range if input is invalid
-		let maxLineNumber = this.getMaxLineNumber();
+		const maxLineNumber = this.getMaxLineNumber();
 		if (this.invalidRange(maxLineNumber)) {
 			if (maxLineNumber > 0) {
 				return nls.localize('gotoLineLabelEmptyWithLimit', "Type a line number between 1 and {0} to navigate to", maxLineNumber);
@@ -69,8 +70,8 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 	}
 
 	private getMaxLineNumber(): number {
-		let editor = this.editorService.getActiveEditor();
-		let editorControl = <IEditor>editor.getControl();
+		const editor = this.editorService.getActiveEditor();
+		const editorControl = <IEditor>editor.getControl();
 		let model = editorControl.getModel();
 		if (model && (<IDiffEditorModel>model).modified && (<IDiffEditorModel>model).original) {
 			model = (<IDiffEditorModel>model).modified; // Support for diff editor models
@@ -105,16 +106,16 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 		}
 
 		// Check for sideBySide use
-		let sideBySide = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
+		const sideBySide = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
 		if (sideBySide) {
 			this.editorService.openEditor(this.getInput(), this.getOptions(), true).done(null, errors.onUnexpectedError);
 		}
 
 		// Apply selection and focus
-		let range = this.toSelection();
-		let activeEditor = this.editorService.getActiveEditor();
+		const range = this.toSelection();
+		const activeEditor = this.editorService.getActiveEditor();
 		if (activeEditor) {
-			let editor = <IEditor>activeEditor.getControl();
+			const editor = <IEditor>activeEditor.getControl();
 			editor.setSelection(range);
 			editor.revealRangeInCenter(range);
 		}
@@ -132,10 +133,10 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 		}
 
 		// Select Line Position
-		let range = this.toSelection();
-		let activeEditor = this.editorService.getActiveEditor();
+		const range = this.toSelection();
+		const activeEditor = this.editorService.getActiveEditor();
 		if (activeEditor) {
-			let editorControl = <IEditor>activeEditor.getControl();
+			const editorControl = <IEditor>activeEditor.getControl();
 			editorControl.revealRangeInCenter(range);
 
 			// Decorate if possible
@@ -180,7 +181,7 @@ export class GotoLineHandler extends QuickOpenHandler {
 
 		// Remember view state to be able to restore on cancel
 		if (!this.lastKnownEditorViewState) {
-			let editor = this.editorService.getActiveEditor();
+			const editor = this.editorService.getActiveEditor();
 			this.lastKnownEditorViewState = (<IEditor>editor.getControl()).saveViewState();
 		}
 
@@ -188,14 +189,14 @@ export class GotoLineHandler extends QuickOpenHandler {
 	}
 
 	public canRun(): boolean | string {
-		let canRun = getCodeEditor(this.editorService.getActiveEditor()) !== null;
+		const canRun = getCodeEditor(this.editorService.getActiveEditor()) !== null;
 
 		return canRun ? true : nls.localize('cannotRunGotoLine', "Open a text file first to go to a line");
 	}
 
 	public decorateOutline(range: IRange, editor: IEditor, position: Position): void {
 		editor.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
-			let deleteDecorations: string[] = [];
+			const deleteDecorations: string[] = [];
 
 			if (this.rangeHighlightDecorationId) {
 				deleteDecorations.push(this.rangeHighlightDecorationId.lineDecorationId);
@@ -203,7 +204,7 @@ export class GotoLineHandler extends QuickOpenHandler {
 				this.rangeHighlightDecorationId = null;
 			}
 
-			let newDecorations: IModelDeltaDecoration[] = [
+			const newDecorations: IModelDeltaDecoration[] = [
 				// rangeHighlight at index 0
 				{
 					range: range,
@@ -226,9 +227,9 @@ export class GotoLineHandler extends QuickOpenHandler {
 				}
 			];
 
-			let decorations = changeAccessor.deltaDecorations(deleteDecorations, newDecorations);
-			let rangeHighlightId = decorations[0];
-			let lineDecorationId = decorations[1];
+			const decorations = changeAccessor.deltaDecorations(deleteDecorations, newDecorations);
+			const rangeHighlightId = decorations[0];
+			const lineDecorationId = decorations[1];
 
 			this.rangeHighlightDecorationId = {
 				rangeHighlightId: rangeHighlightId,
@@ -242,7 +243,7 @@ export class GotoLineHandler extends QuickOpenHandler {
 		if (this.rangeHighlightDecorationId) {
 			this.editorService.getVisibleEditors().forEach((editor) => {
 				if (editor.position === this.rangeHighlightDecorationId.position) {
-					let editorControl = <IEditor>editor.getControl();
+					const editorControl = <IEditor>editor.getControl();
 					editorControl.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
 						changeAccessor.deltaDecorations([
 							this.rangeHighlightDecorationId.lineDecorationId,
@@ -263,9 +264,9 @@ export class GotoLineHandler extends QuickOpenHandler {
 
 		// Restore selection if canceled
 		if (canceled && this.lastKnownEditorViewState) {
-			let activeEditor = this.editorService.getActiveEditor();
+			const activeEditor = this.editorService.getActiveEditor();
 			if (activeEditor) {
-				let editor = <IEditor>activeEditor.getControl();
+				const editor = <IEditor>activeEditor.getControl();
 				editor.restoreViewState(this.lastKnownEditorViewState);
 			}
 		}

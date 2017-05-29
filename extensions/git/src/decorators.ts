@@ -67,9 +67,8 @@ function _throttle<T>(fn: Function, key: string): Function {
 
 		this[currentKey] = fn.apply(this, args) as Promise<T>;
 
-		done(this[currentKey]).then(() => {
-			this[currentKey] = undefined;
-		});
+		const clear = () => this[currentKey] = undefined;
+		done(this[currentKey]).then(clear, clear);
 
 		return this[currentKey];
 	};

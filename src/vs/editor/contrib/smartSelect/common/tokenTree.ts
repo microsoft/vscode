@@ -6,7 +6,7 @@
 
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IModel, IPosition } from 'vs/editor/common/editorCommon';
+import { IModel } from 'vs/editor/common/editorCommon';
 import { LineToken } from 'vs/editor/common/core/lineTokens';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { BracketsUtils, RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
@@ -165,6 +165,7 @@ class ModelRawTokenScanner {
 		while (!this._next && this._lineNumber < this._lineCount) {
 			this._lineNumber++;
 			this._lineText = this._model.getLineContent(this._lineNumber);
+			this._model.forceTokenization(this._lineNumber);
 			let currentLineTokens = this._model.getLineTokens(this._lineNumber);
 			this._next = currentLineTokens.firstToken();
 		}
@@ -398,7 +399,7 @@ export function build(model: IModel): Node {
 	return node;
 }
 
-export function find(node: Node, position: IPosition): Node {
+export function find(node: Node, position: Position): Node {
 	if (node instanceof NodeList && node.isEmpty) {
 		return null;
 	}

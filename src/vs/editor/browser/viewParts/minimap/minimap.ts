@@ -6,16 +6,15 @@
 'use strict';
 
 import 'vs/css!./minimap';
-import { ViewPart } from 'vs/editor/browser/view/viewPart';
+import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { getOrCreateMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
-import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { MinimapCharRenderer, MinimapTokensColorTracker, Constants } from 'vs/editor/common/view/minimapCharRenderer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CharCode } from 'vs/base/common/charCode';
-import { IViewLayout, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
+import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { ColorId } from 'vs/editor/common/modes';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -24,6 +23,10 @@ import { RenderedLinesCollection, ILine } from 'vs/editor/browser/view/viewLayer
 import { Range } from 'vs/editor/common/core/range';
 import { RGBA } from 'vs/base/common/color';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
+import * as platform from 'vs/base/common/platform';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground, scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 
 const enum RenderMinimap {
 	None = 0,
@@ -61,6 +64,11 @@ function getMinimapCharWidth(renderMinimap: RenderMinimap): number {
 	return Constants.x1_CHAR_WIDTH;
 }
 
+/**
+ * The orthogonal distance to the slider at which dragging "resets". This implements "snapping"
+ */
+const MOUSE_DRAG_RESET_DISTANCE = 140;
+
 class MinimapOptions {
 
 	public readonly renderMinimap: RenderMinimap;
@@ -97,7 +105,7 @@ class MinimapOptions {
 	public readonly canvasOuterHeight: number;
 
 	constructor(configuration: editorCommon.IConfiguration) {
-		const pixelRatio = browser.getPixelRatio();
+		const pixelRatio = configuration.editor.pixelRatio;
 		const layoutInfo = configuration.editor.layoutInfo;
 
 		this.renderMinimap = layoutInfo.renderMinimap | 0;
@@ -241,7 +249,17 @@ class MinimapLayout {
 		}
 
 		this.sliderTop = Math.floor((viewportStartLineNumber - this.startLineNumber) * minimapLineHeight / pixelRatio);
-		this.sliderHeight = Math.floor(viewportLineCount * minimapLineHeight / pixelRatio);
+		if (viewportEndLineNumber === lineCount) {
+			// The last line is in the viewport => try to extend slider height below the painted lines
+			let desiredSliderHeight = Math.floor(expectedViewportLineCount * minimapLineHeight / pixelRatio);
+			if (this.sliderTop + desiredSliderHeight > options.minimapHeight) {
+				this.sliderHeight = options.minimapHeight - this.sliderTop;
+			} else {
+				this.sliderHeight = desiredSliderHeight;
+			}
+		} else {
+			this.sliderHeight = Math.floor(viewportLineCount * minimapLineHeight / pixelRatio);
+		}
 	}
 }
 
@@ -326,11 +344,11 @@ class RenderData {
 		};
 	}
 
+	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
+		return this._renderedLines.onLinesChanged(e.fromLineNumber, e.toLineNumber);
+	}
 	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): void {
 		this._renderedLines.onLinesDeleted(e.fromLineNumber, e.toLineNumber);
-	}
-	public onLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
-		return this._renderedLines.onLineChanged(e.lineNumber);
 	}
 	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): void {
 		this._renderedLines.onLinesInserted(e.fromLineNumber, e.toLineNumber);
@@ -395,7 +413,6 @@ class MinimapBuffers {
 
 export class Minimap extends ViewPart {
 
-	private readonly _viewLayout: IViewLayout;
 	private readonly _editorScrollbar: EditorScrollbar;
 
 	private readonly _domNode: FastDomNode<HTMLElement>;
@@ -404,6 +421,8 @@ export class Minimap extends ViewPart {
 	private readonly _slider: FastDomNode<HTMLElement>;
 	private readonly _tokensColorTracker: MinimapTokensColorTracker;
 	private readonly _mouseDownListener: IDisposable;
+	private readonly _sliderMouseMoveMonitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
+	private readonly _sliderMouseDownListener: IDisposable;
 
 	private readonly _minimapCharRenderer: MinimapCharRenderer;
 
@@ -411,9 +430,8 @@ export class Minimap extends ViewPart {
 	private _lastRenderData: RenderData;
 	private _buffers: MinimapBuffers;
 
-	constructor(context: ViewContext, viewLayout: IViewLayout, editorScrollbar: EditorScrollbar) {
+	constructor(context: ViewContext, editorScrollbar: EditorScrollbar) {
 		super(context);
-		this._viewLayout = viewLayout;
 		this._editorScrollbar = editorScrollbar;
 
 		this._options = new MinimapOptions(this._context.configuration);
@@ -421,22 +439,26 @@ export class Minimap extends ViewPart {
 		this._buffers = null;
 
 		this._domNode = createFastDomNode(document.createElement('div'));
+		PartFingerprints.write(this._domNode, PartFingerprint.Minimap);
+		this._domNode.setClassName('minimap');
 		this._domNode.setPosition('absolute');
+		this._domNode.setAttribute('role', 'presentation');
+		this._domNode.setAttribute('aria-hidden', 'true');
 		this._domNode.setRight(this._context.configuration.editor.layoutInfo.verticalScrollbarWidth);
 
 		this._shadow = createFastDomNode(document.createElement('div'));
 		this._shadow.setClassName('minimap-shadow-hidden');
-		this._domNode.domNode.appendChild(this._shadow.domNode);
+		this._domNode.appendChild(this._shadow);
 
 		this._canvas = createFastDomNode(document.createElement('canvas'));
 		this._canvas.setPosition('absolute');
 		this._canvas.setLeft(0);
-		this._domNode.domNode.appendChild(this._canvas.domNode);
+		this._domNode.appendChild(this._canvas);
 
 		this._slider = createFastDomNode(document.createElement('div'));
 		this._slider.setPosition('absolute');
 		this._slider.setClassName('minimap-slider');
-		this._domNode.domNode.appendChild(this._slider.domNode);
+		this._domNode.appendChild(this._slider);
 
 		this._tokensColorTracker = MinimapTokensColorTracker.getInstance();
 
@@ -463,20 +485,72 @@ export class Minimap extends ViewPart {
 
 			this._context.privateViewEventBus.emit(new viewEvents.ViewRevealRangeRequestEvent(
 				new Range(lineNumber, 1, lineNumber, 1),
-				editorCommon.VerticalRevealType.Center,
-				false,
+				viewEvents.VerticalRevealType.Center,
 				false
 			));
+		});
+
+		this._sliderMouseMoveMonitor = new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>();
+
+		this._sliderMouseDownListener = dom.addStandardDisposableListener(this._slider.domNode, 'mousedown', (e) => {
+			e.preventDefault();
+
+			if (e.leftButton) {
+				const initialMouseOrthogonalPosition = e.posx;
+				const initialScrollTop = this._context.viewLayout.getScrollTop();
+				const initialSliderCenter = (this._slider.getTop() + this._slider.getHeight() / 2);
+				const draggingDeltaCenter = e.posy - initialSliderCenter;
+				this._slider.toggleClassName('active', true);
+
+				this._sliderMouseMoveMonitor.startMonitoring(
+					standardMouseMoveMerger,
+					(mouseMoveData: IStandardMouseMoveEventData) => {
+						const mouseOrthogonalPosition = mouseMoveData.posx;
+						const mouseOrthogonalDelta = Math.abs(mouseOrthogonalPosition - initialMouseOrthogonalPosition);
+						if (platform.isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
+							// The mouse has wondered away from the slider => reset dragging
+							this._context.viewLayout.setScrollPosition({
+								scrollTop: initialScrollTop
+							});
+						} else {
+							const pixelRatio = this._options.pixelRatio;
+							const minimapLineHeight = getMinimapLineHeight(this._options.renderMinimap);
+							const entireCanvasOuterHeight = this._context.model.getLineCount() * minimapLineHeight / pixelRatio;
+							const representableHeight = Math.min(entireCanvasOuterHeight, this._options.canvasOuterHeight);
+
+							// Account for the fact that the minimap does not render the extra space below the viewport
+							let discountScrollHeight = 0;
+							if (this._context.configuration.editor.viewInfo.scrollBeyondLastLine) {
+								discountScrollHeight = this._canvas.getHeight() - this._context.configuration.editor.lineHeight;
+							}
+							const scrollHeight = this._context.viewLayout.getScrollHeight() - discountScrollHeight;
+
+							const desiredSliderCenter = mouseMoveData.posy - draggingDeltaCenter;
+							const desiredScrollCenter = desiredSliderCenter * (scrollHeight / representableHeight);
+							const desiredScrollTop = desiredScrollCenter - this._canvas.getHeight() / 2;
+
+							this._context.viewLayout.setScrollPosition({
+								scrollTop: desiredScrollTop
+							});
+						}
+					},
+					() => {
+						this._slider.toggleClassName('active', false);
+					}
+				);
+			}
 		});
 	}
 
 	public dispose(): void {
 		this._mouseDownListener.dispose();
+		this._sliderMouseMoveMonitor.dispose();
+		this._sliderMouseDownListener.dispose();
 		super.dispose();
 	}
 
-	public getDomNode(): HTMLElement {
-		return this._domNode.domNode;
+	public getDomNode(): FastDomNode<HTMLElement> {
+		return this._domNode;
 	}
 
 	private _applyLayout(): void {
@@ -523,9 +597,9 @@ export class Minimap extends ViewPart {
 		this._lastRenderData = null;
 		return true;
 	}
-	public onLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
+	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
 		if (this._lastRenderData) {
-			return this._lastRenderData.onLineChanged(e);
+			return this._lastRenderData.onLinesChanged(e);
 		}
 		return false;
 	}
@@ -562,17 +636,17 @@ export class Minimap extends ViewPart {
 
 	// --- end event handlers
 
-	public prepareRender(ctx: IRenderingContext): void {
+	public prepareRender(ctx: RenderingContext): void {
 		// Nothing to read
 	}
 
-	public render(renderingCtx: IRestrictedRenderingContext): void {
+	public render(renderingCtx: RestrictedRenderingContext): void {
 		const renderMinimap = this._options.renderMinimap;
 		if (renderMinimap === RenderMinimap.None) {
 			this._shadow.setClassName('minimap-shadow-hidden');
 			return;
 		}
-		if (renderingCtx.viewportLeft + renderingCtx.viewportWidth >= renderingCtx.scrollWidth) {
+		if (renderingCtx.scrollLeft + renderingCtx.viewportWidth >= renderingCtx.scrollWidth) {
 			this._shadow.setClassName('minimap-shadow-hidden');
 		} else {
 			this._shadow.setClassName('minimap-shadow-visible');
@@ -725,7 +799,7 @@ export class Minimap extends ViewPart {
 	private static _renderLine(
 		target: ImageData,
 		backgroundColor: RGBA,
-		useLighterFont,
+		useLighterFont: boolean,
 		renderMinimap: RenderMinimap,
 		colorTracker: MinimapTokensColorTracker,
 		minimapCharRenderer: MinimapCharRenderer,
@@ -780,3 +854,22 @@ export class Minimap extends ViewPart {
 		}
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let sliderBackground = theme.getColor(scrollbarSliderBackground);
+	if (sliderBackground) {
+		collector.addRule(`.monaco-editor .minimap-slider { background: ${sliderBackground}; }`);
+	}
+	let sliderHoverBackground = theme.getColor(scrollbarSliderHoverBackground);
+	if (sliderHoverBackground) {
+		collector.addRule(`.monaco-editor .minimap-slider:hover { background: ${sliderHoverBackground}; }`);
+	}
+	let sliderActiveBackground = theme.getColor(scrollbarSliderActiveBackground);
+	if (sliderActiveBackground) {
+		collector.addRule(`.monaco-editor .minimap-slider.active { background: ${sliderActiveBackground}; }`);
+	}
+	let shadow = theme.getColor(scrollbarShadow);
+	if (shadow) {
+		collector.addRule(`.monaco-editor .minimap-shadow-visible { box-shadow: ${shadow} -6px 0 6px -6px inset; }`);
+	}
+});

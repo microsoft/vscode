@@ -33,13 +33,13 @@ class FileSystemWatcher implements _FileSystemWatcher {
 	constructor(dispatcher: Event<FileSystemEvents>, globPattern: string, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean) {
 
 		this._config = 0;
-		if (!ignoreCreateEvents) {
+		if (ignoreCreateEvents) {
 			this._config += 0b001;
 		}
-		if (!ignoreChangeEvents) {
+		if (ignoreChangeEvents) {
 			this._config += 0b010;
 		}
-		if (!ignoreDeleteEvents) {
+		if (ignoreDeleteEvents) {
 			this._config += 0b100;
 		}
 

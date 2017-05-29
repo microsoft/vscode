@@ -7,24 +7,38 @@
 
 import 'vs/css!./media/part';
 import { Dimension, Builder } from 'vs/base/browser/builder';
-import { WorkbenchComponent } from 'vs/workbench/common/component';
+import { Component } from 'vs/workbench/common/component';
+import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 
 export interface IPartOptions {
 	hasTitle?: boolean;
+	borderWidth?: () => number;
 }
 
 /**
  * Parts are layed out in the workbench and have their own layout that arranges an optional title
  * and mandatory content area to show content.
  */
-export abstract class Part extends WorkbenchComponent {
+export abstract class Part extends Component {
 	private parent: Builder;
 	private titleArea: Builder;
 	private contentArea: Builder;
 	private partLayout: PartLayout;
 
-	constructor(id: string, private options: IPartOptions) {
-		super(id);
+	constructor(
+		id: string,
+		private options: IPartOptions,
+		themeService: IThemeService
+	) {
+		super(id, themeService);
+	}
+
+	protected onThemeChange(theme: ITheme): void {
+
+		// only call if our create() method has been called
+		if (this.parent) {
+			super.onThemeChange(theme);
+		}
 	}
 
 	/**
@@ -39,6 +53,8 @@ export abstract class Part extends WorkbenchComponent {
 		this.contentArea = this.createContentArea(parent);
 
 		this.partLayout = new PartLayout(this.parent, this.options, this.titleArea, this.contentArea);
+
+		this.updateStyles();
 	}
 
 	/**
@@ -53,6 +69,13 @@ export abstract class Part extends WorkbenchComponent {
 	 */
 	protected createTitleArea(parent: Builder): Builder {
 		return null;
+	}
+
+	/**
+	 * Returns the title area container.
+	 */
+	protected getTitleArea(): Builder {
+		return this.titleArea;
 	}
 
 	/**
@@ -92,7 +115,7 @@ export class PartLayout {
 	}
 
 	public layout(dimension: Dimension): Dimension[] {
-		const {width, height} = dimension;
+		const { width, height } = dimension;
 
 		// Return the applied sizes to title and content
 		const sizes: Dimension[] = [];
@@ -107,6 +130,10 @@ export class PartLayout {
 
 		// Content Size: Width (Fill), Height (Variable)
 		const contentSize = new Dimension(width, height - titleSize.height);
+
+		if (this.options && typeof this.options.borderWidth === 'function') {
+			contentSize.width -= this.options.borderWidth(); // adjust for border size
+		}
 
 		sizes.push(titleSize);
 		sizes.push(contentSize);

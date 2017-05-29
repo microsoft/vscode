@@ -22,32 +22,29 @@ import { Builder, $ } from 'vs/base/browser/builder';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { AutoSaveConfiguration } from 'vs/platform/files/common/files';
 import { toResource } from 'vs/workbench/common/editor';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkbenchEditorService, IResourceInputType } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IWindowsService, IWindowService, IWindowSettings } from 'vs/platform/windows/common/windows';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IPath, IOpenFileRequest, IWindowConfiguration } from 'vs/workbench/electron-browser/common';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
-import { Registry } from 'vs/platform/platform';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IThemeService, VS_HC_THEME, VS_DARK_THEME } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService, VS_HC_THEME, VS_DARK_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import * as browser from 'vs/base/browser/browser';
-import { ReloadWindowAction, ToggleDevToolsAction, ShowStartupPerformance, OpenRecentAction } from 'vs/workbench/electron-browser/actions';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { Position, IResourceInput } from 'vs/platform/editor/common/editor';
+import { Position, IResourceInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
+import { Themable, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 
 import { remote, ipcRenderer as ipc, webFrame } from 'electron';
+import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 const dialog = remote.dialog;
 
@@ -62,7 +59,7 @@ const TextInputActions: IAction[] = [
 	new Action('editor.action.selectAll', nls.localize('selectAll', "Select All"), null, true, () => document.execCommand('selectAll') && TPromise.as(true))
 ];
 
-export class ElectronWindow {
+export class ElectronWindow extends Themable {
 
 	private static AUTO_SAVE_SETTING = 'files.autoSave';
 
@@ -80,7 +77,7 @@ export class ElectronWindow {
 		@IWindowService private windowService: IWindowService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@ITitleService private titleService: ITitleService,
-		@IThemeService private themeService: IThemeService,
+		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
 		@IMessageService private messageService: IMessageService,
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@ICommandService private commandService: ICommandService,
@@ -88,9 +85,10 @@ export class ElectronWindow {
 		@IViewletService private viewletService: IViewletService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
+		super(themeService);
+
 		this.win = win;
 		this.windowId = win.id;
 
@@ -131,8 +129,18 @@ export class ElectronWindow {
 				// Find out if folders are dragged and show the appropiate feedback then
 				this.includesFolder(draggedExternalResources).done(includesFolder => {
 					if (includesFolder) {
+						const activeContrastBorderColor = this.getColor(activeContrastBorder);
 						dropOverlay = $(window.document.getElementById(this.partService.getWorkbenchElementId()))
-							.div({ id: 'monaco-workbench-drop-overlay' })
+							.div({
+								id: 'monaco-workbench-drop-overlay'
+							})
+							.style({
+								backgroundColor: this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND),
+								outlineColor: activeContrastBorderColor,
+								outlineOffset: activeContrastBorderColor ? '-2px' : null,
+								outlineStyle: activeContrastBorderColor ? 'dashed' : null,
+								outlineWidth: activeContrastBorderColor ? '2px' : null
+							})
 							.on(DOM.EventType.DROP, (e: DragEvent) => {
 								DOM.EventHelper.stop(e, true);
 
@@ -283,6 +291,16 @@ export class ElectronWindow {
 			}
 		});
 
+		// keyboard layout changed event
+		ipc.on('vscode:keyboardLayoutChanged', (event, isISOKeyboard: boolean) => {
+			KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged(isISOKeyboard);
+		});
+
+		// keyboard layout changed event
+		ipc.on('vscode:accessibilitySupportChanged', (event, accessibilitySupportEnabled: boolean) => {
+			browser.setAccessibilitySupport(accessibilitySupportEnabled ? platform.AccessibilitySupport.Enabled : platform.AccessibilitySupport.Disabled);
+		});
+
 		// Configuration changes
 		let previousConfiguredZoomLevel: number;
 		this.configurationService.onDidUpdateConfiguration(e => {
@@ -303,7 +321,10 @@ export class ElectronWindow {
 			if (webFrame.getZoomLevel() !== newZoomLevel) {
 				webFrame.setZoomLevel(newZoomLevel);
 				browser.setZoomFactor(webFrame.getZoomFactor());
-				browser.setZoomLevel(webFrame.getZoomLevel()); // Ensure others can listen to zoom level changes
+				// See https://github.com/Microsoft/vscode/issues/26151
+				// Cannot be trusted because the webFrame might take some time
+				// until it really applies the new zoom level
+				browser.setZoomLevel(webFrame.getZoomLevel(), /*isTrusted*/false);
 			}
 		});
 
@@ -318,49 +339,31 @@ export class ElectronWindow {
 					this.contextMenuService.showContextMenu({
 						getAnchor: () => target,
 						getActions: () => TPromise.as(TextInputActions),
-						getKeyBinding: action => {
-							const [kb] = this.keybindingService.lookupKeybindings(action.id);
-
-							return kb;
-						}
+						getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id)
 					});
 				}
 			}
 		});
-
-		// Developer related actions
-		const developerCategory = nls.localize('developer', "Developer");
-		const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
-		const isDeveloping = !this.environmentService.isBuilt || this.environmentService.isExtensionDevelopment;
-		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL, isDeveloping ? { primary: KeyMod.CtrlCmd | KeyCode.KEY_R } : void 0), 'Reload Window');
-		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleDevToolsAction, ToggleDevToolsAction.ID, ToggleDevToolsAction.LABEL, isDeveloping ? { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_I } } : void 0), 'Developer: Toggle Developer Tools', developerCategory);
-		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowStartupPerformance, ShowStartupPerformance.ID, ShowStartupPerformance.LABEL), 'Developer: Startup Performance', developerCategory);
-
-		// Action registered here to prevent a keybinding conflict with reload window
-		const fileCategory = nls.localize('file', "File");
-		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenRecentAction, OpenRecentAction.ID, OpenRecentAction.LABEL, { primary: isDeveloping ? null : KeyMod.CtrlCmd | KeyCode.KEY_R, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_R } }), 'File: Open Recent', fileCategory);
 	}
 
 	private resolveKeybindings(actionIds: string[]): TPromise<{ id: string; label: string, isNative: boolean; }[]> {
 		return this.partService.joinCreation().then(() => {
 			return arrays.coalesce(actionIds.map(id => {
-				const bindings = this.keybindingService.lookupKeybindings(id);
+				const binding = this.keybindingService.lookupKeybinding(id);
+				if (!binding) {
+					return null;
+				}
 
-				// return the first binding that can be represented by electron
-				for (let i = 0; i < bindings.length; i++) {
-					const binding = bindings[i];
+				// first try to resolve a native accelerator
+				const electronAccelerator = binding.getElectronAccelerator();
+				if (electronAccelerator) {
+					return { id, label: electronAccelerator, isNative: true };
+				}
 
-					// first try to resolve a native accelerator
-					const electronAccelerator = this.keybindingService.getElectronAcceleratorFor(binding);
-					if (electronAccelerator) {
-						return { id, label: electronAccelerator, isNative: true };
-					}
-
-					// we need this fallback to support keybindings that cannot show in electron menus (e.g. chords)
-					const acceleratorLabel = this.keybindingService.getLabelFor(binding);
-					if (acceleratorLabel) {
-						return { id, label: acceleratorLabel, isNative: false };
-					}
+				// we need this fallback to support keybindings that cannot show in electron menus (e.g. chords)
+				const acceleratorLabel = binding.getLabel();
+				if (acceleratorLabel) {
+					return { id, label: acceleratorLabel, isNative: false };
 				}
 
 				return null;
@@ -369,7 +372,7 @@ export class ElectronWindow {
 	}
 
 	private onOpenFiles(request: IOpenFileRequest): void {
-		let inputs: IResourceInput[] = [];
+		let inputs: IResourceInputType[] = [];
 		let diffMode = (request.filesToDiff.length === 2);
 
 		if (!diffMode && request.filesToOpen) {
@@ -389,7 +392,7 @@ export class ElectronWindow {
 		}
 	}
 
-	private openResources(resources: IResourceInput[], diffMode: boolean): TPromise<any> {
+	private openResources(resources: (IResourceInput | IUntitledResourceInput)[], diffMode: boolean): TPromise<any> {
 		return this.partService.joinCreation().then(() => {
 
 			// In diffMode we open 2 resources as diff
@@ -413,14 +416,15 @@ export class ElectronWindow {
 		});
 	}
 
-	private toInputs(paths: IPath[], isNew: boolean): IResourceInput[] {
+	private toInputs(paths: IPath[], isNew: boolean): IResourceInputType[] {
 		return paths.map(p => {
-			let input = <IResourceInput>{
-				resource: isNew ? this.untitledEditorService.createOrGet(URI.file(p.filePath)).getResource() : URI.file(p.filePath),
-				options: {
-					pinned: true
-				}
-			};
+			const resource = URI.file(p.filePath);
+			let input: IResourceInput | IUntitledResourceInput;
+			if (isNew) {
+				input = { filePath: resource.fsPath, options: { pinned: true } } as IUntitledResourceInput;
+			} else {
+				input = { resource, options: { pinned: true } } as IResourceInput;
+			}
 
 			if (!isNew && p.lineNumber) {
 				input.options.selection = {
@@ -447,7 +451,7 @@ export class ElectronWindow {
 			newAutoSaveValue = AutoSaveConfiguration.AFTER_DELAY;
 		}
 
-		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ElectronWindow.AUTO_SAVE_SETTING, value: newAutoSaveValue }).done(null, error => this.messageService.show(Severity.Error, error));
+		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ElectronWindow.AUTO_SAVE_SETTING, value: newAutoSaveValue });
 	}
 
 	private includesFolder(resources: URI[]): TPromise<boolean> {

@@ -38,8 +38,8 @@ import {
 } from 'vs/editor/browser/standalone/simpleServices';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IMenuService } from 'vs/platform/actions/common/actions';
-import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
-import { StandaloneColorServiceImpl } from 'vs/editor/browser/services/standaloneColorServiceImpl';
+import { IStandaloneThemeService } from 'vs/editor/common/services/standaloneThemeService';
+import { StandaloneThemeServiceImpl } from 'vs/editor/browser/services/standaloneThemeServiceImpl';
 
 export interface IEditorContextViewService extends IContextViewService {
 	dispose(): void;
@@ -47,6 +47,7 @@ export interface IEditorContextViewService extends IContextViewService {
 }
 
 export interface IEditorOverrideServices {
+	[index: string]: any;
 }
 
 export module StaticServices {
@@ -130,15 +131,16 @@ export module StaticServices {
 
 	export const modelService = define(IModelService, (o) => new ModelServiceImpl(markerService.get(o), configurationService.get(o)));
 
-	export const editorWorkerService = define(IEditorWorkerService, (o) => new EditorWorkerServiceImpl(modelService.get(o), configurationService.get(o)));
+	export const editorWorkerService = define(IEditorWorkerService, (o) => new EditorWorkerServiceImpl(modelService.get(o), configurationService.get(o), modeService.get(o)));
 
-	export const codeEditorService = define(ICodeEditorService, () => new CodeEditorServiceImpl());
+	export const standaloneThemeService = define(IStandaloneThemeService, () => new StandaloneThemeServiceImpl());
+
+	export const codeEditorService = define(ICodeEditorService, (o) => new CodeEditorServiceImpl(standaloneThemeService.get(o)));
 
 	export const progressService = define(IProgressService, () => new SimpleProgressService());
 
 	export const storageService = define(IStorageService, () => NullStorageService);
 
-	export const standaloneColorService = define(IStandaloneColorService, () => new StandaloneColorServiceImpl());
 }
 
 export class DynamicStandaloneServices extends Disposable {

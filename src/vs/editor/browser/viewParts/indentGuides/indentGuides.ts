@@ -8,8 +8,10 @@
 import 'vs/css!./indentGuides';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { IRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorIndentGuides } from 'vs/editor/common/view/editorColorRegistry';
 
 export class IndentGuidesOverlay extends DynamicViewOverlay {
 
@@ -34,6 +36,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		this._context.removeEventHandler(this);
 		this._context = null;
 		this._renderResult = null;
+		super.dispose();
 	}
 
 	// --- begin event handlers
@@ -45,7 +48,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		if (e.fontInfo) {
 			this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
 		}
-		if (e.viewInfo.renderIndentGuides) {
+		if (e.viewInfo) {
 			this._enabled = this._context.configuration.editor.viewInfo.renderIndentGuides;
 		}
 		return true;
@@ -53,7 +56,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		return true;
 	}
-	public onLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
+	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
 		return true;
 	}
 	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
@@ -71,7 +74,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 
 	// --- end event handlers
 
-	public prepareRender(ctx: IRenderingContext): void {
+	public prepareRender(ctx: RenderingContext): void {
 		if (!this._enabled) {
 			this._renderResult = null;
 			return;
@@ -111,3 +114,10 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		return this._renderResult[lineIndex];
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let editorGuideColor = theme.getColor(editorIndentGuides);
+	if (editorGuideColor) {
+		collector.addRule(`.monaco-editor .lines-content .cigr { background-color: ${editorGuideColor}; }`);
+	}
+});

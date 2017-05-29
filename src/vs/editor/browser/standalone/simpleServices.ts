@@ -12,8 +12,9 @@ import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue,
 import { IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { ICommandService, ICommand, ICommandEvent, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
+import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IKeybindingEvent, IKeybindingItem, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingEvent, KeybindingSource, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IMessageService } from 'vs/platform/message/common/message';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -27,10 +28,14 @@ import { ITextModelResolverService, ITextModelContentProvider, ITextEditorModel 
 import { IDisposable, IReference, ImmortalReference, combinedDisposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, IKeybindingItem } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { MenuId, IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { Menu } from 'vs/platform/actions/common/menu';
 import { ITelemetryService, ITelemetryExperiments, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
+import { ResolvedKeybinding, Keybinding, createKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { OS } from 'vs/base/common/platform';
+import { IRange } from 'vs/editor/common/core/range';
 
 export class SimpleEditor implements IEditor {
 
@@ -51,7 +56,7 @@ export class SimpleEditor implements IEditor {
 	public isVisible(): boolean { return true; }
 
 	public withTypedEditor<T>(codeEditorCallback: (editor: ICodeEditor) => T, diffEditorCallback: (editor: IDiffEditor) => T): T {
-		if (this._widget.getEditorType() === editorCommon.EditorType.ICodeEditor) {
+		if (editorCommon.isCommonCodeEditor(this._widget)) {
 			// Single Editor
 			return codeEditorCallback(<ICodeEditor>this._widget);
 		} else {
@@ -139,7 +144,7 @@ export class SimpleEditorService implements IEditorService {
 			return null;
 		}
 
-		let selection = <editorCommon.IRange>data.options.selection;
+		let selection = <IRange>data.options.selection;
 		if (selection) {
 			if (typeof selection.endLineNumber === 'number' && typeof selection.endColumn === 'number') {
 				editor.setSelection(selection);
@@ -289,7 +294,7 @@ export class StandaloneCommandService implements ICommandService {
 	public executeCommand<T>(id: string, ...args: any[]): TPromise<T> {
 		const command = (CommandsRegistry.getCommand(id) || this._dynamicCommands[id]);
 		if (!command) {
-			return TPromise.wrapError(new Error(`command '${id}' not found`));
+			return TPromise.wrapError<T>(new Error(`command '${id}' not found`));
 		}
 
 		try {
@@ -297,7 +302,7 @@ export class StandaloneCommandService implements ICommandService {
 			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler].concat(args));
 			return TPromise.as(result);
 		} catch (err) {
-			return TPromise.wrapError(err);
+			return TPromise.wrapError<T>(err);
 		}
 	}
 }
@@ -319,7 +324,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 		this.toDispose.push(dom.addDisposableListener(domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			let keyEvent = new StandardKeyboardEvent(e);
-			let shouldPreventDefault = this._dispatch(keyEvent.toKeybinding(), keyEvent.target);
+			let shouldPreventDefault = this._dispatch(keyEvent, keyEvent.target);
 			if (shouldPreventDefault) {
 				keyEvent.preventDefault();
 			}
@@ -330,7 +335,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		let toDispose: IDisposable[] = [];
 
 		this._dynamicKeybindings.push({
-			keybinding: keybinding,
+			keybinding: createKeybinding(keybinding, OS),
 			command: commandId,
 			when: when,
 			weight1: 1000,
@@ -370,13 +375,51 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 	protected _getResolver(): KeybindingResolver {
 		if (!this._cachedResolver) {
-			this._cachedResolver = new KeybindingResolver(KeybindingsRegistry.getDefaultKeybindings(), this._getExtraKeybindings());
+			const defaults = this._toNormalizedKeybindingItems(KeybindingsRegistry.getDefaultKeybindings(), true);
+			const overrides = this._toNormalizedKeybindingItems(this._dynamicKeybindings, false);
+			this._cachedResolver = new KeybindingResolver(defaults, overrides);
 		}
 		return this._cachedResolver;
 	}
 
-	private _getExtraKeybindings(): IKeybindingItem[] {
-		return this._dynamicKeybindings;
+	private _toNormalizedKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
+		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
+		for (let i = 0, len = items.length; i < len; i++) {
+			const item = items[i];
+			const when = (item.when ? item.when.normalize() : null);
+			const keybinding = item.keybinding;
+
+			if (!keybinding) {
+				// This might be a removal keybinding item in user settings => accept it
+				result[resultLen++] = new ResolvedKeybindingItem(null, item.command, item.commandArgs, when, isDefault);
+			} else {
+				const resolvedKeybindings = this.resolveKeybinding(keybinding);
+				for (let j = 0; j < resolvedKeybindings.length; j++) {
+					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybindings[j], item.command, item.commandArgs, when, isDefault);
+				}
+			}
+		}
+
+		return result;
+	}
+
+	public resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[] {
+		return [new USLayoutResolvedKeybinding(keybinding, OS)];
+	}
+
+	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
+		let keybinding = new SimpleKeybinding(
+			keyboardEvent.ctrlKey,
+			keyboardEvent.shiftKey,
+			keyboardEvent.altKey,
+			keyboardEvent.metaKey,
+			keyboardEvent.keyCode
+		);
+		return new USLayoutResolvedKeybinding(keybinding, OS);
+	}
+
+	public resolveUserBinding(userBinding: string): ResolvedKeybinding[] {
+		return [];
 	}
 }
 
@@ -398,7 +441,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 	}
 
 	public reloadConfiguration<T>(section?: string): TPromise<T> {
-		return TPromise.as(this.getConfiguration(section));
+		return TPromise.as<T>(this.getConfiguration<T>(section));
 	}
 
 	public lookup<C>(key: string): IConfigurationValue<C> {

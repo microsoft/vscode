@@ -33,7 +33,7 @@ function getUnixShellEnvironment(): TPromise<typeof process.env> {
 
 		const buffers: Buffer[] = [];
 		child.on('error', () => c({}));
-		child.stdout.on('data', b => buffers.push(b));
+		child.stdout.on('data', b => buffers.push(b as Buffer));
 
 		child.on('close', (code: number, signal: any) => {
 			if (code !== 0) {

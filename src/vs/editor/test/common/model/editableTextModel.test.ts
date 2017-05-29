@@ -7,11 +7,11 @@
 
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation, IModelContentChangedEvent2 } from 'vs/editor/common/editorCommon';
+import { EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { EditableTextModel, IValidatedEditOperation } from 'vs/editor/common/model/editableTextModel';
-import { MirrorModel2 } from 'vs/editor/common/model/mirrorModel2';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { MirrorModel } from 'vs/editor/common/model/mirrorModel';
 import { assertSyncedModels, testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
+import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 
 suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 
@@ -278,7 +278,7 @@ suite('EditorModel - EditableTextModel._toSingleEditOperation', () => {
 	}
 
 	function testSimpleApplyEdits(original: string[], edits: IValidatedEditOperation[], expected: IValidatedEditOperation): void {
-		let model = new EditableTextModel([], TextModel.toRawText(original.join('\n'), TextModel.DEFAULT_CREATION_OPTIONS), null);
+		let model = EditableTextModel.createFromString(original.join('\n'));
 		model.setEOL(EndOfLineSequence.LF);
 
 		let actual = model._toSingleEditOperation(edits);
@@ -520,7 +520,7 @@ suite('EditorModel - EditableTextModel._toSingleEditOperation', () => {
 suite('EditorModel - EditableTextModel.applyEdits updates mightContainRTL', () => {
 
 	function testApplyEdits(original: string[], edits: IIdentifiedSingleEditOperation[], before: boolean, after: boolean): void {
-		let model = new EditableTextModel([], TextModel.toRawText(original.join('\n'), TextModel.DEFAULT_CREATION_OPTIONS), null);
+		let model = EditableTextModel.createFromString(original.join('\n'));
 		model.setEOL(EndOfLineSequence.LF);
 
 		assert.equal(model.mightContainRTL(), before);
@@ -568,7 +568,7 @@ suite('EditorModel - EditableTextModel.applyEdits updates mightContainRTL', () =
 suite('EditorModel - EditableTextModel.applyEdits updates mightContainNonBasicASCII', () => {
 
 	function testApplyEdits(original: string[], edits: IIdentifiedSingleEditOperation[], before: boolean, after: boolean): void {
-		let model = new EditableTextModel([], TextModel.toRawText(original.join('\n'), TextModel.DEFAULT_CREATION_OPTIONS), null);
+		let model = EditableTextModel.createFromString(original.join('\n'));
 		model.setEOL(EndOfLineSequence.LF);
 
 		assert.equal(model.mightContainNonBasicASCII(), before);
@@ -1363,7 +1363,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 	});
 
 	function testApplyEditsFails(original: string[], edits: IIdentifiedSingleEditOperation[]): void {
-		let model = new EditableTextModel([], TextModel.toRawText(original.join('\n'), TextModel.DEFAULT_CREATION_OPTIONS), null);
+		let model = EditableTextModel.createFromString(original.join('\n'));
 
 		let hasThrown = false;
 		try {
@@ -1504,7 +1504,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 
 		}, (model) => {
 			var isFirstTime = true;
-			model.addBulkListener2((events) => {
+			model.addBulkListener((events) => {
 				if (!isFirstTime) {
 					return;
 				}
@@ -1534,7 +1534,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 
 		}, (model) => {
 			var isFirstTime = true;
-			model.onDidChangeContent((e: IModelContentChangedEvent2) => {
+			model.onDidChangeContent((e: IModelContentChangedEvent) => {
 				if (!isFirstTime) {
 					return;
 				}
@@ -1551,19 +1551,19 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 	});
 
 	test('issue #1580: Changes in line endings are not correctly reflected in the extension host, leading to invalid offsets sent to external refactoring tools', () => {
-		let model = new EditableTextModel([], TextModel.toRawText('Hello\nWorld!', TextModel.DEFAULT_CREATION_OPTIONS), null);
+		let model = EditableTextModel.createFromString('Hello\nWorld!');
 		assert.equal(model.getEOL(), '\n');
 
-		let mirrorModel2 = new MirrorModel2(null, model.toRawText().lines, model.toRawText().EOL, model.getVersionId());
+		let mirrorModel2 = new MirrorModel(null, model.getLinesContent(), model.getEOL(), model.getVersionId());
 		let mirrorModel2PrevVersionId = model.getVersionId();
 
-		model.onDidChangeContent((e: IModelContentChangedEvent2) => {
+		model.onDidChangeContent((e: IModelContentChangedEvent) => {
 			let versionId = e.versionId;
 			if (versionId < mirrorModel2PrevVersionId) {
 				console.warn('Model version id did not advance between edits (2)');
 			}
 			mirrorModel2PrevVersionId = versionId;
-			mirrorModel2.onEvents([e]);
+			mirrorModel2.onEvents(e);
 		});
 
 		let assertMirrorModels = () => {
@@ -1622,7 +1622,7 @@ suite('EditorModel - EditableTextModel.applyEdits & markers', () => {
 		// var expectedMarkersMap = toMarkersMap(expectedMarkers);
 		var markerId2ModelMarkerId = Object.create(null);
 
-		var model = new EditableTextModel([], TextModel.toRawText(textStr, TextModel.DEFAULT_CREATION_OPTIONS), null);
+		var model = EditableTextModel.createFromString(textStr);
 		model.setEOL(EndOfLineSequence.LF);
 
 		// Add markers

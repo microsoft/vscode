@@ -19,7 +19,7 @@ export class TerminalSupport {
 	public static runInTerminal(terminalService: ITerminalService, nativeTerminalService: IExternalTerminalService, configurationService: IConfigurationService, args: DebugProtocol.RunInTerminalRequestArguments, response: DebugProtocol.RunInTerminalResponse): TPromise<void> {
 
 		if (args.kind === 'external') {
-			return nativeTerminalService.runInTerminal(args.title, args.cwd, args.args, args.env);
+			return nativeTerminalService.runInTerminal(args.title, args.cwd, args.args, args.env || {});
 		}
 
 		let delay = 0;
@@ -57,7 +57,7 @@ export class TerminalSupport {
 
 		// get the shell configuration for the current platform
 		let shell: string;
-		const shell_config = configurationService.getConfiguration<ITerminalConfiguration>().terminal.integrated.shell;
+		const shell_config = (<ITerminalConfiguration>configurationService.getConfiguration<any>().terminal.integrated).shell;
 		if (platform.isWindows) {
 			shell = shell_config.windows;
 		} else if (platform.isLinux) {

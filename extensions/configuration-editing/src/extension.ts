@@ -6,7 +6,7 @@
 'use strict';
 
 import * as vscode from 'vscode';
-import { getLocation, visit } from 'jsonc-parser';
+import { getLocation, visit, parse } from 'jsonc-parser';
 import * as path from 'path';
 import { SettingsDocument } from './settingsDocumentHelper';
 
@@ -23,6 +23,9 @@ export function activate(context): void {
 
 	//settings.json suggestions
 	context.subscriptions.push(registerSettingsCompletions());
+
+	//extensions.json suggestions
+	context.subscriptions.push(registerExtensionsCompletions());
 
 	// launch.json decorations
 	context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(editor => updateLaunchJsonDecorations(editor), null, context.subscriptions));
@@ -61,11 +64,34 @@ function registerSettingsCompletions(): vscode.Disposable {
 	});
 }
 
-function newSimpleCompletionItem(text: string, range: vscode.Range, description?: string): vscode.CompletionItem {
+function registerExtensionsCompletions(): vscode.Disposable {
+	return vscode.languages.registerCompletionItemProvider({ pattern: '**/extensions.json' }, {
+		provideCompletionItems(document, position, token) {
+			const location = getLocation(document.getText(), document.offsetAt(position));
+			const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
+			if (location.path[0] === 'recommendations') {
+				const config = parse(document.getText());
+				const alreadyEnteredExtensions = config && config.recommendations || [];
+				if (Array.isArray(alreadyEnteredExtensions)) {
+					return vscode.extensions.all
+						.filter(e => !(
+							e.id.startsWith('vscode.')
+							|| e.id === 'Microsoft.vscode-markdown'
+							|| alreadyEnteredExtensions.indexOf(e.id) > -1
+						))
+						.map(e => newSimpleCompletionItem(e.id, range, undefined, '"' + e.id + '"'));
+				}
+			}
+			return [];
+		}
+	});
+}
+
+function newSimpleCompletionItem(text: string, range: vscode.Range, description?: string, insertText?: string): vscode.CompletionItem {
 	const item = new vscode.CompletionItem(text);
 	item.kind = vscode.CompletionItemKind.Value;
 	item.detail = description;
-	item.insertText = text;
+	item.insertText = insertText || text;
 	item.range = range;
 
 	return item;

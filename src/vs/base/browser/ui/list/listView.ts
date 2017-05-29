@@ -13,6 +13,8 @@ import { ScrollEvent, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { RangeMap, IRange, relativeComplement, each } from './rangeMap';
 import { IDelegate, IRenderer } from './list';
 import { RowCache, IRow } from './rowCache';
+import { isWindows } from 'vs/base/common/platform';
+import { canUseTranslate3d } from 'vs/base/browser/browser';
 
 interface IItem<T> {
 	id: string;
@@ -65,7 +67,7 @@ export class ListView<T> implements IDisposable {
 		this.items = [];
 		this.itemId = 0;
 		this.rangeMap = new RangeMap();
-		this.renderers = toObject<IRenderer<T, any>, IRenderer<T, any>>(renderers, r => r.templateId);
+		this.renderers = toObject<IRenderer<T, any>>(renderers, r => r.templateId);
 		this.cache = new RowCache(this.renderers);
 
 		this.lastRenderTop = 0;
@@ -83,8 +85,7 @@ export class ListView<T> implements IDisposable {
 			alwaysConsumeMouseWheel: true,
 			horizontal: ScrollbarVisibility.Hidden,
 			vertical: ScrollbarVisibility.Auto,
-			useShadows: getOrDefault(options, o => o.useShadows, DefaultOptions.useShadows),
-			saveLastScrollTimeOnClassName: 'monaco-list-row'
+			useShadows: getOrDefault(options, o => o.useShadows, DefaultOptions.useShadows)
 		});
 
 		this._domNode.appendChild(this.scrollableElement.getDomNode());
@@ -141,6 +142,11 @@ export class ListView<T> implements IDisposable {
 		return this.items[index].element;
 	}
 
+	domElement(index: number): HTMLElement {
+		const row = this.items[index].row;
+		return row && row.domNode;
+	}
+
 	elementHeight(index: number): number {
 		return this.items[index].size;
 	}
@@ -175,9 +181,14 @@ export class ListView<T> implements IDisposable {
 		rangesToInsert.forEach(range => each(range, i => this.insertItemInDOM(this.items[i], i)));
 		rangesToRemove.forEach(range => each(range, i => this.removeItemFromDOM(this.items[i])));
 
-		const transform = `translate3d(0px, -${renderTop}px, 0px)`;
-		this.rowsContainer.style.transform = transform;
-		this.rowsContainer.style.webkitTransform = transform;
+		if (canUseTranslate3d() && !isWindows /* Windows: translate3d breaks subpixel-antialias (ClearType) unless a background is defined */) {
+			const transform = `translate3d(0px, -${renderTop}px, 0px)`;
+			this.rowsContainer.style.transform = transform;
+			this.rowsContainer.style.webkitTransform = transform;
+		} else {
+			this.rowsContainer.style.top = `-${renderTop}px`;
+		}
+
 		this.lastRenderTop = renderTop;
 		this.lastRenderHeight = renderHeight;
 	}

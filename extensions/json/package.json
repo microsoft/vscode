@@ -106,13 +106,23 @@
             "verbose"
           ],
           "default": "off",
-          "description": "Traces the communication between VS Code and the JSON language server."
+          "description": "%json.tracing.desc%"
+        },
+        "json.colorDecorators.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "%json.colorDecorators.enable.desc%"
         }
+      }
+    },
+    "configurationDefaults": {
+      "[json]": {
+        "editor.quickSuggestions": { "strings": true }
       }
     }
   },
   "dependencies": {
-    "vscode-extension-telemetry": "^0.0.6",
+    "vscode-extension-telemetry": "^0.0.7",
     "vscode-languageclient": "^3.1.0-alpha.1",
     "vscode-nls": "^2.0.2"
   },

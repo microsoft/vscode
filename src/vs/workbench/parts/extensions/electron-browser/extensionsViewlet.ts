@@ -32,10 +32,12 @@ import { Delegate, Renderer } from 'vs/workbench/parts/extensions/browser/extens
 import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID, ExtensionState } from '../common/extensions';
 import {
 	ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction,
-	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, CheckForUpdatesAction
+	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, CheckForUpdatesAction, DisableAllAction, EnableAllAction,
+	EnableAutoUpdateAction, DisableAutoUpdateAction
 } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { InstallVSIXAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, SortBy, SortOrder, IQueryOptions, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { Query } from '../common/extensionQuery';
 import { OpenGlobalSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
@@ -48,6 +50,10 @@ import Severity from 'vs/base/common/severity';
 import { IActivityBarService, ProgressBadge, NumberBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { inputForeground, inputBackground, inputBorder } from 'vs/platform/theme/common/colorRegistry';
+import { attachListStyler } from 'vs/platform/theme/common/styler';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -67,6 +73,8 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	private secondaryActions: IAction[];
 	private disposables: IDisposable[] = [];
 
+	private isAutoUpdateEnabled: boolean;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
@@ -81,12 +89,24 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		@IMessageService private messageService: IMessageService,
 		@IViewletService private viewletService: IViewletService,
 		@IExtensionService private extensionService: IExtensionService,
-		@IModeService private modeService: IModeService
+		@IModeService private modeService: IModeService,
+		@IThemeService themeService: IThemeService,
+		@IConfigurationService private configurationService: IConfigurationService,
 	) {
-		super(VIEWLET_ID, telemetryService);
+		super(VIEWLET_ID, telemetryService, themeService);
 		this.searchDelayer = new ThrottledDelayer(500);
 
 		this.disposables.push(viewletService.onDidViewletOpen(this.onViewletOpen, this, this.disposables));
+		this.isAutoUpdateEnabled = this.extensionsWorkbenchService.isAutoUpdateEnabled;
+
+		this.configurationService.onDidUpdateConfiguration(() => {
+			const isAutoUpdateEnabled = this.extensionsWorkbenchService.isAutoUpdateEnabled;
+			if (this.isAutoUpdateEnabled !== isAutoUpdateEnabled) {
+				this.isAutoUpdateEnabled = isAutoUpdateEnabled;
+				this.secondaryActions = null;
+				this.updateTitleArea();
+			}
+		}, this, this.disposables);
 	}
 
 	create(parent: Builder): TPromise<void> {
@@ -111,6 +131,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			keyboardSupport: false
 		});
 
+		this.disposables.push(attachListStyler(this.list.widget, this.themeService));
 		this.disposables.push(this.listService.register(this.list.widget));
 
 		const onKeyDown = chain(domEvent(this.searchBox, 'keydown'))
@@ -134,7 +155,24 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			.filter(e => !!e)
 			.on(this.openExtension, this, this.disposables);
 
+		chain(this.list.onPin)
+			.map(e => e.elements[0])
+			.filter(e => !!e)
+			.on(this.pin, this, this.disposables);
+
 		return TPromise.as(null);
+	}
+
+	public updateStyles(): void {
+		super.updateStyles();
+
+		this.searchBox.style.backgroundColor = this.getColor(inputBackground);
+		this.searchBox.style.color = this.getColor(inputForeground);
+
+		const inputBorderColor = this.getColor(inputBorder);
+		this.searchBox.style.borderWidth = inputBorderColor ? '1px' : null;
+		this.searchBox.style.borderStyle = inputBorderColor ? 'solid' : null;
+		this.searchBox.style.borderColor = inputBorderColor;
 	}
 
 	setVisible(visible: boolean): TPromise<void> {
@@ -183,15 +221,16 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 				this.instantiationService.createInstance(ShowRecommendedKeymapExtensionsAction, ShowRecommendedKeymapExtensionsAction.ID, ShowRecommendedKeymapExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL),
 				new Separator(),
-				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.install', localize('sort by installs', "Sort By: Install Count"), this.onSearchChange, 'installs', undefined),
-				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.rating', localize('sort by rating', "Sort By: Rating"), this.onSearchChange, 'rating', undefined),
-				new Separator(),
-				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort..asc', localize('ascending', "Sort Order: ↑"), this.onSearchChange, undefined, 'asc'),
-				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort..desc', localize('descending', "Sort Order: ↓"), this.onSearchChange, undefined, 'desc'),
+				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.install', localize('sort by installs', "Sort By: Install Count"), this.onSearchChange, 'installs'),
+				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.rating', localize('sort by rating', "Sort By: Rating"), this.onSearchChange, 'rating'),
+				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.name', localize('sort by name', "Sort By: Name"), this.onSearchChange, 'name'),
 				new Separator(),
 				this.instantiationService.createInstance(CheckForUpdatesAction, CheckForUpdatesAction.ID, CheckForUpdatesAction.LABEL),
-				this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL),
-				this.instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL)
+				...(this.isAutoUpdateEnabled ? [this.instantiationService.createInstance(DisableAutoUpdateAction, DisableAutoUpdateAction.ID, DisableAutoUpdateAction.LABEL)] : [this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL), this.instantiationService.createInstance(EnableAutoUpdateAction, EnableAutoUpdateAction.ID, EnableAutoUpdateAction.LABEL)]),
+				this.instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL),
+				new Separator(),
+				this.instantiationService.createInstance(DisableAllAction, DisableAllAction.ID, DisableAllAction.LABEL),
+				this.instantiationService.createInstance(EnableAllAction, EnableAllAction.ID, EnableAllAction.LABEL)
 			];
 		}
 
@@ -225,55 +264,79 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			.done(null, err => this.onError(err));
 	}
 
-	private doSearch(value: string = '', suggestPopular = false): TPromise<any> {
-		return this.progress(this.query(value))
-			.then(model => {
-				if (!value && model.length === 0 && suggestPopular) {
-					return this.search('@sort:installs ');
-				}
+	private async doSearch(value: string = '', suggestPopular = false): TPromise<void> {
+		const model = await this.progress(this.query(value));
 
-				this.setModel(model);
-			});
+		if (!value && model.length === 0 && suggestPopular) {
+			return this.search('@sort:installs ');
+		}
+
+		this.setModel(model);
 	}
 
-	private query(value: string): TPromise<IPagedModel<IExtension>> {
-		if (!value || /@installed/i.test(value)) {
-			// Show installed extensions
-			value = value ? value.replace(/@installed/g, '').trim().toLowerCase() : '';
-			return this.extensionsWorkbenchService.queryLocal()
-				.then(result => result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName)))
-				.then(result => result.filter(e => e.type === LocalExtensionType.User && e.name.toLowerCase().indexOf(value) > -1))
-				.then(result => new PagedModel(result));
-		}
-
-		if (/@outdated/i.test(value)) {
-			value = value.replace(/@outdated/g, '').trim().toLowerCase();
-			return this.extensionsWorkbenchService.queryLocal()
-				.then(result => result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName)))
-				.then(extensions => extensions.filter(extension => extension.outdated && extension.name.toLowerCase().indexOf(value) > -1))
-				.then(result => new PagedModel(result));
-		}
-
-		if (/@disabled/i.test(value)) {
-			value = value.replace(/@disabled/g, '').trim().toLowerCase();
-			return this.extensionsWorkbenchService.queryLocal()
-				.then(result => result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName)))
-				.then(result => this.extensionService.getExtensions()
-					.then(runningExtensions => result.filter(e => runningExtensions.every(r => r.id !== e.identifier) && e.name.toLowerCase().indexOf(value) > -1)))
-				.then(result => new PagedModel(result));
-		}
-
+	private async query(value: string): TPromise<IPagedModel<IExtension>> {
 		const query = Query.parse(value);
-		let options: IQueryOptions = {};
+
+		let options: IQueryOptions = {
+			sortOrder: SortOrder.Default
+		};
 
 		switch (query.sortBy) {
 			case 'installs': options = assign(options, { sortBy: SortBy.InstallCount }); break;
 			case 'rating': options = assign(options, { sortBy: SortBy.AverageRating }); break;
+			case 'name': options = assign(options, { sortBy: SortBy.Title }); break;
 		}
 
-		switch (query.sortOrder) {
-			case 'asc': options = assign(options, { sortOrder: SortOrder.Ascending }); break;
-			case 'desc': options = assign(options, { sortOrder: SortOrder.Descending }); break;
+		if (!value || /@installed/i.test(value)) {
+			// Show installed extensions
+			value = value ? value.replace(/@installed/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase() : '';
+
+			let result = await this.extensionsWorkbenchService.queryLocal();
+
+			switch (options.sortBy) {
+				case SortBy.InstallCount:
+					result = result.sort((e1, e2) => e2.installCount - e1.installCount);
+					break;
+				case SortBy.AverageRating:
+					result = result.sort((e1, e2) => e2.rating - e1.rating);
+					break;
+				default:
+					result = result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName));
+					break;
+			}
+
+			if (options.sortOrder === SortOrder.Descending) {
+				result = result.reverse();
+			}
+
+			result = result
+				.filter(e => e.type === LocalExtensionType.User && e.name.toLowerCase().indexOf(value) > -1);
+
+			return new PagedModel(result);
+		}
+
+		if (/@outdated/i.test(value)) {
+			value = value.replace(/@outdated/g, '').trim().toLowerCase();
+
+			const local = await this.extensionsWorkbenchService.queryLocal();
+			const result = local
+				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
+				.filter(extension => extension.outdated && extension.name.toLowerCase().indexOf(value) > -1);
+
+			return new PagedModel(result);
+		}
+
+		if (/@disabled/i.test(value)) {
+			value = value.replace(/@disabled/g, '').trim().toLowerCase();
+
+			const local = await this.extensionsWorkbenchService.queryLocal();
+			const runningExtensions = await this.extensionService.getExtensions();
+
+			const result = local
+				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
+				.filter(e => runningExtensions.every(r => !areSameExtensions(r, e)) && e.name.toLowerCase().indexOf(value) > -1);
+
+			return new PagedModel(result);
 		}
 
 		if (/@recommended:workspace/i.test(query.value)) {
@@ -284,7 +347,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			return this.getRecommendationsModel(query, options);
 		}
 
-		const pagers: TPromise<IPager<IExtension>>[] = [];
+		const pagerPromises: TPromise<IPager<IExtension>>[] = [];
 		let text = query.value;
 		const extensionRegex = /\bext:([^\s]+)\b/g;
 
@@ -308,7 +371,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 			if (names.length) {
 				const namesOptions = assign({}, options, { names });
-				pagers.push(this.extensionsWorkbenchService.queryGallery(namesOptions));
+				pagerPromises.push(this.extensionsWorkbenchService.queryGallery(namesOptions));
 			}
 		}
 
@@ -316,12 +379,12 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			options = assign(options, { text: text.substr(0, 350) });
 		}
 
-		pagers.push(this.extensionsWorkbenchService.queryGallery(options));
+		pagerPromises.push(this.extensionsWorkbenchService.queryGallery(options));
 
-		return TPromise.join(pagers).then(pagers => {
-			const pager = pagers.length === 2 ? mergePagers(pagers[0], pagers[1]) : pagers[0];
-			return new PagedModel(pager);
-		});
+		const pagers = await TPromise.join(pagerPromises);
+		const pager = pagers.length === 2 ? mergePagers(pagers[0], pagers[1]) : pagers[0];
+
+		return new PagedModel(pager);
 	}
 
 	private getRecommendationsModel(query: Query, options: IQueryOptions): TPromise<IPagedModel<IExtension>> {
@@ -377,6 +440,13 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 	private openExtension(extension: IExtension): void {
 		this.extensionsWorkbenchService.open(extension).done(null, err => this.onError(err));
+	}
+
+	private pin(): void {
+		const activeEditor = this.editorService.getActiveEditor();
+		const activeEditorInput = this.editorService.getActiveEditorInput();
+
+		this.editorInputService.pinEditor(activeEditor.position, activeEditorInput);
 	}
 
 	private onEnter(): void {

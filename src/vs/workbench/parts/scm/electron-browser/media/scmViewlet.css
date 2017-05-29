@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label.scm {
-	background-image: url('diff.svg');
-	background-size: 20px;
-	background-position: center;
+	-webkit-mask: url('icon-dark.svg') no-repeat 50% 50%;
+	-webkit-mask-size: 19px;
 }
 
 .scm-viewlet .monaco-list-row {
@@ -37,6 +36,10 @@
 	height: 100%;
 }
 
+.scm-viewlet .monaco-list-row > .resource.faded {
+	opacity: 0.7;
+}
+
 .scm-viewlet .monaco-list-row > .resource > .name {
 	flex: 1;
 	overflow: hidden;
@@ -60,16 +63,22 @@
 	background-position: 50% 50%;
 }
 
+.scm-viewlet .monaco-list .monaco-list-row > .resource > .actions {
+	display: none;
+}
+
+.scm-viewlet .monaco-list .monaco-list-row.selected > .resource-group > .actions,
+.scm-viewlet .monaco-list .monaco-list-row.selected > .resource > .actions,
+.scm-viewlet .monaco-list:not(.selection-multiple) .monaco-list-row > .resource:hover > .actions {
+	display: block;
+}
+
 .scm-viewlet .monaco-list-row > .resource > .actions .action-label,
 .scm-viewlet .monaco-list-row > .resource-group > .actions .action-label {
 	width: 16px;
 	height: 100%;
 	background-position: 50% 50%;
 	background-repeat: no-repeat;
-}
-
-.scm-viewlet .monaco-list-row:not(.selected) > .resource:not(:hover) > .actions {
-	display: none;
 }
 
 .scm-viewlet > .scm-editor {

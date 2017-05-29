@@ -35,6 +35,8 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 
 export interface ICompositeTitleLabel {
 
@@ -42,6 +44,11 @@ export interface ICompositeTitleLabel {
 	 * Asks to update the title for the composite with the given ID.
 	 */
 	updateTitle(id: string, title: string, keybinding?: string): void;
+
+	/**
+	 * Called when theming information changes.
+	 */
+	updateStyles(): void;
 }
 
 export abstract class CompositePart<T extends Composite> extends Part {
@@ -70,15 +77,17 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		protected partService: IPartService,
 		private keybindingService: IKeybindingService,
 		protected instantiationService: IInstantiationService,
+		themeService: IThemeService,
 		private registry: CompositeRegistry<T>,
 		private activeCompositeSettingsKey: string,
 		private nameForTelemetry: string,
 		private compositeCSSClass: string,
 		private actionContributionScope: string,
+		private titleForegroundColor: string,
 		id: string,
 		options: IPartOptions
 	) {
-		super(id, options);
+		super(id, options, themeService);
 
 		this.instantiatedCompositeListeners = [];
 		this.mapCompositeToCompositeContainer = {};
@@ -125,7 +134,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			this.updateTitle(id);
 
 			// Create composite
-			return this.createComposite(id, true).then((composite: Composite) => {
+			return this.createComposite(id, true).then(composite => {
 
 				// Check if another composite opened meanwhile and return in that case
 				if ((this.currentCompositeOpenToken !== currentCompositeOpenToken) || (this.activeComposite && this.activeComposite.getId() !== composite.getId())) {
@@ -228,7 +237,9 @@ export abstract class CompositePart<T extends Composite> extends Part {
 				'class': ['composite', this.compositeCSSClass],
 				id: composite.getId()
 			}, (div: Builder) => {
-				createCompositePromise = composite.create(div);
+				createCompositePromise = composite.create(div).then(() => {
+					composite.updateStyles();
+				});
 			});
 
 			// Remember composite container
@@ -281,7 +292,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			}
 
 			// Action Run Handling
-			this.telemetryActionsListener = this.toolBar.actionRunner.addListener2(events.EventType.RUN, (e: any) => {
+			this.telemetryActionsListener = this.toolBar.actionRunner.addListener(events.EventType.RUN, (e: any) => {
 
 				// Check for Error
 				if (e.error && !errors.isPromiseCanceledError(e.error)) {
@@ -340,9 +351,9 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			compositeTitle = compositeDescriptor.name;
 		}
 
-		let [keybinding] = this.keybindingService.lookupKeybindings(compositeId).map(k => this.keybindingService.getLabelFor(k));
+		const keybinding = this.keybindingService.lookupKeybinding(compositeId);
 
-		this.titleLabel.updateTitle(compositeId, compositeTitle, keybinding);
+		this.titleLabel.updateTitle(compositeId, compositeTitle, keybinding ? keybinding.getLabel() : undefined);
 
 		this.toolBar.setAriaLabel(nls.localize('ariaCompositeToolbarLabel', "{0} actions", compositeTitle));
 	}
@@ -421,12 +432,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			this.toolBar = new ToolBar(div.getHTMLElement(), this.contextMenuService, {
 				actionItemProvider: (action: Action) => this.actionItemProvider(action),
 				orientation: ActionsOrientation.HORIZONTAL,
-				getKeyBinding: (action) => {
-					const [kb] = this.keybindingService.lookupKeybindings(action.id);
-
-					return kb;
-				},
-				getKeyBindingLabel: (key) => this.keybindingService.getLabelFor(key)
+				getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id)
 			});
 		});
 
@@ -441,12 +447,23 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			titleLabel = div.span();
 		});
 
+		const $this = this;
 		return {
 			updateTitle: (id, title, keybinding) => {
 				titleLabel.safeInnerHtml(title);
 				titleLabel.title(keybinding ? nls.localize('titleTooltip', "{0} ({1})", title, keybinding) : title);
+			},
+			updateStyles: () => {
+				titleLabel.style('color', $this.getColor($this.titleForegroundColor));
 			}
 		};
+	}
+
+	protected updateStyles(): void {
+		super.updateStyles();
+
+		// Forward to title label
+		this.titleLabel.updateStyles();
 	}
 
 	private actionItemProvider(action: Action): IActionItem {
@@ -471,6 +488,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			'class': 'content'
 		}, (div: Builder) => {
 			this.progressBar = new ProgressBar(div);
+			this.toUnbind.push(attachProgressBarStyler(this.progressBar, this.themeService));
 			this.progressBar.getContainer().hide();
 		});
 	}

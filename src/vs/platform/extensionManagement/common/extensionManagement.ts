@@ -11,7 +11,7 @@ import Event from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export const EXTENSION_IDENTIFIER_PATTERN = '^[a-z0-9A-Z][a-z0-9\-A-Z]*\\.[a-z0-9A-Z][a-z0-9\-A-Z]*$';
+export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$';
 export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
 
 export interface ICommand {
@@ -75,8 +75,8 @@ export interface ITheme {
 }
 
 export interface ITreeExplorer {
-	treeExplorerNodeProviderId: string;
-	treeLabel: string;
+	id: string;
+	label: string;
 	icon: string;
 }
 
@@ -109,11 +109,6 @@ export interface IExtensionManifest {
 	contributes?: IExtensionContributions;
 }
 
-export interface IExtensionIdentity {
-	name: string;
-	publisher: string;
-}
-
 export interface IGalleryExtensionProperties {
 	dependencies?: string[];
 	engine?: string;
@@ -134,6 +129,7 @@ export interface IGalleryExtensionAssets {
 }
 
 export interface IGalleryExtension {
+	uuid: string;
 	id: string;
 	name: string;
 	version: string;
@@ -241,7 +237,7 @@ export interface IExtensionManagementService {
 
 	install(zipPath: string): TPromise<void>;
 	installFromGallery(extension: IGalleryExtension, promptToInstallDependencies?: boolean): TPromise<void>;
-	uninstall(extension: ILocalExtension): TPromise<void>;
+	uninstall(extension: ILocalExtension, force?: boolean): TPromise<void>;
 	getInstalled(type?: LocalExtensionType): TPromise<ILocalExtension[]>;
 }
 

@@ -9,6 +9,7 @@ import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
 import { BoundedLinkedMap } from 'vs/base/common/map';
 import { CharCode } from 'vs/base/common/charCode';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export interface IExpression {
 	[pattern: string]: boolean | SiblingClause | any;
@@ -218,14 +219,16 @@ const T4 = /^\*\*((\/[\w\.-]+)+)\/?$/; 						   			// **/something/else
 const T5 = /^([\w\.-]+(\/[\w\.-]+)*)\/?$/; 						   		// something/else
 
 export type ParsedPattern = (path: string, basename?: string) => boolean;
-export type ParsedExpression = (path: string, basename?: string, siblingsFn?: () => string[]) => string /* the matching pattern */;
+
+// The ParsedExpression returns a Promise iff siblingsFn returns a Promise.
+export type ParsedExpression = (path: string, basename?: string, siblingsFn?: () => string[] | TPromise<string[]>) => string | TPromise<string> /* the matching pattern */;
 
 export interface IGlobOptions {
 	trimForExclusions?: boolean;
 }
 
 interface ParsedStringPattern {
-	(path: string, basename: string): string /* the matching pattern */;
+	(path: string, basename: string): string | TPromise<string> /* the matching pattern */;
 	basenames?: string[];
 	patterns?: string[];
 	allBasenames?: string[];
@@ -233,7 +236,7 @@ interface ParsedStringPattern {
 }
 type SiblingsPattern = { siblings: string[], name: string };
 interface ParsedExpressionPattern {
-	(path: string, basename: string, siblingsPatternFn: () => SiblingsPattern): string /* the matching pattern */;
+	(path: string, basename: string, siblingsPatternFn: () => SiblingsPattern | TPromise<SiblingsPattern>): string | TPromise<string> /* the matching pattern */;
 	requiresSiblings?: boolean;
 	allBasenames?: string[];
 	allPaths?: string[];
@@ -427,6 +430,16 @@ export function parse(arg1: string | IExpression, options: IGlobOptions = {}): a
 	return parsedExpression(<IExpression>arg1, options);
 }
 
+/**
+ * Same as `parse`, but the ParsedExpression is guaranteed to return a Promise
+ */
+export function parseToAsync(expression: IExpression, options?: IGlobOptions): ParsedExpression {
+	const parsedExpression = parse(expression, options);
+	return (path: string, basename?: string, siblingsFn?: () => TPromise<string[]>): TPromise<string> => {
+		return TPromise.as(parsedExpression(path, basename, siblingsFn));
+	};
+}
+
 export function getBasenameTerms(patternOrExpression: ParsedPattern | ParsedExpression): string[] {
 	return (<ParsedStringPattern>patternOrExpression).allBasenames || [];
 }
@@ -475,23 +488,32 @@ function parsedExpression(expression: IExpression, options: IGlobOptions): Parse
 		return resultExpression;
 	}
 
-	const resultExpression: ParsedStringPattern = function (path: string, basename: string, siblingsFn?: () => string[]) {
-		let siblingsPattern: SiblingsPattern;
+	const resultExpression: ParsedStringPattern = function (path: string, basename: string, siblingsFn?: () => string[] | TPromise<string[]>) {
+		let siblingsPattern: SiblingsPattern | TPromise<SiblingsPattern>;
 		let siblingsResolved = !siblingsFn;
+
+		function siblingsToSiblingsPattern(siblings: string[]) {
+			if (siblings && siblings.length) {
+				if (!basename) {
+					basename = paths.basename(path);
+				}
+				const name = basename.substr(0, basename.length - paths.extname(path).length);
+				return { siblings, name };
+			}
+
+			return undefined;
+		}
 
 		function siblingsPatternFn() {
 			// Resolve siblings only once
 			if (!siblingsResolved) {
 				siblingsResolved = true;
 				const siblings = siblingsFn();
-				if (siblings && siblings.length) {
-					if (!basename) {
-						basename = paths.basename(path);
-					}
-					const name = basename.substr(0, basename.length - paths.extname(path).length);
-					siblingsPattern = { siblings, name };
-				}
+				siblingsPattern = TPromise.is(siblings) ?
+					siblings.then(siblingsToSiblingsPattern) :
+					siblingsToSiblingsPattern(siblings);
 			}
+
 			return siblingsPattern;
 		}
 
@@ -538,7 +560,16 @@ function parseExpressionPattern(pattern: string, value: any, options: IGlobOptio
 	if (value) {
 		const when = (<SiblingClause>value).when;
 		if (typeof when === 'string') {
-			const result: ParsedExpressionPattern = function (path: string, basename: string, siblingsPatternFn: () => SiblingsPattern) {
+			const siblingsPatternToMatchingPattern = (siblingsPattern: SiblingsPattern): string => {
+				let clausePattern = when.replace('$(basename)', siblingsPattern.name);
+				if (siblingsPattern.siblings.indexOf(clausePattern) !== -1) {
+					return pattern;
+				} else {
+					return null; // pattern does not match in the end because the when clause is not satisfied
+				}
+			};
+
+			const result: ParsedExpressionPattern = (path: string, basename: string, siblingsPatternFn: () => SiblingsPattern | TPromise<SiblingsPattern>) => {
 				if (!parsedPattern(path, basename)) {
 					return null;
 				}
@@ -548,12 +579,9 @@ function parseExpressionPattern(pattern: string, value: any, options: IGlobOptio
 					return null; // pattern is malformed or we don't have siblings
 				}
 
-				let clausePattern = when.replace('$(basename)', siblingsPattern.name);
-				if (siblingsPattern.siblings.indexOf(clausePattern) !== -1) {
-					return pattern;
-				} else {
-					return null; // pattern does not match in the end because the when clause is not satisfied
-				}
+				return TPromise.is(siblingsPattern) ?
+					siblingsPattern.then(siblingsPatternToMatchingPattern) :
+					siblingsPatternToMatchingPattern(siblingsPattern);
 			};
 			result.requiresSiblings = true;
 			return result;

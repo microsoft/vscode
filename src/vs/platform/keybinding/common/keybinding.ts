@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { Keybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, Keybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ContextKeyExpr, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
+import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import Event from 'vs/base/common/event';
 
 export interface IUserFriendlyKeybinding {
@@ -16,32 +16,6 @@ export interface IUserFriendlyKeybinding {
 	command: string;
 	args?: any;
 	when?: string;
-}
-
-export interface IKeybindings {
-	primary: number;
-	secondary?: number[];
-	win?: {
-		primary: number;
-		secondary?: number[];
-	};
-	linux?: {
-		primary: number;
-		secondary?: number[];
-	};
-	mac?: {
-		primary: number;
-		secondary?: number[];
-	};
-}
-
-export interface IKeybindingItem {
-	keybinding: number;
-	command: string;
-	commandArgs?: any;
-	when: ContextKeyExpr;
-	weight1: number;
-	weight2: number;
 }
 
 export enum KeybindingSource {
@@ -54,6 +28,15 @@ export interface IKeybindingEvent {
 	keybindings?: IUserFriendlyKeybinding[];
 }
 
+export interface IKeyboardEvent {
+	readonly ctrlKey: boolean;
+	readonly shiftKey: boolean;
+	readonly altKey: boolean;
+	readonly metaKey: boolean;
+	readonly keyCode: KeyCode;
+	readonly code: string;
+}
+
 export let IKeybindingService = createDecorator<IKeybindingService>('keybindingService');
 
 export interface IKeybindingService {
@@ -61,14 +44,38 @@ export interface IKeybindingService {
 
 	onDidUpdateKeybindings: Event<IKeybindingEvent>;
 
-	getLabelFor(keybinding: Keybinding): string;
-	getAriaLabelFor(keybinding: Keybinding): string;
-	getHTMLLabelFor(keybinding: Keybinding): IHTMLContentElement[];
-	getElectronAcceleratorFor(keybinding: Keybinding): string;
+	/**
+	 * Returns none, one or many (depending on keyboard layout)!
+	 */
+	resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[];
 
-	getDefaultKeybindings(): string;
-	lookupKeybindings(commandId: string): Keybinding[];
+	resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding;
+
+	resolveUserBinding(userBinding: string): ResolvedKeybinding[];
+
+	/**
+	 * Resolve and dispatch `keyboardEvent`, but do not invoke the command or change inner state.
+	 */
+	softDispatch(keyboardEvent: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult;
+
+	/**
+	 * Look up keybindings for a command.
+	 * Use `lookupKeybinding` if you are interested in the preferred keybinding.
+	 */
+	lookupKeybindings(commandId: string): ResolvedKeybinding[];
+
+	/**
+	 * Look up the preferred (last defined) keybinding for a command.
+	 * @returns The preferred keybinding or null if the command is not bound.
+	 */
+	lookupKeybinding(commandId: string): ResolvedKeybinding;
+
+	getDefaultKeybindingsContent(): string;
+
+	getDefaultKeybindings(): ResolvedKeybindingItem[];
+
+	getKeybindings(): ResolvedKeybindingItem[];
+
 	customKeybindingsCount(): number;
-	resolve(keybinding: Keybinding, target: IContextKeyServiceTarget): IResolveResult;
 }
 

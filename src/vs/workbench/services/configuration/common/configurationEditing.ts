@@ -27,7 +27,7 @@ export enum ConfigurationEditingErrorCode {
 	ERROR_NO_WORKSPACE_OPENED,
 
 	/**
-	 * Error when trying to write to the configuration file while it is dirty in the editor.
+	 * Error when trying to write and save to the configuration file while it is dirty in the editor.
 	 */
 	ERROR_CONFIGURATION_FILE_DIRTY,
 
@@ -62,8 +62,14 @@ export interface IConfigurationValue {
 }
 
 export interface IConfigurationEditingOptions {
-	writeToBuffer: boolean;
-	autoSave: boolean;
+	/**
+	 * If `true`, do not saves the configuration. Default is `false`.
+	 */
+	donotSave?: boolean;
+	/**
+	 * If `true`, do not notifies the error to user by showing the message box. Default is `false`.
+	 */
+	donotNotifyError?: boolean;
 }
 
 export interface IConfigurationEditingService {
@@ -71,8 +77,8 @@ export interface IConfigurationEditingService {
 	_serviceBrand: ServiceIdentifier<any>;
 
 	/**
-	 * Allows to write to either the user or workspace configuration file. The returned promise will be
-	 * in error state in any of the error cases from [ConfigurationEditingErrorCode](#ConfigurationEditingErrorCode)
+	 * Allows to write the configuration value to either the user or workspace configuration file and save it if asked to save.
+	 * The returned promise will be in error state in any of the error cases from [ConfigurationEditingErrorCode](#ConfigurationEditingErrorCode)
 	 */
 	writeConfiguration(target: ConfigurationTarget, value: IConfigurationValue, options?: IConfigurationEditingOptions): TPromise<void>;
 }

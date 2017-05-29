@@ -18,6 +18,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -29,6 +30,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	private resource: URI;
 	private _hasAssociatedFilePath: boolean;
+	private initialValue: string;
 	private modeId: string;
 	private cachedModel: UntitledEditorModel;
 	private modelResolve: TPromise<UntitledEditorModel>;
@@ -42,13 +44,16 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		resource: URI,
 		hasAssociatedFilePath: boolean,
 		modeId: string,
+		initialValue: string,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ITextFileService private textFileService: ITextFileService
+		@ITextFileService private textFileService: ITextFileService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super();
 
 		this.resource = resource;
+		this.initialValue = initialValue;
 		this._hasAssociatedFilePath = hasAssociatedFilePath;
 		this.modeId = modeId;
 		this.toUnbind = [];
@@ -89,7 +94,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	}
 
 	public getDescription(): string {
-		return this.hasAssociatedFilePath ? labels.getPathLabel(paths.dirname(this.resource.fsPath), this.contextService) : null;
+		return this.hasAssociatedFilePath ? labels.getPathLabel(paths.dirname(this.resource.fsPath), this.contextService, this.environmentService) : null;
 	}
 
 	public isDirty(): boolean {
@@ -166,7 +171,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	}
 
 	private createModel(): UntitledEditorModel {
-		const model = this.instantiationService.createInstance(UntitledEditorModel, this.modeId, this.resource, this.hasAssociatedFilePath);
+		const model = this.instantiationService.createInstance(UntitledEditorModel, this.modeId, this.resource, this.hasAssociatedFilePath, this.initialValue);
 
 		// re-emit some events from the model
 		this.toUnbind.push(model.onDidChangeContent(() => this._onDidModelChangeContent.fire()));
@@ -176,7 +181,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return model;
 	}
 
-	public getTelemetryDescriptor(): { [key: string]: any; } {
+	public getTelemetryDescriptor(): object {
 		const descriptor = super.getTelemetryDescriptor();
 		descriptor['resource'] = telemetryURIDescriptor(this.getResource());
 

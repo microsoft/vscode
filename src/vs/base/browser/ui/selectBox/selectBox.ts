@@ -10,6 +10,20 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { Widget } from 'vs/base/browser/ui/widget';
 import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
+import { Color } from 'vs/base/common/color';
+import { clone } from 'vs/base/common/objects';
+
+export interface ISelectBoxStyles {
+	selectBackground?: Color;
+	selectForeground?: Color;
+	selectBorder?: Color;
+}
+
+const defaultStyles = {
+	selectBackground: Color.fromHex('#3C3C3C'),
+	selectForeground: Color.fromHex('#F0F0F0'),
+	selectBorder: Color.fromHex('#3C3C3C')
+};
 
 export class SelectBox extends Widget {
 
@@ -19,8 +33,11 @@ export class SelectBox extends Widget {
 	private container: HTMLElement;
 	private _onDidSelect: Emitter<string>;
 	private toDispose: IDisposable[];
+	private selectBackground: Color;
+	private selectForeground: Color;
+	private selectBorder: Color;
 
-	constructor(options: string[], selected: number) {
+	constructor(options: string[], selected: number, styles: ISelectBoxStyles = clone(defaultStyles)) {
 		super();
 
 		this.selectElement = document.createElement('select');
@@ -29,6 +46,10 @@ export class SelectBox extends Widget {
 		this.setOptions(options, selected);
 		this.toDispose = [];
 		this._onDidSelect = new Emitter<string>();
+
+		this.selectBackground = styles.selectBackground;
+		this.selectForeground = styles.selectForeground;
+		this.selectBorder = styles.selectBorder;
 
 		this.toDispose.push(dom.addStandardDisposableListener(this.selectElement, 'change', (e) => {
 			this.selectElement.title = e.target.value;
@@ -81,6 +102,28 @@ export class SelectBox extends Widget {
 		dom.addClass(container, 'select-container');
 		container.appendChild(this.selectElement);
 		this.setOptions(this.options, this.selected);
+
+		this.applyStyles();
+	}
+
+	public style(styles: ISelectBoxStyles): void {
+		this.selectBackground = styles.selectBackground;
+		this.selectForeground = styles.selectForeground;
+		this.selectBorder = styles.selectBorder;
+
+		this.applyStyles();
+	}
+
+	protected applyStyles(): void {
+		if (this.selectElement) {
+			const background = this.selectBackground ? this.selectBackground.toString() : null;
+			const foreground = this.selectForeground ? this.selectForeground.toString() : null;
+			const border = this.selectBorder ? this.selectBorder.toString() : null;
+
+			this.selectElement.style.backgroundColor = background;
+			this.selectElement.style.color = foreground;
+			this.selectElement.style.borderColor = border;
+		}
 	}
 
 	private createOption(value: string, disabled?: boolean): HTMLOptionElement {

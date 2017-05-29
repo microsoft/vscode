@@ -13,16 +13,15 @@ import * as objects from 'vs/base/common/objects';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import URI from 'vs/base/common/uri';
 import { IIconLabelOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { IRange } from 'vs/editor/common/editorCommon';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/workbench/browser/labels';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler, EditorQuickOpenEntry } from 'vs/workbench/browser/quickopen';
 import { QueryBuilder } from 'vs/workbench/parts/search/common/searchQuery';
-import { EditorInput, getOutOfWorkspaceEditorResources, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -30,6 +29,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IQueryOptions, ISearchService, ISearchStats, ISearchQuery } from 'vs/platform/search/common/search';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IRange } from 'vs/editor/common/core/range';
+import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
 
 export class FileQuickOpenModel extends QuickOpenModel {
 
@@ -117,9 +119,10 @@ export class OpenFileHandler extends QuickOpenHandler {
 	constructor(
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService,
+		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ISearchService private searchService: ISearchService
+		@ISearchService private searchService: ISearchService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super();
 
@@ -166,7 +169,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 				const fileMatch = complete.results[i];
 
 				const label = paths.basename(fileMatch.resource.fsPath);
-				const description = labels.getPathLabel(paths.dirname(fileMatch.resource.fsPath), this.contextService);
+				const description = labels.getPathLabel(paths.dirname(fileMatch.resource.fsPath), this.contextService, this.environmentService);
 
 				results.push(this.instantiationService.createInstance(FileEntry, fileMatch.resource, label, description, iconClass));
 			}

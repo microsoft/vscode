@@ -6,6 +6,8 @@
 'use strict';
 
 import { Event } from 'vscode';
+import { dirname } from 'path';
+import * as fs from 'fs';
 
 export function log(...args: any[]): void {
 	console.log.apply(console, ['git:', ...args]);
@@ -39,11 +41,19 @@ export function filterEvent<T>(event: Event<T>, filter: (e: T) => boolean): Even
 }
 
 export function anyEvent<T>(...events: Event<T>[]): Event<T> {
-	return (listener, thisArgs = null, disposables?) => combinedDisposable(events.map(event => event(i => listener.call(thisArgs, i), disposables)));
+	return (listener, thisArgs = null, disposables?) => {
+		const result = combinedDisposable(events.map(event => event(i => listener.call(thisArgs, i))));
+
+		if (disposables) {
+			disposables.push(result);
+		}
+
+		return result;
+	};
 }
 
 export function done<T>(promise: Promise<T>): Promise<void> {
-	return promise.then<void>(() => void 0, () => void 0);
+	return promise.then<void>(() => void 0);
 }
 
 export function once<T>(event: Event<T>): Event<T> {
@@ -58,7 +68,7 @@ export function once<T>(event: Event<T>): Event<T> {
 }
 
 export function eventToPromise<T>(event: Event<T>): Promise<T> {
-	return new Promise(c => once(event)(c));
+	return new Promise<T>(c => once(event)(c));
 }
 
 // TODO@Joao: replace with Object.assign
@@ -94,5 +104,62 @@ export function groupBy<T>(arr: T[], fn: (el: T) => string): { [key: string]: T[
 }
 
 export function denodeify<R>(fn: Function): (...args) => Promise<R> {
-	return (...args) => new Promise((c, e) => fn(...args, (err, r) => err ? e(err) : c(r)));
+	return (...args) => new Promise<R>((c, e) => fn(...args, (err, r) => err ? e(err) : c(r)));
+}
+
+export function nfcall<R>(fn: Function, ...args): Promise<R> {
+	return new Promise<R>((c, e) => fn(...args, (err, r) => err ? e(err) : c(r)));
+}
+
+export async function mkdirp(path: string, mode?: number): Promise<boolean> {
+	const mkdir = async () => {
+		try {
+			await nfcall(fs.mkdir, path, mode);
+		} catch (err) {
+			if (err.code === 'EEXIST') {
+				const stat = await nfcall<fs.Stats>(fs.stat, path);
+
+				if (stat.isDirectory) {
+					return;
+				}
+
+				throw new Error(`'${path}' exists and is not a directory.`);
+			}
+
+			throw err;
+		}
+	};
+
+	// is root?
+	if (path === dirname(path)) {
+		return true;
+	}
+
+	try {
+		await mkdir();
+	} catch (err) {
+		if (err.code !== 'ENOENT') {
+			throw err;
+		}
+
+		await mkdirp(dirname(path), mode);
+		await mkdir();
+	}
+
+	return true;
+}
+
+export function uniqueFilter<T>(keyFn: (t: T) => string): (t: T) => boolean {
+	const seen: { [key: string]: boolean; } = Object.create(null);
+
+	return element => {
+		const key = keyFn(element);
+
+		if (seen[key]) {
+			return false;
+		}
+
+		seen[key] = true;
+		return true;
+	};
 }

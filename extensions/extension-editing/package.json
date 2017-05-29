@@ -35,6 +35,10 @@
 			{
 				"fileMatch": "*icon-theme.json",
 				"url": "vscode://schemas/icon-theme"
+			},
+			{
+				"fileMatch": "*color-theme.json",
+				"url": "vscode://schemas/color-theme"
 			}
 		]
 	},

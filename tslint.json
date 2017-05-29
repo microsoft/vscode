@@ -1,4 +1,7 @@
 {
+	"rulesDirectory": [
+		"build/lib/tslint"
+	],
 	"rules": {
 		"no-unused-expression": true,
 		"no-duplicate-variable": true,
@@ -56,6 +59,15 @@
 				"restrictions": "**/vs/**"
 			}
 		],
-		"duplicate-imports": true
+		"duplicate-imports": true,
+		"allow-async": [
+			true,
+			[
+				"node",
+				"electron-main",
+				"electron-browser",
+				"extensions"
+			]
+		]
 	}
 }

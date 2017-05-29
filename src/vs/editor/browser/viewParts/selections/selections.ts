@@ -6,9 +6,11 @@
 'use strict';
 
 import 'vs/css!./selections';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorSelection, editorInactiveSelection, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { HorizontalRange, LineVisibleRanges, IRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { HorizontalRange, LineVisibleRanges, RenderingContext } from 'vs/editor/common/view/renderingContext';
 import { Range } from 'vs/editor/common/core/range';
 import * as browser from 'vs/base/browser/browser';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
@@ -94,6 +96,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		this._context = null;
 		this._selections = null;
 		this._renderResult = null;
+		super.dispose();
 	}
 
 	// --- begin event handlers
@@ -102,17 +105,13 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
-		if (e.viewInfo.roundedSelection) {
+		if (e.viewInfo) {
 			this._roundedSelection = this._context.configuration.editor.viewInfo.roundedSelection;
 		}
 		return true;
 	}
-	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
-		return false;
-	}
-	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
-		this._selections = [e.selection];
-		this._selections = this._selections.concat(e.secondarySelections);
+	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+		this._selections = e.selections.slice(0);
 		return true;
 	}
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
@@ -122,7 +121,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		return true;
 	}
-	public onLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
+	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
 		return true;
 	}
 	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
@@ -130,9 +129,6 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 	}
 	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return true;
-	}
-	public onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
-		return false;
 	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return e.scrollTopChanged;
@@ -250,7 +246,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		}
 	}
 
-	private _getVisibleRangesWithStyle(selection: Range, ctx: IRenderingContext, previousFrame: LineVisibleRangesWithStyle[]): LineVisibleRangesWithStyle[] {
+	private _getVisibleRangesWithStyle(selection: Range, ctx: RenderingContext, previousFrame: LineVisibleRangesWithStyle[]): LineVisibleRangesWithStyle[] {
 		let _linesVisibleRanges = ctx.linesVisibleRangesForRange(selection, true) || [];
 		let linesVisibleRanges = _linesVisibleRanges.map(toStyled);
 		let visibleRangesHaveGaps = this._visibleRangesHaveGaps(linesVisibleRanges);
@@ -358,7 +354,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 	}
 
 	private _previousFrameVisibleRangesWithStyle: LineVisibleRangesWithStyle[][] = [];
-	public prepareRender(ctx: IRenderingContext): void {
+	public prepareRender(ctx: RenderingContext): void {
 
 		let output: string[] = [];
 		let visibleStartLineNumber = ctx.visibleRange.startLineNumber;
@@ -396,3 +392,20 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		return this._renderResult[lineIndex];
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let editorSelectionColor = theme.getColor(editorSelection);
+	if (editorSelectionColor) {
+		collector.addRule(`.monaco-editor .focused .selected-text { background-color: ${editorSelectionColor}; }`);
+	}
+	let editorInactiveSelectionColor = theme.getColor(editorInactiveSelection);
+	if (editorInactiveSelectionColor) {
+		collector.addRule(`.monaco-editor .selected-text { background-color: ${editorInactiveSelectionColor}; }`);
+	}
+	// IE/Edge specific rules
+	let outline = theme.getColor(activeContrastBorder);
+	if (outline) {
+		collector.addRule(`.monaco-editor.ie.hc-black .view-overlays.focused	.selected-text { background: none; border: 2px solid ${outline}; }`);
+		collector.addRule(`.monaco-editor.edge.hc-black	.view-overlays.focused	.selected-text { background: none; border: 2px solid ${outline}; }`);
+	}
+});

@@ -23,6 +23,12 @@ export class HistoryNavigator<T> implements INavigator<T> {
 		this._onChange();
 	}
 
+	public addIfNotPresent(t: T) {
+		if (!this._history.contains(t)) {
+			this.add(t);
+		}
+	}
+
 	public next(): T {
 		if (this._navigator.next()) {
 			return this._navigator.current();
@@ -67,4 +73,5 @@ export class HistoryNavigator<T> implements INavigator<T> {
 			this._history = new ArraySet<T>(data.slice(data.length - this._limit));
 		}
 	}
+
 }

@@ -26,26 +26,6 @@
 	cursor: pointer;
 }
 
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-label a,
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .tab-label a {
-	color: rgba(51, 51, 51, 0.5);
-}
-
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .title-label a,
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .tabs-container > .tab .tab-label a {
-	color: #333333;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-label a,
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .tab-label a {
-	color: rgba(255, 255, 255, 0.5);
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .title-label a,
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .tabs-container > .tab .tab-label a {
-	color: white;
-}
-
 /* Title Actions */
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-actions .action-label,
@@ -70,21 +50,21 @@
 }
 
 /* Drag Cursor */
-.monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo > .container > .title,
-.monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo > .container > .title.tabs .scrollbar .slider,
-.monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo > .container > .title .monaco-icon-label::before,
-.monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo > .container > .title .title-label a,
-.monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo > .container > .title .title-label span {
+.monaco-workbench > .part.editor > .content.multiple-groups > .one-editor-silo > .container > .title,
+.monaco-workbench > .part.editor > .content.multiple-groups > .one-editor-silo > .container > .title.tabs .scrollbar .slider,
+.monaco-workbench > .part.editor > .content.multiple-groups > .one-editor-silo > .container > .title .monaco-icon-label::before,
+.monaco-workbench > .part.editor > .content.multiple-groups > .one-editor-silo > .container > .title .title-label a,
+.monaco-workbench > .part.editor > .content.multiple-groups > .one-editor-silo > .container > .title .title-label span {
 	cursor: -webkit-grab;
 }
 
 #monaco-workbench-editor-move-overlay,
-.monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo.drag,
-.monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo.drag > .container > .title,
-.monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo.drag > .container > .title.tabs .scrollbar .slider,
-.monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo.drag > .container > .title .monaco-icon-label::before,
-.monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo.drag > .container > .title .title-label a,
-.monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo.drag > .container > .title .title-label span {
+.monaco-workbench > .part.editor > .content.multiple-groups > .one-editor-silo.drag,
+.monaco-workbench > .part.editor > .content.multiple-groups > .one-editor-silo.drag > .container > .title,
+.monaco-workbench > .part.editor > .content.multiple-groups > .one-editor-silo.drag > .container > .title.tabs .scrollbar .slider,
+.monaco-workbench > .part.editor > .content.multiple-groups > .one-editor-silo.drag > .container > .title .monaco-icon-label::before,
+.monaco-workbench > .part.editor > .content.multiple-groups > .one-editor-silo.drag > .container > .title .title-label a,
+.monaco-workbench > .part.editor > .content.multiple-groups > .one-editor-silo.drag > .container > .title .title-label span {
 	cursor: -webkit-grabbing;
 }
 

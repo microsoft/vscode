@@ -7,6 +7,8 @@
 import * as assert from 'assert';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
+import { IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
+import { AccessibilitySupport } from 'vs/base/common/platform';
 
 suite('Common Editor Config', () => {
 	test('Zoom Level', () => {
@@ -52,8 +54,17 @@ suite('Common Editor Config', () => {
 	});
 
 	class TestWrappingConfiguration extends TestConfiguration {
-		protected getOuterWidth(): number {
-			return 1000;
+		protected _getEnvConfiguration(): IEnvConfiguration {
+			return {
+				extraEditorClassName: '',
+				outerWidth: 1000,
+				outerHeight: 100,
+				canUseTranslate3d: true,
+				emptySelectionClipboard: true,
+				pixelRatio: 1,
+				zoomLevel: 0,
+				accessibilitySupport: AccessibilitySupport.Unknown
+			};
 		}
 	}
 
@@ -78,12 +89,22 @@ suite('Common Editor Config', () => {
 		let config = new TestWrappingConfiguration({
 			wordWrap: <any>true
 		});
-		assertWrapping(config, true, 89);
+		assertWrapping(config, true, 81);
 	});
 
 	test('wordWrap on', () => {
 		let config = new TestWrappingConfiguration({
 			wordWrap: 'on'
+		});
+		assertWrapping(config, true, 81);
+	});
+
+	test('wordWrap on without minimap', () => {
+		let config = new TestWrappingConfiguration({
+			wordWrap: 'on',
+			minimap: {
+				enabled: false
+			}
 		});
 		assertWrapping(config, true, 89);
 	});
@@ -93,7 +114,7 @@ suite('Common Editor Config', () => {
 			wordWrap: 'on',
 			wordWrapColumn: 10
 		});
-		assertWrapping(config, true, 89);
+		assertWrapping(config, true, 81);
 	});
 
 	test('wordWrap off', () => {
@@ -111,47 +132,47 @@ suite('Common Editor Config', () => {
 		assertWrapping(config, false, -1);
 	});
 
-	test('wordWrap fixed uses default wordWrapColumn', () => {
+	test('wordWrap wordWrapColumn uses default wordWrapColumn', () => {
 		let config = new TestWrappingConfiguration({
-			wordWrap: 'fixed'
+			wordWrap: 'wordWrapColumn'
 		});
 		assertWrapping(config, false, 80);
 	});
 
-	test('wordWrap fixed uses wordWrapColumn', () => {
+	test('wordWrap wordWrapColumn uses wordWrapColumn', () => {
 		let config = new TestWrappingConfiguration({
-			wordWrap: 'fixed',
+			wordWrap: 'wordWrapColumn',
 			wordWrapColumn: 100
 		});
 		assertWrapping(config, false, 100);
 	});
 
-	test('wordWrap fixed validates wordWrapColumn', () => {
+	test('wordWrap wordWrapColumn validates wordWrapColumn', () => {
 		let config = new TestWrappingConfiguration({
-			wordWrap: 'fixed',
+			wordWrap: 'wordWrapColumn',
 			wordWrapColumn: -1
 		});
 		assertWrapping(config, false, 1);
 	});
 
-	test('wordWrap clamped uses default wordWrapColumn', () => {
+	test('wordWrap bounded uses default wordWrapColumn', () => {
 		let config = new TestWrappingConfiguration({
-			wordWrap: 'clamped'
+			wordWrap: 'bounded'
 		});
 		assertWrapping(config, true, 80);
 	});
 
-	test('wordWrap clamped uses wordWrapColumn', () => {
+	test('wordWrap bounded uses wordWrapColumn', () => {
 		let config = new TestWrappingConfiguration({
-			wordWrap: 'clamped',
+			wordWrap: 'bounded',
 			wordWrapColumn: 40
 		});
 		assertWrapping(config, true, 40);
 	});
 
-	test('wordWrap clamped validates wordWrapColumn', () => {
+	test('wordWrap bounded validates wordWrapColumn', () => {
 		let config = new TestWrappingConfiguration({
-			wordWrap: 'clamped',
+			wordWrap: 'bounded',
 			wordWrapColumn: -1
 		});
 		assertWrapping(config, true, 1);

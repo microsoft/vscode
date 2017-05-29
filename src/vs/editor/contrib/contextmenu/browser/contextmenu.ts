@@ -6,7 +6,7 @@
 
 import * as nls from 'vs/nls';
 import { IAction } from 'vs/base/common/actions';
-import { Keybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
@@ -16,9 +16,10 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { ICommonCodeEditor, IEditorContribution, MouseTargetType, EditorContextKeys, IScrollEvent } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IEditorContribution, IScrollEvent } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
-import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 
 export interface IPosition {
@@ -126,7 +127,7 @@ export class ContextMenuController implements IEditorContribution {
 		const result: IAction[] = [];
 
 		let contextMenu = this._menuService.createMenu(MenuId.EditorContext, this._contextKeyService);
-		const groups = contextMenu.getActions(this._editor.getModel().uri);
+		const groups = contextMenu.getActions({ arg: this._editor.getModel().uri });
 		contextMenu.dispose();
 
 		for (let group of groups) {
@@ -174,7 +175,7 @@ export class ContextMenuController implements IEditorContribution {
 			getActionItem: (action) => {
 				var keybinding = this._keybindingFor(action);
 				if (keybinding) {
-					return new ActionItem(action, action, { label: true, keybinding: this._keybindingService.getLabelFor(keybinding) });
+					return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel() });
 				}
 
 				var customActionItem = <any>action;
@@ -185,7 +186,7 @@ export class ContextMenuController implements IEditorContribution {
 				return null;
 			},
 
-			getKeyBinding: (action): Keybinding => {
+			getKeyBinding: (action): ResolvedKeybinding => {
 				return this._keybindingFor(action);
 			},
 
@@ -199,9 +200,8 @@ export class ContextMenuController implements IEditorContribution {
 		});
 	}
 
-	private _keybindingFor(action: IAction): Keybinding {
-		var [kb] = this._keybindingService.lookupKeybindings(action.id);
-		return kb;
+	private _keybindingFor(action: IAction): ResolvedKeybinding {
+		return this._keybindingService.lookupKeybinding(action.id);
 	}
 
 	public getId(): string {
@@ -227,7 +227,7 @@ class ShowContextMenu extends EditorAction {
 			alias: 'Show Editor Context Menu',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.Shift | KeyCode.F10
 			}
 		});

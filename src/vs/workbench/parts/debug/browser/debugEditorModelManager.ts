@@ -9,10 +9,11 @@ import * as objects from 'vs/base/common/objects';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { Constants } from 'vs/editor/common/core/uint';
 import { Range } from 'vs/editor/common/core/range';
-import { IModel, TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationsChangedEvent, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
+import { IModel, TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDebugService, IBreakpoint, IRawBreakpoint, State } from 'vs/workbench/parts/debug/common/debug';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelEvents';
 
 interface IDebugEditorModelData {
 	model: IModel;
@@ -22,7 +23,7 @@ interface IDebugEditorModelData {
 	breakpointDecorationsAsMap: Map<string, boolean>;
 	currentStackDecorations: string[];
 	dirty: boolean;
-	topStackFrameLine: number;
+	topStackFrameRange: Range;
 }
 
 const stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
@@ -64,11 +65,11 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
 		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => this.onFocusStackFrame()));
-		this.toDispose.push(this.debugService.onDidChangeState(() => {
-			if (this.debugService.state === State.Inactive) {
+		this.toDispose.push(this.debugService.onDidChangeState(state => {
+			if (state === State.Inactive) {
 				this.modelDataMap.forEach(modelData => {
 					modelData.dirty = false;
-					modelData.topStackFrameLine = undefined;
+					modelData.topStackFrameRange = undefined;
 				});
 			}
 		}));
@@ -93,7 +94,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			breakpointDecorationsAsMap,
 			currentStackDecorations: currentStackDecorations,
 			dirty: false,
-			topStackFrameLine: undefined
+			topStackFrameRange: undefined
 		});
 	}
 
@@ -121,8 +122,8 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		}
 
 		// only show decorations for the currently focussed thread.
-		const wholeLineRange = new Range(stackFrame.lineNumber, stackFrame.column, stackFrame.lineNumber, Constants.MAX_SAFE_SMALL_INTEGER);
-		const range = new Range(stackFrame.lineNumber, stackFrame.column, stackFrame.lineNumber, stackFrame.column + 1);
+		const columnUntilEOLRange = new Range(stackFrame.range.startLineNumber, stackFrame.range.startColumn, stackFrame.range.startLineNumber, Constants.MAX_SAFE_SMALL_INTEGER);
+		const range = new Range(stackFrame.range.startLineNumber, stackFrame.range.startColumn, stackFrame.range.startLineNumber, stackFrame.range.startColumn + 1);
 
 		// compute how to decorate the editor. Different decorations are used if this is a top stack frame, focussed stack frame,
 		// an exception or a stack frame that did not change the line number (we only decorate the columns, not the whole line).
@@ -136,23 +137,29 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			if (stackFrame.thread.stoppedDetails && stackFrame.thread.stoppedDetails.reason === 'exception') {
 				result.push({
 					options: DebugEditorModelManager.TOP_STACK_FRAME_EXCEPTION_DECORATION,
-					range: wholeLineRange
+					range: columnUntilEOLRange
 				});
 			} else {
 				result.push({
 					options: DebugEditorModelManager.TOP_STACK_FRAME_DECORATION,
-					range: wholeLineRange
+					range: columnUntilEOLRange
 				});
+				if (stackFrame.range.endLineNumber && stackFrame.range.endColumn) {
+					result.push({
+						options: { className: 'debug-top-stack-frame-range' },
+						range: stackFrame.range
+					});
+				}
 
 				if (this.modelDataMap.has(modelUriStr)) {
 					const modelData = this.modelDataMap.get(modelUriStr);
-					if (modelData.topStackFrameLine === stackFrame.lineNumber) {
+					if (modelData.topStackFrameRange && modelData.topStackFrameRange.startLineNumber === stackFrame.range.startLineNumber && modelData.topStackFrameRange.startColumn !== stackFrame.range.startColumn) {
 						result.push({
 							options: DebugEditorModelManager.TOP_STACK_FRAME_INLINE_DECORATION,
-							range: wholeLineRange
+							range: columnUntilEOLRange
 						});
 					}
-					modelData.topStackFrameLine = stackFrame.lineNumber;
+					modelData.topStackFrameRange = columnUntilEOLRange;
 				}
 			}
 		} else {
@@ -160,10 +167,16 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 				options: DebugEditorModelManager.FOCUSED_STACK_FRAME_MARGIN,
 				range
 			});
+			if (stackFrame.range.endLineNumber && stackFrame.range.endColumn) {
+				result.push({
+					options: { className: 'debug-focused-stack-frame-range' },
+					range: stackFrame.range
+				});
+			}
 
 			result.push({
 				options: DebugEditorModelManager.FOCUSED_STACK_FRAME_DECORATION,
-				range: wholeLineRange
+				range: columnUntilEOLRange
 			});
 		}
 
@@ -202,7 +215,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 					enabled: breakpoint.enabled,
 					condition: breakpoint.condition,
 					hitCondition: breakpoint.hitCondition,
-					column: breakpoint.column
+					column: breakpoint.column ? decorationRange.startColumn : undefined
 				});
 			}
 		}

@@ -124,7 +124,7 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 				return false;
 			}
 
-			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(e, searchValue, true /* fuzzy highlight */);
+			const { labelHighlights, descriptionHighlights } = QuickOpenEntry.highlight(e, searchValue, true /* fuzzy highlight */);
 			e.setHighlights(labelHighlights, descriptionHighlights);
 
 			return true;
@@ -198,7 +198,13 @@ export abstract class EditorGroupPicker extends BaseEditorPicker {
 			return super.getAutoFocus(searchValue);
 		}
 
-		const isShiftNavigate = (quickNavigateConfiguration && quickNavigateConfiguration.keybindings.some(k => k.hasShift()));
+		const isShiftNavigate = (quickNavigateConfiguration && quickNavigateConfiguration.keybindings.some(k => {
+			const [firstPart, chordPart] = k.getParts();
+			if (chordPart) {
+				return false;
+			}
+			return firstPart.shiftKey;
+		}));
 		if (isShiftNavigate) {
 			return {
 				autoFocusLastEntry: true

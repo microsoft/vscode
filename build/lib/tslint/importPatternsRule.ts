@@ -12,7 +12,6 @@ interface ImportPatternsConfig {
 	restrictions: string;
 }
 
-
 export class Rule extends Lint.Rules.AbstractRule {
 	public apply(sourceFile: ts.SourceFile): Lint.RuleFailure[] {
 

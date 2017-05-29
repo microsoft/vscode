@@ -23,7 +23,7 @@ const _linkProvider = new class implements vscode.DocumentLinkProvider {
 	private _linkPattern = /[^!]\[.*?\]\(#(.*?)\)/g;
 
 	provideDocumentLinks(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.DocumentLink[] {
-		const {version} = document;
+		const { version } = document;
 		if (!this._cachedResult || this._cachedResult.version !== version) {
 			const links = this._computeDocumentLinks(document);
 			this._cachedResult = { version, links };
@@ -74,7 +74,7 @@ namespace ast {
 		const spans: number[] = [];
 
 		ts.forEachChild(sourceFile, function visit(node: ts.Node) {
-			const declIdent = (<ts.Declaration>node).name;
+			const declIdent = (<ts.NamedDeclaration>node).name;
 			if (declIdent && declIdent.kind === ts.SyntaxKind.Identifier) {
 				identifiers.push((<ts.Identifier>declIdent).text);
 				spans.push(node.pos, node.end);

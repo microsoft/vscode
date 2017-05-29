@@ -370,101 +370,115 @@ suite('Editor ViewLayout - LinesLayout', () => {
 		var viewportData = linesLayout.getLinesViewportData(0, 50);
 		assert.equal(viewportData.startLineNumber, 1);
 		assert.equal(viewportData.endLineNumber, 5);
+		assert.equal(viewportData.completelyVisibleStartLineNumber, 1);
+		assert.equal(viewportData.completelyVisibleEndLineNumber, 5);
 		assert.deepEqual(viewportData.relativeVerticalOffset, [0, 10, 20, 30, 40]);
-		assert.equal(viewportData.visibleRangesDeltaTop, 0);
 
 		// viewport 1->51
 		viewportData = linesLayout.getLinesViewportData(1, 51);
 		assert.equal(viewportData.startLineNumber, 1);
 		assert.equal(viewportData.endLineNumber, 6);
+		assert.equal(viewportData.completelyVisibleStartLineNumber, 2);
+		assert.equal(viewportData.completelyVisibleEndLineNumber, 5);
 		assert.deepEqual(viewportData.relativeVerticalOffset, [0, 10, 20, 30, 40, 50]);
-		assert.equal(viewportData.visibleRangesDeltaTop, -1);
 
 		// viewport 5->55
 		viewportData = linesLayout.getLinesViewportData(5, 55);
 		assert.equal(viewportData.startLineNumber, 1);
 		assert.equal(viewportData.endLineNumber, 6);
+		assert.equal(viewportData.completelyVisibleStartLineNumber, 2);
+		assert.equal(viewportData.completelyVisibleEndLineNumber, 5);
 		assert.deepEqual(viewportData.relativeVerticalOffset, [0, 10, 20, 30, 40, 50]);
-		assert.equal(viewportData.visibleRangesDeltaTop, -5);
 
 		// viewport 10->60
 		viewportData = linesLayout.getLinesViewportData(10, 60);
 		assert.equal(viewportData.startLineNumber, 2);
 		assert.equal(viewportData.endLineNumber, 6);
+		assert.equal(viewportData.completelyVisibleStartLineNumber, 2);
+		assert.equal(viewportData.completelyVisibleEndLineNumber, 6);
 		assert.deepEqual(viewportData.relativeVerticalOffset, [10, 20, 30, 40, 50]);
-		assert.equal(viewportData.visibleRangesDeltaTop, -10);
 
 		// viewport 50->100
 		viewportData = linesLayout.getLinesViewportData(50, 100);
 		assert.equal(viewportData.startLineNumber, 6);
 		assert.equal(viewportData.endLineNumber, 6);
+		assert.equal(viewportData.completelyVisibleStartLineNumber, 6);
+		assert.equal(viewportData.completelyVisibleEndLineNumber, 6);
 		assert.deepEqual(viewportData.relativeVerticalOffset, [50]);
-		assert.equal(viewportData.visibleRangesDeltaTop, -50);
 
 		// viewport 60->110
 		viewportData = linesLayout.getLinesViewportData(60, 110);
 		assert.equal(viewportData.startLineNumber, 7);
 		assert.equal(viewportData.endLineNumber, 7);
+		assert.equal(viewportData.completelyVisibleStartLineNumber, 7);
+		assert.equal(viewportData.completelyVisibleEndLineNumber, 7);
 		assert.deepEqual(viewportData.relativeVerticalOffset, [160]);
-		assert.equal(viewportData.visibleRangesDeltaTop, -60);
 
 		// viewport 65->115
 		viewportData = linesLayout.getLinesViewportData(65, 115);
 		assert.equal(viewportData.startLineNumber, 7);
 		assert.equal(viewportData.endLineNumber, 7);
+		assert.equal(viewportData.completelyVisibleStartLineNumber, 7);
+		assert.equal(viewportData.completelyVisibleEndLineNumber, 7);
 		assert.deepEqual(viewportData.relativeVerticalOffset, [160]);
-		assert.equal(viewportData.visibleRangesDeltaTop, -65);
 
 		// viewport 50->159
 		viewportData = linesLayout.getLinesViewportData(50, 159);
 		assert.equal(viewportData.startLineNumber, 6);
 		assert.equal(viewportData.endLineNumber, 6);
+		assert.equal(viewportData.completelyVisibleStartLineNumber, 6);
+		assert.equal(viewportData.completelyVisibleEndLineNumber, 6);
 		assert.deepEqual(viewportData.relativeVerticalOffset, [50]);
-		assert.equal(viewportData.visibleRangesDeltaTop, -50);
 
 		// viewport 50->160
 		viewportData = linesLayout.getLinesViewportData(50, 160);
 		assert.equal(viewportData.startLineNumber, 6);
 		assert.equal(viewportData.endLineNumber, 6);
+		assert.equal(viewportData.completelyVisibleStartLineNumber, 6);
+		assert.equal(viewportData.completelyVisibleEndLineNumber, 6);
 		assert.deepEqual(viewportData.relativeVerticalOffset, [50]);
-		assert.equal(viewportData.visibleRangesDeltaTop, -50);
 
 		// viewport 51->161
 		viewportData = linesLayout.getLinesViewportData(51, 161);
 		assert.equal(viewportData.startLineNumber, 6);
 		assert.equal(viewportData.endLineNumber, 7);
+		assert.equal(viewportData.completelyVisibleStartLineNumber, 7);
+		assert.equal(viewportData.completelyVisibleEndLineNumber, 7);
 		assert.deepEqual(viewportData.relativeVerticalOffset, [50, 160]);
-		assert.equal(viewportData.visibleRangesDeltaTop, -51);
 
 
 		// viewport 150->169
 		viewportData = linesLayout.getLinesViewportData(150, 169);
 		assert.equal(viewportData.startLineNumber, 7);
 		assert.equal(viewportData.endLineNumber, 7);
+		assert.equal(viewportData.completelyVisibleStartLineNumber, 7);
+		assert.equal(viewportData.completelyVisibleEndLineNumber, 7);
 		assert.deepEqual(viewportData.relativeVerticalOffset, [160]);
-		assert.equal(viewportData.visibleRangesDeltaTop, -150);
 
 		// viewport 159->169
 		viewportData = linesLayout.getLinesViewportData(159, 169);
 		assert.equal(viewportData.startLineNumber, 7);
 		assert.equal(viewportData.endLineNumber, 7);
+		assert.equal(viewportData.completelyVisibleStartLineNumber, 7);
+		assert.equal(viewportData.completelyVisibleEndLineNumber, 7);
 		assert.deepEqual(viewportData.relativeVerticalOffset, [160]);
-		assert.equal(viewportData.visibleRangesDeltaTop, -159);
 
 		// viewport 160->169
 		viewportData = linesLayout.getLinesViewportData(160, 169);
 		assert.equal(viewportData.startLineNumber, 7);
 		assert.equal(viewportData.endLineNumber, 7);
+		assert.equal(viewportData.completelyVisibleStartLineNumber, 7);
+		assert.equal(viewportData.completelyVisibleEndLineNumber, 7);
 		assert.deepEqual(viewportData.relativeVerticalOffset, [160]);
-		assert.equal(viewportData.visibleRangesDeltaTop, -160);
 
 
 		// viewport 160->1000
 		viewportData = linesLayout.getLinesViewportData(160, 1000);
 		assert.equal(viewportData.startLineNumber, 7);
 		assert.equal(viewportData.endLineNumber, 10);
+		assert.equal(viewportData.completelyVisibleStartLineNumber, 7);
+		assert.equal(viewportData.completelyVisibleEndLineNumber, 10);
 		assert.deepEqual(viewportData.relativeVerticalOffset, [160, 170, 180, 190]);
-		assert.equal(viewportData.visibleRangesDeltaTop, -160);
 	});
 
 
@@ -491,8 +505,9 @@ suite('Editor ViewLayout - LinesLayout', () => {
 		var viewportData = linesLayout.getLinesViewportData(50, 160);
 		assert.equal(viewportData.startLineNumber, 6);
 		assert.equal(viewportData.endLineNumber, 6);
+		assert.equal(viewportData.completelyVisibleStartLineNumber, 6);
+		assert.equal(viewportData.completelyVisibleEndLineNumber, 6);
 		assert.deepEqual(viewportData.relativeVerticalOffset, [50]);
-		assert.equal(viewportData.visibleRangesDeltaTop, -50);
 		var whitespaceData = linesLayout.getWhitespaceViewportData(50, 160);
 		assert.deepEqual(whitespaceData, [{
 			id: a,
@@ -505,8 +520,9 @@ suite('Editor ViewLayout - LinesLayout', () => {
 		viewportData = linesLayout.getLinesViewportData(50, 219);
 		assert.equal(viewportData.startLineNumber, 6);
 		assert.equal(viewportData.endLineNumber, 7);
+		assert.equal(viewportData.completelyVisibleStartLineNumber, 6);
+		assert.equal(viewportData.completelyVisibleEndLineNumber, 7);
 		assert.deepEqual(viewportData.relativeVerticalOffset, [50, 160]);
-		assert.equal(viewportData.visibleRangesDeltaTop, -50);
 		whitespaceData = linesLayout.getWhitespaceViewportData(50, 219);
 		assert.deepEqual(whitespaceData, [{
 			id: a,
@@ -524,15 +540,17 @@ suite('Editor ViewLayout - LinesLayout', () => {
 		viewportData = linesLayout.getLinesViewportData(50, 220);
 		assert.equal(viewportData.startLineNumber, 6);
 		assert.equal(viewportData.endLineNumber, 7);
+		assert.equal(viewportData.completelyVisibleStartLineNumber, 6);
+		assert.equal(viewportData.completelyVisibleEndLineNumber, 7);
 		assert.deepEqual(viewportData.relativeVerticalOffset, [50, 160]);
-		assert.equal(viewportData.visibleRangesDeltaTop, -50);
 
 		// viewport 50->250
 		viewportData = linesLayout.getLinesViewportData(50, 250);
 		assert.equal(viewportData.startLineNumber, 6);
 		assert.equal(viewportData.endLineNumber, 10);
+		assert.equal(viewportData.completelyVisibleStartLineNumber, 6);
+		assert.equal(viewportData.completelyVisibleEndLineNumber, 10);
 		assert.deepEqual(viewportData.relativeVerticalOffset, [50, 160, 220, 230, 240]);
-		assert.equal(viewportData.visibleRangesDeltaTop, -50);
 	});
 
 	test('LinesLayout getWhitespaceAtVerticalOffset', () => {

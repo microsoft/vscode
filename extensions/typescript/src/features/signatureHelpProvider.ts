@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { SignatureHelpProvider, SignatureHelp, SignatureInformation, ParameterInformation, TextDocument, Position, CancellationToken } from 'vscode';
 
 import * as Previewer from './previewer';
@@ -61,7 +59,7 @@ export default class TypeScriptSignatureHelpProvider implements SignatureHelpPro
 					}
 				});
 				signature.label += Previewer.plain(item.suffixDisplayParts);
-				signature.documentation = Previewer.plain(item.documentation);
+				signature.documentation = Previewer.plainDocumentation(item.documentation, item.tags);
 				result.signatures.push(signature);
 			});
 

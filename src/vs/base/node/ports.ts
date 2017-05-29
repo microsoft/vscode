@@ -46,7 +46,7 @@ function doFindFreePort(startPort: number, giveUpAfter: number, clb: (port: numb
 		return doFindFreePort(startPort + 1, giveUpAfter - 1, clb);
 	});
 
-	client.once('error', (err) => {
+	client.once('error', (err: Error & { code?: string }) => {
 		dispose(client);
 
 		// If we receive any non ECONNREFUSED error, it means the port is used but we cannot connect

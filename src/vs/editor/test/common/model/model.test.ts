@@ -9,9 +9,9 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import {
-	EventType, IModelContentChangedEvent, IModelContentChangedFlushEvent, IModelContentChangedLineChangedEvent,
-	IModelContentChangedLinesDeletedEvent, IModelContentChangedLinesInsertedEvent
-} from 'vs/editor/common/editorCommon';
+	ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged,
+	ModelRawLinesDeleted, ModelRawLinesInserted
+} from 'vs/editor/common/model/textModelEvents';
 import { Model } from 'vs/editor/common/model/model';
 
 // --------- utils
@@ -100,43 +100,43 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model insert text without newline eventing', () => {
-		var listenerCalls = 0;
-		thisModel.onDidChangeRawContent((e) => {
-			listenerCalls++;
-			assert.equal(e.changeType, EventType.ModelRawContentChangedLineChanged);
-			assert.equal((<IModelContentChangedLineChangedEvent>e).lineNumber, 1);
+		let e: ModelRawContentChangedEvent = null;
+		thisModel.onDidChangeRawContent((_e) => {
+			if (e !== null) {
+				assert.fail();
+			}
+			e = _e;
 		});
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), 'foo ')]);
-		assert.equal(listenerCalls, 1, 'listener calls');
+		assert.deepEqual(e, new ModelRawContentChangedEvent(
+			[
+				new ModelRawLineChanged(1, 'foo My First Line')
+			],
+			2,
+			false,
+			false
+		));
 	});
 
 	test('model insert text with one newline eventing', () => {
-		var listenerCalls = 0;
-		var order = 0;
-
-		thisModel.onDidChangeRawContent((e) => {
-			listenerCalls++;
-
-			if (e.changeType === EventType.ModelRawContentChangedLineChanged) {
-				if (order === 0) {
-					assert.equal(++order, 1, 'ModelContentChangedLineChanged first');
-					assert.equal((<IModelContentChangedLineChangedEvent>e).lineNumber, 1, 'ModelContentChangedLineChanged line number 1');
-				} else {
-					assert.equal(++order, 2, 'ModelContentChangedLineChanged first');
-					assert.equal((<IModelContentChangedLineChangedEvent>e).lineNumber, 1, 'ModelContentChangedLineChanged line number 1');
-				}
-			} else if (e.changeType === EventType.ModelRawContentChangedLinesInserted) {
-				assert.equal(++order, 3, 'ModelContentChangedLinesInserted second');
-				assert.equal((<IModelContentChangedLinesInsertedEvent>e).fromLineNumber, 2, 'ModelContentChangedLinesInserted fromLineNumber');
-				assert.equal((<IModelContentChangedLinesInsertedEvent>e).toLineNumber, 2, 'ModelContentChangedLinesInserted toLineNumber');
-			} else {
-				assert.ok(false);
+		let e: ModelRawContentChangedEvent = null;
+		thisModel.onDidChangeRawContent((_e) => {
+			if (e !== null) {
+				assert.fail();
 			}
-
+			e = _e;
 		});
-
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 3), ' new line\nNo longer')]);
-		assert.equal(listenerCalls, 3, 'listener calls');
+		assert.deepEqual(e, new ModelRawContentChangedEvent(
+			[
+				new ModelRawLineChanged(1, 'My new line First Line'),
+				new ModelRawLineChanged(1, 'My new line'),
+				new ModelRawLinesInserted(2, 2, 'No longer First Line'),
+			],
+			2,
+			false,
+			false
+		));
 	});
 
 
@@ -197,82 +197,83 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model delete text from one line eventing', () => {
-		var listenerCalls = 0;
-		thisModel.onDidChangeRawContent((e) => {
-			listenerCalls++;
-			assert.equal(e.changeType, EventType.ModelRawContentChangedLineChanged);
-			assert.equal((<IModelContentChangedLineChangedEvent>e).lineNumber, 1);
+		let e: ModelRawContentChangedEvent = null;
+		thisModel.onDidChangeRawContent((_e) => {
+			if (e !== null) {
+				assert.fail();
+			}
+			e = _e;
 		});
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 2))]);
-		assert.equal(listenerCalls, 1, 'listener calls');
+		assert.deepEqual(e, new ModelRawContentChangedEvent(
+			[
+				new ModelRawLineChanged(1, 'y First Line'),
+			],
+			2,
+			false,
+			false
+		));
 	});
 
 	test('model delete all text from a line eventing', () => {
-		var listenerCalls = 0;
-		thisModel.onDidChangeRawContent((e) => {
-			listenerCalls++;
-			assert.equal(e.changeType, EventType.ModelRawContentChangedLineChanged);
-			assert.equal((<IModelContentChangedLineChangedEvent>e).lineNumber, 1);
+		let e: ModelRawContentChangedEvent = null;
+		thisModel.onDidChangeRawContent((_e) => {
+			if (e !== null) {
+				assert.fail();
+			}
+			e = _e;
 		});
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 14))]);
-		assert.equal(listenerCalls, 1, 'listener calls');
+		assert.deepEqual(e, new ModelRawContentChangedEvent(
+			[
+				new ModelRawLineChanged(1, ''),
+			],
+			2,
+			false,
+			false
+		));
 	});
 
 	test('model delete text from two lines eventing', () => {
-		var listenerCalls = 0;
-		var order = 0;
-		thisModel.onDidChangeRawContent((e) => {
-			listenerCalls++;
-
-			if (e.changeType === EventType.ModelRawContentChangedLineChanged) {
-				if (order === 0) {
-					assert.equal(++order, 1);
-					assert.equal((<IModelContentChangedLineChangedEvent>e).lineNumber, 1);
-				} else {
-					assert.equal(++order, 2);
-					assert.equal((<IModelContentChangedLineChangedEvent>e).lineNumber, 1);
-				}
-			} else if (e.changeType === EventType.ModelRawContentChangedLinesDeleted) {
-				assert.equal(++order, 3);
-				assert.equal((<IModelContentChangedLinesDeletedEvent>e).fromLineNumber, 2);
-				assert.equal((<IModelContentChangedLinesDeletedEvent>e).toLineNumber, 2);
-			} else {
-				assert.ok(false);
+		let e: ModelRawContentChangedEvent = null;
+		thisModel.onDidChangeRawContent((_e) => {
+			if (e !== null) {
+				assert.fail();
 			}
-
+			e = _e;
 		});
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 4, 2, 6))]);
-		assert.equal(listenerCalls, 3, 'listener calls');
+		assert.deepEqual(e, new ModelRawContentChangedEvent(
+			[
+				new ModelRawLineChanged(1, 'My '),
+				new ModelRawLineChanged(1, 'My Second Line'),
+				new ModelRawLinesDeleted(2, 2),
+			],
+			2,
+			false,
+			false
+		));
 	});
 
 	test('model delete text from many lines eventing', () => {
-		var listenerCalls = 0;
-		var order = 0;
-
-		thisModel.onDidChangeRawContent((e) => {
-			listenerCalls++;
-
-			if (e.changeType === EventType.ModelRawContentChangedLineChanged) {
-				if (order === 0) {
-					assert.equal(++order, 1);
-					assert.equal((<IModelContentChangedLineChangedEvent>e).lineNumber, 1);
-				} else {
-					assert.equal(++order, 2);
-					assert.equal((<IModelContentChangedLineChangedEvent>e).lineNumber, 1);
-				}
-			} else if (e.changeType === EventType.ModelRawContentChangedLinesDeleted) {
-				assert.equal(++order, 3);
-				assert.equal((<IModelContentChangedLinesDeletedEvent>e).fromLineNumber, 2);
-				assert.equal((<IModelContentChangedLinesDeletedEvent>e).toLineNumber, 3);
-			} else {
-				assert.ok(false);
+		let e: ModelRawContentChangedEvent = null;
+		thisModel.onDidChangeRawContent((_e) => {
+			if (e !== null) {
+				assert.fail();
 			}
-
+			e = _e;
 		});
-
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 4, 3, 5))]);
-
-		assert.equal(listenerCalls, 3, 'listener calls');
+		assert.deepEqual(e, new ModelRawContentChangedEvent(
+			[
+				new ModelRawLineChanged(1, 'My '),
+				new ModelRawLineChanged(1, 'My Third Line'),
+				new ModelRawLinesDeleted(2, 3),
+			],
+			2,
+			false,
+			false
+		));
 	});
 
 	// --------- getValueInRange
@@ -307,23 +308,23 @@ suite('Editor Model - Model', () => {
 
 	// --------- setValue
 	test('setValue eventing', () => {
-		var listenerCalls = 0;
-		thisModel.onDidChangeRawContent((e: IModelContentChangedEvent) => {
-			listenerCalls++;
-
-			assert.equal(e.changeType, EventType.ModelRawContentChangedFlush);
-
-			assert.deepEqual((<IModelContentChangedFlushEvent>e).detail.lines, ['new value']);
+		let e: ModelRawContentChangedEvent = null;
+		thisModel.onDidChangeRawContent((_e) => {
+			if (e !== null) {
+				assert.fail();
+			}
+			e = _e;
 		});
 		thisModel.setValue('new value');
-		assert.equal(listenerCalls, 1, 'listener calls');
+		assert.deepEqual(e, new ModelRawContentChangedEvent(
+			[
+				new ModelRawFlush()
+			],
+			2,
+			false,
+			false
+		));
 	});
-
-	//	var LINE1 = 'My First Line';
-	//	var LINE2 = '\t\tMy Second Line';
-	//	var LINE3 = '    Third Line';
-	//	var LINE4 = '';
-	//	var LINE5 = '1';
 });
 
 

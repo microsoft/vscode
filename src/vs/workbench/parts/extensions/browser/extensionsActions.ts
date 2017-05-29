@@ -18,6 +18,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/parts/extensions/common/extensionsFileTemplate';
 import { LocalExtensionType, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
@@ -30,13 +31,17 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IExtensionService, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import URI from 'vs/base/common/uri';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, registerColor, foreground } from 'vs/platform/theme/common/colorRegistry';
+import { Color } from 'vs/base/common/color';
 
 export class InstallAction extends Action {
 
 	private static InstallLabel = localize('installAction', "Install");
 	private static InstallingLabel = localize('installing', "Installing");
 
-	private static Class = 'extension-action install';
+	private static Class = 'extension-action prominent install';
 	private static InstallingClass = 'extension-action install installing';
 
 	private disposables: IDisposable[] = [];
@@ -124,7 +129,7 @@ export class UninstallAction extends Action {
 		this.label = UninstallAction.UninstallLabel;
 		this.class = UninstallAction.UninstallClass;
 
-		const installedExtensions = this.extensionsWorkbenchService.local.filter(e => e.identifier === this.extension.identifier);
+		const installedExtensions = this.extensionsWorkbenchService.local.filter(e => e.id === this.extension.id);
 
 		if (!installedExtensions.length) {
 			this.enabled = false;
@@ -151,7 +156,7 @@ export class UninstallAction extends Action {
 
 export class CombinedInstallAction extends Action {
 
-	private static NoExtensionClass = 'extension-action install no-extension';
+	private static NoExtensionClass = 'extension-action prominent install no-extension';
 	private installAction: InstallAction;
 	private uninstallAction: UninstallAction;
 	private disposables: IDisposable[] = [];
@@ -222,7 +227,7 @@ export class CombinedInstallAction extends Action {
 
 export class UpdateAction extends Action {
 
-	private static EnabledClass = 'extension-action update';
+	private static EnabledClass = 'extension-action prominent update';
 	private static DisabledClass = `${UpdateAction.EnabledClass} disabled`;
 	private static Label = localize('updateAction', "Update");
 
@@ -308,7 +313,8 @@ export class DropDownMenuActionItem extends ActionItem {
 		const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 10 };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => TPromise.wrap(actions)
+			getActions: () => TPromise.wrap(actions),
+			actionRunner: this.actionRunner
 		});
 	}
 
@@ -373,7 +379,7 @@ export class ManageExtensionAction extends Action {
 		this.class = ManageExtensionAction.HideManageExtensionClass;
 		this.tooltip = '';
 		this.enabled = false;
-		if (this.extension && this.extension.type === LocalExtensionType.User) {
+		if (this.extension && this.extension.type !== LocalExtensionType.System) {
 			const state = this.extension.state;
 			this.enabled = state === ExtensionState.Installed;
 			this.class = this.enabled || state === ExtensionState.Uninstalling ? ManageExtensionAction.Class : ManageExtensionAction.HideManageExtensionClass;
@@ -418,7 +424,7 @@ export class EnableForWorkspaceAction extends Action implements IExtensionAction
 	private update(): void {
 		this.enabled = false;
 		if (this.extension) {
-			this.enabled = !this.extension.disabledGlobally && this.extension.disabledForWorkspace && this.extensionEnablementService.canEnable(this.extension.identifier);
+			this.enabled = !this.extension.disabledGlobally && this.extension.disabledForWorkspace && this.extensionEnablementService.canEnable(this.extension.id);
 		}
 	}
 
@@ -457,7 +463,7 @@ export class EnableGloballyAction extends Action implements IExtensionAction {
 	private update(): void {
 		this.enabled = false;
 		if (this.extension) {
-			this.enabled = this.extension.disabledGlobally && this.extensionEnablementService.canEnable(this.extension.identifier);
+			this.enabled = this.extension.disabledGlobally && this.extensionEnablementService.canEnable(this.extension.id);
 		}
 	}
 
@@ -474,7 +480,7 @@ export class EnableGloballyAction extends Action implements IExtensionAction {
 export class EnableAction extends Action {
 
 	static ID = 'extensions.enable';
-	private static EnabledClass = 'extension-action enable';
+	private static EnabledClass = 'extension-action prominent enable';
 	private static DisabledClass = `${EnableAction.EnabledClass} disabled`;
 
 	private disposables: IDisposable[] = [];
@@ -513,7 +519,7 @@ export class EnableAction extends Action {
 			return;
 		}
 
-		this.enabled = this.extension.state === ExtensionState.Installed && (this.extension.disabledGlobally || this.extension.disabledForWorkspace) && this.extensionEnablementService.canEnable(this.extension.identifier);
+		this.enabled = this.extension.state === ExtensionState.Installed && (this.extension.disabledGlobally || this.extension.disabledForWorkspace) && this.extensionEnablementService.canEnable(this.extension.id);
 		this.class = this.enabled ? EnableAction.EnabledClass : EnableAction.DisabledClass;
 	}
 
@@ -679,6 +685,59 @@ export class CheckForUpdatesAction extends Action {
 	}
 }
 
+export class ToggleAutoUpdateAction extends Action {
+
+	constructor(
+		id: string,
+		label: string,
+		private autoUpdateValue: boolean,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(id, label, '', true);
+		this.updateEnablement();
+		configurationService.onDidUpdateConfiguration(() => this.updateEnablement());
+	}
+
+	private updateEnablement(): void {
+		this.enabled = this.extensionsWorkbenchService.isAutoUpdateEnabled !== this.autoUpdateValue;
+	}
+
+	run(): TPromise<any> {
+		return this.extensionsWorkbenchService.setAutoUpdate(this.autoUpdateValue);
+	}
+}
+
+export class EnableAutoUpdateAction extends ToggleAutoUpdateAction {
+
+	static ID = 'workbench.extensions.action.enableAutoUpdate';
+	static LABEL = localize('enableAutoUpdate', "Enable Auto Updating Extensions");
+
+	constructor(
+		id = EnableAutoUpdateAction.ID,
+		label = EnableAutoUpdateAction.LABEL,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(id, label, true, configurationService, extensionsWorkbenchService);
+	}
+}
+
+export class DisableAutoUpdateAction extends ToggleAutoUpdateAction {
+
+	static ID = 'workbench.extensions.action.disableAutoUpdate';
+	static LABEL = localize('disableAutoUpdate', "Disable Auto Updating Extensions");
+
+	constructor(
+		id = EnableAutoUpdateAction.ID,
+		label = EnableAutoUpdateAction.LABEL,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(id, label, false, configurationService, extensionsWorkbenchService);
+	}
+}
+
 export class UpdateAllAction extends Action {
 
 	static ID = 'workbench.extensions.action.updateAllExtensions';
@@ -761,11 +820,11 @@ export class ReloadAction extends Action {
 	}
 
 	private computeReloadState(runningExtensions: IExtensionDescription[]): void {
-		const isInstalled = this.extensionsWorkbenchService.local.some(e => e.identifier === this.extension.identifier);
+		const isInstalled = this.extensionsWorkbenchService.local.some(e => e.id === this.extension.id);
 		const isUninstalled = this.extension.state === ExtensionState.Uninstalled;
 		const isDisabled = this.extension.disabledForWorkspace || this.extension.disabledGlobally;
 
-		const filteredExtensions = runningExtensions.filter(e => e.id === this.extension.identifier);
+		const filteredExtensions = runningExtensions.filter(e => areSameExtensions(e, this.extension));
 		const isExtensionRunning = filteredExtensions.length > 0;
 		const isDifferentVersionRunning = filteredExtensions.length > 0 && this.extension.version !== filteredExtensions[0].version;
 
@@ -1046,6 +1105,34 @@ export class ShowRecommendedKeymapExtensionsAction extends Action {
 	}
 }
 
+export class ShowLanguageExtensionsAction extends Action {
+
+	static ID = 'workbench.extensions.action.showLanguageExtensions';
+	static LABEL = localize('showLanguageExtensions', "Show Language Extensions");
+	static SHORT_LABEL = localize('showLanguageExtensionsShort', "Language Extensions");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label, null, true);
+	}
+
+	run(): TPromise<void> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search('@sort:installs @category:languages ');
+				viewlet.focus();
+			});
+	}
+
+	protected isEnabled(): boolean {
+		return true;
+	}
+}
+
 export class ChangeSortAction extends Action {
 
 	private query: Query;
@@ -1056,12 +1143,11 @@ export class ChangeSortAction extends Action {
 		label: string,
 		onSearchChange: Event<string>,
 		private sortBy: string,
-		private sortOrder: string,
 		@IViewletService private viewletService: IViewletService
 	) {
 		super(id, label, null, true);
 
-		if (sortBy === undefined && sortOrder === undefined) {
+		if (sortBy === undefined) {
 			throw new Error('bad arguments');
 		}
 
@@ -1072,7 +1158,7 @@ export class ChangeSortAction extends Action {
 
 	private onSearchChange(value: string): void {
 		const query = Query.parse(value);
-		this.query = new Query(query.value, this.sortBy || query.sortBy, this.sortOrder || query.sortOrder);
+		this.query = new Query(query.value, this.sortBy || query.sortBy);
 		this.enabled = value && this.query.isValid() && !this.query.equals(query);
 	}
 
@@ -1247,7 +1333,7 @@ export class EnableAllAction extends Action {
 	}
 
 	private update(): void {
-		this.enabled = this.extensionsWorkbenchService.local.some(e => this.extensionEnablementService.canEnable(e.identifier) && e.disabledGlobally);
+		this.enabled = this.extensionsWorkbenchService.local.some(e => this.extensionEnablementService.canEnable(e.id) && e.disabledGlobally);
 	}
 
 	run(): TPromise<any> {
@@ -1279,7 +1365,7 @@ export class EnableAllWorkpsaceAction extends Action {
 	}
 
 	private update(): void {
-		this.enabled = this.workspaceContextService.hasWorkspace() && this.extensionsWorkbenchService.local.some(e => this.extensionEnablementService.canEnable(e.identifier) && !e.disabledGlobally && e.disabledForWorkspace);
+		this.enabled = this.workspaceContextService.hasWorkspace() && this.extensionsWorkbenchService.local.some(e => this.extensionEnablementService.canEnable(e.id) && !e.disabledGlobally && e.disabledForWorkspace);
 	}
 
 	run(): TPromise<any> {
@@ -1301,4 +1387,64 @@ CommandsRegistry.registerCommand('workbench.extensions.action.showLanguageExtens
 			viewlet.search(`ext:${fileExtension.replace(/^\./, '')}`);
 			viewlet.focus();
 		});
+});
+
+export const extensionButtonProminentBackground = registerColor('extensionButton.prominentBackground', {
+	dark: '#327e36',
+	light: '#327e36',
+	hc: null
+}, localize('extensionButtonProminentBackground', "Button background color for actions extension that stand out (e.g. install button)."));
+
+export const extensionButtonProminentForeground = registerColor('extensionButton.prominentForeground', {
+	dark: Color.white,
+	light: Color.white,
+	hc: null
+}, localize('extensionButtonProminentForeground', "Button foreground color for actions extension that stand out (e.g. install button)."));
+
+export const extensionButtonProminentHoverBackground = registerColor('extensionButton.prominentHoverBackground', {
+	dark: '#28632b',
+	light: '#28632b',
+	hc: null
+}, localize('extensionButtonProminentHoverBackground', "Button background hover color for actions extension that stand out (e.g. install button)."));
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	const foregroundColor = theme.getColor(foreground);
+	if (foregroundColor) {
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.built-in-status { border-color: ${foregroundColor}; }`);
+	}
+
+	const buttonBackgroundColor = theme.getColor(buttonBackground);
+	if (buttonBackgroundColor) {
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action { background-color: ${buttonBackgroundColor}; }`);
+	}
+
+	const buttonForegroundColor = theme.getColor(buttonForeground);
+	if (buttonForegroundColor) {
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action { color: ${buttonForegroundColor}; }`);
+	}
+
+	const buttonHoverBackgroundColor = theme.getColor(buttonHoverBackground);
+	if (buttonHoverBackgroundColor) {
+		collector.addRule(`.monaco-action-bar .action-item:hover .action-label.extension-action { background-color: ${buttonHoverBackgroundColor}; }`);
+	}
+
+	const contrastBorderColor = theme.getColor(contrastBorder);
+	if (contrastBorderColor) {
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action { border: 1px solid ${contrastBorderColor}; }`);
+	}
+
+	const extensionButtonProminentBackgroundColor = theme.getColor(extensionButtonProminentBackground);
+	if (extensionButtonProminentBackground) {
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.prominent { background-color: ${extensionButtonProminentBackgroundColor}; }`);
+	}
+
+	const extensionButtonProminentForegroundColor = theme.getColor(extensionButtonProminentForeground);
+	if (extensionButtonProminentForeground) {
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.prominent { color: ${extensionButtonProminentForegroundColor}; }`);
+	}
+
+	const extensionButtonProminentHoverBackgroundColor = theme.getColor(extensionButtonProminentHoverBackground);
+	if (extensionButtonProminentHoverBackground) {
+		collector.addRule(`.monaco-action-bar .action-item:hover .action-label.extension-action.prominent { background-color: ${extensionButtonProminentHoverBackgroundColor}; }`);
+	}
 });

@@ -122,7 +122,7 @@ class Main {
 							console.log(localize('foundExtension', "Found '{0}' in the marketplace.", id));
 							console.log(localize('installing', "Installing..."));
 
-							return this.extensionManagementService.installFromGallery(extension)
+							return this.extensionManagementService.installFromGallery(extension, false)
 								.then(() => console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.version)));
 						});
 				});
@@ -142,7 +142,7 @@ class Main {
 
 				console.log(localize('uninstalling', "Uninstalling {0}...", id));
 
-				return this.extensionManagementService.uninstall(extension)
+				return this.extensionManagementService.uninstall(extension, true)
 					.then(() => console.log(localize('successUninstall', "Extension '{0}' was successfully uninstalled!", id)));
 			});
 		}));
@@ -160,7 +160,7 @@ export function main(argv: ParsedArgs): TPromise<void> {
 	return instantiationService.invokeFunction(accessor => {
 		const envService = accessor.get(IEnvironmentService);
 
-		return TPromise.join([envService.appSettingsHome, envService.userProductHome, envService.extensionsPath].map(p => mkdirp(p))).then(() => {
+		return TPromise.join([envService.appSettingsHome, envService.extensionsPath].map(p => mkdirp(p))).then(() => {
 			const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt } = envService;
 
 			const services = new ServiceCollection();
@@ -172,10 +172,6 @@ export function main(argv: ParsedArgs): TPromise<void> {
 
 			if (isBuilt && !extensionDevelopmentPath && product.enableTelemetry) {
 				const appenders: AppInsightsAppender[] = [];
-
-				if (product.aiConfig && product.aiConfig.key) {
-					appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.key));
-				}
 
 				if (product.aiConfig && product.aiConfig.asimovKey) {
 					appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey));

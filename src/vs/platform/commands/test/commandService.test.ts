@@ -86,7 +86,7 @@ suite('CommandService', function () {
 		let resolve: Function;
 		let service = new CommandService(new InstantiationService(), new class extends SimpleExtensionService {
 			onReady() {
-				return new TPromise(_resolve => { resolve = _resolve; });
+				return new TPromise<boolean>(_resolve => { resolve = _resolve; });
 			}
 		});
 

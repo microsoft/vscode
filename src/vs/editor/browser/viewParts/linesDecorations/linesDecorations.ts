@@ -8,7 +8,7 @@
 import 'vs/css!./linesDecorations';
 import { DecorationToRender, DedupOverlay } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { IRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class LinesDecorationsOverlay extends DedupOverlay {
@@ -32,6 +32,7 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 		this._context.removeEventHandler(this);
 		this._context = null;
 		this._renderResult = null;
+		super.dispose();
 	}
 
 	// --- begin event handlers
@@ -43,19 +44,13 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 		}
 		return true;
 	}
-	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
-		return false;
-	}
-	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
-		return false;
-	}
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		return true;
 	}
 	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		return true;
 	}
-	public onLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
+	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
 		return true;
 	}
 	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
@@ -63,9 +58,6 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 	}
 	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return true;
-	}
-	public onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
-		return false;
 	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return e.scrollTopChanged;
@@ -76,7 +68,7 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 
 	// --- end event handlers
 
-	protected _getDecorations(ctx: IRenderingContext): DecorationToRender[] {
+	protected _getDecorations(ctx: RenderingContext): DecorationToRender[] {
 		let decorations = ctx.getDecorationsInViewport();
 		let r: DecorationToRender[] = [];
 		for (let i = 0, len = decorations.length; i < len; i++) {
@@ -89,7 +81,7 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 		return r;
 	}
 
-	public prepareRender(ctx: IRenderingContext): void {
+	public prepareRender(ctx: RenderingContext): void {
 		let visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 		let visibleEndLineNumber = ctx.visibleRange.endLineNumber;
 		let toRender = this._render(visibleStartLineNumber, visibleEndLineNumber, this._getDecorations(ctx));

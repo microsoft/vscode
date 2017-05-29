@@ -2,16 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as cp from 'child_process';
 import * as fs from 'fs';
 
-import { workspace, window, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Disposable, MessageItem } from 'vscode';
+import { workspace, window, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Disposable, MessageItem, Uri, commands } from 'vscode';
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
 import { Delayer } from '../utils/async';
-import LinkedMap from './linkedMap';
 
 import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
@@ -20,39 +18,42 @@ interface IDiagnosticRequestor {
 	requestDiagnostic(filepath: string): void;
 }
 
-const Mode2ScriptKind: ObjectMap<'TS' | 'JS' | 'TSX' | 'JSX'> = {
-	'typescript': 'TS',
-	'typescriptreact': 'TSX',
-	'javascript': 'JS',
-	'javascriptreact': 'JSX'
-};
+function mode2ScriptKind(mode: string): 'TS' | 'TSX' | 'JS' | 'JSX' | undefined {
+	switch (mode) {
+		case 'typescript': return 'TS';
+		case 'typescriptreact': return 'TSX';
+		case 'javascript': return 'JS';
+		case 'javascriptreact': return 'JSX';
+	}
+	return undefined;
+}
 
 class SyncedBuffer {
 
-	private document: TextDocument;
-	private filepath: string;
-	private diagnosticRequestor: IDiagnosticRequestor;
-	private client: ITypescriptServiceClient;
-
-	constructor(document: TextDocument, filepath: string, diagnosticRequestor: IDiagnosticRequestor, client: ITypescriptServiceClient) {
-		this.document = document;
-		this.filepath = filepath;
-		this.diagnosticRequestor = diagnosticRequestor;
-		this.client = client;
-	}
+	constructor(
+		private readonly document: TextDocument,
+		private readonly filepath: string,
+		private readonly diagnosticRequestor: IDiagnosticRequestor,
+		private readonly client: ITypescriptServiceClient
+	) { }
 
 	public open(): void {
-		let args: Proto.OpenRequestArgs = {
+		const args: Proto.OpenRequestArgs = {
 			file: this.filepath,
 			fileContent: this.document.getText(),
 		};
+
 		if (this.client.apiVersion.has203Features()) {
-			const scriptKind = Mode2ScriptKind[this.document.languageId];
+			const scriptKind = mode2ScriptKind(this.document.languageId);
 			if (scriptKind) {
 				args.scriptKindName = scriptKind;
 			}
-
 		}
+
+		if (workspace.rootPath && this.client.apiVersion.has230Features()) {
+			args.projectRootPath = workspace.rootPath;
+		}
+
 		this.client.execute('open', args, false);
 	}
 
@@ -61,23 +62,22 @@ class SyncedBuffer {
 	}
 
 	public close(): void {
-		let args: Proto.FileRequestArgs = {
+		const args: Proto.FileRequestArgs = {
 			file: this.filepath
 		};
 		this.client.execute('close', args, false);
 	}
 
-	onContentChanged(events: TextDocumentContentChangeEvent[]): void {
-		let filePath = this.client.normalizePath(this.document.uri);
+	public onContentChanged(events: TextDocumentContentChangeEvent[]): void {
+		const filePath = this.client.normalizePath(this.document.uri);
 		if (!filePath) {
 			return;
 		}
 
-		for (let i = 0; i < events.length; i++) {
-			let event = events[i];
-			let range = event.range;
-			let text = event.text;
-			let args: Proto.ChangeRequestArgs = {
+		for (const event of events) {
+			const range = event.range;
+			const text = event.text;
+			const args: Proto.ChangeRequestArgs = {
 				file: filePath,
 				line: range.start.line + 1,
 				offset: range.start.character + 1,
@@ -98,40 +98,31 @@ export interface Diagnostics {
 const checkTscVersionSettingKey = 'check.tscVersion';
 export default class BufferSyncSupport {
 
-	private client: ITypescriptServiceClient;
+	private readonly client: ITypescriptServiceClient;
 
 	private _validate: boolean;
-	private modeIds: ObjectMap<boolean>;
-	private extensions: ObjectMap<boolean>;
-	private diagnostics: Diagnostics;
-	private disposables: Disposable[] = [];
-	private syncedBuffers: ObjectMap<SyncedBuffer>;
-
-	private projectValidationRequested: boolean;
+	private readonly modeIds: Set<string>;
+	private readonly diagnostics: Diagnostics;
+	private readonly disposables: Disposable[] = [];
+	private readonly syncedBuffers: ObjectMap<SyncedBuffer>;
 
 	private pendingDiagnostics: { [key: string]: number; };
-	private diagnosticDelayer: Delayer<any>;
-	private emitQueue: LinkedMap<string>;
+	private readonly diagnosticDelayer: Delayer<any>;
 	private checkGlobalTSCVersion: boolean;
 
-	constructor(client: ITypescriptServiceClient, modeIds: string[], diagnostics: Diagnostics, extensions: ObjectMap<boolean>, validate: boolean = true) {
+	constructor(client: ITypescriptServiceClient, modeIds: string[], diagnostics: Diagnostics, validate: boolean = true) {
 		this.client = client;
-		this.modeIds = Object.create(null);
-		modeIds.forEach(modeId => this.modeIds[modeId] = true);
+		this.modeIds = new Set<string>(modeIds);
 		this.diagnostics = diagnostics;
-		this.extensions = extensions;
 		this._validate = validate;
-
-		this.projectValidationRequested = false;
 
 		this.pendingDiagnostics = Object.create(null);
 		this.diagnosticDelayer = new Delayer<any>(300);
 
 		this.syncedBuffers = Object.create(null);
-		this.emitQueue = new LinkedMap<string>();
 
 		const tsConfig = workspace.getConfiguration('typescript');
-		this.checkGlobalTSCVersion = client.checkGlobalTSCVersion && this.modeIds['typescript'] === true && tsConfig.get(checkTscVersionSettingKey, true);
+		this.checkGlobalTSCVersion = client.checkGlobalTSCVersion && this.modeIds.has('typescript') && tsConfig.get(checkTscVersionSettingKey, true);
 	}
 
 	public listen(): void {
@@ -170,7 +161,7 @@ export default class BufferSyncSupport {
 	}
 
 	private onDidOpenTextDocument(document: TextDocument): void {
-		if (!this.modeIds[document.languageId]) {
+		if (!this.modeIds.has(document.languageId)) {
 			return;
 		}
 		let resource = document.uri;
@@ -294,21 +285,6 @@ export default class BufferSyncSupport {
 			id: number;
 		}
 
-		function openUrl(url: string) {
-			let cmd: string;
-			switch (process.platform) {
-				case 'darwin':
-					cmd = 'open';
-					break;
-				case 'win32':
-					cmd = 'start';
-					break;
-				default:
-					cmd = 'xdg-open';
-			}
-			return cp.exec(cmd + ' ' + url);
-		}
-
 		let tscVersion: string | undefined = undefined;
 		try {
 			let out = cp.execSync('tsc --version', { encoding: 'utf8' });
@@ -342,7 +318,7 @@ export default class BufferSyncSupport {
 				}
 				switch (selected.id) {
 					case 1:
-						openUrl('http://go.microsoft.com/fwlink/?LinkId=826239');
+						commands.executeCommand('vscode.open', Uri.parse('http://go.microsoft.com/fwlink/?LinkId=826239'));
 						break;
 					case 2:
 						const tsConfig = workspace.getConfiguration('typescript');

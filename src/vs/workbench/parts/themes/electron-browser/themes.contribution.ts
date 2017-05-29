@@ -15,13 +15,15 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { Registry } from 'vs/platform/platform';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
-import { IThemeService, COLOR_THEME_SETTING, ICON_THEME_SETTING } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService, COLOR_THEME_SETTING, ICON_THEME_SETTING } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { VIEWLET_ID, IExtensionsViewlet } from 'vs/workbench/parts/extensions/common/extensions';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Delayer } from 'vs/base/common/async';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { IColorRegistry, Extensions as ColorRegistryExtensions } from 'vs/platform/theme/common/colorRegistry';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class SelectColorThemeAction extends Action {
 
@@ -33,7 +35,7 @@ export class SelectColorThemeAction extends Action {
 		label: string,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IMessageService private messageService: IMessageService,
-		@IThemeService private themeService: IThemeService,
+		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
 		@IViewletService private viewletService: IViewletService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
@@ -45,7 +47,7 @@ export class SelectColorThemeAction extends Action {
 		return this.themeService.getColorThemes().then(themes => {
 			const currentTheme = this.themeService.getColorTheme();
 
-			const pickInMarketPlace = findInMarketplacePick(this.viewletService, 'category:themes');
+			const pickInMarketPlace = findInMarketplacePick(this.viewletService, 'category:themes', localize('installColorThemes', "Install Additional Color Themes..."));
 
 			const picks: IPickOpenEntry[] = themes
 				.map(theme => ({ id: theme.id, label: theme.label, description: theme.description }))
@@ -63,13 +65,12 @@ export class SelectColorThemeAction extends Action {
 
 				this.themeService.setColorTheme(theme.id, target).done(null,
 					err => {
-						this.messageService.show(Severity.Info, localize('problemChangingTheme', "Problem setting theme: {0}", err));
 						this.themeService.setColorTheme(currentTheme.id, null);
 					}
 				);
 			};
 
-			const placeHolder = localize('themes.selectTheme', "Select Color Theme");
+			const placeHolder = localize('themes.selectTheme', "Select Color Theme (Up/Down Keys to Preview)");
 			const autoFocusIndex = firstIndex(picks, p => p.id === currentTheme.id);
 			const delayer = new Delayer<void>(100);
 
@@ -97,7 +98,7 @@ class SelectIconThemeAction extends Action {
 		label: string,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IMessageService private messageService: IMessageService,
-		@IThemeService private themeService: IThemeService,
+		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
 		@IViewletService private viewletService: IViewletService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
@@ -110,7 +111,7 @@ class SelectIconThemeAction extends Action {
 		return this.themeService.getFileIconThemes().then(themes => {
 			const currentTheme = this.themeService.getFileIconTheme();
 
-			const pickInMarketPlace = findInMarketplacePick(this.viewletService, 'tag:icon-theme');
+			const pickInMarketPlace = findInMarketplacePick(this.viewletService, 'tag:icon-theme', localize('installIconThemes', "Install Additional File Icon Themes..."));
 
 			const picks: IPickOpenEntry[] = themes
 				.map(theme => ({ id: theme.id, label: theme.label, description: theme.description }))
@@ -154,10 +155,10 @@ class SelectIconThemeAction extends Action {
 	}
 }
 
-function findInMarketplacePick(viewletService: IViewletService, query: string) {
+function findInMarketplacePick(viewletService: IViewletService, query: string, label: string) {
 	return {
 		id: 'themes.findmore',
-		label: localize('findMore', "Find more in the Marketplace..."),
+		label: label,
 		separator: { border: true },
 		alwaysShow: true,
 		run: () => viewletService.openViewlet(VIEWLET_ID, true).then(viewlet => {
@@ -167,6 +168,39 @@ function findInMarketplacePick(viewletService: IViewletService, query: string) {
 	};
 }
 
+class GenerateColorThemeAction extends Action {
+
+	static ID = 'workbench.action.generateColorTheme';
+	static LABEL = localize('generateColorTheme.label', "Generate Color Theme From Current Settings");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<any> {
+		let theme = this.themeService.getColorTheme();
+		let colorRegistry = <IColorRegistry>Registry.as(ColorRegistryExtensions.ColorContribution);
+		let resultingColors = {};
+		colorRegistry.getColors().map(c => {
+			let color = theme.getColor(c.id, false);
+			if (color) {
+				resultingColors[c.id] = color.toRGBAHex(true);
+			}
+		});
+		let contents = JSON.stringify({
+			type: theme.type,
+			colors: resultingColors,
+			tokenColors: theme.tokenColors
+		}, null, '\t');
+		return this.editorService.openEditor({ contents, language: 'json' });
+	}
+}
+
 const category = localize('preferences', "Preferences");
 
 const colorThemeDescriptor = new SyncActionDescriptor(SelectColorThemeAction, SelectColorThemeAction.ID, SelectColorThemeAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_T) });
@@ -174,3 +208,9 @@ Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkb
 
 const iconThemeDescriptor = new SyncActionDescriptor(SelectIconThemeAction, SelectIconThemeAction.ID, SelectIconThemeAction.LABEL);
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(iconThemeDescriptor, 'Preferences: File Icon Theme', category);
+
+
+const developerCategory = localize('developer', "Developer");
+
+const generateColorThemeDescriptor = new SyncActionDescriptor(GenerateColorThemeAction, GenerateColorThemeAction.ID, GenerateColorThemeAction.LABEL);
+Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(generateColorThemeDescriptor, 'Developer: Generate Color Theme From Current Settings', developerCategory);

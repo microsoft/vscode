@@ -7,16 +7,26 @@
 
 'use strict';
 
+if (window.location.search.indexOf('prof-startup') >= 0) {
+	var profiler = require('v8-profiler');
+	profiler.startProfiling('renderer', true);
+}
+
 /*global window,document,define*/
 
+const startTimer = require('../../../base/node/startupTimers').startTimer;
 const path = require('path');
 const electron = require('electron');
 const remote = electron.remote;
 const ipc = electron.ipcRenderer;
 
-
 process.lazyEnv = new Promise(function (resolve) {
+	const handle = setTimeout(function () {
+		resolve();
+		console.warn('renderer did not receive lazyEnv in time')
+	}, 10000);
 	ipc.once('vscode:acceptShellEnv', function (event, shellEnv) {
+		clearTimeout(handle);
 		assign(process.env, shellEnv);
 		resolve(process.env);
 	});
@@ -134,12 +144,12 @@ function main() {
 
 	window.document.documentElement.setAttribute('lang', locale);
 
-	const enableDeveloperTools = process.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath;
+	const enableDeveloperTools = (process.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath) && !configuration.extensionTestsPath;
 	const unbind = registerListeners(enableDeveloperTools);
 
 	// disable pinch zoom & apply zoom level early to avoid glitches
 	const zoomLevel = configuration.zoomLevel;
-	webFrame.setZoomLevelLimits(1, 1);
+	webFrame.setVisualZoomLevelLimits(1, 1);
 	if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
 		webFrame.setZoomLevel(zoomLevel);
 	}
@@ -149,18 +159,20 @@ function main() {
 
 	// In the bundled version the nls plugin is packaged with the loader so the NLS Plugins
 	// loads as soon as the loader loads. To be able to have pseudo translation
+	const loaderTimer = startTimer('load:loader')
 	createScript(rootUrl + '/vs/loader.js', function () {
 		define('fs', ['original-fs'], function (originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
+		loaderTimer.stop();
 
 		window.MonacoEnvironment = {};
 
-		const nodeCachedDataErrors = window.MonacoEnvironment.nodeCachedDataErrors = [];
+		const onNodeCachedData = window.MonacoEnvironment.onNodeCachedData = [];
 		require.config({
 			baseUrl: rootUrl,
 			'vs/nls': nlsConfig,
 			recordStats: !!configuration.performance,
 			nodeCachedDataDir: configuration.nodeCachedDataDir,
-			onNodeCachedDataError: function (err) { nodeCachedDataErrors.push(err) },
+			onNodeCachedData: function () { onNodeCachedData.push(arguments) },
 			nodeModules: [/*BUILD->INSERT_NODE_MODULES*/]
 		});
 
@@ -174,21 +186,22 @@ function main() {
 		const timers = window.MonacoEnvironment.timers = {
 			isInitialStartup: !!configuration.isInitialStartup,
 			hasAccessibilitySupport: !!configuration.accessibilitySupport,
-			start: new Date(configuration.perfStartTime),
-			appReady: new Date(configuration.perfAppReady),
-			windowLoad: new Date(configuration.perfWindowLoadTime),
-			beforeLoadWorkbenchMain: new Date()
+			start: configuration.perfStartTime,
+			appReady: configuration.perfAppReady,
+			windowLoad: configuration.perfWindowLoadTime,
+			beforeLoadWorkbenchMain: Date.now()
 		};
 
+		const workbenchMainTimer = startTimer('load:workbench.main')
 		require([
 			'vs/workbench/electron-browser/workbench.main',
 			'vs/nls!vs/workbench/electron-browser/workbench.main',
 			'vs/css!vs/workbench/electron-browser/workbench.main'
 		], function () {
-			timers.afterLoadWorkbenchMain = new Date();
+			workbenchMainTimer.stop();
+			timers.afterLoadWorkbenchMain = Date.now();
 
 			process.lazyEnv.then(function () {
-
 				require('vs/workbench/electron-browser/main')
 					.startup(configuration)
 					.done(function () {
@@ -197,7 +210,6 @@ function main() {
 						onError(error, enableDeveloperTools);
 					});
 			});
-
 		});
 	});
 }

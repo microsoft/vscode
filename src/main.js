@@ -5,6 +5,24 @@
 
 'use strict';
 
+if (process.argv.indexOf('--prof-startup') >= 0) {
+	var profiler = require('v8-profiler');
+	var prefix = require('crypto').randomBytes(2).toString('hex');
+	process.env.VSCODE_PROFILES_PREFIX = prefix;
+	profiler.startProfiling('main', true);
+}
+
+// Workaround for https://github.com/electron/electron/issues/9225. Chrome has an issue where
+// in certain locales (e.g. PL), image metrics are wrongly computed. We explicitly set the
+// LC_NUMERIC to prevent this from happening (selects the numeric formatting category of the
+// C locale, http://en.cppreference.com/w/cpp/locale/LC_categories). TODO@Ben temporary.
+if (process.env.LC_ALL) {
+	process.env.LC_ALL = 'C';
+}
+if (process.env.LC_NUMERIC) {
+	process.env.LC_NUMERIC = 'C';
+}
+
 // Perf measurements
 global.perfStartTime = Date.now();
 
@@ -118,7 +136,13 @@ function getNodeCachedDataDir() {
 		return Promise.resolve(undefined);
 	}
 
-	var dir = path.join(app.getPath('userData'), 'CachedData');
+	// find commit id
+	var productJson = require(path.join(__dirname, '../product.json'));
+	if (!productJson.commit) {
+		return Promise.resolve(undefined);
+	}
+
+	var dir = path.join(app.getPath('userData'), 'CachedData', productJson.commit);
 
 	return mkdirp(dir).then(undefined, function (err) { /*ignore*/ });
 }
@@ -194,17 +218,21 @@ global.getOpenUrls = function () {
 // node/v8 cached data.
 var nodeCachedDataDir = getNodeCachedDataDir().then(function (value) {
 	if (value) {
+		// store the data directory
 		process.env['VSCODE_NODE_CACHED_DATA_DIR_' + process.pid] = value;
+
+		// tell v8 to not be lazy when parsing JavaScript. Generally this makes startup slower
+		// but because we generate cached data it makes subsequent startups much faster
+		app.commandLine.appendSwitch('--js-flags', '--nolazy');
 	}
 });
 
-// Load our code once ready
-app.once('ready', function () {
-	global.perfAppReady = Date.now();
-	var nlsConfig = getNLSConfiguration();
-	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
+var nlsConfig = getNLSConfiguration();
+process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
 
-	nodeCachedDataDir.then(function () {
-		require('./bootstrap-amd').bootstrap('vs/code/electron-main/main');
-	}, console.error);
+var bootstrap = require('./bootstrap-amd');
+nodeCachedDataDir.then(function () {
+	bootstrap.bootstrap('vs/code/electron-main/main');
+}, function (err) {
+	console.error(err);
 });

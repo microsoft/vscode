@@ -18,6 +18,7 @@ import { TextModelWithTokens } from 'vs/editor/common/model/textModelWithTokens'
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { RawTextSource } from 'vs/editor/common/model/textSource';
 
 suite('TextModelWithTokens', () => {
 
@@ -76,8 +77,8 @@ suite('TextModelWithTokens', () => {
 		});
 
 		let model = new TextModelWithTokens(
-			[],
-			TextModel.toRawText(contents.join('\n'), TextModel.DEFAULT_CREATION_OPTIONS),
+			RawTextSource.fromString(contents.join('\n')),
+			TextModel.DEFAULT_CREATION_OPTIONS,
 			languageIdentifier
 		);
 
@@ -239,7 +240,7 @@ suite('TextModelWithTokens - bracket matching', () => {
 			[new Position(5, 5), new Range(5, 4, 5, 5), new Range(1, 11, 1, 12)],
 		];
 
-		let isABracket = { 1: {}, 2: {}, 3: {}, 4: {}, 5: {} };
+		let isABracket: { [lineNumber: number]: { [col: number]: boolean; }; } = { 1: {}, 2: {}, 3: {}, 4: {}, 5: {} };
 		for (let i = 0, len = brackets.length; i < len; i++) {
 			let [testPos, b1, b2] = brackets[i];
 			isBracket2(model, testPos, [b1, b2]);
@@ -249,7 +250,7 @@ suite('TextModelWithTokens - bracket matching', () => {
 		for (let i = 1, len = model.getLineCount(); i <= len; i++) {
 			let line = model.getLineContent(i);
 			for (let j = 1, lenJ = line.length + 1; j <= lenJ; j++) {
-				if (!isABracket[i].hasOwnProperty(j)) {
+				if (!isABracket[i].hasOwnProperty(<any>j)) {
 					isNotABracket(model, i, j);
 				}
 			}
@@ -264,7 +265,10 @@ suite('TextModelWithTokens regression tests', () => {
 
 	test('Microsoft/monaco-editor#122: Unhandled Exception: TypeError: Unable to get property \'replace\' of undefined or null reference', () => {
 		function assertViewLineTokens(model: Model, lineNumber: number, forceTokenization: boolean, expected: ViewLineToken[]): void {
-			let actual = model.getLineTokens(lineNumber, !forceTokenization).inflate();
+			if (forceTokenization) {
+				model.forceTokenization(lineNumber);
+			}
+			let actual = model.getLineTokens(lineNumber).inflate();
 			let decode = (token: ViewLineToken) => {
 				return {
 					endIndex: token.endIndex,

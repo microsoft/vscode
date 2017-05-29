@@ -5,13 +5,13 @@
 'use strict';
 
 import * as assert from 'assert';
-import { strcmp, parseTheme, Theme, ParsedThemeRule, ColorMap, ExternalThemeTrieElement, ThemeTrieElementRule } from 'vs/editor/common/modes/supports/tokenization';
+import { strcmp, parseTokenTheme, TokenTheme, ParsedTokenThemeRule, ColorMap, ExternalThemeTrieElement, ThemeTrieElementRule } from 'vs/editor/common/modes/supports/tokenization';
 import { FontStyle } from 'vs/editor/common/modes';
 
-suite('Theme matching', () => {
+suite('Token theme matching', () => {
 
 	test('gives higher priority to deeper matches', () => {
-		let theme = Theme.createFromRawTheme([
+		let theme = TokenTheme.createFromRawTokenTheme([
 			{ token: '', foreground: '100000', background: '200000' },
 			{ token: 'punctuation.definition.string.begin.html', foreground: '300000' },
 			{ token: 'punctuation.definition.string', foreground: '400000' },
@@ -29,7 +29,7 @@ suite('Theme matching', () => {
 	});
 
 	test('can match', () => {
-		let theme = Theme.createFromRawTheme([
+		let theme = TokenTheme.createFromRawTokenTheme([
 			{ token: '', foreground: 'F8F8F2', background: '272822' },
 			{ token: 'source', background: '100000' },
 			{ token: 'something', background: '100000' },
@@ -121,11 +121,11 @@ suite('Theme matching', () => {
 	});
 });
 
-suite('Theme parsing', () => {
+suite('Token theme parsing', () => {
 
 	test('can parse', () => {
 
-		let actual = parseTheme([
+		let actual = parseTokenTheme([
 			{ token: '', foreground: 'F8F8F2', background: '272822' },
 			{ token: 'source', background: '100000' },
 			{ token: 'something', background: '100000' },
@@ -140,24 +140,24 @@ suite('Theme parsing', () => {
 		]);
 
 		let expected = [
-			new ParsedThemeRule('', 0, FontStyle.NotSet, 'F8F8F2', '272822'),
-			new ParsedThemeRule('source', 1, FontStyle.NotSet, null, '100000'),
-			new ParsedThemeRule('something', 2, FontStyle.NotSet, null, '100000'),
-			new ParsedThemeRule('bar', 3, FontStyle.NotSet, null, '010000'),
-			new ParsedThemeRule('baz', 4, FontStyle.NotSet, null, '010000'),
-			new ParsedThemeRule('bar', 5, FontStyle.Bold, null, null),
-			new ParsedThemeRule('constant', 6, FontStyle.Italic, 'ff0000', null),
-			new ParsedThemeRule('constant.numeric', 7, FontStyle.NotSet, '00ff00', null),
-			new ParsedThemeRule('constant.numeric.hex', 8, FontStyle.Bold, null, null),
-			new ParsedThemeRule('constant.numeric.oct', 9, FontStyle.Bold | FontStyle.Italic | FontStyle.Underline, null, null),
-			new ParsedThemeRule('constant.numeric.dec', 10, FontStyle.None, '0000ff', null),
+			new ParsedTokenThemeRule('', 0, FontStyle.NotSet, 'F8F8F2', '272822'),
+			new ParsedTokenThemeRule('source', 1, FontStyle.NotSet, null, '100000'),
+			new ParsedTokenThemeRule('something', 2, FontStyle.NotSet, null, '100000'),
+			new ParsedTokenThemeRule('bar', 3, FontStyle.NotSet, null, '010000'),
+			new ParsedTokenThemeRule('baz', 4, FontStyle.NotSet, null, '010000'),
+			new ParsedTokenThemeRule('bar', 5, FontStyle.Bold, null, null),
+			new ParsedTokenThemeRule('constant', 6, FontStyle.Italic, 'ff0000', null),
+			new ParsedTokenThemeRule('constant.numeric', 7, FontStyle.NotSet, '00ff00', null),
+			new ParsedTokenThemeRule('constant.numeric.hex', 8, FontStyle.Bold, null, null),
+			new ParsedTokenThemeRule('constant.numeric.oct', 9, FontStyle.Bold | FontStyle.Italic | FontStyle.Underline, null, null),
+			new ParsedTokenThemeRule('constant.numeric.dec', 10, FontStyle.None, '0000ff', null),
 		];
 
 		assert.deepEqual(actual, expected);
 	});
 });
 
-suite('Theme resolving', () => {
+suite('Token theme resolving', () => {
 
 	test('strcmp works', () => {
 		let actual = ['bar', 'z', 'zu', 'a', 'ab', ''].sort(strcmp);
@@ -167,7 +167,7 @@ suite('Theme resolving', () => {
 	});
 
 	test('always has defaults', () => {
-		let actual = Theme.createFromParsedTheme([]);
+		let actual = TokenTheme.createFromParsedTokenTheme([]);
 		let colorMap = new ColorMap();
 		const _A = colorMap.getId('000000');
 		const _B = colorMap.getId('ffffff');
@@ -176,8 +176,8 @@ suite('Theme resolving', () => {
 	});
 
 	test('respects incoming defaults 1', () => {
-		let actual = Theme.createFromParsedTheme([
-			new ParsedThemeRule('', -1, FontStyle.NotSet, null, null)
+		let actual = TokenTheme.createFromParsedTokenTheme([
+			new ParsedTokenThemeRule('', -1, FontStyle.NotSet, null, null)
 		]);
 		let colorMap = new ColorMap();
 		const _A = colorMap.getId('000000');
@@ -187,8 +187,8 @@ suite('Theme resolving', () => {
 	});
 
 	test('respects incoming defaults 2', () => {
-		let actual = Theme.createFromParsedTheme([
-			new ParsedThemeRule('', -1, FontStyle.None, null, null)
+		let actual = TokenTheme.createFromParsedTokenTheme([
+			new ParsedTokenThemeRule('', -1, FontStyle.None, null, null)
 		]);
 		let colorMap = new ColorMap();
 		const _A = colorMap.getId('000000');
@@ -198,8 +198,8 @@ suite('Theme resolving', () => {
 	});
 
 	test('respects incoming defaults 3', () => {
-		let actual = Theme.createFromParsedTheme([
-			new ParsedThemeRule('', -1, FontStyle.Bold, null, null)
+		let actual = TokenTheme.createFromParsedTokenTheme([
+			new ParsedTokenThemeRule('', -1, FontStyle.Bold, null, null)
 		]);
 		let colorMap = new ColorMap();
 		const _A = colorMap.getId('000000');
@@ -209,8 +209,8 @@ suite('Theme resolving', () => {
 	});
 
 	test('respects incoming defaults 4', () => {
-		let actual = Theme.createFromParsedTheme([
-			new ParsedThemeRule('', -1, FontStyle.NotSet, 'ff0000', null)
+		let actual = TokenTheme.createFromParsedTokenTheme([
+			new ParsedTokenThemeRule('', -1, FontStyle.NotSet, 'ff0000', null)
 		]);
 		let colorMap = new ColorMap();
 		const _A = colorMap.getId('ff0000');
@@ -220,8 +220,8 @@ suite('Theme resolving', () => {
 	});
 
 	test('respects incoming defaults 5', () => {
-		let actual = Theme.createFromParsedTheme([
-			new ParsedThemeRule('', -1, FontStyle.NotSet, null, 'ff0000')
+		let actual = TokenTheme.createFromParsedTokenTheme([
+			new ParsedTokenThemeRule('', -1, FontStyle.NotSet, null, 'ff0000')
 		]);
 		let colorMap = new ColorMap();
 		const _A = colorMap.getId('000000');
@@ -231,10 +231,10 @@ suite('Theme resolving', () => {
 	});
 
 	test('can merge incoming defaults', () => {
-		let actual = Theme.createFromParsedTheme([
-			new ParsedThemeRule('', -1, FontStyle.NotSet, null, 'ff0000'),
-			new ParsedThemeRule('', -1, FontStyle.NotSet, '00ff00', null),
-			new ParsedThemeRule('', -1, FontStyle.Bold, null, null),
+		let actual = TokenTheme.createFromParsedTokenTheme([
+			new ParsedTokenThemeRule('', -1, FontStyle.NotSet, null, 'ff0000'),
+			new ParsedTokenThemeRule('', -1, FontStyle.NotSet, '00ff00', null),
+			new ParsedTokenThemeRule('', -1, FontStyle.Bold, null, null),
 		]);
 		let colorMap = new ColorMap();
 		const _A = colorMap.getId('00ff00');
@@ -244,9 +244,9 @@ suite('Theme resolving', () => {
 	});
 
 	test('defaults are inherited', () => {
-		let actual = Theme.createFromParsedTheme([
-			new ParsedThemeRule('', -1, FontStyle.NotSet, 'F8F8F2', '272822'),
-			new ParsedThemeRule('var', -1, FontStyle.NotSet, 'ff0000', null)
+		let actual = TokenTheme.createFromParsedTokenTheme([
+			new ParsedTokenThemeRule('', -1, FontStyle.NotSet, 'F8F8F2', '272822'),
+			new ParsedTokenThemeRule('var', -1, FontStyle.NotSet, 'ff0000', null)
 		]);
 		let colorMap = new ColorMap();
 		const _A = colorMap.getId('F8F8F2');
@@ -260,10 +260,10 @@ suite('Theme resolving', () => {
 	});
 
 	test('same rules get merged', () => {
-		let actual = Theme.createFromParsedTheme([
-			new ParsedThemeRule('', -1, FontStyle.NotSet, 'F8F8F2', '272822'),
-			new ParsedThemeRule('var', 1, FontStyle.Bold, null, null),
-			new ParsedThemeRule('var', 0, FontStyle.NotSet, 'ff0000', null),
+		let actual = TokenTheme.createFromParsedTokenTheme([
+			new ParsedTokenThemeRule('', -1, FontStyle.NotSet, 'F8F8F2', '272822'),
+			new ParsedTokenThemeRule('var', 1, FontStyle.Bold, null, null),
+			new ParsedTokenThemeRule('var', 0, FontStyle.NotSet, 'ff0000', null),
 		]);
 		let colorMap = new ColorMap();
 		const _A = colorMap.getId('F8F8F2');
@@ -277,10 +277,10 @@ suite('Theme resolving', () => {
 	});
 
 	test('rules are inherited 1', () => {
-		let actual = Theme.createFromParsedTheme([
-			new ParsedThemeRule('', -1, FontStyle.NotSet, 'F8F8F2', '272822'),
-			new ParsedThemeRule('var', -1, FontStyle.Bold, 'ff0000', null),
-			new ParsedThemeRule('var.identifier', -1, FontStyle.NotSet, '00ff00', null),
+		let actual = TokenTheme.createFromParsedTokenTheme([
+			new ParsedTokenThemeRule('', -1, FontStyle.NotSet, 'F8F8F2', '272822'),
+			new ParsedTokenThemeRule('var', -1, FontStyle.Bold, 'ff0000', null),
+			new ParsedTokenThemeRule('var.identifier', -1, FontStyle.NotSet, '00ff00', null),
 		]);
 		let colorMap = new ColorMap();
 		const _A = colorMap.getId('F8F8F2');
@@ -297,15 +297,15 @@ suite('Theme resolving', () => {
 	});
 
 	test('rules are inherited 2', () => {
-		let actual = Theme.createFromParsedTheme([
-			new ParsedThemeRule('', -1, FontStyle.NotSet, 'F8F8F2', '272822'),
-			new ParsedThemeRule('var', -1, FontStyle.Bold, 'ff0000', null),
-			new ParsedThemeRule('var.identifier', -1, FontStyle.NotSet, '00ff00', null),
-			new ParsedThemeRule('constant', 4, FontStyle.Italic, '100000', null),
-			new ParsedThemeRule('constant.numeric', 5, FontStyle.NotSet, '200000', null),
-			new ParsedThemeRule('constant.numeric.hex', 6, FontStyle.Bold, null, null),
-			new ParsedThemeRule('constant.numeric.oct', 7, FontStyle.Bold | FontStyle.Italic | FontStyle.Underline, null, null),
-			new ParsedThemeRule('constant.numeric.dec', 8, FontStyle.None, '300000', null),
+		let actual = TokenTheme.createFromParsedTokenTheme([
+			new ParsedTokenThemeRule('', -1, FontStyle.NotSet, 'F8F8F2', '272822'),
+			new ParsedTokenThemeRule('var', -1, FontStyle.Bold, 'ff0000', null),
+			new ParsedTokenThemeRule('var.identifier', -1, FontStyle.NotSet, '00ff00', null),
+			new ParsedTokenThemeRule('constant', 4, FontStyle.Italic, '100000', null),
+			new ParsedTokenThemeRule('constant.numeric', 5, FontStyle.NotSet, '200000', null),
+			new ParsedTokenThemeRule('constant.numeric.hex', 6, FontStyle.Bold, null, null),
+			new ParsedTokenThemeRule('constant.numeric.oct', 7, FontStyle.Bold | FontStyle.Italic | FontStyle.Underline, null, null),
+			new ParsedTokenThemeRule('constant.numeric.dec', 8, FontStyle.None, '300000', null),
 		]);
 		let colorMap = new ColorMap();
 		const _A = colorMap.getId('F8F8F2');

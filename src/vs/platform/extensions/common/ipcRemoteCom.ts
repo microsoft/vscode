@@ -13,6 +13,7 @@ interface IRPCFunc {
 	(rpcId: string, method: string, args: any[]): winjs.TPromise<any>;
 }
 
+let lastMessageId = 0;
 const pendingRPCReplies: { [msgId: string]: LazyPromise; } = {};
 
 class MessageFactory {
@@ -143,7 +144,6 @@ class LazyPromise {
 }
 
 function createRPC(serializeAndSend: (value: string) => void): IRPCFunc {
-	let lastMessageId = 0;
 
 	return function rpc(rpcId: string, method: string, args: any[]): winjs.TPromise<any> {
 		let req = String(++lastMessageId);

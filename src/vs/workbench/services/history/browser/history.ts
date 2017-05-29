@@ -9,9 +9,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import objects = require('vs/base/common/objects');
 import URI from 'vs/base/common/uri';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditor } from 'vs/editor/common/editorCommon';
 import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
-import { EditorInput, IGroupEvent, IEditorRegistry, Extensions, toResource, IEditorGroup } from 'vs/workbench/common/editor';
+import { EditorInput, IEditorCloseEvent, IEditorRegistry, Extensions, toResource, IEditorGroup } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, IFileService, FileChangeType } from 'vs/platform/files/common/files';
@@ -28,6 +28,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { getExcludes, ISearchConfiguration } from 'vs/platform/search/common/search';
 import { ParsedExpression, parse, IExpression } from 'vs/base/common/glob';
+import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -47,7 +48,7 @@ export class EditorState {
 		return this._selection;
 	}
 
-	public justifiesNewPushState(other: EditorState): boolean {
+	public justifiesNewPushState(other: EditorState, event?: ICursorPositionChangedEvent): boolean {
 		if (!this._editorInput.matches(other._editorInput)) {
 			return true; // push different editor inputs
 		}
@@ -56,10 +57,14 @@ export class EditorState {
 			return true; // unknown selections
 		}
 
-		const liftedSelection = Selection.liftSelection(this._selection);
-		const liftedOtherSelection = Selection.liftSelection(other._selection);
+		if (event && event.source === 'api') {
+			return true; // always let API source win (e.g. "Go to definition" should add a history entry)
+		}
 
-		if (Math.abs(liftedSelection.getStartPosition().lineNumber - liftedOtherSelection.getStartPosition().lineNumber) < EditorState.EDITOR_SELECTION_THRESHOLD) {
+		const myLineNumber = Math.min(this._selection.selectionStartLineNumber, this._selection.positionLineNumber);
+		const otherLineNumber = Math.min(other._selection.selectionStartLineNumber, other._selection.positionLineNumber);
+
+		if (Math.abs(myLineNumber - otherLineNumber) < EditorState.EDITOR_SELECTION_THRESHOLD) {
 			return false; // ignore selection changes in the range of EditorState.EDITOR_SELECTION_THRESHOLD lines
 		}
 
@@ -126,14 +131,14 @@ export abstract class BaseHistoryService {
 		const control = getCodeEditor(activeEditor);
 		if (control) {
 			this.activeEditorListeners.push(control.onDidChangeCursorPosition(event => {
-				this.handleEditorSelectionChangeEvent(activeEditor);
+				this.handleEditorSelectionChangeEvent(activeEditor, event);
 			}));
 		}
 	}
 
 	protected abstract handleExcludesChange(): void;
 
-	protected abstract handleEditorSelectionChangeEvent(editor?: IBaseEditor): void;
+	protected abstract handleEditorSelectionChangeEvent(editor?: IBaseEditor, event?: ICursorPositionChangedEvent): void;
 
 	protected abstract handleActiveEditorChange(editor?: IBaseEditor): void;
 
@@ -209,7 +214,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 	}
 
-	private onEditorClosed(event: IGroupEvent): void {
+	private onEditorClosed(event: IEditorCloseEvent): void {
 
 		// Track closing of pinned editor to support to reopen closed editors
 		if (event.pinned) {
@@ -243,17 +248,67 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 	}
 
-	public forward(): void {
+	public forward(acrossEditors?: boolean): void {
 		if (this.stack.length > this.index + 1) {
-			this.index++;
-			this.navigate();
+			if (acrossEditors) {
+				this.doForwardAcrossEditors();
+			} else {
+				this.doForwardInEditors();
+			}
 		}
 	}
 
-	public back(): void {
+	private doForwardInEditors(): void {
+		this.index++;
+		this.navigate();
+	}
+
+	private doForwardAcrossEditors(): void {
+		let currentIndex = this.index;
+		const currentEntry = this.stack[this.index];
+
+		// Find the next entry that does not match our current entry
+		while (this.stack.length > currentIndex + 1) {
+			currentIndex++;
+
+			const previousEntry = this.stack[currentIndex];
+			if (!this.matches(currentEntry.input, previousEntry.input)) {
+				this.index = currentIndex;
+				this.navigate(true /* across editors */);
+				break;
+			}
+		}
+	}
+
+	public back(acrossEditors?: boolean): void {
 		if (this.index > 0) {
-			this.index--;
-			this.navigate();
+			if (acrossEditors) {
+				this.doBackAcrossEditors();
+			} else {
+				this.doBackInEditors();
+			}
+		}
+	}
+
+	private doBackInEditors(): void {
+		this.index--;
+		this.navigate();
+	}
+
+	private doBackAcrossEditors(): void {
+		let currentIndex = this.index;
+		const currentEntry = this.stack[this.index];
+
+		// Find the next previous entry that does not match our current entry
+		while (currentIndex > 0) {
+			currentIndex--;
+
+			const previousEntry = this.stack[currentIndex];
+			if (!this.matches(currentEntry.input, previousEntry.input)) {
+				this.index = currentIndex;
+				this.navigate(true /* across editors */);
+				break;
+			}
 		}
 	}
 
@@ -266,14 +321,14 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.recentlyClosedFiles = [];
 	}
 
-	private navigate(): void {
+	private navigate(acrossEditors?: boolean): void {
 		const entry = this.stack[this.index];
 
 		let options = entry.options;
-		if (options) {
-			options.revealIfVisible = true;
+		if (options && !acrossEditors /* ignore line/col options when going across editors */) {
+			options.revealIfOpened = true;
 		} else {
-			options = { revealIfVisible: true };
+			options = { revealIfOpened: true };
 		}
 
 		this.navigatingInStack = true;
@@ -293,8 +348,8 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		});
 	}
 
-	protected handleEditorSelectionChangeEvent(editor?: IBaseEditor): void {
-		this.handleEditorEventInStack(editor);
+	protected handleEditorSelectionChangeEvent(editor?: IBaseEditor, event?: ICursorPositionChangedEvent): void {
+		this.handleEditorEventInStack(editor, event);
 	}
 
 	protected handleActiveEditorChange(editor?: IBaseEditor): void {
@@ -369,7 +424,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.history = this.history.filter(e => !this.matches(arg1, e));
 	}
 
-	private handleEditorEventInStack(editor: IBaseEditor): void {
+	private handleEditorEventInStack(editor: IBaseEditor, event?: ICursorPositionChangedEvent): void {
 		const control = getCodeEditor(editor);
 
 		// treat editor changes that happen as part of stack navigation specially
@@ -387,7 +442,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 
 		if (control && editor.input) {
-			this.handleTextEditorEvent(editor, control);
+			this.handleTextEditorEvent(editor, control, event);
 
 			return;
 		}
@@ -399,9 +454,9 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 	}
 
-	private handleTextEditorEvent(editor: IBaseEditor, editorControl: editorCommon.IEditor): void {
+	private handleTextEditorEvent(editor: IBaseEditor, editorControl: IEditor, event?: ICursorPositionChangedEvent): void {
 		const stateCandidate = new EditorState(editor.input, editorControl.getSelection());
-		if (!this.currentFileEditorState || this.currentFileEditorState.justifiesNewPushState(stateCandidate)) {
+		if (!this.currentFileEditorState || this.currentFileEditorState.justifiesNewPushState(stateCandidate, event)) {
 			this.currentFileEditorState = stateCandidate;
 
 			let options: ITextEditorOptions;

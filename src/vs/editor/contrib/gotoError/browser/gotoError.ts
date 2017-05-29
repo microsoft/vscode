@@ -13,7 +13,6 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMarker, IMarkerService } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -24,8 +23,12 @@ import { editorAction, ServicesAccessor, IActionOptions, EditorAction, EditorCom
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-
-import EditorContextKeys = editorCommon.EditorContextKeys;
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { Color } from 'vs/base/common/color';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { getAccessibilitySupport } from 'vs/base/browser/browser';
+import { AccessibilitySupport } from 'vs/base/common/platform';
 
 class MarkerModel {
 
@@ -88,7 +91,16 @@ class MarkerModel {
 		let found = false;
 		const position = this._editor.getPosition();
 		for (let i = 0; i < this._markers.length; i++) {
-			if (Range.containsPosition(this._markers[i], position)) {
+			let range = Range.lift(this._markers[i]);
+
+			if (range.isEmpty()) {
+				const word = this._editor.getModel().getWordAtPosition(range.getStartPosition());
+				if (word) {
+					range = new Range(range.startLineNumber, word.startColumn, range.startLineNumber, word.endColumn);
+				}
+			}
+
+			if (range.containsPosition(position) || position.isBeforeOrEqual(range.getStartPosition())) {
 				this._nextIdx = i + (fwd ? 0 : -1);
 				found = true;
 				break;
@@ -139,7 +151,7 @@ class MarkerModel {
 		this.move(false);
 	}
 
-	public findMarkerAtPosition(pos: editorCommon.IPosition): IMarker {
+	public findMarkerAtPosition(pos: Position): IMarker {
 		for (const marker of this._markers) {
 			if (Range.containsPosition(marker, pos)) {
 				return marker;
@@ -187,7 +199,7 @@ class MessageWidget {
 		container.appendChild(this.domNode);
 	}
 
-	update({source, message}: IMarker): void {
+	update({ source, message }: IMarker): void {
 		this.lines = 1;
 		if (source) {
 			const indent = new Array(source.length + 3 + 1).join(' ');
@@ -207,11 +219,35 @@ class MarkerNavigationWidget extends ZoneWidget {
 	private _title: HTMLElement;
 	private _message: MessageWidget;
 	private _callOnDispose: IDisposable[] = [];
+	private _severity: Severity;
+	private _backgroundColor: Color;
 
-	constructor(editor: ICodeEditor, private _model: MarkerModel, private _commandService: ICommandService) {
+	constructor(editor: ICodeEditor, private _model: MarkerModel, private _themeService: IThemeService) {
 		super(editor, { showArrow: true, showFrame: true, isAccessible: true });
+		this._severity = Severity.Warning;
+		this._backgroundColor = Color.white;
+
+		this._applyTheme(_themeService.getTheme());
+		this._callOnDispose.push(_themeService.onThemeChange(this._applyTheme.bind(this)));
+
 		this.create();
 		this._wireModelAndView();
+	}
+
+	private _applyTheme(theme: ITheme) {
+		this._backgroundColor = theme.getColor(editorMarkerNavigationBackground);
+		let frameColor = theme.getColor(this._severity === Severity.Error ? editorMarkerNavigationError : editorMarkerNavigationWarning);
+		this.style({
+			arrowColor: frameColor,
+			frameColor: frameColor
+		}); // style() will trigger _applyStyles
+	}
+
+	protected _applyStyles(): void {
+		if (this._parentContainer) {
+			this._parentContainer.style.backgroundColor = this._backgroundColor.toString();
+		}
+		super._applyStyles();
 	}
 
 	dispose(): void {
@@ -240,9 +276,11 @@ class MarkerNavigationWidget extends ZoneWidget {
 		this.editor.applyFontInfo(this._message.domNode);
 	}
 
-	public show(where: editorCommon.IPosition, heightInLines: number): void {
+	public show(where: Position, heightInLines: number): void {
 		super.show(where, heightInLines);
-		this.focus();
+		if (getAccessibilitySupport() !== AccessibilitySupport.Disabled) {
+			this.focus();
+		}
 	}
 
 	private _wireModelAndView(): void {
@@ -265,23 +303,11 @@ class MarkerNavigationWidget extends ZoneWidget {
 		this._message.update(marker);
 
 		this._model.withoutWatchingEditorPosition(() => {
-			const errorWidgetClass = 'marker-error-widget', warningWidgetClass = 'marker-warning-widget';
-
 			// update frame color (only applied on 'show')
-			switch (marker.severity) {
-				case Severity.Error:
-					this.setCssClass(errorWidgetClass, warningWidgetClass);
-					break;
-				case Severity.Warning:
-				case Severity.Info:
-					this.setCssClass(warningWidgetClass, errorWidgetClass);
-					break;
-			}
+			this._severity = marker.severity;
+			this._applyTheme(this._themeService.getTheme());
 
-			this.show({
-				lineNumber: marker.startLineNumber,
-				column: marker.startColumn
-			}, this.computeRequiredHeight());
+			this.show(new Position(marker.startLineNumber, marker.startColumn), this.computeRequiredHeight());
 		});
 	}
 
@@ -354,7 +380,7 @@ class MarkerController implements editorCommon.IEditorContribution {
 		editor: ICodeEditor,
 		@IMarkerService private _markerService: IMarkerService,
 		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@ICommandService private _commandService: ICommandService
+		@IThemeService private _themeService: IThemeService
 	) {
 		this._editor = editor;
 		this._markersNavigationVisible = CONTEXT_MARKERS_NAVIGATION_VISIBLE.bindTo(this._contextKeyService);
@@ -383,7 +409,7 @@ class MarkerController implements editorCommon.IEditorContribution {
 
 		const markers = this._getMarkers();
 		this._model = new MarkerModel(this._editor, markers);
-		this._zone = new MarkerNavigationWidget(this._editor, this._model, this._commandService);
+		this._zone = new MarkerNavigationWidget(this._editor, this._model, this._themeService);
 		this._markersNavigationVisible.set(true);
 
 		this._callOnClose.push(this._model);
@@ -419,9 +445,9 @@ class NextMarkerAction extends MarkerNavigationAction {
 			id: 'editor.action.marker.next',
 			label: nls.localize('markerAction.next.label', "Go to Next Error or Warning"),
 			alias: 'Go to Next Error or Warning',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.Focus,
+				kbExpr: EditorContextKeys.focus,
 				primary: KeyCode.F8
 			}
 		});
@@ -435,9 +461,9 @@ class PrevMarkerAction extends MarkerNavigationAction {
 			id: 'editor.action.marker.prev',
 			label: nls.localize('markerAction.previous.label', "Go to Previous Error or Warning"),
 			alias: 'Go to Previous Error or Warning',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.Focus,
+				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.Shift | KeyCode.F8
 			}
 		});
@@ -454,8 +480,14 @@ CommonEditorRegistry.registerEditorCommand(new MarkerCommand({
 	handler: x => x.closeMarkersNavigation(),
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(50),
-		kbExpr: EditorContextKeys.Focus,
+		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
 }));
+
+// theming
+
+export const editorMarkerNavigationError = registerColor('editorMarkerNavigationError.background', { dark: '#ff5a5a', light: '#ff5a5a', hc: '#ff5a5a' }, nls.localize('editorMarkerNavigationError', 'Editor marker navigation widget error color.'));
+export const editorMarkerNavigationWarning = registerColor('editorMarkerNavigationWarning.background', { dark: '#5aac5a', light: '#5aac5a', hc: '#5aac5a' }, nls.localize('editorMarkerNavigationWarning', 'Editor marker navigation widget warning color.'));
+export const editorMarkerNavigationBackground = registerColor('editorMarkerNavigation.background', { dark: '#2D2D30', light: Color.white, hc: '#0C141F' }, nls.localize('editorMarkerNavigationBackground', 'Editor marker navigation widget background.'));

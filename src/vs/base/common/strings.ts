@@ -72,7 +72,7 @@ export function escape(html: string): string {
  * Escapes regular expression characters in a given string
  */
 export function escapeRegExpCharacters(value: string): string {
-	return value.replace(/[\-\\\{\}\*\+\?\|\^\$\.\,\[\]\(\)\#\s]/g, '\\$&');
+	return value.replace(/[\-\\\{\}\*\+\?\|\^\$\.\[\]\(\)\#]/g, '\\$&');
 }
 
 /**
@@ -202,11 +202,11 @@ export interface RegExpOptions {
 }
 
 export function createRegExp(searchString: string, isRegex: boolean, options: RegExpOptions = {}): RegExp {
-	if (searchString === '') {
+	if (!searchString) {
 		throw new Error('Cannot create regex from empty string');
 	}
 	if (!isRegex) {
-		searchString = searchString.replace(/[\-\\\{\}\*\+\?\|\^\$\.\,\[\]\(\)\#\s]/g, '\\$&');
+		searchString = escapeRegExpCharacters(searchString);
 	}
 	if (options.wholeWord) {
 		if (!/\B/.test(searchString.charAt(0))) {
@@ -293,14 +293,14 @@ export function firstNonWhitespaceIndex(str: string): number {
  * Returns the leading whitespace of the string.
  * If the string contains only whitespaces, returns entire string
  */
-export function getLeadingWhitespace(str: string): string {
-	for (let i = 0, len = str.length; i < len; i++) {
+export function getLeadingWhitespace(str: string, start: number = 0, end: number = str.length): string {
+	for (let i = start; i < end; i++) {
 		let chCode = str.charCodeAt(i);
 		if (chCode !== CharCode.Space && chCode !== CharCode.Tab) {
-			return str.substring(0, i);
+			return str.substring(start, i);
 		}
 	}
-	return str;
+	return str.substring(start, end);
 }
 
 /**
@@ -330,22 +330,32 @@ export function compare(a: string, b: string): number {
 export function compareIgnoreCase(a: string, b: string): number {
 	const len = Math.min(a.length, b.length);
 	for (let i = 0; i < len; i++) {
-		const codeA = a.charCodeAt(i);
-		const codeB = b.charCodeAt(i);
+		let codeA = a.charCodeAt(i);
+		let codeB = b.charCodeAt(i);
 
 		if (codeA === codeB) {
 			// equal
 			continue;
 		}
 
-		if (isAsciiLetter(codeA) && isAsciiLetter(codeB)) {
-			const diff = codeA - codeB;
-			if (diff === 32 || diff === -32) {
-				// equal -> ignoreCase
-				continue;
-			} else {
-				return diff;
-			}
+		if (isUpperAsciiLetter(codeA)) {
+			codeA -= 32;
+		}
+
+		if (isUpperAsciiLetter(codeB)) {
+			codeB -= 32;
+		}
+
+		const diff = codeA - codeB;
+
+		if (diff === 0) {
+			// equal -> ignoreCase
+			continue;
+
+		} else if (isLowerAsciiLetter(codeA) && isLowerAsciiLetter(codeB)) {
+			//
+			return diff;
+
 		} else {
 			return compare(a.toLowerCase(), b.toLowerCase());
 		}
@@ -360,8 +370,16 @@ export function compareIgnoreCase(a: string, b: string): number {
 	}
 }
 
+function isLowerAsciiLetter(code: number): boolean {
+	return code >= CharCode.a && code <= CharCode.z;
+}
+
+function isUpperAsciiLetter(code: number): boolean {
+	return code >= CharCode.A && code <= CharCode.Z;
+}
+
 function isAsciiLetter(code: number): boolean {
-	return (code >= CharCode.a && code <= CharCode.z) || (code >= CharCode.A && code <= CharCode.Z);
+	return isLowerAsciiLetter(code) || isUpperAsciiLetter(code);
 }
 
 export function equalsIgnoreCase(a: string, b: string): boolean {
@@ -373,27 +391,44 @@ export function equalsIgnoreCase(a: string, b: string): boolean {
 		return false;
 	}
 
-	for (let i = 0; i < len1; i++) {
+	return doEqualsIgnoreCase(a, b);
+}
 
-		let codeA = a.charCodeAt(i),
-			codeB = b.charCodeAt(i);
+export function doEqualsIgnoreCase(a: string, b: string, stopAt = a.length): boolean {
+	for (let i = 0; i < stopAt; i++) {
+		const codeA = a.charCodeAt(i);
+		const codeB = b.charCodeAt(i);
 
 		if (codeA === codeB) {
 			continue;
+		}
 
-		} else if (isAsciiLetter(codeA) && isAsciiLetter(codeB)) {
+		// a-z A-Z
+		if (isAsciiLetter(codeA) && isAsciiLetter(codeB)) {
 			let diff = Math.abs(codeA - codeB);
 			if (diff !== 0 && diff !== 32) {
 				return false;
 			}
-		} else {
-			if (String.fromCharCode(codeA).toLocaleLowerCase() !== String.fromCharCode(codeB).toLocaleLowerCase()) {
+		}
+
+		// Any other charcode
+		else {
+			if (String.fromCharCode(codeA).toLowerCase() !== String.fromCharCode(codeB).toLowerCase()) {
 				return false;
 			}
 		}
 	}
 
 	return true;
+}
+
+export function beginsWithIgnoreCase(str: string, candidate: string): boolean {
+	const candidateLength = candidate.length;
+	if (candidate.length > str.length) {
+		return false;
+	}
+
+	return doEqualsIgnoreCase(str, candidate, candidateLength);
 }
 
 /**
@@ -468,12 +503,30 @@ export function containsRTL(str: string): boolean {
 	return CONTAINS_RTL.test(str);
 }
 
+/**
+ * Generated using https://github.com/alexandrudima/unicode-utils/blob/master/generate-emoji-test.js
+ */
+const CONTAINS_EMOJI = /(?:[\u231A\u231B\u23F0\u23F3\u2600-\u27BF\u2B50\u2B55]|\uD83C[\uDDE6-\uDDFF\uDF00-\uDFFF]|\uD83D[\uDC00-\uDE4F\uDE80-\uDEF8]|\uD83E[\uDD00-\uDDE6])/;
+
+export function containsEmoji(str: string): boolean {
+	return CONTAINS_EMOJI.test(str);
+}
+
 const IS_BASIC_ASCII = /^[\t\n\r\x20-\x7E]*$/;
 /**
  * Returns true if `str` contains only basic ASCII characters in the range 32 - 126 (including 32 and 126) or \n, \r, \t
  */
 export function isBasicASCII(str: string): boolean {
 	return IS_BASIC_ASCII.test(str);
+}
+
+export function containsFullWidthCharacter(str: string): boolean {
+	for (let i = 0, len = str.length; i < len; i++) {
+		if (isFullWidthCharacter(str.charCodeAt(i))) {
+			return true;
+		}
+	}
+	return false;
 }
 
 export function isFullWidthCharacter(charCode: number): boolean {

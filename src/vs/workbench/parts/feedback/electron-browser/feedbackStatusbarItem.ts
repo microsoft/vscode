@@ -11,6 +11,9 @@ import { FeedbackDropdown, IFeedback, IFeedbackService } from './feedback';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import product from 'vs/platform/node/product';
+import { Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 class TwitterFeedbackService implements IFeedbackService {
 
@@ -45,20 +48,36 @@ class TwitterFeedbackService implements IFeedbackService {
 	}
 }
 
-export class FeedbackStatusbarItem implements IStatusbarItem {
+export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
+	private dropdown: FeedbackDropdown;
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IContextViewService private contextViewService: IContextViewService
+		@IContextViewService private contextViewService: IContextViewService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IThemeService themeService: IThemeService
 	) {
+		super(themeService);
+	}
+
+	protected updateStyles(): void {
+		super.updateStyles();
+
+		if (this.dropdown) {
+			this.dropdown.label.style('background-color', this.getColor(this.contextService.hasWorkspace() ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND));
+		}
 	}
 
 	public render(element: HTMLElement): IDisposable {
 		if (product.sendASmile) {
-			return this.instantiationService.createInstance(FeedbackDropdown, element, {
+			this.dropdown = this.instantiationService.createInstance(FeedbackDropdown, element, {
 				contextViewProvider: this.contextViewService,
 				feedbackService: this.instantiationService.createInstance(TwitterFeedbackService)
 			});
+
+			this.updateStyles();
+
+			return this.dropdown;
 		}
 
 		return null;

@@ -1,0 +1,3 @@
+{
+	"config.npm.autoDetect": "Controls whether auto detection of npm scripts is on or off. Default is on."
+}

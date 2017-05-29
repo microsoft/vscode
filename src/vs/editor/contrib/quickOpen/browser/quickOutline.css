@@ -16,6 +16,7 @@
 .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.method,
 .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.function,
 .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.constructor		{ background-position: 0 -4px; }
+.quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.field,
 .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.variable 			{ background-position: -22px -4px; }
 .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.class 				{ background-position: -43px -3px; }
 .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.interface 			{ background-position: -63px -4px; }
@@ -28,6 +29,7 @@
 .vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.method,
 .vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.function,
 .vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.constructor 	{ background-position: 0 -24px; }
+.vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.field,
 .vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.variable 		{ background-position: -22px -24px; }
 .vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.class 		{ background-position: -43px -23px; }
 .vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.interface 	{ background-position: -63px -24px; }

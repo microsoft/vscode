@@ -6,7 +6,7 @@
 
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { CharCode } from 'vs/base/common/charCode';
-import { Decoration, LineDecorationsNormalizer } from 'vs/editor/common/viewLayout/viewLineParts';
+import { LineDecoration, LineDecorationsNormalizer } from 'vs/editor/common/viewLayout/lineDecorations';
 import * as strings from 'vs/base/common/strings';
 
 export const enum RenderWhitespace {
@@ -37,12 +37,13 @@ export class RenderLineInput {
 	public readonly mightContainRTL: boolean;
 	public readonly fauxIndentLength: number;
 	public readonly lineTokens: ViewLineToken[];
-	public readonly lineDecorations: Decoration[];
+	public readonly lineDecorations: LineDecoration[];
 	public readonly tabSize: number;
 	public readonly spaceWidth: number;
 	public readonly stopRenderingLineAfter: number;
 	public readonly renderWhitespace: RenderWhitespace;
 	public readonly renderControlCharacters: boolean;
+	public readonly fontLigatures: boolean;
 
 	constructor(
 		useMonospaceOptimizations: boolean,
@@ -50,12 +51,13 @@ export class RenderLineInput {
 		mightContainRTL: boolean,
 		fauxIndentLength: number,
 		lineTokens: ViewLineToken[],
-		lineDecorations: Decoration[],
+		lineDecorations: LineDecoration[],
 		tabSize: number,
 		spaceWidth: number,
 		stopRenderingLineAfter: number,
 		renderWhitespace: 'none' | 'boundary' | 'all',
 		renderControlCharacters: boolean,
+		fontLigatures: boolean
 	) {
 		this.useMonospaceOptimizations = useMonospaceOptimizations;
 		this.lineContent = lineContent;
@@ -74,6 +76,7 @@ export class RenderLineInput {
 					: RenderWhitespace.None
 		);
 		this.renderControlCharacters = renderControlCharacters;
+		this.fontLigatures = fontLigatures;
 	}
 
 	public equals(other: RenderLineInput): boolean {
@@ -87,7 +90,8 @@ export class RenderLineInput {
 			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
 			&& this.renderWhitespace === other.renderWhitespace
 			&& this.renderControlCharacters === other.renderControlCharacters
-			&& Decoration.equalsArr(this.lineDecorations, other.lineDecorations)
+			&& this.fontLigatures === other.fontLigatures
+			&& LineDecoration.equalsArr(this.lineDecorations, other.lineDecorations)
 			&& ViewLineToken.equalsArr(this.lineTokens, other.lineTokens)
 		);
 	}
@@ -297,7 +301,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 	if (input.mightContainRTL) {
 		containsRTL = strings.containsRTL(lineContent);
 	}
-	if (!containsRTL) {
+	if (!containsRTL && !input.fontLigatures) {
 		tokens = splitLargeTokens(lineContent, tokens);
 	}
 
@@ -493,8 +497,8 @@ function _applyRenderWhitespace(lineContent: string, len: number, tokens: LinePa
  * Inline decorations are "merged" on top of tokens.
  * Special care must be taken when multiple inline decorations are at play and they overlap.
  */
-function _applyInlineDecorations(lineContent: string, len: number, tokens: LinePart[], _lineDecorations: Decoration[]): LinePart[] {
-	_lineDecorations.sort(Decoration.compare);
+function _applyInlineDecorations(lineContent: string, len: number, tokens: LinePart[], _lineDecorations: LineDecoration[]): LinePart[] {
+	_lineDecorations.sort(LineDecoration.compare);
 	const lineDecorations = LineDecorationsNormalizer.normalize(_lineDecorations);
 	const lineDecorationsLen = lineDecorations.length;
 

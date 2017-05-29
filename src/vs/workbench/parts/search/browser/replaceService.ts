@@ -77,7 +77,7 @@ class ReplacePreviewModel extends Disposable {
 			const replacePreviewModel = this.modelService.createModel(sourceModel.getValue(), this.modeService.getOrCreateMode(sourceModelModeId), replacePreviewUri);
 			this._register(fileMatch.onChange(modelChange => this.update(sourceModel, replacePreviewModel, fileMatch, modelChange)));
 			this._register(this.searchWorkbenchService.searchModel.onReplaceTermChanged(() => this.update(sourceModel, replacePreviewModel, fileMatch)));
-			this._register(fileMatch.onDispose(() => replacePreviewModel.dispose()));
+			this._register(fileMatch.onDispose(() => replacePreviewModel.dispose())); // TODO@Sandeep we should not dispose a model directly but rather the reference (depends on https://github.com/Microsoft/vscode/issues/17073)
 			this._register(replacePreviewModel.onWillDispose(() => this.dispose()));
 			this._register(sourceModel.onWillDispose(() => this.dispose()));
 			return replacePreviewModel;

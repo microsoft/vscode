@@ -17,7 +17,6 @@
 }
 
 .monaco-workbench > .part.editor > .content .walkThroughContent a {
-	color: #4080D0;
 	text-decoration: none;
 }
 
@@ -69,7 +68,6 @@
 }
 
 .monaco-workbench > .part.editor > .content .walkThroughContent a:hover {
-	color: #4080D0;
 	text-decoration: underline;
 }
 
@@ -106,35 +104,10 @@
 	line-height: 19px;
 }
 
-/*.monaco-workbench.mac > .part.editor > .content .walkThroughContent code,
-.monaco-workbench.mac > .part.editor > .content .walkThroughContent .shortcut {
-	font-size: 12px;
-	line-height: 18px;
-}*/
-
-.vs .monaco-workbench > .part.editor > .content .walkThroughContent code,
-.vs .monaco-workbench > .part.editor > .content .walkThroughContent .shortcut {
-	color: #A31515;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content .walkThroughContent code,
-.vs-dark .monaco-workbench > .part.editor > .content .walkThroughContent .shortcut {
-	color: #D7BA7D;
-}
-
 .monaco-workbench > .part.editor > .content .walkThroughContent blockquote {
 	margin: 0 7px 0 5px;
 	padding: 0 16px 0 10px;
 	border-left: 5px solid;
-}
-.vs .monaco-workbench > .part.editor > .content .walkThroughContent blockquote,
-.vs-dark .monaco-workbench > .part.editor > .content .walkThroughContent blockquote {
-	background: rgba(127, 127, 127, 0.1);
-	border-color: rgba(0, 122, 204, 0.5);
-}
-.hc-black .monaco-workbench > .part.editor > .content .walkThroughContent blockquote {
-	background: transparent;
-	border-color: #fff;
 }
 
 .monaco-workbench > .part.editor > .content .walkThroughContent .monaco-tokenized-source {
@@ -161,26 +134,7 @@
 	display: initial;
 }
 
-.monaco-workbench > .part.editor > .content .walkThroughContent .scm-only {
-	display: none;
-}
-.monaco-workbench > .part.editor > .content .walkThroughContent.scmEnabled .scm-only {
-	display: initial;
-}
-.monaco-workbench > .part.editor > .content .walkThroughContent.scmEnabled .git-only {
-	display: none;
-}
-
-.vs .monaco-workbench > .part.editor > .content .walkThroughContent .monaco-editor-background,
-.vs .monaco-workbench > .part.editor > .content .walkThroughContent .glyph-margin {
-	background-color: #eee;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content .walkThroughContent .monaco-editor-background,
-.vs-dark .monaco-workbench > .part.editor > .content .walkThroughContent .glyph-margin {
-	background-color: #111;
-}
-
 .hc-black .monaco-workbench > .part.editor > .content .walkThroughContent .monaco-editor {
-	border: 1px white solid
+	border-width: 1px;
+	border-style: solid;
 }

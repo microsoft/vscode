@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind } from 'vscode';
 import { join } from 'path';
-import { cleanUp, pathEquals } from './utils';
+import { cleanUp, pathEquals, createRandomFile } from './utils';
 
 suite('window namespace tests', () => {
 
@@ -108,6 +108,25 @@ suite('window namespace tests', () => {
 				registration1.dispose();
 			});
 		});
+	});
+
+	test('issue #25801 - default column when opening a file', async () => {
+		const [docA, docB, docC] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile())
+		]);
+
+		await window.showTextDocument(docA, ViewColumn.One);
+		await window.showTextDocument(docB, ViewColumn.Two);
+
+		assert.ok(window.activeTextEditor);
+		assert.ok(window.activeTextEditor!.document === docB);
+		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Two);
+
+		await window.showTextDocument(docC);
+		assert.ok(window.activeTextEditor!.document === docC);
+		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.One);
 	});
 
 	test('issue #5362 - Incorrect TextEditor passed by onDidChangeTextEditorSelection', (done) => {
@@ -290,6 +309,17 @@ suite('window namespace tests', () => {
 		});
 	});
 
+	test('showQuickPick, never resolve promise and cancel - #22453', function () {
+
+		const result = window.showQuickPick(new Promise<string[]>(resolve => { }));
+
+		const a = result.then(value => {
+			assert.equal(value, undefined);
+		});
+		const b = commands.executeCommand('workbench.action.closeQuickOpen');
+		return Promise.all([a, b]);
+	});
+
 	test('editor, selection change kind', () => {
 		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => window.showTextDocument(doc)).then(editor => {
 
@@ -342,5 +372,20 @@ suite('window namespace tests', () => {
 
 	test('terminal, name should set terminal.name', () => {
 		assert.equal(window.createTerminal('foo').name, 'foo');
+	});
+
+	test('terminal, listening to onData should report data from the pty process', done => {
+		const terminal = window.createTerminal();
+		let fromPty = '';
+		let isFinished = false;
+		(<any>terminal).onData(data => {
+			// The text could be split over multiple callbacks
+			fromPty += data;
+			if (!isFinished && fromPty.indexOf('test') >= 0) {
+				isFinished = true;
+				done();
+			}
+		});
+		terminal.sendText('test', false);
 	});
 });

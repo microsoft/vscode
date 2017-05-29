@@ -8,12 +8,13 @@
 import { Registry } from 'vs/platform/platform';
 import nls = require('vs/nls');
 import product from 'vs/platform/node/product';
+import * as os from 'os';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { CloseEditorAction, KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, ReportIssueAction, ReportPerformanceIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseFolderAction, CloseWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction } from 'vs/workbench/electron-browser/actions';
+import { CloseEditorAction, KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, ReportIssueAction, ReportPerformanceIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseFolderAction, CloseWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction, NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction, IncreaseViewSizeAction, DecreaseViewSizeAction, ShowStartupPerformance, ToggleSharedProcessAction } from 'vs/workbench/electron-browser/actions';
 import { MessagesVisibleContext } from 'vs/workbench/electron-browser/workbench';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { registerCommands } from 'vs/workbench/electron-browser/commands';
@@ -66,75 +67,110 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(Toggle
 if (isWindows || isLinux) {
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMenuBarAction, ToggleMenuBarAction.ID, ToggleMenuBarAction.LABEL), 'View: Toggle Menu Bar', viewCategory);
 }
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NavigateUpAction, NavigateUpAction.ID, NavigateUpAction.LABEL, null), 'View: Move to the View Above', viewCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NavigateDownAction, NavigateDownAction.ID, NavigateDownAction.LABEL, null), 'View: Move to the View Below', viewCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NavigateLeftAction, NavigateLeftAction.ID, NavigateLeftAction.LABEL, null), 'View: Move to the View on the Left', viewCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NavigateRightAction, NavigateRightAction.ID, NavigateRightAction.LABEL, null), 'View: Move to the View on the Right', viewCategory);
+
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(IncreaseViewSizeAction, IncreaseViewSizeAction.ID, IncreaseViewSizeAction.LABEL, null), 'View: Increase View Size', viewCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(DecreaseViewSizeAction, DecreaseViewSizeAction.ID, DecreaseViewSizeAction.LABEL, null), 'View: Decrease View Size', viewCategory);
+
+// Developer related actions
+const developerCategory = nls.localize('developer', "Developer");
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowStartupPerformance, ShowStartupPerformance.ID, ShowStartupPerformance.LABEL), 'Developer: Startup Performance', developerCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSharedProcessAction, ToggleSharedProcessAction.ID, ToggleSharedProcessAction.LABEL), 'Developer: Toggle Shared Process', developerCategory);
 
 // Configuration: Workbench
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+
+let workbenchProperties: { [path: string]: IJSONSchema; } = {
+	'workbench.editor.showTabs': {
+		'type': 'boolean',
+		'description': nls.localize('showEditorTabs', "Controls if opened editors should show in tabs or not."),
+		'default': true
+	},
+	'workbench.editor.tabCloseButton': {
+		'type': 'string',
+		'enum': ['left', 'right', 'off'],
+		'default': 'right',
+		'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorTabCloseButton' }, "Controls the position of the editor's tabs close buttons or disables them when set to 'off'.")
+	},
+	'workbench.editor.showIcons': {
+		'type': 'boolean',
+		'description': nls.localize('showIcons', "Controls if opened editors should show with an icon or not. This requires an icon theme to be enabled as well."),
+		'default': true
+	},
+	'workbench.editor.enablePreview': {
+		'type': 'boolean',
+		'description': nls.localize('enablePreview', "Controls if opened editors show as preview. Preview editors are reused until they are kept (e.g. via double click or editing)."),
+		'default': true
+	},
+	'workbench.editor.enablePreviewFromQuickOpen': {
+		'type': 'boolean',
+		'description': nls.localize('enablePreviewFromQuickOpen', "Controls if opened editors from Quick Open show as preview. Preview editors are reused until they are kept (e.g. via double click or editing)."),
+		'default': true
+	},
+	'workbench.editor.openPositioning': {
+		'type': 'string',
+		'enum': ['left', 'right', 'first', 'last'],
+		'default': 'right',
+		'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorOpenPositioning' }, "Controls where editors open. Select 'left' or 'right' to open editors to the left or right of the current active one. Select 'first' or 'last' to open editors independently from the currently active one.")
+	},
+	'workbench.editor.revealIfOpen': {
+		'type': 'boolean',
+		'description': nls.localize('revealIfOpen', "Controls if an editor is revealed in any of the visible groups if opened. If disabled, an editor will prefer to open in the currently active editor group. If enabled, an already opened editor will be revealed instead of opened again in the currently active editor group. Note that there are some cases where this setting is ignored, e.g. when forcing an editor to open in a specific group or to the side of the currently active group."),
+		'default': false
+	},
+	'workbench.quickOpen.closeOnFocusLost': {
+		'type': 'boolean',
+		'description': nls.localize('closeOnFocusLost', "Controls if Quick Open should close automatically once it loses focus."),
+		'default': true
+	},
+	'workbench.settings.openDefaultSettings': {
+		'type': 'boolean',
+		'description': nls.localize('openDefaultSettings', "Controls if opening settings also opens an editor showing all default settings."),
+		'default': true
+	},
+	'workbench.sideBar.location': {
+		'type': 'string',
+		'enum': ['left', 'right'],
+		'default': 'left',
+		'description': nls.localize('sideBarLocation', "Controls the location of the sidebar. It can either show on the left or right of the workbench.")
+	},
+	'workbench.statusBar.visible': {
+		'type': 'boolean',
+		'default': true,
+		'description': nls.localize('statusBarVisibility', "Controls the visibility of the status bar at the bottom of the workbench.")
+	},
+	'workbench.activityBar.visible': {
+		'type': 'boolean',
+		'default': true,
+		'description': nls.localize('activityBarVisibility', "Controls the visibility of the activity bar in the workbench.")
+	},
+	'workbench.editor.closeOnFileDelete': {
+		'type': 'boolean',
+		'description': nls.localize('closeOnFileDelete', "Controls if editors showing a file should close automatically when the file is deleted or renamed by some other process. Disabling this will keep the editor open as dirty on such an event. Note that deleting from within the application will always close the editor and that dirty files will never close to preserve your data."),
+		'default': true
+	}
+};
+
+if (isMacintosh) {
+	workbenchProperties['workbench.editor.swipeToNavigate'] = {
+		'type': 'boolean',
+		'description': nls.localize('swipeToNavigate', "Navigate between open files using three-finger swipe horizontally."),
+		'default': false
+	};
+}
+
+
 configurationRegistry.registerConfiguration({
 	'id': 'workbench',
 	'order': 7,
 	'title': nls.localize('workbenchConfigurationTitle', "Workbench"),
 	'type': 'object',
-	'properties': {
-		'workbench.editor.showTabs': {
-			'type': 'boolean',
-			'description': nls.localize('showEditorTabs', "Controls if opened editors should show in tabs or not."),
-			'default': true
-		},
-		'workbench.editor.tabCloseButton': {
-			'type': 'string',
-			'enum': ['left', 'right', 'off'],
-			'default': 'right',
-			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorTabCloseButton' }, "Controls the position of the editor's tabs close buttons or disables them when set to 'off'.")
-		},
-		'workbench.editor.showIcons': {
-			'type': 'boolean',
-			'description': nls.localize('showIcons', "Controls if opened editors should show with an icon or not. This requires an icon theme to be enabled as well."),
-			'default': true
-		},
-		'workbench.editor.enablePreview': {
-			'type': 'boolean',
-			'description': nls.localize('enablePreview', "Controls if opened editors show as preview. Preview editors are reused until they are kept (e.g. via double click or editing)."),
-			'default': true
-		},
-		'workbench.editor.enablePreviewFromQuickOpen': {
-			'type': 'boolean',
-			'description': nls.localize('enablePreviewFromQuickOpen', "Controls if opened editors from Quick Open show as preview. Preview editors are reused until they are kept (e.g. via double click or editing)."),
-			'default': true
-		},
-		'workbench.editor.openPositioning': {
-			'type': 'string',
-			'enum': ['left', 'right', 'first', 'last'],
-			'default': 'right',
-			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorOpenPositioning' }, "Controls where editors open. Select 'left' or 'right' to open editors to the left or right of the current active one. Select 'first' or 'last' to open editors independently from the currently active one.")
-		},
-		'workbench.quickOpen.closeOnFocusLost': {
-			'type': 'boolean',
-			'description': nls.localize('closeOnFocusLost', "Controls if Quick Open should close automatically once it loses focus."),
-			'default': true
-		},
-		'workbench.settings.openDefaultSettings': {
-			'type': 'boolean',
-			'description': nls.localize('openDefaultSettings', "Controls if opening settings also opens an editor showing all default settings."),
-			'default': true
-		},
-		'workbench.sideBar.location': {
-			'type': 'string',
-			'enum': ['left', 'right'],
-			'default': 'left',
-			'description': nls.localize('sideBarLocation', "Controls the location of the sidebar. It can either show on the left or right of the workbench.")
-		},
-		'workbench.statusBar.visible': {
-			'type': 'boolean',
-			'default': true,
-			'description': nls.localize('statusBarVisibility', "Controls the visibility of the status bar at the bottom of the workbench.")
-		},
-		'workbench.activityBar.visible': {
-			'type': 'boolean',
-			'default': true,
-			'description': nls.localize('activityBarVisibility', "Controls the visibility of the activity bar in the workbench.")
-		}
-	}
+	'properties': workbenchProperties
 });
+
 
 // Configuration: Window
 let properties: { [path: string]: IJSONSchema; } = {
@@ -146,7 +182,7 @@ let properties: { [path: string]: IJSONSchema; } = {
 			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.openFilesInNewWindow.off' }, "Files will open in the window with the files' folder open or the last active window"),
 			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.openFilesInNewWindow.default' }, "Files will open in the window with the files' folder open or the last active window unless opened via the dock or from finder (macOS only)")
 		],
-		'default': 'default',
+		'default': 'off',
 		'description':
 		nls.localize('openFilesInNewWindow',
 			`Controls if files should open in a new window.
@@ -218,7 +254,7 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.newWindowDimensions.fullscreen' }, "Open new windows in full screen mode.")
 		],
 		'default': 'default',
-		'description': nls.localize('newWindowDimensions', "Controls the dimensions of opening a new window. By default, a new window will open in the center of the screen with small dimensions. When set to  'inherit', the window will get the same dimensions as the last active one. When set to 'maximized', the window will open maximized and fullscreen if configured to 'fullscreen'.")
+		'description': nls.localize('newWindowDimensions', "Controls the dimensions of opening a new window when at least one window is already opened. By default, a new window will open in the center of the screen with small dimensions. When set to 'inherit', the window will get the same dimensions as the last window that was active. When set to 'maximized', the window will open maximized and fullscreen if configured to 'fullscreen'. Note that this setting does not have an impact on the first window that is opened. The first window will always restore the size and location as you left it before closing.")
 	},
 };
 
@@ -234,6 +270,11 @@ if (isWindows || isLinux) {
 		],
 		'default': 'default',
 		'description': nls.localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. By default, the menu bar will be visible, unless the window is full screen.")
+	};
+	properties['window.enableMenuBarMnemonics'] = {
+		'type': 'boolean',
+		'default': true,
+		'description': nls.localize('enableMenuBarMnemonics', "If enabled, the main menus can be opened via Alt-key shortcuts. Disabling mnemonics allows to bind these Alt-key shortcuts to editor commands instead.")
 	};
 }
 
@@ -252,6 +293,15 @@ if (isMacintosh) {
 		'default': 'custom',
 		'description': nls.localize('titleBarStyle', "Adjust the appearance of the window title bar. Changes require a full restart to apply.")
 	};
+
+	// macOS Sierra (10.12.x = darwin 16.x) and electron > 1.4.6 only
+	if (os.release().indexOf('16.') === 0 && process.versions.electron !== '1.4.6') {
+		properties['window.nativeTabs'] = {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('window.nativeTabs', "Enables macOS Sierra window tabs. Note that changes require a full restart to apply and that native tabs will disable a custom title bar style if configured.")
+		};
+	}
 }
 
 configurationRegistry.registerConfiguration({
@@ -283,6 +333,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': true,
 			'description': nls.localize('zenMode.hideStatusBar', "Controls if turning on Zen Mode also hides the status bar at the bottom of the workbench.")
+		},
+		'zenMode.hideActivityBar': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('zenMode.hideActivityBar', "Controls if turning on Zen Mode also hides the activity bar at the left of the workbench.")
 		},
 		'zenMode.restore': {
 			'type': 'boolean',

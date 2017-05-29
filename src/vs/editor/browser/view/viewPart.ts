@@ -6,7 +6,8 @@
 
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { FastDomNode } from 'vs/base/browser/fastDomNode';
 
 export abstract class ViewPart extends ViewEventHandler {
 
@@ -21,10 +22,11 @@ export abstract class ViewPart extends ViewEventHandler {
 	public dispose(): void {
 		this._context.removeEventHandler(this);
 		this._context = null;
+		super.dispose();
 	}
 
-	public abstract prepareRender(ctx: IRenderingContext): void;
-	public abstract render(ctx: IRestrictedRenderingContext): void;
+	public abstract prepareRender(ctx: RenderingContext): void;
+	public abstract render(ctx: RestrictedRenderingContext): void;
 }
 
 export const enum PartFingerprint {
@@ -36,12 +38,17 @@ export const enum PartFingerprint {
 	ScrollableElement,
 	TextArea,
 	ViewLines,
+	Minimap
 }
 
 export class PartFingerprints {
 
-	public static write(target: Element, partId: PartFingerprint) {
-		target.setAttribute('data-mprt', String(partId));
+	public static write(target: Element | FastDomNode<HTMLElement>, partId: PartFingerprint) {
+		if (target instanceof FastDomNode) {
+			target.setAttribute('data-mprt', String(partId));
+		} else {
+			target.setAttribute('data-mprt', String(partId));
+		}
 	}
 
 	public static read(target: Element): PartFingerprint {

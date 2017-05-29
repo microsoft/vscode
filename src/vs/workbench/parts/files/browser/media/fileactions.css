@@ -75,19 +75,19 @@
 	background-image: url('split-editor-horizontal-inverse.svg');
 }
 
-.monaco-workbench .conflict-editor-action.accept-changes {
+.monaco-workbench .save-conflict-action-accept-changes {
 	background: url('check.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .conflict-editor-action.accept-changes {
+.vs-dark .monaco-workbench .save-conflict-action-accept-changes {
 	background: url('check-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench .conflict-editor-action.revert-changes {
+.monaco-workbench .save-conflict-action-revert-changes {
 	background: url('undo.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .conflict-editor-action.revert-changes {
+.vs-dark .monaco-workbench .save-conflict-action-revert-changes {
 	background: url('undo-inverse.svg') center center no-repeat;
 }
 
@@ -106,10 +106,6 @@
 
 .explorer-viewlet .explorer-open-editors .focused .monaco-tree-row.selected:not(.highlighted) > .content .close-editor-action {
 	background: url("action-close-focus.svg") center center no-repeat;
-}
-
-.explorer-viewlet .explorer-open-editors .monaco-action-bar {
-	background-color: transparent !important;
 }
 
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row:not(:hover) > .content.dirty > .monaco-action-bar .close-editor-action {

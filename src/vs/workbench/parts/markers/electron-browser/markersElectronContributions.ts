@@ -10,8 +10,7 @@ import Constants from 'vs/workbench/parts/markers/common/constants';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
+import { KeybindingsRegistry, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { MarkersPanel } from 'vs/workbench/parts/markers/browser/markersPanel';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -74,7 +73,7 @@ interface IActionDescriptor {
 
 function registerAction(desc: IActionDescriptor) {
 
-	const {id, handler, title, category, iconClass, menu, keybinding} = desc;
+	const { id, handler, title, category, iconClass, menu, keybinding } = desc;
 
 	// 1) register as command
 	CommandsRegistry.registerCommand(id, handler);
@@ -82,7 +81,7 @@ function registerAction(desc: IActionDescriptor) {
 	// 2) menus
 	let command = { id, title, iconClass, category };
 	if (menu) {
-		let {menuId, when, group} = menu;
+		let { menuId, when, group } = menu;
 		MenuRegistry.appendMenuItem(menuId, {
 			command,
 			when,
@@ -92,7 +91,7 @@ function registerAction(desc: IActionDescriptor) {
 
 	// 3) keybindings
 	if (keybinding) {
-		let {when, weight, keys} = keybinding;
+		let { when, weight, keys } = keybinding;
 		KeybindingsRegistry.registerKeybindingRule({
 			id,
 			when,

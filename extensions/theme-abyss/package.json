@@ -8,7 +8,7 @@
 			{
 				"label": "Abyss",
 				"uiTheme": "vs-dark",
-				"path": "./themes/Abyss.tmTheme"
+				"path": "./themes/abyss-color-theme.json"
 			}
 		]
 	}

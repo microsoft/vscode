@@ -11,7 +11,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IAutoFocus, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IEditorAction, ICommonCodeEditor, IEditor, EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { IEditorAction, ICommonCodeEditor, IEditor } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { BaseEditorQuickOpenAction } from './editorQuickOpen';
 import { editorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -77,7 +78,7 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 			alias: 'Command Palette',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.Focus,
+				kbExpr: EditorContextKeys.focus,
 				primary: (browser.isIE ? KeyMod.Alt | KeyCode.F1 : KeyCode.F1)
 			},
 			menuOpts: {
@@ -116,12 +117,12 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 		for (let i = 0; i < actions.length; i++) {
 			let action = actions[i];
 
-			let [keybind] = keybindingService.lookupKeybindings(action.id);
+			let keybind = keybindingService.lookupKeybinding(action.id);
 
 			if (action.label) {
 				let highlights = matchesFuzzy(searchValue, action.label);
 				if (highlights) {
-					entries.push(new EditorActionCommandEntry(keybind ? keybindingService.getLabelFor(keybind) : '', highlights, action, editor));
+					entries.push(new EditorActionCommandEntry(keybind ? keybind.getLabel() : '', highlights, action, editor));
 				}
 			}
 		}

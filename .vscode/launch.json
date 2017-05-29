@@ -4,6 +4,143 @@
 		{
 			"type": "node",
 			"request": "launch",
+			"name": "Gulp Build",
+			"program": "${workspaceRoot}/node_modules/gulp/bin/gulp.js",
+			"stopOnEntry": true,
+			"args": [
+				"watch-extension:json-client"
+			],
+			"cwd": "${workspaceRoot}"
+		},
+		{
+			"type": "node",
+			"request": "attach",
+			"name": "Attach to Extension Host",
+			"protocol": "legacy",
+			"port": 5870,
+			"restart": true,
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
+			]
+		},
+		{
+			"type": "node",
+			"request": "attach",
+			"name": "Attach to Shared Process",
+			"protocol": "legacy",
+			"port": 5871,
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
+			]
+		},
+		{
+			"type": "node",
+			"request": "attach",
+			"protocol": "legacy",
+			"name": "Attach to Search process",
+			"port": 7890,
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
+			]
+		},
+		{
+			"type": "node",
+			"request": "attach",
+			"name": "Attach to CLI Process",
+			"protocol": "legacy",
+			"port": 5874,
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
+			]
+		},
+		{
+			"type": "node",
+			"request": "attach",
+			"name": "Attach to Main Process",
+			"protocol": "legacy",
+			"port": 5875,
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
+			]
+		},
+		{
+			"type": "extensionHost",
+			"request": "launch",
+			"name": "VS Code API Tests",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"${workspaceRoot}/extensions/vscode-api-tests/testWorkspace",
+				"--extensionDevelopmentPath=${workspaceRoot}/extensions/vscode-api-tests",
+				"--extensionTestsPath=${workspaceRoot}/extensions/vscode-api-tests/out"
+			],
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
+			]
+		},
+		{
+			"type": "extensionHost",
+			"request": "launch",
+			"name": "VS Code Tokenizer Tests",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"${workspaceRoot}/extensions/vscode-colorize-tests/test",
+				"--extensionDevelopmentPath=${workspaceRoot}/extensions/vscode-colorize-tests",
+				"--extensionTestsPath=${workspaceRoot}/extensions/vscode-colorize-tests/out"
+			],
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
+			]
+		},
+		{
+			"type": "chrome",
+			"request": "attach",
+			"name": "Attach to VS Code",
+			"port": 9222
+		},
+		{
+			"type": "chrome",
+			"request": "launch",
+			"name": "Launch VS Code",
+			"windows": {
+				"runtimeExecutable": "${workspaceRoot}/scripts/code.bat"
+			},
+			"osx": {
+				"runtimeExecutable": "${workspaceRoot}/scripts/code.sh"
+			},
+			"linux": {
+				"runtimeExecutable": "${workspaceRoot}/scripts/code.sh"
+			},
+			"urlFilter": "*index.html*",
+			"runtimeArgs": [
+				"--debug=5875"
+			],
+			"webRoot": "${workspaceRoot}"
+		},
+		{
+			"type": "node",
+			"request": "launch",
+			"name": "Git Unit Tests",
+			"protocol": "inspector",
+			"program": "${workspaceRoot}/extensions/git/node_modules/mocha/bin/_mocha",
+			"stopOnEntry": false,
+			"cwd": "${workspaceRoot}/extensions/git",
+			"outFiles": [
+				"${workspaceRoot}/extensions/git/out/**/*.js"
+			]
+		},
+		{
+			"name": "Attach to TS Server",
+			"type": "node",
+			"request": "attach",
+			"port": 5859,
+			"protocol": "legacy",
+			"outFiles": [
+				"${workspaceRoot}/extensions/node_modules/typescript/lib/**/*.js"
+			]
+		},
+		{
+			"type": "node",
+			"request": "launch",
 			"name": "Unit Tests",
 			"protocol": "legacy",
 			"program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
@@ -23,108 +160,18 @@
 			"env": {
 				"ELECTRON_RUN_AS_NODE": "true"
 			},
-			"sourceMaps": true,
-			"outFiles": [
-				"${workspaceRoot}/out/**/*.js"
-			],
-			"preLaunchTask": "electron"
-		},
-		{
-			"type": "node",
-			"request": "launch",
-			"name": "Gulp Build",
-			"program": "${workspaceRoot}/node_modules/gulp/bin/gulp.js",
-			"stopOnEntry": true,
-			"args": [
-				"watch-extension:json-client"
-			],
-			"cwd": "${workspaceRoot}"
-		},
-		{
-			"type": "node",
-			"request": "attach",
-			"name": "Attach to Extension Host",
-			"protocol": "legacy",
-			"port": 5870,
-			"sourceMaps": true,
-			"restart": true,
 			"outFiles": [
 				"${workspaceRoot}/out/**/*.js"
 			]
-		},
+		}
+	],
+	"compounds": [
 		{
-			"type": "node",
-			"request": "attach",
-			"name": "Attach to Shared Process",
-			"protocol": "legacy",
-			"port": 5871,
-			"sourceMaps": true,
-			"outFiles": [
-				"${workspaceRoot}/out/**/*.js"
+			"name": "Debug VS Code Main and Renderer",
+			"configurations": [
+				"Launch VS Code",
+				"Attach to Main Process"
 			]
-		},
-		{
-			"type": "node",
-			"request": "attach",
-			"name": "Attach to CLI Process",
-			"protocol": "legacy",
-			"port": 5874,
-			"sourceMaps": true,
-			"outFiles": [
-				"${workspaceRoot}/out/**/*.js"
-			]
-		},
-		{
-			"type": "extensionHost",
-			"request": "launch",
-			"name": "VS Code API Tests",
-			"runtimeExecutable": "${execPath}",
-			"args": [
-				"${workspaceRoot}/extensions/vscode-api-tests/testWorkspace",
-				"--extensionDevelopmentPath=${workspaceRoot}/extensions/vscode-api-tests",
-				"--extensionTestsPath=${workspaceRoot}/extensions/vscode-api-tests/out"
-			],
-			"sourceMaps": true,
-			"outFiles": [
-				"${workspaceRoot}/out/**/*.js"
-			]
-		},
-		{
-			"type": "extensionHost",
-			"request": "launch",
-			"name": "VS Code Tokenizer Tests",
-			"runtimeExecutable": "${execPath}",
-			"args": [
-				"${workspaceRoot}/extensions/vscode-colorize-tests/test",
-				"--extensionDevelopmentPath=${workspaceRoot}/extensions/vscode-colorize-tests",
-				"--extensionTestsPath=${workspaceRoot}/extensions/vscode-colorize-tests/out"
-			],
-			"sourceMaps": true,
-			"outFiles": [
-				"${workspaceRoot}/out/**/*.js"
-			]
-		},
-		{
-			"type": "chrome",
-			"request": "attach",
-			"name": "Attach to VS Code",
-			"port": 9222,
-			"sourceMaps": true
-		},
-		{
-			"type": "chrome",
-			"request": "launch",
-			"name": "Launch VS Code",
-			"windows": {
-				"runtimeExecutable": "${workspaceRoot}/scripts/code.bat"
-			},
-			"osx": {
-				"runtimeExecutable": "${workspaceRoot}/scripts/code.sh"
-			},
-			"linux": {
-				"runtimeExecutable": "${workspaceRoot}/scripts/code.sh"
-			},
-			"sourceMaps": true
 		}
 	]
 }

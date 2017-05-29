@@ -214,17 +214,6 @@ export class ScrollableElement extends Widget {
 	}
 
 	private _onMouseWheel(e: StandardMouseWheelEvent): void {
-		if (Platform.isMacintosh && e.browserEvent && this._options.saveLastScrollTimeOnClassName) {
-			// Mark dom node with timestamp of wheel event
-			let target = <HTMLElement>e.browserEvent.target;
-			if (target && target.nodeType === 1) {
-				let r = DomUtils.findParentWithClass(target, this._options.saveLastScrollTimeOnClassName);
-				if (r) {
-					r.setAttribute('last-scroll-time', String(new Date().getTime()));
-				}
-			}
-		}
-
 		let desiredScrollTop = -1;
 		let desiredScrollLeft = -1;
 
@@ -236,7 +225,10 @@ export class ScrollableElement extends Widget {
 				[deltaY, deltaX] = [deltaX, deltaY];
 			}
 
-			if (this._options.scrollYToX && !deltaX) {
+			// Convert vertical scrolling to horizontal if shift is held, this
+			// is handled at a higher level on Mac
+			const shiftConvert = !Platform.isMacintosh && e.browserEvent.shiftKey;
+			if ((this._options.scrollYToX || shiftConvert) && !deltaX) {
 				deltaX = deltaY;
 				deltaY = 0;
 			}
@@ -409,7 +401,7 @@ export class DomScrollableElement extends ScrollableElement {
 
 function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableElementResolvedOptions {
 	let result: ScrollableElementResolvedOptions = {
-		canUseTranslate3d: opts.canUseTranslate3d && Browser.canUseTranslate3d,
+		canUseTranslate3d: opts.canUseTranslate3d && Browser.supportsTranslate3d,
 		lazyRender: (typeof opts.lazyRender !== 'undefined' ? opts.lazyRender : false),
 		className: (typeof opts.className !== 'undefined' ? opts.className : ''),
 		useShadows: (typeof opts.useShadows !== 'undefined' ? opts.useShadows : true),
@@ -430,9 +422,7 @@ function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableEleme
 		vertical: (typeof opts.vertical !== 'undefined' ? opts.vertical : ScrollbarVisibility.Auto),
 		verticalScrollbarSize: (typeof opts.verticalScrollbarSize !== 'undefined' ? opts.verticalScrollbarSize : 10),
 		verticalHasArrows: (typeof opts.verticalHasArrows !== 'undefined' ? opts.verticalHasArrows : false),
-		verticalSliderSize: (typeof opts.verticalSliderSize !== 'undefined' ? opts.verticalSliderSize : 0),
-
-		saveLastScrollTimeOnClassName: (typeof opts.saveLastScrollTimeOnClassName !== 'undefined' ? opts.saveLastScrollTimeOnClassName : null)
+		verticalSliderSize: (typeof opts.verticalSliderSize !== 'undefined' ? opts.verticalSliderSize : 0)
 	};
 
 	result.horizontalSliderSize = (typeof opts.horizontalSliderSize !== 'undefined' ? opts.horizontalSliderSize : result.horizontalScrollbarSize);

@@ -47,6 +47,9 @@ suite('Labels', () => {
 		assert.deepEqual(labels.shorten(['\\\\x\\b', '\\\\y\\b']), ['\\\\x\\…', '\\\\y\\…']);
 		assert.deepEqual(labels.shorten(['\\\\x\\a', '\\\\x\\b']), ['\\\\x\\a', '\\\\x\\b']);
 
+		// same name ending
+		assert.deepEqual(labels.shorten(['a\\b', 'a\\c', 'a\\e-b']), ['…\\b', '…\\c', '…\\e-b']);
+
 		// same in the middle
 		assert.deepEqual(labels.shorten(['a\\b\\c', 'd\\b\\e']), ['…\\c', '…\\e']);
 
@@ -91,6 +94,9 @@ suite('Labels', () => {
 		assert.deepEqual(labels.shorten(['a/b/a', 'b/b/a']), ['a/b/…', 'b/b/…']);
 		assert.deepEqual(labels.shorten(['d/f/a/b/c', 'h/d/b/c']), ['…/a/…', 'h/…']);
 		assert.deepEqual(labels.shorten(['/x/b', '/y/b']), ['/x/…', '/y/…']);
+
+		// same name ending
+		assert.deepEqual(labels.shorten(['a/b', 'a/c', 'a/e-b']), ['…/b', '…/c', '…/e-b']);
 
 		// same in the middle
 		assert.deepEqual(labels.shorten(['a/b/c', 'd/b/e']), ['…/c', '…/e']);

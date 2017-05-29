@@ -3,11 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.context-view .tooltip.customhover {
-	text-overflow: ellipsis;
-	overflow: hidden;
-}
-
 .monaco-workbench-container {
 	position: absolute;
 }
@@ -18,10 +13,6 @@
 	position: relative;
 	z-index: 1;
 	overflow: hidden;
-}
-
-.monaco-workbench input {
-	font-size: 100%;
 }
 
 .monaco-workbench > .part {
@@ -44,77 +35,4 @@
 	height: 100%;
 	width: 100%;
 	z-index: 10000;
-}
-
-/* ---------- Light Theme ---------- */
-
-.vs .monaco-workbench	{ background-color: #F3F3F3; }
-
-.vs .monaco-workbench .sidebar .separator	{ background-color: #EFEFF2; }
-
-.vs .monaco-workbench input {
-	background-color: white;
-}
-
-.vs .monaco-workbench input:disabled {
-	background-color: #E1E1E1;
-}
-
-.vs #monaco-workbench-drop-overlay {
-	background-color: rgba(51,153,255, 0.18);
-}
-
-/* ---------- Dark Theme ---------- */
-
-.vs-dark .monaco-workbench {
-	--input-bgcolor: #3C3C3C;
-	background-color: #252526;
-	color: #CCC;
-}
-
-.vs-dark .monaco-workbench .monaco-scrollable-element .shadow.top {	box-shadow: #000 0 6px 6px -6px inset; }
-.vs-dark .monaco-workbench .monaco-scrollable-element .shadow.left { box-shadow: #000 6px 0 6px -6px inset; }
-.vs-dark .monaco-workbench .monaco-scrollable-element .shadow.top.left { box-shadow: #000 6px 6px 6px -6px inset; }
-.vs-dark .monaco-workbench .monaco-scrollable-element .slider.active { background-color: rgba(85, 85, 85, .8); }
-
-.vs-dark .monaco-workbench .sidebar	{ border: none; }
-.vs-dark .monaco-workbench .sidebar .separator	{ background-color: #2D2D30; }
-
-.vs-dark .monaco-workbench input,
-.vs-dark .monaco-workbench textarea {
-	background-color: var(--input-bgcolor);
-}
-
-.vs-dark .monaco-workbench input:disabled {
-	background-color: #333;
-}
-
-.vs-dark .monaco-workbench .viewlet .message { opacity: 0.5; }
-
-.vs-dark .monaco-workbench .stacked-view .action-label		{ color: inherit; }
-.vs-dark .monaco-workbench .stacked-view .action-label:hover { color: #3399FF; }
-
-.vs-dark #monaco-workbench-drop-overlay {
-	background-color: rgba(83, 89, 93, 0.5);
-}
-
-/* ---------- HC Theme ---------- */
-
-.hc-black .monaco-workbench { color: #FFF; background-color: #000; }
-
-.hc-black .monaco-workbench .sidebar .separator { background-color: #000; border: 1px solid #6FC3DF; }
-
-.hc-black .monaco-workbench input,
-.hc-black .monaco-workbench textarea {
-	background-color: #000;
-}
-
-.hc-black .monaco-workbench .monaco-action-bar .action-item.disabled .action-label.disabled {
-	opacity: .4;
-}
-
-.hc-black #monaco-workbench-drop-overlay {
-	background: none !important;
-	outline: 2px dashed #f38518;
-	outline-offset: -2px;
 }
