@@ -28,7 +28,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IUpdateService, State as UpdateState } from 'vs/platform/update/common/update';
 import * as semver from 'semver';
-import { OS } from 'vs/base/common/platform';
+import { OS, isLinux, isWindows } from 'vs/base/common/platform';
 
 class ApplyUpdateAction extends Action {
 	constructor( @IUpdateService private updateService: IUpdateService) {
@@ -308,7 +308,17 @@ export class LightUpdateContribution implements IGlobalActivity {
 				return [new Action('update.checking', nls.localize('checkingForUpdates', "Checking For Updates..."), undefined, false)];
 
 			case UpdateState.UpdateAvailable:
-				return [new Action('update.installing', nls.localize('installingUpdate', "Installing Update..."), undefined, false)];
+				if (isLinux) {
+					return [new Action('update.linux.available', nls.localize('DownloadUpdate', "Download Available Update"), undefined, true, () =>
+						this.updateService.quitAndInstall()
+					)];
+				}
+
+				const updateAvailableLabel = isWindows
+					? nls.localize('DownloadingUpdate', "Downloading Update...")
+					: nls.localize('InstallingUpdate', "Installing Update...");
+
+				return [new Action('update.available', updateAvailableLabel, undefined, false)];
 
 			case UpdateState.UpdateDownloaded:
 				return [new Action('update.restart', nls.localize('restartToUpdate', "Restart To Update..."), undefined, true, () =>
