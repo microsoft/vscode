@@ -143,6 +143,16 @@ namespace schema {
 				description: localize('menus.resourceStateContext', "The Source Control resource state context menu"),
 				type: 'array',
 				items: menuItem
+			},
+			'view/title': {
+				description: localize('view.viewTitle', "The contributed view title menu"),
+				type: 'array',
+				items: menuItem
+			},
+			'view/item/context': {
+				description: localize('view.itemContext', "The contributed view item context menu"),
+				type: 'array',
+				items: menuItem
 			}
 		}
 	};
