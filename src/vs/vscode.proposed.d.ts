@@ -75,15 +75,15 @@ declare module 'vscode' {
 		 * using `menus` extension point, you can specify context value for key `viewItem` in `when` expression like `viewItem == folder`.
 		 * ```
 		 *	"contributes": {
-			"menus": {
-				"view/item/context": [
-					{
-						"command": "extension.deleteFolder",
-						"when": "viewItem == folder"
-					}
-				]
-			}
-		}
+		 *		"menus": {
+		 *			"view/item/context": [
+		 *				{
+		 *					"command": "extension.deleteFolder",
+		 *					"when": "viewItem == folder"
+		 *				}
+		 *			]
+		 *		}
+		 *	}
 		 * ```
 		 * This will show action `extension.deleteFolder` only for items with `contextValue` is `folder`.
 		 */
