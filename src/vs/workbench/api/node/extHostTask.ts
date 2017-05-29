@@ -310,7 +310,11 @@ namespace Tasks {
 		}
 		let result: TaskSystem.Task = {
 			_id: uuidMap.getUUID(task.identifier),
-			_source: { kind: TaskSystem.TaskSourceKind.Extension, detail: extension.id },
+			_source: {
+				kind: TaskSystem.TaskSourceKind.Extension,
+				label: typeof task.source === 'string' ? task.source : extension.name,
+				detail: extension.id
+			},
 			name: task.name,
 			identifier: task.identifier,
 			group: types.TaskGroup.is(task.group) ? task.group : undefined,

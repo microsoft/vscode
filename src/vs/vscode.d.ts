@@ -3581,11 +3581,6 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The supported task groups.
-	 */
-	export type TaskGroup = 'clean' | 'build' | 'rebuildAll' | 'test';
-
-	/**
 	 * The ProblemMatchers type definition.
 	 */
 	export type ProblemMatchers = string | string[];
@@ -3652,10 +3647,18 @@ declare module 'vscode' {
 		args: string[];
 
 		/**
-		 * The task group this tasks belongs to. Defaults to undefined meaning
-		 * that the task doesn't belong to any special group.
+		 * A human-readable string describing the source of this
+		 * shell task, e.g. 'gulp' or 'npm'.
 		 */
-		group?: TaskGroup;
+		source: string | undefined;
+
+		/**
+		 * The task group this tasks belongs to. See TaskGroup
+		 * for a predefined set of available groups.
+		 * Defaults to undefined meaning that the task doesn't
+		 * belong to any special group.
+		 */
+		group: string | undefined;
 
 		/**
 		 * The process options used when the process is executed.
@@ -3772,10 +3775,18 @@ declare module 'vscode' {
 		readonly commandLine: string;
 
 		/**
-		 * The task group this tasks belongs to. Defaults to undefined meaning
-		 * that the task doesn't belong to any special group.
+		 * A human-readable string describing the source of this
+		 * shell task, e.g. 'gulp' or 'npm'.
 		 */
-		group?: TaskGroup;
+		source: string | undefined;
+
+		/**
+		 * The task group this tasks belongs to. See TaskGroup
+		 * for a predefined set of available groups.
+		 * Defaults to undefined meaning that the task doesn't
+		 * belong to any special group.
+		 */
+		group: string | undefined;
 
 		/**
 		 * The shell options used when the shell is executed. Defaults to an

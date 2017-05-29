@@ -780,7 +780,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			let id: string = UUID.generateUuid();
 			let task: Task = {
 				_id: id,
-				_source: { kind: TaskSourceKind.Generic },
+				_source: { kind: TaskSourceKind.Generic, label: 'generic' },
 				name: id,
 				identifier: id,
 				dependsOn: extensionTasks.map(task => task._id),

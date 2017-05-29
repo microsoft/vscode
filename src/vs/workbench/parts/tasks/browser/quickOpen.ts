@@ -19,13 +19,19 @@ import { ActionBarContributor, ContributableActionProvider } from 'vs/workbench/
 
 export class TaskEntry extends Model.QuickOpenEntry {
 
+	private _label: string;
+
 	constructor(protected taskService: ITaskService, protected _task: Task, highlights: Model.IHighlight[] = []) {
 		super(highlights);
-		this._task = _task;
+		if (_task._source.kind === TaskSourceKind.Extension) {
+			this._label = nls.localize('taskEntry.label', '{0}: {1}', _task._source.label, _task.name);
+		} else {
+			this._label = _task.name;
+		}
 	}
 
 	public getLabel(): string {
-		return this._task.name;
+		return this._label;
 	}
 
 	public getAriaLabel(): string {
@@ -76,6 +82,12 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 				let aKind = a._source.kind;
 				let bKind = b._source.kind;
 				if (aKind === bKind) {
+					if (aKind === TaskSourceKind.Extension) {
+						let compare = a._source.label.localeCompare(b._source.label);
+						if (compare !== 0) {
+							return compare;
+						}
+					}
 					return a.name.localeCompare(b.name);
 				}
 				if (aKind === TaskSourceKind.Workspace) {

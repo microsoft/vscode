@@ -764,6 +764,7 @@ namespace TaskDescription {
 
 	export let source: Tasks.TaskSource = {
 		kind: Tasks.TaskSourceKind.Workspace,
+		label: 'Workspace',
 		detail: '.settins\tasks.json'
 	};
 

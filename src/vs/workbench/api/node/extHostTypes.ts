@@ -1021,6 +1021,8 @@ export class BaseTask {
 	private _problemMatchers: string[];
 	private _identifier: string;
 	private _isBackground: boolean;
+	private _source: string;
+	private _group: string;
 	private _terminal: vscode.TerminalBehaviour;
 
 	constructor(name: string, problemMatchers: string[]) {
@@ -1061,6 +1063,36 @@ export class BaseTask {
 			value = false;
 		}
 		this._isBackground = value;
+	}
+
+	get source(): string {
+		return this._source;
+	}
+
+	set source(value: string) {
+		if (value === void 0 || value === null) {
+			this._source = undefined;
+			return;
+		}
+		if (typeof value !== 'string' || value.length === 0) {
+			throw illegalArgument('source must be a string of length > 0');
+		}
+		this._source = value;
+	}
+
+	get group(): string {
+		return this._group;
+	}
+
+	set group(value: string) {
+		if (value === void 0 || value === null) {
+			this._group = undefined;
+			return;
+		}
+		if (typeof value !== 'string' || value.length === 0) {
+			throw illegalArgument('group must be a string of length > 0');
+		}
+		this._group = value;
 	}
 
 	get terminal(): vscode.TerminalBehaviour {
@@ -1122,7 +1154,7 @@ export namespace TaskGroup {
 	 */
 	export const Test: 'test' = 'test';
 
-	export function is(value: string): value is vscode.TaskGroup {
+	export function is(value: string): value is string {
 		return value === Clean || value === Build || value === RebuildAll || value === Test;
 	}
 }
@@ -1131,7 +1163,6 @@ export class ProcessTask extends BaseTask {
 
 	private _process: string;
 	private _args: string[];
-	private _group: vscode.TaskGroup;
 	private _options: vscode.ProcessOptions;
 
 	constructor(name: string, process: string, args?: string[], problemMatchers?: vscode.ProblemMatchers);
@@ -1183,17 +1214,6 @@ export class ProcessTask extends BaseTask {
 		this._args = value;
 	}
 
-	get group(): vscode.TaskGroup {
-		return this._group;
-	}
-
-	set group(value: vscode.TaskGroup) {
-		if (!TaskGroup.is(value)) {
-			throw illegalArgument('group');
-		}
-		this._group = value;
-	}
-
 	get options(): vscode.ProcessOptions {
 		return this._options;
 	}
@@ -1209,7 +1229,6 @@ export class ProcessTask extends BaseTask {
 export class ShellTask extends BaseTask implements vscode.ShellTask {
 
 	private _commandLine: string;
-	private _group: vscode.TaskGroup;
 	private _options: vscode.ShellOptions;
 
 	constructor(name: string, commandLine: string, problemMatchers?: vscode.ProblemMatchers);
@@ -1238,17 +1257,6 @@ export class ShellTask extends BaseTask implements vscode.ShellTask {
 
 	get commandLine(): string {
 		return this._commandLine;
-	}
-
-	get group(): vscode.TaskGroup {
-		return this._group;
-	}
-
-	set group(value: vscode.TaskGroup) {
-		if (!TaskGroup.is(value)) {
-			throw illegalArgument('group');
-		}
-		this._group = value;
 	}
 
 	get options(): vscode.ShellOptions {

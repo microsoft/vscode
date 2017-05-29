@@ -118,7 +118,7 @@ async function getJakeTasks(): Promise<vscode.Task[]> {
 				let matches = regExp.exec(line);
 				if (matches && matches.length === 2) {
 					let taskName = matches[1];
-					let task = new vscode.ShellTask(`jake: ${taskName}`, `${jakeCommand} ${taskName}`);
+					let task = new vscode.ShellTask(taskName, `${jakeCommand} ${taskName}`);
 					task.identifier = `jake.${taskName}`;
 					result.push(task);
 					let lowerCaseLine = line.toLowerCase();

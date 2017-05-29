@@ -48,7 +48,8 @@ class TscTaskProvider implements vscode.TaskProvider {
 
 		return projects.map(configFile => {
 			const configFileName = path.relative(rootPath, configFile);
-			const buildTask = new vscode.ShellTask(`tsc: build ${configFileName}`, `${command} -p "${configFile}"`, '$tsc');
+			const buildTask = new vscode.ShellTask(`build ${configFileName}`, `${command} -p "${configFile}"`, '$tsc');
+			buildTask.source = 'tsc';
 			buildTask.group = vscode.TaskGroup.Build;
 			return buildTask;
 		});

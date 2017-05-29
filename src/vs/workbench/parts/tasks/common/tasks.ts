@@ -153,7 +153,7 @@ export namespace TaskGroup {
 
 	export const Test: 'test' = 'test';
 
-	export function is(value: string): value is TaskGroup {
+	export function is(value: string): value is string {
 		return value === Clean || value === Build || value === RebuildAll || value === Test;
 	}
 }
@@ -168,6 +168,7 @@ export enum TaskSourceKind {
 
 export interface TaskSource {
 	kind: TaskSourceKind;
+	label: string;
 	detail?: string;
 }
 
@@ -199,7 +200,7 @@ export interface Task {
 	/**
 	 * the task's group;
 	 */
-	group?: TaskGroup;
+	group?: string;
 
 	/**
 	 * The command configuration

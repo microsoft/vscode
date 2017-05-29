@@ -81,7 +81,7 @@ async function getNpmScriptsAsTasks(): Promise<vscode.Task[]> {
 
 		const result: vscode.Task[] = [];
 		Object.keys(json.scripts).forEach(each => {
-			const task = new vscode.ShellTask(`npm: run ${each}`, `npm run ${each}`);
+			const task = new vscode.ShellTask(`run ${each}`, `npm run ${each}`);
 			const lowerCaseTaskName = each.toLowerCase();
 			if (lowerCaseTaskName === 'build') {
 				task.group = vscode.TaskGroup.Build;
@@ -91,7 +91,7 @@ async function getNpmScriptsAsTasks(): Promise<vscode.Task[]> {
 			result.push(task);
 		});
 		// add some 'well known' npm tasks
-		result.push(new vscode.ShellTask(`npm: install`, `npm install`));
+		result.push(new vscode.ShellTask(`install`, `npm install`));
 		return Promise.resolve(result);
 	} catch (e) {
 		return Promise.resolve(emptyTasks);

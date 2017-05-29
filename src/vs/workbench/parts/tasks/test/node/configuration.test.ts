@@ -144,7 +144,7 @@ class TaskBuilder {
 		this.commandBuilder = new CommandConfigurationBuilder(this, command);
 		this.result = {
 			_id: name,
-			_source: { kind: Tasks.TaskSourceKind.Workspace },
+			_source: { kind: Tasks.TaskSourceKind.Workspace, label: 'workspace' },
 			identifier: name,
 			name: name,
 			command: this.commandBuilder.result,
