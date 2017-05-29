@@ -77,6 +77,9 @@ function runTests() {
 			if (err) throw new Error(`Could not write stderr to errors.log with the following error: ${err}`);
 		});
 	});
+	proc.on('exit', (code) => {
+		process.exit(code);
+	});
 }
 
 function cleanOrClone(repo, dir) {
