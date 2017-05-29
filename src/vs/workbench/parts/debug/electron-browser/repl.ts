@@ -281,7 +281,10 @@ export class Repl extends Panel implements IPrivateReplService {
 			scrollBeyondLastLine: false,
 			renderLineHighlight: 'none',
 			fixedOverflowWidgets: true,
-			acceptSuggestionOnEnter: 'smart'
+			acceptSuggestionOnEnter: 'smart',
+			minimap: {
+				enabled: false
+			}
 		};
 	}
 
