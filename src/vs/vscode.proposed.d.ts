@@ -60,7 +60,7 @@ declare module 'vscode' {
 
 		/**
 		 * The [command](#Command) which should be run when the tree item
-		 * is selected
+		 * is selected. This command is called with the model representing this item as first argument.
 		 */
 		readonly command?: Command;
 
