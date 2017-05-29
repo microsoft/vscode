@@ -819,6 +819,18 @@ export namespace CoreNavigationCommands {
 		}
 	}));
 
+	export const CursorHomeSelect: CoreEditorCommand = registerEditorCommand(new HomeCommand({
+		inSelectionMode: true,
+		id: 'cursorHomeSelect',
+		precondition: null,
+		kbOpts: {
+			weight: CORE_WEIGHT,
+			kbExpr: EditorContextKeys.textFocus,
+			primary: KeyMod.Shift | KeyCode.Home,
+			mac: { primary: KeyMod.Shift | KeyCode.Home, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow] }
+		}
+	}));
+
 	export const CursorLineStart: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
 		constructor() {
 			super({
@@ -857,18 +869,6 @@ export namespace CoreNavigationCommands {
 		}
 	});
 
-	export const CursorHomeSelect: CoreEditorCommand = registerEditorCommand(new HomeCommand({
-		inSelectionMode: true,
-		id: 'cursorHomeSelect',
-		precondition: null,
-		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textFocus,
-			primary: KeyMod.Shift | KeyCode.Home,
-			mac: { primary: KeyMod.Shift | KeyCode.Home, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow] }
-		}
-	}));
-
 	class EndCommand extends CoreEditorCommand {
 
 		private readonly _inSelectionMode: boolean;
@@ -900,7 +900,7 @@ export namespace CoreNavigationCommands {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textFocus,
 			primary: KeyCode.End,
-			mac: { primary: KeyCode.End, secondary: [KeyMod.CtrlCmd | KeyCode.RightArrow, KeyMod.WinCtrl | KeyCode.KEY_E] }
+			mac: { primary: KeyCode.End, secondary: [KeyMod.CtrlCmd | KeyCode.RightArrow] }
 		}
 	}));
 
@@ -915,6 +915,45 @@ export namespace CoreNavigationCommands {
 			mac: { primary: KeyMod.Shift | KeyCode.End, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow] }
 		}
 	}));
+
+	export const CursorLineEnd: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
+		constructor() {
+			super({
+				id: 'cursorLineEnd',
+				precondition: null,
+				kbOpts: {
+					weight: CORE_WEIGHT,
+					kbExpr: EditorContextKeys.textFocus,
+					primary: 0,
+					mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_E }
+				}
+			});
+		}
+
+		public runCoreEditorCommand(cursors: ICursors, args: any): void {
+			cursors.context.model.pushStackElement();
+			cursors.setStates(
+				args.source,
+				CursorChangeReason.Explicit,
+				CursorState.ensureInEditableRange(
+					cursors.context,
+					this._exec(cursors.context, cursors.getAll())
+				)
+			);
+			cursors.reveal(true, RevealTarget.Primary);
+		}
+
+		private _exec(context: CursorContext, cursors: CursorState[]): CursorState[] {
+			let result: CursorState[] = [];
+			for (let i = 0, len = cursors.length; i < len; i++) {
+				const cursor = cursors[i];
+				const lineNumber = cursor.modelState.position.lineNumber;
+				const maxColumn = context.model.getLineMaxColumn(lineNumber);
+				result[i] = CursorState.fromModelState(cursor.modelState.move(false, lineNumber, maxColumn, 0));
+			}
+			return result;
+		}
+	});
 
 	class TopCommand extends CoreEditorCommand {
 
