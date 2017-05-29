@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "main": "./src/main.js",
   "scripts": {
+    "compile": "tsc",
     "pretest": "tsc",
     "test": "node src/main.js"
   },
