@@ -12,7 +12,7 @@ import { Dimension, Builder, $ } from 'vs/base/browser/builder';
 import { IAction, IActionRunner, Action } from 'vs/base/common/actions';
 import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITree, IFocusEvent, ISelectionEvent } from 'vs/base/parts/tree/browser/tree';
-import { prepareActions } from 'vs/workbench/browser/actionBarRegistry';
+import { prepareActions } from 'vs/workbench/browser/actions';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';

@@ -15,7 +15,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPartService, Parts, Position as SideBarPosition } from 'vs/workbench/services/part/common/partService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { Scope } from 'vs/workbench/browser/actionBarRegistry';
+import { Scope } from 'vs/workbench/browser/actions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMessageService } from 'vs/platform/message/common/message';

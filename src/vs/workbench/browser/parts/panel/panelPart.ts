@@ -10,7 +10,7 @@ import { IAction } from 'vs/base/common/actions';
 import Event from 'vs/base/common/event';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { Registry } from 'vs/platform/platform';
-import { Scope } from 'vs/workbench/browser/actionBarRegistry';
+import { Scope } from 'vs/workbench/browser/actions';
 import { IPanel } from 'vs/workbench/common/panel';
 import { CompositePart, ICompositeTitleLabel } from 'vs/workbench/browser/parts/compositePart';
 import { Panel, PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';

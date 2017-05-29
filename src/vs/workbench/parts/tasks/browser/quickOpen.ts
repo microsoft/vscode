@@ -15,7 +15,7 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
 import { Task, TaskSourceKind, computeLabel } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
-import { ActionBarContributor, ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
+import { ActionBarContributor, ContributableActionProvider } from 'vs/workbench/browser/actions';
 
 export class TaskEntry extends Model.QuickOpenEntry {
 

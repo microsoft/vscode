@@ -20,7 +20,7 @@ import errors = require('vs/base/common/errors');
 import { CONTEXT as ToolBarContext, ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { IActionBarRegistry, Extensions, prepareActions } from 'vs/workbench/browser/actionBarRegistry';
+import { IActionBarRegistry, Extensions, prepareActions } from 'vs/workbench/browser/actions';
 import { Action, IAction } from 'vs/base/common/actions';
 import { Part, IPartOptions } from 'vs/workbench/browser/part';
 import { Composite, CompositeRegistry } from 'vs/workbench/browser/composite';

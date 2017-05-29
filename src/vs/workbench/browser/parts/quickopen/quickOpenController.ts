@@ -22,7 +22,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntry, QuickOpenModel, QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenWidget, HideReason } from 'vs/base/parts/quickopen/browser/quickOpenWidget';
-import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
+import { ContributableActionProvider } from 'vs/workbench/browser/actions';
 import labels = require('vs/base/common/labels');
 import paths = require('vs/base/common/paths');
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';

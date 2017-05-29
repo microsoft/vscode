@@ -22,7 +22,7 @@ import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import glob = require('vs/base/common/glob');
 import { FileLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
+import { ContributableActionProvider } from 'vs/workbench/browser/actions';
 import { IFilesConfiguration } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileOperationResult, FileOperationResult, IFileService, isEqual, isEqualOrParent } from 'vs/platform/files/common/files';

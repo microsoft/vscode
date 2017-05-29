@@ -13,7 +13,7 @@ import errors = require('vs/base/common/errors');
 import labels = require('vs/base/common/labels');
 import paths = require('vs/base/common/paths');
 import { Action, IAction } from 'vs/base/common/actions';
-import { prepareActions } from 'vs/workbench/browser/actionBarRegistry';
+import { prepareActions } from 'vs/workbench/browser/actions';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocussedContext, ExplorerFocussedContext } from 'vs/workbench/parts/files/common/files';

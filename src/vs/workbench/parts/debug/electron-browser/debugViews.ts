@@ -12,7 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import { EventType } from 'vs/base/common/events';
 import { IActionRunner, IAction } from 'vs/base/common/actions';
-import { prepareActions } from 'vs/workbench/browser/actionBarRegistry';
+import { prepareActions } from 'vs/workbench/browser/actions';
 import { IHighlightEvent, ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { CollapsibleState } from 'vs/base/browser/ui/splitview/splitview';

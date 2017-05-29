@@ -66,7 +66,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannel } from 'vs/workbench/parts/output/common/output';
-import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actionBarRegistry';
+import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';
 
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
