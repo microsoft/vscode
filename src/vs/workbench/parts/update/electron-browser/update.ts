@@ -279,6 +279,10 @@ export class UpdateContribution implements IWorkbenchContribution {
 
 export class LightUpdateContribution implements IGlobalActivity {
 
+	private static readonly showCommandsId = 'workbench.action.showCommands';
+	private static readonly openSettingsId = 'workbench.action.openGlobalSettings';
+	private static readonly openKeybindingsId = 'workbench.action.openGlobalKeybindings';
+
 	get id() { return 'vs.update'; }
 	get name() { return ''; }
 	get cssClass() { return 'update-activity'; }
@@ -302,10 +306,10 @@ export class LightUpdateContribution implements IGlobalActivity {
 
 	getActions(): IAction[] {
 		return [
-			new Action('showCommandPalette', nls.localize('commandPalette', "Command Palette..."), undefined, true, () => this.commandService.executeCommand('workbench.action.showCommands')),
+			new Action(LightUpdateContribution.showCommandsId, nls.localize('commandPalette', "Command Palette..."), undefined, true, () => this.commandService.executeCommand(LightUpdateContribution.showCommandsId)),
 			new Separator(),
-			new Action('openKeybindings', nls.localize('settings', "Settings"), null, true, () => this.commandService.executeCommand('workbench.action.openGlobalSettings')),
-			new Action('openSettings', nls.localize('keyboardShortcuts', "Keyboard Shortcuts"), null, true, () => this.commandService.executeCommand('workbench.action.openGlobalKeybindings')),
+			new Action(LightUpdateContribution.openSettingsId, nls.localize('settings', "Settings"), null, true, () => this.commandService.executeCommand(LightUpdateContribution.openSettingsId)),
+			new Action(LightUpdateContribution.openKeybindingsId, nls.localize('keyboardShortcuts', "Keyboard Shortcuts"), null, true, () => this.commandService.executeCommand(LightUpdateContribution.openKeybindingsId)),
 			new Separator(),
 			this.getUpdateAction()
 		];

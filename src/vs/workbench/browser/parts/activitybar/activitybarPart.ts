@@ -83,12 +83,13 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private dimension: Dimension;
 
+	private globalActionBar: ActionBar;
+	private globalActivityIdToActions: { [globalActivityId: string]: GlobalActivityAction; };
+
 	private viewletSwitcherBar: ActionBar;
-	private activityActionBar: ActionBar;
 	private viewletOverflowAction: ViewletOverflowActivityAction;
 	private viewletOverflowActionItem: ViewletOverflowActivityActionItem;
 
-	private globalActivityIdToActions: { [globalActivityId: string]: GlobalActivityAction; };
 	private viewletIdToActions: { [viewletId: string]: ActivityAction; };
 	private viewletIdToActionItems: { [viewletId: string]: IActionItem; };
 	private viewletIdToActivityStack: { [viewletId: string]: IViewletActivity[]; };
@@ -110,6 +111,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		super(id, { hasTitle: false }, themeService);
 
 		this.globalActivityIdToActions = Object.create(null);
+
 		this.viewletIdToActionItems = Object.create(null);
 		this.viewletIdToActions = Object.create(null);
 		this.viewletIdToActivityStack = Object.create(null);
@@ -316,7 +318,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			.map(d => this.instantiationService.createInstance(d))
 			.map(a => new GlobalActivityAction(a));
 
-		this.activityActionBar = new ActionBar(container, {
+		this.globalActionBar = new ActionBar(container, {
 			actionItemProvider: a => this.instantiationService.createInstance(GlobalActivityActionItem, a),
 			orientation: ActionsOrientation.VERTICAL,
 			ariaLabel: nls.localize('globalActions', "Global Actions"),
@@ -325,7 +327,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		actions.forEach(a => {
 			this.globalActivityIdToActions[a.id] = a;
-			this.activityActionBar.push(a);
+			this.globalActionBar.push(a);
 		});
 	}
 

@@ -25,7 +25,6 @@ import { createActionItem, fillInActions } from 'vs/platform/actions/browser/men
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ITree, IDataSource, IRenderer, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ViewsRegistry, ITreeViewDataProvider, IViewOptions, ITreeItem, TreeItemCollapsibleState } from 'vs/workbench/parts/views/browser/views';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
@@ -326,15 +325,11 @@ class TreeController extends DefaultController {
 			},
 
 			getActionItem: (action) => {
-				const keybinding = this._keybindingFor(action);
+				const keybinding = this._keybindingService.lookupKeybinding(action.id);
 				if (keybinding) {
 					return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel() });
 				}
 				return null;
-			},
-
-			getKeyBinding: (action): ResolvedKeybinding => {
-				return this._keybindingFor(action);
 			},
 
 			onHide: (wasCancelled?: boolean) => {
@@ -349,10 +344,6 @@ class TreeController extends DefaultController {
 		});
 
 		return true;
-	}
-
-	private _keybindingFor(action: IAction): ResolvedKeybinding {
-		return this._keybindingService.lookupKeybinding(action.id);
 	}
 }
 

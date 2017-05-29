@@ -504,7 +504,6 @@ export class ViewletOverflowActivityActionItem extends ActivityActionItem {
 		private getBadge: (viewlet: ViewletDescriptor) => IBadge,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IViewletService private viewletService: IViewletService,
-		@IKeybindingService private keybindingService: IKeybindingService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -548,7 +547,6 @@ export class ViewletOverflowActivityActionItem extends ActivityActionItem {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.builder.getHTMLElement(),
 			getActions: () => TPromise.as(this.actions),
-			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id),
 			onHide: () => dispose(this.actions)
 		});
 	}

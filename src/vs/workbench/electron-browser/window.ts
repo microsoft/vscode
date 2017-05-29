@@ -338,8 +338,7 @@ export class ElectronWindow extends Themable {
 
 					this.contextMenuService.showContextMenu({
 						getAnchor: () => target,
-						getActions: () => TPromise.as(TextInputActions),
-						getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id)
+						getActions: () => TPromise.as(TextInputActions)
 					});
 				}
 			}

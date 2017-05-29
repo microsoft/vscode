@@ -24,7 +24,7 @@ import { ShowCurrentReleaseNotesAction, ProductContribution, UpdateContribution,
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(ProductContribution);
 
-if (product.quality === 'insider') {
+if (product.quality !== 'stable') {
 	Registry.as<IGlobalActivityRegistry>(GlobalActivityExtensions)
 		.registerActivity(LightUpdateContribution);
 } else {

@@ -444,8 +444,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 					this.createRemoveAction(<IKeybindingItemEntry>e.element),
 					this.createResetAction(<IKeybindingItemEntry>e.element),
 					new Separator(),
-					this.createShowConflictsAction(<IKeybindingItemEntry>e.element)]),
-				getKeyBinding: (action) => this.keybindingsService.lookupKeybinding(action.id)
+					this.createShowConflictsAction(<IKeybindingItemEntry>e.element)])
 			});
 		}
 	}

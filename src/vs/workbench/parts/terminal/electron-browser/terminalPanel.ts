@@ -12,7 +12,6 @@ import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITerminalService, ITerminalFont, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
@@ -40,7 +39,6 @@ export class TerminalPanel extends Panel {
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@IContextMenuService private _contextMenuService: IContextMenuService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
-		@IKeybindingService private _keybindingService: IKeybindingService,
 		@ITerminalService private _terminalService: ITerminalService,
 		@IThemeService protected themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService
@@ -190,8 +188,7 @@ export class TerminalPanel extends Panel {
 				this._contextMenuService.showContextMenu({
 					getAnchor: () => anchor,
 					getActions: () => TPromise.as(this._getContextMenuActions()),
-					getActionsContext: () => this._parentDomElement,
-					getKeyBinding: (action) => this._keybindingService.lookupKeybinding(action.id)
+					getActionsContext: () => this._parentDomElement
 				});
 			}
 			this._cancelContextMenu = false;
