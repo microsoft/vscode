@@ -39,6 +39,7 @@ export class TreeView extends CollapsibleViewletView {
 	private activated: boolean = false;
 	private treeInputPromise: TPromise<void>;
 
+	private dataProviderRegisteredListener: IDisposable;
 	private dataProviderElementChangeListener: IDisposable;
 	private disposables: IDisposable[] = [];
 
@@ -136,11 +137,11 @@ export class TreeView extends CollapsibleViewletView {
 			return this.treeInputPromise;
 		}
 		this.treeInputPromise = new TPromise<void>((c, e) => {
-			const disposable = ViewsRegistry.onTreeViewDataProviderRegistered(id => {
+			this.dataProviderRegisteredListener = ViewsRegistry.onTreeViewDataProviderRegistered(id => {
 				if (this.id === id) {
 					if (this.listenToDataProvider()) {
 						this.tree.setInput(new Root()).then(() => c(null));
-						disposable.dispose();
+						this.dataProviderRegisteredListener.dispose();
 					}
 				}
 			});
@@ -183,6 +184,13 @@ export class TreeView extends CollapsibleViewletView {
 	}
 
 	dispose(): void {
+		if (this.dataProviderRegisteredListener) {
+			this.dataProviderRegisteredListener.dispose();
+		}
+		dispose(this.disposables);
+		if (this.dataProviderElementChangeListener) {
+			this.dataProviderElementChangeListener.dispose();
+		}
 		dispose(this.disposables);
 		super.dispose();
 	}
