@@ -14,8 +14,8 @@ declare module 'vscode' {
 
 	export namespace window {
 		/**
-		 * Register a [TreeDataProvider](#TreeDataProvider) for the registered view `id`.
-		 * @param viewId View id.
+		 * Register a [TreeDataProvider](#TreeDataProvider) for the view contributed using the extension point `views`.
+		 * @param viewId Id of the view contributed using the extension point `views`.
 		 * @param treeDataProvider A [TreeDataProvider](#TreeDataProvider) that provides tree data for the view
 		 */
 		export function registerTreeDataProviderForView<T>(viewId: string, treeDataProvider: TreeDataProvider<T>): Disposable;
