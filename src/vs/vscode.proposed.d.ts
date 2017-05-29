@@ -71,7 +71,6 @@ declare module 'vscode' {
 
 		/**
 		 * Collapsible state of the tree item.
-		 * Required only when item has children.
 		 */
 		readonly collapsibleState?: TreeItemCollapsibleState;
 	}
@@ -80,6 +79,10 @@ declare module 'vscode' {
 	 * Collapsible state of the tree item
 	 */
 	export enum TreeItemCollapsibleState {
+		/**
+		 * Determines an item can be neither collapsed nor expanded. Implies it has no children.
+		 */
+		None = 0,
 		/**
 		 * Determines an item is collapsed
 		 */

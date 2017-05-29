@@ -21,6 +21,7 @@ export class ViewLocation {
 }
 
 export enum TreeItemCollapsibleState {
+	None = 0,
 	Collapsed = 1,
 	Expanded = 2
 }
@@ -48,7 +49,7 @@ export interface IViewDescriptor {
 	readonly ctor: IViewConstructorSignature;
 
 	readonly order?: number;
-
+	
 }
 
 export interface ITreeItem {
