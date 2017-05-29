@@ -51,7 +51,7 @@ namespace schema {
 		type: 'object',
 		properties: {
 			id: {
-				description: localize('vscode.extension.contributes.view.id', 'Identifier of the view. Use the same identifier to register a data provider through API.'),
+				description: localize('vscode.extension.contributes.view.id', 'Identifier of the view. Use this to register a data provider through `vscode.window.registerTreeDataProviderForView` API. Also to trigger activating your extension by registering `onView:${id}` event to `activationEvents`.'),
 				type: 'string'
 			},
 			name: {
@@ -66,7 +66,7 @@ namespace schema {
 		type: 'object',
 		properties: {
 			'explorer': {
-				description: localize('views.explorer', "Explorer"),
+				description: localize('views.explorer', "Explorer View"),
 				type: 'array',
 				items: viewDescriptor
 			}
