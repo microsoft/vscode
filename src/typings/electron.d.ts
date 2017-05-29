@@ -2066,6 +2066,13 @@ declare namespace Electron {
 		 * Only string properties are sent correctly, nested objects are not supported.
 		 */
 		extra?: { [prop: string]: string };
+
+		/**
+		 * Path to a folder where the crashes will be temporarily stored by the electron crash reporter
+		 * Applies only to child processes that need crash reporting.
+		 * Electron figures out the crashesDirectory on its own for Main and Renderer process
+		 */
+		crashesDirectory?: string;
 	}
 
 	interface CrashReport {
@@ -4466,7 +4473,7 @@ declare namespace Electron {
 		/**
 		 * Sets the maximum and minimum zoom level.
 		 */
-		setZoomLevelLimits(minimumLevel: number, maximumLevel: number): void;
+		setVisualZoomLevelLimits(minimumLevel: number, maximumLevel: number): void;
 		/**
 		 * Executes the editing command undo in web page.
 		 */
@@ -5161,7 +5168,7 @@ declare namespace Electron {
 		/**
 		 * Sets the maximum and minimum zoom level.
 		 */
-		setZoomLevelLimits(minimumLevel: number, maximumLevel: number): void;
+		setVisualZoomLevelLimits(minimumLevel: number, maximumLevel: number): void;
 		/**
 		 * Sets a provider for spell checking in input fields and text areas.
 		 */

@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import * as uuid from 'vs/base/common/uuid';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { getMachineId, virtualMachineHint } from 'vs/base/node/id';
+import { getMachineId } from 'vs/base/node/id';
 import { resolveCommonProperties, machineIdStorageKey } from '../node/commonProperties';
 
 const SQM_KEY: string = '\\Software\\Microsoft\\SQMClient';
@@ -19,7 +19,6 @@ export function resolveWorkbenchCommonProperties(storageService: IStorageService
 		result['common.version.shell'] = process.versions && (<any>process).versions['electron'];
 		result['common.version.renderer'] = process.versions && (<any>process).versions['chrome'];
 		result['common.osVersion'] = os.release();
-		result['common.virtualMachineHint'] = virtualMachineHint.value().toString();
 
 		const lastSessionDate = storageService.get('telemetry.lastSessionDate');
 		const firstSessionDate = storageService.get('telemetry.firstSessionDate') || new Date().toUTCString();

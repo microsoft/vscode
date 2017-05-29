@@ -18,7 +18,7 @@
 		catchError: true
 	});
 
-	let loadCode = function (moduleId) {
+	let loadCode = function (moduleId: string) {
 		require([moduleId], function (ws) {
 			setTimeout(function () {
 				let messageHandler = ws.create((msg: any) => {

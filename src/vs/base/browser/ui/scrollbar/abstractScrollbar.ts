@@ -68,6 +68,8 @@ export abstract class AbstractScrollbar extends Widget {
 		this._mouseMoveMonitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
 		this._shouldRender = true;
 		this.domNode = createFastDomNode(document.createElement('div'));
+		this.domNode.setAttribute('role', 'presentation');
+		this.domNode.setAttribute('aria-hidden', 'true');
 
 		this._visibilityController.setDomNode(this.domNode);
 		this.domNode.setPosition('absolute');

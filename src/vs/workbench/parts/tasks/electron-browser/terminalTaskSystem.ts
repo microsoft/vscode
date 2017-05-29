@@ -24,7 +24,8 @@ import * as TPath from 'vs/base/common/paths';
 
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ProblemMatcher /*, ProblemPattern, getResource */ } from 'vs/platform/markers/common/problemMatcher';
+import { ProblemMatcher, ProblemMatcherRegistry /*, ProblemPattern, getResource */ } from 'vs/platform/markers/common/problemMatcher';
+
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -32,7 +33,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { IOutputService, IOutputChannel } from 'vs/workbench/parts/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEvents } from 'vs/workbench/parts/tasks/common/problemCollectors';
-import { Task, ShowOutput, CommandOptions, ShellConfiguration } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, RevealKind, CommandOptions, ShellConfiguration, CommandType } from 'vs/workbench/parts/tasks/common/tasks';
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
 	TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType
@@ -133,7 +134,8 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult {
 		let terminalData = this.activeTasks[task._id];
 		if (terminalData && terminalData.promise) {
-			if (task.showOutput === ShowOutput.Always) {
+			let reveal = task.command.terminal.reveal;
+			if (reveal === RevealKind.Always) {
 				terminalData.terminal.setVisible(true);
 			}
 			return { kind: TaskExecuteKind.Active, active: { same: true, background: task.isBackground }, promise: terminalData.promise };
@@ -287,7 +289,8 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 						this.emit(TaskSystemEvents.Inactive, event);
 					}
 					eventCounter = 0;
-					if (exitCode && exitCode === 1 && watchingProblemMatcher.numberOfMatches === 0 && task.showOutput !== ShowOutput.Never) {
+					let reveal = task.command.terminal.reveal;
+					if (exitCode && exitCode === 1 && watchingProblemMatcher.numberOfMatches === 0 && reveal !== RevealKind.Never) {
 						this.terminalService.setActiveInstance(terminal);
 						this.terminalService.showPanel(false);
 					}
@@ -329,7 +332,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			});
 		}
 		this.terminalService.setActiveInstance(terminal);
-		if (task.showOutput === ShowOutput.Always) {
+		if (task.command.terminal.reveal === RevealKind.Always) {
 			this.terminalService.showPanel(false);
 		}
 		this.activeTasks[task._id] = { terminal, task, promise };
@@ -337,6 +340,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			try {
 				let telemetryEvent: TelemetryEvent = {
 					trigger: trigger,
+					runner: 'terminal',
 					command: this.getSanitizedCommand(executedCommand),
 					success: true,
 					exitCode: summary.exitCode
@@ -349,6 +353,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			try {
 				let telemetryEvent: TelemetryEvent = {
 					trigger: trigger,
+					runner: 'terminal',
 					command: this.getSanitizedCommand(executedCommand),
 					success: false
 				};
@@ -363,19 +368,24 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		let options = this.resolveOptions(task.command.options);
 		let { command, args } = this.resolveCommandAndArgs(task);
 		let terminalName = nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', task.name);
-		let waitOnExit = task.showOutput !== ShowOutput.Never || !task.isBackground;
+		let waitOnExit: boolean | string = false;
+		if (task.command.terminal.reveal !== RevealKind.Never || !task.isBackground) {
+			waitOnExit = nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.');
+		};
 		let shellLaunchConfig: IShellLaunchConfig = undefined;
-		if (task.command.isShellCommand) {
+		let isShellCommand = task.command.type === CommandType.Shell;
+		if (isShellCommand) {
 			if (Platform.isWindows && ((options.cwd && TPath.isUNC(options.cwd)) || (!options.cwd && TPath.isUNC(process.cwd())))) {
 				throw new TaskError(Severity.Error, nls.localize('TerminalTaskSystem', 'Can\'t execute a shell command on an UNC drive.'), TaskErrors.UnknownError);
 			}
 			shellLaunchConfig = { name: terminalName, executable: null, args: null, waitOnExit };
 			let shellSpecified: boolean = false;
-			if (ShellConfiguration.is(task.command.isShellCommand)) {
-				shellLaunchConfig.executable = task.command.isShellCommand.executable;
+			let shellOptions: ShellConfiguration = task.command.options && task.command.options.shell;
+			if (shellOptions && shellOptions.executable) {
+				shellLaunchConfig.executable = shellOptions.executable;
 				shellSpecified = true;
-				if (task.command.isShellCommand.args) {
-					shellLaunchConfig.args = task.command.isShellCommand.args.slice();
+				if (shellOptions.args) {
+					shellLaunchConfig.args = shellOptions.args.slice();
 				} else {
 					shellLaunchConfig.args = [];
 				}
@@ -412,21 +422,21 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			});
 			shellArgs.push(commandLine);
 			shellLaunchConfig.args = Platform.isWindows ? shellArgs.join(' ') : shellArgs;
-			if (task.command.echo) {
+			if (task.command.terminal.echo) {
 				shellLaunchConfig.initialText = `> ${commandLine}`;
 			}
 		} else {
 			let cwd = options && options.cwd ? options.cwd : process.cwd();
 			// On Windows executed process must be described absolute. Since we allowed command without an
 			// absolute path (e.g. "command": "node") we need to find the executable in the CWD or PATH.
-			let executable = Platform.isWindows && !task.command.isShellCommand ? this.findExecutable(command, cwd) : command;
+			let executable = Platform.isWindows && !isShellCommand ? this.findExecutable(command, cwd) : command;
 			shellLaunchConfig = {
 				name: terminalName,
 				executable: executable,
 				args,
 				waitOnExit
 			};
-			if (task.command.echo) {
+			if (task.command.terminal.echo) {
 				let getArgsToEcho = (args: string | string[]): string => {
 					if (!args || args.length === 0) {
 						return '';
@@ -553,15 +563,22 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		return value.map(s => this.resolveVariable(s));
 	}
 
-	private resolveMatchers<T extends ProblemMatcher>(values: T[]): T[] {
-		if (values === void 0 || values === null) {
+	private resolveMatchers(values: (string | ProblemMatcher)[]): ProblemMatcher[] {
+		if (values === void 0 || values === null || values.length === 0) {
 			return [];
 		}
-		if (values.length === 0) {
-			return values;
-		}
-		let result: T[] = [];
-		values.forEach((matcher) => {
+		let result: ProblemMatcher[] = [];
+		values.forEach((value) => {
+			let matcher: ProblemMatcher;
+			if (Types.isString(value)) {
+				matcher = ProblemMatcherRegistry.get(value);
+			} else {
+				matcher = value;
+			}
+			if (!matcher) {
+				this.outputChannel.append(nls.localize('unkownProblemMatcher', 'Problem matcher {0} can\'t be resolved. The matcher will be ignored'));
+				return;
+			}
 			if (!matcher.filePrefix) {
 				result.push(matcher);
 			} else {

@@ -9,17 +9,15 @@
 	display: flex;
 	flex-direction: column;
 	background-color: transparent!important;
-	color: #333;
-	-webkit-user-select: initial;
+	user-select: initial;
 	position: relative;
 }
-.vs-dark .monaco-workbench .panel.integrated-terminal { color: #CCC; }
-.hc-black .monaco-workbench .panel.integrated-terminal { color: #FFF; }
 
 .monaco-workbench .panel.integrated-terminal .terminal-outer-container {
 	height: 100%;
-	padding: 0 20px;
+	padding-left: 20px; /*Don't use right padding in case xterm.js misbehaves*/
 	width: 100%;
+	box-sizing: border-box;
 }
 
 .monaco-workbench .panel.integrated-terminal .terminal-wrapper {
@@ -60,6 +58,11 @@
 
 .monaco-workbench .panel.integrated-terminal.disable-bold .xterm-bold {
 	font-weight: normal !important;
+}
+
+.monaco-workbench .panel.integrated-terminal .xterm a.active {
+	cursor: pointer;
+	text-decoration: underline;
 }
 
 /* Terminal actions */

@@ -18,6 +18,7 @@ import Types = require('vs/base/common/types');
 import { isValidExtensionDescription } from 'vs/platform/extensions/node/extensionValidator';
 import * as semver from 'semver';
 import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 
 const MANIFEST_FILE = 'package.json';
 
@@ -47,7 +48,9 @@ export class MessagesCollector {
 		this._messages.push({
 			type: type,
 			message: message,
-			source: source
+			source: source,
+			extensionId: undefined,
+			extensionPointId: undefined
 		});
 	}
 
@@ -88,7 +91,7 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 			try {
 				return JSON.parse(manifestContents.toString());
 			} catch (e) {
-				this._collector.error(this._absoluteFolderPath, nls.localize('jsonParseFail', "Failed to parse {0}: {1}.", this._absoluteManifestPath, json.getParseErrorMessage(e.message)));
+				this._collector.error(this._absoluteFolderPath, nls.localize('jsonParseFail', "Failed to parse {0}: {1}.", this._absoluteManifestPath, getParseErrorMessage(e.message)));
 			}
 			return null;
 		}, (err) => {
@@ -123,7 +126,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 					return ExtensionManifestNLSReplacer.resolveOriginalMessageBundle(messageBundle.original, errors).then(originalMessages => {
 						if (errors.length > 0) {
 							errors.forEach((error) => {
-								this._collector.error(this._absoluteFolderPath, nls.localize('jsonsParseFail', "Failed to parse {0} or {1}: {2}.", messageBundle.localized, messageBundle.original, json.getParseErrorMessage(error.error)));
+								this._collector.error(this._absoluteFolderPath, nls.localize('jsonsParseFail', "Failed to parse {0} or {1}: {2}.", messageBundle.localized, messageBundle.original, getParseErrorMessage(error.error)));
 							});
 							return extensionDescription;
 						}

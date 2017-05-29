@@ -16,5 +16,7 @@
 	"markdown.previewSide.title": "Ouvrir l'aperçu sur le côté",
 	"markdown.showSource.title": "Afficher la source",
 	"markdown.styles.dec": "Liste d'URL ou de chemins locaux de feuilles de style CSS à utiliser dans l'aperçu Markdown. Les chemins relatifs sont interprétés par rapport au dossier ouvert dans l'explorateur. S'il n'y a aucun dossier ouvert, ils sont interprétés par rapport à l'emplacement du fichier Markdown. Tous les signes '\\' doivent être écrits sous la forme '\\\\'.",
-	"markdown.showPreviewSecuritySelector.title": "Changer les paramètres de sécurité de l'aperçu Markdown"
+	"markdown.showPreviewSecuritySelector.title": "Changer les paramètres de sécurité de l'aperçu Markdown",
+	"markdown.preview.enableExperimentalExtensionApi.desc": "[Expérimental] Autorise les extensions à étendre l'aperçu Markdown.",
+	"markdown.trace.desc": "Active la journalisation du débogage pour l'extension Markdown."
 }

@@ -6,6 +6,5 @@
 {
 	"defineKeybinding.start": "定义键绑定",
 	"defineKeybinding.kbLayoutInfoMessage": "对于当前键盘布局，按 ",
-	"defineKeybinding.kbLayoutErrorMessage": "在当前键盘布局下无法生成此组合键。",
-	"DefineKeybindingAction": "定义键绑定"
+	"defineKeybinding.kbLayoutErrorMessage": "在当前键盘布局下无法生成此组合键。"
 }

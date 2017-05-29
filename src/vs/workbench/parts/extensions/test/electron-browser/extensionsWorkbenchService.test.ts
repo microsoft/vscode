@@ -31,6 +31,7 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { IChoiceService } from 'vs/platform/message/common/message';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 suite('ExtensionsWorkbenchService Test', () => {
 
@@ -43,10 +44,10 @@ suite('ExtensionsWorkbenchService Test', () => {
 		didUninstallEvent: Emitter<DidUninstallExtensionEvent>;
 
 	suiteSetup(() => {
-		installEvent = new Emitter();
-		didInstallEvent = new Emitter();
-		uninstallEvent = new Emitter();
-		didUninstallEvent = new Emitter();
+		installEvent = new Emitter<InstallExtensionEvent>();
+		didInstallEvent = new Emitter<DidInstallExtensionEvent>();
+		uninstallEvent = new Emitter<string>();
+		didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
 
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IURLService, { onOpenURL: new Emitter().event });
@@ -55,6 +56,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 
 		instantiationService.set(IWorkspaceContextService, new WorkspaceContextService(TestWorkspace));
+		instantiationService.stub(IConfigurationService, { onDidUpdateConfiguration: () => { }, getConfiguration: () => ({}) });
 
 		instantiationService.stub(IExtensionManagementService, ExtensionManagementService);
 		instantiationService.stub(IExtensionManagementService, 'onInstallExtension', installEvent.event);

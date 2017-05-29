@@ -8,5 +8,7 @@
 	"merge changes": "Fusionner les modifications",
 	"staged changes": "Modifications en zone de transit",
 	"changes": "Modifications",
-	"ok": "OK"
+	"ok": "OK",
+	"neveragain": "Ne plus afficher",
+	"huge": "Le dépôt Git dans '{0}' a trop de modifications actives, seul un sous-ensemble de fonctionnalités Git sera activé."
 }

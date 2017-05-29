@@ -11,14 +11,13 @@ import { ICommonCodeEditor, IEditorContribution, IModel } from 'vs/editor/common
 import { editorAction, ServicesAccessor, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
-import { InternalEditorOptions } from "vs/editor/common/config/editorOptions";
+import { InternalEditorOptions, EDITOR_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 
 const transientWordWrapState = 'transientWordWrapState';
 const isWordWrapMinifiedKey = 'isWordWrapMinified';
@@ -54,12 +53,20 @@ function readTransientState(model: IModel, codeEditorService: ICodeEditorService
 }
 
 function readWordWrapState(model: IModel, configurationService: IConfigurationService, codeEditorService: ICodeEditorService): IWordWrapState {
-	const _configuredWordWrap = configurationService.lookup<'on' | 'off' | 'wordWrapColumn' | 'bounded'>('editor.wordWrap', model.getLanguageIdentifier().language);
+	let _configuredWordWrap = configurationService.lookup<'on' | 'off' | 'wordWrapColumn' | 'bounded'>('editor.wordWrap', model.getLanguageIdentifier().language).value;
+
+	// Compatibility with old true or false values
+	if (<any>_configuredWordWrap === true) {
+		_configuredWordWrap = 'on';
+	} else if (<any>_configuredWordWrap === false) {
+		_configuredWordWrap = 'off';
+	}
+
 	const _configuredWordWrapMinified = configurationService.lookup<boolean>('editor.wordWrapMinified', model.getLanguageIdentifier().language);
 	const _transientState = readTransientState(model, codeEditorService);
 	return {
-		configuredWordWrap: _configuredWordWrap.value,
-		configuredWordWrapMinified: (typeof _configuredWordWrapMinified.value === 'undefined' ? DefaultConfig.editor.wordWrapMinified : _configuredWordWrapMinified.value),
+		configuredWordWrap: _configuredWordWrap,
+		configuredWordWrapMinified: (typeof _configuredWordWrapMinified.value === 'undefined' ? EDITOR_DEFAULTS.wordWrapMinified : _configuredWordWrapMinified.value),
 		transientState: _transientState
 	};
 }

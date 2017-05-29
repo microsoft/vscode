@@ -20,14 +20,15 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { Registry } from 'vs/platform/platform';
 import { QuickOpenHandler, QuickOpenAction } from 'vs/workbench/browser/quickopen';
-import { IEditorAction, IEditor, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { IEditorAction, IEditor, isCommonCodeEditor, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { matchesWords, matchesPrefix, matchesContiguousSubString, or } from 'vs/base/common/filters';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, Severity, IMessageWithAction } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { editorAction, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 
 export const ALL_COMMANDS_PREFIX = '>';
 export const EDITOR_COMMANDS_PREFIX = '$';
@@ -44,13 +45,40 @@ export class ShowAllCommandsAction extends QuickOpenAction {
 	}
 }
 
+@editorAction
+class CommandPaletteEditorAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: ShowAllCommandsAction.ID,
+			label: nls.localize('showCommands.label', "Command Palette..."),
+			alias: 'Command Palette',
+			precondition: null,
+			menuOpts: {
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<void> {
+		const quickOpenService = accessor.get(IQuickOpenService);
+
+		// Show with prefix
+		quickOpenService.show(ALL_COMMANDS_PREFIX);
+
+		return TPromise.as(null);
+	}
+}
+
 class BaseCommandEntry extends QuickOpenEntryGroup {
+	private commandId: string;
 	private keyLabel: string;
 	private keyAriaLabel: string;
 	private label: string;
+	private description: string;
 	private alias: string;
 
 	constructor(
+		commandId: string,
 		keyLabel: string,
 		keyAriaLabel: string,
 		label: string,
@@ -62,6 +90,7 @@ class BaseCommandEntry extends QuickOpenEntryGroup {
 	) {
 		super();
 
+		this.commandId = commandId;
 		this.keyLabel = keyLabel;
 		this.keyAriaLabel = keyAriaLabel;
 		this.label = label;
@@ -75,8 +104,20 @@ class BaseCommandEntry extends QuickOpenEntryGroup {
 		this.setHighlights(labelHighlights, null, aliasHighlights);
 	}
 
+	public getCommandId(): string {
+		return this.commandId;
+	}
+
 	public getLabel(): string {
 		return this.label;
+	}
+
+	public getDescription(): string {
+		return this.description;
+	}
+
+	public setDescription(description: string): void {
+		this.description = description;
 	}
 
 	public getDetail(): string {
@@ -115,14 +156,14 @@ class BaseCommandEntry extends QuickOpenEntryGroup {
 					this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'quick open' });
 					(action.run() || TPromise.as(null)).done(() => {
 						action.dispose();
-					}, (err) => this.onError(err));
+					}, err => this.onError(err));
 				} catch (error) {
 					this.onError(error);
 				}
 			} else {
 				this.messageService.show(Severity.Info, nls.localize('actionNotEnabled', "Command '{0}' is not enabled in the current context.", this.getLabel()));
 			}
-		}, (err) => this.onError(err));
+		}, err => this.onError(err));
 	}
 }
 
@@ -130,6 +171,7 @@ class CommandEntry extends BaseCommandEntry {
 	private actionDescriptor: SyncActionDescriptor;
 
 	constructor(
+		commandId: string,
 		keyLabel: string,
 		keyAriaLabel: string,
 		label: string,
@@ -141,7 +183,7 @@ class CommandEntry extends BaseCommandEntry {
 		@IMessageService messageService: IMessageService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(keyLabel, keyAriaLabel, label, meta, labelHighlights, aliasHighlights, messageService, telemetryService);
+		super(commandId, keyLabel, keyAriaLabel, label, meta, labelHighlights, aliasHighlights, messageService, telemetryService);
 
 		this.actionDescriptor = actionDescriptor;
 	}
@@ -162,6 +204,7 @@ class EditorActionCommandEntry extends BaseCommandEntry {
 	private action: IEditorAction;
 
 	constructor(
+		commandId: string,
 		keyLabel: string,
 		keyAriaLabel: string,
 		label: string,
@@ -172,7 +215,7 @@ class EditorActionCommandEntry extends BaseCommandEntry {
 		@IMessageService messageService: IMessageService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(keyLabel, keyAriaLabel, label, meta, labelHighlights, aliasHighlights, messageService, telemetryService);
+		super(commandId, keyLabel, keyAriaLabel, label, meta, labelHighlights, aliasHighlights, messageService, telemetryService);
 
 		this.action = action;
 	}
@@ -184,14 +227,14 @@ class EditorActionCommandEntry extends BaseCommandEntry {
 				if (this.action) {
 					try {
 						this.telemetryService.publicLog('workbenchActionExecuted', { id: this.action.id, from: 'quick open' });
-						(this.action.run() || TPromise.as(null)).done(null, (err) => this.onError(err));
+						(this.action.run() || TPromise.as(null)).done(null, err => this.onError(err));
 					} catch (error) {
 						this.onError(error);
 					}
 				} else {
 					this.messageService.show(Severity.Info, nls.localize('actionNotEnabled', "Command '{0}' is not enabled in the current context.", this.getLabel()));
 				}
-			}, (err) => this.onError(err));
+			}, err => this.onError(err));
 
 			return true;
 		}
@@ -205,6 +248,7 @@ class ActionCommandEntry extends BaseCommandEntry {
 	private action: IAction;
 
 	constructor(
+		commandId: string,
 		keyLabel: string,
 		keyAriaLabel: string,
 		label: string,
@@ -215,7 +259,7 @@ class ActionCommandEntry extends BaseCommandEntry {
 		@IMessageService messageService: IMessageService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(keyLabel, keyAriaLabel, label, alias, labelHighlights, aliasHighlights, messageService, telemetryService);
+		super(commandId, keyLabel, keyAriaLabel, label, alias, labelHighlights, aliasHighlights, messageService, telemetryService);
 
 		this.action = action;
 	}
@@ -283,7 +327,18 @@ export class CommandsHandler extends QuickOpenHandler {
 		let entries = [...workbenchEntries, ...editorEntries, ...commandEntries];
 
 		// Remove duplicates
-		entries = arrays.distinct(entries, (entry) => entry.getLabel() + entry.getGroupLabel());
+		entries = arrays.distinct(entries, entry => `${entry.getLabel()}${entry.getGroupLabel()}${entry.getCommandId()}`);
+
+		// Handle label clashes
+		const commandLabels = new Set<string>();
+		entries.forEach(entry => {
+			const commandLabel = `${entry.getLabel()}${entry.getGroupLabel()}`;
+			if (commandLabels.has(commandLabel)) {
+				entry.setDescription(entry.getCommandId());
+			} else {
+				commandLabels.add(commandLabel);
+			}
+		});
 
 		// Sort by name
 		entries = entries.sort((elementA, elementB) => elementA.getLabel().toLowerCase().localeCompare(elementB.getLabel().toLowerCase()));
@@ -315,7 +370,7 @@ export class CommandsHandler extends QuickOpenHandler {
 				const labelHighlights = wordFilter(searchValue, label);
 				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
 				if (labelHighlights || aliasHighlights) {
-					entries.push(this.instantiationService.createInstance(CommandEntry, keyLabel, keyAriaLabel, label, alias, labelHighlights, aliasHighlights, actionDescriptor));
+					entries.push(this.instantiationService.createInstance(CommandEntry, actionDescriptor.id, keyLabel, keyAriaLabel, label, alias, labelHighlights, aliasHighlights, actionDescriptor));
 				}
 			}
 		}
@@ -328,6 +383,9 @@ export class CommandsHandler extends QuickOpenHandler {
 
 		for (let i = 0; i < actions.length; i++) {
 			const action = actions[i];
+			if (action.id === ShowAllCommandsAction.ID) {
+				continue; // avoid duplicates
+			}
 
 			const keybinding = this.keybindingService.lookupKeybinding(action.id);
 			const keyLabel = keybinding ? keybinding.getLabel() : '';
@@ -341,7 +399,7 @@ export class CommandsHandler extends QuickOpenHandler {
 				const labelHighlights = wordFilter(searchValue, label);
 				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
 				if (labelHighlights || aliasHighlights) {
-					entries.push(this.instantiationService.createInstance(EditorActionCommandEntry, keyLabel, keyAriaLabel, label, alias, labelHighlights, aliasHighlights, action));
+					entries.push(this.instantiationService.createInstance(EditorActionCommandEntry, action.id, keyLabel, keyAriaLabel, label, alias, labelHighlights, aliasHighlights, action));
 				}
 			}
 		}
@@ -376,7 +434,7 @@ export class CommandsHandler extends QuickOpenHandler {
 				}
 				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
 				if (labelHighlights || aliasHighlights) {
-					entries.push(this.instantiationService.createInstance(ActionCommandEntry, keyLabel, keyAriaLabel, label, alias, labelHighlights, aliasHighlights, action));
+					entries.push(this.instantiationService.createInstance(ActionCommandEntry, action.id, keyLabel, keyAriaLabel, label, alias, labelHighlights, aliasHighlights, action));
 				}
 			}
 		}

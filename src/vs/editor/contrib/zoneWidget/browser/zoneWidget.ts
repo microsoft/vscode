@@ -13,9 +13,10 @@ import * as dom from 'vs/base/browser/dom';
 import { Sash, Orientation, IHorizontalSashLayoutProvider, ISashEvent } from 'vs/base/browser/ui/sash/sash';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
-import { Color, RGBA } from "vs/base/common/color";
-import { EditorLayoutInfo } from "vs/editor/common/config/editorOptions";
-import { Position, IPosition } from "vs/editor/common/core/position";
+import { Color, RGBA } from 'vs/base/common/color';
+import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
+import { Position, IPosition } from 'vs/editor/common/core/position';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 export interface IOptions {
 	showFrame?: boolean;
@@ -170,7 +171,7 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 		this._applyStyles();
 	}
 
-	public style(styles: IStyles) {
+	public style(styles: IStyles): void {
 		if (styles.frameColor) {
 			this.options.frameColor = styles.frameColor;
 		}
@@ -180,7 +181,7 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 		this._applyStyles();
 	}
 
-	protected _applyStyles() {
+	protected _applyStyles(): void {
 		if (this.container) {
 			let frameColor = this.options.frameColor.toString();
 			this.container.style.borderTopColor = frameColor;
@@ -228,7 +229,7 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 		this._isShowing = true;
 		this._showImpl(range, heightInLines);
 		this._isShowing = false;
-		this._positionMarkerId = this.editor.deltaDecorations(this._positionMarkerId, [{ range, options: {} }]);
+		this._positionMarkerId = this.editor.deltaDecorations(this._positionMarkerId, [{ range, options: ModelDecorationOptions.EMPTY }]);
 	}
 
 	public hide(): void {
@@ -275,6 +276,7 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 
 		// Render the widget as zone (rendering) and widget (lifecycle)
 		const viewZoneDomNode = document.createElement('div');
+		viewZoneDomNode.style.overflow = 'hidden';
 		const lineHeight = this.editor.getConfiguration().lineHeight;
 
 		// adjust heightInLines to viewport

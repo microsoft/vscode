@@ -11,7 +11,7 @@ import { MirrorModel } from 'vs/editor/common/model/mirrorModel';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { Position } from 'vs/editor/common/core/position';
 import { RawTextSource } from 'vs/editor/common/model/textSource';
-import { IModelContentChangedEvent } from "vs/editor/common/model/textModelEvents";
+import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 
 export function testApplyEditsWithSyncedModels(original: string[], edits: editorCommon.IIdentifiedSingleEditOperation[], expected: string[], inputEditsAreInvalid: boolean = false): void {
 	var originalStr = original.join('\n');

@@ -139,8 +139,8 @@ async function getGruntTasks(): Promise<vscode.Task[]> {
 						if (matches && matches.length === 2) {
 							let taskName = matches[1];
 							let task = taskName.indexOf(' ') === -1
-								? new vscode.ShellTask(`grunt: ${taskName}`, `${command} ${taskName}`)
-								: new vscode.ShellTask(`grunt: ${taskName}`, `${command} "${taskName}"`);
+								? new vscode.ShellTask(taskName, `${command} ${taskName}`)
+								: new vscode.ShellTask(taskName, `${command} "${taskName}"`);
 							task.identifier = `grunt.${taskName}`;
 							result.push(task);
 							let lowerCaseTaskName = taskName.toLowerCase();

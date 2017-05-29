@@ -212,6 +212,14 @@ exports.update = function () {
 		}
 
 		var res = {
+			information_for_contributors: [
+				'This file has been generated from data in https://github.com/jesseweed/seti-ui:',
+				'- icon definitions: styles/_fonts/seti.less',
+				'- icon colors: styles/ui-variables.less',
+				'- file associations: styles/icons/mapping.less',
+				'If you want to provide a fix or improvement, please create a pull request against the jesseweed/seti-ui repository.',
+				'Once accepted there, we are happy to receive an update request.',
+			],
 			fonts: [{
 				id: "seti",
 				src: [{ "path": "./seti.woff", "format": "woff" }],

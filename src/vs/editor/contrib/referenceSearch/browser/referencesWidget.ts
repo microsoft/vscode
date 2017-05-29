@@ -14,7 +14,7 @@ import { IDisposable, dispose, Disposables, IReference } from 'vs/base/common/li
 import { Schemas } from 'vs/base/common/network';
 import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Color } from "vs/base/common/color";
+import { Color } from 'vs/base/common/color';
 import { $, Builder } from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
 import { Sash, ISashEvent, IVerticalSashLayoutProvider } from 'vs/base/browser/ui/sash/sash';
@@ -27,10 +27,9 @@ import { LeftRightWidget } from 'vs/base/browser/ui/leftRightWidget/leftRightWid
 import * as tree from 'vs/base/parts/tree/browser/tree';
 import { DefaultController, LegacyRenderer } from 'vs/base/parts/tree/browser/treeDefaults';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
@@ -39,18 +38,20 @@ import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeE
 import { PeekViewWidget, IPeekViewService } from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
 import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { registerColor, highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, activeContrastBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachListStyler } from "vs/platform/theme/common/styler";
+import { attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { IEditorOptions } from "vs/editor/common/config/editorOptions";
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 class DecorationsManager implements IDisposable {
 
-	private static DecorationOptions: editorCommon.IModelDecorationOptions = {
+	private static DecorationOptions = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'reference-decoration'
-	};
+	});
 
 	private _decorations = new Map<string, OneReference>();
 	private _decorationIgnoreSet = new Set<string>();
@@ -345,10 +346,19 @@ class Controller extends DefaultController {
 
 class Renderer extends LegacyRenderer {
 	private _contextService: IWorkspaceContextService;
+	private _themeService: IThemeService;
+	private _environmentService: IEnvironmentService;
 
-	constructor( @IWorkspaceContextService contextService: IWorkspaceContextService) {
+	constructor(
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IThemeService themeService: IThemeService,
+		@optional(IEnvironmentService) environmentService: IEnvironmentService
+	) {
 		super();
+
 		this._contextService = contextService;
+		this._themeService = themeService;
+		this._environmentService = environmentService;
 	}
 
 	public getHeight(tree: tree.ITree, element: any): number {
@@ -357,6 +367,7 @@ class Renderer extends LegacyRenderer {
 
 	protected render(tree: tree.ITree, element: FileReferences | OneReference, container: HTMLElement): tree.IElementCallback {
 
+		const toDispose: IDisposable[] = [];
 		dom.clearNode(container);
 
 		if (element instanceof FileReferences) {
@@ -365,13 +376,15 @@ class Renderer extends LegacyRenderer {
 			/* tslint:disable:no-unused-expression */
 			new LeftRightWidget(fileReferencesContainer, (left: HTMLElement) => {
 
-				new FileLabel(left, element.uri, this._contextService);
+				const label = new FileLabel(left, element.uri, this._contextService, this._environmentService);
+				toDispose.push(label);
 				return <IDisposable>null;
 
 			}, (right: HTMLElement) => {
 
 				const len = element.children.length;
-				const badge = new CountBadge(right, len);
+				const badge = new CountBadge(right, { count: len });
+				toDispose.push(attachBadgeStyler(badge, this._themeService));
 
 				if (element.failure) {
 					badge.setTitleFormat(nls.localize('referencesFailre', "Failed to resolve file."));
@@ -403,7 +416,9 @@ class Renderer extends LegacyRenderer {
 					strings.escape(preview.after))).appendTo(container);
 		}
 
-		return null;
+		return () => {
+			dispose(toDispose);
+		};
 	}
 }
 
@@ -541,8 +556,8 @@ export class ReferenceWidget extends PeekViewWidget {
 			arrowColor: borderColor,
 			frameColor: borderColor,
 			headerBackgroundColor: theme.getColor(peekViewTitleBackground) || Color.transparent,
-			primaryHeadingColor: theme.getColor(peekViewTitle),
-			secondaryHeadingColor: theme.getColor(peekViewTitleInfo)
+			primaryHeadingColor: theme.getColor(peekViewTitleForeground),
+			secondaryHeadingColor: theme.getColor(peekViewTitleInfoForeground)
 		});
 	}
 
@@ -591,7 +606,13 @@ export class ReferenceWidget extends PeekViewWidget {
 
 			var options: IEditorOptions = {
 				scrollBeyondLastLine: false,
-				scrollbar: DefaultConfig.editor.scrollbar,
+				scrollbar: {
+					verticalScrollbarSize: 14,
+					horizontal: 'auto',
+					useShadows: true,
+					verticalHasArrows: false,
+					horizontalHasArrows: false
+				},
 				overviewRulerLanes: 2,
 				fixedOverflowWidgets: true,
 				minimap: {
@@ -797,64 +818,70 @@ export class ReferenceWidget extends PeekViewWidget {
 
 // theming
 
-export const peekViewTitleBackground = registerColor('peekViewTitleBackground', { dark: '#1E1E1E', light: '#FFFFFF', hc: '#0C141F' }, nls.localize('peekViewTitleBackground', 'Background color of the peek view title area.'));
-export const peekViewTitle = registerColor('peekViewTitle', { dark: '#FFFFFF', light: '#333333', hc: '#FFFFFF' }, nls.localize('peekViewTitle', 'Color of the peek view title.'));
-export const peekViewTitleInfo = registerColor('peekViewTitleInfo', { dark: '#ccccccb3', light: '#6c6c6cb3', hc: '#FFFFFF99' }, nls.localize('peekViewTitleInfo', 'Color of the peek view title info.'));
-export const peekViewBorder = registerColor('peekViewBorder', { dark: '#007acc', light: '#007acc', hc: '#6FC3DF' }, nls.localize('peekViewBorder', 'Color of the peek view borders and arrow.'));
+export const peekViewTitleBackground = registerColor('peekViewTitle.background', { dark: '#1E1E1E', light: '#FFFFFF', hc: '#0C141F' }, nls.localize('peekViewTitleBackground', 'Background color of the peek view title area.'));
+export const peekViewTitleForeground = registerColor('peekViewTitleLabel.foreground', { dark: '#FFFFFF', light: '#333333', hc: '#FFFFFF' }, nls.localize('peekViewTitleForeground', 'Color of the peek view title.'));
+export const peekViewTitleInfoForeground = registerColor('peekViewTitleDescription.foreground', { dark: '#ccccccb3', light: '#6c6c6cb3', hc: '#FFFFFF99' }, nls.localize('peekViewTitleInfoForeground', 'Color of the peek view title info.'));
+export const peekViewBorder = registerColor('peekView.border', { dark: '#007acc', light: '#007acc', hc: contrastBorder }, nls.localize('peekViewBorder', 'Color of the peek view borders and arrow.'));
 
-export const peekViewResultsBackground = registerColor('peekViewResultsBackground', { dark: '#252526', light: '#F3F3F3', hc: Color.black }, nls.localize('peekViewResultsBackground', 'Background color of the peek view result list.'));
-export const peekViewResultsMatchForeground = registerColor('peekViewResultsMatchForeground', { dark: '#bbbbbb', light: '#646465', hc: Color.white }, nls.localize('peekViewResultsMatchForeground', 'Match entry foreground in the peek view result list.'));
-export const peekViewResultsFileForeground = registerColor('peekViewResultsFileForeground', { dark: Color.white, light: '#1E1E1E', hc: Color.white }, nls.localize('peekViewResultsFileForeground', 'File entry foreground in the peek view result list.'));
-export const peekViewResultsSelectionBackground = registerColor('peekViewResultsSelectionBackground', { dark: '#3399ff33', light: '#3399ff33', hc: null }, nls.localize('peekViewResultsSelectionBackground', 'Background color of the selected entry in the peek view result list.'));
-export const peekViewResultsSelectionForeground = registerColor('peekViewResultsSelectionForeground', { dark: Color.white, light: '#6C6C6C', hc: Color.white }, nls.localize('peekViewResultsSelectionForeground', 'Foreground color of the selected entry in the peek view result list.'));
-export const peekViewEditorBackground = registerColor('peekViewEditorBackground', { dark: '#001F33', light: '#F2F8FC', hc: '#0C141F' }, nls.localize('peekViewEditorBackground', 'Background color of the peek view editor.'));
+export const peekViewResultsBackground = registerColor('peekViewResult.background', { dark: '#252526', light: '#F3F3F3', hc: Color.black }, nls.localize('peekViewResultsBackground', 'Background color of the peek view result list.'));
+export const peekViewResultsMatchForeground = registerColor('peekViewResult.lineForeground', { dark: '#bbbbbb', light: '#646465', hc: Color.white }, nls.localize('peekViewResultsMatchForeground', 'Foreground color for line nodes in the peek view result list.'));
+export const peekViewResultsFileForeground = registerColor('peekViewResult.fileForeground', { dark: Color.white, light: '#1E1E1E', hc: Color.white }, nls.localize('peekViewResultsFileForeground', 'Foreground color for file nodes in the peek view result list.'));
+export const peekViewResultsSelectionBackground = registerColor('peekViewResult.selectionBackground', { dark: '#3399ff33', light: '#3399ff33', hc: null }, nls.localize('peekViewResultsSelectionBackground', 'Background color of the selected entry in the peek view result list.'));
+export const peekViewResultsSelectionForeground = registerColor('peekViewResult.selectionForeground', { dark: Color.white, light: '#6C6C6C', hc: Color.white }, nls.localize('peekViewResultsSelectionForeground', 'Foreground color of the selected entry in the peek view result list.'));
+export const peekViewEditorBackground = registerColor('peekViewEditor.background', { dark: '#001F33', light: '#F2F8FC', hc: Color.black }, nls.localize('peekViewEditorBackground', 'Background color of the peek view editor.'));
+export const peekViewEditorGutterBackground = registerColor('peekViewEditorGutter.background', { dark: peekViewEditorBackground, light: peekViewEditorBackground, hc: peekViewEditorBackground }, nls.localize('peekViewEditorGutterBackground', 'Background color of the gutter in the peek view editor.'));
 
-export const peekViewResultsMatchHighlight = registerColor('peekViewResultsMatchHighlight', { dark: '#ea5c004d', light: '#ea5c004d', hc: null }, nls.localize('peekViewResultsMatchHighlight', 'Match highlight color in the peek view result list.'));
-export const peekViewEditorMatchHighlight = registerColor('peekViewEditorMatchHighlight', { dark: '#ff8f0099', light: '#f5d802de', hc: null }, nls.localize('peekViewEditorMatchHighlight', 'Match highlight color in the peek view editor.'));
+export const peekViewResultsMatchHighlight = registerColor('peekViewResult.matchHighlightBackground', { dark: '#ea5c004d', light: '#ea5c004d', hc: null }, nls.localize('peekViewResultsMatchHighlight', 'Match highlight color in the peek view result list.'));
+export const peekViewEditorMatchHighlight = registerColor('peekViewEditor.matchHighlightBackground', { dark: '#ff8f0099', light: '#f5d802de', hc: null }, nls.localize('peekViewEditorMatchHighlight', 'Match highlight color in the peek view editor.'));
 
 
 registerThemingParticipant((theme, collector) => {
 	let findMatchHighlightColor = theme.getColor(peekViewResultsMatchHighlight);
 	if (findMatchHighlightColor) {
-		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree .referenceMatch { background-color: ${findMatchHighlightColor}; }`);
+		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .referenceMatch { background-color: ${findMatchHighlightColor}; }`);
 	}
 	let referenceHighlightColor = theme.getColor(peekViewEditorMatchHighlight);
 	if (referenceHighlightColor) {
-		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .preview .reference-decoration { background-color: ${referenceHighlightColor}; }`);
+		collector.addRule(`.monaco-editor .reference-zone-widget .preview .reference-decoration { background-color: ${referenceHighlightColor}; }`);
 	}
-	let hcOutline = theme.getColor(highContrastOutline);
+	let hcOutline = theme.getColor(activeContrastBorder);
 	if (hcOutline) {
-		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree .referenceMatch { border: 1px dotted ${hcOutline}; box-sizing: border-box; }`);
-		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .preview .reference-decoration { border: 2px solid ${hcOutline}; box-sizing: border-box; }`);
+		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .referenceMatch { border: 1px dotted ${hcOutline}; box-sizing: border-box; }`);
+		collector.addRule(`.monaco-editor .reference-zone-widget .preview .reference-decoration { border: 2px solid ${hcOutline}; box-sizing: border-box; }`);
 	}
 	let resultsBackground = theme.getColor(peekViewResultsBackground);
 	if (resultsBackground) {
-		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree { background-color: ${resultsBackground}; }`);
+		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree { background-color: ${resultsBackground}; }`);
 	}
 	let resultsMatchForeground = theme.getColor(peekViewResultsMatchForeground);
 	if (resultsMatchForeground) {
-		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree { color: ${resultsMatchForeground}; }`);
+		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree { color: ${resultsMatchForeground}; }`);
 	}
 	let resultsFileForeground = theme.getColor(peekViewResultsFileForeground);
 	if (resultsFileForeground) {
-		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree .reference-file { color: ${resultsFileForeground}; }`);
+		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .reference-file { color: ${resultsFileForeground}; }`);
 	}
 	let resultsSelectedBackground = theme.getColor(peekViewResultsSelectionBackground);
 	if (resultsSelectedBackground) {
-		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { background-color: ${resultsSelectedBackground}; }`);
+		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { background-color: ${resultsSelectedBackground}; }`);
 	}
 	let resultsSelectedForeground = theme.getColor(peekViewResultsSelectionForeground);
 	if (resultsSelectedForeground) {
-		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { color: ${resultsSelectedForeground} !important; }`);
+		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { color: ${resultsSelectedForeground} !important; }`);
 	}
 	let editorBackground = theme.getColor(peekViewEditorBackground);
 	if (editorBackground) {
 		collector.addRule(
-			`.monaco-editor.${theme.selector} .reference-zone-widget .preview .monaco-editor,` +
-			`.monaco-editor.${theme.selector} .reference-zone-widget .preview .glyph-margin,` +
-			`.monaco-editor.${theme.selector} .reference-zone-widget .preview .monaco-editor-background,` +
-			`.monaco-editor.${theme.selector} .reference-zone-widget .preview .monaco-editor .margin .view-line {` +
+			`.monaco-editor .reference-zone-widget .preview .monaco-editor .monaco-editor-background,` +
+			`.monaco-editor .reference-zone-widget .preview .monaco-editor .inputarea.ime-input {` +
 			`	background-color: ${editorBackground};` +
+			`}`);
+	}
+	let editorGutterBackground = theme.getColor(peekViewEditorGutterBackground);
+	if (editorGutterBackground) {
+		collector.addRule(
+			`.monaco-editor .reference-zone-widget .preview .monaco-editor .margin {` +
+			`	background-color: ${editorGutterBackground};` +
 			`}`);
 	}
 });

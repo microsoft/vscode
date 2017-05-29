@@ -8,7 +8,7 @@ import { Progress, ProgressOptions, CancellationToken } from 'vscode';
 import { MainThreadProgressShape } from './extHost.protocol';
 import { ProgressLocation } from './extHostTypeConverters';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IProgressStep } from "vs/platform/progress/common/progress";
+import { IProgressStep } from 'vs/platform/progress/common/progress';
 
 export class ExtHostProgress {
 

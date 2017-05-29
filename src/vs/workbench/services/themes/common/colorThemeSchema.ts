@@ -172,15 +172,16 @@ const schemaId = 'vscode://schemas/color-theme';
 const schema: IJSONSchema = {
 	type: 'object',
 	properties: {
-		type: {
-			description: nls.localize('schema.type', 'The type of the theme, either light, dark or high contrast. Depending on the type, a different set of icons is used.'),
-			enum: ['light', 'dark', 'hc'],
-			enumDescriptions: [nls.localize('schema.light', 'Light theme, using dark icons'), nls.localize('schema.dark', 'Dark theme, using light icons'), nls.localize('schema.hc', 'High contrast theme, using light icons')]
-		},
 		colors: colorsSchema,
-		tokenColors: tokenColorsSchema
-	},
-	required: ['type']
+		tokenColors: {
+			anyOf: [{
+				type: 'string',
+				description: nls.localize('schema.tokenColors.path', 'Path to a tmTheme file (relative to the current file)')
+			},
+				tokenColorsSchema
+			]
+		}
+	}
 };
 
 export function register() {

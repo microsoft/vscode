@@ -77,6 +77,7 @@ class DomCharWidthReader implements ICharWidthReader {
 		regularDomNode.style.fontWeight = this._bareFontInfo.fontWeight;
 		regularDomNode.style.fontSize = this._bareFontInfo.fontSize + 'px';
 		regularDomNode.style.lineHeight = this._bareFontInfo.lineHeight + 'px';
+		regularDomNode.style.letterSpacing = this._bareFontInfo.letterSpacing + 'px';
 		container.appendChild(regularDomNode);
 
 		let boldDomNode = document.createElement('div');
@@ -84,6 +85,7 @@ class DomCharWidthReader implements ICharWidthReader {
 		boldDomNode.style.fontWeight = 'bold';
 		boldDomNode.style.fontSize = this._bareFontInfo.fontSize + 'px';
 		boldDomNode.style.lineHeight = this._bareFontInfo.lineHeight + 'px';
+		boldDomNode.style.letterSpacing = this._bareFontInfo.letterSpacing + 'px';
 		container.appendChild(boldDomNode);
 
 		let italicDomNode = document.createElement('div');
@@ -91,6 +93,7 @@ class DomCharWidthReader implements ICharWidthReader {
 		italicDomNode.style.fontWeight = this._bareFontInfo.fontWeight;
 		italicDomNode.style.fontSize = this._bareFontInfo.fontSize + 'px';
 		italicDomNode.style.lineHeight = this._bareFontInfo.lineHeight + 'px';
+		italicDomNode.style.letterSpacing = this._bareFontInfo.letterSpacing + 'px';
 		italicDomNode.style.fontStyle = 'italic';
 		container.appendChild(italicDomNode);
 

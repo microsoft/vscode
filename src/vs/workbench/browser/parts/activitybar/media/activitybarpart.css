@@ -9,6 +9,9 @@
 
 .monaco-workbench > .activitybar > .content {
 	height: 100%;
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
 }
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar {

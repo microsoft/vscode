@@ -12,6 +12,10 @@ import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ISearchConfiguration } from 'vs/platform/search/common/search';
 import glob = require('vs/base/common/glob');
 import { SymbolInformation } from 'vs/editor/common/modes';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import URI from 'vs/base/common/uri';
+import { toResource } from 'vs/workbench/common/editor';
 
 export interface IWorkspaceSymbolProvider {
 	provideWorkspaceSymbols(search: string): TPromise<SymbolInformation[]>;
@@ -78,4 +82,23 @@ export interface IWorkbenchSearchConfiguration extends ISearchConfiguration {
 		useRipgrep: boolean,
 		useIgnoreFilesByDefault: boolean
 	};
+}
+
+/**
+ * Helper to return all opened editors with resources not belonging to the currently opened workspace.
+ */
+export function getOutOfWorkspaceEditorResources(editorGroupService: IEditorGroupService, contextService: IWorkspaceContextService): URI[] {
+	const resources: URI[] = [];
+
+	editorGroupService.getStacksModel().groups.forEach(group => {
+		const editors = group.getEditors();
+		editors.forEach(editor => {
+			const fileResource = toResource(editor, { supportSideBySide: true, filter: 'file' });
+			if (fileResource && !contextService.isInsideWorkspace(fileResource)) {
+				resources.push(fileResource);
+			}
+		});
+	});
+
+	return resources;
 }

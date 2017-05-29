@@ -6,7 +6,5 @@
 {
 	"searchMatches": "{0} correspondances trouvées",
 	"searchMatch": "{0} correspondance trouvée",
-	"fileMatchAriaLabel": "{0} correspondances dans le fichier {1} du dossier {2}, Résultat de la recherche",
-	"replacePreviewResultAria": "Résultat de l'aperçu du remplacement, {0}",
-	"searchResultAria": "{0}, Résultat de la recherche"
+	"fileMatchAriaLabel": "{0} correspondances dans le fichier {1} du dossier {2}, Résultat de la recherche"
 }

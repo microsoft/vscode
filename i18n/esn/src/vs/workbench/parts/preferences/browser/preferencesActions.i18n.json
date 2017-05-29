@@ -6,6 +6,7 @@
 {
 	"openGlobalSettings": "Abrir configuración de usuario",
 	"openGlobalKeybindings": "Abrir métodos abreviados de teclado",
+	"openGlobalKeybindingsFile": "Abrir el archivo de métodos abreviados de teclado",
 	"openWorkspaceSettings": "Abrir configuración del área de trabajo",
 	"configureLanguageBasedSettings": "Configurar opciones específicas del lenguaje...",
 	"languageDescriptionConfigured": "({0})",

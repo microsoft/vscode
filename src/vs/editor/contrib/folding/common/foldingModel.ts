@@ -5,6 +5,7 @@
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 export interface IFoldingRange {
 	startLineNumber: number;
@@ -68,25 +69,31 @@ export class CollapsibleRegion {
 		return null;
 	}
 
-	private getVisualDecorationOptions(): editorCommon.IModelDecorationOptions {
+	private static _COLLAPSED_VISUAL_DECORATION = ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		afterContentClassName: 'inline-folded',
+		linesDecorationsClassName: 'folding collapsed'
+	});
+
+	private static _EXPANDED_VISUAL_DECORATION = ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		linesDecorationsClassName: 'folding'
+	});
+
+	private getVisualDecorationOptions(): ModelDecorationOptions {
 		if (this._isCollapsed) {
-			return {
-				stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-				afterContentClassName: 'inline-folded',
-				linesDecorationsClassName: 'folding collapsed'
-			};
+			return CollapsibleRegion._COLLAPSED_VISUAL_DECORATION;
 		} else {
-			return {
-				stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-				linesDecorationsClassName: 'folding'
-			};
+			return CollapsibleRegion._EXPANDED_VISUAL_DECORATION;
 		}
 	}
 
-	private getRangeDecorationOptions(): editorCommon.IModelDecorationOptions {
-		return {
-			stickiness: editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore
-		};
+	private static _RANGE_DECORATION = ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore
+	});
+
+	private getRangeDecorationOptions(): ModelDecorationOptions {
+		return CollapsibleRegion._RANGE_DECORATION;
 	}
 
 	public update(newRange: IFoldingRange, model: editorCommon.IModel, changeAccessor: editorCommon.IModelDecorationsChangeAccessor): void {

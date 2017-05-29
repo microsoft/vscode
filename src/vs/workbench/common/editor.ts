@@ -12,12 +12,10 @@ import URI from 'vs/base/common/uri';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IEditor, ICommonCodeEditor, IEditorViewState, IModel } from 'vs/editor/common/editorCommon';
 import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position, Verbosity } from 'vs/platform/editor/common/editor';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import * as editorOptions from "vs/editor/common/config/editorOptions";
+import * as editorOptions from 'vs/editor/common/config/editorOptions';
 
 export const TextCompareEditorVisible = new RawContextKey<boolean>('textCompareEditorVisible', false);
 
@@ -513,6 +511,7 @@ export class EditorOptions implements IEditorOptions {
 		options.preserveFocus = settings.preserveFocus;
 		options.forceOpen = settings.forceOpen;
 		options.revealIfVisible = settings.revealIfVisible;
+		options.revealIfOpened = settings.revealIfOpened;
 		options.pinned = settings.pinned;
 		options.index = settings.index;
 		options.inactive = settings.inactive;
@@ -528,6 +527,7 @@ export class EditorOptions implements IEditorOptions {
 			this.preserveFocus = other.preserveFocus;
 			this.forceOpen = other.forceOpen;
 			this.revealIfVisible = other.revealIfVisible;
+			this.revealIfOpened = other.revealIfOpened;
 			this.pinned = other.pinned;
 			this.index = other.index;
 			this.inactive = other.inactive;
@@ -551,6 +551,11 @@ export class EditorOptions implements IEditorOptions {
 	 * Will reveal the editor if it is already opened and visible in any of the opened editor groups.
 	 */
 	public revealIfVisible: boolean;
+
+	/**
+	 * Will reveal the editor if it is already opened (even when not visible) in any of the opened editor groups.
+	 */
+	public revealIfOpened: boolean;
 
 	/**
 	 * An editor that is pinned remains in the editor stack even when another editor is being opened.
@@ -586,7 +591,7 @@ export class TextEditorOptions extends EditorOptions {
 	public static from(input: IBaseResourceInput): TextEditorOptions {
 		let options: TextEditorOptions = null;
 		if (input && input.options) {
-			if (input.options.selection || input.options.viewState || input.options.forceOpen || input.options.revealIfVisible || input.options.preserveFocus || input.options.pinned || input.options.inactive || typeof input.options.index === 'number') {
+			if (input.options.selection || input.options.viewState || input.options.forceOpen || input.options.revealIfVisible || input.options.revealIfOpened || input.options.preserveFocus || input.options.pinned || input.options.inactive || typeof input.options.index === 'number') {
 				options = new TextEditorOptions();
 			}
 
@@ -601,6 +606,10 @@ export class TextEditorOptions extends EditorOptions {
 
 			if (input.options.revealIfVisible) {
 				options.revealIfVisible = true;
+			}
+
+			if (input.options.revealIfOpened) {
+				options.revealIfOpened = true;
 			}
 
 			if (input.options.preserveFocus) {
@@ -634,11 +643,12 @@ export class TextEditorOptions extends EditorOptions {
 	/**
 	 * Helper to create TextEditorOptions inline.
 	 */
-	public static create(settings: ITextEditorOptions): TextEditorOptions {
+	public static create(settings: ITextEditorOptions = Object.create(null)): TextEditorOptions {
 		const options = new TextEditorOptions();
 		options.preserveFocus = settings.preserveFocus;
 		options.forceOpen = settings.forceOpen;
 		options.revealIfVisible = settings.revealIfVisible;
+		options.revealIfOpened = settings.revealIfOpened;
 		options.pinned = settings.pinned;
 		options.index = settings.index;
 		options.inactive = settings.inactive;
@@ -673,24 +683,26 @@ export class TextEditorOptions extends EditorOptions {
 	}
 
 	/**
-	 * Sets the view state to be used when the editor is opening.
+	 * Create a TextEditorOptions inline to be used when the editor is opening.
 	 */
-	public fromEditor(editor: IEditor): void {
+	public static fromEditor(editor: IEditor, settings?: IEditorOptions): TextEditorOptions {
+		const options = TextEditorOptions.create(settings);
 
 		// View state
-		this.editorViewState = editor.saveViewState();
+		options.editorViewState = editor.saveViewState();
 
 		// Selected editor options
 		const codeEditor = <ICommonCodeEditor>editor;
 		if (typeof codeEditor.getConfiguration === 'function') {
 			const config = codeEditor.getConfiguration();
 			if (config && config.viewInfo && config.wrappingInfo) {
-				this.editorOptions = Object.create(null);
-				this.editorOptions.renderWhitespace = config.viewInfo.renderWhitespace;
-				this.editorOptions.renderControlCharacters = config.viewInfo.renderControlCharacters;
-				this.editorOptions.wordWrap = config.wrappingInfo.isViewportWrapping ? 'on' : 'off';
+				options.editorOptions = Object.create(null);
+				options.editorOptions.renderWhitespace = config.viewInfo.renderWhitespace;
+				options.editorOptions.renderControlCharacters = config.viewInfo.renderControlCharacters;
+				options.editorOptions.wordWrap = config.wrappingInfo.isViewportWrapping ? 'on' : 'off';
 			}
 		}
+		return options;
 	}
 
 	/**
@@ -783,6 +795,7 @@ export class TextDiffEditorOptions extends TextEditorOptions {
 		options.preserveFocus = settings.preserveFocus;
 		options.forceOpen = settings.forceOpen;
 		options.revealIfVisible = settings.revealIfVisible;
+		options.revealIfOpened = settings.revealIfOpened;
 		options.pinned = settings.pinned;
 		options.index = settings.index;
 
@@ -803,25 +816,6 @@ export class TextDiffEditorOptions extends TextEditorOptions {
 	public autoRevealFirstChange: boolean;
 }
 
-/**
- * Helper to return all opened editors with resources not belonging to the currently opened workspace.
- */
-export function getOutOfWorkspaceEditorResources(editorGroupService: IEditorGroupService, contextService: IWorkspaceContextService): URI[] {
-	const resources: URI[] = [];
-
-	editorGroupService.getStacksModel().groups.forEach(group => {
-		const editors = group.getEditors();
-		editors.forEach(editor => {
-			const fileResource = toResource(editor, { supportSideBySide: true, filter: 'file' });
-			if (fileResource && !contextService.isInsideWorkspace(fileResource)) {
-				resources.push(fileResource);
-			}
-		});
-	});
-
-	return resources;
-}
-
 export interface IStacksModelChangeEvent {
 	group: IEditorGroup;
 	editor?: IEditorInput;
@@ -831,7 +825,9 @@ export interface IStacksModelChangeEvent {
 export interface IEditorStacksModel {
 
 	onModelChanged: Event<IStacksModelChangeEvent>;
-	onEditorClosed: Event<IGroupEvent>;
+
+	onWillCloseEditor: Event<IEditorCloseEvent>;
+	onEditorClosed: Event<IEditorCloseEvent>;
 
 	groups: IEditorGroup[];
 	activeGroup: IEditorGroup;
@@ -880,8 +876,7 @@ export interface IEditorContext extends IEditorIdentifier {
 	event?: any;
 }
 
-export interface IGroupEvent {
-	editor: IEditorInput;
+export interface IEditorCloseEvent extends IEditorIdentifier {
 	pinned: boolean;
 	index: number;
 }

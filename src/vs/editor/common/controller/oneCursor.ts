@@ -4,17 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { SingleCursorState, CursorContext } from 'vs/editor/common/controller/cursorCommon';
+import { SingleCursorState, CursorContext, CursorState } from 'vs/editor/common/controller/cursorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { Selection, SelectionDirection, ISelection } from 'vs/editor/common/core/selection';
+import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 
-export interface ICursor {
-	readonly modelState: SingleCursorState;
-	readonly viewState: SingleCursorState;
-}
-
-export class OneCursor implements ICursor {
+export class OneCursor {
 
 	public modelState: SingleCursorState;
 	public viewState: SingleCursorState;
@@ -26,14 +21,17 @@ export class OneCursor implements ICursor {
 		this._setState(
 			context,
 			new SingleCursorState(new Range(1, 1, 1, 1), 0, new Position(1, 1), 0),
-			new SingleCursorState(new Range(1, 1, 1, 1), 0, new Position(1, 1), 0),
-			false
+			new SingleCursorState(new Range(1, 1, 1, 1), 0, new Position(1, 1), 0)
 		);
 	}
 
 	public dispose(context: CursorContext): void {
 		context.model._removeMarker(this._selStartMarker);
 		context.model._removeMarker(this._selEndMarker);
+	}
+
+	public asCursorState(): CursorState {
+		return new CursorState(this.modelState, this.viewState);
 	}
 
 	public readSelectionFromMarkers(context: CursorContext): Selection {
@@ -48,57 +46,22 @@ export class OneCursor implements ICursor {
 	}
 
 	public ensureValidState(context: CursorContext): void {
-		this._setState(context, this.modelState, this.viewState, false);
+		this._setState(context, this.modelState, this.viewState);
 	}
 
-	public setSelection(context: CursorContext, selection: ISelection): void {
-		const selectionStartLineNumber = selection.selectionStartLineNumber;
-		const selectionStartColumn = selection.selectionStartColumn;
-		const positionLineNumber = selection.positionLineNumber;
-		const positionColumn = selection.positionColumn;
-		const modelState = new SingleCursorState(
-			new Range(selectionStartLineNumber, selectionStartColumn, selectionStartLineNumber, selectionStartColumn), 0,
-			new Position(positionLineNumber, positionColumn), 0
-		);
-		this._setState(
-			context,
-			modelState,
-			null,
-			false
-		);
+	public setState(context: CursorContext, modelState: SingleCursorState, viewState: SingleCursorState): void {
+		this._setState(context, modelState, viewState);
 	}
 
-	public setState(context: CursorContext, modelState: SingleCursorState, viewState: SingleCursorState, ensureInEditableRange: boolean): void {
-		this._setState(context, modelState, viewState, ensureInEditableRange);
-	}
-
-	private _ensureInEditableRange(context: CursorContext, position: Position): Position {
-		const editableRange = context.model.getEditableRange();
-
-		if (position.lineNumber < editableRange.startLineNumber || (position.lineNumber === editableRange.startLineNumber && position.column < editableRange.startColumn)) {
-			return new Position(editableRange.startLineNumber, editableRange.startColumn);
-		} else if (position.lineNumber > editableRange.endLineNumber || (position.lineNumber === editableRange.endLineNumber && position.column > editableRange.endColumn)) {
-			return new Position(editableRange.endLineNumber, editableRange.endColumn);
-		}
-		return position;
-	}
-
-	private _validatePosition(context: CursorContext, _position: Position, ensureInEditableRange: boolean): Position {
-		const position = context.model.validatePosition(_position);
-		return (ensureInEditableRange ? this._ensureInEditableRange(context, position) : position);
-	}
-
-	private _setState(context: CursorContext, modelState: SingleCursorState, viewState: SingleCursorState, ensureInEditableRange: boolean): void {
+	private _setState(context: CursorContext, modelState: SingleCursorState, viewState: SingleCursorState): void {
 		if (!modelState) {
 			// We only have the view state => compute the model state
 			const selectionStart = context.model.validateRange(
 				context.convertViewRangeToModelRange(viewState.selectionStart)
 			);
 
-			const position = this._validatePosition(
-				context,
-				context.convertViewPositionToModelPosition(viewState.position.lineNumber, viewState.position.column),
-				ensureInEditableRange
+			const position = context.model.validatePosition(
+				context.convertViewPositionToModelPosition(viewState.position.lineNumber, viewState.position.column)
 			);
 
 			modelState = new SingleCursorState(selectionStart, viewState.selectionStartLeftoverVisibleColumns, position, viewState.leftoverVisibleColumns);
@@ -107,10 +70,8 @@ export class OneCursor implements ICursor {
 			const selectionStart = context.model.validateRange(modelState.selectionStart);
 			const selectionStartLeftoverVisibleColumns = modelState.selectionStart.equalsRange(selectionStart) ? modelState.selectionStartLeftoverVisibleColumns : 0;
 
-			const position = this._validatePosition(
-				context,
-				modelState.position,
-				ensureInEditableRange
+			const position = context.model.validatePosition(
+				modelState.position
 			);
 			const leftoverVisibleColumns = modelState.position.equals(position) ? modelState.leftoverVisibleColumns : 0;
 

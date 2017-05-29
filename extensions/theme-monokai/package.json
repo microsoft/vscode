@@ -8,7 +8,7 @@
 			{
 				"label": "Monokai",
 				"uiTheme": "vs-dark",
-				"path": "./themes/Monokai.tmTheme"
+				"path": "./themes/monokai-color-theme.json"
 			}
 		]
 	}

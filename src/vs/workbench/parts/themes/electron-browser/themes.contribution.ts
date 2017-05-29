@@ -22,8 +22,8 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Delayer } from 'vs/base/common/async';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IColorRegistry, Extensions as ColorRegistryExtensions } from "vs/platform/theme/common/colorRegistry";
-import { IWorkbenchEditorService } from "vs/workbench/services/editor/common/editorService";
+import { IColorRegistry, Extensions as ColorRegistryExtensions } from 'vs/platform/theme/common/colorRegistry';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class SelectColorThemeAction extends Action {
 
@@ -65,13 +65,12 @@ export class SelectColorThemeAction extends Action {
 
 				this.themeService.setColorTheme(theme.id, target).done(null,
 					err => {
-						this.messageService.show(Severity.Info, localize('problemChangingTheme', "Problem setting theme: {0}", err));
 						this.themeService.setColorTheme(currentTheme.id, null);
 					}
 				);
 			};
 
-			const placeHolder = localize('themes.selectTheme', "Select Color Theme");
+			const placeHolder = localize('themes.selectTheme', "Select Color Theme (Up/Down Keys to Preview)");
 			const autoFocusIndex = firstIndex(picks, p => p.id === currentTheme.id);
 			const delayer = new Delayer<void>(100);
 
@@ -198,7 +197,7 @@ class GenerateColorThemeAction extends Action {
 			colors: resultingColors,
 			tokenColors: theme.tokenColors
 		}, null, '\t');
-		return this.editorService.openEditor({ contents, language: 'json', filePath: 'custom-color-theme.json' });
+		return this.editorService.openEditor({ contents, language: 'json' });
 	}
 }
 

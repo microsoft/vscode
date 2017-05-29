@@ -34,6 +34,7 @@
 	"editConditionalBreakpoint": "Изменить точку останова…",
 	"setValue": "Задать значение",
 	"addWatchExpression": "Добавить выражение",
+	"editWatchExpression": "Изменить выражение",
 	"addToWatchExpressions": "Добавить контрольное значение",
 	"removeWatchExpression": "Удалить выражение",
 	"removeAllWatchExpressions": "Удалить все выражения",

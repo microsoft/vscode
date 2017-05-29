@@ -21,7 +21,7 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 import { Range } from 'vs/editor/common/core/range';
 import { alert } from 'vs/base/browser/ui/aria/aria';
-import { EditorState, CodeEditorStateFlag } from "vs/editor/common/core/editorState";
+import { EditorState, CodeEditorStateFlag } from 'vs/editor/common/core/editorState';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 

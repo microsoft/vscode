@@ -47,7 +47,7 @@ suite('ExtensionEnablementService Test', () => {
 	let instantiationService: TestInstantiationService;
 	let testObject: IExtensionEnablementService;
 
-	const didUninstallEvent: Emitter<DidUninstallExtensionEvent> = new Emitter();
+	const didUninstallEvent: Emitter<DidUninstallExtensionEvent> = new Emitter<DidUninstallExtensionEvent>();
 
 	setup(() => {
 		instantiationService = new TestInstantiationService();

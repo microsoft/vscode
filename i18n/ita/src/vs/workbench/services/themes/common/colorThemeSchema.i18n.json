@@ -6,5 +6,6 @@
 {
 	"schema.colors": "Colori per l'evidenziazione della sintassi",
 	"schema.properties.name": "Descrizione della regola",
-	"schema.fontStyle": "Stile del carattere della regola: uno o combinazione di 'italic', 'bold' e 'underline'"
+	"schema.fontStyle": "Stile del carattere della regola: uno o combinazione di 'italic', 'bold' e 'underline'",
+	"schema.tokenColors.path": "Percorso di un file tmTheme (relativo al file corrente)"
 }

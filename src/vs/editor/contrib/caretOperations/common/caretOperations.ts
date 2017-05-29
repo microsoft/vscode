@@ -29,7 +29,9 @@ class MoveCaretAction extends EditorAction {
 			commands.push(new MoveCaretCommand(selections[i], this.left));
 		}
 
+		editor.pushUndoStop();
 		editor.executeCommands(this.id, commands);
+		editor.pushUndoStop();
 	}
 }
 

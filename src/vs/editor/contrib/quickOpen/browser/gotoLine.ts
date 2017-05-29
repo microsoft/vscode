@@ -15,8 +15,8 @@ import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { BaseEditorQuickOpenAction, IDecorator } from './editorQuickOpen';
 import { editorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Position } from "vs/editor/common/core/position";
-import { Range } from "vs/editor/common/core/range";
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 
 interface ParseResult {
 	position: Position;

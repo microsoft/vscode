@@ -14,7 +14,7 @@ import { addDisposableListener, addClass } from 'vs/base/browser/dom';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ITheme, LIGHT, DARK } from "vs/platform/theme/common/themeService";
+import { ITheme, LIGHT, DARK } from 'vs/platform/theme/common/themeService';
 
 declare interface WebviewElement extends HTMLElement {
 	src: string;
@@ -51,6 +51,8 @@ export default class Webview {
 	private _disposables: IDisposable[];
 	private _onDidClickLink = new Emitter<URI>();
 	private _onDidLoadContent = new Emitter<{ stats: any }>();
+
+	private _onDidScroll = new Emitter<{ scrollYPercentage: number }>();
 
 	constructor(
 		private parent: HTMLElement,
@@ -91,7 +93,7 @@ export default class Webview {
 			addDisposableListener(this._webview, 'dom-ready', () => {
 				this.layout();
 			}),
-			addDisposableListener(this._webview, 'crashed', function () {
+			addDisposableListener(this._webview, 'crashed', () => {
 				console.error('embedded page crashed');
 			}),
 			addDisposableListener(this._webview, 'ipc-message', (event) => {
@@ -106,6 +108,13 @@ export default class Webview {
 					let [stats] = event.args;
 					this._onDidLoadContent.fire({ stats });
 					this.layout();
+					return;
+				}
+
+				if (event.channel === 'did-scroll') {
+					if (event.args && typeof event.args[0] === 'number') {
+						this._onDidScroll.fire({ scrollYPercentage: event.args[0] });
+					}
 					return;
 				}
 			})
@@ -134,10 +143,18 @@ export default class Webview {
 		return this._onDidLoadContent.event;
 	}
 
+	get onDidScroll(): Event<{ scrollYPercentage: number }> {
+		return this._onDidScroll.event;
+	}
+
 	private _send(channel: string, ...args: any[]): void {
 		this._ready
 			.then(() => this._webview.send(channel, ...args))
 			.done(void 0, console.error);
+	}
+
+	set initialScrollProgress(value: number) {
+		this._send('initial-scroll-position', value);
 	}
 
 	set contents(value: string[]) {
@@ -249,10 +266,14 @@ export default class Webview {
 			return;
 		}
 		const window = contents.getOwnerBrowserWindow();
-		if (!window || !window.webContents) {
+		if (!window || !window.webContents || window.webContents.isDestroyed()) {
 			return;
 		}
 		window.webContents.getZoomFactor(factor => {
+			if (contents.isDestroyed()) {
+				return;
+			}
+
 			contents.setZoomFactor(factor);
 
 			const width = this.parent.clientWidth;

@@ -6,6 +6,5 @@
 {
 	"defineKeybinding.start": "Définir une combinaison de touches",
 	"defineKeybinding.kbLayoutInfoMessage": "Pour votre disposition actuelle du clavier, appuyez sur ",
-	"defineKeybinding.kbLayoutErrorMessage": "Vous ne pouvez pas produire cette combinaison de touches avec la disposition actuelle du clavier.",
-	"DefineKeybindingAction": "Définir une combinaison de touches"
+	"defineKeybinding.kbLayoutErrorMessage": "Vous ne pouvez pas produire cette combinaison de touches avec la disposition actuelle du clavier."
 }

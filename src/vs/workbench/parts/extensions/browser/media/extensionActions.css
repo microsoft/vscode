@@ -4,67 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-action-bar .action-item .action-label.extension-action {
-	border: 1px solid #CCC;
-	color: #6C6C6C;
-	background-color: #E2E2E2;
 	padding: 0 5px;
 	line-height: initial;
-}
-
-.monaco-action-bar .action-item:not(.disabled):hover .action-label.extension-action {
-	background-color: #D9D9D9;
-}
-
-.monaco-action-bar .action-item:not(.disabled):active .action-label.extension-action {
-	background-color: #C9C9C9;
-}
-
-.vs-dark .monaco-action-bar .action-item .action-label.extension-action {
-	border: 1px solid #545454;
-	color: #CCC;
-	background-color: #3A3A3A;
-}
-
-.vs-dark .monaco-action-bar .action-item:not(.disabled):hover .action-label.extension-action {
-	background-color: #464646;
-}
-
-.vs-dark .monaco-action-bar .action-item:not(.disabled):active .action-label.extension-action {
-	background-color: #505050;
-}
-
-.monaco-action-bar .action-item .action-label.extension-action.install,
-.monaco-action-bar .action-item .action-label.extension-action.enable,
-.monaco-action-bar .action-item .action-label.extension-action.update {
-	color: white;
-	background-color: #327e36;
-	border-color: #519A55;
-}
-
-.monaco-action-bar .action-item:not(.disabled):hover .action-label.extension-action.install,
-.monaco-action-bar .action-item:not(.disabled):hover .action-label.extension-action.enable,
-.monaco-action-bar .action-item:not(.disabled):hover .action-label.extension-action.update {
-	background-color: #478E4B;
-}
-
-.monaco-action-bar .action-item:not(.disabled):active .action-label.extension-action.install,
-.monaco-action-bar .action-item:not(.disabled):active .action-label.extension-action.enable,
-.monaco-action-bar .action-item:not(.disabled):active .action-label.extension-action.update {
-	background-color: #6DA770;
-}
-
-.monaco-action-bar .action-item .action-label.extension-action.reload {
-	color: white;
-	background-color: #007ACC;
-	border-color: #3F8BCE;
-}
-
-.monaco-action-bar .action-item:not(.disabled):hover .action-label.extension-action.reload {
-	background-color: #2584C4;
-}
-
-.monaco-action-bar .action-item:not(.disabled):active .action-label.extension-action.reload {
-	background-color: #4294CC
 }
 
 .monaco-action-bar .action-item .action-label.clear-extensions {
@@ -95,7 +36,6 @@
 
 .monaco-action-bar .action-item .action-label.extension-action.built-in-status {
 	border-radius: 4px;
-	border-color: #c1c1c1;
 	color: inherit;
 	background-color: transparent;
 	opacity: 0.9;

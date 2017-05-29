@@ -39,6 +39,8 @@
 	"config.autofetch": "자동 가져오기 사용 여부",
 	"config.enableLongCommitWarning": "긴 커밋 메시지에 대해 경고할지 여부입니다.",
 	"config.confirmSync": "Git 리포지토리를 동기화하기 전에 확인합니다.",
-	"config.countBadge": "Git 배지 카운터를 제어합니다.",
-	"config.checkoutType": "나열되는 분기 유형을 제어합니다."
+	"config.countBadge": "Git 배지 카운터를 제어합니다. `all`이면 변경 내용을 모두 계산하고, `tracked`이면 추적된 변경 내용만 계산하고, `off`이면 해제합니다.",
+	"config.checkoutType": "`다음으로 체크 아웃...`을 실행할 때 나열되는 분기 유형을 제어합니다. `all`이면 모든 참조를 표시하고, `local`이면 로컬 분기만 표시하고, `tags`이면 태그만 표시하고, `remote`이면 원격 분기만 표시합니다.",
+	"config.ignoreLegacyWarning": "레거시 Git 경고를 무시합니다.",
+	"config.ignoreLimitWarning": "리포지토리에 변경 내용이 너무 많으면 경고를 무시합니다."
 }

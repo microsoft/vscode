@@ -44,6 +44,8 @@
 	"openPreviousRecentlyUsedEditorInGroup": "開啟群組中上一個最近使用的編輯器",
 	"openNextRecentlyUsedEditorInGroup": "開啟群組中下一個最近使用的編輯器",
 	"navigateEditorHistoryByInput": "從記錄中開啟上一個編輯器",
+	"openNextRecentlyUsedEditor": "開啟下一個最近使用的編輯器",
+	"openPreviousRecentlyUsedEditor": "開啟上一個最近使用的編輯器",
 	"clearEditorHistory": "清除編輯器記錄",
 	"focusLastEditorInStack": "開啟群組中最後一個編輯器",
 	"moveEditorLeft": "將編輯器左移",

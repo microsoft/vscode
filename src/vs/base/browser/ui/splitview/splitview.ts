@@ -16,6 +16,7 @@ import sash = require('vs/base/browser/ui/sash/sash');
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import Event, { Emitter } from 'vs/base/common/event';
+import { Color } from 'vs/base/common/color';
 
 export enum Orientation {
 	VERTICAL,
@@ -101,20 +102,65 @@ export abstract class View extends ee.EventEmitter implements IView {
 	abstract layout(size: number, orientation: Orientation): void;
 }
 
-export interface IHeaderViewOptions {
+export interface IHeaderViewOptions extends IHeaderViewStyles {
 	headerSize?: number;
 }
 
+export interface IHeaderViewStyles {
+	headerForeground?: Color;
+	headerBackground?: Color;
+	headerHighContrastBorder?: Color;
+}
+
+const headerDefaultOpts = {
+	headerBackground: Color.fromHex('#808080').transparent(0.2)
+};
+
 export abstract class HeaderView extends View {
 
-	protected headerSize: number;
+	private _headerSize: number;
+	private _showHeader: boolean;
+
 	protected header: HTMLElement;
 	protected body: HTMLElement;
+
+	private headerForeground: Color;
+	private headerBackground: Color;
+	private headerHighContrastBorder;
 
 	constructor(opts: IHeaderViewOptions) {
 		super(opts);
 
-		this.headerSize = types.isUndefined(opts.headerSize) ? 22 : opts.headerSize;
+		this._headerSize = types.isUndefined(opts.headerSize) ? 22 : opts.headerSize;
+		this._showHeader = this._headerSize > 0;
+
+		this.headerForeground = opts.headerForeground;
+		this.headerBackground = opts.headerBackground || headerDefaultOpts.headerBackground;
+		this.headerHighContrastBorder = opts.headerHighContrastBorder;
+	}
+
+	style(styles: IHeaderViewStyles): void {
+		this.headerForeground = styles.headerForeground;
+		this.headerBackground = styles.headerBackground;
+		this.headerHighContrastBorder = styles.headerHighContrastBorder;
+
+		this.applyStyles();
+	}
+
+	protected get headerSize(): number {
+		return this._showHeader ? this._headerSize : 0;
+	}
+
+	protected applyStyles(): void {
+		if (this.header) {
+			const headerForegroundColor = this.headerForeground ? this.headerForeground.toString() : null;
+			const headerBackgroundColor = this.headerBackground ? this.headerBackground.toString() : null;
+			const headerHighContrastBorderColor = this.headerHighContrastBorder ? this.headerHighContrastBorder.toString() : null;
+
+			this.header.style.color = headerForegroundColor;
+			this.header.style.backgroundColor = headerBackgroundColor;
+			this.header.style.borderTop = headerHighContrastBorderColor ? `1px solid ${headerHighContrastBorderColor}` : null;
+		}
 	}
 
 	render(container: HTMLElement, orientation: Orientation): void {
@@ -129,7 +175,7 @@ export abstract class HeaderView extends View {
 			this.header.style.height = headerSize;
 		}
 
-		if (this.headerSize > 0) {
+		if (this._showHeader) {
 			this.renderHeader(this.header);
 			container.appendChild(this.header);
 		}
@@ -140,6 +186,30 @@ export abstract class HeaderView extends View {
 		this.layoutBodyContainer(orientation);
 		this.renderBody(this.body);
 		container.appendChild(this.body);
+
+		this.applyStyles();
+	}
+
+	showHeader(): boolean {
+		if (!this._showHeader) {
+			if (!this.body.parentElement.contains(this.header)) {
+				this.renderHeader(this.header);
+				this.body.parentElement.insertBefore(this.header, this.body);
+			}
+			dom.removeClass(this.header, 'hide');
+			this._showHeader = true;
+			return true;
+		}
+		return false;
+	}
+
+	hideHeader(): boolean {
+		if (this._showHeader) {
+			dom.addClass(this.header, 'hide');
+			this._showHeader = false;
+			return true;
+		}
+		return false;
 	}
 
 	layout(size: number, orientation: Orientation): void {
@@ -484,6 +554,11 @@ export class SplitView implements
 			throw new Error('Initial weight must be a positive number.');
 		}
 
+		/**
+		 * Reset size to null. This will layout newly added viees to initial weights.
+		 */
+		this.size = null;
+
 		let viewCount = this.views.length;
 
 		// Create view container
@@ -536,8 +611,10 @@ export class SplitView implements
 		this.onViewChange(deadView, 0);
 
 		let sashIndex = Math.max(index - 1, 0);
-		this.sashes[sashIndex].dispose();
-		this.sashes.splice(sashIndex, 1);
+		if (sashIndex < this.sashes.length) {
+			this.sashes[sashIndex].dispose();
+			this.sashes.splice(sashIndex, 1);
+		}
 
 		this.viewChangeListeners[index].dispose();
 		this.viewChangeListeners.splice(index, 1);

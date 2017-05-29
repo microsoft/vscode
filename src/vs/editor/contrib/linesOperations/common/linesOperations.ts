@@ -9,15 +9,17 @@ import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/common/sortLinesCommand';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import { Handler, ICommand, ICommonCodeEditor, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { ICommand, ICommonCodeEditor, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { editorAction, ServicesAccessor, IActionOptions, EditorAction, HandlerEditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { editorAction, ServicesAccessor, IActionOptions, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { CopyLinesCommand } from './copyLinesCommand';
 import { DeleteLinesCommand } from './deleteLinesCommand';
 import { MoveLinesCommand } from './moveLinesCommand';
+import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
+import { CoreEditingCommands } from 'vs/editor/common/controller/coreCommands';
 
 // copy lines
 
@@ -39,7 +41,9 @@ abstract class AbstractCopyLinesAction extends EditorAction {
 			commands.push(new CopyLinesCommand(selections[i], this.down));
 		}
 
+		editor.pushUndoStop();
 		editor.executeCommands(this.id, commands);
+		editor.pushUndoStop();
 	}
 }
 
@@ -97,7 +101,9 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 			commands.push(new MoveLinesCommand(selections[i], this.down));
 		}
 
+		editor.pushUndoStop();
 		editor.executeCommands(this.id, commands);
+		editor.pushUndoStop();
 	}
 }
 
@@ -151,7 +157,9 @@ abstract class AbstractSortLinesAction extends EditorAction {
 
 		var command = new SortLinesCommand(editor.getSelection(), this.descending);
 
+		editor.pushUndoStop();
 		editor.executeCommands(this.id, [command]);
+		editor.pushUndoStop();
 	}
 }
 
@@ -201,7 +209,9 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 
 		var command = new TrimTrailingWhitespaceCommand(editor.getSelection());
 
+		editor.pushUndoStop();
 		editor.executeCommands(this.id, [command]);
+		editor.pushUndoStop();
 	}
 }
 
@@ -280,75 +290,93 @@ class DeleteLinesAction extends AbstractRemoveLinesAction {
 			return new DeleteLinesCommand(op.startLineNumber, op.endLineNumber, op.positionColumn);
 		});
 
+		editor.pushUndoStop();
 		editor.executeCommands(this.id, commands);
+		editor.pushUndoStop();
 	}
 }
 
 @editorAction
-class IndentLinesAction extends HandlerEditorAction {
+export class IndentLinesAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.indentLines',
 			label: nls.localize('lines.indent', "Indent Line"),
 			alias: 'Indent Line',
 			precondition: EditorContextKeys.writable,
-			handlerId: Handler.Indent,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET
 			}
 		});
 	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+		editor.pushUndoStop();
+		editor.executeCommands(this.id, TypeOperations.indent(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
+		editor.pushUndoStop();
+	}
 }
 
 @editorAction
-class OutdentLinesAction extends HandlerEditorAction {
+class OutdentLinesAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.outdentLines',
 			label: nls.localize('lines.outdent', "Outdent Line"),
 			alias: 'Outdent Line',
 			precondition: EditorContextKeys.writable,
-			handlerId: Handler.Outdent,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET
 			}
 		});
 	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+		CoreEditingCommands.Outdent.runEditorCommand(null, editor, null);
+	}
 }
 
 @editorAction
-class InsertLineBeforeAction extends HandlerEditorAction {
+export class InsertLineBeforeAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.insertLineBefore',
 			label: nls.localize('lines.insertBefore', "Insert Line Above"),
 			alias: 'Insert Line Above',
 			precondition: EditorContextKeys.writable,
-			handlerId: Handler.LineInsertBefore,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter
 			}
 		});
 	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+		editor.pushUndoStop();
+		editor.executeCommands(this.id, TypeOperations.lineInsertBefore(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
+	}
 }
 
 @editorAction
-class InsertLineAfterAction extends HandlerEditorAction {
+export class InsertLineAfterAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.insertLineAfter',
 			label: nls.localize('lines.insertAfter', "Insert Line Below"),
 			alias: 'Insert Line Below',
 			precondition: EditorContextKeys.writable,
-			handlerId: Handler.LineInsertAfter,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.Enter
 			}
 		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+		editor.pushUndoStop();
+		editor.executeCommands(this.id, TypeOperations.lineInsertAfter(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
 	}
 }
 
@@ -406,8 +434,8 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 	}
 
 	_getEndCursorState(primaryCursor: Range, rangesToDelete: Range[]): Selection[] {
-		let endPrimaryCursor: Range;
-		let endCursorState = [];
+		let endPrimaryCursor: Selection;
+		let endCursorState: Selection[] = [];
 
 		for (let i = 0, len = rangesToDelete.length; i < len; i++) {
 			let range = rangesToDelete[i];
@@ -460,8 +488,8 @@ export class DeleteAllRightAction extends AbstractDeleteAllToBoundaryAction {
 	}
 
 	_getEndCursorState(primaryCursor: Range, rangesToDelete: Range[]): Selection[] {
-		let endPrimaryCursor: Range;
-		let endCursorState = [];
+		let endPrimaryCursor: Selection;
+		let endCursorState: Selection[] = [];
 		for (let i = 0, len = rangesToDelete.length, offset = 0; i < len; i++) {
 			let range = rangesToDelete[i];
 			let endCursor = new Selection(range.startLineNumber - offset, range.startColumn, range.startLineNumber - offset, range.startColumn);
@@ -694,7 +722,9 @@ export class TransposeAction extends EditorAction {
 			}
 		}
 
+		editor.pushUndoStop();
 		editor.executeCommands(this.id, commands);
+		editor.pushUndoStop();
 	}
 }
 
@@ -725,7 +755,9 @@ export abstract class AbstractCaseAction extends EditorAction {
 			}
 		}
 
+		editor.pushUndoStop();
 		editor.executeCommands(this.id, commands);
+		editor.pushUndoStop();
 	}
 
 	protected abstract _modifyText(text: string): string;

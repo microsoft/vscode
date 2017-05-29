@@ -9,14 +9,43 @@ import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
 import { ICommand, TextModelResolvedOptions, IConfiguration, IModel } from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { Selection } from 'vs/editor/common/core/selection';
+import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IAutoClosingPair } from 'vs/editor/common/modes/languageConfiguration';
-import { IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
-import { ICoordinatesConverter } from "vs/editor/common/viewModel/viewModel";
+import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
+import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
+
+export interface IColumnSelectData {
+	toViewLineNumber: number;
+	toViewVisualColumn: number;
+}
+
+export const enum RevealTarget {
+	Primary = 0,
+	TopMost = 1,
+	BottomMost = 2
+}
+
+export interface ICursors {
+	readonly context: CursorContext;
+	getPrimaryCursor(): CursorState;
+	getLastAddedCursorIndex(): number;
+	getAll(): CursorState[];
+
+	getColumnSelectData(): IColumnSelectData;
+	setColumnSelectData(columnSelectData: IColumnSelectData): void;
+
+	setStates(source: string, reason: CursorChangeReason, states: CursorState[]): void;
+	reveal(horizontal: boolean, target: RevealTarget): void;
+	revealRange(revealHorizontal: boolean, viewRange: Range, verticalType: VerticalRevealType): void;
+
+	scrollTo(desiredScrollTop: number): void;
+}
 
 export interface CharacterMap {
 	[char: string]: string;
@@ -25,6 +54,7 @@ export interface CharacterMap {
 export class CursorConfiguration {
 	_cursorMoveConfigurationBrand: void;
 
+	public readonly readOnly: boolean;
 	public readonly tabSize: number;
 	public readonly insertSpaces: boolean;
 	public readonly oneIndent: string;
@@ -32,6 +62,7 @@ export class CursorConfiguration {
 	public readonly lineHeight: number;
 	public readonly useTabStops: boolean;
 	public readonly wordSeparators: string;
+	public readonly emptySelectionClipboard: boolean;
 	public readonly autoClosingBrackets: boolean;
 	public readonly autoClosingPairsOpen: CharacterMap;
 	public readonly autoClosingPairsClose: CharacterMap;
@@ -42,9 +73,11 @@ export class CursorConfiguration {
 		return (
 			e.layoutInfo
 			|| e.wordSeparators
+			|| e.emptySelectionClipboard
 			|| e.autoClosingBrackets
 			|| e.useTabStops
 			|| e.lineHeight
+			|| e.readOnly
 		);
 	}
 
@@ -56,6 +89,7 @@ export class CursorConfiguration {
 	) {
 		let c = configuration.editor;
 
+		this.readOnly = c.readOnly;
 		this.tabSize = modelOptions.tabSize;
 		this.insertSpaces = modelOptions.insertSpaces;
 		this.oneIndent = oneIndent;
@@ -63,6 +97,7 @@ export class CursorConfiguration {
 		this.lineHeight = c.lineHeight;
 		this.useTabStops = c.useTabStops;
 		this.wordSeparators = c.wordSeparators;
+		this.emptySelectionClipboard = c.emptySelectionClipboard;
 		this.autoClosingBrackets = c.autoClosingBrackets;
 
 		this.autoClosingPairsOpen = {};
@@ -225,87 +260,72 @@ export class SingleCursorState {
 	}
 }
 
-export interface IViewModelHelper {
-
-	coordinatesConverter: ICoordinatesConverter;
-
-	viewModel: ICursorSimpleModel;
-
-	getScrollTop(): number;
-
-	getCompletelyVisibleViewRange(): Range;
-
-	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
-
-	getVerticalOffsetForViewLineNumber(viewLineNumber: number): number;
-}
-
 export class CursorContext {
 	_cursorContextBrand: void;
 
 	public readonly model: IModel;
-	public readonly viewModel: ICursorSimpleModel;
+	public readonly viewModel: IViewModel;
 	public readonly config: CursorConfiguration;
 
-	private readonly _viewModelHelper: IViewModelHelper;
-	private readonly _coordinatesConverter: ICoordinatesConverter;
-
-	constructor(model: IModel, viewModelHelper: IViewModelHelper, config: CursorConfiguration) {
+	constructor(configuration: IConfiguration, model: IModel, viewModel: IViewModel) {
 		this.model = model;
-		this.viewModel = viewModelHelper.viewModel;
-		this.config = config;
-		this._viewModelHelper = viewModelHelper;
-		this._coordinatesConverter = viewModelHelper.coordinatesConverter;
+		this.viewModel = viewModel;
+		this.config = new CursorConfiguration(
+			this.model.getLanguageIdentifier(),
+			this.model.getOneIndent(),
+			this.model.getOptions(),
+			configuration
+		);
 	}
 
 	public validateViewPosition(viewPosition: Position, modelPosition: Position): Position {
-		return this._coordinatesConverter.validateViewPosition(viewPosition, modelPosition);
+		return this.viewModel.coordinatesConverter.validateViewPosition(viewPosition, modelPosition);
 	}
 
 	public validateViewRange(viewRange: Range, expectedModelRange: Range): Range {
-		return this._coordinatesConverter.validateViewRange(viewRange, expectedModelRange);
+		return this.viewModel.coordinatesConverter.validateViewRange(viewRange, expectedModelRange);
 	}
 
 	public convertViewRangeToModelRange(viewRange: Range): Range {
-		return this._coordinatesConverter.convertViewRangeToModelRange(viewRange);
+		return this.viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
 	}
 
 	public convertViewPositionToModelPosition(lineNumber: number, column: number): Position {
-		return this._coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber, column));
+		return this.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber, column));
 	}
 
 	public convertModelPositionToViewPosition(modelPosition: Position): Position {
-		return this._coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
+		return this.viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
 	}
 
 	public convertModelRangeToViewRange(modelRange: Range): Range {
-		return this._coordinatesConverter.convertModelRangeToViewRange(modelRange);
+		return this.viewModel.coordinatesConverter.convertModelRangeToViewRange(modelRange);
 	}
 
 	public getScrollTop(): number {
-		return this._viewModelHelper.getScrollTop();
+		return this.viewModel.viewLayout.getScrollTop();
 	}
 
 	public getCompletelyVisibleViewRange(): Range {
-		return this._viewModelHelper.getCompletelyVisibleViewRange();
+		return this.viewModel.getCompletelyVisibleViewRange();
 	}
 
 	public getCompletelyVisibleModelRange(): Range {
-		const viewRange = this._viewModelHelper.getCompletelyVisibleViewRange();
-		return this._coordinatesConverter.convertViewRangeToModelRange(viewRange);
+		const viewRange = this.viewModel.getCompletelyVisibleViewRange();
+		return this.viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
 	}
 
 	public getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range {
-		return this._viewModelHelper.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
+		return this.viewModel.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
 	}
 
 	public getCompletelyVisibleModelRangeAtScrollTop(scrollTop: number): Range {
-		const viewRange = this._viewModelHelper.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
-		return this._coordinatesConverter.convertViewRangeToModelRange(viewRange);
+		const viewRange = this.viewModel.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
+		return this.viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
 	}
 
 	public getVerticalOffsetForViewLine(viewLineNumber: number): number {
-		return this._viewModelHelper.getVerticalOffsetForViewLineNumber(viewLineNumber);
+		return this.viewModel.viewLayout.getVerticalOffsetForLineNumber(viewLineNumber);
 	}
 }
 
@@ -320,6 +340,70 @@ export class CursorState {
 		return new CursorState(null, viewState);
 	}
 
+	public static fromModelSelection(modelSelection: ISelection): CursorState {
+		const selectionStartLineNumber = modelSelection.selectionStartLineNumber;
+		const selectionStartColumn = modelSelection.selectionStartColumn;
+		const positionLineNumber = modelSelection.positionLineNumber;
+		const positionColumn = modelSelection.positionColumn;
+		const modelState = new SingleCursorState(
+			new Range(selectionStartLineNumber, selectionStartColumn, selectionStartLineNumber, selectionStartColumn), 0,
+			new Position(positionLineNumber, positionColumn), 0
+		);
+		return CursorState.fromModelState(modelState);
+	}
+
+	public static fromModelSelections(modelSelections: ISelection[]): CursorState[] {
+		let states: CursorState[] = [];
+		for (let i = 0, len = modelSelections.length; i < len; i++) {
+			states[i] = this.fromModelSelection(modelSelections[i]);
+		}
+		return states;
+	}
+
+	public static ensureInEditableRange(context: CursorContext, states: CursorState[]): CursorState[] {
+		const model = context.model;
+		if (!model.hasEditableRange()) {
+			return states;
+		}
+
+		const modelEditableRange = model.getEditableRange();
+		const viewEditableRange = context.convertModelRangeToViewRange(modelEditableRange);
+
+		let result: CursorState[] = [];
+		for (let i = 0, len = states.length; i < len; i++) {
+			const state = states[i];
+
+			if (state.modelState) {
+				const newModelState = CursorState._ensureInEditableRange(state.modelState, modelEditableRange);
+				result[i] = newModelState ? CursorState.fromModelState(newModelState) : state;
+			} else {
+				const newViewState = CursorState._ensureInEditableRange(state.viewState, viewEditableRange);
+				result[i] = newViewState ? CursorState.fromViewState(newViewState) : state;
+			}
+		}
+		return result;
+	}
+
+	private static _ensureInEditableRange(state: SingleCursorState, editableRange: Range): SingleCursorState {
+		const position = state.position;
+
+		if (position.lineNumber < editableRange.startLineNumber || (position.lineNumber === editableRange.startLineNumber && position.column < editableRange.startColumn)) {
+			return new SingleCursorState(
+				state.selectionStart, state.selectionStartLeftoverVisibleColumns,
+				new Position(editableRange.startLineNumber, editableRange.startColumn), 0
+			);
+		}
+
+		if (position.lineNumber > editableRange.endLineNumber || (position.lineNumber === editableRange.endLineNumber && position.column > editableRange.endColumn)) {
+			return new SingleCursorState(
+				state.selectionStart, state.selectionStartLeftoverVisibleColumns,
+				new Position(editableRange.endLineNumber, editableRange.endColumn), 0
+			);
+		}
+
+		return null;
+	}
+
 	readonly modelState: SingleCursorState;
 	readonly viewState: SingleCursorState;
 
@@ -327,29 +411,21 @@ export class CursorState {
 		this.modelState = modelState;
 		this.viewState = viewState;
 	}
-}
 
-export class CommandResult {
-	_commandResultBrand: void;
-
-	readonly command: ICommand;
-	readonly isAutoWhitespaceCommand: boolean;
-
-	constructor(command: ICommand, isAutoWhitespaceCommand: boolean) {
-		this.command = command;
-		this.isAutoWhitespaceCommand = isAutoWhitespaceCommand;
+	public equals(other: CursorState): boolean {
+		return (this.viewState.equals(other.viewState) && this.modelState.equals(other.viewState));
 	}
 }
 
 export class EditOperationResult {
 	_editOperationResultBrand: void;
 
-	readonly commands: CommandResult[];
+	readonly commands: ICommand[];
 	readonly shouldPushStackElementBefore: boolean;
 	readonly shouldPushStackElementAfter: boolean;
 
 	constructor(
-		commands: CommandResult[],
+		commands: ICommand[],
 		opts: {
 			shouldPushStackElementBefore: boolean;
 			shouldPushStackElementAfter: boolean;

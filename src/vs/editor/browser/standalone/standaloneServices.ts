@@ -131,15 +131,16 @@ export module StaticServices {
 
 	export const modelService = define(IModelService, (o) => new ModelServiceImpl(markerService.get(o), configurationService.get(o)));
 
-	export const editorWorkerService = define(IEditorWorkerService, (o) => new EditorWorkerServiceImpl(modelService.get(o), configurationService.get(o)));
+	export const editorWorkerService = define(IEditorWorkerService, (o) => new EditorWorkerServiceImpl(modelService.get(o), configurationService.get(o), modeService.get(o)));
 
-	export const codeEditorService = define(ICodeEditorService, () => new CodeEditorServiceImpl());
+	export const standaloneThemeService = define(IStandaloneThemeService, () => new StandaloneThemeServiceImpl());
+
+	export const codeEditorService = define(ICodeEditorService, (o) => new CodeEditorServiceImpl(standaloneThemeService.get(o)));
 
 	export const progressService = define(IProgressService, () => new SimpleProgressService());
 
 	export const storageService = define(IStorageService, () => NullStorageService);
 
-	export const standaloneThemeService = define(IStandaloneThemeService, () => new StandaloneThemeServiceImpl());
 }
 
 export class DynamicStandaloneServices extends Disposable {

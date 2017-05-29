@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { testViewModel } from 'vs/editor/test/common/viewModel/testViewModel';
-import { MockCodeEditorCreationOptions } from "vs/editor/test/common/mocks/mockCodeEditor";
+import { MockCodeEditorCreationOptions } from 'vs/editor/test/common/mocks/mockCodeEditor';
 
 suite('ViewModelDecorations', () => {
 	test('getDecorationsViewportData', () => {

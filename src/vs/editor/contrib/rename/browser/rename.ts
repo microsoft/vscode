@@ -23,12 +23,12 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import RenameInputField from './renameInputField';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from "vs/platform/theme/common/themeService";
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { sequence, asWinJsPromise } from 'vs/base/common/async';
 import { WorkspaceEdit, RenameProviderRegistry } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import { alert } from 'vs/base/browser/ui/aria/aria';
-import { Range } from "vs/editor/common/core/range";
+import { Range } from 'vs/editor/common/core/range';
 
 
 export function rename(model: IReadOnlyModel, position: Position, newName: string): TPromise<WorkspaceEdit> {
@@ -198,7 +198,7 @@ class RenameController implements IEditorContribution {
 
 		return rename(this.editor.getModel(), this.editor.getPosition(), newName).then(result => {
 			if (result.rejectReason) {
-				return TPromise.wrapError(result.rejectReason);
+				return TPromise.wrapError<BulkEdit>(result.rejectReason);
 			}
 			edit.add(result.edits);
 			return edit;

@@ -12,9 +12,8 @@
 	"debugRequest": "Запросите тип конфигурации. Возможные типы: \"запуск\" и \"подключение\".",
 	"debugServer": "Только для разработки расширений отладки: если указан порт, VS Code пытается подключиться к адаптеру отладки, запущенному в режиме сервера.",
 	"debugPrelaunchTask": "Задача, выполняемая перед началом сеанса отладки.",
-	"internalConsoleOptions": "Управляет поведением внутренней консоли отладки.",
 	"debugWindowsConfiguration": "Атрибуты конфигурации запуска для Windows.",
 	"debugOSXConfiguration": "Атрибуты конфигурации запуска для OS X.",
 	"debugLinuxConfiguration": "Атрибуты конфигурации запуска для Linux.",
-	"deprecatedVariables": "env.\", \"config.\" и \"command.\" устарели, используйте \"env:\", \"config:\" и \"command:\"."
+	"deprecatedVariables": "\"env.\", \"config.\" и \"command.\" устарели, используйте \"env:\", \"config:\" и \"command:\"."
 }

@@ -1,8 +1,8 @@
 {
   "name": "code-oss-dev",
-  "version": "1.12.0",
+  "version": "1.13.0",
   "electronVersion": "1.6.6",
-  "distro": "7a7491277aec9196cb60398d9dbe8520093ed862",
+  "distro": "20d9b7ca9af07894c19dbabde24c7c954510fb5b",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -16,7 +16,10 @@
     "watch": "gulp watch --max_old_space_size=4096",
     "monaco-editor-setup": "node scripts/monaco-editor-setup.js",
     "monaco-editor-test": "mocha --only-monaco-editor",
-    "precommit": "node build/gulpfile.hygiene.js"
+    "precommit": "node build/gulpfile.hygiene.js",
+    "gulp": "gulp --max_old_space_size=4096",
+    "7z": "7z",
+    "update-grammars": "node build/npm/update-all-grammars.js"
   },
   "dependencies": {
     "applicationinsights": "0.17.1",
@@ -31,18 +34,19 @@
     "iconv-lite": "0.4.15",
     "jschardet": "^1.4.2",
     "minimist": "1.2.0",
-    "native-keymap": "1.2.2",
-    "node-pty": "0.6.4",
+    "native-keymap": "1.2.4",
+    "node-pty": "0.6.6",
     "semver": "4.3.6",
     "v8-profiler": "jrieken/v8-profiler#vscode",
-    "vscode-debugprotocol": "1.18.0",
-    "vscode-ripgrep": "0.0.11",
-    "vscode-textmate": "^3.1.4",
+    "vscode-debugprotocol": "1.19.0",
+    "vscode-ripgrep": "0.0.12",
+    "vscode-textmate": "^3.1.5",
     "winreg": "1.2.0",
-    "xterm": "Tyriar/xterm.js#vscode-release/1.12",
+    "xterm": "Tyriar/xterm.js#vscode-release/1.13",
     "yauzl": "2.3.1"
   },
   "devDependencies": {
+    "7zip": "0.0.6",
     "@types/minimist": "^1.2.0",
     "@types/mocha": "^2.2.39",
     "@types/semver": "^5.3.30",
@@ -60,7 +64,7 @@
     "flatpak-bundler": "^0.1.1",
     "glob": "^5.0.13",
     "gulp": "^3.8.9",
-    "gulp-atom-electron": "^1.9.0",
+    "gulp-atom-electron": "^1.11.0",
     "gulp-azure-storage": "^0.7.0",
     "gulp-bom": "^1.0.0",
     "gulp-buffer": "0.0.2",
@@ -100,7 +104,7 @@
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
     "tslint": "^4.3.1",
-    "typescript": "2.2.2",
+    "typescript": "2.3.3",
     "typescript-formatter": "4.0.1",
     "uglify-js": "2.4.8",
     "underscore": "^1.8.2",

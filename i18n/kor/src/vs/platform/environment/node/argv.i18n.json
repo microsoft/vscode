@@ -20,6 +20,7 @@
 	"showVersions": "#NAME?",
 	"installExtension": "확장을 설치합니다.",
 	"uninstallExtension": "확장을 제거합니다.",
+	"experimentalApis": "확장에 대해 제안된 API 기능을 사용하도록 설정합니다.",
 	"disableExtensions": "설치된 모든 확장을 사용하지 않도록 설정합니다.",
 	"disableGPU": "GPU 하드웨어 가속을 사용하지 않도록 설정합니다.",
 	"version": "버전을 출력합니다.",

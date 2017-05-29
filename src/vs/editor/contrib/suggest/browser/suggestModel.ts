@@ -15,7 +15,7 @@ import { ISuggestSupport, SuggestRegistry, StandardTokenType } from 'vs/editor/c
 import { Position } from 'vs/editor/common/core/position';
 import { provideSuggestionItems, getSuggestionComparator, ISuggestionItem } from './suggest';
 import { CompletionModel } from './completionModel';
-import { CursorChangeReason, ICursorSelectionChangedEvent } from "vs/editor/common/controller/cursorEvents";
+import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 
 export interface ICancelEvent {
 	retrigger: boolean;
@@ -68,7 +68,7 @@ export class LineContext {
 	readonly column: number;
 	readonly leadingLineContent: string;
 	readonly leadingWord: IWordAtPosition;
-	readonly auto;
+	readonly auto: boolean;
 
 	constructor(model: IModel, position: Position, auto: boolean) {
 		this.leadingLineContent = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
@@ -100,13 +100,13 @@ export class SuggestModel implements IDisposable {
 
 	private completionModel: CompletionModel;
 
-	private _onDidCancel: Emitter<ICancelEvent> = new Emitter();
+	private _onDidCancel: Emitter<ICancelEvent> = new Emitter<ICancelEvent>();
 	get onDidCancel(): Event<ICancelEvent> { return this._onDidCancel.event; }
 
-	private _onDidTrigger: Emitter<ITriggerEvent> = new Emitter();
+	private _onDidTrigger: Emitter<ITriggerEvent> = new Emitter<ITriggerEvent>();
 	get onDidTrigger(): Event<ITriggerEvent> { return this._onDidTrigger.event; }
 
-	private _onDidSuggest: Emitter<ISuggestEvent> = new Emitter();
+	private _onDidSuggest: Emitter<ISuggestEvent> = new Emitter<ISuggestEvent>();
 	get onDidSuggest(): Event<ISuggestEvent> { return this._onDidSuggest.event; }
 
 	constructor(private editor: ICommonCodeEditor) {
@@ -199,7 +199,7 @@ export class SuggestModel implements IDisposable {
 						}
 					}
 				}
-				this.trigger(true, false, supports, items);
+				this.trigger(true, Boolean(this.completionModel), supports, items);
 			}
 		});
 	}
@@ -247,6 +247,12 @@ export class SuggestModel implements IDisposable {
 		if (!e.selection.isEmpty()
 			|| e.source !== 'keyboard'
 			|| e.reason !== CursorChangeReason.NotSet) {
+
+			if (this._state === State.Idle) {
+				// Early exit if nothing needs to be done!
+				// Leave some form of early exit check here if you wish to continue being a cursor position change listener ;)
+				return;
+			}
 
 			this.cancel();
 			return;
@@ -362,7 +368,7 @@ export class SuggestModel implements IDisposable {
 			this.completionModel = new CompletionModel(items, this.context.column, {
 				leadingLineContent: ctx.leadingLineContent,
 				characterCountDelta: this.context ? ctx.column - this.context.column : 0
-			});
+			}, this.editor.getConfiguration().contribInfo.snippetSuggestions);
 			this.onNewContext(ctx);
 
 		}).then(null, onUnexpectedError);

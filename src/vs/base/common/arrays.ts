@@ -67,6 +67,47 @@ export function findFirst<T>(array: T[], p: (x: T) => boolean): number {
 }
 
 /**
+ * Like `Array#sort` but always stable. Comes at a cost: iterates 2n-times,
+ * creates n-objects in addition to sorting (log(n))
+ */
+export function stableSort<T>(data: T[], compare: (a: T, b: T) => number): T[] {
+
+	let data2: { idx: number; e: T }[] = <any>data;
+
+	for (let idx = 0; idx < data2.length; idx++) {
+		data2[idx] = { idx, e: data[idx] };
+	}
+
+	data2.sort((a, b) => {
+		let ret = compare(a.e, b.e);
+		if (ret === 0) {
+			ret = a.idx - b.idx;
+		}
+		return ret;
+	});
+
+	for (let idx = 0; idx < data2.length; idx++) {
+		data[idx] = data2[idx].e;
+	}
+
+	return data;
+}
+
+export function groupBy<T>(data: T[], compare: (a: T, b: T) => number): T[][] {
+	const result: T[][] = [];
+	let currentGroup: T[];
+	for (const element of data.slice(0).sort(compare)) {
+		if (!currentGroup || compare(currentGroup[0], element) !== 0) {
+			currentGroup = [element];
+			result.push(currentGroup);
+		} else {
+			currentGroup.push(element);
+		}
+	}
+	return result;
+}
+
+/**
  * Takes two *sorted* arrays and computes their delta (removed, added elements).
  * Finishes in `Math.min(before.length, after.length)` steps.
  * @param before

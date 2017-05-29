@@ -135,7 +135,7 @@ export class SearchService implements ISearchService {
 				}
 
 				// Use editor API to find matches
-				let matches = model.findMatches(query.contentPattern.pattern, false, query.contentPattern.isRegExp, query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch, false, query.maxResults);
+				let matches = model.findMatches(query.contentPattern.pattern, false, query.contentPattern.isRegExp, query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch ? query.contentPattern.wordSeparators : null, false, query.maxResults);
 				if (matches.length) {
 					let fileMatch = new FileMatch(resource);
 					localResults.set(resource, fileMatch);
@@ -200,12 +200,12 @@ export class DiskSearch {
 
 	private raw: IRawSearchService;
 
-	constructor(verboseLogging: boolean) {
+	constructor(verboseLogging: boolean, timeout: number = 60 * 60 * 1000) {
 		const client = new Client(
 			uri.parse(require.toUrl('bootstrap')).fsPath,
 			{
 				serverName: 'Search',
-				timeout: 60 * 60 * 1000,
+				timeout: timeout,
 				args: ['--type=searchService'],
 				env: {
 					AMD_ENTRYPOINT: 'vs/workbench/services/search/node/searchApp',

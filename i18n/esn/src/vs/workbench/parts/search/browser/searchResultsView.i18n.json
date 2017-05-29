@@ -7,6 +7,6 @@
 	"searchMatches": "{0} coincidencias encontradas",
 	"searchMatch": "{0} coincidencia encontrada",
 	"fileMatchAriaLabel": "{0} coincidencias en el archivo {1} de la carpeta {2}, resultados de la búsqueda",
-	"replacePreviewResultAria": "Reemplazar resultado de vista previa, {0}",
-	"searchResultAria": "{0}, resultado de la búsqueda"
+	"replacePreviewResultAria": "Reemplazar el termino {0} con {1} en la columna con posición {2} en la línea de texto {3}",
+	"searchResultAria": "Encontró el término {0} en la columna de posición {1} en la línea con el texto {2}."
 }

@@ -36,17 +36,18 @@ export class LineDecoder {
 		}
 		let start = 0;
 		let ch: number;
-		while (start < value.length && ((ch = value.charCodeAt(start)) === CharCode.CarriageReturn || ch === CharCode.LineFeed)) {
-			start++;
-		}
 		let idx = start;
 		while (idx < value.length) {
 			ch = value.charCodeAt(idx);
 			if (ch === CharCode.CarriageReturn || ch === CharCode.LineFeed) {
 				result.push(value.substring(start, idx));
 				idx++;
-				while (idx < value.length && ((ch = value.charCodeAt(idx)) === CharCode.CarriageReturn || ch === CharCode.LineFeed)) {
-					idx++;
+				if (idx < value.length) {
+					let lastChar = ch;
+					ch = value.charCodeAt(idx);
+					if ((lastChar === CharCode.CarriageReturn && ch === CharCode.LineFeed) || (lastChar === CharCode.LineFeed && ch === CharCode.CarriageReturn)) {
+						idx++;
+					}
 				}
 				start = idx;
 			} else {

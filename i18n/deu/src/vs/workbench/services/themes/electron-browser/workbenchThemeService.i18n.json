@@ -26,5 +26,7 @@
 	"iconTheme": "Specifies the icon theme used in the workbench.",
 	"noIconThemeDesc": "No file icons",
 	"iconThemeError": "File icon theme is unknown or not installed.",
-	"workbenchColors": "Überschreibt Farben aus dem derzeit ausgewählte Farbdesign. Diese Einstellung ist experimentell, da sich die Namen der Farben in der nächsten Version ändern."
+	"workbenchColors": "Überschreibt Farben aus dem derzeit ausgewählte Farbdesign.",
+	"workbenchColors.deprecated": "Diese Einstellung ist nicht mehr experimentell und wurde in \"workbench.colorCustomizations\" umbenannt.",
+	"workbenchColors.deprecatedDescription": "Verwenden Sie stattdessen \"workbench.colorCustomizations\"."
 }

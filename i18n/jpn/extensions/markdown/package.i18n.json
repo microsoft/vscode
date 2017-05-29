@@ -17,5 +17,6 @@
 	"markdown.showSource.title": "ソースの表示",
 	"markdown.styles.dec": "マークダウン プレビューから使用する CSS スタイル シートの URL またはローカル パスの一覧。相対パスは、エクスプローラーで開かれているフォルダーへの絶対パスと解釈されます。開かれているフォルダーがない場合、マークダウン ファイルの場所を基準としていると解釈されます。'\\' はすべて '\\\\' と入力する必要があります。",
 	"markdown.showPreviewSecuritySelector.title": "マークダウン プレビューのセキュリティ設定の変更",
+	"markdown.preview.enableExperimentalExtensionApi.desc": "[試験的]拡張機能にマークダウン プレビューへの拡張を許可します。",
 	"markdown.trace.desc": "マークダウン拡張機能のデバッグログを有効にします。"
 }

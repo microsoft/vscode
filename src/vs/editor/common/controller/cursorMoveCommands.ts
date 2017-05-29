@@ -11,11 +11,10 @@ import { MoveOperations } from 'vs/editor/common/controller/cursorMoveOperations
 import { WordOperations } from 'vs/editor/common/controller/cursorWordOperations';
 import * as types from 'vs/base/common/types';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { ICursor } from "vs/editor/common/controller/oneCursor";
 
 export class CursorMoveCommands {
 
-	public static addCursorDown(context: CursorContext, cursors: ICursor[]): CursorState[] {
+	public static addCursorDown(context: CursorContext, cursors: CursorState[]): CursorState[] {
 		let result: CursorState[] = [], resultLen = 0;
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
@@ -25,7 +24,7 @@ export class CursorMoveCommands {
 		return result;
 	}
 
-	public static addCursorUp(context: CursorContext, cursors: ICursor[]): CursorState[] {
+	public static addCursorUp(context: CursorContext, cursors: CursorState[]): CursorState[] {
 		let result: CursorState[] = [], resultLen = 0;
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
@@ -35,25 +34,83 @@ export class CursorMoveCommands {
 		return result;
 	}
 
-	public static moveToBeginningOfLine(context: CursorContext, cursors: ICursor[], inSelectionMode: boolean): CursorState[] {
+	public static moveToBeginningOfLine(context: CursorContext, cursors: CursorState[], inSelectionMode: boolean): CursorState[] {
 		let result: CursorState[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
-			result[i] = CursorState.fromViewState(MoveOperations.moveToBeginningOfLine(context.config, context.viewModel, cursor.viewState, inSelectionMode));
+			result[i] = this._moveToLineStart(context, cursor, inSelectionMode);
 		}
+
 		return result;
 	}
 
-	public static moveToEndOfLine(context: CursorContext, cursors: ICursor[], inSelectionMode: boolean): CursorState[] {
+	private static _moveToLineStart(context: CursorContext, cursor: CursorState, inSelectionMode: boolean): CursorState {
+		const currentViewStateColumn = cursor.viewState.position.column;
+		const currentModelStateColumn = cursor.modelState.position.column;
+		const isFirstLineOfWrappedLine = currentViewStateColumn === currentModelStateColumn;
+
+		const currentViewStatelineNumber = cursor.viewState.position.lineNumber;
+		const firstNonBlankColumn = context.viewModel.getLineFirstNonWhitespaceColumn(currentViewStatelineNumber);
+		const isBeginningOfViewLine = currentViewStateColumn === firstNonBlankColumn;
+
+		if (!isFirstLineOfWrappedLine && !isBeginningOfViewLine) {
+			return this._moveToLineStartByView(context, cursor, inSelectionMode);
+		} else {
+			return this._moveToLineStartByModel(context, cursor, inSelectionMode);
+		}
+	}
+
+	private static _moveToLineStartByView(context: CursorContext, cursor: CursorState, inSelectionMode: boolean): CursorState {
+		return CursorState.fromViewState(
+			MoveOperations.moveToBeginningOfLine(context.config, context.viewModel, cursor.viewState, inSelectionMode)
+		);
+	}
+
+	private static _moveToLineStartByModel(context: CursorContext, cursor: CursorState, inSelectionMode: boolean): CursorState {
+		return CursorState.fromModelState(
+			MoveOperations.moveToBeginningOfLine(context.config, context.model, cursor.modelState, inSelectionMode)
+		);
+	}
+
+	public static moveToEndOfLine(context: CursorContext, cursors: CursorState[], inSelectionMode: boolean): CursorState[] {
 		let result: CursorState[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
-			result[i] = CursorState.fromViewState(MoveOperations.moveToEndOfLine(context.config, context.viewModel, cursor.viewState, inSelectionMode));
+			result[i] = this._moveToLineEnd(context, cursor, inSelectionMode);
 		}
+
 		return result;
 	}
 
-	public static expandLineSelection(context: CursorContext, cursors: ICursor[]): CursorState[] {
+	private static _moveToLineEnd(context: CursorContext, cursor: CursorState, inSelectionMode: boolean): CursorState {
+		const viewStatePosition = cursor.viewState.position;
+		const viewModelMaxColumn = context.viewModel.getLineMaxColumn(viewStatePosition.lineNumber);
+		const isEndOfViewLine = viewStatePosition.column === viewModelMaxColumn;
+
+		const modelStatePosition = cursor.modelState.position;
+		const modelMaxColumn = context.model.getLineMaxColumn(modelStatePosition.lineNumber);
+		const isEndLineOfWrappedLine = viewModelMaxColumn - viewStatePosition.column === modelMaxColumn - modelStatePosition.column;
+
+		if (isEndOfViewLine || isEndLineOfWrappedLine) {
+			return this._moveToLineEndByModel(context, cursor, inSelectionMode);
+		} else {
+			return this._moveToLineEndByView(context, cursor, inSelectionMode);
+		}
+	}
+
+	private static _moveToLineEndByView(context: CursorContext, cursor: CursorState, inSelectionMode: boolean): CursorState {
+		return CursorState.fromViewState(
+			MoveOperations.moveToEndOfLine(context.config, context.viewModel, cursor.viewState, inSelectionMode)
+		);
+	}
+
+	private static _moveToLineEndByModel(context: CursorContext, cursor: CursorState, inSelectionMode: boolean): CursorState {
+		return CursorState.fromModelState(
+			MoveOperations.moveToEndOfLine(context.config, context.model, cursor.modelState, inSelectionMode)
+		);
+	}
+
+	public static expandLineSelection(context: CursorContext, cursors: CursorState[]): CursorState[] {
 		let result: CursorState[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
@@ -79,7 +136,7 @@ export class CursorMoveCommands {
 		return result;
 	}
 
-	public static moveToBeginningOfBuffer(context: CursorContext, cursors: ICursor[], inSelectionMode: boolean): CursorState[] {
+	public static moveToBeginningOfBuffer(context: CursorContext, cursors: CursorState[], inSelectionMode: boolean): CursorState[] {
 		let result: CursorState[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
@@ -88,7 +145,7 @@ export class CursorMoveCommands {
 		return result;
 	}
 
-	public static moveToEndOfBuffer(context: CursorContext, cursors: ICursor[], inSelectionMode: boolean): CursorState[] {
+	public static moveToEndOfBuffer(context: CursorContext, cursors: CursorState[], inSelectionMode: boolean): CursorState[] {
 		let result: CursorState[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
@@ -97,7 +154,7 @@ export class CursorMoveCommands {
 		return result;
 	}
 
-	public static selectAll(context: CursorContext, cursor: ICursor): CursorState {
+	public static selectAll(context: CursorContext, cursor: CursorState): CursorState {
 
 		if (context.model.hasEditableRange()) {
 			// Toggle between selecting editable range and selecting the entire buffer
@@ -123,7 +180,7 @@ export class CursorMoveCommands {
 		));
 	}
 
-	public static line(context: CursorContext, cursor: ICursor, inSelectionMode: boolean, _position: IPosition, _viewPosition: IPosition): CursorState {
+	public static line(context: CursorContext, cursor: CursorState, inSelectionMode: boolean, _position: IPosition, _viewPosition: IPosition): CursorState {
 		const position = context.model.validatePosition(_position);
 		const viewPosition = (
 			_viewPosition
@@ -182,12 +239,12 @@ export class CursorMoveCommands {
 		}
 	}
 
-	public static word(context: CursorContext, cursor: ICursor, inSelectionMode: boolean, _position: IPosition): CursorState {
+	public static word(context: CursorContext, cursor: CursorState, inSelectionMode: boolean, _position: IPosition): CursorState {
 		const position = context.model.validatePosition(_position);
 		return CursorState.fromModelState(WordOperations.word(context.config, context.model, cursor.modelState, inSelectionMode, position));
 	}
 
-	public static cancelSelection(context: CursorContext, cursor: ICursor): CursorState {
+	public static cancelSelection(context: CursorContext, cursor: CursorState): CursorState {
 		if (!cursor.modelState.hasSelection()) {
 			return new CursorState(cursor.modelState, cursor.viewState);
 		}
@@ -201,7 +258,7 @@ export class CursorMoveCommands {
 		));
 	}
 
-	public static moveTo(context: CursorContext, cursor: ICursor, inSelectionMode: boolean, _position: IPosition, _viewPosition: IPosition): CursorState {
+	public static moveTo(context: CursorContext, cursor: CursorState, inSelectionMode: boolean, _position: IPosition, _viewPosition: IPosition): CursorState {
 		const position = context.model.validatePosition(_position);
 		const viewPosition = (
 			_viewPosition
@@ -211,7 +268,7 @@ export class CursorMoveCommands {
 		return CursorState.fromViewState(cursor.viewState.move(inSelectionMode, viewPosition.lineNumber, viewPosition.column, 0));
 	}
 
-	public static move(context: CursorContext, cursors: ICursor[], args: CursorMove.ParsedArguments): CursorState[] {
+	public static move(context: CursorContext, cursors: CursorState[], args: CursorMove.ParsedArguments): CursorState[] {
 		const inSelectionMode = args.select;
 		const value = args.value;
 
@@ -312,7 +369,7 @@ export class CursorMoveCommands {
 	}
 
 
-	public static findPositionInViewportIfOutside(context: CursorContext, cursor: ICursor, visibleViewRange: Range, inSelectionMode: boolean): CursorState {
+	public static findPositionInViewportIfOutside(context: CursorContext, cursor: CursorState, visibleViewRange: Range, inSelectionMode: boolean): CursorState {
 		let viewLineNumber = cursor.viewState.position.lineNumber;
 
 		if (visibleViewRange.startLineNumber <= viewLineNumber && viewLineNumber <= visibleViewRange.endLineNumber - 1) {
@@ -357,7 +414,7 @@ export class CursorMoveCommands {
 		return Math.max(startLineNumber, range.endLineNumber - count + 1);
 	}
 
-	private static _moveLeft(context: CursorContext, cursors: ICursor[], inSelectionMode: boolean, noOfColumns: number): CursorState[] {
+	private static _moveLeft(context: CursorContext, cursors: CursorState[], inSelectionMode: boolean, noOfColumns: number): CursorState[] {
 		let result: CursorState[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
@@ -366,7 +423,7 @@ export class CursorMoveCommands {
 		return result;
 	}
 
-	private static _moveHalfLineLeft(context: CursorContext, cursors: ICursor[], inSelectionMode: boolean): CursorState[] {
+	private static _moveHalfLineLeft(context: CursorContext, cursors: CursorState[], inSelectionMode: boolean): CursorState[] {
 		let result: CursorState[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
@@ -377,7 +434,7 @@ export class CursorMoveCommands {
 		return result;
 	}
 
-	private static _moveRight(context: CursorContext, cursors: ICursor[], inSelectionMode: boolean, noOfColumns: number): CursorState[] {
+	private static _moveRight(context: CursorContext, cursors: CursorState[], inSelectionMode: boolean, noOfColumns: number): CursorState[] {
 		let result: CursorState[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
@@ -386,7 +443,7 @@ export class CursorMoveCommands {
 		return result;
 	}
 
-	private static _moveHalfLineRight(context: CursorContext, cursors: ICursor[], inSelectionMode: boolean): CursorState[] {
+	private static _moveHalfLineRight(context: CursorContext, cursors: CursorState[], inSelectionMode: boolean): CursorState[] {
 		let result: CursorState[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
@@ -397,7 +454,7 @@ export class CursorMoveCommands {
 		return result;
 	}
 
-	private static _moveDownByViewLines(context: CursorContext, cursors: ICursor[], inSelectionMode: boolean, linesCount: number): CursorState[] {
+	private static _moveDownByViewLines(context: CursorContext, cursors: CursorState[], inSelectionMode: boolean, linesCount: number): CursorState[] {
 		let result: CursorState[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
@@ -406,7 +463,7 @@ export class CursorMoveCommands {
 		return result;
 	}
 
-	private static _moveDownByModelLines(context: CursorContext, cursors: ICursor[], inSelectionMode: boolean, linesCount: number): CursorState[] {
+	private static _moveDownByModelLines(context: CursorContext, cursors: CursorState[], inSelectionMode: boolean, linesCount: number): CursorState[] {
 		let result: CursorState[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
@@ -415,7 +472,7 @@ export class CursorMoveCommands {
 		return result;
 	}
 
-	private static _moveUpByViewLines(context: CursorContext, cursors: ICursor[], inSelectionMode: boolean, linesCount: number): CursorState[] {
+	private static _moveUpByViewLines(context: CursorContext, cursors: CursorState[], inSelectionMode: boolean, linesCount: number): CursorState[] {
 		let result: CursorState[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
@@ -424,7 +481,7 @@ export class CursorMoveCommands {
 		return result;
 	}
 
-	private static _moveUpByModelLines(context: CursorContext, cursors: ICursor[], inSelectionMode: boolean, linesCount: number): CursorState[] {
+	private static _moveUpByModelLines(context: CursorContext, cursors: CursorState[], inSelectionMode: boolean, linesCount: number): CursorState[] {
 		let result: CursorState[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
@@ -433,15 +490,15 @@ export class CursorMoveCommands {
 		return result;
 	}
 
-	private static _moveToViewPosition(context: CursorContext, cursor: ICursor, inSelectionMode: boolean, toViewLineNumber: number, toViewColumn: number): CursorState {
+	private static _moveToViewPosition(context: CursorContext, cursor: CursorState, inSelectionMode: boolean, toViewLineNumber: number, toViewColumn: number): CursorState {
 		return CursorState.fromViewState(cursor.viewState.move(inSelectionMode, toViewLineNumber, toViewColumn, 0));
 	}
 
-	private static _moveToModelPosition(context: CursorContext, cursor: ICursor, inSelectionMode: boolean, toModelLineNumber: number, toModelColumn: number): CursorState {
+	private static _moveToModelPosition(context: CursorContext, cursor: CursorState, inSelectionMode: boolean, toModelLineNumber: number, toModelColumn: number): CursorState {
 		return CursorState.fromModelState(cursor.modelState.move(inSelectionMode, toModelLineNumber, toModelColumn, 0));
 	}
 
-	private static _moveToViewMinColumn(context: CursorContext, cursors: ICursor[], inSelectionMode: boolean): CursorState[] {
+	private static _moveToViewMinColumn(context: CursorContext, cursors: CursorState[], inSelectionMode: boolean): CursorState[] {
 		let result: CursorState[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
@@ -452,7 +509,7 @@ export class CursorMoveCommands {
 		return result;
 	}
 
-	private static _moveToViewFirstNonWhitespaceColumn(context: CursorContext, cursors: ICursor[], inSelectionMode: boolean): CursorState[] {
+	private static _moveToViewFirstNonWhitespaceColumn(context: CursorContext, cursors: CursorState[], inSelectionMode: boolean): CursorState[] {
 		let result: CursorState[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
@@ -463,7 +520,7 @@ export class CursorMoveCommands {
 		return result;
 	}
 
-	private static _moveToViewCenterColumn(context: CursorContext, cursors: ICursor[], inSelectionMode: boolean): CursorState[] {
+	private static _moveToViewCenterColumn(context: CursorContext, cursors: CursorState[], inSelectionMode: boolean): CursorState[] {
 		let result: CursorState[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
@@ -474,7 +531,7 @@ export class CursorMoveCommands {
 		return result;
 	}
 
-	private static _moveToViewMaxColumn(context: CursorContext, cursors: ICursor[], inSelectionMode: boolean): CursorState[] {
+	private static _moveToViewMaxColumn(context: CursorContext, cursors: CursorState[], inSelectionMode: boolean): CursorState[] {
 		let result: CursorState[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
@@ -485,7 +542,7 @@ export class CursorMoveCommands {
 		return result;
 	}
 
-	private static _moveToViewLastNonWhitespaceColumn(context: CursorContext, cursors: ICursor[], inSelectionMode: boolean): CursorState[] {
+	private static _moveToViewLastNonWhitespaceColumn(context: CursorContext, cursors: CursorState[], inSelectionMode: boolean): CursorState[] {
 		let result: CursorState[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
@@ -499,7 +556,7 @@ export class CursorMoveCommands {
 
 export namespace CursorMove {
 
-	const isCursorMoveArgs = function (arg): boolean {
+	const isCursorMoveArgs = function (arg: any): boolean {
 		if (!types.isObject(arg)) {
 			return false;
 		}

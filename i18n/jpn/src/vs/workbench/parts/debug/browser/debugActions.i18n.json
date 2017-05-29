@@ -6,6 +6,7 @@
 {
 	"openLaunchJson": "{0} を開く",
 	"launchJsonNeedsConfigurtion": "'launch.json' を構成または修正してください",
+	"noFolderDebugConfig": "高度なデバッグ構成を行うには、最初にフォルダーを開いてください。",
 	"startDebug": "デバッグの開始",
 	"startWithoutDebugging": "デバッグなしで開始",
 	"selectAndStartDebugging": "選択してデバッグを開始",
@@ -34,6 +35,7 @@
 	"editConditionalBreakpoint": "ブレークポイントの編集...",
 	"setValue": "値の設定",
 	"addWatchExpression": "式の追加",
+	"editWatchExpression": "式の編集",
 	"addToWatchExpressions": "ウォッチに追加",
 	"removeWatchExpression": "式の削除",
 	"removeAllWatchExpressions": "すべての式を削除する",

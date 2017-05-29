@@ -20,6 +20,7 @@
 	"showVersions": "#NAME?",
 	"installExtension": "拡張機能をインストールします。",
 	"uninstallExtension": "拡張機能をアンインストールします。",
+	"experimentalApis": "拡張機能に対して Proposed API 機能を有効にします。",
 	"disableExtensions": "インストールされたすべての拡張機能を無効にします。",
 	"disableGPU": "GPU ハードウェア アクセラレータを無効にします。",
 	"version": "バージョンを印刷します。",

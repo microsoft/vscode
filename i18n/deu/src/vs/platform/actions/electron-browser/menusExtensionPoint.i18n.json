@@ -33,7 +33,7 @@
 	"vscode.extension.contributes.commandType.icon.dark": "Der Symbolpfad, wenn ein dunkles Design verwendet wird.",
 	"vscode.extension.contributes.commands": "Trägt Befehle zur Befehlspalette bei.",
 	"dup": "Der Befehl \"{0}\" ist mehrmals im Abschnitt \"commands\" vorhanden.",
-	"menuId.invalid": "{0}\" ist kein gültiger Menübezeichner.",
+	"menuId.invalid": "\"{0}\" ist kein gültiger Menübezeichner.",
 	"missing.command": "Das Menüelement verweist auf einen Befehl \"{0}\", der im Abschnitt \"commands\" nicht definiert ist.",
 	"missing.altCommand": "Das Menüelement verweist auf einen Alternativbefehl \"{0}\", der im Abschnitt \"commands\" nicht definiert ist.",
 	"dupe.command": "Das Menüelement verweist auf den gleichen Befehl wie der Standard- und der Alternativbefehl.",

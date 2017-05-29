@@ -30,9 +30,9 @@ import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ICodeEditor, IEditorContributionCtor } from 'vs/editor/browser/editorBrowser';
 import { SearchWidget, SettingsTabsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ContextKeyExpr, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { CommonEditorRegistry, Command } from 'vs/editor/common/editorCommonExtensions';
+import { Command } from 'vs/editor/common/editorCommonExtensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -51,7 +51,10 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
 import { FindController } from 'vs/editor/contrib/find/browser/find';
 import { SelectionHighlighter } from 'vs/editor/contrib/find/common/findController';
-import { IEditorOptions } from "vs/editor/common/config/editorOptions";
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	public static ID: string = 'workbench.editorinputs.preferencesEditorInput';
@@ -110,7 +113,7 @@ export class PreferencesEditor extends BaseEditor {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkbenchThemeService themeService: IWorkbenchThemeService
+		@IThemeService themeService: IThemeService
 	) {
 		super(PreferencesEditor.ID, telemetryService, themeService);
 		this.defaultSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(this.contextKeyService);
@@ -158,7 +161,7 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	public focus(): void {
-		this.sideBySidePreferencesWidget.focus();
+		this.searchWidget.focus();
 	}
 
 	public focusSearch(): void {
@@ -328,7 +331,7 @@ class SideBySidePreferencesWidget extends Widget {
 
 	private sash: VSash;
 
-	constructor(parent: HTMLElement, @IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(parent: HTMLElement, @IInstantiationService private instantiationService: IInstantiationService, @IThemeService private themeService: IThemeService) {
 		super();
 		this.create(parent);
 	}
@@ -345,6 +348,15 @@ class SideBySidePreferencesWidget extends Widget {
 
 		this.editablePreferencesEditorContainer = DOM.append(parentElement, DOM.$('.editable-preferences-editor-container'));
 		this.editablePreferencesEditorContainer.style.position = 'absolute';
+		this._register(attachStylerCallback(this.themeService, { scrollbarShadow }, colors => {
+			const shadow = colors.scrollbarShadow ? colors.scrollbarShadow.toString() : null;
+
+			if (shadow) {
+				this.editablePreferencesEditorContainer.style.boxShadow = `-6px 0 5px -5px ${shadow}`;
+			} else {
+				this.editablePreferencesEditorContainer.style.boxShadow = null;
+			}
+		}));
 	}
 
 	public setInput(defaultPreferencesEditorInput: DefaultPreferencesEditorInput, editablePreferencesEditorInput: EditorInput, options?: EditorOptions): TPromise<{ defaultPreferencesRenderer: IPreferencesRenderer<ISetting>, editablePreferencesRenderer: IPreferencesRenderer<ISetting> }> {
@@ -460,7 +472,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
+		@IThemeService themeService: IThemeService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IModelService private modelService: IModelService,
 		@IModeService modeService: IModeService,
@@ -654,8 +666,9 @@ class StartSearchDefaultSettingsCommand extends Command {
 	}
 }
 
-CommonEditorRegistry.registerEditorCommand(new StartSearchDefaultSettingsCommand({
+const command = new StartSearchDefaultSettingsCommand({
 	id: SETTINGS_EDITOR_COMMAND_SEARCH,
 	precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR),
 	kbOpts: { primary: KeyMod.CtrlCmd | KeyCode.KEY_F }
-}));
+});
+KeybindingsRegistry.registerCommandAndKeybindingRule(command.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));

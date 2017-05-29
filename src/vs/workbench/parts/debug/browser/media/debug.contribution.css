@@ -13,12 +13,20 @@
 	background: rgba(255, 255, 102, 0.45);
 }
 
+.monaco-editor .debug-top-stack-frame-range {
+	background: #ffeca0;
+}
+
 .monaco-editor .debug-top-stack-frame-column::before {
 	background: url('current-arrow.svg') center center no-repeat;
 }
 
 .monaco-editor .debug-focused-stack-frame-line {
 	background: rgba(206, 231, 206, 0.45);
+}
+
+.monaco-editor .debug-focused-stack-frame-range {
+	background: rgba(206, 231, 206, 1);
 }
 
 .monaco-editor .debug-breakpoint-hint-glyph {
@@ -177,9 +185,17 @@
 	background: rgba(122, 189, 122, 0.3);
 }
 
+.monaco-editor.vs-dark .debug-focused-stack-frame-range {
+	background: rgba(122, 189, 122, 0.5);
+}
+
 .monaco-editor.vs-dark .debug-top-stack-frame-line,
 .monaco-editor.vs-dark .debug-top-stack-frame-exception-line {
 	background-color: rgba(255, 255, 0, 0.2)
+}
+
+.monaco-editor.vs-dark .debug-top-stack-frame-range {
+	background-color: rgba(255, 255, 0, 0.3)
 }
 
 .monaco-editor.vs-dark .debug-breakpoint-glyph,

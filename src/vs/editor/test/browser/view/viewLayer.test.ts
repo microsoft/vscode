@@ -51,7 +51,7 @@ suite('RenderedLinesCollection onLinesDeleted', () => {
 			new TestLine('old9')
 		]);
 		let actualDeleted1 = col.onLinesDeleted(deleteFromLineNumber, deleteToLineNumber);
-		let actualDeleted = [];
+		let actualDeleted: string[] = [];
 		if (actualDeleted1) {
 			actualDeleted = actualDeleted1.map(line => line.id);
 		}
@@ -407,7 +407,7 @@ suite('RenderedLinesCollection onLinesInserted', () => {
 			new TestLine('old9')
 		]);
 		let actualDeleted1 = col.onLinesInserted(insertFromLineNumber, insertToLineNumber);
-		let actualDeleted = [];
+		let actualDeleted: string[] = [];
 		if (actualDeleted1) {
 			actualDeleted = actualDeleted1.map(line => line.id);
 		}

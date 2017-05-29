@@ -6,7 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import { first, always } from 'vs/base/common/async';
+import { first } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IDisposable, toDisposable, IReference, ReferenceCollection, ImmortalReference } from 'vs/base/common/lifecycle';
@@ -17,7 +17,7 @@ import network = require('vs/base/common/network');
 import { ITextModelResolverService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
-import { TextFileEditorModel } from "vs/workbench/services/textfile/common/textFileEditorModel";
+import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 
 class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorModel>> {
 
@@ -85,7 +85,7 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 		return first(factories).then(model => {
 			if (!model) {
 				console.error(`Unable to open '${resource}' resource is not available.`); // TODO PII
-				return TPromise.wrapError('resource is not available');
+				return TPromise.wrapError<IModel>('resource is not available');
 			}
 
 			return model;
@@ -97,7 +97,6 @@ export class TextModelResolverService implements ITextModelResolverService {
 
 	_serviceBrand: any;
 
-	private promiseCache: { [uri: string]: TPromise<IReference<ITextEditorModel>> } = Object.create(null);
 	private resourceModelCollection: ResourceModelCollection;
 
 	constructor(
@@ -110,16 +109,7 @@ export class TextModelResolverService implements ITextModelResolverService {
 	}
 
 	public createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
-		const uri = resource.toString();
-		let promise = this.promiseCache[uri];
-
-		if (promise) {
-			return promise;
-		}
-
-		promise = this.promiseCache[uri] = this._createModelReference(resource);
-
-		return always(promise, () => delete this.promiseCache[uri]);
+		return this._createModelReference(resource);
 	}
 
 	private _createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
@@ -137,7 +127,7 @@ export class TextModelResolverService implements ITextModelResolverService {
 			const cachedModel = this.modelService.getModel(resource);
 
 			if (!cachedModel) {
-				return TPromise.wrapError('Cant resolve inmemory resource');
+				return TPromise.wrapError<IReference<ITextEditorModel>>('Cant resolve inmemory resource');
 			}
 
 			return TPromise.as(new ImmortalReference(this.instantiationService.createInstance(ResourceEditorModel, resource)));
@@ -150,7 +140,7 @@ export class TextModelResolverService implements ITextModelResolverService {
 			err => {
 				ref.dispose();
 
-				return TPromise.wrapError(err);
+				return TPromise.wrapError<IReference<ITextEditorModel>>(err);
 			}
 		);
 	}
