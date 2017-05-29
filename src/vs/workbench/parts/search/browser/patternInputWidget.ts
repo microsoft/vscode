@@ -189,6 +189,14 @@ export class PatternInputWidget extends Widget {
 		return this.pattern.width();
 	}
 
+	public getHistory(): string[] {
+		return this.history.getHistory();
+	}
+
+	public setHistory(history: string[]) {
+		this.history = new HistoryNavigator<string>(history);
+	}
+
 	public showNextTerm() {
 		let next = this.history.next();
 		if (next) {

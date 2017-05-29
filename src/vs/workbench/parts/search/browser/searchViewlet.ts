@@ -180,9 +180,11 @@ export class SearchViewlet extends Viewlet {
 
 		const filePatterns = this.viewletSettings['query.filePatterns'] || '';
 		const patternExclusions = this.viewletSettings['query.folderExclusions'] || '';
+		const patternExclusionsHistory = this.viewletSettings['query.folderExclusionsHistory'] || [];
 		const exclusionsUsePattern = this.viewletSettings['query.exclusionsUsePattern'];
 		const includesUsePattern = this.viewletSettings['query.includesUsePattern'];
 		const patternIncludes = this.viewletSettings['query.folderIncludes'] || '';
+		const patternIncludesHistory = this.viewletSettings['query.folderIncludesHistory'] || [];
 		const queryDetailsExpanded = this.viewletSettings['query.queryDetailsExpanded'] || '';
 		const useIgnoreFiles = typeof this.viewletSettings['query.useIgnoreFiles'] === 'boolean' ?
 			this.viewletSettings['query.useIgnoreFiles'] :
@@ -214,6 +216,7 @@ export class SearchViewlet extends Viewlet {
 
 				this.inputPatternIncludes.setIsGlobPattern(includesUsePattern);
 				this.inputPatternIncludes.setValue(patternIncludes);
+				this.inputPatternIncludes.setHistory(patternIncludesHistory);
 
 				this.inputPatternIncludes
 					.on(FindInput.OPTION_CHANGE, (e) => {
@@ -237,6 +240,7 @@ export class SearchViewlet extends Viewlet {
 				this.inputPatternExclusions.setValue(patternExclusions);
 				this.inputPatternExclusions.setUseIgnoreFiles(useIgnoreFiles);
 				this.inputPatternExclusions.setUseExcludeSettings(useExcludeSettings);
+				this.inputPatternExclusions.setHistory(patternExclusionsHistory);
 
 				this.inputPatternExclusions
 					.on(FindInput.OPTION_CHANGE, (e) => {
@@ -305,12 +309,14 @@ export class SearchViewlet extends Viewlet {
 		let isRegex = this.viewletSettings['query.regex'] === true;
 		let isWholeWords = this.viewletSettings['query.wholeWords'] === true;
 		let isCaseSensitive = this.viewletSettings['query.caseSensitive'] === true;
+		let searchHistory = this.viewletSettings['query.searchHistory'] || [];
 
 		this.searchWidget = this.instantiationService.createInstance(SearchWidget, builder, <ISearchWidgetOptions>{
 			value: contentPattern,
 			isRegex: isRegex,
 			isCaseSensitive: isCaseSensitive,
-			isWholeWords: isWholeWords
+			isWholeWords: isWholeWords,
+			history: searchHistory
 		});
 
 		if (this.storageService.getBoolean(SearchViewlet.SHOW_REPLACE_STORAGE_KEY, StorageScope.WORKSPACE, true)) {
@@ -1368,23 +1374,28 @@ export class SearchViewlet extends Viewlet {
 		const isWholeWords = this.searchWidget.searchInput.getWholeWords();
 		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
 		const contentPattern = this.searchWidget.searchInput.getValue();
+		const searchHistory = this.searchWidget.getHistory();
 		const patternExcludes = this.inputPatternExclusions.getValue().trim();
+		const patternExcludesHistory = this.inputPatternExclusions.getHistory();
 		const exclusionsUsePattern = this.inputPatternExclusions.isGlobPattern();
 		const patternIncludes = this.inputPatternIncludes.getValue().trim();
+		const patternIncludesHistory = this.inputPatternIncludes.getHistory();
 		const includesUsePattern = this.inputPatternIncludes.isGlobPattern();
 		const useIgnoreFiles = this.inputPatternExclusions.useIgnoreFiles();
 
 		// store memento
 		this.viewletSettings['query.contentPattern'] = contentPattern;
+		this.viewletSettings['query.searchHistory'] = searchHistory;
 		this.viewletSettings['query.regex'] = isRegex;
 		this.viewletSettings['query.wholeWords'] = isWholeWords;
 		this.viewletSettings['query.caseSensitive'] = isCaseSensitive;
 		this.viewletSettings['query.folderExclusions'] = patternExcludes;
+		this.viewletSettings['query.folderExclusionsHistory'] = patternExcludesHistory;
 		this.viewletSettings['query.exclusionsUsePattern'] = exclusionsUsePattern;
 		this.viewletSettings['query.folderIncludes'] = patternIncludes;
+		this.viewletSettings['query.folderIncludesHistory'] = patternIncludesHistory;
 		this.viewletSettings['query.includesUsePattern'] = includesUsePattern;
 		this.viewletSettings['query.useIgnoreFiles'] = useIgnoreFiles;
-		this.viewletSettings['query.contentPattern'] = contentPattern;
 
 		super.shutdown();
 	}
