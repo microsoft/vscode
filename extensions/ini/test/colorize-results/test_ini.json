@@ -1,7 +1,7 @@
 [
 	{
 		"c": ";",
-		"t": "source.properties comment.line.semicolon.ini punctuation.definition.comment.ini",
+		"t": "source.ini comment.line.semicolon.ini punctuation.definition.comment.ini",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -12,7 +12,7 @@
 	},
 	{
 		"c": " last modified 1 April 2001 by John Doe",
-		"t": "source.properties comment.line.semicolon.ini",
+		"t": "source.ini comment.line.semicolon.ini",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -23,7 +23,7 @@
 	},
 	{
 		"c": "[",
-		"t": "source.properties entity.name.section.group-title.ini punctuation.definition.entity.ini",
+		"t": "source.ini entity.name.section.group-title.ini punctuation.definition.entity.ini",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -34,7 +34,7 @@
 	},
 	{
 		"c": "owner",
-		"t": "source.properties entity.name.section.group-title.ini",
+		"t": "source.ini entity.name.section.group-title.ini",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -45,7 +45,7 @@
 	},
 	{
 		"c": "]",
-		"t": "source.properties entity.name.section.group-title.ini punctuation.definition.entity.ini",
+		"t": "source.ini entity.name.section.group-title.ini punctuation.definition.entity.ini",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -56,7 +56,7 @@
 	},
 	{
 		"c": "name",
-		"t": "source.properties keyword.other.definition.ini",
+		"t": "source.ini keyword.other.definition.ini",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -67,7 +67,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.properties punctuation.separator.key-value.ini",
+		"t": "source.ini punctuation.separator.key-value.ini",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -78,7 +78,7 @@
 	},
 	{
 		"c": "John Doe",
-		"t": "source.properties",
+		"t": "source.ini",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -89,7 +89,7 @@
 	},
 	{
 		"c": "organization",
-		"t": "source.properties keyword.other.definition.ini",
+		"t": "source.ini keyword.other.definition.ini",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -100,7 +100,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.properties punctuation.separator.key-value.ini",
+		"t": "source.ini punctuation.separator.key-value.ini",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -111,7 +111,7 @@
 	},
 	{
 		"c": "Acme Widgets Inc.",
-		"t": "source.properties",
+		"t": "source.ini",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -122,7 +122,7 @@
 	},
 	{
 		"c": "[",
-		"t": "source.properties entity.name.section.group-title.ini punctuation.definition.entity.ini",
+		"t": "source.ini entity.name.section.group-title.ini punctuation.definition.entity.ini",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -133,7 +133,7 @@
 	},
 	{
 		"c": "database",
-		"t": "source.properties entity.name.section.group-title.ini",
+		"t": "source.ini entity.name.section.group-title.ini",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -144,7 +144,7 @@
 	},
 	{
 		"c": "]",
-		"t": "source.properties entity.name.section.group-title.ini punctuation.definition.entity.ini",
+		"t": "source.ini entity.name.section.group-title.ini punctuation.definition.entity.ini",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -155,7 +155,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.properties comment.line.semicolon.ini punctuation.definition.comment.ini",
+		"t": "source.ini comment.line.semicolon.ini punctuation.definition.comment.ini",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -166,7 +166,7 @@
 	},
 	{
 		"c": " use IP address in case network name resolution is not working",
-		"t": "source.properties comment.line.semicolon.ini",
+		"t": "source.ini comment.line.semicolon.ini",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -177,7 +177,7 @@
 	},
 	{
 		"c": "server",
-		"t": "source.properties keyword.other.definition.ini",
+		"t": "source.ini keyword.other.definition.ini",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -188,7 +188,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.properties punctuation.separator.key-value.ini",
+		"t": "source.ini punctuation.separator.key-value.ini",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -199,7 +199,7 @@
 	},
 	{
 		"c": "192.0.2.62",
-		"t": "source.properties",
+		"t": "source.ini",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -210,7 +210,7 @@
 	},
 	{
 		"c": "port",
-		"t": "source.properties keyword.other.definition.ini",
+		"t": "source.ini keyword.other.definition.ini",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -221,7 +221,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.properties punctuation.separator.key-value.ini",
+		"t": "source.ini punctuation.separator.key-value.ini",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -232,7 +232,7 @@
 	},
 	{
 		"c": "143",
-		"t": "source.properties",
+		"t": "source.ini",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -243,7 +243,7 @@
 	},
 	{
 		"c": "file",
-		"t": "source.properties keyword.other.definition.ini",
+		"t": "source.ini keyword.other.definition.ini",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -254,7 +254,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.properties punctuation.separator.key-value.ini",
+		"t": "source.ini punctuation.separator.key-value.ini",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -265,7 +265,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.properties string.quoted.double.ini punctuation.definition.string.begin.ini",
+		"t": "source.ini string.quoted.double.ini punctuation.definition.string.begin.ini",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -276,7 +276,7 @@
 	},
 	{
 		"c": "payroll.dat",
-		"t": "source.properties string.quoted.double.ini",
+		"t": "source.ini string.quoted.double.ini",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -287,7 +287,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.properties string.quoted.double.ini punctuation.definition.string.end.ini",
+		"t": "source.ini string.quoted.double.ini punctuation.definition.string.end.ini",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",

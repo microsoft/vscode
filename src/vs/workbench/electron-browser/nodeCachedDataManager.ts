@@ -7,11 +7,13 @@
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { join } from 'path';
+import { join, basename } from 'path';
 import { readdir, rimraf, stat } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
+declare type OnNodeCachedDataArgs = [{ errorCode: string, path: string, detail?: string }, { path: string, length: number }];
+declare const MonacoEnvironment: { onNodeCachedData: OnNodeCachedDataArgs[] };
 
 export class NodeCachedDataManager {
 
@@ -26,7 +28,7 @@ export class NodeCachedDataManager {
 		this._telemetryService = telemetryService;
 		this._environmentService = environmentService;
 
-		this._handleCachedDataErrors();
+		this._handleCachedDataInfo();
 		this._manageCachedDataSoon();
 	}
 
@@ -34,22 +36,33 @@ export class NodeCachedDataManager {
 		this._disposables = dispose(this._disposables);
 	}
 
-	private _handleCachedDataErrors(): void {
-		const onNodeCachedDataError = (err) => {
-			this._telemetryService.publicLog('nodeCachedData', { errorCode: err.errorCode, path: err.path });
-		};
+	private _handleCachedDataInfo(): void {
 
-		// handle future and past errors
-		(<any>self).require.config({ onNodeCachedDataError });
-		(<any[]>(<any>window).MonacoEnvironment.nodeCachedDataErrors).forEach(onNodeCachedDataError);
-		delete (<any>window).MonacoEnvironment.nodeCachedDataErrors;
+		let didRejectCachedData = false;
+		let didProduceCachedData = false;
+		for (const [err, data] of MonacoEnvironment.onNodeCachedData) {
+			// build summary
+			didRejectCachedData = didRejectCachedData || Boolean(err);
+			didProduceCachedData = didProduceCachedData || Boolean(data);
 
-		// stop when being disposed
-		this._disposables.push({
-			dispose() {
-				(<any>self).require.config({ onNodeCachedDataError: undefined }, true);
+			// log each failure separately
+			if (err) {
+				this._telemetryService.publicLog('cachedDataError', {
+					errorCode: err.errorCode,
+					path: basename(err.path)
+				});
 			}
+		}
+
+		// log summary
+		this._telemetryService.publicLog('cachedDataInfo', {
+			didRequestCachedData: Boolean(global.require.getConfig().nodeCachedDataDir),
+			didRejectCachedData,
+			didProduceCachedData
 		});
+
+		global.require.config({ onNodeCachedData: undefined });
+		delete MonacoEnvironment.onNodeCachedData;
 	}
 
 	private _manageCachedDataSoon(): void {

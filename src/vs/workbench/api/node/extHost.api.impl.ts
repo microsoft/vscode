@@ -18,7 +18,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/node/extHostDocumentSaveParticipant';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
-import { ExtHostTreeView } from 'vs/workbench/api/node/extHostTreeView';
+import { ExtHostTreeViews } from 'vs/workbench/api/node/extHostTreeViews';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostQuickOpen } from 'vs/workbench/api/node/extHostQuickOpen';
 import { ExtHostProgress } from 'vs/workbench/api/node/extHostProgress';
@@ -111,7 +111,7 @@ export function createApiFactory(
 	const extHostDocumentSaveParticipant = col.define(ExtHostContext.ExtHostDocumentSaveParticipant).set<ExtHostDocumentSaveParticipant>(new ExtHostDocumentSaveParticipant(extHostDocuments, threadService.get(MainContext.MainThreadWorkspace)));
 	const extHostEditors = col.define(ExtHostContext.ExtHostEditors).set<ExtHostEditors>(new ExtHostEditors(threadService, extHostDocumentsAndEditors));
 	const extHostCommands = col.define(ExtHostContext.ExtHostCommands).set<ExtHostCommands>(new ExtHostCommands(threadService, extHostHeapService));
-	const extHostTreeView = col.define(ExtHostContext.ExtHostTreeView).set<ExtHostTreeView>(new ExtHostTreeView(threadService, extHostCommands));
+	const extHostTreeViews = col.define(ExtHostContext.ExtHostTreeViews).set<ExtHostTreeViews>(new ExtHostTreeViews(threadService, extHostCommands));
 	const extHostConfiguration = col.define(ExtHostContext.ExtHostConfiguration).set<ExtHostConfiguration>(new ExtHostConfiguration(threadService.get(MainContext.MainThreadConfiguration), initData.configuration));
 	const extHostDiagnostics = col.define(ExtHostContext.ExtHostDiagnostics).set<ExtHostDiagnostics>(new ExtHostDiagnostics(threadService));
 	const languageFeatures = col.define(ExtHostContext.ExtHostLanguageFeatures).set<ExtHostLanguageFeatures>(new ExtHostLanguageFeatures(threadService, extHostDocuments, extHostCommands, extHostHeapService, extHostDiagnostics));
@@ -369,8 +369,8 @@ export function createApiFactory(
 			sampleFunction: proposedApiFunction(extension, () => {
 				return extHostMessageService.showMessage(Severity.Info, 'Hello Proposed Api!', {}, []);
 			}),
-			createTreeView: proposedApiFunction(extension, (providerId: string, provider: vscode.TreeDataProvider<any>): vscode.TreeView<any> => {
-				return extHostTreeView.createTreeView(providerId, provider);
+			registerTreeDataProviderForView: proposedApiFunction(extension, (viewId: string, treeDataProvider: vscode.TreeDataProvider<any>): vscode.Disposable => {
+				return extHostTreeViews.registerTreeDataProviderForView(viewId, treeDataProvider);
 			})
 		};
 
@@ -448,9 +448,9 @@ export function createApiFactory(
 			getConfiguration: (section?: string): vscode.WorkspaceConfiguration => {
 				return extHostConfiguration.getConfiguration(section);
 			},
-			registerTaskProvider: proposedApiFunction(extension, (provider: vscode.TaskProvider) => {
+			registerTaskProvider: (provider: vscode.TaskProvider) => {
 				return extHostTask.registerTaskProvider(extension, provider);
-			})
+			}
 		};
 
 		class SCM {
@@ -515,7 +515,6 @@ export function createApiFactory(
 			OverviewRulerLane: EditorCommon.OverviewRulerLane,
 			ParameterInformation: extHostTypes.ParameterInformation,
 			Position: extHostTypes.Position,
-			ProgressLocation: extHostTypes.ProgressLocation,
 			Range: extHostTypes.Range,
 			Selection: extHostTypes.Selection,
 			SignatureHelp: extHostTypes.SignatureHelp,
@@ -534,9 +533,10 @@ export function createApiFactory(
 			Uri: URI,
 			ViewColumn: extHostTypes.ViewColumn,
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
+			ProgressLocation: extHostTypes.ProgressLocation,
+			TreeItemCollapsibleState: extHostTypes.TreeItemCollapsibleState,
+			ThemeColor: extHostTypes.ThemeColor,
 			// functions
-			FileLocationKind: extHostTypes.FileLocationKind,
-			ApplyToKind: extHostTypes.ApplyToKind,
 			RevealKind: extHostTypes.RevealKind,
 			TaskGroup: extHostTypes.TaskGroup,
 			ShellTask: extHostTypes.ShellTask,

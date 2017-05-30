@@ -36,9 +36,6 @@ export class LineDecoder {
 		}
 		let start = 0;
 		let ch: number;
-		while (start < value.length && ((ch = value.charCodeAt(start)) === CharCode.CarriageReturn || ch === CharCode.LineFeed)) {
-			start++;
-		}
 		let idx = start;
 		while (idx < value.length) {
 			ch = value.charCodeAt(idx);

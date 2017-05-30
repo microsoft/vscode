@@ -34,6 +34,7 @@
 	"editConditionalBreakpoint": "Haltepunkt bearbeiten...",
 	"setValue": "Wert festlegen",
 	"addWatchExpression": "Ausdruck hinzufügen",
+	"editWatchExpression": "Ausdruck bearbeiten",
 	"addToWatchExpressions": "Zur Überwachung hinzufügen",
 	"removeWatchExpression": "Ausdruck entfernen",
 	"removeAllWatchExpressions": "Alle Ausdrücke entfernen",

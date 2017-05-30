@@ -201,7 +201,9 @@ declare module 'vscode' {
 		 * Get a word-range at the given position. By default words are defined by
 		 * common separators, like space, -, _, etc. In addition, per languge custom
 		 * [word definitions](#LanguageConfiguration.wordPattern) can be defined. It
-		 * is also possible to provide a custom regular expression.
+		 * is also possible to provide a custom regular expression. *Note* that a
+		 * custom regular expression must not match the empty string and that it will
+		 * be ignored if it does.
 		 *
 		 * The position will be [adjusted](#TextDocument.validatePosition).
 		 *
@@ -732,6 +734,19 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A reference to one of the workbench colors as defined in https://code.visualstudio.com/docs/getstarted/theme-color-reference.
+	 * Using a theme color is preferred over a custom color as it gives theme authors and users the possibility to change the color.
+	 */
+	export class ThemeColor {
+
+		/**
+		 * Creates a reference to a theme color.
+		 * @param id of the color. The available colors are listed in https://code.visualstudio.com/docs/getstarted/theme-color-reference.
+		 */
+		constructor(id: string);
+	}
+
+	/**
 	 * Represents theme specific rendering styles for a [text editor decoration](#TextEditorDecorationType).
 	 */
 	export interface ThemableDecorationRenderOptions {
@@ -743,8 +758,9 @@ declare module 'vscode' {
 
 		/**
 		 * Background color of the decoration. Use rgba() and define transparent background colors to play well with other decorations.
+		 * Alternativly a color from the color registry an be [referenced](#ColorIdentifier).
 		 */
-		backgroundColor?: string;
+		backgroundColor?: string | ThemeColor;
 
 		/**
 		 * CSS styling property that will be applied to text enclosed by a decoration.
@@ -755,7 +771,7 @@ declare module 'vscode' {
 		 * CSS styling property that will be applied to text enclosed by a decoration.
 		 * Better use 'outline' for setting one or more of the individual outline properties.
 		 */
-		outlineColor?: string;
+		outlineColor?: string | ThemeColor;
 
 		/**
 		 * CSS styling property that will be applied to text enclosed by a decoration.
@@ -778,7 +794,7 @@ declare module 'vscode' {
 		 * CSS styling property that will be applied to text enclosed by a decoration.
 		 * Better use 'border' for setting one or more of the individual border properties.
 		 */
-		borderColor?: string;
+		borderColor?: string | ThemeColor;
 
 		/**
 		 * CSS styling property that will be applied to text enclosed by a decoration.
@@ -817,7 +833,7 @@ declare module 'vscode' {
 		/**
 		 * CSS styling property that will be applied to text enclosed by a decoration.
 		 */
-		color?: string;
+		color?: string | ThemeColor;
 
 		/**
 		 * CSS styling property that will be applied to text enclosed by a decoration.
@@ -839,7 +855,7 @@ declare module 'vscode' {
 		/**
 		 * The color of the decoration in the overview ruler. Use rgba() and define transparent colors to play well with other decorations.
 		 */
-		overviewRulerColor?: string;
+		overviewRulerColor?: string | ThemeColor;
 
 		/**
 		 * Defines the rendering options of the attachment that is inserted before the decorated text
@@ -867,17 +883,21 @@ declare module 'vscode' {
 		 */
 		border?: string;
 		/**
+		 * CSS styling property that will be applied to text enclosed by a decoration.
+		 */
+		borderColor?: string | ThemeColor;
+		/**
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */
 		textDecoration?: string;
 		/**
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */
-		color?: string;
+		color?: string | ThemeColor;
 		/**
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */
-		backgroundColor?: string;
+		backgroundColor?: string | ThemeColor;
 		/**
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */
@@ -1395,7 +1415,7 @@ declare module 'vscode' {
 		 * Provide textual content for a given uri.
 		 *
 		 * The editor will use the returned string-content to create a readonly
-		 * [document](TextDocument). Resources allocated should be released when
+		 * [document](#TextDocument). Resources allocated should be released when
 		 * the corresponding document has been [closed](#workspace.onDidCloseTextDocument).
 		 *
 		 * @param uri An uri which scheme matches the scheme this provider was [registered](#workspace.registerTextDocumentContentProvider) for.
@@ -3299,7 +3319,7 @@ declare module 'vscode' {
 		/**
 		 * The foreground color for this entry.
 		 */
-		color: string | undefined;
+		color: string | ThemeColor | undefined;
 
 		/**
 		 * The identifier of a command to run on click. The command must be
@@ -3503,6 +3523,328 @@ declare module 'vscode' {
 		 * @param value A value. MUST not contain cyclic references.
 		 */
 		update(key: string, value: any): Thenable<void>;
+	}
+
+	/**
+	 * Controls the behaviour of the terminal's visibility.
+	 */
+	export enum RevealKind {
+		/**
+		 * Always brings the terminal to front if the task is executed.
+		 */
+		Always = 1,
+
+		/**
+		 * Only brings the terminal to front if a problem is detected executing the task
+		 * (e.g. the task couldn't be started because).
+		 */
+		Silent = 2,
+
+		/**
+		 * The terminal never comes to front when the task is executed.
+		 */
+		Never = 3
+	}
+
+	/**
+	 * Controls terminal specific behaviour.
+	 */
+	export interface TerminalBehaviour {
+		/**
+		 * Controls whether the terminal executing a task is brought to front or not.
+		 * Defaults to `RevealKind.Always`.
+		 */
+		reveal?: RevealKind;
+
+		/**
+		 * Controls whether the command is echoed in the terminal or not.
+		 */
+		echo?: boolean;
+	}
+
+	export interface ProcessOptions {
+		/**
+		 * The current working directory of the executed program or shell.
+		 * If omitted VSCode's current workspace root is used.
+		 */
+		cwd?: string;
+
+		/**
+		 * The additional environment of the executed program or shell. If omitted
+		 * the parent process' environment is used. If provided it is merged with
+		 * the parent process' environment.
+		 */
+		env?: { [key: string]: string };
+	}
+
+	export namespace TaskGroup {
+		/**
+		 * The clean task group
+		 */
+		export const Clean: 'clean';
+		/**
+		 * The build task group
+		 */
+		export const Build: 'build';
+		/**
+		 * The rebuild all task group
+		 */
+		export const RebuildAll: 'rebuildAll';
+		/**
+		 * The test task group
+		 */
+		export const Test: 'test';
+	}
+
+	/**
+	 * The ProblemMatchers type definition.
+	 */
+	export type ProblemMatchers = string | string[];
+
+	/**
+	 * A task that starts an external process.
+	 */
+	export class ProcessTask {
+
+		/**
+		 * Creates a process task.
+		 *
+		 * @param name the task's name. Is presented in the user interface.
+		 * @param process the process to start.
+		 * @param problemMatchers the problem matchers to use.
+		 */
+		constructor(name: string, process: string, problemMatchers?: ProblemMatchers);
+
+		/**
+		 * Creates a process task.
+		 *
+		 * @param name the task's name. Is presented in the user interface.
+		 * @param process the process to start.
+		 * @param args arguments to be passed to the process.
+		 * @param problemMatchers the problem matchers to use.
+		 */
+		constructor(name: string, process: string, args: string[], problemMatchers?: ProblemMatchers);
+
+		/**
+		 * Creates a process task.
+		 *
+		 * @param name the task's name. Is presented in the user interface.
+		 * @param process the process to start.
+		 * @param args arguments to be passed to the process.
+		 * @param options additional options for the started process.
+		 * @param problemMatchers the problem matchers to use.
+		 */
+		constructor(name: string, process: string, args: string[], options: ProcessOptions, problemMatchers?: ProblemMatchers);
+
+		/**
+		 * The task's name
+		 */
+		readonly name: string;
+
+		/**
+		 * The task's identifier. If omitted the internal identifier will
+		 * be `${extensionName}:${name}`
+		 */
+		identifier: string | undefined;
+
+		/**
+		 * Whether the task is a background task or not.
+		 */
+		isBackground: boolean;
+
+		/**
+		 * The process to be executed.
+		 */
+		readonly process: string;
+
+		/**
+		 * The arguments passed to the process. Defaults to an empty array.
+		 */
+		args: string[];
+
+		/**
+		 * A human-readable string describing the source of this
+		 * shell task, e.g. 'gulp' or 'npm'.
+		 */
+		source: string | undefined;
+
+		/**
+		 * The task group this tasks belongs to. See TaskGroup
+		 * for a predefined set of available groups.
+		 * Defaults to undefined meaning that the task doesn't
+		 * belong to any special group.
+		 */
+		group: string | undefined;
+
+		/**
+		 * The process options used when the process is executed.
+		 * Defaults to an empty object literal.
+		 */
+		options: ProcessOptions;
+
+		/**
+		 * The terminal options. Defaults to an empty object literal.
+		 */
+		terminal: TerminalBehaviour;
+
+		/**
+		 * The problem matchers attached to the task. Defaults to an empty
+		 * array.
+		 */
+		problemMatchers: string[];
+	}
+
+	export type ShellOptions = {
+		/**
+		 * The shell executable.
+		 */
+		executable: string;
+
+		/**
+		 * The arguments to be passed to the shell executable used to run the task.
+		 */
+		shellArgs?: string[];
+
+		/**
+		 * The current working directory of the executed shell.
+		 * If omitted VSCode's current workspace root is used.
+		 */
+		cwd?: string;
+
+		/**
+		 * The additional environment of the executed shell. If omitted
+		 * the parent process' environment is used. If provided it is merged with
+		 * the parent process' environment.
+		 */
+		env?: { [key: string]: string };
+	} | {
+			/**
+			 * The current working directory of the executed shell.
+			 * If omitted VSCode's current workspace root is used.
+			 */
+			cwd: string;
+
+			/**
+			 * The additional environment of the executed shell. If omitted
+			 * the parent process' environment is used. If provided it is merged with
+			 * the parent process' environment.
+			 */
+			env?: { [key: string]: string };
+		} | {
+			/**
+			 * The current working directory of the executed shell.
+			 * If omitted VSCode's current workspace root is used.
+			 */
+			cwd?: string;
+
+			/**
+			 * The additional environment of the executed shell. If omitted
+			 * the parent process' environment is used. If provided it is merged with
+			 * the parent process' environment.
+			 */
+			env: { [key: string]: string };
+		};
+
+	/**
+	 * A task that executes a shell command.
+	 */
+	export class ShellTask {
+
+		/**
+		 * Creates a shell task.
+		 *
+		 * @param name the task's name. Is presented in the user interface.
+		 * @param commandLine the command line to execute.
+		 * @param problemMatchers the problem matchers to use.
+		 */
+		constructor(name: string, commandLine: string, problemMatchers?: ProblemMatchers);
+
+		/**
+		 * Creates a shell task.
+		 *
+		 * @param name the task's name. Is presented in the user interface.
+		 * @param commandLine the command line to execute.
+		 * @param options additional options used when creating the shell.
+		 * @param problemMatchers the problem matchers to use.
+		 */
+		constructor(name: string, commandLine: string, options: ShellOptions, problemMatchers?: ProblemMatchers);
+
+		/**
+		 * The task's name
+		 */
+		readonly name: string;
+
+		/**
+		 * The task's identifier. If omitted the internal identifier will
+		 * be `${extensionName}:${name}`
+		 */
+		identifier: string | undefined;
+
+		/**
+		 * Whether the task is a background task or not.
+		 */
+		isBackground: boolean;
+
+		/**
+		 * The command line to execute.
+		 */
+		readonly commandLine: string;
+
+		/**
+		 * A human-readable string describing the source of this
+		 * shell task, e.g. 'gulp' or 'npm'.
+		 */
+		source: string | undefined;
+
+		/**
+		 * The task group this tasks belongs to. See TaskGroup
+		 * for a predefined set of available groups.
+		 * Defaults to undefined meaning that the task doesn't
+		 * belong to any special group.
+		 */
+		group: string | undefined;
+
+		/**
+		 * The shell options used when the shell is executed. Defaults to an
+		 * empty object literal.
+		 */
+		options: ShellOptions;
+
+		/**
+		 * The terminal options. Defaults to an empty object literal.
+		 */
+		terminal: TerminalBehaviour;
+
+		/**
+		 * The problem matchers attached to the task. Defaults to an empty
+		 * array.
+		 */
+		problemMatchers: string[];
+	}
+
+	export type Task = ProcessTask | ShellTask;
+
+	/**
+	 * A task provider allows to add tasks to the task service.
+	 * A task provider is registerd via #workspace.registerTaskProvider.
+	 */
+	export interface TaskProvider {
+		/**
+		 * Provides additional tasks.
+		 * @param token A cancellation token.
+		 * @return a #TaskSet
+		 */
+		provideTasks(token: CancellationToken): ProviderResult<Task[]>;
+	}
+
+	export namespace workspace {
+		/**
+		 * Register a task provider.
+		 *
+		 * @param provider A task provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerTaskProvider(provider: TaskProvider): Disposable;
 	}
 
 	/**
@@ -4156,6 +4498,8 @@ declare module 'vscode' {
 		 * A glob pattern that filters the file events must be provided. Optionally, flags to ignore certain
 		 * kinds of events can be provided. To stop listening to events the watcher must be disposed.
 		 *
+		 * *Note* that only files within the current [workspace](#workspace.rootPath) can be watched.
+		 *
 		 * @param globPattern A glob pattern that is applied to the names of created, changed, and deleted files.
 		 * @param ignoreCreateEvents Ignore when files have been created.
 		 * @param ignoreChangeEvents Ignore when files have been changed.
@@ -4751,7 +5095,7 @@ declare module 'vscode' {
 		/**
 		 * The label of this source control resource group.
 		 */
-		readonly label: string;
+		label: string;
 
 		/**
 		 * Whether this source control resource group is hidden when it contains

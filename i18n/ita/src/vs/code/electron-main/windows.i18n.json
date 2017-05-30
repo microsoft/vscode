@@ -7,7 +7,6 @@
 	"ok": "OK",
 	"pathNotExistTitle": "Il percorso non esiste",
 	"pathNotExistDetail": "Il percorso '{0}' sembra non esistere più sul disco.",
-	"accessibilityOptionsWindowTitle": "Opzioni accessibilità",
 	"reopen": "Riapri",
 	"wait": "Continua ad attendere",
 	"close": "Chiudi",

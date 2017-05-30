@@ -8,5 +8,7 @@
 	"showRecommendations": "Mostra gli elementi consigliati",
 	"neverShowAgain": "Non visualizzare più questo messaggio",
 	"close": "Chiudi",
-	"workspaceRecommended": "Per questa area di lavoro sono disponibili estensioni consigliate."
+	"workspaceRecommended": "Per questa area di lavoro sono disponibili estensioni consigliate.",
+	"no": "No",
+	"cancel": "Annulla"
 }

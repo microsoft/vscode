@@ -207,54 +207,74 @@ export function registerCommands(): void {
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: ListFocusContext,
 		primary: KeyCode.Home,
-		handler: (accessor) => {
-			const listService = accessor.get(IListService);
-			const focused = listService.getFocused();
-
-			// List
-			if (focused instanceof List) {
-				const list = focused;
-
-				list.setFocus([0]);
-				list.reveal(0);
-			}
-
-			// Tree
-			else if (focused) {
-				const tree = focused;
-
-				tree.focusFirst({ origin: 'keyboard' });
-				tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
-			}
-		}
+		handler: accessor => listFocusFirst(accessor)
 	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: 'list.focusFirstChild',
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: ListFocusContext,
+		primary: null,
+		handler: accessor => listFocusFirst(accessor, { fromFocused: true })
+	});
+
+	function listFocusFirst(accessor: ServicesAccessor, options?: { fromFocused: boolean }): void {
+		const listService = accessor.get(IListService);
+		const focused = listService.getFocused();
+
+		// List
+		if (focused instanceof List) {
+			const list = focused;
+
+			list.setFocus([0]);
+			list.reveal(0);
+		}
+
+		// Tree
+		else if (focused) {
+			const tree = focused;
+
+			tree.focusFirst({ origin: 'keyboard' }, options && options.fromFocused ? tree.getFocus() : void 0);
+			tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+		}
+	}
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'list.focusLast',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: ListFocusContext,
 		primary: KeyCode.End,
-		handler: (accessor) => {
-			const listService = accessor.get(IListService);
-			const focused = listService.getFocused();
-
-			// List
-			if (focused instanceof List) {
-				const list = focused;
-
-				list.setFocus([list.length - 1]);
-				list.reveal(list.length - 1);
-			}
-
-			// Tree
-			else if (focused) {
-				const tree = focused;
-
-				tree.focusLast({ origin: 'keyboard' });
-				tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
-			}
-		}
+		handler: accessor => listFocusLast(accessor)
 	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: 'list.focusLastChild',
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: ListFocusContext,
+		primary: null,
+		handler: accessor => listFocusLast(accessor, { fromFocused: true })
+	});
+
+	function listFocusLast(accessor: ServicesAccessor, options?: { fromFocused: boolean }): void {
+		const listService = accessor.get(IListService);
+		const focused = listService.getFocused();
+
+		// List
+		if (focused instanceof List) {
+			const list = focused;
+
+			list.setFocus([list.length - 1]);
+			list.reveal(list.length - 1);
+		}
+
+		// Tree
+		else if (focused) {
+			const tree = focused;
+
+			tree.focusLast({ origin: 'keyboard' }, options && options.fromFocused ? tree.getFocus() : void 0);
+			tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+		}
+	}
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'list.select',

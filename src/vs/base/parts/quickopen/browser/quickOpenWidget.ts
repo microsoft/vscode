@@ -53,6 +53,7 @@ export interface IQuickOpenStyles extends IInputBoxStyles, ITreeStyles {
 	pickerGroupForeground?: Color;
 	pickerGroupBorder?: Color;
 	widgetShadow?: Color;
+	progressBarBackground?: Color;
 }
 
 export interface IShowOptions {
@@ -86,7 +87,8 @@ const defaultStyles = {
 	foreground: Color.fromHex('#CCCCCC'),
 	pickerGroupForeground: Color.fromHex('#0097FB'),
 	pickerGroupBorder: Color.fromHex('#3F3F46'),
-	widgetShadow: Color.fromHex('#000000')
+	widgetShadow: Color.fromHex('#000000'),
+	progressBarBackground: Color.fromHex('#0E70C0')
 };
 
 const DEFAULT_INPUT_ARIA_LABEL = nls.localize('quickOpenAriaLabel', "Quick picker. Type to narrow down results.");
@@ -159,7 +161,7 @@ export class QuickOpenWidget implements IModelProvider {
 				.on(DOM.EventType.BLUR, (e: Event) => this.loosingFocus(e), null, true);
 
 			// Progress Bar
-			this.progressBar = new ProgressBar(div.clone());
+			this.progressBar = new ProgressBar(div.clone(), { progressBarBackground: this.styles.progressBarBackground });
 			this.progressBar.getContainer().hide();
 
 			// Input Field
@@ -279,11 +281,12 @@ export class QuickOpenWidget implements IModelProvider {
 					// Select element when keys are pressed that signal it
 					const quickNavKeys = this.quickNavigateConfiguration.keybindings;
 					const wasTriggerKeyPressed = keyCode === KeyCode.Enter || quickNavKeys.some((k) => {
-						if (k.isChord()) {
+						const [firstPart, chordPart] = k.getParts();
+						if (chordPart) {
 							return false;
 						}
 
-						if (k.hasShiftModifier() && keyCode === KeyCode.Shift) {
+						if (firstPart.shiftKey && keyCode === KeyCode.Shift) {
 							if (keyboardEvent.ctrlKey || keyboardEvent.altKey || keyboardEvent.metaKey) {
 								return false; // this is an optimistic check for the shift key being used to navigate back in quick open
 							}
@@ -291,15 +294,15 @@ export class QuickOpenWidget implements IModelProvider {
 							return true;
 						}
 
-						if (k.hasAltModifier() && keyCode === KeyCode.Alt) {
+						if (firstPart.altKey && keyCode === KeyCode.Alt) {
 							return true;
 						}
 
-						if (k.hasCtrlModifier() && keyCode === KeyCode.Ctrl) {
+						if (firstPart.ctrlKey && keyCode === KeyCode.Ctrl) {
 							return true;
 						}
 
-						if (k.hasMetaModifier() && keyCode === KeyCode.Meta) {
+						if (firstPart.metaKey && keyCode === KeyCode.Meta) {
 							return true;
 						}
 
@@ -346,9 +349,15 @@ export class QuickOpenWidget implements IModelProvider {
 			this.builder.style('color', foreground);
 			this.builder.style('background-color', background);
 			this.builder.style('border-color', borderColor);
-			this.builder.style('border-width', borderColor ? '2px' : null);
+			this.builder.style('border-width', borderColor ? '1px' : null);
 			this.builder.style('border-style', borderColor ? 'solid' : null);
 			this.builder.style('box-shadow', widgetShadow ? `0 5px 8px ${widgetShadow}` : null);
+		}
+
+		if (this.progressBar) {
+			this.progressBar.style({
+				progressBarBackground: this.styles.progressBarBackground
+			});
 		}
 
 		if (this.inputBox) {

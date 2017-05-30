@@ -4,34 +4,6 @@
 		{
 			"type": "node",
 			"request": "launch",
-			"name": "Unit Tests",
-			"protocol": "legacy",
-			"program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
-			"runtimeExecutable": "${workspaceRoot}/.build/electron/Code - OSS.app/Contents/MacOS/Electron",
-			"windows": {
-				"runtimeExecutable": "${workspaceRoot}/.build/electron/Code - OSS.exe"
-			},
-			"linux": {
-				"runtimeExecutable": "${workspaceRoot}/.build/electron/code-oss"
-			},
-			"stopOnEntry": false,
-			"args": [
-				"--timeout",
-				"2000"
-			],
-			"cwd": "${workspaceRoot}",
-			"env": {
-				"ELECTRON_RUN_AS_NODE": "true"
-			},
-			"sourceMaps": true,
-			"outFiles": [
-				"${workspaceRoot}/out/**/*.js"
-			],
-			"preLaunchTask": "electron"
-		},
-		{
-			"type": "node",
-			"request": "launch",
 			"name": "Gulp Build",
 			"program": "${workspaceRoot}/node_modules/gulp/bin/gulp.js",
 			"stopOnEntry": true,
@@ -46,7 +18,6 @@
 			"name": "Attach to Extension Host",
 			"protocol": "legacy",
 			"port": 5870,
-			"sourceMaps": true,
 			"restart": true,
 			"outFiles": [
 				"${workspaceRoot}/out/**/*.js"
@@ -58,7 +29,6 @@
 			"name": "Attach to Shared Process",
 			"protocol": "legacy",
 			"port": 5871,
-			"sourceMaps": true,
 			"outFiles": [
 				"${workspaceRoot}/out/**/*.js"
 			]
@@ -69,7 +39,6 @@
 			"protocol": "legacy",
 			"name": "Attach to Search process",
 			"port": 7890,
-			"sourceMaps": true,
 			"outFiles": [
 				"${workspaceRoot}/out/**/*.js"
 			]
@@ -80,7 +49,6 @@
 			"name": "Attach to CLI Process",
 			"protocol": "legacy",
 			"port": 5874,
-			"sourceMaps": true,
 			"outFiles": [
 				"${workspaceRoot}/out/**/*.js"
 			]
@@ -91,7 +59,6 @@
 			"name": "Attach to Main Process",
 			"protocol": "legacy",
 			"port": 5875,
-			"sourceMaps": true,
 			"outFiles": [
 				"${workspaceRoot}/out/**/*.js"
 			]
@@ -106,7 +73,6 @@
 				"--extensionDevelopmentPath=${workspaceRoot}/extensions/vscode-api-tests",
 				"--extensionTestsPath=${workspaceRoot}/extensions/vscode-api-tests/out"
 			],
-			"sourceMaps": true,
 			"outFiles": [
 				"${workspaceRoot}/out/**/*.js"
 			]
@@ -121,7 +87,6 @@
 				"--extensionDevelopmentPath=${workspaceRoot}/extensions/vscode-colorize-tests",
 				"--extensionTestsPath=${workspaceRoot}/extensions/vscode-colorize-tests/out"
 			],
-			"sourceMaps": true,
 			"outFiles": [
 				"${workspaceRoot}/out/**/*.js"
 			]
@@ -159,9 +124,44 @@
 			"program": "${workspaceRoot}/extensions/git/node_modules/mocha/bin/_mocha",
 			"stopOnEntry": false,
 			"cwd": "${workspaceRoot}/extensions/git",
-			"sourceMaps": true,
 			"outFiles": [
 				"${workspaceRoot}/extensions/git/out/**/*.js"
+			]
+		},
+		{
+			"name": "Attach to TS Server",
+			"type": "node",
+			"request": "attach",
+			"port": 5859,
+			"protocol": "legacy",
+			"outFiles": [
+				"${workspaceRoot}/extensions/node_modules/typescript/lib/**/*.js"
+			]
+		},
+		{
+			"type": "node",
+			"request": "launch",
+			"name": "Unit Tests",
+			"protocol": "legacy",
+			"program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
+			"runtimeExecutable": "${workspaceRoot}/.build/electron/Code - OSS.app/Contents/MacOS/Electron",
+			"windows": {
+				"runtimeExecutable": "${workspaceRoot}/.build/electron/Code - OSS.exe"
+			},
+			"linux": {
+				"runtimeExecutable": "${workspaceRoot}/.build/electron/code-oss"
+			},
+			"stopOnEntry": false,
+			"args": [
+				"--timeout",
+				"2000"
+			],
+			"cwd": "${workspaceRoot}",
+			"env": {
+				"ELECTRON_RUN_AS_NODE": "true"
+			},
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
 			]
 		}
 	],

@@ -44,6 +44,8 @@
 	"openPreviousRecentlyUsedEditorInGroup": "그룹에서 최근에 사용한 이전 편집기 열기",
 	"openNextRecentlyUsedEditorInGroup": "그룹에서 최근에 사용한 다음 편집기 열기",
 	"navigateEditorHistoryByInput": "기록에서 이전 편집기 열기",
+	"openNextRecentlyUsedEditor": "최근에 사용한 다음 편집기 열기",
+	"openPreviousRecentlyUsedEditor": "최근에 사용한 이전 편집기 열기",
 	"clearEditorHistory": "편집기 기록 지우기",
 	"focusLastEditorInStack": "그룹의 마지막 편집기 열기",
 	"moveEditorLeft": "왼쪽으로 편집기 이동",

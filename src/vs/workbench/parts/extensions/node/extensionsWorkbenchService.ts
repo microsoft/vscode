@@ -26,6 +26,7 @@ import {
 import { getGalleryExtensionIdFromLocal, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
@@ -308,12 +309,15 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	private _onChange: Emitter<void> = new Emitter<void>();
 	get onChange(): Event<void> { return this._onChange.event; }
 
+	private _isAutoUpdateEnabled: boolean;
+
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IExtensionManagementService private extensionService: IExtensionManagementService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
 		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IMessageService private messageService: IMessageService,
 		@IChoiceService private choiceService: IChoiceService,
@@ -336,6 +340,17 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		chain(urlService.onOpenURL)
 			.filter(uri => /^extension/.test(uri.path))
 			.on(this.onOpenExtensionUrl, this, this.disposables);
+
+		this._isAutoUpdateEnabled = this.configurationService.getConfiguration<IExtensionsConfiguration>(ConfigurationKey).autoUpdate;
+		this.configurationService.onDidUpdateConfiguration(() => {
+			const isAutoUpdateEnabled = this.configurationService.getConfiguration<IExtensionsConfiguration>(ConfigurationKey).autoUpdate;
+			if (this._isAutoUpdateEnabled !== isAutoUpdateEnabled) {
+				this._isAutoUpdateEnabled = isAutoUpdateEnabled;
+				if (this._isAutoUpdateEnabled) {
+					this.checkForUpdates();
+				}
+			}
+		}, this, this.disposables);
 
 		this.queryLocal().done(() => this.eventuallySyncWithGallery(true));
 	}
@@ -426,6 +441,17 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		return this.syncDelayer.trigger(() => this.syncWithGallery(), 0);
 	}
 
+	get isAutoUpdateEnabled(): boolean {
+		return this._isAutoUpdateEnabled;
+	}
+
+	setAutoUpdate(autoUpdate: boolean): TPromise<void> {
+		if (this.isAutoUpdateEnabled === autoUpdate) {
+			return TPromise.as(null);
+		}
+		return this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: 'extensions.autoUpdate', value: autoUpdate });
+	}
+
 	private eventuallySyncWithGallery(immediate = false): void {
 		const loop = () => this.syncWithGallery().then(() => this.eventuallySyncWithGallery());
 		const delay = immediate ? 0 : ExtensionsWorkbenchService.SyncPeriod;
@@ -452,9 +478,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	private autoUpdateExtensions(): TPromise<any> {
-		const config = this.configurationService.getConfiguration<IExtensionsConfiguration>(ConfigurationKey);
-
-		if (!config.autoUpdate) {
+		if (!this.isAutoUpdateEnabled) {
 			return TPromise.as(null);
 		}
 

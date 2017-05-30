@@ -58,7 +58,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorService private _editorService: IEditorService,
-		@ITextModelResolverService private _textModelResolverService,
+		@ITextModelResolverService private _textModelResolverService: ITextModelResolverService,
 		@ITelemetryService private _telemetryService: ITelemetryService,
 		@IMessageService private _messageService: IMessageService,
 		@IInstantiationService private _instantiationService: IInstantiationService,

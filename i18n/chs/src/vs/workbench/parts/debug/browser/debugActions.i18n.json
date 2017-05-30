@@ -6,6 +6,7 @@
 {
 	"openLaunchJson": "打开 {0}",
 	"launchJsonNeedsConfigurtion": "配置或修复 \"launch.json\"",
+	"noFolderDebugConfig": "请先打开一个文件夹以进行高级调试配置。",
 	"startDebug": "开始调试",
 	"startWithoutDebugging": "开始执行(不调试)",
 	"selectAndStartDebugging": "选择并开始调试",
@@ -34,6 +35,7 @@
 	"editConditionalBreakpoint": "编辑断点...",
 	"setValue": "设置值",
 	"addWatchExpression": "添加表达式",
+	"editWatchExpression": "编辑表达式",
 	"addToWatchExpressions": "添加到监视",
 	"removeWatchExpression": "删除表达式",
 	"removeAllWatchExpressions": "删除所有表达式",

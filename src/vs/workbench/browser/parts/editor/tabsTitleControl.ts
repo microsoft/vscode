@@ -40,7 +40,7 @@ import { LinkedMap } from 'vs/base/common/map';
 import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
+import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { activeContrastBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 interface IEditorInputLabel {
@@ -212,23 +212,23 @@ export class TabsTitleControl extends TitleControl {
 
 	private updateDropFeedback(element: HTMLElement, isDND: boolean, index?: number): void {
 		const isTab = (typeof index === 'number');
-		const isActiveTab = isTab && this.context.isActive(this.context.getEditor(index));
+		const isActiveTab = isTab && this.context && this.context.isActive(this.context.getEditor(index));
 
 		// Background
 		const noDNDBackgroundColor = isTab ? this.getColor(isActiveTab ? TAB_ACTIVE_BACKGROUND : TAB_INACTIVE_BACKGROUND) : null;
 		element.style.backgroundColor = isDND ? this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND) : noDNDBackgroundColor;
 
 		// Outline
-		const hcOutline = this.getColor(activeContrastBorder);
-		if (hcOutline && isDND) {
+		const activeContrastBorderColor = this.getColor(activeContrastBorder);
+		if (activeContrastBorderColor && isDND) {
 			element.style.outlineWidth = '2px';
 			element.style.outlineStyle = 'dashed';
-			element.style.outlineColor = hcOutline;
+			element.style.outlineColor = activeContrastBorderColor;
 			element.style.outlineOffset = isTab ? '-5px' : '-3px';
 		} else {
 			element.style.outlineWidth = null;
 			element.style.outlineStyle = null;
-			element.style.outlineColor = hcOutline;
+			element.style.outlineColor = activeContrastBorderColor;
 			element.style.outlineOffset = null;
 		}
 	}
@@ -272,8 +272,8 @@ export class TabsTitleControl extends TitleControl {
 				// Container
 				tabContainer.setAttribute('aria-label', `${name}, tab`);
 				tabContainer.title = title;
-				tabContainer.style.borderLeftColor = (index !== 0) ? (this.getColor(contrastBorder) || this.getColor(TAB_BORDER)) : null;
-				tabContainer.style.borderRightColor = (index === editorsOfGroup.length - 1) ? (this.getColor(contrastBorder) || this.getColor(TAB_BORDER)) : null;
+				tabContainer.style.borderLeftColor = (index !== 0) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;;
+				tabContainer.style.borderRightColor = (index === editorsOfGroup.length - 1) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;;
 				tabContainer.style.outlineColor = this.getColor(activeContrastBorder);
 
 				const tabOptions = this.editorGroupService.getTabOptions();
@@ -291,38 +291,14 @@ export class TabsTitleControl extends TitleControl {
 					DOM.addClass(tabContainer, 'active');
 					tabContainer.setAttribute('aria-selected', 'true');
 					tabContainer.style.backgroundColor = this.getColor(TAB_ACTIVE_BACKGROUND);
-					tabLabel.element.style.color = this.getColor(TAB_ACTIVE_FOREGROUND, (color, theme) => {
-						if (!isGroupActive) {
-							if (theme.type === 'dark') {
-								return color.transparent(0.5);
-							}
-
-							if (theme.type === 'light') {
-								return color.transparent(0.7);
-							}
-						}
-
-						return color;
-					});
+					tabLabel.element.style.color = this.getColor(isGroupActive ? TAB_ACTIVE_FOREGROUND : TAB_UNFOCUSED_ACTIVE_FOREGROUND);
 
 					this.activeTab = tabContainer;
 				} else {
 					DOM.removeClass(tabContainer, 'active');
 					tabContainer.setAttribute('aria-selected', 'false');
 					tabContainer.style.backgroundColor = this.getColor(TAB_INACTIVE_BACKGROUND);
-					tabLabel.element.style.color = this.getColor(TAB_INACTIVE_FOREGROUND, (color, theme) => {
-						if (!isGroupActive) {
-							if (theme.type === 'dark') {
-								return color.transparent(0.5).transparent(0.5);
-							}
-
-							if (theme.type === 'light') {
-								return color.transparent(0.7).transparent(0.5);
-							}
-						}
-
-						return color;
-					});
+					tabLabel.element.style.color = this.getColor(isGroupActive ? TAB_INACTIVE_FOREGROUND : TAB_UNFOCUSED_INACTIVE_FOREGROUND);
 				}
 
 				// Dirty State
@@ -763,8 +739,8 @@ class TabActionRunner extends ActionRunner {
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 	// Styling with Outline color (e.g. high contrast theme)
-	const outline = theme.getColor(activeContrastBorder);
-	if (outline) {
+	const activeContrastBorderColor = theme.getColor(activeContrastBorder);
+	if (activeContrastBorderColor) {
 		collector.addRule(`
 			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active,
 			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:hover  {

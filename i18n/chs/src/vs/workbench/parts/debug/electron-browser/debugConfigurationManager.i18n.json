@@ -24,7 +24,7 @@
 	"vscode.extension.contributes.debuggers.osx.runtime": "用于 OSX 的运行时。",
 	"vscode.extension.contributes.debuggers.linux": "Linux 特定的设置。",
 	"vscode.extension.contributes.debuggers.linux.runtime": "用于 Linux 的运行时。",
-	"vscode.extension.contributes.breakpoints": "贡献断电。",
+	"vscode.extension.contributes.breakpoints": "添加断点。",
 	"vscode.extension.contributes.breakpoints.language": "对此语言允许断点。",
 	"app.launch.json.title": "启动",
 	"app.launch.json.version": "此文件格式的版本。",

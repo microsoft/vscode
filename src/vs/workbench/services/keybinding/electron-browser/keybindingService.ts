@@ -126,8 +126,9 @@ export class KeyboardMapperFactory {
 	}
 
 	private static _createKeyboardMapper(isISOKeyboard: boolean, layoutInfo: nativeKeymap.IKeyboardLayoutInfo, rawMapping: nativeKeymap.IKeyboardMapping): IKeyboardMapper {
+		const isUSStandard = KeyboardMapperFactory._isUSStandard(layoutInfo);
 		if (OS === OperatingSystem.Windows) {
-			return new WindowsKeyboardMapper(<IWindowsKeyboardMapping>rawMapping);
+			return new WindowsKeyboardMapper(isUSStandard, <IWindowsKeyboardMapping>rawMapping);
 		}
 
 		if (Object.keys(rawMapping).length === 0) {
@@ -143,7 +144,6 @@ export class KeyboardMapperFactory {
 			}
 		}
 
-		const isUSStandard = KeyboardMapperFactory._isUSStandard(layoutInfo);
 		return new MacLinuxKeyboardMapper(isISOKeyboard, isUSStandard, <IMacLinuxKeyboardMapping>rawMapping, OS);
 	}
 
@@ -266,10 +266,10 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IMessageService private messageService: IMessageService,
+		@IMessageService messageService: IMessageService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IStatusbarService statusBarService: IStatusbarService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(contextKeyService, commandService, messageService, statusBarService);
 

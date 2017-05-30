@@ -32,7 +32,7 @@ import { CollapseAllAction, FilterAction, FilterInputBoxActionItem } from 'vs/wo
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Messages from 'vs/workbench/parts/markers/common/messages';
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
-import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
+import { ContributableActionProvider } from 'vs/workbench/browser/actions';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';

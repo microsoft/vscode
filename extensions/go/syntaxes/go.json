@@ -1,4 +1,9 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/atom/language-go/blob/master/grammars/go.cson",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
 	"scopeName": "source.go",
 	"name": "Go",
 	"comment": "Go language",
@@ -227,7 +232,7 @@
 			]
 		},
 		{
-			"match": "(?<!var)\\s*(\\w+(?:,\\s*\\w+)*)(?=\\s*=(?!=))",
+			"match": "(?<!var)\\s*(\\w+(?:\\.\\w+)?(?:,\\s*\\w+(?:\\.\\w+)?)*)(?=\\s*=(?!=))",
 			"captures": {
 				"1": {
 					"patterns": [
@@ -236,8 +241,17 @@
 							"name": "invalid.illegal.identifier.go"
 						},
 						{
-							"match": "\\w+",
-							"name": "variable.other.assignment.go"
+							"match": "\\w+(?:\\.\\w+)?",
+							"name": "variable.other.assignment.go",
+							"captures": {
+								"0": {
+									"patterns": [
+										{
+											"include": "#delimiters"
+										}
+									]
+								}
+							}
 						},
 						{
 							"include": "#delimiters"
@@ -384,10 +398,10 @@
 					},
 					"patterns": [
 						{
-							"include": "#imports"
+							"include": "#comments"
 						},
 						{
-							"include": "#comments"
+							"include": "#imports"
 						}
 					]
 				}
@@ -538,7 +552,7 @@
 		"variables": {
 			"patterns": [
 				{
-					"match": "(\\w+(?:,\\s*\\w+)*)(\\s+\\*?\\w+\\s*)?(?=\\s*=)",
+					"match": "(\\w+(?:,\\s*\\w+)*)(\\s+\\*?\\w+(?:\\.\\w+)?\\s*)?(?=\\s*=)",
 					"captures": {
 						"1": {
 							"patterns": [
@@ -565,7 +579,7 @@
 					}
 				},
 				{
-					"match": "(\\w+(?:,\\s*\\w+)*)(\\s+(\\[\\d*\\])*\\*?\\w+\\s*[^=].*)",
+					"match": "(\\w+(?:,\\s*\\w+)*)(\\s+(\\[(\\d*|\\.\\.\\.)\\])*\\*?\\w+(?:\\.\\w+)?\\s*[^=].*)",
 					"captures": {
 						"1": {
 							"patterns": [
@@ -606,15 +620,14 @@
 					},
 					"patterns": [
 						{
-							"include": "#variables"
+							"include": "$self"
 						},
 						{
-							"include": "$self"
+							"include": "#variables"
 						}
 					]
 				}
 			]
 		}
-	},
-	"version": "https://github.com/atom/language-go/commit/6de3f61efa8e8afb9ef0d5bc19c797c8469ec9f8"
+	}
 }

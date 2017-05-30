@@ -21,7 +21,7 @@
   },
   "scripts": {
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript ./tsconfig.json",
-    "update-grammars": "node ./build/update-grammars.js"
+    "update-grammar": "node ./build/update-grammars.js"
   },
   "activationEvents": [
     "onLanguage:javascript",
@@ -34,7 +34,8 @@
     "onCommand:typescript.selectTypeScriptVersion",
     "onCommand:javascript.goToProjectConfig",
     "onCommand:typescript.goToProjectConfig",
-    "onCommand:typescript.openTsServerLog"
+    "onCommand:typescript.openTsServerLog",
+    "onCommand:workbench.action.tasks.runTask"
   ],
   "main": "./out/typescriptMain",
   "contributes": {
@@ -107,9 +108,14 @@
           "default": true,
           "description": "%typescript.check.npmIsInstalled%"
         },
-        "typescript.referencesCodeLens.enabled": {
+        "javascript.referencesCodeLens.enabled": {
           "type": "boolean",
           "default": false,
+          "description": "%javascript.referencesCodeLens.enabled%"
+        },
+        "typescript.referencesCodeLens.enabled": {
+          "type": "boolean",
+          "default": true,
           "description": "%typescript.referencesCodeLens.enabled%"
         },
         "typescript.implementationsCodeLens.enabled": {
@@ -302,6 +308,20 @@
           "type": "boolean",
           "default": false,
           "description": "%javascript.implicitProjectConfig.checkJs%"
+        },
+        "javascript.nameSuggestions": {
+          "type": "boolean",
+          "default": true,
+          "description": "%javascript.nameSuggestions%"
+        },
+        "typescript.tsc.autoDetect": {
+          "type": "string",
+          "default": "on",
+          "enum": [
+            "on",
+            "off"
+          ],
+          "description": "%typescript.tsc.autoDetect%"
         }
       }
     },
@@ -334,6 +354,11 @@
       {
         "command": "typescript.openTsServerLog",
         "title": "%typescript.openTsServerLog.title%",
+        "category": "TypeScript"
+      },
+      {
+        "command": "typescript.restartTsServer",
+        "title": "%typescript.restartTsServer%",
         "category": "TypeScript"
       }
     ],

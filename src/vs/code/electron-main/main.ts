@@ -199,4 +199,16 @@ function main() {
 	}).done(null, err => instantiationService.invokeFunction(quit, err));
 }
 
-main();
+// Get going once we are ready
+// TODO@Joh,Joao there more more potential here
+// we should check for other instances etc while
+// waiting for getting ready
+if (app.isReady()) {
+	global.perfAppReady = Date.now();
+	main();
+} else {
+	app.once('ready', () => {
+		global.perfAppReady = Date.now();
+		main();
+	});
+}

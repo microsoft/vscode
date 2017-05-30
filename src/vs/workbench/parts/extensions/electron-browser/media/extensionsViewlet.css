@@ -82,10 +82,11 @@
 .extensions-viewlet > .extensions .extension > .details > .header-container > .header {
 	display: flex;
 	align-items: baseline;
-	flex-wrap: wrap;
+	flex-wrap: nowrap;
 	overflow: hidden;
 	flex: 1;
 	min-width: 0;
+
 }
 
 .extensions-viewlet > .extensions .extension > .details > .header-container > .header > .name {
@@ -122,12 +123,6 @@
 	display: none;
 }
 
-.extensions-viewlet > .extensions .extension > .details > .header-container .extension-status {
-	width: 8px;
-	height: 8px;
-	margin-left: 6px;
-}
-
 .extensions-viewlet > .extensions .extension > .details > .footer {
 	display: flex;
 	justify-content: flex-end;
@@ -155,7 +150,7 @@
 
 .extensions-viewlet > .extensions .extension.disabled > .icon,
 .extensions-viewlet > .extensions .extension.disabled > .details > .header-container,
-.extensions-viewlet > .extensions .extension.disabled > .details > .description,
+.extensions-viewlet > .extensions .extension.disabled > .details > .description
 .extensions-viewlet > .extensions .extension.disabled > .details > .footer > .author {
 	opacity: 0.5;
 }

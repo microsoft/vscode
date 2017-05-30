@@ -71,6 +71,8 @@ export interface ITerminalConfigHelper {
 	 * Merges the default shell path and args into the provided launch configuration
 	 */
 	mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig): void;
+	/** Sets whether a workspace shell configuration is allowed or not */
+	setWorkspaceShellAllowed(isAllowed: boolean): void;
 }
 
 export interface ITerminalFont {
@@ -107,8 +109,10 @@ export interface IShellLaunchConfig {
 	 * shell is being launched by an extension).
 	 */
 	ignoreConfigurationCwd?: boolean;
+
 	/** Whether to wait for a key press before closing the terminal. */
-	waitOnExit?: boolean;
+	waitOnExit?: boolean | string;
+
 	/**
 	 * A string including ANSI escape sequences that will be written to the terminal emulator
 	 * _before_ the terminal process has launched, a trailing \n is added at the end of the string.
@@ -146,6 +150,7 @@ export interface ITerminalService {
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	updateConfig(): void;
 	selectDefaultWindowsShell(): TPromise<string>;
+	setWorkspaceShellAllowed(isAllowed: boolean): void;
 }
 
 export interface ITerminalInstance {

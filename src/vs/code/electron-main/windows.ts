@@ -31,8 +31,7 @@ import product from 'vs/platform/node/product';
 import { OpenContext } from 'vs/code/common/windows';
 import { ITelemetryService, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { isParent, isEqual, isEqualOrParent } from 'vs/platform/files/common/files';
-import * as nativeKeymap from 'native-keymap';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { KeyboardLayoutMonitor } from 'vs/code/node/keyboard';
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -107,7 +106,6 @@ export interface IWindowsMainService {
 	openFileFolderPicker(forceNewWindow?: boolean, data?: ITelemetryData): void;
 	openFilePicker(forceNewWindow?: boolean, path?: string, window?: VSCodeWindow, data?: ITelemetryData): void;
 	openFolderPicker(forceNewWindow?: boolean, window?: VSCodeWindow, data?: ITelemetryData): void;
-	openAccessibilityOptions(): void;
 	focusLastActive(cli: ParsedArgs, context: OpenContext): VSCodeWindow;
 	getLastActiveWindow(): VSCodeWindow;
 	findWindow(workspacePath: string, filePath?: string, extensionDevelopmentPath?: string): VSCodeWindow;
@@ -177,6 +175,11 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	private registerListeners(): void {
+
+		app.on('accessibility-support-changed', (event: Event, accessibilitySupportEnabled: boolean) => {
+			this.sendToAll('vscode:accessibilitySupportChanged', accessibilitySupportEnabled);
+		});
+
 		app.on('activate', (event: Event, hasVisibleWindows: boolean) => {
 			this.logService.log('App#activate');
 
@@ -253,11 +256,8 @@ export class WindowsManager implements IWindowsMainService {
 		this.lifecycleService.onBeforeWindowClose(win => this.onBeforeWindowClose(win));
 		this.lifecycleService.onBeforeQuit(() => this.onBeforeQuit());
 
-		KeyboardLayoutMonitor.INSTANCE.onDidChangeKeyboardLayout((isISOKeyboard: boolean) => {
-			WindowsManager.WINDOWS.forEach((window) => {
-				window.sendWhenReady('vscode:keyboardLayoutChanged', isISOKeyboard);
-			});
-		});
+		// Keyboard layout changes
+		KeyboardLayoutMonitor.INSTANCE.onDidChangeKeyboardLayout(isISOKeyboard => this.sendToAll('vscode:keyboardLayoutChanged', isISOKeyboard));
 	}
 
 	// Note that onBeforeQuit() and onBeforeWindowClose() are fired in different order depending on the OS:
@@ -271,7 +271,7 @@ export class WindowsManager implements IWindowsMainService {
 		const currentWindowsState: IWindowsState = {
 			openedFolders: [],
 			lastPluginDevelopmentHostWindow: this.windowsState.lastPluginDevelopmentHostWindow,
-			lastActiveWindow: this.lastClosedWindowState //will be set on Win/Linux if last window was closed, resulting in an exit
+			lastActiveWindow: this.lastClosedWindowState
 		};
 
 		// 1.) Find a last active window (pick any other first window otherwise)
@@ -333,12 +333,15 @@ export class WindowsManager implements IWindowsMainService {
 
 		// On Windows and Linux closing the last window will trigger quit. Since we are storing all UI state
 		// before quitting, we need to remember the UI state of this window to be able to persist it.
-		if (!platform.isMacintosh && this.getWindowCount() === 1) {
+		// On macOS we keep the last closed window state ready in case the user wants to quit right after or
+		// wants to open another window, in which case we use this state over the persisted one.
+		if (this.getWindowCount() === 1) {
 			this.lastClosedWindowState = state;
 		}
 	}
 
 	private onBroadcast(event: string, payload: any): void {
+
 		// Theme changes
 		if (event === 'vscode:changeColorTheme' && typeof payload === 'string') {
 
@@ -733,7 +736,6 @@ export class WindowsManager implements IWindowsMainService {
 		configuration.filesToCreate = filesToCreate;
 		configuration.filesToDiff = filesToDiff;
 		configuration.nodeCachedDataDir = this.environmentService.nodeCachedDataDir;
-		configuration.isISOKeyboard = KeyboardLayoutMonitor.INSTANCE.isISOKeyboard();
 
 		return configuration;
 	}
@@ -924,8 +926,9 @@ export class WindowsManager implements IWindowsMainService {
 
 		// First Window
 		const lastActive = this.getLastActiveWindow();
-		if (!lastActive && this.windowsState.lastActiveWindow) {
-			return this.windowsState.lastActiveWindow.uiState;
+		const lastActiveState = this.lastClosedWindowState || this.windowsState.lastActiveWindow;
+		if (!lastActive && lastActiveState) {
+			return lastActiveState.uiState;
 		}
 
 		//
@@ -1020,22 +1023,6 @@ export class WindowsManager implements IWindowsMainService {
 
 	public openFolderPicker(forceNewWindow?: boolean, window?: VSCodeWindow, data?: ITelemetryData): void {
 		this.doPickAndOpen({ pickFolders: true, forceNewWindow, window }, 'openFolder', data);
-	}
-
-	public openAccessibilityOptions(): void {
-		let win = new BrowserWindow({
-			alwaysOnTop: true,
-			skipTaskbar: true,
-			resizable: false,
-			width: 450,
-			height: 300,
-			show: true,
-			title: nls.localize('accessibilityOptionsWindowTitle', "Accessibility Options")
-		});
-
-		win.setMenuBarVisibility(false);
-
-		win.loadURL('chrome://accessibility');
 	}
 
 	private doPickAndOpen(options: INativeOpenDialogOptions, eventName: string, data?: ITelemetryData): void {
@@ -1204,6 +1191,10 @@ export class WindowsManager implements IWindowsMainService {
 				detail: nls.localize('appStalledDetail', "You can reopen or close the window or keep waiting."),
 				noLink: true
 			}, result => {
+				if (!vscodeWindow.win) {
+					return; // Return early if the window has been going down already
+				}
+
 				if (result === 0) {
 					vscodeWindow.reload();
 				} else if (result === 2) {
@@ -1223,6 +1214,10 @@ export class WindowsManager implements IWindowsMainService {
 				detail: nls.localize('appCrashedDetail', "We are sorry for the inconvenience! You can reopen the window to continue where you left off."),
 				noLink: true
 			}, result => {
+				if (!vscodeWindow.win) {
+					return; // Return early if the window has been going down already
+				}
+
 				if (result === 0) {
 					vscodeWindow.reload();
 				} else if (result === 1) {
@@ -1323,64 +1318,5 @@ export class WindowsManager implements IWindowsMainService {
 				this.lifecycleService.quit();
 			}, 10 /* delay to unwind callback stack (IPC) */);
 		}
-	}
-}
-
-class KeyboardLayoutMonitor {
-
-	public static INSTANCE = new KeyboardLayoutMonitor();
-
-	private _emitter: Emitter<boolean>;
-	private _registered: boolean;
-	private _isISOKeyboard: boolean;
-
-	private constructor() {
-		this._emitter = new Emitter<boolean>();
-		this._registered = false;
-		this._isISOKeyboard = this._readIsISOKeyboard();
-	}
-
-	public onDidChangeKeyboardLayout(callback: (isISOKeyboard: boolean) => void): IDisposable {
-		if (!this._registered) {
-			this._registered = true;
-
-			nativeKeymap.onDidChangeKeyboardLayout(() => {
-				this._emitter.fire(this._isISOKeyboard);
-			});
-
-			if (platform.isMacintosh) {
-				// See https://github.com/Microsoft/vscode/issues/24153
-				// On OSX, on ISO keyboards, Chromium swaps the scan codes
-				// of IntlBackslash and Backquote.
-				//
-				// The C++ methods can give the current keyboard type (ISO or not)
-				// only after a NSEvent was handled.
-				//
-				// We therefore poll.
-				setInterval(() => {
-					let newValue = this._readIsISOKeyboard();
-					if (this._isISOKeyboard === newValue) {
-						// no change
-						return;
-					}
-
-					this._isISOKeyboard = newValue;
-					this._emitter.fire(this._isISOKeyboard);
-
-				}, 3000);
-			}
-		}
-		return this._emitter.event(callback);
-	}
-
-	private _readIsISOKeyboard(): boolean {
-		if (platform.isMacintosh) {
-			return nativeKeymap.isISOKeyboard();
-		}
-		return false;
-	}
-
-	public isISOKeyboard(): boolean {
-		return this._isISOKeyboard;
 	}
 }

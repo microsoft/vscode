@@ -33,6 +33,8 @@ suite('Telemetry - common properties', function () {
 			assert.ok('sessionID' in props);
 			assert.ok('timestamp' in props);
 			assert.ok('common.platform' in props);
+			assert.ok('common.nodePlatform' in props);
+			assert.ok('common.nodeArch' in props);
 			assert.ok('common.timesincesessionstart' in props);
 			assert.ok('common.sequence' in props);
 
@@ -53,7 +55,6 @@ suite('Telemetry - common properties', function () {
 				assert.ok('common.sqm.machineid' in props, 'machineid');
 			}
 
-			assert.equal(Object.keys(props).length, process.platform === 'win32' ? 18 : 16);
 		});
 	});
 

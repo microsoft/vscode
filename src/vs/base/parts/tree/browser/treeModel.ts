@@ -1207,12 +1207,13 @@ export class TreeModel extends Events.EventEmitter {
 		}
 	}
 
-	public focusFirst(eventPayload?: any): void {
-		this.focusNth(0, eventPayload);
+	public focusFirst(eventPayload?: any, from?: any): void {
+		this.focusNth(0, eventPayload, from);
 	}
 
-	public focusNth(index: number, eventPayload?: any): void {
-		var nav = this.getNavigator(this.input);
+	public focusNth(index: number, eventPayload?: any, from?: any): void {
+		var navItem = this.getParent(from);
+		var nav = this.getNavigator(navItem);
 		var item = nav.first();
 		for (var i = 0; i < index; i++) {
 			item = nav.next();
@@ -1223,13 +1224,30 @@ export class TreeModel extends Events.EventEmitter {
 		}
 	}
 
-	public focusLast(eventPayload?: any): void {
-		var nav = this.getNavigator(this.input);
-		var item = nav.last();
+	public focusLast(eventPayload?: any, from?: any): void {
+		var navItem = this.getParent(from);
+		var item: Item;
+		if (from) {
+			item = navItem.lastChild;
+		} else {
+			var nav = this.getNavigator(navItem);
+			item = nav.last();
+		}
 
 		if (item) {
 			this.setFocus(item, eventPayload);
 		}
+	}
+
+	private getParent(from?: any): Item {
+		if (from) {
+			var fromItem = this.getItem(from);
+			if (fromItem && fromItem.parent) {
+				return fromItem.parent;
+			}
+		}
+
+		return this.getItem(this.input);
 	}
 
 	public getNavigator(element: any = null, subTreeOnly: boolean = true): INavigator<Item> {

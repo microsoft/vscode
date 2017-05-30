@@ -13,7 +13,6 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
@@ -61,15 +60,11 @@ export class Controller extends treedefaults.DefaultController {
 			},
 
 			getActionItem: (action) => {
-				const keybinding = this._keybindingFor(action);
+				const keybinding = this._keybindingService.lookupKeybinding(action.id);
 				if (keybinding) {
 					return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel() });
 				}
 				return null;
-			},
-
-			getKeyBinding: (action): ResolvedKeybinding => {
-				return this._keybindingFor(action);
 			},
 
 			onHide: (wasCancelled?: boolean) => {
@@ -93,9 +88,5 @@ export class Controller extends treedefaults.DefaultController {
 		}
 		result.pop(); // remove last separator
 		return result;
-	}
-
-	private _keybindingFor(action: IAction): ResolvedKeybinding {
-		return this._keybindingService.lookupKeybinding(action.id);
 	}
 }

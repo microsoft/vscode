@@ -40,7 +40,6 @@
 	"formatOnType": "控制編輯器是否應在輸入一行後自動格式化",
 	"formatOnPaste": "控制編輯器是否應自動設定貼上的內容格式。格式器必須可供使用，而且格式器應該能夠設定文件中一個範圍的格式。",
 	"suggestOnTriggerCharacters": "控制輸入觸發字元時，是否應自動顯示建議",
-	"acceptSuggestionOnEnter": "控制除了 'Tab' 外，是否也藉由按下 'Enter' 接受建議。如此可避免混淆要插入新行或接受建議。",
 	"acceptSuggestionOnCommitCharacter": "控制認可字元是否應接受建議。例如在 JavaScript 中，分號 (';') 可以是接受建議並鍵入該字元的認可字元。",
 	"snippetSuggestions": "控制程式碼片段是否隨其他建議顯示，以及其排序方式。",
 	"emptySelectionClipboard": "控制複製時不選取任何項目是否會複製目前程式行。",

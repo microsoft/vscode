@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import uri from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
@@ -36,6 +37,11 @@ export const CONTEXT_VARIABLES_FOCUSED = new RawContextKey<boolean>('variablesFo
 
 export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
 export const DEBUG_SCHEME = 'debug';
+export const INTERNAL_CONSOLE_OPTIONS_SCHEMA = {
+	enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart'],
+	default: 'openOnFirstSessionStart',
+	description: nls.localize('internalConsoleOptions', "Controls behavior of the internal debug console.")
+};
 
 // raw
 
@@ -63,12 +69,16 @@ export interface ITreeElement {
 	getId(): string;
 }
 
+export interface IReplElement extends ITreeElement {
+	toString(): string;
+}
+
 export interface IExpressionContainer extends ITreeElement {
 	hasChildren: boolean;
 	getChildren(): TPromise<IExpression[]>;
 }
 
-export interface IExpression extends ITreeElement, IExpressionContainer {
+export interface IExpression extends IReplElement, IExpressionContainer {
 	name: string;
 	value: string;
 	valueChanged?: boolean;
@@ -174,9 +184,8 @@ export interface IScope extends IExpressionContainer {
 export interface IStackFrame extends ITreeElement {
 	thread: IThread;
 	name: string;
-	lineNumber: number;
-	column: number;
 	frameId: number;
+	range: IRange;
 	source: Source;
 	getScopes(): TPromise<IScope[]>;
 	getMostSpecificScopes(range: IRange): TPromise<IScope[]>;
@@ -200,7 +209,9 @@ export interface IRawBreakpoint {
 export interface IBreakpoint extends IEnablement {
 	uri: uri;
 	lineNumber: number;
+	endLineNumber?: number;
 	column: number;
+	endColumn?: number;
 	condition: string;
 	hitCondition: string;
 	verified: boolean;
@@ -270,7 +281,7 @@ export interface IModel extends ITreeElement {
 	getFunctionBreakpoints(): IFunctionBreakpoint[];
 	getExceptionBreakpoints(): IExceptionBreakpoint[];
 	getWatchExpressions(): IExpression[];
-	getReplElements(): ITreeElement[];
+	getReplElements(): IReplElement[];
 
 	onDidChangeBreakpoints: Event<void>;
 	onDidChangeCallStack: Event<void>;
@@ -294,6 +305,7 @@ export interface IDebugConfiguration {
 	openExplorerOnEnd: boolean;
 	inlineValues: boolean;
 	hideActionBar: boolean;
+	internalConsoleOptions: string;
 }
 
 export interface IGlobalConfig {
@@ -308,7 +320,7 @@ export interface IEnvConfig {
 	request: string;
 	internalConsoleOptions?: string;
 	preLaunchTask?: string;
-	__restart?: boolean;
+	__restart?: any;
 	debugServer?: number;
 	noDebug?: boolean;
 	port?: number;

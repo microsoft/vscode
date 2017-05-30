@@ -72,8 +72,6 @@ export class ViewCursor {
 		this._domNode.setHeight(this._lineHeight);
 		this._domNode.setTop(0);
 		this._domNode.setLeft(0);
-		this._domNode.setAttribute('role', 'presentation');
-		this._domNode.setAttribute('aria-hidden', 'true');
 		Configuration.applyFontInfo(this._domNode, this._context.configuration.editor.fontInfo);
 		this._domNode.setDisplay('none');
 
@@ -114,7 +112,7 @@ export class ViewCursor {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
-		if (e.viewInfo.cursorStyle) {
+		if (e.viewInfo) {
 			this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
 		}
 		if (e.fontInfo) {
@@ -127,12 +125,6 @@ export class ViewCursor {
 	public onCursorPositionChanged(position: Position, isInEditableRange: boolean): boolean {
 		this.updatePosition(position);
 		this._isInEditableRange = isInEditableRange;
-		return true;
-	}
-
-	public onFlushed(): boolean {
-		this.updatePosition(new Position(1, 1));
-		this._isInEditableRange = true;
 		return true;
 	}
 

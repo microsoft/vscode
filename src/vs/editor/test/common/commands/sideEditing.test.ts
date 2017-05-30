@@ -5,36 +5,30 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Cursor } from 'vs/editor/common/controller/cursor';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
-import { Model } from 'vs/editor/common/model/model';
 import { ILineEdit, ModelLine, LineMarker, MarkersTracker } from 'vs/editor/common/model/modelLine';
-import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
-import { viewModelHelper } from 'vs/editor/test/common/editorTestUtils';
+import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 
 const NO_TAB_SIZE = 0;
 
 function testCommand(lines: string[], selections: Selection[], edits: IIdentifiedSingleEditOperation[], expectedLines: string[], expectedSelections: Selection[]): void {
-	let model = Model.createFromString(lines.join('\n'));
-	let config = new TestConfiguration(null);
-	let cursor = new Cursor(config, model, viewModelHelper(model), false);
+	withMockCodeEditor(lines, {}, (editor, cursor) => {
+		const model = editor.getModel();
 
-	cursor.setSelections('tests', selections);
+		cursor.setSelections('tests', selections);
 
-	model.applyEdits(edits);
+		model.applyEdits(edits);
 
-	assert.deepEqual(model.getLinesContent(), expectedLines);
+		assert.deepEqual(model.getLinesContent(), expectedLines);
 
-	let actualSelections = cursor.getSelections();
-	assert.deepEqual(actualSelections.map(s => s.toString()), expectedSelections.map(s => s.toString()));
+		let actualSelections = cursor.getSelections();
+		assert.deepEqual(actualSelections.map(s => s.toString()), expectedSelections.map(s => s.toString()));
 
-	cursor.dispose();
-	config.dispose();
-	model.dispose();
+	});
 }
 
 function testLineEditMarker(text: string, column: number, stickToPreviousCharacter: boolean, edit: ILineEdit, expectedColumn: number): void {

@@ -240,7 +240,7 @@ suite('TextModelWithTokens - bracket matching', () => {
 			[new Position(5, 5), new Range(5, 4, 5, 5), new Range(1, 11, 1, 12)],
 		];
 
-		let isABracket = { 1: {}, 2: {}, 3: {}, 4: {}, 5: {} };
+		let isABracket: { [lineNumber: number]: { [col: number]: boolean; }; } = { 1: {}, 2: {}, 3: {}, 4: {}, 5: {} };
 		for (let i = 0, len = brackets.length; i < len; i++) {
 			let [testPos, b1, b2] = brackets[i];
 			isBracket2(model, testPos, [b1, b2]);
@@ -250,7 +250,7 @@ suite('TextModelWithTokens - bracket matching', () => {
 		for (let i = 1, len = model.getLineCount(); i <= len; i++) {
 			let line = model.getLineContent(i);
 			for (let j = 1, lenJ = line.length + 1; j <= lenJ; j++) {
-				if (!isABracket[i].hasOwnProperty(j)) {
+				if (!isABracket[i].hasOwnProperty(<any>j)) {
 					isNotABracket(model, i, j);
 				}
 			}

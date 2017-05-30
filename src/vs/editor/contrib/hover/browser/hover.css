@@ -60,7 +60,6 @@
 }
 
 .monaco-editor-hover code {
-	background-color: rgba(132, 132, 132, 0.14);
 	border-radius: 3px;
 	padding: 0 0.4em;
 }
@@ -69,6 +68,3 @@
 	white-space: pre-wrap;
 	word-break: break-all;
 }
-
-.monaco-editor.vs-dark .monaco-editor-hover a { color: #1C5DAF; }
-.monaco-editor.hc-black .monaco-editor-hover a { color: #1C5DAF; }

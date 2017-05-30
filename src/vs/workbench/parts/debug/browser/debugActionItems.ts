@@ -17,8 +17,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 
 const $ = dom.$;
 
@@ -37,7 +38,7 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 		private context: any,
 		private action: IAction,
 		@IDebugService private debugService: IDebugService,
-		@IThemeService themeService: IThemeService,
+		@IThemeService private themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService
 	) {
@@ -114,6 +115,10 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 				this.start.focus();
 				event.stopPropagation();
 			}
+		}));
+		this.toDispose.push(attachStylerCallback(this.themeService, { selectBorder }, colors => {
+			this.container.style.border = colors.selectBorder ? `1px solid ${colors.selectBorder}` : null;
+			selectBoxContainer.style.borderLeft = colors.selectBorder ? `1px solid ${colors.selectBorder}` : null;
 		}));
 
 		this.updateOptions();

@@ -33,12 +33,13 @@ import { IKeybindingEditingService } from 'vs/workbench/services/keybinding/comm
 import { IListService } from 'vs/platform/list/browser/listService';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IDelegate, IRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IChoiceService, IMessageService, Severity } from 'vs/platform/message/common/message';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
+import { listHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 
 let $ = DOM.$;
 
@@ -443,8 +444,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 					this.createRemoveAction(<IKeybindingItemEntry>e.element),
 					this.createResetAction(<IKeybindingItemEntry>e.element),
 					new Separator(),
-					this.createShowConflictsAction(<IKeybindingItemEntry>e.element)]),
-				getKeyBinding: (action) => this.keybindingsService.lookupKeybinding(action.id)
+					this.createShowConflictsAction(<IKeybindingItemEntry>e.element)])
 			});
 		}
 	}
@@ -798,3 +798,10 @@ class WhenColumn extends Column {
 		return keybindingItemEntry.keybindingItem.when ? localize('whenAriaLabel', "When is {0}.", keybindingItemEntry.keybindingItem.when) : localize('noWhen', "No when context.");
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	const listHighlightForegroundColor = theme.getColor(listHighlightForeground);
+	if (listHighlightForegroundColor) {
+		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column .highlight { color: ${listHighlightForegroundColor}; }`);
+	}
+});

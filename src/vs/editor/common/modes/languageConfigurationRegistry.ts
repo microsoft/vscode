@@ -270,7 +270,7 @@ export class LanguageConfigurationRegistryImpl {
 		let indentation = this.getIndentationAtPosition(model, range.startLineNumber, range.startColumn);
 		let ignoreCurrentLine = false;
 
-		let scopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber);
+		let scopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber, range.startColumn);
 		let onEnterSupport = this._getOnEnterSupport(scopedLineTokens.languageId);
 		if (!onEnterSupport) {
 			return {
@@ -288,8 +288,8 @@ export class LanguageConfigurationRegistryImpl {
 		if (range.isEmpty()) {
 			afterEnterText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
 		} else {
-			let endScopedLineTokens = this.getScopedLineTokens(model, range.endLineNumber);
-			afterEnterText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - endScopedLineTokens.firstCharOffset);
+			const endScopedLineTokens = this.getScopedLineTokens(model, range.endLineNumber, range.endColumn);
+			afterEnterText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
 		}
 
 		let lineNumber = range.startLineNumber;
@@ -398,11 +398,11 @@ export class LanguageConfigurationRegistryImpl {
 		return lineText;
 	}
 
-	private getScopedLineTokens(model: ITokenizedModel, lineNumber: number) {
+	private getScopedLineTokens(model: ITokenizedModel, lineNumber: number, columnNumber?: number) {
 		model.forceTokenization(lineNumber);
 		let lineTokens = model.getLineTokens(lineNumber);
-		let column = model.getLineMaxColumn(lineNumber);
-		let scopedLineTokens = createScopedLineTokens(lineTokens, column - 1);
+		let column = isNaN(columnNumber) ? model.getLineMaxColumn(lineNumber) - 1 : columnNumber;
+		let scopedLineTokens = createScopedLineTokens(lineTokens, column);
 		return scopedLineTokens;
 	}
 

@@ -7,7 +7,7 @@
 import { SingleCursorState, CursorContext, CursorState } from 'vs/editor/common/controller/cursorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { Selection, SelectionDirection, ISelection } from 'vs/editor/common/core/selection';
+import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 
 export class OneCursor {
 
@@ -47,22 +47,6 @@ export class OneCursor {
 
 	public ensureValidState(context: CursorContext): void {
 		this._setState(context, this.modelState, this.viewState);
-	}
-
-	public setSelection(context: CursorContext, selection: ISelection): void {
-		const selectionStartLineNumber = selection.selectionStartLineNumber;
-		const selectionStartColumn = selection.selectionStartColumn;
-		const positionLineNumber = selection.positionLineNumber;
-		const positionColumn = selection.positionColumn;
-		const modelState = new SingleCursorState(
-			new Range(selectionStartLineNumber, selectionStartColumn, selectionStartLineNumber, selectionStartColumn), 0,
-			new Position(positionLineNumber, positionColumn), 0
-		);
-		this._setState(
-			context,
-			modelState,
-			null
-		);
 	}
 
 	public setState(context: CursorContext, modelState: SingleCursorState, viewState: SingleCursorState): void {

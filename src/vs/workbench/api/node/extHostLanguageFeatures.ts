@@ -554,7 +554,7 @@ class SuggestAdapter {
 	}
 
 	private _convertCompletionItem(item: vscode.CompletionItem, position: vscode.Position, defaultRange: vscode.Range): modes.ISuggestion {
-		if (!item.label) {
+		if (typeof item.label !== 'string' || item.label.length === 0) {
 			console.warn('INVALID text edit -> must have at least a label');
 			return undefined;
 		}

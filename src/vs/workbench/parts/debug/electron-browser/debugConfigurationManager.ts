@@ -311,7 +311,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 			return null;
 		}
 
-		return config.configurations.filter(config => config && config.name === name).pop();
+		return config.configurations.filter(config => config && config.name === name).shift();
 	}
 
 	public resloveConfiguration(config: debug.IConfig): TPromise<debug.IConfig> {
@@ -409,7 +409,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 			}
 		}
 
-		return this.quickOpenService.pick([...this.adapters.filter(a => a.hasInitialConfiguration()), { label: 'More...' }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
+		return this.quickOpenService.pick([...this.adapters.filter(a => a.hasInitialConfiguration()), { label: 'More...', separator: { border: true } }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
 			.then(picked => {
 				if (picked instanceof Adapter) {
 					return picked;

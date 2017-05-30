@@ -27,9 +27,11 @@ import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Action } from 'vs/base/common/actions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND } from 'vs/workbench/common/theme';
+import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { isThemeColor } from 'vs/editor/common/editorCommon';
+import { Color } from 'vs/base/common/color';
 
 export class StatusbarPart extends Part implements IStatusbarService {
 
@@ -136,13 +138,13 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		const container = this.getContainer();
 
-		container.style('color', this.getColor(STATUS_BAR_FOREGROUND));
+		container.style('color', this.getColor(this.contextService.hasWorkspace() ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND));
 		container.style('background-color', this.getColor(this.contextService.hasWorkspace() ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND));
 
-		const hcBorder = this.getColor(contrastBorder);
-		container.style('border-top-width', hcBorder ? '1px' : null);
-		container.style('border-top-style', hcBorder ? 'solid' : null);
-		container.style('border-top-color', hcBorder);
+		const borderColor = this.getColor(STATUS_BAR_BORDER) || this.getColor(contrastBorder);
+		container.style('border-top-width', borderColor ? '1px' : null);
+		container.style('border-top-style', borderColor ? 'solid' : null);
+		container.style('border-top-color', borderColor);
 	}
 
 	private doCreateStatusItem(alignment: StatusbarAlignment, priority: number = 0): HTMLElement {
@@ -217,7 +219,8 @@ class StatusBarEntryItem implements IStatusbarItem {
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IThemeService private themeService: IThemeService
 	) {
 		this.entry = entry;
 
@@ -249,8 +252,17 @@ class StatusBarEntryItem implements IStatusbarItem {
 		}
 
 		// Color
-		if (this.entry.color) {
-			$(textContainer).color(this.entry.color);
+		let color = this.entry.color;
+		if (color) {
+			if (isThemeColor(color)) {
+				let colorId = color.id;
+				color = (this.themeService.getTheme().getColor(colorId) || Color.transparent).toString();
+				toDispose.push(this.themeService.onThemeChange(theme => {
+					let colorValue = (this.themeService.getTheme().getColor(colorId) || Color.transparent).toString();
+					$(textContainer).color(colorValue);
+				}));
+			}
+			$(textContainer).color(color);
 		}
 
 		// Context Menu

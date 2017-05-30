@@ -7,5 +7,5 @@
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 
 export class HtmlInput extends ResourceEditorInput {
-	// just a marker class
+	// marker class
 }

@@ -121,8 +121,10 @@ declare module DebugProtocol {
 	export interface TerminatedEvent extends Event {
 		// event: 'terminated';
 		body?: {
-			/** A debug adapter may set 'restart' to true to request that the front end restarts the session. */
-			restart?: boolean;
+			/** A debug adapter may set 'restart' to true (or to an arbitrary object) to request that the front end restarts the session.
+				The value is not interpreted by the client and passed unmodified as an attribute '__restart' to the launchRequest.
+			*/
+			restart?: any;
 		};
 	}
 
@@ -1121,8 +1123,8 @@ declare module DebugProtocol {
 		endColumn?: number;
 		/** The module associated with this frame, if any. */
 		moduleId?: number | string;
-		/** An optional hint for how to present this frame in the UI. A value of 'label' can be used to indicate that the frame is an artificial frame that is used as a visual label or separator. */
-		presentationHint?: 'normal' | 'label';
+		/** An optional hint for how to present this frame in the UI. A value of 'label' can be used to indicate that the frame is an artificial frame that is used as a visual label or separator. A value of 'subtle' can be used to change the appearance of a frame in a 'subtle' way. */
+		presentationHint?: 'normal' | 'label' | 'subtle';
 	}
 
 	/** A Scope is a named container for variables. Optionally a scope can map to a source or a range within a source. */

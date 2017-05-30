@@ -23,3 +23,6 @@
 .monaco-workbench .editor-statusbar-item > .editor-status-tabfocusmode {
 	padding: 0 5px 0 5px;
 }
+.monaco-workbench .editor-statusbar-item > .editor-status-screenreadermode {
+	padding: 0 5px 0 5px;
+}

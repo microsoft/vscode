@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { OverviewRulerLane, ThemeType } from 'vs/editor/common/editorCommon';
+import { OverviewRulerLane } from 'vs/editor/common/editorCommon';
+import { ThemeType, DARK, HIGH_CONTRAST, LIGHT } from 'vs/platform/theme/common/themeService';
 
 export class ColorZone {
 	_colorZoneBrand: void;
@@ -57,9 +58,9 @@ export class OverviewRulerZone {
 
 	public getColor(themeType: ThemeType): string {
 		switch (themeType) {
-			case ThemeType.HighContrast:
+			case HIGH_CONTRAST:
 				return this._hcColor;
-			case ThemeType.Dark:
+			case DARK:
 				return this._darkColor;
 		}
 		return this._color;
@@ -125,7 +126,7 @@ export class OverviewZoneManager {
 	private _themeType: ThemeType;
 	private _pixelRatio: number;
 
-	private _lastAssignedId;
+	private _lastAssignedId: number;
 	private _color2Id: { [color: string]: number; };
 	private _id2Color: string[];
 
@@ -139,7 +140,7 @@ export class OverviewZoneManager {
 		this._outerHeight = 0;
 		this._maximumHeight = 0;
 		this._minimumHeight = 0;
-		this._themeType = ThemeType.Light;
+		this._themeType = LIGHT;
 		this._pixelRatio = 1;
 
 		this._lastAssignedId = 0;

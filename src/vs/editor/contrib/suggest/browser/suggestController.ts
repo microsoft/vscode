@@ -21,8 +21,8 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
-import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
-import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
+import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { Context as SuggestContext } from './suggest';
 import { SuggestModel, State } from './suggestModel';
 import { ICompletionItem } from './completionModel';
@@ -102,7 +102,11 @@ export class SuggestController implements IEditorContribution {
 		// Manage the acceptSuggestionsOnEnter context key
 		let acceptSuggestionsOnEnter = SuggestContext.AcceptSuggestionsOnEnter.bindTo(_contextKeyService);
 		let updateFromConfig = () => {
-			acceptSuggestionsOnEnter.set(this._editor.getConfiguration().contribInfo.acceptSuggestionOnEnter);
+			const { acceptSuggestionOnEnter } = this._editor.getConfiguration().contribInfo;
+			acceptSuggestionsOnEnter.set(
+				acceptSuggestionOnEnter === 'on' || acceptSuggestionOnEnter === 'smart'
+				|| (<any /*migrate from old world*/>acceptSuggestionOnEnter) === true
+			);
 		};
 		this._toDispose.push(this._editor.onDidChangeConfiguration((e) => updateFromConfig()));
 		updateFromConfig();
@@ -129,7 +133,11 @@ export class SuggestController implements IEditorContribution {
 			const endColumn = position.column;
 			let value = true;
 			if (
-				this._model.state === State.Auto
+				this._editor.getConfiguration().contribInfo.acceptSuggestionOnEnter === 'smart'
+				&& this._model.state === State.Auto
+				&& !item.suggestion.command
+				&& !item.suggestion.additionalTextEdits
+				&& item.suggestion.snippetType !== 'textmate'
 				&& endColumn - startColumn === item.suggestion.insertText.length
 			) {
 				const oldText = this._editor.getModel().getValueInRange({
@@ -174,18 +182,17 @@ export class SuggestController implements IEditorContribution {
 				this._editor.pushUndoStop();
 			}
 
-			if (suggestion.snippetType === 'textmate') {
-				SnippetController.get(this._editor).insertSnippet(
-					suggestion.insertText,
-					suggestion.overwriteBefore + columnDelta,
-					suggestion.overwriteAfter);
-			} else {
-				SnippetController.get(this._editor).run(
-					CodeSnippet.fromInternal(suggestion.insertText),
-					suggestion.overwriteBefore + columnDelta,
-					suggestion.overwriteAfter
-				);
+			let { insertText } = suggestion;
+			if (suggestion.snippetType !== 'textmate') {
+				insertText = SnippetParser.escape(insertText);
 			}
+
+			SnippetController2.get(this._editor).insert(
+				insertText,
+				suggestion.overwriteBefore + columnDelta,
+				suggestion.overwriteAfter
+			);
+
 
 			if (suggestion.command) {
 				this._commandService.executeCommand(suggestion.command.id, ...suggestion.command.arguments).done(undefined, onUnexpectedError);
@@ -219,7 +226,7 @@ export class SuggestController implements IEditorContribution {
 	cancelSuggestWidget(): void {
 		if (this._widget) {
 			this._model.cancel();
-			this._widget.hideDetailsOrHideWidget();
+			this._widget.hideWidget();
 		}
 	}
 
@@ -262,6 +269,12 @@ export class SuggestController implements IEditorContribution {
 	toggleSuggestionDetails(): void {
 		if (this._widget) {
 			this._widget.toggleDetails();
+		}
+	}
+
+	toggleSuggestionFocus(): void {
+		if (this._widget) {
+			this._widget.toggleDetailsFocus();
 		}
 	}
 }
@@ -312,11 +325,11 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 
 CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	id: 'acceptSelectedSuggestionOnEnter',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MakesTextEdit),
+	precondition: SuggestContext.Visible,
 	handler: x => x.acceptSelectedSuggestion(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: ContextKeyExpr.and(EditorContextKeys.textFocus, SuggestContext.AcceptSuggestionsOnEnter),
+		kbExpr: ContextKeyExpr.and(EditorContextKeys.textFocus, SuggestContext.AcceptSuggestionsOnEnter, SuggestContext.MakesTextEdit),
 		primary: KeyCode.Enter
 	}
 }));
@@ -341,8 +354,8 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 		weight: weight,
 		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.DownArrow,
-		secondary: [KeyMod.Alt | KeyCode.DownArrow],
-		mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.Alt | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KEY_N] }
+		secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow],
+		mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KEY_N] }
 	}
 }));
 
@@ -354,7 +367,7 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 		weight: weight,
 		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.PageDown,
-		secondary: [KeyMod.Alt | KeyCode.PageDown]
+		secondary: [KeyMod.CtrlCmd | KeyCode.PageDown]
 	}
 }));
 
@@ -372,8 +385,8 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 		weight: weight,
 		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.UpArrow,
-		secondary: [KeyMod.Alt | KeyCode.UpArrow],
-		mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.Alt | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KEY_P] }
+		secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow],
+		mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KEY_P] }
 	}
 }));
 
@@ -385,7 +398,7 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 		weight: weight,
 		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.PageUp,
-		secondary: [KeyMod.Alt | KeyCode.PageUp]
+		secondary: [KeyMod.CtrlCmd | KeyCode.PageUp]
 	}
 }));
 
@@ -404,5 +417,17 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyMod.CtrlCmd | KeyCode.Space,
 		mac: { primary: KeyMod.WinCtrl | KeyCode.Space }
+	}
+}));
+
+CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
+	id: 'toggleSuggestionFocus',
+	precondition: SuggestContext.Visible,
+	handler: x => x.toggleSuggestionFocus(),
+	kbOpts: {
+		weight: weight,
+		kbExpr: EditorContextKeys.textFocus,
+		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Space,
+		mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Space }
 	}
 }));

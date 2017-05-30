@@ -63,34 +63,25 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	 * Returns null if any of the lines doesn't support a line comment string.
 	 */
 	public static _gatherPreflightCommentStrings(model: editorCommon.ITokenizedModel, startLineNumber: number, endLineNumber: number): ILinePreflightData[] {
-		let commentStrForLanguage: string[] = [];
+
+		model.forceTokenization(startLineNumber);
+		const languageId = model.getLanguageIdAtPosition(startLineNumber, 1);
+
+		const config = LanguageConfigurationRegistry.getComments(languageId);
+		const commentStr = (config ? config.lineCommentToken : null);
+		if (!commentStr) {
+			// Mode does not support line comments
+			return null;
+		}
+
 		let lines: ILinePreflightData[] = [];
 		for (let i = 0, lineCount = endLineNumber - startLineNumber + 1; i < lineCount; i++) {
-			let lineNumber = startLineNumber + i;
-			model.forceTokenization(lineNumber);
-			let languageId = model.getLanguageIdAtPosition(lineNumber, 1);
-
-			// Find the commentStr for this line, if none is found then bail out: we cannot do line comments
-			let commentStr: string;
-			if (commentStrForLanguage[languageId]) {
-				commentStr = commentStrForLanguage[languageId];
-			} else {
-				let config = LanguageConfigurationRegistry.getComments(languageId);
-				commentStr = (config ? config.lineCommentToken : null);
-				if (!commentStr) {
-					// Mode does not support line comments
-					return null;
-				}
-
-				commentStrForLanguage[languageId] = commentStr;
-			}
-
-			lines.push({
+			lines[i] = {
 				ignore: false,
 				commentStr: commentStr,
 				commentStrOffset: 0,
 				commentStrLength: commentStr.length
-			});
+			};
 		}
 
 		return lines;

@@ -26,5 +26,7 @@
 	"workbench.action.terminal.scrollUp": "Desplazar hacia arriba (línea)",
 	"workbench.action.terminal.scrollUpPage": "Desplazar hacia arriba (página)",
 	"workbench.action.terminal.scrollToTop": "Desplazar al principio",
-	"workbench.action.terminal.clear": "Borrar"
+	"workbench.action.terminal.clear": "Borrar",
+	"workbench.action.terminal.allowWorkspaceShell": "Permitir la configuración del área de trabajo Shell",
+	"workbench.action.terminal.disallowWorkspaceShell": "No permitir la configuración del área de trabajo Shell"
 }

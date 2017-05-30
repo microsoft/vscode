@@ -202,7 +202,7 @@ export interface RegExpOptions {
 }
 
 export function createRegExp(searchString: string, isRegex: boolean, options: RegExpOptions = {}): RegExp {
-	if (searchString === '') {
+	if (!searchString) {
 		throw new Error('Cannot create regex from empty string');
 	}
 	if (!isRegex) {
@@ -293,14 +293,14 @@ export function firstNonWhitespaceIndex(str: string): number {
  * Returns the leading whitespace of the string.
  * If the string contains only whitespaces, returns entire string
  */
-export function getLeadingWhitespace(str: string): string {
-	for (let i = 0, len = str.length; i < len; i++) {
+export function getLeadingWhitespace(str: string, start: number = 0, end: number = str.length): string {
+	for (let i = start; i < end; i++) {
 		let chCode = str.charCodeAt(i);
 		if (chCode !== CharCode.Space && chCode !== CharCode.Tab) {
-			return str.substring(0, i);
+			return str.substring(start, i);
 		}
 	}
-	return str;
+	return str.substring(start, end);
 }
 
 /**
@@ -503,12 +503,30 @@ export function containsRTL(str: string): boolean {
 	return CONTAINS_RTL.test(str);
 }
 
+/**
+ * Generated using https://github.com/alexandrudima/unicode-utils/blob/master/generate-emoji-test.js
+ */
+const CONTAINS_EMOJI = /(?:[\u231A\u231B\u23F0\u23F3\u2600-\u27BF\u2B50\u2B55]|\uD83C[\uDDE6-\uDDFF\uDF00-\uDFFF]|\uD83D[\uDC00-\uDE4F\uDE80-\uDEF8]|\uD83E[\uDD00-\uDDE6])/;
+
+export function containsEmoji(str: string): boolean {
+	return CONTAINS_EMOJI.test(str);
+}
+
 const IS_BASIC_ASCII = /^[\t\n\r\x20-\x7E]*$/;
 /**
  * Returns true if `str` contains only basic ASCII characters in the range 32 - 126 (including 32 and 126) or \n, \r, \t
  */
 export function isBasicASCII(str: string): boolean {
 	return IS_BASIC_ASCII.test(str);
+}
+
+export function containsFullWidthCharacter(str: string): boolean {
+	for (let i = 0, len = str.length; i < len; i++) {
+		if (isFullWidthCharacter(str.charCodeAt(i))) {
+			return true;
+		}
+	}
+	return false;
 }
 
 export function isFullWidthCharacter(charCode: number): boolean {

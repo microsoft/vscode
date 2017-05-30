@@ -11,7 +11,7 @@ import objects = require('vs/base/common/objects');
 import URI from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
-import { EditorInput, IGroupEvent, IEditorRegistry, Extensions, toResource, IEditorGroup } from 'vs/workbench/common/editor';
+import { EditorInput, IEditorCloseEvent, IEditorRegistry, Extensions, toResource, IEditorGroup } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, IFileService, FileChangeType } from 'vs/platform/files/common/files';
@@ -61,10 +61,10 @@ export class EditorState {
 			return true; // always let API source win (e.g. "Go to definition" should add a history entry)
 		}
 
-		const liftedSelection = Selection.liftSelection(this._selection);
-		const liftedOtherSelection = Selection.liftSelection(other._selection);
+		const myLineNumber = Math.min(this._selection.selectionStartLineNumber, this._selection.positionLineNumber);
+		const otherLineNumber = Math.min(other._selection.selectionStartLineNumber, other._selection.positionLineNumber);
 
-		if (Math.abs(liftedSelection.getStartPosition().lineNumber - liftedOtherSelection.getStartPosition().lineNumber) < EditorState.EDITOR_SELECTION_THRESHOLD) {
+		if (Math.abs(myLineNumber - otherLineNumber) < EditorState.EDITOR_SELECTION_THRESHOLD) {
 			return false; // ignore selection changes in the range of EditorState.EDITOR_SELECTION_THRESHOLD lines
 		}
 
@@ -214,7 +214,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 	}
 
-	private onEditorClosed(event: IGroupEvent): void {
+	private onEditorClosed(event: IEditorCloseEvent): void {
 
 		// Track closing of pinned editor to support to reopen closed editors
 		if (event.pinned) {

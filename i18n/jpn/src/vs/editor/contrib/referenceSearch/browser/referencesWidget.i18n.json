@@ -16,11 +16,12 @@
 	"peekViewTitleInfoForeground": "ピーク ビューのタイトル情報の色。",
 	"peekViewBorder": "ピーク ビューの境界と矢印の色。",
 	"peekViewResultsBackground": "ピーク ビュー結果リストの背景色。",
-	"peekViewResultsMatchForeground": "ピーク ビュー結果リストの一致したエントリの前景色。",
-	"peekViewResultsFileForeground": "ピーク ビュー結果リストのファイル エントリの前景色。",
+	"peekViewResultsMatchForeground": "ピーク ビュー結果リストのライン ノードの前景色。",
+	"peekViewResultsFileForeground": "ピーク ビュー結果リストのファイル ノードの前景色。",
 	"peekViewResultsSelectionBackground": "ピーク ビュー結果リストの選択済みエントリの背景色。",
 	"peekViewResultsSelectionForeground": "ピーク ビュー結果リストの選択済みエントリの前景色。",
 	"peekViewEditorBackground": "ピーク ビュー エディターの背景色。",
+	"peekViewEditorGutterBackground": "ピーク ビュー エディターの余白の背景色。",
 	"peekViewResultsMatchHighlight": "ピーク ビュー結果リストの一致した強調表示色。",
 	"peekViewEditorMatchHighlight": "ピーク ビュー エディターの一致した強調表示色。"
 }

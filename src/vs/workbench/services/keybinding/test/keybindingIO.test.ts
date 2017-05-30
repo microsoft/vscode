@@ -84,6 +84,8 @@ suite('keybindingIO', () => {
 		testRoundtrip(KeyCode.US_DOT, '.', '.', '.');
 		testRoundtrip(KeyCode.US_SLASH, '/', '/', '/');
 		testRoundtrip(KeyCode.US_BACKTICK, '`', '`', '`');
+		testRoundtrip(KeyCode.ABNT_C1, 'abnt_c1', 'abnt_c1', 'abnt_c1');
+		testRoundtrip(KeyCode.ABNT_C2, 'abnt_c2', 'abnt_c2', 'abnt_c2');
 		testRoundtrip(KeyCode.US_OPEN_SQUARE_BRACKET, '[', '[', '[');
 		testRoundtrip(KeyCode.US_BACKSLASH, '\\', '\\', '\\');
 		testRoundtrip(KeyCode.US_CLOSE_SQUARE_BRACKET, ']', ']', ']');
@@ -99,6 +101,8 @@ suite('keybindingIO', () => {
 		testDeserialization('OEM_PERIOD', 'OEM_PERIOD', 'OEM_PERIOD', KeyCode.US_DOT);
 		testDeserialization('OEM_2', 'OEM_2', 'OEM_2', KeyCode.US_SLASH);
 		testDeserialization('OEM_3', 'OEM_3', 'OEM_3', KeyCode.US_BACKTICK);
+		testDeserialization('ABNT_C1', 'ABNT_C1', 'ABNT_C1', KeyCode.ABNT_C1);
+		testDeserialization('ABNT_C2', 'ABNT_C2', 'ABNT_C2', KeyCode.ABNT_C2);
 		testDeserialization('OEM_4', 'OEM_4', 'OEM_4', KeyCode.US_OPEN_SQUARE_BRACKET);
 		testDeserialization('OEM_5', 'OEM_5', 'OEM_5', KeyCode.US_BACKSLASH);
 		testDeserialization('OEM_6', 'OEM_6', 'OEM_6', KeyCode.US_CLOSE_SQUARE_BRACKET);

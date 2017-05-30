@@ -44,6 +44,8 @@
 	"openPreviousRecentlyUsedEditorInGroup": "グループ内の最近使用したエディターのうち前のエディターを開く",
 	"openNextRecentlyUsedEditorInGroup": "グループ内の最近使用したエディターのうち次のエディターを開く",
 	"navigateEditorHistoryByInput": "履歴から以前のエディターを開く",
+	"openNextRecentlyUsedEditor": "最近使用したエディターのうち次のエディターを開く",
+	"openPreviousRecentlyUsedEditor": "最近使用したエディターのうち前のエディターを開く",
 	"clearEditorHistory": "エディター履歴のクリア",
 	"focusLastEditorInStack": "グループ内の最後のエディターを開く",
 	"moveEditorLeft": "エディターを左へ移動",

@@ -274,7 +274,7 @@ class BulkEditModel implements IDisposable {
 		return r;
 	}
 
-	private applyTask(task): void {
+	private applyTask(task: EditTask): void {
 		task.apply();
 		if (this.progress) {
 			this.progress.worked(1);
@@ -287,7 +287,7 @@ class BulkEditModel implements IDisposable {
 }
 
 export interface BulkEdit {
-	progress(progress: IProgressRunner);
+	progress(progress: IProgressRunner): void;
 	add(edit: IResourceEdit[]): void;
 	finish(): TPromise<ISelection>;
 	ariaMessage(): string;

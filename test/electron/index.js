@@ -13,11 +13,11 @@ const events = require('events');
 const optimist = require('optimist')
 	.describe('grep', 'only run tests matching <pattern>').alias('grep', 'g').alias('grep', 'f').string('grep')
 	.describe('run', 'only run tests from <file>').string('run')
-	.describe('runGrep', 'only run tests matching <file_pattern>').boolean('runGrep')
+	.describe('runGlob', 'only run tests matching <file_pattern>').alias('runGlob', 'runGrep').string('runGlob')
 	.describe('build', 'run with build output (out-build)').boolean('build')
 	.describe('coverage', 'generate coverage report').boolean('coverage')
 	.describe('debug', 'open dev tools, keep window open, reuse app data').string('debug')
-	.describe('reporter', 'the mocha reporter').string('reporter').default('reporter', 'spec')
+	.describe('reporter', 'the mocha reporter').string('reporter').default('reporter', process.platform === 'win32' ? 'dot' : 'spec')
 	.describe('help', 'show the help').alias('help', 'h');
 
 const argv = optimist.argv;
@@ -113,7 +113,7 @@ app.on('ready', () => {
 		Reporter = require(reporterPath);
 	} catch (err) {
 		console.warn(`could not load reporter: ${argv.reporter}`);
-		Reporter = mocha.reporters.Spec;
+		Reporter = process.platform === 'win32' ? mocha.reporters.Dot : mocha.reporters.Spec;
 	}
 
 	const runner = new IPCRunner();

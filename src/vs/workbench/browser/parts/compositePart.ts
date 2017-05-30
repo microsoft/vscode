@@ -20,7 +20,7 @@ import errors = require('vs/base/common/errors');
 import { CONTEXT as ToolBarContext, ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { IActionBarRegistry, Extensions, prepareActions } from 'vs/workbench/browser/actionBarRegistry';
+import { IActionBarRegistry, Extensions, prepareActions } from 'vs/workbench/browser/actions';
 import { Action, IAction } from 'vs/base/common/actions';
 import { Part, IPartOptions } from 'vs/workbench/browser/part';
 import { Composite, CompositeRegistry } from 'vs/workbench/browser/composite';
@@ -36,6 +36,7 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 
 export interface ICompositeTitleLabel {
 
@@ -487,6 +488,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			'class': 'content'
 		}, (div: Builder) => {
 			this.progressBar = new ProgressBar(div);
+			this.toUnbind.push(attachProgressBarStyler(this.progressBar, this.themeService));
 			this.progressBar.getContainer().hide();
 		});
 	}

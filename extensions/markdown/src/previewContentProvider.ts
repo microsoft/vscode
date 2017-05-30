@@ -39,7 +39,7 @@ export function getMarkdownUri(uri: vscode.Uri) {
 
 	return uri.with({
 		scheme: 'markdown',
-		path: uri.fsPath + '.rendered',
+		path: uri.path + '.rendered',
 		query: uri.toString()
 	});
 }
@@ -73,6 +73,7 @@ class MarkdownPreviewConfig {
 		this.scrollPreviewWithEditorSelection = !!markdownConfig.get<boolean>('preview.scrollPreviewWithEditorSelection', true);
 		this.scrollEditorWithPreview = !!markdownConfig.get<boolean>('preview.scrollEditorWithPreview', true);
 		this.doubleClickToSwitchToEditor = !!markdownConfig.get<boolean>('preview.doubleClickToSwitchToEditor', true);
+		this.markEditorSelection = !!markdownConfig.get<boolean>('preview.markEditorSelection', true);
 
 		this.fontFamily = markdownConfig.get<string | undefined>('preview.fontFamily', undefined);
 		this.fontSize = +markdownConfig.get<number>('preview.fontSize', NaN);
@@ -165,7 +166,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 	private computeCustomStyleSheetIncludes(uri: vscode.Uri): string {
 		if (this.config.styles && Array.isArray(this.config.styles)) {
 			return this.config.styles.map((style) => {
-				return `<link rel="stylesheet" href="${this.fixHref(uri, style)}" type="text/css" media="screen">`;
+				return `<link rel="stylesheet" class="code-user-style" data-source="${style.replace(/"/g, '&quot;')}" href="${this.fixHref(uri, style)}" type="text/css" media="screen">`;
 			}).join('\n');
 		}
 		return '';
@@ -195,21 +196,21 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 	private getScripts(nonce: string): string {
 		const scripts = [this.getMediaPath('main.js')].concat(this.extraScripts.map(resource => resource.toString()));
 		return scripts
-			.map(source => `<script src="${source}" nonce="${nonce}"></script>`)
+			.map(source => `<script async src="${source}" nonce="${nonce}"></script>`)
 			.join('\n');
 	}
 
 	public provideTextDocumentContent(uri: vscode.Uri): Thenable<string> {
 		const sourceUri = vscode.Uri.parse(uri.query);
 
+		let initialLine: number | undefined = undefined;
+		const editor = vscode.window.activeTextEditor;
+		if (editor && editor.document.uri.fsPath === sourceUri.fsPath) {
+			initialLine = editor.selection.active.line;
+		}
+
 		return vscode.workspace.openTextDocument(sourceUri).then(document => {
 			this.config = MarkdownPreviewConfig.getCurrentConfig();
-
-			let initialLine = 0;
-			const editor = vscode.window.activeTextEditor;
-			if (editor && editor.document.uri.fsPath === sourceUri.fsPath) {
-				initialLine = editor.selection.active.line;
-			}
 
 			const initialData = {
 				previewUri: uri.toString(),
@@ -237,6 +238,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 					${csp}
 					<meta id="vscode-markdown-preview-data" data-settings="${JSON.stringify(initialData).replace(/"/g, '&quot;')}" data-strings="${JSON.stringify(previewStrings).replace(/"/g, '&quot;')}">
 					<script src="${this.getMediaPath('csp.js')}" nonce="${nonce}"></script>
+					<script src="${this.getMediaPath('loading.js')}" nonce="${nonce}"></script>
 					${this.getStyles(uri, nonce)}
 					<base href="${document.uri.toString(true)}">
 				</head>

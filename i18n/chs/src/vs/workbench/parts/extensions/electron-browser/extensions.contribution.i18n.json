@@ -10,5 +10,6 @@
 	"extensions": "扩展",
 	"view": "查看",
 	"extensionsConfigurationTitle": "扩展",
-	"extensionsAutoUpdate": "自动更新扩展"
+	"extensionsAutoUpdate": "自动更新扩展",
+	"extensionsIgnoreRecommendations": "忽略推荐的扩展"
 }

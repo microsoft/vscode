@@ -156,7 +156,7 @@ class SnippetsService implements ISnippetsService {
 registerSingleton(ISnippetsService, SnippetsService);
 
 export interface ISimpleModel {
-	getLineContent(lineNumber): string;
+	getLineContent(lineNumber: number): string;
 }
 
 export function getNonWhitespacePrefix(model: ISimpleModel, position: Position): string {

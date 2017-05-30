@@ -26,9 +26,11 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { keyFromOverrideIdentifier } from 'vs/platform/configuration/common/model';
 import { WORKSPACE_CONFIG_DEFAULT_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IConfigurationEditingService, ConfigurationEditingErrorCode, IConfigurationEditingError, ConfigurationTarget, IConfigurationValue } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IConfigurationEditingService, ConfigurationEditingErrorCode, IConfigurationEditingError, ConfigurationTarget, IConfigurationValue, IConfigurationEditingOptions } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
+import { IChoiceService, IMessageService, Severity } from 'vs/platform/message/common/message';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 interface IConfigurationEditOperation extends IConfigurationValue {
 	resource: URI;
@@ -38,6 +40,10 @@ interface IConfigurationEditOperation extends IConfigurationValue {
 interface IValidationResult {
 	error?: ConfigurationEditingErrorCode;
 	exists?: boolean;
+}
+
+interface ConfigurationEditingOptions extends IConfigurationEditingOptions {
+	force?: boolean;
 }
 
 export class ConfigurationEditingService implements IConfigurationEditingService {
@@ -52,21 +58,29 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IFileService private fileService: IFileService,
 		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
-		@ITextFileService private textFileService: ITextFileService
+		@ITextFileService private textFileService: ITextFileService,
+		@IChoiceService private choiceService: IChoiceService,
+		@IMessageService private messageService: IMessageService,
+		@ICommandService private commandService: ICommandService
 	) {
 		this.queue = new Queue<void>();
 	}
 
-	writeConfiguration(target: ConfigurationTarget, value: IConfigurationValue, save: boolean = true): TPromise<void> {
-		return this.queue.queue(() => this.doWriteConfiguration(target, value, save)); // queue up writes to prevent race conditions
+	writeConfiguration(target: ConfigurationTarget, value: IConfigurationValue, options: IConfigurationEditingOptions = {}): TPromise<void> {
+		return this.queue.queue(() => this.doWriteConfiguration(target, value, options) // queue up writes to prevent race conditions
+			.then(() => null,
+			error => {
+				return options.donotNotifyError ? TPromise.wrapError(error) : this.onError(error, target, value);
+			}));
 	}
 
-	private doWriteConfiguration(target: ConfigurationTarget, value: IConfigurationValue, save: boolean): TPromise<void> {
+	private doWriteConfiguration(target: ConfigurationTarget, value: IConfigurationValue, options: ConfigurationEditingOptions): TPromise<void> {
 		const operation = this.getConfigurationEditOperation(target, value);
 
-		return this.resolveAndValidate(target, operation, save)
-			.then(reference => this.writeToBuffer(reference.object.textEditorModel, operation, save)
-				.then(() => reference.dispose()));
+		const checkDirtyConfiguration = !(options.force || options.donotSave);
+		const saveConfiguration = options.force || !options.donotSave;
+		return this.resolveAndValidate(target, operation, checkDirtyConfiguration)
+			.then(reference => this.writeToBuffer(reference.object.textEditorModel, operation, saveConfiguration));
 	}
 
 	private writeToBuffer(model: editorCommon.IModel, operation: IConfigurationEditOperation, save: boolean): TPromise<any> {
@@ -92,6 +106,48 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		return false;
 	}
 
+	private onError(error: IConfigurationEditingError, target: ConfigurationTarget, value: IConfigurationValue): TPromise<IConfigurationEditingError> {
+		switch (error.code) {
+			case ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION:
+				this.onInvalidConfigurationError(error, target);
+				break;
+			case ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY:
+				this.onConfigurationFileDirtyError(error, target, value);
+				break;
+			default:
+				this.messageService.show(Severity.Error, error.message);
+		}
+		return TPromise.wrapError(error);
+	}
+
+	private onInvalidConfigurationError(error: IConfigurationEditingError, target: ConfigurationTarget): void {
+		this.choiceService.choose(Severity.Error, error.message, [nls.localize('open', "Open Settings"), nls.localize('close', "Close")], 1)
+			.then(option => {
+				switch (option) {
+					case 0:
+						this.openSettings(target);
+				}
+			});
+	}
+
+	private onConfigurationFileDirtyError(error: IConfigurationEditingError, target: ConfigurationTarget, value: IConfigurationValue): void {
+		this.choiceService.choose(Severity.Error, error.message, [nls.localize('saveAndRetry', "Save Settings and Retry"), nls.localize('open', "Open Settings"), nls.localize('close', "Close")], 2)
+			.then(option => {
+				switch (option) {
+					case 0:
+						this.writeConfiguration(target, value, <ConfigurationEditingOptions>{ force: true });
+						break;
+					case 1:
+						this.openSettings(target);
+						break;
+				}
+			});
+	}
+
+	private openSettings(target: ConfigurationTarget): void {
+		this.commandService.executeCommand(ConfigurationTarget.USER === target ? 'workbench.action.openGlobalSettings' : 'workbench.action.openWorkspaceSettings');
+	}
+
 	private wrapError(code: ConfigurationEditingErrorCode, target: ConfigurationTarget): TPromise<any> {
 		const message = this.toErrorMessage(code, target);
 
@@ -110,20 +166,20 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 			case ConfigurationEditingErrorCode.ERROR_INVALID_TARGET: return nls.localize('errorInvalidTarget', "Unable to write to the configuration file (Invalid Target)");
 
 			// User issues
-			case ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED: return nls.localize('errorNoWorkspaceOpened', "Unable to write settings because no folder is opened. Please open a folder first and try again.");
+			case ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED: return nls.localize('errorNoWorkspaceOpened', "Unable to write into settings because no folder is opened. Please open a folder first and try again.");
 			case ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION: {
 				if (target === ConfigurationTarget.USER) {
-					return nls.localize('errorInvalidConfiguration', "Unable to write settings. Please open **User Settings** to correct errors/warnings in the file and try again.");
+					return nls.localize('errorInvalidConfiguration', "Unable to write into settings. Please open **User Settings** to correct errors/warnings in the file and try again.");
 				}
 
-				return nls.localize('errorInvalidConfigurationWorkspace', "Unable to write settings. Please open **Workspace Settings** to correct errors/warnings in the file and try again.");
+				return nls.localize('errorInvalidConfigurationWorkspace', "Unable to write into settings. Please open **Workspace Settings** to correct errors/warnings in the file and try again.");
 			};
 			case ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY: {
 				if (target === ConfigurationTarget.USER) {
-					return nls.localize('errorConfigurationFileDirty', "Unable to write settings because the file is dirty. Please save the **User Settings** file and try again.");
+					return nls.localize('errorConfigurationFileDirty', "Unable to write into settings because the file is dirty. Please save the **User Settings** file and try again.");
 				}
 
-				return nls.localize('errorConfigurationFileDirtyWorkspace', "Unable to write settings because the file is dirty. Please save the **Workspace Settings** file and try again.");
+				return nls.localize('errorConfigurationFileDirtyWorkspace', "Unable to write into settings because the file is dirty. Please save the **Workspace Settings** file and try again.");
 			};
 		}
 	}
@@ -165,7 +221,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		return parseErrors.length > 0;
 	}
 
-	private resolveAndValidate(target: ConfigurationTarget, operation: IConfigurationEditOperation, save: boolean): TPromise<IReference<ITextEditorModel>> {
+	private resolveAndValidate(target: ConfigurationTarget, operation: IConfigurationEditOperation, checkDirty: boolean): TPromise<IReference<ITextEditorModel>> {
 
 		// Any key must be a known setting from the registry (unless this is a standalone config)
 		if (!operation.isWorkspaceStandalone) {
@@ -185,17 +241,17 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 			return this.wrapError(ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED, target);
 		}
 
-		// Target cannot be dirty if not writing into buffer
-		const resource = operation.resource;
-		if (save && this.textFileService.isDirty(resource)) {
-			return this.wrapError(ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY, target);
-		}
-
 		return this.resolveModelReference(operation.resource)
 			.then(reference => {
 				const model = reference.object.textEditorModel;
+
 				if (this.hasParseErrors(model, operation)) {
 					return this.wrapError(ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION, target);
+				}
+
+				// Target cannot be dirty if not writing into buffer
+				if (checkDirty && this.textFileService.isDirty(operation.resource)) {
+					return this.wrapError(ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY, target);
 				}
 				return reference;
 			});

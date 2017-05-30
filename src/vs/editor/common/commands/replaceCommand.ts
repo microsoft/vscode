@@ -10,12 +10,14 @@ import { Range } from 'vs/editor/common/core/range';
 
 export class ReplaceCommand implements editorCommon.ICommand {
 
-	private _range: Range;
-	private _text: string;
+	private readonly _range: Range;
+	private readonly _text: string;
+	public readonly insertsAutoWhitespace: boolean;
 
-	constructor(range: Range, text: string) {
+	constructor(range: Range, text: string, insertsAutoWhitespace: boolean = false) {
 		this._range = range;
 		this._text = text;
+		this.insertsAutoWhitespace = insertsAutoWhitespace;
 	}
 
 	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
@@ -36,12 +38,14 @@ export class ReplaceCommand implements editorCommon.ICommand {
 
 export class ReplaceCommandWithoutChangingPosition implements editorCommon.ICommand {
 
-	private _range: Range;
-	private _text: string;
+	private readonly _range: Range;
+	private readonly _text: string;
+	public readonly insertsAutoWhitespace: boolean;
 
-	constructor(range: Range, text: string) {
+	constructor(range: Range, text: string, insertsAutoWhitespace: boolean = false) {
 		this._range = range;
 		this._text = text;
+		this.insertsAutoWhitespace = insertsAutoWhitespace;
 	}
 
 	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
@@ -62,16 +66,18 @@ export class ReplaceCommandWithoutChangingPosition implements editorCommon.IComm
 
 export class ReplaceCommandWithOffsetCursorState implements editorCommon.ICommand {
 
-	private _range: Range;
-	private _text: string;
-	private _columnDeltaOffset: number;
-	private _lineNumberDeltaOffset: number;
+	private readonly _range: Range;
+	private readonly _text: string;
+	private readonly _columnDeltaOffset: number;
+	private readonly _lineNumberDeltaOffset: number;
+	public readonly insertsAutoWhitespace: boolean;
 
-	constructor(range: Range, text: string, lineNumberDeltaOffset: number, columnDeltaOffset: number) {
+	constructor(range: Range, text: string, lineNumberDeltaOffset: number, columnDeltaOffset: number, insertsAutoWhitespace: boolean = false) {
 		this._range = range;
 		this._text = text;
 		this._columnDeltaOffset = columnDeltaOffset;
 		this._lineNumberDeltaOffset = lineNumberDeltaOffset;
+		this.insertsAutoWhitespace = insertsAutoWhitespace;
 	}
 
 	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {

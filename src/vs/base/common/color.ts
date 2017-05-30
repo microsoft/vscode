@@ -382,6 +382,10 @@ export class Color {
 		return new Color(new RGBA(p.r, p.g, p.b, Math.round(p.a * factor)));
 	}
 
+	public isTransparent(): boolean {
+		return this.rgba.a === 0;
+	}
+
 	public opposite(): Color {
 		return new Color(new RGBA(
 			255 - this.rgba.r,

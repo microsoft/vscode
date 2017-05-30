@@ -65,7 +65,7 @@ declare module 'native-keymap' {
 
 	export function getCurrentKeyboardLayout(): IKeyboardLayoutInfo;
 
-	export function onDidChangeKeyboardLayout(callback: () => void);
+	export function onDidChangeKeyboardLayout(callback: () => void): void;
 
 	export function isISOKeyboard(): boolean;
 }

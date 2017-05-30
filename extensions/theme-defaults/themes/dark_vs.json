@@ -302,8 +302,8 @@
 		},
 		{
 			"scope": [
-				"punctuation.section.embedded.begin.metatag.php",
-				"punctuation.section.embedded.end.metatag.php"
+				"punctuation.section.embedded.begin.php",
+				"punctuation.section.embedded.end.php"
 			],
 			"settings": {
 				"foreground": "#569cd6"
@@ -325,6 +325,7 @@
 			"name": "coloring of the Java import and package identifiers",
 			"scope": [
 				"storage.modifier.import.java",
+				"variable.language.wildcard.java",
 				"storage.modifier.package.java"
 			],
 			"settings": {

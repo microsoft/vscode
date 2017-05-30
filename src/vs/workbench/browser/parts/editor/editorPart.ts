@@ -35,7 +35,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IMessageService, IMessageWithAction, Severity } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { EditorStacksModel, EditorGroup, EditorIdentifier, GroupEvent } from 'vs/workbench/common/editor/editorStacksModel';
+import { EditorStacksModel, EditorGroup, EditorIdentifier, EditorCloseEvent } from 'vs/workbench/common/editor/editorStacksModel';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -234,7 +234,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.telemetryService.publicLog('editorOpened', identifier.editor.getTelemetryDescriptor());
 	}
 
-	private onEditorClosed(event: GroupEvent): void {
+	private onEditorClosed(event: EditorCloseEvent): void {
 		this.telemetryService.publicLog('editorClosed', event.editor.getTelemetryDescriptor());
 	}
 
@@ -878,8 +878,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		const activeEditor = this.getActiveEditor();
 		const codeEditor = getCodeEditor(activeEditor);
 		if (codeEditor && activeEditor.position === this.stacks.positionOfGroup(fromGroup) && input.matches(activeEditor.input)) {
-			options = TextEditorOptions.create({ pinned: true, index, inactive, preserveFocus });
-			(<TextEditorOptions>options).fromEditor(codeEditor);
+			options = TextEditorOptions.fromEditor(codeEditor, { pinned: true, index, inactive, preserveFocus });
 		}
 
 		// A move to another group is an open first...

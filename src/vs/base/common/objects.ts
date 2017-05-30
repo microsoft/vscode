@@ -304,7 +304,7 @@ export function getOrDefault<T, R>(obj: T, fn: (obj: T) => R, defaultValue: R = 
  * @param obj the object to use for diffing
  */
 export type obj = { [key: string]: any; };
-export function distinct<T>(base: obj, target: obj): obj {
+export function distinct(base: obj, target: obj): obj {
 	const result = Object.create(null);
 
 	if (!base || !target) {

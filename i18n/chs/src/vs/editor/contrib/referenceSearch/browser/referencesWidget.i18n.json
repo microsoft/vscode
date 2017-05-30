@@ -16,11 +16,12 @@
 	"peekViewTitleInfoForeground": "速览视图标题信息颜色。",
 	"peekViewBorder": "速览视图边框和箭头颜色。",
 	"peekViewResultsBackground": "速览视图结果列表背景颜色。",
-	"peekViewResultsMatchForeground": "在速览视图结果列表中匹配条目前景色。",
-	"peekViewResultsFileForeground": "速览视图结果列表中的文件条目前景色。",
+	"peekViewResultsMatchForeground": "速览视图结果列表中行节点的前景色。",
+	"peekViewResultsFileForeground": "速览视图结果列表中文件节点的前景色。",
 	"peekViewResultsSelectionBackground": "速览视图结果列表中所选条目的背景颜色。",
 	"peekViewResultsSelectionForeground": "速览视图结果列表中所选条目的前景色。",
 	"peekViewEditorBackground": "速览视图编辑器背景颜色。",
+	"peekViewEditorGutterBackground": "速览视图编辑器中导航线的背景颜色。",
 	"peekViewResultsMatchHighlight": "在速览视图结果列表中匹配突出显示颜色。",
 	"peekViewEditorMatchHighlight": "在速览视图编辑器中匹配突出显示颜色。"
 }

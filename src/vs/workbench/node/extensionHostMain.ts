@@ -12,6 +12,8 @@ import { join } from 'path';
 import { IRemoteCom } from 'vs/platform/extensions/common/ipcRemoteCom';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostThreadService } from 'vs/workbench/services/thread/common/extHostThreadService';
+import { QueryType, ISearchQuery } from 'vs/platform/search/common/search';
+import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
 import { RemoteTelemetryService } from 'vs/workbench/api/node/extHostTelemetry';
 import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IInitData, IEnvironment, MainContext } from 'vs/workbench/api/node/extHost.protocol';
@@ -34,6 +36,7 @@ export class ExtensionHostMain {
 
 	private _isTerminating: boolean = false;
 	private _contextService: IWorkspaceContextService;
+	private _diskSearch: DiskSearch;
 	private _environment: IEnvironment;
 	private _extensionService: ExtHostExtensionService;
 
@@ -122,13 +125,33 @@ export class ExtensionHostMain {
 			}
 		});
 
-		const fileNames = Object.keys(desiredFilesMap);
+		const matchingPatterns = Object.keys(desiredFilesMap).map(p => {
+			// TODO: This is a bit hacky -- maybe this should be implemented by using something like
+			// `workspaceGlob` or something along those lines?
+			if (p.indexOf('*') > -1 || p.indexOf('?') > -1) {
+				if (!this._diskSearch) {
+					// Shut down this search process after 1s
+					this._diskSearch = new DiskSearch(false, 1000);
+				}
 
-		return TPromise.join(fileNames.map(f => pfs.exists(join(folderPath, f)))).then(exists => {
-			fileNames
-				.filter((f, i) => exists[i])
-				.forEach(fileName => {
-					const activationEvent = `workspaceContains:${fileName}`;
+				const query: ISearchQuery = {
+					folderResources: [workspace.resource],
+					type: QueryType.File,
+					maxResults: 1,
+					includePattern: { [p]: true }
+				};
+
+				return this._diskSearch.search(query).then(result => result.results.length ? p : undefined);
+			} else {
+				return pfs.exists(join(folderPath, p)).then(exists => exists ? p : undefined);
+			}
+		});
+
+		return TPromise.join(matchingPatterns).then(patterns => {
+			patterns
+				.filter(p => p !== undefined)
+				.forEach(p => {
+					const activationEvent = `workspaceContains:${p}`;
 
 					this._extensionService.activateByEvent(activationEvent)
 						.done(null, err => console.error(err));

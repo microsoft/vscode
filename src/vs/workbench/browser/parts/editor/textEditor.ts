@@ -21,7 +21,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Scope } from 'vs/workbench/common/memento';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -58,15 +58,14 @@ export abstract class BaseTextEditor extends BaseEditor {
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService,
 		@IConfigurationService private _configurationService: IConfigurationService,
-		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
+		@IThemeService protected themeService: IThemeService,
 		@IModeService private modeService: IModeService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService
+		@IEditorGroupService protected editorGroupService: IEditorGroupService
 	) {
 		super(id, telemetryService, themeService);
 
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.handleConfigurationChangeEvent(e.config)));
-		this.toUnbind.push(themeService.onDidColorThemeChange(e => this.handleConfigurationChangeEvent())); // TODO@theme this should be done from the editor itself and not from the outside
 	}
 
 	protected get instantiationService(): IInstantiationService {
@@ -125,7 +124,6 @@ export abstract class BaseTextEditor extends BaseEditor {
 		objects.assign(overrides, {
 			overviewRulerLanes: 3,
 			lineNumbersMinChars: 3,
-			theme: this.themeService.getColorTheme().id,
 			fixedOverflowWidgets: true
 		});
 
@@ -250,14 +248,14 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 		const editorViewState = this.getControl().saveViewState();
 
-		let fileViewState: ITextEditorViewState = textEditorViewStateMemento[key];
-		if (!fileViewState) {
-			fileViewState = Object.create(null);
-			textEditorViewStateMemento[key] = fileViewState;
+		let lastKnownViewState: ITextEditorViewState = textEditorViewStateMemento[key];
+		if (!lastKnownViewState) {
+			lastKnownViewState = Object.create(null);
+			textEditorViewStateMemento[key] = lastKnownViewState;
 		}
 
 		if (typeof this.position === 'number') {
-			fileViewState[this.position] = editorViewState;
+			lastKnownViewState[this.position] = editorViewState;
 		}
 	}
 
@@ -279,9 +277,9 @@ export abstract class BaseTextEditor extends BaseEditor {
 		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
 		const textEditorViewStateMemento = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
 		if (textEditorViewStateMemento) {
-			const fileViewState: ITextEditorViewState = textEditorViewStateMemento[key];
-			if (fileViewState) {
-				return fileViewState[this.position];
+			const viewState: ITextEditorViewState = textEditorViewStateMemento[key];
+			if (viewState) {
+				return viewState[this.position];
 			}
 		}
 

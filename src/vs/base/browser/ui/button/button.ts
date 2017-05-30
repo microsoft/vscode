@@ -21,6 +21,7 @@ export interface IButtonStyles {
 	buttonBackground?: Color;
 	buttonHoverBackground?: Color;
 	buttonForeground?: Color;
+	buttonBorder?: Color;
 }
 
 const defaultOptions: IButtonStyles = {
@@ -37,6 +38,7 @@ export class Button extends EventEmitter {
 	private buttonBackground: Color;
 	private buttonHoverBackground: Color;
 	private buttonForeground: Color;
+	private buttonBorder: Color;
 
 	constructor(container: Builder, options?: IButtonOptions);
 	constructor(container: HTMLElement, options?: IButtonOptions);
@@ -49,6 +51,7 @@ export class Button extends EventEmitter {
 		this.buttonBackground = this.options.buttonBackground;
 		this.buttonHoverBackground = this.options.buttonHoverBackground;
 		this.buttonForeground = this.options.buttonForeground;
+		this.buttonBorder = this.options.buttonBorder;
 
 		this.$el = $('a.monaco-button').attr({
 			'tabIndex': '0',
@@ -100,6 +103,7 @@ export class Button extends EventEmitter {
 		this.buttonForeground = styles.buttonForeground;
 		this.buttonBackground = styles.buttonBackground;
 		this.buttonHoverBackground = styles.buttonHoverBackground;
+		this.buttonBorder = styles.buttonBorder;
 
 		this.applyStyles();
 	}
@@ -108,9 +112,14 @@ export class Button extends EventEmitter {
 		if (this.$el) {
 			const background = this.buttonBackground ? this.buttonBackground.toString() : null;
 			const foreground = this.buttonForeground ? this.buttonForeground.toString() : null;
+			const border = this.buttonBorder ? this.buttonBorder.toString() : null;
 
 			this.$el.style('color', foreground);
 			this.$el.style('background-color', background);
+
+			this.$el.style('border-width', border ? '1px' : null);
+			this.$el.style('border-style', border ? 'solid' : null);
+			this.$el.style('border-color', border);
 		}
 	}
 

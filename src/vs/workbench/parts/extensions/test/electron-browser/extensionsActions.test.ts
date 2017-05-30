@@ -30,6 +30,7 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 suite('ExtensionsActions Test', () => {
 
@@ -52,6 +53,7 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 
 		instantiationService.set(IWorkspaceContextService, new WorkspaceContextService(TestWorkspace));
+		instantiationService.stub(IConfigurationService, { onDidUpdateConfiguration: () => { }, getConfiguration: () => ({}) });
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 
@@ -97,7 +99,7 @@ suite('ExtensionsActions Test', () => {
 				testObject.extension = paged.firstPage[0];
 				assert.ok(!testObject.enabled);
 				assert.equal('Install', testObject.label);
-				assert.equal('extension-action install', testObject.class);
+				assert.equal('extension-action prominent install', testObject.class);
 				done();
 			});
 		});
@@ -231,7 +233,7 @@ suite('ExtensionsActions Test', () => {
 		const testObject: ExtensionsActions.CombinedInstallAction = instantiationService.createInstance(ExtensionsActions.CombinedInstallAction);
 
 		assert.ok(!testObject.enabled);
-		assert.equal('extension-action install no-extension', testObject.class);
+		assert.equal('extension-action prominent install no-extension', testObject.class);
 	});
 
 	test('Test CombinedInstallAction when extension is system extension', (done) => {
@@ -242,7 +244,7 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.get(IExtensionsWorkbenchService).queryLocal().done(extensions => {
 			testObject.extension = extensions[0];
 			assert.ok(!testObject.enabled);
-			assert.equal('extension-action install no-extension', testObject.class);
+			assert.equal('extension-action prominent install no-extension', testObject.class);
 			done();
 		});
 	});
@@ -257,7 +259,7 @@ suite('ExtensionsActions Test', () => {
 			testObject.extension = paged.firstPage[0];
 			assert.ok(testObject.enabled);
 			assert.equal('Install', testObject.label);
-			assert.equal('extension-action install', testObject.class);
+			assert.equal('extension-action prominent install', testObject.class);
 			done();
 		});
 	});

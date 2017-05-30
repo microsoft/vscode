@@ -163,8 +163,8 @@ CommandsRegistry.registerCommand('editor.action.showReferences', {
 	}
 });
 
-function closeActiveReferenceSearch(accessor, args) {
-	var outerEditor = getOuterEditor(accessor, args);
+function closeActiveReferenceSearch(accessor: ServicesAccessor, args: any) {
+	var outerEditor = getOuterEditor(accessor);
 	if (!outerEditor) {
 		return;
 	}

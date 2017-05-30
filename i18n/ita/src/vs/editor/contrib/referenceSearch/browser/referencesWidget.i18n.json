@@ -16,11 +16,12 @@
 	"peekViewTitleInfoForeground": "Colore delle informazioni del titolo della visualizzazione rapida.",
 	"peekViewBorder": "Colore dei bordi e della freccia della visualizzazione rapida.",
 	"peekViewResultsBackground": "Colore di sfondo dell'elenco risultati della visualizzazione rapida.",
-	"peekViewResultsMatchForeground": "Primo piano per l'immissione di corrispondenze nell'elenco risultati della visualizzazione rapida.",
-	"peekViewResultsFileForeground": "Primo piano per l'immissione di file nell'elenco risultati della visualizzazione rapida.",
+	"peekViewResultsMatchForeground": "Colore primo piano dei nodi riga nell'elenco risultati della visualizzazione rapida.",
+	"peekViewResultsFileForeground": "Colore primo piano dei nodi file nell'elenco risultati della visualizzazione rapida.",
 	"peekViewResultsSelectionBackground": "Colore di sfondo della voce selezionata nell'elenco risultati della visualizzazione rapida.",
 	"peekViewResultsSelectionForeground": "Colore primo piano della voce selezionata nell'elenco risultati della visualizzazione rapida.",
 	"peekViewEditorBackground": "Colore di sfondo dell'editor di visualizzazioni rapide.",
+	"peekViewEditorGutterBackground": "Colore di sfondo della barra di navigazione nell'editor visualizzazione rapida.",
 	"peekViewResultsMatchHighlight": "Colore dell'evidenziazione delle corrispondenze nell'elenco risultati della visualizzazione rapida.",
 	"peekViewEditorMatchHighlight": "Colore dell'evidenziazione delle corrispondenze nell'editor di visualizzazioni rapide."
 }
