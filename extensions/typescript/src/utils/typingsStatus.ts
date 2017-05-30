@@ -106,7 +106,7 @@ export class AtaProgressReporter {
 			window.showWarningMessage<MyMessageItem>(
 				localize(
 					'typesInstallerInitializationFailed.title',
-					"Could not install typings files for JavaScript language features. Please ensure that NPM is installed and is in your PATH"
+					"Could not install typings files for JavaScript language features. Please ensure that NPM is installed"
 				), {
 					title: localize('typesInstallerInitializationFailed.moreInformation', "More Information"),
 					id: 1
