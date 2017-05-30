@@ -35,7 +35,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { tildify } from 'vs/base/common/labels';
 import { isLinux } from 'vs/base/common/platform';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { registerColor, textLinkForeground, foreground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, textLinkForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils';
 
 used();
@@ -447,20 +447,17 @@ class WelcomePage {
 
 // theming
 
-const caption = registerColor('welcomePage.caption', { dark: '#FFFFFFC2', light: '#000000D4', hc: foreground }, localize('welcomePage.caption', 'Caption color on the Welcome page.'));
-const detail = registerColor('welcomePage.detail', { dark: '#FFFFFF76', light: '#00000088', hc: foreground }, localize('welcomePage.detail', 'Detail color on the Welcome page.'));
-
 const quickLinkBackground = registerColor('welcomePage.quickLinkBackground', { dark: null, light: null, hc: null }, localize('welcomePage.quickLinkBackground', 'Background color for the quick links on the Welcome page.'));
 const quickLinkHoverBackground = registerColor('welcomePage.quickLinkHoverBackground', { dark: null, light: null, hc: null }, localize('welcomePage.quickLinkHoverBackground', 'Hover background color for the quick links on the Welcome page.'));
 
 registerThemingParticipant((theme, collector) => {
-	const captionColor = theme.getColor(caption);
-	if (captionColor) {
-		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .caption { color: ${captionColor}; }`);
+	const foregroundColor = theme.getColor(foreground);
+	if (foregroundColor) {
+		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .caption { color: ${foregroundColor}; }`);
 	}
-	const detailColor = theme.getColor(detail);
-	if (detailColor) {
-		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .detail { color: ${detailColor}; }`);
+	const descriptionColor = theme.getColor(descriptionForeground);
+	if (descriptionColor) {
+		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .detail { color: ${descriptionColor}; }`);
 	}
 	const color = getExtraColor(theme, quickLinkBackground, { dark: 'rgba(0, 0, 0, .2)', extra_dark: 'rgba(200, 235, 255, .042)', light: 'rgba(0,0,0,.04)', hc: 'black' });
 	if (color) {
