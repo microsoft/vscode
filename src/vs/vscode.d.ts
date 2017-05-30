@@ -3611,11 +3611,6 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The ProblemMatchers type definition.
-	 */
-	export type ProblemMatchers = string | string[];
-
-	/**
 	 * A task that starts an external process.
 	 */
 	export class ProcessTask {
@@ -3625,9 +3620,11 @@ declare module 'vscode' {
 		 *
 		 * @param name the task's name. Is presented in the user interface.
 		 * @param process the process to start.
-		 * @param problemMatchers the problem matchers to use.
+		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
+		 *  or '$eslint'. Problem matchers can be contributed by an extension using
+		 *  the `problemMatchers` extension point.
 		 */
-		constructor(name: string, process: string, problemMatchers?: ProblemMatchers);
+		constructor(name: string, process: string, problemMatchers?: string | string[]);
 
 		/**
 		 * Creates a process task.
@@ -3635,9 +3632,11 @@ declare module 'vscode' {
 		 * @param name the task's name. Is presented in the user interface.
 		 * @param process the process to start.
 		 * @param args arguments to be passed to the process.
-		 * @param problemMatchers the problem matchers to use.
+		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
+		 *  or '$eslint'. Problem matchers can be contributed by an extension using
+		 *  the `problemMatchers` extension point.
 		 */
-		constructor(name: string, process: string, args: string[], problemMatchers?: ProblemMatchers);
+		constructor(name: string, process: string, args: string[], problemMatchers?: string | string[]);
 
 		/**
 		 * Creates a process task.
@@ -3646,9 +3645,11 @@ declare module 'vscode' {
 		 * @param process the process to start.
 		 * @param args arguments to be passed to the process.
 		 * @param options additional options for the started process.
-		 * @param problemMatchers the problem matchers to use.
+		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
+		 *  or '$eslint'. Problem matchers can be contributed by an extension using
+		 *  the `problemMatchers` extension point.
 		 */
-		constructor(name: string, process: string, args: string[], options: ProcessTaskOptions, problemMatchers?: ProblemMatchers);
+		constructor(name: string, process: string, args: string[], options: ProcessTaskOptions, problemMatchers?: string | string[]);
 
 		/**
 		 * The task's name
@@ -3769,9 +3770,11 @@ declare module 'vscode' {
 		 *
 		 * @param name the task's name. Is presented in the user interface.
 		 * @param commandLine the command line to execute.
-		 * @param problemMatchers the problem matchers to use.
+		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
+		 *  or '$eslint'. Problem matchers can be contributed by an extension using
+		 *  the `problemMatchers` extension point.
 		 */
-		constructor(name: string, commandLine: string, problemMatchers?: ProblemMatchers);
+		constructor(name: string, commandLine: string, problemMatchers?: string | string[]);
 
 		/**
 		 * Creates a shell task.
@@ -3779,9 +3782,11 @@ declare module 'vscode' {
 		 * @param name the task's name. Is presented in the user interface.
 		 * @param commandLine the command line to execute.
 		 * @param options additional options used when creating the shell.
-		 * @param problemMatchers the problem matchers to use.
+		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
+		 *  or '$eslint'. Problem matchers can be contributed by an extension using
+		 *  the `problemMatchers` extension point.
 		 */
-		constructor(name: string, commandLine: string, options: ShellTaskOptions, problemMatchers?: ProblemMatchers);
+		constructor(name: string, commandLine: string, options: ShellTaskOptions, problemMatchers?: string | string[]);
 
 		/**
 		 * The task's name

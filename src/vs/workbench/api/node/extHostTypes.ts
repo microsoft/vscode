@@ -1186,15 +1186,15 @@ export class ProcessTask extends BaseTask {
 	private _args: string[];
 	private _options: vscode.ProcessTaskOptions;
 
-	constructor(name: string, process: string, args?: string[], problemMatchers?: vscode.ProblemMatchers);
-	constructor(name: string, process: string, args: string[] | undefined, options: vscode.ProcessTaskOptions, problemMatchers?: vscode.ProblemMatchers);
-	constructor(name: string, process: string, arg3?: string[], arg4?: vscode.ProcessTaskOptions | vscode.ProblemMatchers, arg5?: vscode.ProblemMatchers) {
+	constructor(name: string, process: string, args?: string[], problemMatchers?: string | string[]);
+	constructor(name: string, process: string, args: string[] | undefined, options: vscode.ProcessTaskOptions, problemMatchers?: string | string[]);
+	constructor(name: string, process: string, arg3?: string[], arg4?: vscode.ProcessTaskOptions | string | string[], arg5?: string | string[]) {
 		if (typeof process !== 'string') {
 			throw illegalArgument('process');
 		}
 		let args: string[];
 		let options: vscode.ProcessTaskOptions;
-		let problemMatchers: vscode.ProblemMatchers;
+		let problemMatchers: string | string[];
 
 		args = arg3 || [];
 		if (arg4) {
@@ -1252,9 +1252,9 @@ export class ShellTask extends BaseTask implements vscode.ShellTask {
 	private _commandLine: string;
 	private _options: vscode.ShellTaskOptions;
 
-	constructor(name: string, commandLine: string, problemMatchers?: vscode.ProblemMatchers);
-	constructor(name: string, commandLine: string, options: vscode.ShellTaskOptions, problemMatchers?: vscode.ProblemMatchers);
-	constructor(name: string, commandLine: string, optionsOrProblemMatchers?: vscode.ShellTaskOptions | vscode.ProblemMatchers, problemMatchers?: vscode.ProblemMatchers) {
+	constructor(name: string, commandLine: string, problemMatchers?: string | string[]);
+	constructor(name: string, commandLine: string, options: vscode.ShellTaskOptions, problemMatchers?: string | string[]);
+	constructor(name: string, commandLine: string, optionsOrProblemMatchers?: vscode.ShellTaskOptions | string | string[], problemMatchers?: string | string[]) {
 		if (typeof commandLine !== 'string') {
 			throw illegalArgument('commandLine');
 		}
