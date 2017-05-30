@@ -369,8 +369,8 @@ export function createApiFactory(
 			sampleFunction: proposedApiFunction(extension, () => {
 				return extHostMessageService.showMessage(Severity.Info, 'Hello Proposed Api!', {}, []);
 			}),
-			registerTreeDataProviderForView: proposedApiFunction(extension, (viewId: string, treeDataProvider: vscode.TreeDataProvider<any>): vscode.Disposable => {
-				return extHostTreeViews.registerTreeDataProviderForView(viewId, treeDataProvider);
+			registerTreeDataProvider: proposedApiFunction(extension, (viewId: string, treeDataProvider: vscode.TreeDataProvider<any>): vscode.Disposable => {
+				return extHostTreeViews.registerTreeDataProvider(viewId, treeDataProvider);
 			})
 		};
 

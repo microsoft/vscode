@@ -39,7 +39,7 @@ export class ExtHostTreeViews extends ExtHostTreeViewsShape {
 		});
 	}
 
-	registerTreeDataProviderForView<T>(id: string, treeDataProvider: vscode.TreeDataProvider<T>): vscode.Disposable {
+	registerTreeDataProvider<T>(id: string, treeDataProvider: vscode.TreeDataProvider<T>): vscode.Disposable {
 		const treeView = new ExtHostTreeView<T>(id, treeDataProvider, this._proxy);
 		this.treeViews.set(id, treeView);
 		return {

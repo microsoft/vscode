@@ -18,7 +18,7 @@ declare module 'vscode' {
 		 * @param viewId Id of the view contributed using the extension point `views`.
 		 * @param treeDataProvider A [TreeDataProvider](#TreeDataProvider) that provides tree data for the view
 		 */
-		export function registerTreeDataProviderForView<T>(viewId: string, treeDataProvider: TreeDataProvider<T>): Disposable;
+		export function registerTreeDataProvider<T>(viewId: string, treeDataProvider: TreeDataProvider<T>): Disposable;
 	}
 
 	/**
@@ -71,7 +71,7 @@ declare module 'vscode' {
 
 		/**
 		 * Context value of the tree item. This can be used to contribute item specific actions in the tree.
-		 * For example, a tree item is given a context value as `folder`. When contribution actions to `view/item/context`
+		 * For example, a tree item is given a context value as `folder`. When contributing actions to `view/item/context`
 		 * using `menus` extension point, you can specify context value for key `viewItem` in `when` expression like `viewItem == folder`.
 		 * ```
 		 *	"contributes": {
