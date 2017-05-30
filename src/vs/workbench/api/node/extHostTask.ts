@@ -294,7 +294,7 @@ namespace Tasks {
 	}
 
 	function fromSingle(task: vscode.Task, extension: IExtensionDescription, uuidMap: UUIDMap): TaskSystem.Task {
-		if (typeof task.name !== 'string' || typeof task.identifier !== 'string') {
+		if (typeof task.name !== 'string') {
 			return undefined;
 		}
 		let command: TaskSystem.CommandConfiguration;
