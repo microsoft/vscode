@@ -65,7 +65,7 @@ export interface IModelDecorationOverviewRulerOptions {
  */
 export interface IModelDecorationOptions {
 	/**
-	 * Customize the growing behaviour of the decoration when typing at the edges of the decoration.
+	 * Customize the growing behavior of the decoration when typing at the edges of the decoration.
 	 * Defaults to TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
 	 */
 	stickiness?: TrackedRangeStickiness;
@@ -925,8 +925,8 @@ export interface ITextModelWithMarkers extends ITextModel {
 }
 
 /**
- * Describes the behaviour of decorations when typing/editing near their edges.
- * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehaviour`
+ * Describes the behavior of decorations when typing/editing near their edges.
+ * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehavior`
  */
 export enum TrackedRangeStickiness {
 	AlwaysGrowsWhenTypingAtEdges = 0,
