@@ -962,6 +962,28 @@ export enum TextEditorSelectionChangeKind {
 	Command = 3
 }
 
+/**
+ * These values match very carefully the values of `TrackedRangeStickiness`
+ */
+export enum DecorationRangeBehavior {
+	/**
+	 * TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+	 */
+	OpenOpen = 0,
+	/**
+	 * TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+	 */
+	ClosedClosed = 1,
+	/**
+	 * TrackedRangeStickiness.GrowsOnlyWhenTypingBefore
+	 */
+	OpenClosed = 2,
+	/**
+	 * TrackedRangeStickiness.GrowsOnlyWhenTypingAfter
+	 */
+	ClosedOpen = 3
+}
+
 export namespace TextEditorSelectionChangeKind {
 	export function fromValue(s: string) {
 		switch (s) {

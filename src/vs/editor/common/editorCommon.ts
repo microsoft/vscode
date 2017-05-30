@@ -926,6 +926,7 @@ export interface ITextModelWithMarkers extends ITextModel {
 
 /**
  * Describes the behaviour of decorations when typing/editing near their edges.
+ * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehaviour`
  */
 export enum TrackedRangeStickiness {
 	AlwaysGrowsWhenTypingAtEdges = 0,
@@ -1687,6 +1688,7 @@ export interface IContentDecorationRenderOptions {
  */
 export interface IDecorationRenderOptions extends IThemeDecorationRenderOptions {
 	isWholeLine?: boolean;
+	rangeBehavior?: TrackedRangeStickiness;
 	overviewRulerLane?: OverviewRulerLane;
 
 	light?: IThemeDecorationRenderOptions;

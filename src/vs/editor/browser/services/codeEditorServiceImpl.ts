@@ -156,6 +156,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
 		let options = providerArgs.options;
 		this.isWholeLine = Boolean(options.isWholeLine);
+		this.stickiness = options.rangeBehavior;
 
 		let lightOverviewRulerColor = options.light && options.light.overviewRulerColor || options.overviewRulerColor;
 		let darkOverviewRulerColor = options.dark && options.dark.overviewRulerColor || options.overviewRulerColor;
