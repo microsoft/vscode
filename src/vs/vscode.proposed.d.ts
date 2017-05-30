@@ -44,7 +44,7 @@ declare module 'vscode' {
 		 * @param element The element from which the provider gets children for.
 		 * @return Children of `element` or root.
 		 */
-		getChildren(element?: T): T[] | Thenable<T[]>;
+		getChildren(element?: T): ProviderResult<T[]>;
 	}
 
 	export interface TreeItem {
