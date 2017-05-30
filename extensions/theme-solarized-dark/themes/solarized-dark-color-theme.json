@@ -301,6 +301,8 @@
 
 		// "widget.shadow": "",
 
+		"selection.background": "#2AA19899",
+
 		"input.background": "#003847",
 		"input.foreground": "#93A1A1",
 		"input.placeholderForeground": "#93A1A1AA",
@@ -313,6 +315,8 @@
 		"inputValidation.warningBorder": "#9d8a5e",
 		"inputValidation.errorBackground": "#571b26",
 		"inputValidation.errorBorder": "#a92049",
+
+		"errorForeground": "#ffeaea",
 
 		"badge.background": "#047aa6",
 		"progressBar.background": "#047aa6",

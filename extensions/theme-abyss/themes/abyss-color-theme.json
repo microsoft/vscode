@@ -408,6 +408,10 @@
 		"pickerGroup.border": "#596F99",
 		"pickerGroup.foreground": "#596F99",
 
+		// Workbench: Extensions
+		"extensionButton.prominentBackground": "#5f8b3b",
+		"extensionButton.prominentHoverBackground": "#5f8b3bbb",
+
 		// Workbench: Terminal
 		"terminal.ansiBlack": "#111111",
 		"terminal.ansiRed": "#ff9da4",

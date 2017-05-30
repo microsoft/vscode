@@ -17,6 +17,7 @@
 		"button.background": "#75715E",
 		"editor.background": "#272822",
 		"editor.foreground": "#f8f8f2",
+		"selection.background": "#ccccc7",
 		"editor.selectionBackground": "#49483e",
 		"editor.lineHighlightBackground": "#3e3d32",
 		"editorCursor.foreground": "#f8f8f0",

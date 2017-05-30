@@ -323,6 +323,8 @@
 		"button.background": "#AC9D57",
 		// "button.foreground": "",
 
+		"selection.background": "#CCC4B0",
+
 		"list.activeSelectionBackground": "#DFCA88",
 		"list.activeSelectionForeground": "#6C6C6C",
 		"list.focusBackground": "#DFCA8866",
@@ -452,6 +454,10 @@
 		// Workbench: Quick Open
 		"pickerGroup.border": "#2AA19899",
 		"pickerGroup.foreground": "#2AA19899",
+
+		// Extensions
+		"extensionButton.prominentBackground": "#b58900",
+		"extensionButton.prominentHoverBackground": "#584c27aa",
 
 		// Workbench: Terminal
 		// Colors sourced from the official palette http://ethanschoonover.com/solarized
