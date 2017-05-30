@@ -1636,7 +1636,6 @@ export function isThemeColor(o): o is ThemeColor {
  * @internal
  */
 export interface IThemeDecorationRenderOptions {
-	stickiness?: TrackedRangeStickiness;
 	backgroundColor?: string | ThemeColor;
 
 	outline?: string;
@@ -1688,6 +1687,7 @@ export interface IContentDecorationRenderOptions {
  */
 export interface IDecorationRenderOptions extends IThemeDecorationRenderOptions {
 	isWholeLine?: boolean;
+	stickiness?: TrackedRangeStickiness;
 	overviewRulerLane?: OverviewRulerLane;
 
 	light?: IThemeDecorationRenderOptions;

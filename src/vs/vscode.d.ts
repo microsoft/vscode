@@ -751,12 +751,6 @@ declare module 'vscode' {
 	 */
 	export interface ThemableDecorationRenderOptions {
 		/**
-		 * Customize the growing behaviour of the decoration when typing at the edges of the decoration.
-		 * Defaults to TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
-		 */
-		stickiness?: TrackedRangeStickiness;
-
-		/**
 		 * Background color of the decoration. Use rgba() and define transparent background colors to play well with other decorations.
 		 * Alternativly a color from the color registry an be [referenced](#ColorIdentifier).
 		 */
@@ -921,6 +915,12 @@ declare module 'vscode' {
 		 * Defaults to `false`.
 		 */
 		isWholeLine?: boolean;
+
+		/**
+		 * Customize the growing behaviour of the decoration when typing at the edges of the decoration.
+		 * Defaults to TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+		 */
+		stickiness?: TrackedRangeStickiness;
 
 		/**
 		 * The position in the overview ruler where the decoration should be rendered.
