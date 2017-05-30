@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication, USER_DIR, STABLE_PATH, LATEST_PATH, WORKSPACE_PATH } from "../spectron/application";
+import { SpectronApplication, USER_DIR, STABLE_PATH, LATEST_PATH, WORKSPACE_PATH, EXTENSIONS_DIR } from "../spectron/application";
 import { CommonActions } from '../areas/common';
 
 let app: SpectronApplication;
@@ -20,11 +20,12 @@ export function testDataMigration() {
 
 		afterEach(async function () {
 			await app.stop();
-			return await common.removeDirectory(USER_DIR)
+			await common.removeDirectory(USER_DIR);
+			return await common.removeDirectory(EXTENSIONS_DIR);
 		});
 
 		function setupSpectron(context: Mocha.ITestCallbackContext, appPath: string, workspace?: string[]): void {
-			app = new SpectronApplication(appPath, context.test.fullTitle(), context.test.currentRetry(), workspace, [`--user-data-dir=${USER_DIR}`]);
+			app = new SpectronApplication(appPath, context.test.fullTitle(), context.test.currentRetry(), workspace, [`--user-data-dir=${USER_DIR}`, `--extensions-dir=${EXTENSIONS_DIR}`]);
 			common = new CommonActions(app);
 		}
 

@@ -19,7 +19,7 @@ export class CommonActions {
 	public async getWindowTitle(): Promise<any> {
 		return this.spectron.client.getTitle();
 	}
-	
+
 	public enter(): Promise<any> {
 		return this.spectron.client.keys(['Enter', 'NULL']);
 	}
@@ -34,7 +34,7 @@ export class CommonActions {
 		await this.spectron.wait();
 		return this.saveOpenedFile();
 	}
-	
+
 	public async newUntitledFile(): Promise<any> {
 		await this.spectron.command('workbench.action.files.newUntitledFile');
 		return this.spectron.wait();
@@ -45,12 +45,14 @@ export class CommonActions {
 	}
 
 	public async getTab(tabName: string, active?: boolean): Promise<any> {
+		await this.spectron.command('workbench.action.closeMessages'); // close any notification messages that could overlap tabs
+
 		let tabSelector = active ? '.tab.active' : 'div';
 		let el = await this.spectron.client.element(`.tabs-container ${tabSelector}[aria-label="${tabName}, tab"]`);
 		if (el.status === 0) {
 			return el;
 		}
-		
+
 		return undefined;
 	}
 
@@ -118,7 +120,7 @@ export class CommonActions {
 			selector += ' explorer-item';
 		}
 		selector += '"]';
-		
+
 		await this.spectron.waitFor(this.spectron.client.doubleClick, selector);
 		return this.spectron.wait();
 	}
@@ -132,7 +134,7 @@ export class CommonActions {
 		} else if (extension === 'md') {
 			return 'md-ext-file-icon markdown-lang-file-icon';
 		}
-		
+
 		throw new Error('No class defined for this file extension');
 	}
 
@@ -142,7 +144,7 @@ export class CommonActions {
 			if (Array.isArray(span)) {
 				return span[0];
 			}
-			
+
 			return span;
 		} catch (e) {
 			return undefined;
