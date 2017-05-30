@@ -110,6 +110,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private _onReady: { promise: Promise<void>; resolve: () => void; reject: () => void; };
 	private globalTsdk: string | null;
 	private localTsdk: string | null;
+	private npmLocation: string | null;
 	private _checkGlobalTSCVersion: boolean;
 	private _experimentalAutoBuild: boolean;
 	private tracer: Tracer;
@@ -170,6 +171,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		const configuration = workspace.getConfiguration();
 		this.globalTsdk = this.extractGlobalTsdk(configuration);
 		this.localTsdk = this.extractLocalTsdk(configuration);
+		this.npmLocation = configuration.get<string | null>('typescript.npm', null);
 
 		this._experimentalAutoBuild = false; // configuration.get<boolean>('typescript.tsserver.experimentalAutoBuild', false);
 		this._apiVersion = new API('1.0.0');
@@ -183,6 +185,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			let oldglobalTsdk = this.globalTsdk;
 			let oldLocalTsdk = this.localTsdk;
 			let oldCheckJs = this.checkJs;
+			const oldNpmLocation = this.npmLocation;
 
 			this.tracer.updateConfiguration();
 			this.tsServerLogLevel = this.readTsServerLogLevel();
@@ -191,6 +194,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			this.globalTsdk = this.extractGlobalTsdk(configuration);
 			this.localTsdk = this.extractLocalTsdk(configuration);
 			this.checkJs = this.readCheckJs();
+			this.npmLocation = configuration.get<string | null>('typescript.npm', null);
 
 			if (this.servicePromise && oldCheckJs !== this.checkJs) {
 				this.setCompilerOptionsForInferredProjects();
@@ -198,7 +202,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 			if (this.servicePromise === null && (oldglobalTsdk !== this.globalTsdk || oldLocalTsdk !== this.localTsdk)) {
 				this.startService();
-			} else if (this.servicePromise !== null && (this.tsServerLogLevel !== oldLoggingLevel || oldglobalTsdk !== this.globalTsdk || oldLocalTsdk !== this.localTsdk)) {
+			} else if (this.servicePromise !== null && (this.tsServerLogLevel !== oldLoggingLevel || oldglobalTsdk !== this.globalTsdk || oldLocalTsdk !== this.localTsdk || oldNpmLocation !== this.npmLocation)) {
 				this.restartTsServer();
 			}
 		}));
@@ -475,6 +479,12 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							if (modulePath === this.globalTypescriptPath) {
 								args.push('--pluginProbeLocations', this.plugins.map(x => x.path).join(','));
 							}
+						}
+					}
+
+					if (this.apiVersion.has234Features()) {
+						if (this.npmLocation) {
+							args.push('--npmLocation', `"${this.npmLocation}"`);
 						}
 					}
 

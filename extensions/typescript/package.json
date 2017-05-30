@@ -103,6 +103,14 @@
           "default": true,
           "description": "%typescript.check.tscVersion%"
         },
+        "typescript.npm": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "%typescript.npm%"
+        },
         "typescript.check.npmIsInstalled": {
           "type": "boolean",
           "default": true,
