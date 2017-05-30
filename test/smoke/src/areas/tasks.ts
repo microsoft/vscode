@@ -25,12 +25,14 @@ export class Tasks {
 	}
 
 	public async firstOutputLineEndsWith(fileName: string): Promise<boolean> {
+		await this.spectron.command('workbench.action.toggleFullScreen'); // toggle full screen to prevent output view to be rendered as wrapped
 		const firstLine = await this.spectron.waitFor(this.spectron.client.getText, `${this.outputViewSelector}>:nth-child(2)`);
 
 		return firstLine.endsWith(fileName);
 	}
 
-	public getOutputResult(): Promise<any> {
+	public async getOutputResult(): Promise<any> {
+		await this.spectron.command('workbench.action.toggleFullScreen'); // toggle full screen to prevent output view to be rendered as wrapped
 		return this.spectron.waitFor(this.spectron.client.getText, `${this.outputViewSelector}>:nth-child(5) span.mtk1`);
 	}
 
