@@ -13,7 +13,7 @@ const endFooterMarker = '>>>>>>> ';
 
 interface IScanMergedConflict {
 	startHeader: vscode.TextLine;
-	commonAncestors: vscode.TextLine | null;
+	commonAncestors?: vscode.TextLine;
 	splitter?: vscode.TextLine;
 	endFooter?: vscode.TextLine;
 }
@@ -51,7 +51,7 @@ export class MergeConflictParser {
 				}
 
 				// Create a new conflict starting at this line
-				currentConflict = { startHeader: line, commonAncestors: null };
+				currentConflict = { startHeader: line };
 			}
 			// Are we within a conflict block and is this a common ancestors marker? |||||||
 			else if (currentConflict && !currentConflict.commonAncestors && line.text.startsWith(commonAncestorsMarker)) {
@@ -109,7 +109,7 @@ export class MergeConflictParser {
 					tokenAfterCurrentBlock.range.start),
 				name: scanned.startHeader.text.substring(startHeaderMarker.length)
 			},
-			commonAncestors: scanned.commonAncestors === null ? null : {
+			commonAncestors: scanned.commonAncestors ? {
 				header: scanned.commonAncestors.range,
 				decoratorContent: new vscode.Range(
 					scanned.commonAncestors.rangeIncludingLineBreak.end,
@@ -119,7 +119,7 @@ export class MergeConflictParser {
 					scanned.commonAncestors.rangeIncludingLineBreak.end,
 					scanned.splitter.range.start),
 				name: scanned.commonAncestors.text.substring(commonAncestorsMarker.length)
-			},
+			} : null,
 			splitter: scanned.splitter.range,
 			incoming: {
 				header: scanned.endFooter.range,
