@@ -31,7 +31,7 @@ declare module 'vscode' {
 		onDidChangeTreeData?: Event<T | undefined | null>;
 
 		/**
-		 * get [TreeItem](#TreeItem) representation of the `element`
+		 * Get [TreeItem](#TreeItem) representation of the `element`
 		 *
 		 * @param element The element for which [TreeItem](#TreeItem) representation is asked for.
 		 * @return [TreeItem](#TreeItem) representation of the element
@@ -39,7 +39,7 @@ declare module 'vscode' {
 		getTreeItem(element: T): TreeItem;
 
 		/**
-		 * get the children of `element` or root.
+		 * Get the children of `element` or root.
 		 *
 		 * @param element The element from which the provider gets children for.
 		 * @return Children of `element` or root.
