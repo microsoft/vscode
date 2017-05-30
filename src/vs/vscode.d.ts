@@ -3577,7 +3577,7 @@ declare module 'vscode' {
 	export interface ProcessOptions {
 		/**
 		 * The current working directory of the executed program or shell.
-		 * If omitted VSCode's current workspace root is used.
+		 * If omitted the tools current workspace root is used.
 		 */
 		cwd?: string;
 
@@ -3719,7 +3719,7 @@ declare module 'vscode' {
 
 		/**
 		 * The current working directory of the executed shell.
-		 * If omitted VSCode's current workspace root is used.
+		 * If omitted the tools current workspace root is used.
 		 */
 		cwd?: string;
 
@@ -3732,7 +3732,7 @@ declare module 'vscode' {
 	} | {
 			/**
 			 * The current working directory of the executed shell.
-			 * If omitted VSCode's current workspace root is used.
+			 * If omitted the tools current workspace root is used.
 			 */
 			cwd: string;
 
@@ -3745,7 +3745,7 @@ declare module 'vscode' {
 		} | {
 			/**
 			 * The current working directory of the executed shell.
-			 * If omitted VSCode's current workspace root is used.
+			 * If omitted the tools current workspace root is used.
 			 */
 			cwd?: string;
 
