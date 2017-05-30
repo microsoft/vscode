@@ -1688,7 +1688,7 @@ export interface IContentDecorationRenderOptions {
  */
 export interface IDecorationRenderOptions extends IThemeDecorationRenderOptions {
 	isWholeLine?: boolean;
-	stickiness?: TrackedRangeStickiness;
+	rangeBehavior?: TrackedRangeStickiness;
 	overviewRulerLane?: OverviewRulerLane;
 
 	light?: IThemeDecorationRenderOptions;

@@ -701,9 +701,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Describes the behaviour of decorations when typing/editing at their edges.
+	 * Describes the behavior of decorations when typing/editing at their edges.
 	 */
-	export enum DecorationRangeBehaviour {
+	export enum DecorationRangeBehavior {
 		/**
 		 * The decoration's range will widen when edits occur at the start or end.
 		 */
@@ -929,10 +929,10 @@ declare module 'vscode' {
 		isWholeLine?: boolean;
 
 		/**
-		 * Customize the growing behaviour of the decoration when edits occur at the edges of the decoration's range.
-		 * Defaults to `DecorationRangeBehaviour.OpenOpen`.
+		 * Customize the growing behavior of the decoration when edits occur at the edges of the decoration's range.
+		 * Defaults to `DecorationRangeBehavior.OpenOpen`.
 		 */
-		rangeBehaviour?: DecorationRangeBehaviour;
+		rangeBehavior?: DecorationRangeBehavior;
 
 		/**
 		 * The position in the overview ruler where the decoration should be rendered.
@@ -1035,7 +1035,7 @@ declare module 'vscode' {
 		 * callback executes.
 		 *
 		 * @param callback A function which can create edits using an [edit-builder](#TextEditorEdit).
-		 * @param options The undo/redo behaviour around this edit. By default, undo stops will be created before and after this edit.
+		 * @param options The undo/redo behavior around this edit. By default, undo stops will be created before and after this edit.
 		 * @return A promise that resolves with a value indicating if the edits could be applied.
 		 */
 		edit(callback: (editBuilder: TextEditorEdit) => void, options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
@@ -1047,7 +1047,7 @@ declare module 'vscode' {
 		 *
 		 * @param snippet The snippet to insert in this edit.
 		 * @param location Position or range at which to insert the snippet, defaults to the current editor selection or selections.
-		 * @param options The undo/redo behaviour around this edit. By default, undo stops will be created before and after this edit.
+		 * @param options The undo/redo behavior around this edit. By default, undo stops will be created before and after this edit.
 		 * @return A promise that resolves with a value indicating if the snippet could be inserted. Note that the promise does not signal
 		 * that the snippet is completely filled-in or accepted.
 		 */

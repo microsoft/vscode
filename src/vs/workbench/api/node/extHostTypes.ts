@@ -965,7 +965,7 @@ export enum TextEditorSelectionChangeKind {
 /**
  * These values match very carefully the values of `TrackedRangeStickiness`
  */
-export enum DecorationRangeBehaviour {
+export enum DecorationRangeBehavior {
 	/**
 	 * TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
 	 */
