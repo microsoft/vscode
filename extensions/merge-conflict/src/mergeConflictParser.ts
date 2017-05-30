@@ -54,11 +54,11 @@ export class MergeConflictParser {
 				currentConflict = { startHeader: line, commonAncestors: null };
 			}
 			// Are we within a conflict block and is this a common ancestors marker? |||||||
-			else if (currentConflict && line.text.startsWith(commonAncestorsMarker)) {
+			else if (currentConflict && !currentConflict.commonAncestors && line.text.startsWith(commonAncestorsMarker)) {
 				currentConflict.commonAncestors = line;
 			}
 			// Are we within a conflict block and is this a splitter? =======
-			else if (currentConflict && line.text.startsWith(splitterMarker)) {
+			else if (currentConflict && !currentConflict.splitter && line.text.startsWith(splitterMarker)) {
 				currentConflict.splitter = line;
 			}
 			// Are we withon a conflict block and is this a footer? >>>>>>>
@@ -90,11 +90,7 @@ export class MergeConflictParser {
 			return null;
 		}
 
-		let tokenAfterCurrentBlock: vscode.TextLine = scanned.splitter;
-
-		if (scanned.commonAncestors !== null) {
-			tokenAfterCurrentBlock = scanned.commonAncestors;
-		}
+		let tokenAfterCurrentBlock: vscode.TextLine = scanned.commonAncestors || scanned.splitter;
 
 		// Assume that descriptor.current.header, descriptor.incoming.header and descriptor.spliiter
 		// have valid ranges, fill in content and total ranges from these parts.
