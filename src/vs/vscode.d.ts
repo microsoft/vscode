@@ -701,13 +701,25 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Describes the behaviour of decorations when typing/editing near their edges.
+	 * Describes the behaviour of decorations when typing/editing at their edges.
 	 */
-	export enum TrackedRangeStickiness {
-		AlwaysGrowsWhenTypingAtEdges = 0,
-		NeverGrowsWhenTypingAtEdges = 1,
-		GrowsOnlyWhenTypingBefore = 2,
-		GrowsOnlyWhenTypingAfter = 3
+	export enum DecorationRangeBehaviour {
+		/**
+		 * The decoration's range will widen when edits occur at the start or end.
+		 */
+		OpenOpen = 0,
+		/**
+		 * The decoration's range will not widen when edits occur at the start of end.
+		 */
+		ClosedClosed = 1,
+		/**
+		 * The decoration's range will widen when edits occur at the start, but not at the end.
+		 */
+		OpenClosed = 2,
+		/**
+		 * The decoration's range will widen when edits occur at the end, but not at the start.
+		 */
+		ClosedOpen = 3
 	}
 
 	/**
@@ -917,10 +929,10 @@ declare module 'vscode' {
 		isWholeLine?: boolean;
 
 		/**
-		 * Customize the growing behaviour of the decoration when typing at the edges of the decoration.
-		 * Defaults to TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+		 * Customize the growing behaviour of the decoration when edits occur at the edges of the decoration's range.
+		 * Defaults to `DecorationRangeBehaviour.OpenOpen`.
 		 */
-		stickiness?: TrackedRangeStickiness;
+		rangeBehaviour?: DecorationRangeBehaviour;
 
 		/**
 		 * The position in the overview ruler where the decoration should be rendered.

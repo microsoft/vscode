@@ -529,7 +529,7 @@ export function createApiFactory(
 			TextEditorLineNumbersStyle: extHostTypes.TextEditorLineNumbersStyle,
 			TextEditorRevealType: extHostTypes.TextEditorRevealType,
 			TextEditorSelectionChangeKind: extHostTypes.TextEditorSelectionChangeKind,
-			TrackedRangeStickiness: EditorCommon.TrackedRangeStickiness,
+			DecorationRangeBehaviour: extHostTypes.DecorationRangeBehaviour,
 			Uri: URI,
 			ViewColumn: extHostTypes.ViewColumn,
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
