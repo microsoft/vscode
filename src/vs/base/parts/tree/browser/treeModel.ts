@@ -148,7 +148,8 @@ export class ItemRegistry extends Events.EventEmitter {
 	}
 
 	public isRegistered(id: string): boolean {
-		return this.items.hasOwnProperty(id);
+		const result = this.items[id];
+		return result ? true : false;
 	}
 
 	public getItem(id: string): Item {
