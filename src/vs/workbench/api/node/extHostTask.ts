@@ -191,15 +191,15 @@ namespace ProblemMatcher {
 }
 */
 
-namespace RevealKind {
-	export function from(value: vscode.RevealKind): TaskSystem.RevealKind {
+namespace TaskRevealKind {
+	export function from(value: vscode.TaskRevealKind): TaskSystem.RevealKind {
 		if (value === void 0 || value === null) {
 			return TaskSystem.RevealKind.Always;
 		}
 		switch (value) {
-			case types.RevealKind.Silent:
+			case types.TaskRevealKind.Silent:
 				return TaskSystem.RevealKind.Silent;
-			case types.RevealKind.Never:
+			case types.TaskRevealKind.Never:
 				return TaskSystem.RevealKind.Never;
 		}
 		return TaskSystem.RevealKind.Always;
@@ -207,11 +207,11 @@ namespace RevealKind {
 }
 
 namespace TerminalBehaviour {
-	export function from(value: vscode.TerminalBehaviour): TaskSystem.TerminalBehavior {
+	export function from(value: vscode.TaskTerminalBehavior): TaskSystem.TerminalBehavior {
 		if (value === void 0 || value === null) {
 			return { reveal: TaskSystem.RevealKind.Always, echo: false };
 		}
-		return { reveal: RevealKind.from(value.reveal), echo: !!value.echo };
+		return { reveal: TaskRevealKind.from(value.reveal), echo: !!value.echo };
 	}
 }
 
@@ -230,10 +230,10 @@ namespace Strings {
 }
 
 namespace CommandOptions {
-	function isShellOptions(value: any): value is vscode.ShellOptions {
+	function isShellOptions(value: any): value is vscode.ShellTaskOptions {
 		return value && typeof value.executable === 'string';
 	}
-	export function from(value: vscode.ShellOptions | vscode.ProcessOptions): TaskSystem.CommandOptions {
+	export function from(value: vscode.ShellTaskOptions | vscode.ProcessTaskOptions): TaskSystem.CommandOptions {
 		if (value === void 0 || value === null) {
 			return undefined;
 		}

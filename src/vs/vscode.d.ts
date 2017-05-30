@@ -3540,7 +3540,7 @@ declare module 'vscode' {
 	/**
 	 * Controls the behaviour of the terminal's visibility.
 	 */
-	export enum RevealKind {
+	export enum TaskRevealKind {
 		/**
 		 * Always brings the terminal to front if the task is executed.
 		 */
@@ -3559,14 +3559,14 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Controls terminal specific behaviour.
+	 * Controls terminal specific behavior.
 	 */
-	export interface TerminalBehaviour {
+	export interface TaskTerminalBehavior {
 		/**
 		 * Controls whether the terminal executing a task is brought to front or not.
 		 * Defaults to `RevealKind.Always`.
 		 */
-		reveal?: RevealKind;
+		reveal?: TaskRevealKind;
 
 		/**
 		 * Controls whether the command is echoed in the terminal or not.
@@ -3574,7 +3574,7 @@ declare module 'vscode' {
 		echo?: boolean;
 	}
 
-	export interface ProcessOptions {
+	export interface ProcessTaskOptions {
 		/**
 		 * The current working directory of the executed program or shell.
 		 * If omitted the tools current workspace root is used.
@@ -3595,7 +3595,8 @@ declare module 'vscode' {
 		 */
 		export const Clean: 'clean';
 		/**
-		 * The build task group
+		 * The build task group. If a task is part of the build task group
+		 * it can be executed via the run build short cut.
 		 */
 		export const Build: 'build';
 		/**
@@ -3603,7 +3604,8 @@ declare module 'vscode' {
 		 */
 		export const RebuildAll: 'rebuildAll';
 		/**
-		 * The test task group
+		 * The test task group. If a task is part of the test task group
+		 * it can be executed via the run test short cut.
 		 */
 		export const Test: 'test';
 	}
@@ -3646,7 +3648,7 @@ declare module 'vscode' {
 		 * @param options additional options for the started process.
 		 * @param problemMatchers the problem matchers to use.
 		 */
-		constructor(name: string, process: string, args: string[], options: ProcessOptions, problemMatchers?: ProblemMatchers);
+		constructor(name: string, process: string, args: string[], options: ProcessTaskOptions, problemMatchers?: ProblemMatchers);
 
 		/**
 		 * The task's name
@@ -3692,12 +3694,12 @@ declare module 'vscode' {
 		 * The process options used when the process is executed.
 		 * Defaults to an empty object literal.
 		 */
-		options: ProcessOptions;
+		options: ProcessTaskOptions;
 
 		/**
-		 * The terminal options. Defaults to an empty object literal.
+		 * The terminal behavior. Defaults to an empty object literal.
 		 */
-		terminal: TerminalBehaviour;
+		terminal: TaskTerminalBehavior;
 
 		/**
 		 * The problem matchers attached to the task. Defaults to an empty
@@ -3706,7 +3708,7 @@ declare module 'vscode' {
 		problemMatchers: string[];
 	}
 
-	export type ShellOptions = {
+	export type ShellTaskOptions = {
 		/**
 		 * The shell executable.
 		 */
@@ -3779,7 +3781,7 @@ declare module 'vscode' {
 		 * @param options additional options used when creating the shell.
 		 * @param problemMatchers the problem matchers to use.
 		 */
-		constructor(name: string, commandLine: string, options: ShellOptions, problemMatchers?: ProblemMatchers);
+		constructor(name: string, commandLine: string, options: ShellTaskOptions, problemMatchers?: ProblemMatchers);
 
 		/**
 		 * The task's name
@@ -3820,12 +3822,12 @@ declare module 'vscode' {
 		 * The shell options used when the shell is executed. Defaults to an
 		 * empty object literal.
 		 */
-		options: ShellOptions;
+		options: ShellTaskOptions;
 
 		/**
-		 * The terminal options. Defaults to an empty object literal.
+		 * The terminal behavior. Defaults to an empty object literal.
 		 */
-		terminal: TerminalBehaviour;
+		terminal: TaskTerminalBehavior;
 
 		/**
 		 * The problem matchers attached to the task. Defaults to an empty

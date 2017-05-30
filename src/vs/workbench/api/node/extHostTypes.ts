@@ -1029,7 +1029,7 @@ export enum ApplyToKind {
 	ClosedDocuments = 3
 }
 
-export enum RevealKind {
+export enum TaskRevealKind {
 	Always = 1,
 
 	Silent = 2,
@@ -1045,7 +1045,7 @@ export class BaseTask {
 	private _isBackground: boolean;
 	private _source: string;
 	private _group: string;
-	private _terminal: vscode.TerminalBehaviour;
+	private _terminal: vscode.TaskTerminalBehavior;
 
 	constructor(name: string, problemMatchers: string[]) {
 		if (typeof name !== 'string') {
@@ -1116,11 +1116,11 @@ export class BaseTask {
 		this._group = value;
 	}
 
-	get terminal(): vscode.TerminalBehaviour {
+	get terminal(): vscode.TaskTerminalBehavior {
 		return this._terminal;
 	}
 
-	set terminal(value: vscode.TerminalBehaviour) {
+	set terminal(value: vscode.TaskTerminalBehavior) {
 		if (value === void 0 || value === null) {
 			value = Object.create(null);
 		}
@@ -1149,7 +1149,7 @@ namespace ProblemMatcher {
 */
 
 namespace ShellOptions {
-	export function is(value: any): value is vscode.ShellOptions {
+	export function is(value: any): value is vscode.ShellTaskOptions {
 		return value && ((typeof value.executable === 'string') || (typeof value.cwd === 'string') || !!value.env);
 	}
 }
@@ -1184,16 +1184,16 @@ export class ProcessTask extends BaseTask {
 
 	private _process: string;
 	private _args: string[];
-	private _options: vscode.ProcessOptions;
+	private _options: vscode.ProcessTaskOptions;
 
 	constructor(name: string, process: string, args?: string[], problemMatchers?: vscode.ProblemMatchers);
-	constructor(name: string, process: string, args: string[] | undefined, options: vscode.ProcessOptions, problemMatchers?: vscode.ProblemMatchers);
-	constructor(name: string, process: string, arg3?: string[], arg4?: vscode.ProcessOptions | vscode.ProblemMatchers, arg5?: vscode.ProblemMatchers) {
+	constructor(name: string, process: string, args: string[] | undefined, options: vscode.ProcessTaskOptions, problemMatchers?: vscode.ProblemMatchers);
+	constructor(name: string, process: string, arg3?: string[], arg4?: vscode.ProcessTaskOptions | vscode.ProblemMatchers, arg5?: vscode.ProblemMatchers) {
 		if (typeof process !== 'string') {
 			throw illegalArgument('process');
 		}
 		let args: string[];
-		let options: vscode.ProcessOptions;
+		let options: vscode.ProcessTaskOptions;
 		let problemMatchers: vscode.ProblemMatchers;
 
 		args = arg3 || [];
@@ -1235,11 +1235,11 @@ export class ProcessTask extends BaseTask {
 		this._args = value;
 	}
 
-	get options(): vscode.ProcessOptions {
+	get options(): vscode.ProcessTaskOptions {
 		return this._options;
 	}
 
-	set options(value: vscode.ProcessOptions) {
+	set options(value: vscode.ProcessTaskOptions) {
 		if (value === void 0 || value === null) {
 			value = Object.create(null);
 		}
@@ -1250,15 +1250,15 @@ export class ProcessTask extends BaseTask {
 export class ShellTask extends BaseTask implements vscode.ShellTask {
 
 	private _commandLine: string;
-	private _options: vscode.ShellOptions;
+	private _options: vscode.ShellTaskOptions;
 
 	constructor(name: string, commandLine: string, problemMatchers?: vscode.ProblemMatchers);
-	constructor(name: string, commandLine: string, options: vscode.ShellOptions, problemMatchers?: vscode.ProblemMatchers);
-	constructor(name: string, commandLine: string, optionsOrProblemMatchers?: vscode.ShellOptions | vscode.ProblemMatchers, problemMatchers?: vscode.ProblemMatchers) {
+	constructor(name: string, commandLine: string, options: vscode.ShellTaskOptions, problemMatchers?: vscode.ProblemMatchers);
+	constructor(name: string, commandLine: string, optionsOrProblemMatchers?: vscode.ShellTaskOptions | vscode.ProblemMatchers, problemMatchers?: vscode.ProblemMatchers) {
 		if (typeof commandLine !== 'string') {
 			throw illegalArgument('commandLine');
 		}
-		let options: vscode.ShellOptions = undefined;
+		let options: vscode.ShellTaskOptions = undefined;
 		let pm: string[];
 		if (ShellOptions.is(optionsOrProblemMatchers)) {
 			options = optionsOrProblemMatchers;
@@ -1280,11 +1280,11 @@ export class ShellTask extends BaseTask implements vscode.ShellTask {
 		return this._commandLine;
 	}
 
-	get options(): vscode.ShellOptions {
+	get options(): vscode.ShellTaskOptions {
 		return this._options;
 	}
 
-	set options(value: vscode.ShellOptions) {
+	set options(value: vscode.ShellTaskOptions) {
 		if (value === void 0 || value === null) {
 			value = Object.create(null);
 		}

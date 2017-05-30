@@ -537,7 +537,7 @@ export function createApiFactory(
 			TreeItemCollapsibleState: extHostTypes.TreeItemCollapsibleState,
 			ThemeColor: extHostTypes.ThemeColor,
 			// functions
-			RevealKind: extHostTypes.RevealKind,
+			TaskRevealKind: extHostTypes.TaskRevealKind,
 			TaskGroup: extHostTypes.TaskGroup,
 			ShellTask: extHostTypes.ShellTask,
 			ProcessTask: extHostTypes.ProcessTask
