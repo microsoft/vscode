@@ -94,6 +94,34 @@ const command: TaskEntry = {
 	].join('\n')
 };
 
+const java: TaskEntry = {
+	id: 'java',
+	label: 'Java',
+	autoDetect: false,
+	description: nls.localize('externalCommand', 'Example to run an arbitrary external command'),
+	content: [
+		'{',
+		'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
+		'\t// for the documentation about the tasks.json format',
+		'\t"version": "0.1.0",',
+		'\t"command": , //Shell command',
+		'\t"isShellCommand": true,',
+		'\t"args": [], //Type /C if using cmd',
+		'\t"showOutput": "always"',
+		'\t"tasks": [',
+		'\t\t{',
+		'\t\t\t"taskName": "javac",',
+		'\t\t\t"args": [],',
+		'\t\t},',
+		'\t\t{',
+		'\t\t\t"taskName": "java",',
+		'\t\t\t"args": [],',
+		'\t\t}',
+		'\t]',
+		'}'
+	].join('\n')
+};
+
 const maven: TaskEntry = {
 	id: 'maven',
 	label: 'maven',
