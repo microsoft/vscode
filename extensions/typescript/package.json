@@ -109,7 +109,8 @@
             "null"
           ],
           "default": null,
-          "description": "%typescript.npm%"
+          "description": "%typescript.npm%",
+          "isExecutable": true
         },
         "typescript.check.npmIsInstalled": {
           "type": "boolean",
