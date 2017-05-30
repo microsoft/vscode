@@ -216,18 +216,19 @@ export class TerminalPanel extends Panel {
 				}
 
 				// Check if the file was dragged from the tree explorer
-				const url = e.dataTransfer.getData('URL');
-				let filePath = URI.parse(url).path;
-
-				// Check if the file was dragged from the filesystem
-				if (!filePath && e.dataTransfer.files.length > 0) {
-					filePath = e.dataTransfer.files[0].path;
+				let url = e.dataTransfer.getData('URL');
+				if (!url && e.dataTransfer.files.length > 0) {
+					// Check if the file was dragged from the filesystem
+					url = e.dataTransfer.files[0].path;
 				}
 
-				if (filePath) {
-					const terminal = this._terminalService.getActiveInstance();
-					terminal.sendText(this._wrapPathInQuotes(filePath), false);
+				const filePath = URI.parse(url).path;
+				if (!filePath) {
+					return;
 				}
+
+				const terminal = this._terminalService.getActiveInstance();
+				terminal.sendText(this._wrapPathInQuotes(filePath), false);
 			}
 		}));
 	}
@@ -292,9 +293,19 @@ export class TerminalPanel extends Panel {
 	 * Adds quotes to a path if it contains whitespaces
 	 */
 	private _wrapPathInQuotes(path: string) {
-		if (/\s+/.test(path)) {
-			return `"${path}"`;
+		if (platform.isWindows) {
+			if (/\s+/.test(path)) {
+				return `"${path}"`;
+			}
+			return path;
 		}
+		const charsToReplace: { a: string, b: string }[] = [
+			{ a: '\\', b: '\\\\' },
+			{ a: ' ', b: '\\ ' },
+			{ a: '\'', b: '\\\'' },
+			{ a: '"', b: '\\"' }
+		];
+		charsToReplace.forEach(chars => path = path.replace(chars.a, chars.b));
 		return path;
 	}
 }
