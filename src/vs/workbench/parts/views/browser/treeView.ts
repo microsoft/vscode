@@ -26,7 +26,8 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ITree, IDataSource, IRenderer, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ViewsRegistry, ITreeViewDataProvider, IViewOptions, ITreeItem, TreeItemCollapsibleState } from 'vs/workbench/parts/views/browser/views';
+import { ViewsRegistry, IViewOptions } from 'vs/workbench/parts/views/browser/views';
+import { ITreeViewDataProvider, ITreeItem, TreeItemCollapsibleState, TreeViewItemHandleArg } from 'vs/workbench/parts/views/common/views';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { CollapsibleState } from 'vs/base/browser/ui/splitview/splitview';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -170,8 +171,8 @@ export class TreeView extends CollapsibleViewletView {
 	private onSelection(): void {
 		const selection: ITreeItem = this.tree.getSelection()[0];
 		if (selection) {
-			if (selection.commandId) {
-				this.commandService.executeCommand(selection.commandId, { treeViewId: this.id, treeItemHandle: selection.handle });
+			if (selection.command) {
+				this.commandService.executeCommand(selection.command.id, ...(selection.command.arguments || []));
 			}
 		}
 	}
@@ -338,7 +339,7 @@ class TreeController extends DefaultController {
 				}
 			},
 
-			getActionsContext: () => ({ treeViewId: this.treeViewId, treeItemHandle: node.handle }),
+			getActionsContext: () => (<TreeViewItemHandleArg>{ $treeViewId: this.treeViewId, $treeItemHandle: node.handle }),
 
 			actionRunner: new MultipleSelectionActionRunner(() => tree.getSelection())
 		});

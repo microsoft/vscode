@@ -10,11 +10,11 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { MainContext, ExtHostTreeViewsShape, MainThreadTreeViewsShape, TreeItem, TreeViewCommandArg } from './extHost.protocol';
+import { MainContext, ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol';
+import { ITreeItem, TreeViewItemHandleArg } from 'vs/workbench/parts/views/common/views';
 import { TreeItemCollapsibleState } from './extHostTypes';
-import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
+import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { asWinJsPromise } from 'vs/base/common/async';
-import * as modes from 'vs/editor/common/modes';
 
 type TreeItemHandle = number;
 
@@ -31,7 +31,7 @@ export class ExtHostTreeViews extends ExtHostTreeViewsShape {
 		this._proxy = threadService.get(MainContext.MainThreadTreeViews);
 		commands.registerArgumentProcessor({
 			processArgument: arg => {
-				if (arg && arg.treeViewId && arg.treeItemHandle) {
+				if (arg && arg.$treeViewId && arg.$treeItemHandle) {
 					return this.convertArgument(arg);
 				}
 				return arg;
@@ -40,7 +40,7 @@ export class ExtHostTreeViews extends ExtHostTreeViewsShape {
 	}
 
 	registerTreeDataProvider<T>(id: string, treeDataProvider: vscode.TreeDataProvider<T>): vscode.Disposable {
-		const treeView = new ExtHostTreeView<T>(id, treeDataProvider, this._proxy);
+		const treeView = new ExtHostTreeView<T>(id, treeDataProvider, this._proxy, this.commands.converter);
 		this.treeViews.set(id, treeView);
 		return {
 			dispose: () => {
@@ -50,28 +50,25 @@ export class ExtHostTreeViews extends ExtHostTreeViewsShape {
 		};
 	}
 
-	$getElements(treeViewId: string): TPromise<TreeItem[]> {
+	$getElements(treeViewId: string): TPromise<ITreeItem[]> {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
-			return TPromise.wrapError<TreeItem[]>(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
+			return TPromise.wrapError<ITreeItem[]>(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
 		}
 		return treeView.getTreeItems();
 	}
 
-	$getChildren(treeViewId: string, treeItemHandle?: number): TPromise<TreeItem[]> {
+	$getChildren(treeViewId: string, treeItemHandle?: number): TPromise<ITreeItem[]> {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
-			return TPromise.wrapError<TreeItem[]>(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
+			return TPromise.wrapError<ITreeItem[]>(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
 		}
 		return treeView.getChildren(treeItemHandle);
 	}
 
-	private convertArgument(arg: TreeViewCommandArg): any {
-		const treeView = this.treeViews.get(arg.treeViewId);
-		if (!treeView) {
-			return TPromise.wrapError<modes.Command>(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', arg.treeViewId));
-		}
-		return treeView.getExtensionElement(arg.treeItemHandle);
+	private convertArgument(arg: TreeViewItemHandleArg): any {
+		const treeView = this.treeViews.get(arg.$treeViewId);
+		return treeView ? treeView.getExtensionElement(arg.$treeItemHandle) : null;
 	}
 }
 
@@ -83,7 +80,7 @@ class ExtHostTreeView<T> extends Disposable {
 	private itemHandlesMap: Map<T, TreeItemHandle> = new Map<T, TreeItemHandle>();
 	private extChildrenElementsMap: Map<T, T[]> = new Map<T, T[]>();
 
-	constructor(private viewId: string, private dataProvider: vscode.TreeDataProvider<T>, private proxy: MainThreadTreeViewsShape) {
+	constructor(private viewId: string, private dataProvider: vscode.TreeDataProvider<T>, private proxy: MainThreadTreeViewsShape, private commands: CommandsConverter, ) {
 		super();
 		this.proxy.$registerView(viewId);
 		if (dataProvider.onDidChangeTreeData) {
@@ -91,7 +88,7 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 	}
 
-	getTreeItems(): TPromise<TreeItem[]> {
+	getTreeItems(): TPromise<ITreeItem[]> {
 		this.extChildrenElementsMap.clear();
 		this.extElementsMap.clear();
 		this.itemHandlesMap.clear();
@@ -100,12 +97,12 @@ class ExtHostTreeView<T> extends Disposable {
 			.then(elements => this.processAndMapElements(elements));
 	}
 
-	getChildren(treeItemHandle: TreeItemHandle): TPromise<TreeItem[]> {
+	getChildren(treeItemHandle: TreeItemHandle): TPromise<ITreeItem[]> {
 		let extElement = this.getExtensionElement(treeItemHandle);
 		if (extElement) {
 			this.clearChildren(extElement);
 		} else {
-			return TPromise.wrapError<TreeItem[]>(localize('treeItem.notFound', 'No tree item with id \'{0}\' found.', treeItemHandle));
+			return TPromise.wrapError<ITreeItem[]>(localize('treeItem.notFound', 'No tree item with id \'{0}\' found.', treeItemHandle));
 		}
 
 		return asWinJsPromise(() => this.dataProvider.getChildren(extElement))
@@ -127,12 +124,12 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 	}
 
-	private processAndMapElements(elements: T[]): TPromise<TreeItem[]> {
-		const treeItemsPromises: TPromise<TreeItem>[] = [];
+	private processAndMapElements(elements: T[]): TPromise<ITreeItem[]> {
+		const treeItemsPromises: TPromise<ITreeItem>[] = [];
 		for (const element of elements) {
 			if (element) {
 				if (this.extChildrenElementsMap.has(element)) {
-					return TPromise.wrapError<TreeItem[]>(localize('treeView.duplicateElement', 'Element {0} is already registered', element));
+					return TPromise.wrapError<ITreeItem[]>(localize('treeView.duplicateElement', 'Element {0} is already registered', element));
 				}
 				const treeItem = this.massageTreeItem(this.dataProvider.getTreeItem(element));
 				if (treeItem) {
@@ -152,7 +149,7 @@ class ExtHostTreeView<T> extends Disposable {
 		return TPromise.join(treeItemsPromises);
 	}
 
-	private massageTreeItem(extensionTreeItem: vscode.TreeItem): TreeItem {
+	private massageTreeItem(extensionTreeItem: vscode.TreeItem): ITreeItem {
 		if (!extensionTreeItem) {
 			return null;
 		}
@@ -160,7 +157,7 @@ class ExtHostTreeView<T> extends Disposable {
 		return {
 			handle: ++this._itemHandlePool,
 			label: extensionTreeItem.label,
-			commandId: extensionTreeItem.command ? extensionTreeItem.command.command : void 0,
+			command: extensionTreeItem.command ? this.commands.toInternal(extensionTreeItem.command) : void 0,
 			contextValue: extensionTreeItem.contextValue,
 			icon,
 			iconDark: this.getDarkIconPath(extensionTreeItem) || icon,

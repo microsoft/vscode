@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IActionRunner } from 'vs/base/common/actions';
 import { IViewletView as IView } from 'vs/workbench/browser/viewlet';
+import { ITreeViewDataProvider } from 'vs/workbench/parts/views/common/views';
 
 export class ViewLocation {
 
@@ -18,12 +18,6 @@ export class ViewLocation {
 	get id(): string {
 		return this._id;
 	}
-}
-
-export enum TreeItemCollapsibleState {
-	None = 0,
-	Collapsed = 1,
-	Expanded = 2
 }
 
 export interface IViewOptions {
@@ -49,35 +43,6 @@ export interface IViewDescriptor {
 	readonly ctor: IViewConstructorSignature;
 
 	readonly order?: number;
-
-}
-
-export interface ITreeItem {
-
-	handle: number;
-
-	label: string;
-
-	icon?: string;
-
-	iconDark?: string;
-
-	contextValue?: string;
-
-	commandId?: string;
-
-	children?: ITreeItem[];
-
-	collapsibleState?: TreeItemCollapsibleState;
-}
-
-export interface ITreeViewDataProvider {
-
-	onDidChange: Event<ITreeItem | undefined | null>;
-
-	getElements(): TPromise<ITreeItem[]>;
-
-	getChildren(element: ITreeItem): TPromise<ITreeItem[]>;
 
 }
 

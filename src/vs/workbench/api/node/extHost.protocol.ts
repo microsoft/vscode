@@ -45,6 +45,8 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 
+import { ITreeItem } from 'vs/workbench/parts/views/common/views';
+
 export interface IEnvironment {
 	enableProposedApiForAll: boolean;
 	enableProposedApiFor: string | string[];
@@ -192,14 +194,6 @@ export abstract class MainThreadEditorsShape {
 	$tryApplyEdits(id: string, modelVersionId: number, edits: editorCommon.ISingleEditOperation[], opts: IApplyEditsOptions): TPromise<boolean> { throw ni(); }
 	$tryInsertSnippet(id: string, template: string, selections: IRange[], opts: IUndoStopOptions): TPromise<any> { throw ni(); }
 	$getDiffInformation(id: string): TPromise<editorCommon.ILineChange[]> { throw ni(); }
-}
-
-export interface TreeItem extends vscode.TreeItem {
-	handle: number;
-	commandId?: string;
-	icon?: string;
-	iconDark?: string;
-	children?: TreeItem[];
 }
 
 export abstract class MainThreadTreeViewsShape {
@@ -407,15 +401,9 @@ export abstract class ExtHostDocumentsAndEditorsShape {
 	$acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta): void { throw ni(); }
 }
 
-export type TreeViewCommandArg = {
-	treeViewId: string,
-	treeItemHandle: number
-};
-
 export abstract class ExtHostTreeViewsShape {
-	$getElements(treeViewId: string): TPromise<TreeItem[]> { throw ni(); }
-	$getChildren(treeViewId: string, treeItemHandle: number): TPromise<TreeItem[]> { throw ni(); }
-	$restore(treeViewId: string, treeItems: TreeItem[]): TPromise<TreeItem[]> { throw ni(); }
+	$getElements(treeViewId: string): TPromise<ITreeItem[]> { throw ni(); }
+	$getChildren(treeViewId: string, treeItemHandle: number): TPromise<ITreeItem[]> { throw ni(); }
 }
 
 export abstract class ExtHostExtensionServiceShape {
