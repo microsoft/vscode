@@ -448,9 +448,9 @@ export function createApiFactory(
 			getConfiguration: (section?: string): vscode.WorkspaceConfiguration => {
 				return extHostConfiguration.getConfiguration(section);
 			},
-			registerTaskProvider: (provider: vscode.TaskProvider) => {
+			registerTaskProvider: proposedApiFunction(extension, (provider: vscode.TaskProvider) => {
 				return extHostTask.registerTaskProvider(extension, provider);
-			}
+			})
 		};
 
 		class SCM {

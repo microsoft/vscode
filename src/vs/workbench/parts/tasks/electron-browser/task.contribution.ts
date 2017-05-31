@@ -119,6 +119,52 @@ abstract class OpenTaskConfigurationAction extends Action {
 				if (!selection) {
 					return undefined;
 				}
+				let contentPromise: TPromise<string>;
+				if (selection.autoDetect) {
+					const outputChannel = this.outputService.getChannel(TaskService.OutputChannelId);
+					outputChannel.show(true);
+					outputChannel.append(nls.localize('ConfigureTaskRunnerAction.autoDetecting', 'Auto detecting tasks for {0}', selection.id) + '\n');
+					let detector = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService);
+					contentPromise = detector.detect(false, selection.id).then((value) => {
+						let config = value.config;
+						if (value.stderr && value.stderr.length > 0) {
+							value.stderr.forEach((line) => {
+								outputChannel.append(line + '\n');
+							});
+							if (config && (!config.tasks || config.tasks.length === 0)) {
+								this.messageService.show(Severity.Warning, nls.localize('ConfigureTaskRunnerAction.autoDetect', 'Auto detecting the task system failed. Using default template. Consult the task output for details.'));
+								return selection.content;
+							} else {
+								this.messageService.show(Severity.Warning, nls.localize('ConfigureTaskRunnerAction.autoDetectError', 'Auto detecting the task system produced errors. Consult the task output for details.'));
+							}
+						}
+						if (config) {
+							if (value.stdout && value.stdout.length > 0) {
+								value.stdout.forEach(line => outputChannel.append(line + '\n'));
+							}
+							let content = JSON.stringify(config, null, '\t');
+							content = [
+								'{',
+								'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
+								'\t// for the documentation about the tasks.json format',
+							].join('\n') + content.substr(1);
+							return content;
+						} else {
+							return selection.content;
+						}
+					});
+				} else {
+					contentPromise = TPromise.as(selection.content);
+				}
+				return contentPromise.then(content => {
+					let editorConfig = this.configurationService.getConfiguration<any>();
+					if (editorConfig.editor.insertSpaces) {
+						content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + strings.repeat(' ', s2.length * editorConfig.editor.tabSize));
+					}
+					configFileCreated = true;
+					return this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json'), content);
+				});
+				/* 2.0 version
 				let content = selection.content;
 				let editorConfig = this.configurationService.getConfiguration<any>();
 				if (editorConfig.editor.insertSpaces) {
@@ -126,6 +172,7 @@ abstract class OpenTaskConfigurationAction extends Action {
 				}
 				configFileCreated = true;
 				return this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json'), content);
+				*/
 			});
 		}).then((stat) => {
 			if (!stat) {
@@ -1016,8 +1063,9 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (hasParseErrors) {
 				return TPromise.as({ set: undefined, hasErrors: true });
 			}
+			let engine = TaskConfig.ExecutionEngine._default;
 			if (config) {
-				let engine = TaskConfig.ExecutionEngine.from(config);
+				engine = TaskConfig.ExecutionEngine.from(config);
 				if (engine === ExecutionEngine.Process) {
 					if (this.hasDetectorSupport(config)) {
 						configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService, config).detect(true).then((value): WorkspaceConfigurationResult => {
@@ -1052,7 +1100,14 @@ class TaskService extends EventEmitter implements ITaskService {
 					configPromise = TPromise.as({ config, hasErrors: false });
 				}
 			} else {
-				configPromise = TPromise.as({ config, hasErrors: false });
+				if (engine === ExecutionEngine.Terminal) {
+					configPromise = TPromise.as({ config, hasErrors: false });
+				} else {
+					configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService).detect(true).then((value) => {
+						let hasErrors = this.printStderr(value.stderr);
+						return { config: value.config, hasErrors };
+					});
+				}
 			}
 		}
 		return configPromise.then((resolved) => {
@@ -1092,7 +1147,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	private getExecutionEngine(): ExecutionEngine {
 		let { config } = this.getConfiguration();
 		if (!config) {
-			return ExecutionEngine.Terminal;
+			return ExecutionEngine.Process;
 		}
 		return TaskConfig.ExecutionEngine.from(config);
 	}
