@@ -181,4 +181,28 @@ suite('SnippetController2', function () {
 		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
 		assertContextKeys(contextKeys, false, false, false);
 	});
+	//
+	// 	test('Inconsistent tab stop behaviour with recursive snippets and tab / shift tab, #27543', function () {
+	// 		const ctrl = new SnippetController2(editor, contextKeys);
+	// 		ctrl.insert('1_calize(${1:nl}, \'${2:value}\')$0');
+
+	// 		assertContextKeys(contextKeys, true, false, true);
+	// 		assertSelections(editor, new Selection(1, 10, 1, 12), new Selection(2, 14, 2, 16));
+
+	// 		ctrl.insert('2_calize(${1:nl}, \'${2:value}\')$0');
+
+	// 		assertSelections(editor, new Selection(1, 19, 1, 21), new Selection(2, 23, 2, 25));
+
+	// 		ctrl.next(); // inner `value`
+	// 		assertSelections(editor, new Selection(1, 24, 1, 29), new Selection(2, 28, 2, 33));
+
+	// 		ctrl.next(); // inner `$0`
+	// 		assertSelections(editor, new Selection(1, 31, 1, 31), new Selection(2, 35, 2, 35));
+
+	// 		ctrl.next(); // outer `value`
+	// 		assertSelections(editor, new Selection(1, 34, 1, 39), new Selection(2, 38, 2, 43));
+
+	// 		ctrl.prev(); // inner `$0`
+	// 		assertSelections(editor, new Selection(1, 31, 1, 31), new Selection(2, 35, 2, 35));
+	// 	});
 });
