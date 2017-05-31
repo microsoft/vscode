@@ -66,11 +66,11 @@ export default class MergeDectorator implements vscode.Disposable {
 		// Create decorators
 		if (config.enableDecorations || config.enableEditorOverview) {
 			this.decorations['current.content'] = vscode.window.createTextEditorDecorationType(
-				this.generateBlockRenderOptions('merge.currentContentBackground', 'overviewRuler.currentContentForeground', config)
+				this.generateBlockRenderOptions('merge.currentContentBackground', 'editorOverviewRuler.currentContentForeground', config)
 			);
 
 			this.decorations['incoming.content'] = vscode.window.createTextEditorDecorationType(
-				this.generateBlockRenderOptions('merge.incomingContentBackground', 'overviewRuler.incomingContentForeground', config)
+				this.generateBlockRenderOptions('merge.incomingContentBackground', 'editorOverviewRuler.incomingContentForeground', config)
 			);
 		}
 
