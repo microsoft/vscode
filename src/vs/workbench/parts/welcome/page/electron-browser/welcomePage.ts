@@ -447,8 +447,8 @@ class WelcomePage {
 
 // theming
 
-const quickLinkBackground = registerColor('welcomePage.quickLinkBackground', { dark: null, light: null, hc: null }, localize('welcomePage.quickLinkBackground', 'Background color for the quick links on the Welcome page.'));
-const quickLinkHoverBackground = registerColor('welcomePage.quickLinkHoverBackground', { dark: null, light: null, hc: null }, localize('welcomePage.quickLinkHoverBackground', 'Hover background color for the quick links on the Welcome page.'));
+const buttonBackground = registerColor('welcomePage.buttonBackground', { dark: null, light: null, hc: null }, localize('welcomePage.buttonBackground', 'Background color for the buttons on the Welcome page.'));
+const buttonHoverBackground = registerColor('welcomePage.buttonHoverBackground', { dark: null, light: null, hc: null }, localize('welcomePage.buttonHoverBackground', 'Hover background color for the buttons on the Welcome page.'));
 
 registerThemingParticipant((theme, collector) => {
 	const foregroundColor = theme.getColor(foreground);
@@ -459,13 +459,13 @@ registerThemingParticipant((theme, collector) => {
 	if (descriptionColor) {
 		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .detail { color: ${descriptionColor}; }`);
 	}
-	const color = getExtraColor(theme, quickLinkBackground, { dark: 'rgba(0, 0, 0, .2)', extra_dark: 'rgba(200, 235, 255, .042)', light: 'rgba(0,0,0,.04)', hc: 'black' });
-	if (color) {
-		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .commands li button { background: ${color}; }`);
+	const buttonColor = getExtraColor(theme, buttonBackground, { dark: 'rgba(0, 0, 0, .2)', extra_dark: 'rgba(200, 235, 255, .042)', light: 'rgba(0,0,0,.04)', hc: 'black' });
+	if (buttonColor) {
+		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .commands li button { background: ${buttonColor}; }`);
 	}
-	const hover = getExtraColor(theme, quickLinkHoverBackground, { dark: 'rgba(200, 235, 255, .072)', extra_dark: 'rgba(200, 235, 255, .072)', light: 'rgba(0,0,0,.10)', hc: null });
-	if (hover) {
-		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .commands li button:hover { background: ${hover}; }`);
+	const buttonHoverColor = getExtraColor(theme, buttonHoverBackground, { dark: 'rgba(200, 235, 255, .072)', extra_dark: 'rgba(200, 235, 255, .072)', light: 'rgba(0,0,0,.10)', hc: null });
+	if (buttonHoverColor) {
+		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .commands li button:hover { background: ${buttonHoverColor}; }`);
 	}
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
