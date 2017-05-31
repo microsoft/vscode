@@ -38,10 +38,6 @@ class LastRenderedData {
 
 export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, IViewLines {
 	/**
-	 * Width to extends a line to render the line feed at the end of the line
-	 */
-	private static LINE_FEED_WIDTH = 10;
-	/**
 	 * Adds this ammount of pixels to the right of lines (no-one wants to type near the edge of the viewport)
 	 */
 	private static HORIZONTAL_EXTRA_PX = 30;
@@ -53,6 +49,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 	// --- config
 	private _lineHeight: number;
+	private _typicalHalfwidthCharacterWidth: number;
 	private _isViewportWrapping: boolean;
 	private _revealHorizontalRightPadding: number;
 	private _canUseTranslate3d: boolean;
@@ -72,15 +69,18 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this._visibleLines = new VisibleLinesCollection(this);
 		this.domNode = this._visibleLines.domNode;
 
-		this._lineHeight = this._context.configuration.editor.lineHeight;
-		this._isViewportWrapping = this._context.configuration.editor.wrappingInfo.isViewportWrapping;
-		this._revealHorizontalRightPadding = this._context.configuration.editor.viewInfo.revealHorizontalRightPadding;
-		this._canUseTranslate3d = this._context.configuration.editor.canUseTranslate3d;
-		this._viewLineOptions = new ViewLineOptions(this._context.configuration);
+		const conf = this._context.configuration;
+
+		this._lineHeight = conf.editor.lineHeight;
+		this._typicalHalfwidthCharacterWidth = conf.editor.fontInfo.typicalHalfwidthCharacterWidth;
+		this._isViewportWrapping = conf.editor.wrappingInfo.isViewportWrapping;
+		this._revealHorizontalRightPadding = conf.editor.viewInfo.revealHorizontalRightPadding;
+		this._canUseTranslate3d = conf.editor.canUseTranslate3d;
+		this._viewLineOptions = new ViewLineOptions(conf);
 
 		PartFingerprints.write(this.domNode, PartFingerprint.ViewLines);
 		this.domNode.setClassName('view-lines');
-		Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
+		Configuration.applyFontInfo(this.domNode, conf.editor.fontInfo);
 
 		// --- width & height
 		this._maxLineWidth = 0;
@@ -118,23 +118,28 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 			this._maxLineWidth = 0;
 		}
 
+		const conf = this._context.configuration;
+
 		if (e.lineHeight) {
-			this._lineHeight = this._context.configuration.editor.lineHeight;
-		}
-		if (e.wrappingInfo) {
-			this._isViewportWrapping = this._context.configuration.editor.wrappingInfo.isViewportWrapping;
-		}
-		if (e.viewInfo) {
-			this._revealHorizontalRightPadding = this._context.configuration.editor.viewInfo.revealHorizontalRightPadding;
-		}
-		if (e.canUseTranslate3d) {
-			this._canUseTranslate3d = this._context.configuration.editor.canUseTranslate3d;
+			this._lineHeight = conf.editor.lineHeight;
 		}
 		if (e.fontInfo) {
-			Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
+			this._typicalHalfwidthCharacterWidth = conf.editor.fontInfo.typicalHalfwidthCharacterWidth;
+		}
+		if (e.wrappingInfo) {
+			this._isViewportWrapping = conf.editor.wrappingInfo.isViewportWrapping;
+		}
+		if (e.viewInfo) {
+			this._revealHorizontalRightPadding = conf.editor.viewInfo.revealHorizontalRightPadding;
+		}
+		if (e.canUseTranslate3d) {
+			this._canUseTranslate3d = conf.editor.canUseTranslate3d;
+		}
+		if (e.fontInfo) {
+			Configuration.applyFontInfo(this.domNode, conf.editor.fontInfo);
 		}
 
-		let newViewLineOptions = new ViewLineOptions(this._context.configuration);
+		let newViewLineOptions = new ViewLineOptions(conf);
 		if (!this._viewLineOptions.equals(newViewLineOptions)) {
 			this._viewLineOptions = newViewLineOptions;
 
@@ -321,7 +326,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 				nextLineModelLineNumber = this._context.model.coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber + 1, 1)).lineNumber;
 
 				if (currentLineModelLineNumber !== nextLineModelLineNumber) {
-					visibleRangesForLine[visibleRangesForLine.length - 1].width += ViewLines.LINE_FEED_WIDTH;
+					visibleRangesForLine[visibleRangesForLine.length - 1].width += this._typicalHalfwidthCharacterWidth;
 				}
 			}
 
