@@ -61,6 +61,9 @@ function matchesColor(text: string) {
 }
 
 function canExpandCompletionItem(item: ICompletionItem) {
+	if (!item) {
+		return false;
+	}
 	const suggestion = item.suggestion;
 	if (suggestion.documentation) {
 		return true;
@@ -611,7 +614,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			case State.Open:
 				hide(this.messageElement);
 				show(this.listElement);
-				if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault)) {
+				if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault)
+					&& canExpandCompletionItem(this.list.getFocusedElements()[0])) {
 					show(this.details.element);
 					this.expandSideOrBelow();
 				} else {
