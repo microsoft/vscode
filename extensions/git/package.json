@@ -531,7 +531,7 @@
         {
           "command": "git.openFile",
           "group": "navigation",
-          "when": "config.git.enabled && scmProvider == git && isInDiffEditor && resourceScheme != extension"
+          "when": "config.git.enabled && scmProvider == git && isInDiffEditor && resourceScheme != extension && resourceScheme != merge-conflict.conflict-diff"
         },
         {
           "command": "git.openChange",
@@ -541,17 +541,17 @@
         {
           "command": "git.stageSelectedRanges",
           "group": "2_git@1",
-          "when": "config.git.enabled && scmProvider == git && isInDiffEditor"
+          "when": "config.git.enabled && scmProvider == git && isInDiffEditor && resourceScheme != merge-conflict.conflict-diff"
         },
         {
           "command": "git.unstageSelectedRanges",
           "group": "2_git@2",
-          "when": "config.git.enabled && scmProvider == git && isInDiffEditor"
+          "when": "config.git.enabled && scmProvider == git && isInDiffEditor && resourceScheme != merge-conflict.conflict-diff"
         },
         {
           "command": "git.revertSelectedRanges",
           "group": "2_git@3",
-          "when": "config.git.enabled && scmProvider == git && isInDiffEditor"
+          "when": "config.git.enabled && scmProvider == git && isInDiffEditor && resourceScheme != merge-conflict.conflict-diff"
         }
       ]
     },
