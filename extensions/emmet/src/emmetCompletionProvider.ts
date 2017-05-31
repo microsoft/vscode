@@ -15,7 +15,7 @@ export class EmmetCompletionItemProvider implements vscode.CompletionItemProvide
 
 	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Thenable<vscode.CompletionList> {
 
-		if (!vscode.workspace.getConfiguration('emmet')['useModules']) {
+		if (!vscode.workspace.getConfiguration('emmet')['useNewEmmet']) {
 			return Promise.resolve(null);
 		}
 
