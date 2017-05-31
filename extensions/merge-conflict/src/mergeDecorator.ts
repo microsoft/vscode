@@ -155,6 +155,9 @@ export default class MergeDectorator implements vscode.Disposable {
 			this.updating.set(editor, true);
 
 			let conflicts = await this.tracker.getConflicts(editor.document);
+			if (vscode.window.visibleTextEditors.indexOf(editor) === -1) {
+				return;
+			}
 
 			if (conflicts.length === 0) {
 				this.removeDecorations(editor);
