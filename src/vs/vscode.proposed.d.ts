@@ -39,10 +39,10 @@ declare module 'vscode' {
 		getTreeItem(element: T): TreeItem | Thenable<TreeItem>;
 
 		/**
-		 * Get the children of `element` or root.
+		 * Get the children of `element` or root if no element (`undefined`) is passed.
 		 *
-		 * @param element The element from which the provider gets children for.
-		 * @return Children of `element` or root.
+		 * @param element The element from which the provider gets children. Can be `undefined`.
+		 * @return Children of `element` or root if no element (`undefined`) is passed.
 		 */
 		getChildren(element?: T): ProviderResult<T[]>;
 	}
