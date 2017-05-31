@@ -893,7 +893,7 @@ export class DebugService implements debug.IDebugService {
 
 	public restartProcess(process: debug.IProcess, restartData?: any): TPromise<any> {
 		if (process.session.capabilities.supportsRestartRequest) {
-			return process.session.custom('restart', null);
+			return this.textFileService.saveAll().then(() => process.session.custom('restart', null));
 		}
 		const focusedProcess = this.viewModel.focusedProcess;
 		const preserveFocus = focusedProcess && process.getId() === focusedProcess.getId();
