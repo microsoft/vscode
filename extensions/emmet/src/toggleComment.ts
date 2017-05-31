@@ -60,6 +60,9 @@ export function toggleComment() {
 function toggleCommentHTML(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Node): [vscode.Range[], vscode.Position, vscode.Position] {
 	let offset = document.offsetAt(selection.start);
 	let nodeToUpdate = getNode(rootNode, offset);
+	if (!nodeToUpdate) {
+		return [[], null, null];
+	}
 
 	let rangesToUnComment = getRangesToUnCommentHTML(nodeToUpdate, document);
 	if (nodeToUpdate.type === 'comment') {
@@ -101,8 +104,13 @@ function toggleCommentStylesheet(document: vscode.TextDocument, selection: vscod
 		return [rangesToUnComment, null, null];
 	}
 
+	// Find the node that needs to be commented
+	let nodeToComment = getNode(rootNode, selectionStart, true);
+	if (!nodeToComment) {
+		return [[], null, null];
+	}
+
 	// Uncomment children of current node and then comment the node
-	let nodeToComment = getNode(rootNode, selectionStart);
 	rangesToUnComment = getRangesToUnCommentStylesheet(rootNode, nodeToComment.start, nodeToComment.end, document, false);
 	let positionForCommentStart = document.positionAt(nodeToComment.start);
 	let positionForCommentEnd = document.positionAt(nodeToComment.end);
