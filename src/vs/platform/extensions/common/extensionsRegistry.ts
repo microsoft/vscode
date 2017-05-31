@@ -183,12 +183,35 @@ const schema: IJSONSchema = {
 			items: {
 				type: 'string',
 				defaultSnippets: [
-					{ label: 'onLanguage', body: 'onLanguage:${1:languageId}' },
-					{ label: 'onCommand', body: 'onCommand:${2:commandId}' },
-					{ label: 'onDebug', body: 'onDebug:${3:type}' },
-					{ label: 'workspaceContains', body: 'workspaceContains:${4:filePattern}' },
-					{ label: 'onView', body: 'onView:${5:viewId}' },
-					{ label: '*', body: '*' }
+					{
+						label: 'onLanguage',
+						description: nls.localize('vscode.extension.activationEvents.onLanguage', 'An activation event emitted whenever a file that resolves to the specified language gets opened.'),
+						body: 'onLanguage:${1:languageId}'
+					},
+					{
+						label: 'onCommand',
+						description: nls.localize('vscode.extension.activationEvents.onCommand', 'An activation event emitted whenever the specified command gets invoked.'),
+						body: 'onCommand:${2:commandId}'
+					},
+					{
+						label: 'onDebug',
+						description: nls.localize('vscode.extension.activationEvents.onDebug', 'An activation event emitted whenever a debug session of the specified type is started.'),
+						body: 'onDebug:${3:type}'
+					},
+					{
+						label: 'workspaceContains',
+						description: nls.localize('vscode.extension.activationEvents.workspaceContains', 'An activation event emitted whenever a folder is opened that contains at least a file matching the specified glob pattern.'),
+						body: 'workspaceContains:${4:filePattern}'
+					},
+					{
+						label: 'onView',
+						body: 'onView:${5:viewId}'
+					},
+					{
+						label: '*',
+						description: nls.localize('vscode.extension.activationEvents.star', 'An activation event emitted on VS Code startup. To ensure a great end user experience, please use this activation event in your extension only when no other activation events combination works in your use-case.'),
+						body: '*'
+					}
 				],
 			}
 		},
