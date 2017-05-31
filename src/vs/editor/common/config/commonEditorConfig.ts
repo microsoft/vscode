@@ -323,9 +323,13 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.multiCursorModifier': {
 			'type': 'string',
-			'enum': (platform.isMacintosh ? ['cmd', 'alt'] : ['ctrl', 'alt']),
+			'enum': ['ctrlCmd', 'alt'],
+			'enumDescriptions': [
+				nls.localize('multiCursorModifier.ctrlCmd', "Maps to `Control` on Windows and Linux and to `Command` on OSX."),
+				nls.localize('multiCursorModifier.alt', "Maps to `Alt` on Windows and Linux and to `Option` on OSX.")
+			],
 			'default': 'alt',
-			'description': nls.localize('multiCursorModifier', "The modifier to be used to add multiple cursors with the mouse.")
+			'description': nls.localize('multiCursorModifier', "The modifier to be used to add multiple cursors with the mouse. `ctrlCmd` maps to `Control` on Windows and Linux and to `Command` on OSX")
 		},
 		'editor.quickSuggestions': {
 			'anyOf': [

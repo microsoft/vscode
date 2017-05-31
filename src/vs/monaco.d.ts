@@ -2881,7 +2881,7 @@ declare module monaco.editor {
 		 * The modifier to be used to add multiple cursors with the mouse.
 		 * Defaults to 'alt'
 		 */
-		multiCursorModifier?: 'cmd' | 'ctrl' | 'alt';
+		multiCursorModifier?: 'ctrlCmd' | 'alt';
 		/**
 		 * Enable quick suggestions (shadow suggestions)
 		 * Defaults to true.

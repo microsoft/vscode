@@ -335,7 +335,7 @@ export interface IEditorOptions {
 	 * The modifier to be used to add multiple cursors with the mouse.
 	 * Defaults to 'alt'
 	 */
-	multiCursorModifier?: 'cmd' | 'ctrl' | 'alt';
+	multiCursorModifier?: 'ctrlCmd' | 'alt';
 	/**
 	 * Enable quick suggestions (shadow suggestions)
 	 * Defaults to true.
@@ -1400,18 +1400,10 @@ export class EditorOptionsValidator {
 
 		let configuredMulticursorModifier: 'altKey' | 'metaKey' | 'ctrlKey';
 		if (typeof opts.multiCursorModifier === 'string') {
-			if (platform.isMacintosh) {
-				if (opts.multiCursorModifier === 'cmd') {
-					configuredMulticursorModifier = 'metaKey';
-				} else {
-					configuredMulticursorModifier = 'altKey';
-				}
+			if (opts.multiCursorModifier === 'ctrlCmd') {
+				configuredMulticursorModifier = platform.isMacintosh ? 'metaKey' : 'ctrlKey';
 			} else {
-				if (opts.multiCursorModifier === 'ctrl') {
-					configuredMulticursorModifier = 'ctrlKey';
-				} else {
-					configuredMulticursorModifier = 'altKey';
-				}
+				configuredMulticursorModifier = 'altKey';
 			}
 		}
 		const multiCursorModifier = _stringSet<'altKey' | 'metaKey' | 'ctrlKey'>(configuredMulticursorModifier, defaults.multiCursorModifier, ['altKey', 'metaKey', 'ctrlKey']);
