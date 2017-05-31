@@ -38,6 +38,10 @@ class OriginDocumentMergeConflictTracker implements interfaces.IDocumentMergeCon
 		return this.parent.getConflicts(document, this.origin);
 	}
 
+	getConflictsSync(document: vscode.TextDocument): interfaces.IDocumentMergeConflict[] {
+		return this.parent.getConflictsSync(document, this.origin);
+	}
+
 	isPending(document: vscode.TextDocument): boolean {
 		return this.parent.isPending(document, this.origin);
 	}
@@ -50,6 +54,10 @@ class OriginDocumentMergeConflictTracker implements interfaces.IDocumentMergeCon
 export default class DocumentMergeConflictTracker implements vscode.Disposable, interfaces.IDocumentMergeConflictTrackerService {
 	private cache: Map<string, ScanTask> = new Map();
 	private delayExpireTime: number = 250;
+
+	getConflictsSync(document: vscode.TextDocument, origin: string): interfaces.IDocumentMergeConflict[] {
+		return this.getConflictsOrEmpty(document, [origin]);
+	}
 
 	getConflicts(document: vscode.TextDocument, origin: string): PromiseLike<interfaces.IDocumentMergeConflict[]> {
 		// Attempt from cache
