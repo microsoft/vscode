@@ -1760,7 +1760,17 @@ export class InternalEditorOptionsFactory {
 			const wordWrapColumn = opts.wordWrapColumn;
 			const wordWrapMinified = opts.wordWrapMinified;
 
-			if (wordWrapMinified && env.isDominatedByLongLines) {
+			if (env.accessibilitySupport === platform.AccessibilitySupport.Enabled) {
+				// See https://github.com/Microsoft/vscode/issues/27766
+				// Never enable wrapping when a screen reader is attached
+				// because arrow down etc. will not move the cursor in the way
+				// a screen reader expects.
+				bareWrappingInfo = {
+					isWordWrapMinified: false,
+					isViewportWrapping: false,
+					wrappingColumn: -1
+				};
+			} else if (wordWrapMinified && env.isDominatedByLongLines) {
 				// Force viewport width wrapping if model is dominated by long lines
 				bareWrappingInfo = {
 					isWordWrapMinified: true,
