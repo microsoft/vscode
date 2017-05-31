@@ -45,7 +45,7 @@ export class CommonActions {
 	}
 
 	public async getTab(tabName: string, active?: boolean): Promise<any> {
-		await this.spectron.command('workbench.action.closeMessages'); // close any notification messages that could overlap tabs
+		await this.closeCurrentNotification(); // close any notification messages that could overlap tabs
 
 		let tabSelector = active ? '.tab.active' : 'div';
 		let el = await this.spectron.client.element(`.tabs-container ${tabSelector}[aria-label="${tabName}, tab"]`);
@@ -56,7 +56,8 @@ export class CommonActions {
 		return undefined;
 	}
 
-	public selectTab(tabName: string): Promise<any> {
+	public async selectTab(tabName: string): Promise<any> {
+		await this.closeCurrentNotification(); // close any notification messages that could overlap tabs
 		return this.spectron.client.click(`.tabs-container div[aria-label="${tabName}, tab"]`);
 	}
 
@@ -161,5 +162,9 @@ export class CommonActions {
 		} catch (e) {
 			throw new Error(`Failed to remove ${directory} with an error: ${e}`);
 		}
+	}
+
+	private closeCurrentNotification(): Promise<any> {
+		return this.spectron.command('workbench.action.closeMessages');
 	}
 }
