@@ -109,7 +109,7 @@
 
 /** Icon styles **/
 
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .close,
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore {
 	opacity: 0.6;
 	background-position: center center;
@@ -118,7 +118,7 @@
 	cursor: pointer;
 }
 
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .close {
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close {
 	background-image: url('./close.svg');
 	float: right;
 }
@@ -127,7 +127,7 @@
 	background-image: url('./info.svg');
 }
 
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .close:hover,
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close:hover,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore:hover {
 	opacity: 1;
 }
@@ -235,7 +235,7 @@
 	white-space: pre-wrap;
 }
 
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .type {
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .type {
 	flex: 2;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -244,7 +244,8 @@
 	margin: 0;
 }
 
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > p {
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs,
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header {
 	margin: 0;
 	padding: 4px 5px;
 }
@@ -256,8 +257,8 @@
 
 /* High Contrast and Dark Theming */
 
-.monaco-editor.vs-dark .suggest-widget .details > .monaco-scrollable-element > .body > .close,
-.monaco-editor.hc-black .suggest-widget .details > .monaco-scrollable-element > .body > .close {
+.monaco-editor.vs-dark .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close,
+.monaco-editor.hc-black .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close {
 	background-image: url('./close-dark.svg');
 }
 
