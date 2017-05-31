@@ -304,6 +304,18 @@ export function transparent(colorValue: ColorValue, factor: number): ColorFuncti
 	};
 }
 
+export function oneOf(...colorValues: ColorValue[]): ColorFunction {
+	return (theme) => {
+		for (let colorValue of colorValues) {
+			let color = resolveColorValue(colorValue, theme);
+			if (color) {
+				return color;
+			}
+		}
+		return null;
+	};
+}
+
 function lessProminent(colorValue: ColorValue, backgroundColorValue: ColorValue, factor: number, transparency: number): ColorFunction {
 	return (theme) => {
 		let from = resolveColorValue(colorValue, theme);
