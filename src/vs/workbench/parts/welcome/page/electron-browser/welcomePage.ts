@@ -37,6 +37,10 @@ import { isLinux } from 'vs/base/common/platform';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, textLinkForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils';
+import { isWelcomePageEnabled } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IStorageService } from "vs/platform/storage/common/storage";
+import { Registry } from 'vs/platform/platform';
 
 used();
 
@@ -51,7 +55,8 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IBackupFileService backupFileService: IBackupFileService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IStorageService storageService: IStorageService
 	) {
 		const enabled = configurationService.lookup<boolean>(enabledKey).value;
 		if (enabled) {
@@ -65,6 +70,20 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 				}
 			}).then(null, onUnexpectedError);
 		}
+
+		Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+			.registerConfiguration({
+				'id': 'workbench',
+				'order': 7,
+				'title': localize('workbenchConfigurationTitle', "Workbench"),
+				'properties': {
+					'workbench.welcome.enabled': {
+						'type': 'boolean',
+						'default': isWelcomePageEnabled(storageService),
+						'description': localize('welcomePage.enabled', "When enabled, will show the Welcome page on startup.")
+					},
+				}
+			});
 	}
 
 	public getId() {
