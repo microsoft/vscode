@@ -22,12 +22,12 @@ interface ISupportedLanguageMode {
 }
 
 const SUPPORTED_LANGUAGE_MODES: ISupportedLanguageMode[] = [
-	{ id: 'html', triggerCharacters: ['!', '.'] },
-	{ id: 'jade', triggerCharacters: ['!', '.'] },
-	{ id: 'slim', triggerCharacters: ['!', '.'] },
-	{ id: 'haml', triggerCharacters: ['!', '.'] },
-	{ id: 'xml', triggerCharacters: ['.'] },
-	{ id: 'xsl', triggerCharacters: ['.'] },
+	{ id: 'html', triggerCharacters: ['!', '.', '}'] },
+	{ id: 'jade', triggerCharacters: ['!', '.', '}'] },
+	{ id: 'slim', triggerCharacters: ['!', '.', '}'] },
+	{ id: 'haml', triggerCharacters: ['!', '.', '}'] },
+	{ id: 'xml', triggerCharacters: ['.', '}'] },
+	{ id: 'xsl', triggerCharacters: ['.', '}'] },
 
 	{ id: 'css', triggerCharacters: [':'] },
 	{ id: 'scss', triggerCharacters: [':'] },
