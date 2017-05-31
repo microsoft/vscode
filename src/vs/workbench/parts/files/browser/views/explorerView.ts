@@ -131,7 +131,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		this.tree = this.createViewer($(this.treeContainer));
 
 		if (this.toolBar) {
-			this.toolBar.setActions(prepareActions(this.getActions()), [])();
+			this.toolBar.setActions(prepareActions(this.getActions()), this.getSecondaryActions())();
 		}
 
 		const onFileIconThemeChange = (fileIconTheme: IFileIconTheme) => {
