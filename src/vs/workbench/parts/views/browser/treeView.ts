@@ -62,7 +62,7 @@ export class TreeView extends CollapsibleViewletView {
 		this.menus.onDidChangeTitle(() => this.updateActions(), this, this.disposables);
 		this.themeService.onThemeChange(() => this.tree.refresh() /* soft refresh */, this, this.disposables);
 		if (!options.collapsed) {
-			this.triggerActivation();
+			this.activate();
 		}
 	}
 
@@ -82,14 +82,15 @@ export class TreeView extends CollapsibleViewletView {
 	protected changeState(state: CollapsibleState): void {
 		super.changeState(state);
 		if (state === CollapsibleState.EXPANDED) {
-			this.triggerActivation();
+			this.activate();
 		}
 	}
 
-	private triggerActivation() {
+	private activate() {
 		if (!this.activated && this.extensionService) {
 			this.extensionService.activateByEvent(`onView:${this.id}`);
 			this.activated = true;
+			this.setInput();
 		}
 	}
 
@@ -121,10 +122,6 @@ export class TreeView extends CollapsibleViewletView {
 
 	getActionItem(action: IAction): IActionItem {
 		return createActionItem(action, this.keybindingService, this.messageService);
-	}
-
-	public create(): TPromise<void> {
-		return this.setInput();
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
