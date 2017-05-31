@@ -125,28 +125,35 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	private processAndMapElements(elements: T[]): TPromise<ITreeItem[]> {
-		const treeItemsPromises: TPromise<ITreeItem>[] = [];
-		for (const element of elements) {
-			if (element) {
-				if (this.extChildrenElementsMap.has(element)) {
-					return TPromise.wrapError<ITreeItem[]>(localize('treeView.duplicateElement', 'Element {0} is already registered', element));
-				}
-				const treeItem = this.massageTreeItem(this.dataProvider.getTreeItem(element));
+		return TPromise.join(
+			elements.filter(element => !!element)
+				.map(element => {
+					if (this.extChildrenElementsMap.has(element)) {
+						return TPromise.wrapError<ITreeItem>(localize('treeView.duplicateElement', 'Element {0} is already registered', element));
+					}
+					return this.resolveElement(element);
+				}))
+			.then(treeItems => treeItems.filter(treeItem => !!treeItem));
+	}
+
+	private resolveElement(element: T): TPromise<ITreeItem> {
+		return asWinJsPromise(() => this.dataProvider.getTreeItem(element))
+			.then(extTreeItem => {
+				const treeItem = this.massageTreeItem(extTreeItem);
 				if (treeItem) {
 					this.itemHandlesMap.set(element, treeItem.handle);
 					this.extElementsMap.set(treeItem.handle, element);
 					if (treeItem.collapsibleState === TreeItemCollapsibleState.Expanded) {
-						treeItemsPromises.push(this.getChildren(treeItem.handle).then(children => {
+						return this.getChildren(treeItem.handle).then(children => {
 							treeItem.children = children;
 							return treeItem;
-						}));
+						});
 					} else {
-						treeItemsPromises.push(TPromise.as(treeItem));
+						return treeItem;
 					}
 				}
-			}
-		}
-		return TPromise.join(treeItemsPromises);
+				return null;
+			});
 	}
 
 	private massageTreeItem(extensionTreeItem: vscode.TreeItem): ITreeItem {

@@ -36,7 +36,7 @@ declare module 'vscode' {
 		 * @param element The element for which [TreeItem](#TreeItem) representation is asked for.
 		 * @return [TreeItem](#TreeItem) representation of the element
 		 */
-		getTreeItem(element: T): TreeItem;
+		getTreeItem(element: T): TreeItem | Thenable<TreeItem>;
 
 		/**
 		 * Get the children of `element` or root.
