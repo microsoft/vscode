@@ -989,7 +989,7 @@ namespace TaskDescription {
 			for (let i = 0; i < value.length; i++) {
 				let ch = value.charAt(i);
 				if (ch === ' ') {
-					if (i === 0 || value.charAt(i) !== '\\') {
+					if (i === 0 || value.charAt(i - 1) !== '\\') {
 						return true;
 					}
 				}
@@ -1237,3 +1237,81 @@ export function parse(configuration: ExternalTaskRunnerConfiguration, logger: IP
 export function mergeTasks(target: Tasks.Task, source: Tasks.Task): Tasks.Task {
 	return TaskDescription.merge(target, source);
 }
+
+/*
+class VersionConverter {
+	constructor(private problemReporter: IProblemReporter) {
+	}
+
+	public convert(fromConfig: ExternalTaskRunnerConfiguration): ExternalTaskRunnerConfiguration {
+		let result: ExternalTaskRunnerConfiguration;
+		result.version = '2.0.0';
+		if (Array.isArray(fromConfig.tasks)) {
+
+		} else {
+			result.tasks = [];
+		}
+
+
+		return result;
+	}
+
+	private convertGlobalTask(fromConfig: ExternalTaskRunnerConfiguration): TaskDescription {
+		let command: string = this.getGlobalCommand(fromConfig);
+		if (!command) {
+			this.problemReporter.error(nls.localize('Converter.noGlobalName', 'No global command specified. Can\'t convert to 2.0.0 version.'));
+			return undefined;
+		}
+		let result: TaskDescription = {
+			taskName: command
+		};
+		if (fromConfig.isShellCommand) {
+			result.type = 'shell';
+		} else {
+			result.type = 'process';
+			result.args = fromConfig.args;
+		}
+		if (fromConfig.)
+
+		return result;
+	}
+
+	private getGlobalCommand(fromConfig: ExternalTaskRunnerConfiguration): string {
+		if (fromConfig.command) {
+			return fromConfig.command;
+		} else if (fromConfig.windows && fromConfig.windows.command) {
+			return fromConfig.windows.command;
+		} else if (fromConfig.osx && fromConfig.osx.command) {
+			return fromConfig.osx.command;
+		} else if (fromConfig.linux && fromConfig.linux.command) {
+			return fromConfig.linux.command;
+		} else {
+			return undefined;
+		}
+	}
+
+	private createCommandLine(command: string, args: string[], isWindows: boolean): string {
+		let result: string[];
+		let commandHasSpace = false;
+		let argHasSpace = false;
+		if (TaskDescription.hasUnescapedSpaces(command)) {
+			result.push(`"${command}"`);
+			commandHasSpace = true;
+		} else {
+			result.push(command);
+		}
+		if (args) {
+			for (let arg of args) {
+				if (TaskDescription.hasUnescapedSpaces(arg)) {
+					result.push(`"${arg}"`);
+					argHasSpace= true;
+				} else {
+					result.push(arg);
+				}
+			}
+		}
+		return result.join(' ');
+	}
+
+}
+*/
