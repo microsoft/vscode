@@ -1270,7 +1270,7 @@ export class BreakpointsController extends BaseDebugController {
 			endColumn: breakpoint.endColumn
 		} : {
 				startLineNumber: breakpoint.lineNumber,
-				startColumn: 1
+				startColumn: breakpoint.column || 1
 			};
 
 		this.editorService.openEditor({

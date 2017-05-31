@@ -383,7 +383,7 @@ export class StackFrame implements IStackFrame {
 			description: this.source.origin,
 			options: {
 				preserveFocus,
-				selection: { startLineNumber: this.range.startLineNumber, startColumn: 1 },
+				selection: this.range,
 				revealIfVisible: true,
 				revealInCenterIfOutsideViewport: true,
 				pinned: !preserveFocus
