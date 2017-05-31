@@ -15,6 +15,7 @@ export default class MergeDectorator implements vscode.Disposable {
 
 	private config: interfaces.IExtensionConfiguration;
 	private tracker: interfaces.IDocumentMergeConflictTracker;
+	private updating = new Map<vscode.TextEditor, boolean>();
 
 	constructor(private context: vscode.ExtensionContext, trackerService: interfaces.IDocumentMergeConflictTrackerService) {
 		this.tracker = trackerService.createTracker('decorator');
@@ -146,47 +147,54 @@ export default class MergeDectorator implements vscode.Disposable {
 		}
 
 		// If we have a pending scan from the same origin, exit early.
-		if (this.tracker.isPending(editor.document)) {
+		if (this.updating.get(editor)) {
 			return;
 		}
 
-		let conflicts = await this.tracker.getConflicts(editor.document);
+		try {
+			this.updating.set(editor, true);
 
-		if (conflicts.length === 0) {
-			this.removeDecorations(editor);
-			return;
+			let conflicts = await this.tracker.getConflicts(editor.document);
+
+			if (conflicts.length === 0) {
+				this.removeDecorations(editor);
+				return;
+			}
+
+			// Store decorations keyed by the type of decoration, set decoration wants a "style"
+			// to go with it, which will match this key (see constructor);
+			let matchDecorations: { [key: string]: vscode.DecorationOptions[] } = {};
+
+			let pushDecoration = (key: string, d: vscode.DecorationOptions) => {
+				matchDecorations[key] = matchDecorations[key] || [];
+				matchDecorations[key].push(d);
+			};
+
+			conflicts.forEach(conflict => {
+				// TODO, this could be more effective, just call getMatchPositions once with a map of decoration to position
+				pushDecoration('current.content', { range: conflict.current.decoratorContent });
+				pushDecoration('incoming.content', { range: conflict.incoming.decoratorContent });
+
+				if (this.config.enableDecorations) {
+					pushDecoration('current.header', { range: conflict.current.header });
+					pushDecoration('splitter', { range: conflict.splitter });
+					pushDecoration('incoming.header', { range: conflict.incoming.header });
+				}
+			});
+
+			// For each match we've generated, apply the generated decoration with the matching decoration type to the
+			// editor instance. Keys in both matches and decorations should match.
+			Object.keys(matchDecorations).forEach(decorationKey => {
+				let decorationType = this.decorations[decorationKey];
+
+				if (decorationType) {
+					editor.setDecorations(decorationType, matchDecorations[decorationKey]);
+				}
+			});
+
+		} finally {
+			this.updating.delete(editor);
 		}
-
-		// Store decorations keyed by the type of decoration, set decoration wants a "style"
-		// to go with it, which will match this key (see constructor);
-		let matchDecorations: { [key: string]: vscode.DecorationOptions[] } = {};
-
-		let pushDecoration = (key: string, d: vscode.DecorationOptions) => {
-			matchDecorations[key] = matchDecorations[key] || [];
-			matchDecorations[key].push(d);
-		};
-
-		conflicts.forEach(conflict => {
-			// TODO, this could be more effective, just call getMatchPositions once with a map of decoration to position
-			pushDecoration('current.content', { range: conflict.current.decoratorContent });
-			pushDecoration('incoming.content', { range: conflict.incoming.decoratorContent });
-
-			if (this.config.enableDecorations) {
-				pushDecoration('current.header', { range: conflict.current.header });
-				pushDecoration('splitter', { range: conflict.splitter });
-				pushDecoration('incoming.header', { range: conflict.incoming.header });
-			}
-		});
-
-		// For each match we've generated, apply the generated decoration with the matching decoration type to the
-		// editor instance. Keys in both matches and decorations should match.
-		Object.keys(matchDecorations).forEach(decorationKey => {
-			let decorationType = this.decorations[decorationKey];
-
-			if (decorationType) {
-				editor.setDecorations(decorationType, matchDecorations[decorationKey]);
-			}
-		});
 	}
 
 	private removeDecorations(editor: vscode.TextEditor) {
