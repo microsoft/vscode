@@ -205,7 +205,8 @@ const schema: IJSONSchema = {
 					},
 					{
 						label: 'onView',
-						body: 'onView:${5:viewId}'
+						body: 'onView:${5:viewId}',
+						description: nls.localize('vscode.extension.activationEvents.onView', 'An activation event emitted whenever the specified view is expanded.'),
 					},
 					{
 						label: '*',
