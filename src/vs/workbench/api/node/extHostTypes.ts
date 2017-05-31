@@ -1297,6 +1297,17 @@ export enum ProgressLocation {
 	Window = 10,
 }
 
+export class TreeItem {
+
+	iconPath?: string | Uri | { light: string | Uri; dark: string | Uri };
+	command?: vscode.Command;
+	contextValue?: string;
+
+	constructor(public label: string, public collapsibleState: vscode.TreeItemCollapsibleState = TreeItemCollapsibleState.None) {
+	}
+
+}
+
 export enum TreeItemCollapsibleState {
 	None = 0,
 	Collapsed = 1,

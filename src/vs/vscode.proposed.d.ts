@@ -47,27 +47,26 @@ declare module 'vscode' {
 		getChildren(element?: T): ProviderResult<T[]>;
 	}
 
-	export interface TreeItem {
+	export class TreeItem {
 		/**
 		 * A human-readable string describing this item
 		 */
-		readonly label: string;
+		label: string;
 
 		/**
 		 * The icon path for the tree item
 		 */
-		readonly iconPath?: string | Uri | { light: string | Uri; dark: string | Uri };
+		iconPath?: string | Uri | { light: string | Uri; dark: string | Uri };
 
 		/**
-		 * The [command](#Command) which should be run when the tree item
-		 * is selected. This command is called with the model representing this item as first argument.
+		 * The [command](#Command) which should be run when the tree item is selected.
 		 */
-		readonly command?: Command;
+		command?: Command;
 
 		/**
 		 * [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item.
 		 */
-		readonly collapsibleState?: TreeItemCollapsibleState;
+		collapsibleState?: TreeItemCollapsibleState;
 
 		/**
 		 * Context value of the tree item. This can be used to contribute item specific actions in the tree.
@@ -87,7 +86,13 @@ declare module 'vscode' {
 		 * ```
 		 * This will show action `extension.deleteFolder` only for items with `contextValue` is `folder`.
 		 */
-		readonly contextValue?: string;
+		contextValue?: string;
+
+		/**
+		 * @param label A human-readable string describing this item
+		 * @param collapsibleState [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item. Default is [TreeItemCollapsibleState.None](#TreeItemCollapsibleState.None)
+		 */
+		constructor(label: string, collapsibleState?: TreeItemCollapsibleState);
 	}
 
 	/**
