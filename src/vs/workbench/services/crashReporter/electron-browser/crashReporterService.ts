@@ -21,6 +21,7 @@ export class CrashReporterService implements ICrashReporterService {
 	public _serviceBrand: any;
 
 	private options: Electron.CrashReporterStartOptions;
+	private isEnabled: boolean;
 
 	constructor(
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -28,7 +29,9 @@ export class CrashReporterService implements ICrashReporterService {
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		const config = configurationService.getConfiguration<ICrashReporterConfig>(TELEMETRY_SECTION_ID);
-		if (config.enableCrashReporter) {
+		this.isEnabled = !!config.enableCrashReporter;
+
+		if (this.isEnabled) {
 			this.startCrashReporter();
 		}
 	}
@@ -78,11 +81,12 @@ export class CrashReporterService implements ICrashReporterService {
 
 	public getChildProcessStartOptions(name: string): Electron.CrashReporterStartOptions {
 
-		// Experimental attempt on Mac only for now
-		if (isMacintosh) {
+		// Experimental crash reporting support for child processes on Mac only for now
+		if (this.isEnabled && isMacintosh) {
 			const childProcessOptions = clone(this.options);
 			childProcessOptions.extra.processName = name;
 			childProcessOptions.crashesDirectory = os.tmpdir();
+
 			return childProcessOptions;
 		}
 
