@@ -28,7 +28,6 @@ import { ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCod
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 const NLS_LAUNCH_MESSAGE = nls.localize('defineKeybinding.start', "Define Keybinding");
-const NLS_KB_LAYOUT_INFO_MESSAGE = nls.localize('defineKeybinding.kbLayoutInfoMessage', "For your current keyboard layout press ");
 const NLS_KB_LAYOUT_ERROR_MESSAGE = nls.localize('defineKeybinding.kbLayoutErrorMessage', "You won't be able to produce this key combination under your current keyboard layout.");
 
 const INTERESTING_FILE = /keybindings\.json$/;
@@ -298,8 +297,15 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 			overviewRulerColor = 'rgba(250, 100, 100, 0.6)';
 		} else {
 			// this is the info case
-			msg = [NLS_KB_LAYOUT_INFO_MESSAGE];
-			msg = msg.concat(message);
+			msg = [
+				nls.localize({
+					key: 'defineKeybinding.kbLayoutLocalMessage',
+					comment: [
+						'Please translate maintaining the stars (*) around the placeholder such that it will be rendered in bold.',
+						'The placeholder will contain a keyboard combination e.g. Ctrl+Shift+/'
+					]
+				}, "**{0}** for your current keyboard layout.", message)
+			];
 			className = 'keybindingInfo';
 			beforeContentClassName = 'inlineKeybindingInfo';
 			overviewRulerColor = 'rgba(100, 100, 250, 0.6)';
