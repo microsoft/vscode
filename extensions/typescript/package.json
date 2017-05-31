@@ -124,7 +124,7 @@
         },
         "typescript.referencesCodeLens.enabled": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "%typescript.referencesCodeLens.enabled%"
         },
         "typescript.implementationsCodeLens.enabled": {
