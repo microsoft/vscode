@@ -563,8 +563,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 				if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault)) {
 					this.showDetails();
-
-					this._ariaAlert(this.details.getAriaLabel());
 				} else {
 					removeClass(this.element, 'docs-side');
 				}
@@ -845,6 +843,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		this.adjustDocsPosition();
 
 		this.editor.focus();
+
+		this._ariaAlert(this.details.getAriaLabel());
 	}
 
 	private show(): void {
