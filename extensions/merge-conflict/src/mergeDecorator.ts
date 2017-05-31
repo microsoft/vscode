@@ -36,9 +36,9 @@ export default class MergeDectorator implements vscode.Disposable {
 			this.applyDecorationsFromEvent(event.document);
 		}, null, this.context.subscriptions);
 
-		vscode.window.onDidChangeActiveTextEditor((e) => {
-			// New editor attempt to apply
-			this.applyDecorations(e);
+		vscode.window.onDidChangeVisibleTextEditors((e) => {
+			// Any of which could be new (not just the active one).
+			e.forEach(e => this.applyDecorations(e));
 		}, null, this.context.subscriptions);
 	}
 
