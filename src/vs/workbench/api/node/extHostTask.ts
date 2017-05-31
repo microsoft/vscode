@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as UUID from 'vs/base/common/uuid';
 import { asWinJsPromise } from 'vs/base/common/async';
@@ -308,13 +309,16 @@ namespace Tasks {
 		if (command === void 0) {
 			return undefined;
 		}
+		let source = {
+			kind: TaskSystem.TaskSourceKind.Extension,
+			label: typeof task.source === 'string' ? task.source : extension.name,
+			detail: extension.id
+		};
+		let label = nls.localize('task.label', '{0}: {1}', source.label, task.name);
 		let result: TaskSystem.Task = {
 			_id: uuidMap.getUUID(task.identifier),
-			_source: {
-				kind: TaskSystem.TaskSourceKind.Extension,
-				label: typeof task.source === 'string' ? task.source : extension.name,
-				detail: extension.id
-			},
+			_source: source,
+			_label: label,
 			name: task.name,
 			identifier: task.identifier ? task.identifier : `${extension.id}.${task.name}`,
 			group: types.TaskGroup.is(task.group) ? task.group : undefined,

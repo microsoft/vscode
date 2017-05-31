@@ -13,21 +13,18 @@ import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
-import { Task, TaskSourceKind, computeLabel } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, TaskSourceKind } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
 import { ActionBarContributor, ContributableActionProvider } from 'vs/workbench/browser/actions';
 
 export class TaskEntry extends Model.QuickOpenEntry {
 
-	private _label: string;
-
 	constructor(protected taskService: ITaskService, protected _task: Task, highlights: Model.IHighlight[] = []) {
 		super(highlights);
-		this._label = computeLabel(_task);
 	}
 
 	public getLabel(): string {
-		return this._label;
+		return this.task._label;
 	}
 
 	public getAriaLabel(): string {

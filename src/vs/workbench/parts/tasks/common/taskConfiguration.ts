@@ -302,6 +302,11 @@ export interface ExternalTaskRunnerConfiguration extends BaseTaskRunnerConfigura
 	_runner?: string;
 
 	/**
+	 * Determines the runner to use
+	 */
+	runner?: string;
+
+	/**
 	 * The config's version number
 	 */
 	version: string;
@@ -341,7 +346,8 @@ function mergeProperty<T, K extends keyof T>(target: T, source: T, key: K) {
 interface ParseContext {
 	problemReporter: IProblemReporter;
 	namedProblemMatchers: IStringDictionary<NamedProblemMatcher>;
-	isTermnial: boolean;
+	engine: Tasks.ExecutionEngine;
+	schemaVersion: Tasks.JsonSchemaVersion;
 }
 
 namespace CommandOptions {
@@ -587,7 +593,7 @@ namespace CommandConfiguration {
 			result.options = CommandOptions.from(config.options, context);
 			if (result.options && result.options.shell === void 0 && isShellConfiguration) {
 				result.options.shell = ShellConfiguration.from(config.isShellCommand as ShellConfiguration, context);
-				if (!context.isTermnial) {
+				if (context.engine !== Tasks.ExecutionEngine.Terminal) {
 					context.problemReporter.warn(nls.localize('ConfigurationParser.noShell', 'Warning: shell configuration is only supported when executing tasks in the terminal.'));
 				}
 			}
@@ -776,6 +782,7 @@ namespace TaskDescription {
 		let annotatingTasks: Tasks.Task[] = [];
 		let defaultBuildTask: { task: Tasks.Task; rank: number; } = { task: undefined, rank: -1 };
 		let defaultTestTask: { task: Tasks.Task; rank: number; } = { task: undefined, rank: -1 };
+		let schema2_0_0: boolean = context.schemaVersion === Tasks.JsonSchemaVersion.V2_0_0;
 		tasks.forEach((externalTask) => {
 			let taskName = externalTask.taskName;
 			if (!taskName) {
@@ -792,6 +799,7 @@ namespace TaskDescription {
 			let task: Tasks.Task = {
 				_id: UUID.generateUuid(),
 				_source: source,
+				_label: taskName,
 				name: taskName,
 				identifier: identifer,
 				command
@@ -835,7 +843,7 @@ namespace TaskDescription {
 			if (problemMatchers) {
 				task.problemMatchers = problemMatchers;
 			}
-			if (context.isTermnial && isAnnotating(task)) {
+			if (schema2_0_0 && isAnnotating(task)) {
 				mergeGlobalsIntoAnnnotation(task, globals);
 				annotatingTasks.push(task);
 				return;
@@ -843,15 +851,15 @@ namespace TaskDescription {
 			mergeGlobals(task, globals);
 			fillDefaults(task);
 			let addTask: boolean = true;
-			if (context.isTermnial && task.command && task.command.name && task.command.type === Tasks.CommandType.Shell && task.command.args && task.command.args.length > 0) {
+			if (context.engine === Tasks.ExecutionEngine.Terminal && task.command && task.command.name && task.command.type === Tasks.CommandType.Shell && task.command.args && task.command.args.length > 0) {
 				if (hasUnescapedSpaces(task.command.name) || task.command.args.some(hasUnescapedSpaces)) {
 					context.problemReporter.warn(nls.localize('taskConfiguration.shellArgs', 'Warning: the task \'{0}\' is a shell command and either the command name or one of its arguments has unescaped spaces. To ensure correct command line quoting please merge args into the command.', task.name));
 				}
 			}
-			if (context.isTermnial) {
+			if (schema2_0_0) {
 				if ((task.command === void 0 || task.command.name === void 0) && (task.dependsOn === void 0 || task.dependsOn.length === 0)) {
 					context.problemReporter.error(nls.localize(
-						'taskConfiguration.noCommandOrDependsOn', 'Error: the task \'{0}\' neither specifies a command or a dependsOn property. The task will be ignored. Its definition is:\n{1}',
+						'taskConfiguration.noCommandOrDependsOn', 'Error: the task \'{0}\' neither specifies a command nor a dependsOn property. The task will be ignored. Its definition is:\n{1}',
 						task.name, JSON.stringify(externalTask, undefined, 4)
 					));
 					addTask = false;
@@ -1094,19 +1102,43 @@ namespace Globals {
 export namespace ExecutionEngine {
 
 	export function from(config: ExternalTaskRunnerConfiguration): Tasks.ExecutionEngine {
-		return isTerminalConfig(config)
-			? Tasks.ExecutionEngine.Terminal
-			: isRunnerConfig(config)
-				? Tasks.ExecutionEngine.Process
-				: Tasks.ExecutionEngine.Unknown;
+		let runner = config.runner || config._runner;
+		let result: Tasks.ExecutionEngine;
+		if (runner) {
+			switch (runner) {
+				case 'terminal':
+					result = Tasks.ExecutionEngine.Terminal;
+					break;
+				case 'process':
+					result = Tasks.ExecutionEngine.Process;
+					break;
+			}
+		}
+		let schemaVersion = JsonSchemaVersion.from(config);
+		if (schemaVersion === Tasks.JsonSchemaVersion.V0_1_0) {
+			return result || Tasks.ExecutionEngine.Process;
+		} else if (schemaVersion === Tasks.JsonSchemaVersion.V2_0_0) {
+			return Tasks.ExecutionEngine.Terminal;
+		} else {
+			throw new Error('Shouldn\'t happen.');
+		}
 	}
 
-	function isRunnerConfig(config: ExternalTaskRunnerConfiguration): boolean {
-		return (!config._runner || config._runner === 'program') && (config.version === '0.1.0' || !config.version);
-	}
+}
 
-	function isTerminalConfig(config: ExternalTaskRunnerConfiguration): boolean {
-		return config._runner === 'terminal' || config.version === '2.0.0';
+export namespace JsonSchemaVersion {
+
+	export function from(config: ExternalTaskRunnerConfiguration): Tasks.JsonSchemaVersion {
+		let version = config.version;
+		if (!version) {
+			return Tasks.JsonSchemaVersion.V2_0_0;
+		}
+		switch (version) {
+			case '0.1.0':
+				return Tasks.JsonSchemaVersion.V0_1_0;
+			default:
+				return Tasks.JsonSchemaVersion.V2_0_0;
+		}
 	}
 }
 
@@ -1130,13 +1162,15 @@ class ConfigurationParser {
 
 	public run(fileConfig: ExternalTaskRunnerConfiguration): ParseResult {
 		let engine = ExecutionEngine.from(fileConfig);
+		let schemaVersion = JsonSchemaVersion.from(fileConfig);
 		if (engine === Tasks.ExecutionEngine.Terminal) {
 			this.problemReporter.clearOutput();
 		}
 		let context: ParseContext = {
 			problemReporter: this.problemReporter,
 			namedProblemMatchers: undefined,
-			isTermnial: engine === Tasks.ExecutionEngine.Terminal
+			engine,
+			schemaVersion,
 		};
 		let taskParseResult = this.createTaskRunnerConfiguration(fileConfig, context);
 		return {
@@ -1177,6 +1211,7 @@ class ConfigurationParser {
 			let task: Tasks.Task = {
 				_id: UUID.generateUuid(),
 				_source: TaskDescription.source,
+				_label: globals.command.name,
 				name: globals.command.name,
 				identifier: globals.command.name,
 				group: Tasks.TaskGroup.Build,

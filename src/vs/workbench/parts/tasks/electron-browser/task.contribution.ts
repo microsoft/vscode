@@ -71,7 +71,7 @@ import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
 import { ITaskSystem, ITaskResolver, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskSystemEvents } from 'vs/workbench/parts/tasks/common/taskSystem';
-import { Task, TaskSet, TaskGroup, ExecutionEngine, TaskSourceKind, computeLabel as computeTaskLabel } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, TaskSet, TaskGroup, ExecutionEngine, TaskSourceKind } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, TaskServiceEvents, ITaskProvider } from 'vs/workbench/parts/tasks/common/taskService';
 import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
@@ -455,7 +455,7 @@ interface WorkspaceTaskResult {
 	set: TaskSet;
 	annotatingTasks: {
 		byIdentifier: IStringDictionary<Task>;
-		byName: IStringDictionary<Task>;
+		byLabel: IStringDictionary<Task>;
 	};
 	hasErrors: boolean;
 }
@@ -547,7 +547,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				? ExecutionEngine.Terminal
 				: this._taskSystem instanceof ProcessTaskSystem
 					? ExecutionEngine.Process
-					: ExecutionEngine.Unknown;
+					: undefined;
 			if (currentExecutionEngine !== this.getExecutionEngine()) {
 				this.messageService.show(Severity.Info, nls.localize('TaskSystem.noHotSwap', 'Changing the task execution engine requires restarting VS Code. The change is ignored.'));
 			}
@@ -709,7 +709,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			return TPromise.as<void>(undefined);
 		}
 		let fileConfig = configuration.config;
-		let customize = { taskName: computeTaskLabel(task), identifier: task.identifier };
+		let customize = { taskName: task._label, identifier: task.identifier };
 		if (!fileConfig) {
 			fileConfig = {
 				version: '2.0.0',
@@ -746,7 +746,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		sets.forEach((set) => {
 			set.tasks.forEach((task) => {
 				uuidMap[task._id] = task;
-				labelMap[computeTaskLabel(task)] = task;
+				labelMap[task._label] = task;
 				identifierMap[task.identifier] = task;
 				if (group && task.group === group) {
 					if (task._source.kind === TaskSourceKind.Workspace) {
@@ -779,6 +779,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			let task: Task = {
 				_id: id,
 				_source: { kind: TaskSourceKind.Generic, label: 'generic' },
+				_label: id,
 				name: id,
 				identifier: id,
 				dependsOn: extensionTasks.map(task => task._id),
@@ -794,7 +795,7 @@ class TaskService extends EventEmitter implements ITaskService {
 
 		sets.forEach((set) => {
 			set.tasks.forEach((task) => {
-				labelMap[computeTaskLabel(task)] = task;
+				labelMap[task._label] = task;
 				identifierMap[task.identifier] = task;
 			});
 		});
@@ -922,10 +923,11 @@ class TaskService extends EventEmitter implements ITaskService {
 					for (let set of result) {
 						for (let task of set.tasks) {
 							if (annotatingTasks) {
-								let annotatingTask = annotatingTasks.byIdentifier[task.identifier] || annotatingTasks.byName[task.name];
+								let annotatingTask = annotatingTasks.byIdentifier[task.identifier] || annotatingTasks.byLabel[task._label];
 								if (annotatingTask) {
 									TaskConfig.mergeTasks(task, annotatingTask);
 									task.name = annotatingTask.name;
+									task._label = annotatingTask._label;
 									task._source.kind = TaskSourceKind.Workspace;
 									continue;
 								}
@@ -936,6 +938,7 @@ class TaskService extends EventEmitter implements ITaskService {
 									TaskConfig.mergeTasks(task, legacyAnnotatingTask);
 									task._source.kind = TaskSourceKind.Workspace;
 									task.name = legacyAnnotatingTask.name;
+									task._label = legacyAnnotatingTask._label;
 									workspaceTasksToDelete.push(legacyAnnotatingTask);
 									continue;
 								}
@@ -1015,29 +1018,36 @@ class TaskService extends EventEmitter implements ITaskService {
 			}
 			if (config) {
 				let engine = TaskConfig.ExecutionEngine.from(config);
-				if (engine === ExecutionEngine.Process && this.hasDetectorSupport(config)) {
-					configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService, config).detect(true).then((value): WorkspaceConfigurationResult => {
-						let hasErrors = this.printStderr(value.stderr);
-						let detectedConfig = value.config;
-						if (!detectedConfig) {
-							return { config, hasErrors };
-						}
-						let result: TaskConfig.ExternalTaskRunnerConfiguration = Objects.clone(config);
-						let configuredTasks: IStringDictionary<TaskConfig.TaskDescription> = Object.create(null);
-						if (!result.tasks) {
-							if (detectedConfig.tasks) {
-								result.tasks = detectedConfig.tasks;
+				if (engine === ExecutionEngine.Process) {
+					if (this.hasDetectorSupport(config)) {
+						configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService, config).detect(true).then((value): WorkspaceConfigurationResult => {
+							let hasErrors = this.printStderr(value.stderr);
+							let detectedConfig = value.config;
+							if (!detectedConfig) {
+								return { config, hasErrors };
 							}
-						} else {
-							result.tasks.forEach(task => configuredTasks[task.taskName] = task);
-							detectedConfig.tasks.forEach((task) => {
-								if (!configuredTasks[task.taskName]) {
-									result.tasks.push(task);
+							let result: TaskConfig.ExternalTaskRunnerConfiguration = Objects.clone(config);
+							let configuredTasks: IStringDictionary<TaskConfig.TaskDescription> = Object.create(null);
+							if (!result.tasks) {
+								if (detectedConfig.tasks) {
+									result.tasks = detectedConfig.tasks;
 								}
-							});
-						}
-						return { config: result, hasErrors };
-					});
+							} else {
+								result.tasks.forEach(task => configuredTasks[task.taskName] = task);
+								detectedConfig.tasks.forEach((task) => {
+									if (!configuredTasks[task.taskName]) {
+										result.tasks.push(task);
+									}
+								});
+							}
+							return { config: result, hasErrors };
+						});
+					} else {
+						configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService).detect(true).then((value) => {
+							let hasErrors = this.printStderr(value.stderr);
+							return { config: value.config, hasErrors };
+						});
+					}
 				} else {
 					configPromise = TPromise.as({ config, hasErrors: false });
 				}
@@ -1061,16 +1071,16 @@ class TaskService extends EventEmitter implements ITaskService {
 					problemReporter.fatal(nls.localize('TaskSystem.configurationErrors', 'Error: the provided task configuration has validation errors and can\'t not be used. Please correct the errors first.'));
 					return { set: undefined, annotatingTasks: undefined, hasErrors };
 				}
-				let annotatingTasks: { byIdentifier: IStringDictionary<Task>; byName: IStringDictionary<Task>; };
+				let annotatingTasks: { byIdentifier: IStringDictionary<Task>; byLabel: IStringDictionary<Task>; };
 				if (parseResult.annotatingTasks && parseResult.annotatingTasks.length > 0) {
 					annotatingTasks = {
 						byIdentifier: Object.create(null),
-						byName: Object.create(null)
+						byLabel: Object.create(null)
 					};
 					for (let task of parseResult.annotatingTasks) {
 						annotatingTasks.byIdentifier[task.identifier] = task;
-						if (task.name) {
-							annotatingTasks.byName[task.name] = task;
+						if (task._label) {
+							annotatingTasks.byLabel[task._label] = task;
 						}
 					}
 				}
@@ -1086,6 +1096,16 @@ class TaskService extends EventEmitter implements ITaskService {
 		}
 		return TaskConfig.ExecutionEngine.from(config);
 	}
+
+	/*
+	private getJsonSchemaVersion(): JsonSchemaVersion {
+		let { config } = this.getConfiguration();
+		if (!config) {
+			return JsonSchemaVersion.V2_0_0;
+		}
+		return TaskConfig.JsonSchemaVersion.from(config);
+	}
+	*/
 
 	private getConfiguration(): { config: TaskConfig.ExternalTaskRunnerConfiguration; hasParseErrors: boolean } {
 		let result = this.configurationService.getConfiguration<TaskConfig.ExternalTaskRunnerConfiguration>('tasks');

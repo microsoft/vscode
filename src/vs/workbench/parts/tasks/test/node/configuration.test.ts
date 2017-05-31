@@ -145,6 +145,7 @@ class TaskBuilder {
 		this.result = {
 			_id: name,
 			_source: { kind: Tasks.TaskSourceKind.Workspace, label: 'workspace' },
+			_label: name,
 			identifier: name,
 			name: name,
 			command: this.commandBuilder.result,
