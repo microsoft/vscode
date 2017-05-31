@@ -253,7 +253,7 @@ export class SnippetSession {
 			const start = snippetSelection.getStartPosition();
 			const adjustedTemplate = SnippetSession.adjustWhitespace(model, start, this._template);
 
-			const snippet = SnippetParser.parse(adjustedTemplate).resolveVariables(new EditorSnippetVariableResolver(model, snippetSelection));
+			const snippet = SnippetParser.parse(adjustedTemplate).resolveVariables(new EditorSnippetVariableResolver(model, selection));
 
 			// rewrite final-tabstop to some other placeholder because this
 			// snippet sits inside another snippet
