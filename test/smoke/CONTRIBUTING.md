@@ -12,3 +12,24 @@ To contribute a new smoke test area, add `${area}.ts` file under `./areas`. This
 
 # Adding new test
 To add new test area or test, `main.ts` should be updated. The same instruction-style principle needs to be followed with the called area method names that reflect manual tester's actions.
+
+# Debugging
+1. Add the following configuration to launch.json, specifying binaries in `args`:
+```json
+{
+	"type": "node",
+	"request": "launch",
+	"name": "Launch Smoke Test",
+	"program": "${workspaceRoot}/test/smoke/src/main.js",
+	"cwd": "${workspaceRoot}/test/smoke",
+	"port": 9999,
+	"args": [
+		"-l",
+		"path/to/Code.exe"
+	],
+	"outFiles": [
+		"${cwd}/out/**/*.js"
+	]
+},
+```
+2. In main.js add `--debug-brk=9999` argument to the place where `src/mocha-runner.js` is spawned.
