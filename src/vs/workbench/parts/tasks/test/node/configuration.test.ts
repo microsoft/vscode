@@ -101,7 +101,7 @@ class CommandConfigurationBuilder {
 			options: {
 				cwd: '${workspaceRoot}'
 			},
-			terminal: this.terminalBuilder.result
+			terminalBehavior: this.terminalBuilder.result
 		};
 	}
 
@@ -432,7 +432,7 @@ function assertTask(actual: Tasks.Task, expected: Tasks.Task) {
 function assertCommandConfiguration(actual: Tasks.CommandConfiguration, expected: Tasks.CommandConfiguration) {
 	assert.strictEqual(typeof actual, typeof expected);
 	if (actual && expected) {
-		assertTerminalBehavior(actual.terminal, expected.terminal);
+		assertTerminalBehavior(actual.terminalBehavior, expected.terminalBehavior);
 		assert.strictEqual(actual.name, expected.name, 'name');
 		assert.strictEqual(actual.type, expected.type, 'task type');
 		assert.deepEqual(actual.args, expected.args, 'args');

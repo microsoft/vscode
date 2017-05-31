@@ -338,7 +338,7 @@ namespace Tasks {
 			name: value.process,
 			args: Strings.from(value.args),
 			type: TaskSystem.CommandType.Process,
-			terminal: TerminalBehaviour.from(value.terminal)
+			terminalBehavior: TerminalBehaviour.from(value.terminalBehavior)
 		};
 		if (value.options) {
 			result.options = CommandOptions.from(value.options);
@@ -353,7 +353,7 @@ namespace Tasks {
 		let result: TaskSystem.CommandConfiguration = {
 			name: value.commandLine,
 			type: TaskSystem.CommandType.Shell,
-			terminal: TerminalBehaviour.from(value.terminal)
+			terminalBehavior: TerminalBehaviour.from(value.terminalBehavior)
 		};
 		if (value.options) {
 			result.options = CommandOptions.from(value.options);

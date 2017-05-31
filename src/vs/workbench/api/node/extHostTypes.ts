@@ -1045,7 +1045,7 @@ export class BaseTask {
 	private _isBackground: boolean;
 	private _source: string;
 	private _group: string;
-	private _terminal: vscode.TaskTerminalBehavior;
+	private _terminalBehavior: vscode.TaskTerminalBehavior;
 
 	constructor(name: string, problemMatchers: string[]) {
 		if (typeof name !== 'string') {
@@ -1054,7 +1054,7 @@ export class BaseTask {
 		this._name = name;
 		this._problemMatchers = problemMatchers || [];
 		this._isBackground = false;
-		this._terminal = Object.create(null);
+		this._terminalBehavior = Object.create(null);
 	}
 
 	get identifier(): string {
@@ -1116,15 +1116,15 @@ export class BaseTask {
 		this._group = value;
 	}
 
-	get terminal(): vscode.TaskTerminalBehavior {
-		return this._terminal;
+	get terminalBehavior(): vscode.TaskTerminalBehavior {
+		return this._terminalBehavior;
 	}
 
-	set terminal(value: vscode.TaskTerminalBehavior) {
+	set terminalBehavior(value: vscode.TaskTerminalBehavior) {
 		if (value === void 0 || value === null) {
 			value = Object.create(null);
 		}
-		this._terminal = value;
+		this._terminalBehavior = value;
 	}
 
 	get problemMatchers(): string[] {

@@ -179,12 +179,12 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		this.childProcess = new LineProcess(command, args, commandConfig.type === CommandType.Shell, this.resolveOptions(commandConfig.options));
 		telemetryEvent.command = this.childProcess.getSanitizedCommand();
 		// we have no problem matchers defined. So show the output log
-		let reveal = task.command.terminal.reveal;
+		let reveal = task.command.terminalBehavior.reveal;
 		if (reveal === RevealKind.Always || (reveal === RevealKind.Silent && task.problemMatchers.length === 0)) {
 			this.showOutput();
 		}
 
-		if (commandConfig.terminal.echo) {
+		if (commandConfig.terminalBehavior.echo) {
 			let prompt: string = Platform.isWindows ? '>' : '$';
 			this.log(`running command${prompt} ${command} ${args.join(' ')}`);
 		}

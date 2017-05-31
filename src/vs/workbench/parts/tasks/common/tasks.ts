@@ -141,7 +141,7 @@ export interface CommandConfiguration {
 	/**
 	 * Describes how the terminal is supposed to behave.
 	 */
-	terminal: TerminalBehavior;
+	terminalBehavior: TerminalBehavior;
 }
 
 export namespace TaskGroup {

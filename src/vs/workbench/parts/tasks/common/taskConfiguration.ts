@@ -568,7 +568,7 @@ namespace CommandConfiguration {
 		let result: Tasks.CommandConfiguration = {
 			name: undefined,
 			type: undefined,
-			terminal: undefined
+			terminalBehavior: undefined
 		};
 		if (Types.isString(config.command)) {
 			result.name = config.command;
@@ -600,7 +600,7 @@ namespace CommandConfiguration {
 		}
 		let terminal = TerminalBehavior.from(config, context);
 		if (terminal) {
-			result.terminal = terminal;
+			result.terminalBehavior = terminal;
 		}
 		if (Types.isString(config.taskSelector)) {
 			result.taskSelector = config.taskSelector;
@@ -609,12 +609,12 @@ namespace CommandConfiguration {
 	}
 
 	export function isEmpty(value: Tasks.CommandConfiguration): boolean {
-		return !value || value.name === void 0 && value.type === void 0 && value.args === void 0 && CommandOptions.isEmpty(value.options) && value.terminal === void 0;
+		return !value || value.name === void 0 && value.type === void 0 && value.args === void 0 && CommandOptions.isEmpty(value.options) && value.terminalBehavior === void 0;
 	}
 
 	export function onlyTerminalBehaviour(value: Tasks.CommandConfiguration): boolean {
 		return value &&
-			value.terminal && (value.terminal.echo !== void 0 || value.terminal.reveal !== void 0) &&
+			value.terminalBehavior && (value.terminalBehavior.echo !== void 0 || value.terminalBehavior.reveal !== void 0) &&
 			value.name === void 0 && value.type === void 0 && value.args === void 0 && CommandOptions.isEmpty(value.options);
 	}
 
@@ -632,7 +632,7 @@ namespace CommandConfiguration {
 			target.type = source.type;
 		}
 
-		target.terminal = TerminalBehavior.merge(target.terminal, source.terminal);
+		target.terminalBehavior = TerminalBehavior.merge(target.terminalBehavior, source.terminalBehavior);
 		mergeProperty(target, source, 'taskSelector');
 		if (source.args !== void 0) {
 			if (target.args === void 0) {
@@ -652,7 +652,7 @@ namespace CommandConfiguration {
 		if (value.name !== void 0 && value.type === void 0) {
 			value.type = Tasks.CommandType.Process;
 		}
-		value.terminal = TerminalBehavior.fillDefault(value.terminal);
+		value.terminalBehavior = TerminalBehavior.fillDefault(value.terminalBehavior);
 		if (value.args === void 0) {
 			value.args = EMPTY_ARRAY;
 		}
@@ -669,8 +669,8 @@ namespace CommandConfiguration {
 		if (value.options) {
 			CommandOptions.freeze(value.options);
 		}
-		if (value.terminal) {
-			TerminalBehavior.freeze(value.terminal);
+		if (value.terminalBehavior) {
+			TerminalBehavior.freeze(value.terminalBehavior);
 		}
 	}
 }
@@ -793,7 +793,7 @@ namespace TaskDescription {
 			let command: Tasks.CommandConfiguration = externalTask.command !== void 0
 				? CommandConfiguration.from(externalTask, context)
 				: externalTask.echoCommand !== void 0
-					? { name: undefined, type: undefined, terminal: CommandConfiguration.TerminalBehavior.from(externalTask, context) }
+					? { name: undefined, type: undefined, terminalBehavior: CommandConfiguration.TerminalBehavior.from(externalTask, context) }
 					: undefined;
 			let identifer = Types.isString(externalTask.identifier) ? externalTask.identifier : taskName;
 			let task: Tasks.Task = {
@@ -940,9 +940,9 @@ namespace TaskDescription {
 				// The globals can have a echo set which would override the local echo
 				// Saves the need of a additional fill method. But might be necessary
 				// at some point.
-				let oldTerminal = Objects.clone(task.command.terminal);
+				let oldTerminal = Objects.clone(task.command.terminalBehavior);
 				CommandConfiguration.merge(task.command, globals.command);
-				task.command.terminal = oldTerminal;
+				task.command.terminalBehavior = oldTerminal;
 			}
 		}
 		// promptOnClose is inferred from isBackground if available

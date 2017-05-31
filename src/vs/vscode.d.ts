@@ -3700,7 +3700,7 @@ declare module 'vscode' {
 		/**
 		 * The terminal behavior. Defaults to an empty object literal.
 		 */
-		terminal: TaskTerminalBehavior;
+		terminalBehavior: TaskTerminalBehavior;
 
 		/**
 		 * The problem matchers attached to the task. Defaults to an empty
@@ -3832,7 +3832,7 @@ declare module 'vscode' {
 		/**
 		 * The terminal behavior. Defaults to an empty object literal.
 		 */
-		terminal: TaskTerminalBehavior;
+		terminalBehavior: TaskTerminalBehavior;
 
 		/**
 		 * The problem matchers attached to the task. Defaults to an empty
