@@ -38,4 +38,5 @@ export function fetchSelectItem(direction: string): void {
 		newSelections.push(updatedSelection ? updatedSelection : selection);
 	});
 	editor.selections = newSelections;
+	editor.revealRange(editor.selections[editor.selections.length - 1]);
 }

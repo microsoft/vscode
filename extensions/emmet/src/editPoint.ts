@@ -15,9 +15,10 @@ export function fetchEditPoint(direction: string): void {
 	let newSelections: vscode.Selection[] = [];
 	editor.selections.forEach(selection => {
 		let updatedSelection = direction === 'next' ? nextEditPoint(selection.anchor, editor) : prevEditPoint(selection.anchor, editor);
-		newSelections.push(updatedSelection);
+		newSelections.push(updatedSelection ? updatedSelection : selection);
 	});
 	editor.selections = newSelections;
+	editor.revealRange(editor.selections[editor.selections.length - 1]);
 }
 
 function nextEditPoint(position: vscode.Position, editor: vscode.TextEditor): vscode.Selection {
