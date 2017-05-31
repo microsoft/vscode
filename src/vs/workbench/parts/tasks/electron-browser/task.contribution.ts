@@ -1091,10 +1091,7 @@ class TaskService extends EventEmitter implements ITaskService {
 							return { config: result, hasErrors };
 						});
 					} else {
-						configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService).detect(true).then((value) => {
-							let hasErrors = this.printStderr(value.stderr);
-							return { config: value.config, hasErrors };
-						});
+						configPromise = TPromise.as({ config, hasErrors: false });
 					}
 				} else {
 					configPromise = TPromise.as({ config, hasErrors: false });

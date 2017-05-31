@@ -324,7 +324,6 @@ namespace Tasks {
 			group: types.TaskGroup.is(task.group) ? task.group : undefined,
 			command: command,
 			isBackground: !!task.isBackground,
-			suppressTaskName: true,
 			problemMatchers: task.problemMatchers.slice()
 		};
 		return result;
@@ -338,6 +337,7 @@ namespace Tasks {
 			name: value.process,
 			args: Strings.from(value.args),
 			type: TaskSystem.CommandType.Process,
+			suppressTaskName: true,
 			terminalBehavior: TerminalBehaviour.from(value.terminalBehavior)
 		};
 		if (value.options) {

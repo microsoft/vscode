@@ -162,18 +162,6 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		}
 
 		let args: string[] = commandConfig.args ? commandConfig.args.slice() : [];
-		// We need to first pass the task name
-		if (!task.suppressTaskName) {
-			if (commandConfig.taskSelector) {
-				args.push(commandConfig.taskSelector + task.name);
-			} else {
-				args.push(task.name);
-			}
-		}
-		// And then additional arguments
-		if (task.args) {
-			args = args.concat(task.args);
-		}
 		args = this.resolveVariables(args);
 		let command: string = this.resolveVariable(commandConfig.name);
 		this.childProcess = new LineProcess(command, args, commandConfig.type === CommandType.Shell, this.resolveOptions(commandConfig.options));

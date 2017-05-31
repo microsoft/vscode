@@ -139,6 +139,12 @@ export interface CommandConfiguration {
 	taskSelector?: string;
 
 	/**
+	 * Whether to suppress the task name when merging global args
+	 *
+	 */
+	suppressTaskName?: boolean;
+
+	/**
 	 * Describes how the terminal is supposed to behave.
 	 */
 	terminalBehavior: TerminalBehavior;
@@ -211,17 +217,6 @@ export interface Task {
 	 * The command configuration
 	 */
 	command: CommandConfiguration;
-
-	/**
-	 * Suppresses the task name when calling the task using the task runner.
-	 */
-	suppressTaskName?: boolean;
-
-	/**
-	 * Additional arguments passed to the command when this target is
-	 * invoked.
-	 */
-	args?: string[];
 
 	/**
 	 * Whether the task is a background task or not.

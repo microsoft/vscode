@@ -503,18 +503,6 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	private resolveCommandAndArgs(task: Task): { command: string, args: string[] } {
 		// First we need to use the command args:
 		let args: string[] = task.command.args ? task.command.args.slice() : [];
-		// We need to first pass the task name
-		if (!task.suppressTaskName) {
-			if (task.command.taskSelector) {
-				args.push(task.command.taskSelector + task.name);
-			} else {
-				args.push(task.name);
-			}
-		}
-		// And then additional arguments
-		if (task.args) {
-			args = args.concat(task.args);
-		}
 		args = this.resolveVariables(args);
 		let command: string = this.resolveVariable(task.command.name);
 		return { command, args };
