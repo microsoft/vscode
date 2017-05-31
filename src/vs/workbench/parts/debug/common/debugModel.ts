@@ -96,7 +96,7 @@ export class OutputNameValueElement extends AbstractOutputElement implements IEx
 	}
 
 	public toString(): string {
-		return `${this.name}: ${this.value}`;
+		return this.name ? `${this.name}: ${this.value}` : this.value;
 	}
 }
 
