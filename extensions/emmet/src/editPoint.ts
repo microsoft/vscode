@@ -41,13 +41,13 @@ function prevEditPoint(position: vscode.Position, editor: vscode.TextEditor): vs
 
 function findEditPoint(lineNum: number, editor: vscode.TextEditor, position: vscode.Position, direction: string): vscode.Selection {
 	let line = editor.document.lineAt(lineNum);
+	let lineContent = line.text;
 
 	if (lineNum !== position.line && line.isEmptyOrWhitespace) {
-		editor.selection = new vscode.Selection(lineNum, 0, lineNum, 0);
+		editor.selection = new vscode.Selection(lineNum, lineContent.length, lineNum, lineContent.length);
 		return;
 	}
 
-	let lineContent = line.text;
 	if (lineNum === position.line && direction === 'prev') {
 		lineContent = lineContent.substr(0, position.character);
 	}

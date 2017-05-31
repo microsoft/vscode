@@ -16,7 +16,7 @@ class PreviousEditPointAction extends BasicEmmetEditorAction {
 		super(
 			'editor.emmet.action.previousEditPoint',
 			nls.localize('previousEditPoint', "Emmet: Previous Edit Point"),
-			'Emmet: Previous Edit Point',
+			'Emmet: Go to Previous Edit Point',
 			'prev_edit_point'
 		);
 	}
@@ -28,7 +28,7 @@ class NextEditPointAction extends BasicEmmetEditorAction {
 		super(
 			'editor.emmet.action.nextEditPoint',
 			nls.localize('nextEditPoint', "Emmet: Next Edit Point"),
-			'Emmet: Next Edit Point',
+			'Emmet: Go to Next Edit Point',
 			'next_edit_point'
 		);
 	}
