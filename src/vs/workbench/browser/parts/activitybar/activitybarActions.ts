@@ -731,21 +731,22 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	// Styling without outline color
 	else {
 		const focusBorderColor = theme.getColor(focusBorder);
+		if (focusBorderColor) {
+			collector.addRule(`
+				.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active .action-label,
+				.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus .action-label,
+				.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover .action-label {
+					opacity: 1;
+				}
 
-		collector.addRule(`
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active .action-label,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus .action-label,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover .action-label {
-				opacity: 1;
-			}
+				.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label {
+					opacity: 0.6;
+				}
 
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label {
-				opacity: 0.6;
-			}
-
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus:before {
-				border-left-color: ${focusBorderColor};
-			}
-		`);
+				.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus:before {
+					border-left-color: ${focusBorderColor};
+				}
+			`);
+		}
 	}
 });

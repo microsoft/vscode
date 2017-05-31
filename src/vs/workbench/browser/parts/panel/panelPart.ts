@@ -197,32 +197,38 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	// Title Active
 	const titleActive = theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND);
 	const titleActiveBorder = theme.getColor(PANEL_ACTIVE_TITLE_BORDER);
-	collector.addRule(`
-		.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label,
-		.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
-			color: ${titleActive};
-			border-bottom-color: ${titleActiveBorder};
-		}
-	`);
+	if (titleActive || titleActiveBorder) {
+		collector.addRule(`
+			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label,
+			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
+				color: ${titleActive};
+				border-bottom-color: ${titleActiveBorder};
+			}
+		`);
+	}
 
 	// Title Inactive
 	const titleInactive = theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND);
-	collector.addRule(`
-		.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
-			color: ${titleInactive};
-		}
-	`);
+	if (titleInactive) {
+		collector.addRule(`
+			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
+				color: ${titleInactive};
+			}
+		`);
+	}
 
 	// Title focus
 	const focusBorderColor = theme.getColor(focusBorder);
-	collector.addRule(`
-		.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:focus {
-			color: ${titleActive};
-			border-bottom-color: ${focusBorderColor} !important;
-			border-bottom: 1px solid;
-			outline: none;
-		}
-	`);
+	if (focusBorderColor) {
+		collector.addRule(`
+			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:focus {
+				color: ${titleActive};
+				border-bottom-color: ${focusBorderColor} !important;
+				border-bottom: 1px solid;
+				outline: none;
+			}
+		`);
+	}
 
 	// Styling with Outline color (e.g. high contrast theme)
 	const outline = theme.getColor(activeContrastBorder);
