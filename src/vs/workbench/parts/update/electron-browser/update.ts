@@ -302,6 +302,14 @@ export class LightUpdateContribution implements IGlobalActivity {
 		});
 
 		this.updateService.onError(err => messageService.show(severity.Error, err));
+
+		this.updateService.onUpdateNotAvailable(explicit => {
+			if (!explicit) {
+				return;
+			}
+
+			messageService.show(severity.Info, nls.localize('noUpdatesAvailable', "There are no updates currently available."));
+		});
 	}
 
 	getActions(): IAction[] {
