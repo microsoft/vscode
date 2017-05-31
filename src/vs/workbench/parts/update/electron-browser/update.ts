@@ -296,10 +296,15 @@ export class LightUpdateContribution implements IGlobalActivity {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IActivityBarService activityBarService: IActivityBarService
 	) {
-		this.updateService.onUpdateReady(() => {
+		const addBadge = () => {
 			const badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New update available."));
 			activityBarService.showGlobalActivity(this.id, badge);
-		});
+		};
+		if (isLinux) {
+			this.updateService.onUpdateAvailable(() => addBadge());
+		} else {
+			this.updateService.onUpdateReady(() => addBadge());
+		}
 
 		this.updateService.onError(err => messageService.show(severity.Error, err));
 
