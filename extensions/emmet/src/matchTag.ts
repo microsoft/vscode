@@ -29,7 +29,7 @@ export function matchTag() {
 }
 
 function getUpdatedSelections(editor: vscode.TextEditor, offset: number, rootNode: Node): vscode.Selection {
-	let currentNode = getNode(rootNode, offset);
+	let currentNode = getNode(rootNode, offset, true);
 
 	// If no closing tag or cursor is between open and close tag, then no-op
 	if (!currentNode.close || (currentNode.open.end < offset && currentNode.close.start > offset)) {
