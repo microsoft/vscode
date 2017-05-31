@@ -430,7 +430,7 @@ export class WalkThroughPart extends BaseEditor {
 			overviewRulerLanes: 3,
 			fixedOverflowWidgets: true,
 			lineNumbersMinChars: 1,
-			minimap: false,
+			minimap: { enabled: false },
 		};
 	}
 
