@@ -19,6 +19,10 @@ export interface FormattingOptions {
 	 * The default end of line line character
 	 */
 	eol: string;
+	/**
+	 * Format lines with leading commas?
+	 */
+	leadingCommas: boolean;
 }
 
 export interface Edit {
@@ -75,9 +79,17 @@ export function format(documentText: string, range: { offset: number, length: nu
 
 	let scanner = Json.createScanner(value, false);
 
+	/**
+	 * Utility function to add a newline character and indent with the options
+	 * given.
+	 */
 	function newLineAndIndent(): string {
 		return eol + repeat(indentValue, initialIndentLevel + indentLevel);
 	}
+
+	/**
+	 * Get the next token from scanner
+	 */
 	function scanNext(): Json.SyntaxKind {
 		let token = scanner.scan();
 		lineBreak = false;
@@ -87,6 +99,7 @@ export function format(documentText: string, range: { offset: number, length: nu
 		}
 		return token;
 	}
+
 	let editOperations: Edit[] = [];
 	function addEdit(text: string, startOffset: number, endOffset: number) {
 		if (documentText.substring(startOffset, endOffset) !== text) {
@@ -94,6 +107,9 @@ export function format(documentText: string, range: { offset: number, length: nu
 		}
 	}
 
+	/**
+	 * Add the initial indent
+	 */
 	let firstToken = scanNext();
 	if (firstToken !== Json.SyntaxKind.EOF) {
 		let firstTokenStart = scanner.getTokenOffset() + rangeStart;
@@ -101,7 +117,15 @@ export function format(documentText: string, range: { offset: number, length: nu
 		addEdit(initialIndent, rangeStart, firstTokenStart);
 	}
 
+	/**
+	 * Loop through the tokens from scanner until we reach the end of file (EOF)
+	 * token.
+	 */
 	while (firstToken !== Json.SyntaxKind.EOF) {
+		/**
+		 * Within this loop `firstToken` is the "current" token we are looking at
+		 * and `secondToken` is the one following.
+		 */
 		let firstTokenEnd = scanner.getTokenOffset() + scanner.getTokenLength() + rangeStart;
 		let secondToken = scanNext();
 
@@ -129,12 +153,20 @@ export function format(documentText: string, range: { offset: number, length: nu
 			switch (firstToken) {
 				case Json.SyntaxKind.OpenBracketToken:
 				case Json.SyntaxKind.OpenBraceToken:
-					indentLevel++;
-					replaceContent = newLineAndIndent();
+					if (!options.leadingCommas) {
+						indentLevel++;
+						replaceContent = newLineAndIndent();
+					} else {
+						replaceContent = ' ';
+					}
 					break;
 				case Json.SyntaxKind.CommaToken:
 				case Json.SyntaxKind.LineCommentTrivia:
-					replaceContent = newLineAndIndent();
+					if (!options.leadingCommas) {
+						replaceContent = newLineAndIndent();
+					} else {
+						replaceContent = ' ';
+					}
 					break;
 				case Json.SyntaxKind.BlockCommentTrivia:
 					if (lineBreak) {
@@ -151,8 +183,16 @@ export function format(documentText: string, range: { offset: number, length: nu
 				case Json.SyntaxKind.TrueKeyword:
 				case Json.SyntaxKind.FalseKeyword:
 				case Json.SyntaxKind.NumericLiteral:
+					if (options.leadingCommas) {
+						replaceContent = newLineAndIndent();
+					}
 					if (secondToken === Json.SyntaxKind.NullKeyword || secondToken === Json.SyntaxKind.FalseKeyword || secondToken === Json.SyntaxKind.NumericLiteral) {
 						replaceContent = ' ';
+					}
+					break;
+				case Json.SyntaxKind.StringLiteral:
+					if (options.leadingCommas) {
+						replaceContent = newLineAndIndent();
 					}
 					break;
 			}
@@ -194,6 +234,13 @@ function computeIndentLevel(content: string, offset: number, options: Formatting
 	return Math.floor(nChars / tabSize);
 }
 
+/**
+ * Get the newline character to use.
+ *
+ * Analyzes the text given for popular newline characters and uses those if
+ * found, falling back to the character given in `options.eol` and finally
+ * defaulting to the `\n` character.
+ */
 function getEOL(options: FormattingOptions, text: string): string {
 	for (let i = 0; i < text.length; i++) {
 		let ch = text.charAt(i);
@@ -209,6 +256,9 @@ function getEOL(options: FormattingOptions, text: string): string {
 	return (options && options.eol) || '\n';
 }
 
+/**
+ * Check if character at a given position is a newlint character.
+ */
 function isEOL(text: string, offset: number) {
 	return '\r\n'.indexOf(text.charAt(offset)) !== -1;
 }

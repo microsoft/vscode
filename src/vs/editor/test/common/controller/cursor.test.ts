@@ -1141,7 +1141,8 @@ suite('Editor Controller - Regression tests', () => {
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
-				trimAutoWhitespace: false
+				trimAutoWhitespace: false,
+				leadingCommas: false
 			},
 		);
 
@@ -1211,7 +1212,8 @@ suite('Editor Controller - Regression tests', () => {
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				leadingCommas: false
 			},
 			mode.getLanguageIdentifier()
 		);
@@ -1244,7 +1246,8 @@ suite('Editor Controller - Regression tests', () => {
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				leadingCommas: false
 			},
 			mode.getLanguageIdentifier()
 		);
@@ -1278,7 +1281,8 @@ suite('Editor Controller - Regression tests', () => {
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				leadingCommas: false
 			},
 			mode.getLanguageIdentifier()
 		);
@@ -1311,7 +1315,8 @@ suite('Editor Controller - Regression tests', () => {
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				leadingCommas: false
 			},
 			mode.getLanguageIdentifier()
 		);
@@ -1344,7 +1349,8 @@ suite('Editor Controller - Regression tests', () => {
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				leadingCommas: false
 			},
 			mode.getLanguageIdentifier()
 		);
@@ -1372,7 +1378,8 @@ suite('Editor Controller - Regression tests', () => {
 				tabSize: 4,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				leadingCommas: false
 			},
 			mode.getLanguageIdentifier()
 		);
@@ -1400,7 +1407,8 @@ suite('Editor Controller - Regression tests', () => {
 				tabSize: 4,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				leadingCommas: false
 			}
 		);
 
@@ -1432,7 +1440,8 @@ suite('Editor Controller - Regression tests', () => {
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				leadingCommas: false
 			},
 		);
 
@@ -1493,7 +1502,7 @@ suite('Editor Controller - Regression tests', () => {
 				'hello'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { tabSize: 4, insertSpaces: true, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { tabSize: 4, insertSpaces: true, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, leadingCommas: false }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 3, false);
 			moveTo(cursor, 1, 5, true);
@@ -1521,7 +1530,8 @@ suite('Editor Controller - Regression tests', () => {
 				insertSpaces: true,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				leadingCommas: false
 			},
 		);
 
@@ -1570,7 +1580,8 @@ suite('Editor Controller - Regression tests', () => {
 				tabSize: 4,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				leadingCommas: false
 			}
 		);
 
@@ -1617,7 +1628,7 @@ suite('Editor Controller - Regression tests', () => {
 				'just some text',
 			],
 			languageIdentifier: null,
-			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, leadingCommas: false }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 1, false);
 
@@ -1645,7 +1656,8 @@ suite('Editor Controller - Regression tests', () => {
 				tabSize: 4,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				leadingCommas: false
 			}
 		);
 
@@ -1669,7 +1681,8 @@ suite('Editor Controller - Regression tests', () => {
 				tabSize: 4,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				leadingCommas: false
 			}
 		);
 
@@ -1868,7 +1881,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'',
 				'1'
 			],
-			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, leadingCommas: false }
 		}, (model, cursor) => {
 			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(1, 21), source: 'keyboard' });
 			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
@@ -1891,7 +1904,8 @@ suite('Editor Controller - Cursor Configuration', () => {
 				tabSize: 13,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				leadingCommas: false
 			}
 		);
 
@@ -1961,7 +1975,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'\thello'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, leadingCommas: false }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 7, false);
 			assertCursor(cursor, new Selection(1, 7, 1, 7));
@@ -1979,7 +1993,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'\thello'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, leadingCommas: false }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 7, false);
 			assertCursor(cursor, new Selection(1, 7, 1, 7));
@@ -1997,7 +2011,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'\thell()'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, leadingCommas: false }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 7, false);
 			assertCursor(cursor, new Selection(1, 7, 1, 7));
@@ -2018,7 +2032,8 @@ suite('Editor Controller - Cursor Configuration', () => {
 				tabSize: 4,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
-				trimAutoWhitespace: false
+				trimAutoWhitespace: false,
+				leadingCommas: false
 			}
 		}, (model, cursor) => {
 
@@ -2046,7 +2061,8 @@ suite('Editor Controller - Cursor Configuration', () => {
 				tabSize: 4,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				leadingCommas: false
 			}
 		}, (model, cursor) => {
 			moveTo(cursor, 1, model.getLineContent(1).length + 1);
@@ -2072,7 +2088,8 @@ suite('Editor Controller - Cursor Configuration', () => {
 				tabSize: 4,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				leadingCommas: false
 			},
 			languageIdentifier: mode.getLanguageIdentifier(),
 		}, (model, cursor) => {
@@ -2120,7 +2137,8 @@ suite('Editor Controller - Cursor Configuration', () => {
 				tabSize: 4,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				leadingCommas: false
 			}
 		);
 
@@ -2164,7 +2182,8 @@ suite('Editor Controller - Cursor Configuration', () => {
 				tabSize: 4,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				leadingCommas: false
 			}
 		);
 
@@ -2230,7 +2249,8 @@ suite('Editor Controller - Cursor Configuration', () => {
 				tabSize: 4,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				leadingCommas: false
 			}
 		);
 
@@ -2256,7 +2276,8 @@ suite('Editor Controller - Cursor Configuration', () => {
 				tabSize: 4,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				leadingCommas: false
 			}
 		);
 
@@ -2327,7 +2348,8 @@ suite('Editor Controller - Cursor Configuration', () => {
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				leadingCommas: false
 			}
 		);
 
@@ -2405,7 +2427,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\tif (true) {'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, leadingCommas: false }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 12, false);
 			assertCursor(cursor, new Selection(1, 12, 1, 12));
@@ -2428,7 +2450,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, leadingCommas: false }
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 3, false);
 			assertCursor(cursor, new Selection(2, 3, 2, 3));
@@ -2446,7 +2468,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t\t\treturn true'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, leadingCommas: false }
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 15, false);
 			assertCursor(cursor, new Selection(2, 15, 2, 15));
@@ -2465,7 +2487,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t\t\t\treturn true'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, leadingCommas: false }
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 14, false);
 			assertCursor(cursor, new Selection(2, 14, 2, 14));
@@ -2490,7 +2512,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t\t}}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, leadingCommas: false }
 		}, (model, cursor) => {
 			moveTo(cursor, 4, 4, false);
 			assertCursor(cursor, new Selection(4, 4, 4, 4));
@@ -2510,7 +2532,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'}}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, leadingCommas: false }
 		}, (model, cursor) => {
 			moveTo(cursor, 4, 2, false);
 			assertCursor(cursor, new Selection(4, 2, 4, 2));
@@ -2530,7 +2552,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t\t}a}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, leadingCommas: false }
 		}, (model, cursor) => {
 			moveTo(cursor, 4, 4, false);
 			moveTo(cursor, 4, 5, true);
@@ -2549,7 +2571,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\tif (true) {'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, leadingCommas: false }
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 12, false);
 			moveTo(cursor, 2, 13, true);
@@ -2570,7 +2592,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\tif (true) {'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, leadingCommas: false }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 12, false);
 			assertCursor(cursor, new Selection(1, 12, 1, 12));
@@ -2593,7 +2615,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'    if (true) {'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, leadingCommas: false }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 12, false);
 			assertCursor(cursor, new Selection(1, 12, 1, 12));
@@ -2617,7 +2639,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'    if (true) {'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, leadingCommas: false }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 12, false);
 			assertCursor(cursor, new Selection(1, 12, 1, 12));
@@ -2645,7 +2667,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, leadingCommas: false }
 		}, (model, cursor) => {
 			moveTo(cursor, 5, 4, false);
 			assertCursor(cursor, new Selection(5, 4, 5, 4));
@@ -2669,7 +2691,8 @@ suite('Editor Controller - Indentation Rules', () => {
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				leadingCommas: false
 			},
 			languageIdentifier: mode.getLanguageIdentifier(),
 		}, (model, cursor) => {
@@ -2696,7 +2719,8 @@ suite('Editor Controller - Indentation Rules', () => {
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				leadingCommas: false
 			},
 			languageIdentifier: mode.getLanguageIdentifier(),
 		}, (model, cursor) => {
@@ -2721,7 +2745,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'?>'
 			],
 			languageIdentifier: emptyRulesMode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, leadingCommas: false }
 		}, (model, cursor) => {
 			moveTo(cursor, 5, 3, false);
 			assertCursor(cursor, new Selection(5, 3, 5, 3));
@@ -2741,7 +2765,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'	'
 			],
 			languageIdentifier: emptyRulesMode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, leadingCommas: false }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 2, false);
 			assertCursor(cursor, new Selection(3, 2, 3, 2));

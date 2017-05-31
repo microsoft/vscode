@@ -9,7 +9,7 @@ import assert = require('assert');
 
 suite('JSON - formatter', () => {
 
-	function format(content: string, expected: string, insertSpaces = true) {
+	function format(content: string, expected: string, insertSpaces = true, leadingCommas = false) {
 		let range = void 0;
 		var rangeStart = content.indexOf('|');
 		var rangeEnd = content.lastIndexOf('|');
@@ -18,7 +18,7 @@ suite('JSON - formatter', () => {
 			range = { offset: rangeStart, length: rangeEnd - rangeStart };
 		}
 
-		var edits = Formatter.format(content, range, { tabSize: 2, insertSpaces: insertSpaces, eol: '\n' });
+		var edits = Formatter.format(content, range, { tabSize: 2, insertSpaces: insertSpaces, eol: '\n', leadingCommas: leadingCommas });
 
 		let lastEditOffset = content.length;
 		for (let i = edits.length - 1; i >= 0; i--) {
@@ -439,5 +439,23 @@ suite('JSON - formatter', () => {
 		].join('\n');
 
 		format(content, expected);
+	});
+	test('leading comma if option is set', () => {
+		var content = [
+			'{',
+			' a: null,',
+			' b: "foo",',
+			' c: null',
+			'}'
+		].join('\n');
+
+		var expected = [
+			'{ a: null',
+			', b: "foo"',
+			', c: null',
+			'}'
+		].join('\n');
+
+		format(content, expected, true, true);
 	});
 });

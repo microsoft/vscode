@@ -205,6 +205,7 @@ const configurationValueWhitelist = [
 	'editor.wordWrap',
 	'editor.wordWrapColumn',
 	'editor.insertSpaces',
+	'editor.leadingCommas',
 	'editor.renderIndentGuides',
 	'files.trimTrailingWhitespace',
 	'git.confirmSync',
