@@ -613,7 +613,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	}
 
 	private findLanguage(file: string): Thenable<LanguageProvider | null> {
-		return workspace.openTextDocument(file).then((doc: TextDocument) => {
+		return workspace.openTextDocument(this.client.asUrl(file)).then((doc: TextDocument) => {
 			for (const language of this.languages) {
 				if (language.handles(file, doc)) {
 					return language;
