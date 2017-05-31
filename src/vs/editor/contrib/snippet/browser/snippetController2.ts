@@ -82,9 +82,9 @@ export class SnippetController2 {
 	private readonly _hasNextTabstop: IContextKey<boolean>;
 	private readonly _hasPrevTabstop: IContextKey<boolean>;
 
-	// private _snippet: SnippetSession;
 	private _sessions = new SnippetSessions();
 	private _snippetListener: IDisposable[] = [];
+	private _modelVersionId: number;
 
 	constructor(
 		private readonly _editor: ICommonCodeEditor,
@@ -122,7 +122,13 @@ export class SnippetController2 {
 
 		const snippet = new SnippetSession(this._editor, template, overwriteBefore, overwriteAfter);
 		const newLen = this._sessions.add(snippet);
-		snippet.insert(newLen > 1);
+
+		if (newLen === 1) {
+			this._modelVersionId = this._editor.getModel().getAlternativeVersionId();
+			snippet.insert(false);
+		} else {
+			snippet.insert(true);
+		}
 
 		if (undoStopAfter) {
 			this._editor.getModel().pushStackElement();
@@ -139,6 +145,12 @@ export class SnippetController2 {
 		if (this._sessions.empty) {
 			// canceled in the meanwhile
 			return;
+		}
+
+		if (this._modelVersionId === this._editor.getModel().getAlternativeVersionId()) {
+			// undo until the 'before' state happened
+			// and makes use cancel snippet mode
+			return this.cancel();
 		}
 
 		if (!this._sessions.hasPlaceholder) {
