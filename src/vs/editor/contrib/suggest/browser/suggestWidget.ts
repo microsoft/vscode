@@ -694,6 +694,11 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			} else {
 				this.setState(State.Open);
 			}
+
+			// Reset focus border
+			if (this.detailsBorderColor) {
+				this.details.element.style.borderColor = this.detailsBorderColor;
+			}
 		}
 	}
 
@@ -964,29 +969,29 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				}
 
 				// Fix for #26244
-				if (hasClass(this.element, 'list-right')) {
-					addClass(this.listElement, 'empty-left-border');
-					removeClass(this.listElement, 'empty-right-border');
-				} else {
-					addClass(this.listElement, 'empty-right-border');
-					removeClass(this.listElement, 'empty-left-border');
-				}
+				// if (hasClass(this.element, 'list-right')) {
+				// 	addClass(this.listElement, 'empty-left-border');
+				// 	removeClass(this.listElement, 'empty-right-border');
+				// } else {
+				// 	addClass(this.listElement, 'empty-right-border');
+				// 	removeClass(this.listElement, 'empty-left-border');
+				// }
 
-				removeClass(this.details.element, 'empty-left-border');
-				removeClass(this.details.element, 'empty-right-border');
+				// removeClass(this.details.element, 'empty-left-border');
+				// removeClass(this.details.element, 'empty-right-border');
 				return;
 			} else {
 				// Fix for #26244
-				if (hasClass(this.element, 'list-right')) {
-					addClass(this.details.element, 'empty-right-border');
-					removeClass(this.details.element, 'empty-left-border');
-				} else {
-					addClass(this.details.element, 'empty-left-border');
-					removeClass(this.details.element, 'empty-right-border');
-				}
+				// if (hasClass(this.element, 'list-right')) {
+				// 	addClass(this.details.element, 'empty-right-border');
+				// 	removeClass(this.details.element, 'empty-left-border');
+				// } else {
+				// 	addClass(this.details.element, 'empty-left-border');
+				// 	removeClass(this.details.element, 'empty-right-border');
+				// }
 
-				removeClass(this.listElement, 'empty-right-border');
-				removeClass(this.listElement, 'empty-left-border');
+				// removeClass(this.listElement, 'empty-right-border');
+				// removeClass(this.listElement, 'empty-left-border');
 			}
 		}
 
