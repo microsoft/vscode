@@ -5,7 +5,6 @@
 
 var Mocha = require('mocha');
 var path = require('path');
-var fs = require('fs');
 
 var mocha = new Mocha({
 	timeout: 360000,

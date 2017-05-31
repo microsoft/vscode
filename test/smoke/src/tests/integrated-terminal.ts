@@ -34,8 +34,7 @@ export function testIntegratedTerminal() {
 			await common.type(command);
 			await common.enter();
 			await app.wait();
-			let output = await terminal.getCommandOutput(command);
-			assert.equal(output, 'test');
+			assert.ok(await terminal.commandOutputHas('test'));
 		});
 	});
 }

@@ -23,17 +23,17 @@ export class IntegratedTerminal {
 		return this.spectron.command('workbench.action.terminal.toggleTerminal');
 	}
 
-	public async getCommandOutput(command: string): Promise<string> {
+	public async commandOutputHas(result: string): Promise<boolean> {
 		const selector = 'div[id="workbench.panel.terminal"] .xterm-rows';
-		// Default Powershell terminal adds 3 header rows at the top, whereas bash does not.
-		let readRow = process.platform === 'win32' ? 5 : 2;
-		let output: string = await this.spectron.client.getText(`${selector}>:nth-child(${readRow})`);
 
-		// If ended up on the wrong line, it could be terminal's restored session (e.g. on OS X)
-		if (output.trim().endsWith(command)) {
-			output = await this.spectron.client.getText(`${selector}>:nth-child(${readRow+1})`); // try next line
+		const rows = await this.spectron.client.elements(`${selector} div`);
+		for (let i = 0; i < rows.value.length; i++) {
+			const rowText = await this.spectron.client.getText(`${selector}>:nth-child(${i+1})`);
+			if (rowText.trim() === result) {
+				return true;
+			}
 		}
 
-		return output.trim(); // remove many &nbsp; tags
+		return false;
 	}
 }
