@@ -479,12 +479,13 @@ export class TerminalInstance implements ITerminalInstance {
 		});
 		if (!shell.name) {
 			// Only listen for process title changes when a name is not provided
-			this._process.on('message', (message) => {
-				if (message.type === 'title') {
-					this._title = message.content ? message.content : '';
-					this._onTitleChanged.fire(this._title);
-				}
-			});
+			this._process.on('message', this._onPtyProcessMessageTitleChanged);
+			// this._process.on('message', (message) => {
+			// 	if (message.type === 'title') {
+			// 		this._title = message.content ? message.content : '';
+			// 		this._onTitleChanged.fire(this._title);
+			// 	}
+			// });
 		}
 		this._process.on('message', (message) => {
 			if (message.type === 'pid') {
@@ -558,6 +559,13 @@ export class TerminalInstance implements ITerminalInstance {
 					this._messageService.show(Severity.Error, exitCodeMessage);
 				}
 			}
+		}
+	}
+
+	private _onPtyProcessMessageTitleChanged(message: any): void {
+		if (message.type === 'title') {
+			this._title = message.content ? message.content : '';
+			this._onTitleChanged.fire(this._title);
 		}
 	}
 
@@ -760,6 +768,19 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public static setTerminalProcessFactory(factory: ITerminalProcessFactory): void {
 		this._terminalProcessFactory = factory;
+	}
+
+	public setTitle(title: string): void {
+		const oldTitle = this._title;
+		if (title !== oldTitle) {
+			this._title = title;
+			this._onTitleChanged.fire(title);
+		}
+
+		// if the title is set via API, unregister the handler that automatically updates the terminal name
+		if (this._process) {
+			this._process.removeListener('message', this._onPtyProcessMessageTitleChanged);
+		}
 	}
 }
 
