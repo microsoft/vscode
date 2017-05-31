@@ -107,6 +107,22 @@ export class WindowsNativeResolvedKeybinding extends ResolvedKeybinding {
 		return UILabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, OperatingSystem.Windows);
 	}
 
+	private _getUSLabelForKeybinding(keybinding: SimpleKeybinding): string {
+		if (!keybinding) {
+			return null;
+		}
+		if (keybinding.isDuplicateModifierCase()) {
+			return '';
+		}
+		return KeyCodeUtils.toString(keybinding.keyCode);
+	}
+
+	public getUSLabel(): string {
+		let firstPart = this._getUSLabelForKeybinding(this._firstPart);
+		let chordPart = this._getUSLabelForKeybinding(this._chordPart);
+		return UILabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, OperatingSystem.Windows);
+	}
+
 	private _getAriaLabelForKeybinding(keybinding: SimpleKeybinding): string {
 		if (!keybinding) {
 			return null;
