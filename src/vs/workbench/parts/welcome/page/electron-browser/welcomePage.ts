@@ -35,7 +35,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { tildify } from 'vs/base/common/labels';
 import { isLinux } from 'vs/base/common/platform';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { registerColor, textLinkForeground, textLinkActiveForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils';
 
 used();
@@ -475,6 +475,10 @@ registerThemingParticipant((theme, collector) => {
 	if (activeLink) {
 		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage a:hover,
 			.monaco-workbench > .part.editor > .content .welcomePage a:active { color: ${activeLink}; }`);
+	}
+	const focusColor = theme.getColor(focusBorder);
+	if (focusColor) {
+		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage a:focus { outline-color: ${focusColor}; }`);
 	}
 	const border = theme.getColor(contrastBorder);
 	if (border) {
