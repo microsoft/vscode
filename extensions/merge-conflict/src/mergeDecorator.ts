@@ -146,7 +146,7 @@ export default class MergeDectorator implements vscode.Disposable {
 			return;
 		}
 
-		// If we have a pending scan from the same origin, exit early.
+		// If we have a pending scan from the same origin, exit early. (Cannot use this.tracker.isPending() because decorations are per editor.)
 		if (this.updating.get(editor)) {
 			return;
 		}
