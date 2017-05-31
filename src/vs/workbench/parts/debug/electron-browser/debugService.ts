@@ -126,7 +126,8 @@ export class DebugService implements debug.IDebugService {
 				// Some adapters might not respect the number levels in StackTraceRequest and might
 				// return more stackFrames than requested. For those do not send an additional stackTrace request.
 				if (callStack.length <= 1) {
-					this.model.fetchCallStack(focusedThread).done(undefined, errors.onUnexpectedError);
+					this.model.fetchCallStack(focusedThread).done(() =>
+						this.tryToAutoFocusStackFrame(focusedThread), errors.onUnexpectedError);
 				}
 			}
 		}, 420);
@@ -264,6 +265,25 @@ export class DebugService implements debug.IDebugService {
 		}
 	}
 
+	private tryToAutoFocusStackFrame(thread: debug.IThread): TPromise<any> {
+		const callStack = thread.getCallStack();
+		if (!callStack.length || this.viewModel.focusedStackFrame) {
+			return TPromise.as(null);
+		}
+
+		// focus first stack frame from top that has source location if no other stack frame is focussed
+		const stackFrameToFocus = first(callStack, sf => sf.source && sf.source.available, undefined);
+		if (!stackFrameToFocus) {
+			return TPromise.as(null);
+		}
+
+		this.focusStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
+		this.windowService.getWindow().focus();
+		aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", thread.stoppedDetails.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.range.startLineNumber));
+
+		return stackFrameToFocus.openInEditor(this.editorService);
+	}
+
 	private registerSessionListeners(process: Process, session: RawDebugSession): void {
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session);
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidInitialize(event => {
@@ -307,18 +327,8 @@ export class DebugService implements debug.IDebugService {
 					// Call fetch call stack twice, the first only return the top stack frame.
 					// Second retrieves the rest of the call stack. For performance reasons #25605
 					this.model.fetchCallStack(thread).then(() => {
-						const callStack = thread.getCallStack();
 						this.callStackScheduler.schedule();
-						if (callStack.length > 0 && !this.viewModel.focusedStackFrame) {
-							// focus first stack frame from top that has source location if no other stack frame is focussed
-							const stackFrameToFocus = first(callStack, sf => sf.source && sf.source.available, callStack[0]);
-							this.focusStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
-							this.windowService.getWindow().focus();
-							aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", event.body.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.range.startLineNumber));
-
-							return stackFrameToFocus.openInEditor(this.editorService);
-						}
-						return undefined;
+						return this.tryToAutoFocusStackFrame(thread);
 					});
 				}
 			}, errors.onUnexpectedError);
