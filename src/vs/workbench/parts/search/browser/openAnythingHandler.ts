@@ -229,6 +229,10 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 					this.pendingSearch = null;
 					this.messageService.show(Severity.Error, error);
 				});
+			}, () => {
+				resultPromises.forEach(resultPromise => {
+					resultPromise.cancel();
+				});
 			});
 
 			return this.pendingSearch;
