@@ -134,7 +134,7 @@ export class SpectronApplication {
 	 * @param command command (e.g. 'workbench.action.files.newUntitledFile')
 	 */
 	public command(command: string, capture?: boolean): Promise<any> {
-		const binding = this.keybindings.find(x => x['command'] == command);
+		const binding = this.keybindings.find(x => x['command'] === command);
 		const keys: string = binding.key;
 		let keysToPress: string[] = [];
 
