@@ -16,14 +16,14 @@
 
 .monaco-editor .suggest-widget > .tree,
 .monaco-editor .suggest-widget > .details {
-	width: 428px;
+	width: calc(100% - 2px);
 	border-style: solid;
 	border-width: 1px;
 }
 
 .monaco-editor.hc-black .suggest-widget > .tree,
 .monaco-editor.hc-black .suggest-widget > .details {
-	width: 426px;
+	width: calc(100% - 4px);
 	border-width: 2px;
 }
 
