@@ -1023,7 +1023,7 @@ export class VSCodeMenu {
 
 			default:
 				const result = [new MenuItem({
-					label: nls.localize('miCheckForUpdates', "Check For Updates..."), click: () => setTimeout(() => {
+					label: nls.localize('miCheckForUpdates', "Check for Updates..."), click: () => setTimeout(() => {
 						this.reportMenuActionTelemetry('CheckForUpdate');
 						this.updateService.checkForUpdates(true);
 					}, 0)

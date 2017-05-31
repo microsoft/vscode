@@ -340,7 +340,7 @@ export class LightUpdateContribution implements IGlobalActivity {
 					this.updateService.quitAndInstall());
 
 			default:
-				return new Action('update.check', nls.localize('checkForUpdates', "Check For Updates..."), undefined, this.updateService.state === UpdateState.Idle, () =>
+				return new Action('update.check', nls.localize('checkForUpdates', "Check for Updates..."), undefined, this.updateService.state === UpdateState.Idle, () =>
 					this.updateService.checkForUpdates(true));
 		}
 	}
