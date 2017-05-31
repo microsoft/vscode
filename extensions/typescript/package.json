@@ -479,7 +479,7 @@
           "${cwd}"
         ],
         "pattern": "$tsc",
-        "watching": {
+        "background": {
           "activeOnStart": true,
           "beginsPattern": {
             "regexp": "^\\s*(?:message TS6032:|\\d{1,2}:\\d{1,2}:\\d{1,2}(?: AM| PM)? -) File change detected\\. Starting incremental compilation\\.\\.\\."
