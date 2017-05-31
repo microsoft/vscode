@@ -102,7 +102,7 @@ export class ViewController {
 	}
 
 	private _hasMulticursorModifier(data: IMouseDispatchData): boolean {
-		switch (this.configuration.editor.multicursorModifier) {
+		switch (this.configuration.editor.multiCursorModifier) {
 			case 'altKey':
 				return data.altKey;
 			case 'ctrlKey':
@@ -114,7 +114,7 @@ export class ViewController {
 	}
 
 	private _hasNonMulticursorModifier(data: IMouseDispatchData): boolean {
-		switch (this.configuration.editor.multicursorModifier) {
+		switch (this.configuration.editor.multiCursorModifier) {
 			case 'altKey':
 				return data.ctrlKey || data.metaKey;
 			case 'ctrlKey':

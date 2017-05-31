@@ -2881,7 +2881,7 @@ declare module monaco.editor {
 		 * The modifier to be used to add multiple cursors with the mouse.
 		 * Defaults to 'alt'
 		 */
-		multicursorModifier?: 'cmd' | 'ctrl' | 'alt';
+		multiCursorModifier?: 'cmd' | 'ctrl' | 'alt';
 		/**
 		 * Enable quick suggestions (shadow suggestions)
 		 * Defaults to true.
@@ -3263,7 +3263,7 @@ declare module monaco.editor {
 		readonly editorClassName: string;
 		readonly lineHeight: number;
 		readonly readOnly: boolean;
-		readonly multicursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
+		readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 		readonly wordSeparators: string;
 		readonly autoClosingBrackets: boolean;
 		readonly useTabStops: boolean;
@@ -3395,7 +3395,7 @@ declare module monaco.editor {
 		readonly lineHeight: boolean;
 		readonly readOnly: boolean;
 		readonly accessibilitySupport: boolean;
-		readonly multicursorModifier: boolean;
+		readonly multiCursorModifier: boolean;
 		readonly wordSeparators: boolean;
 		readonly autoClosingBrackets: boolean;
 		readonly useTabStops: boolean;

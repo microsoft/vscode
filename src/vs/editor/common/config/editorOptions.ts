@@ -335,7 +335,7 @@ export interface IEditorOptions {
 	 * The modifier to be used to add multiple cursors with the mouse.
 	 * Defaults to 'alt'
 	 */
-	multicursorModifier?: 'cmd' | 'ctrl' | 'alt';
+	multiCursorModifier?: 'cmd' | 'ctrl' | 'alt';
 	/**
 	 * Enable quick suggestions (shadow suggestions)
 	 * Defaults to true.
@@ -788,7 +788,7 @@ export interface IValidatedEditorOptions {
 	readonly dragAndDrop: boolean;
 	readonly emptySelectionClipboard: boolean;
 	readonly useTabStops: boolean;
-	readonly multicursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
+	readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 
 	readonly viewInfo: InternalEditorViewOptions;
 	readonly contribInfo: EditorContribOptions;
@@ -809,7 +809,7 @@ export class InternalEditorOptions {
 	 * @internal
 	 */
 	readonly accessibilitySupport: platform.AccessibilitySupport;
-	readonly multicursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
+	readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 
 	// ---- cursor options
 	readonly wordSeparators: string;
@@ -836,7 +836,7 @@ export class InternalEditorOptions {
 		lineHeight: number;
 		readOnly: boolean;
 		accessibilitySupport: platform.AccessibilitySupport;
-		multicursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
+		multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 		wordSeparators: string;
 		autoClosingBrackets: boolean;
 		useTabStops: boolean;
@@ -855,7 +855,7 @@ export class InternalEditorOptions {
 		this.lineHeight = source.lineHeight | 0;
 		this.readOnly = source.readOnly;
 		this.accessibilitySupport = source.accessibilitySupport;
-		this.multicursorModifier = source.multicursorModifier;
+		this.multiCursorModifier = source.multiCursorModifier;
 		this.wordSeparators = source.wordSeparators;
 		this.autoClosingBrackets = source.autoClosingBrackets;
 		this.useTabStops = source.useTabStops;
@@ -880,7 +880,7 @@ export class InternalEditorOptions {
 			&& this.lineHeight === other.lineHeight
 			&& this.readOnly === other.readOnly
 			&& this.accessibilitySupport === other.accessibilitySupport
-			&& this.multicursorModifier === other.multicursorModifier
+			&& this.multiCursorModifier === other.multiCursorModifier
 			&& this.wordSeparators === other.wordSeparators
 			&& this.autoClosingBrackets === other.autoClosingBrackets
 			&& this.useTabStops === other.useTabStops
@@ -906,7 +906,7 @@ export class InternalEditorOptions {
 			lineHeight: (this.lineHeight !== newOpts.lineHeight),
 			readOnly: (this.readOnly !== newOpts.readOnly),
 			accessibilitySupport: (this.accessibilitySupport !== newOpts.accessibilitySupport),
-			multicursorModifier: (this.multicursorModifier !== newOpts.multicursorModifier),
+			multiCursorModifier: (this.multiCursorModifier !== newOpts.multiCursorModifier),
 			wordSeparators: (this.wordSeparators !== newOpts.wordSeparators),
 			autoClosingBrackets: (this.autoClosingBrackets !== newOpts.autoClosingBrackets),
 			useTabStops: (this.useTabStops !== newOpts.useTabStops),
@@ -1244,7 +1244,7 @@ export interface IConfigurationChangedEvent {
 	readonly lineHeight: boolean;
 	readonly readOnly: boolean;
 	readonly accessibilitySupport: boolean;
-	readonly multicursorModifier: boolean;
+	readonly multiCursorModifier: boolean;
 	readonly wordSeparators: boolean;
 	readonly autoClosingBrackets: boolean;
 	readonly useTabStops: boolean;
@@ -1399,22 +1399,22 @@ export class EditorOptionsValidator {
 		const contribInfo = this._sanitizeContribInfo(opts, defaults.contribInfo);
 
 		let configuredMulticursorModifier: 'altKey' | 'metaKey' | 'ctrlKey';
-		if (typeof opts.multicursorModifier === 'string') {
+		if (typeof opts.multiCursorModifier === 'string') {
 			if (platform.isMacintosh) {
-				if (opts.multicursorModifier === 'cmd') {
+				if (opts.multiCursorModifier === 'cmd') {
 					configuredMulticursorModifier = 'metaKey';
 				} else {
 					configuredMulticursorModifier = 'altKey';
 				}
 			} else {
-				if (opts.multicursorModifier === 'ctrl') {
+				if (opts.multiCursorModifier === 'ctrl') {
 					configuredMulticursorModifier = 'ctrlKey';
 				} else {
 					configuredMulticursorModifier = 'altKey';
 				}
 			}
 		}
-		const multicursorModifier = _stringSet<'altKey' | 'metaKey' | 'ctrlKey'>(configuredMulticursorModifier, defaults.multicursorModifier, ['altKey', 'metaKey', 'ctrlKey']);
+		const multiCursorModifier = _stringSet<'altKey' | 'metaKey' | 'ctrlKey'>(configuredMulticursorModifier, defaults.multiCursorModifier, ['altKey', 'metaKey', 'ctrlKey']);
 
 		return {
 			inDiffEditor: _boolean(opts.inDiffEditor, defaults.inDiffEditor),
@@ -1436,7 +1436,7 @@ export class EditorOptionsValidator {
 			dragAndDrop: _boolean(opts.dragAndDrop, defaults.dragAndDrop),
 			emptySelectionClipboard: _boolean(opts.emptySelectionClipboard, defaults.emptySelectionClipboard),
 			useTabStops: _boolean(opts.useTabStops, defaults.useTabStops),
-			multicursorModifier: multicursorModifier,
+			multiCursorModifier: multiCursorModifier,
 			viewInfo: viewInfo,
 			contribInfo: contribInfo,
 		};
@@ -1660,7 +1660,7 @@ export class InternalEditorOptionsFactory {
 			dragAndDrop: opts.dragAndDrop,
 			emptySelectionClipboard: opts.emptySelectionClipboard,
 			useTabStops: opts.useTabStops,
-			multicursorModifier: opts.multicursorModifier,
+			multiCursorModifier: opts.multiCursorModifier,
 
 			viewInfo: {
 				extraEditorClassName: opts.viewInfo.extraEditorClassName,
@@ -1837,7 +1837,7 @@ export class InternalEditorOptionsFactory {
 			lineHeight: env.fontInfo.lineHeight,
 			readOnly: opts.readOnly,
 			accessibilitySupport: env.accessibilitySupport,
-			multicursorModifier: opts.multicursorModifier,
+			multiCursorModifier: opts.multiCursorModifier,
 			wordSeparators: opts.wordSeparators,
 			autoClosingBrackets: opts.autoClosingBrackets,
 			useTabStops: opts.useTabStops,
@@ -2056,7 +2056,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	dragAndDrop: true,
 	emptySelectionClipboard: true,
 	useTabStops: true,
-	multicursorModifier: 'altKey',
+	multiCursorModifier: 'altKey',
 
 	viewInfo: {
 		extraEditorClassName: '',
