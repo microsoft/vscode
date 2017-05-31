@@ -3209,7 +3209,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Denotes a column in the VS Code window. Columns are
+	 * Denotes a column in the editor window. Columns are
 	 * used to show editors side by side.
 	 */
 	export enum ViewColumn {
@@ -4528,7 +4528,7 @@ declare module 'vscode' {
 		export function createFileSystemWatcher(globPattern: string, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): FileSystemWatcher;
 
 		/**
-		 * The folder that is open in VS Code. `undefined` when no folder
+		 * The folder that is open in the editor. `undefined` when no folder
 		 * has been opened.
 		 *
 		 * @readonly
@@ -5276,7 +5276,7 @@ declare module 'vscode' {
  * Thenable is a common denominator between ES6 promises, Q, jquery.Deferred, WinJS.Promise,
  * and others. This API makes no assumption about what promise libary is being used which
  * enables reusing existing code without migrating to a specific promise implementation. Still,
- * we recommend the use of native promises which are available in VS Code.
+ * we recommend the use of native promises which are available in this editor.
  */
 interface Thenable<T> {
 	/**
