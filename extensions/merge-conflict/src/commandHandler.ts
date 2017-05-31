@@ -91,7 +91,13 @@ export default class CommandHandler implements vscode.Disposable {
 		const rightUri = leftUri.with({ query: JSON.stringify(range) });
 
 		const title = localize('compareChangesTitle', '{0}: Current Changes ⟷ Incoming Changes', fileName);
-		vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
+
+		// Temporary fix for edits attempting to be applied to a disposed TextEditor.
+		// If the diff window opens over the top of this window, at some later point
+		// vscode core will attempt to apply edits to a non-visble, disposed editor,
+		// even though we don't actually use the edit builder.
+		// We need to return from this method, and execute the diff command lazily.
+		setTimeout(() => vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title), 200);
 	}
 
 	navigateNext(editor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args): Promise<void> {
