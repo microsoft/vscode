@@ -236,6 +236,9 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 			if (!resolvedKeybinding.isWYSIWYG()) {
 				return this._createDecoration(false, resolvedKeybinding.getLabel(), model, value);
 			}
+			if (/abnt_|oem_/.test(value.value)) {
+				return this._createDecoration(false, resolvedKeybinding.getLabel(), model, value);
+			}
 			const expectedUserSettingsLabel = resolvedKeybinding.getUserSettingsLabel();
 			if (!KeybindingEditorDecorationsRenderer._userSettingsFuzzyEquals(value.value, expectedUserSettingsLabel)) {
 				return this._createDecoration(false, resolvedKeybinding.getLabel(), model, value);
