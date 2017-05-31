@@ -809,6 +809,9 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	}
 
 	toggleDetails(): void {
+		if (!canExpandCompletionItem(this.list.getFocusedElements()[0])) {
+			return;
+		}
 
 		if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault)) {
 			this.storageService.store('expandSuggestionDocs', false, StorageScope.GLOBAL);
