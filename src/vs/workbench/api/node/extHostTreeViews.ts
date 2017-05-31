@@ -125,15 +125,18 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	private processAndMapElements(elements: T[]): TPromise<ITreeItem[]> {
-		return TPromise.join(
-			elements.filter(element => !!element)
-				.map(element => {
-					if (this.extChildrenElementsMap.has(element)) {
-						return TPromise.wrapError<ITreeItem>(localize('treeView.duplicateElement', 'Element {0} is already registered', element));
-					}
-					return this.resolveElement(element);
-				}))
-			.then(treeItems => treeItems.filter(treeItem => !!treeItem));
+		if (elements && elements.length) {
+			return TPromise.join(
+				elements.filter(element => !!element)
+					.map(element => {
+						if (this.extChildrenElementsMap.has(element)) {
+							return TPromise.wrapError<ITreeItem>(localize('treeView.duplicateElement', 'Element {0} is already registered', element));
+						}
+						return this.resolveElement(element);
+					}))
+				.then(treeItems => treeItems.filter(treeItem => !!treeItem));
+		}
+		return TPromise.as([]);
 	}
 
 	private resolveElement(element: T): TPromise<ITreeItem> {
