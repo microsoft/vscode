@@ -278,8 +278,10 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		this.focusStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
-		this.windowService.getWindow().focus();
-		aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", thread.stoppedDetails.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.range.startLineNumber));
+		if (thread.stoppedDetails) {
+			this.windowService.getWindow().focus();
+			aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", thread.stoppedDetails.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.range.startLineNumber));
+		}
 
 		return stackFrameToFocus.openInEditor(this.editorService);
 	}
