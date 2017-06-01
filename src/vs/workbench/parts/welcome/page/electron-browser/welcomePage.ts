@@ -37,6 +37,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils';
+import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 
 used();
 
@@ -125,6 +126,7 @@ const keymapExtensions: ExtensionSuggestion[] = [
 interface Strings {
 	installEvent: string;
 	installedEvent: string;
+	detailsEvent: string;
 
 	alreadyInstalled: string;
 	reloadAfterInstall: string;
@@ -135,16 +137,18 @@ interface Strings {
 const extensionPackStrings: Strings = {
 	installEvent: 'installExtension',
 	installedEvent: 'installedExtension',
+	detailsEvent: 'detailsExtension',
 
 	alreadyInstalled: localize('welcomePage.extensionPackAlreadyInstalled', "Support for {0} is already installed."),
-	reloadAfterInstall: localize('welcomePage.willReloadAfterInstallingExtensionPack', "The window will reload after installing support for {0}."),
-	installing: localize('welcomePage.installingExtensionPack', "Installing support for {0}..."),
+	reloadAfterInstall: localize('welcomePage.willReloadAfterInstallingExtensionPack', "The window will reload after installing additional support for {0}."),
+	installing: localize('welcomePage.installingExtensionPack', "Installing additional support for {0}..."),
 	extensionNotFound: localize('welcomePage.extensionPackNotFound', "Support for {0} with id {1} could not be found."),
 };
 
 const keymapStrings: Strings = {
 	installEvent: 'installKeymap',
 	installedEvent: 'installedKeymap',
+	detailsEvent: 'detailsKeymap',
 
 	alreadyInstalled: localize('welcomePage.keymapAlreadyInstalled', "The {0} keyboard shortcuts are already installed."),
 	reloadAfterInstall: localize('welcomePage.willReloadAfterInstallingKeymap', "The window will reload after installing the {0} keyboard shortcuts."),
@@ -170,6 +174,7 @@ class WelcomePage {
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
 		@IExtensionTipsService private tipsService: IExtensionTipsService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IThemeService private themeService: IThemeService,
 		@ITelemetryService private telemetryService: ITelemetryService
@@ -402,6 +407,16 @@ class WelcomePage {
 								this.messageService.show(Severity.Error, err);
 							});
 						return TPromise.as(true);
+					}),
+					new Action('details', localize('details', "Details"), null, true, () => {
+						this.telemetryService.publicLog(strings.detailsEvent, {
+							from: telemetryFrom,
+							extensionId: extensionSuggestion.id,
+						});
+						this.extensionsWorkbenchService.queryGallery({ names: [extensionSuggestion.id] })
+							.then(result => this.extensionsWorkbenchService.open(result.firstPage[0]))
+							.then(null, onUnexpectedError);
+						return TPromise.as(false);
 					}),
 					new Action('cancel', localize('cancel', "Cancel"), null, true, () => {
 						this.telemetryService.publicLog(strings.installedEvent, {
