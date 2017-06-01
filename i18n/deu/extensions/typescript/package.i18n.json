@@ -34,8 +34,9 @@
 	"typescript.goToProjectConfig.title": "Zur Projektkonfiguration wechseln",
 	"javascript.goToProjectConfig.title": "Zur Projektkonfiguration wechseln",
 	"typescript.implementationsCodeLens.enabled": "Aktiviert oder deaktiviert CodeLens-Implementierungen. Erfordert TypeScript 2.2.0 oder höher.",
+	"typescript.openTsServerLog.title": "TS Server-Protokolldatei öffnen",
+	"typescript.restartTsServer": "TS Server neu starten",
 	"typescript.selectTypeScriptVersion.title": "TypeScript-Version wählen",
 	"jsDocCompletion.enabled": "Automatische JSDoc-Kommentare aktivieren/deaktivieren",
-	"javascript.implicitProjectConfig.checkJs": "Aktiviert/deaktiviert die Semantikprüfung bei JavaScript-Dateien. Diese Einstellung wird von vorhandenen \"jsconfig.json\"- oder \"tsconfig.json\"-Dateien außer Kraft gesetzt. Erfordert TypeScript 2.3.1 oder höher.",
-	"typescript.check.npmIsInstalled": "Überprüfen, ob NPM für automatische Typerfassung installiert ist"
+	"javascript.implicitProjectConfig.checkJs": "Aktiviert/deaktiviert die Semantikprüfung bei JavaScript-Dateien. Diese Einstellung wird von vorhandenen \"jsconfig.json\"- oder \"tsconfig.json\"-Dateien außer Kraft gesetzt. Erfordert TypeScript 2.3.1 oder höher."
 }

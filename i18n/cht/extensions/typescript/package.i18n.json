@@ -33,10 +33,13 @@
 	"javascript.validate.enable": "啟用/停用 JavaScript 驗證。",
 	"typescript.goToProjectConfig.title": "移至專案組態",
 	"javascript.goToProjectConfig.title": "移至專案組態",
+	"javascript.referencesCodeLens.enabled": "在JavaScript檔案啟用/停用 參考CodeLens ",
+	"typescript.referencesCodeLens.enabled": "在TypeScript檔案啟用/停用CodeLens參考。需要TypeScript>=2.0.6。",
 	"typescript.implementationsCodeLens.enabled": "啟用/停用實作 CodeLens。需要 TypeScript >= 2.2.0。",
 	"typescript.openTsServerLog.title": "開啟 TS 伺服器記錄",
+	"typescript.restartTsServer": "重新啟動TS伺服器",
 	"typescript.selectTypeScriptVersion.title": "選取 TypeScript 版本",
 	"jsDocCompletion.enabled": "啟用/停用自動 JSDoc 註解",
 	"javascript.implicitProjectConfig.checkJs": "啟用/停用 JavaScript 檔案的語意檢查。現有的 jsconfig.json 或 tsconfig.json 檔案會覆寫此設定。需要 TypeScript >=2.3.1。",
-	"typescript.check.npmIsInstalled": "檢查是否已安裝 NPM，以取得自動鍵入"
+	"javascript.nameSuggestions": "從JavaScript推薦表檔案中啟用/停用包含唯一檔名"
 }

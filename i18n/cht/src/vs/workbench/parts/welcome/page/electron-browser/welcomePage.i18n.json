@@ -21,6 +21,5 @@
 	"welcomePage.extensionListSeparator": ",",
 	"welcomePage.installedExtension": "{0}(已安裝)",
 	"ok": "確定",
-	"cancel": "取消",
-	"welcomePage.quickLinkBackground": "起始頁面連結的背景色彩."
+	"cancel": "取消"
 }

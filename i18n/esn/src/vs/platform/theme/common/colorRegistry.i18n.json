@@ -60,7 +60,6 @@
 	"editorBackground": "Color de fondo del editor.",
 	"editorForeground": "Color de primer plano predeterminado del editor.",
 	"editorWidgetBackground": "Color de fondo del editor de widgets como buscar/reemplazar",
-	"editorWidgetBorder": "Color de borde del editor de widget.",
 	"editorSelection": "Color de la selección del editor.",
 	"editorInactiveSelection": "Color de la selección en un editor inactivo.",
 	"editorSelectionHighlight": "Color de las regiones con el mismo contenido que la selección.",

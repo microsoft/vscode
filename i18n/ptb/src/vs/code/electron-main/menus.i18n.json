@@ -153,12 +153,12 @@
 	"miLicense": "&&Exibir Licença",
 	"miPrivacyStatement": "&&Política de Privacidade",
 	"miAbout": "&&Sobre",
+	"accessibilityOptionsWindowTitle": "Opções de Acessibilidade",
 	"miRestartToUpdate": "Reinicie para Atualizar...",
 	"miCheckingForUpdates": "Verificando Atualizações...",
 	"miDownloadUpdate": "Baixar Atualização Disponível",
 	"miDownloadingUpdate": "Baixando Atualização...",
 	"miInstallingUpdate": "Instalando Atualização...",
-	"miCheckForUpdates": "Verificar Atualizações...",
-	"aboutDetail": "\\\\nVersão {0}\\\\nConfirmação {1}\\\\nData {2}\\\\nShell {3}\\\\nRenderizador {4}\\\\nNó {5}",
+	"aboutDetail": "\nVersão {0}\nConfirmação {1}\nData {2}\nShell {3}\nRenderizador {4}\nNó {5}",
 	"okButton": "OK"
 }

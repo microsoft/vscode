@@ -9,6 +9,7 @@
 	"fontWeight": "Steuert die Schriftbreite.",
 	"fontSize": "Steuert den Schriftgrad in Pixeln.",
 	"lineHeight": "Steuert die Zeilenhöhe. Verwenden Sie 0, um LineHeight aus der FontSize-Angabe zu berechnen.",
+	"letterSpacing": "Steuert den Zeichenabstand in Pixeln.",
 	"lineNumbers": "Steuert die Anzeige von Zeilennummern. Mögliche Werte sind \"Ein\", \"Aus\" und \"Relativ\". \"Relativ\" zeigt die Zeilenanzahl ab der aktuellen Cursorposition.",
 	"rulers": "Spalten, an denen vertikale Lineale angezeigt werden sollen",
 	"wordSeparators": "Zeichen, die als Worttrennzeichen verwendet werden, wenn wortbezogene Navigationen oder Vorgänge ausgeführt werden.",

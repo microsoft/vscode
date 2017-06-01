@@ -25,7 +25,5 @@
 	"welcomePage.extensionListSeparator": ",",
 	"welcomePage.installedExtension": "{0} (インストール済み) ",
 	"ok": "OK",
-	"cancel": "キャンセル",
-	"welcomePage.quickLinkBackground": "ウェルカム ページのクイック リンクの背景色。",
-	"welcomePage.quickLinkHoverBackground": "ウェルカム ページのクイック リンクのホバー背景色。"
+	"cancel": "キャンセル"
 }

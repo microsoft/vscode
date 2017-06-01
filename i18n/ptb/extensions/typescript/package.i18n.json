@@ -41,6 +41,6 @@
 	"typescript.selectTypeScriptVersion.title": "Selecionar a versão do JavaScript",
 	"jsDocCompletion.enabled": "Habilitar/Desabilitar comentários JSDoc automáticos.",
 	"javascript.implicitProjectConfig.checkJs": "Habilitar/desabilitar verificação semântica de arquivos JavaScript. Os arquivos existentes  jsconfig.json ou tsconfig.json substituem essa configuração. Requer TypeScript > = 2.3.1.",
-	"typescript.check.npmIsInstalled": "Verificar se NPM está instalado para aquisição automática de digitação",
-	"javascript.nameSuggestions": "Habilitar/desabilitar incluindo nomes exclusivos do arquivo nas listas de sugestão de JavaScript."
+	"javascript.nameSuggestions": "Habilitar/desabilitar incluindo nomes exclusivos do arquivo nas listas de sugestão de JavaScript.",
+	"typescript.tsc.autoDetect": "Controla se a auto-detecção de tarefas tsc estão ligadas ou desligadas."
 }
