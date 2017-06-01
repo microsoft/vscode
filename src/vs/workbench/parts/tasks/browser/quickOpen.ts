@@ -81,7 +81,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 							return compare;
 						}
 					}
-					return a.name.localeCompare(b.name);
+					return a._label.localeCompare(b._label);
 				}
 				if (aKind === TaskSourceKind.Workspace) {
 					return -1;
@@ -95,7 +95,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 			let groupExtension = groupWorkspace;
 			let hadWorkspace = false;
 			for (let task of tasks) {
-				let highlights = Filters.matchesContiguousSubString(input, task.name);
+				let highlights = Filters.matchesContiguousSubString(input, task._label);
 				if (!highlights) {
 					continue;
 				}
