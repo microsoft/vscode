@@ -203,10 +203,12 @@ export class CommandCenter {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_RENAMED:
-			case Status.BOTH_ADDED:
+			case Status.DELETED_BY_THEM:
 				return `${basename} (Index)`;
 
 			case Status.MODIFIED:
+			case Status.BOTH_ADDED:
+			case Status.BOTH_MODIFIED:
 				return `${basename} (Working Tree)`;
 		}
 
