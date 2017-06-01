@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './electron-browser/accessibility';
 import './electron-browser/toggleMultiCursorModifier';
 import './electron-browser/toggleRenderControlCharacter';
 import './electron-browser/toggleRenderWhitespace';
