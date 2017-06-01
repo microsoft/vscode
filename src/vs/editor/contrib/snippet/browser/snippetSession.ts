@@ -77,14 +77,14 @@ export class OneSnippet {
 		});
 	}
 
-	move(fwd: boolean): Selection[] {
+	move(fwd: boolean | undefined): Selection[] {
 
 		this._initDecorations();
 
-		if (fwd && this._placeholderGroupsIdx < this._placeholderGroups.length - 1) {
+		if (fwd === true && this._placeholderGroupsIdx < this._placeholderGroups.length - 1) {
 			this._placeholderGroupsIdx += 1;
 
-		} else if (!fwd && this._placeholderGroupsIdx > 0) {
+		} else if (fwd === false && this._placeholderGroupsIdx > 0) {
 			this._placeholderGroupsIdx -= 1;
 
 		} else {
@@ -153,6 +153,57 @@ export class OneSnippet {
 		});
 		return ret;
 	}
+
+	merge(others: OneSnippet[]): void {
+
+		const model = this._editor.getModel();
+
+		this._editor.changeDecorations(accessor => {
+
+			// For each active placeholder take one snippet and merge it
+			// in that the placeholder (can be many for `$1foo$1foo`). Because
+			// everything is sorted by editor selection we can simply remove
+			// elements from the beginning of the array
+			for (const placeholder of this._placeholderGroups[this._placeholderGroupsIdx]) {
+				const nested = others.shift();
+				console.assert(!nested._placeholderDecorations);
+
+				// Massage placeholder-indicies of the nested snippet to be
+				// sorted right after the insertion point. This ensures we move
+				// through the placeholders in the correct order
+				for (const nestedPlaceholder of nested._snippet.placeholders) {
+					if (nestedPlaceholder.isFinalTabstop) {
+						nestedPlaceholder.index = `${placeholder.index}.${nested._snippet.placeholders.length}`;
+					} else {
+						nestedPlaceholder.index = `${placeholder.index}.${nestedPlaceholder.index}`;
+					}
+				}
+				this._snippet.replace(placeholder, nested._snippet.children);
+
+				// Remove the placeholder at which position are inserting
+				// the snippet and also remove its decoration.
+				const id = this._placeholderDecorations.get(placeholder);
+				accessor.removeDecoration(id);
+				this._placeholderDecorations.delete(placeholder);
+
+				// For each *new* placeholder we create decoration to monitor
+				// how and if it grows/shrinks.
+				for (const placeholder of nested._snippet.placeholders) {
+					const placeholderOffset = nested._snippet.offset(placeholder);
+					const placeholderLen = nested._snippet.fullLen(placeholder);
+					const range = Range.fromPositions(
+						model.getPositionAt(nested._offset + placeholderOffset),
+						model.getPositionAt(nested._offset + placeholderOffset + placeholderLen)
+					);
+					const handle = accessor.addDecoration(range, OneSnippet._decor.inactive);
+					this._placeholderDecorations.set(placeholder, handle);
+				}
+			}
+
+			// Last, re-create the placeholder groups by sorting placeholders by their index.
+			this._placeholderGroups = groupBy(this._snippet.placeholders, Placeholder.compareByIndex);
+		});
+	}
 }
 
 export class SnippetSession {
@@ -192,6 +243,66 @@ export class SnippetSession {
 		return selection;
 	}
 
+	static createEditsAndSnippets(editor: ICommonCodeEditor, template: string, overwriteBefore: number, overwriteAfter: number): { edits: IIdentifiedSingleEditOperation[], snippets: OneSnippet[] } {
+
+		const model = editor.getModel();
+		const edits: IIdentifiedSingleEditOperation[] = [];
+		const snippets: OneSnippet[] = [];
+
+		let delta = 0;
+
+		// know what text the overwrite[Before|After] extensions
+		// of the primary curser have selected because only when
+		// secondary selections extend to the same text we can grow them
+		let firstBeforeText = model.getValueInRange(SnippetSession.adjustSelection(model, editor.getSelection(), overwriteBefore, 0));
+		let firstAfterText = model.getValueInRange(SnippetSession.adjustSelection(model, editor.getSelection(), 0, overwriteAfter));
+
+		// sort selections by their start position but remeber
+		// the original index. that allows you to create correct
+		// offset-based selection logic without changing the
+		// primary selection
+		const indexedSelection = editor.getSelections()
+			.map((selection, idx) => ({ selection, idx }))
+			.sort((a, b) => Range.compareRangesUsingStarts(a.selection, b.selection));
+
+		for (const { selection, idx } of indexedSelection) {
+
+			// extend selection with the `overwriteBefore` and `overwriteAfter` and then
+			// compare if this matches the extensions of the primary selection
+			let extensionBefore = SnippetSession.adjustSelection(model, selection, overwriteBefore, 0);
+			let extensionAfter = SnippetSession.adjustSelection(model, selection, 0, overwriteAfter);
+			if (firstBeforeText !== model.getValueInRange(extensionBefore)) {
+				extensionBefore = selection;
+			}
+			if (firstAfterText !== model.getValueInRange(extensionAfter)) {
+				extensionAfter = selection;
+			}
+
+			// merge the before and after selection into one
+			const snippetSelection = selection
+				.setStartPosition(extensionBefore.startLineNumber, extensionBefore.startColumn)
+				.setEndPosition(extensionAfter.endLineNumber, extensionAfter.endColumn);
+
+			// adjust the template string to match the indentation and
+			// whitespace rules of this insert location (can be different for each cursor)
+			const start = snippetSelection.getStartPosition();
+			const adjustedTemplate = SnippetSession.adjustWhitespace(model, start, template);
+
+			const snippet = SnippetParser.parse(adjustedTemplate).resolveVariables(new EditorSnippetVariableResolver(model, selection));
+
+			const offset = model.getOffsetAt(start) + delta;
+			delta += snippet.text.length - model.getValueLengthInRange(snippetSelection);
+
+			// store snippets with the index of their originating selection.
+			// that ensures the primiary cursor stays primary despite not being
+			// the one with lowest start position
+			edits[idx] = EditOperation.replaceMove(snippetSelection, snippet.text);
+			snippets[idx] = new OneSnippet(editor, snippet, offset);
+		}
+
+		return { edits, snippets };
+	}
+
 	private readonly _editor: ICommonCodeEditor;
 	private readonly _template: string;
 	private readonly _overwriteBefore: number;
@@ -209,77 +320,35 @@ export class SnippetSession {
 		dispose(this._snippets);
 	}
 
-	insert(ignoreFinalTabstops: boolean = false): void {
+	insert(): void {
 
 		const model = this._editor.getModel();
-		const edits: IIdentifiedSingleEditOperation[] = [];
-
-		let delta = 0;
-
-		// know what text the overwrite[Before|After] extensions
-		// of the primary curser have selected because only when
-		// secondary selections extend to the same text we can grow them
-		let firstBeforeText = model.getValueInRange(SnippetSession.adjustSelection(model, this._editor.getSelection(), this._overwriteBefore, 0));
-		let firstAfterText = model.getValueInRange(SnippetSession.adjustSelection(model, this._editor.getSelection(), 0, this._overwriteAfter));
-
-		// sort selections by their start position but remeber
-		// the original index. that allows you to create correct
-		// offset-based selection logic without changing the
-		// primary selection
-		const indexedSelection = this._editor.getSelections()
-			.map((selection, idx) => ({ selection, idx }))
-			.sort((a, b) => Range.compareRangesUsingStarts(a.selection, b.selection));
-
-		for (const { selection, idx } of indexedSelection) {
-
-			// extend selection with the `overwriteBefore` and `overwriteAfter` and then
-			// compare if this matches the extensions of the primary selection
-			let extensionBefore = SnippetSession.adjustSelection(model, selection, this._overwriteBefore, 0);
-			let extensionAfter = SnippetSession.adjustSelection(model, selection, 0, this._overwriteAfter);
-			if (firstBeforeText !== model.getValueInRange(extensionBefore)) {
-				extensionBefore = selection;
-			}
-			if (firstAfterText !== model.getValueInRange(extensionAfter)) {
-				extensionAfter = selection;
-			}
-
-			// merge the before and after selection into one
-			const snippetSelection = selection
-				.setStartPosition(extensionBefore.startLineNumber, extensionBefore.startColumn)
-				.setEndPosition(extensionAfter.endLineNumber, extensionAfter.endColumn);
-
-			// adjust the template string to match the indentation and
-			// whitespace rules of this insert location (can be different for each cursor)
-			const start = snippetSelection.getStartPosition();
-			const adjustedTemplate = SnippetSession.adjustWhitespace(model, start, this._template);
-
-			const snippet = SnippetParser.parse(adjustedTemplate).resolveVariables(new EditorSnippetVariableResolver(model, selection));
-
-			// rewrite final-tabstop to some other placeholder because this
-			// snippet sits inside another snippet
-			if (ignoreFinalTabstops) {
-				for (const placeholder of snippet.placeholders) {
-					if (placeholder.isFinalTabstop) {
-						placeholder.index = String(snippet.placeholders.length);
-					}
-				}
-			}
-
-			const offset = model.getOffsetAt(start) + delta;
-			delta += snippet.text.length - model.getValueLengthInRange(snippetSelection);
-
-			// store snippets with the index of their originating selection.
-			// that ensures the primiary cursor stays primary despite not being
-			// the one with lowest start position
-			edits[idx] = EditOperation.replaceMove(snippetSelection, snippet.text);
-			this._snippets[idx] = new OneSnippet(this._editor, snippet, offset);
-		}
 
 		// make insert edit and start with first selections
+		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, this._template, this._overwriteBefore, this._overwriteAfter);
+		this._snippets = snippets;
 
 		this._editor.setSelections(model.pushEditOperations(this._editor.getSelections(), edits, undoEdits => {
 			if (this._snippets[0].hasPlaceholder) {
 				return this._move(true);
+			} else {
+				return undoEdits.map(edit => Selection.fromPositions(edit.range.getEndPosition()));
+			}
+		}));
+	}
+
+	merge(template: string, overwriteBefore: number = 0, overwriteAfter: number = 0): void {
+		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, template, overwriteBefore, overwriteAfter);
+
+		this._editor.setSelections(this._editor.getModel().pushEditOperations(this._editor.getSelections(), edits, undoEdits => {
+
+			for (const snippet of this._snippets) {
+				snippet.merge(snippets);
+			}
+			console.assert(snippets.length === 0);
+
+			if (this._snippets[0].hasPlaceholder) {
+				return this._move(undefined);
 			} else {
 				return undoEdits.map(edit => Selection.fromPositions(edit.range.getEndPosition()));
 			}
@@ -296,7 +365,7 @@ export class SnippetSession {
 		this._editor.setSelections(newSelections);
 	}
 
-	private _move(fwd: boolean): Selection[] {
+	private _move(fwd: boolean | undefined): Selection[] {
 		const selections: Selection[] = [];
 		for (const snippet of this._snippets) {
 			const oneSelection = snippet.move(fwd);

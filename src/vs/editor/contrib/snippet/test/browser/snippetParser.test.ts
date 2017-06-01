@@ -387,17 +387,44 @@ suite('SnippetParser', () => {
 		assert.equal(placeholders.length, 3);
 	});
 
-	test('TextmateSnippet#replace', function () {
+	test('TextmateSnippet#replace 1/2', function () {
 		let snippet = SnippetParser.parse('aaa${1:bbb${2:ccc}}$0');
 
 		assert.equal(snippet.placeholders.length, 3);
 		const [, second] = snippet.placeholders;
 		assert.equal(second.index, '2');
 
+		const enclosing = snippet.enclosingPlaceholders(second);
+		assert.equal(enclosing.length, 1);
+		assert.equal(enclosing[0].index, '1');
+
 		let nested = SnippetParser.parse('ddd$1eee$0');
 		snippet.replace(second, nested.children);
 
 		assert.equal(snippet.text, 'aaabbbdddeee');
 		assert.equal(snippet.placeholders.length, 4);
+		assert.equal(snippet.placeholders[0].index, '1');
+		assert.equal(snippet.placeholders[1].index, '1');
+		assert.equal(snippet.placeholders[2].index, '0');
+		assert.equal(snippet.placeholders[3].index, '0');
+
+		const newEnclosing = snippet.enclosingPlaceholders(snippet.placeholders[1]);
+		assert.ok(newEnclosing[0] === snippet.placeholders[0]);
+		assert.equal(newEnclosing.length, 1);
+		assert.equal(newEnclosing[0].index, '1');
+	});
+
+	test('TextmateSnippet#replace 2/2', function () {
+		let snippet = SnippetParser.parse('aaa${1:bbb${2:ccc}}$0');
+
+		assert.equal(snippet.placeholders.length, 3);
+		const [, second] = snippet.placeholders;
+		assert.equal(second.index, '2');
+
+		let nested = SnippetParser.parse('dddeee$0');
+		snippet.replace(second, nested.children);
+
+		assert.equal(snippet.text, 'aaabbbdddeee');
+		assert.equal(snippet.placeholders.length, 3);
 	});
 });
