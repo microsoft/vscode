@@ -443,7 +443,8 @@ function processCoreBundleFormat(fileHeader, languages, json, emitter) {
         var value = statistics[key];
         log(key + " has " + value + " untranslated strings.");
     });
-    languageDirs.forEach(function (language) {
+    languageDirs.forEach(function (dir) {
+        var language = dir.name;
         var iso639_2 = iso639_3_to_2[language];
         if (!iso639_2) {
             log("\tCouldn't find iso639 2 mapping for language " + language + ". Using default language instead.");

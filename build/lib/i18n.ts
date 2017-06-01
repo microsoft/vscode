@@ -516,7 +516,8 @@ function processCoreBundleFormat(fileHeader: string, languages: string[], json: 
 		let value = statistics[key];
 		log(`${key} has ${value} untranslated strings.`);
 	});
-	languageDirs.forEach(language => {
+	languageDirs.forEach(dir => {
+		const language = dir.name;
 		let iso639_2 = iso639_3_to_2[language];
 		if (!iso639_2) {
 			log(`\tCouldn't find iso639 2 mapping for language ${language}. Using default language instead.`);
