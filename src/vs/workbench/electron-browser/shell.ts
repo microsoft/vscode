@@ -179,6 +179,10 @@ export class WorkbenchShell {
 
 				// start cached data manager
 				instantiationService.createInstance(NodeCachedDataManager);
+
+				// Set lifecycle phase to `Runnning` so that other contributions
+				// can now do something
+				this.lifecycleService.phase = LifecyclePhase.Running;
 			}
 		});
 
@@ -235,10 +239,6 @@ export class WorkbenchShell {
 		if ((platform.isLinux || platform.isMacintosh) && process.getuid() === 0) {
 			this.messageService.show(Severity.Warning, nls.localize('runningAsRoot', "It is recommended not to run Code as 'root'."));
 		}
-
-		// Set lifecycle phase to `Runnning` so that other contributions
-		// can now do something
-		this.lifecycleService.phase = LifecyclePhase.Running;
 	}
 
 	private initServiceCollection(container: HTMLElement): [IInstantiationService, ServiceCollection] {
