@@ -272,18 +272,6 @@ export class XLF {
 	};
 }
 
-const vscodeLanguages: string[] = [
-	'chs',
-	'cht',
-	'jpn',
-	'kor',
-	'deu',
-	'fra',
-	'esn',
-	'rus',
-	'ita'
-];
-
 const iso639_3_to_2: Map<string> = {
 	'chs': 'zh-cn',
 	'cht': 'zh-tw',
@@ -420,7 +408,7 @@ function escapeCharacters(value: string): string {
 	return result.join('');
 }
 
-function processCoreBundleFormat(fileHeader: string, json: BundledFormat, emitter: any) {
+function processCoreBundleFormat(fileHeader: string, languages: string[], json: BundledFormat, emitter: any) {
 	let keysSection = json.keys;
 	let messageSection = json.messages;
 	let bundleSection = json.bundles;
@@ -450,8 +438,13 @@ function processCoreBundleFormat(fileHeader: string, json: BundledFormat, emitte
 	});
 
 	let languageDirectory = path.join(__dirname, '..', '..', 'i18n');
-	let languages = sortLanguages(fs.readdirSync(languageDirectory).filter((item) => fs.statSync(path.join(languageDirectory, item)).isDirectory()));
-	languages.forEach((language) => {
+	let languageDirs;
+	if (languageDirs) {
+		languageDirs = sortLanguages(languages);
+	} else {
+		languageDirs = sortLanguages(fs.readdirSync(languageDirectory).filter((item) => fs.statSync(path.join(languageDirectory, item)).isDirectory()));
+	}
+	languageDirs.forEach((language) => {
 		if (!language.iso639_2) {
 			return;
 		}
@@ -523,7 +516,7 @@ function processCoreBundleFormat(fileHeader: string, json: BundledFormat, emitte
 		let value = statistics[key];
 		log(`${key} has ${value} untranslated strings.`);
 	});
-	vscodeLanguages.forEach(language => {
+	languageDirs.forEach(language => {
 		let iso639_2 = iso639_3_to_2[language];
 		if (!iso639_2) {
 			log(`\tCouldn't find iso639 2 mapping for language ${language}. Using default language instead.`);
@@ -536,7 +529,7 @@ function processCoreBundleFormat(fileHeader: string, json: BundledFormat, emitte
 	});
 }
 
-export function processNlsFiles(opts: { fileHeader: string; }): ThroughStream {
+export function processNlsFiles(opts: { fileHeader: string; languages: string[] }): ThroughStream {
 	return through(function (file: File) {
 		let fileName = path.basename(file.path);
 		if (fileName === 'nls.metadata.json') {
@@ -547,7 +540,7 @@ export function processNlsFiles(opts: { fileHeader: string; }): ThroughStream {
 				this.emit('error', `Failed to read component file: ${file.relative}`);
 			}
 			if (BundledFormat.is(json)) {
-				processCoreBundleFormat(opts.fileHeader, json, this);
+				processCoreBundleFormat(opts.fileHeader, opts.languages, json, this);
 			}
 		}
 		this.emit('data', file);

@@ -1,8 +1,8 @@
-"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+"use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var path = require("path");
 var fs = require("fs");
@@ -207,17 +207,6 @@ XLF.parse = function (xlfString) {
     });
 };
 exports.XLF = XLF;
-var vscodeLanguages = [
-    'chs',
-    'cht',
-    'jpn',
-    'kor',
-    'deu',
-    'fra',
-    'esn',
-    'rus',
-    'ita'
-];
 var iso639_3_to_2 = {
     'chs': 'zh-cn',
     'cht': 'zh-tw',
@@ -347,7 +336,7 @@ function escapeCharacters(value) {
     }
     return result.join('');
 }
-function processCoreBundleFormat(fileHeader, json, emitter) {
+function processCoreBundleFormat(fileHeader, languages, json, emitter) {
     var keysSection = json.keys;
     var messageSection = json.messages;
     var bundleSection = json.bundles;
@@ -375,8 +364,14 @@ function processCoreBundleFormat(fileHeader, json, emitter) {
         });
     });
     var languageDirectory = path.join(__dirname, '..', '..', 'i18n');
-    var languages = sortLanguages(fs.readdirSync(languageDirectory).filter(function (item) { return fs.statSync(path.join(languageDirectory, item)).isDirectory(); }));
-    languages.forEach(function (language) {
+    var languageDirs;
+    if (languageDirs) {
+        languageDirs = sortLanguages(languages);
+    }
+    else {
+        languageDirs = sortLanguages(fs.readdirSync(languageDirectory).filter(function (item) { return fs.statSync(path.join(languageDirectory, item)).isDirectory(); }));
+    }
+    languageDirs.forEach(function (language) {
         if (!language.iso639_2) {
             return;
         }
@@ -448,7 +443,7 @@ function processCoreBundleFormat(fileHeader, json, emitter) {
         var value = statistics[key];
         log(key + " has " + value + " untranslated strings.");
     });
-    vscodeLanguages.forEach(function (language) {
+    languageDirs.forEach(function (language) {
         var iso639_2 = iso639_3_to_2[language];
         if (!iso639_2) {
             log("\tCouldn't find iso639 2 mapping for language " + language + ". Using default language instead.");
@@ -473,7 +468,7 @@ function processNlsFiles(opts) {
                 this.emit('error', "Failed to read component file: " + file.relative);
             }
             if (BundledFormat.is(json)) {
-                processCoreBundleFormat(opts.fileHeader, json, this);
+                processCoreBundleFormat(opts.fileHeader, opts.languages, json, this);
             }
         }
         this.emit('data', file);
