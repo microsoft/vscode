@@ -17,7 +17,7 @@ import paths = require('vs/base/common/paths');
 import diagnostics = require('vs/base/common/diagnostics');
 import types = require('vs/base/common/types');
 import { IMode } from 'vs/editor/common/modes';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, IModelSaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
@@ -623,7 +623,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// We DO NOT run any save participant if we are in the shutdown phase and files are being
 		// saved as a result of that.
 		let saveParticipantPromise = TPromise.as(versionId);
-		if (TextFileEditorModel.saveParticipant && !this.lifecycleService.willShutdown) {
+		if (TextFileEditorModel.saveParticipant && this.lifecycleService.phase !== LifecyclePhase.ShuttingDown) {
 			const onCompleteOrError = () => {
 				this.blockModelContentChange = false;
 

@@ -59,7 +59,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IMessageService, IChoiceService, Severity } from 'vs/platform/message/common/message';
@@ -132,7 +132,7 @@ export class WorkbenchShell {
 	private windowIPCService: IWindowIPCService;
 	private timerService: ITimerService;
 	private themeService: WorkbenchThemeService;
-	private lifecycleService: ILifecycleService;
+	private lifecycleService: LifecycleService;
 
 	private container: HTMLElement;
 	private toUnbind: IDisposable[];
@@ -235,6 +235,10 @@ export class WorkbenchShell {
 		if ((platform.isLinux || platform.isMacintosh) && process.getuid() === 0) {
 			this.messageService.show(Severity.Warning, nls.localize('runningAsRoot', "It is recommended not to run Code as 'root'."));
 		}
+
+		// Set lifecycle phase to `Runnning` so that other contributions
+		// can now do something
+		this.lifecycleService.phase = LifecyclePhase.Running;
 	}
 
 	private initServiceCollection(container: HTMLElement): [IInstantiationService, ServiceCollection] {
