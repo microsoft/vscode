@@ -458,9 +458,9 @@ export class ViewletActionItem extends ActivityActionItem {
 
 	protected _updateChecked(): void {
 		if (this.getAction().checked) {
-			this.$container.addClass('active');
+			this.$container.addClass('checked');
 		} else {
-			this.$container.removeClass('active');
+			this.$container.removeClass('checked');
 		}
 	}
 
@@ -723,7 +723,9 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			}
 
 			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:before,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:hover:before {
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:hover:before,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.checked:before,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.checked:hover:before {
 				outline: 1px solid;
 			}
 
@@ -732,6 +734,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			}
 
 			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:before,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.checked:before,
 			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover:before {
 				opacity: 1;
 			}
@@ -742,6 +745,8 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:before,
 			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:hover:before,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.checked:before,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.checked:hover:before,
 			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover:before {
 				outline-color: ${outline};
 			}
@@ -754,6 +759,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		if (focusBorderColor) {
 			collector.addRule(`
 				.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active .action-label,
+				.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.checked .action-label,
 				.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus .action-label,
 				.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover .action-label {
 					opacity: 1;
