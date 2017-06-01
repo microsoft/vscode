@@ -106,6 +106,11 @@ export interface TaskDescription extends PlatformTaskDescription {
 	identifier?: string;
 
 	/**
+	 * The id of the customized task
+	 */
+	customize?: string;
+
+	/**
 	 * Windows specific task configuration
 	 */
 	windows?: PlatformTaskDescription;
@@ -903,6 +908,9 @@ namespace TaskDescription {
 					task.group = Tasks.TaskGroup.Test;
 				}
 			}
+			if (Types.isString(externalTask.customize)) {
+				task.customize = externalTask.customize;
+			}
 			if (externalTask.command !== void 0) {
 				// if the task has its own command then we suppress the
 				// task name by default.
@@ -1055,7 +1063,7 @@ namespace TaskDescription {
 	}
 
 	function isAnnotating(task: Tasks.Task): boolean {
-		return (task.command === void 0 || task.command.name === void 0) && (task.dependsOn === void 0 || task.dependsOn.length === 0);
+		return task.customize !== void 0 && (task.command === void 0 || task.command.name === void 0);
 	}
 
 	export function assignProperties(target: Tasks.Task, source: Tasks.Task): Tasks.Task {

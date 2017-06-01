@@ -83,9 +83,9 @@ const version: IJSONSchema = {
 	description: nls.localize('JsonSchema.version', 'The config\'s version number.')
 };
 
-const identifier: IJSONSchema = {
+const customize: IJSONSchema = {
 	type: 'string',
-	description: nls.localize('JsonSchema.tasks.identifier', 'A unique identifier of the task.')
+	description: nls.localize('JsonSchema.tasks.customize', 'The contributed task to be customized.')
 };
 
 const schema: IJSONSchema = {
@@ -128,7 +128,7 @@ definitions.taskDescription.properties.dependsOn = dependsOn;
 // definitions.taskDescription.properties.echoCommand.deprecationMessage = nls.localize('JsonSchema.tasks.echoCommand.deprecated', 'The property echoCommand is deprecated. Use the terminal property instead.');
 // definitions.taskDescription.properties.isBuildCommand.deprecationMessage = nls.localize('JsonSchema.tasks.isBuildCommand.deprecated', 'The property isBuildCommand is deprecated. Use the group property instead.');
 // definitions.taskDescription.properties.isTestCommand.deprecationMessage = nls.localize('JsonSchema.tasks.isTestCommand.deprecated', 'The property isTestCommand is deprecated. Use the group property instead.');
-definitions.taskDescription.properties.identifier = identifier;
+definitions.taskDescription.properties.customize = customize;
 definitions.taskDescription.properties.type = Objects.deepClone(taskType);
 definitions.taskDescription.properties.terminal = terminal;
 definitions.taskDescription.properties.group = group;

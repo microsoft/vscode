@@ -209,6 +209,11 @@ export interface Task {
 	identifier: string;
 
 	/**
+	 * The id of the customized task
+	 */
+	customize?: string;
+
+	/**
 	 * the task's group;
 	 */
 	group?: string;

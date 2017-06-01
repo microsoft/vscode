@@ -71,7 +71,7 @@ import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
 import { ITaskSystem, ITaskResolver, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskSystemEvents } from 'vs/workbench/parts/tasks/common/taskSystem';
-import { Task, TaskSet, TaskGroup, ExecutionEngine, TaskSourceKind } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, TaskSet, TaskGroup, ExecutionEngine, JsonSchemaVersion, TaskSourceKind } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, TaskServiceEvents, ITaskProvider } from 'vs/workbench/parts/tasks/common/taskService';
 import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
@@ -502,7 +502,6 @@ interface WorkspaceTaskResult {
 	set: TaskSet;
 	annotatingTasks: {
 		byIdentifier: IStringDictionary<Task>;
-		byLabel: IStringDictionary<Task>;
 	};
 	hasErrors: boolean;
 }
@@ -756,7 +755,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			return TPromise.as<void>(undefined);
 		}
 		let fileConfig = configuration.config;
-		let customize = { taskName: task._label, identifier: task.identifier };
+		let customize = { customize: task.identifier, taskName: task._label, problemMatcher: [] };
 		if (!fileConfig) {
 			fileConfig = {
 				version: '2.0.0',
@@ -952,7 +951,7 @@ class TaskService extends EventEmitter implements ITaskService {
 						resolve(result);
 					}
 				};
-				if (this.getExecutionEngine() === ExecutionEngine.Terminal && this._providers.size > 0) {
+				if (this.getJsonSchemaVersion() === JsonSchemaVersion.V2_0_0 && this._providers.size > 0) {
 					this._providers.forEach((provider) => {
 						counter++;
 						provider.provideTasks().done(done, error);
@@ -970,7 +969,7 @@ class TaskService extends EventEmitter implements ITaskService {
 					for (let set of result) {
 						for (let task of set.tasks) {
 							if (annotatingTasks) {
-								let annotatingTask = annotatingTasks.byIdentifier[task.identifier] || annotatingTasks.byLabel[task._label];
+								let annotatingTask = annotatingTasks.byIdentifier[task.identifier];
 								if (annotatingTask) {
 									TaskConfig.mergeTasks(task, annotatingTask);
 									task.name = annotatingTask.name;
@@ -1123,17 +1122,13 @@ class TaskService extends EventEmitter implements ITaskService {
 					problemReporter.fatal(nls.localize('TaskSystem.configurationErrors', 'Error: the provided task configuration has validation errors and can\'t not be used. Please correct the errors first.'));
 					return { set: undefined, annotatingTasks: undefined, hasErrors };
 				}
-				let annotatingTasks: { byIdentifier: IStringDictionary<Task>; byLabel: IStringDictionary<Task>; };
+				let annotatingTasks: { byIdentifier: IStringDictionary<Task>; };
 				if (parseResult.annotatingTasks && parseResult.annotatingTasks.length > 0) {
 					annotatingTasks = {
-						byIdentifier: Object.create(null),
-						byLabel: Object.create(null)
+						byIdentifier: Object.create(null)
 					};
 					for (let task of parseResult.annotatingTasks) {
-						annotatingTasks.byIdentifier[task.identifier] = task;
-						if (task._label) {
-							annotatingTasks.byLabel[task._label] = task;
-						}
+						annotatingTasks.byIdentifier[task.customize] = task;
 					}
 				}
 				return { set: { tasks: parseResult.tasks }, annotatingTasks: annotatingTasks, hasErrors };
@@ -1149,7 +1144,6 @@ class TaskService extends EventEmitter implements ITaskService {
 		return TaskConfig.ExecutionEngine.from(config);
 	}
 
-	/*
 	private getJsonSchemaVersion(): JsonSchemaVersion {
 		let { config } = this.getConfiguration();
 		if (!config) {
@@ -1157,7 +1151,6 @@ class TaskService extends EventEmitter implements ITaskService {
 		}
 		return TaskConfig.JsonSchemaVersion.from(config);
 	}
-	*/
 
 	private getConfiguration(): { config: TaskConfig.ExternalTaskRunnerConfiguration; hasParseErrors: boolean } {
 		let result = this.configurationService.getConfiguration<TaskConfig.ExternalTaskRunnerConfiguration>('tasks');
