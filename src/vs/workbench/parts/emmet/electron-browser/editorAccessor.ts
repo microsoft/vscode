@@ -144,14 +144,14 @@ export class EditorAccessor implements emmet.Editor {
 				return SnippetParser.escape(marker.string);
 
 			} else if (marker instanceof Placeholder) {
-				if (marker.defaultValue.length > 0) {
-					return `\${${marker.index}:${marker.defaultValue.map(toSnippetString).join('')}}`;
+				if (marker.children.length > 0) {
+					return `\${${marker.index}:${marker.children.map(toSnippetString).join('')}}`;
 				} else {
 					return `\$${marker.index}`;
 				}
 			} else if (marker instanceof Variable) {
-				if (marker.defaultValue.length > 0) {
-					return `\${${marker.name}:${marker.defaultValue.map(toSnippetString).join('')}}`;
+				if (marker.children.length > 0) {
+					return `\${${marker.name}:${marker.children.map(toSnippetString).join('')}}`;
 				} else {
 					return `\$${marker.name}`;
 				}

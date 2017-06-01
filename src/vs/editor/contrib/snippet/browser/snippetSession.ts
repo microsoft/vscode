@@ -65,7 +65,7 @@ export class OneSnippet {
 			// create a decoration for each placeholder
 			for (const placeholder of this._snippet.placeholders) {
 				const placeholderOffset = this._snippet.offset(placeholder);
-				const placeholderLen = this._snippet.len(placeholder);
+				const placeholderLen = this._snippet.fullLen(placeholder);
 				const range = Range.fromPositions(
 					model.getPositionAt(this._offset + placeholderOffset),
 					model.getPositionAt(this._offset + placeholderOffset + placeholderLen)
