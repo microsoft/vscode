@@ -67,6 +67,13 @@
 			}
 		},
 		{
+			"name": "Operator keywords",
+			"scope": "keyword.operator",
+			"settings": {
+				"foreground": "#C586C0"
+			}
+		},
+		{
 			"name": "Variable and parameter name",
 			"scope": [
 				"variable",
