@@ -298,7 +298,7 @@ export default class BufferSyncSupport {
 		}
 		if (tscVersion && tscVersion !== this.client.apiVersion.versionString) {
 			window.showInformationMessage<MyMessageItem>(
-				localize('versionMismatch', 'Version mismatch! global tsc ({0}) != VS Code\'s language service ({1}). Inconsistent compile errors might occur', tscVersion, this.client.apiVersion.versionString),
+				localize('versionMismatch', 'Using TypeScript ({1}) for editor features. TypeScript ({0}) is installed globally on your machine. Inconsistent compile errors may occur', tscVersion, this.client.apiVersion.versionString),
 				{
 					title: localize('moreInformation', 'More Information'),
 					id: 1
