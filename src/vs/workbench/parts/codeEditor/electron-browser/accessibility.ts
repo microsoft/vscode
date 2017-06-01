@@ -10,7 +10,7 @@ import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
-import { clearNode } from 'vs/base/browser/dom';
+import * as dom from 'vs/base/browser/dom';
 import { renderHtml } from 'vs/base/browser/htmlContentRenderer';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { Widget } from 'vs/base/browser/ui/widget';
@@ -28,6 +28,8 @@ import { editorWidgetBackground, widgetShadow, contrastBorder } from 'vs/platfor
 import { IConfigurationService } from "vs/platform/configuration/common/configuration";
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import * as platform from 'vs/base/common/platform';
+import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
 
@@ -47,12 +49,13 @@ class AccessibilityHelpController extends Disposable implements IEditorContribut
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService
 	) {
 		super();
 
 		this._editor = editor;
-		this._widget = this._register(new AccessibilityHelpWidget(this._editor, contextKeyService, keybindingService, configurationService));
+		this._widget = this._register(new AccessibilityHelpWidget(this._editor, contextKeyService, keybindingService, configurationService, configurationEditingService));
 	}
 
 	public getId(): string {
@@ -77,16 +80,24 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 	private _editor: ICodeEditor;
 	private _keybindingService: IKeybindingService;
 	private _configurationService: IConfigurationService;
+	private _configurationEditingService: IConfigurationEditingService;
 	private _domNode: FastDomNode<HTMLElement>;
 	private _isVisible: boolean;
 	private _isVisibleKey: IContextKey<boolean>;
 
-	constructor(editor: ICodeEditor, contextKeyService: IContextKeyService, keybindingService: IKeybindingService, configurationService: IConfigurationService) {
+	constructor(
+		editor: ICodeEditor,
+		contextKeyService: IContextKeyService,
+		keybindingService: IKeybindingService,
+		configurationService: IConfigurationService,
+		configurationEditingService: IConfigurationEditingService
+	) {
 		super();
 
 		this._editor = editor;
 		this._keybindingService = keybindingService;
 		this._configurationService = configurationService;
+		this._configurationEditingService = configurationEditingService;
 		this._isVisibleKey = CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE.bindTo(contextKeyService);
 
 		this._domNode = createFastDomNode(document.createElement('div'));
@@ -103,6 +114,25 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 				this._layout();
 			}
 		}));
+
+		// Intentionally not configurable!
+		this._register(dom.addStandardDisposableListener(this._domNode.domNode, 'keydown', (e) => {
+			if (!this._isVisible) {
+				return;
+			}
+			if (e.equals(KeyMod.CtrlCmd | KeyCode.KEY_E)) {
+				alert(nls.localize('emergencyConfOn', "Now changing the setting `editor.accessibilitySupport` to 'on'."));
+
+				this._configurationEditingService.writeConfiguration(ConfigurationTarget.USER, {
+					key: 'editor.accessibilitySupport',
+					value: 'on'
+				});
+
+				e.preventDefault();
+				e.stopPropagation();
+			}
+		}));
+
 		this.onblur(this._domNode.domNode, () => {
 			this.hide();
 		});
@@ -160,6 +190,12 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		const configuredValue = this._configurationService.getConfiguration<editorOptions.IEditorOptions>('editor').accessibilitySupport;
 		const actualValue = opts.accessibilitySupport;
 
+		const emergencyTurnOnMessage = (
+			platform.isMacintosh
+				? nls.localize('changeConfigToOnMac', "To configure the editor to be permanently optimized for usage with a Screen Reader press Command+E now.")
+				: nls.localize('changeConfigToOnWinLinux', "To configure the editor to be permanently optimized for usage with a Screen Reader press Control+E now.")
+		);
+
 		switch (configuredValue) {
 			case 'auto':
 				switch (actualValue) {
@@ -172,6 +208,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 						break;
 					case platform.AccessibilitySupport.Disabled:
 						text += '\n\n - ' + nls.localize('auto_off', "The editor is configured to automatically detect when a Screen Reader is attached, which is not the case at this time.");
+						text += ' ' + emergencyTurnOnMessage;
 						break;
 				}
 				break;
@@ -179,7 +216,8 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 				text += '\n\n - ' + nls.localize('configuredOn', "The editor is configured to be permanently optimized for usage with a Screen Reader - you can change this by editing the setting `editor.accessibilitySupport`.");
 				break;
 			case 'off':
-				text += '\n\n - ' + nls.localize('configuredOff', "The editor is configured to never be optimized for usage with a Screen Reader - you can change this by editing the setting `editor.accessibilitySupport`.");
+				text += '\n\n - ' + nls.localize('configuredOff', "The editor is configured to never be optimized for usage with a Screen Reader.");
+				text += ' ' + emergencyTurnOnMessage;
 				break;
 		}
 
@@ -194,7 +232,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 			text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, NLS_TAB_FOCUS_MODE_OFF, NLS_TAB_FOCUS_MODE_OFF_NO_KB);
 		}
 
-		text += '\n\n' + nls.localize('outroMsg', "You can dismiss this tooltip and return to the editor by pressing Escape or Shift-Escape.");
+		text += '\n\n' + nls.localize('outroMsg', "You can dismiss this tooltip and return to the editor by pressing Escape or Shift+Escape.");
 
 		this._domNode.domNode.appendChild(renderHtml({
 			formattedText: text
@@ -210,7 +248,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		this._domNode.setDisplay('none');
 		this._domNode.setAttribute('aria-hidden', 'true');
 		this._domNode.domNode.tabIndex = -1;
-		clearNode(this._domNode.domNode);
+		dom.clearNode(this._domNode.domNode);
 
 		this._editor.focus();
 	}
