@@ -347,6 +347,7 @@ class DecorationCSSRules {
 		if (this.collectCSSText(opts, ['outline', 'outlineColor'], cssTextArr)) {
 			this.collectCSSText(opts, ['outlineStyle', 'outlineWidth'], cssTextArr);
 		}
+		this.collectBorderSettingsCSSText(opts, cssTextArr);
 		return cssTextArr.join('');
 	}
 
