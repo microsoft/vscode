@@ -303,7 +303,8 @@ class WelcomePage {
 				list.appendChild(a);
 
 				const span = document.createElement('span');
-				span.innerText = localize('welcomePage.installedExtension', "{0} (installed)", extension.name);
+				span.innerText = extension.name;
+				span.title = localize('welcomePage.installedExtension', "{0} support is already installed", extension.name);
 				span.classList.add('enabledExtension');
 				span.setAttribute('data-extension', extension.id);
 				list.appendChild(span);
@@ -342,7 +343,7 @@ class WelcomePage {
 					if (!extension) {
 						return false;
 					}
-					return this.extensionManagementService.installFromGallery(extension)
+					return this.extensionManagementService.installFromGallery(extension, false)
 						.then(() => {
 							// TODO: Do this as part of the install to avoid multiple events.
 							return this.extensionEnablementService.setEnablement(extensionSuggestion.id, false);
