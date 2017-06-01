@@ -421,6 +421,7 @@
 		// "activityBarBadge.foreground": "",
 
 		// Workbench: Panel
+		// "panel.background": "",
 		"panel.border": "#DDD6C1",
 		// "panelTitle.activeBorder": "",
 		// "panelTitle.activeForeground": "",
