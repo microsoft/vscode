@@ -224,8 +224,11 @@ class WelcomePage {
 					name = parentFolder;
 					parentFolder = tmp;
 				}
+				const tildifiedParentFolder = tildify(parentFolder, this.environmentService.userHome);
+
 				a.innerText = name;
 				a.title = folder;
+				a.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, tildifiedParentFolder));
 				a.href = 'javascript:void(0)';
 				a.addEventListener('click', e => {
 					this.telemetryService.publicLog('workbenchActionExecuted', {
@@ -241,7 +244,7 @@ class WelcomePage {
 				const span = document.createElement('span');
 				span.classList.add('path');
 				span.classList.add('detail');
-				span.innerText = tildify(parentFolder, this.environmentService.userHome);
+				span.innerText = tildifiedParentFolder;
 				span.title = folder;
 				li.appendChild(span);
 
