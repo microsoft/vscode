@@ -814,6 +814,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				this.details.element.style.borderColor = this.detailsFocusBorderColor;
 			}
 		}
+		this.telemetryService.publicLog('suggestWidget:toggleDetailsFocus', this.editor.getTelemetryData());
 	}
 
 	toggleDetails(): void {
@@ -827,13 +828,14 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			removeClass(this.element, 'docs-side');
 			removeClass(this.element, 'docs-below');
 			this.editor.layoutContentWidget(this);
+			this.telemetryService.publicLog('suggestWidget:collapseDetails', this.editor.getTelemetryData());
 		} else {
 			this.storageService.store('expandSuggestionDocs', true, StorageScope.GLOBAL);
-
 			this.expandSideOrBelow();
-
 			this.showDetails();
+			this.telemetryService.publicLog('suggestWidget:expandDetails', this.editor.getTelemetryData());
 		}
+
 	}
 
 	showDetails(): void {
