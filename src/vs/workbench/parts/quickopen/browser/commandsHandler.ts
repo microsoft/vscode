@@ -11,7 +11,7 @@ import nls = require('vs/nls');
 import arrays = require('vs/base/common/arrays');
 import types = require('vs/base/common/types');
 import { language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
-import { IAction, Action } from 'vs/base/common/actions';
+import { Action } from 'vs/base/common/actions';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Mode, IEntryRunContext, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntryGroup, IHighlight, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
@@ -19,7 +19,7 @@ import { SyncActionDescriptor, IMenuService, MenuId, MenuItemAction } from 'vs/p
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { Registry } from 'vs/platform/platform';
-import { QuickOpenHandler, QuickOpenAction } from 'vs/workbench/browser/quickopen';
+import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
 import { IEditorAction, IEditor, isCommonCodeEditor, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { matchesWords, matchesPrefix, matchesContiguousSubString, or } from 'vs/base/common/filters';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -31,17 +31,33 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { editorAction, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 
 export const ALL_COMMANDS_PREFIX = '>';
-export const EDITOR_COMMANDS_PREFIX = '$';
 
-const wordFilter = or(matchesPrefix, matchesWords, matchesContiguousSubString);
+let lastCommandPaletteInput: string;
 
-export class ShowAllCommandsAction extends QuickOpenAction {
+export class ShowAllCommandsAction extends Action {
 
 	public static ID = 'workbench.action.showCommands';
 	public static LABEL = nls.localize('showTriggerActions', "Show All Commands");
 
-	constructor(actionId: string, actionLabel: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
-		super(actionId, actionLabel, ALL_COMMANDS_PREFIX, quickOpenService);
+	constructor(
+		id: string,
+		label: string,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
+	) {
+		super(id, label);
+	}
+
+	public run(context?: any): TPromise<any> {
+
+		// Show with last command palette input if any
+		let value = ALL_COMMANDS_PREFIX;
+		if (lastCommandPaletteInput) {
+			value = `${value}${lastCommandPaletteInput}`;
+		}
+
+		this.quickOpenService.show(value, { inputSelection: lastCommandPaletteInput ? { start: 1 /* after prefix */, end: value.length } : void 0 });
+
+		return TPromise.as(null);
 	}
 }
 
@@ -69,39 +85,30 @@ class CommandPaletteEditorAction extends EditorAction {
 	}
 }
 
-class BaseCommandEntry extends QuickOpenEntryGroup {
-	private commandId: string;
-	private keyLabel: string;
-	private keyAriaLabel: string;
-	private label: string;
-	private description: string;
+abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 	private alias: string;
+	private description: string;
 
 	constructor(
-		commandId: string,
-		keyLabel: string,
-		keyAriaLabel: string,
-		label: string,
+		private commandId: string,
+		private keyLabel: string,
+		private keyAriaLabel: string,
+		private label: string,
 		alias: string,
-		labelHighlights: IHighlight[],
-		aliasHighlights: IHighlight[],
+		highlights: { label: IHighlight[], alias: IHighlight[] },
+		private onBeforeRun: (commandId: string) => void,
 		@IMessageService protected messageService: IMessageService,
 		@ITelemetryService protected telemetryService: ITelemetryService
 	) {
 		super();
 
-		this.commandId = commandId;
-		this.keyLabel = keyLabel;
-		this.keyAriaLabel = keyAriaLabel;
-		this.label = label;
-
-		if (label !== alias) {
+		if (this.label !== alias) {
 			this.alias = alias;
 		} else {
-			aliasHighlights = null;
+			highlights.alias = null;
 		}
 
-		this.setHighlights(labelHighlights, null, aliasHighlights);
+		this.setHighlights(highlights.label, null, highlights.alias);
 	}
 
 	public getCommandId(): string {
@@ -147,15 +154,32 @@ class BaseCommandEntry extends QuickOpenEntryGroup {
 		}
 	}
 
-	protected runAction(action: IAction): void {
+	public run(mode: Mode, context: IEntryRunContext): boolean {
+		if (mode === Mode.OPEN) {
+			this.runAction(this.getAction());
+
+			return true;
+		}
+
+		return false;
+	}
+
+	protected abstract getAction(): Action | IEditorAction;
+
+	protected runAction(action: Action | IEditorAction): void {
+
+		// Indicate onBeforeRun
+		this.onBeforeRun(action.id);
 
 		// Use a timeout to give the quick open widget a chance to close itself first
 		TPromise.timeout(50).done(() => {
-			if (action && action.enabled) {
+			if (action && (!(action instanceof Action) || action.enabled)) {
 				try {
 					this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'quick open' });
 					(action.run() || TPromise.as(null)).done(() => {
-						action.dispose();
+						if (action instanceof Action) {
+							action.dispose();
+						}
 					}, err => this.onError(err));
 				} catch (error) {
 					this.onError(error);
@@ -168,7 +192,6 @@ class BaseCommandEntry extends QuickOpenEntryGroup {
 }
 
 class CommandEntry extends BaseCommandEntry {
-	private actionDescriptor: SyncActionDescriptor;
 
 	constructor(
 		commandId: string,
@@ -176,32 +199,22 @@ class CommandEntry extends BaseCommandEntry {
 		keyAriaLabel: string,
 		label: string,
 		meta: string,
-		labelHighlights: IHighlight[],
-		aliasHighlights: IHighlight[],
-		actionDescriptor: SyncActionDescriptor,
+		highlights: { label: IHighlight[], alias: IHighlight[] },
+		private actionDescriptor: SyncActionDescriptor,
+		onBeforeRun: (commandId: string) => void,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IMessageService messageService: IMessageService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(commandId, keyLabel, keyAriaLabel, label, meta, labelHighlights, aliasHighlights, messageService, telemetryService);
-
-		this.actionDescriptor = actionDescriptor;
+		super(commandId, keyLabel, keyAriaLabel, label, meta, highlights, onBeforeRun, messageService, telemetryService);
 	}
 
-	public run(mode: Mode, context: IEntryRunContext): boolean {
-		if (mode === Mode.OPEN) {
-			const action = <Action>this.instantiationService.createInstance(this.actionDescriptor.syncDescriptor);
-			this.runAction(action);
-
-			return true;
-		}
-
-		return false;
+	protected getAction(): Action | IEditorAction {
+		return <Action>this.instantiationService.createInstance(this.actionDescriptor.syncDescriptor);
 	}
 }
 
 class EditorActionCommandEntry extends BaseCommandEntry {
-	private action: IEditorAction;
 
 	constructor(
 		commandId: string,
@@ -209,43 +222,22 @@ class EditorActionCommandEntry extends BaseCommandEntry {
 		keyAriaLabel: string,
 		label: string,
 		meta: string,
-		labelHighlights: IHighlight[],
-		aliasHighlights: IHighlight[],
-		action: IEditorAction,
+		highlights: { label: IHighlight[], alias: IHighlight[] },
+		private action: IEditorAction,
+		onBeforeRun: (commandId: string) => void,
 		@IMessageService messageService: IMessageService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(commandId, keyLabel, keyAriaLabel, label, meta, labelHighlights, aliasHighlights, messageService, telemetryService);
-
-		this.action = action;
+		super(commandId, keyLabel, keyAriaLabel, label, meta, highlights, onBeforeRun, messageService, telemetryService);
 	}
 
-	public run(mode: Mode, context: IEntryRunContext): boolean {
-		if (mode === Mode.OPEN) {
-			// Use a timeout to give the quick open widget a chance to close itself first
-			TPromise.timeout(50).done(() => {
-				if (this.action) {
-					try {
-						this.telemetryService.publicLog('workbenchActionExecuted', { id: this.action.id, from: 'quick open' });
-						(this.action.run() || TPromise.as(null)).done(null, err => this.onError(err));
-					} catch (error) {
-						this.onError(error);
-					}
-				} else {
-					this.messageService.show(Severity.Info, nls.localize('actionNotEnabled', "Command '{0}' is not enabled in the current context.", this.getLabel()));
-				}
-			}, err => this.onError(err));
-
-			return true;
-		}
-
-		return false;
+	protected getAction(): Action | IEditorAction {
+		return this.action;
 	}
 }
 
 
 class ActionCommandEntry extends BaseCommandEntry {
-	private action: IAction;
 
 	constructor(
 		commandId: string,
@@ -253,29 +245,24 @@ class ActionCommandEntry extends BaseCommandEntry {
 		keyAriaLabel: string,
 		label: string,
 		alias: string,
-		labelHighlights: IHighlight[],
-		aliasHighlights: IHighlight[],
-		action: IAction,
+		highlights: { label: IHighlight[], alias: IHighlight[] },
+		private action: Action,
+		onBeforeRun: (commandId: string) => void,
 		@IMessageService messageService: IMessageService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(commandId, keyLabel, keyAriaLabel, label, alias, labelHighlights, aliasHighlights, messageService, telemetryService);
-
-		this.action = action;
+		super(commandId, keyLabel, keyAriaLabel, label, alias, highlights, onBeforeRun, messageService, telemetryService);
 	}
 
-	public run(mode: Mode, context: IEntryRunContext): boolean {
-		if (mode === Mode.OPEN) {
-			this.runAction(this.action);
-
-			return true;
-		}
-
-		return false;
+	protected getAction(): Action | IEditorAction {
+		return this.action;
 	}
 }
 
+const wordFilter = or(matchesPrefix, matchesWords, matchesContiguousSubString);
+
 export class CommandsHandler extends QuickOpenHandler {
+	private searchValue: string;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -287,19 +274,13 @@ export class CommandsHandler extends QuickOpenHandler {
 		super();
 	}
 
-	protected includeWorkbenchCommands(): boolean {
-		return true;
-	}
-
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
-		searchValue = searchValue.trim();
+		this.searchValue = searchValue.trim();
 
-		// Workbench Actions (if prefix asks for all commands)
+		// Workbench Actions
 		let workbenchEntries: CommandEntry[] = [];
-		if (this.includeWorkbenchCommands()) {
-			const workbenchActions = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).getWorkbenchActions();
-			workbenchEntries = this.actionDescriptorsToEntries(workbenchActions, searchValue);
-		}
+		const workbenchActions = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).getWorkbenchActions();
+		workbenchEntries = this.actionDescriptorsToEntries(workbenchActions, searchValue);
 
 		// Editor Actions
 		const activeEditor = this.editorService.getActiveEditor();
@@ -370,7 +351,7 @@ export class CommandsHandler extends QuickOpenHandler {
 				const labelHighlights = wordFilter(searchValue, label);
 				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
 				if (labelHighlights || aliasHighlights) {
-					entries.push(this.instantiationService.createInstance(CommandEntry, actionDescriptor.id, keyLabel, keyAriaLabel, label, alias, labelHighlights, aliasHighlights, actionDescriptor));
+					entries.push(this.instantiationService.createInstance(CommandEntry, actionDescriptor.id, keyLabel, keyAriaLabel, label, alias, { label: labelHighlights, alias: aliasHighlights }, actionDescriptor, id => this.onBeforeRunCommand(id)));
 				}
 			}
 		}
@@ -399,12 +380,16 @@ export class CommandsHandler extends QuickOpenHandler {
 				const labelHighlights = wordFilter(searchValue, label);
 				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
 				if (labelHighlights || aliasHighlights) {
-					entries.push(this.instantiationService.createInstance(EditorActionCommandEntry, action.id, keyLabel, keyAriaLabel, label, alias, labelHighlights, aliasHighlights, action));
+					entries.push(this.instantiationService.createInstance(EditorActionCommandEntry, action.id, keyLabel, keyAriaLabel, label, alias, { label: labelHighlights, alias: aliasHighlights }, action, id => this.onBeforeRunCommand(id)));
 				}
 			}
 		}
 
 		return entries;
+	}
+
+	private onBeforeRunCommand(id: string): void {
+		lastCommandPaletteInput = this.searchValue;
 	}
 
 	private menuItemActionsToEntries(actions: MenuItemAction[], searchValue: string): ActionCommandEntry[] {
@@ -423,6 +408,7 @@ export class CommandsHandler extends QuickOpenHandler {
 				const keybinding = this.keybindingService.lookupKeybinding(action.item.id);
 				const keyLabel = keybinding ? keybinding.getLabel() : '';
 				const keyAriaLabel = keybinding ? keybinding.getAriaLabel() : '';
+
 				// Add an 'alias' in original language when running in different locale
 				const aliasTitle = (language !== LANGUAGE_DEFAULT && typeof action.item.title !== 'string') ? action.item.title.original : null;
 				const aliasCategory = (language !== LANGUAGE_DEFAULT && category && typeof action.item.category !== 'string') ? action.item.category.original : null;
@@ -434,7 +420,7 @@ export class CommandsHandler extends QuickOpenHandler {
 				}
 				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
 				if (labelHighlights || aliasHighlights) {
-					entries.push(this.instantiationService.createInstance(ActionCommandEntry, action.id, keyLabel, keyAriaLabel, label, alias, labelHighlights, aliasHighlights, action));
+					entries.push(this.instantiationService.createInstance(ActionCommandEntry, action.id, keyLabel, keyAriaLabel, label, alias, { label: labelHighlights, alias: aliasHighlights }, action, id => this.onBeforeRunCommand(id)));
 				}
 			}
 		}
@@ -455,12 +441,5 @@ export class CommandsHandler extends QuickOpenHandler {
 
 	public getEmptyLabel(searchString: string): string {
 		return nls.localize('noCommandsMatching', "No commands matching");
-	}
-}
-
-export class EditorCommandsHandler extends CommandsHandler {
-
-	protected includeWorkbenchCommands(): boolean {
-		return false;
 	}
 }

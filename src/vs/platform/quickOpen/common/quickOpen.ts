@@ -96,6 +96,7 @@ export interface IInputOptions {
 
 export interface IShowOptions {
 	quickNavigateConfiguration?: IQuickNavigateConfiguration;
+	inputSelection?: { start: number; end: number; };
 }
 
 export const IQuickOpenService = createDecorator<IQuickOpenService>('quickOpenService');

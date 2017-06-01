@@ -519,6 +519,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 	public show(prefix?: string, options?: IShowOptions): TPromise<void> {
 		let quickNavigateConfiguration = options ? options.quickNavigateConfiguration : void 0;
+		let inputSelection = options ? options.inputSelection : void 0;
 
 		this.previousValue = prefix;
 
@@ -569,7 +570,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		// Show quick open with prefix or editor history
 		if (!this.quickOpenWidget.isVisible() || quickNavigateConfiguration) {
 			if (prefix) {
-				this.quickOpenWidget.show(prefix, { quickNavigateConfiguration });
+				this.quickOpenWidget.show(prefix, { quickNavigateConfiguration, inputSelection });
 			} else {
 				const editorHistory = this.getEditorHistoryWithGroupLabel();
 				if (editorHistory.getEntries().length < 2) {
@@ -584,13 +585,13 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 					autoFocus = { autoFocusFirstEntry: visibleEditorCount === 0, autoFocusSecondEntry: visibleEditorCount !== 0 };
 				}
 
-				this.quickOpenWidget.show(editorHistory, { quickNavigateConfiguration, autoFocus });
+				this.quickOpenWidget.show(editorHistory, { quickNavigateConfiguration, autoFocus, inputSelection });
 			}
 		}
 
 		// Otherwise reset the widget to the prefix that is passed in
 		else {
-			this.quickOpenWidget.show(prefix || '');
+			this.quickOpenWidget.show(prefix || '', { inputSelection });
 		}
 
 		return promiseCompletedOnHide;

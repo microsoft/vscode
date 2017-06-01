@@ -421,8 +421,13 @@ export abstract class CommandQuickOpenHandler extends QuickOpenHandler {
 export class QuickOpenAction extends Action {
 	private prefix: string;
 
-	constructor(actionId: string, actionLabel: string, prefix: string, @IQuickOpenService private quickOpenService: IQuickOpenService) {
-		super(actionId, actionLabel);
+	constructor(
+		id: string,
+		label: string,
+		prefix: string,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
+	) {
+		super(id, label);
 
 		this.prefix = prefix;
 		this.enabled = !!this.quickOpenService;

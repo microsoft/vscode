@@ -15,7 +15,7 @@ import { IQuickNavigateConfiguration, IAutoFocus, IEntryRunContext, IModel, Mode
 import { Filter, Renderer, DataSource, IModelProvider, AccessibilityProvider } from 'vs/base/parts/quickopen/browser/quickOpenViewer';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
 import { ISelectionEvent, IFocusEvent, ITree, ContextMenuEvent, IActionProvider, ITreeStyles } from 'vs/base/parts/tree/browser/tree';
-import { InputBox, MessageType, IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
+import { InputBox, MessageType, IInputBoxStyles, IRange } from 'vs/base/browser/ui/inputbox/inputBox';
 import Severity from 'vs/base/common/severity';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
@@ -59,6 +59,7 @@ export interface IQuickOpenStyles extends IInputBoxStyles, ITreeStyles {
 export interface IShowOptions {
 	quickNavigateConfiguration?: IQuickNavigateConfiguration;
 	autoFocus?: IAutoFocus;
+	inputSelection?: IRange;
 }
 
 export interface IQuickOpenUsageLogger {
@@ -559,6 +560,11 @@ export class QuickOpenWidget implements IModelProvider {
 			this.doShowWithPrefix(param);
 		} else {
 			this.doShowWithInput(param, options && options.autoFocus ? options.autoFocus : {});
+		}
+
+		// Respect selectAll option
+		if (options && options.inputSelection && !this.quickNavigateConfiguration) {
+			this.inputBox.select(options.inputSelection);
 		}
 
 		if (this.callbacks.onShow) {
