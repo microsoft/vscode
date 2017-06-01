@@ -1,6 +1,4 @@
-===================BEGIN GENERATOR LOG
-===================END GENERATOR LOG
-microsoft-vscode
+dmicrosoft-vscode
 
 THIRD-PARTY SOFTWARE NOTICES AND INFORMATION
 Do Not Translate or Localize
