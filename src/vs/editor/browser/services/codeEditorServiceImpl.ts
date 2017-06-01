@@ -343,9 +343,10 @@ class DecorationCSSRules {
 			return '';
 		}
 		let cssTextArr: string[] = [];
-		this.collectCSSText(opts, ['backgroundColor', 'outline', 'outlineColor', 'outlineStyle', 'outlineWidth'], cssTextArr);
-		this.collectBorderSettingsCSSText(opts, cssTextArr);
-
+		this.collectCSSText(opts, ['backgroundColor'], cssTextArr);
+		if (this.collectCSSText(opts, ['outline', 'outlineColor'], cssTextArr)) {
+			this.collectCSSText(opts, ['outlineStyle', 'outlineWidth'], cssTextArr);
+		}
 		return cssTextArr.join('');
 	}
 
@@ -415,10 +416,9 @@ class DecorationCSSRules {
 		return cssTextArr.join('');
 	}
 
-	private static border_rules = ['border', 'borderRadius', 'borderColor', 'borderSpacing', 'borderStyle', 'borderWidth'];
-
 	private collectBorderSettingsCSSText(opts: any, cssTextArr: string[]): boolean {
-		if (this.collectCSSText(opts, DecorationCSSRules.border_rules, cssTextArr)) {
+		if (this.collectCSSText(opts, ['border', 'borderColor'], cssTextArr)) {
+			this.collectCSSText(opts, ['borderRadius', 'borderSpacing', 'borderStyle', 'borderWidth'], cssTextArr);
 			cssTextArr.push(strings.format('box-sizing: border-box;'));
 			return true;
 		}
