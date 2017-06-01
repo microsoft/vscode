@@ -402,6 +402,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 			setTimeout(() => {
 				dom.addClass(this._domNode, 'visible');
+				this._domNode.setAttribute('aria-hidden', 'false');
 				if (!animate) {
 					dom.addClass(this._domNode, 'noanimation');
 					setTimeout(() => {
@@ -421,6 +422,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			this._updateButtons();
 
 			dom.removeClass(this._domNode, 'visible');
+			this._domNode.setAttribute('aria-hidden', 'true');
 			if (focusTheEditor) {
 				this._codeEditor.focus();
 			}
@@ -812,7 +814,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		// Widget
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'editor-widget find-widget';
-		this._domNode.setAttribute('aria-hidden', 'false');
+		this._domNode.setAttribute('aria-hidden', 'true');
 
 		this._domNode.appendChild(this._toggleReplaceBtn.domNode);
 		this._domNode.appendChild(findPart);
