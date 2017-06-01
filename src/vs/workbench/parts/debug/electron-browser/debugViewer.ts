@@ -251,6 +251,7 @@ export class CallStackController extends BaseDebugController {
 		}
 		if (element instanceof StackFrame) {
 			this.focusStackFrame(element, event, event.detail !== 2);
+			return true;
 		}
 
 		return super.onLeftClick(tree, element, event);
@@ -1256,6 +1257,7 @@ export class BreakpointsController extends BaseDebugController {
 		}
 		if (element instanceof Breakpoint) {
 			this.openBreakpointSource(element, event, event.detail !== 2);
+			return true;
 		}
 
 		return super.onLeftClick(tree, element, event);
