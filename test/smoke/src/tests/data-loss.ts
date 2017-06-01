@@ -55,12 +55,10 @@ export function testDataLoss() {
 			// create one untitled file
 			await common.newUntitledFile();
 			await common.type(textToType);
-			await app.wait();
 			
 			// make one dirty file,
 			await common.openFile('readme.md', true);
 			await common.type(textToType);
-			await app.wait();
 
 			await app.stop();
 			await app.start();
