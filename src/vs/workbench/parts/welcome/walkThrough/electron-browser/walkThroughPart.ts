@@ -40,6 +40,8 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, textPreformatForeground, contrastBorder, textBlockQuoteBackground, textBlockQuoteBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils';
+import { UILabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
+import { OS, OperatingSystem } from 'vs/base/common/platform';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -406,6 +408,8 @@ export class WalkThroughPart extends BaseEditor {
 					}));
 				});
 				this.updateSizeClasses();
+				this.multiCursorModifier();
+				this.contentDisposables.push(this.configurationService.onDidUpdateConfiguration(() => this.multiCursorModifier()));
 				if (input.onReady) {
 					input.onReady(innerContent);
 				}
@@ -458,6 +462,19 @@ export class WalkThroughPart extends BaseEditor {
 			const command = key.getAttribute('data-command');
 			const keybinding = command && this.keybindingService.lookupKeybinding(command);
 			key.style.display = !keybinding ? 'none' : '';
+		});
+	}
+
+	private multiCursorModifier() {
+		const labels = UILabelProvider.modifierLabels[OS];
+		const setting = this.configurationService.lookup<string>('editor.multiCursorModifier');
+		const modifier = labels[setting.value === 'ctrlCmd' ? (OS === OperatingSystem.Macintosh ? 'metaKey' : 'ctrlKey') : 'altKey'];
+		const keys = this.content.querySelectorAll('.multi-cursor-modifier');
+		Array.prototype.forEach.call(keys, (key: Element) => {
+			while (key.firstChild) {
+				key.removeChild(key.firstChild);
+			}
+			key.appendChild(document.createTextNode(modifier));
 		});
 	}
 
