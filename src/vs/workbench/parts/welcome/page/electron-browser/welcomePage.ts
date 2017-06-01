@@ -295,6 +295,7 @@ class WelcomePage {
 
 				const a = document.createElement('a');
 				a.innerText = extension.name;
+				a.title = extension.isKeymap ? localize('welcomePage.installKeymap', "Install {0} keymap", extension.name) : localize('welcomePage.installExtensionPack', "Install additional support for {0}", extension.name);
 				a.classList.add('installExtension');
 				a.setAttribute('data-extension', extension.id);
 				a.href = 'javascript:void(0)';
@@ -307,7 +308,7 @@ class WelcomePage {
 
 				const span = document.createElement('span');
 				span.innerText = extension.name;
-				span.title = localize('welcomePage.installedExtension', "{0} support is already installed", extension.name);
+				span.title = extension.isKeymap ? localize('welcomePage.installedKeymap', "{0} keymap is already installed", extension.name) : localize('welcomePage.installedExtensionPack', "{0} support is already installed", extension.name);
 				span.classList.add('enabledExtension');
 				span.setAttribute('data-extension', extension.id);
 				list.appendChild(span);
