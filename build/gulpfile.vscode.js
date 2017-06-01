@@ -158,7 +158,10 @@ gulp.task('electron', ['clean-electron'], getElectron(process.arch));
 gulp.task('electron-ia32', ['clean-electron'], getElectron('ia32'));
 gulp.task('electron-x64', ['clean-electron'], getElectron('x64'));
 
-const languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita', 'ptb'];
+var languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'];
+if (product.quality !== 'stable') {
+	languages.concat(['ptb']);
+}
 
 /**
  * Compute checksums for some files.
