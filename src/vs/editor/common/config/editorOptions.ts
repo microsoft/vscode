@@ -337,6 +337,11 @@ export interface IEditorOptions {
 	 */
 	multiCursorModifier?: 'ctrlCmd' | 'alt';
 	/**
+	 * Configure the editor's accessibility support.
+	 * Defaults to 'auto'. It is best to leave this to 'auto'.
+	 */
+	accessibilitySupport?: 'auto' | 'off' | 'on';
+	/**
 	 * Enable quick suggestions (shadow suggestions)
 	 * Defaults to true.
 	 */
@@ -789,6 +794,7 @@ export interface IValidatedEditorOptions {
 	readonly emptySelectionClipboard: boolean;
 	readonly useTabStops: boolean;
 	readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
+	readonly accessibilitySupport: 'auto' | 'off' | 'on';
 
 	readonly viewInfo: InternalEditorViewOptions;
 	readonly contribInfo: EditorContribOptions;
@@ -1429,6 +1435,7 @@ export class EditorOptionsValidator {
 			emptySelectionClipboard: _boolean(opts.emptySelectionClipboard, defaults.emptySelectionClipboard),
 			useTabStops: _boolean(opts.useTabStops, defaults.useTabStops),
 			multiCursorModifier: multiCursorModifier,
+			accessibilitySupport: _stringSet<'auto' | 'on' | 'off'>(opts.accessibilitySupport, defaults.accessibilitySupport, ['auto', 'on', 'off']),
 			viewInfo: viewInfo,
 			contribInfo: contribInfo,
 		};
@@ -1653,6 +1660,7 @@ export class InternalEditorOptionsFactory {
 			emptySelectionClipboard: opts.emptySelectionClipboard,
 			useTabStops: opts.useTabStops,
 			multiCursorModifier: opts.multiCursorModifier,
+			accessibilitySupport: opts.accessibilitySupport,
 
 			viewInfo: {
 				extraEditorClassName: opts.viewInfo.extraEditorClassName,
@@ -1718,9 +1726,19 @@ export class InternalEditorOptionsFactory {
 
 	public static createInternalEditorOptions(env: IEnvironmentalOptions, _opts: IValidatedEditorOptions) {
 
+		let accessibilitySupport: platform.AccessibilitySupport;
+		if (_opts.accessibilitySupport === 'auto') {
+			// The editor reads the `accessibilitySupport` from the environment
+			accessibilitySupport = env.accessibilitySupport;
+		} else if (_opts.accessibilitySupport === 'on') {
+			accessibilitySupport = platform.AccessibilitySupport.Enabled;
+		} else {
+			accessibilitySupport = platform.AccessibilitySupport.Disabled;
+		}
+
 		// Disable some non critical features to get as best performance as possible
 		// See https://github.com/Microsoft/vscode/issues/26730
-		const opts = this._handlePerformanceCritical(_opts, (env.accessibilitySupport === platform.AccessibilitySupport.Enabled));
+		const opts = this._handlePerformanceCritical(_opts, (accessibilitySupport === platform.AccessibilitySupport.Enabled));
 
 		let lineDecorationsWidth: number;
 		if (typeof opts.lineDecorationsWidth === 'string' && /^\d+(\.\d+)?ch$/.test(opts.lineDecorationsWidth)) {
@@ -1760,7 +1778,7 @@ export class InternalEditorOptionsFactory {
 			const wordWrapColumn = opts.wordWrapColumn;
 			const wordWrapMinified = opts.wordWrapMinified;
 
-			if (env.accessibilitySupport === platform.AccessibilitySupport.Enabled) {
+			if (accessibilitySupport === platform.AccessibilitySupport.Enabled) {
 				// See https://github.com/Microsoft/vscode/issues/27766
 				// Never enable wrapping when a screen reader is attached
 				// because arrow down etc. will not move the cursor in the way
@@ -1838,7 +1856,7 @@ export class InternalEditorOptionsFactory {
 			editorClassName: className,
 			lineHeight: env.fontInfo.lineHeight,
 			readOnly: opts.readOnly,
-			accessibilitySupport: env.accessibilitySupport,
+			accessibilitySupport: accessibilitySupport,
 			multiCursorModifier: opts.multiCursorModifier,
 			wordSeparators: opts.wordSeparators,
 			autoClosingBrackets: opts.autoClosingBrackets,
@@ -2059,6 +2077,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	emptySelectionClipboard: true,
 	useTabStops: true,
 	multiCursorModifier: 'altKey',
+	accessibilitySupport: 'auto',
 
 	viewInfo: {
 		extraEditorClassName: '',

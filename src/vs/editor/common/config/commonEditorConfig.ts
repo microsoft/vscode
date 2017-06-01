@@ -551,6 +551,17 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.dragAndDrop,
 			'description': nls.localize('dragAndDrop', "Controls if the editor should allow to move selections via drag and drop.")
 		},
+		'editor.accessibilitySupport': {
+			'type': 'string',
+			'enum': ['auto', 'on', 'off'],
+			'enumDescriptions': [
+				nls.localize('accessibilitySupport.auto', "The editor will use platform APIs to detect when a Screen Reader is attached."),
+				nls.localize('accessibilitySupport.on', "The editor will be permanently optimized for usage with a Screen Reader."),
+				nls.localize('accessibilitySupport.off', "The editor will never be optimized for usage with a Screen Reader."),
+			],
+			'default': EDITOR_DEFAULTS.accessibilitySupport,
+			'description': nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers.")
+		},
 		'diffEditor.renderSideBySide': {
 			'type': 'boolean',
 			'default': true,

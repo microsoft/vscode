@@ -2883,6 +2883,11 @@ declare module monaco.editor {
 		 */
 		multiCursorModifier?: 'ctrlCmd' | 'alt';
 		/**
+		 * Configure the editor's accessibility support.
+		 * Defaults to 'auto'. It is best to leave this to 'auto'.
+		 */
+		accessibilitySupport?: 'auto' | 'off' | 'on';
+		/**
 		 * Enable quick suggestions (shadow suggestions)
 		 * Defaults to true.
 		 */
