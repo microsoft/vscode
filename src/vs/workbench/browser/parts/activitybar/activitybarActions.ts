@@ -28,6 +28,8 @@ import { IThemeService, ITheme, registerThemingParticipant, ICssStyleCollector }
 import { ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { contrastBorder, activeContrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { StandardMouseEvent } from "vs/base/browser/mouseEvent";
+import { KeyCode } from "vs/base/common/keyCodes";
+import { StandardKeyboardEvent } from "vs/base/browser/keyboardEvent";
 
 export interface IViewletActivity {
 	badge: IBadge;
@@ -669,17 +671,35 @@ export class GlobalActivityActionItem extends ActivityActionItem {
 		super(action, { draggable: false }, themeService);
 	}
 
-	public onClick(e: MouseEvent): void {
+	public render(container: HTMLElement): void {
+		super.render(container);
+
+		// Context menus are triggered on mouse down so that an item can be picked
+		// and executed with releasing the mouse over it
+		this.$container.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+			DOM.EventHelper.stop(e, true);
+
+			const event = new StandardMouseEvent(e);
+			this.showContextMenu({ x: event.posx, y: event.posy });
+		});
+
+		this.$container.on(DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
+			let event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+				DOM.EventHelper.stop(e, true);
+
+				this.showContextMenu(this.$container.getHTMLElement());
+			}
+		});
+	}
+
+	private showContextMenu(location: HTMLElement | { x: number, y: number }): void {
 		const globalAction = this._action as GlobalActivityAction;
 		const activity = globalAction.activity as IGlobalActivity;
 		const actions = activity.getActions();
 
-		const event = new StandardMouseEvent(e);
-		event.stopPropagation();
-		event.preventDefault();
-
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => ({ x: event.posx, y: event.posy }),
+			getAnchor: () => location,
 			getActions: () => TPromise.as(actions),
 			onHide: () => dispose(actions)
 		});
