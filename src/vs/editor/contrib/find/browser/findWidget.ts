@@ -1036,7 +1036,7 @@ registerThemingParticipant((theme, collector) => {
 
 	let border = theme.getColor('panel.border');
 	if (border) {
-		collector.addRule(`.monaco-editor .find-widget .monaco-sash { background-color: ${border}; width: 2px !important; margin-left: -4px;}`);
+		collector.addRule(`.monaco-editor .find-widget .monaco-sash { background-color: ${border}; width: 3px !important; margin-left: -4px;}`);
 	}
 });
 
