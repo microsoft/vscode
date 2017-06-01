@@ -43,7 +43,7 @@ export function activate(context: vscode.ExtensionContext) {
 	let completionProvider = new EmmetCompletionItemProvider();
 
 	for (let language of SUPPORTED_LANGUAGE_MODES) {
-		const selector: vscode.DocumentFilter = { language: language.id, scheme: 'file' };
+		const selector: vscode.DocumentFilter = { language: language.id };
 		const provider = vscode.languages.registerCompletionItemProvider(selector, completionProvider, ...language.triggerCharacters);
 
 		context.subscriptions.push(provider);
