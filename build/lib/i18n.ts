@@ -439,7 +439,7 @@ function processCoreBundleFormat(fileHeader: string, languages: string[], json: 
 
 	let languageDirectory = path.join(__dirname, '..', '..', 'i18n');
 	let languageDirs;
-	if (languageDirs) {
+	if (languages) {
 		languageDirs = sortLanguages(languages);
 	} else {
 		languageDirs = sortLanguages(fs.readdirSync(languageDirectory).filter((item) => fs.statSync(path.join(languageDirectory, item)).isDirectory()));

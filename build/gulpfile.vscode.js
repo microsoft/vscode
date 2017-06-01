@@ -85,7 +85,7 @@ const BUNDLED_FILE_HEADER = [
 ].join('\n');
 
 var languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'];
-if (product.quality !== 'stable') {
+if (process.env.VSCODE_QUALITY !== 'stable') {
 	languages = languages.concat(['ptb']); // Add languages requested by the community to non-stable builds
 }
 

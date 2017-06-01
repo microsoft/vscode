@@ -365,7 +365,7 @@ function processCoreBundleFormat(fileHeader, languages, json, emitter) {
     });
     var languageDirectory = path.join(__dirname, '..', '..', 'i18n');
     var languageDirs;
-    if (languageDirs) {
+    if (languages) {
         languageDirs = sortLanguages(languages);
     }
     else {
