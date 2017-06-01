@@ -774,7 +774,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			}
 
 			// Get results
-			const handleResult = (result) => {
+			return resolvedHandler.getResults(value).then(result => {
 				if (this.currentResultToken === currentResultToken) {
 
 					// now is the time to show the input if we did not have set it before
@@ -787,8 +787,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 					const handlerResults = (result && result.entries) || [];
 					this.mergeResults(quickOpenModel, handlerResults, resolvedHandler.getGroupLabel());
 				}
-			};
-			return resolvedHandler.getResults(value).then(handleResult, undefined, handleResult);
+			});
 		});
 	}
 

@@ -7,7 +7,7 @@
 
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
-import { PPromise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import { ThrottledDelayer } from 'vs/base/common/async';
 import types = require('vs/base/common/types');
@@ -91,7 +91,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	private openSymbolHandler: OpenSymbolHandler;
 	private openFileHandler: OpenFileHandler;
 	private searchDelayer: ThrottledDelayer<QuickOpenModel>;
-	private pendingSearch: PPromise<QuickOpenModel, QuickOpenModel>;
+	private pendingSearch: TPromise<QuickOpenModel>;
 	private isClosed: boolean;
 	private scorerCache: { [key: string]: number };
 	private includeSymbols: boolean;
@@ -135,7 +135,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		});
 	}
 
-	public getResults(searchValue: string): PPromise<QuickOpenModel, QuickOpenModel> {
+	public getResults(searchValue: string): TPromise<QuickOpenModel> {
 		const startTime = Date.now();
 
 		this.cancelPendingSearch();
@@ -166,21 +166,21 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			// Symbol Results (unless disabled or a range or absolute path is specified)
 			if (this.includeSymbols && !searchWithRange) {
 				resultPromises.push(this.openSymbolHandler.getResults(searchValue));
+			} else {
+				resultPromises.push(TPromise.as(new QuickOpenModel())); // We need this empty promise because we are using the throttler below!
 			}
 
 			// Join and sort unified
-			const handleResults = (results: (QuickOpenModel | FileQuickOpenModel)[]) => {
+			this.pendingSearch = TPromise.join(resultPromises).then(results => {
 				this.pendingSearch = null;
 
 				// If the quick open widget has been closed meanwhile, ignore the result
 				if (this.isClosed) {
-					return new QuickOpenModel();
+					return TPromise.as<QuickOpenModel>(new QuickOpenModel());
 				}
 
 				// Combine file results and symbol results (if any)
-				const mergedResults: QuickOpenEntry[] = results.reduce((entries: QuickOpenEntry[], model: QuickOpenModel) => {
-					return entries.concat(model.entries);
-				}, []);
+				const mergedResults = [...results[0].entries, ...results[1].entries];
 
 				// Sort
 				const unsortedResultTime = Date.now();
@@ -200,11 +200,10 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				});
 
 				let fileSearchStats: ISearchStats;
-				for (const result of results) {
-					if (result instanceof FileQuickOpenModel) {
-						fileSearchStats = (<FileQuickOpenModel>result).stats;
-						break;
-					}
+				if (results[0] instanceof FileQuickOpenModel) {
+					fileSearchStats = (<FileQuickOpenModel>results[0]).stats;
+				} else if (results[1] instanceof FileQuickOpenModel) {
+					fileSearchStats = (<FileQuickOpenModel>results[1]).stats;
 				}
 
 				const duration = new Date().getTime() - startTime;
@@ -219,24 +218,10 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 				this.telemetryService.publicLog('openAnything', objects.assign(data, { duration }));
 
-				return new QuickOpenModel(viewResults);
-			};
-
-			this.pendingSearch = new PPromise<QuickOpenModel, QuickOpenModel>((complete, error, progress) => {
-				// When any of the result promises return, forward the result as progress.
-				resultPromises.map(resultPromise => {
-					resultPromise.then(result => {
-						progress(handleResults([result]));
-					});
-				});
-				// Complete the promise when all promises have completed.
-				TPromise.join(resultPromises).then(() => {
-					// We already sent the results via progress.
-					complete(new QuickOpenModel());
-				}, error => {
-					this.pendingSearch = null;
-					this.messageService.show(Severity.Error, error);
-				});
+				return TPromise.as<QuickOpenModel>(new QuickOpenModel(viewResults));
+			}, (error: Error) => {
+				this.pendingSearch = null;
+				this.messageService.show(Severity.Error, error);
 			});
 
 			return this.pendingSearch;
