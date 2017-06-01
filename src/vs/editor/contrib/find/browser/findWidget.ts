@@ -411,7 +411,31 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				}
 			}, 0);
 			this._codeEditor.layoutOverlayWidget(this);
-			this._showViewZone();
+
+			let adjustEditorScrollTop = true;
+			if (this._codeEditor.getConfiguration().contribInfo.find.seedSearchStringFromSelection && selection) {
+				let editorCoords = dom.getDomNodePagePosition(this._codeEditor.getDomNode());
+				let startCoords = this._codeEditor.getScrolledVisiblePosition(selection.getStartPosition());
+				let startLeft = editorCoords.left + startCoords.left;
+				let startTop = startCoords.top;
+
+				if (startTop < this._viewZone.heightInPx) {
+					if (selection.endLineNumber > selection.startLineNumber) {
+						adjustEditorScrollTop = false;
+					}
+
+					let leftOfFindWidget = dom.getTopLeftOffset(this._domNode).left;
+					if (startLeft > leftOfFindWidget) {
+						adjustEditorScrollTop = false;
+					}
+					let endCoords = this._codeEditor.getScrolledVisiblePosition(selection.getEndPosition());
+					let endLeft = editorCoords.left + endCoords.left;
+					if (endLeft > leftOfFindWidget) {
+						adjustEditorScrollTop = false;
+					}
+				}
+			}
+			this._showViewZone(adjustEditorScrollTop);
 		}
 	}
 
@@ -454,11 +478,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			}
 
 			this._viewZoneId = accessor.addZone(this._viewZone);
+			// scroll top adjust to make sure the editor doesn't scroll when adding viewzone at the beginning.
 			this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() + this._viewZone.heightInPx);
 		});
 	}
 
-	private _showViewZone() {
+	private _showViewZone(adjustScroll: boolean = true) {
 		if (!this._isVisible) {
 			return;
 		}
@@ -479,7 +504,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				this._viewZone.heightInPx = FIND_INPUT_AREA_HEIGHT;
 			}
 			this._viewZoneId = accessor.addZone(this._viewZone);
-			this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() + scrollAdjustment);
+
+			if (adjustScroll) {
+				this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() + scrollAdjustment);
+			}
 		});
 	}
 
