@@ -51,6 +51,9 @@ interface IConfiguration extends IFilesConfiguration {
 			visible: boolean;
 		}
 	};
+	editor: {
+		multiCursorModifier: 'ctrlCmd' | 'alt'
+	};
 }
 
 class KeybindingsResolver {
@@ -153,6 +156,7 @@ export class VSCodeMenu {
 	private static MAX_MENU_RECENT_ENTRIES = 10;
 
 	private currentAutoSaveSetting: string;
+	private currentMultiCursorModifierSetting: string;
 	private currentSidebarLocation: 'left' | 'right';
 	private currentStatusbarVisible: boolean;
 	private currentActivityBarVisible: boolean;
@@ -229,6 +233,12 @@ export class VSCodeMenu {
 		const newAutoSaveSetting = config && config.files && config.files.autoSave;
 		if (newAutoSaveSetting !== this.currentAutoSaveSetting) {
 			this.currentAutoSaveSetting = newAutoSaveSetting;
+			updateMenu = true;
+		}
+
+		const newMultiCursorModifierSetting = config && config.editor && config.editor.multiCursorModifier;
+		if (newMultiCursorModifierSetting !== this.currentMultiCursorModifierSetting) {
+			this.currentMultiCursorModifierSetting = newMultiCursorModifierSetting;
 			updateMenu = true;
 		}
 
@@ -616,6 +626,19 @@ export class VSCodeMenu {
 	}
 
 	private setSelectionMenu(winLinuxEditMenu: Electron.Menu): void {
+		let multiCursorModifierLabel: string;
+		if (this.currentMultiCursorModifierSetting === 'ctrlCmd') {
+			// The default has been overwritten
+			multiCursorModifierLabel = nls.localize('miMultiCursorAlt', "Use Alt+Click for Multi-Cursor");
+		} else {
+			multiCursorModifierLabel = (
+				isMacintosh
+					? nls.localize('miMultiCursorCmd', "Use Cmd+Click for Multi-Cursor")
+					: nls.localize('miMultiCursorCtrl', "Use Ctrl+Click for Multi-Cursor")
+			);
+		}
+
+		const multicursorModifier = this.createMenuItem(multiCursorModifierLabel, 'workbench.action.toggleMultiCursorModifier');
 		const insertCursorAbove = this.createMenuItem(nls.localize({ key: 'miInsertCursorAbove', comment: ['&& denotes a mnemonic'] }, "&&Add Cursor Above"), 'editor.action.insertCursorAbove');
 		const insertCursorBelow = this.createMenuItem(nls.localize({ key: 'miInsertCursorBelow', comment: ['&& denotes a mnemonic'] }, "A&&dd Cursor Below"), 'editor.action.insertCursorBelow');
 		const insertCursorAtEndOfEachLineSelected = this.createMenuItem(nls.localize({ key: 'miInsertCursorAtEndOfEachLineSelected', comment: ['&& denotes a mnemonic'] }, "Add C&&ursors to Line Ends"), 'editor.action.insertCursorAtEndOfEachLineSelected');
@@ -647,6 +670,7 @@ export class VSCodeMenu {
 			moveLinesUp,
 			moveLinesDown,
 			__separator__(),
+			multicursorModifier,
 			insertCursorAbove,
 			insertCursorBelow,
 			insertCursorAtEndOfEachLineSelected,
