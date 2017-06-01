@@ -236,10 +236,17 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			});
 		}));
 
+
 		this._register(this._codeEditor.onDidScrollChange((e) => {
 			if (e.scrollTopChanged) {
 				this._layoutViewZone();
+				return;
 			}
+
+			// for other scroll changes, layout the viewzone in next tick to avoid ruining current rendering.
+			setTimeout(() => {
+				this._layoutViewZone();
+			}, 0);
 		}));
 	}
 
