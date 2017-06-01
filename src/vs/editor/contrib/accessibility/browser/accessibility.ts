@@ -25,6 +25,9 @@ import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorWidgetBackground, widgetShadow, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { IConfigurationService } from "vs/platform/configuration/common/configuration";
+import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import * as platform from 'vs/base/common/platform';
 
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
 
@@ -43,12 +46,13 @@ class AccessibilityHelpController extends Disposable implements IEditorContribut
 	constructor(
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super();
 
 		this._editor = editor;
-		this._widget = this._register(new AccessibilityHelpWidget(this._editor, contextKeyService, keybindingService));
+		this._widget = this._register(new AccessibilityHelpWidget(this._editor, contextKeyService, keybindingService, configurationService));
 	}
 
 	public getId(): string {
@@ -72,15 +76,17 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 
 	private _editor: ICodeEditor;
 	private _keybindingService: IKeybindingService;
+	private _configurationService: IConfigurationService;
 	private _domNode: FastDomNode<HTMLElement>;
 	private _isVisible: boolean;
 	private _isVisibleKey: IContextKey<boolean>;
 
-	constructor(editor: ICodeEditor, contextKeyService: IContextKeyService, keybindingService: IKeybindingService) {
+	constructor(editor: ICodeEditor, contextKeyService: IContextKeyService, keybindingService: IKeybindingService, configurationService: IConfigurationService) {
 		super();
 
 		this._editor = editor;
 		this._keybindingService = keybindingService;
+		this._configurationService = configurationService;
 		this._isVisibleKey = CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE.bindTo(contextKeyService);
 
 		this._domNode = createFastDomNode(document.createElement('div'));
@@ -151,6 +157,32 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 
 		text += '\n\n' + nls.localize('status', "Status:");
 
+		const configuredValue = this._configurationService.getConfiguration<editorOptions.IEditorOptions>('editor').accessibilitySupport;
+		const actualValue = opts.accessibilitySupport;
+
+		switch (configuredValue) {
+			case 'auto':
+				switch (actualValue) {
+					case platform.AccessibilitySupport.Unknown:
+						// Should never happen in VS Code
+						text += '\n\n - ' + nls.localize('auto_unknown', "The editor is configured to use platform APIs to detect when a Screen Reader is attached, but the current runtime does not support this.");
+						break;
+					case platform.AccessibilitySupport.Enabled:
+						text += '\n\n - ' + nls.localize('auto_on', "The editor has automatically detected a Screen Reader is attached.");
+						break;
+					case platform.AccessibilitySupport.Disabled:
+						text += '\n\n - ' + nls.localize('auto_off', "The editor is configured to automatically detect when a Screen Reader is attached, which is not the case at this time.");
+						break;
+				}
+				break;
+			case 'on':
+				text += '\n\n - ' + nls.localize('configuredOn', "The editor is configured to be permanently optimized for usage with a Screen Reader - you can change this by editing the setting `editor.accessibilitySupport`.");
+				break;
+			case 'off':
+				text += '\n\n - ' + nls.localize('configuredOff', "The editor is configured to never be optimized for usage with a Screen Reader - you can change this by editing the setting `editor.accessibilitySupport`.");
+				break;
+		}
+
 		const NLS_TAB_FOCUS_MODE_ON = nls.localize('tabFocusModeOnMsg', "Pressing Tab in the current editor will move focus to the next focusable element. Toggle this behavior by pressing {0}.");
 		const NLS_TAB_FOCUS_MODE_ON_NO_KB = nls.localize('tabFocusModeOnMsgNoKb', "Pressing Tab in the current editor will move focus to the next focusable element. The command {0} is currently not triggerable by a keybinding.");
 		const NLS_TAB_FOCUS_MODE_OFF = nls.localize('tabFocusModeOffMsg', "Pressing Tab in the current editor will insert the tab character. Toggle this behavior by pressing {0}.");
@@ -162,7 +194,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 			text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, NLS_TAB_FOCUS_MODE_OFF, NLS_TAB_FOCUS_MODE_OFF_NO_KB);
 		}
 
-		text += '\n\n' + nls.localize('outroMsg', "You can dismiss this tooltip and return to the editor by pressing Escape.");
+		text += '\n\n' + nls.localize('outroMsg', "You can dismiss this tooltip and return to the editor by pressing Escape or Shift-Escape.");
 
 		this._domNode.domNode.appendChild(renderHtml({
 			formattedText: text
