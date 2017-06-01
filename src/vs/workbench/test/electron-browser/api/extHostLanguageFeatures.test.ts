@@ -26,7 +26,7 @@ import { IHeapService } from 'vs/workbench/api/electron-browser/mainThreadHeapSe
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/common/quickOpen';
-import { DocumentSymbolProviderRegistry, DocumentHighlightKind } from 'vs/editor/common/modes';
+import { DocumentSymbolProviderRegistry, DocumentHighlightKind, Location } from 'vs/editor/common/modes';
 import { getCodeLensData } from 'vs/editor/contrib/codelens/common/codelens';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from 'vs/editor/contrib/goToDeclaration/browser/goToDeclaration';
 import { getHover } from 'vs/editor/contrib/hover/common/hover';
@@ -579,13 +579,14 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return threadService.sync().then(() => {
 
-			return provideReferences(model, new EditorPosition(1, 2)).then(value => {
+			const value: Location[] = [];
+			return provideReferences(model, new EditorPosition(1, 2)).then(() => {
 				assert.equal(value.length, 2);
 
 				let [first, second] = value;
 				assert.equal(first.uri.path, '/second');
 				assert.equal(second.uri.path, '/first');
-			});
+			}, undefined, progress => value.push(...progress));
 		});
 	});
 
@@ -599,13 +600,14 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return threadService.sync().then(() => {
 
-			return provideReferences(model, new EditorPosition(1, 2)).then(value => {
+			const value: Location[] = [];
+			return provideReferences(model, new EditorPosition(1, 2)).then(() => {
 				assert.equal(value.length, 1);
 
 				let [item] = value;
 				assert.deepEqual(item.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
 				assert.equal(item.uri.toString(), model.uri.toString());
-			});
+			}, undefined, progress => value.push(...progress));
 
 		});
 	});
@@ -625,9 +627,10 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return threadService.sync().then(() => {
 
-			return provideReferences(model, new EditorPosition(1, 2)).then(value => {
+			const value: Location[] = [];
+			return provideReferences(model, new EditorPosition(1, 2)).then(() => {
 				assert.equal(value.length, 1);
-			});
+			}, undefined, progress => value.push(...progress));
 
 		});
 	});

@@ -5,10 +5,9 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { alert } from 'vs/base/browser/ui/aria/aria';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
@@ -85,11 +84,8 @@ export class ReferenceAction extends EditorAction {
 		}
 		let range = editor.getSelection();
 		let model = editor.getModel();
-		let references = provideReferences(model, range.getStartPosition()).then(references => {
-			const model = new ReferencesModel(references);
-			alert(model.getAriaMessage());
-			return model;
-		});
+
+		const references = provideReferences(model, range.getStartPosition());
 		controller.toggleWidget(range, references, defaultReferenceSearchOptions);
 	}
 }
@@ -115,7 +111,7 @@ let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 			return undefined;
 		}
 
-		let references = provideReferences(control.getModel(), Position.lift(position)).then(references => new ReferencesModel(references));
+		const references = provideReferences(control.getModel(), Position.lift(position));
 		let range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		return TPromise.as(controller.toggleWidget(range, references, defaultReferenceSearchOptions));
 	});
@@ -196,31 +192,26 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 
-export function provideReferences(model: editorCommon.IReadOnlyModel, position: Position): TPromise<Location[]> {
-
-	// collect references from all providers
-	const promises = ReferenceProviderRegistry.ordered(model).map(provider => {
-		return asWinJsPromise((token) => {
-			return provider.provideReferences(model, position, { includeDeclaration: true }, token);
-		}).then(result => {
-			if (Array.isArray(result)) {
-				return <Location[]>result;
-			}
-			return undefined;
-		}, err => {
-			onUnexpectedExternalError(err);
+export function provideReferences(model: editorCommon.IReadOnlyModel, position: Position): PPromise<void, Location[]> {
+	let promise: TPromise<void>;
+	return new PPromise<void, Location[]>((complete, error, progress) => {
+		// collect references from all providers
+		const promises = ReferenceProviderRegistry.ordered(model).map(provider => {
+			return asWinJsPromise((token) => {
+				return provider.provideReferences(model, position, { includeDeclaration: true }, token);
+			}).then(result => {
+				if (Array.isArray(result)) {
+					progress(result);
+				}
+				return undefined;
+			}, err => {
+				onUnexpectedExternalError(err);
+			});
 		});
-	});
 
-	return TPromise.join(promises).then(references => {
-		let result: Location[] = [];
-		for (let ref of references) {
-			if (ref) {
-				result.push(...ref);
-			}
-		}
-		return result;
-	});
+		promise = TPromise.join(promises).then(() => complete(void 0));
+		return promise;
+	}, () => promise.cancel());
 }
 
 CommonEditorRegistry.registerDefaultLanguageCommand('_executeReferenceProvider', provideReferences);

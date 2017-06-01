@@ -714,6 +714,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		// listen on model changes
 		this._disposeOnNewModel.push(this._model.onDidChangeReferenceRange(reference => this._tree.refresh(reference)));
+		this._disposeOnNewModel.push(this._model.onDidChangeReferences(reference => this._tree.refresh().then(() => this._tree.layout())));
 
 		// listen on selection and focus
 		this._disposeOnNewModel.push(this._tree.addListener(Controller.Events.FOCUSED, (element) => {
@@ -756,9 +757,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._tree.layout();
 		this.focus();
 
-		// pick input and a reference to begin with
-		const input = this._model.groups.length === 1 ? this._model.groups[0] : this._model;
-		return this._tree.setInput(input);
+		return this._tree.setInput(this._model);
 	}
 
 	private _getFocusedReference(): OneReference {
