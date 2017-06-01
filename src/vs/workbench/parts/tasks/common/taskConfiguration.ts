@@ -358,6 +358,7 @@ function fillProperty<T, K extends keyof T>(target: T, source: T, key: K) {
 interface ParseContext {
 	problemReporter: IProblemReporter;
 	namedProblemMatchers: IStringDictionary<NamedProblemMatcher>;
+	uuidMap: UUIDMap;
 	engine: Tasks.ExecutionEngine;
 	schemaVersion: Tasks.JsonSchemaVersion;
 }
@@ -882,7 +883,7 @@ namespace TaskDescription {
 			let command: Tasks.CommandConfiguration = CommandConfiguration.from(externalTask, context);
 			let identifer = Types.isString(externalTask.identifier) ? externalTask.identifier : taskName;
 			let task: Tasks.Task = {
-				_id: UUID.generateUuid(),
+				_id: context.uuidMap.getUUID(taskName),
 				_source: source,
 				_label: taskName,
 				name: taskName,
@@ -1222,11 +1223,65 @@ export interface IProblemReporter extends IProblemReporterBase {
 	clearOutput(): void;
 }
 
+class UUIDMap {
+
+	private last: IStringDictionary<string | string[]>;
+	private current: IStringDictionary<string | string[]>;
+
+	constructor() {
+		this.current = Object.create(null);
+	}
+
+	public start(): void {
+		this.last = this.current;
+		this.current = Object.create(null);
+	}
+
+	public getUUID(identifier: string): string {
+		let lastValue = this.last[identifier];
+		let result: string;
+		if (lastValue !== void 0) {
+			if (Array.isArray(lastValue)) {
+				result = lastValue.shift();
+				if (lastValue.length === 0) {
+					delete this.last[identifier];
+				}
+			} else {
+				result = lastValue;
+				delete this.last[identifier];
+			}
+		}
+		if (result === void 0) {
+			result = UUID.generateUuid();
+		}
+		let currentValue = this.current[identifier];
+		if (currentValue === void 0) {
+			this.current[identifier] = result;
+		} else {
+			if (Array.isArray(currentValue)) {
+				currentValue.push(result);
+			} else {
+				let arrayValue: string[] = [currentValue];
+				arrayValue.push(result);
+				this.current[identifier] = arrayValue;
+			}
+		}
+		return result;
+	}
+
+	public finish(): void {
+		this.last = undefined;
+	}
+}
+
 class ConfigurationParser {
 
 	private problemReporter: IProblemReporter;
-	constructor(problemReporter: IProblemReporter) {
+	private uuidMap: UUIDMap;
+
+	constructor(problemReporter: IProblemReporter, uuidMap: UUIDMap) {
 		this.problemReporter = problemReporter;
+		this.uuidMap = uuidMap;
 	}
 
 	public run(fileConfig: ExternalTaskRunnerConfiguration): ParseResult {
@@ -1237,6 +1292,7 @@ class ConfigurationParser {
 		}
 		let context: ParseContext = {
 			problemReporter: this.problemReporter,
+			uuidMap: this.uuidMap,
 			namedProblemMatchers: undefined,
 			engine,
 			schemaVersion,
@@ -1278,7 +1334,7 @@ class ConfigurationParser {
 			let matchers: ProblemMatcher[] = ProblemMatcherConverter.from(fileConfig.problemMatcher, context);;
 			let isBackground = fileConfig.isBackground ? !!fileConfig.isBackground : fileConfig.isWatching ? !!fileConfig.isWatching : undefined;
 			let task: Tasks.Task = {
-				_id: UUID.generateUuid(),
+				_id: context.uuidMap.getUUID(globals.command.name),
 				_source: TaskDescription.source,
 				_label: globals.command.name,
 				name: globals.command.name,
@@ -1303,8 +1359,14 @@ class ConfigurationParser {
 	}
 }
 
+let uuidMap: UUIDMap = new UUIDMap();
 export function parse(configuration: ExternalTaskRunnerConfiguration, logger: IProblemReporter): ParseResult {
-	return (new ConfigurationParser(logger)).run(configuration);
+	try {
+		uuidMap.start();
+		return (new ConfigurationParser(logger, uuidMap)).run(configuration);
+	} finally {
+		uuidMap.finish();
+	}
 }
 
 export function mergeTasks(target: Tasks.Task, source: Tasks.Task): Tasks.Task {
