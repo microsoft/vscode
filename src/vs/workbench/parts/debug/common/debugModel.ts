@@ -333,13 +333,14 @@ export class StackFrame implements IStackFrame {
 		public frameId: number,
 		public source: Source,
 		public name: string,
-		public range: IRange
+		public range: IRange,
+		private index: number
 	) {
 		this.scopes = null;
 	}
 
 	public getId(): string {
-		return `stackframe:${this.thread.getId()}:${this.frameId}`;
+		return `stackframe:${this.thread.getId()}:${this.frameId}:${this.index}`;
 	}
 
 	public getScopes(): TPromise<IScope[]> {
@@ -462,7 +463,7 @@ export class Thread implements IThread {
 				this.stoppedDetails.totalFrames = response.body.totalFrames;
 			}
 
-			return response.body.stackFrames.map((rsf, level) => {
+			return response.body.stackFrames.map((rsf, index) => {
 				let source = new Source(rsf.source, rsf.source ? rsf.source.presentationHint : rsf.presentationHint);
 				if (this.process.sources.has(source.uri.toString())) {
 					const alreadyCreatedSource = this.process.sources.get(source.uri.toString());
@@ -477,7 +478,7 @@ export class Thread implements IThread {
 					rsf.column,
 					rsf.endLine,
 					rsf.endColumn
-				));
+				), startFrame + index);
 			});
 		}, (err: Error) => {
 			if (this.stoppedDetails) {
