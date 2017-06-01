@@ -40,7 +40,8 @@ function getExpandedAbbreviation(document: vscode.TextDocument, position: vscode
 	let expandedWord = expand(wordToExpand, {
 		field: field,
 		syntax: syntax,
-		profile: getProfile(syntax)
+		profile: getProfile(syntax),
+		addons: syntax === 'jsx' ? { 'jsx': true } : null
 	});
 
 	let completionitem = new vscode.CompletionItem(wordToExpand);
