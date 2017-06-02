@@ -568,6 +568,14 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			return;
 		}
 
+		if (e.equals(KeyMod.CtrlCmd | KeyCode.Enter)) {
+			if (this._isReplaceVisible) {
+				this._controller.replaceAll();
+				e.preventDefault();
+				return;
+			}
+		}
+
 		if (e.equals(KeyMod.Shift | KeyCode.Enter)) {
 			this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().done(null, onUnexpectedError);
 			e.preventDefault();
