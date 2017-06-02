@@ -25,13 +25,13 @@ import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorWidgetBackground, widgetShadow, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IConfigurationService } from "vs/platform/configuration/common/configuration";
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import * as platform from 'vs/base/common/platform';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { alert } from 'vs/base/browser/ui/aria/aria';
-import { IOpenerService } from "vs/platform/opener/common/opener";
-import URI from "vs/base/common/uri";
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import URI from 'vs/base/common/uri';
 
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
 

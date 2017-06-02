@@ -26,7 +26,7 @@ import { parseTree, Node } from 'vs/base/common/json';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { WindowsNativeResolvedKeybinding } from "vs/workbench/services/keybinding/common/windowsKeyboardMapper";
+import { WindowsNativeResolvedKeybinding } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 
 const NLS_LAUNCH_MESSAGE = nls.localize('defineKeybinding.start', "Define Keybinding");
 const NLS_KB_LAYOUT_ERROR_MESSAGE = nls.localize('defineKeybinding.kbLayoutErrorMessage', "You won't be able to produce this key combination under your current keyboard layout.");

@@ -11,7 +11,7 @@ import { Action } from 'vs/base/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IConfigurationService } from "vs/platform/configuration/common/configuration";
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class ToggleMultiCursorModifierAction extends Action {
 

@@ -29,7 +29,7 @@ import { Color } from 'vs/base/common/color';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { getAccessibilitySupport } from 'vs/base/browser/browser';
 import { AccessibilitySupport } from 'vs/base/common/platform';
-import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder } from "vs/editor/common/view/editorColorRegistry";
+import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder } from 'vs/editor/common/view/editorColorRegistry';
 
 class MarkerModel {
 
