@@ -119,10 +119,11 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 				icons.push(darkIconPath);
 			}
 
+			const tooltip = r.decorations.tooltip;
 			const strikeThrough = r.decorations && !!r.decorations.strikeThrough;
 			const faded = r.decorations && !!r.decorations.faded;
 
-			return [handle, sourceUri, command, icons, strikeThrough, faded] as SCMRawResource;
+			return [handle, sourceUri, command, icons, tooltip, strikeThrough, faded] as SCMRawResource;
 		});
 
 		this._proxy.$updateGroupResourceStates(this._sourceControlHandle, this._handle, rawResources);

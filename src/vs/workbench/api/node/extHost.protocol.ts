@@ -320,6 +320,7 @@ export type SCMRawResource = [
 	string /*resourceUri*/,
 	modes.Command /*command*/,
 	string[] /*icons: light, dark*/,
+	string /*tooltip*/,
 	boolean /*strike through*/,
 	boolean /*faded*/
 ];
