@@ -3,8 +3,9 @@ all: hello
 
 .PHONY: hello
 hello: main.o factorial.o \
-       hello.o # This is a long \
-                 comment
+       hello.o $(first) $($(filter second,second)) \
+       # This is a long \
+         comment inside prerequisites.
 	g++ main.o factorial.o hello.o -o hello
 
 # There are a building steps \
@@ -14,11 +15,11 @@ main.o: main.cpp
 	g++ -c main.cpp
 
 factorial.o: factorial.cpp
-	g++ -c factorial.cpp
+	g++ -c factorial.cpp $(fake_variable)
 
 hello.o: hello.cpp \
-					$(Coloring with tabs at the beginning of line of recipe)
-	g++ -c hello.cpp $(fake_variable)
+					$(Colorizing with tabs at the beginning of the second line of prerequisites)
+	g++ -c hello.cpp -o $@
 
 .PHONY: clean
 clean:
