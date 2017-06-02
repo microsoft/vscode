@@ -226,7 +226,8 @@ const nlsMultiSelection = nls.localize('multiSelection', "{0} selections");
 const nlsEOLLF = nls.localize('endOfLineLineFeed', "LF");
 const nlsEOLCRLF = nls.localize('endOfLineCarriageReturnLineFeed', "CRLF");
 const nlsTabFocusMode = nls.localize('tabFocusModeEnabled', "Tab moves focus");
-const nlsScreenReaderDetected = nls.localize('screenReaderDetected', "Screen reader detected");
+const nlsScreenReaderDetected = nls.localize('screenReaderDetected', "Screen Reader detected");
+const nlsScreenReaderDetectedTitle = nls.localize('screenReaderDetectedExtra', "If you are not using a Screen Reader, please change the setting `editor.accessibilitySupport` to off.");
 
 function _setDisplay(el: HTMLElement, desiredValue: string): void {
 	if (el.style.display !== desiredValue) {
@@ -282,6 +283,7 @@ export class EditorStatus implements IStatusbarItem {
 
 		this.screenRedearModeElement = append(this.element, $('a.editor-status-screenreadermode.status-bar-info'));
 		this.screenRedearModeElement.textContent = nlsScreenReaderDetected;
+		this.screenRedearModeElement.title = nlsScreenReaderDetectedTitle;
 		hide(this.screenRedearModeElement);
 
 		this.selectionElement = append(this.element, $('a.editor-status-selection'));
