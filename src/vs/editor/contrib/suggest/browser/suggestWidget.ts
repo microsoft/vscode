@@ -243,8 +243,15 @@ class SuggestionDetails {
 			return;
 		}
 		removeClass(this.el, 'no-docs');
-		this.type.innerText = item.suggestion.detail || '';
 		this.docs.textContent = item.suggestion.documentation;
+
+		if (item.suggestion.detail) {
+			this.type.innerText = item.suggestion.detail;
+			show(this.type);
+		} else {
+			this.type.innerText = '';
+			hide(this.type);
+		}
 
 		this.el.style.height = this.header.offsetHeight + this.docs.offsetHeight + 'px';
 
