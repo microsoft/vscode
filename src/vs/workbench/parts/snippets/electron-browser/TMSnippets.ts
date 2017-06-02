@@ -94,6 +94,12 @@ export function readAndRegisterSnippets(
 	return readFile(filePath).then(fileContents => {
 		let snippets = parseSnippetFile(fileContents.toString(), extensionName, collector);
 		snippetService.registerSnippets(languageIdentifier.id, snippets, filePath);
+	}, err => {
+		if (err && err.code === 'ENOENT') {
+			snippetService.registerSnippets(languageIdentifier.id, [], filePath);
+		} else {
+			throw err;
+		}
 	});
 }
 
