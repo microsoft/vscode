@@ -1257,6 +1257,7 @@ export class BreakpointsController extends BaseDebugController {
 			return true;
 		}
 		if (element instanceof Breakpoint) {
+			super.onLeftClick(tree, element, event);
 			this.openBreakpointSource(element, event, event.detail !== 2);
 			return true;
 		}
