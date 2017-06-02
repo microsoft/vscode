@@ -119,6 +119,22 @@ export class Resource implements SourceControlResourceState {
 		}
 	}
 
+	private get tooltip(): string | undefined {
+		let results;
+		try {
+			const nameOfEnum = Status[this.type];
+			const prettyNameOfEnum = nameOfEnum.replace(/([A-Z])([A-Z]+)([_])?/gm, (match, p1, p2, p3, offset, string) => {
+				// ex: 'Status.DELETED_BY_THEM', p1 is first character, p2 second to nth character, and p3 is underscore
+				return p1.toUpperCase() + p2.toLowerCase() + ' ';
+			});
+			results = localize(nameOfEnum, prettyNameOfEnum);
+		} catch (err) {
+			results = void 0;
+		}
+
+		return results;
+	}
+
 	private get strikeThrough(): boolean {
 		switch (this.type) {
 			case Status.DELETED:
@@ -141,10 +157,11 @@ export class Resource implements SourceControlResourceState {
 	get decorations(): SourceControlResourceDecorations {
 		const light = { iconPath: this.getIconPath('light') };
 		const dark = { iconPath: this.getIconPath('dark') };
+		const tooltip = this.tooltip;
 		const strikeThrough = this.strikeThrough;
 		const faded = this.faded;
 
-		return { strikeThrough, faded, light, dark };
+		return { strikeThrough, faded, tooltip, light, dark };
 	}
 
 	constructor(
