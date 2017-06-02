@@ -365,13 +365,13 @@ export function createApiFactory(
 				}
 				return extHostTerminalService.createTerminal(<string>nameOrOptions, shellPath, shellArgs);
 			},
+			registerTreeDataProvider(viewId: string, treeDataProvider: vscode.TreeDataProvider<any>): vscode.Disposable {
+				return extHostTreeViews.registerTreeDataProvider(viewId, treeDataProvider);
+			},
 			// proposed API
 			sampleFunction: proposedApiFunction(extension, () => {
 				return extHostMessageService.showMessage(Severity.Info, 'Hello Proposed Api!', {}, []);
 			}),
-			registerTreeDataProvider: proposedApiFunction(extension, (viewId: string, treeDataProvider: vscode.TreeDataProvider<any>): vscode.Disposable => {
-				return extHostTreeViews.registerTreeDataProvider(viewId, treeDataProvider);
-			})
 		};
 
 		// namespace: workspace
