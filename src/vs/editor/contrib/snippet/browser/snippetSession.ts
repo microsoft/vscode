@@ -243,7 +243,7 @@ export class SnippetSession {
 		return selection;
 	}
 
-	static createEditsAndSnippets(editor: ICommonCodeEditor, template: string, overwriteBefore: number, overwriteAfter: number): { edits: IIdentifiedSingleEditOperation[], snippets: OneSnippet[] } {
+	static createEditsAndSnippets(editor: ICommonCodeEditor, template: string, overwriteBefore: number, overwriteAfter: number, enforceFinalTabstop: boolean): { edits: IIdentifiedSingleEditOperation[], snippets: OneSnippet[] } {
 
 		const model = editor.getModel();
 		const edits: IIdentifiedSingleEditOperation[] = [];
@@ -288,7 +288,7 @@ export class SnippetSession {
 			const start = snippetSelection.getStartPosition();
 			const adjustedTemplate = SnippetSession.adjustWhitespace(model, start, template);
 
-			const snippet = SnippetParser.parse(adjustedTemplate).resolveVariables(new EditorSnippetVariableResolver(model, selection));
+			const snippet = SnippetParser.parse(adjustedTemplate, enforceFinalTabstop).resolveVariables(new EditorSnippetVariableResolver(model, selection));
 
 			const offset = model.getOffsetAt(start) + delta;
 			delta += snippet.text.length - model.getValueLengthInRange(snippetSelection);
@@ -325,7 +325,7 @@ export class SnippetSession {
 		const model = this._editor.getModel();
 
 		// make insert edit and start with first selections
-		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, this._template, this._overwriteBefore, this._overwriteAfter);
+		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, this._template, this._overwriteBefore, this._overwriteAfter, false);
 		this._snippets = snippets;
 
 		this._editor.setSelections(model.pushEditOperations(this._editor.getSelections(), edits, undoEdits => {
@@ -338,7 +338,7 @@ export class SnippetSession {
 	}
 
 	merge(template: string, overwriteBefore: number = 0, overwriteAfter: number = 0): void {
-		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, template, overwriteBefore, overwriteAfter);
+		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, template, overwriteBefore, overwriteAfter, true);
 
 		this._editor.setSelections(this._editor.getModel().pushEditOperations(this._editor.getSelections(), edits, undoEdits => {
 

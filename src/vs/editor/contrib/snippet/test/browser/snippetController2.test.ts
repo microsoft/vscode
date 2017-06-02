@@ -175,6 +175,29 @@ suite('SnippetController2', function () {
 
 		ctrl.insert('farboo');
 		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
+		assertContextKeys(contextKeys, true, false, true);
+
+		ctrl.next();
+		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
+		assertContextKeys(contextKeys, false, false, false);
+	});
+
+	test('Nested snippets without final placeholder jumps to next outer placeholder, #27898', function () {
+		const ctrl = new SnippetController2(editor, contextKeys);
+
+		ctrl.insert('for(const ${1:element} of ${2:array}) {$0}');
+		assertContextKeys(contextKeys, true, false, true);
+		assertSelections(editor, new Selection(1, 11, 1, 18), new Selection(2, 15, 2, 22));
+
+		ctrl.next();
+		assertContextKeys(contextKeys, true, true, true);
+		assertSelections(editor, new Selection(1, 22, 1, 27), new Selection(2, 26, 2, 31));
+
+		ctrl.insert('document');
+		assertContextKeys(contextKeys, true, true, true);
+		assertSelections(editor, new Selection(1, 30, 1, 30), new Selection(2, 34, 2, 34));
+
+		ctrl.next();
 		assertContextKeys(contextKeys, false, false, false);
 	});
 

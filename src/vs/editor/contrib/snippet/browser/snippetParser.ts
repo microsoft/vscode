@@ -331,8 +331,8 @@ export class SnippetParser {
 		return value.replace(/\$|}|\\/g, '\\$&');
 	}
 
-	static parse(template: string): TextmateSnippet {
-		const marker = new SnippetParser(true, false).parse(template, true);
+	static parse(template: string, enforceFinalTabstop?: boolean): TextmateSnippet {
+		const marker = new SnippetParser(true, false).parse(template, true, enforceFinalTabstop);
 		return new TextmateSnippet(marker);
 	}
 
@@ -351,7 +351,7 @@ export class SnippetParser {
 		return Marker.toString(this.parse(value));
 	}
 
-	parse(value: string, insertFinalTabstop?: boolean): Marker[] {
+	parse(value: string, insertFinalTabstop?: boolean, enforceFinalTabstop?: boolean): Marker[] {
 		const marker: Marker[] = [];
 
 		this._scanner.text(value);
@@ -395,9 +395,8 @@ export class SnippetParser {
 		walk(marker, placeholderDefaultValues);
 
 		if (
-			insertFinalTabstop
-			&& placeholderDefaultValues.size > 0
-			&& !placeholderDefaultValues.has('0')
+			!placeholderDefaultValues.has('0') && // there is no final tabstop
+			(insertFinalTabstop && placeholderDefaultValues.size > 0 || enforceFinalTabstop)
 		) {
 			// the snippet uses placeholders but has no
 			// final tabstop defined -> insert at the end
