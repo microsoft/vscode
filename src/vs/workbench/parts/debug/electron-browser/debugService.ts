@@ -506,7 +506,10 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		const state = this.state;
-		this.debugState.set(debug.State[state].toLowerCase());
+		const stateLabel = debug.State[state];
+		if (stateLabel) {
+			this.debugState.set(stateLabel.toLowerCase());
+		}
 		this._onDidChangeState.fire(state);
 	}
 
