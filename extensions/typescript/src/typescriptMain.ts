@@ -593,7 +593,13 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 								}, _ => {
 									return workspace.openTextDocument(configFile.with({ scheme: 'untitled' }))
 										.then(doc => window.showTextDocument(doc, col))
-										.then(editor => editor.insertSnippet(new SnippetString('{\n\t$0\n}')));
+										.then(editor => {
+											if (editor.document.getText().length === 0) {
+												return editor.insertSnippet(new SnippetString('{\n\t$0\n}'))
+													.then(_ => editor);
+											}
+											return editor;
+										});
 								});
 
 						case ProjectConfigAction.LearnMore:
