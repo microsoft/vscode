@@ -94,6 +94,68 @@ interface MyMessageItem extends MessageItem {
 	id: MessageAction;
 }
 
+class TypeScriptServiceConfiguration {
+	public readonly globalTsdk: string | null;
+	public readonly localTsdk: string | null;
+	public readonly npmLocation: string | null;
+	public readonly tsServerLogLevel: TsServerLogLevel = TsServerLogLevel.Off;
+	public readonly checkJs: boolean;
+
+	public static loadFromWorkspace(): TypeScriptServiceConfiguration {
+		return new TypeScriptServiceConfiguration();
+	}
+
+	private constructor() {
+		const configuration = workspace.getConfiguration();
+
+		this.globalTsdk = TypeScriptServiceConfiguration.extractGlobalTsdk(configuration);
+		this.localTsdk = TypeScriptServiceConfiguration.extractLocalTsdk(configuration);
+		this.npmLocation = TypeScriptServiceConfiguration.readNpmLocation(configuration);
+		this.tsServerLogLevel = TypeScriptServiceConfiguration.readTsServerLogLevel(configuration);
+		this.checkJs = TypeScriptServiceConfiguration.readCheckJs(configuration);
+	}
+
+	public isEqualTo(other: TypeScriptServiceConfiguration): boolean {
+		return this.globalTsdk === other.globalTsdk
+			&& this.localTsdk === other.localTsdk
+			&& this.npmLocation === other.npmLocation
+			&& this.tsServerLogLevel === other.tsServerLogLevel
+			&& this.checkJs === other.checkJs;
+	}
+
+	private static extractGlobalTsdk(configuration: WorkspaceConfiguration): string | null {
+		let inspect = configuration.inspect('typescript.tsdk');
+		if (inspect && inspect.globalValue && 'string' === typeof inspect.globalValue) {
+			return inspect.globalValue;
+		}
+		if (inspect && inspect.defaultValue && 'string' === typeof inspect.defaultValue) {
+			return inspect.defaultValue;
+		}
+		return null;
+	}
+
+	private static extractLocalTsdk(configuration: WorkspaceConfiguration): string | null {
+		let inspect = configuration.inspect('typescript.tsdk');
+		if (inspect && inspect.workspaceValue && 'string' === typeof inspect.workspaceValue) {
+			return inspect.workspaceValue;
+		}
+		return null;
+	}
+
+	private static readTsServerLogLevel(configuration: WorkspaceConfiguration): TsServerLogLevel {
+		const setting = configuration.get<string>('typescript.tsserver.log', 'off');
+		return TsServerLogLevel.fromString(setting);
+	}
+
+	private static readCheckJs(configuration: WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('javascript.implicitProjectConfig.checkJs', false);
+	}
+
+	private static readNpmLocation(configuration: WorkspaceConfiguration): string | null {
+		return configuration.get<string | null>('typescript.npm', null);
+	}
+}
+
 export default class TypeScriptServiceClient implements ITypescriptServiceClient {
 	private static useWorkspaceTsdkStorageKey = 'typescript.useWorkspaceTsdk';
 	private static tsdkMigratedStorageKey = 'typescript.tsdkMigrated';
@@ -108,15 +170,12 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private modulePath: string | undefined;
 
 	private _onReady: { promise: Promise<void>; resolve: () => void; reject: () => void; };
-	private globalTsdk: string | null;
-	private localTsdk: string | null;
-	private npmLocation: string | null;
+	private configuration: TypeScriptServiceConfiguration;
 	private _checkGlobalTSCVersion: boolean;
 	private _experimentalAutoBuild: boolean;
 	private tracer: Tracer;
 	private readonly logger: Logger = new Logger();
 	private tsServerLogFile: string | null = null;
-	private tsServerLogLevel: TsServerLogLevel = TsServerLogLevel.Off;
 	private servicePromise: Thenable<cp.ChildProcess> | null;
 	private lastError: Error | null;
 	private reader: Reader<Proto.Response>;
@@ -136,7 +195,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	private _apiVersion: API;
 	private telemetryReporter: TelemetryReporter;
-	private checkJs: boolean;
 
 	constructor(
 		host: ITypescriptServiceClientHost,
@@ -168,42 +226,27 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.requestQueue = [];
 		this.pendingResponses = 0;
 		this.callbacks = Object.create(null);
-		const configuration = workspace.getConfiguration();
-		this.globalTsdk = this.extractGlobalTsdk(configuration);
-		this.localTsdk = this.extractLocalTsdk(configuration);
-		this.npmLocation = configuration.get<string | null>('typescript.npm', null);
+		this.configuration = TypeScriptServiceConfiguration.loadFromWorkspace();
 
 		this._experimentalAutoBuild = false; // configuration.get<boolean>('typescript.tsserver.experimentalAutoBuild', false);
 		this._apiVersion = new API('1.0.0');
 		this._checkGlobalTSCVersion = true;
 		this.tracer = new Tracer(this.logger);
-		this.tsServerLogLevel = this.readTsServerLogLevel();
-		this.checkJs = this.readCheckJs();
 
 		disposables.push(workspace.onDidChangeConfiguration(() => {
-			let oldLoggingLevel = this.tsServerLogLevel;
-			let oldglobalTsdk = this.globalTsdk;
-			let oldLocalTsdk = this.localTsdk;
-			let oldCheckJs = this.checkJs;
-			const oldNpmLocation = this.npmLocation;
+			const oldConfiguration = this.configuration;
+			this.configuration = TypeScriptServiceConfiguration.loadFromWorkspace();
 
 			this.tracer.updateConfiguration();
-			this.tsServerLogLevel = this.readTsServerLogLevel();
 
-			const configuration = workspace.getConfiguration();
-			this.globalTsdk = this.extractGlobalTsdk(configuration);
-			this.localTsdk = this.extractLocalTsdk(configuration);
-			this.checkJs = this.readCheckJs();
-			this.npmLocation = configuration.get<string | null>('typescript.npm', null);
+			if (this.servicePromise) {
+				if (this.configuration.checkJs !== oldConfiguration.checkJs) {
+					this.setCompilerOptionsForInferredProjects();
+				}
 
-			if (this.servicePromise && oldCheckJs !== this.checkJs) {
-				this.setCompilerOptionsForInferredProjects();
-			}
-
-			if (this.servicePromise === null && (oldglobalTsdk !== this.globalTsdk || oldLocalTsdk !== this.localTsdk)) {
-				this.startService();
-			} else if (this.servicePromise !== null && (this.tsServerLogLevel !== oldLoggingLevel || oldglobalTsdk !== this.globalTsdk || oldLocalTsdk !== this.localTsdk || oldNpmLocation !== this.npmLocation)) {
-				this.restartTsServer();
+				if (!this.configuration.isEqualTo(oldConfiguration)) {
+					this.restartTsServer();
+				}
 			}
 		}));
 		this.telemetryReporter = new TelemetryReporter();
@@ -213,12 +256,11 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	public restartTsServer(): void {
 		const start = () => {
-			this.tsServerLogLevel = this.readTsServerLogLevel();
 			this.servicePromise = this.startService();
 			return this.servicePromise;
 		};
 
-		if (this.servicePromise !== null) {
+		if (this.servicePromise) {
 			this.servicePromise = this.servicePromise.then(cp => {
 				if (cp) {
 					cp.kill();
@@ -227,26 +269,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		} else {
 			start();
 		}
-	}
-
-
-	private extractGlobalTsdk(configuration: WorkspaceConfiguration): string | null {
-		let inspect = configuration.inspect('typescript.tsdk');
-		if (inspect && inspect.globalValue && 'string' === typeof inspect.globalValue) {
-			return inspect.globalValue;
-		}
-		if (inspect && inspect.defaultValue && 'string' === typeof inspect.defaultValue) {
-			return inspect.defaultValue;
-		}
-		return null;
-	}
-
-	private extractLocalTsdk(configuration: WorkspaceConfiguration): string | null {
-		let inspect = configuration.inspect('typescript.tsdk');
-		if (inspect && inspect.workspaceValue && 'string' === typeof inspect.workspaceValue) {
-			return inspect.workspaceValue;
-		}
-		return null;
 	}
 
 	get onProjectLanguageServiceStateChanged(): Event<Proto.ProjectLanguageServiceStateEventBody> {
@@ -263,15 +285,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	get onTypesInstallerInitializationFailed(): Event<Proto.TypesInstallerInitializationFailedEventBody> {
 		return this._onTypesInstallerInitializationFailed.event;
-	}
-
-	private readTsServerLogLevel(): TsServerLogLevel {
-		const setting = workspace.getConfiguration().get<string>('typescript.tsserver.log', 'off');
-		return TsServerLogLevel.fromString(setting);
-	}
-
-	private readCheckJs(): boolean {
-		return workspace.getConfiguration().get<boolean>('javascript.implicitProjectConfig.checkJs', false);
 	}
 
 	public get experimentalAutoBuild(): boolean {
@@ -333,12 +346,12 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			return null;
 		}
 
-		if (this.localTsdk) {
+		if (this.configuration.localTsdk) {
 			this._checkGlobalTSCVersion = false;
-			if ((<any>path).isAbsolute(this.localTsdk)) {
-				return path.join(this.localTsdk, 'tsserver.js');
+			if ((<any>path).isAbsolute(this.configuration.localTsdk)) {
+				return path.join(this.configuration.localTsdk, 'tsserver.js');
 			}
-			return path.join(workspace.rootPath, this.localTsdk, 'tsserver.js');
+			return path.join(workspace.rootPath, this.configuration.localTsdk, 'tsserver.js');
 		}
 
 		const localModulePath = path.join(workspace.rootPath, 'node_modules', 'typescript', 'lib', 'tsserver.js');
@@ -349,12 +362,12 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private get globalTypescriptPath(): string {
-		if (this.globalTsdk) {
+		if (this.configuration.globalTsdk) {
 			this._checkGlobalTSCVersion = false;
-			if ((<any>path).isAbsolute(this.globalTsdk)) {
-				return path.join(this.globalTsdk, 'tsserver.js');
+			if ((<any>path).isAbsolute(this.configuration.globalTsdk)) {
+				return path.join(this.configuration.globalTsdk, 'tsserver.js');
 			} else if (workspace.rootPath) {
-				return path.join(workspace.rootPath, this.globalTsdk, 'tsserver.js');
+				return path.join(workspace.rootPath, this.configuration.globalTsdk, 'tsserver.js');
 			}
 		}
 
@@ -362,7 +375,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private hasWorkspaceTsdkSetting(): boolean {
-		return !!this.localTsdk;
+		return !!this.configuration.localTsdk;
 	}
 
 	private startService(resendModels: boolean = false): Thenable<cp.ChildProcess> {
@@ -457,7 +470,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					}
 
 					if (this.apiVersion.has222Features()) {
-						if (this.tsServerLogLevel !== TsServerLogLevel.Off) {
+						if (this.configuration.tsServerLogLevel !== TsServerLogLevel.Off) {
 							try {
 								const logDir = fs.mkdtempSync(path.join(os.tmpdir(), `vscode-tsserver-log-`));
 								this.tsServerLogFile = path.join(logDir, `tsserver.log`);
@@ -467,7 +480,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							}
 
 							if (this.tsServerLogFile) {
-								args.push('--logVerbosity', TsServerLogLevel.toString(this.tsServerLogLevel));
+								args.push('--logVerbosity', TsServerLogLevel.toString(this.configuration.tsServerLogLevel));
 								args.push('--logFile', this.tsServerLogFile);
 							}
 						}
@@ -483,8 +496,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					}
 
 					if (this.apiVersion.has234Features()) {
-						if (this.npmLocation) {
-							args.push('--npmLocation', `"${this.npmLocation}"`);
+						if (this.configuration.npmLocation) {
+							args.push('--npmLocation', `"${this.configuration.npmLocation}"`);
 						}
 					}
 
@@ -649,7 +662,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				.then(() => false);
 		}
 
-		if (this.tsServerLogLevel === TsServerLogLevel.Off) {
+		if (this.configuration.tsServerLogLevel === TsServerLogLevel.Off) {
 			return window.showErrorMessage<MessageItem>(
 				localize(
 					'typescript.openTsServerLog.loggingNotEnabled',
