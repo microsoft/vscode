@@ -14,7 +14,7 @@ import * as dom from 'vs/base/browser/dom';
 import { renderHtml } from 'vs/base/browser/htmlContentRenderer';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { Widget } from 'vs/base/browser/ui/widget';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommonCodeEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -30,6 +30,8 @@ import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import * as platform from 'vs/base/common/platform';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { alert } from 'vs/base/browser/ui/aria/aria';
+import { IOpenerService } from "vs/platform/opener/common/opener";
+import URI from "vs/base/common/uri";
 
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
 
@@ -47,15 +49,12 @@ class AccessibilityHelpController extends Disposable implements IEditorContribut
 
 	constructor(
 		editor: ICodeEditor,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
 
 		this._editor = editor;
-		this._widget = this._register(new AccessibilityHelpWidget(this._editor, contextKeyService, keybindingService, configurationService, configurationEditingService));
+		this._widget = this._register(instantiationService.createInstance(AccessibilityHelpWidget, this._editor));
 	}
 
 	public getId(): string {
@@ -78,27 +77,22 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 	private static HEIGHT = 300;
 
 	private _editor: ICodeEditor;
-	private _keybindingService: IKeybindingService;
-	private _configurationService: IConfigurationService;
-	private _configurationEditingService: IConfigurationEditingService;
 	private _domNode: FastDomNode<HTMLElement>;
 	private _isVisible: boolean;
 	private _isVisibleKey: IContextKey<boolean>;
 
 	constructor(
 		editor: ICodeEditor,
-		contextKeyService: IContextKeyService,
-		keybindingService: IKeybindingService,
-		configurationService: IConfigurationService,
-		configurationEditingService: IConfigurationEditingService
+		@IContextKeyService private _contextKeyService: IContextKeyService,
+		@IKeybindingService private _keybindingService: IKeybindingService,
+		@IConfigurationService private _configurationService: IConfigurationService,
+		@IConfigurationEditingService private _configurationEditingService: IConfigurationEditingService,
+		@IOpenerService private _openerService: IOpenerService
 	) {
 		super();
 
 		this._editor = editor;
-		this._keybindingService = keybindingService;
-		this._configurationService = configurationService;
-		this._configurationEditingService = configurationEditingService;
-		this._isVisibleKey = CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE.bindTo(contextKeyService);
+		this._isVisibleKey = CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE.bindTo(this._contextKeyService);
 
 		this._domNode = createFastDomNode(document.createElement('div'));
 		this._domNode.setClassName('accessibilityHelpWidget');
@@ -120,6 +114,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 			if (!this._isVisible) {
 				return;
 			}
+
 			if (e.equals(KeyMod.CtrlCmd | KeyCode.KEY_E)) {
 				alert(nls.localize('emergencyConfOn', "Now changing the setting `editor.accessibilitySupport` to 'on'."));
 
@@ -127,6 +122,15 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 					key: 'editor.accessibilitySupport',
 					value: 'on'
 				});
+
+				e.preventDefault();
+				e.stopPropagation();
+			}
+
+			if (e.equals(KeyMod.CtrlCmd | KeyCode.KEY_H)) {
+				alert(nls.localize('openingDocs', "Now opening the VS Code Accessibility documentation page."));
+
+				this._openerService.open(URI.parse('https://go.microsoft.com/fwlink/?linkid=851010'));
 
 				e.preventDefault();
 				e.stopPropagation();
@@ -231,6 +235,14 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		} else {
 			text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, NLS_TAB_FOCUS_MODE_OFF, NLS_TAB_FOCUS_MODE_OFF_NO_KB);
 		}
+
+		const openDocMessage = (
+			platform.isMacintosh
+				? nls.localize('openDocMac', "Press Command+H now to open a browser window with more VS Code information related to Accessibility.")
+				: nls.localize('openDocWinLinux', "Press Control+H now to open a browser window with more VS Code information related to Accessibility.")
+		);
+
+		text += '\n\n' + openDocMessage;
 
 		text += '\n\n' + nls.localize('outroMsg', "You can dismiss this tooltip and return to the editor by pressing Escape or Shift+Escape.");
 
