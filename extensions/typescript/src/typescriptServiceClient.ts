@@ -163,9 +163,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private static readonly WALK_THROUGH_SNIPPET_SCHEME = 'walkThroughSnippet';
 	private static readonly WALK_THROUGH_SNIPPET_SCHEME_COLON = `${TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME}:`;
 
-	private host: ITypescriptServiceClientHost;
-	private storagePath: string | undefined;
-	private globalState: Memento;
 	private pathSeparator: string;
 	private modulePath: string | undefined;
 
@@ -197,18 +194,13 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private telemetryReporter: TelemetryReporter;
 
 	constructor(
-		host: ITypescriptServiceClientHost,
-		storagePath: string | undefined,
-		globalState: Memento,
+		private readonly host: ITypescriptServiceClientHost,
+		private readonly storagePath: string | undefined,
 		private readonly workspaceState: Memento,
 		private readonly versionStatus: VersionStatus,
-
-		private plugins: TypeScriptServerPlugin[],
+		private readonly plugins: TypeScriptServerPlugin[],
 		disposables: Disposable[]
 	) {
-		this.host = host;
-		this.storagePath = storagePath;
-		this.globalState = globalState;
 		this.pathSeparator = path.sep;
 		this.lastStart = Date.now();
 
@@ -400,8 +392,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			return this.getDebugPort().then(debugPort => ({ modulePath, debugPort }));
 		}).then(({ modulePath, debugPort }) => {
 			return this.servicePromise = new Promise<cp.ChildProcess>((resolve, reject) => {
-				const tsConfig = workspace.getConfiguration('typescript');
-
 				this.info(`Using tsserver from: ${modulePath}`);
 				if (!fs.existsSync(modulePath)) {
 					window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', modulePath ? path.dirname(modulePath) : ''));
@@ -426,15 +416,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				this.versionStatus.showHideStatus();
 				this.versionStatus.setInfo(label, tooltip);
 
-				// This is backwards compatibility code to move the setting from the local
-				// store into the workspace setting file.
-				const doGlobalVersionCheckKey: string = 'doGlobalVersionCheck';
-				const globalStateValue = this.globalState.get(doGlobalVersionCheckKey, true);
-				const checkTscVersion = 'check.tscVersion';
-				if (!globalStateValue) {
-					tsConfig.update(checkTscVersion, false, true);
-					this.globalState.update(doGlobalVersionCheckKey, true);
-				}
 
 				this.sequenceNumber = 0;
 				this.requestQueue = [];
