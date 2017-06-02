@@ -14,7 +14,6 @@ import paths = require('vs/base/common/paths');
 import types = require('vs/base/common/types');
 import uri from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
-import * as browser from 'vs/base/browser/browser';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { Action } from 'vs/base/common/actions';
 import { language, LANGUAGE_DEFAULT, AccessibilitySupport } from 'vs/base/common/platform';
@@ -47,6 +46,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { getCodeEditor as getEditorWidget } from 'vs/editor/common/services/codeEditorService';
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
 
 function toEditorWithEncodingSupport(input: IEditorInput): IEncodingSupport {
 	if (input instanceof SideBySideEditorInput) {
@@ -329,9 +329,7 @@ export class EditorStatus implements IStatusbarItem {
 			this.untitledEditorService.onDidChangeEncoding(r => this.onResourceEncodingChange(r)),
 			this.textFileService.models.onModelEncodingChanged(e => this.onResourceEncodingChange(e.resource)),
 			TabFocus.onDidChangeTabFocus(e => this.onTabFocusModeChange()),
-			browser.onDidChangeAccessibilitySupport(() => this.onScreenReaderModeChange())
 		);
-		this.onScreenReaderModeChange();
 
 		return combinedDisposable(this.toDispose);
 	}
@@ -492,6 +490,7 @@ export class EditorStatus implements IStatusbarItem {
 		const control = getEditorWidget(activeEditor);
 
 		// Update all states
+		this.onScreenReaderModeChange(control);
 		this.onSelectionChange(control);
 		this.onModeChange(control);
 		this.onEOLChange(control);
@@ -504,6 +503,13 @@ export class EditorStatus implements IStatusbarItem {
 
 		// Attach new listeners to active editor
 		if (control) {
+
+			// Hook Listener for Configuration changes
+			this.activeEditorListeners.push(control.onDidChangeConfiguration((event: IConfigurationChangedEvent) => {
+				if (event.accessibilitySupport) {
+					this.onScreenReaderModeChange(control);
+				}
+			}));
 
 			// Hook Listener for Selection changes
 			this.activeEditorListeners.push(control.onDidChangeCursorPosition((event: ICursorPositionChangedEvent) => {
@@ -595,6 +601,18 @@ export class EditorStatus implements IStatusbarItem {
 		this.updateState(update);
 	}
 
+	private onScreenReaderModeChange(editorWidget: ICommonCodeEditor): void {
+		let screenReaderMode = false;
+
+		// We only support text based editors
+		if (editorWidget) {
+
+			screenReaderMode = (editorWidget.getConfiguration().accessibilitySupport === AccessibilitySupport.Enabled);
+		}
+
+		this.updateState({ screenReaderMode: screenReaderMode });
+	}
+
 	private onSelectionChange(editorWidget: ICommonCodeEditor): void {
 		const info: IEditorSelectionStatus = {};
 
@@ -681,12 +699,6 @@ export class EditorStatus implements IStatusbarItem {
 
 	private onTabFocusModeChange(): void {
 		const info: StateDelta = { tabFocusMode: TabFocus.getTabFocusMode() };
-
-		this.updateState(info);
-	}
-
-	private onScreenReaderModeChange(): void {
-		const info: StateDelta = { screenReaderMode: browser.getAccessibilitySupport() === AccessibilitySupport.Enabled };
 
 		this.updateState(info);
 	}
