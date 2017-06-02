@@ -26,7 +26,7 @@ import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/acti
 import { ClosePanelAction, PanelAction, ToggleMaximizedPanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER } from 'vs/workbench/common/theme';
-import { activeContrastBorder, focusBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, focusBorder, contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
@@ -193,6 +193,20 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 }
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+
+	// Panel Background: since panels can host editors, we apply a background rule if the panel background
+	// color is different from the editor background color. This is a bit of a hack though. The better way
+	// would be to have a way to push the background color onto each editor widget itself somehow.
+	const panelBackground = theme.getColor(PANEL_BACKGROUND);
+	if (panelBackground && panelBackground !== theme.getColor(editorBackground)) {
+		collector.addRule(`
+			.monaco-workbench > .part.panel > .content .monaco-editor,
+			.monaco-workbench > .part.panel > .content .monaco-editor .margin,
+			.monaco-workbench > .part.panel > .content .monaco-editor .monaco-editor-background {
+				background-color: ${panelBackground};
+			}
+		`);
+	}
 
 	// Title Active
 	const titleActive = theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND);
