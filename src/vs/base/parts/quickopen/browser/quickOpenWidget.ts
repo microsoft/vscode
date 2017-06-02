@@ -203,8 +203,11 @@ export class QuickOpenWidget implements IModelProvider {
 
 						this.navigateInTree(keyboardEvent.keyCode, keyboardEvent.shiftKey);
 
-						// Position cursor at the end of input to allow right arrow (open in background) to function immediately
-						this.inputBox.inputElement.selectionStart = this.inputBox.value.length;
+						// Position cursor at the end of input to allow right arrow (open in background)
+						// to function immediately unless the user has made a selection
+						if (this.inputBox.inputElement.selectionStart === this.inputBox.inputElement.selectionEnd) {
+							this.inputBox.inputElement.selectionStart = this.inputBox.value.length;
+						}
 					}
 
 					// Select element on Enter or on Arrow-Right if we are at the end of the input
@@ -393,7 +396,9 @@ export class QuickOpenWidget implements IModelProvider {
 			return false; // no modifiers allowed
 		}
 
-		return this.inputBox.inputElement.selectionStart === this.inputBox.value.length; // only when cursor is at the end of the input field value
+		// validate the cursor is at the end of the input, and if not prevent
+		// opening in the background such as the selection can be changed
+		return this.inputBox.inputElement.selectionEnd === this.inputBox.value.length;
 	}
 
 	private onType(): void {
