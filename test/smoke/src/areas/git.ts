@@ -65,6 +65,6 @@ export class Git {
 	}
 
 	public getOutgoingChanges(): Promise<string> {
-		return this.spectron.client.getText('a[title="Synchronize changes"]');
+		return this.spectron.client.getText('a[title="Synchronize Changes"]');
 	}
 }
