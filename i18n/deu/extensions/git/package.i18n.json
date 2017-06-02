@@ -32,7 +32,6 @@
 	"command.push": "Push",
 	"command.pushTo": "Push zu...",
 	"command.sync": "Synchronisierung",
-	"command.publish": "Veröffentlichen",
 	"command.showOutput": "Git-Ausgabe anzeigen",
 	"config.enabled": "Gibt an, ob Git aktiviert ist.",
 	"config.path": "Der Pfad zur ausführbaren Git-Datei.",

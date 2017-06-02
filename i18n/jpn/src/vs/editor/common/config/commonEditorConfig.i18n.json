@@ -33,6 +33,8 @@
 	"wordWrapColumn": "'editor.wordWrap' が 'wordWrapColumn' または 'bounded' の場合に、エディターの折り返し桁を制御します。",
 	"wrappingIndent": "折り返し行のインデントを制御します。'none'、'same'、または 'indent' のいずれかを指定できます。",
 	"mouseWheelScrollSensitivity": "マウス ホイール スクロール イベントの `deltaX` と `deltaY` で使用される乗数",
+	"multiCursorModifier.ctrlCmd": "Windows および Linux 上の `Control` と OSX 上の `Command` にマップします。",
+	"multiCursorModifier.alt": "Windows および Linux 上の `Alt` と OSX 上の `Option` にマップします。",
 	"quickSuggestions.strings": "文字列内でクイック候補を有効にします。",
 	"quickSuggestions.comments": "コメント内でクイック候補を有効にします。",
 	"quickSuggestions.other": "文字列およびコメント外でクイック候補を有効にします。",

@@ -11,7 +11,6 @@
 	"endOfLineLineFeed": "LF",
 	"endOfLineCarriageReturnLineFeed": "CRLF",
 	"tabFocusModeEnabled": "タブによるフォーカスの移動",
-	"screenReaderDetected": "スクリーン リーダーが検出されました",
 	"disableTabMode": "アクセシビリティ モードを無効にする",
 	"gotoLine": "行へ移動",
 	"indentation": "インデント",

@@ -15,5 +15,11 @@
 	"license": "Прочитать условия лицензии",
 	"updateAvailable": "{0} будет обновлен после перезапуска.",
 	"thereIsUpdateAvailable": "Доступно обновление.",
-	"noUpdatesAvailable": "В настоящее время нет доступных обновлений."
+	"noUpdatesAvailable": "В настоящее время нет доступных обновлений.",
+	"keyboardShortcuts": "Сочетания клавиш",
+	"checkingForUpdates": "Идет проверка наличия обновлений...",
+	"DownloadUpdate": "Скачать доступное обновление",
+	"DownloadingUpdate": "Скачивается обновление...",
+	"InstallingUpdate": "Идет установка обновления...",
+	"restartToUpdate": "Перезапустить для обновления..."
 }

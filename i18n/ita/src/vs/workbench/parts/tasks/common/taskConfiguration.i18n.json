@@ -12,5 +12,6 @@
 	"ConfigurationParser.invalidVaraibleReference": "Errore: il riferimento a problemMatcher non è valido: {0}\n",
 	"ConfigurationParser.noTaskName": "Errore: le attività devono specificare una proprietà taskName. L'attività verrà ignorata.\n{0}\n",
 	"taskConfiguration.shellArgs": "Avviso: l'attività '{0}' è un comando della shell e il nome del comando o uno dei relativi argomenti contiene spazi senza codice di escape. Per garantire la corretta indicazione della riga di comando, unire gli argomenti nel comando.",
+	"taskConfiguration.noCommandOrDependsOn": "Errore: l'attività '{0}' non specifica un comando né una proprietà dependsOn. L'attività verrà ignorata. La sua definizione è:\n{1}",
 	"taskConfiguration.noCommand": "Errore: l'attività '{0}' non definisce un comando. L'attività verrà ignorata. Definizione dell'attività:\n{1}"
 }

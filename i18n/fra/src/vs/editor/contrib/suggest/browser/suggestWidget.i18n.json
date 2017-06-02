@@ -12,6 +12,7 @@
 	"readMore": "En savoir plus...{0}",
 	"suggestionWithDetailsAriaLabel": "{0}, suggestion, avec détails",
 	"suggestionAriaLabel": "{0}, suggestion",
+	"readLess": "En savoir moins...{0}",
 	"suggestWidget.loading": "Chargement...",
 	"suggestWidget.noSuggestions": "Pas de suggestions.",
 	"suggestionAriaAccepted": "{0}, accepté",

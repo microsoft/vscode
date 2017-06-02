@@ -15,5 +15,11 @@
 	"license": "閱讀授權",
 	"updateAvailable": "{0} 重新啟動後將會更新。",
 	"thereIsUpdateAvailable": "已有更新可用。",
-	"noUpdatesAvailable": "目前沒有可用的更新。"
+	"noUpdatesAvailable": "目前沒有可用的更新。",
+	"keyboardShortcuts": "鍵盤快速鍵(&&K)",
+	"checkingForUpdates": "正在查看是否有更新...",
+	"DownloadUpdate": "下載可用更新",
+	"DownloadingUpdate": "正在下載更新...",
+	"InstallingUpdate": "正在安裝更新...",
+	"restartToUpdate": "重新啟動以更新..."
 }

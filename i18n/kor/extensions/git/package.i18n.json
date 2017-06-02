@@ -31,7 +31,6 @@
 	"command.push": "푸시",
 	"command.pushTo": "다음으로 푸시...",
 	"command.sync": "동기화",
-	"command.publish": "게시",
 	"command.showOutput": "Git 출력 표시",
 	"config.enabled": "Git 사용 여부",
 	"config.path": "Git 실행 파일의 경로",

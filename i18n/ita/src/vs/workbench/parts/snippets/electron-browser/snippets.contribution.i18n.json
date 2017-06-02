@@ -11,6 +11,5 @@
 	"snippetSchema.json.default": "Frammento vuoto",
 	"snippetSchema.json": "Configurazione del frammento utente",
 	"snippetSchema.json.prefix": "Prefisso da usare quando si seleziona il frammento in IntelliSense",
-	"snippetSchema.json.body": "Contenuto del frammento. Usare '${id}', '${id:label}', '${1:label}' per le variabili e '$0', '$1' per le posizioni del cursore",
 	"snippetSchema.json.description": "Descrizione del frammento."
 }

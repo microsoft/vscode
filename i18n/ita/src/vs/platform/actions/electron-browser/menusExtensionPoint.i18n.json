@@ -21,6 +21,8 @@
 	"menus.scmTitle": "Menu del titolo del controllo del codice sorgente",
 	"menus.resourceGroupContext": "Menu di scelta rapida del gruppo di risorse del controllo del codice sorgente",
 	"menus.resourceStateContext": "Menu di scelta rapida dello stato delle risorse del controllo del codice sorgente",
+	"view.viewTitle": "Menu del titolo della visualizzazione contribuita",
+	"view.itemContext": "Menu di contesto dell'elemento visualizzazione contribuita",
 	"nonempty": "è previsto un valore non vuoto.",
 	"opticon": "la proprietà `icon` può essere omessa o deve essere una stringa o un valore letterale come `{dark, light}`",
 	"requireStringOrObject": "la proprietà `{0}` è obbligatoria e deve essere di tipo `object` o `string`",

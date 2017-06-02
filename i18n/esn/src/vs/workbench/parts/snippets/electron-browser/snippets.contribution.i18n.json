@@ -11,6 +11,5 @@
 	"snippetSchema.json.default": "Fragmento de código vacío",
 	"snippetSchema.json": "Configuración de fragmento de código del usuario",
 	"snippetSchema.json.prefix": "El prefijo que se debe usar al seleccionar el fragmento de código en Intellisense",
-	"snippetSchema.json.body": "Contenido del fragmento de código. Use '${id}', '${id:label}', '${1:label}' para las variables y '$0', '$1' para las posiciones del cursor",
 	"snippetSchema.json.description": "La descripción del fragmento de código."
 }

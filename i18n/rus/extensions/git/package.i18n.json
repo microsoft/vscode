@@ -31,7 +31,6 @@
 	"command.push": "Отправить",
 	"command.pushTo": "Отправить в:",
 	"command.sync": "Синхронизация",
-	"command.publish": "Опубликовать",
 	"command.showOutput": "Показать выходные данные GIT",
 	"config.enabled": "Включен ли GIT",
 	"config.path": "Путь к исполняемому файлу GIT",

@@ -11,6 +11,5 @@
 	"snippetSchema.json.default": "空のスニペット",
 	"snippetSchema.json": "ユーザー スニペット構成",
 	"snippetSchema.json.prefix": "intellisense でスニペットを選択するときに使用するプレフィックス",
-	"snippetSchema.json.body": "スニペットの内容。変数には '${id}'、'${id:label}'、'${1:label}' を使用し、カーソル位置には '$0'、'$1' を使用します",
 	"snippetSchema.json.description": "スニペットについての記述。"
 }

@@ -22,6 +22,8 @@
 	"TaskService.noBuildTask": "未定义任何生成任务。使用 \"isBuildCommand\" 在 tasks.json 文件中标记任务。",
 	"TaskService.noTestTask": "未定义任何测试任务。使用 \"isTestCommand\" 在 tasks.json 文件中标记任务。",
 	"TaskServer.noTask": "未找到要执行的请求任务 {0}。",
+	"customizeParseErrors": "当前任务配置存在错误。请先更正错误，再自定义任务。",
+	"moreThanOneBuildTask": "当前 tasks.json 中定义了多个生成任务。正在执行第一个。\n",
 	"TaskSystem.activeSame": "任务已处于活动状态并处于监视模式。若要终止任务，请使用 \"F1\" >“终止任务”",
 	"TaskSystem.active": "当前已有任务正在运行。请先终止它，然后再执行另一项任务。",
 	"TaskSystem.restartFailed": "未能终止并重启任务 {0}",

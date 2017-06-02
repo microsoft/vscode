@@ -15,5 +15,12 @@
 	"license": "Leer licencia",
 	"updateAvailable": "{0} se actualizará después de reiniciarse.",
 	"thereIsUpdateAvailable": "Hay una actualización disponible.",
-	"noUpdatesAvailable": "Actualmente no hay actualizaciones disponibles."
+	"noUpdatesAvailable": "Actualmente no hay actualizaciones disponibles.",
+	"commandPalette": "Paleta de comandos...",
+	"keyboardShortcuts": "Métodos abreviados de teclado",
+	"checkingForUpdates": "Buscando actualizaciones...",
+	"DownloadUpdate": "Descargar actualización disponible",
+	"DownloadingUpdate": "Descargando actualización...",
+	"InstallingUpdate": "Instalando actualización...",
+	"restartToUpdate": "Reiniciar para actualizar..."
 }

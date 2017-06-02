@@ -19,7 +19,6 @@
 	"welcomePage.keymapNotFound": "找不到識別碼為 {1} 的 {0} 鍵盤快速鍵。",
 	"welcome.title": "歡迎使用",
 	"welcomePage.extensionListSeparator": ",",
-	"welcomePage.installedExtension": "{0}(已安裝)",
 	"ok": "確定",
 	"cancel": "取消"
 }
