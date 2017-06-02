@@ -831,7 +831,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			this.telemetryService.publicLog('suggestWidget:collapseDetails', this.editor.getTelemetryData());
 		} else {
 			this.storageService.store('expandSuggestionDocs', true, StorageScope.GLOBAL);
-			this.expandSideOrBelow();
 			this.showDetails();
 			this.telemetryService.publicLog('suggestWidget:expandDetails', this.editor.getTelemetryData());
 		}
@@ -842,6 +841,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		if (this.state !== State.Open && this.state !== State.Details) {
 			return;
 		}
+		this.expandSideOrBelow();
 
 		show(this.details.element);
 		this.renderDetails();
