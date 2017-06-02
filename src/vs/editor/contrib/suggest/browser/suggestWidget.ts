@@ -846,8 +846,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		show(this.details.element);
 		this.renderDetails();
 
-		// With docs showing up, list might need adjustments to keep it close to the cursor
-		this.adjustListPosition();
+		// Reset margin-top that was set as Fix for #26416
+		this.listElement.style.marginTop = '0px';
 
 		// with docs showing up widget width/height may change, so reposition the widget
 		this.editor.layoutContentWidget(this);
@@ -939,15 +939,13 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			removeClass(this.element, 'list-right');
 		}
 
-		if (cursorY > widgetY) {
-			if (!hasClass(this.element, 'widget-above')) {
-				addClass(this.element, 'widget-above');
-				// Since the widget was previously not above the cursor,
-				// the list needs to be adjusted to keep it close to the cursor
-				this.adjustListPosition();
-			}
-		} else {
-			removeClass(this.element, 'widget-above');
+		if (hasClass(this.element, 'docs-side')
+			&& cursorY > widgetY
+			&& this.details.element.offsetHeight > this.listElement.offsetHeight) {
+
+			// Fix for #26416
+			// Docs is bigger than list and widget is above cursor, apply margin-top so that list appears right above cursor
+			this.listElement.style.marginTop = `${this.details.element.offsetHeight - this.listElement.offsetHeight}px`;
 		}
 	}
 
@@ -960,50 +958,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			addClass(this.element, 'docs-side');
 			removeClass(this.element, 'docs-below');
 		}
-	}
-
-	private adjustListPosition(): void {
-
-
-		if (hasClass(this.element, 'docs-side')) {
-
-			if (this.details.element.offsetHeight > this.listElement.offsetHeight) {
-
-				// Fix for #26416
-				// Docs is bigger than list and widget is above cursor, apply margin-top so that list appears right above cursor
-				if (hasClass(this.element, 'widget-above')) {
-					this.listElement.style.marginTop = `${this.details.element.offsetHeight - this.listElement.offsetHeight}px`;
-				}
-
-				// Fix for #26244
-				// if (hasClass(this.element, 'list-right')) {
-				// 	addClass(this.listElement, 'empty-left-border');
-				// 	removeClass(this.listElement, 'empty-right-border');
-				// } else {
-				// 	addClass(this.listElement, 'empty-right-border');
-				// 	removeClass(this.listElement, 'empty-left-border');
-				// }
-
-				// removeClass(this.details.element, 'empty-left-border');
-				// removeClass(this.details.element, 'empty-right-border');
-				return;
-			} else {
-				// Fix for #26244
-				// if (hasClass(this.element, 'list-right')) {
-				// 	addClass(this.details.element, 'empty-right-border');
-				// 	removeClass(this.details.element, 'empty-left-border');
-				// } else {
-				// 	addClass(this.details.element, 'empty-left-border');
-				// 	removeClass(this.details.element, 'empty-right-border');
-				// }
-
-				// removeClass(this.listElement, 'empty-right-border');
-				// removeClass(this.listElement, 'empty-left-border');
-			}
-		}
-
-		// Reset margin-top that was set as Fix for #26416
-		this.listElement.style.marginTop = '0px';
 	}
 
 	private renderDetails(): void {
