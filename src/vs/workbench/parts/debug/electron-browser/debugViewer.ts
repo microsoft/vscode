@@ -19,6 +19,7 @@ import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer, DRAG_OVER_REJECT, IDragAndDropData, IDragOverReaction, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { InputBox, IInputValidationOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { DefaultController, DefaultDragAndDrop, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
+import { Constants } from 'vs/editor/common/core/uint';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -1272,7 +1273,9 @@ export class BreakpointsController extends BaseDebugController {
 			endColumn: breakpoint.endColumn
 		} : {
 				startLineNumber: breakpoint.lineNumber,
-				startColumn: breakpoint.column || 1
+				startColumn: breakpoint.column || 1,
+				endLineNumber: breakpoint.lineNumber,
+				endColumn: breakpoint.column || Constants.MAX_SAFE_SMALL_INTEGER
 			};
 
 		this.editorService.openEditor({
