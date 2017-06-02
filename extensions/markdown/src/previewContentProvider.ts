@@ -76,8 +76,8 @@ class MarkdownPreviewConfig {
 		this.markEditorSelection = !!markdownConfig.get<boolean>('preview.markEditorSelection', true);
 
 		this.fontFamily = markdownConfig.get<string | undefined>('preview.fontFamily', undefined);
-		this.fontSize = +markdownConfig.get<number>('preview.fontSize', NaN);
-		this.lineHeight = +markdownConfig.get<number>('preview.lineHeight', NaN);
+		this.fontSize = Math.max(8, +markdownConfig.get<number>('preview.fontSize', NaN));
+		this.lineHeight = Math.max(0.6, +markdownConfig.get<number>('preview.lineHeight', NaN));
 
 		this.styles = markdownConfig.get<string[]>('styles', []);
 	}
@@ -176,8 +176,8 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 		return `<style nonce="${nonce}">
 			body {
 				${this.config.fontFamily ? `font-family: ${this.config.fontFamily};` : ''}
-				${this.config.fontSize > 0 ? `font-size: ${this.config.fontSize}px;` : ''}
-				${this.config.lineHeight > 0 ? `line-height: ${this.config.lineHeight};` : ''}
+				${isNaN(this.config.fontSize) ? '' : `font-size: ${this.config.fontSize}px;`}
+				${isNaN(this.config.lineHeight) ? '' : `line-height: ${this.config.lineHeight};`}
 			}
 		</style>`;
 	}
