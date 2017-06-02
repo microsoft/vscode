@@ -932,6 +932,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	}
 
 	private adjustDocsPosition() {
+		const lineHeight = this.editor.getConfiguration().fontInfo.lineHeight;
 		const cursorCoords = this.editor.getScrolledVisiblePosition(this.editor.getPosition());
 		const editorCoords = getDomNodePagePosition(this.editor.getDomNode());
 		const cursorX = editorCoords.left + cursorCoords.left;
@@ -946,8 +947,11 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			removeClass(this.element, 'list-right');
 		}
 
+		// Compare top of the cursor (cursorY - lineheight) with widgetTop to determine if
+		// margin-top needs to be applied on list to make it appear right above the cursor
+		// Cannot compare cursorY directly as it may be a few decimals off due to zoooming
 		if (hasClass(this.element, 'docs-side')
-			&& cursorY > widgetY
+			&& cursorY - lineHeight > widgetY
 			&& this.details.element.offsetHeight > this.listElement.offsetHeight) {
 
 			// Fix for #26416
