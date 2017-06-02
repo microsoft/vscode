@@ -145,7 +145,7 @@ let schema: IJSONSchema = {
 				'type': 'string'
 			},
 			'body': {
-				'description': nls.localize('snippetSchema.json.body', 'The snippet content. Use \'${id}\', \'${id:label}\', \'${1:label}\' for variables and \'$0\', \'$1\' for the cursor positions'),
+				'description': nls.localize('snippetSchema.json.body', 'The snippet content. Use \'$1\', \'${1:defaultText}\' to define cursor positions, use \'$0\' for the final cursor position. Insert variable values with \'${varName}\' and \'${varName:defaultText}\', e.g \'This is file: $TM_FILENAME\'.'),
 				'type': ['string', 'array'],
 				'items': {
 					'type': 'string'
