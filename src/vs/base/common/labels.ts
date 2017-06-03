@@ -134,7 +134,7 @@ export function shorten(paths: string[]): string[] {
 		let path = paths[pathIndex];
 
 		if (path === '') {
-			shortenedPaths[pathIndex] = '.' + nativeSep;
+			shortenedPaths[pathIndex] = `.${nativeSep}`;
 			continue;
 		}
 
