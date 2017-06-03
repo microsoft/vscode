@@ -19,7 +19,7 @@ import { SyncActionDescriptor, IMenuService, MenuId, MenuItemAction } from 'vs/p
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { Registry } from 'vs/platform/platform';
-import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
+import { QuickOpenHandler, IWorkbenchQuickOpenConfiguration } from 'vs/workbench/browser/quickopen';
 import { IEditorAction, IEditor, isCommonCodeEditor, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { matchesWords, matchesPrefix, matchesContiguousSubString, or } from 'vs/base/common/filters';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -29,10 +29,95 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { editorAction, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { IStorageService } from "vs/platform/storage/common/storage";
+import { ILifecycleService } from "vs/platform/lifecycle/common/lifecycle";
+import { once } from "vs/base/common/event";
+import { LRUCache, ISerializedBoundedLinkedMap } from "vs/base/common/map";
+import { IConfigurationService } from "vs/platform/configuration/common/configuration";
 
 export const ALL_COMMANDS_PREFIX = '>';
 
 let lastCommandPaletteInput: string;
+let commandHistory: LRUCache<number>;
+let commandCounter = 1;
+
+function resolveCommandHistory(configurationService: IConfigurationService): number {
+	const config = <IWorkbenchQuickOpenConfiguration>configurationService.getConfiguration();
+
+	let commandHistory = config.workbench && config.workbench.commandPalette && config.workbench.commandPalette.history;
+	if (typeof commandHistory !== 'number') {
+		commandHistory = CommandsHistory.DEFAULT_COMMANDS_HISTORY_LENGTH;
+	}
+
+	return commandHistory;
+}
+
+class CommandsHistory {
+
+	public static readonly DEFAULT_COMMANDS_HISTORY_LENGTH = 50;
+
+	private static readonly PREF_KEY_CACHE = 'commandPalette.mru.cache';
+	private static readonly PREF_KEY_COUNTER = 'commandPalette.mru.counter';
+
+	private commandHistoryLength: number;
+
+	constructor(
+		@IStorageService private storageService: IStorageService,
+		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IConfigurationService private configurationService: IConfigurationService
+	) {
+		this.updateConfiguration();
+		this.load();
+
+		this.registerListeners();
+	}
+
+	private updateConfiguration(): void {
+		this.commandHistoryLength = resolveCommandHistory(this.configurationService);
+
+		if (commandHistory) {
+			commandHistory.setLimit(this.commandHistoryLength);
+		}
+	}
+
+	private load(): void {
+		const raw = this.storageService.get(CommandsHistory.PREF_KEY_CACHE);
+		let deserializedCache: ISerializedBoundedLinkedMap<number>;
+		if (raw) {
+			try {
+				deserializedCache = JSON.parse(raw);
+			} catch (error) {
+				// invalid data
+			}
+		}
+
+		commandHistory = new LRUCache<number>(this.commandHistoryLength, deserializedCache);
+		commandCounter = this.storageService.getInteger(CommandsHistory.PREF_KEY_COUNTER, void 0, commandCounter);
+	}
+
+	private registerListeners(): void {
+		this.configurationService.onDidUpdateConfiguration(e => this.updateConfiguration());
+		once(this.lifecycleService.onShutdown)(reason => this.save());
+	}
+
+	private save(): void {
+		this.storageService.store(CommandsHistory.PREF_KEY_CACHE, JSON.stringify(commandHistory.serialize()));
+		this.storageService.store(CommandsHistory.PREF_KEY_COUNTER, commandCounter);
+	}
+
+	public push(commandId: string): void {
+
+		// make MRU
+		commandHistory.peek(commandId);
+
+		// set counter to command
+		commandHistory.set(commandId, commandCounter++);
+	}
+
+	public get(commandId: string): number {
+		return commandHistory.get(commandId);
+	}
+}
 
 export class ShowAllCommandsAction extends Action {
 
@@ -42,20 +127,48 @@ export class ShowAllCommandsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(id, label);
 	}
 
 	public run(context?: any): TPromise<any> {
+		const config = <IWorkbenchQuickOpenConfiguration>this.configurationService.getConfiguration();
+		const restoreInput = config.workbench && config.workbench.commandPalette && config.workbench.commandPalette.preserveInput === true;
 
-		// Show with last command palette input if any
+		// Show with last command palette input if any and configured
 		let value = ALL_COMMANDS_PREFIX;
-		if (lastCommandPaletteInput) {
+		if (restoreInput && lastCommandPaletteInput) {
 			value = `${value}${lastCommandPaletteInput}`;
 		}
 
 		this.quickOpenService.show(value, { inputSelection: lastCommandPaletteInput ? { start: 1 /* after prefix */, end: value.length } : void 0 });
+
+		return TPromise.as(null);
+	}
+}
+
+export class ClearCommandHistoryAction extends Action {
+
+	public static ID = 'workbench.action.clearCommandHistory';
+	public static LABEL = nls.localize('clearCommandHistory', "Clear Command History");
+
+	constructor(
+		id: string,
+		label: string,
+		@IStorageService private storageService: IStorageService,
+		@IConfigurationService private configurationService: IConfigurationService
+	) {
+		super(id, label);
+	}
+
+	public run(context?: any): TPromise<any> {
+		const commandHistoryLength = resolveCommandHistory(this.configurationService);
+		if (commandHistoryLength > 0) {
+			commandHistory = new LRUCache<number>(commandHistoryLength);
+			commandCounter = 1;
+		}
 
 		return TPromise.as(null);
 	}
@@ -88,6 +201,7 @@ class CommandPaletteEditorAction extends EditorAction {
 abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 	private alias: string;
 	private description: string;
+	private labelLowercase: string;
 
 	constructor(
 		private commandId: string,
@@ -101,6 +215,8 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		@ITelemetryService protected telemetryService: ITelemetryService
 	) {
 		super();
+
+		this.labelLowercase = this.label.toLowerCase();
 
 		if (this.label !== alias) {
 			this.alias = alias;
@@ -117,6 +233,10 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 
 	public getLabel(): string {
 		return this.label;
+	}
+
+	public getSortLabel(): string {
+		return this.labelLowercase;
 	}
 
 	public getDescription(): string {
@@ -169,7 +289,7 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 	protected runAction(action: Action | IEditorAction): void {
 
 		// Indicate onBeforeRun
-		this.onBeforeRun(action.id);
+		this.onBeforeRun(this.commandId);
 
 		// Use a timeout to give the quick open widget a chance to close itself first
 		TPromise.timeout(50).done(() => {
@@ -236,7 +356,6 @@ class EditorActionCommandEntry extends BaseCommandEntry {
 	}
 }
 
-
 class ActionCommandEntry extends BaseCommandEntry {
 
 	constructor(
@@ -262,20 +381,32 @@ class ActionCommandEntry extends BaseCommandEntry {
 const wordFilter = or(matchesPrefix, matchesWords, matchesContiguousSubString);
 
 export class CommandsHandler extends QuickOpenHandler {
-	private searchValue: string;
+	private lastSearchValue: string;
+	private commandHistoryEnabled: boolean;
+	private commandsHistory: CommandsHistory;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMenuService private menuService: IMenuService,
-		@IContextKeyService private contextKeyService: IContextKeyService
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
+
+		this.commandsHistory = this.instantiationService.createInstance(CommandsHistory);
+
+		this.configurationService.onDidUpdateConfiguration(e => this.updateConfiguration());
+		this.updateConfiguration();
+	}
+
+	private updateConfiguration(): void {
+		this.commandHistoryEnabled = resolveCommandHistory(this.configurationService) > 0;
 	}
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
-		this.searchValue = searchValue.trim();
+		this.lastSearchValue = searchValue.trim();
 
 		// Workbench Actions
 		let workbenchEntries: CommandEntry[] = [];
@@ -321,8 +452,39 @@ export class CommandsHandler extends QuickOpenHandler {
 			}
 		});
 
-		// Sort by name
-		entries = entries.sort((elementA, elementB) => elementA.getLabel().toLowerCase().localeCompare(elementB.getLabel().toLowerCase()));
+		// Sort by MRU order and fallback to name otherwie
+		entries = entries.sort((elementA, elementB) => {
+			const counterA = this.commandsHistory.get(elementA.getCommandId());
+			const counterB = this.commandsHistory.get(elementB.getCommandId());
+
+			if (counterA && counterB) {
+				return counterA > counterB ? -1 : 1; // use more recently used command before older
+			}
+
+			if (counterA) {
+				return -1; // first command was used, so it wins over the non used one
+			}
+
+			if (counterB) {
+				return 1; // other command was used so it wins over the command
+			}
+
+			// both commands were never used, so we sort by name
+			return elementA.getSortLabel().localeCompare(elementB.getSortLabel());
+		});
+
+		// Introduce group marker border between recently used and others
+		// only if we have recently used commands in the result set
+		const firstEntry = entries[0];
+		if (firstEntry && this.commandsHistory.get(firstEntry.getCommandId())) {
+			for (let i = 1; i < entries.length; i++) {
+				const entry = entries[i];
+				if (!this.commandsHistory.get(entry.getCommandId())) {
+					entry.setShowBorder(true);
+					break;
+				}
+			}
+		}
 
 		return TPromise.as(new QuickOpenModel(entries));
 	}
@@ -388,8 +550,13 @@ export class CommandsHandler extends QuickOpenHandler {
 		return entries;
 	}
 
-	private onBeforeRunCommand(id: string): void {
-		lastCommandPaletteInput = this.searchValue;
+	private onBeforeRunCommand(commandId: string): void {
+
+		// Remember as last command palette input
+		lastCommandPaletteInput = this.lastSearchValue;
+
+		// Remember in commands history
+		this.commandsHistory.push(commandId);
 	}
 
 	private menuItemActionsToEntries(actions: MenuItemAction[], searchValue: string): ActionCommandEntry[] {
@@ -431,12 +598,8 @@ export class CommandsHandler extends QuickOpenHandler {
 	public getAutoFocus(searchValue: string): IAutoFocus {
 		return {
 			autoFocusFirstEntry: true,
-			autoFocusPrefixMatch: searchValue.trim()
+			autoFocusPrefixMatch: !this.commandHistoryEnabled ? searchValue.trim() : void 0 // only when commands history is disabled
 		};
-	}
-
-	public getClass(): string {
-		return 'commands-handler';
 	}
 
 	public getEmptyLabel(searchString: string): string {

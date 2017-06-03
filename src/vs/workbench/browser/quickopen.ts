@@ -23,6 +23,18 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
+export interface IWorkbenchQuickOpenConfiguration {
+	workbench: {
+		quickOpen: {
+			closeOnFocusLost: boolean;
+		},
+		commandPalette: {
+			history: number;
+			preserveInput: boolean;
+		}
+	};
+}
+
 export class QuickOpenHandler {
 
 	/**

@@ -122,6 +122,10 @@ export class LinkedMap<K extends Key, T> {
 	}
 }
 
+export interface ISerializedBoundedLinkedMap<T> {
+	entries: { key: string; value: T }[];
+}
+
 /**
  * A simple Map<T> that optionally allows to set a limit of entries to store. Once the limit is hit,
  * the cache will remove the entry that was last recently added. Or, if a ratio is provided below 1,
@@ -129,15 +133,48 @@ export class LinkedMap<K extends Key, T> {
  */
 export class BoundedLinkedMap<T> {
 	protected map: { [key: string]: Entry<string, T> };
+
 	private head: Entry<string, T>;
 	private tail: Entry<string, T>;
 	private _size: number;
 	private ratio: number;
 
-	constructor(private limit = Number.MAX_VALUE, ratio = 1) {
+	constructor(private limit = Number.MAX_VALUE, ratio = 1, value?: ISerializedBoundedLinkedMap<T>) {
 		this.map = Object.create(null);
 		this._size = 0;
 		this.ratio = limit * ratio;
+
+		if (value) {
+			value.entries.forEach(entry => {
+				this.set(entry.key, entry.value);
+			});
+		}
+	}
+
+	public setLimit(limit: number): void {
+		if (limit < 0) {
+			return; // invalid limit
+		}
+
+		this.limit = limit;
+		while (this._size > this.limit) {
+			this.trim();
+		}
+	}
+
+	public serialize(): ISerializedBoundedLinkedMap<T> {
+		const serialized: ISerializedBoundedLinkedMap<T> = { entries: [] };
+
+		let element = this.tail;
+		while (element) {
+			serialized.entries.push({ key: element.key, value: element.value });
+			if (element === element.next) {
+				break; // end reached
+			}
+			element = element.next;
+		}
+
+		return serialized;
 	}
 
 	public get size(): number {
@@ -264,7 +301,9 @@ export class BoundedLinkedMap<T> {
 
 				// [x]-[B] = [B]
 				this.tail = this.tail.next;
-				this.tail.prev = null;
+				if (this.tail) {
+					this.tail.prev = null;
+				}
 			}
 		}
 	}
@@ -272,17 +311,17 @@ export class BoundedLinkedMap<T> {
 
 /**
  * A subclass of Map<T> that makes an entry the MRU entry as soon
- * as it is being accessed. In combination with the limit for the
+ * as it is being accessed via peek(). In combination with the limit for the
  * maximum number of elements in the cache, it helps to remove those
  * entries from the cache that are LRU.
  */
 export class LRUCache<T> extends BoundedLinkedMap<T> {
 
-	constructor(limit: number) {
-		super(limit);
+	constructor(limit: number, serialized?: ISerializedBoundedLinkedMap<T>) {
+		super(limit, 1, serialized);
 	}
 
-	public get(key: string): T {
+	public peek(key: string): T {
 
 		// Upon access of an entry, make it the head of
 		// the linked map so that it is the MRU element
@@ -293,7 +332,6 @@ export class LRUCache<T> extends BoundedLinkedMap<T> {
 
 			return entry.value;
 		}
-
 
 		return null;
 	}
