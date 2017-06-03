@@ -33,8 +33,7 @@ import { ILifecycleService } from "vs/platform/lifecycle/common/lifecycle";
 import { once } from "vs/base/common/event";
 import { BoundedMap, ISerializedBoundedLinkedMap } from "vs/base/common/map";
 import { IConfigurationService } from "vs/platform/configuration/common/configuration";
-import { registerThemingParticipant, ITheme, ICssStyleCollector } from "vs/platform/theme/common/themeService";
-import { pickerGroupForeground } from "vs/platform/theme/common/colorRegistry";
+import { ResolvedKeybinding } from "vs/base/common/keyCodes";
 
 export const ALL_COMMANDS_PREFIX = '>';
 
@@ -200,14 +199,14 @@ class CommandPaletteEditorAction extends EditorAction {
 }
 
 abstract class BaseCommandEntry extends QuickOpenEntryGroup {
-	private detail: string;
+	private description: string;
 	private alias: string;
 	private labelLowercase: string;
+	private keybindingAriaLabel: string;
 
 	constructor(
 		private commandId: string,
-		private keyLabel: string,
-		private keyAriaLabel: string,
+		private keybinding: ResolvedKeybinding,
 		private label: string,
 		alias: string,
 		highlights: { label: IHighlight[], alias: IHighlight[] },
@@ -218,6 +217,7 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		super();
 
 		this.labelLowercase = this.label.toLowerCase();
+		this.keybindingAriaLabel = keybinding ? keybinding.getAriaLabel() : void 0;
 
 		if (this.label !== alias) {
 			this.alias = alias;
@@ -241,24 +241,24 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 	}
 
 	public getDescription(): string {
-		return this.keyLabel;
+		return this.description;
+	}
+
+	public setDescription(description: string): void {
+		this.description = description;
+	}
+
+	public getKeybinding(): ResolvedKeybinding {
+		return this.keybinding;
 	}
 
 	public getDetail(): string {
-		if (this.detail && this.alias) {
-			return nls.localize('entryDetailAndAlias', "{0} ({1})", this.alias, this.detail);
-		}
-
-		return this.detail || this.alias;
-	}
-
-	public setDetail(detail: string): void {
-		this.detail = detail;
+		return this.alias;
 	}
 
 	public getAriaLabel(): string {
-		if (this.keyAriaLabel) {
-			return nls.localize('entryAriaLabelWithKey', "{0}, {1}, commands", this.getLabel(), this.keyAriaLabel);
+		if (this.keybindingAriaLabel) {
+			return nls.localize('entryAriaLabelWithKey', "{0}, {1}, commands", this.getLabel(), this.keybindingAriaLabel);
 		}
 
 		return nls.localize('entryAriaLabel', "{0}, commands", this.getLabel());
@@ -316,8 +316,7 @@ class CommandEntry extends BaseCommandEntry {
 
 	constructor(
 		commandId: string,
-		keyLabel: string,
-		keyAriaLabel: string,
+		keybinding: ResolvedKeybinding,
 		label: string,
 		meta: string,
 		highlights: { label: IHighlight[], alias: IHighlight[] },
@@ -327,7 +326,7 @@ class CommandEntry extends BaseCommandEntry {
 		@IMessageService messageService: IMessageService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(commandId, keyLabel, keyAriaLabel, label, meta, highlights, onBeforeRun, messageService, telemetryService);
+		super(commandId, keybinding, label, meta, highlights, onBeforeRun, messageService, telemetryService);
 	}
 
 	protected getAction(): Action | IEditorAction {
@@ -339,8 +338,7 @@ class EditorActionCommandEntry extends BaseCommandEntry {
 
 	constructor(
 		commandId: string,
-		keyLabel: string,
-		keyAriaLabel: string,
+		keybinding: ResolvedKeybinding,
 		label: string,
 		meta: string,
 		highlights: { label: IHighlight[], alias: IHighlight[] },
@@ -349,7 +347,7 @@ class EditorActionCommandEntry extends BaseCommandEntry {
 		@IMessageService messageService: IMessageService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(commandId, keyLabel, keyAriaLabel, label, meta, highlights, onBeforeRun, messageService, telemetryService);
+		super(commandId, keybinding, label, meta, highlights, onBeforeRun, messageService, telemetryService);
 	}
 
 	protected getAction(): Action | IEditorAction {
@@ -361,8 +359,7 @@ class ActionCommandEntry extends BaseCommandEntry {
 
 	constructor(
 		commandId: string,
-		keyLabel: string,
-		keyAriaLabel: string,
+		keybinding: ResolvedKeybinding,
 		label: string,
 		alias: string,
 		highlights: { label: IHighlight[], alias: IHighlight[] },
@@ -371,7 +368,7 @@ class ActionCommandEntry extends BaseCommandEntry {
 		@IMessageService messageService: IMessageService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(commandId, keyLabel, keyAriaLabel, label, alias, highlights, onBeforeRun, messageService, telemetryService);
+		super(commandId, keybinding, label, alias, highlights, onBeforeRun, messageService, telemetryService);
 	}
 
 	protected getAction(): Action | IEditorAction {
@@ -447,7 +444,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		entries.forEach(entry => {
 			const commandLabel = `${entry.getLabel()}${entry.getGroupLabel()}`;
 			if (commandLabels.has(commandLabel)) {
-				entry.setDetail(entry.getCommandId());
+				entry.setDescription(entry.getCommandId());
 			} else {
 				commandLabels.add(commandLabel);
 			}
@@ -498,10 +495,6 @@ export class CommandsHandler extends QuickOpenHandler {
 
 		for (let i = 0; i < actionDescriptors.length; i++) {
 			const actionDescriptor = actionDescriptors[i];
-			const keybinding = this.keybindingService.lookupKeybinding(actionDescriptor.id);
-			const keyLabel = keybinding ? keybinding.getLabel() : '';
-			const keyAriaLabel = keybinding ? keybinding.getAriaLabel() : '';
-
 			if (actionDescriptor.label) {
 
 				// Label (with optional category)
@@ -515,8 +508,9 @@ export class CommandsHandler extends QuickOpenHandler {
 				const alias = (language !== LANGUAGE_DEFAULT) ? registry.getAlias(actionDescriptor.id) : null;
 				const labelHighlights = wordFilter(searchValue, label);
 				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
+
 				if (labelHighlights || aliasHighlights) {
-					entries.push(this.instantiationService.createInstance(CommandEntry, actionDescriptor.id, keyLabel, keyAriaLabel, label, alias, { label: labelHighlights, alias: aliasHighlights }, actionDescriptor, id => this.onBeforeRunCommand(id)));
+					entries.push(this.instantiationService.createInstance(CommandEntry, actionDescriptor.id, this.keybindingService.lookupKeybinding(actionDescriptor.id), label, alias, { label: labelHighlights, alias: aliasHighlights }, actionDescriptor, id => this.onBeforeRunCommand(id)));
 				}
 			}
 		}
@@ -533,19 +527,16 @@ export class CommandsHandler extends QuickOpenHandler {
 				continue; // avoid duplicates
 			}
 
-			const keybinding = this.keybindingService.lookupKeybinding(action.id);
-			const keyLabel = keybinding ? keybinding.getLabel() : '';
-			const keyAriaLabel = keybinding ? keybinding.getAriaLabel() : '';
 			const label = action.label;
-
 			if (label) {
 
 				// Alias for non default languages
 				const alias = (language !== LANGUAGE_DEFAULT) ? action.alias : null;
 				const labelHighlights = wordFilter(searchValue, label);
 				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
+
 				if (labelHighlights || aliasHighlights) {
-					entries.push(this.instantiationService.createInstance(EditorActionCommandEntry, action.id, keyLabel, keyAriaLabel, label, alias, { label: labelHighlights, alias: aliasHighlights }, action, id => this.onBeforeRunCommand(id)));
+					entries.push(this.instantiationService.createInstance(EditorActionCommandEntry, action.id, this.keybindingService.lookupKeybinding(action.id), label, alias, { label: labelHighlights, alias: aliasHighlights }, action, id => this.onBeforeRunCommand(id)));
 				}
 			}
 		}
@@ -575,9 +566,6 @@ export class CommandsHandler extends QuickOpenHandler {
 
 			if (label) {
 				const labelHighlights = wordFilter(searchValue, label);
-				const keybinding = this.keybindingService.lookupKeybinding(action.item.id);
-				const keyLabel = keybinding ? keybinding.getLabel() : '';
-				const keyAriaLabel = keybinding ? keybinding.getAriaLabel() : '';
 
 				// Add an 'alias' in original language when running in different locale
 				const aliasTitle = (language !== LANGUAGE_DEFAULT && typeof action.item.title !== 'string') ? action.item.title.original : null;
@@ -589,8 +577,9 @@ export class CommandsHandler extends QuickOpenHandler {
 					alias = aliasTitle;
 				}
 				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
+
 				if (labelHighlights || aliasHighlights) {
-					entries.push(this.instantiationService.createInstance(ActionCommandEntry, action.id, keyLabel, keyAriaLabel, label, alias, { label: labelHighlights, alias: aliasHighlights }, action, id => this.onBeforeRunCommand(id)));
+					entries.push(this.instantiationService.createInstance(ActionCommandEntry, action.id, this.keybindingService.lookupKeybinding(action.item.id), label, alias, { label: labelHighlights, alias: aliasHighlights }, action, id => this.onBeforeRunCommand(id)));
 				}
 			}
 		}
@@ -608,23 +597,4 @@ export class CommandsHandler extends QuickOpenHandler {
 	public getEmptyLabel(searchString: string): string {
 		return nls.localize('noCommandsMatching', "No commands matching");
 	}
-
-	public getClass(): string {
-		return 'command-palette';
-	}
 }
-
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-
-	// Picker Group Foreground to be used for description to emphasize keybindings
-	const pickerGroupForegroundColor = theme.getColor(pickerGroupForeground);
-	if (pickerGroupForegroundColor) {
-		collector.addRule(`
-			.monaco-workbench .quick-open-widget.command-palette .quick-open-tree .quick-open-entry-description {
-				color: ${pickerGroupForegroundColor};
-				opacity: 1;
-				font-size: inherit;
-			}
-		`);
-	}
-});
