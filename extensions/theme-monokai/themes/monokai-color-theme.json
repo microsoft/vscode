@@ -25,8 +25,9 @@
 		"editorIndentGuide.background": "#464741",
 		"editorGroupHeader.tabsBackground": "#1e1f1c",
 		"editorGroup.dropBackground": "#41433980",
-		"tab.inactiveBackground": "#414339",
-		"tab.border": "#1e1f1c",
+		"tab.activeBackground": "#414339",
+		"tab.inactiveBackground": "#1e1f1c",
+		"tab.border": "#414339",
 		"tab.inactiveForeground": "#ccccc7", // needs to be bright so it's readable when another editor group is focused
 		"widget.shadow": "#1e1f1c",
 		"progressBar.background": "#75715E",
