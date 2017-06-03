@@ -41,6 +41,7 @@ const eolFilter = [
 	'!build/{lib,tslintRules}/**/*.js',
 	'!build/monaco/**',
 	'!build/win32/**',
+	'!build/tfs/**',
 	'!build/**/*.sh',
 	'!build/tfs/**/*.js',
 	'!**/Dockerfile'
