@@ -5,7 +5,6 @@
 
 'use strict';
 
-import 'vs/css!./media/commandsHandler';
 import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import arrays = require('vs/base/common/arrays');
@@ -34,6 +33,8 @@ import { ILifecycleService } from "vs/platform/lifecycle/common/lifecycle";
 import { once } from "vs/base/common/event";
 import { LRUCache, ISerializedBoundedLinkedMap } from "vs/base/common/map";
 import { IConfigurationService } from "vs/platform/configuration/common/configuration";
+import { registerThemingParticipant, ITheme, ICssStyleCollector } from "vs/platform/theme/common/themeService";
+import { pickerGroupForeground } from "vs/platform/theme/common/colorRegistry";
 
 export const ALL_COMMANDS_PREFIX = '>';
 
@@ -199,8 +200,8 @@ class CommandPaletteEditorAction extends EditorAction {
 }
 
 abstract class BaseCommandEntry extends QuickOpenEntryGroup {
+	private detail: string;
 	private alias: string;
-	private description: string;
 	private labelLowercase: string;
 
 	constructor(
@@ -240,15 +241,19 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 	}
 
 	public getDescription(): string {
-		return this.description;
-	}
-
-	public setDescription(description: string): void {
-		this.description = description;
+		return this.keyLabel;
 	}
 
 	public getDetail(): string {
-		return this.alias;
+		if (this.detail && this.alias) {
+			return nls.localize('entryDetailAndAlias', "{0} ({1})", this.alias, this.detail);
+		}
+
+		return this.detail || this.alias;
+	}
+
+	public setDetail(detail: string): void {
+		this.detail = detail;
 	}
 
 	public getAriaLabel(): string {
@@ -257,10 +262,6 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		}
 
 		return nls.localize('entryAriaLabel', "{0}, commands", this.getLabel());
-	}
-
-	public getGroupLabel(): string {
-		return this.keyLabel;
 	}
 
 	protected onError(error?: Error): void;
@@ -446,7 +447,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		entries.forEach(entry => {
 			const commandLabel = `${entry.getLabel()}${entry.getGroupLabel()}`;
 			if (commandLabels.has(commandLabel)) {
-				entry.setDescription(entry.getCommandId());
+				entry.setDetail(entry.getCommandId());
 			} else {
 				commandLabels.add(commandLabel);
 			}
@@ -477,10 +478,12 @@ export class CommandsHandler extends QuickOpenHandler {
 		// only if we have recently used commands in the result set
 		const firstEntry = entries[0];
 		if (firstEntry && this.commandsHistory.get(firstEntry.getCommandId())) {
+			firstEntry.setGroupLabel(nls.localize('recentlyUsed', "recently used"));
 			for (let i = 1; i < entries.length; i++) {
 				const entry = entries[i];
 				if (!this.commandsHistory.get(entry.getCommandId())) {
 					entry.setShowBorder(true);
+					entry.setGroupLabel(nls.localize('morecCommands', "other commands"));
 					break;
 				}
 			}
@@ -605,4 +608,23 @@ export class CommandsHandler extends QuickOpenHandler {
 	public getEmptyLabel(searchString: string): string {
 		return nls.localize('noCommandsMatching', "No commands matching");
 	}
+
+	public getClass(): string {
+		return 'command-palette';
+	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+
+	// Picker Group Foreground to be used for description to emphasize keybindings
+	const pickerGroupForegroundColor = theme.getColor(pickerGroupForeground);
+	if (pickerGroupForegroundColor) {
+		collector.addRule(`
+			.monaco-workbench .quick-open-widget.command-palette .quick-open-tree .quick-open-entry-description {
+				color: ${pickerGroupForegroundColor};
+				opacity: 1;
+				font-size: inherit;
+			}
+		`);
+	}
+});
