@@ -31,7 +31,7 @@ import { editorAction, EditorAction } from 'vs/editor/common/editorCommonExtensi
 import { IStorageService } from "vs/platform/storage/common/storage";
 import { ILifecycleService } from "vs/platform/lifecycle/common/lifecycle";
 import { once } from "vs/base/common/event";
-import { LRUCache, ISerializedBoundedLinkedMap } from "vs/base/common/map";
+import { BoundedMap, ISerializedBoundedLinkedMap } from "vs/base/common/map";
 import { IConfigurationService } from "vs/platform/configuration/common/configuration";
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from "vs/platform/theme/common/themeService";
 import { pickerGroupForeground } from "vs/platform/theme/common/colorRegistry";
@@ -39,7 +39,7 @@ import { pickerGroupForeground } from "vs/platform/theme/common/colorRegistry";
 export const ALL_COMMANDS_PREFIX = '>';
 
 let lastCommandPaletteInput: string;
-let commandHistory: LRUCache<number>;
+let commandHistory: BoundedMap<number>;
 let commandCounter = 1;
 
 function resolveCommandHistory(configurationService: IConfigurationService): number {
@@ -92,7 +92,7 @@ class CommandsHistory {
 			}
 		}
 
-		commandHistory = new LRUCache<number>(this.commandHistoryLength, deserializedCache);
+		commandHistory = new BoundedMap<number>(this.commandHistoryLength, 1, deserializedCache);
 		commandCounter = this.storageService.getInteger(CommandsHistory.PREF_KEY_COUNTER, void 0, commandCounter);
 	}
 
@@ -108,8 +108,8 @@ class CommandsHistory {
 
 	public push(commandId: string): void {
 
-		// make MRU
-		commandHistory.peek(commandId);
+		// make MRU by deleting it first
+		commandHistory.delete(commandId);
 
 		// set counter to command
 		commandHistory.set(commandId, commandCounter++);
@@ -167,7 +167,7 @@ export class ClearCommandHistoryAction extends Action {
 	public run(context?: any): TPromise<any> {
 		const commandHistoryLength = resolveCommandHistory(this.configurationService);
 		if (commandHistoryLength > 0) {
-			commandHistory = new LRUCache<number>(commandHistoryLength);
+			commandHistory = new BoundedMap<number>(commandHistoryLength);
 			commandCounter = 1;
 		}
 
