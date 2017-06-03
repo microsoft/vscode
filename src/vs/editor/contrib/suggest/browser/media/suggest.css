@@ -210,7 +210,6 @@
 
 /** Styles for the docs of the completion item in focus **/
 .monaco-editor .suggest-widget .details {
-	max-height: 216px;
 	display: flex;
 	flex-direction: column;
 	cursor: default;

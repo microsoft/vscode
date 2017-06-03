@@ -34,6 +34,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 
 const sticky = false; // for development purposes
 const expandSuggestionDocsByDefault = false;
+const maxSuggestionsToShow = 12;
 
 interface ISuggestionTemplateData {
 	root: HTMLElement;
@@ -852,6 +853,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		show(this.details.element);
 		this.renderDetails();
+		this.details.element.style.maxHeight = this.maxWidgetHeight + 'px';
 
 		// Reset margin-top that was set as Fix for #26416
 		this.listElement.style.marginTop = '0px';
@@ -909,17 +911,12 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 	private updateListHeight(): number {
 		let height = 0;
-		let maxSuggestionsToShow = 11;
 
 		if (this.state === State.Empty || this.state === State.Loading) {
 			height = this.unfocusedHeight;
 		} else {
-			const focus = this.list.getFocusedElements()[0];
-			const focusHeight = focus ? this.getHeight(focus) : this.unfocusedHeight;
-			height = focusHeight;
-
-			const suggestionCount = (this.list.contentHeight - focusHeight) / this.unfocusedHeight;
-			height += Math.min(suggestionCount, maxSuggestionsToShow) * this.unfocusedHeight;
+			const suggestionCount = this.list.contentHeight / this.unfocusedHeight;
+			height = Math.min(suggestionCount, maxSuggestionsToShow) * this.unfocusedHeight;
 		}
 
 		this.element.style.lineHeight = `${this.unfocusedHeight}px`;
@@ -981,8 +978,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 	// Heights
 
-	private get focusHeight(): number {
-		return this.unfocusedHeight * 2;
+	private get maxWidgetHeight(): number {
+		return this.unfocusedHeight * maxSuggestionsToShow;
 	}
 
 	private get unfocusedHeight(): number {
