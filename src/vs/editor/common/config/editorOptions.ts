@@ -902,6 +902,7 @@ export class InternalEditorOptions {
 			&& this.tabFocusMode === other.tabFocusMode
 			&& this.dragAndDrop === other.dragAndDrop
 			&& this.emptySelectionClipboard === other.emptySelectionClipboard
+			&& this.urlClickable === other.urlClickable
 			&& InternalEditorOptions._equalsLayoutInfo(this.layoutInfo, other.layoutInfo)
 			&& this.fontInfo.equals(other.fontInfo)
 			&& InternalEditorOptions._equalsViewOptions(this.viewInfo, other.viewInfo)
@@ -933,6 +934,7 @@ export class InternalEditorOptions {
 			viewInfo: (!InternalEditorOptions._equalsViewOptions(this.viewInfo, newOpts.viewInfo)),
 			wrappingInfo: (!InternalEditorOptions._equalsWrappingInfo(this.wrappingInfo, newOpts.wrappingInfo)),
 			contribInfo: (!InternalEditorOptions._equalsContribOptions(this.contribInfo, newOpts.contribInfo)),
+			urlClickable: (this.urlClickable !== newOpts.urlClickable),
 		};
 	}
 
@@ -1271,6 +1273,7 @@ export interface IConfigurationChangedEvent {
 	readonly viewInfo: boolean;
 	readonly wrappingInfo: boolean;
 	readonly contribInfo: boolean;
+	readonly urlClickable: boolean;
 }
 
 /**

@@ -3418,6 +3418,7 @@ declare module monaco.editor {
 		readonly viewInfo: boolean;
 		readonly wrappingInfo: boolean;
 		readonly contribInfo: boolean;
+		readonly urlClickable: boolean;
 	}
 
 	/**
