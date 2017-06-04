@@ -2888,6 +2888,11 @@ declare module monaco.editor {
 		 */
 		accessibilitySupport?: 'auto' | 'off' | 'on';
 		/**
+		 * Enable underlining URL and make it as a clickable link through CTRL-click
+		 * Defaults to true.
+		 */
+		urlClickable?: boolean;
+		/**
 		 * Enable quick suggestions (shadow suggestions)
 		 * Defaults to true.
 		 */
@@ -3269,6 +3274,7 @@ declare module monaco.editor {
 		readonly lineHeight: number;
 		readonly readOnly: boolean;
 		readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
+		readonly urlClickable: boolean;
 		readonly wordSeparators: string;
 		readonly autoClosingBrackets: boolean;
 		readonly useTabStops: boolean;

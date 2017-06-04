@@ -342,6 +342,11 @@ export interface IEditorOptions {
 	 */
 	accessibilitySupport?: 'auto' | 'off' | 'on';
 	/**
+	 * Enable underlining URL and make it as a clickable link through CTRL-click
+	 * Defaults to true.
+	 */
+	urlClickable?: boolean;
+	/**
 	 * Enable quick suggestions (shadow suggestions)
 	 * Defaults to true.
 	 */
@@ -795,6 +800,7 @@ export interface IValidatedEditorOptions {
 	readonly useTabStops: boolean;
 	readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 	readonly accessibilitySupport: 'auto' | 'off' | 'on';
+	readonly urlClickable: boolean;
 
 	readonly viewInfo: InternalEditorViewOptions;
 	readonly contribInfo: EditorContribOptions;
@@ -816,6 +822,7 @@ export class InternalEditorOptions {
 	 */
 	readonly accessibilitySupport: platform.AccessibilitySupport;
 	readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
+	readonly urlClickable: boolean;
 
 	// ---- cursor options
 	readonly wordSeparators: string;
@@ -854,6 +861,7 @@ export class InternalEditorOptions {
 		viewInfo: InternalEditorViewOptions;
 		wrappingInfo: EditorWrappingInfo;
 		contribInfo: EditorContribOptions;
+		urlClickable: boolean;
 	}) {
 		this.canUseTranslate3d = source.canUseTranslate3d;
 		this.pixelRatio = source.pixelRatio;
@@ -873,6 +881,7 @@ export class InternalEditorOptions {
 		this.viewInfo = source.viewInfo;
 		this.wrappingInfo = source.wrappingInfo;
 		this.contribInfo = source.contribInfo;
+		this.urlClickable = source.urlClickable;
 	}
 
 	/**
@@ -1436,6 +1445,7 @@ export class EditorOptionsValidator {
 			useTabStops: _boolean(opts.useTabStops, defaults.useTabStops),
 			multiCursorModifier: multiCursorModifier,
 			accessibilitySupport: _stringSet<'auto' | 'on' | 'off'>(opts.accessibilitySupport, defaults.accessibilitySupport, ['auto', 'on', 'off']),
+			urlClickable: _boolean(opts.urlClickable, defaults.urlClickable),
 			viewInfo: viewInfo,
 			contribInfo: contribInfo,
 		};
@@ -1659,6 +1669,7 @@ export class InternalEditorOptionsFactory {
 			useTabStops: opts.useTabStops,
 			multiCursorModifier: opts.multiCursorModifier,
 			accessibilitySupport: opts.accessibilitySupport,
+			urlClickable: opts.urlClickable,
 
 			viewInfo: {
 				extraEditorClassName: opts.viewInfo.extraEditorClassName,
@@ -1866,7 +1877,8 @@ export class InternalEditorOptionsFactory {
 			fontInfo: env.fontInfo,
 			viewInfo: opts.viewInfo,
 			wrappingInfo: wrappingInfo,
-			contribInfo: opts.contribInfo
+			contribInfo: opts.contribInfo,
+			urlClickable: opts.urlClickable
 		});
 	}
 }
@@ -2076,6 +2088,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	useTabStops: true,
 	multiCursorModifier: 'altKey',
 	accessibilitySupport: 'auto',
+	urlClickable: true,
 
 	viewInfo: {
 		extraEditorClassName: '',
