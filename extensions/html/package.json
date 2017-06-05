@@ -24,6 +24,7 @@
       {
         "id": "html",
         "extensions": [
+          ".rhtml",
           ".html",
           ".htm",
           ".shtml",
