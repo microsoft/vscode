@@ -185,10 +185,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private requestQueue: RequestItem[];
 	private pendingResponses: number;
 	private callbacks: CallbackMap;
-	private _onProjectLanguageServiceStateChanged = new EventEmitter<Proto.ProjectLanguageServiceStateEventBody>();
-	private _onDidBeginInstallTypings = new EventEmitter<Proto.BeginInstallTypesEventBody>();
-	private _onDidEndInstallTypings = new EventEmitter<Proto.EndInstallTypesEventBody>();
-	private _onTypesInstallerInitializationFailed = new EventEmitter<Proto.TypesInstallerInitializationFailedEventBody>();
+	private readonly _onProjectLanguageServiceStateChanged = new EventEmitter<Proto.ProjectLanguageServiceStateEventBody>();
+	private readonly _onDidBeginInstallTypings = new EventEmitter<Proto.BeginInstallTypesEventBody>();
+	private readonly _onDidEndInstallTypings = new EventEmitter<Proto.EndInstallTypesEventBody>();
+	private readonly _onTypesInstallerInitializationFailed = new EventEmitter<Proto.TypesInstallerInitializationFailedEventBody>();
 
 	private _apiVersion: API;
 	private telemetryReporter: TelemetryReporter;
