@@ -156,6 +156,42 @@ class TypeScriptServiceConfiguration {
 	}
 }
 
+class RequestQueue {
+	private queue: RequestItem[] = [];
+	private sequenceNumber: number = 0;
+
+	public get length(): number {
+		return this.queue.length;
+	}
+
+	public push(item: RequestItem): void {
+		this.queue.push(item);
+	}
+
+	public shift(): RequestItem | undefined {
+		return this.queue.shift();
+	}
+
+	public tryCancelPendingRequest(seq: number): boolean {
+		for (let i = 0; i < this.queue.length; i++) {
+			if (this.queue[i].request.seq === seq) {
+				this.queue.splice(i, 1);
+				return true;
+			}
+		}
+		return false;
+	}
+
+	public createRequest(command: string, args: any): Proto.Request {
+		return {
+			seq: this.sequenceNumber++,
+			type: 'request',
+			command: command,
+			arguments: args
+		};
+	}
+}
+
 export default class TypeScriptServiceClient implements ITypescriptServiceClient {
 	private static useWorkspaceTsdkStorageKey = 'typescript.useWorkspaceTsdk';
 	private static tsdkMigratedStorageKey = 'typescript.tsdkMigrated';
@@ -176,13 +212,12 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private servicePromise: Thenable<cp.ChildProcess> | null;
 	private lastError: Error | null;
 	private reader: Reader<Proto.Response>;
-	private sequenceNumber: number;
 	private firstStart: number;
 	private lastStart: number;
 	private numberRestarts: number;
 	private cancellationPipeName: string | null = null;
 
-	private requestQueue: RequestItem[];
+	private requestQueue: RequestQueue;
 	private pendingResponses: number;
 	private callbacks: CallbackMap;
 	private readonly _onProjectLanguageServiceStateChanged = new EventEmitter<Proto.ProjectLanguageServiceStateEventBody>();
@@ -211,11 +246,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 		this.servicePromise = null;
 		this.lastError = null;
-		this.sequenceNumber = 0;
 		this.firstStart = Date.now();
 		this.numberRestarts = 0;
 
-		this.requestQueue = [];
+		this.requestQueue = new RequestQueue();
 		this.pendingResponses = 0;
 		this.callbacks = Object.create(null);
 		this.configuration = TypeScriptServiceConfiguration.loadFromWorkspace();
@@ -417,8 +451,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				this.versionStatus.setInfo(label, tooltip);
 
 
-				this.sequenceNumber = 0;
-				this.requestQueue = [];
+				this.requestQueue = new RequestQueue();
 				this.pendingResponses = 0;
 				this.lastError = null;
 
@@ -839,12 +872,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			token = expectsResultOrToken;
 		}
 
-		const request: Proto.Request = {
-			seq: this.sequenceNumber++,
-			type: 'request',
-			command: command,
-			arguments: args
-		};
+		const request = this.requestQueue.createRequest(command, args);
 		const requestInfo: RequestItem = {
 			request: request,
 			promise: null,
@@ -899,12 +927,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private tryCancelRequest(seq: number): boolean {
-		for (let i = 0; i < this.requestQueue.length; i++) {
-			if (this.requestQueue[i].request.seq === seq) {
-				this.requestQueue.splice(i, 1);
-				this.tracer.logTrace(`TypeScript Service: canceled request with sequence number ${seq}`);
-				return true;
-			}
+		if (this.requestQueue.tryCancelPendingRequest(seq)) {
+			this.tracer.logTrace(`TypeScript Service: canceled request with sequence number ${seq}`);
+			return true;
 		}
 
 		if (this.apiVersion.has222Features() && this.cancellationPipeName) {
