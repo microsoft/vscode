@@ -735,10 +735,10 @@ Steps to Reproduce:
 			return 'none' + themeExclusionStr;
 		}
 
-		let tableHeader = `Extension|Author|Version
+		let tableHeader = `Extension|Author (truncated)|Version
 ---|---|---`;
 		const table = extensions.map(e => {
-			return `${e.manifest.name}|${e.manifest.publisher}|${e.manifest.version}`;
+			return `${e.manifest.name}|${e.manifest.publisher.substr(0, 3)}|${e.manifest.version}`;
 		}).join('\n');
 
 		const extensionTable = `
