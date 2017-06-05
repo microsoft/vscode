@@ -32,8 +32,34 @@ interface CallbackItem {
 	start: number;
 }
 
-interface CallbackMap {
-	[key: number]: CallbackItem;
+class CallbackMap {
+	private callbacks: Map<number, CallbackItem> = new Map();
+	public pendingResponses: number = 0;
+
+	public destroy(e: any): void {
+		for (const callback of this.callbacks.values()) {
+			callback.e(e);
+		}
+		this.callbacks = new Map();
+		this.pendingResponses = 0;
+	}
+
+	public add(seq: number, callback: CallbackItem) {
+		this.callbacks.set(seq, callback);
+		++this.pendingResponses;
+	}
+
+	public fetch(seq: number): CallbackItem | undefined {
+		const callback = this.callbacks.get(seq);
+		this.delete(seq);
+		return callback;
+	}
+
+	private delete(seq: number) {
+		if (this.callbacks.delete(seq)) {
+			--this.pendingResponses;
+		}
+	}
 }
 
 interface RequestItem {
@@ -218,8 +244,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private cancellationPipeName: string | null = null;
 
 	private requestQueue: RequestQueue;
-	private pendingResponses: number;
 	private callbacks: CallbackMap;
+
 	private readonly _onProjectLanguageServiceStateChanged = new EventEmitter<Proto.ProjectLanguageServiceStateEventBody>();
 	private readonly _onDidBeginInstallTypings = new EventEmitter<Proto.BeginInstallTypesEventBody>();
 	private readonly _onDidEndInstallTypings = new EventEmitter<Proto.EndInstallTypesEventBody>();
@@ -250,8 +276,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.numberRestarts = 0;
 
 		this.requestQueue = new RequestQueue();
-		this.pendingResponses = 0;
-		this.callbacks = Object.create(null);
+		this.callbacks = new CallbackMap();
 		this.configuration = TypeScriptServiceConfiguration.loadFromWorkspace();
 
 		this._experimentalAutoBuild = false; // configuration.get<boolean>('typescript.tsserver.experimentalAutoBuild', false);
@@ -452,7 +477,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 
 				this.requestQueue = new RequestQueue();
-				this.pendingResponses = 0;
+				this.callbacks = new CallbackMap();
 				this.lastError = null;
 
 				try {
@@ -787,10 +812,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private serviceExited(restart: boolean): void {
 		this.servicePromise = null;
 		this.tsServerLogFile = null;
-		Object.keys(this.callbacks).forEach((key) => {
-			this.callbacks[parseInt(key)].e(new Error('Service died.'));
-		});
-		this.callbacks = Object.create(null);
+		this.callbacks.destroy(new Error('Service died.'));
+		this.callbacks = new CallbackMap();
 		if (restart) {
 			const diff = Date.now() - this.lastStart;
 			this.numberRestarts++;
@@ -898,7 +921,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private sendNextRequests(): void {
-		while (this.pendingResponses === 0 && this.requestQueue.length > 0) {
+		while (this.callbacks.pendingResponses === 0 && this.requestQueue.length > 0) {
 			const item = this.requestQueue.shift();
 			if (item) {
 				this.sendRequest(item);
@@ -910,18 +933,15 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		let serverRequest = requestItem.request;
 		this.tracer.traceRequest(serverRequest, !!requestItem.callbacks, this.requestQueue.length);
 		if (requestItem.callbacks) {
-			this.callbacks[serverRequest.seq] = requestItem.callbacks;
-			this.pendingResponses++;
+			this.callbacks.add(serverRequest.seq, requestItem.callbacks);
 		}
 		this.service()
 			.then((childProcess) => {
 				childProcess.stdin.write(JSON.stringify(serverRequest) + '\r\n', 'utf8');
 			}).then(undefined, err => {
-				let callback = this.callbacks[serverRequest.seq];
+				const callback = this.callbacks.fetch(serverRequest.seq);
 				if (callback) {
 					callback.e(err);
-					delete this.callbacks[serverRequest.seq];
-					this.pendingResponses--;
 				}
 			});
 	}
@@ -940,10 +960,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			} catch (e) {
 				// noop
 			} finally {
-				const p = this.callbacks[seq];
+				const p = this.callbacks.fetch(seq);
 				if (p) {
-					delete this.callbacks[seq];
-					this.pendingResponses--;
 					p.e(new Error(`Cancelled Request ${seq}`));
 				}
 			}
@@ -957,11 +975,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		try {
 			if (message.type === 'response') {
 				const response: Proto.Response = message as Proto.Response;
-				const p = this.callbacks[response.request_seq];
+				const p = this.callbacks.fetch(response.request_seq);
 				if (p) {
 					this.tracer.traceResponse(response, p.start);
-					delete this.callbacks[response.request_seq];
-					this.pendingResponses--;
 					if (response.success) {
 						p.c(response);
 					} else {
