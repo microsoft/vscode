@@ -971,8 +971,12 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							let payload = telemetryData.payload;
 							if (payload) {
 								Object.keys(payload).forEach((key) => {
-									if (payload.hasOwnProperty(key) && is.string(payload[key])) {
-										properties[key] = payload[key];
+									try {
+										if (payload.hasOwnProperty(key)) {
+											properties[key] = is.string(payload[key]) ? payload[key] : JSON.stringify(payload[key]);
+										}
+									} catch (e) {
+										// noop
 									}
 								});
 							}
