@@ -42,8 +42,8 @@ const nodeModules = ['electron', 'original-fs']
 // Build
 
 const builtInExtensions = [
-	{ name: 'ms-vscode.node-debug', version: '1.13.7' },
-	{ name: 'ms-vscode.node-debug2', version: '1.13.0' }
+	{ name: 'ms-vscode.node-debug', version: '1.13.10' },
+	{ name: 'ms-vscode.node-debug2', version: '1.13.2' }
 ];
 
 const vscodeEntryPoints = _.flatten([
@@ -84,6 +84,11 @@ const BUNDLED_FILE_HEADER = [
 	' *--------------------------------------------------------*/'
 ].join('\n');
 
+var languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'];
+if (process.env.VSCODE_QUALITY !== 'stable') {
+	languages = languages.concat(['ptb']); // Add languages requested by the community to non-stable builds
+}
+
 gulp.task('clean-optimized-vscode', util.rimraf('out-vscode'));
 gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compile-extensions-build'], common.optimizeTask({
 	entryPoints: vscodeEntryPoints,
@@ -91,7 +96,8 @@ gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compil
 	resources: vscodeResources,
 	loaderConfig: common.loaderConfig(nodeModules),
 	header: BUNDLED_FILE_HEADER,
-	out: 'out-vscode'
+	out: 'out-vscode',
+	languages: languages
 }));
 
 
@@ -158,7 +164,6 @@ gulp.task('electron', ['clean-electron'], getElectron(process.arch));
 gulp.task('electron-ia32', ['clean-electron'], getElectron('ia32'));
 gulp.task('electron-x64', ['clean-electron'], getElectron('x64'));
 
-const languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita', 'ptb'];
 
 /**
  * Compute checksums for some files.

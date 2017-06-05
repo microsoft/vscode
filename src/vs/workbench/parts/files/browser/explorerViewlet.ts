@@ -99,6 +99,15 @@ export class ExplorerViewlet extends Viewlet {
 		if (this.views.length === 1) {
 			return this.views[0].getActions();
 		}
+
+		return [];
+	}
+
+	public getSecondaryActions(): IAction[] {
+		if (this.views.length === 1) {
+			return this.views[0].getSecondaryActions();
+		}
+
 		return [];
 	}
 

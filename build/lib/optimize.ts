@@ -158,6 +158,10 @@ export interface IOptimizeTaskOpts {
 	 * (out folder name)
 	 */
 	out: string;
+	/**
+	 * (languages to process)
+	 */
+	languages: string[];
 }
 export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStream {
 	const entryPoints = opts.entryPoints;
@@ -228,7 +232,8 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 				includeContent: true
 			}))
 			.pipe(i18n.processNlsFiles({
-				fileHeader: bundledFileHeader
+				fileHeader: bundledFileHeader,
+				languages: opts.languages
 			}))
 			.pipe(gulp.dest(out));
 	};

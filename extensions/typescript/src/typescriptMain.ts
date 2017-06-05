@@ -94,7 +94,7 @@ export function activate(context: ExtensionContext): void {
 		let clientHost: TypeScriptServiceClientHost | undefined;
 		return () => {
 			if (!clientHost) {
-				clientHost = new TypeScriptServiceClientHost(standardLanguageDescriptions, context.storagePath, context.globalState, context.workspaceState, plugins);
+				clientHost = new TypeScriptServiceClientHost(standardLanguageDescriptions, context.storagePath, context.workspaceState, plugins);
 				context.subscriptions.push(clientHost);
 
 				const host = clientHost;
@@ -457,7 +457,6 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	constructor(
 		descriptions: LanguageDescription[],
 		storagePath: string | undefined,
-		globalState: Memento,
 		workspaceState: Memento,
 		plugins: TypeScriptServerPlugin[]
 	) {
@@ -479,7 +478,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		this.versionStatus = new VersionStatus();
 		this.disposables.push(this.versionStatus);
 
-		this.client = new TypeScriptServiceClient(this, storagePath, globalState, workspaceState, this.versionStatus, plugins, this.disposables);
+		this.client = new TypeScriptServiceClient(this, storagePath, workspaceState, this.versionStatus, plugins, this.disposables);
 		this.languagePerId = Object.create(null);
 		for (const description of descriptions) {
 			const manager = new LanguageProvider(this.client, description);
@@ -594,7 +593,13 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 								}, _ => {
 									return workspace.openTextDocument(configFile.with({ scheme: 'untitled' }))
 										.then(doc => window.showTextDocument(doc, col))
-										.then(editor => editor.insertSnippet(new SnippetString('{\n\t$0\n}')));
+										.then(editor => {
+											if (editor.document.getText().length === 0) {
+												return editor.insertSnippet(new SnippetString('{\n\t$0\n}'))
+													.then(_ => editor);
+											}
+											return editor;
+										});
 								});
 
 						case ProjectConfigAction.LearnMore:
@@ -613,7 +618,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	}
 
 	private findLanguage(file: string): Thenable<LanguageProvider | null> {
-		return workspace.openTextDocument(file).then((doc: TextDocument) => {
+		return workspace.openTextDocument(this.client.asUrl(file)).then((doc: TextDocument) => {
 			for (const language of this.languages) {
 				if (language.handles(file, doc)) {
 					return language;

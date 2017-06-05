@@ -29,7 +29,7 @@ export class EmmetCompletionItemProvider implements vscode.CompletionItemProvide
 }
 
 function getExpandedAbbreviation(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionItem {
-	if (!vscode.workspace.getConfiguration('emmet')['suggestExpandedAbbreviation']) {
+	if (!vscode.workspace.getConfiguration('emmet')['showExpandedAbbreviation']) {
 		return;
 	}
 	let [rangeToReplace, wordToExpand] = extractAbbreviation(position);
@@ -40,7 +40,8 @@ function getExpandedAbbreviation(document: vscode.TextDocument, position: vscode
 	let expandedWord = expand(wordToExpand, {
 		field: field,
 		syntax: syntax,
-		profile: getProfile(syntax)
+		profile: getProfile(syntax),
+		addons: syntax === 'jsx' ? { 'jsx': true } : null
 	});
 
 	let completionitem = new vscode.CompletionItem(wordToExpand);
@@ -72,7 +73,7 @@ function removeTabStops(expandedWord: string): string {
 	return expandedWord.replace(/\$\{\d+\}/g, '').replace(/\$\{\d+:([^\}]+)\}/g, '$1');
 }
 function getAbbreviationSuggestions(syntax: string, prefix: string, skipExactMatch: boolean) {
-	if (!vscode.workspace.getConfiguration('emmet')['suggestAbbreviations'] || !prefix || isStyleSheet(syntax)) {
+	if (!vscode.workspace.getConfiguration('emmet')['showAbbreviationSuggestions'] || !prefix || isStyleSheet(syntax)) {
 		return [];
 	}
 

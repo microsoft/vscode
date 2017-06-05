@@ -136,9 +136,9 @@
 	margin: 7px 0px;
 }
 .monaco-workbench > .part.editor > .content .welcomePage .commands li button {
-	margin: 0;
+	margin: 1px;
 	padding: 12px 10px;
-	width: 100%;
+	width: calc(100% - 2px);
 	height: 5em;
 	font-size: 1.3em;
 	text-align: left;

@@ -289,15 +289,16 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private fetchMostCommonlyUsedSettings(): TPromise<string[]> {
 		return TPromise.wrap([
-			'editor.fontSize',
 			'files.autoSave',
+			'editor.fontSize',
 			'editor.fontFamily',
 			'editor.tabSize',
 			'editor.renderWhitespace',
-			'files.exclude',
 			'editor.cursorStyle',
+			'editor.multiCursorModifier',
 			'editor.insertSpaces',
 			'editor.wordWrap',
+			'files.exclude',
 			'files.associations'
 		]);
 	}

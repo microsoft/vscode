@@ -163,7 +163,8 @@ function optimizeTask(opts) {
             includeContent: true
         }))
             .pipe(i18n.processNlsFiles({
-            fileHeader: bundledFileHeader
+            fileHeader: bundledFileHeader,
+            languages: opts.languages
         }))
             .pipe(gulp.dest(out));
     };

@@ -60,7 +60,6 @@
 	"editorBackground": "Cor de plano de fundo do editor.",
 	"editorForeground": "Cor de primeiro plano padrão do editor.",
 	"editorWidgetBackground": "Cor de plano de fundo das ferramentas de edição, como pesquisar/substituir.",
-	"editorWidgetBorder": "Cor da borda da ferramenta editor.",
 	"editorSelection": "Cor de seleção do editor.",
 	"editorInactiveSelection": "Cor de seleção em um editor inativo.",
 	"editorSelectionHighlight": "Cor de regiões com o mesmo conteúdo da seleção.",
@@ -74,5 +73,11 @@
 	"diffEditorInserted": "Cor de fundo para texto que foi inserido.",
 	"diffEditorRemoved": "Cor de fundo para texto que foi removido.",
 	"diffEditorInsertedOutline": "Cor de contorno para o texto que foi inserido.",
-	"diffEditorRemovedOutline": "Cor de contorno para o texto que foi removido."
+	"diffEditorRemovedOutline": "Cor de contorno para o texto que foi removido.",
+	"mergeCurrentHeaderBackground": "Cor de fundo de cabeçalho atual em conflito de mesclagem em linha.",
+	"mergeCurrentContentBackground": "Cor de fundo de conteúdo atual em conflito de mesclagem em linha.",
+	"mergeIncomingHeaderBackground": "Cor de fundo de cabeçalho de entrada em conflito de mesclagem em linha.",
+	"mergeIncomingContentBackground": "Cor de fundo de conteúdo de entrada em conflito de mesclagem em linha.",
+	"overviewRulerCurrentContentForeground": "Cor de fundo de régua de visuaização atual em conflito de mesclagem em linha.",
+	"overviewRulerIncomingContentForeground": "Cor de fundo de régua de visuaização de entrada em conflito de mesclagem em linha."
 }

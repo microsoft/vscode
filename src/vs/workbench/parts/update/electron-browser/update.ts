@@ -296,12 +296,25 @@ export class LightUpdateContribution implements IGlobalActivity {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IActivityBarService activityBarService: IActivityBarService
 	) {
-		this.updateService.onUpdateReady(() => {
+		const addBadge = () => {
 			const badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New update available."));
 			activityBarService.showGlobalActivity(this.id, badge);
-		});
+		};
+		if (isLinux) {
+			this.updateService.onUpdateAvailable(() => addBadge());
+		} else {
+			this.updateService.onUpdateReady(() => addBadge());
+		}
 
 		this.updateService.onError(err => messageService.show(severity.Error, err));
+
+		this.updateService.onUpdateNotAvailable(explicit => {
+			if (!explicit) {
+				return;
+			}
+
+			messageService.show(severity.Info, nls.localize('noUpdatesAvailable', "There are no updates currently available."));
+		});
 	}
 
 	getActions(): IAction[] {
@@ -340,7 +353,7 @@ export class LightUpdateContribution implements IGlobalActivity {
 					this.updateService.quitAndInstall());
 
 			default:
-				return new Action('update.check', nls.localize('checkForUpdates', "Check For Updates..."), undefined, this.updateService.state === UpdateState.Idle, () =>
+				return new Action('update.check', nls.localize('checkForUpdates', "Check for Updates..."), undefined, this.updateService.state === UpdateState.Idle, () =>
 					this.updateService.checkForUpdates(true));
 		}
 	}

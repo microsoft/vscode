@@ -16,7 +16,7 @@ The core editor in VS Code is packed with features.  This page highlights a numb
 ### Multi-Cursor Editing
 Using multiple cursors allows you to edit multiple parts of the document at once, greatly improving your productivity.  Try the following actions in the code block below:
 1. Box Selection - press <span class="mac-only windows-only">any combination of kb(cursorColumnSelectDown), kb(cursorColumnSelectRight), kb(cursorColumnSelectUp), kb(cursorColumnSelectLeft) to select a block of text, you can also press</span> <span class="shortcut mac-only">`⇧⌥`</span><span class="shortcut windows-only linux-only">`Shift+Alt`</span> while selecting text with the mouse.
-2. Add a cursor - press kb(editor.action.insertCursorAbove) or kb(editor.action.insertCursorBelow) to add a new cursor above or below, you can also use your mouse with <span class="shortcut mac-only">`⌥+Click`</span><span class="shortcut windows-only linux-only">`Alt+Click`</span> to add a cursor anywhere.
+2. Add a cursor - press kb(editor.action.insertCursorAbove) or kb(editor.action.insertCursorBelow) to add a new cursor above or below, you can also use your mouse with <span class="shortcut"><span class="multi-cursor-modifier"></span>+Click</span> to add a cursor anywhere.
 3. Create cursors on all occurrences of a string - select one instance of a string e.g. `background-color` and press kb(editor.action.selectHighlights).  Now you can replace all instances by simply typing.
 
 That is the tip of the iceberg for multi-cursor editing have a look at the `selection menu` and our handy [keyboard reference guide](command:workbench.action.keybindingsReference) for additional actions.

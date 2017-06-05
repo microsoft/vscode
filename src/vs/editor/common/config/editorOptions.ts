@@ -335,7 +335,12 @@ export interface IEditorOptions {
 	 * The modifier to be used to add multiple cursors with the mouse.
 	 * Defaults to 'alt'
 	 */
-	multicursorModifier?: 'cmd' | 'ctrl' | 'alt';
+	multiCursorModifier?: 'ctrlCmd' | 'alt';
+	/**
+	 * Configure the editor's accessibility support.
+	 * Defaults to 'auto'. It is best to leave this to 'auto'.
+	 */
+	accessibilitySupport?: 'auto' | 'off' | 'on';
 	/**
 	 * Enable quick suggestions (shadow suggestions)
 	 * Defaults to true.
@@ -788,7 +793,8 @@ export interface IValidatedEditorOptions {
 	readonly dragAndDrop: boolean;
 	readonly emptySelectionClipboard: boolean;
 	readonly useTabStops: boolean;
-	readonly multicursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
+	readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
+	readonly accessibilitySupport: 'auto' | 'off' | 'on';
 
 	readonly viewInfo: InternalEditorViewOptions;
 	readonly contribInfo: EditorContribOptions;
@@ -809,7 +815,7 @@ export class InternalEditorOptions {
 	 * @internal
 	 */
 	readonly accessibilitySupport: platform.AccessibilitySupport;
-	readonly multicursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
+	readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 
 	// ---- cursor options
 	readonly wordSeparators: string;
@@ -836,7 +842,7 @@ export class InternalEditorOptions {
 		lineHeight: number;
 		readOnly: boolean;
 		accessibilitySupport: platform.AccessibilitySupport;
-		multicursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
+		multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 		wordSeparators: string;
 		autoClosingBrackets: boolean;
 		useTabStops: boolean;
@@ -855,7 +861,7 @@ export class InternalEditorOptions {
 		this.lineHeight = source.lineHeight | 0;
 		this.readOnly = source.readOnly;
 		this.accessibilitySupport = source.accessibilitySupport;
-		this.multicursorModifier = source.multicursorModifier;
+		this.multiCursorModifier = source.multiCursorModifier;
 		this.wordSeparators = source.wordSeparators;
 		this.autoClosingBrackets = source.autoClosingBrackets;
 		this.useTabStops = source.useTabStops;
@@ -880,7 +886,7 @@ export class InternalEditorOptions {
 			&& this.lineHeight === other.lineHeight
 			&& this.readOnly === other.readOnly
 			&& this.accessibilitySupport === other.accessibilitySupport
-			&& this.multicursorModifier === other.multicursorModifier
+			&& this.multiCursorModifier === other.multiCursorModifier
 			&& this.wordSeparators === other.wordSeparators
 			&& this.autoClosingBrackets === other.autoClosingBrackets
 			&& this.useTabStops === other.useTabStops
@@ -906,7 +912,7 @@ export class InternalEditorOptions {
 			lineHeight: (this.lineHeight !== newOpts.lineHeight),
 			readOnly: (this.readOnly !== newOpts.readOnly),
 			accessibilitySupport: (this.accessibilitySupport !== newOpts.accessibilitySupport),
-			multicursorModifier: (this.multicursorModifier !== newOpts.multicursorModifier),
+			multiCursorModifier: (this.multiCursorModifier !== newOpts.multiCursorModifier),
 			wordSeparators: (this.wordSeparators !== newOpts.wordSeparators),
 			autoClosingBrackets: (this.autoClosingBrackets !== newOpts.autoClosingBrackets),
 			useTabStops: (this.useTabStops !== newOpts.useTabStops),
@@ -1244,7 +1250,7 @@ export interface IConfigurationChangedEvent {
 	readonly lineHeight: boolean;
 	readonly readOnly: boolean;
 	readonly accessibilitySupport: boolean;
-	readonly multicursorModifier: boolean;
+	readonly multiCursorModifier: boolean;
 	readonly wordSeparators: boolean;
 	readonly autoClosingBrackets: boolean;
 	readonly useTabStops: boolean;
@@ -1399,22 +1405,14 @@ export class EditorOptionsValidator {
 		const contribInfo = this._sanitizeContribInfo(opts, defaults.contribInfo);
 
 		let configuredMulticursorModifier: 'altKey' | 'metaKey' | 'ctrlKey';
-		if (typeof opts.multicursorModifier === 'string') {
-			if (platform.isMacintosh) {
-				if (opts.multicursorModifier === 'cmd') {
-					configuredMulticursorModifier = 'metaKey';
-				} else {
-					configuredMulticursorModifier = 'altKey';
-				}
+		if (typeof opts.multiCursorModifier === 'string') {
+			if (opts.multiCursorModifier === 'ctrlCmd') {
+				configuredMulticursorModifier = platform.isMacintosh ? 'metaKey' : 'ctrlKey';
 			} else {
-				if (opts.multicursorModifier === 'ctrl') {
-					configuredMulticursorModifier = 'ctrlKey';
-				} else {
-					configuredMulticursorModifier = 'altKey';
-				}
+				configuredMulticursorModifier = 'altKey';
 			}
 		}
-		const multicursorModifier = _stringSet<'altKey' | 'metaKey' | 'ctrlKey'>(configuredMulticursorModifier, defaults.multicursorModifier, ['altKey', 'metaKey', 'ctrlKey']);
+		const multiCursorModifier = _stringSet<'altKey' | 'metaKey' | 'ctrlKey'>(configuredMulticursorModifier, defaults.multiCursorModifier, ['altKey', 'metaKey', 'ctrlKey']);
 
 		return {
 			inDiffEditor: _boolean(opts.inDiffEditor, defaults.inDiffEditor),
@@ -1436,7 +1434,8 @@ export class EditorOptionsValidator {
 			dragAndDrop: _boolean(opts.dragAndDrop, defaults.dragAndDrop),
 			emptySelectionClipboard: _boolean(opts.emptySelectionClipboard, defaults.emptySelectionClipboard),
 			useTabStops: _boolean(opts.useTabStops, defaults.useTabStops),
-			multicursorModifier: multicursorModifier,
+			multiCursorModifier: multiCursorModifier,
+			accessibilitySupport: _stringSet<'auto' | 'on' | 'off'>(opts.accessibilitySupport, defaults.accessibilitySupport, ['auto', 'on', 'off']),
 			viewInfo: viewInfo,
 			contribInfo: contribInfo,
 		};
@@ -1635,11 +1634,9 @@ export class EditorOptionsValidator {
  */
 export class InternalEditorOptionsFactory {
 
-	private static _handlePerformanceCritical(opts: IValidatedEditorOptions, performanceCritical: boolean): IValidatedEditorOptions {
-		if (!performanceCritical) {
-			return opts;
-		}
-
+	private static _tweakValidatedOptions(opts: IValidatedEditorOptions, accessibilitySupport: platform.AccessibilitySupport): IValidatedEditorOptions {
+		const accessibilityIsOn = (accessibilitySupport === platform.AccessibilitySupport.Enabled);
+		const accessibilityIsOff = (accessibilitySupport === platform.AccessibilitySupport.Disabled);
 		return {
 			inDiffEditor: opts.inDiffEditor,
 			wordSeparators: opts.wordSeparators,
@@ -1660,20 +1657,21 @@ export class InternalEditorOptionsFactory {
 			dragAndDrop: opts.dragAndDrop,
 			emptySelectionClipboard: opts.emptySelectionClipboard,
 			useTabStops: opts.useTabStops,
-			multicursorModifier: opts.multicursorModifier,
+			multiCursorModifier: opts.multiCursorModifier,
+			accessibilitySupport: opts.accessibilitySupport,
 
 			viewInfo: {
 				extraEditorClassName: opts.viewInfo.extraEditorClassName,
 				disableMonospaceOptimizations: opts.viewInfo.disableMonospaceOptimizations,
 				rulers: opts.viewInfo.rulers,
-				ariaLabel: opts.viewInfo.ariaLabel,
+				ariaLabel: (accessibilityIsOff ? nls.localize('accessibilityOffAriaLabel', "The editor is not accessible at this time. Press Alt+F1 for options.") : opts.viewInfo.ariaLabel),
 				renderLineNumbers: opts.viewInfo.renderLineNumbers,
 				renderCustomLineNumbers: opts.viewInfo.renderCustomLineNumbers,
 				renderRelativeLineNumbers: opts.viewInfo.renderRelativeLineNumbers,
 				selectOnLineNumbers: opts.viewInfo.selectOnLineNumbers,
 				glyphMargin: opts.viewInfo.glyphMargin,
 				revealHorizontalRightPadding: opts.viewInfo.revealHorizontalRightPadding,
-				roundedSelection: false, // DISABLED
+				roundedSelection: (accessibilityIsOn ? false : opts.viewInfo.roundedSelection), // DISABLED WHEN SCREEN READER IS ATTACHED
 				overviewRulerLanes: opts.viewInfo.overviewRulerLanes,
 				overviewRulerBorder: opts.viewInfo.overviewRulerBorder,
 				cursorBlinking: opts.viewInfo.cursorBlinking,
@@ -1682,14 +1680,14 @@ export class InternalEditorOptionsFactory {
 				hideCursorInOverviewRuler: opts.viewInfo.hideCursorInOverviewRuler,
 				scrollBeyondLastLine: opts.viewInfo.scrollBeyondLastLine,
 				stopRenderingLineAfter: opts.viewInfo.stopRenderingLineAfter,
-				renderWhitespace: 'none', // DISABLED
-				renderControlCharacters: false, // DISABLED
-				fontLigatures: false, // DISABLED
-				renderIndentGuides: false, // DISABLED
-				renderLineHighlight: 'none', // DISABLED
+				renderWhitespace: (accessibilityIsOn ? 'none' : opts.viewInfo.renderWhitespace), // DISABLED WHEN SCREEN READER IS ATTACHED
+				renderControlCharacters: (accessibilityIsOn ? false : opts.viewInfo.renderControlCharacters), // DISABLED WHEN SCREEN READER IS ATTACHED
+				fontLigatures: (accessibilityIsOn ? false : opts.viewInfo.fontLigatures), // DISABLED WHEN SCREEN READER IS ATTACHED
+				renderIndentGuides: (accessibilityIsOn ? false : opts.viewInfo.renderIndentGuides), // DISABLED WHEN SCREEN READER IS ATTACHED
+				renderLineHighlight: (accessibilityIsOn ? 'none' : opts.viewInfo.renderLineHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
 				scrollbar: opts.viewInfo.scrollbar,
 				minimap: {
-					enabled: false, // DISABLED
+					enabled: (accessibilityIsOn ? false : opts.viewInfo.minimap.enabled), // DISABLED WHEN SCREEN READER IS ATTACHED
 					renderCharacters: opts.viewInfo.minimap.renderCharacters,
 					maxColumn: opts.viewInfo.minimap.maxColumn
 				},
@@ -1713,12 +1711,12 @@ export class InternalEditorOptionsFactory {
 				wordBasedSuggestions: opts.contribInfo.wordBasedSuggestions,
 				suggestFontSize: opts.contribInfo.suggestFontSize,
 				suggestLineHeight: opts.contribInfo.suggestLineHeight,
-				selectionHighlight: false, // DISABLED
-				occurrencesHighlight: false, // DISABLED
-				codeLens: false, // DISABLED
-				folding: false, // DISABLED
+				selectionHighlight: (accessibilityIsOn ? false : opts.contribInfo.selectionHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
+				occurrencesHighlight: (accessibilityIsOn ? false : opts.contribInfo.occurrencesHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
+				codeLens: (accessibilityIsOn ? false : opts.contribInfo.codeLens), // DISABLED WHEN SCREEN READER IS ATTACHED
+				folding: (accessibilityIsOn ? false : opts.contribInfo.folding), // DISABLED WHEN SCREEN READER IS ATTACHED
 				showFoldingControls: opts.contribInfo.showFoldingControls,
-				matchBrackets: false, // DISABLED
+				matchBrackets: (accessibilityIsOn ? false : opts.contribInfo.matchBrackets), // DISABLED WHEN SCREEN READER IS ATTACHED
 				find: opts.contribInfo.find
 			}
 		};
@@ -1726,9 +1724,19 @@ export class InternalEditorOptionsFactory {
 
 	public static createInternalEditorOptions(env: IEnvironmentalOptions, _opts: IValidatedEditorOptions) {
 
+		let accessibilitySupport: platform.AccessibilitySupport;
+		if (_opts.accessibilitySupport === 'auto') {
+			// The editor reads the `accessibilitySupport` from the environment
+			accessibilitySupport = env.accessibilitySupport;
+		} else if (_opts.accessibilitySupport === 'on') {
+			accessibilitySupport = platform.AccessibilitySupport.Enabled;
+		} else {
+			accessibilitySupport = platform.AccessibilitySupport.Disabled;
+		}
+
 		// Disable some non critical features to get as best performance as possible
 		// See https://github.com/Microsoft/vscode/issues/26730
-		const opts = this._handlePerformanceCritical(_opts, (env.accessibilitySupport === platform.AccessibilitySupport.Enabled));
+		const opts = this._tweakValidatedOptions(_opts, accessibilitySupport);
 
 		let lineDecorationsWidth: number;
 		if (typeof opts.lineDecorationsWidth === 'string' && /^\d+(\.\d+)?ch$/.test(opts.lineDecorationsWidth)) {
@@ -1768,7 +1776,17 @@ export class InternalEditorOptionsFactory {
 			const wordWrapColumn = opts.wordWrapColumn;
 			const wordWrapMinified = opts.wordWrapMinified;
 
-			if (wordWrapMinified && env.isDominatedByLongLines) {
+			if (accessibilitySupport === platform.AccessibilitySupport.Enabled) {
+				// See https://github.com/Microsoft/vscode/issues/27766
+				// Never enable wrapping when a screen reader is attached
+				// because arrow down etc. will not move the cursor in the way
+				// a screen reader expects.
+				bareWrappingInfo = {
+					isWordWrapMinified: false,
+					isViewportWrapping: false,
+					wrappingColumn: -1
+				};
+			} else if (wordWrapMinified && env.isDominatedByLongLines) {
 				// Force viewport width wrapping if model is dominated by long lines
 				bareWrappingInfo = {
 					isWordWrapMinified: true,
@@ -1836,8 +1854,8 @@ export class InternalEditorOptionsFactory {
 			editorClassName: className,
 			lineHeight: env.fontInfo.lineHeight,
 			readOnly: opts.readOnly,
-			accessibilitySupport: env.accessibilitySupport,
-			multicursorModifier: opts.multicursorModifier,
+			accessibilitySupport: accessibilitySupport,
+			multiCursorModifier: opts.multiCursorModifier,
 			wordSeparators: opts.wordSeparators,
 			autoClosingBrackets: opts.autoClosingBrackets,
 			useTabStops: opts.useTabStops,
@@ -2056,7 +2074,8 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	dragAndDrop: true,
 	emptySelectionClipboard: true,
 	useTabStops: true,
-	multicursorModifier: 'altKey',
+	multiCursorModifier: 'altKey',
+	accessibilitySupport: 'auto',
 
 	viewInfo: {
 		extraEditorClassName: '',

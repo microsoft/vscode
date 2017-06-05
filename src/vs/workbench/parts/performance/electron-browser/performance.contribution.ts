@@ -10,6 +10,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
@@ -20,6 +21,7 @@ import { ReportPerformanceIssueAction } from 'vs/workbench/electron-browser/acti
 import { TPromise } from 'vs/base/common/winjs.base';
 import { join } from 'path';
 import { localize } from 'vs/nls';
+import { toPromise, filterEvent } from 'vs/base/common/event';
 import { platform, Platform } from 'vs/base/common/platform';
 import { readdir, stat } from 'vs/base/node/pfs';
 import { release } from 'os';
@@ -149,10 +151,16 @@ class StartupProfiler implements IWorkbenchContribution {
 		@IMessageService private readonly _messageService: IMessageService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 		@IExtensionService extensionService: IExtensionService,
 	) {
-
-		extensionService.onReady().then(() => this._stopProfiling());
+		// wait for everything to be ready
+		TPromise.join<any>([
+			extensionService.onReady(),
+			toPromise(filterEvent(lifecycleService.onDidChangePhase, phase => phase === LifecyclePhase.Running)),
+		]).then(() => {
+			this._stopProfiling();
+		});
 	}
 
 	getId(): string {

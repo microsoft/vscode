@@ -16,14 +16,14 @@
 
 .monaco-editor .suggest-widget > .tree,
 .monaco-editor .suggest-widget > .details {
-	width: 428px;
+	width: calc(100% - 2px);
 	border-style: solid;
 	border-width: 1px;
 }
 
 .monaco-editor.hc-black .suggest-widget > .tree,
 .monaco-editor.hc-black .suggest-widget > .details {
-	width: 426px;
+	width: calc(100% - 4px);
 	border-width: 2px;
 }
 
@@ -109,7 +109,7 @@
 
 /** Icon styles **/
 
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .close,
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore {
 	opacity: 0.6;
 	background-position: center center;
@@ -118,16 +118,17 @@
 	cursor: pointer;
 }
 
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .close {
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close {
 	background-image: url('./close.svg');
 	float: right;
+	margin-right: 5px;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore {
 	background-image: url('./info.svg');
 }
 
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .close:hover,
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close:hover,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore:hover {
 	opacity: 1;
 }
@@ -209,7 +210,6 @@
 
 /** Styles for the docs of the completion item in focus **/
 .monaco-editor .suggest-widget .details {
-	max-height: 216px;
 	display: flex;
 	flex-direction: column;
 	cursor: default;
@@ -235,16 +235,17 @@
 	white-space: pre-wrap;
 }
 
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .type {
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .type {
 	flex: 2;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	opacity: 0.7;
 	word-break: break-all;
 	margin: 0;
+	padding: 4px 0 4px 5px;
 }
 
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > p {
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs {
 	margin: 0;
 	padding: 4px 5px;
 }
@@ -256,8 +257,8 @@
 
 /* High Contrast and Dark Theming */
 
-.monaco-editor.vs-dark .suggest-widget .details > .monaco-scrollable-element > .body > .close,
-.monaco-editor.hc-black .suggest-widget .details > .monaco-scrollable-element > .body > .close {
+.monaco-editor.vs-dark .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close,
+.monaco-editor.hc-black .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close {
 	background-image: url('./close-dark.svg');
 }
 

@@ -153,12 +153,12 @@
 	"miLicense": "Ver &&licencia",
 	"miPrivacyStatement": "&&Declaración de privacidad",
 	"miAbout": "&&Acerca de",
+	"accessibilityOptionsWindowTitle": "Opciones de accesibilidad",
 	"miRestartToUpdate": "Reiniciar para actualizar...",
 	"miCheckingForUpdates": "Buscando actualizaciones...",
 	"miDownloadUpdate": "Descargar actualización disponible",
 	"miDownloadingUpdate": "Descargando actualización...",
 	"miInstallingUpdate": "Instalando actualización...",
-	"miCheckForUpdates": "Buscar actualizaciones...",
 	"aboutDetail": "\nVersión {0}\nConfirmación {1}\nFecha {2}\nShell {3}\nRepresentador {4}\nNode {5}",
 	"okButton": "Aceptar"
 }

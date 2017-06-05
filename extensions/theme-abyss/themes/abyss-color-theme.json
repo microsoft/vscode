@@ -375,6 +375,7 @@
 		// "activityBar.dropBackground": "",
 
 		// Workbench: Panel
+		// "panel.background": "",
 		"panel.border": "#2b2b4a",
 		// "panelTitle.activeBorder": "",
 		// "panelTitle.activeForeground": "",

@@ -365,13 +365,13 @@ export function createApiFactory(
 				}
 				return extHostTerminalService.createTerminal(<string>nameOrOptions, shellPath, shellArgs);
 			},
+			registerTreeDataProvider(viewId: string, treeDataProvider: vscode.TreeDataProvider<any>): vscode.Disposable {
+				return extHostTreeViews.registerTreeDataProvider(viewId, treeDataProvider);
+			},
 			// proposed API
 			sampleFunction: proposedApiFunction(extension, () => {
 				return extHostMessageService.showMessage(Severity.Info, 'Hello Proposed Api!', {}, []);
 			}),
-			registerTreeDataProviderForView: proposedApiFunction(extension, (viewId: string, treeDataProvider: vscode.TreeDataProvider<any>): vscode.Disposable => {
-				return extHostTreeViews.registerTreeDataProviderForView(viewId, treeDataProvider);
-			})
 		};
 
 		// namespace: workspace
@@ -448,9 +448,9 @@ export function createApiFactory(
 			getConfiguration: (section?: string): vscode.WorkspaceConfiguration => {
 				return extHostConfiguration.getConfiguration(section);
 			},
-			registerTaskProvider: (provider: vscode.TaskProvider) => {
+			registerTaskProvider: proposedApiFunction(extension, (provider: vscode.TaskProvider) => {
 				return extHostTask.registerTaskProvider(extension, provider);
-			}
+			})
 		};
 
 		class SCM {
@@ -535,6 +535,7 @@ export function createApiFactory(
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
 			ProgressLocation: extHostTypes.ProgressLocation,
 			TreeItemCollapsibleState: extHostTypes.TreeItemCollapsibleState,
+			TreeItem: extHostTypes.TreeItem,
 			ThemeColor: extHostTypes.ThemeColor,
 			// functions
 			TaskRevealKind: extHostTypes.TaskRevealKind,

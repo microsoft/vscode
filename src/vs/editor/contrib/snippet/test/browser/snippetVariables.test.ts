@@ -78,12 +78,12 @@ suite('Snippet Variables Resolver', function () {
 		assert.equal(resolver.resolve('TM_LINE_NUMBER'), '1');
 
 		resolver = new EditorSnippetVariableResolver(model, new Selection(1, 2, 1, 2));
-		assert.equal(resolver.resolve('TM_SELECTED_TEXT'), '');
+		assert.equal(resolver.resolve('TM_SELECTED_TEXT'), undefined);
 
 		assert.equal(resolver.resolve('TM_CURRENT_WORD'), 'this');
 
 		resolver = new EditorSnippetVariableResolver(model, new Selection(3, 1, 3, 1));
-		assert.equal(resolver.resolve('TM_CURRENT_WORD'), '');
+		assert.equal(resolver.resolve('TM_CURRENT_WORD'), undefined);
 
 	});
 

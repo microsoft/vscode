@@ -169,13 +169,13 @@ function _rewriteBogousVariables(snippet: ISnippet): boolean {
 			return SnippetParser.escape(marker.string);
 
 		} else if (marker instanceof Placeholder) {
-			if (marker.defaultValue.length > 0) {
-				return `\${${marker.index}:${marker.defaultValue.map(fixBogousVariables).join('')}}`;
+			if (marker.children.length > 0) {
+				return `\${${marker.index}:${marker.children.map(fixBogousVariables).join('')}}`;
 			} else {
 				return `\$${marker.index}`;
 			}
 		} else if (marker instanceof Variable) {
-			if (marker.defaultValue.length === 0 && !EditorSnippetVariableResolver.VariableNames[marker.name]) {
+			if (marker.children.length === 0 && !EditorSnippetVariableResolver.VariableNames[marker.name]) {
 				// a 'variable' without a default value and not being one of our supported
 				// variables is automatically turing into a placeholder. This is to restore
 				// a bug we had before. So `${foo}` becomes `${N:foo}`
@@ -183,8 +183,8 @@ function _rewriteBogousVariables(snippet: ISnippet): boolean {
 				placeholders.set(marker.name, index);
 				return `\${${index++}:${marker.name}}`;
 
-			} else if (marker.defaultValue.length > 0) {
-				return `\${${marker.name}:${marker.defaultValue.map(fixBogousVariables).join('')}}`;
+			} else if (marker.children.length > 0) {
+				return `\${${marker.name}:${marker.children.map(fixBogousVariables).join('')}}`;
 			} else {
 				return `\$${marker.name}`;
 			}

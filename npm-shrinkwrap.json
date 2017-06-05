@@ -410,9 +410,9 @@
       "resolved": "git://github.com/jrieken/v8-profiler.git#bc0803a4d4b2150b8a1bbffa80270769007036c2"
     },
     "vscode-debugprotocol": {
-      "version": "1.19.0",
-      "from": "vscode-debugprotocol@1.19.0",
-      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.19.0.tgz"
+      "version": "1.20.0",
+      "from": "vscode-debugprotocol@1.20.0",
+      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.20.0.tgz"
     },
     "vscode-ripgrep": {
       "version": "0.0.12",

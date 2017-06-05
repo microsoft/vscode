@@ -10,6 +10,7 @@
   "engines": {
     "vscode": "*"
   },
+  "enableProposedApi": true,
   "dependencies": {
     "semver": "4.3.6",
     "vscode-extension-telemetry": "^0.0.7",
@@ -124,7 +125,7 @@
         },
         "typescript.referencesCodeLens.enabled": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "%typescript.referencesCodeLens.enabled%"
         },
         "typescript.implementationsCodeLens.enabled": {
@@ -478,7 +479,7 @@
           "${cwd}"
         ],
         "pattern": "$tsc",
-        "watching": {
+        "background": {
           "activeOnStart": true,
           "beginsPattern": {
             "regexp": "^\\s*(?:message TS6032:|\\d{1,2}:\\d{1,2}:\\d{1,2}(?: AM| PM)? -) File change detected\\. Starting incremental compilation\\.\\.\\."

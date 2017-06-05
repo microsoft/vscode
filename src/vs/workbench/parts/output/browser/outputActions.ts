@@ -112,7 +112,10 @@ export class SwitchOutputActionItem extends SelectActionItem {
 	) {
 		super(null, action, [], 0);
 
-		this.toDispose.push(this.outputService.onOutputChannel(() => this.setOptions(this.getOptions(), this.getSelected(undefined))));
+		this.toDispose.push(this.outputService.onOutputChannel(() => {
+			const activeChannelIndex = this.getSelected(this.outputService.getActiveChannel().id);
+			this.setOptions(this.getOptions(), activeChannelIndex);
+		}));
 		this.toDispose.push(this.outputService.onActiveOutputChannel(activeChannelId => this.setOptions(this.getOptions(), this.getSelected(activeChannelId))));
 		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
 

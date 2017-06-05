@@ -27,7 +27,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import Severity from 'vs/base/common/severity';
-import { ColorThemeData, fromStorageData, fromExtensionTheme } from './colorThemeData';
+import { ColorThemeData, fromStorageData, fromExtensionTheme, createUnloadedTheme } from './colorThemeData';
 import { ITheme, Extensions as ThemingExtensions, IThemingRegistry } from 'vs/platform/theme/common/themeService';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 
@@ -229,30 +229,21 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		this.updateColorCustomizations(false);
 
+		// In order to avoid paint flashing for tokens, because
+		// themes are loaded asynchronously, we need to initialize
+		// a color theme document with good defaults until the theme is loaded
 		let themeData = null;
 		let persistedThemeData = this.storageService.get(PERSISTED_THEME_STORAGE_KEY);
 		if (persistedThemeData) {
 			themeData = fromStorageData(persistedThemeData);
 		}
-		if (themeData !== null) {
-			themeData.setCustomColors(this.colorCustomizations);
-			this.updateDynamicCSSRules(themeData);
-			this.applyTheme(themeData, null, true);
-		} else {
-			// In order to avoid paint flashing for tokens, because
-			// themes are loaded asynchronously, we need to initialize
-			// a color theme document with good defaults until the theme is loaded
+		if (!themeData) {
 			let isLightTheme = (Array.prototype.indexOf.call(document.body.classList, 'vs') >= 0);
-
-			let initialTheme = new ColorThemeData();
-			initialTheme.id = isLightTheme ? VS_LIGHT_THEME : VS_DARK_THEME;
-			initialTheme.label = '';
-			initialTheme.settingsId = null;
-			initialTheme.isLoaded = false;
-			initialTheme.tokenColors = [{ settings: {} }];
-			initialTheme.setCustomColors(this.colorCustomizations);
-			this.currentColorTheme = initialTheme;
+			themeData = createUnloadedTheme(isLightTheme ? VS_LIGHT_THEME : VS_DARK_THEME);
 		}
+		themeData.setCustomColors(this.colorCustomizations);
+		this.updateDynamicCSSRules(themeData);
+		this.applyTheme(themeData, null, true);
 
 		themesExtPoint.setHandler((extensions) => {
 			for (let ext of extensions) {

@@ -25,6 +25,7 @@ export function matchTag() {
 	});
 	if (updatedSelections.length > 0) {
 		editor.selections = updatedSelections;
+		editor.revealRange(editor.selections[updatedSelections.length - 1]);
 	}
 }
 

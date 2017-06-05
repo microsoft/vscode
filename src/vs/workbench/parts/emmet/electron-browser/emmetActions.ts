@@ -249,8 +249,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 		'editor.emmet.action.mergeLines': 'emmet.mergeLines',
 		'editor.emmet.action.selectPreviousItem': 'emmet.selectPrevItem',
 		'editor.emmet.action.selectNextItem': 'emmet.selectNextItem',
-		'editor.emmet.action.splitJoinTag': 'emmet.splitJoinTag',
-		'editor.emmet.action.toggleComment': 'emmet.toggleComment'
+		'editor.emmet.action.splitJoinTag': 'emmet.splitJoinTag'
 	};
 
 	protected emmetActionName: string;

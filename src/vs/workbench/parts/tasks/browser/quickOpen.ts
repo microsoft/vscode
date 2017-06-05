@@ -13,21 +13,18 @@ import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
-import { Task, TaskSourceKind, computeLabel } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, TaskSourceKind } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
 import { ActionBarContributor, ContributableActionProvider } from 'vs/workbench/browser/actions';
 
 export class TaskEntry extends Model.QuickOpenEntry {
 
-	private _label: string;
-
 	constructor(protected taskService: ITaskService, protected _task: Task, highlights: Model.IHighlight[] = []) {
 		super(highlights);
-		this._label = computeLabel(_task);
 	}
 
 	public getLabel(): string {
-		return this._label;
+		return this.task._label;
 	}
 
 	public getAriaLabel(): string {
@@ -84,7 +81,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 							return compare;
 						}
 					}
-					return a.name.localeCompare(b.name);
+					return a._label.localeCompare(b._label);
 				}
 				if (aKind === TaskSourceKind.Workspace) {
 					return -1;
@@ -98,7 +95,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 			let groupExtension = groupWorkspace;
 			let hadWorkspace = false;
 			for (let task of tasks) {
-				let highlights = Filters.matchesContiguousSubString(input, task.name);
+				let highlights = Filters.matchesContiguousSubString(input, task._label);
 				if (!highlights) {
 					continue;
 				}

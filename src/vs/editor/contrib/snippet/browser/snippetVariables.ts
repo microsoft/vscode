@@ -32,7 +32,7 @@ export class EditorSnippetVariableResolver {
 
 	resolve(name: string): string {
 		if (name === 'SELECTION' || name === 'TM_SELECTED_TEXT') {
-			return this._model.getValueInRange(this._selection);
+			return this._model.getValueInRange(this._selection) || undefined;
 
 		} else if (name === 'TM_CURRENT_LINE') {
 			return this._model.getLineContent(this._selection.positionLineNumber);
@@ -42,7 +42,7 @@ export class EditorSnippetVariableResolver {
 				lineNumber: this._selection.positionLineNumber,
 				column: this._selection.positionColumn
 			});
-			return info ? info.word : '';
+			return info && info.word || undefined;
 
 		} else if (name === 'TM_LINE_INDEX') {
 			return String(this._selection.positionLineNumber - 1);

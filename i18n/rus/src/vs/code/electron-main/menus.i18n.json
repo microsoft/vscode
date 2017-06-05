@@ -150,12 +150,12 @@
 	"miLicense": "Просмотреть &&лицензию",
 	"miPrivacyStatement": "&&Заявление о конфиденциальности",
 	"miAbout": "&&О программе",
+	"accessibilityOptionsWindowTitle": "Специальные возможности",
 	"miRestartToUpdate": "Перезапустить для обновления...",
 	"miCheckingForUpdates": "Идет проверка наличия обновлений...",
 	"miDownloadUpdate": "Скачать доступное обновление",
 	"miDownloadingUpdate": "Скачивается обновление...",
 	"miInstallingUpdate": "Идет установка обновления...",
-	"miCheckForUpdates": "Проверить наличие обновлений...",
 	"aboutDetail": "\nВерсия {0}\nФиксация {1}\nДата {2}\nОболочка {3}\nОбработчик {4}\nNode {5}",
 	"okButton": "ОК"
 }

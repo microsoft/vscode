@@ -60,7 +60,6 @@
 	"editorBackground": "Colore di sfondo dell'editor.",
 	"editorForeground": "Colore primo piano predefinito dell'editor.",
 	"editorWidgetBackground": "Colore di sfondo dei widget dell'editor, ad esempio Trova/Sostituisci.",
-	"editorWidgetBorder": "Colore del bordo del widget editor.",
 	"editorSelection": "Colore della selezione dell'editor.",
 	"editorInactiveSelection": "Colore della selezione in un editor inattivo.",
 	"editorSelectionHighlight": "Colore delle aree con lo stesso contenuto della selezione.",
@@ -74,5 +73,11 @@
 	"diffEditorInserted": "Colore di sfondo del testo che è stato inserito.",
 	"diffEditorRemoved": "Colore di sfondo del testo che è stato rimosso.",
 	"diffEditorInsertedOutline": "Colore del contorno del testo che è stato inserito.",
-	"diffEditorRemovedOutline": "Colore del contorno del testo che è stato rimosso."
+	"diffEditorRemovedOutline": "Colore del contorno del testo che è stato rimosso.",
+	"mergeCurrentHeaderBackground": "Sfondo intestazione corrente in conflitto di merge in linea.",
+	"mergeCurrentContentBackground": "Sfondo contenuto corrente in conflitto di merge in linea.",
+	"mergeIncomingHeaderBackground": "Sfondo intestazione modifica in ingresso in conflitto di merge in linea.",
+	"mergeIncomingContentBackground": "Sfondo contenuto modifica in ingresso in conflitto di merge in linea.",
+	"overviewRulerCurrentContentForeground": "Primo piano righello panoramica corrente per conflitto di merge in linea.",
+	"overviewRulerIncomingContentForeground": "Primo piano righello panoramica modifiche in ingresso per conflitto di merge in linea."
 }

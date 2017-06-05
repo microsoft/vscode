@@ -9,7 +9,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape } from '../node/extHost.protocol';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { ViewsRegistry, ITreeViewDataProvider, ITreeItem, TreeItemCollapsibleState } from 'vs/workbench/parts/views/browser/views';
+import { ViewsRegistry } from 'vs/workbench/parts/views/browser/views';
+import { ITreeViewDataProvider, ITreeItem, TreeItemCollapsibleState } from 'vs/workbench/parts/views/common/views';
 
 export class MainThreadTreeViews extends MainThreadTreeViewsShape {
 

@@ -153,12 +153,12 @@
 	"miLicense": "查看许可证(&&L)",
 	"miPrivacyStatement": "隐私声明(&&P)",
 	"miAbout": "关于(&&A)",
+	"accessibilityOptionsWindowTitle": "辅助功能选项",
 	"miRestartToUpdate": "重启以更新...",
 	"miCheckingForUpdates": "正在检查更新...",
 	"miDownloadUpdate": "下载可用更新",
 	"miDownloadingUpdate": "正在下载更新...",
 	"miInstallingUpdate": "正在安装更新...",
-	"miCheckForUpdates": "检查更新...",
 	"aboutDetail": "\n版本 {0}\n提交 {1}\n日期 {2}\nShell {3}\n渲染器 {4}\nNode {5}",
 	"okButton": "确定"
 }

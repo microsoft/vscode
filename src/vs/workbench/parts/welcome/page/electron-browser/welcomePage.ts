@@ -35,8 +35,9 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { tildify } from 'vs/base/common/labels';
 import { isLinux } from 'vs/base/common/platform';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { registerColor, textLinkForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils';
+import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 import { isWelcomePageEnabled } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IStorageService } from "vs/platform/storage/common/storage";
@@ -144,6 +145,7 @@ const keymapExtensions: ExtensionSuggestion[] = [
 interface Strings {
 	installEvent: string;
 	installedEvent: string;
+	detailsEvent: string;
 
 	alreadyInstalled: string;
 	reloadAfterInstall: string;
@@ -154,16 +156,18 @@ interface Strings {
 const extensionPackStrings: Strings = {
 	installEvent: 'installExtension',
 	installedEvent: 'installedExtension',
+	detailsEvent: 'detailsExtension',
 
 	alreadyInstalled: localize('welcomePage.extensionPackAlreadyInstalled', "Support for {0} is already installed."),
-	reloadAfterInstall: localize('welcomePage.willReloadAfterInstallingExtensionPack', "The window will reload after installing support for {0}."),
-	installing: localize('welcomePage.installingExtensionPack', "Installing support for {0}..."),
+	reloadAfterInstall: localize('welcomePage.willReloadAfterInstallingExtensionPack', "The window will reload after installing additional support for {0}."),
+	installing: localize('welcomePage.installingExtensionPack', "Installing additional support for {0}..."),
 	extensionNotFound: localize('welcomePage.extensionPackNotFound', "Support for {0} with id {1} could not be found."),
 };
 
 const keymapStrings: Strings = {
 	installEvent: 'installKeymap',
 	installedEvent: 'installedKeymap',
+	detailsEvent: 'detailsKeymap',
 
 	alreadyInstalled: localize('welcomePage.keymapAlreadyInstalled', "The {0} keyboard shortcuts are already installed."),
 	reloadAfterInstall: localize('welcomePage.willReloadAfterInstallingKeymap', "The window will reload after installing the {0} keyboard shortcuts."),
@@ -189,6 +193,7 @@ class WelcomePage {
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
 		@IExtensionTipsService private tipsService: IExtensionTipsService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IThemeService private themeService: IThemeService,
 		@ITelemetryService private telemetryService: ITelemetryService
@@ -243,8 +248,11 @@ class WelcomePage {
 					name = parentFolder;
 					parentFolder = tmp;
 				}
+				const tildifiedParentFolder = tildify(parentFolder, this.environmentService.userHome);
+
 				a.innerText = name;
 				a.title = folder;
+				a.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, tildifiedParentFolder));
 				a.href = 'javascript:void(0)';
 				a.addEventListener('click', e => {
 					this.telemetryService.publicLog('workbenchActionExecuted', {
@@ -260,7 +268,7 @@ class WelcomePage {
 				const span = document.createElement('span');
 				span.classList.add('path');
 				span.classList.add('detail');
-				span.innerText = tildify(parentFolder, this.environmentService.userHome);
+				span.innerText = tildifiedParentFolder;
 				span.title = folder;
 				li.appendChild(span);
 
@@ -311,6 +319,7 @@ class WelcomePage {
 
 				const a = document.createElement('a');
 				a.innerText = extension.name;
+				a.title = extension.isKeymap ? localize('welcomePage.installKeymap', "Install {0} keymap", extension.name) : localize('welcomePage.installExtensionPack', "Install additional support for {0}", extension.name);
 				a.classList.add('installExtension');
 				a.setAttribute('data-extension', extension.id);
 				a.href = 'javascript:void(0)';
@@ -322,7 +331,8 @@ class WelcomePage {
 				list.appendChild(a);
 
 				const span = document.createElement('span');
-				span.innerText = localize('welcomePage.installedExtension', "{0} (installed)", extension.name);
+				span.innerText = extension.name;
+				span.title = extension.isKeymap ? localize('welcomePage.installedKeymap', "{0} keymap is already installed", extension.name) : localize('welcomePage.installedExtensionPack', "{0} support is already installed", extension.name);
 				span.classList.add('enabledExtension');
 				span.setAttribute('data-extension', extension.id);
 				list.appendChild(span);
@@ -361,7 +371,7 @@ class WelcomePage {
 					if (!extension) {
 						return false;
 					}
-					return this.extensionManagementService.installFromGallery(extension)
+					return this.extensionManagementService.installFromGallery(extension, false)
 						.then(() => {
 							// TODO: Do this as part of the install to avoid multiple events.
 							return this.extensionEnablementService.setEnablement(extensionSuggestion.id, false);
@@ -417,6 +427,16 @@ class WelcomePage {
 							});
 						return TPromise.as(true);
 					}),
+					new Action('details', localize('details', "Details"), null, true, () => {
+						this.telemetryService.publicLog(strings.detailsEvent, {
+							from: telemetryFrom,
+							extensionId: extensionSuggestion.id,
+						});
+						this.extensionsWorkbenchService.queryGallery({ names: [extensionSuggestion.id] })
+							.then(result => this.extensionsWorkbenchService.open(result.firstPage[0]))
+							.then(null, onUnexpectedError);
+						return TPromise.as(false);
+					}),
 					new Action('cancel', localize('cancel', "Cancel"), null, true, () => {
 						this.telemetryService.publicLog(strings.installedEvent, {
 							from: telemetryFrom,
@@ -466,8 +486,8 @@ class WelcomePage {
 
 // theming
 
-const quickLinkBackground = registerColor('welcomePage.quickLinkBackground', { dark: null, light: null, hc: null }, localize('welcomePage.quickLinkBackground', 'Background color for the quick links on the Welcome page.'));
-const quickLinkHoverBackground = registerColor('welcomePage.quickLinkHoverBackground', { dark: null, light: null, hc: null }, localize('welcomePage.quickLinkHoverBackground', 'Hover background color for the quick links on the Welcome page.'));
+const buttonBackground = registerColor('welcomePage.buttonBackground', { dark: null, light: null, hc: null }, localize('welcomePage.buttonBackground', 'Background color for the buttons on the Welcome page.'));
+const buttonHoverBackground = registerColor('welcomePage.buttonHoverBackground', { dark: null, light: null, hc: null }, localize('welcomePage.buttonHoverBackground', 'Hover background color for the buttons on the Welcome page.'));
 
 registerThemingParticipant((theme, collector) => {
 	const foregroundColor = theme.getColor(foreground);
@@ -478,17 +498,26 @@ registerThemingParticipant((theme, collector) => {
 	if (descriptionColor) {
 		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .detail { color: ${descriptionColor}; }`);
 	}
-	const color = getExtraColor(theme, quickLinkBackground, { dark: 'rgba(0, 0, 0, .2)', extra_dark: 'rgba(200, 235, 255, .042)', light: 'rgba(0,0,0,.04)', hc: 'black' });
-	if (color) {
-		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .commands li button { background: ${color}; }`);
+	const buttonColor = getExtraColor(theme, buttonBackground, { dark: 'rgba(0, 0, 0, .2)', extra_dark: 'rgba(200, 235, 255, .042)', light: 'rgba(0,0,0,.04)', hc: 'black' });
+	if (buttonColor) {
+		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .commands li button { background: ${buttonColor}; }`);
 	}
-	const hover = getExtraColor(theme, quickLinkHoverBackground, { dark: 'rgba(200, 235, 255, .072)', extra_dark: 'rgba(200, 235, 255, .072)', light: 'rgba(0,0,0,.10)', hc: null });
-	if (hover) {
-		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .commands li button:hover { background: ${hover}; }`);
+	const buttonHoverColor = getExtraColor(theme, buttonHoverBackground, { dark: 'rgba(200, 235, 255, .072)', extra_dark: 'rgba(200, 235, 255, .072)', light: 'rgba(0,0,0,.10)', hc: null });
+	if (buttonHoverColor) {
+		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .commands li button:hover { background: ${buttonHoverColor}; }`);
 	}
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
 		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage a { color: ${link}; }`);
+	}
+	const activeLink = theme.getColor(textLinkActiveForeground);
+	if (activeLink) {
+		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage a:hover,
+			.monaco-workbench > .part.editor > .content .welcomePage a:active { color: ${activeLink}; }`);
+	}
+	const focusColor = theme.getColor(focusBorder);
+	if (focusColor) {
+		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage a:focus { outline-color: ${focusColor}; }`);
 	}
 	const border = theme.getColor(contrastBorder);
 	if (border) {

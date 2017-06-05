@@ -41,6 +41,6 @@
 	"typescript.selectTypeScriptVersion.title": "选择 TypeScript 版本",
 	"jsDocCompletion.enabled": "启用/禁用自动 JSDoc 注释",
 	"javascript.implicitProjectConfig.checkJs": "启用/禁用 JavaScript 文件的语义检查。现有的 jsconfig.json 或\n tsconfig.json 文件会覆盖此设置。要求 TypeScript >=2.3.1。",
-	"typescript.check.npmIsInstalled": "检查是否安装了 NPM 以进行自动 typings 获取",
-	"javascript.nameSuggestions": "启用/禁用在 JavaScript 建议列表中包含文件中的唯一名称。"
+	"javascript.nameSuggestions": "启用/禁用在 JavaScript 建议列表中包含文件中的唯一名称。",
+	"typescript.tsc.autoDetect": "控制自动检测 tsc 任务是否打开。"
 }

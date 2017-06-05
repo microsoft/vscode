@@ -152,7 +152,6 @@ export class TextResourceEditor extends BaseTextEditor {
 
 	/**
 	 * Reveals the last line of this editor if it has a model set.
-	 * If smart reveal is true will only reveal the last line if the line before last is visible #3351
 	 */
 	public revealLastLine(): void {
 		const codeEditor = <ICodeEditor>this.getControl();
@@ -160,7 +159,7 @@ export class TextResourceEditor extends BaseTextEditor {
 
 		if (model) {
 			const lastLine = model.getLineCount();
-			codeEditor.revealLine(lastLine);
+			codeEditor.revealPosition({ lineNumber: lastLine, column: model.getLineMaxColumn(lastLine) });
 		}
 	}
 

@@ -71,7 +71,7 @@ import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
 import { ITaskSystem, ITaskResolver, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskSystemEvents } from 'vs/workbench/parts/tasks/common/taskSystem';
-import { Task, TaskSet, TaskGroup, ExecutionEngine, TaskSourceKind, computeLabel as computeTaskLabel } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, TaskSet, TaskGroup, ExecutionEngine, JsonSchemaVersion, TaskSourceKind } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, TaskServiceEvents, ITaskProvider } from 'vs/workbench/parts/tasks/common/taskService';
 import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
@@ -119,6 +119,52 @@ abstract class OpenTaskConfigurationAction extends Action {
 				if (!selection) {
 					return undefined;
 				}
+				let contentPromise: TPromise<string>;
+				if (selection.autoDetect) {
+					const outputChannel = this.outputService.getChannel(TaskService.OutputChannelId);
+					outputChannel.show(true);
+					outputChannel.append(nls.localize('ConfigureTaskRunnerAction.autoDetecting', 'Auto detecting tasks for {0}', selection.id) + '\n');
+					let detector = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService);
+					contentPromise = detector.detect(false, selection.id).then((value) => {
+						let config = value.config;
+						if (value.stderr && value.stderr.length > 0) {
+							value.stderr.forEach((line) => {
+								outputChannel.append(line + '\n');
+							});
+							if (config && (!config.tasks || config.tasks.length === 0)) {
+								this.messageService.show(Severity.Warning, nls.localize('ConfigureTaskRunnerAction.autoDetect', 'Auto detecting the task system failed. Using default template. Consult the task output for details.'));
+								return selection.content;
+							} else {
+								this.messageService.show(Severity.Warning, nls.localize('ConfigureTaskRunnerAction.autoDetectError', 'Auto detecting the task system produced errors. Consult the task output for details.'));
+							}
+						}
+						if (config) {
+							if (value.stdout && value.stdout.length > 0) {
+								value.stdout.forEach(line => outputChannel.append(line + '\n'));
+							}
+							let content = JSON.stringify(config, null, '\t');
+							content = [
+								'{',
+								'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
+								'\t// for the documentation about the tasks.json format',
+							].join('\n') + content.substr(1);
+							return content;
+						} else {
+							return selection.content;
+						}
+					});
+				} else {
+					contentPromise = TPromise.as(selection.content);
+				}
+				return contentPromise.then(content => {
+					let editorConfig = this.configurationService.getConfiguration<any>();
+					if (editorConfig.editor.insertSpaces) {
+						content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + strings.repeat(' ', s2.length * editorConfig.editor.tabSize));
+					}
+					configFileCreated = true;
+					return this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json'), content);
+				});
+				/* 2.0 version
 				let content = selection.content;
 				let editorConfig = this.configurationService.getConfiguration<any>();
 				if (editorConfig.editor.insertSpaces) {
@@ -126,6 +172,7 @@ abstract class OpenTaskConfigurationAction extends Action {
 				}
 				configFileCreated = true;
 				return this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json'), content);
+				*/
 			});
 		}).then((stat) => {
 			if (!stat) {
@@ -455,7 +502,6 @@ interface WorkspaceTaskResult {
 	set: TaskSet;
 	annotatingTasks: {
 		byIdentifier: IStringDictionary<Task>;
-		byName: IStringDictionary<Task>;
 	};
 	hasErrors: boolean;
 }
@@ -547,7 +593,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				? ExecutionEngine.Terminal
 				: this._taskSystem instanceof ProcessTaskSystem
 					? ExecutionEngine.Process
-					: ExecutionEngine.Unknown;
+					: undefined;
 			if (currentExecutionEngine !== this.getExecutionEngine()) {
 				this.messageService.show(Severity.Info, nls.localize('TaskSystem.noHotSwap', 'Changing the task execution engine requires restarting VS Code. The change is ignored.'));
 			}
@@ -709,7 +755,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			return TPromise.as<void>(undefined);
 		}
 		let fileConfig = configuration.config;
-		let customize = { taskName: computeTaskLabel(task), identifier: task.identifier };
+		let customize = { customize: task.identifier, taskName: task._label, problemMatcher: [] };
 		if (!fileConfig) {
 			fileConfig = {
 				version: '2.0.0',
@@ -746,7 +792,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		sets.forEach((set) => {
 			set.tasks.forEach((task) => {
 				uuidMap[task._id] = task;
-				labelMap[computeTaskLabel(task)] = task;
+				labelMap[task._label] = task;
 				identifierMap[task.identifier] = task;
 				if (group && task.group === group) {
 					if (task._source.kind === TaskSourceKind.Workspace) {
@@ -779,6 +825,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			let task: Task = {
 				_id: id,
 				_source: { kind: TaskSourceKind.Generic, label: 'generic' },
+				_label: id,
 				name: id,
 				identifier: id,
 				dependsOn: extensionTasks.map(task => task._id),
@@ -794,7 +841,7 @@ class TaskService extends EventEmitter implements ITaskService {
 
 		sets.forEach((set) => {
 			set.tasks.forEach((task) => {
-				labelMap[computeTaskLabel(task)] = task;
+				labelMap[task._label] = task;
 				identifierMap[task.identifier] = task;
 			});
 		});
@@ -904,7 +951,7 @@ class TaskService extends EventEmitter implements ITaskService {
 						resolve(result);
 					}
 				};
-				if (this.getExecutionEngine() === ExecutionEngine.Terminal && this._providers.size > 0) {
+				if (this.getJsonSchemaVersion() === JsonSchemaVersion.V2_0_0 && this._providers.size > 0) {
 					this._providers.forEach((provider) => {
 						counter++;
 						provider.provideTasks().done(done, error);
@@ -922,10 +969,11 @@ class TaskService extends EventEmitter implements ITaskService {
 					for (let set of result) {
 						for (let task of set.tasks) {
 							if (annotatingTasks) {
-								let annotatingTask = annotatingTasks.byIdentifier[task.identifier] || annotatingTasks.byName[task.name];
+								let annotatingTask = annotatingTasks.byIdentifier[task.identifier];
 								if (annotatingTask) {
 									TaskConfig.mergeTasks(task, annotatingTask);
 									task.name = annotatingTask.name;
+									task._label = annotatingTask._label;
 									task._source.kind = TaskSourceKind.Workspace;
 									continue;
 								}
@@ -936,6 +984,7 @@ class TaskService extends EventEmitter implements ITaskService {
 									TaskConfig.mergeTasks(task, legacyAnnotatingTask);
 									task._source.kind = TaskSourceKind.Workspace;
 									task.name = legacyAnnotatingTask.name;
+									task._label = legacyAnnotatingTask._label;
 									workspaceTasksToDelete.push(legacyAnnotatingTask);
 									continue;
 								}
@@ -1013,36 +1062,48 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (hasParseErrors) {
 				return TPromise.as({ set: undefined, hasErrors: true });
 			}
+			let engine = TaskConfig.ExecutionEngine._default;
 			if (config) {
-				let engine = TaskConfig.ExecutionEngine.from(config);
-				if (engine === ExecutionEngine.Process && this.hasDetectorSupport(config)) {
-					configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService, config).detect(true).then((value): WorkspaceConfigurationResult => {
-						let hasErrors = this.printStderr(value.stderr);
-						let detectedConfig = value.config;
-						if (!detectedConfig) {
-							return { config, hasErrors };
-						}
-						let result: TaskConfig.ExternalTaskRunnerConfiguration = Objects.clone(config);
-						let configuredTasks: IStringDictionary<TaskConfig.TaskDescription> = Object.create(null);
-						if (!result.tasks) {
-							if (detectedConfig.tasks) {
-								result.tasks = detectedConfig.tasks;
+				engine = TaskConfig.ExecutionEngine.from(config);
+				if (engine === ExecutionEngine.Process) {
+					if (this.hasDetectorSupport(config)) {
+						configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService, config).detect(true).then((value): WorkspaceConfigurationResult => {
+							let hasErrors = this.printStderr(value.stderr);
+							let detectedConfig = value.config;
+							if (!detectedConfig) {
+								return { config, hasErrors };
 							}
-						} else {
-							result.tasks.forEach(task => configuredTasks[task.taskName] = task);
-							detectedConfig.tasks.forEach((task) => {
-								if (!configuredTasks[task.taskName]) {
-									result.tasks.push(task);
+							let result: TaskConfig.ExternalTaskRunnerConfiguration = Objects.clone(config);
+							let configuredTasks: IStringDictionary<TaskConfig.TaskDescription> = Object.create(null);
+							if (!result.tasks) {
+								if (detectedConfig.tasks) {
+									result.tasks = detectedConfig.tasks;
 								}
-							});
-						}
-						return { config: result, hasErrors };
-					});
+							} else {
+								result.tasks.forEach(task => configuredTasks[task.taskName] = task);
+								detectedConfig.tasks.forEach((task) => {
+									if (!configuredTasks[task.taskName]) {
+										result.tasks.push(task);
+									}
+								});
+							}
+							return { config: result, hasErrors };
+						});
+					} else {
+						configPromise = TPromise.as({ config, hasErrors: false });
+					}
 				} else {
 					configPromise = TPromise.as({ config, hasErrors: false });
 				}
 			} else {
-				configPromise = TPromise.as({ config, hasErrors: false });
+				if (engine === ExecutionEngine.Terminal) {
+					configPromise = TPromise.as({ config, hasErrors: false });
+				} else {
+					configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService).detect(true).then((value) => {
+						let hasErrors = this.printStderr(value.stderr);
+						return { config: value.config, hasErrors };
+					});
+				}
 			}
 		}
 		return configPromise.then((resolved) => {
@@ -1061,17 +1122,13 @@ class TaskService extends EventEmitter implements ITaskService {
 					problemReporter.fatal(nls.localize('TaskSystem.configurationErrors', 'Error: the provided task configuration has validation errors and can\'t not be used. Please correct the errors first.'));
 					return { set: undefined, annotatingTasks: undefined, hasErrors };
 				}
-				let annotatingTasks: { byIdentifier: IStringDictionary<Task>; byName: IStringDictionary<Task>; };
+				let annotatingTasks: { byIdentifier: IStringDictionary<Task>; };
 				if (parseResult.annotatingTasks && parseResult.annotatingTasks.length > 0) {
 					annotatingTasks = {
-						byIdentifier: Object.create(null),
-						byName: Object.create(null)
+						byIdentifier: Object.create(null)
 					};
 					for (let task of parseResult.annotatingTasks) {
-						annotatingTasks.byIdentifier[task.identifier] = task;
-						if (task.name) {
-							annotatingTasks.byName[task.name] = task;
-						}
+						annotatingTasks.byIdentifier[task.customize] = task;
 					}
 				}
 				return { set: { tasks: parseResult.tasks }, annotatingTasks: annotatingTasks, hasErrors };
@@ -1082,9 +1139,17 @@ class TaskService extends EventEmitter implements ITaskService {
 	private getExecutionEngine(): ExecutionEngine {
 		let { config } = this.getConfiguration();
 		if (!config) {
-			return ExecutionEngine.Terminal;
+			return ExecutionEngine.Process;
 		}
 		return TaskConfig.ExecutionEngine.from(config);
+	}
+
+	private getJsonSchemaVersion(): JsonSchemaVersion {
+		let { config } = this.getConfiguration();
+		if (!config) {
+			return JsonSchemaVersion.V2_0_0;
+		}
+		return TaskConfig.JsonSchemaVersion.from(config);
 	}
 
 	private getConfiguration(): { config: TaskConfig.ExternalTaskRunnerConfiguration; hasParseErrors: boolean } {
