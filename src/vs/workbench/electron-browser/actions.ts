@@ -725,15 +725,16 @@ Steps to Reproduce:
 			return 'none';
 		}
 
-		let tableHeader = `|Extension|Author|Version|
-|---|---|---|`;
+		let tableHeader = `Extension|Author|Version
+---|---|---`;
 		const table = extensions.map(e => {
-			return `|${e.manifest.name}|${e.manifest.publisher}|${e.manifest.version}|`;
+			return `${e.manifest.name}|${e.manifest.publisher}|${e.manifest.version}`;
 		}).join('\n');
 
 		const extensionTable = `
 
-${tableHeader}\n${table};
+${tableHeader}
+${table}
 
 `;
 		// 2000 chars is browsers de-facto limit for URLs, 400 chars are allowed for other string parts of the issue URL
