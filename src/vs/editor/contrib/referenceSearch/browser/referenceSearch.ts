@@ -201,7 +201,10 @@ export function provideReferences(model: editorCommon.IReadOnlyModel, position: 
 				return provider.provideReferences(model, position, { includeDeclaration: true }, token);
 			}).then(result => {
 				if (Array.isArray(result)) {
-					progress(result);
+					// The timeout is necessary to get this to work when provideReferences returns synchronously (e.g. tests).
+					// This timeout wouldn't be necessary if TPromise implemented A+ spec (https://promisesaplus.com/#point-67), but it doesn't :(
+					// Without the timeout, the progress handler will get called before there is a progress listener if provideReferences returns synchronously.
+					return TPromise.timeout(0).then(() => progress(result));
 				}
 				return undefined;
 			}, err => {
@@ -210,8 +213,12 @@ export function provideReferences(model: editorCommon.IReadOnlyModel, position: 
 		});
 
 		promise = TPromise.join(promises).then(() => complete(void 0));
-		return promise;
 	}, () => promise.cancel());
 }
 
-CommonEditorRegistry.registerDefaultLanguageCommand('_executeReferenceProvider', provideReferences);
+function provideReferencesCommand(model: editorCommon.IReadOnlyModel, position: Position): TPromise<Location[]> {
+	const values: Location[] = [];
+	return provideReferences(model, position).then(() => TPromise.wrap(values), undefined, progress => values.push(...progress));
+}
+
+CommonEditorRegistry.registerDefaultLanguageCommand('_executeReferenceProvider', provideReferencesCommand);
