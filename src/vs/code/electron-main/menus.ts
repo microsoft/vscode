@@ -24,6 +24,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import Event, { Emitter, once } from 'vs/base/common/event';
 import { ConfigWatcher } from 'vs/base/node/config';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
+import { tildify } from "vs/base/common/labels";
 
 interface IKeybinding {
 	id: string;
@@ -543,13 +544,8 @@ export class VSCodeMenu {
 	}
 
 	private createOpenRecentMenuItem(path: string, commandId: string): Electron.MenuItem {
-		let label = path;
-		if ((isMacintosh || isLinux) && path.indexOf(this.environmentService.userHome) === 0) {
-			label = `~${path.substr(this.environmentService.userHome.length)}`;
-		}
-
 		return new MenuItem(this.likeAction(commandId, {
-			label: this.unmnemonicLabel(label), click: (menuItem, win, event) => {
+			label: this.unmnemonicLabel(tildify(path, this.environmentService.userHome)), click: (menuItem, win, event) => {
 				const openInNewWindow = this.isOptionClick(event);
 				const success = !!this.windowsService.open({ context: OpenContext.MENU, cli: this.environmentService.args, pathsToOpen: [path], forceNewWindow: openInNewWindow });
 				if (!success) {
