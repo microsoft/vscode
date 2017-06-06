@@ -34,6 +34,8 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts, Position as SidebarPosition } from 'vs/workbench/services/part/common/partService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { QuickOpenAction } from "vs/workbench/browser/quickopen";
+import { SWITCH_WINDOWS_PREFIX } from "vs/workbench/electron-browser/windowPicker";
 
 import * as os from 'os';
 import { webFrame } from 'electron';
@@ -79,7 +81,7 @@ export class CloseWindowAction extends Action {
 	}
 }
 
-export class SwitchWindow extends Action {
+export class SwitchWindow extends QuickOpenAction {
 
 	static ID = 'workbench.action.switchWindow';
 	static LABEL = nls.localize('switchWindow', "Switch Window");
@@ -87,26 +89,9 @@ export class SwitchWindow extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowsService private windowsService: IWindowsService,
-		@IWindowService private windowService: IWindowService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IQuickOpenService quickOpenService: IQuickOpenService
 	) {
-		super(id, label);
-	}
-
-	run(): TPromise<void> {
-		const currentWindowId = this.windowService.getCurrentWindowId();
-
-		return this.windowsService.getWindows().then(workspaces => {
-			const placeHolder = nls.localize('switchWindowPlaceHolder', "Select a window");
-			const picks = workspaces.map(w => ({
-				label: w.title,
-				description: (currentWindowId === w.id) ? nls.localize('current', "Current Window") : void 0,
-				run: () => this.windowsService.showWindow(w.id)
-			}));
-
-			this.quickOpenService.pick(picks, { placeHolder });
-		});
+		super(id, label, SWITCH_WINDOWS_PREFIX, quickOpenService);
 	}
 }
 

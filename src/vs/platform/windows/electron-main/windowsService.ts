@@ -16,9 +16,8 @@ import Event, { chain } from 'vs/base/common/event';
 import { fromEventEmitter } from 'vs/base/node/event';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-
-// TODO@Joao: remove this dependency, move all implementation to this class
-import { OpenContext } from 'vs/code/common/windows';
+import { isMacintosh } from "vs/base/common/platform";
+import { OpenContext } from 'vs/code/common/windows'; // TODO@Joao: remove this dependency, move all implementation to this class
 import { IWindowsMainService } from 'vs/code/electron-main/windows';
 import { ILifecycleService } from "vs/code/electron-main/lifecycle";
 
@@ -255,7 +254,12 @@ export class WindowsService implements IWindowsService, IDisposable {
 
 	getWindows(): TPromise<{ id: number; path: string; title: string; }[]> {
 		const windows = this.windowsMainService.getWindows();
-		const result = windows.map(w => ({ path: w.openedWorkspacePath, title: w.win.getTitle(), id: w.id }));
+		const result = windows.map(w => {
+			const filename = isMacintosh ? w.win.getRepresentedFilename() : void 0;
+
+			return { path: w.openedWorkspacePath, title: w.win.getTitle(), id: w.id, filename };
+		});
+
 		return TPromise.as(result);
 	}
 
