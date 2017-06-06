@@ -45,6 +45,7 @@ import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelE
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 
 class DecorationsManager implements IDisposable {
 
@@ -532,6 +533,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	private _previewNotAvailableMessage: Model;
 	private _previewContainer: Builder;
 	private _messageContainer: Builder;
+	private _progressBar: ProgressBar;
 
 	constructor(
 		editor: ICodeEditor,
@@ -559,6 +561,11 @@ export class ReferenceWidget extends PeekViewWidget {
 			primaryHeadingColor: theme.getColor(peekViewTitleForeground),
 			secondaryHeadingColor: theme.getColor(peekViewTitleInfoForeground)
 		});
+		if (this._progressBar) {
+			this._progressBar.style({
+				progressBarBackground: theme.getColor(peekViewBorder),
+			});
+		}
 	}
 
 	public dispose(): void {
@@ -591,6 +598,10 @@ export class ReferenceWidget extends PeekViewWidget {
 		}
 	}
 
+	public getProgressBar(): ProgressBar {
+		return this._progressBar;
+	}
+
 	protected _fillBody(containerElement: HTMLElement): void {
 		var container = $(containerElement);
 
@@ -599,6 +610,11 @@ export class ReferenceWidget extends PeekViewWidget {
 		// message pane
 		container.div({ 'class': 'messages' }, div => {
 			this._messageContainer = div.hide();
+		});
+
+		// progress
+		container.div({}, div => {
+			this._progressBar = new ProgressBar(div, { progressBarBackground: this._themeService.getTheme().getColor(peekViewBorder) });
 		});
 
 		// editor

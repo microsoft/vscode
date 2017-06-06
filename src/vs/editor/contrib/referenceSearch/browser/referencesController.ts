@@ -146,7 +146,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 
 		const requestId = ++this._requestIdPool;
 
-		const handleModel = (model: ReferencesModel) => {
+		const handleModel = (model: ReferencesModel, done: boolean) => {
 			// still current request? widget still open?
 			if (requestId !== this._requestIdPool || !this._widget) {
 				return undefined;
@@ -182,19 +182,23 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 				if (selection) {
 					return this._widget.setSelection(selection);
 				}
+				if (done) {
+					this._widget.getProgressBar().done();
+				}
 				return undefined;
 			});
 
 		};
 
+		this._widget.getProgressBar().infinite().getContainer().show();
 		let firstUpdate = true;
 		const aggregatedLocations: Location[] = [];
 		const promise = modelPromise.then(result => {
 			if (result instanceof ReferencesModel) {
-				return handleModel(result);
+				return handleModel(result, true);
 			}
 			// All results should have been received via progress.
-			alert(this._model.getAriaMessage());
+			this._widget.getProgressBar().done();
 			return TPromise.wrap(void 0);
 		}, error => {
 			this._messageService.show(Severity.Error, error);
@@ -210,11 +214,11 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 			aggregatedLocations.push(...newLocations);
 			if (firstUpdate) {
 				firstUpdate = false;
-				handleModel(new ReferencesModel(aggregatedLocations));
+				handleModel(new ReferencesModel(aggregatedLocations), false);
 				return;
 			}
 			this._model.setReferences(aggregatedLocations);
-		});
+		}).then(() => alert(this._model.getAriaMessage()));
 
 		const onDone = stopwatch(fromPromise(promise));
 
