@@ -26,7 +26,7 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ITree, IDataSource, IRenderer, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ViewsRegistry, IViewOptions } from 'vs/workbench/parts/views/browser/views';
+import { ViewsRegistry, IViewOptions } from 'vs/workbench/parts/views/browser/viewsRegistry';
 import { ITreeViewDataProvider, ITreeItem, TreeItemCollapsibleState, TreeViewItemHandleArg } from 'vs/workbench/parts/views/common/views';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { CollapsibleState } from 'vs/base/browser/ui/splitview/splitview';

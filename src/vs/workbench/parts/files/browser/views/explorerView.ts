@@ -42,7 +42,7 @@ import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/th
 import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
-import { IViewOptions } from 'vs/workbench/parts/views/browser/views';
+import { IViewOptions } from 'vs/workbench/parts/views/browser/viewsRegistry';
 
 export class ExplorerView extends CollapsibleViewletView {
 

@@ -18,7 +18,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IViewOptions } from 'vs/workbench/parts/views/browser/views';
+import { IViewOptions } from 'vs/workbench/parts/views/browser/viewsRegistry';
 
 export class EmptyView extends CollapsibleView {
 

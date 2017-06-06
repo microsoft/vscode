@@ -32,7 +32,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachHeaderViewStyler } from 'vs/platform/theme/common/styler';
-import { ViewsRegistry, ViewLocation, IViewDescriptor } from 'vs/workbench/parts/views/browser/views';
+import { ViewsRegistry, ViewLocation, IViewDescriptor } from 'vs/workbench/parts/views/browser/viewsRegistry';
 
 interface IViewState {
 	collapsed: boolean;
