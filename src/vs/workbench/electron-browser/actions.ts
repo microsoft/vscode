@@ -39,6 +39,7 @@ import { SWITCH_WINDOWS_PREFIX } from "vs/workbench/electron-browser/windowPicke
 
 import * as os from 'os';
 import { webFrame } from 'electron';
+import { getPathLabel } from "vs/base/common/labels";
 
 // --- actions
 
@@ -580,7 +581,8 @@ export class OpenRecentAction extends Action {
 		@IWindowsService private windowsService: IWindowsService,
 		@IWindowService private windowService: IWindowService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(id, label);
 	}
@@ -591,12 +593,12 @@ export class OpenRecentAction extends Action {
 	}
 
 	private openRecent(recentFiles: string[], recentFolders: string[]): void {
-		function toPick(path: string, separator: ISeparator, isFolder: boolean): IFilePickOpenEntry {
+		function toPick(path: string, separator: ISeparator, isFolder: boolean, environmentService: IEnvironmentService): IFilePickOpenEntry {
 			return {
 				resource: URI.file(path),
 				isFolder,
 				label: paths.basename(path),
-				description: paths.dirname(path),
+				description: getPathLabel(paths.dirname(path), null, environmentService),
 				separator,
 				run: context => runPick(path, context)
 			};
@@ -607,8 +609,8 @@ export class OpenRecentAction extends Action {
 			this.windowsService.openWindow([path], { forceNewWindow });
 		};
 
-		const folderPicks: IFilePickOpenEntry[] = recentFolders.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('folders', "folders") } : void 0, true));
-		const filePicks: IFilePickOpenEntry[] = recentFiles.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0, false));
+		const folderPicks: IFilePickOpenEntry[] = recentFolders.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('folders', "folders") } : void 0, true, this.environmentService));
+		const filePicks: IFilePickOpenEntry[] = recentFiles.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0, false, this.environmentService));
 
 		const hasWorkspace = this.contextService.hasWorkspace();
 

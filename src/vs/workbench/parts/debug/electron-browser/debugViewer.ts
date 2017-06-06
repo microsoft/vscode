@@ -36,6 +36,7 @@ import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { once } from 'vs/base/common/functional';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IEnvironmentService } from "vs/platform/environment/common/environment";
 
 const $ = dom.$;
 const booleanRegex = /^true|false$/i;
@@ -179,12 +180,12 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 	}));
 }
 
-function getSourceName(source: Source, contextService: IWorkspaceContextService): string {
+function getSourceName(source: Source, contextService: IWorkspaceContextService, environmentService?: IEnvironmentService): string {
 	if (source.name) {
 		return source.name;
 	}
 
-	return getPathLabel(paths.basename(source.uri.fsPath), contextService);
+	return getPathLabel(paths.basename(source.uri.fsPath), contextService, environmentService);
 }
 
 export class BaseDebugController extends DefaultController {
@@ -427,7 +428,10 @@ export class CallStackRenderer implements IRenderer {
 	private static LOAD_MORE_TEMPLATE_ID = 'loadMore';
 	private static PROCESS_TEMPLATE_ID = 'process';
 
-	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor(
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IEnvironmentService private environmentService: IEnvironmentService
+	) {
 		// noop
 	}
 
@@ -549,7 +553,7 @@ export class CallStackRenderer implements IRenderer {
 		}
 		data.label.textContent = stackFrame.name;
 		data.label.title = stackFrame.name;
-		data.fileName.textContent = getSourceName(stackFrame.source, this.contextService);
+		data.fileName.textContent = getSourceName(stackFrame.source, this.contextService, this.environmentService);
 		if (stackFrame.range.startLineNumber !== undefined) {
 			data.lineNumber.textContent = `${stackFrame.range.startLineNumber}`;
 			if (stackFrame.range.startColumn) {
@@ -1107,7 +1111,8 @@ export class BreakpointsRenderer implements IRenderer {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@debug.IDebugService private debugService: debug.IDebugService,
 		@IContextViewService private contextViewService: IContextViewService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		// noop
 	}
@@ -1209,7 +1214,7 @@ export class BreakpointsRenderer implements IRenderer {
 		if (breakpoint.column) {
 			data.lineNumber.textContent += `:${breakpoint.column}`;
 		}
-		data.filePath.textContent = getPathLabel(paths.dirname(breakpoint.uri.fsPath), this.contextService);
+		data.filePath.textContent = getPathLabel(paths.dirname(breakpoint.uri.fsPath), this.contextService, this.environmentService);
 		data.checkbox.checked = breakpoint.enabled;
 
 		const debugActive = this.debugService.state === debug.State.Running || this.debugService.state === debug.State.Stopped || this.debugService.state === debug.State.Initializing;
