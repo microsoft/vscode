@@ -166,8 +166,6 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			// Symbol Results (unless disabled or a range or absolute path is specified)
 			if (this.includeSymbols && !searchWithRange) {
 				resultPromises.push(this.openSymbolHandler.getResults(searchValue));
-			} else {
-				resultPromises.push(TPromise.as(new QuickOpenModel())); // We need this empty promise because we are using the throttler below!
 			}
 
 			// Join and sort unified
@@ -179,8 +177,10 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 					return TPromise.as<QuickOpenModel>(new QuickOpenModel());
 				}
 
-				// Combine file results and symbol results (if any)
-				const mergedResults = [...results[0].entries, ...results[1].entries];
+				// Combine results.
+				const mergedResults: QuickOpenEntry[] = results.reduce((entries: QuickOpenEntry[], model: QuickOpenModel) => {
+					return entries.concat(model.entries);
+				}, []);
 
 				// Sort
 				const unsortedResultTime = Date.now();
@@ -200,10 +200,11 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				});
 
 				let fileSearchStats: ISearchStats;
-				if (results[0] instanceof FileQuickOpenModel) {
-					fileSearchStats = (<FileQuickOpenModel>results[0]).stats;
-				} else if (results[1] instanceof FileQuickOpenModel) {
-					fileSearchStats = (<FileQuickOpenModel>results[1]).stats;
+				for (const result of results) {
+					if (result instanceof FileQuickOpenModel) {
+						fileSearchStats = (<FileQuickOpenModel>result).stats;
+						break;
+					}
 				}
 
 				const duration = new Date().getTime() - startTime;
