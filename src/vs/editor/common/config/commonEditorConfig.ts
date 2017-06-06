@@ -76,7 +76,12 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	constructor(options: editorOptions.IEditorOptions) {
 		super();
 
-		this._rawOptions = objects.deepClone(options || {});
+		// Do a "deep clone of sorts" on the incoming options
+		this._rawOptions = objects.mixin({}, options || {});
+		this._rawOptions.scrollbar = objects.mixin({}, this._rawOptions.scrollbar || {});
+		this._rawOptions.minimap = objects.mixin({}, this._rawOptions.minimap || {});
+		this._rawOptions.find = objects.mixin({}, this._rawOptions.find || {});
+
 		this._validatedOptions = editorOptions.EditorOptionsValidator.validate(this._rawOptions, EDITOR_DEFAULTS);
 		this.editor = null;
 		this._isDominatedByLongLines = false;
