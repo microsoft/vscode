@@ -63,7 +63,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 
 	private get relativeFileNoExtension(): string {
 		const relativeFile = this.relativeFile;
-		return relativeFile.slice(0, -paths.extname(relativeFile).length);
+		return relativeFile.slice(0, relativeFile.length - paths.extname(relativeFile).length);
 	}
 
 	private get fileBasename(): string {
