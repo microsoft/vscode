@@ -45,7 +45,6 @@ import TypeScriptTaskProviderManager from './features/taskProvider';
 
 import ImplementationCodeLensProvider from './features/implementationsCodeLensProvider';
 
-import * as BuildStatus from './utils/buildStatus';
 import * as ProjectStatus from './utils/projectStatus';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import VersionStatus from './utils/versionStatus';
@@ -161,8 +160,6 @@ export function activate(context: ExtensionContext): void {
 			break;
 		}
 	}
-
-	BuildStatus.update({ queueLength: 0 });
 }
 
 
@@ -658,11 +655,6 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 				}
 			});
 		}
-		/*
-		if (Is.defined(body.queueLength)) {
-			BuildStatus.update({ queueLength: body.queueLength });
-		}
-		*/
 	}
 
 	/* internal */ configFileDiagnosticsReceived(event: Proto.ConfigFileDiagnosticEvent): void {
