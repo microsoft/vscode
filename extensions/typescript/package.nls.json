@@ -8,7 +8,6 @@
 	"typescript.check.tscVersion": "Check if a global install TypeScript compiler (e.g. tsc) differs from the used TypeScript language service.",
 	"typescript.tsserver.log": "Enables logging of the TS server to a file. This log can be used to diagnose TS Server issues. The log may contain file paths, source code, and other potentially sensitive information from your project.",
 	"typescript.tsserver.trace": "Enables tracing of messages sent to the TS server. This trace can be used to diagnose TS Server issues. The trace may contain file paths, source code, and other potentially sensitive information from your project.",
-	"typescript.tsserver.experimentalAutoBuild": "Enables experimental auto build. Requires 1.9 dev or 2.x tsserver version and a restart of VS Code after changing it.",
 	"typescript.validate.enable": "Enable/disable TypeScript validation.",
 	"typescript.format.enable": "Enable/disable default TypeScript formatter.",
 	"javascript.format.enable": "Enable/disable default JavaScript formatter.",

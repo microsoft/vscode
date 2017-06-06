@@ -20,10 +20,10 @@ import Logger from './utils/logger';
 
 import VersionStatus from './utils/versionStatus';
 import * as is from './utils/is';
+import TelemetryReporter from './utils/telemetry';
+import Tracer from './utils/tracer';
 
 import * as nls from 'vscode-nls';
-import TelemetryReporter from "./utils/telemetry";
-import Tracer from "./utils/tracer";
 const localize = nls.loadMessageBundle();
 
 interface CallbackItem {
@@ -231,7 +231,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private _onReady: { promise: Promise<void>; resolve: () => void; reject: () => void; };
 	private configuration: TypeScriptServiceConfiguration;
 	private _checkGlobalTSCVersion: boolean;
-	private _experimentalAutoBuild: boolean;
 	private tracer: Tracer;
 	private readonly logger: Logger = new Logger();
 	private tsServerLogFile: string | null = null;
@@ -256,7 +255,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	constructor(
 		private readonly host: ITypescriptServiceClientHost,
-		private readonly storagePath: string | undefined,
 		private readonly workspaceState: Memento,
 		private readonly versionStatus: VersionStatus,
 		private readonly plugins: TypeScriptServerPlugin[],
@@ -279,7 +277,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.callbacks = new CallbackMap();
 		this.configuration = TypeScriptServiceConfiguration.loadFromWorkspace();
 
-		this._experimentalAutoBuild = false; // configuration.get<boolean>('typescript.tsserver.experimentalAutoBuild', false);
 		this._apiVersion = new API('1.0.0');
 		this._checkGlobalTSCVersion = true;
 		this.tracer = new Tracer(this.logger);
@@ -336,10 +333,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	get onTypesInstallerInitializationFailed(): Event<Proto.TypesInstallerInitializationFailedEventBody> {
 		return this._onTypesInstallerInitializationFailed.event;
-	}
-
-	public get experimentalAutoBuild(): boolean {
-		return this._experimentalAutoBuild;
 	}
 
 	public get checkGlobalTSCVersion(): boolean {
@@ -741,13 +734,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		let configureOptions: Proto.ConfigureRequestArguments = {
 			hostInfo: 'vscode'
 		};
-		if (this._experimentalAutoBuild && this.storagePath) {
-			try {
-				fs.mkdirSync(this.storagePath);
-			} catch (error) {
-			}
-			// configureOptions.autoDiagnostics = true;
-		}
 		this.execute('configure', configureOptions);
 		this.setCompilerOptionsForInferredProjects();
 		if (resendModels) {

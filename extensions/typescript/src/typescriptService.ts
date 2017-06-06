@@ -85,7 +85,6 @@ export interface ITypescriptServiceClient {
 
 	logTelemetry(eventName: string, properties?: { [prop: string]: string }): void;
 
-	experimentalAutoBuild: boolean;
 	apiVersion: API;
 	checkGlobalTSCVersion: boolean;
 

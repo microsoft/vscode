@@ -229,7 +229,7 @@ export default class BufferSyncSupport {
 	}
 
 	public requestDiagnostic(file: string): void {
-		if (!this._validate || this.client.experimentalAutoBuild) {
+		if (!this._validate) {
 			return;
 		}
 
