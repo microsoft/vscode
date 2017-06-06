@@ -335,7 +335,7 @@ export class ElectronWindow extends Themable {
 					e.stopPropagation();
 
 					this.contextMenuService.showContextMenu({
-						getAnchor: () => target,
+						getAnchor: () => e,
 						getActions: () => TPromise.as(TextInputActions)
 					});
 				}

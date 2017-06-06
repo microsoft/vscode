@@ -6,7 +6,6 @@
 'use strict';
 
 import * as path from 'path';
-import * as platform from 'vs/base/common/platform';
 import * as objects from 'vs/base/common/objects';
 import { stopProfiling } from 'vs/base/node/profiler';
 import nls = require('vs/nls');
@@ -23,6 +22,7 @@ import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
 import { IWindowSettings, MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyboardLayoutMonitor } from 'vs/code/node/keyboard';
+import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from "vs/base/common/platform";
 
 export interface IWindowState {
 	width?: number;
@@ -76,7 +76,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	appRoot: string;
 	execPath: string;
 
-	userEnv: platform.IProcessEnvironment;
+	userEnv: IProcessEnvironment;
 
 	/**
 	 * The physical keyboard is of ISO type (on OSX).
@@ -199,7 +199,7 @@ export class VSCodeWindow {
 			}
 		};
 
-		if (platform.isLinux) {
+		if (isLinux) {
 			options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
 		}
 
@@ -212,7 +212,7 @@ export class VSCodeWindow {
 		}
 
 		let useCustomTitleStyle = false;
-		if (platform.isMacintosh && (!windowConfig || !windowConfig.titleBarStyle || windowConfig.titleBarStyle === 'custom')) {
+		if (isMacintosh && (!windowConfig || !windowConfig.titleBarStyle || windowConfig.titleBarStyle === 'custom')) {
 			const isDev = !this.environmentService.isBuilt || !!config.extensionDevelopmentPath;
 			if (!isDev) {
 				useCustomTitleStyle = true; // not enabled when developing due to https://github.com/electron/electron/issues/3647
@@ -237,7 +237,7 @@ export class VSCodeWindow {
 		}
 
 		// Set relaunch command
-		if (platform.isWindows && product.win32AppUserModelId && typeof this._win.setAppDetails === 'function') {
+		if (isWindows && product.win32AppUserModelId && typeof this._win.setAppDetails === 'function') {
 			this._win.setAppDetails({
 				appId: product.win32AppUserModelId,
 				relaunchCommand: `"${process.execPath}" -n`,
@@ -313,7 +313,7 @@ export class VSCodeWindow {
 	}
 
 	public setRepresentedFilename(filename: string): void {
-		if (platform.isMacintosh) {
+		if (isMacintosh) {
 			this.win.setRepresentedFilename(filename);
 		} else {
 			this.representedFilename = filename;
@@ -321,7 +321,7 @@ export class VSCodeWindow {
 	}
 
 	public getRepresentedFilename(): string {
-		if (platform.isMacintosh) {
+		if (isMacintosh) {
 			return this.win.getRepresentedFilename();
 		}
 
@@ -440,7 +440,7 @@ export class VSCodeWindow {
 		});
 
 		// React to HC color scheme changes (Windows)
-		if (platform.isWindows) {
+		if (isWindows) {
 			systemPreferences.on('inverted-color-scheme-changed', () => {
 				if (systemPreferences.isInvertedColorScheme()) {
 					this.sendWhenReady('vscode:enterHighContrast');
@@ -477,7 +477,7 @@ export class VSCodeWindow {
 		}
 
 		// Swipe command support (macOS)
-		if (platform.isMacintosh) {
+		if (isMacintosh) {
 			const config = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
 			if (config && config.workbench && config.workbench.editor && config.workbench.editor.swipeToNavigate) {
 				this.registerNavigationListenerOn('swipe', 'left', 'right', true);
@@ -505,7 +505,7 @@ export class VSCodeWindow {
 		}
 
 		// Make sure to clear any previous edited state
-		if (platform.isMacintosh && this._win.isDocumentEdited()) {
+		if (isMacintosh && this._win.isDocumentEdited()) {
 			this._win.setDocumentEdited(false);
 		}
 
@@ -569,7 +569,7 @@ export class VSCodeWindow {
 		windowConfiguration.fullscreen = this._win.isFullScreen();
 
 		// Set Accessibility Config
-		windowConfiguration.highContrast = platform.isWindows && systemPreferences.isInvertedColorScheme() && (!windowConfig || windowConfig.autoDetectHighContrast);
+		windowConfiguration.highContrast = isWindows && systemPreferences.isInvertedColorScheme() && (!windowConfig || windowConfig.autoDetectHighContrast);
 		windowConfiguration.accessibilitySupport = app.isAccessibilitySupportEnabled();
 
 		// Set Keyboard Config
@@ -599,7 +599,7 @@ export class VSCodeWindow {
 	}
 
 	private getBaseTheme(): string {
-		if (platform.isWindows && systemPreferences.isInvertedColorScheme()) {
+		if (isWindows && systemPreferences.isInvertedColorScheme()) {
 			return 'hc-black';
 		}
 		const theme = this.storageService.getItem<string>(VSCodeWindow.themeStorageKey, 'vs-dark');
@@ -607,14 +607,14 @@ export class VSCodeWindow {
 	}
 
 	private getBackgroundColor(): string {
-		if (platform.isWindows && systemPreferences.isInvertedColorScheme()) {
+		if (isWindows && systemPreferences.isInvertedColorScheme()) {
 			return '#000000';
 		}
 
 		let background = this.storageService.getItem<string>(VSCodeWindow.themeBackgroundStorageKey, null);
 		if (!background) {
 			let baseTheme = this.getBaseTheme();
-			return baseTheme === 'hc-black' ? '#000000' : (baseTheme === 'vs' ? '#FFFFFF' : (platform.isMacintosh ? '#171717' : '#1E1E1E')); // https://github.com/electron/electron/issues/5150
+			return baseTheme === 'hc-black' ? '#000000' : (baseTheme === 'vs' ? '#FFFFFF' : (isMacintosh ? '#171717' : '#1E1E1E')); // https://github.com/electron/electron/issues/5150
 		}
 
 		return background;
@@ -642,7 +642,7 @@ export class VSCodeWindow {
 		let mode: WindowMode;
 
 		// get window mode
-		if (!platform.isMacintosh && this._win.isMaximized()) {
+		if (!isMacintosh && this._win.isMaximized()) {
 			mode = WindowMode.Maximized;
 		} else {
 			mode = WindowMode.Normal;
@@ -800,7 +800,7 @@ export class VSCodeWindow {
 	}
 
 	public setMenuBarVisibility(visibility: MenuBarVisibility, notify: boolean = true): void {
-		if (platform.isMacintosh) {
+		if (isMacintosh) {
 			return; // ignore for macOS platform
 		}
 
@@ -843,7 +843,7 @@ export class VSCodeWindow {
 	public onWindowTitleDoubleClick(): void {
 
 		// Respect system settings on mac with regards to title click on windows title
-		if (platform.isMacintosh) {
+		if (isMacintosh) {
 			const action = systemPreferences.getUserDefault('AppleActionOnDoubleClick', 'string');
 			switch (action) {
 				case 'Minimize':
