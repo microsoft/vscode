@@ -98,7 +98,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		this._themeService = themeService;
 
 		this._focusTracker = new CodeEditorWidgetFocusTracker(domElement);
-		this._focusTracker.onChage(() => {
+		this._focusTracker.onChange(() => {
 			let hasFocus = this._focusTracker.hasFocus();
 
 			if (hasFocus) {
@@ -524,8 +524,7 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 	private _domFocusTracker: dom.IFocusTracker;
 
 	private _onChange: Emitter<void> = this._register(new Emitter<void>());
-	// TODO: Fix name
-	public onChage: Event<void> = this._onChange.event;
+	public onChange: Event<void> = this._onChange.event;
 
 	constructor(domElement: HTMLElement) {
 		super();
