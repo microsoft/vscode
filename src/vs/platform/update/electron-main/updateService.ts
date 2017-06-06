@@ -44,8 +44,8 @@ export class UpdateService implements IUpdateService {
 	private _onUpdateNotAvailable = new Emitter<boolean>();
 	get onUpdateNotAvailable(): Event<boolean> { return this._onUpdateNotAvailable.event; }
 
-	private _onUpdateReady = new Emitter<IUpdate>();
-	get onUpdateReady(): Event<IUpdate> { return this._onUpdateReady.event; }
+	private _onUpdateReady = new Emitter<IRawUpdate>();
+	get onUpdateReady(): Event<IRawUpdate> { return this._onUpdateReady.event; }
 
 	private _onStateChange = new Emitter<State>();
 	get onStateChange(): Event<State> { return this._onStateChange.event; }
@@ -180,7 +180,7 @@ export class UpdateService implements IUpdateService {
 				this.telemetryService.publicLog('update:available', { explicit, version: update.version, currentVersion: product.commit });
 
 			} else {
-				const data: IUpdate = {
+				const data: IRawUpdate = {
 					releaseNotes: update.releaseNotes,
 					version: update.version,
 					date: update.date
