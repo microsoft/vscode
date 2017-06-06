@@ -87,6 +87,12 @@ export class OutputPanel extends TextResourceEditor {
 		options.folding = false;
 		options.scrollBeyondLastLine = false;
 		options.renderLineHighlight = 'none';
+		options.minimap = { enabled: false };
+
+		const outputConfig = this.configurationService.getConfiguration('[Log]');
+		if (outputConfig && outputConfig['editor.minimap.enabled']) {
+			options.minimap = { enabled: true };
+		}
 
 		return options;
 	}
