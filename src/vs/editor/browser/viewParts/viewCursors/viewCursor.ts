@@ -188,7 +188,7 @@ export class ViewCursor {
 		this._domNode.setLeft(this._renderData.left);
 		this._domNode.setWidth(this._renderData.width);
 		this._domNode.setLineHeight(this._lineHeight);
-		this._domNode.setHeight(this._lineHeight);
+		this._domNode.setHeight(this._lineHeight * this._cursorHeightMultiplier);
 
 		return {
 			domNode: this._domNode.domNode,
