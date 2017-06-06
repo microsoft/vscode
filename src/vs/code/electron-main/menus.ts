@@ -485,7 +485,7 @@ export class VSCodeMenu {
 			revertFile,
 			closeEditor,
 			closeFolder,
-			!isMacintosh ? closeWindow : null,
+			closeWindow,
 			!isMacintosh ? __separator__() : null,
 			!isMacintosh ? exit : null
 		]).forEach(item => fileMenu.append(item));
@@ -898,12 +898,14 @@ export class VSCodeMenu {
 
 	private setMacWindowMenu(macWindowMenu: Electron.Menu): void {
 		const minimize = new MenuItem({ label: nls.localize('mMinimize', "Minimize"), role: 'minimize', accelerator: 'Command+M', enabled: this.windowsService.getWindowCount() > 0 });
-		const close = new MenuItem({ label: nls.localize('mClose', "Close"), role: 'close', accelerator: 'Command+W', enabled: this.windowsService.getWindowCount() > 0 });
+		const zoom = new MenuItem({ label: nls.localize('mZoom', "Zoom"), role: 'zoom', enabled: this.windowsService.getWindowCount() > 0 });
 		const bringAllToFront = new MenuItem({ label: nls.localize('mBringToFront', "Bring All to Front"), role: 'front', enabled: this.windowsService.getWindowCount() > 0 });
+		const switchWindow = this.createMenuItem(nls.localize({ key: 'miSwitchWindow', comment: ['&& denotes a mnemonic'] }, "Switch &&Window..."), 'workbench.action.switchWindow', this.windowsService.getWindowCount() > 0);
 
 		[
 			minimize,
-			close,
+			zoom,
+			switchWindow,
 			__separator__(),
 			bringAllToFront
 		].forEach(item => macWindowMenu.append(item));

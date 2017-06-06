@@ -84,7 +84,7 @@ export class CloseWindowAction extends Action {
 export class SwitchWindow extends QuickOpenAction {
 
 	static ID = 'workbench.action.switchWindow';
-	static LABEL = nls.localize('switchWindow', "Switch Window");
+	static LABEL = nls.localize('switchWindow', "Switch Window...");
 
 	constructor(
 		id: string,
