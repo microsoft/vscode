@@ -26,5 +26,7 @@
 	"workbench.action.terminal.scrollUp": "Nach oben scrollen (Zeile)",
 	"workbench.action.terminal.scrollUpPage": "Nach oben scrollen (Seite)",
 	"workbench.action.terminal.scrollToTop": "Bildlauf nach oben",
-	"workbench.action.terminal.clear": "Löschen"
+	"workbench.action.terminal.clear": "Löschen",
+	"workbench.action.terminal.allowWorkspaceShell": "Shell-Konfiguration des Arbeitsbereichs zulassen",
+	"workbench.action.terminal.disallowWorkspaceShell": "Verbiete Workspace Shell Konfiguration"
 }

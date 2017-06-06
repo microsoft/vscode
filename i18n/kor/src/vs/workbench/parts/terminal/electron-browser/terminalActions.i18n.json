@@ -26,5 +26,7 @@
 	"workbench.action.terminal.scrollUp": "위로 스크롤(줄)",
 	"workbench.action.terminal.scrollUpPage": "위로 스크롤(페이지)",
 	"workbench.action.terminal.scrollToTop": "맨 위로 스크롤",
-	"workbench.action.terminal.clear": "지우기"
+	"workbench.action.terminal.clear": "지우기",
+	"workbench.action.terminal.allowWorkspaceShell": "작업 영역 셸 구성 허용",
+	"workbench.action.terminal.disallowWorkspaceShell": "작업 영역 셸 구성 허용 안 함"
 }

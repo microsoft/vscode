@@ -26,5 +26,7 @@
 	"workbench.action.terminal.scrollUp": "Faire défiler vers le haut (ligne)",
 	"workbench.action.terminal.scrollUpPage": "Faire défiler vers le haut (page)",
 	"workbench.action.terminal.scrollToTop": "Faire défiler jusqu'en haut",
-	"workbench.action.terminal.clear": "Effacer"
+	"workbench.action.terminal.clear": "Effacer",
+	"workbench.action.terminal.allowWorkspaceShell": "Autoriser la configuration de l'interpréteur de commandes de l'espace de travail",
+	"workbench.action.terminal.disallowWorkspaceShell": "Interdire la configuration de l'interpréteur de commandes de l'espace de travail"
 }

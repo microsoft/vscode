@@ -13,6 +13,7 @@
 	"JsonSchema.tasks.group": "Define a que grupo de execução desta tarefa pertence. Se omitido a tarefa pertence a nenhum grupo.",
 	"JsonSchema.tasks.type": "Define se a tarefa é executada como um processo ou como um comando dentro de uma shell. O padrão é processo.",
 	"JsonSchema.version": "O número da versão do config.",
+	"JsonSchema.tasks.customize": "A tarefa de contribuição a ser customizada.",
 	"JsonSchema.windows": "Configuração de comando específica do Windows",
 	"JsonSchema.mac": "Configuração de comando específica do Mac",
 	"JsonSchema.linux": "Configuração de comando específica do Linux"

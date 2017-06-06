@@ -74,5 +74,12 @@
 	"diffEditorInserted": "已插入文本的背景颜色。",
 	"diffEditorRemoved": "被删除文本的背景颜色。",
 	"diffEditorInsertedOutline": "插入的文本的轮廓颜色。",
-	"diffEditorRemovedOutline": "被删除文本的轮廓颜色。"
+	"diffEditorRemovedOutline": "被删除文本的轮廓颜色。",
+	"mergeCurrentHeaderBackground": "内联合并冲突中当前版本区域的标头背景色。",
+	"mergeCurrentContentBackground": "内联合并冲突中当前版本区域的内容背景色。",
+	"mergeIncomingHeaderBackground": "内联合并冲突中传入的版本区域的标头背景色。",
+	"mergeIncomingContentBackground": "内联合并冲突中传入的版本区域的内容背景色。",
+	"mergeBorder": "内联合并冲突中标头和分割线的边框颜色。",
+	"overviewRulerCurrentContentForeground": "内联合并冲突中当前版本区域的概览标尺前景色。",
+	"overviewRulerIncomingContentForeground": "内联合并冲突中传入的版本区域的概览标尺前景色。"
 }

@@ -26,5 +26,7 @@
 	"workbench.action.terminal.scrollUp": "Прокрутить вверх (построчно)",
 	"workbench.action.terminal.scrollUpPage": "Прокрутить вверх (страницу)",
 	"workbench.action.terminal.scrollToTop": "Прокрутить до верхней границы",
-	"workbench.action.terminal.clear": "Очистить"
+	"workbench.action.terminal.clear": "Очистить",
+	"workbench.action.terminal.allowWorkspaceShell": "Разрешить настройку оболочки в рабочей области",
+	"workbench.action.terminal.disallowWorkspaceShell": "Запретить настройку оболочки в рабочей области"
 }

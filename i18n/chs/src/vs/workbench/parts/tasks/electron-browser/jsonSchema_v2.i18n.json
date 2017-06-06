@@ -9,9 +9,11 @@
 	"JsonSchema.tasks.dependsOn.array": "此任务依赖的其他任务。",
 	"JsonSchema.tasks.terminal": "描述用于执行任务的终端的行为。",
 	"JsonSchema.tasks.terminal.echo": "控制是否将执行的命令回显到终端。默认关闭。",
+	"JsonSchema.tasks.terminal.reveals": "控制是否显示正在运行任务的终端。默认值为“always”。",
 	"JsonSchema.tasks.group": "定义此任务属于的执行组。如被省略，则此任务不属于任何组。",
 	"JsonSchema.tasks.type": "定义任务是被作为进程运行还是在 shell 中作为命令运行。默认作为进程运行。",
 	"JsonSchema.version": "配置的版本号。",
+	"JsonSchema.tasks.customize": "要自定义的提供的视图。",
 	"JsonSchema.windows": "Windows 特定的命令配置",
 	"JsonSchema.mac": "Mac 特定的命令配置",
 	"JsonSchema.linux": "Linux 特定的命令配置"

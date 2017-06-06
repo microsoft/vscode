@@ -11,6 +11,8 @@
 	"endOfLineLineFeed": "LF",
 	"endOfLineCarriageReturnLineFeed": "CRLF",
 	"tabFocusModeEnabled": "Tabulação move o foco",
+	"screenReaderDetected": "Leitor de Tela Detectado",
+	"screenReaderDetectedExtra": "Se você não estiver usando um leitor de tela, por favor altere a configuração `editor.accessibilitySupport` para \"desligado\".",
 	"disableTabMode": "Desativar o modo de acessibilidade",
 	"gotoLine": "Ir para linha",
 	"indentation": "Indentação",
