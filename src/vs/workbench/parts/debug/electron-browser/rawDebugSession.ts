@@ -278,7 +278,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 		return this.send('restartFrame', args).then(response => {
 			this.fireFakeContinued(threadId);
 			return response;
-		});;
+		});
 	}
 
 	public completions(args: DebugProtocol.CompletionsArguments): TPromise<DebugProtocol.CompletionsResponse> {
