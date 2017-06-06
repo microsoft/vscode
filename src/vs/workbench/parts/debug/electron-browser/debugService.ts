@@ -410,7 +410,7 @@ export class DebugService implements debug.IDebugService {
 			// 'Run without debugging' mode VSCode must terminate the extension host. More details: #3905
 			const process = this.viewModel.focusedProcess;
 			if (process && session && process.getId() === session.getId() && strings.equalsIgnoreCase(process.configuration.type, 'extensionhost') && this.sessionStates.get(session.getId()) === debug.State.Running &&
-				process && this.contextService.getWorkspace() && process.configuration.noDebug) {
+				process && this.contextService.hasWorkspace() && process.configuration.noDebug) {
 				this.windowsService.closeExtensionHostWindow(this.contextService.getWorkspace().resource.fsPath);
 			}
 			if (session && session.getId() === event.body.sessionId) {
@@ -646,7 +646,7 @@ export class DebugService implements debug.IDebugService {
 					if (commandAndType && commandAndType.command) {
 						const defaultConfig = noDebug ? { noDebug: true } : {};
 						return this.commandService.executeCommand(commandAndType.command, config || defaultConfig).then((result: StartSessionResult) => {
-							if (this.contextService.getWorkspace()) {
+							if (this.contextService.hasWorkspace()) {
 								if (result && result.status === 'initialConfiguration') {
 									return manager.openConfigFile(false, commandAndType.type);
 								}
@@ -662,7 +662,7 @@ export class DebugService implements debug.IDebugService {
 					if (config) {
 						return this.createProcess(config);
 					}
-					if (this.contextService.getWorkspace() && commandAndType) {
+					if (this.contextService.hasWorkspace() && commandAndType) {
 						return manager.openConfigFile(false, commandAndType.type);
 					}
 
@@ -719,7 +719,7 @@ export class DebugService implements debug.IDebugService {
 					});
 				});
 			}, err => {
-				if (!this.contextService.getWorkspace()) {
+				if (!this.contextService.hasWorkspace()) {
 					return this.messageService.show(severity.Error, nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved on disk and that you have a debug extension installed for that file type."));
 				}
 
@@ -803,7 +803,7 @@ export class DebugService implements debug.IDebugService {
 					this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
 				}
 
-				if (!this.viewModel.changedWorkbenchViewState && (this.partService.isVisible(Parts.SIDEBAR_PART) || !this.contextService.getWorkspace())) {
+				if (!this.viewModel.changedWorkbenchViewState && (this.partService.isVisible(Parts.SIDEBAR_PART) || !this.contextService.hasWorkspace())) {
 					// We only want to change the workbench view state on the first debug session #5738 and if the side bar is not hidden
 					this.viewModel.changedWorkbenchViewState = true;
 					this.viewletService.openViewlet(debug.VIEWLET_ID);
