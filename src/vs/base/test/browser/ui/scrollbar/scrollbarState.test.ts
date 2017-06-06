@@ -15,11 +15,24 @@ suite('ScrollbarState', () => {
 		actual.setScrollPosition(32787);
 
 		assert.equal(actual.getArrowSize(), 0);
+		assert.equal(actual.getScrollPosition(), 32787);
 		assert.equal(actual.getRectangleLargeSize(), 339);
 		assert.equal(actual.getRectangleSmallSize(), 14);
 		assert.equal(actual.isNeeded(), true);
 		assert.equal(actual.getSliderSize(), 20);
-		assert.equal(actual.getSliderPosition(), 252);
-		assert.equal(actual.getSliderCenter(), 262);
+		assert.equal(actual.getSliderPosition(), 249);
+		assert.equal(actual.getSliderCenter(), 259);
+
+
+		assert.equal(actual.getDesiredScrollPositionFromOffset(259), 32849);
+		actual.setScrollPosition(32849);
+		assert.equal(actual.getArrowSize(), 0);
+		assert.equal(actual.getScrollPosition(), 32849);
+		assert.equal(actual.getRectangleLargeSize(), 339);
+		assert.equal(actual.getRectangleSmallSize(), 14);
+		assert.equal(actual.isNeeded(), true);
+		assert.equal(actual.getSliderSize(), 20);
+		assert.equal(actual.getSliderPosition(), 249);
+		assert.equal(actual.getSliderCenter(), 259);
 	});
 });
