@@ -22,7 +22,6 @@ import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResour
 import { OutputEditors, OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT } from 'vs/workbench/parts/output/common/output';
 import { SwitchOutputAction, SwitchOutputActionItem, ClearOutputAction, ToggleOutputScrollLockAction } from 'vs/workbench/parts/output/browser/outputActions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -39,13 +38,12 @@ export class OutputPanel extends TextResourceEditor {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IOutputService private outputService: IOutputService,
-		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IModeService modeService: IModeService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super(telemetryService, instantiationService, storageService, configurationService, themeService, untitledEditorService, editorGroupService, modeService, textFileService);
+		super(telemetryService, instantiationService, storageService, configurationService, themeService, editorGroupService, modeService, textFileService);
 
 		this.scopedInstantiationService = instantiationService;
 		this.toDispose = [];
