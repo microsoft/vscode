@@ -108,6 +108,7 @@ export class TextAreaHandler extends ViewPart {
 		this.textArea.setAttribute('wrap', 'off');
 		this.textArea.setAttribute('autocorrect', 'off');
 		this.textArea.setAttribute('autocapitalize', 'off');
+		this.textArea.setAttribute('autocomplete', 'off');
 		this.textArea.setAttribute('spellcheck', 'false');
 		this.textArea.setAttribute('aria-label', conf.viewInfo.ariaLabel);
 		this.textArea.setAttribute('role', 'textbox');
