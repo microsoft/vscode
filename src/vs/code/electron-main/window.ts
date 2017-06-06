@@ -155,6 +155,7 @@ export class VSCodeWindow {
 	private currentMenuBarVisibility: MenuBarVisibility;
 	private currentWindowMode: WindowMode;
 	private toDispose: IDisposable[];
+	private representedFilename: string;
 
 	private whenReadyCallbacks: TValueCallback<VSCodeWindow>[];
 
@@ -309,6 +310,22 @@ export class VSCodeWindow {
 
 	public get win(): Electron.BrowserWindow {
 		return this._win;
+	}
+
+	public setRepresentedFilename(filename: string): void {
+		if (platform.isMacintosh) {
+			this.win.setRepresentedFilename(filename);
+		} else {
+			this.representedFilename = filename;
+		}
+	}
+
+	public getRepresentedFilename(): string {
+		if (platform.isMacintosh) {
+			return this.win.getRepresentedFilename();
+		}
+
+		return this.representedFilename;
 	}
 
 	public focus(): void {
