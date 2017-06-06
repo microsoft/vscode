@@ -234,10 +234,6 @@ export abstract class AbstractScrollbar extends Widget {
 		}
 	}
 
-	public validateScrollPosition(desiredScrollPosition: number): number {
-		return this._scrollbarState.validateScrollPosition(desiredScrollPosition);
-	}
-
 	public setDesiredScrollPosition(desiredScrollPosition: number): boolean {
 		desiredScrollPosition = this.validateScrollPosition(desiredScrollPosition);
 
@@ -256,9 +252,12 @@ export abstract class AbstractScrollbar extends Widget {
 
 	protected abstract _renderDomNode(largeSize: number, smallSize: number): void;
 	protected abstract _updateSlider(sliderSize: number, sliderPosition: number): void;
+
 	protected abstract _mouseDownRelativePosition(e: IMouseEvent, domNodePosition: DomUtils.IDomNodePagePosition): number;
 	protected abstract _sliderMousePosition(e: IMouseMoveEventData): number;
 	protected abstract _sliderOrthogonalMousePosition(e: IMouseMoveEventData): number;
+
 	protected abstract _getScrollPosition(): number;
 	protected abstract _setScrollPosition(elementScrollPosition: number): void;
+	public abstract validateScrollPosition(desiredScrollPosition: number): number;
 }

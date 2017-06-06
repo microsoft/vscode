@@ -111,4 +111,8 @@ export class VerticalScrollbar extends AbstractScrollbar {
 			scrollTop: scrollPosition
 		});
 	}
+
+	public validateScrollPosition(desiredScrollPosition: number): number {
+		return this._scrollable.validateScrollTop(desiredScrollPosition);
+	}
 }

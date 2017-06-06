@@ -11,14 +11,41 @@ const MINIMUM_SLIDER_SIZE = 20;
 
 export class ScrollbarState {
 
-	// --- immutable
-	private _scrollbarSize: number;
-	private _oppositeScrollbarSize: number;
-	private _arrowSize: number;
+	/**
+	 * For the vertical scrollbar: the width.
+	 * For the horizontal scrollbar: the height.
+	 */
+	private readonly _scrollbarSize: number;
+
+	/**
+	 * For the vertical scrollbar: the height of the pair horizontal scrollbar.
+	 * For the horizontal scrollbar: the width of the pair vertical scrollbar.
+	 */
+	private readonly _oppositeScrollbarSize: number;
+
+	/**
+	 * For the vertical scrollbar: the height of the scrollbar's arrows.
+	 * For the horizontal scrollbar: the width of the scrollbar's arrows.
+	 */
+	private readonly _arrowSize: number;
 
 	// --- variables
+	/**
+	 * For the vertical scrollbar: the viewport height.
+	 * For the horizontal scrollbar: the viewport width.
+	 */
 	private _visibleSize: number;
+
+	/**
+	 * For the vertical scrollbar: the scroll height.
+	 * For the horizontal scrollbar: the scroll width.
+	 */
 	private _scrollSize: number;
+
+	/**
+	 * For the vertical scrollbar: the scroll top.
+	 * For the horizontal scrollbar: the scroll left.
+	 */
 	private _scrollPosition: number;
 
 	// --- computed variables
@@ -177,12 +204,5 @@ export class ScrollbarState {
 
 	public convertSliderPositionToScrollPosition(desiredSliderPosition: number): number {
 		return desiredSliderPosition / this._computedRatio;
-	}
-
-	public validateScrollPosition(desiredScrollPosition: number): number {
-		desiredScrollPosition = Math.round(desiredScrollPosition);
-		desiredScrollPosition = Math.max(desiredScrollPosition, 0);
-		desiredScrollPosition = Math.min(desiredScrollPosition, this._scrollSize - this._visibleSize);
-		return desiredScrollPosition;
 	}
 }
