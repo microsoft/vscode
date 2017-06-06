@@ -134,8 +134,11 @@ export function getDeepestNode(node: Node): Node {
 	if (!node || !node.children || node.children.length === 0) {
 		return node;
 	}
-
-	return getDeepestNode(node.children[node.children.length - 1]);
+	for (let i = node.children.length - 1; i >= 0; i--) {
+		if (node.children[i].type !== 'comment') {
+			return getDeepestNode(node.children[i]);
+		}
+	}
 }
 
 export function findNextWord(propertyValue: string, pos: number): [number, number] {
