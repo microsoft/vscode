@@ -19,7 +19,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup } from 'vs/workbench/common/editor';
 import { SaveAllAction } from 'vs/workbench/parts/files/browser/fileActions';
-import { AdaptiveCollapsibleViewletView } from 'vs/workbench/browser/viewlet';
+import { AdaptiveCollapsibleViewletView } from 'vs/workbench/parts/views/browser/views';
 import { IFilesConfiguration, VIEWLET_ID, OpenEditorsFocussedContext, ExplorerFocussedContext } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';

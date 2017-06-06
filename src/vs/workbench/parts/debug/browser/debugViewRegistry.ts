@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IActionRunner } from 'vs/base/common/actions';
-import { IViewletView } from 'vs/workbench/browser/viewlet';
+import { IViewletView } from 'vs/workbench/parts/views/browser/views';
 
 // Debug view registration
 

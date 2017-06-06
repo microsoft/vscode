@@ -5,7 +5,7 @@
 
 import Event, { Emitter } from 'vs/base/common/event';
 import { IActionRunner } from 'vs/base/common/actions';
-import { IViewletView as IView } from 'vs/workbench/browser/viewlet';
+import { IViewletView as IView } from 'vs/workbench/parts/views/browser/views';
 import { ITreeViewDataProvider } from 'vs/workbench/parts/views/common/views';
 
 export class ViewLocation {
