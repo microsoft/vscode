@@ -939,9 +939,11 @@ export class Model implements IModel {
 	public appendToRepl(output: string | IExpression, severity: severity): void {
 		if (typeof output === 'string') {
 			const previousOutput = this.replElements.length && (this.replElements[this.replElements.length - 1] as OutputElement);
-			if (previousOutput instanceof OutputElement && severity === previousOutput.severity && previousOutput.value === output && output.trim() && output.length > 1) {
+			const lastNonEmpty = previousOutput && previousOutput.value.trim() ? previousOutput : this.replElements.length > 1 ? this.replElements[this.replElements.length - 2] : undefined;
+
+			if (lastNonEmpty instanceof OutputElement && severity === lastNonEmpty.severity && lastNonEmpty.value === output.trim() && output.trim() && output.length > 1) {
 				// we got the same output (but not an empty string when trimmed) so we just increment the counter
-				previousOutput.counter++;
+				lastNonEmpty.counter++;
 			} else {
 				const toAdd = output.split('\n').map(line => new OutputElement(line, severity));
 				if (previousOutput instanceof OutputElement && severity === previousOutput.severity && toAdd.length) {
