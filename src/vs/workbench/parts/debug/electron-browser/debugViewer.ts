@@ -252,6 +252,7 @@ export class CallStackController extends BaseDebugController {
 			return this.showMoreStackFrames(tree, element);
 		}
 		if (element instanceof StackFrame) {
+			super.onLeftClick(tree, element, event);
 			this.focusStackFrame(element, event, event.detail !== 2);
 			return true;
 		}
