@@ -45,6 +45,11 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IViewOptions } from 'vs/workbench/parts/views/browser/viewsRegistry';
 
+export interface IExplorerViewOptions extends IViewOptions {
+	settings: any;
+	viewletState: FileViewletState;
+}
+
 export class ExplorerView extends CollapsibleViewletView {
 
 	public static ID: string = 'workbench.explorer.fileView';
@@ -79,10 +84,8 @@ export class ExplorerView extends CollapsibleViewletView {
 	private settings: any;
 
 	constructor(
-		viewletState: FileViewletState,
-		options: IViewOptions,
-		settings: any,
-		headerSize: number,
+		id: string,
+		options: IExplorerViewOptions,
 		@IMessageService messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -99,10 +102,10 @@ export class ExplorerView extends CollapsibleViewletView {
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
-		super(options.actionRunner, options.collapsed, nls.localize('explorerSection', "Files Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
+		super(options.actionRunner, options.collapsed, nls.localize('explorerSection', "Files Explorer Section"), messageService, keybindingService, contextMenuService);
 
-		this.settings = settings;
-		this.viewletState = viewletState;
+		this.settings = options.settings;
+		this.viewletState = options.viewletState;
 		this.actionRunner = options.actionRunner;
 		this.autoReveal = true;
 

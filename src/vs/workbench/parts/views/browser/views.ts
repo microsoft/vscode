@@ -5,20 +5,28 @@
 
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IThemable } from 'vs/platform/theme/common/styler';
+import { IThemable, attachHeaderViewStyler } from 'vs/platform/theme/common/styler';
 import * as errors from 'vs/base/common/errors';
-import { $ } from 'vs/base/browser/builder';
+import * as DOM from 'vs/base/browser/dom';
+import { $, Dimension, Builder } from 'vs/base/browser/builder';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { prepareActions } from 'vs/workbench/browser/actions';
+import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMessageService } from 'vs/platform/message/common/message';
-import { CollapsibleView, CollapsibleState, FixedCollapsibleView, IView } from 'vs/base/browser/ui/splitview/splitview';
+import { CollapsibleView, CollapsibleState, FixedCollapsibleView, IView, SplitView } from 'vs/base/browser/ui/splitview/splitview';
+import { ViewsRegistry, ViewLocation, IViewDescriptor, IViewOptions } from 'vs/workbench/parts/views/browser/viewsRegistry';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export interface IViewletView extends IView, IThemable {
 	id?: string;
@@ -34,6 +42,7 @@ export interface IViewletView extends IView, IThemable {
 	isExpanded(): boolean;
 	expand(): void;
 	collapse(): void;
+	getOptimalWidth(): number;
 }
 
 /**
@@ -146,6 +155,10 @@ export abstract class AdaptiveCollapsibleViewletView extends FixedCollapsibleVie
 
 	public shutdown(): void {
 		// Subclass to implement
+	}
+
+	public getOptimalWidth(): number {
+		return 0;
 	}
 
 	public dispose(): void {
@@ -276,6 +289,10 @@ export abstract class CollapsibleViewletView extends CollapsibleView implements 
 		// Subclass to implement
 	}
 
+	public getOptimalWidth(): number {
+		return 0;
+	}
+
 	public dispose(): void {
 		this.isDisposed = true;
 		this.treeContainer = null;
@@ -341,4 +358,199 @@ function reveal(tree: ITree, element: any, relativeTop?: number): TPromise<void>
 	}
 
 	return tree.reveal(element, relativeTop);
+}
+
+export interface IViewState {
+	collapsed: boolean;
+	size: number;
+}
+
+export class ComposedViewsViewlet extends Viewlet {
+
+	protected viewletContainer: HTMLElement;
+	protected lastFocusedView: IViewletView;
+
+	private splitView: SplitView;
+	private views: IViewletView[];
+	private dimension: Dimension;
+
+	private readonly viewsStates: Map<string, IViewState>;
+
+	constructor(
+		id: string,
+		private location: ViewLocation,
+		private viewletStateStorageId: string,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IStorageService protected storageService: IStorageService,
+		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IWorkspaceContextService protected contextService: IWorkspaceContextService
+	) {
+		super(id, telemetryService, themeService);
+
+		this.views = [];
+		this.viewsStates = this.loadViewsStates();
+
+		this._register(ViewsRegistry.onViewsRegistered(viewDescriptors => this.createViews(viewDescriptors.filter(viewDescriptor => ViewLocation.Explorer === viewDescriptor.location))));
+		this._register(ViewsRegistry.onViewsDeregistered(viewDescriptors => this.removeViews(viewDescriptors.filter(viewDescriptor => ViewLocation.Explorer === viewDescriptor.location))));
+	}
+
+	public create(parent: Builder): TPromise<void> {
+		super.create(parent);
+
+		this.viewletContainer = DOM.append(parent.getHTMLElement(), DOM.$(''));
+		this.splitView = this._register(new SplitView(this.viewletContainer));
+		this._register(this.splitView.onFocus((view: IViewletView) => this.lastFocusedView = view));
+
+		const views = ViewsRegistry.getViews(ViewLocation.Explorer);
+		return this.createViews(views)
+			.then(() => this.lastFocusedView = this.views[0])
+			.then(() => this.setVisible(this.isVisible()))
+			.then(() => this.focus());
+	}
+
+	public getActions(): IAction[] {
+		if (this.views.length === 1) {
+			return this.views[0].getActions();
+		}
+		return [];
+	}
+
+	public getSecondaryActions(): IAction[] {
+		if (this.views.length === 1) {
+			return this.views[0].getSecondaryActions();
+		}
+		return [];
+	}
+
+	private createViews(viewDescriptors: IViewDescriptor[]): TPromise<void> {
+		if (!this.splitView || !viewDescriptors.length) {
+			return TPromise.as(null);
+		}
+
+		const views = [];
+		const sorted = ViewsRegistry.getViews(this.location).sort((a, b) => {
+			if (b.order === void 0 || b.order === null) {
+				return -1;
+			}
+			if (a.order === void 0 || a.order === null) {
+				return 1;
+			}
+			return a.order - b.order;
+		});
+		for (const viewDescriptor of viewDescriptors) {
+			let viewState = this.viewsStates.get(viewDescriptor.id);
+			let index = sorted.indexOf(viewDescriptor);
+			const view = this.createView(viewDescriptor, {
+				name: viewDescriptor.name,
+				actionRunner: this.getActionRunner(),
+				collapsed: viewState ? viewState.collapsed : true
+			});
+			if (index !== -1) {
+				this.views.splice(index, 0, view);
+			} else {
+				this.views.push(view);
+			}
+			views.push(view);
+			attachHeaderViewStyler(view, this.themeService);
+			this.splitView.addView(view, viewState ? viewState.size : void 0, index);
+		}
+
+		return TPromise.join(views.map(view => view.create()))
+			.then(() => this.onViewsUpdated());
+	}
+
+
+	private removeViews(viewDescriptors: IViewDescriptor[]): void {
+		if (!this.splitView || !viewDescriptors.length) {
+			return;
+		}
+
+		for (const viewDescriptor of viewDescriptors) {
+			let view = this.getView(viewDescriptor.id);
+			if (view) {
+				this.views.splice(this.views.indexOf(view), 1);
+				this.splitView.removeView(view);
+			}
+		}
+
+		this.onViewsUpdated();
+	}
+
+	private onViewsUpdated(): void {
+		if (this.views.length === 1) {
+			this.views[0].hideHeader();
+			if (!this.views[0].isExpanded()) {
+				this.views[0].expand();
+			}
+		} else {
+			for (const view of this.views) {
+				view.showHeader();
+			}
+		}
+
+		if (this.dimension) {
+			this.layout(this.dimension);
+		}
+
+		// Update title area since the title actions have changed.
+		this.updateTitleArea();
+	}
+
+	public setVisible(visible: boolean): TPromise<void> {
+		return super.setVisible(visible)
+			.then(() => TPromise.join(this.views.map((view) => view.setVisible(visible))))
+			.then(() => void 0);
+	}
+
+	public focus(): void {
+		super.focus();
+		if (this.lastFocusedView) {
+			this.lastFocusedView.focus();
+		}
+	}
+
+	public layout(dimension: Dimension): void {
+		this.dimension = dimension;
+		this.splitView.layout(dimension.height);
+	}
+
+	public getOptimalWidth(): number {
+		const additionalMargin = 16;
+		const optimalWidth = Math.max(...this.views.map(view => view.getOptimalWidth() || 0));
+		return optimalWidth + additionalMargin;
+	}
+
+	public shutdown(): void {
+		this.saveViewsStates();
+		this.views.forEach((view) => view.shutdown());
+		super.shutdown();
+	}
+
+	protected saveViewsStates(): void {
+		const viewletState = this.views.reduce((result, view) => {
+			result[view.id] = {
+				collapsed: !view.isExpanded(),
+				size: view.size > 0 ? view.size : void 0
+			};
+			return result;
+		}, {});
+		this.storageService.store(this.viewletStateStorageId, JSON.stringify(viewletState), this.contextService.hasWorkspace() ? StorageScope.WORKSPACE : StorageScope.GLOBAL);
+	}
+
+	protected loadViewsStates(): Map<string, IViewState> {
+		const viewsStates = JSON.parse(this.storageService.get(this.viewletStateStorageId, this.contextService.hasWorkspace() ? StorageScope.WORKSPACE : StorageScope.GLOBAL, '{}'));
+		return Object.keys(viewsStates).reduce((result, id) => {
+			result.set(id, viewsStates[id]);
+			return result;
+		}, new Map<string, IViewState>());
+	}
+
+	protected createView(viewDescriptor: IViewDescriptor, options: IViewOptions): IViewletView {
+		return this.instantiationService.createInstance(viewDescriptor.ctor, viewDescriptor.id, options);
+	}
+
+	protected getView(id: string): IViewletView {
+		return this.views.filter(view => view.id === id)[0];
+	}
 }
