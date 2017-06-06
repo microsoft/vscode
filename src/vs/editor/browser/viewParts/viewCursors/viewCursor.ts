@@ -41,6 +41,8 @@ export class ViewCursor {
 	private readonly _domNode: FastDomNode<HTMLElement>;
 
 	private _cursorStyle: TextEditorCursorStyle;
+
+	private _cursorHeightMultiplier: number;
 	private _lineHeight: number;
 	private _typicalHalfwidthCharacterWidth: number;
 
@@ -59,6 +61,7 @@ export class ViewCursor {
 		this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
+		this._cursorHeightMultiplier = this._context.configuration.editor.cursorHeightMultiplier || 1;
 
 		this._isVisible = true;
 
@@ -69,7 +72,7 @@ export class ViewCursor {
 		} else {
 			this._domNode.setClassName('cursor');
 		}
-		this._domNode.setHeight(this._lineHeight);
+		this._domNode.setHeight(this._lineHeight * this._cursorHeightMultiplier);
 		this._domNode.setTop(0);
 		this._domNode.setLeft(0);
 		Configuration.applyFontInfo(this._domNode, this._context.configuration.editor.fontInfo);

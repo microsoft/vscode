@@ -192,6 +192,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_FONT_DEFAULTS.lineHeight,
 			'description': nls.localize('lineHeight', "Controls the line height. Use 0 to compute the lineHeight from the fontSize.")
 		},
+		'editor.cursorHeightMultiplier': {
+			'type': 'number',
+			'default': EDITOR_FONT_DEFAULTS.cursorHeightMultiplier,
+			'description': nls.localize('cursorHeightMultiplier', "Controls how tall the cursor is. This will be multiplied with editor.lineHeight.")
+		},
 		'editor.letterSpacing': {
 			'type': 'number',
 			'default': EDITOR_FONT_DEFAULTS.letterSpacing,

@@ -810,6 +810,7 @@ export class InternalEditorOptions {
 	readonly pixelRatio: number;
 	readonly editorClassName: string;
 	readonly lineHeight: number;
+	readonly cursorHeightMultiplier: number;
 	readonly readOnly: boolean;
 	/**
 	 * @internal
@@ -2039,6 +2040,7 @@ export const EDITOR_FONT_DEFAULTS = {
 	),
 	lineHeight: 0,
 	letterSpacing: 0,
+	cursorHeightMultiplier: 1
 };
 
 /**
