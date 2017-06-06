@@ -973,69 +973,78 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			} else if (message.type === 'event') {
 				const event: Proto.Event = <Proto.Event>message;
 				this.tracer.traceEvent(event);
-				if (event.event === 'syntaxDiag') {
-					this.host.syntaxDiagnosticsReceived(event as Proto.DiagnosticEvent);
-				} else if (event.event === 'semanticDiag') {
-					this.host.semanticDiagnosticsReceived(event as Proto.DiagnosticEvent);
-				} else if (event.event === 'configFileDiag') {
-					this.host.configFileDiagnosticsReceived(event as Proto.ConfigFileDiagnosticEvent);
-				} else if (event.event === 'telemetry') {
-					let telemetryData = (event as Proto.TelemetryEvent).body;
-					let properties: ObjectMap<string> = Object.create(null);
-					switch (telemetryData.telemetryEventName) {
-						case 'typingsInstalled':
-							let typingsInstalledPayload: Proto.TypingsInstalledTelemetryEventPayload = (telemetryData.payload as Proto.TypingsInstalledTelemetryEventPayload);
-							properties['installedPackages'] = typingsInstalledPayload.installedPackages;
-
-							if (is.defined(typingsInstalledPayload.installSuccess)) {
-								properties['installSuccess'] = typingsInstalledPayload.installSuccess.toString();
-							}
-							if (is.string(typingsInstalledPayload.typingsInstallerVersion)) {
-								properties['typingsInstallerVersion'] = typingsInstalledPayload.typingsInstallerVersion;
-							}
-							break;
-						default:
-							let payload = telemetryData.payload;
-							if (payload) {
-								Object.keys(payload).forEach((key) => {
-									try {
-										if (payload.hasOwnProperty(key)) {
-											properties[key] = is.string(payload[key]) ? payload[key] : JSON.stringify(payload[key]);
-										}
-									} catch (e) {
-										// noop
-									}
-								});
-							}
-							break;
-					}
-					this.logTelemetry(telemetryData.telemetryEventName, properties);
-				} else if (event.event === 'projectLanguageServiceState') {
-					const data = (event as Proto.ProjectLanguageServiceStateEvent).body;
-					if (data) {
-						this._onProjectLanguageServiceStateChanged.fire(data);
-					}
-				} else if (event.event === 'beginInstallTypes') {
-					const data = (event as Proto.BeginInstallTypesEvent).body;
-					if (data) {
-						this._onDidBeginInstallTypings.fire(data);
-					}
-				} else if (event.event === 'endInstallTypes') {
-					const data = (event as Proto.EndInstallTypesEvent).body;
-					if (data) {
-						this._onDidEndInstallTypings.fire(data);
-					}
-				} else if (event.event === 'typesInstallerInitializationFailed') {
-					const data = (event as Proto.TypesInstallerInitializationFailedEvent).body;
-					if (data) {
-						this._onTypesInstallerInitializationFailed.fire(data);
-					}
-				}
+				this.dispatchEvent(event);
 			} else {
 				throw new Error('Unknown message type ' + message.type + ' recevied');
 			}
 		} finally {
 			this.sendNextRequests();
 		}
+	}
+
+	private dispatchEvent(event: Proto.Event) {
+		if (event.event === 'syntaxDiag') {
+			this.host.syntaxDiagnosticsReceived(event as Proto.DiagnosticEvent);
+		} else if (event.event === 'semanticDiag') {
+			this.host.semanticDiagnosticsReceived(event as Proto.DiagnosticEvent);
+		} else if (event.event === 'configFileDiag') {
+			this.host.configFileDiagnosticsReceived(event as Proto.ConfigFileDiagnosticEvent);
+		} else if (event.event === 'telemetry') {
+			let telemetryData = (event as Proto.TelemetryEvent).body;
+			this.dispatchTelemetryEvent(telemetryData);
+		} else if (event.event === 'projectLanguageServiceState') {
+			const data = (event as Proto.ProjectLanguageServiceStateEvent).body;
+			if (data) {
+				this._onProjectLanguageServiceStateChanged.fire(data);
+			}
+		} else if (event.event === 'beginInstallTypes') {
+			const data = (event as Proto.BeginInstallTypesEvent).body;
+			if (data) {
+				this._onDidBeginInstallTypings.fire(data);
+			}
+		} else if (event.event === 'endInstallTypes') {
+			const data = (event as Proto.EndInstallTypesEvent).body;
+			if (data) {
+				this._onDidEndInstallTypings.fire(data);
+			}
+		} else if (event.event === 'typesInstallerInitializationFailed') {
+			const data = (event as Proto.TypesInstallerInitializationFailedEvent).body;
+			if (data) {
+				this._onTypesInstallerInitializationFailed.fire(data);
+			}
+		}
+	}
+
+	private dispatchTelemetryEvent(telemetryData: Proto.TelemetryEventBody): void {
+		const properties: ObjectMap<string> = Object.create(null);
+		switch (telemetryData.telemetryEventName) {
+			case 'typingsInstalled':
+				const typingsInstalledPayload: Proto.TypingsInstalledTelemetryEventPayload = (telemetryData.payload as Proto.TypingsInstalledTelemetryEventPayload);
+				properties['installedPackages'] = typingsInstalledPayload.installedPackages;
+
+				if (is.defined(typingsInstalledPayload.installSuccess)) {
+					properties['installSuccess'] = typingsInstalledPayload.installSuccess.toString();
+				}
+				if (is.string(typingsInstalledPayload.typingsInstallerVersion)) {
+					properties['typingsInstallerVersion'] = typingsInstalledPayload.typingsInstallerVersion;
+				}
+				break;
+
+			default:
+				const payload = telemetryData.payload;
+				if (payload) {
+					Object.keys(payload).forEach((key) => {
+						try {
+							if (payload.hasOwnProperty(key)) {
+								properties[key] = is.string(payload[key]) ? payload[key] : JSON.stringify(payload[key]);
+							}
+						} catch (e) {
+							// noop
+						}
+					});
+				}
+				break;
+		}
+		this.logTelemetry(telemetryData.telemetryEventName, properties);
 	}
 }
