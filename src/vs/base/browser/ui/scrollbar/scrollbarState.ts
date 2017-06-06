@@ -92,6 +92,14 @@ export class ScrollbarState {
 		this._refreshComputedValues();
 	}
 
+	public clone(): ScrollbarState {
+		let r = new ScrollbarState(this._arrowSize, this._scrollbarSize, this._oppositeScrollbarSize);
+		r.setVisibleSize(this._visibleSize);
+		r.setScrollSize(this._scrollSize);
+		r.setScrollPosition(this._scrollPosition);
+		return r;
+	}
+
 	public setVisibleSize(visibleSize: number): boolean {
 		let iVisibleSize = Math.round(visibleSize);
 		if (this._visibleSize !== iVisibleSize) {
@@ -178,6 +186,10 @@ export class ScrollbarState {
 		return this._arrowSize;
 	}
 
+	public getScrollPosition(): number {
+		return this._scrollPosition;
+	}
+
 	public getRectangleLargeSize(): number {
 		return this._computedAvailableSize;
 	}
@@ -202,7 +214,24 @@ export class ScrollbarState {
 		return (this._computedSliderPosition + this._computedSliderSize / 2);
 	}
 
-	public convertSliderPositionToScrollPosition(desiredSliderPosition: number): number {
+	private _convertSliderPositionToScrollPosition(desiredSliderPosition: number): number {
 		return desiredSliderPosition / this._computedRatio;
+	}
+
+	/**
+	 * Compute a desired `scrollPosition` such that `offset` ends up in the center of the slider.
+	 * `offset` is based on the same coordinate system as the `sliderPosition`.
+	 */
+	public getDesiredScrollPositionFromOffset(offset: number): number {
+		let desiredSliderPosition = offset - this._arrowSize - this._computedSliderSize / 2;
+		return this._convertSliderPositionToScrollPosition(desiredSliderPosition);
+	}
+
+	/**
+	 * Compute a desired `scrollPosition` such that the slider moves by `delta`.
+	 */
+	public getDesiredScrollPositionFromDelta(delta: number): number {
+		let desiredSliderPosition = this._computedSliderPosition + delta;
+		return this._convertSliderPositionToScrollPosition(desiredSliderPosition);
 	}
 }
