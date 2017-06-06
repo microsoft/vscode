@@ -172,7 +172,7 @@ export class DebugService implements debug.IDebugService {
 		// attach: PH is ready to be attached to
 		// TODO@Isidor this is a hack to just get any 'extensionHost' session.
 		// Optimally the broadcast would contain the id of the session
-		// We are only intersted if we have an active debug session for extensionHost
+		// We are only interested if we have an active debug session for extensionHost
 		const process = this.model.getProcesses().filter(p => strings.equalsIgnoreCase(p.configuration.type, 'extensionhost')).pop();
 		const session = process ? <RawDebugSession>process.session : null;
 		if (broadcast.channel === EXTENSION_ATTACH_BROADCAST_CHANNEL) {
@@ -258,7 +258,7 @@ export class DebugService implements debug.IDebugService {
 			}
 
 			// flush simple values
-			// always append a new line for output coming from an extension such that seperate logs go to seperate lines #23695
+			// always append a new line for output coming from an extension such that separate logs go to separate lines #23695
 			if (simpleVals.length) {
 				this.logToRepl(simpleVals.join(' ') + '\n', sev);
 			}
