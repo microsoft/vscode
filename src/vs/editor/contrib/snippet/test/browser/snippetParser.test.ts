@@ -126,23 +126,23 @@ suite('SnippetParser', () => {
 		assertText('\\}', '}');
 		assertText('\\abc', '\\abc');
 		assertText('foo${f:\\}}bar', 'foo}bar');
-		assertText('\\{', '{');
+		assertText('\\{', '\\{');
 		assertText('I need \\\\\\$', 'I need \\$');
 		assertText('\\', '\\');
-		assertText('\\{{', '{{');
+		assertText('\\{{', '\\{{');
 		assertText('{{', '{{');
 		assertText('{{dd', '{{dd');
 		assertText('}}', '}}');
 		assertText('ff}}', 'ff}}');
 
 		assertText('farboo', 'farboo');
-		assertText('far{{}}boo', 'farboo');
-		assertText('far{{123}}boo', 'far123boo');
-		assertText('far\\{{123}}boo', 'far{{123}}boo');
-		assertText('far{{id:bern}}boo', 'farbernboo');
-		assertText('far{{id:bern {{basel}}}}boo', 'farbern baselboo');
-		assertText('far{{id:bern {{id:basel}}}}boo', 'farbern baselboo');
-		assertText('far{{id:bern {{id2:basel}}}}boo', 'farbern baselboo');
+		assertText('far{{}}boo', 'far{{}}boo');
+		assertText('far{{123}}boo', 'far{{123}}boo');
+		assertText('far\\{{123}}boo', 'far\\{{123}}boo');
+		assertText('far{{id:bern}}boo', 'far{{id:bern}}boo');
+		assertText('far{{id:bern {{basel}}}}boo', 'far{{id:bern {{basel}}}}boo');
+		assertText('far{{id:bern {{id:basel}}}}boo', 'far{{id:bern {{id:basel}}}}boo');
+		assertText('far{{id:bern {{id2:basel}}}}boo', 'far{{id:bern {{id2:basel}}}}boo');
 	});
 
 
@@ -152,7 +152,7 @@ suite('SnippetParser', () => {
 
 		assertTextAndMarker('foo${1:bar\\}${2:foo}}', 'foobar}foo', Text, Placeholder);
 
-		let [, placeholder] = new SnippetParser(true, false).parse('foo${1:bar\\}${2:foo}}');
+		let [, placeholder] = new SnippetParser().parse('foo${1:bar\\}${2:foo}}');
 		let { children } = (<Placeholder>placeholder);
 
 		assert.equal((<Placeholder>placeholder).index, '1');
@@ -164,9 +164,9 @@ suite('SnippetParser', () => {
 
 	test('Parser, placeholder', () => {
 		assertTextAndMarker('farboo', 'farboo', Text);
-		assertTextAndMarker('far{{}}boo', 'farboo', Text, Placeholder, Text);
-		assertTextAndMarker('far{{123}}boo', 'far123boo', Text, Placeholder, Text);
-		assertTextAndMarker('far\\{{123}}boo', 'far{{123}}boo', Text);
+		assertTextAndMarker('far{{}}boo', 'far{{}}boo', Text);
+		assertTextAndMarker('far{{123}}boo', 'far{{123}}boo', Text);
+		assertTextAndMarker('far\\{{123}}boo', 'far\\{{123}}boo', Text);
 	});
 
 	test('Parser, literal code', () => {
@@ -194,24 +194,13 @@ suite('SnippetParser', () => {
 	});
 
 	test('Parser, only textmate', () => {
-		const p = new SnippetParser(true, false);
+		const p = new SnippetParser();
 		assertMarker(p.parse('far{{}}boo'), Text);
 		assertMarker(p.parse('far{{123}}boo'), Text);
 		assertMarker(p.parse('far\\{{123}}boo'), Text);
 
 		assertMarker(p.parse('far$0boo'), Text, Placeholder, Text);
 		assertMarker(p.parse('far${123}boo'), Text, Placeholder, Text);
-		assertMarker(p.parse('far\\${123}boo'), Text);
-	});
-
-	test('Parser, only internal', () => {
-		const p = new SnippetParser(false, true);
-		assertMarker(p.parse('far{{}}boo'), Text, Placeholder, Text);
-		assertMarker(p.parse('far{{123}}boo'), Text, Placeholder, Text);
-		assertMarker(p.parse('far\\{{123}}boo'), Text);
-
-		assertMarker(p.parse('far$0boo'), Text);
-		assertMarker(p.parse('far${123}boo'), Text);
 		assertMarker(p.parse('far\\${123}boo'), Text);
 	});
 
@@ -242,41 +231,6 @@ suite('SnippetParser', () => {
 		assert.ok(marker[0] instanceof Variable);
 	});
 
-	test('Parser, real world, mixed', () => {
-
-		assertTextAndMarker(
-			'finished:{{}}, second:{{2:name}}, first:{{1:}}, third:{{3:}}',
-			'finished:, second:name, first:, third:',
-			Text, Placeholder, Text, Placeholder, Text, Placeholder, Text, Placeholder
-		);
-
-
-		assertTextAndMarker(
-			'begin\\{{{1:enumerate}}\\}\n\t{{}}\nend\\{{{1:}}\\}',
-			'begin{enumerate}\n\t\nend{enumerate}',
-			Text, Placeholder, Text, Placeholder, Text, Placeholder, Text
-		);
-
-	});
-
-	test('Parser, default name/value', () => {
-		assertTextAndMarker(
-			'{{first}}-{{2:}}-{{second}}-{{1:}}',
-			'first--second-',
-			Placeholder, Text, Placeholder, Text, Placeholder, Text, Placeholder
-		);
-
-		const [p1, , p2, , p3] = new SnippetParser().parse('{{first}}-{{2:}}-{{second}}-{{1:}}');
-		assert.equal((<Placeholder>p1).index, 'first');
-		assert.equal(Marker.toString((<Placeholder>p1).children), 'first');
-
-		assert.equal((<Placeholder>p2).index, '2');
-		assert.equal(Marker.toString((<Placeholder>p2).children), '');
-
-		assert.equal((<Placeholder>p3).index, 'second');
-		assert.equal(Marker.toString((<Placeholder>p3).children), 'second');
-	});
-
 	test('Parser, default placeholder values', () => {
 
 		assertMarker('errorContext: `${1:err}`, error: $1', Text, Placeholder, Text, Placeholder);
@@ -294,15 +248,15 @@ suite('SnippetParser', () => {
 	});
 
 	test('backspace esapce in TM only, #16212', () => {
-		const actual = new SnippetParser(true, false).text('Foo \\\\${abc}bar');
+		const actual = new SnippetParser().text('Foo \\\\${abc}bar');
 		assert.equal(actual, 'Foo \\bar');
 	});
 
 	test('colon as variable/placeholder value, #16717', () => {
-		let actual = new SnippetParser(true, false).text('${TM_SELECTED_TEXT:foo:bar}');
+		let actual = new SnippetParser().text('${TM_SELECTED_TEXT:foo:bar}');
 		assert.equal(actual, 'foo:bar');
 
-		actual = new SnippetParser(true, false).text('${1:foo:bar}');
+		actual = new SnippetParser().text('${1:foo:bar}');
 		assert.equal(actual, 'foo:bar');
 	});
 

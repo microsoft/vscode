@@ -332,20 +332,14 @@ export class SnippetParser {
 	}
 
 	static parse(template: string, enforceFinalTabstop?: boolean): TextmateSnippet {
-		const marker = new SnippetParser(true, false).parse(template, true, enforceFinalTabstop);
+		const marker = new SnippetParser().parse(template, true, enforceFinalTabstop);
 		return new TextmateSnippet(marker);
 	}
 
-	private _enableTextMate: boolean;
-	private _enableInternal: boolean;
 	private _scanner = new Scanner();
 	private _token: Token;
 	private _prevToken: Token;
 
-	constructor(enableTextMate: boolean = true, enableInternal: boolean = true) {
-		this._enableTextMate = enableTextMate;
-		this._enableInternal = enableInternal;
-	}
 
 	text(value: string): string {
 		return Marker.toString(this.parse(value));
@@ -415,18 +409,10 @@ export class SnippetParser {
 		return false;
 	}
 
-	private _return(token: Token): void {
-		this._prevToken = undefined;
-		this._token = token;
-		this._scanner.pos = token.pos + token.len;
-	}
-
 	private _parseAny(marker: Marker[]): boolean {
 		if (this._parseEscaped(marker)) {
 			return true;
-		} else if (this._enableInternal && this._parseInternal(marker)) {
-			return true;
-		} else if (this._enableTextMate && this._parseTM(marker)) {
+		} else if (this._parseTM(marker)) {
 			return true;
 		}
 		return false;
@@ -491,69 +477,9 @@ export class SnippetParser {
 		return false;
 	}
 
-	private _parseInternal(marker: Marker[]): boolean {
-		if (this._accept(TokenType.CurlyOpen)) {
-
-			if (!this._accept(TokenType.CurlyOpen)) {
-				this._return(this._prevToken);
-				return false;
-			}
-
-			// {{name:children}}, {{name}}, {{name:}}
-			let name: Marker[] = [];
-			let children: Marker[] = [];
-			let target = name;
-
-			while (true) {
-
-				if (this._accept(TokenType.Colon)) {
-					target = children;
-					continue;
-				}
-
-				if (this._accept(TokenType.CurlyClose)) {
-
-					if (!this._accept(TokenType.CurlyClose)) {
-						this._return(this._prevToken);
-						continue;
-					}
-
-					if (children !== target) {
-						// we have not seen the colon which
-						// means use the ident also as
-						// default value
-						children = name;
-					}
-
-					marker.push(new Placeholder(Marker.toString(name), children));
-					return true;
-				}
-
-				if (this._parseAny(target) || this._parseText(target)) {
-					continue;
-				}
-
-				// fallback
-				if (children.length > 0) {
-					marker.push(new Text('{{' + Marker.toString(name) + ':'));
-					marker.push(...children);
-				} else {
-					marker.push(new Text('{{'));
-					marker.push(...name);
-				}
-				return true;
-			}
-		}
-		return false;
-	}
-
 	private _parseEscaped(marker: Marker[]): boolean {
 		if (this._accept(TokenType.Backslash)) {
-			if (// Internal style
-				(this._enableInternal && (this._accept(TokenType.CurlyOpen) || this._accept(TokenType.CurlyClose) || this._accept(TokenType.Backslash)))
-				// TextMate style
-				|| (this._enableTextMate && (this._accept(TokenType.Dollar) || this._accept(TokenType.CurlyClose) || this._accept(TokenType.Backslash)))
-			) {
+			if (this._accept(TokenType.Dollar) || this._accept(TokenType.CurlyClose) || this._accept(TokenType.Backslash)) {
 				// just consume them
 			}
 			marker.push(new Text(this._scanner.tokenText(this._prevToken)));

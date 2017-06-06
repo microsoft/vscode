@@ -114,7 +114,7 @@ export class EditorAccessor implements emmet.Editor {
 		// string to string conversion that tries to fix the
 		// snippet in-place
 
-		let marker = new SnippetParser(true, false).parse(template);
+		let marker = new SnippetParser().parse(template);
 		let maxIndex = -Number.MIN_VALUE;
 
 		// find highest placeholder index
