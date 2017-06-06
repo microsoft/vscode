@@ -25,7 +25,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import * as DOM from 'vs/base/browser/dom';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
-import { CollapsibleViewletView } from 'vs/workbench/parts/views/browser/views';
+import { CollapsibleViewletView, IViewletViewOptions } from 'vs/workbench/parts/views/browser/views';
 import { FileStat } from 'vs/workbench/parts/files/common/explorerViewModel';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -43,10 +43,8 @@ import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/th
 import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
-import { IViewOptions } from 'vs/workbench/parts/views/browser/viewsRegistry';
 
-export interface IExplorerViewOptions extends IViewOptions {
-	settings: any;
+export interface IExplorerViewOptions extends IViewletViewOptions {
 	viewletState: FileViewletState;
 }
 
@@ -104,7 +102,7 @@ export class ExplorerView extends CollapsibleViewletView {
 	) {
 		super(options.actionRunner, options.collapsed, nls.localize('explorerSection', "Files Explorer Section"), messageService, keybindingService, contextMenuService);
 
-		this.settings = options.settings;
+		this.settings = options.viewletSettings;
 		this.viewletState = options.viewletState;
 		this.actionRunner = options.actionRunner;
 		this.autoReveal = true;

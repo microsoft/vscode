@@ -9,6 +9,7 @@ import { IThemable, attachHeaderViewStyler } from 'vs/platform/theme/common/styl
 import * as errors from 'vs/base/common/errors';
 import * as DOM from 'vs/base/browser/dom';
 import { $, Dimension, Builder } from 'vs/base/browser/builder';
+import { Scope } from 'vs/workbench/common/memento';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -27,6 +28,10 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+
+export interface IViewletViewOptions extends IViewOptions {
+	viewletSettings: any;
+}
 
 export interface IViewletView extends IView, IThemable {
 	id?: string;
@@ -373,6 +378,7 @@ export class ComposedViewsViewlet extends Viewlet {
 	private splitView: SplitView;
 	private views: IViewletView[];
 	private dimension: Dimension;
+	private viewletSettings: any;
 
 	private readonly viewsStates: Map<string, IViewState>;
 
@@ -389,6 +395,7 @@ export class ComposedViewsViewlet extends Viewlet {
 		super(id, telemetryService, themeService);
 
 		this.views = [];
+		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 		this.viewsStates = this.loadViewsStates();
 
 		this._register(ViewsRegistry.onViewsRegistered(viewDescriptors => this.createViews(viewDescriptors.filter(viewDescriptor => ViewLocation.Explorer === viewDescriptor.location))));
@@ -444,7 +451,8 @@ export class ComposedViewsViewlet extends Viewlet {
 			const view = this.createView(viewDescriptor, {
 				name: viewDescriptor.name,
 				actionRunner: this.getActionRunner(),
-				collapsed: viewState ? viewState.collapsed : true
+				collapsed: viewState ? viewState.collapsed : true,
+				viewletSettings: this.viewletSettings
 			});
 			if (index !== -1) {
 				this.views.splice(index, 0, view);
@@ -546,7 +554,7 @@ export class ComposedViewsViewlet extends Viewlet {
 		}, new Map<string, IViewState>());
 	}
 
-	protected createView(viewDescriptor: IViewDescriptor, options: IViewOptions): IViewletView {
+	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): IViewletView {
 		return this.instantiationService.createInstance(viewDescriptor.ctor, viewDescriptor.id, options);
 	}
 
