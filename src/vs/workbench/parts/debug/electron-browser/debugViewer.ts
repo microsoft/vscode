@@ -1028,7 +1028,7 @@ export class BreakpointsActionProvider implements IActionProvider {
 	}
 
 	public hasActions(tree: ITree, element: any): boolean {
-		return false;;
+		return false;
 	}
 
 	public hasSecondaryActions(tree: ITree, element: any): boolean {
@@ -1174,7 +1174,7 @@ export class BreakpointsRenderer implements IRenderer {
 	}
 
 	private renderExceptionBreakpoint(exceptionBreakpoint: debug.IExceptionBreakpoint, data: IBaseBreakpointTemplateData): void {
-		data.name.textContent = exceptionBreakpoint.label || `${exceptionBreakpoint.filter} exceptions`;;
+		data.name.textContent = exceptionBreakpoint.label || `${exceptionBreakpoint.filter} exceptions`;
 		data.breakpoint.title = data.name.textContent;
 		data.checkbox.checked = exceptionBreakpoint.enabled;
 	}

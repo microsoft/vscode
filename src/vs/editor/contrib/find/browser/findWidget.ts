@@ -81,7 +81,7 @@ export class FindWidgetViewZone implements IViewZone {
 }
 
 export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSashLayoutProvider {
-	private static ID = 'editor.contrib.findWidget';;
+	private static ID = 'editor.contrib.findWidget';
 	private _codeEditor: ICodeEditor;
 	private _state: FindReplaceState;
 	private _controller: IFindController;
