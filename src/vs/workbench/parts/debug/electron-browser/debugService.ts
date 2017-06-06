@@ -225,12 +225,12 @@ export class DebugService implements debug.IDebugService {
 
 					// flush any existing simple values logged
 					if (simpleVals.length) {
-						this.model.appendToRepl(simpleVals.join(' '), sev);
+						this.logToRepl(simpleVals.join(' '), sev);
 						simpleVals = [];
 					}
 
 					// show object
-					this.model.appendToRepl(new OutputNameValueElement((<any>a).prototype, a, nls.localize('snapshotObj', "Only primitive values are shown for this object.")), sev);
+					this.logToRepl(new OutputNameValueElement((<any>a).prototype, a, nls.localize('snapshotObj', "Only primitive values are shown for this object.")), sev);
 				}
 
 				// string: watch out for % replacement directive
@@ -260,7 +260,7 @@ export class DebugService implements debug.IDebugService {
 			// flush simple values
 			// always append a new line for output coming from an extension such that seperate logs go to seperate lines #23695
 			if (simpleVals.length) {
-				this.model.appendToRepl(simpleVals.join(' ') + '\n', sev);
+				this.logToRepl(simpleVals.join(' ') + '\n', sev);
 			}
 		}
 	}
@@ -382,11 +382,11 @@ export class DebugService implements debug.IDebugService {
 					children.forEach(child => {
 						// Since we can not display multiple trees in a row, we are displaying these variables one after the other (ignoring their names)
 						child.name = null;
-						this.model.appendToRepl(child, outputSeverity);
+						this.logToRepl(child, outputSeverity);
 					});
 				});
 			} else if (typeof event.body.output === 'string') {
-				this.model.appendToRepl(event.body.output, outputSeverity);
+				this.logToRepl(event.body.output, outputSeverity);
 			}
 		}));
 
@@ -596,8 +596,13 @@ export class DebugService implements debug.IDebugService {
 		this.model.removeReplExpressions();
 	}
 
-	public logToRepl(value: string, sev = severity.Info): void {
-		this.model.appendToRepl(value, sev);
+	public logToRepl(value: string | debug.IExpression, sev = severity.Info): void {
+		if (typeof value === 'string' && '[2J'.localeCompare(value) === 0) {
+			// [2J is the ansi escape sequence for clearing the display http://ascii-table.com/ansi-escape-sequences.php
+			this.model.removeReplExpressions();
+		} else {
+			this.model.appendToRepl(value, sev);
+		}
 	}
 
 	public addWatchExpression(name: string): TPromise<void> {
