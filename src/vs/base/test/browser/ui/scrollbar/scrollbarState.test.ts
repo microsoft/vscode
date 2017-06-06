@@ -35,4 +35,32 @@ suite('ScrollbarState', () => {
 		assert.equal(actual.getSliderPosition(), 249);
 		assert.equal(actual.getSliderCenter(), 259);
 	});
+
+	test('inflates slider size with arrows', () => {
+		let actual = new ScrollbarState(12, 14, 0);
+		actual.setVisibleSize(339);
+		actual.setScrollSize(42423);
+		actual.setScrollPosition(32787);
+
+		assert.equal(actual.getArrowSize(), 12);
+		assert.equal(actual.getScrollPosition(), 32787);
+		assert.equal(actual.getRectangleLargeSize(), 339);
+		assert.equal(actual.getRectangleSmallSize(), 14);
+		assert.equal(actual.isNeeded(), true);
+		assert.equal(actual.getSliderSize(), 20);
+		assert.equal(actual.getSliderPosition(), 230);
+		assert.equal(actual.getSliderCenter(), 240);
+
+
+		assert.equal(actual.getDesiredScrollPositionFromOffset(240 + 12), 32811);
+		actual.setScrollPosition(32811);
+		assert.equal(actual.getArrowSize(), 12);
+		assert.equal(actual.getScrollPosition(), 32811);
+		assert.equal(actual.getRectangleLargeSize(), 339);
+		assert.equal(actual.getRectangleSmallSize(), 14);
+		assert.equal(actual.isNeeded(), true);
+		assert.equal(actual.getSliderSize(), 20);
+		assert.equal(actual.getSliderPosition(), 230);
+		assert.equal(actual.getSliderCenter(), 240);
+	});
 });
