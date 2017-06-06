@@ -15,6 +15,8 @@ import { ResourceMap } from 'vs/base/common/map';
 
 export const IUntitledEditorService = createDecorator<IUntitledEditorService>('untitledEditorService');
 
+export const UNTITLED_SCHEMA = 'untitled';
+
 export interface IUntitledEditorService {
 
 	_serviceBrand: any;
@@ -161,7 +163,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 		let hasAssociatedFilePath = false;
 		if (resource) {
 			hasAssociatedFilePath = (resource.scheme === 'file');
-			resource = resource.with({ scheme: UntitledEditorInput.SCHEMA }); // ensure we have the right scheme
+			resource = resource.with({ scheme: UNTITLED_SCHEMA }); // ensure we have the right scheme
 
 			if (hasAssociatedFilePath) {
 				UntitledEditorService.KNOWN_ASSOCIATED_FILE_PATHS.set(resource, true); // remember for future lookups
@@ -183,7 +185,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 			// Create new taking a resource URI that is not already taken
 			let counter = UntitledEditorService.CACHE.size + 1;
 			do {
-				resource = URI.from({ scheme: UntitledEditorInput.SCHEMA, path: `Untitled-${counter}` });
+				resource = URI.from({ scheme: UNTITLED_SCHEMA, path: `Untitled-${counter}` });
 				counter++;
 			} while (UntitledEditorService.CACHE.has(resource));
 		}

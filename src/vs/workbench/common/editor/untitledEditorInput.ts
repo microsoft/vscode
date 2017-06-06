@@ -26,7 +26,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 export class UntitledEditorInput extends EditorInput implements IEncodingSupport {
 
 	public static ID: string = 'workbench.editors.untitledEditorInput';
-	public static SCHEMA: string = 'untitled';
 
 	private resource: URI;
 	private _hasAssociatedFilePath: boolean;
