@@ -19,6 +19,8 @@ To debug tests use `--debug` when running the test script. Also, the set of test
 
 	./scripts/test.sh --debug --runGrep **/extHost*.test.js
 
+> To filter tests change `launch.json` `configurations.args` `-g argument`.
+
 ## Coverage
 
 The following command will create a `coverage` folder at the root of the workspace:
