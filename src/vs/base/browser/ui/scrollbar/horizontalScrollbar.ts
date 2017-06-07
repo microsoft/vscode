@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { AbstractScrollbar, ScrollbarHost, IMouseMoveEventData } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
-import { IMouseEvent, StandardMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { AbstractScrollbar, ScrollbarHost, ISimplifiedMouseEvent } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
+import { StandardMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IDomNodePagePosition } from 'vs/base/browser/dom';
 import { ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import { Scrollable, ScrollEvent, ScrollbarVisibility } from 'vs/base/common/scrollable';
@@ -84,15 +84,15 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 		return this._shouldRender;
 	}
 
-	protected _mouseDownRelativePosition(e: IMouseEvent, domNodePosition: IDomNodePagePosition): number {
+	protected _mouseDownRelativePosition(e: ISimplifiedMouseEvent, domNodePosition: IDomNodePagePosition): number {
 		return e.posx - domNodePosition.left;
 	}
 
-	protected _sliderMousePosition(e: IMouseMoveEventData): number {
+	protected _sliderMousePosition(e: ISimplifiedMouseEvent): number {
 		return e.posx;
 	}
 
-	protected _sliderOrthogonalMousePosition(e: IMouseMoveEventData): number {
+	protected _sliderOrthogonalMousePosition(e: ISimplifiedMouseEvent): number {
 		return e.posy;
 	}
 

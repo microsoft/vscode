@@ -80,10 +80,6 @@ export abstract class FastDomNode<T extends HTMLElement> {
 		this.domNode.style.height = this._height + 'px';
 	}
 
-	public getHeight(): number {
-		return this._height;
-	}
-
 	public unsetHeight(): void {
 		if (this._height === -1) {
 			return;
@@ -98,10 +94,6 @@ export abstract class FastDomNode<T extends HTMLElement> {
 		}
 		this._top = top;
 		this.domNode.style.top = this._top + 'px';
-	}
-
-	public getTop(): number {
-		return this._top;
 	}
 
 	public unsetTop(): void {
