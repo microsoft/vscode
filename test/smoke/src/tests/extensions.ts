@@ -24,7 +24,7 @@ export async function testExtensions() {
 		let extensions: Extensions;
 
 		beforeEach(async function () {
-			app = new SpectronApplication(LATEST_PATH, this.currentTest.fullTitle(), (this.currentTest as any).currentRetry(), [WORKSPACE_PATH], [`--extensions-dir=${EXTENSIONS_DIR}`]);
+			app = new SpectronApplication(LATEST_PATH, this.currentTest.fullTitle(), (this.currentTest as any).currentRetry(), [WORKSPACE_PATH, `--extensions-dir=${EXTENSIONS_DIR}`]);
 			common = new CommonActions(app);
 			extensions = new Extensions(app, common);
 			await common.removeDirectory(EXTENSIONS_DIR);
