@@ -73,6 +73,7 @@ interface IInternalPickOptions {
 	matchOnDescription?: boolean;
 	matchOnDetail?: boolean;
 	ignoreFocusLost?: boolean;
+	quickNavigateConfiguration?: IQuickNavigateConfiguration;
 	onDidType?: (value: string) => any;
 }
 
@@ -155,8 +156,8 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			this.quickOpenWidget.navigate(next, quickNavigate);
 		}
 
-		if (!quickNavigate && this.pickOpenWidget) {
-			this.pickOpenWidget.navigate(next); // quick-navigate is only supported in quick open, not picker
+		if (this.pickOpenWidget) {
+			this.pickOpenWidget.navigate(next, quickNavigate);
 		}
 	}
 
@@ -446,7 +447,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 				// Set input
 				if (!this.pickOpenWidget.isVisible()) {
-					this.pickOpenWidget.show(model, { autoFocus });
+					this.pickOpenWidget.show(model, { autoFocus, quickNavigateConfiguration: options.quickNavigateConfiguration });
 				} else {
 					this.pickOpenWidget.setInput(model, autoFocus);
 				}
