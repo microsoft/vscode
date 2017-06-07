@@ -11,6 +11,7 @@ import { ITypescriptServiceClient } from '../typescriptService';
 interface Configuration {
 	enable: boolean;
 	insertSpaceAfterCommaDelimiter: boolean;
+	insertSpaceAfterConstructor: boolean;
 	insertSpaceAfterSemicolonInForStatements: boolean;
 	insertSpaceBeforeAndAfterBinaryOperators: boolean;
 	insertSpaceAfterKeywordsInControlFlowStatements: boolean;
@@ -23,30 +24,29 @@ interface Configuration {
 	insertSpaceBeforeFunctionParenthesis: boolean;
 	placeOpenBraceOnNewLineForFunctions: boolean;
 	placeOpenBraceOnNewLineForControlBlocks: boolean;
-
-	[key: string]: boolean;
 }
 
 namespace Configuration {
-	export const insertSpaceAfterCommaDelimiter: string = 'insertSpaceAfterCommaDelimiter';
-	export const insertSpaceAfterSemicolonInForStatements: string = 'insertSpaceAfterSemicolonInForStatements';
-	export const insertSpaceBeforeAndAfterBinaryOperators: string = 'insertSpaceBeforeAndAfterBinaryOperators';
-	export const insertSpaceAfterKeywordsInControlFlowStatements: string = 'insertSpaceAfterKeywordsInControlFlowStatements';
-	export const insertSpaceAfterFunctionKeywordForAnonymousFunctions: string = 'insertSpaceAfterFunctionKeywordForAnonymousFunctions';
-	export const insertSpaceBeforeFunctionParenthesis: string = 'insertSpaceBeforeFunctionParenthesis';
-	export const insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: string = 'insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis';
-	export const insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: string = 'insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets';
-	export const insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces: string = 'insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces';
-	export const insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: string = 'insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces';
-	export const insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: string = 'insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces';
-	export const placeOpenBraceOnNewLineForFunctions: string = 'placeOpenBraceOnNewLineForFunctions';
-	export const placeOpenBraceOnNewLineForControlBlocks: string = 'placeOpenBraceOnNewLineForControlBlocks';
+	export const insertSpaceAfterCommaDelimiter = 'insertSpaceAfterCommaDelimiter';
+	export const insertSpaceAfterConstructor = 'insertSpaceAfterConstructor';
+	export const insertSpaceAfterSemicolonInForStatements = 'insertSpaceAfterSemicolonInForStatements';
+	export const insertSpaceBeforeAndAfterBinaryOperators = 'insertSpaceBeforeAndAfterBinaryOperators';
+	export const insertSpaceAfterKeywordsInControlFlowStatements = 'insertSpaceAfterKeywordsInControlFlowStatements';
+	export const insertSpaceAfterFunctionKeywordForAnonymousFunctions = 'insertSpaceAfterFunctionKeywordForAnonymousFunctions';
+	export const insertSpaceBeforeFunctionParenthesis = 'insertSpaceBeforeFunctionParenthesis';
+	export const insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis = 'insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis';
+	export const insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets = 'insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets';
+	export const insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces = 'insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces';
+	export const insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces = 'insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces';
+	export const insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces = 'insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces';
+	export const placeOpenBraceOnNewLineForFunctions = 'placeOpenBraceOnNewLineForFunctions';
+	export const placeOpenBraceOnNewLineForControlBlocks = 'placeOpenBraceOnNewLineForControlBlocks';
 
 	export function equals(a: Configuration, b: Configuration): boolean {
 		let keys = Object.keys(a);
 		for (let i = 0; i < keys.length; i++) {
 			let key = keys[i];
-			if (a[key] !== b[key]) {
+			if ((a as any)[key] !== (b as any)[key]) {
 				return false;
 			}
 		}
@@ -57,6 +57,7 @@ namespace Configuration {
 		let result: Configuration = Object.create(null);
 		result.enable = true;
 		result.insertSpaceAfterCommaDelimiter = true;
+		result.insertSpaceAfterConstructor = false;
 		result.insertSpaceAfterSemicolonInForStatements = true;
 		result.insertSpaceBeforeAndAfterBinaryOperators = true;
 		result.insertSpaceAfterKeywordsInControlFlowStatements = true;
@@ -213,6 +214,7 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 			// We can use \n here since the editor normalizes later on to its line endings.
 			newLineCharacter: '\n',
 			insertSpaceAfterCommaDelimiter: this.config.insertSpaceAfterCommaDelimiter,
+			insertSpaceAfterConstructor: this.config.insertSpaceAfterConstructor,
 			insertSpaceAfterSemicolonInForStatements: this.config.insertSpaceAfterSemicolonInForStatements,
 			insertSpaceBeforeAndAfterBinaryOperators: this.config.insertSpaceBeforeAndAfterBinaryOperators,
 			insertSpaceAfterKeywordsInControlFlowStatements: this.config.insertSpaceAfterKeywordsInControlFlowStatements,
@@ -224,7 +226,8 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 			insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: this.config.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces,
 			insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: this.config.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces,
 			placeOpenBraceOnNewLineForFunctions: this.config.placeOpenBraceOnNewLineForFunctions,
-			placeOpenBraceOnNewLineForControlBlocks: this.config.placeOpenBraceOnNewLineForControlBlocks
+			placeOpenBraceOnNewLineForControlBlocks: this.config.placeOpenBraceOnNewLineForControlBlocks,
+
 		};
 	}
 }
