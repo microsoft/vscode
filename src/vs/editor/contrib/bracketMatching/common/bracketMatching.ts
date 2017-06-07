@@ -124,6 +124,27 @@ export class BracketMatchingController extends Disposable implements editorCommo
 			return;
 		}
 
+		let openBracket: Position;
+		let closeBracket: Position;
+
+		// Obtain the position of the opening bracket and the closeing bracket
+		// Compare their column number if both brackets are on the same line
+		if (brackets[0].startLineNumber === brackets[1].startLineNumber) {
+			openBracket = brackets[1].startColumn < brackets[0].startColumn ?
+				brackets[1].getStartPosition() : brackets[0].getStartPosition();
+			closeBracket = brackets[1].startColumn < brackets[0].startColumn ?
+				brackets[0].getEndPosition() : brackets[1].getEndPosition();
+		} else {
+			openBracket = brackets[1].startLineNumber < brackets[0].startLineNumber ?
+				brackets[1].getStartPosition() : brackets[0].getStartPosition();
+			closeBracket = brackets[1].startLineNumber < brackets[0].startLineNumber ?
+				brackets[0].getEndPosition() : brackets[1].getEndPosition();
+		}
+
+		if (openBracket && closeBracket) {
+			this._selectContentWithinBrackets(openBracket, closeBracket);
+		}
+
 		let resultingPosition: Position = null;
 		if (brackets[0].containsPosition(position)) {
 			resultingPosition = brackets[1].getStartPosition();
@@ -132,9 +153,18 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		}
 
 		if (resultingPosition) {
-			this._editor.setPosition(resultingPosition);
 			this._editor.revealPosition(resultingPosition);
 		}
+	}
+
+	private _selectContentWithinBrackets(openBracket: Position, closeBracket: Position): void {
+		const bracketRange: Range = new Range(
+			openBracket.lineNumber,
+			openBracket.column,
+			closeBracket.lineNumber,
+			closeBracket.column
+		);
+		this._editor.setSelection(bracketRange);
 	}
 
 	private static _DECORATION_OPTIONS = ModelDecorationOptions.register({
