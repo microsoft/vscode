@@ -16,7 +16,8 @@
 		"onLanguage:markdown",
 		"onCommand:markdown.showPreview",
 		"onCommand:markdown.showPreviewToSide",
-		"onCommand:markdown.showSource"
+		"onCommand:markdown.showSource",
+		"onCommand:markdown.showPreviewSecuritySelector"
 	],
 	"contributes": {
 		"languages": [
@@ -79,25 +80,42 @@
 		"menus": {
 			"editor/title": [
 				{
-					"when": "editorLangId == markdown",
 					"command": "markdown.showPreviewToSide",
+					"when": "editorLangId == markdown",
 					"alt": "markdown.showPreview",
 					"group": "navigation"
 				},
 				{
-					"when": "resourceScheme == markdown",
 					"command": "markdown.showSource",
+					"when": "resourceScheme == markdown",
 					"group": "navigation"
 				},
 				{
-					"when": "resourceScheme == markdown",
-					"command": "markdown.showPreviewSecuritySelector"
+					"command": "markdown.showPreviewSecuritySelector",
+					"when": "resourceScheme == markdown"
 				}
 			],
 			"explorer/context": [
 				{
-					"when": "resourceLangId == markdown",
 					"command": "markdown.showPreview",
+					"when": "resourceLangId == markdown",
+					"group": "navigation"
+				}
+			],
+			"commandPalette": [
+				{
+					"command": "markdown.showPreview",
+					"when": "editorLangId == markdown",
+					"group": "navigation"
+				},
+				{
+					"command": "markdown.showPreviewToSide",
+					"when": "editorLangId == markdown",
+					"group": "navigation"
+				},
+				{
+					"command": "markdown.showSource",
+					"when": "resourceScheme == markdown",
 					"group": "navigation"
 				}
 			]
@@ -107,13 +125,13 @@
 				"command": "markdown.showPreview",
 				"key": "shift+ctrl+v",
 				"mac": "shift+cmd+v",
-				"when": "editorFocus"
+				"when": "editorLangId == markdown"
 			},
 			{
 				"command": "markdown.showPreviewToSide",
 				"key": "ctrl+k v",
 				"mac": "cmd+k v",
-				"when": "editorFocus"
+				"when": "editorLangId == markdown"
 			}
 		],
 		"snippets": [
