@@ -6,6 +6,7 @@
 .monaco-workbench .panel.integrated-terminal .xterm {
 	position: relative;
 	height: 100%;
+	user-select: none;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm:focus {
@@ -168,6 +169,22 @@
 	visibility: hidden;
 	position: absolute;
 	left: -9999em;
+}
+
+.monaco-workbench .panel.integrated-terminal .xterm.enable-mouse-events {
+	/* When mouse events are enabled (eg. tmux), revert to the standard pointer cursor */
+	cursor: default;
+}
+
+.monaco-workbench .panel.integrated-terminal .xterm .xterm-selection {
+	position: absolute;
+	left: 0;
+	bottom: 0;
+}
+
+.monaco-workbench .panel.integrated-terminal .xterm .xterm-selection div {
+	position: absolute;
+	background-color: #555;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-bold {
