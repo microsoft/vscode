@@ -468,6 +468,43 @@ export function commonSuffixLength(a: string, b: string): number {
 	return len;
 }
 
+function substrEquals(a: string, aStart: number, aEnd: number, b: string, bStart: number, bEnd: number): boolean {
+	while (aStart < aEnd && bStart < bEnd) {
+		if (a[aStart] !== b[bStart]) {
+			return false;
+		}
+		aStart += 1;
+		bStart += 1;
+	}
+	return true;
+}
+
+/**
+ * Return the overlap between the suffix of `a` and the prefix of `b`.
+ * For instance `overlap("foobar", "arr, I'm a pirate") === 2`.
+ */
+export function overlap(a: string, b: string): number {
+	let aEnd = a.length;
+	let bEnd = b.length;
+	let aStart = aEnd - bEnd;
+
+	if (aStart === 0) {
+		return a === b ? aEnd : 0;
+	} else if (aStart < 0) {
+		bEnd += aStart;
+		aStart = 0;
+	}
+
+	while (aStart < aEnd && bEnd > 0) {
+		if (substrEquals(a, aStart, aEnd, b, 0, bEnd)) {
+			return bEnd;
+		}
+		bEnd -= 1;
+		aStart += 1;
+	}
+	return 0;
+}
+
 // --- unicode
 // http://en.wikipedia.org/wiki/Surrogate_pair
 // Returns the code point starting at a specified index in a string
