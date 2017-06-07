@@ -127,7 +127,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		let openBracket: Position;
 		let closeBracket: Position;
 
-		// Obtain the position of the opening bracket and the closeing bracket
+		// Obtain the position of the opening bracket and the closing bracket
 		// Compare their column number if both brackets are on the same line
 		if (brackets[0].startLineNumber === brackets[1].startLineNumber) {
 			openBracket = brackets[1].startColumn < brackets[0].startColumn ?
