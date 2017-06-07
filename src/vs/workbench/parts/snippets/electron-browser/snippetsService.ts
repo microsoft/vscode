@@ -22,7 +22,7 @@ export interface ISnippetsService {
 
 	registerSnippets(languageId: LanguageId, snippets: ISnippet[], owner: string): void;
 
-	visitSnippets(languageId: LanguageId, accept: (snippet: ISnippet) => void): void;
+	visitSnippets(languageId: LanguageId, accept: (snippet: ISnippet) => boolean): void;
 
 	getSnippets(languageId: LanguageId): ISnippet[];
 }
