@@ -11,7 +11,7 @@ import { getSyntax, getProfile, extractAbbreviation } from './util';
 const field = (index, placeholder) => `\${${index}${placeholder ? ':' + placeholder : ''}}`;
 const snippetCompletionsCache = new Map<string, vscode.CompletionItem[]>();
 
-abstract class EmmetCompletionItemProviderBase implements vscode.CompletionItemProvider {
+export abstract class EmmetCompletionItemProviderBase implements vscode.CompletionItemProvider {
 
 	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Thenable<vscode.CompletionList> {
 
