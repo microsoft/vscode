@@ -102,7 +102,7 @@ export abstract class View extends ee.EventEmitter implements IView {
 	abstract layout(size: number, orientation: Orientation): void;
 }
 
-export interface IHeaderViewOptions extends IHeaderViewStyles {
+export interface IHeaderViewOptions extends IHeaderViewStyles, IViewOptions {
 	headerSize?: number;
 }
 

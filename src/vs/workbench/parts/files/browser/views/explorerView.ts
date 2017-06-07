@@ -22,7 +22,6 @@ import { RefreshViewExplorerAction, NewFolderAction, NewFileAction } from 'vs/wo
 import { FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/browser/views/explorerViewer';
 import { toResource } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import * as DOM from 'vs/base/browser/dom';
 import { CollapseAction, CollapsibleViewletView } from 'vs/workbench/browser/viewlet';
@@ -204,7 +203,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 		// Handle closed or untitled file (convince explorer to not reopen any file when getting visible)
 		const activeInput = this.editorService.getActiveEditorInput();
-		if (activeInput instanceof UntitledEditorInput || !activeInput) {
+		if (!activeInput || toResource(activeInput, { supportSideBySide: true, filter: 'untitled' })) {
 			this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = void 0;
 			clearFocus = true;
 		}
