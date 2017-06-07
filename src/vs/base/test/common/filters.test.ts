@@ -306,6 +306,9 @@ suite('Filters', () => {
 	});
 
 	test('fuzzyScore, issue #26423', function () {
+
+		assertMatches('baba', 'abababab', undefined, fuzzyScore);
+
 		assertMatches(
 			'fsfsfs',
 			'dsafdsafdsafdsafdsafdsafdsafasdfdsa',

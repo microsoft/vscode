@@ -474,9 +474,6 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 		return undefined;
 	}
 
-	// keep track of the maximum score
-	let maxScore = -1;
-
 	for (patternPos = patternStartPos + 1; patternPos <= patternLen; patternPos++) {
 
 		let lastLowWordChar = '';
@@ -508,9 +505,6 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 			}
 
 			_scores[patternPos][wordPos] = score;
-			if (score > maxScore) {
-				maxScore = score;
-			}
 
 			let diag = _table[patternPos - 1][wordPos - 1] + (score > 1 ? 1 : score);
 			let top = _table[patternPos - 1][wordPos] + -1;
@@ -546,10 +540,6 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 		}
 	}
 
-	if (maxScore <= 1) {
-		return undefined;
-	}
-
 	if (_debug) {
 		console.log(printTable(_table, pattern, patternLen, word, wordLen));
 		console.log(printTable(_arrows, pattern, patternLen, word, wordLen));
@@ -577,7 +567,9 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 
 function findAllMatches(patternLen: number, patternPos: number, patternStartPos: number, wordPos: number, total: number, matches: number[], bucket: [number, number[]][], lastMatched: boolean): void {
 
-	if (bucket.length >= 10) {
+	if (bucket.length >= 10 || total < -25) {
+		// stop when having already 10 results, or
+		// when a potential alignment as already 5 gaps
 		return;
 	}
 
