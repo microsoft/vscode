@@ -42,7 +42,7 @@ export class SpectronApplication {
 		for (let arg of args) {
 			if (arg.startsWith('--extensions-dir')) {
 				extensionDirIsSet = true;
-				return;
+				break;
 			}
 		}
 		if (!extensionDirIsSet) {
