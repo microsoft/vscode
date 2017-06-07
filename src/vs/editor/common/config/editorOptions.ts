@@ -2143,7 +2143,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		parameterHints: true,
 		iconsInSuggestions: true,
 		formatOnType: false,
-		formatOnPaste: true,
+		formatOnPaste: false,
 		suggestOnTriggerCharacters: true,
 		acceptSuggestionOnEnter: 'on',
 		acceptSuggestionOnCommitCharacter: true,
