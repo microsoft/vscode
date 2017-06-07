@@ -161,7 +161,8 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			const resultPromises: TPromise<QuickOpenModel | FileQuickOpenModel>[] = [];
 
 			// File Results
-			resultPromises.push(this.openFileHandler.getResults(searchValue, OpenAnythingHandler.MAX_DISPLAYED_RESULTS));
+			const filePromise = this.openFileHandler.getResults(searchValue, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);
+			resultPromises.push(filePromise);
 
 			// Symbol Results (unless disabled or a range or absolute path is specified)
 			if (this.includeSymbols && !searchWithRange) {
@@ -199,25 +200,19 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 					}
 				});
 
-				let fileSearchStats: ISearchStats;
-				for (const result of results) {
-					if (result instanceof FileQuickOpenModel) {
-						fileSearchStats = (<FileQuickOpenModel>result).stats;
-						break;
-					}
-				}
-
 				const duration = new Date().getTime() - startTime;
-				const data = this.createTimerEventData(startTime, {
-					searchLength: searchValue.length,
-					unsortedResultTime,
-					sortedResultTime,
-					resultCount: mergedResults.length,
-					symbols: { fromCache: false },
-					files: fileSearchStats
-				});
+				filePromise.then(fileModel => {
+					const data = this.createTimerEventData(startTime, {
+						searchLength: searchValue.length,
+						unsortedResultTime,
+						sortedResultTime,
+						resultCount: mergedResults.length,
+						symbols: { fromCache: false },
+						files: fileModel.stats,
+					});
 
-				this.telemetryService.publicLog('openAnything', objects.assign(data, { duration }));
+					this.telemetryService.publicLog('openAnything', objects.assign(data, { duration }));
+				});
 
 				return TPromise.as<QuickOpenModel>(new QuickOpenModel(viewResults));
 			}, (error: Error) => {
