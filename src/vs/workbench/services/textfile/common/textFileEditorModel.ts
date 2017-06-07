@@ -669,7 +669,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				diag(`doSave(${versionId}) - after updateContent()`, this.resource, new Date());
 
 				// Telemetry
-				if ((this.contextService.getWorkspace() && isEqualOrParent(this.resource.fsPath, this.contextService.toResource('.vscode').fsPath)) ||
+				if ((this.contextService.hasWorkspace() && isEqualOrParent(this.resource.fsPath, this.contextService.toResource('.vscode').fsPath)) ||
 					this.resource.fsPath === this.environmentService.appSettingsPath) {
 					// Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data
 					this.telemetryService.publicLog('settingsWritten');

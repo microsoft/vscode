@@ -192,7 +192,7 @@ class StartupProfiler implements IWorkbenchContribution {
 					const action = this._instantiationService.createInstance(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL);
 					TPromise.join<any>([
 						this._windowsService.showItemInFolder(join(profileStartup.dir, files[0])),
-						action.run(`:warning: Make sure to **attach** these files: :warning:\n${files.map(file => `-\`${join(profileStartup.dir, file)}\``).join('\n')}`)
+						action.run(`:warning: Make sure to **attach** these files from your *home*-directory: :warning:\n${files.map(file => `-\`${file}\``).join('\n')}`)
 					]).then(() => {
 						// keep window stable until restart is selected
 						this._messageService.confirm({

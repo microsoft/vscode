@@ -106,4 +106,8 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 			scrollLeft: scrollPosition
 		});
 	}
+
+	public validateScrollPosition(desiredScrollPosition: number): number {
+		return this._scrollable.validateScrollLeft(desiredScrollPosition);
+	}
 }

@@ -18,6 +18,8 @@ import { CloseEditorAction, KeybindingsReferenceAction, OpenDocumentationUrlActi
 import { MessagesVisibleContext } from 'vs/workbench/electron-browser/workbench';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { registerCommands } from 'vs/workbench/electron-browser/commands';
+import { IQuickOpenRegistry, QuickOpenHandlerDescriptor, Extensions as QuickOpenExtensions } from "vs/workbench/browser/quickopen";
+import { SWITCH_WINDOWS_PREFIX } from "vs/workbench/electron-browser/windowPicker";
 
 // Contribute Commands
 registerCommands();
@@ -33,7 +35,7 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(Switch
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseFolderAction, CloseFolderAction.ID, CloseFolderAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_F) }), 'File: Close Folder', fileCategory);
 if (!!product.reportIssueUrl) {
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReportIssueAction, ReportIssueAction.ID, ReportIssueAction.LABEL), 'Help: Report Issues', helpCategory);
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL), 'Help: Report Performance Issues', helpCategory);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL), 'Help: Report Performance Issue', helpCategory);
 }
 if (KeybindingsReferenceAction.AVAILABLE) {
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(KeybindingsReferenceAction, KeybindingsReferenceAction.ID, KeybindingsReferenceAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_R) }), 'Help: Keyboard Shortcuts Reference', helpCategory);
@@ -72,13 +74,29 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(Naviga
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NavigateLeftAction, NavigateLeftAction.ID, NavigateLeftAction.LABEL, null), 'View: Move to the View on the Left', viewCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NavigateRightAction, NavigateRightAction.ID, NavigateRightAction.LABEL, null), 'View: Move to the View on the Right', viewCategory);
 
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(IncreaseViewSizeAction, IncreaseViewSizeAction.ID, IncreaseViewSizeAction.LABEL, null), 'View: Increase View Size', viewCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(DecreaseViewSizeAction, DecreaseViewSizeAction.ID, DecreaseViewSizeAction.LABEL, null), 'View: Decrease View Size', viewCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(IncreaseViewSizeAction, IncreaseViewSizeAction.ID, IncreaseViewSizeAction.LABEL, null), 'View: Increase Current View Size', viewCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(DecreaseViewSizeAction, DecreaseViewSizeAction.ID, DecreaseViewSizeAction.LABEL, null), 'View: Decrease Current View Size', viewCategory);
 
 // Developer related actions
 const developerCategory = nls.localize('developer', "Developer");
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowStartupPerformance, ShowStartupPerformance.ID, ShowStartupPerformance.LABEL), 'Developer: Startup Performance', developerCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSharedProcessAction, ToggleSharedProcessAction.ID, ToggleSharedProcessAction.LABEL), 'Developer: Toggle Shared Process', developerCategory);
+
+// Window switcher
+Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
+	new QuickOpenHandlerDescriptor(
+		'vs/workbench/electron-browser/windowPicker',
+		'WindowPicker',
+		SWITCH_WINDOWS_PREFIX,
+		[
+			{
+				prefix: SWITCH_WINDOWS_PREFIX,
+				needsEditor: false,
+				description: nls.localize('switchBetweenWindows', "Switch between Windows")
+			}
+		]
+	)
+);
 
 // Configuration: Workbench
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);

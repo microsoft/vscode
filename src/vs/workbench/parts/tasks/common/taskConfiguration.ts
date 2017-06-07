@@ -1331,7 +1331,7 @@ class ConfigurationParser {
 		}
 
 		if ((!result.tasks || result.tasks.length === 0) && (globals.command && globals.command.name)) {
-			let matchers: ProblemMatcher[] = ProblemMatcherConverter.from(fileConfig.problemMatcher, context);;
+			let matchers: ProblemMatcher[] = ProblemMatcherConverter.from(fileConfig.problemMatcher, context);
 			let isBackground = fileConfig.isBackground ? !!fileConfig.isBackground : fileConfig.isWatching ? !!fileConfig.isWatching : undefined;
 			let task: Tasks.Task = {
 				_id: context.uuidMap.getUUID(globals.command.name),

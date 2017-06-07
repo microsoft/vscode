@@ -4,6 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/3a70fab1b03520774fa236f1f7e7a0939463739f",
 	"name": "JavaScript (with React support)",
 	"scopeName": "source.js",
 	"fileTypes": [
@@ -1560,7 +1561,7 @@
 					}
 				},
 				{
-					"match": "(?x)(?:\\s*\\b(public|private|protected|readonly)\\s+)?(\\.\\.\\.)?\\s*(?<!=|:)([_$[:alpha:]][_$[:alnum:]]*)\\s*(\\??)(?=\\s*\n  (=\\s*(\n    ((async\\s+)?(\n      (function\\s*[(<]) |\n      (function\\s+) |\n      ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)\n    )) |\n    ((async\\s*)?(\n      ([(]\\s*(([)]\\s*:)|([_$[:alpha:]][_$[:alnum:]]*\\s*:)|(\\.\\.\\.) )) |\n      ([<]\\s*[_$[:alpha:]][_$[:alnum:]]*((\\s+extends\\s*[^=>])|(\\s*[,]))) |\n      ((<([^<>=]|=[^<]|\\<([^=<>]|=[^<])+\\>)+>\\s*)?\\(([^()]|\\([^()]*\\))*\\)(\\s*:\\s*(.)*)?\\s*=>)\n    ))\n  )) |\n  (:\\s*(\n    (<) |\n    ([(]\\s*(\n      ([)]) |\n      (\\.\\.\\.) |\n      ([_$[:alnum:]]+\\s*(\n        ([:,?=])|\n        ([)]\\s*=>)\n      ))\n    ))\n  ))\n)",
+					"match": "(?x)(?:\\s*\\b(public|private|protected|readonly)\\s+)?(\\.\\.\\.)?\\s*(?<!=|:)(?:(this)|([_$[:alpha:]][_$[:alnum:]]*))\\s*(\\??)(?=\\s*\n  (=\\s*(\n    ((async\\s+)?(\n      (function\\s*[(<]) |\n      (function\\s+) |\n      ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)\n    )) |\n    ((async\\s*)?(\n      ([(]\\s*(([)]\\s*:)|([_$[:alpha:]][_$[:alnum:]]*\\s*:)|(\\.\\.\\.) )) |\n      ([<]\\s*[_$[:alpha:]][_$[:alnum:]]*((\\s+extends\\s*[^=>])|(\\s*[,]))) |\n      ((<([^<>=]|=[^<]|\\<([^=<>]|=[^<])+\\>)+>\\s*)?\\(([^()]|\\([^()]*\\))*\\)(\\s*:\\s*(.)*)?\\s*=>)\n    ))\n  )) |\n  (:\\s*(\n    (<) |\n    ([(]\\s*(\n      ([)]) |\n      (\\.\\.\\.) |\n      ([_$[:alnum:]]+\\s*(\n        ([:,?=])|\n        ([)]\\s*=>)\n      ))\n    ))\n  ))\n)",
 					"captures": {
 						"1": {
 							"name": "storage.modifier.js"
@@ -1569,15 +1570,18 @@
 							"name": "keyword.operator.rest.js"
 						},
 						"3": {
-							"name": "entity.name.function.js"
+							"name": "entity.name.function.js variable.language.this.js"
 						},
 						"4": {
+							"name": "entity.name.function.js"
+						},
+						"5": {
 							"name": "keyword.operator.optional.js"
 						}
 					}
 				},
 				{
-					"match": "(?:\\s*\\b(public|private|protected|readonly)\\s+)?(\\.\\.\\.)?\\s*(?<!=|:)([_$[:alpha:]][_$[:alnum:]]*)\\s*(\\??)",
+					"match": "(?:\\s*\\b(public|private|protected|readonly)\\s+)?(\\.\\.\\.)?\\s*(?<!=|:)(?:((?<!\\.|\\$)\\bthis\\b(?!\\.|\\$))|([_$[:alpha:]][_$[:alnum:]]*))\\s*(\\??)",
 					"captures": {
 						"1": {
 							"name": "storage.modifier.js"
@@ -1586,9 +1590,12 @@
 							"name": "keyword.operator.rest.js"
 						},
 						"3": {
-							"name": "variable.parameter.js"
+							"name": "variable.parameter.js variable.language.this.js"
 						},
 						"4": {
+							"name": "variable.parameter.js"
+						},
+						"5": {
 							"name": "keyword.operator.optional.js"
 						}
 					}
@@ -2116,7 +2123,7 @@
 							"name": "keyword.operator.assignment.js"
 						}
 					},
-					"end": "(?=[,);}\\]])|(?=^\\s*$)",
+					"end": "(?=[,);}\\]])|(?=^\\s*$)|(?<=\\S)(?<!=)",
 					"patterns": [
 						{
 							"include": "#expression"
@@ -2856,7 +2863,7 @@
 							"name": "storage.type.function.arrow.js"
 						}
 					},
-					"end": "(?<=\\})|((?!\\{)(?=\\S))",
+					"end": "(?<=\\}|\\S)(?<!=>)|((?!\\{)(?=\\S))",
 					"patterns": [
 						{
 							"include": "#decl-block"

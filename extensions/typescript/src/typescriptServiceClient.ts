@@ -20,10 +20,10 @@ import Logger from './utils/logger';
 
 import VersionStatus from './utils/versionStatus';
 import * as is from './utils/is';
+import TelemetryReporter from './utils/telemetry';
+import Tracer from './utils/tracer';
 
 import * as nls from 'vscode-nls';
-import TelemetryReporter from "./utils/telemetry";
-import Tracer from "./utils/tracer";
 const localize = nls.loadMessageBundle();
 
 interface CallbackItem {
@@ -32,8 +32,34 @@ interface CallbackItem {
 	start: number;
 }
 
-interface CallbackMap {
-	[key: number]: CallbackItem;
+class CallbackMap {
+	private callbacks: Map<number, CallbackItem> = new Map();
+	public pendingResponses: number = 0;
+
+	public destroy(e: any): void {
+		for (const callback of this.callbacks.values()) {
+			callback.e(e);
+		}
+		this.callbacks = new Map();
+		this.pendingResponses = 0;
+	}
+
+	public add(seq: number, callback: CallbackItem) {
+		this.callbacks.set(seq, callback);
+		++this.pendingResponses;
+	}
+
+	public fetch(seq: number): CallbackItem | undefined {
+		const callback = this.callbacks.get(seq);
+		this.delete(seq);
+		return callback;
+	}
+
+	private delete(seq: number) {
+		if (this.callbacks.delete(seq)) {
+			--this.pendingResponses;
+		}
+	}
 }
 
 interface RequestItem {
@@ -156,6 +182,42 @@ class TypeScriptServiceConfiguration {
 	}
 }
 
+class RequestQueue {
+	private queue: RequestItem[] = [];
+	private sequenceNumber: number = 0;
+
+	public get length(): number {
+		return this.queue.length;
+	}
+
+	public push(item: RequestItem): void {
+		this.queue.push(item);
+	}
+
+	public shift(): RequestItem | undefined {
+		return this.queue.shift();
+	}
+
+	public tryCancelPendingRequest(seq: number): boolean {
+		for (let i = 0; i < this.queue.length; i++) {
+			if (this.queue[i].request.seq === seq) {
+				this.queue.splice(i, 1);
+				return true;
+			}
+		}
+		return false;
+	}
+
+	public createRequest(command: string, args: any): Proto.Request {
+		return {
+			seq: this.sequenceNumber++,
+			type: 'request',
+			command: command,
+			arguments: args
+		};
+	}
+}
+
 export default class TypeScriptServiceClient implements ITypescriptServiceClient {
 	private static useWorkspaceTsdkStorageKey = 'typescript.useWorkspaceTsdk';
 	private static tsdkMigratedStorageKey = 'typescript.tsdkMigrated';
@@ -169,33 +231,30 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private _onReady: { promise: Promise<void>; resolve: () => void; reject: () => void; };
 	private configuration: TypeScriptServiceConfiguration;
 	private _checkGlobalTSCVersion: boolean;
-	private _experimentalAutoBuild: boolean;
 	private tracer: Tracer;
 	private readonly logger: Logger = new Logger();
 	private tsServerLogFile: string | null = null;
 	private servicePromise: Thenable<cp.ChildProcess> | null;
 	private lastError: Error | null;
 	private reader: Reader<Proto.Response>;
-	private sequenceNumber: number;
 	private firstStart: number;
 	private lastStart: number;
 	private numberRestarts: number;
 	private cancellationPipeName: string | null = null;
 
-	private requestQueue: RequestItem[];
-	private pendingResponses: number;
+	private requestQueue: RequestQueue;
 	private callbacks: CallbackMap;
-	private _onProjectLanguageServiceStateChanged = new EventEmitter<Proto.ProjectLanguageServiceStateEventBody>();
-	private _onDidBeginInstallTypings = new EventEmitter<Proto.BeginInstallTypesEventBody>();
-	private _onDidEndInstallTypings = new EventEmitter<Proto.EndInstallTypesEventBody>();
-	private _onTypesInstallerInitializationFailed = new EventEmitter<Proto.TypesInstallerInitializationFailedEventBody>();
+
+	private readonly _onProjectLanguageServiceStateChanged = new EventEmitter<Proto.ProjectLanguageServiceStateEventBody>();
+	private readonly _onDidBeginInstallTypings = new EventEmitter<Proto.BeginInstallTypesEventBody>();
+	private readonly _onDidEndInstallTypings = new EventEmitter<Proto.EndInstallTypesEventBody>();
+	private readonly _onTypesInstallerInitializationFailed = new EventEmitter<Proto.TypesInstallerInitializationFailedEventBody>();
 
 	private _apiVersion: API;
 	private telemetryReporter: TelemetryReporter;
 
 	constructor(
 		private readonly host: ITypescriptServiceClientHost,
-		private readonly storagePath: string | undefined,
 		private readonly workspaceState: Memento,
 		private readonly versionStatus: VersionStatus,
 		private readonly plugins: TypeScriptServerPlugin[],
@@ -211,16 +270,13 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 		this.servicePromise = null;
 		this.lastError = null;
-		this.sequenceNumber = 0;
 		this.firstStart = Date.now();
 		this.numberRestarts = 0;
 
-		this.requestQueue = [];
-		this.pendingResponses = 0;
-		this.callbacks = Object.create(null);
+		this.requestQueue = new RequestQueue();
+		this.callbacks = new CallbackMap();
 		this.configuration = TypeScriptServiceConfiguration.loadFromWorkspace();
 
-		this._experimentalAutoBuild = false; // configuration.get<boolean>('typescript.tsserver.experimentalAutoBuild', false);
 		this._apiVersion = new API('1.0.0');
 		this._checkGlobalTSCVersion = true;
 		this.tracer = new Tracer(this.logger);
@@ -277,10 +333,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	get onTypesInstallerInitializationFailed(): Event<Proto.TypesInstallerInitializationFailedEventBody> {
 		return this._onTypesInstallerInitializationFailed.event;
-	}
-
-	public get experimentalAutoBuild(): boolean {
-		return this._experimentalAutoBuild;
 	}
 
 	public get checkGlobalTSCVersion(): boolean {
@@ -417,9 +469,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				this.versionStatus.setInfo(label, tooltip);
 
 
-				this.sequenceNumber = 0;
-				this.requestQueue = [];
-				this.pendingResponses = 0;
+				this.requestQueue = new RequestQueue();
+				this.callbacks = new CallbackMap();
 				this.lastError = null;
 
 				try {
@@ -683,13 +734,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		let configureOptions: Proto.ConfigureRequestArguments = {
 			hostInfo: 'vscode'
 		};
-		if (this._experimentalAutoBuild && this.storagePath) {
-			try {
-				fs.mkdirSync(this.storagePath);
-			} catch (error) {
-			}
-			// configureOptions.autoDiagnostics = true;
-		}
 		this.execute('configure', configureOptions);
 		this.setCompilerOptionsForInferredProjects();
 		if (resendModels) {
@@ -754,10 +798,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private serviceExited(restart: boolean): void {
 		this.servicePromise = null;
 		this.tsServerLogFile = null;
-		Object.keys(this.callbacks).forEach((key) => {
-			this.callbacks[parseInt(key)].e(new Error('Service died.'));
-		});
-		this.callbacks = Object.create(null);
+		this.callbacks.destroy(new Error('Service died.'));
+		this.callbacks = new CallbackMap();
 		if (restart) {
 			const diff = Date.now() - this.lastStart;
 			this.numberRestarts++;
@@ -839,12 +881,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			token = expectsResultOrToken;
 		}
 
-		const request: Proto.Request = {
-			seq: this.sequenceNumber++,
-			type: 'request',
-			command: command,
-			arguments: args
-		};
+		const request = this.requestQueue.createRequest(command, args);
 		const requestInfo: RequestItem = {
 			request: request,
 			promise: null,
@@ -870,7 +907,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private sendNextRequests(): void {
-		while (this.pendingResponses === 0 && this.requestQueue.length > 0) {
+		while (this.callbacks.pendingResponses === 0 && this.requestQueue.length > 0) {
 			const item = this.requestQueue.shift();
 			if (item) {
 				this.sendRequest(item);
@@ -882,29 +919,23 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		let serverRequest = requestItem.request;
 		this.tracer.traceRequest(serverRequest, !!requestItem.callbacks, this.requestQueue.length);
 		if (requestItem.callbacks) {
-			this.callbacks[serverRequest.seq] = requestItem.callbacks;
-			this.pendingResponses++;
+			this.callbacks.add(serverRequest.seq, requestItem.callbacks);
 		}
 		this.service()
 			.then((childProcess) => {
 				childProcess.stdin.write(JSON.stringify(serverRequest) + '\r\n', 'utf8');
 			}).then(undefined, err => {
-				let callback = this.callbacks[serverRequest.seq];
+				const callback = this.callbacks.fetch(serverRequest.seq);
 				if (callback) {
 					callback.e(err);
-					delete this.callbacks[serverRequest.seq];
-					this.pendingResponses--;
 				}
 			});
 	}
 
 	private tryCancelRequest(seq: number): boolean {
-		for (let i = 0; i < this.requestQueue.length; i++) {
-			if (this.requestQueue[i].request.seq === seq) {
-				this.requestQueue.splice(i, 1);
-				this.tracer.logTrace(`TypeScript Service: canceled request with sequence number ${seq}`);
-				return true;
-			}
+		if (this.requestQueue.tryCancelPendingRequest(seq)) {
+			this.tracer.logTrace(`TypeScript Service: canceled request with sequence number ${seq}`);
+			return true;
 		}
 
 		if (this.apiVersion.has222Features() && this.cancellationPipeName) {
@@ -915,10 +946,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			} catch (e) {
 				// noop
 			} finally {
-				const p = this.callbacks[seq];
+				const p = this.callbacks.fetch(seq);
 				if (p) {
-					delete this.callbacks[seq];
-					this.pendingResponses--;
 					p.e(new Error(`Cancelled Request ${seq}`));
 				}
 			}
@@ -932,11 +961,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		try {
 			if (message.type === 'response') {
 				const response: Proto.Response = message as Proto.Response;
-				const p = this.callbacks[response.request_seq];
+				const p = this.callbacks.fetch(response.request_seq);
 				if (p) {
 					this.tracer.traceResponse(response, p.start);
-					delete this.callbacks[response.request_seq];
-					this.pendingResponses--;
 					if (response.success) {
 						p.c(response);
 					} else {
@@ -946,65 +973,78 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			} else if (message.type === 'event') {
 				const event: Proto.Event = <Proto.Event>message;
 				this.tracer.traceEvent(event);
-				if (event.event === 'syntaxDiag') {
-					this.host.syntaxDiagnosticsReceived(event as Proto.DiagnosticEvent);
-				} else if (event.event === 'semanticDiag') {
-					this.host.semanticDiagnosticsReceived(event as Proto.DiagnosticEvent);
-				} else if (event.event === 'configFileDiag') {
-					this.host.configFileDiagnosticsReceived(event as Proto.ConfigFileDiagnosticEvent);
-				} else if (event.event === 'telemetry') {
-					let telemetryData = (event as Proto.TelemetryEvent).body;
-					let properties: ObjectMap<string> = Object.create(null);
-					switch (telemetryData.telemetryEventName) {
-						case 'typingsInstalled':
-							let typingsInstalledPayload: Proto.TypingsInstalledTelemetryEventPayload = (telemetryData.payload as Proto.TypingsInstalledTelemetryEventPayload);
-							properties['installedPackages'] = typingsInstalledPayload.installedPackages;
-
-							if (is.defined(typingsInstalledPayload.installSuccess)) {
-								properties['installSuccess'] = typingsInstalledPayload.installSuccess.toString();
-							}
-							if (is.string(typingsInstalledPayload.typingsInstallerVersion)) {
-								properties['typingsInstallerVersion'] = typingsInstalledPayload.typingsInstallerVersion;
-							}
-							break;
-						default:
-							let payload = telemetryData.payload;
-							if (payload) {
-								Object.keys(payload).forEach((key) => {
-									if (payload.hasOwnProperty(key) && is.string(payload[key])) {
-										properties[key] = payload[key];
-									}
-								});
-							}
-							break;
-					}
-					this.logTelemetry(telemetryData.telemetryEventName, properties);
-				} else if (event.event === 'projectLanguageServiceState') {
-					const data = (event as Proto.ProjectLanguageServiceStateEvent).body;
-					if (data) {
-						this._onProjectLanguageServiceStateChanged.fire(data);
-					}
-				} else if (event.event === 'beginInstallTypes') {
-					const data = (event as Proto.BeginInstallTypesEvent).body;
-					if (data) {
-						this._onDidBeginInstallTypings.fire(data);
-					}
-				} else if (event.event === 'endInstallTypes') {
-					const data = (event as Proto.EndInstallTypesEvent).body;
-					if (data) {
-						this._onDidEndInstallTypings.fire(data);
-					}
-				} else if (event.event === 'typesInstallerInitializationFailed') {
-					const data = (event as Proto.TypesInstallerInitializationFailedEvent).body;
-					if (data) {
-						this._onTypesInstallerInitializationFailed.fire(data);
-					}
-				}
+				this.dispatchEvent(event);
 			} else {
 				throw new Error('Unknown message type ' + message.type + ' recevied');
 			}
 		} finally {
 			this.sendNextRequests();
 		}
+	}
+
+	private dispatchEvent(event: Proto.Event) {
+		if (event.event === 'syntaxDiag') {
+			this.host.syntaxDiagnosticsReceived(event as Proto.DiagnosticEvent);
+		} else if (event.event === 'semanticDiag') {
+			this.host.semanticDiagnosticsReceived(event as Proto.DiagnosticEvent);
+		} else if (event.event === 'configFileDiag') {
+			this.host.configFileDiagnosticsReceived(event as Proto.ConfigFileDiagnosticEvent);
+		} else if (event.event === 'telemetry') {
+			const telemetryData = (event as Proto.TelemetryEvent).body;
+			this.dispatchTelemetryEvent(telemetryData);
+		} else if (event.event === 'projectLanguageServiceState') {
+			const data = (event as Proto.ProjectLanguageServiceStateEvent).body;
+			if (data) {
+				this._onProjectLanguageServiceStateChanged.fire(data);
+			}
+		} else if (event.event === 'beginInstallTypes') {
+			const data = (event as Proto.BeginInstallTypesEvent).body;
+			if (data) {
+				this._onDidBeginInstallTypings.fire(data);
+			}
+		} else if (event.event === 'endInstallTypes') {
+			const data = (event as Proto.EndInstallTypesEvent).body;
+			if (data) {
+				this._onDidEndInstallTypings.fire(data);
+			}
+		} else if (event.event === 'typesInstallerInitializationFailed') {
+			const data = (event as Proto.TypesInstallerInitializationFailedEvent).body;
+			if (data) {
+				this._onTypesInstallerInitializationFailed.fire(data);
+			}
+		}
+	}
+
+	private dispatchTelemetryEvent(telemetryData: Proto.TelemetryEventBody): void {
+		const properties: ObjectMap<string> = Object.create(null);
+		switch (telemetryData.telemetryEventName) {
+			case 'typingsInstalled':
+				const typingsInstalledPayload: Proto.TypingsInstalledTelemetryEventPayload = (telemetryData.payload as Proto.TypingsInstalledTelemetryEventPayload);
+				properties['installedPackages'] = typingsInstalledPayload.installedPackages;
+
+				if (is.defined(typingsInstalledPayload.installSuccess)) {
+					properties['installSuccess'] = typingsInstalledPayload.installSuccess.toString();
+				}
+				if (is.string(typingsInstalledPayload.typingsInstallerVersion)) {
+					properties['typingsInstallerVersion'] = typingsInstalledPayload.typingsInstallerVersion;
+				}
+				break;
+
+			default:
+				const payload = telemetryData.payload;
+				if (payload) {
+					Object.keys(payload).forEach((key) => {
+						try {
+							if (payload.hasOwnProperty(key)) {
+								properties[key] = is.string(payload[key]) ? payload[key] : JSON.stringify(payload[key]);
+							}
+						} catch (e) {
+							// noop
+						}
+					});
+				}
+				break;
+		}
+		this.logTelemetry(telemetryData.telemetryEventName, properties);
 	}
 }

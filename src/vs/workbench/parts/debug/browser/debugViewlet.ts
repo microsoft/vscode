@@ -110,7 +110,7 @@ export class DebugViewlet extends Viewlet {
 	public focus(): void {
 		super.focus();
 
-		if (!this.contextService.getWorkspace()) {
+		if (!this.contextService.hasWorkspace()) {
 			this.views[0].focusBody();
 		}
 
@@ -123,7 +123,7 @@ export class DebugViewlet extends Viewlet {
 		if (!this.actions) {
 			this.actions = [];
 			this.actions.push(this.instantiationService.createInstance(StartAction, StartAction.ID, StartAction.LABEL));
-			if (this.contextService.getWorkspace()) {
+			if (this.contextService.hasWorkspace()) {
 				this.actions.push(this.instantiationService.createInstance(ConfigureAction, ConfigureAction.ID, ConfigureAction.LABEL));
 			}
 			this.actions.push(this.instantiationService.createInstance(ToggleReplAction, ToggleReplAction.ID, ToggleReplAction.LABEL));
@@ -137,7 +137,7 @@ export class DebugViewlet extends Viewlet {
 	}
 
 	public getActionItem(action: IAction): IActionItem {
-		if (action.id === StartAction.ID && this.contextService.getWorkspace()) {
+		if (action.id === StartAction.ID && this.contextService.hasWorkspace()) {
 			this.startDebugActionItem = this.instantiationService.createInstance(StartDebugActionItem, null, action);
 			return this.startDebugActionItem;
 		}

@@ -34,9 +34,12 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts, Position as SidebarPosition } from 'vs/workbench/services/part/common/partService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { QuickOpenAction } from "vs/workbench/browser/quickopen";
+import { SWITCH_WINDOWS_PREFIX } from "vs/workbench/electron-browser/windowPicker";
 
 import * as os from 'os';
 import { webFrame } from 'electron';
+import { getPathLabel } from "vs/base/common/labels";
 
 // --- actions
 
@@ -79,34 +82,17 @@ export class CloseWindowAction extends Action {
 	}
 }
 
-export class SwitchWindow extends Action {
+export class SwitchWindow extends QuickOpenAction {
 
 	static ID = 'workbench.action.switchWindow';
-	static LABEL = nls.localize('switchWindow', "Switch Window");
+	static LABEL = nls.localize('switchWindow', "Switch Window...");
 
 	constructor(
 		id: string,
 		label: string,
-		@IWindowsService private windowsService: IWindowsService,
-		@IWindowService private windowService: IWindowService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IQuickOpenService quickOpenService: IQuickOpenService
 	) {
-		super(id, label);
-	}
-
-	run(): TPromise<void> {
-		const currentWindowId = this.windowService.getCurrentWindowId();
-
-		return this.windowsService.getWindows().then(workspaces => {
-			const placeHolder = nls.localize('switchWindowPlaceHolder', "Select a window");
-			const picks = workspaces.map(w => ({
-				label: w.title,
-				description: (currentWindowId === w.id) ? nls.localize('current', "Current Window") : void 0,
-				run: () => this.windowsService.showWindow(w.id)
-			}));
-
-			this.quickOpenService.pick(picks, { placeHolder });
-		});
+		super(id, label, SWITCH_WINDOWS_PREFIX, quickOpenService);
 	}
 }
 
@@ -595,7 +581,8 @@ export class OpenRecentAction extends Action {
 		@IWindowsService private windowsService: IWindowsService,
 		@IWindowService private windowService: IWindowService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(id, label);
 	}
@@ -606,12 +593,12 @@ export class OpenRecentAction extends Action {
 	}
 
 	private openRecent(recentFiles: string[], recentFolders: string[]): void {
-		function toPick(path: string, separator: ISeparator, isFolder: boolean): IFilePickOpenEntry {
+		function toPick(path: string, separator: ISeparator, isFolder: boolean, environmentService: IEnvironmentService): IFilePickOpenEntry {
 			return {
 				resource: URI.file(path),
 				isFolder,
 				label: paths.basename(path),
-				description: paths.dirname(path),
+				description: getPathLabel(paths.dirname(path), null, environmentService),
 				separator,
 				run: context => runPick(path, context)
 			};
@@ -622,8 +609,8 @@ export class OpenRecentAction extends Action {
 			this.windowsService.openWindow([path], { forceNewWindow });
 		};
 
-		const folderPicks: IFilePickOpenEntry[] = recentFolders.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('folders', "folders") } : void 0, true));
-		const filePicks: IFilePickOpenEntry[] = recentFiles.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0, false));
+		const folderPicks: IFilePickOpenEntry[] = recentFolders.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('folders', "folders") } : void 0, true, this.environmentService));
+		const filePicks: IFilePickOpenEntry[] = recentFiles.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0, false, this.environmentService));
 
 		const hasWorkspace = this.contextService.hasWorkspace();
 
@@ -1050,7 +1037,7 @@ export abstract class BaseNavigationAction extends Action {
 export class NavigateLeftAction extends BaseNavigationAction {
 
 	public static ID = 'workbench.action.navigateLeft';
-	public static LABEL = nls.localize('navigateLeft', "Move to the View on the Left");
+	public static LABEL = nls.localize('navigateLeft', "Navigate to the View on the Left");
 
 	constructor(
 		id: string,
@@ -1100,7 +1087,7 @@ export class NavigateLeftAction extends BaseNavigationAction {
 export class NavigateRightAction extends BaseNavigationAction {
 
 	public static ID = 'workbench.action.navigateRight';
-	public static LABEL = nls.localize('navigateRight', "Move to the View on the Right");
+	public static LABEL = nls.localize('navigateRight', "Navigate to the View on the Right");
 
 	constructor(
 		id: string,
@@ -1150,7 +1137,7 @@ export class NavigateRightAction extends BaseNavigationAction {
 export class NavigateUpAction extends BaseNavigationAction {
 
 	public static ID = 'workbench.action.navigateUp';
-	public static LABEL = nls.localize('navigateUp', "Move to the View Above");
+	public static LABEL = nls.localize('navigateUp', "Navigate to the View Above");
 
 	constructor(
 		id: string,
@@ -1181,7 +1168,7 @@ export class NavigateUpAction extends BaseNavigationAction {
 export class NavigateDownAction extends BaseNavigationAction {
 
 	public static ID = 'workbench.action.navigateDown';
-	public static LABEL = nls.localize('navigateDown', "Move to the View Below");
+	public static LABEL = nls.localize('navigateDown', "Navigate to the View Below");
 
 	constructor(
 		id: string,

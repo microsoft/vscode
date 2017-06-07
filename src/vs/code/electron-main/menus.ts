@@ -24,6 +24,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import Event, { Emitter, once } from 'vs/base/common/event';
 import { ConfigWatcher } from 'vs/base/node/config';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
+import { tildify } from "vs/base/common/labels";
 
 interface IKeybinding {
 	id: string;
@@ -485,7 +486,7 @@ export class VSCodeMenu {
 			revertFile,
 			closeEditor,
 			closeFolder,
-			!isMacintosh ? closeWindow : null,
+			closeWindow,
 			!isMacintosh ? __separator__() : null,
 			!isMacintosh ? exit : null
 		]).forEach(item => fileMenu.append(item));
@@ -543,13 +544,8 @@ export class VSCodeMenu {
 	}
 
 	private createOpenRecentMenuItem(path: string, commandId: string): Electron.MenuItem {
-		let label = path;
-		if ((isMacintosh || isLinux) && path.indexOf(this.environmentService.userHome) === 0) {
-			label = `~${path.substr(this.environmentService.userHome.length)}`;
-		}
-
 		return new MenuItem(this.likeAction(commandId, {
-			label: this.unmnemonicLabel(label), click: (menuItem, win, event) => {
+			label: this.unmnemonicLabel(tildify(path, this.environmentService.userHome)), click: (menuItem, win, event) => {
 				const openInNewWindow = this.isOptionClick(event);
 				const success = !!this.windowsService.open({ context: OpenContext.MENU, cli: this.environmentService.args, pathsToOpen: [path], forceNewWindow: openInNewWindow });
 				if (!success) {
@@ -898,12 +894,14 @@ export class VSCodeMenu {
 
 	private setMacWindowMenu(macWindowMenu: Electron.Menu): void {
 		const minimize = new MenuItem({ label: nls.localize('mMinimize', "Minimize"), role: 'minimize', accelerator: 'Command+M', enabled: this.windowsService.getWindowCount() > 0 });
-		const close = new MenuItem({ label: nls.localize('mClose', "Close"), role: 'close', accelerator: 'Command+W', enabled: this.windowsService.getWindowCount() > 0 });
+		const zoom = new MenuItem({ label: nls.localize('mZoom', "Zoom"), role: 'zoom', enabled: this.windowsService.getWindowCount() > 0 });
 		const bringAllToFront = new MenuItem({ label: nls.localize('mBringToFront', "Bring All to Front"), role: 'front', enabled: this.windowsService.getWindowCount() > 0 });
+		const switchWindow = this.createMenuItem(nls.localize({ key: 'miSwitchWindow', comment: ['&& denotes a mnemonic'] }, "Switch &&Window..."), 'workbench.action.switchWindow', this.windowsService.getWindowCount() > 0);
 
 		[
 			minimize,
-			close,
+			zoom,
+			switchWindow,
 			__separator__(),
 			bringAllToFront
 		].forEach(item => macWindowMenu.append(item));
