@@ -97,7 +97,8 @@ export class HeightMap extends EventEmitter {
 		var i: number;
 		var sizeDiff = 0;
 
-		while (itemId = iterator.next()) {
+		while (iterator.hasNext()) {
+			itemId = iterator.next();
 			i = this.indexes[itemId];
 			viewItem = this.heightMap[i];
 

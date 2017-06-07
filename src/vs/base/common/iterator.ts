@@ -7,6 +7,7 @@
 
 export interface IIterator<T> {
 	next(): T;
+	hasNext?(): boolean;
 }
 
 export class ArrayIterator<T> implements IIterator<T> {
@@ -39,6 +40,17 @@ export class ArrayIterator<T> implements IIterator<T> {
 		}
 
 		return this.items[this.index];
+	}
+
+	public hasNext(): boolean {
+		var newIndex = Math.min(this.index + 1, this.end);
+
+		if (newIndex === this.end) {
+			return false;
+		}
+		else {
+			return true;
+		}
 	}
 }
 
@@ -80,6 +92,8 @@ export class MappedIterator<T, R> implements IIterator<R> {
 	}
 
 	next() { return this.fn(this.iterator.next()); }
+
+	hasNext() { return this.iterator.hasNext(); }
 }
 
 export interface INavigator<T> extends IIterator<T> {
