@@ -441,22 +441,18 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		const editorInstantiationService = this.editorGroupsControl.getInstantiationService(position).createChild(new ServiceCollection([IProgressService, progressService]));
 		let loaded = false;
 
-		const onInstantiate = (arg: BaseEditor | Error): TPromise<BaseEditor | Error> => {
+		const onInstantiate = (arg: BaseEditor): TPromise<BaseEditor> => {
 			const position = this.stacks.positionOfGroup(group); // might have changed due to a rochade meanwhile
 
 			loaded = true;
 			delete this.mapEditorInstantiationPromiseToEditor[position][descriptor.getId()];
 
-			if (arg instanceof BaseEditor) {
-				this.instantiatedEditors[position].push(arg);
+			this.instantiatedEditors[position].push(arg);
 
-				return TPromise.as(arg);
-			}
-
-			return TPromise.wrapError<BaseEditor | Error>(arg);
+			return TPromise.as(arg);
 		};
 
-		const instantiateEditorPromise = editorInstantiationService.createInstance(<EditorDescriptor>descriptor).then(onInstantiate, onInstantiate);
+		const instantiateEditorPromise = editorInstantiationService.createInstance(<EditorDescriptor>descriptor).then(onInstantiate);
 
 		if (!loaded) {
 			this.mapEditorInstantiationPromiseToEditor[position][descriptor.getId()] = instantiateEditorPromise;
@@ -464,6 +460,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		return instantiateEditorPromise.then(result => {
 			progressService.dispose();
+
 			return result;
 		});
 	}

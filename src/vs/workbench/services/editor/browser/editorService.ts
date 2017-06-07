@@ -168,9 +168,9 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return this.editorPart.openEditors(typedInputs);
 	}
 
-	public replaceEditors(editors: { toReplace: IResourceInputType, replaceWith: IResourceInputType }[], position?: Position): TPromise<BaseEditor[]>;
-	public replaceEditors(editors: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: IEditorOptions }[], position?: Position): TPromise<BaseEditor[]>;
-	public replaceEditors(editors: any[], position?: Position): TPromise<BaseEditor[]> {
+	public replaceEditors(editors: { toReplace: IResourceInputType, replaceWith: IResourceInputType }[], position?: Position): TPromise<IEditor[]>;
+	public replaceEditors(editors: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: IEditorOptions }[], position?: Position): TPromise<IEditor[]>;
+	public replaceEditors(editors: any[], position?: Position): TPromise<IEditor[]> {
 		const toReplaceInputs = editors.map(editor => this.createInput(editor.toReplace));
 		const replaceWithInputs = editors.map(editor => this.createInput(editor.replaceWith));
 		const typedReplacements: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: EditorOptions }[] = editors.map((editor, index) => {

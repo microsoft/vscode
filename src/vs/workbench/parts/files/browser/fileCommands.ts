@@ -154,7 +154,7 @@ function withVisibleExplorer(accessor: ServicesAccessor): TPromise<ExplorerViewl
 		return TPromise.as(void 0); // Return early if the active viewlet is not the explorer
 	}
 
-	return viewletService.openViewlet(VIEWLET_ID, false);
+	return viewletService.openViewlet(VIEWLET_ID, false) as TPromise<ExplorerViewlet>;
 };
 
 export function withFocussedFilesExplorerViewItem(accessor: ServicesAccessor): TPromise<{ explorer: ExplorerViewlet, tree: ITree, item: FileStat }> {
