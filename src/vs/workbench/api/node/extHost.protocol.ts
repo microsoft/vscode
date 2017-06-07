@@ -264,9 +264,9 @@ export interface MyQuickPickItems extends IPickOpenEntry {
 	handle: number;
 }
 export abstract class MainThreadQuickOpenShape {
-	$show(options: IPickOptions): Thenable<number> { throw ni(); }
-	$setItems(items: MyQuickPickItems[]): Thenable<any> { throw ni(); }
-	$setError(error: Error): Thenable<any> { throw ni(); }
+	$show(options: IPickOptions): TPromise<number> { throw ni(); }
+	$setItems(items: MyQuickPickItems[]): TPromise<any> { throw ni(); }
+	$setError(error: Error): TPromise<any> { throw ni(); }
 	$input(options: vscode.InputBoxOptions, validateInput: boolean): TPromise<string> { throw ni(); }
 }
 
