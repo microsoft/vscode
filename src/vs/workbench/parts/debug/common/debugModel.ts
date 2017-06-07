@@ -435,17 +435,17 @@ export class Thread implements IThread {
 	 * Only fetches the first stack frame for performance reasons. Calling this method consecutive times
 	 * gets the remainder of the call stack.
 	 */
-	public fetchCallStack(): TPromise<void> {
+	public fetchCallStack(smartFetch = true): TPromise<void> {
 		if (!this.stopped) {
 			return TPromise.as(null);
 		}
 
-		if (!this.fetchPromise) {
+		if (!this.fetchPromise && smartFetch) {
 			this.fetchPromise = this.getCallStackImpl(0, 1).then(callStack => {
 				this.callStack = callStack || [];
 			});
 		} else {
-			this.fetchPromise = this.fetchPromise.then(() => this.getCallStackImpl(this.callStack.length, 20).then(callStackSecondPart => {
+			this.fetchPromise = (this.fetchPromise || TPromise.as(null)).then(() => this.getCallStackImpl(this.callStack.length, 20).then(callStackSecondPart => {
 				this.callStack = this.callStack.concat(callStackSecondPart);
 			}));
 		}
