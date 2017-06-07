@@ -570,7 +570,7 @@ export class Workbench implements IPartService {
 
 		// Panel part visibility
 		const panelRegistry = Registry.as<PanelRegistry>(PanelExtensions.Panels);
-		this.panelHidden = this.storageService.getBoolean(Workbench.panelHiddenSettingKey, StorageScope.WORKSPACE, !this.contextService.hasWorkspace());
+		this.panelHidden = this.storageService.getBoolean(Workbench.panelHiddenSettingKey, StorageScope.WORKSPACE, true);
 		if (!panelRegistry.getDefaultPanelId()) {
 			this.panelHidden = true; // we hide panel part if there is no default panel
 		}
