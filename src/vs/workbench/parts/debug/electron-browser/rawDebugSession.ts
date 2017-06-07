@@ -79,7 +79,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 		super(id);
 		this.emittedStopped = false;
 		this.readyForBreakpoints = false;
-		this.allThreadsContinued = false;
+		this.allThreadsContinued = true;
 		this.sentPromises = [];
 
 		this._onDidInitialize = new Emitter<DebugProtocol.InitializedEvent>();
@@ -197,7 +197,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 			this.emittedStopped = true;
 			this._onDidStop.fire(<DebugProtocol.StoppedEvent>event);
 		} else if (event.event === 'continued') {
-			this.allThreadsContinued = (<DebugProtocol.ContinuedEvent>event).body.allThreadsContinued === false ? false : true;
+			this.allThreadsContinued = (<DebugProtocol.ContinuedEvent>event).body.allThreadsContinued = false ? false : true;
 			this._onDidContinued.fire(<DebugProtocol.ContinuedEvent>event);
 		} else if (event.event === 'thread') {
 			this._onDidThread.fire(<DebugProtocol.ThreadEvent>event);
@@ -261,7 +261,6 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 
 	public continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse> {
 		return this.send<DebugProtocol.ContinueResponse>('continue', args).then(response => {
-			this.allThreadsContinued = response && response.body && response.body.allThreadsContinued === false ? false : true;
 			this.fireFakeContinued(args.threadId, this.allThreadsContinued);
 			return response;
 		});
