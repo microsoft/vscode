@@ -123,6 +123,16 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 		'description': nls.localize('revealIfOpen', "Controls if an editor is revealed in any of the visible groups if opened. If disabled, an editor will prefer to open in the currently active editor group. If enabled, an already opened editor will be revealed instead of opened again in the currently active editor group. Note that there are some cases where this setting is ignored, e.g. when forcing an editor to open in a specific group or to the side of the currently active group."),
 		'default': false
 	},
+	'workbench.commandPalette.history': {
+		'type': 'number',
+		'description': nls.localize('commandHistory', "Controls if the number of recently used commands to keep in history for the command palette. Set to 0 to disable command history."),
+		'default': 50
+	},
+	'workbench.commandPalette.preserveInput': {
+		'type': 'boolean',
+		'description': nls.localize('preserveInput', "Controls if the last typed input to the command palette should be restored when opening it the next time."),
+		'default': false
+	},
 	'workbench.quickOpen.closeOnFocusLost': {
 		'type': 'boolean',
 		'description': nls.localize('closeOnFocusLost', "Controls if Quick Open should close automatically once it loses focus."),

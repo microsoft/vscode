@@ -7,7 +7,7 @@
 import arrays = require('vs/base/common/arrays');
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
-import { BoundedLinkedMap } from 'vs/base/common/map';
+import { BoundedMap } from 'vs/base/common/map';
 import { CharCode } from 'vs/base/common/charCode';
 import { TPromise } from 'vs/base/common/winjs.base';
 
@@ -242,7 +242,7 @@ interface ParsedExpressionPattern {
 	allPaths?: string[];
 }
 
-const CACHE = new BoundedLinkedMap<ParsedStringPattern>(10000); // bounded to 10000 elements
+const CACHE = new BoundedMap<ParsedStringPattern>(10000); // bounded to 10000 elements
 
 const FALSE = function () {
 	return false;

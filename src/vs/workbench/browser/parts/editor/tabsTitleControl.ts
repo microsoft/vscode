@@ -36,7 +36,7 @@ import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecyc
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { extractResources } from 'vs/base/browser/dnd';
-import { LinkedMap } from 'vs/base/common/map';
+import { SimpleMap } from 'vs/base/common/map';
 import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
@@ -320,8 +320,8 @@ export class TabsTitleControl extends TitleControl {
 	private getUniqueTabLabels(editors: IEditorInput[]): IEditorInputLabel[] {
 		const labels: IEditorInputLabel[] = [];
 
-		const mapLabelToDuplicates = new LinkedMap<string, IEditorInputLabel[]>();
-		const mapLabelAndDescriptionToDuplicates = new LinkedMap<string, IEditorInputLabel[]>();
+		const mapLabelToDuplicates = new SimpleMap<string, IEditorInputLabel[]>();
+		const mapLabelAndDescriptionToDuplicates = new SimpleMap<string, IEditorInputLabel[]>();
 
 		// Build labels and descriptions for each editor
 		editors.forEach(editor => {

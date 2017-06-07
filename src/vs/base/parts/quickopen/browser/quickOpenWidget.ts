@@ -15,7 +15,7 @@ import { IQuickNavigateConfiguration, IAutoFocus, IEntryRunContext, IModel, Mode
 import { Filter, Renderer, DataSource, IModelProvider, AccessibilityProvider } from 'vs/base/parts/quickopen/browser/quickOpenViewer';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
 import { ISelectionEvent, IFocusEvent, ITree, ContextMenuEvent, IActionProvider, ITreeStyles } from 'vs/base/parts/tree/browser/tree';
-import { InputBox, MessageType, IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
+import { InputBox, MessageType, IInputBoxStyles, IRange } from 'vs/base/browser/ui/inputbox/inputBox';
 import Severity from 'vs/base/common/severity';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
@@ -59,6 +59,7 @@ export interface IQuickOpenStyles extends IInputBoxStyles, ITreeStyles {
 export interface IShowOptions {
 	quickNavigateConfiguration?: IQuickNavigateConfiguration;
 	autoFocus?: IAutoFocus;
+	inputSelection?: IRange;
 }
 
 export interface IQuickOpenUsageLogger {
@@ -202,8 +203,11 @@ export class QuickOpenWidget implements IModelProvider {
 
 						this.navigateInTree(keyboardEvent.keyCode, keyboardEvent.shiftKey);
 
-						// Position cursor at the end of input to allow right arrow (open in background) to function immediately
-						this.inputBox.inputElement.selectionStart = this.inputBox.value.length;
+						// Position cursor at the end of input to allow right arrow (open in background)
+						// to function immediately unless the user has made a selection
+						if (this.inputBox.inputElement.selectionStart === this.inputBox.inputElement.selectionEnd) {
+							this.inputBox.inputElement.selectionStart = this.inputBox.value.length;
+						}
 					}
 
 					// Select element on Enter or on Arrow-Right if we are at the end of the input
@@ -392,7 +396,9 @@ export class QuickOpenWidget implements IModelProvider {
 			return false; // no modifiers allowed
 		}
 
-		return this.inputBox.inputElement.selectionStart === this.inputBox.value.length; // only when cursor is at the end of the input field value
+		// validate the cursor is at the end of the input, and if not prevent
+		// opening in the background such as the selection can be changed
+		return this.inputBox.inputElement.selectionEnd === this.inputBox.value.length;
 	}
 
 	private onType(): void {
@@ -559,6 +565,11 @@ export class QuickOpenWidget implements IModelProvider {
 			this.doShowWithPrefix(param);
 		} else {
 			this.doShowWithInput(param, options && options.autoFocus ? options.autoFocus : {});
+		}
+
+		// Respect selectAll option
+		if (options && options.inputSelection && !this.quickNavigateConfiguration) {
+			this.inputBox.select(options.inputSelection);
 		}
 
 		if (this.callbacks.onShow) {
