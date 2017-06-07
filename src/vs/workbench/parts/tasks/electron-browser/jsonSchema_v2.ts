@@ -46,8 +46,7 @@ const dependsOn: IJSONSchema = {
 const terminal: IJSONSchema = {
 	type: 'object',
 	default: {
-		reveal: 'always',
-		echo: false
+		reveal: 'always'
 	},
 	description: nls.localize('JsonSchema.tasks.terminal', 'Describe how the terminal used to execute a task behaves.'),
 	properties: {
