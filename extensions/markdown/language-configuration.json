@@ -12,7 +12,8 @@
 		["[", "]"],
 		["(", ")"]
 	],
-	"autoClosingPairs": [{
+	"autoClosingPairs": [
+		{
 			"open": "{",
 			"close": "}"
 		},
