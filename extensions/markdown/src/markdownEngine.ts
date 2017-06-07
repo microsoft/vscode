@@ -54,6 +54,7 @@ export class MarkdownEngine {
 			const hljs = require('highlight.js');
 			const mdnh = require('markdown-it-named-headers');
 			this.md = require('markdown-it')({
+				breaks: true,
 				html: true,
 				highlight: (str: string, lang: string) => {
 					if (lang && hljs.getLanguage(lang)) {
