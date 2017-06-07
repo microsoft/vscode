@@ -136,8 +136,7 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 				} else {
 					return [];
 				}
-			}, (err: any) => {
-				this.client.error(`'format' request failed with error.`, err);
+			}, () => {
 				return [];
 			});
 		});
@@ -195,8 +194,7 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 					}
 				}
 				return result;
-			}, (err: any) => {
-				this.client.error(`'formatonkey' request failed with error.`, err);
+			}, () => {
 				return [];
 			});
 		});

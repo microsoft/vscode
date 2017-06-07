@@ -889,14 +889,20 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		};
 		let result: Promise<any> = Promise.resolve(null);
 		if (expectsResult) {
+			let wasCancelled = false;
 			result = new Promise<any>((resolve, reject) => {
 				requestInfo.callbacks = { c: resolve, e: reject, start: Date.now() };
 				if (token) {
 					token.onCancellationRequested(() => {
+						wasCancelled = true;
 						this.tryCancelRequest(request.seq);
-						resolve(undefined);
 					});
 				}
+			}).catch((err: any) => {
+				if (!wasCancelled) {
+					this.error(`'${command}' request failed with error.`, err);
+				}
+				throw err;
 			});
 		}
 		requestInfo.promise = result;
@@ -933,28 +939,26 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private tryCancelRequest(seq: number): boolean {
-		if (this.requestQueue.tryCancelPendingRequest(seq)) {
-			this.tracer.logTrace(`TypeScript Service: canceled request with sequence number ${seq}`);
-			return true;
-		}
+		try {
+			if (this.requestQueue.tryCancelPendingRequest(seq)) {
+				this.tracer.logTrace(`TypeScript Service: canceled request with sequence number ${seq}`);
+				return true;
+			}
 
-		if (this.apiVersion.has222Features() && this.cancellationPipeName) {
-			this.tracer.logTrace(`TypeScript Service: trying to cancel ongoing request with sequence number ${seq}`);
-			try {
+			if (this.apiVersion.has222Features() && this.cancellationPipeName) {
+				this.tracer.logTrace(`TypeScript Service: trying to cancel ongoing request with sequence number ${seq}`);
 				fs.writeFileSync(this.cancellationPipeName + seq, '');
 				return true;
-			} catch (e) {
-				// noop
-			} finally {
-				const p = this.callbacks.fetch(seq);
-				if (p) {
-					p.e(new Error(`Cancelled Request ${seq}`));
-				}
+			}
+
+			this.tracer.logTrace(`TypeScript Service: tried to cancel request with sequence number ${seq}. But request got already delivered.`);
+			return false;
+		} finally {
+			const p = this.callbacks.fetch(seq);
+			if (p) {
+				p.e(new Error(`Cancelled Request ${seq}`));
 			}
 		}
-
-		this.tracer.logTrace(`TypeScript Service: tried to cancel request with sequence number ${seq}. But request got already delivered.`);
-		return false;
 	}
 
 	private dispatchMessage(message: Proto.Message): void {
