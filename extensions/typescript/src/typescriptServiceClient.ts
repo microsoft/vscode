@@ -990,7 +990,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		} else if (event.event === 'configFileDiag') {
 			this.host.configFileDiagnosticsReceived(event as Proto.ConfigFileDiagnosticEvent);
 		} else if (event.event === 'telemetry') {
-			let telemetryData = (event as Proto.TelemetryEvent).body;
+			const telemetryData = (event as Proto.TelemetryEvent).body;
 			this.dispatchTelemetryEvent(telemetryData);
 		} else if (event.event === 'projectLanguageServiceState') {
 			const data = (event as Proto.ProjectLanguageServiceStateEvent).body;

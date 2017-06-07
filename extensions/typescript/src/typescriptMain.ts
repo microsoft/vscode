@@ -8,7 +8,7 @@
  * https://github.com/Microsoft/TypeScript-Sublime-Plugin/blob/master/TypeScript%20Indent.tmPreferences
  * ------------------------------------------------------------------------------------------ */
 
-import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, Disposable, Uri, MessageItem, TextEditor, DiagnosticSeverity, TextDocument, SnippetString } from 'vscode';
+import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, Disposable, Uri, MessageItem, TextEditor, DiagnosticSeverity, TextDocument } from 'vscode';
 
 // This must be the first statement otherwise modules might got loaded with
 // the wrong locale.
@@ -48,7 +48,8 @@ import ImplementationCodeLensProvider from './features/implementationsCodeLensPr
 import * as ProjectStatus from './utils/projectStatus';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import VersionStatus from './utils/versionStatus';
-import { getContributedTypeScriptServerPlugins, TypeScriptServerPlugin } from "./utils/plugins";
+import { getContributedTypeScriptServerPlugins, TypeScriptServerPlugin } from './utils/plugins';
+import { openOrCreateConfigFile, isImplicitProjectConfigFile } from './utils/tsconfig';
 
 interface LanguageDescription {
 	id: string;
@@ -560,7 +561,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 			}
 
 			const { configFileName } = res.body;
-			if (configFileName && configFileName.indexOf('/dev/null/') !== 0) {
+			if (configFileName && !isImplicitProjectConfigFile(configFileName)) {
 				return workspace.openTextDocument(configFileName)
 					.then(doc =>
 						window.showTextDocument(doc, window.activeTextEditor ? window.activeTextEditor.viewColumn : undefined));
@@ -581,22 +582,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 				}).then(selected => {
 					switch (selected && selected.id) {
 						case ProjectConfigAction.CreateConfig:
-							const configFile = Uri.file(path.join(rootPath, isTypeScriptProject ? 'tsconfig.json' : 'jsconfig.json'));
-							const col = window.activeTextEditor ? window.activeTextEditor.viewColumn : undefined;
-							return workspace.openTextDocument(configFile)
-								.then(doc => {
-									return window.showTextDocument(doc, col);
-								}, _ => {
-									return workspace.openTextDocument(configFile.with({ scheme: 'untitled' }))
-										.then(doc => window.showTextDocument(doc, col))
-										.then(editor => {
-											if (editor.document.getText().length === 0) {
-												return editor.insertSnippet(new SnippetString('{\n\t$0\n}'))
-													.then(_ => editor);
-											}
-											return editor;
-										});
-								});
+							return openOrCreateConfigFile(isTypeScriptProject);
 
 						case ProjectConfigAction.LearnMore:
 							if (isTypeScriptProject) {
