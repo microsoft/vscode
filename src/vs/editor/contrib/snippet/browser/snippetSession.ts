@@ -296,7 +296,7 @@ export class SnippetSession {
 			// store snippets with the index of their originating selection.
 			// that ensures the primiary cursor stays primary despite not being
 			// the one with lowest start position
-			edits[idx] = EditOperation.replaceMove(snippetSelection, snippet.text);
+			edits[idx] = EditOperation.replace(snippetSelection, snippet.text);
 			snippets[idx] = new OneSnippet(editor, snippet, offset);
 		}
 
