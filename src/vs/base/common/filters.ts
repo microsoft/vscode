@@ -546,15 +546,16 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 		console.log(printTable(_scores, pattern, patternLen, word, wordLen));
 	}
 
-	let bucket: [number, number[]][] = [];
-	findAllMatches(patternLen, patternLen, patternStartPos, wordLen, 0, [], bucket, false);
+	_bucket.length = 0;
+	_patternStartPos = patternStartPos;
+	_findAllMatches(patternLen, wordLen, 0, [], false);
 
-	if (bucket.length === 0) {
+	if (_bucket.length === 0) {
 		return undefined;
 	}
 
-	let topMatch = bucket.shift();
-	for (const match of bucket) {
+	let topMatch = _bucket.shift();
+	for (const match of _bucket) {
 		if (!topMatch || topMatch[0] < match[0]) {
 			topMatch = match;
 		}
@@ -565,9 +566,12 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 	return topMatch;
 }
 
-function findAllMatches(patternLen: number, patternPos: number, patternStartPos: number, wordPos: number, total: number, matches: number[], bucket: [number, number[]][], lastMatched: boolean): void {
+let _bucket: [number, number[]][] = [];
+let _patternStartPos: number = 0;
 
-	if (bucket.length >= 10 || total < -25) {
+function _findAllMatches(patternPos: number, wordPos: number, total: number, matches: number[], lastMatched: boolean): void {
+
+	if (_bucket.length >= 10 || total < -25) {
 		// stop when having already 10 results, or
 		// when a potential alignment as already 5 gaps
 		return;
@@ -575,7 +579,7 @@ function findAllMatches(patternLen: number, patternPos: number, patternStartPos:
 
 	let simpleMatchCount = 0;
 
-	while (patternPos > patternStartPos && wordPos > 0) {
+	while (patternPos > _patternStartPos && wordPos > 0) {
 
 		let score = _scores[patternPos][wordPos];
 		let arrow = _arrows[patternPos][wordPos];
@@ -595,11 +599,12 @@ function findAllMatches(patternLen: number, patternPos: number, patternStartPos:
 
 			if (arrow & Arrow.Left) {
 				// left
-				findAllMatches(
-					patternLen, patternPos, patternStartPos,
+				_findAllMatches(
+					patternPos,
 					wordPos - 1,
 					matches.length !== 0 ? total - 1 : total,
-					matches.slice(0), bucket, lastMatched
+					matches.slice(0),
+					lastMatched
 				);
 			}
 
@@ -622,11 +627,6 @@ function findAllMatches(patternLen: number, patternPos: number, patternStartPos:
 		}
 	}
 
-	if (matches.length !== patternLen - patternStartPos) {
-		// doesn't cover whole pattern
-		return undefined;
-	}
-
 	if (_scores[1][matches[0] + 1] === 1) {
 		// first match is weak
 		return undefined;
@@ -634,7 +634,7 @@ function findAllMatches(patternLen: number, patternPos: number, patternStartPos:
 
 	total -= wordPos >= 3 ? 9 : wordPos * 3; // late start penalty
 
-	bucket.push([total, matches]);
+	_bucket.push([total, matches]);
 }
 
 

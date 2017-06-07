@@ -248,6 +248,7 @@ suite('Filters', () => {
 		assertMatches('ccm', 'cacmelCase', '^ca^c^melCase', fuzzyScore);
 		assertMatches('bti', 'the_black_knight', undefined, fuzzyScore);
 		assertMatches('ccm', 'camelCase', undefined, fuzzyScore);
+		assertMatches('cmcm', 'camelCase', undefined, fuzzyScore);
 		assertMatches('BK', 'the_black_knight', 'the_^black_^knight', fuzzyScore);
 		assertMatches('KeyboardLayout=', 'KeyboardLayout', undefined, fuzzyScore);
 		assertMatches('LLL', 'SVisualLoggerLogsList', 'SVisual^Logger^Logs^List', fuzzyScore);
