@@ -12,8 +12,8 @@ import types = require('vs/base/common/types');
 import { language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Mode, IEntryRunContext, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
-import { QuickOpenEntryGroup, IHighlight, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { Mode, IEntryRunContext, IAutoFocus, IModel, IQuickNavigateConfiguration } from 'vs/base/parts/quickopen/common/quickOpen';
+import { QuickOpenEntryGroup, IHighlight, QuickOpenModel, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { SyncActionDescriptor, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
@@ -587,10 +587,19 @@ export class CommandsHandler extends QuickOpenHandler {
 		return entries;
 	}
 
-	public getAutoFocus(searchValue: string): IAutoFocus {
+	public getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
+		let autoFocusPrefixMatch = searchValue.trim();
+
+		if (autoFocusPrefixMatch && this.commandHistoryEnabled) {
+			const firstEntry = context.model && context.model.entries[0];
+			if (firstEntry instanceof BaseCommandEntry && this.commandsHistory.get(firstEntry.getCommandId())) {
+				autoFocusPrefixMatch = void 0; // keep focus on MRU element if we have history elements
+			}
+		}
+
 		return {
 			autoFocusFirstEntry: true,
-			autoFocusPrefixMatch: !this.commandHistoryEnabled ? searchValue.trim() : void 0 // only when commands history is disabled
+			autoFocusPrefixMatch
 		};
 	}
 
