@@ -358,29 +358,6 @@ export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSep
 	return enableSeparateSubstringMatching ? fuzzySeparateFilter(word, wordToMatchAgainst) : fuzzyContiguousFilter(word, wordToMatchAgainst);
 }
 
-export function matchesFuzzy2(pattern: string, word: string): number[] {
-
-	pattern = pattern.toLowerCase();
-	word = word.toLowerCase();
-
-	let matches: number[] = [];
-	let patternPos = 0;
-	let wordPos = 0;
-	while (patternPos < pattern.length && wordPos < word.length) {
-		if (pattern[patternPos] === word[wordPos]) {
-			patternPos += 1;
-			matches.push(wordPos);
-		}
-		wordPos += 1;
-	}
-
-	if (patternPos !== pattern.length) {
-		return undefined;
-	}
-
-	return matches;
-}
-
 export function createMatches(position: number[]): IMatch[] {
 	let ret: IMatch[] = [];
 	if (!position) {
