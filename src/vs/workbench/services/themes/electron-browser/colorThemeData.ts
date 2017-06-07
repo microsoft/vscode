@@ -137,6 +137,7 @@ export function createUnloadedTheme(id: string): ColorThemeData {
 	themeData.label = '';
 	themeData.settingsId = null;
 	themeData.isLoaded = false;
+	themeData.tokenColors = [{ settings: {} }];
 	return themeData;
 }
 

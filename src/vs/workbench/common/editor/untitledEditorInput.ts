@@ -26,7 +26,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 export class UntitledEditorInput extends EditorInput implements IEncodingSupport {
 
 	public static ID: string = 'workbench.editors.untitledEditorInput';
-	public static SCHEMA: string = 'untitled';
 
 	private resource: URI;
 	private _hasAssociatedFilePath: boolean;
@@ -156,7 +155,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		}
 	}
 
-	public resolve(refresh?: boolean): TPromise<UntitledEditorModel> {
+	public resolve(): TPromise<UntitledEditorModel> {
 
 		// Join a model resolve if we have had one before
 		if (this.modelResolve) {

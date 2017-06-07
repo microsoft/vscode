@@ -98,6 +98,11 @@ export interface IEditorMinimapOptions {
 	 */
 	enabled?: boolean;
 	/**
+	 * Control the rendering of the minimap slider.
+	 * Defaults to 'mouseover'.
+	 */
+	showSlider?: 'always' | 'mouseover';
+	/**
 	 * Render the actual text on a line (as opposed to color blocks).
 	 * Defaults to true.
 	 */
@@ -336,6 +341,11 @@ export interface IEditorOptions {
 	 * Defaults to 'alt'
 	 */
 	multiCursorModifier?: 'ctrlCmd' | 'alt';
+	/**
+	 * Configure the editor's accessibility support.
+	 * Defaults to 'auto'. It is best to leave this to 'auto'.
+	 */
+	accessibilitySupport?: 'auto' | 'off' | 'on';
 	/**
 	 * Enable quick suggestions (shadow suggestions)
 	 * Defaults to true.
@@ -686,6 +696,7 @@ export interface InternalEditorScrollbarOptions {
 
 export interface InternalEditorMinimapOptions {
 	readonly enabled: boolean;
+	readonly showSlider: 'always' | 'mouseover';
 	readonly renderCharacters: boolean;
 	readonly maxColumn: number;
 }
@@ -789,6 +800,7 @@ export interface IValidatedEditorOptions {
 	readonly emptySelectionClipboard: boolean;
 	readonly useTabStops: boolean;
 	readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
+	readonly accessibilitySupport: 'auto' | 'off' | 'on';
 
 	readonly viewInfo: InternalEditorViewOptions;
 	readonly contribInfo: EditorContribOptions;
@@ -1022,6 +1034,7 @@ export class InternalEditorOptions {
 	private static _equalsMinimapOptions(a: InternalEditorMinimapOptions, b: InternalEditorMinimapOptions): boolean {
 		return (
 			a.enabled === b.enabled
+			&& a.showSlider === b.showSlider
 			&& a.renderCharacters === b.renderCharacters
 			&& a.maxColumn === b.maxColumn
 		);
@@ -1429,6 +1442,7 @@ export class EditorOptionsValidator {
 			emptySelectionClipboard: _boolean(opts.emptySelectionClipboard, defaults.emptySelectionClipboard),
 			useTabStops: _boolean(opts.useTabStops, defaults.useTabStops),
 			multiCursorModifier: multiCursorModifier,
+			accessibilitySupport: _stringSet<'auto' | 'on' | 'off'>(opts.accessibilitySupport, defaults.accessibilitySupport, ['auto', 'on', 'off']),
 			viewInfo: viewInfo,
 			contribInfo: contribInfo,
 		};
@@ -1467,6 +1481,7 @@ export class EditorOptionsValidator {
 		}
 		return {
 			enabled: _boolean(opts.enabled, defaults.enabled),
+			showSlider: _stringSet<'always' | 'mouseover'>(opts.showSlider, defaults.showSlider, ['always', 'mouseover']),
 			renderCharacters: _boolean(opts.renderCharacters, defaults.renderCharacters),
 			maxColumn: _clampedInt(opts.maxColumn, defaults.maxColumn, 1, 10000),
 		};
@@ -1627,11 +1642,9 @@ export class EditorOptionsValidator {
  */
 export class InternalEditorOptionsFactory {
 
-	private static _handlePerformanceCritical(opts: IValidatedEditorOptions, performanceCritical: boolean): IValidatedEditorOptions {
-		if (!performanceCritical) {
-			return opts;
-		}
-
+	private static _tweakValidatedOptions(opts: IValidatedEditorOptions, accessibilitySupport: platform.AccessibilitySupport): IValidatedEditorOptions {
+		const accessibilityIsOn = (accessibilitySupport === platform.AccessibilitySupport.Enabled);
+		const accessibilityIsOff = (accessibilitySupport === platform.AccessibilitySupport.Disabled);
 		return {
 			inDiffEditor: opts.inDiffEditor,
 			wordSeparators: opts.wordSeparators,
@@ -1653,19 +1666,20 @@ export class InternalEditorOptionsFactory {
 			emptySelectionClipboard: opts.emptySelectionClipboard,
 			useTabStops: opts.useTabStops,
 			multiCursorModifier: opts.multiCursorModifier,
+			accessibilitySupport: opts.accessibilitySupport,
 
 			viewInfo: {
 				extraEditorClassName: opts.viewInfo.extraEditorClassName,
 				disableMonospaceOptimizations: opts.viewInfo.disableMonospaceOptimizations,
 				rulers: opts.viewInfo.rulers,
-				ariaLabel: opts.viewInfo.ariaLabel,
+				ariaLabel: (accessibilityIsOff ? nls.localize('accessibilityOffAriaLabel', "The editor is not accessible at this time. Press Alt+F1 for options.") : opts.viewInfo.ariaLabel),
 				renderLineNumbers: opts.viewInfo.renderLineNumbers,
 				renderCustomLineNumbers: opts.viewInfo.renderCustomLineNumbers,
 				renderRelativeLineNumbers: opts.viewInfo.renderRelativeLineNumbers,
 				selectOnLineNumbers: opts.viewInfo.selectOnLineNumbers,
 				glyphMargin: opts.viewInfo.glyphMargin,
 				revealHorizontalRightPadding: opts.viewInfo.revealHorizontalRightPadding,
-				roundedSelection: false, // DISABLED
+				roundedSelection: (accessibilityIsOn ? false : opts.viewInfo.roundedSelection), // DISABLED WHEN SCREEN READER IS ATTACHED
 				overviewRulerLanes: opts.viewInfo.overviewRulerLanes,
 				overviewRulerBorder: opts.viewInfo.overviewRulerBorder,
 				cursorBlinking: opts.viewInfo.cursorBlinking,
@@ -1674,15 +1688,16 @@ export class InternalEditorOptionsFactory {
 				hideCursorInOverviewRuler: opts.viewInfo.hideCursorInOverviewRuler,
 				scrollBeyondLastLine: opts.viewInfo.scrollBeyondLastLine,
 				stopRenderingLineAfter: opts.viewInfo.stopRenderingLineAfter,
-				renderWhitespace: 'none', // DISABLED
-				renderControlCharacters: false, // DISABLED
-				fontLigatures: false, // DISABLED
-				renderIndentGuides: false, // DISABLED
-				renderLineHighlight: 'none', // DISABLED
+				renderWhitespace: (accessibilityIsOn ? 'none' : opts.viewInfo.renderWhitespace), // DISABLED WHEN SCREEN READER IS ATTACHED
+				renderControlCharacters: (accessibilityIsOn ? false : opts.viewInfo.renderControlCharacters), // DISABLED WHEN SCREEN READER IS ATTACHED
+				fontLigatures: (accessibilityIsOn ? false : opts.viewInfo.fontLigatures), // DISABLED WHEN SCREEN READER IS ATTACHED
+				renderIndentGuides: (accessibilityIsOn ? false : opts.viewInfo.renderIndentGuides), // DISABLED WHEN SCREEN READER IS ATTACHED
+				renderLineHighlight: (accessibilityIsOn ? 'none' : opts.viewInfo.renderLineHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
 				scrollbar: opts.viewInfo.scrollbar,
 				minimap: {
-					enabled: false, // DISABLED
+					enabled: (accessibilityIsOn ? false : opts.viewInfo.minimap.enabled), // DISABLED WHEN SCREEN READER IS ATTACHED
 					renderCharacters: opts.viewInfo.minimap.renderCharacters,
+					showSlider: opts.viewInfo.minimap.showSlider,
 					maxColumn: opts.viewInfo.minimap.maxColumn
 				},
 				fixedOverflowWidgets: opts.viewInfo.fixedOverflowWidgets
@@ -1705,12 +1720,12 @@ export class InternalEditorOptionsFactory {
 				wordBasedSuggestions: opts.contribInfo.wordBasedSuggestions,
 				suggestFontSize: opts.contribInfo.suggestFontSize,
 				suggestLineHeight: opts.contribInfo.suggestLineHeight,
-				selectionHighlight: false, // DISABLED
-				occurrencesHighlight: false, // DISABLED
-				codeLens: false, // DISABLED
-				folding: false, // DISABLED
+				selectionHighlight: (accessibilityIsOn ? false : opts.contribInfo.selectionHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
+				occurrencesHighlight: (accessibilityIsOn ? false : opts.contribInfo.occurrencesHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
+				codeLens: (accessibilityIsOn ? false : opts.contribInfo.codeLens), // DISABLED WHEN SCREEN READER IS ATTACHED
+				folding: (accessibilityIsOn ? false : opts.contribInfo.folding), // DISABLED WHEN SCREEN READER IS ATTACHED
 				showFoldingControls: opts.contribInfo.showFoldingControls,
-				matchBrackets: false, // DISABLED
+				matchBrackets: (accessibilityIsOn ? false : opts.contribInfo.matchBrackets), // DISABLED WHEN SCREEN READER IS ATTACHED
 				find: opts.contribInfo.find
 			}
 		};
@@ -1718,9 +1733,19 @@ export class InternalEditorOptionsFactory {
 
 	public static createInternalEditorOptions(env: IEnvironmentalOptions, _opts: IValidatedEditorOptions) {
 
+		let accessibilitySupport: platform.AccessibilitySupport;
+		if (_opts.accessibilitySupport === 'auto') {
+			// The editor reads the `accessibilitySupport` from the environment
+			accessibilitySupport = env.accessibilitySupport;
+		} else if (_opts.accessibilitySupport === 'on') {
+			accessibilitySupport = platform.AccessibilitySupport.Enabled;
+		} else {
+			accessibilitySupport = platform.AccessibilitySupport.Disabled;
+		}
+
 		// Disable some non critical features to get as best performance as possible
 		// See https://github.com/Microsoft/vscode/issues/26730
-		const opts = this._handlePerformanceCritical(_opts, (env.accessibilitySupport === platform.AccessibilitySupport.Enabled));
+		const opts = this._tweakValidatedOptions(_opts, accessibilitySupport);
 
 		let lineDecorationsWidth: number;
 		if (typeof opts.lineDecorationsWidth === 'string' && /^\d+(\.\d+)?ch$/.test(opts.lineDecorationsWidth)) {
@@ -1760,7 +1785,7 @@ export class InternalEditorOptionsFactory {
 			const wordWrapColumn = opts.wordWrapColumn;
 			const wordWrapMinified = opts.wordWrapMinified;
 
-			if (env.accessibilitySupport === platform.AccessibilitySupport.Enabled) {
+			if (accessibilitySupport === platform.AccessibilitySupport.Enabled) {
 				// See https://github.com/Microsoft/vscode/issues/27766
 				// Never enable wrapping when a screen reader is attached
 				// because arrow down etc. will not move the cursor in the way
@@ -1838,7 +1863,7 @@ export class InternalEditorOptionsFactory {
 			editorClassName: className,
 			lineHeight: env.fontInfo.lineHeight,
 			readOnly: opts.readOnly,
-			accessibilitySupport: env.accessibilitySupport,
+			accessibilitySupport: accessibilitySupport,
 			multiCursorModifier: opts.multiCursorModifier,
 			wordSeparators: opts.wordSeparators,
 			autoClosingBrackets: opts.autoClosingBrackets,
@@ -2059,6 +2084,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	emptySelectionClipboard: true,
 	useTabStops: true,
 	multiCursorModifier: 'altKey',
+	accessibilitySupport: 'auto',
 
 	viewInfo: {
 		extraEditorClassName: '',
@@ -2101,6 +2127,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		},
 		minimap: {
 			enabled: true,
+			showSlider: 'mouseover',
 			renderCharacters: true,
 			maxColumn: 120
 		},

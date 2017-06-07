@@ -76,7 +76,12 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	constructor(options: editorOptions.IEditorOptions) {
 		super();
 
+		// Do a "deep clone of sorts" on the incoming options
 		this._rawOptions = objects.mixin({}, options || {});
+		this._rawOptions.scrollbar = objects.mixin({}, this._rawOptions.scrollbar || {});
+		this._rawOptions.minimap = objects.mixin({}, this._rawOptions.minimap || {});
+		this._rawOptions.find = objects.mixin({}, this._rawOptions.find || {});
+
 		this._validatedOptions = editorOptions.EditorOptionsValidator.validate(this._rawOptions, EDITOR_DEFAULTS);
 		this.editor = null;
 		this._isDominatedByLongLines = false;
@@ -248,6 +253,12 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.enabled,
 			'description': nls.localize('minimap.enabled', "Controls if the minimap is shown")
+		},
+		'editor.minimap.showSlider': {
+			'type': 'string',
+			'enum': ['always', 'mouseover'],
+			'default': EDITOR_DEFAULTS.viewInfo.minimap.showSlider,
+			'description': nls.localize('minimap.showSlider', "Controls whether the minimap slider is automatically hidden.")
 		},
 		'editor.minimap.renderCharacters': {
 			'type': 'boolean',
@@ -550,6 +561,17 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.dragAndDrop,
 			'description': nls.localize('dragAndDrop', "Controls if the editor should allow to move selections via drag and drop.")
+		},
+		'editor.accessibilitySupport': {
+			'type': 'string',
+			'enum': ['auto', 'on', 'off'],
+			'enumDescriptions': [
+				nls.localize('accessibilitySupport.auto', "The editor will use platform APIs to detect when a Screen Reader is attached."),
+				nls.localize('accessibilitySupport.on', "The editor will be permanently optimized for usage with a Screen Reader."),
+				nls.localize('accessibilitySupport.off', "The editor will never be optimized for usage with a Screen Reader."),
+			],
+			'default': EDITOR_DEFAULTS.accessibilitySupport,
+			'description': nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers.")
 		},
 		'diffEditor.renderSideBySide': {
 			'type': 'boolean',

@@ -50,15 +50,15 @@ export function loadExperiments(accessor: ServicesAccessor): ITelemetryExperimen
 	const storageService = accessor.get(IStorageService);
 	const configurationService = accessor.get(IConfigurationService);
 
-	updateExperimentsOverrides(configurationService);
-	configurationService.onDidUpdateConfiguration(e => updateExperimentsOverrides(configurationService));
+	updateExperimentsOverrides(configurationService, storageService);
+	configurationService.onDidUpdateConfiguration(e => updateExperimentsOverrides(configurationService, storageService));
 
 	let {
 		showNewUserWatermark,
 		openUntitledFile,
 		enableWelcomePage,
 		mergeQuickLinks,
-	} = splitExperimentsRandomness();
+	} = splitExperimentsRandomness(storageService);
 
 	const newUserDuration = 24 * 60 * 60 * 1000;
 	const firstSessionDate = storageService.get('telemetry.firstSessionDate');
@@ -73,16 +73,16 @@ export function loadExperiments(accessor: ServicesAccessor): ITelemetryExperimen
 		openUntitledFile,
 		enableWelcomePage,
 		mergeQuickLinks,
-	});
+	}, storageService);
 }
 
-export function isWelcomePageEnabled() {
-	const overrides = getExperimentsOverrides();
-	return 'enableWelcomePage' in overrides ? overrides.enableWelcomePage : splitExperimentsRandomness().enableWelcomePage;
+export function isWelcomePageEnabled(storageService: IStorageService) {
+	const overrides = getExperimentsOverrides(storageService);
+	return 'enableWelcomePage' in overrides ? overrides.enableWelcomePage : splitExperimentsRandomness(storageService).enableWelcomePage;
 }
 
-function applyOverrides(experiments: ITelemetryExperiments): ITelemetryExperiments {
-	const experimentsConfig = getExperimentsOverrides();
+function applyOverrides(experiments: ITelemetryExperiments, storageService: IStorageService): ITelemetryExperiments {
+	const experimentsConfig = getExperimentsOverrides(storageService);
 	Object.keys(experiments).forEach(key => {
 		if (key in experimentsConfig) {
 			experiments[key] = experimentsConfig[key];
@@ -91,8 +91,8 @@ function applyOverrides(experiments: ITelemetryExperiments): ITelemetryExperimen
 	return experiments;
 }
 
-function splitExperimentsRandomness(): ITelemetryExperiments {
-	const random1 = getExperimentsRandomness();
+function splitExperimentsRandomness(storageService: IStorageService): ITelemetryExperiments {
+	const random1 = getExperimentsRandomness(storageService);
 	const [random2, showNewUserWatermark] = splitRandom(random1);
 	const [random3, openUntitledFile] = splitRandom(random2);
 	const [random4, mergeQuickLinks] = splitRandom(random3);
@@ -105,12 +105,12 @@ function splitExperimentsRandomness(): ITelemetryExperiments {
 	};
 }
 
-function getExperimentsRandomness() {
+function getExperimentsRandomness(storageService: IStorageService) {
 	const key = StorageService.GLOBAL_PREFIX + 'experiments.randomness';
-	let valueString = window.localStorage.getItem(key);
+	let valueString = storageService.get(key);
 	if (!valueString) {
 		valueString = Math.random().toString();
-		window.localStorage.setItem(key, valueString);
+		storageService.store(key, valueString);
 	}
 
 	return parseFloat(valueString);
@@ -124,17 +124,17 @@ function splitRandom(random: number): [number, boolean] {
 
 const experimentsOverridesKey = StorageService.GLOBAL_PREFIX + 'experiments.overrides';
 
-function getExperimentsOverrides(): ITelemetryExperiments {
-	const valueString = window.localStorage.getItem(experimentsOverridesKey);
+function getExperimentsOverrides(storageService: IStorageService): ITelemetryExperiments {
+	const valueString = storageService.get(experimentsOverridesKey);
 	return valueString ? JSON.parse(valueString) : <any>{};
 }
 
-function updateExperimentsOverrides(configurationService: IConfigurationService) {
-	const storageOverrides = getExperimentsOverrides();
+function updateExperimentsOverrides(configurationService: IConfigurationService, storageService: IStorageService) {
+	const storageOverrides = getExperimentsOverrides(storageService);
 	const config: any = configurationService.getConfiguration('telemetry');
 	const configOverrides = config && config.experiments || {};
 	if (!objects.equals(storageOverrides, configOverrides)) {
-		window.localStorage.setItem(experimentsOverridesKey, JSON.stringify(configOverrides));
+		storageService.store(experimentsOverridesKey, JSON.stringify(configOverrides));
 	}
 }
 

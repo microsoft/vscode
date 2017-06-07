@@ -31,6 +31,7 @@ import { TerminalLinkHandler } from 'vs/workbench/parts/terminal/electron-browse
 import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground } from 'vs/platform/theme/common/colorRegistry';
+import { TPromise } from "vs/base/common/winjs.base";
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -56,6 +57,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _hadFocusOnExit: boolean;
 	private _isLaunching: boolean;
 	private _isVisible: boolean;
+	private _processReady: TPromise<void>;
 	private _isDisposed: boolean;
 	private _onDisposed: Emitter<ITerminalInstance>;
 	private _onDataForApi: Emitter<{ instance: ITerminalInstance, data: string }>;
@@ -114,6 +116,11 @@ export class TerminalInstance implements ITerminalInstance {
 		this._onDataForApi = new Emitter<{ instance: ITerminalInstance, data: string }>();
 		this._onProcessIdReady = new Emitter<TerminalInstance>();
 		this._onTitleChanged = new Emitter<string>();
+
+		// Create a promise that resolves when the pty is ready
+		this._processReady = new TPromise<void>(c => {
+			this.onProcessIdReady(() => c(void 0));
+		});
 
 		this._initDimensions();
 		this._createProcess(this._contextService.getWorkspace(), this._shellLaunchConfig);
@@ -376,13 +383,15 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public sendText(text: string, addNewLine: boolean): void {
-		text = this._sanitizeInput(text);
-		if (addNewLine && text.substr(text.length - 1) !== '\r') {
-			text += '\r';
-		}
-		this._process.send({
-			event: 'input',
-			data: text
+		this._processReady.then(() => {
+			text = this._sanitizeInput(text);
+			if (addNewLine && text.substr(text.length - 1) !== '\r') {
+				text += '\r';
+			}
+			this._process.send({
+				event: 'input',
+				data: text
+			});
 		});
 	}
 

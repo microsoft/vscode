@@ -301,7 +301,9 @@ export class TerminalPanel extends Panel {
 			return path;
 		}
 		path = path.replace(/(%5C|\\)/g, '\\\\');
-		const charsToEscape = [' ', '\'', '"', '?', ':', ';'];
+		const charsToEscape = [
+			' ', '\'', '"', '?', ':', ';', '!', '*', '(', ')', '{', '}', '[', ']'
+		];
 		for (let i = 0; i < path.length; i++) {
 			const indexOfChar = charsToEscape.indexOf(path.charAt(i));
 			if (indexOfChar >= 0) {

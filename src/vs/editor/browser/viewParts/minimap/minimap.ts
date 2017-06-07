@@ -73,6 +73,8 @@ class MinimapOptions {
 
 	public readonly renderMinimap: RenderMinimap;
 
+	public readonly showSlider: 'always' | 'mouseover';
+
 	public readonly pixelRatio: number;
 
 	public readonly lineHeight: number;
@@ -107,8 +109,10 @@ class MinimapOptions {
 	constructor(configuration: editorCommon.IConfiguration) {
 		const pixelRatio = configuration.editor.pixelRatio;
 		const layoutInfo = configuration.editor.layoutInfo;
+		const viewInfo = configuration.editor.viewInfo;
 
 		this.renderMinimap = layoutInfo.renderMinimap | 0;
+		this.showSlider = viewInfo.minimap.showSlider;
 		this.pixelRatio = pixelRatio;
 		this.lineHeight = configuration.editor.lineHeight;
 		this.minimapWidth = layoutInfo.minimapWidth;
@@ -123,6 +127,7 @@ class MinimapOptions {
 
 	public equals(other: MinimapOptions): boolean {
 		return (this.renderMinimap === other.renderMinimap
+			&& this.showSlider === other.showSlider
 			&& this.pixelRatio === other.pixelRatio
 			&& this.lineHeight === other.lineHeight
 			&& this.minimapWidth === other.minimapWidth
@@ -440,7 +445,7 @@ export class Minimap extends ViewPart {
 
 		this._domNode = createFastDomNode(document.createElement('div'));
 		PartFingerprints.write(this._domNode, PartFingerprint.Minimap);
-		this._domNode.setClassName('minimap');
+		this._domNode.setClassName(this._getMinimapDomNodeClassName());
 		this._domNode.setPosition('absolute');
 		this._domNode.setAttribute('role', 'presentation');
 		this._domNode.setAttribute('aria-hidden', 'true');
@@ -549,6 +554,13 @@ export class Minimap extends ViewPart {
 		super.dispose();
 	}
 
+	private _getMinimapDomNodeClassName(): string {
+		if (this._options.showSlider === 'always') {
+			return 'minimap slider-always';
+		}
+		return 'minimap slider-mouseover';
+	}
+
 	public getDomNode(): FastDomNode<HTMLElement> {
 		return this._domNode;
 	}
@@ -585,6 +597,7 @@ export class Minimap extends ViewPart {
 		this._lastRenderData = null;
 		this._buffers = null;
 		this._applyLayout();
+		this._domNode.setClassName(this._getMinimapDomNodeClassName());
 		return true;
 	}
 

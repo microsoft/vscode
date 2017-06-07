@@ -257,6 +257,15 @@ export function fromPromise(promise: TPromise<any>): Event<void> {
 	return emitter.event;
 }
 
+export function toPromise<T>(event: Event<T>): TPromise<T> {
+	return new TPromise(complete => {
+		const sub = event(e => {
+			sub.dispose();
+			complete(e);
+		});
+	});
+}
+
 export function delayed<T>(promise: TPromise<Event<T>>): Event<T> {
 	let toCancel: TPromise<any> = null;
 	let listener: IDisposable = null;

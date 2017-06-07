@@ -333,13 +333,14 @@ export class StackFrame implements IStackFrame {
 		public frameId: number,
 		public source: Source,
 		public name: string,
-		public range: IRange
+		public range: IRange,
+		private index: number
 	) {
 		this.scopes = null;
 	}
 
 	public getId(): string {
-		return `stackframe:${this.thread.getId()}:${this.frameId}`;
+		return `stackframe:${this.thread.getId()}:${this.frameId}:${this.index}`;
 	}
 
 	public getScopes(): TPromise<IScope[]> {
@@ -462,7 +463,7 @@ export class Thread implements IThread {
 				this.stoppedDetails.totalFrames = response.body.totalFrames;
 			}
 
-			return response.body.stackFrames.map((rsf, level) => {
+			return response.body.stackFrames.map((rsf, index) => {
 				let source = new Source(rsf.source, rsf.source ? rsf.source.presentationHint : rsf.presentationHint);
 				if (this.process.sources.has(source.uri.toString())) {
 					const alreadyCreatedSource = this.process.sources.get(source.uri.toString());
@@ -477,7 +478,7 @@ export class Thread implements IThread {
 					rsf.column,
 					rsf.endLine,
 					rsf.endColumn
-				));
+				), startFrame + index);
 			});
 		}, (err: Error) => {
 			if (this.stoppedDetails) {
@@ -938,9 +939,11 @@ export class Model implements IModel {
 	public appendToRepl(output: string | IExpression, severity: severity): void {
 		if (typeof output === 'string') {
 			const previousOutput = this.replElements.length && (this.replElements[this.replElements.length - 1] as OutputElement);
-			if (previousOutput instanceof OutputElement && severity === previousOutput.severity && previousOutput.value === output && output.trim() && output.length > 1) {
+			const lastNonEmpty = previousOutput && previousOutput.value.trim() ? previousOutput : this.replElements.length > 1 ? this.replElements[this.replElements.length - 2] : undefined;
+
+			if (lastNonEmpty instanceof OutputElement && severity === lastNonEmpty.severity && lastNonEmpty.value === output.trim() && output.trim() && output.length > 1) {
 				// we got the same output (but not an empty string when trimmed) so we just increment the counter
-				previousOutput.counter++;
+				lastNonEmpty.counter++;
 			} else {
 				const toAdd = output.split('\n').map(line => new OutputElement(line, severity));
 				if (previousOutput instanceof OutputElement && severity === previousOutput.severity && toAdd.length) {

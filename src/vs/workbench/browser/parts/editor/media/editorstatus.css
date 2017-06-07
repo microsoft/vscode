@@ -20,5 +20,5 @@
 
 .monaco-workbench .editor-statusbar-item > .editor-status-metadata,
 .monaco-workbench > .part.statusbar > .statusbar-item > .editor-statusbar-item > a.editor-status-screenreadermode {
-	cursor: default;
+	cursor: default !important;
 }

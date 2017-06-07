@@ -98,6 +98,9 @@ export class ExtHostDocumentsAndEditors extends ExtHostDocumentsAndEditorsShape 
 			this._activeEditorId = delta.newActiveEditor;
 		}
 
+		dispose(removedDocuments);
+		dispose(removedEditors);
+
 		// now that the internal state is complete, fire events
 		if (delta.removedDocuments) {
 			this._onDidRemoveDocuments.fire(removedDocuments);
@@ -112,10 +115,6 @@ export class ExtHostDocumentsAndEditors extends ExtHostDocumentsAndEditorsShape 
 		if (delta.newActiveEditor !== undefined) {
 			this._onDidChangeActiveTextEditor.fire(this.activeEditor());
 		}
-
-		// now that the events are out, dispose removed documents and editors
-		dispose(removedDocuments);
-		dispose(removedEditors);
 	}
 
 	getDocument(strUrl: string): ExtHostDocumentData {

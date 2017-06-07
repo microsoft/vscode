@@ -64,7 +64,7 @@ export class VariablesView extends CollapsibleViewletView {
 		super(actionRunner, !!settings[VariablesView.MEMENTO], nls.localize('variablesSection', "Variables Section"), messageService, keybindingService, contextMenuService);
 
 		this.variablesFocusedContext = CONTEXT_VARIABLES_FOCUSED.bindTo(contextKeyService);
-		// Use schedulre to prevent unnecessary flashing
+		// Use scheduler to prevent unnecessary flashing
 		this.onFocusStackFrameScheduler = new RunOnceScheduler(() => {
 			// Always clear tree highlight to avoid ending up in a broken state #12203
 			this.tree.clearHighlight();
@@ -116,7 +116,7 @@ export class VariablesView extends CollapsibleViewletView {
 		this.toolBar.setActions(prepareActions([collapseAction]))();
 
 		this.toDispose.push(viewModel.onDidFocusStackFrame(sf => {
-			// Refresh the tree immediatly if it is not visible.
+			// Refresh the tree immediately if it is not visible.
 			// Otherwise postpone the refresh until user stops stepping.
 			if (!this.tree.getContentHeight()) {
 				this.onFocusStackFrameScheduler.schedule(0);
@@ -281,7 +281,7 @@ export class CallStackView extends CollapsibleViewletView {
 			}
 
 			// Only show the global pause message if we do not display threads.
-			// Otherwsie there will be a pause message per thread and there is no need for a global one.
+			// Otherwise there will be a pause message per thread and there is no need for a global one.
 			if (newTreeInput instanceof Thread && newTreeInput.stoppedDetails) {
 				this.pauseMessageLabel.text(newTreeInput.stoppedDetails.description || nls.localize('debugStopped', "Paused on {0}", newTreeInput.stoppedDetails.reason));
 				if (newTreeInput.stoppedDetails.text) {
@@ -355,7 +355,7 @@ export class CallStackView extends CollapsibleViewletView {
 
 	private updateTreeSelection(): TPromise<void> {
 		if (!this.tree.getInput()) {
-			// Tree not initialitized yet
+			// Tree not initialized yet
 			return TPromise.as(null);
 		}
 

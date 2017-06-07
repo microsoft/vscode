@@ -98,14 +98,12 @@ export class ElectronWindow extends Themable {
 
 	private registerListeners(): void {
 
-		// React to editor input changes (Mac only)
-		if (platform.platform === platform.Platform.Mac) {
-			this.editorGroupService.onEditorsChanged(() => {
-				const file = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
+		// React to editor input changes
+		this.editorGroupService.onEditorsChanged(() => {
+			const file = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 
-				this.titleService.setRepresentedFilename(file ? file.fsPath : '');
-			});
-		}
+			this.titleService.setRepresentedFilename(file ? file.fsPath : '');
+		});
 
 		let draggedExternalResources: URI[];
 		let dropOverlay: Builder;
@@ -337,7 +335,7 @@ export class ElectronWindow extends Themable {
 					e.stopPropagation();
 
 					this.contextMenuService.showContextMenu({
-						getAnchor: () => target,
+						getAnchor: () => e,
 						getActions: () => TPromise.as(TextInputActions)
 					});
 				}

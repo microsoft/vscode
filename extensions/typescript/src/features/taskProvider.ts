@@ -11,8 +11,8 @@ import * as vscode from 'vscode';
 
 import * as Proto from '../protocol';
 import TypeScriptServiceClient from '../typescriptServiceClient';
-import TsConfigProvider from "../utils/tsconfigProvider";
-
+import TsConfigProvider from '../utils/tsconfigProvider';
+import { isImplicitProjectConfigFile } from '../utils/tsconfig';
 
 const exists = (file: string): Promise<boolean> =>
 	new Promise<boolean>((resolve, _reject) => {
@@ -89,7 +89,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 		}
 
 		const { configFileName } = res.body;
-		if (configFileName && configFileName.indexOf('/dev/null/') !== 0) {
+		if (configFileName && !isImplicitProjectConfigFile(configFileName)) {
 			return [configFileName];
 		}
 		return [];

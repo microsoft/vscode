@@ -1354,7 +1354,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 			if (this.isSaveAs() || source.scheme === 'untitled') {
 				let encodingOfSource: string;
 				if (source.scheme === 'untitled') {
-					encodingOfSource = this.untitledEditorService.get(source).getEncoding();
+					encodingOfSource = this.untitledEditorService.getEncoding(source);
 				} else if (source.scheme === 'file') {
 					const textModel = this.textFileService.models.get(source);
 					encodingOfSource = textModel && textModel.getEncoding(); // text model can be null e.g. if this is a binary file!
@@ -1494,17 +1494,32 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 
 		// Store some properties per untitled file to restore later after save is completed
 		const mapUntitledToProperties: { [resource: string]: { encoding: string; indexInGroups: number[]; activeInGroups: boolean[] } } = Object.create(null);
-		this.textFileService.getDirty()
-			.filter(r => r.scheme === 'untitled')			// All untitled resources
-			.map(r => this.untitledEditorService.get(r))	// Mapped to their inputs
-			.filter(input => !!input)								// If possible :)
-			.forEach(input => {
-				mapUntitledToProperties[input.getResource().toString()] = {
-					encoding: input.getEncoding(),
-					indexInGroups: stacks.groups.map(g => g.indexOf(input)),
-					activeInGroups: stacks.groups.map(g => g.isActive(input))
-				};
+		this.untitledEditorService.getDirty().forEach(resource => {
+			const activeInGroups: boolean[] = [];
+			const indexInGroups: number[] = [];
+			const encoding = this.untitledEditorService.getEncoding(resource);
+
+			// For each group
+			stacks.groups.forEach((group, groupIndex) => {
+
+				// Find out if editor is active in group
+				const activeEditor = group.activeEditor;
+				const activeResource = toResource(activeEditor, { supportSideBySide: true });
+				activeInGroups[groupIndex] = (activeResource && activeResource.toString() === resource.toString());
+
+				// Find index of editor in group
+				indexInGroups[groupIndex] = -1;
+				group.getEditors().forEach((editor, editorIndex) => {
+					const editorResource = toResource(editor, { supportSideBySide: true });
+					if (editorResource && editorResource.toString() === resource.toString()) {
+						indexInGroups[groupIndex] = editorIndex;
+						return;
+					}
+				});
 			});
+
+			mapUntitledToProperties[resource.toString()] = { encoding, indexInGroups, activeInGroups };
+		});
 
 		// Save all
 		return this.textFileService.saveAll(this.getSaveAllArguments(context)).then(results => {

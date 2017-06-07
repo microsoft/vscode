@@ -80,23 +80,32 @@ export default class MergeDectorator implements vscode.Disposable {
 				isWholeLine: this.decorationUsesWholeLine,
 				backgroundColor: new vscode.ThemeColor('merge.currentHeaderBackground'),
 				color: new vscode.ThemeColor('editor.foreground'),
+				outlineStyle: 'solid',
+				outlineWidth: '1pt',
+				outlineColor: new vscode.ThemeColor('merge.border'),
 				after: {
-					contentText: ' ' + localize('currentChange', '(Current change)'),
+					contentText: ' ' + localize('currentChange', '(Current Change)'),
 					color: new vscode.ThemeColor('descriptionForeground')
 				}
 			});
 
 			this.decorations['splitter'] = vscode.window.createTextEditorDecorationType({
 				color: new vscode.ThemeColor('editor.foreground'),
+				outlineStyle: 'solid',
+				outlineWidth: '1pt',
+				outlineColor: new vscode.ThemeColor('merge.border'),
 				isWholeLine: this.decorationUsesWholeLine,
 			});
 
 			this.decorations['incoming.header'] = vscode.window.createTextEditorDecorationType({
 				backgroundColor: new vscode.ThemeColor('merge.incomingHeaderBackground'),
 				color: new vscode.ThemeColor('editor.foreground'),
+				outlineStyle: 'solid',
+				outlineWidth: '1pt',
+				outlineColor: new vscode.ThemeColor('merge.border'),
 				isWholeLine: this.decorationUsesWholeLine,
 				after: {
-					contentText: ' ' + localize('incomingChange', '(Incoming change)'),
+					contentText: ' ' + localize('incomingChange', '(Incoming Change)'),
 					color: new vscode.ThemeColor('descriptionForeground')
 				}
 			});

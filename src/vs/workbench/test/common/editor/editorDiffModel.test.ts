@@ -16,7 +16,6 @@ import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorIn
 import URI from 'vs/base/common/uri';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import { TPromise } from "vs/base/common/winjs.base";
 import { IModel } from 'vs/editor/common/editorCommon';
@@ -30,8 +29,7 @@ class ServiceAccessor {
 		@ITextModelResolverService public textModelResolverService: ITextModelResolverService,
 		@IModelService public modelService: IModelService,
 		@IModeService public modeService: IModeService,
-		@ITextFileService public textFileService: TestTextFileService,
-		@IUntitledEditorService public untitledEditorService: IUntitledEditorService
+		@ITextFileService public textFileService: TestTextFileService
 	) {
 	}
 }

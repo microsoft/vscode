@@ -172,7 +172,7 @@ export class DebugService implements debug.IDebugService {
 		// attach: PH is ready to be attached to
 		// TODO@Isidor this is a hack to just get any 'extensionHost' session.
 		// Optimally the broadcast would contain the id of the session
-		// We are only intersted if we have an active debug session for extensionHost
+		// We are only interested if we have an active debug session for extensionHost
 		const process = this.model.getProcesses().filter(p => strings.equalsIgnoreCase(p.configuration.type, 'extensionhost')).pop();
 		const session = process ? <RawDebugSession>process.session : null;
 		if (broadcast.channel === EXTENSION_ATTACH_BROADCAST_CHANNEL) {
@@ -225,12 +225,12 @@ export class DebugService implements debug.IDebugService {
 
 					// flush any existing simple values logged
 					if (simpleVals.length) {
-						this.model.appendToRepl(simpleVals.join(' '), sev);
+						this.logToRepl(simpleVals.join(' '), sev);
 						simpleVals = [];
 					}
 
 					// show object
-					this.model.appendToRepl(new OutputNameValueElement((<any>a).prototype, a, nls.localize('snapshotObj', "Only primitive values are shown for this object.")), sev);
+					this.logToRepl(new OutputNameValueElement((<any>a).prototype, a, nls.localize('snapshotObj', "Only primitive values are shown for this object.")), sev);
 				}
 
 				// string: watch out for % replacement directive
@@ -258,9 +258,9 @@ export class DebugService implements debug.IDebugService {
 			}
 
 			// flush simple values
-			// always append a new line for output coming from an extension such that seperate logs go to seperate lines #23695
+			// always append a new line for output coming from an extension such that separate logs go to separate lines #23695
 			if (simpleVals.length) {
-				this.model.appendToRepl(simpleVals.join(' ') + '\n', sev);
+				this.logToRepl(simpleVals.join(' ') + '\n', sev);
 			}
 		}
 	}
@@ -278,8 +278,10 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		this.focusStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
-		this.windowService.getWindow().focus();
-		aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", thread.stoppedDetails.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.range.startLineNumber));
+		if (thread.stoppedDetails) {
+			this.windowService.getWindow().focus();
+			aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", thread.stoppedDetails.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.range.startLineNumber));
+		}
 
 		return stackFrameToFocus.openInEditor(this.editorService);
 	}
@@ -380,11 +382,11 @@ export class DebugService implements debug.IDebugService {
 					children.forEach(child => {
 						// Since we can not display multiple trees in a row, we are displaying these variables one after the other (ignoring their names)
 						child.name = null;
-						this.model.appendToRepl(child, outputSeverity);
+						this.logToRepl(child, outputSeverity);
 					});
 				});
 			} else if (typeof event.body.output === 'string') {
-				this.model.appendToRepl(event.body.output, outputSeverity);
+				this.logToRepl(event.body.output, outputSeverity);
 			}
 		}));
 
@@ -408,7 +410,7 @@ export class DebugService implements debug.IDebugService {
 			// 'Run without debugging' mode VSCode must terminate the extension host. More details: #3905
 			const process = this.viewModel.focusedProcess;
 			if (process && session && process.getId() === session.getId() && strings.equalsIgnoreCase(process.configuration.type, 'extensionhost') && this.sessionStates.get(session.getId()) === debug.State.Running &&
-				process && this.contextService.getWorkspace() && process.configuration.noDebug) {
+				process && this.contextService.hasWorkspace() && process.configuration.noDebug) {
 				this.windowsService.closeExtensionHostWindow(this.contextService.getWorkspace().resource.fsPath);
 			}
 			if (session && session.getId() === event.body.sessionId) {
@@ -504,7 +506,10 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		const state = this.state;
-		this.debugState.set(debug.State[state].toLowerCase());
+		const stateLabel = debug.State[state];
+		if (stateLabel) {
+			this.debugState.set(stateLabel.toLowerCase());
+		}
 		this._onDidChangeState.fire(state);
 	}
 
@@ -591,8 +596,13 @@ export class DebugService implements debug.IDebugService {
 		this.model.removeReplExpressions();
 	}
 
-	public logToRepl(value: string, sev = severity.Info): void {
-		this.model.appendToRepl(value, sev);
+	public logToRepl(value: string | debug.IExpression, sev = severity.Info): void {
+		if (typeof value === 'string' && '[2J'.localeCompare(value) === 0) {
+			// [2J is the ansi escape sequence for clearing the display http://ascii-table.com/ansi-escape-sequences.php
+			this.model.removeReplExpressions();
+		} else {
+			this.model.appendToRepl(value, sev);
+		}
 	}
 
 	public addWatchExpression(name: string): TPromise<void> {
@@ -641,7 +651,7 @@ export class DebugService implements debug.IDebugService {
 					if (commandAndType && commandAndType.command) {
 						const defaultConfig = noDebug ? { noDebug: true } : {};
 						return this.commandService.executeCommand(commandAndType.command, config || defaultConfig).then((result: StartSessionResult) => {
-							if (this.contextService.getWorkspace()) {
+							if (this.contextService.hasWorkspace()) {
 								if (result && result.status === 'initialConfiguration') {
 									return manager.openConfigFile(false, commandAndType.type);
 								}
@@ -657,7 +667,7 @@ export class DebugService implements debug.IDebugService {
 					if (config) {
 						return this.createProcess(config);
 					}
-					if (this.contextService.getWorkspace() && commandAndType) {
+					if (this.contextService.hasWorkspace() && commandAndType) {
 						return manager.openConfigFile(false, commandAndType.type);
 					}
 
@@ -714,7 +724,7 @@ export class DebugService implements debug.IDebugService {
 					});
 				});
 			}, err => {
-				if (!this.contextService.getWorkspace()) {
+				if (!this.contextService.hasWorkspace()) {
 					return this.messageService.show(severity.Error, nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved on disk and that you have a debug extension installed for that file type."));
 				}
 
@@ -798,7 +808,7 @@ export class DebugService implements debug.IDebugService {
 					this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
 				}
 
-				if (!this.viewModel.changedWorkbenchViewState && (this.partService.isVisible(Parts.SIDEBAR_PART) || !this.contextService.getWorkspace())) {
+				if (!this.viewModel.changedWorkbenchViewState && (this.partService.isVisible(Parts.SIDEBAR_PART) || !this.contextService.hasWorkspace())) {
 					// We only want to change the workbench view state on the first debug session #5738 and if the side bar is not hidden
 					this.viewModel.changedWorkbenchViewState = true;
 					this.viewletService.openViewlet(debug.VIEWLET_ID);

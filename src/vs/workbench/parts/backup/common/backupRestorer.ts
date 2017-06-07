@@ -7,7 +7,7 @@
 
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledEditorService, UNTITLED_SCHEMA } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -17,6 +17,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position, IResourceInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { Schemas } from "vs/base/common/network";
 
 export class BackupRestorer implements IWorkbenchContribution {
 
@@ -67,10 +68,10 @@ export class BackupRestorer implements IWorkbenchContribution {
 
 		backups.forEach(backup => {
 			if (stacks.isOpen(backup)) {
-				if (backup.scheme === 'file') {
+				if (backup.scheme === Schemas.file) {
 					restorePromises.push(this.textFileService.models.loadOrCreate(backup).then(null, () => unresolved.push(backup)));
-				} else if (backup.scheme === 'untitled') {
-					restorePromises.push(this.untitledEditorService.get(backup).resolve().then(null, () => unresolved.push(backup)));
+				} else if (backup.scheme === UNTITLED_SCHEMA) {
+					restorePromises.push(this.untitledEditorService.loadOrCreate({ resource: backup }).then(null, () => unresolved.push(backup)));
 				}
 			} else {
 				unresolved.push(backup);
@@ -92,7 +93,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 	private resolveInput(resource: URI, index: number, hasOpenedEditors: boolean): IResourceInput | IUntitledResourceInput {
 		const options = { pinned: true, preserveFocus: true, inactive: index > 0 || hasOpenedEditors };
 
-		if (resource.scheme === 'untitled' && !BackupRestorer.UNTITLED_REGEX.test(resource.fsPath)) {
+		if (resource.scheme === UNTITLED_SCHEMA && !BackupRestorer.UNTITLED_REGEX.test(resource.fsPath)) {
 			// TODO@Ben debt: instead of guessing if an untitled file has an associated file path or not
 			// this information should be provided by the backup service and stored as meta data within
 			return { filePath: resource.fsPath, options };

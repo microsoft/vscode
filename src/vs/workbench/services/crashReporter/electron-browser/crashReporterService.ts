@@ -13,8 +13,8 @@ import { crashReporter } from 'electron';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import * as os from 'os';
-import { ICrashReporterService, TELEMETRY_SECTION_ID, ICrashReporterConfig } from "vs/workbench/services/crashReporter/common/crashReporterService";
-import { isWindows, isMacintosh, isLinux } from "vs/base/common/platform";
+import { ICrashReporterService, TELEMETRY_SECTION_ID, ICrashReporterConfig } from 'vs/workbench/services/crashReporter/common/crashReporterService';
+import { isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
 
 export class CrashReporterService implements ICrashReporterService {
 

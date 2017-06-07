@@ -101,4 +101,4 @@ Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions
 );
 
 Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions)
-	.registerWorkbenchAction(new SyncActionDescriptor(SwitchProvider, SwitchProvider.ID, SwitchProvider.LABEL), 'SCM: Switch Provider', 'SCM');
+	.registerWorkbenchAction(new SyncActionDescriptor(SwitchProvider, SwitchProvider.ID, SwitchProvider.LABEL), 'SCM: Switch SCM Provider', 'SCM');

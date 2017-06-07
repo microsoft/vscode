@@ -539,7 +539,8 @@ export class ReferenceWidget extends PeekViewWidget {
 		private _textModelResolverService: ITextModelResolverService,
 		private _contextService: IWorkspaceContextService,
 		private _themeService: IThemeService,
-		private _instantiationService: IInstantiationService
+		private _instantiationService: IInstantiationService,
+		private _environmentService: IEnvironmentService
 	) {
 		super(editor, { showFrame: false, showArrow: true, isResizeable: true });
 
@@ -777,7 +778,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		// Update widget header
 		if (reference.uri.scheme !== Schemas.inMemory) {
-			this.setTitle(reference.name, getPathLabel(reference.directory, this._contextService));
+			this.setTitle(reference.name, getPathLabel(reference.directory, this._contextService, this._environmentService));
 		} else {
 			this.setTitle(nls.localize('peekView.alternateTitle', "References"));
 		}

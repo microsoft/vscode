@@ -354,7 +354,9 @@ export class ExplorerViewlet extends Viewlet {
 			return this.emptyView.focusBody();
 		}
 
-		return this.openEditorsView.focus();
+		if (this.lastFocusedView) {
+			return this.lastFocusedView.focus();
+		}
 	}
 
 	private hasSelectionOrFocus(view: IViewletView): boolean {

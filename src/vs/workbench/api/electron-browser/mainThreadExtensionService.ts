@@ -89,12 +89,16 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 	}
 
 	private _handleMessage(msg: IMessage) {
-		this._showMessage(msg.type, messageWithSource(msg));
 
 		if (!this._extensionsStatus[msg.source]) {
 			this._extensionsStatus[msg.source] = { messages: [] };
 		}
 		this._extensionsStatus[msg.source].messages.push(msg);
+
+		this.$localShowMessage(
+			msg.type, messageWithSource(msg),
+			this.environmentService.extensionDevelopmentPath === msg.source
+		);
 
 		if (!this._isDev && msg.extensionId) {
 			const { type, extensionId, extensionPointId, message } = msg;
@@ -104,27 +108,17 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 		}
 	}
 
-	public $localShowMessage(severity: Severity, msg: string): void {
-		let messageShown = false;
-		if (severity === Severity.Error || severity === Severity.Warning) {
-			if (this._isDev) {
-				// Only show nasty intrusive messages if doing extension development.
-				this._messageService.show(severity, msg);
-				messageShown = true;
-			}
-		}
-
-		if (!messageShown) {
-			switch (severity) {
-				case Severity.Error:
-					console.error(msg);
-					break;
-				case Severity.Warning:
-					console.warn(msg);
-					break;
-				default:
-					console.log(msg);
-			}
+	public $localShowMessage(severity: Severity, msg: string, useMessageService: boolean = this._isDev): void {
+		// Only show nasty intrusive messages if doing extension development
+		// and print all other messages to the console
+		if (useMessageService && (severity === Severity.Error || severity === Severity.Warning)) {
+			this._messageService.show(severity, msg);
+		} else if (severity === Severity.Error) {
+			console.error(msg);
+		} else if (severity === Severity.Warning) {
+			console.warn(msg);
+		} else {
+			console.log(msg);
 		}
 	}
 

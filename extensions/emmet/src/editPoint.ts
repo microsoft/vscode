@@ -45,8 +45,7 @@ function findEditPoint(lineNum: number, editor: vscode.TextEditor, position: vsc
 	let lineContent = line.text;
 
 	if (lineNum !== position.line && line.isEmptyOrWhitespace) {
-		editor.selection = new vscode.Selection(lineNum, lineContent.length, lineNum, lineContent.length);
-		return;
+		return new vscode.Selection(lineNum, lineContent.length, lineNum, lineContent.length);
 	}
 
 	if (lineNum === position.line && direction === 'prev') {

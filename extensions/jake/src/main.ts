@@ -73,6 +73,14 @@ function exec(command: string, options: cp.ExecOptions): Promise<{ stdout: strin
 	});
 }
 
+let _channel: vscode.OutputChannel;
+function getOutputChannel(): vscode.OutputChannel {
+	if (!_channel) {
+		_channel = vscode.window.createOutputChannel('Jake Auto Detection');
+	}
+	return _channel;
+}
+
 async function getJakeTasks(): Promise<vscode.Task[]> {
 	let workspaceRoot = vscode.workspace.rootPath;
 	let emptyTasks: vscode.Task[] = [];
@@ -98,12 +106,11 @@ async function getJakeTasks(): Promise<vscode.Task[]> {
 	}
 
 	let commandLine = `${jakeCommand} --tasks`;
-	let channel = vscode.window.createOutputChannel('tasks');
 	try {
 		let { stdout, stderr } = await exec(commandLine, { cwd: workspaceRoot });
 		if (stderr) {
-			channel.appendLine(stderr);
-			channel.show(true);
+			getOutputChannel().appendLine(stderr);
+			getOutputChannel().show(true);
 		}
 		let result: vscode.Task[] = [];
 		if (stdout) {
@@ -142,10 +149,15 @@ async function getJakeTasks(): Promise<vscode.Task[]> {
 		}
 		return result;
 	} catch (err) {
+		let channel = getOutputChannel();
 		if (err.stderr) {
 			channel.appendLine(err.stderr);
 		}
+		if (err.stdout) {
+			channel.appendLine(err.stdout);
+		}
 		channel.appendLine(localize('execFailed', 'Auto detecting Jake failed with error: {0}', err.error ? err.error.toString() : 'unknown'));
+		channel.show(true);
 		return emptyTasks;
 	}
 }

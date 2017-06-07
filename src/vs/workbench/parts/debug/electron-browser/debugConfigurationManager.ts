@@ -272,7 +272,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 	}
 
 	public getCompound(name: string): debug.ICompound {
-		if (!this.contextService.getWorkspace()) {
+		if (!this.contextService.hasWorkspace()) {
 			return null;
 		}
 
@@ -302,7 +302,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 	}
 
 	public getConfiguration(name: string): debug.IConfig {
-		if (!this.contextService.getWorkspace()) {
+		if (!this.contextService.hasWorkspace()) {
 			return null;
 		}
 
@@ -315,7 +315,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 	}
 
 	public resloveConfiguration(config: debug.IConfig): TPromise<debug.IConfig> {
-		if (!this.contextService.getWorkspace()) {
+		if (!this.contextService.hasWorkspace()) {
 			return TPromise.as(config);
 		}
 
