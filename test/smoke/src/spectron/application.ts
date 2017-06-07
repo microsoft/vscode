@@ -22,19 +22,36 @@ export class SpectronApplication {
 	public client: SpectronClient;
 
 	private spectron: Application;
-	private readonly pollTrials = 5;
-	private readonly pollTimeout = 3; // in secs
 	private keybindings: any[];
 	private screenshot: Screenshot;
+
+	private readonly sampleExtensionsDir: string = 'test_data/sample_extensions_dir';
+	private readonly pollTrials = 5;
+	private readonly pollTimeout = 3; // in secs
 
 	constructor(electronPath: string, testName: string, private testRetry: number, args?: string[], chromeDriverArgs?: string[]) {
 		if (!args) {
 			args = [];
 		}
 
+		// Prevent 'Getting Started' web page from opening on clean user-data-dir
+		args.push('--skip-getting-started');
+
+		// Ensure that running over custom extensions directory, rather than picking up the one that was used by a tester previously
+		let extensionDirIsSet = false;
+		for (let arg of args) {
+			if (arg.startsWith('--extensions-dir')) {
+				extensionDirIsSet = true;
+				return;
+			}
+		}
+		if (!extensionDirIsSet) {
+			args.push(`--extensions-dir=${this.sampleExtensionsDir}`);
+		}
+
 		this.spectron = new Application({
 			path: electronPath,
-			args: args.concat(['--skip-getting-started']), // prevent 'Getting Started' web page from opening on clean user-data-dir
+			args: args,
 			chromeDriverArgs: chromeDriverArgs
 		});
 		this.screenshot = new Screenshot(this, testName);
