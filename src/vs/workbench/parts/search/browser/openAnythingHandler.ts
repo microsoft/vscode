@@ -179,9 +179,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				}
 
 				// Combine results.
-				const mergedResults: QuickOpenEntry[] = results.reduce((entries: QuickOpenEntry[], model: QuickOpenModel) => {
-					return entries.concat(model.entries);
-				}, []);
+				const mergedResults = [].concat(...results.map(r => r.entries));
 
 				// Sort
 				const unsortedResultTime = Date.now();
