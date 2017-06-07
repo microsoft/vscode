@@ -426,6 +426,10 @@ export class Workbench implements IPartService {
 
 		// Empty workbench: some first time users will not have an untiled file; returning users will always have one
 		else if (!this.contextService.hasWorkspace() && this.telemetryService.getExperiments().openUntitledFile && !this.configurationService.lookup('workbench.welcome.enabled').value) {
+			if (this.editorPart.hasEditorsToRestore()) {
+				return TPromise.as([]); // do not open any empty untitled file if we have editors to restore
+			}
+
 			return this.backupFileService.hasBackups().then(hasBackups => {
 				if (hasBackups) {
 					return TPromise.as([]); // do not open any empty untitled file if we have backups to restore
@@ -562,16 +566,13 @@ export class Workbench implements IPartService {
 	private initSettings(): void {
 
 		// Sidebar visibility
-		this.sideBarHidden = this.storageService.getBoolean(Workbench.sidebarHiddenSettingKey, StorageScope.WORKSPACE, false);
-		if (!this.contextService.hasWorkspace()) {
-			this.sideBarHidden = true; // we hide sidebar in single-file-mode
-		}
+		this.sideBarHidden = this.storageService.getBoolean(Workbench.sidebarHiddenSettingKey, StorageScope.WORKSPACE, !this.contextService.hasWorkspace());
 
 		// Panel part visibility
 		const panelRegistry = Registry.as<PanelRegistry>(PanelExtensions.Panels);
-		this.panelHidden = this.storageService.getBoolean(Workbench.panelHiddenSettingKey, StorageScope.WORKSPACE, true);
-		if (!this.contextService.hasWorkspace() || !panelRegistry.getDefaultPanelId()) {
-			this.panelHidden = true; // we hide panel part in single-file-mode or if there is no default panel
+		this.panelHidden = this.storageService.getBoolean(Workbench.panelHiddenSettingKey, StorageScope.WORKSPACE, !this.contextService.hasWorkspace());
+		if (!panelRegistry.getDefaultPanelId()) {
+			this.panelHidden = true; // we hide panel part if there is no default panel
 		}
 
 		// Sidebar position

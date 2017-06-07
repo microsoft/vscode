@@ -1031,6 +1031,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		return this.doOpenEditors(editors, activePosition, ratio);
 	}
 
+	public hasEditorsToRestore(): boolean {
+		return this.stacks.groups.some(g => g.count > 0);
+	}
+
 	public restoreEditors(): TPromise<BaseEditor[]> {
 		const editors = this.stacks.groups.map((group, index) => {
 			return {
