@@ -337,7 +337,11 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public clearSelection(): void {
-		window.getSelection().empty();
+		this._xterm.clearSelection();
+	}
+
+	public selectAll(): void {
+		this._xterm.selectAll();
 	}
 
 	public dispose(): void {
