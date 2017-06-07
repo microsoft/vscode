@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ViewLineRenderingData, IViewModel, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { ViewLineRenderingData, IViewModel, ViewModelDecoration, IViewWhitespaceViewportData } from 'vs/editor/common/viewModel/viewModel';
 import { Range } from 'vs/editor/common/core/range';
 
 export interface IPartialViewLinesViewportData {
@@ -21,8 +21,7 @@ export interface IPartialViewLinesViewportData {
 	 */
 	readonly endLineNumber: number;
 	/**
-	 * relativeVerticalOffset[i] is the gap that must be left between line at
-	 * i - 1 + `startLineNumber` and i + `startLineNumber`.
+	 * relativeVerticalOffset[i] is the `top` position for line at `i` + `startLineNumber`.
 	 */
 	readonly relativeVerticalOffset: number[];
 	/**
@@ -55,8 +54,7 @@ export class ViewportData {
 	public readonly endLineNumber: number;
 
 	/**
-	 * relativeVerticalOffset[i] is the gap that must be left between line at
-	 * i - 1 + `startLineNumber` and i + `startLineNumber`.
+	 * relativeVerticalOffset[i] is the `top` position for line at `i` + `startLineNumber`.
 	 */
 	public readonly relativeVerticalOffset: number[];
 
@@ -70,16 +68,23 @@ export class ViewportData {
 	 */
 	public readonly bigNumbersDelta: number;
 
+	/**
+	 * Positioning information about gaps whitespace.
+	 */
+	public readonly whitespaceViewportData: IViewWhitespaceViewportData[];
+
 	private readonly _model: IViewModel;
 
 	constructor(
 		partialData: IPartialViewLinesViewportData,
+		whitespaceViewportData: IViewWhitespaceViewportData[],
 		model: IViewModel
 	) {
 		this.startLineNumber = partialData.startLineNumber | 0;
 		this.endLineNumber = partialData.endLineNumber | 0;
 		this.relativeVerticalOffset = partialData.relativeVerticalOffset;
 		this.bigNumbersDelta = partialData.bigNumbersDelta | 0;
+		this.whitespaceViewportData = whitespaceViewportData;
 
 		this._model = model;
 

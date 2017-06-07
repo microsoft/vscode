@@ -166,6 +166,7 @@ class MinimapLayout {
 		viewportStartLineNumber: number,
 		viewportEndLineNumber: number,
 		viewportHeight: number,
+		viewportContainsWhitespaceGaps: boolean,
 		lineCount: number,
 		scrollbarSliderCenter: number
 	) {
@@ -174,96 +175,57 @@ class MinimapLayout {
 		const minimapLinesFitting = Math.floor(options.canvasInnerHeight / minimapLineHeight);
 		const lineHeight = options.lineHeight;
 
-		// Sometimes, the number of rendered lines varies for a constant viewport height.
-		// The reason is that only parts of the viewportStartLineNumber or viewportEndLineNumber are visible.
-		// This leads to an apparent tremor in the minimap's slider height.
-		// We try here to compensate, making the slider slightly incorrect in these cases, but more pleasing to the eye.
-		let viewportLineCount = viewportEndLineNumber - viewportStartLineNumber + 1;
-		const expectedViewportLineCount = Math.round(viewportHeight / lineHeight);
-		if (viewportLineCount > expectedViewportLineCount) {
-			viewportLineCount = expectedViewportLineCount;
+		// >>> The minimap slider should be center-aligned with the scrollbar slider. <<<
+		// >>> The entire minimap is painted around this constraint. <<<
+		//
+		// The slider should encompass the visible lines... Mostly.
+		//
+		// The visible line count in a viewport can change due to a number of reasons:
+		//  a) with the same viewport width, different scroll positions can result in partial lines being visible:
+		//    e.g. for a line height of 20, and a viewport height of 600
+		//          * scrollTop = 0  => visible lines are [1, 30]
+		//          * scrollTop = 10 => visible lines are [1, 31] (with lines 1 and 31 partially visible)
+		//          * scrollTop = 20 => visible lines are [2, 31]
+		//  b) whitespace gaps might make their way in the viewport (which results in a decrease in the visible line count)
+		//  c) we could be in the scroll beyond last line case (which also results in a decrease in the visible line count, down to possibly only one line being visible)
+		//
+		// It therefore results that the slider height is variable, based on the current viewport.
+
+
+		// We must first establish a desirable slider height.
+		if (viewportContainsWhitespaceGaps) {
+			// case b) from above: there are whitespace gaps in the viewport.
+			// In this case, the height of the slider directly reflects the visible line count.
+			const viewportLineCount = viewportEndLineNumber - viewportStartLineNumber + 1;
+			this.sliderHeight = Math.floor(viewportLineCount * minimapLineHeight / pixelRatio);
+		} else {
+			// The slider has a stable height
+			const expectedViewportLineCount = viewportHeight / lineHeight;
+			this.sliderHeight = Math.floor(expectedViewportLineCount * minimapLineHeight / pixelRatio);
 		}
 
 		if (minimapLinesFitting >= lineCount) {
 			// All lines fit in the minimap => no minimap scrolling
+			// => the slider cannot be center-aligned with the scrollbar slider
 			this.startLineNumber = 1;
 			this.endLineNumber = lineCount;
-		} else {
-			// The desire is to align (centers) the minimap's slider with the scrollbar's slider
 
-			// For a resolved this.startLineNumber, we can compute the minimap's slider's center with the following formula:
-			// scrollbarSliderCenter = (viewportStartLineNumber - this.startLineNumber + viewportLineCount/2) * minimapLineHeight / pixelRatio;
-			// =>
-			// scrollbarSliderCenter = (viewportStartLineNumber - this.startLineNumber + viewportLineCount/2) * minimapLineHeight / pixelRatio;
-			// scrollbarSliderCenter * pixelRatio / minimapLineHeight = viewportStartLineNumber - this.startLineNumber + viewportLineCount/2
-			// this.startLineNumber = viewportStartLineNumber + viewportLineCount/2 - scrollbarSliderCenter * pixelRatio / minimapLineHeight
-			let desiredStartLineNumber = Math.floor(viewportStartLineNumber + viewportLineCount / 2 - scrollbarSliderCenter * pixelRatio / minimapLineHeight);
-			let desiredEndLineNumber = desiredStartLineNumber + minimapLinesFitting - 1;
-
-			// Aligning the slider's centers can result (correctly) in tremor.
-			// i.e. scrolling down might result in the startLineNumber going up.
-			// Avoid this tremor by being consistent w.r.t. the previous computed result
-			if (lastRenderData) {
-				const lastLayoutDecision = lastRenderData.renderedLayout;
-				if (lastLayoutDecision.viewportStartLineNumber <= viewportStartLineNumber) {
-					// going down => make sure we don't go above our previous decision
-					if (desiredStartLineNumber < lastLayoutDecision.startLineNumber) {
-						desiredStartLineNumber = lastLayoutDecision.startLineNumber;
-						desiredEndLineNumber = desiredStartLineNumber + minimapLinesFitting - 1;
-					}
-				}
-				if (lastLayoutDecision.viewportStartLineNumber >= viewportStartLineNumber) {
-					// going up => make sure we don't go below our previous decision
-					if (desiredEndLineNumber > lastLayoutDecision.endLineNumber) {
-						desiredEndLineNumber = lastLayoutDecision.endLineNumber;
-						desiredStartLineNumber = desiredEndLineNumber - minimapLinesFitting + 1;
-					}
-				}
-			}
-
-			// Aligning the slider's centers is a very good thing, but this would make
-			// the minimap never scroll all the way to the top or to the bottom of the file.
-			// We therefore check that the viewport lines are in the minimap viewport.
-
-			// (a) validate on start line number
-			if (desiredStartLineNumber < 1) {
-				// must start after 1
-				desiredStartLineNumber = 1;
-				desiredEndLineNumber = desiredStartLineNumber + minimapLinesFitting - 1;
-			}
-			if (desiredStartLineNumber > viewportStartLineNumber) {
-				// must contain the viewport's start line number
-				desiredStartLineNumber = viewportStartLineNumber;
-				desiredEndLineNumber = desiredStartLineNumber + minimapLinesFitting - 1;
-			}
-
-			// (b) validate on end line number
-			if (desiredEndLineNumber > lineCount) {
-				// must end before line count
-				desiredEndLineNumber = lineCount;
-				desiredStartLineNumber = desiredEndLineNumber - minimapLinesFitting + 1;
-			}
-			if (desiredEndLineNumber < viewportEndLineNumber) {
-				// must contain the viewport's end line number
-				desiredEndLineNumber = viewportEndLineNumber;
-				desiredStartLineNumber = desiredEndLineNumber - minimapLinesFitting + 1;
-			}
-
-			this.startLineNumber = desiredStartLineNumber;
-			this.endLineNumber = desiredEndLineNumber;
-		}
-
-		this.sliderTop = Math.floor((viewportStartLineNumber - this.startLineNumber) * minimapLineHeight / pixelRatio);
-		if (viewportEndLineNumber === lineCount) {
-			// The last line is in the viewport => try to extend slider height below the painted lines
-			let desiredSliderHeight = Math.floor(expectedViewportLineCount * minimapLineHeight / pixelRatio);
-			if (this.sliderTop + desiredSliderHeight > options.minimapHeight) {
-				this.sliderHeight = options.minimapHeight - this.sliderTop;
+			if (viewportEndLineNumber === lineCount) {
+				// case c) from above: we could be in the scroll beyond last line case
+				this.sliderTop = Math.floor((viewportStartLineNumber - this.startLineNumber) * minimapLineHeight / pixelRatio);
 			} else {
-				this.sliderHeight = desiredSliderHeight;
+				const desiredSliderTop = (viewportStartLineNumber - this.startLineNumber) * minimapLineHeight / pixelRatio;
+				const desiredSliderBottom = (viewportEndLineNumber - this.startLineNumber) * minimapLineHeight / pixelRatio;
+				const desiredSliderCenter = (desiredSliderTop + desiredSliderBottom) / 2;
+				this.sliderTop = Math.floor(desiredSliderCenter - this.sliderHeight / 2);
 			}
 		} else {
-			this.sliderHeight = Math.floor(viewportLineCount * minimapLineHeight / pixelRatio);
+			// assign sliderTop last to maintain the same field assignment order in both if and else branches
+			const sliderTop = Math.floor(Math.min(options.minimapHeight - this.sliderHeight, Math.max(0, scrollbarSliderCenter - this.sliderHeight / 2)));
+
+			this.startLineNumber = Math.max(1, Math.floor(viewportStartLineNumber - sliderTop * pixelRatio / minimapLineHeight));
+			this.endLineNumber = Math.min(lineCount, this.startLineNumber + minimapLinesFitting - 1);
+			this.sliderTop = sliderTop;
 		}
 	}
 }
@@ -671,6 +633,7 @@ export class Minimap extends ViewPart {
 			renderingCtx.visibleRange.startLineNumber,
 			renderingCtx.visibleRange.endLineNumber,
 			renderingCtx.viewportHeight,
+			(renderingCtx.viewportData.whitespaceViewportData.length > 0),
 			this._context.model.getLineCount(),
 			this._editorScrollbar.getVerticalSliderVerticalCenter()
 		);

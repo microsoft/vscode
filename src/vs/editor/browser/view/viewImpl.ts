@@ -409,7 +409,7 @@ export class View extends ViewEventHandler {
 		const partialViewportData = this._context.viewLayout.getLinesViewportData();
 		this._context.model.setViewport(partialViewportData.startLineNumber, partialViewportData.endLineNumber, partialViewportData.centeredLineNumber);
 
-		let viewportData = new ViewportData(partialViewportData, this._context.model);
+		let viewportData = new ViewportData(partialViewportData, this._context.viewLayout.getWhitespaceViewportData(), this._context.model);
 
 		if (this.viewLines.shouldRender()) {
 			this.viewLines.renderText(viewportData);
