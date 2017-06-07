@@ -24,8 +24,13 @@ export function testDataMigration() {
 			return await common.removeDirectory(EXTENSIONS_DIR);
 		});
 
-		function setupSpectron(context: Mocha.ITestCallbackContext, appPath: string, workspace?: string[]): void {
-			app = new SpectronApplication(appPath, context.test.fullTitle(), context.test.currentRetry(), workspace, [`--user-data-dir=${USER_DIR}`, `--extensions-dir=${EXTENSIONS_DIR}`]);
+		function setupSpectron(context: Mocha.ITestCallbackContext, appPath: string, args?: string[]): void {
+			if (!args) {
+				args = [];
+			}
+			args.push(`--extensions-dir=${EXTENSIONS_DIR}`);
+
+			app = new SpectronApplication(appPath, context.test.fullTitle(), context.test.currentRetry(), args, [`--user-data-dir=${USER_DIR}`]);
 			common = new CommonActions(app);
 		}
 
