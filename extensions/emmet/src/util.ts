@@ -216,3 +216,54 @@ export function findPrevWord(propertyValue: string, pos: number): [number, numbe
 
 	return [newSelectionStart, newSelectionEnd];
 }
+
+export function getNodesInBetween(node1: Node, node2: Node): Node[] {
+	// Same node
+	if (sameNodes(node1, node2)) {
+		return [node1];
+	}
+
+	// Same parent
+	if (sameNodes(node1.parent, node2.parent)) {
+		return getNextSiblingsTillPosition(node1, node2.end);
+	}
+
+	// node2 is ancestor of node1
+	if (node2.start < node1.start) {
+		return [node2];
+	}
+
+	// node1 is ancestor of node2
+	if (node2.start < node1.end) {
+		return [node1];
+	}
+
+	// Get the highest ancestor of node1 that should be commented
+	while (node1.parent && node1.parent.end < node2.start) {
+		node1 = node1.parent;
+	}
+
+	// Get the highest ancestor of node2 that should be commented
+	while (node2.parent && node2.parent.start > node1.start) {
+		node2 = node2.parent;
+	}
+
+	return getNextSiblingsTillPosition(node1, node2.end);
+}
+
+function getNextSiblingsTillPosition(node: Node, position: number): Node[] {
+	let siblings: Node[] = [];
+	let currentNode = node;
+	while (currentNode && currentNode.start < position) {
+		siblings.push(currentNode);
+		currentNode = currentNode.nextSibling;
+	}
+	return siblings;
+}
+
+export function sameNodes(node1: Node, node2: Node): boolean {
+	if (!node1 || !node2) {
+		return false;
+	}
+	return node1.start === node2.start && node1.end === node2.end;
+}
