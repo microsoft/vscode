@@ -9,6 +9,8 @@ import 'vs/css!./media/task.contribution';
 import 'vs/workbench/parts/tasks/browser/taskQuickOpen';
 import 'vs/workbench/parts/tasks/browser/terminateQuickOpen';
 import 'vs/workbench/parts/tasks/browser/restartQuickOpen';
+import 'vs/workbench/parts/tasks/browser/buildQuickOpen';
+import 'vs/workbench/parts/tasks/browser/testQuickOpen';
 
 import * as nls from 'vs/nls';
 
@@ -626,7 +628,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (!this.canRunCommand()) {
 				return;
 			}
-			this.build();
+			this.runBuildCommand();
 		});
 
 		KeybindingsRegistry.registerKeybindingRule({
@@ -640,7 +642,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (!this.canRunCommand()) {
 				return;
 			}
-			this.runTest();
+			this.runTestCommand();
 		});
 	}
 
@@ -745,6 +747,33 @@ class TaskService extends EventEmitter implements ITaskService {
 		});
 	}
 
+	public getTasksForGroup(group: string): TPromise<Task[]> {
+		return this.getTaskSets().then((values) => {
+			let result: Task[] = [];
+			for (let value of values) {
+				for (let task of value.tasks) {
+					if (task.group === group) {
+						result.push(task);
+					}
+				}
+			}
+			return result;
+		});
+	}
+
+	private splitTasks(tasks: Task[]): { configured: Task[], detected: Task[] } {
+		let configured: Task[] = [];
+		let detected: Task[] = [];
+		for (let task of tasks) {
+			if (task._source.kind === TaskSourceKind.Workspace) {
+				configured.push(task);
+			} else {
+				detected.push(task);
+			}
+		}
+		return { configured, detected };
+	}
+
 	public customize(task: Task, openConfig: boolean = false): TPromise<void> {
 		if (task._source.kind !== TaskSourceKind.Extension) {
 			return TPromise.as<void>(undefined);
@@ -755,7 +784,10 @@ class TaskService extends EventEmitter implements ITaskService {
 			return TPromise.as<void>(undefined);
 		}
 		let fileConfig = configuration.config;
-		let customize = { customize: task.identifier, taskName: task._label, problemMatcher: [] };
+		let customize: TaskConfig.TaskDescription = { customize: task.identifier, taskName: task._label };
+		if (task.problemMatchers === void 0) {
+			customize.problemMatcher = [];
+		}
 		if (!fileConfig) {
 			fileConfig = {
 				version: '2.0.0',
@@ -1188,7 +1220,10 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	public inTerminal(): boolean {
-		return this._taskSystem instanceof TerminalTaskSystem;
+		if (this._taskSystem) {
+			return this._taskSystem instanceof TerminalTaskSystem;
+		}
+		return this.getExecutionEngine() === ExecutionEngine.Terminal;
 	}
 
 	private hasDetectorSupport(config: TaskConfig.ExternalTaskRunnerConfiguration): boolean {
@@ -1306,6 +1341,50 @@ class TaskService extends EventEmitter implements ITaskService {
 		}
 	}
 
+	private runBuildCommand(): void {
+		if (!this.canRunCommand()) {
+			return;
+		}
+		if (!this.inTerminal()) {
+			this.build();
+			return;
+		}
+		this.getTasksForGroup(TaskGroup.Build).then((tasks) => {
+			let { configured, detected } = this.splitTasks(tasks);
+			let total = configured.length + detected.length;
+			if (total === 0) {
+				return;
+			}
+			if (total === 1) {
+				this.run(configured[0] || detected[0]);
+			} else {
+				this.quickOpenService.show('build task ');
+			}
+		});
+	}
+
+	private runTestCommand(): void {
+		if (!this.canRunCommand()) {
+			return;
+		}
+		if (!this.inTerminal()) {
+			this.build();
+			return;
+		}
+		this.getTasksForGroup(TaskGroup.Test).then((tasks) => {
+			let { configured, detected } = this.splitTasks(tasks);
+			let total = configured.length + detected.length;
+			if (total === 0) {
+				return;
+			}
+			if (total === 1) {
+				this.run(configured[0] || detected[0]);
+			} else {
+				this.quickOpenService.show('test task ');
+			}
+		});
+	}
+
 	private runTerminateCommand(): void {
 		if (!this.canRunCommand()) {
 			return;
@@ -1409,6 +1488,24 @@ quickOpenRegistry.registerQuickOpenHandler(
 		'QuickOpenHandler',
 		'restart task ',
 		nls.localize('quickOpen.restartTask', "Restart Task")
+	)
+);
+
+quickOpenRegistry.registerQuickOpenHandler(
+	new QuickOpenHandlerDescriptor(
+		'vs/workbench/parts/tasks/browser/buildQuickOpen',
+		'QuickOpenHandler',
+		'build task ',
+		nls.localize('quickOpen.buildTask', "Build Task")
+	)
+);
+
+quickOpenRegistry.registerQuickOpenHandler(
+	new QuickOpenHandlerDescriptor(
+		'vs/workbench/parts/tasks/browser/testQuickOpen',
+		'QuickOpenHandler',
+		'test task ',
+		nls.localize('quickOpen.testTask', "Test Task")
 	)
 );
 

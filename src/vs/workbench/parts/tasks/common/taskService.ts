@@ -42,6 +42,7 @@ export interface ITaskService extends IEventEmitter {
 	terminate(task: string | Task): TPromise<TerminateResponse>;
 	terminateAll(): TPromise<TerminateResponse>;
 	tasks(): TPromise<Task[]>;
+	getTasksForGroup(group: string): TPromise<Task[]>;
 
 	customize(task: Task, openConfig?: boolean): TPromise<void>;
 
