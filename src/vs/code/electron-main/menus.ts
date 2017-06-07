@@ -539,6 +539,8 @@ export class VSCodeMenu {
 
 		if (folders.length || files.length) {
 			openRecentMenu.append(__separator__());
+			openRecentMenu.append(this.createMenuItem(nls.localize({ key: 'miMore', comment: ['&& denotes a mnemonic'] }, "&&More..."), 'workbench.action.openRecent'));
+			openRecentMenu.append(__separator__());
 			openRecentMenu.append(this.createMenuItem(nls.localize({ key: 'miClearRecentOpen', comment: ['&& denotes a mnemonic'] }, "&&Clear Recent Files"), 'workbench.action.clearRecentFiles'));
 		}
 	}
