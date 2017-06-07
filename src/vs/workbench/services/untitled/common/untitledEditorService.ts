@@ -12,10 +12,19 @@ import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Event, { Emitter, once } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
+import { TPromise } from "vs/base/common/winjs.base";
+import { UntitledEditorModel } from "vs/workbench/common/editor/untitledEditorModel";
+import { Schemas } from "vs/base/common/network";
 
 export const IUntitledEditorService = createDecorator<IUntitledEditorService>('untitledEditorService');
 
 export const UNTITLED_SCHEMA = 'untitled';
+
+export interface IModelLoadOrCreateOptions {
+	resource?: URI;
+	modeId?: string;
+	initialValue?: string;
+}
 
 export interface IUntitledEditorService {
 
@@ -42,19 +51,14 @@ export interface IUntitledEditorService {
 	onDidDisposeModel: Event<URI>;
 
 	/**
-	 * Returns the untitled editor input matching the provided resource.
+	 * Returns if an untitled resource with the given URI exists.
 	 */
-	get(resource: URI): UntitledEditorInput;
-
-	/**
-	 * Returns all untitled editor inputs.
-	 */
-	getAll(resources?: URI[]): UntitledEditorInput[];
+	exists(resource: URI): boolean;
 
 	/**
 	 * Returns dirty untitled editors as resource URIs.
 	 */
-	getDirty(): URI[];
+	getDirty(resources?: URI[]): URI[];
 
 	/**
 	 * Returns true iff the provided resource is dirty.
@@ -76,9 +80,28 @@ export interface IUntitledEditorService {
 	createOrGet(resource?: URI, modeId?: string, initialValue?: string): UntitledEditorInput;
 
 	/**
+	 * Creates a new untitled model with the optional resource URI or returns an existing one
+	 * if the provided resource exists already as untitled model.
+	 *
+	 * It is valid to pass in a file resource. In that case the path will be used as identifier.
+	 * The use case is to be able to create a new file with a specific path with VSCode.
+	 */
+	loadOrCreate(options: IModelLoadOrCreateOptions): TPromise<UntitledEditorModel>;
+
+	/**
 	 * A check to find out if a untitled resource has a file path associated or not.
 	 */
 	hasAssociatedFilePath(resource: URI): boolean;
+
+	/**
+	 * Suggests a filename for the given untitled resource if it is known.
+	 */
+	suggestFileName(resource: URI): string;
+
+	/**
+	 * Get the configured encoding for the given untitled resource if any.
+	 */
+	getEncoding(resource: URI): string;
 }
 
 export class UntitledEditorService implements IUntitledEditorService {
@@ -119,16 +142,20 @@ export class UntitledEditorService implements IUntitledEditorService {
 		return this._onDidChangeEncoding.event;
 	}
 
-	public get(resource: URI): UntitledEditorInput {
+	protected get(resource: URI): UntitledEditorInput {
 		return this.mapResourceToInput.get(resource);
 	}
 
-	public getAll(resources?: URI[]): UntitledEditorInput[] {
+	protected getAll(resources?: URI[]): UntitledEditorInput[] {
 		if (resources) {
 			return arrays.coalesce(resources.map(r => this.get(r)));
 		}
 
 		return this.mapResourceToInput.values();
+	}
+
+	public exists(resource: URI): boolean {
+		return this.mapResourceToInput.has(resource);
 	}
 
 	public revertAll(resources?: URI[], force?: boolean): URI[] {
@@ -153,16 +180,29 @@ export class UntitledEditorService implements IUntitledEditorService {
 		return input && input.isDirty();
 	}
 
-	public getDirty(): URI[] {
-		return this.mapResourceToInput.values()
+	public getDirty(resources?: URI[]): URI[] {
+		let inputs: UntitledEditorInput[];
+		if (resources) {
+			inputs = resources.map(r => this.get(r)).filter(i => !!i);
+		} else {
+			inputs = this.mapResourceToInput.values();
+		}
+
+		return inputs
 			.filter(i => i.isDirty())
 			.map(i => i.getResource());
 	}
 
+	public loadOrCreate(options: IModelLoadOrCreateOptions = Object.create(null)): TPromise<UntitledEditorModel> {
+		return this.createOrGet(options.resource, options.modeId, options.initialValue).resolve();
+	}
+
 	public createOrGet(resource?: URI, modeId?: string, initialValue?: string): UntitledEditorInput {
+
+		// Massage resource if it comes with a file:// scheme
 		let hasAssociatedFilePath = false;
 		if (resource) {
-			hasAssociatedFilePath = (resource.scheme === 'file');
+			hasAssociatedFilePath = (resource.scheme === Schemas.file);
 			resource = resource.with({ scheme: UNTITLED_SCHEMA }); // ensure we have the right scheme
 
 			if (hasAssociatedFilePath) {
@@ -235,6 +275,18 @@ export class UntitledEditorService implements IUntitledEditorService {
 
 	public hasAssociatedFilePath(resource: URI): boolean {
 		return this.mapResourceToAssociatedFilePath.has(resource);
+	}
+
+	public suggestFileName(resource: URI): string {
+		const input = this.get(resource);
+
+		return input ? input.suggestFileName() : void 0;
+	}
+
+	public getEncoding(resource: URI): string {
+		const input = this.get(resource);
+
+		return input ? input.getEncoding() : void 0;
 	}
 
 	public dispose(): void {

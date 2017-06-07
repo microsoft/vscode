@@ -116,8 +116,7 @@ export class TextModelResolverService implements ITextModelResolverService {
 		// Untitled Schema: go through cached input
 		// TODO ImmortalReference is a hack
 		if (resource.scheme === UNTITLED_SCHEMA) {
-			return this.untitledEditorService.createOrGet(resource).resolve()
-				.then(model => new ImmortalReference(model));
+			return this.untitledEditorService.loadOrCreate({ resource }).then(model => new ImmortalReference(model));
 		}
 
 		// InMemory Schema: go through model service cache
