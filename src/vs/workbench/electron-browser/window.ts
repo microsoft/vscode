@@ -38,7 +38,7 @@ import { IWorkbenchThemeService, VS_HC_THEME, VS_DARK_THEME } from 'vs/workbench
 import * as browser from 'vs/base/browser/browser';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { Position, IResourceInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
+import { Position, IResourceInput, IUntitledResourceInput, IEditor } from 'vs/platform/editor/common/editor';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { Themable, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
@@ -389,8 +389,9 @@ export class ElectronWindow extends Themable {
 		}
 	}
 
-	private openResources(resources: (IResourceInput | IUntitledResourceInput)[], diffMode: boolean): TPromise<any> {
-		return this.partService.joinCreation().then(() => {
+	private openResources(resources: (IResourceInput | IUntitledResourceInput)[], diffMode: boolean): TPromise<IEditor | IEditor[]> {
+		return this.partService.joinCreation().then((): TPromise<IEditor | IEditor[]> => {
+
 
 			// In diffMode we open 2 resources as diff
 			if (diffMode && resources.length === 2) {
