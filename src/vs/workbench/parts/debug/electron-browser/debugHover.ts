@@ -21,6 +21,7 @@ import { IDebugService, IExpression, IExpressionContainer } from 'vs/workbench/p
 import { Expression } from 'vs/workbench/parts/debug/common/debugModel';
 import { VariablesRenderer, renderExpressionValue, VariablesDataSource } from 'vs/workbench/parts/debug/electron-browser/debugViewer';
 import { IListService } from 'vs/platform/list/browser/listService';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 
 const $ = dom.$;
 const MAX_ELEMENTS_SHOWN = 18;
@@ -42,6 +43,7 @@ export class DebugHoverWidget implements IContentWidget {
 	private valueContainer: HTMLElement;
 	private stoleFocus: boolean;
 	private toDispose: lifecycle.IDisposable[];
+	private scrollbar: DomScrollableElement;
 
 	constructor(
 		private editor: ICodeEditor,
@@ -68,6 +70,7 @@ export class DebugHoverWidget implements IContentWidget {
 	private create(instantiationService: IInstantiationService): void {
 		this.domNode = $('.debug-hover-widget');
 		this.complexValueContainer = dom.append(this.domNode, $('.complex-value'));
+		this.scrollbar = new DomScrollableElement(this.complexValueContainer, { canUseTranslate3d: false });
 		this.complexValueTitle = dom.append(this.complexValueContainer, $('.title'));
 		this.treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
 		this.treeContainer.setAttribute('role', 'tree');
@@ -81,6 +84,8 @@ export class DebugHoverWidget implements IContentWidget {
 				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
 				keyboardSupport: false
 			});
+		this.toDispose.push(this.scrollbar);
+		this.domNode.appendChild(this.scrollbar.getDomNode());
 
 		this.toDispose.push(this.listService.register(this.tree));
 	}
