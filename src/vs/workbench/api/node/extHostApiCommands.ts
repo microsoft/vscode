@@ -231,13 +231,14 @@ export class ExtHostApiCommands {
 				]
 			});
 
-		this._register('vscode.open', (resource: URI, column: vscode.ViewColumn) => {
-			return this._commands.executeCommand('_workbench.open', [resource, typeConverters.fromViewColumn(column)]);
+		this._register('vscode.open', (resource: URI, column: vscode.ViewColumn, selection: types.Range) => {
+			return this._commands.executeCommand('_workbench.open', [resource, typeConverters.fromViewColumn(column), typeConverters.fromRange(selection)]);
 		}, {
 				description: 'Opens the provided resource in the editor. Can be a text or binary file, or a http(s) url',
 				args: [
 					{ name: 'resource', description: 'Resource to open', constraint: URI },
-					{ name: 'column', description: '(optional) Column in which to open', constraint: v => v === void 0 || typeof v === 'number' }
+					{ name: 'column', description: '(optional) Column in which to open', constraint: v => v === void 0 || typeof v === 'number' },
+					{ name: 'selection', description: '(optional) The range to select in the opened document', constraint: v => v === void 0 || types.Range.isRange(v) },
 				]
 			});
 	}
