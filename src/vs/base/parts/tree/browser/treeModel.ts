@@ -1235,6 +1235,9 @@ export class TreeModel extends Events.EventEmitter {
 		}
 
 		if (item) {
+			while (item.hasChildren()) {
+				item = item.lastChild;
+			}
 			this.setFocus(item, eventPayload);
 		}
 	}
