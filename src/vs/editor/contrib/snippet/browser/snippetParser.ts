@@ -187,12 +187,12 @@ export class Placeholder extends Marker {
 		}
 	}
 
-	constructor(public index: string = '', children: Marker[]) {
+	constructor(public index: number, children: Marker[]) {
 		super();
 		this.children = children;
 	}
 	get isFinalTabstop() {
-		return this.index === '0';
+		return this.index === 0;
 	}
 	toString() {
 		return Marker.toString(this.children);
@@ -356,7 +356,7 @@ export class SnippetParser {
 
 		// * fill in default for empty placeHolders
 		// * compact sibling Text markers
-		function walk(marker: Marker[], placeholderDefaultValues: Map<string, Marker[]>) {
+		function walk(marker: Marker[], placeholderDefaultValues: Map<number, Marker[]>) {
 
 			for (let i = 0; i < marker.length; i++) {
 				const thisMarker = marker[i];
@@ -385,16 +385,16 @@ export class SnippetParser {
 			}
 		}
 
-		const placeholderDefaultValues = new Map<string, Marker[]>();
+		const placeholderDefaultValues = new Map<number, Marker[]>();
 		walk(marker, placeholderDefaultValues);
 
 		if (
-			!placeholderDefaultValues.has('0') && // there is no final tabstop
+			!placeholderDefaultValues.has(0) && // there is no final tabstop
 			(insertFinalTabstop && placeholderDefaultValues.size > 0 || enforceFinalTabstop)
 		) {
 			// the snippet uses placeholders but has no
 			// final tabstop defined -> insert at the end
-			marker.push(new Placeholder('0', []));
+			marker.push(new Placeholder(0, []));
 		}
 
 		return marker;
@@ -433,7 +433,7 @@ export class SnippetParser {
 			if (this._accept(TokenType.VariableName) || this._accept(TokenType.Int)) {
 				// $FOO, $123
 				const idOrName = this._scanner.tokenText(this._prevToken);
-				marker.push(/^\d+$/.test(idOrName) ? new Placeholder(idOrName, []) : new Variable(idOrName, []));
+				marker.push(/^\d+$/.test(idOrName) ? new Placeholder(Number(idOrName), []) : new Variable(idOrName, []));
 				return true;
 
 			} else if (this._accept(TokenType.CurlyOpen)) {
@@ -451,7 +451,7 @@ export class SnippetParser {
 
 					if (this._accept(TokenType.CurlyClose)) {
 						const idOrName = Marker.toString(name);
-						marker.push(/^\d+$/.test(idOrName) ? new Placeholder(idOrName, children) : new Variable(idOrName, children));
+						marker.push(/^\d+$/.test(idOrName) ? new Placeholder(Number(idOrName), children) : new Variable(idOrName, children));
 						return true;
 					}
 

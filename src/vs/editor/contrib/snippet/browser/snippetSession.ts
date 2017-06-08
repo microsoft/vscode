@@ -173,9 +173,9 @@ export class OneSnippet {
 				// through the placeholders in the correct order
 				for (const nestedPlaceholder of nested._snippet.placeholders) {
 					if (nestedPlaceholder.isFinalTabstop) {
-						nestedPlaceholder.index = `${placeholder.index}.${nested._snippet.placeholders.length}`;
+						nestedPlaceholder.index = placeholder.index + (nested._snippet.placeholders.length / 10);
 					} else {
-						nestedPlaceholder.index = `${placeholder.index}.${nestedPlaceholder.index}`;
+						nestedPlaceholder.index = placeholder.index + (nestedPlaceholder.index / 10);
 					}
 				}
 				this._snippet.replace(placeholder, nested._snippet.children);
