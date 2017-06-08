@@ -97,16 +97,16 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 
 		if (!Range.isEmpty(r)) {
 			// Insert block comment start
-			res.push(EditOperation.insert(new Position(r.startLineNumber, r.startColumn), startToken));
+			res.push(EditOperation.insert(new Position(r.startLineNumber, r.startColumn), startToken + ' '));
 
 			// Insert block comment end
-			res.push(EditOperation.insert(new Position(r.endLineNumber, r.endColumn), endToken));
+			res.push(EditOperation.insert(new Position(r.endLineNumber, r.endColumn), ' ' + endToken));
 		} else {
 			// Insert both continuously
 			res.push(EditOperation.replace(new Range(
 				r.startLineNumber, r.startColumn,
 				r.endLineNumber, r.endColumn
-			), startToken + endToken));
+			), startToken + '  ' + endToken));
 		}
 
 		return res;
