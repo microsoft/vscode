@@ -12,9 +12,9 @@ import { IStorageService } from 'vs/platform/storage/node/storage';
 import Event, { Emitter, once } from 'vs/base/common/event';
 import { ConfigWatcher } from 'vs/base/node/config';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
-import { IEnvironmentService } from "vs/platform/environment/common/environment";
-import { IWindowsMainService } from "vs/platform/windows/electron-main/windowsService";
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ipcMain as ipc } from 'electron';
+import { IWindowsMainService } from "vs/platform/windows/electron-main/windows";
 
 export class KeyboardLayoutMonitor {
 

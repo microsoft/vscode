@@ -11,8 +11,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { BrowserWindow, ipcMain } from 'electron';
 import { PromiseSource } from 'vs/base/common/async';
+import { ISharedProcess } from "vs/platform/windows/electron-main/windows";
 
-export class SharedProcess {
+export class SharedProcess implements ISharedProcess {
 
 	private spawnPromiseSource: PromiseSource<void>;
 

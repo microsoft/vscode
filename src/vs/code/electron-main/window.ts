@@ -19,11 +19,11 @@ import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/node/product';
 import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
-import { IWindowSettings, MenuBarVisibility, ReadyState } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState } from 'vs/platform/windows/common/windows';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
-import { isLinux, isMacintosh, isWindows } from "vs/base/common/platform";
-import { ICodeWindow, IWindowConfiguration } from "vs/platform/windows/electron-main/windowsService";
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { ICodeWindow } from "vs/platform/windows/electron-main/windows";
 
 export interface IWindowState {
 	width?: number;

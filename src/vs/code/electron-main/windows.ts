@@ -23,14 +23,14 @@ import { ILifecycleService, UnloadReason } from 'vs/platform/lifecycle/electron-
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getPathLabel } from 'vs/base/common/labels';
-import { IWindowSettings, OpenContext } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, OpenContext, IPath, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { getLastActiveWindow, findBestWindowOrFolder } from 'vs/code/node/windowsUtils';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/node/product';
 import { ITelemetryService, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { isParent, isEqual, isEqualOrParent } from 'vs/platform/files/common/files';
 import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
-import { IPath, IWindowsMainService, IOpenConfiguration, IRecentPathsList, IWindowConfiguration } from "vs/platform/windows/electron-main/windowsService";
+import { IWindowsMainService, IOpenConfiguration, IRecentPathsList } from "vs/platform/windows/electron-main/windows";
 
 enum WindowError {
 	UNRESPONSIVE,

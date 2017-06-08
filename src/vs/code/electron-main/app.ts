@@ -10,7 +10,7 @@ import * as platform from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
 import { IWindowsService, OpenContext } from 'vs/platform/windows/common/windows';
 import { WindowsChannel } from 'vs/platform/windows/common/windowsIpc';
-import { WindowsService, IWindowsMainService } from 'vs/platform/windows/electron-main/windowsService';
+import { WindowsService } from 'vs/platform/windows/electron-main/windowsService';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { CodeMenu } from 'vs/code/electron-main/menus';
 import { getShellEnvironment } from 'vs/code/node/shellEnv';
@@ -44,6 +44,7 @@ import pkg from 'vs/platform/node/package';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { TPromise } from "vs/base/common/winjs.base";
+import { IWindowsMainService } from "vs/platform/windows/electron-main/windows";
 
 export class CodeApplication {
 	private toDispose: IDisposable[];

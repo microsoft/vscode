@@ -9,6 +9,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+import { IProcessEnvironment } from "vs/base/common/platform";
+import { ParsedArgs } from "vs/platform/environment/common/environment";
 
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
@@ -109,6 +111,27 @@ export interface IWindowSettings {
 	enableMenuBarMnemonics: boolean;
 }
 
+export enum OpenContext {
+
+	// opening when running from the command line
+	CLI,
+
+	// macOS only: opening from the dock (also when opening files to a running instance from desktop)
+	DOCK,
+
+	// opening from the main application window
+	MENU,
+
+	// opening from a file or folder dialog
+	DIALOG,
+
+	// opening from the OS's UI
+	DESKTOP,
+
+	// opening through the API
+	API
+}
+
 export enum ReadyState {
 
 	/**
@@ -132,23 +155,50 @@ export enum ReadyState {
 	READY
 }
 
-export enum OpenContext {
+export interface IPath {
 
-	// opening when running from the command line
-	CLI,
+	// the workspace spath for a Code instance which can be null
+	workspacePath?: string;
 
-	// macOS only: opening from the dock (also when opening files to a running instance from desktop)
-	DOCK,
+	// the file path to open within a Code instance
+	filePath?: string;
 
-	// opening from the main application window
-	MENU,
+	// the line number in the file path to open
+	lineNumber?: number;
 
-	// opening from a file or folder dialog
-	DIALOG,
+	// the column number in the file path to open
+	columnNumber?: number;
 
-	// opening from the OS's UI
-	DESKTOP,
+	// indicator to create the file path in the Code instance
+	createFilePath?: boolean;
+}
 
-	// opening through the API
-	API
+export interface IWindowConfiguration extends ParsedArgs {
+	appRoot: string;
+	execPath: string;
+
+	userEnv: IProcessEnvironment;
+
+	isISOKeyboard?: boolean;
+
+	zoomLevel?: number;
+	fullscreen?: boolean;
+	highContrast?: boolean;
+	baseTheme?: string;
+	backgroundColor?: string;
+	accessibilitySupport?: boolean;
+
+	isInitialStartup?: boolean;
+
+	perfStartTime?: number;
+	perfAppReady?: number;
+	perfWindowLoadTime?: number;
+
+	workspacePath?: string;
+
+	filesToOpen?: IPath[];
+	filesToCreate?: IPath[];
+	filesToDiff?: IPath[];
+
+	nodeCachedDataDir: string;
 }

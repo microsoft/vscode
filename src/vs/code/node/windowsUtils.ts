@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as platform from 'vs/base/common/platform';
 import * as paths from 'vs/base/common/paths';
-import { OpenContext } from "vs/platform/windows/common/windows";
+import { OpenContext } from 'vs/platform/windows/common/windows';
 import { isEqualOrParent } from 'vs/platform/files/common/files';
 
 /**

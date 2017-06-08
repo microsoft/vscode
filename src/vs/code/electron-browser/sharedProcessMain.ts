@@ -33,7 +33,7 @@ import { ChoiceChannelClient } from 'vs/platform/message/common/messageIpc';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { ipcRenderer } from 'electron';
-import { IDisposable, dispose } from "vs/base/common/lifecycle";
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 interface ISharedProcessInitData {
 	sharedIPCHandle: string;
