@@ -10,7 +10,7 @@ import { IWindowsMainService } from 'vs/code/electron-main/windows';
 import { VSCodeWindow } from 'vs/code/electron-main/window';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { ILogService } from 'vs/code/electron-main/log';
+import { ILogService } from 'vs/code/common/log';
 import { IURLService } from 'vs/platform/url/common/url';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -41,7 +41,7 @@ export class LaunchChannel implements ILaunchChannel {
 
 	constructor(private service: ILaunchService) { }
 
-	call(command: string, arg: any): TPromise<any> {
+	public call(command: string, arg: any): TPromise<any> {
 		switch (command) {
 			case 'start':
 				const { args, userEnv } = arg as IStartArguments;
@@ -50,6 +50,7 @@ export class LaunchChannel implements ILaunchChannel {
 			case 'get-main-process-id':
 				return this.service.getMainProcessId();
 		}
+
 		return undefined;
 	}
 }
@@ -60,11 +61,11 @@ export class LaunchChannelClient implements ILaunchService {
 
 	constructor(private channel: ILaunchChannel) { }
 
-	start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
+	public start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
 		return this.channel.call('start', { args, userEnv });
 	}
 
-	getMainProcessId(): TPromise<number> {
+	public getMainProcessId(): TPromise<number> {
 		return this.channel.call('get-main-process-id', null);
 	}
 }
@@ -79,19 +80,20 @@ export class LaunchService implements ILaunchService {
 		@IURLService private urlService: IURLService
 	) { }
 
-	start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
+	public start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
 		this.logService.log('Received data from other instance: ', args, userEnv);
 
+		// Check early for open-url which is handled in URL service
 		const openUrlArg = args['open-url'] || [];
 		const openUrl = typeof openUrlArg === 'string' ? [openUrlArg] : openUrlArg;
-		const context = !!userEnv['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
-
 		if (openUrl.length > 0) {
 			openUrl.forEach(url => this.urlService.open(url));
+
 			return TPromise.as(null);
 		}
 
 		// Otherwise handle in windows service
+		const context = !!userEnv['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
 		let usedWindows: VSCodeWindow[];
 		if (!!args.extensionDevelopmentPath) {
 			this.windowsService.openExtensionDevelopmentHostWindow({ context, cli: args, userEnv });
@@ -129,8 +131,9 @@ export class LaunchService implements ILaunchService {
 		return TPromise.as(null);
 	}
 
-	getMainProcessId(): TPromise<number> {
+	public getMainProcessId(): TPromise<number> {
 		this.logService.log('Received request for process ID from other instance.');
+
 		return TPromise.as(process.pid);
 	}
 }

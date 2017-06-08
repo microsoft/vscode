@@ -14,6 +14,8 @@ import { PromiseSource } from 'vs/base/common/async';
 
 export class SharedProcess {
 
+	private spawnPromiseSource: PromiseSource<void>;
+
 	private window: Electron.BrowserWindow;
 	private disposables: IDisposable[] = [];
 
@@ -41,6 +43,7 @@ export class SharedProcess {
 		this.disposables.push(toDisposable(() => this.window.removeListener('close', onClose)));
 
 		this.disposables.push(toDisposable(() => {
+
 			// Electron seems to crash on Windows without this setTimeout :|
 			setTimeout(() => {
 				try {
@@ -65,8 +68,6 @@ export class SharedProcess {
 		});
 	}
 
-	private spawnPromiseSource: PromiseSource<void>;
-
 	constructor(
 		private environmentService: IEnvironmentService,
 		private userEnv: IProcessEnvironment
@@ -74,15 +75,15 @@ export class SharedProcess {
 		this.spawnPromiseSource = new PromiseSource<void>();
 	}
 
-	spawn(): void {
+	public spawn(): void {
 		this.spawnPromiseSource.complete();
 	}
 
-	whenReady(): TPromise<void> {
+	public whenReady(): TPromise<void> {
 		return this.spawnPromiseSource.value.then(() => this._whenReady);
 	}
 
-	toggle(): void {
+	public toggle(): void {
 		if (this.window.isVisible()) {
 			this.hide();
 		} else {
@@ -90,17 +91,17 @@ export class SharedProcess {
 		}
 	}
 
-	show(): void {
+	public show(): void {
 		this.window.show();
 		this.window.webContents.openDevTools();
 	}
 
-	hide(): void {
+	public hide(): void {
 		this.window.webContents.closeDevTools();
 		this.window.hide();
 	}
 
-	dispose(): void {
+	public dispose(): void {
 		this.disposables = dispose(this.disposables);
 	}
 }

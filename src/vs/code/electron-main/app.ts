@@ -14,7 +14,7 @@ import { WindowsChannel } from 'vs/platform/windows/common/windowsIpc';
 import { WindowsService } from 'vs/platform/windows/electron-main/windowsService';
 import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { VSCodeMenu } from 'vs/code/electron-main/menus';
-import { getShellEnvironment } from 'vs/code/electron-main/shellEnv';
+import { getShellEnvironment } from 'vs/code/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { UpdateChannel } from 'vs/platform/update/common/updateIpc';
 import { UpdateService } from 'vs/platform/update/electron-main/updateService';
@@ -26,8 +26,8 @@ import { LaunchService, LaunchChannel, ILaunchService } from './launch';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ILogService } from 'vs/code/electron-main/log';
-import { IStorageService } from 'vs/code/electron-main/storage';
+import { ILogService } from 'vs/code/common/log';
+import { IStorageService } from 'vs/code/node/storage';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { BackupChannel } from 'vs/platform/backup/common/backupIpc';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -146,8 +146,7 @@ export class VSCodeApplication {
 		// Spawn shared process
 		this.sharedProcess = new SharedProcess(this.environmentService, this.userEnv);
 		this.toDispose.push(this.sharedProcess);
-		this.sharedProcessClient = this.sharedProcess.whenReady()
-			.then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
+		this.sharedProcessClient = this.sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
 
 		// Services
 		const appInstantiationService = this.initServices();

@@ -36,7 +36,6 @@ export interface IWindowEventService {
 }
 
 export class ActiveWindowManager implements IDisposable {
-
 	private disposables: IDisposable[] = [];
 	private _activeWindowId: number;
 
@@ -49,11 +48,11 @@ export class ActiveWindowManager implements IDisposable {
 		this._activeWindowId = windowId;
 	}
 
-	get activeClientId(): string {
+	public get activeClientId(): string {
 		return `window:${this._activeWindowId}`;
 	}
 
-	dispose() {
+	public dispose() {
 		this.disposables = dispose(this.disposables);
 	}
 }

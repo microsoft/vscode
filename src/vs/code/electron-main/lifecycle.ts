@@ -9,8 +9,8 @@ import { ipcMain as ipc, app } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { ReadyState, VSCodeWindow } from 'vs/code/electron-main/window';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILogService } from 'vs/code/electron-main/log';
-import { IStorageService } from 'vs/code/electron-main/storage';
+import { ILogService } from 'vs/code/common/log';
+import { IStorageService } from 'vs/code/node/storage';
 import Event, { Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 

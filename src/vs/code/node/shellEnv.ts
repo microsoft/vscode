@@ -11,7 +11,6 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isWindows } from 'vs/base/common/platform';
 
-
 function getUnixShellEnvironment(): TPromise<typeof process.env> {
 	const promise = new TPromise((c, e) => {
 		const runAsNode = process.env['ELECTRON_RUN_AS_NODE'];
@@ -88,5 +87,6 @@ export function getShellEnvironment(): TPromise<typeof process.env> {
 			_shellEnv = getUnixShellEnvironment();
 		}
 	}
+
 	return _shellEnv;
 }
