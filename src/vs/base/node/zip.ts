@@ -38,6 +38,11 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 	const dirName = path.dirname(fileName);
 	const targetDirName = path.join(targetPath, dirName);
 	const targetFileName = path.join(targetPath, fileName);
+	
+	// directory file names end with '/'
+	if (/\/$/.test(fileName)) {
+        return mkdirp(targetFileName);
+    }
 
 	return mkdirp(targetDirName).then(() => new Promise((c, e) => {
 		let istream = createWriteStream(targetFileName, { mode });
