@@ -40,8 +40,8 @@ type TreeItemHandle = number;
 
 class TreeViewDataProvider implements ITreeViewDataProvider {
 
-	private _onDidChange: Emitter<ITreeItem | undefined | void> = new Emitter<ITreeItem | undefined | void>();
-	readonly onDidChange: Event<ITreeItem | undefined | void> = this._onDidChange.event;
+	private _onDidChange: Emitter<ITreeItem | undefined | null> = new Emitter<ITreeItem | undefined | null>();
+	readonly onDidChange: Event<ITreeItem | undefined | null> = this._onDidChange.event;
 
 	private childrenMap: Map<TreeItemHandle, TreeItemHandle[]> = new Map<TreeItemHandle, TreeItemHandle[]>();
 	private itemsMap: Map<TreeItemHandle, ITreeItem> = new Map<TreeItemHandle, ITreeItem>();

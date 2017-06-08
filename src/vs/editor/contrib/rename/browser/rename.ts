@@ -38,7 +38,7 @@ export function rename(model: IReadOnlyModel, position: Position, newName: strin
 	let hasResult = false;
 
 	const factory = supports.map(support => {
-		return () => {
+		return (): TPromise<WorkspaceEdit> => {
 			if (!hasResult) {
 				return asWinJsPromise((token) => {
 					return support.provideRenameEdits(model, position, newName, token);

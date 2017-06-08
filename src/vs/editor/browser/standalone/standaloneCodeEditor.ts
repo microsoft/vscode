@@ -25,6 +25,7 @@ import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 
 /**
  * The options to create an editor.
@@ -83,6 +84,15 @@ export interface IStandaloneDiffEditor extends IDiffEditor {
 
 let LAST_GENERATED_COMMAND_ID = 0;
 
+let ariaDomNodeCreated = false;
+function createAriaDomNode() {
+	if (ariaDomNodeCreated) {
+		return;
+	}
+	ariaDomNodeCreated = true;
+	aria.setARIAContainer(document.body);
+}
+
 /**
  * A code editor to be used both by the standalone editor and the standalone diff editor.
  */
@@ -105,6 +115,9 @@ export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeE
 		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = keybindingService;
 		}
+
+		// Create the ARIA dom node as soon as the first editor is instantiated
+		createAriaDomNode();
 	}
 
 	public addCommand(keybinding: number, handler: ICommandHandler, context: string): string {

@@ -435,17 +435,17 @@ export class Thread implements IThread {
 	 * Only fetches the first stack frame for performance reasons. Calling this method consecutive times
 	 * gets the remainder of the call stack.
 	 */
-	public fetchCallStack(): TPromise<void> {
+	public fetchCallStack(smartFetch = true): TPromise<void> {
 		if (!this.stopped) {
 			return TPromise.as(null);
 		}
 
-		if (!this.fetchPromise) {
+		if (!this.fetchPromise && smartFetch) {
 			this.fetchPromise = this.getCallStackImpl(0, 1).then(callStack => {
 				this.callStack = callStack || [];
 			});
 		} else {
-			this.fetchPromise = this.fetchPromise.then(() => this.getCallStackImpl(this.callStack.length, 20).then(callStackSecondPart => {
+			this.fetchPromise = (this.fetchPromise || TPromise.as(null)).then(() => this.getCallStackImpl(this.callStack.length, 20).then(callStackSecondPart => {
 				this.callStack = this.callStack.concat(callStackSecondPart);
 			}));
 		}
@@ -939,9 +939,11 @@ export class Model implements IModel {
 	public appendToRepl(output: string | IExpression, severity: severity): void {
 		if (typeof output === 'string') {
 			const previousOutput = this.replElements.length && (this.replElements[this.replElements.length - 1] as OutputElement);
-			if (previousOutput instanceof OutputElement && severity === previousOutput.severity && previousOutput.value === output && output.trim() && output.length > 1) {
+			const lastNonEmpty = previousOutput && previousOutput.value.trim() ? previousOutput : this.replElements.length > 1 ? this.replElements[this.replElements.length - 2] : undefined;
+
+			if (lastNonEmpty instanceof OutputElement && severity === lastNonEmpty.severity && lastNonEmpty.value === output.trim() && output.trim() && output.length > 1) {
 				// we got the same output (but not an empty string when trimmed) so we just increment the counter
-				previousOutput.counter++;
+				lastNonEmpty.counter++;
 			} else {
 				const toAdd = output.split('\n').map(line => new OutputElement(line, severity));
 				if (previousOutput instanceof OutputElement && severity === previousOutput.severity && toAdd.length) {

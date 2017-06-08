@@ -41,8 +41,7 @@ export default class TypeScriptReferenceSupport implements ReferenceProvider {
 				result.push(location);
 			}
 			return result;
-		}, (err) => {
-			this.client.error(`'references' request failed with error.`, err);
+		}, () => {
 			return [];
 		});
 	}

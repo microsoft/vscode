@@ -32,7 +32,7 @@ export function getOccurrencesAtPosition(model: editorCommon.IReadOnlyModel, pos
 	// until someone response with a good result
 	// (good = none empty array)
 	return sequence(orderedByScore.map(provider => {
-		return () => {
+		return (): TPromise<DocumentHighlight[]> => {
 			if (!foundResult) {
 				return asWinJsPromise((token) => {
 					return provider.provideDocumentHighlights(model, position, token);

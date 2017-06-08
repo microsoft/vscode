@@ -37,7 +37,7 @@
 		"panelTitle.activeBorder": "#75715E",
 		"panelTitle.inactiveForeground": "#75715E",
 		"panel.border": "#414339",
-		"titleBar.activeBackground": "#414339",
+		"titleBar.activeBackground": "#1e1f1c",
 		"statusBar.background": "#414339",
 		"statusBar.noFolderBackground": "#414339",
 		"statusBar.debuggingBackground": "#75715E",

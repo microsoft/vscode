@@ -224,4 +224,23 @@ suite('SnippetController2', function () {
 		ctrl.prev(); // inner `$0`
 		assertSelections(editor, new Selection(1, 31, 1, 31), new Selection(2, 35, 2, 35));
 	});
+
+	test('Snippet tabstop selecting content of previously entered variable only works when separated by space, #23728', function () {
+		const ctrl = new SnippetController2(editor, contextKeys);
+
+		model.setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+
+		ctrl.insert('import ${2:${1:module}} from \'${1: module }\'$0');
+
+		assertContextKeys(contextKeys, true, false, true);
+		assertSelections(editor, new Selection(1, 8, 1, 14), new Selection(1, 21, 1, 29));
+
+		ctrl.insert('foo');
+		assertSelections(editor, new Selection(1, 11, 1, 11), new Selection(1, 21, 1, 21));
+
+		ctrl.next(); // ${2:...}
+		assertSelections(editor, new Selection(1, 8, 1, 11));
+	});
+
 });

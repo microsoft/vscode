@@ -198,6 +198,7 @@ class SuggestionDetails {
 	private docs: HTMLElement;
 	private ariaLabel: string;
 	private disposables: IDisposable[];
+	private borderWidth: number = 1;
 
 	constructor(
 		container: HTMLElement,
@@ -254,7 +255,7 @@ class SuggestionDetails {
 			hide(this.type);
 		}
 
-		this.el.style.height = this.header.offsetHeight + this.docs.offsetHeight + 'px';
+		this.el.style.height = this.header.offsetHeight + this.docs.offsetHeight + (this.borderWidth * 2) + 'px';
 
 		this.close.onmousedown = e => {
 			e.preventDefault();
@@ -298,6 +299,10 @@ class SuggestionDetails {
 
 	pageUp(): void {
 		this.scrollUp(80);
+	}
+
+	setBorderWidth(width: number): void {
+		this.borderWidth = width;
 	}
 
 	private configureFont() {
@@ -507,6 +512,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		if (focusBorderColor) {
 			this.detailsFocusBorderColor = focusBorderColor.toString();
 		}
+		this.details.setBorderWidth(theme.type === 'hc' ? 2 : 1);
 	}
 
 	private onListFocus(e: IListEvent<ICompletionItem>): void {

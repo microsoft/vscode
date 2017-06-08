@@ -254,7 +254,7 @@ export class MainThreadTextEditor {
 				break;
 			case TextEditorRevealType.InCenter:
 				this._codeEditor.revealRangeInCenter(range);
-				break;;
+				break;
 			case TextEditorRevealType.InCenterIfOutsideViewport:
 				this._codeEditor.revealRangeInCenterIfOutsideViewport(range);
 				break;

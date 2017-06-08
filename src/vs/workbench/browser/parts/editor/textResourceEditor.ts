@@ -14,16 +14,15 @@ import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorIn
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import URI from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { once } from "vs/base/common/event";
 
 /**
  * An editor implementation that is capable of showing the contents of resource inputs. Uses
@@ -39,20 +38,11 @@ export class TextResourceEditor extends BaseTextEditor {
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IThemeService themeService: IThemeService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IModeService modeService: IModeService,
 		@ITextFileService textFileService: ITextFileService
 	) {
 		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, modeService, textFileService, editorGroupService);
-
-		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDirtyChange(e)));
-	}
-
-	private onUntitledDirtyChange(resource: URI): void {
-		if (!this.untitledEditorService.isDirty(resource)) {
-			this.clearTextEditorViewState([resource.toString()]); // untitled file got reverted, so remove view state
-		}
 	}
 
 	public getTitle(): string {
@@ -83,7 +73,7 @@ export class TextResourceEditor extends BaseTextEditor {
 		}
 
 		// Remember view settings if input changes
-		this.saveTextEditorViewState(oldInput);
+		this.saveTextEditorViewStateForInput(oldInput);
 
 		// Different Input (Reload)
 		return input.resolve(true).then((resolvedModel: EditorModel) => {
@@ -166,7 +156,7 @@ export class TextResourceEditor extends BaseTextEditor {
 	public clearInput(): void {
 
 		// Keep editor view state in settings to restore when coming back
-		this.saveTextEditorViewState(this.input);
+		this.saveTextEditorViewStateForInput(this.input);
 
 		// Clear Model
 		this.getControl().setModel(null);
@@ -176,22 +166,35 @@ export class TextResourceEditor extends BaseTextEditor {
 
 	public shutdown(): void {
 
-		// Save View State
-		this.saveTextEditorViewState(this.input);
+		// Save View State (only for untitled)
+		if (this.input instanceof UntitledEditorInput) {
+			this.saveTextEditorViewStateForInput(this.input);
+		}
 
 		// Call Super
 		super.shutdown();
 	}
 
-	protected saveTextEditorViewState(input: EditorInput): void;
-	protected saveTextEditorViewState(key: string): void;
-	protected saveTextEditorViewState(arg1: EditorInput | string): void {
-		if (typeof arg1 === 'string') {
-			return super.saveTextEditorViewState(arg1);
+	protected saveTextEditorViewStateForInput(input: EditorInput): void {
+		if (!(input instanceof UntitledEditorInput) && !(input instanceof ResourceEditorInput)) {
+			return; // only enabled for untitled and resource inputs
 		}
 
-		if ((arg1 instanceof UntitledEditorInput || arg1 instanceof ResourceEditorInput) && !arg1.isDisposed()) {
-			return super.saveTextEditorViewState(arg1.getResource().toString());
+		const key = input.getResource().toString();
+
+		// Clear view state if input is disposed
+		if (input.isDisposed()) {
+			super.clearTextEditorViewState([key]);
+		}
+
+		// Otherwise save it
+		else {
+			super.saveTextEditorViewState(key);
+
+			// Make sure to clean up when the input gets disposed
+			once(input.onDispose)(() => {
+				super.clearTextEditorViewState([key]);
+			});
 		}
 	}
 }

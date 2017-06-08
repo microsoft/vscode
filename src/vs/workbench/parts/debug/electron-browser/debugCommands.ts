@@ -199,7 +199,7 @@ export function registerCommands(): void {
 		primary: undefined,
 		handler: (accessor) => {
 			const manager = accessor.get(IDebugService).getConfigurationManager();
-			if (!accessor.get(IWorkspaceContextService).getWorkspace()) {
+			if (!accessor.get(IWorkspaceContextService).hasWorkspace()) {
 				accessor.get(IMessageService).show(severity.Info, nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
 				return TPromise.as(null);
 			}

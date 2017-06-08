@@ -7,14 +7,13 @@
 
 import { app, ipcMain as ipc, BrowserWindow } from 'electron';
 import * as platform from 'vs/base/common/platform';
-import { OpenContext } from 'vs/code/common/windows';
-import { IWindowsMainService, WindowsManager } from 'vs/code/electron-main/windows';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { WindowsManager } from 'vs/code/electron-main/windows';
+import { IWindowsService, OpenContext } from 'vs/platform/windows/common/windows';
 import { WindowsChannel } from 'vs/platform/windows/common/windowsIpc';
 import { WindowsService } from 'vs/platform/windows/electron-main/windowsService';
-import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
-import { VSCodeMenu } from 'vs/code/electron-main/menus';
-import { getShellEnvironment } from 'vs/code/electron-main/shellEnv';
+import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
+import { CodeMenu } from 'vs/code/electron-main/menus';
+import { getShellEnvironment } from 'vs/code/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { UpdateChannel } from 'vs/platform/update/common/updateIpc';
 import { UpdateService } from 'vs/platform/update/electron-main/updateService';
@@ -26,8 +25,8 @@ import { LaunchService, LaunchChannel, ILaunchService } from './launch';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ILogService } from 'vs/code/electron-main/log';
-import { IStorageService } from 'vs/code/electron-main/storage';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IStorageService } from 'vs/platform/storage/node/storage';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { BackupChannel } from 'vs/platform/backup/common/backupIpc';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -45,8 +44,9 @@ import pkg from 'vs/platform/node/package';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { TPromise } from "vs/base/common/winjs.base";
+import { IWindowsMainService } from "vs/platform/windows/electron-main/windows";
 
-export class VSCodeApplication {
+export class CodeApplication {
 	private toDispose: IDisposable[];
 	private windowsMainService: IWindowsMainService;
 
@@ -146,8 +146,7 @@ export class VSCodeApplication {
 		// Spawn shared process
 		this.sharedProcess = new SharedProcess(this.environmentService, this.userEnv);
 		this.toDispose.push(this.sharedProcess);
-		this.sharedProcessClient = this.sharedProcess.whenReady()
-			.then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
+		this.sharedProcessClient = this.sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
 
 		// Services
 		const appInstantiationService = this.initServices();
@@ -256,7 +255,7 @@ export class VSCodeApplication {
 		}
 
 		// Install Menu
-		appInstantiationService.createInstance(VSCodeMenu);
+		appInstantiationService.createInstance(CodeMenu);
 
 		// Jump List
 		this.windowsMainService.updateWindowsJumpList();

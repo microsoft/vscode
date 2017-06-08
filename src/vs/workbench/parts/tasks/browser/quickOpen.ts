@@ -89,22 +89,20 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 					return +1;
 				}
 			});
-			let hasWorkspace: boolean = tasks[0]._source.kind === TaskSourceKind.Workspace;
-			let hasExtension: boolean = tasks[tasks.length - 1]._source.kind === TaskSourceKind.Extension;
-			let groupWorkspace = hasWorkspace && hasExtension;
-			let groupExtension = groupWorkspace;
-			let hadWorkspace = false;
+			let firstWorkspace: boolean = true;
+			let firstExtension: boolean = true;
+			let hadWorkspace: boolean = false;
 			for (let task of tasks) {
 				let highlights = Filters.matchesContiguousSubString(input, task._label);
 				if (!highlights) {
 					continue;
 				}
-				if (task._source.kind === TaskSourceKind.Workspace && groupWorkspace) {
-					groupWorkspace = false;
+				if (task._source.kind === TaskSourceKind.Workspace && firstWorkspace) {
+					firstWorkspace = false;
 					hadWorkspace = true;
 					entries.push(new TaskGroupEntry(this.createEntry(this.taskService, task, highlights), nls.localize('configured', 'Configured Tasks'), false));
-				} else if (task._source.kind === TaskSourceKind.Extension && groupExtension) {
-					groupExtension = false;
+				} else if (task._source.kind === TaskSourceKind.Extension && firstExtension) {
+					firstExtension = false;
 					entries.push(new TaskGroupEntry(this.createEntry(this.taskService, task, highlights), nls.localize('detected', 'Detected Tasks'), hadWorkspace));
 				} else {
 					entries.push(this.createEntry(this.taskService, task, highlights));

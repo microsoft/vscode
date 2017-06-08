@@ -30,7 +30,7 @@ export class StorageService implements IStorageService {
 		this.dbPath = path.join(environmentService.userDataPath, 'storage.json');
 	}
 
-	getItem<T>(key: string, defaultValue?: T): T {
+	public getItem<T>(key: string, defaultValue?: T): T {
 		if (!this.database) {
 			this.database = this.load();
 		}
@@ -43,7 +43,7 @@ export class StorageService implements IStorageService {
 		return this.database[key];
 	}
 
-	setItem(key: string, data: any): void {
+	public setItem(key: string, data: any): void {
 		if (!this.database) {
 			this.database = this.load();
 		}
@@ -59,7 +59,7 @@ export class StorageService implements IStorageService {
 		this.save();
 	}
 
-	removeItem(key: string): void {
+	public removeItem(key: string): void {
 		if (!this.database) {
 			this.database = this.load();
 		}

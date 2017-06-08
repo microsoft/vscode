@@ -62,7 +62,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'emmet.useNewEmmet': {
 			'type': 'boolean',
-			'default': false,
+			'default': true,
 			'description': nls.localize('useNewEmmet', 'Try out the new emmet modules (which will eventually replace the old single emmet library) for all emmet features.')
 		}
 	}

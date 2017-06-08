@@ -6,18 +6,15 @@
 import * as vscode from 'vscode';
 import { ITypescriptServiceClient } from '../typescriptService';
 import { loadMessageBundle } from 'vscode-nls';
-import { dirname, join } from 'path';
+import { dirname } from 'path';
+import { openOrCreateConfigFile, isImplicitProjectConfigFile } from './tsconfig';
 
 const localize = loadMessageBundle();
 const selector = ['javascript', 'javascriptreact'];
 
-interface Option extends vscode.MessageItem {
-	execute(): void;
-}
 
 interface Hint {
 	message: string;
-	options: Option[];
 }
 
 interface ProjectHintedMap {
@@ -45,29 +42,11 @@ class ExcludeHintItem {
 		this._item.hide();
 	}
 
-	public show(configFileName: string, largeRoots: string, onExecute: () => void) {
+	public show(largeRoots: string) {
 		this._currentHint = {
 			message: largeRoots.length > 0
 				? localize('hintExclude', "To enable project-wide JavaScript/TypeScript language features, exclude folders with many files, like: {0}", largeRoots)
-				: localize('hintExclude.generic', "To enable project-wide JavaScript/TypeScript language features, exclude large folders with source files that you do not work on."),
-			options: [{
-				title: localize('open', "Configure Excludes"),
-				execute: () => {
-					this._client.logTelemetry('js.hintProjectExcludes.accepted');
-					onExecute();
-					this._item.hide();
-
-					let configFileUri: vscode.Uri;
-					if (vscode.workspace.rootPath && dirname(configFileName).indexOf(vscode.workspace.rootPath) === 0) {
-						configFileUri = vscode.Uri.file(configFileName);
-					} else {
-						configFileUri = vscode.Uri.parse('untitled://' + join(vscode.workspace.rootPath || '', 'jsconfig.json'));
-					}
-
-					return vscode.workspace.openTextDocument(configFileName)
-						.then(vscode.window.showTextDocument);
-				}
-			}]
+				: localize('hintExclude.generic', "To enable project-wide JavaScript/TypeScript language features, exclude large folders with source files that you do not work on.")
 		};
 		this._item.tooltip = this._currentHint.message;
 		this._item.text = localize('large.label', "Configure Excludes");
@@ -120,9 +99,8 @@ function createLargeProjectMonitorForProject(item: ExcludeHintItem, client: ITyp
 
 				if (fileNames.length > fileLimit || res.body.languageServiceDisabled) {
 					let largeRoots = computeLargeRoots(configFileName, fileNames).map(f => `'/${f}/'`).join(', ');
-					item.show(configFileName, largeRoots, () => {
-						projectHinted[configFileName] = true;
-					});
+					item.show(largeRoots);
+					projectHinted[configFileName] = true;
 				} else {
 					item.hide();
 				}
@@ -147,7 +125,17 @@ function createLargeProjectMonitorFromTypeScript(item: ExcludeHintItem, client: 
 		if (body.languageServiceEnabled) {
 			item.hide();
 		} else {
-			item.show(body.projectName, '', () => { });
+			const configFileName = body.projectName;
+			if (configFileName) {
+				if (!isImplicitProjectConfigFile(configFileName)) {
+					vscode.workspace.openTextDocument(configFileName)
+						.then(vscode.window.showTextDocument);
+				} else {
+					openOrCreateConfigFile(configFileName.match(/tsconfig\.?.*\.json/) !== null);
+				}
+			}
+
+			item.show('');
 		}
 	});
 }
@@ -157,12 +145,8 @@ export function create(client: ITypescriptServiceClient, isOpen: (path: string) 
 
 	let item = new ExcludeHintItem(client);
 	toDispose.push(vscode.commands.registerCommand('js.projectStatus.command', () => {
-		let { message, options } = item.getCurrentHint();
-		return vscode.window.showInformationMessage(message, ...options).then(selection => {
-			if (selection) {
-				return selection.execute();
-			}
-		});
+		let { message } = item.getCurrentHint();
+		return vscode.window.showInformationMessage(message);
 	}));
 
 	if (client.apiVersion.has213Features()) {

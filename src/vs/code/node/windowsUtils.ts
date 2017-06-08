@@ -9,11 +9,11 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as platform from 'vs/base/common/platform';
 import * as paths from 'vs/base/common/paths';
-import { OpenContext } from 'vs/code/common/windows';
+import { OpenContext } from 'vs/platform/windows/common/windows';
 import { isEqualOrParent } from 'vs/platform/files/common/files';
 
 /**
- * Exported subset of VSCodeWindow for testing.
+ * Exported subset of CodeWindow for testing.
  */
 export interface ISimpleWindow {
 	openedWorkspacePath: string;
@@ -43,6 +43,7 @@ export function findBestWindowOrFolder<SimpleWindow extends ISimpleWindow>({ win
 	} else if (bestFolder) {
 		return bestFolder;
 	}
+
 	return !newWindow ? getLastActiveWindow(windows) : null;
 }
 
@@ -51,6 +52,7 @@ function findBestWindow<WINDOW extends ISimpleWindow>(windows: WINDOW[], filePat
 	if (containers.length) {
 		return containers.sort((a, b) => -(a.openedWorkspacePath.length - b.openedWorkspacePath.length))[0];
 	}
+
 	return null;
 }
 
@@ -60,6 +62,7 @@ function findBestFolder(filePath: string, userHome?: string, vscodeFolder?: stri
 	if (!platform.isLinux) {
 		homeFolder = homeFolder && homeFolder.toLowerCase();
 	}
+
 	let previous = null;
 	try {
 		while (folder !== previous) {
@@ -72,22 +75,23 @@ function findBestFolder(filePath: string, userHome?: string, vscodeFolder?: stri
 	} catch (err) {
 		// assume impossible to access
 	}
+
 	return null;
 }
 
 function isProjectFolder(folder: string, normalizedUserHome?: string, vscodeFolder = '.vscode') {
 	try {
 		if ((platform.isLinux ? folder : folder.toLowerCase()) === normalizedUserHome) {
-			// ~/.vscode/extensions is used for extensions
-			return fs.statSync(path.join(folder, vscodeFolder, 'settings.json')).isFile();
-		} else {
-			return fs.statSync(path.join(folder, vscodeFolder)).isDirectory();
+			return fs.statSync(path.join(folder, vscodeFolder, 'settings.json')).isFile(); // ~/.vscode/extensions is used for extensions
 		}
+
+		return fs.statSync(path.join(folder, vscodeFolder)).isDirectory();
 	} catch (err) {
 		if (!(err && err.code === 'ENOENT')) {
 			throw err;
 		}
 	}
+
 	return false;
 }
 

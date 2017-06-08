@@ -32,12 +32,34 @@ import { IChoiceService } from 'vs/platform/message/common/message';
 import { ChoiceChannelClient } from 'vs/platform/message/common/messageIpc';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
-import { ActiveWindowManager } from 'vs/code/common/windows';
 import { ipcRenderer } from 'electron';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 interface ISharedProcessInitData {
 	sharedIPCHandle: string;
 	args: ParsedArgs;
+}
+
+class ActiveWindowManager implements IDisposable {
+	private disposables: IDisposable[] = [];
+	private _activeWindowId: number;
+
+	constructor( @IWindowsService windowsService: IWindowsService) {
+		windowsService.onWindowOpen(this.setActiveWindow, this, this.disposables);
+		windowsService.onWindowFocus(this.setActiveWindow, this, this.disposables);
+	}
+
+	private setActiveWindow(windowId: number) {
+		this._activeWindowId = windowId;
+	}
+
+	public get activeClientId(): string {
+		return `window:${this._activeWindowId}`;
+	}
+
+	public dispose() {
+		this.disposables = dispose(this.disposables);
+	}
 }
 
 const eventPrefix = 'monacoworkbench';

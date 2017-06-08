@@ -10,26 +10,17 @@ import { isMacintosh, isLinux, isWindows, language } from 'vs/base/common/platfo
 import * as arrays from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ipcMain as ipc, app, shell, dialog, Menu, MenuItem, BrowserWindow } from 'electron';
-import { OpenContext } from 'vs/code/common/windows';
-import { IWindowsMainService } from 'vs/code/electron-main/windows';
-import { VSCodeWindow } from 'vs/code/electron-main/window';
+import { OpenContext } from 'vs/platform/windows/common/windows';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStorageService } from 'vs/code/electron-main/storage';
 import { IFilesConfiguration, AutoSaveConfiguration } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService, State as UpdateState } from 'vs/platform/update/common/update';
 import product from 'vs/platform/node/product';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import Event, { Emitter, once } from 'vs/base/common/event';
-import { ConfigWatcher } from 'vs/base/node/config';
-import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
-
-interface IKeybinding {
-	id: string;
-	label: string;
-	isNative: boolean;
-}
+import { tildify } from 'vs/base/common/labels';
+import { KeybindingsResolver } from "vs/code/electron-main/keyboard";
+import { IWindowsMainService } from "vs/platform/windows/electron-main/windows";
 
 interface IExtensionViewlet {
 	id: string;
@@ -56,102 +47,9 @@ interface IConfiguration extends IFilesConfiguration {
 	};
 }
 
-class KeybindingsResolver {
-
-	private static lastKnownKeybindingsMapStorageKey = 'lastKnownKeybindings';
-
-	private commandIds: Set<string>;
-	private keybindings: { [commandId: string]: IKeybinding };
-	private keybindingsWatcher: ConfigWatcher<IUserFriendlyKeybinding[]>;
-
-	private _onKeybindingsChanged = new Emitter<void>();
-	onKeybindingsChanged: Event<void> = this._onKeybindingsChanged.event;
-
-	constructor(
-		@IStorageService private storageService: IStorageService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IWindowsMainService private windowsService: IWindowsMainService
-	) {
-		this.commandIds = new Set<string>();
-		this.keybindings = this.storageService.getItem<{ [id: string]: string; }>(KeybindingsResolver.lastKnownKeybindingsMapStorageKey) || Object.create(null);
-		this.keybindingsWatcher = new ConfigWatcher<IUserFriendlyKeybinding[]>(environmentService.appKeybindingsPath, { changeBufferDelay: 100 });
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-
-		// Resolve keybindings when any first window is loaded
-		const onceOnWindowReady = once(this.windowsService.onWindowReady);
-		onceOnWindowReady(win => this.resolveKeybindings(win));
-
-		// Listen to resolved keybindings from window
-		ipc.on('vscode:keybindingsResolved', (event, rawKeybindings: string) => {
-			let keybindings: IKeybinding[] = [];
-			try {
-				keybindings = JSON.parse(rawKeybindings);
-			} catch (error) {
-				// Should not happen
-			}
-
-			// Fill hash map of resolved keybindings and check for changes
-			let keybindingsChanged = false;
-			let keybindingsCount = 0;
-			const resolvedKeybindings: { [commandId: string]: IKeybinding } = Object.create(null);
-			keybindings.forEach(keybinding => {
-				keybindingsCount++;
-
-				resolvedKeybindings[keybinding.id] = keybinding;
-
-				if (!this.keybindings[keybinding.id] || keybinding.label !== this.keybindings[keybinding.id].label) {
-					keybindingsChanged = true;
-				}
-			});
-
-			// A keybinding might have been unassigned, so we have to account for that too
-			if (Object.keys(this.keybindings).length !== keybindingsCount) {
-				keybindingsChanged = true;
-			}
-
-			if (keybindingsChanged) {
-				this.keybindings = resolvedKeybindings;
-				this.storageService.setItem(KeybindingsResolver.lastKnownKeybindingsMapStorageKey, this.keybindings); // keep to restore instantly after restart
-
-				this._onKeybindingsChanged.fire();
-			}
-		});
-
-		// Resolve keybindings again when keybindings.json changes
-		this.keybindingsWatcher.onDidUpdateConfiguration(() => this.resolveKeybindings());
-
-		// Resolve keybindings when window reloads because an installed extension could have an impact
-		this.windowsService.onWindowReload(() => this.resolveKeybindings());
-	}
-
-	private resolveKeybindings(win: VSCodeWindow = this.windowsService.getLastActiveWindow()): void {
-		if (this.commandIds.size && win) {
-			const commandIds = [];
-			this.commandIds.forEach(id => commandIds.push(id));
-			win.sendWhenReady('vscode:resolveKeybindings', JSON.stringify(commandIds));
-		}
-	}
-
-	public getKeybinding(commandId: string): IKeybinding {
-		if (!commandId) {
-			return void 0;
-		}
-
-		if (!this.commandIds.has(commandId)) {
-			this.commandIds.add(commandId);
-		}
-
-		return this.keybindings[commandId];
-	}
-}
-
 const telemetryFrom = 'menu';
 
-export class VSCodeMenu {
+export class CodeMenu {
 
 	private static MAX_MENU_RECENT_ENTRIES = 10;
 
@@ -485,7 +383,7 @@ export class VSCodeMenu {
 			revertFile,
 			closeEditor,
 			closeFolder,
-			!isMacintosh ? closeWindow : null,
+			closeWindow,
 			!isMacintosh ? __separator__() : null,
 			!isMacintosh ? exit : null
 		]).forEach(item => fileMenu.append(item));
@@ -522,7 +420,7 @@ export class VSCodeMenu {
 		if (folders.length > 0) {
 			openRecentMenu.append(__separator__());
 
-			for (let i = 0; i < VSCodeMenu.MAX_MENU_RECENT_ENTRIES && i < folders.length; i++) {
+			for (let i = 0; i < CodeMenu.MAX_MENU_RECENT_ENTRIES && i < folders.length; i++) {
 				openRecentMenu.append(this.createOpenRecentMenuItem(folders[i], 'openRecentFolder'));
 			}
 		}
@@ -531,25 +429,22 @@ export class VSCodeMenu {
 		if (files.length > 0) {
 			openRecentMenu.append(__separator__());
 
-			for (let i = 0; i < VSCodeMenu.MAX_MENU_RECENT_ENTRIES && i < files.length; i++) {
+			for (let i = 0; i < CodeMenu.MAX_MENU_RECENT_ENTRIES && i < files.length; i++) {
 				openRecentMenu.append(this.createOpenRecentMenuItem(files[i], 'openRecentFile'));
 			}
 		}
 
 		if (folders.length || files.length) {
 			openRecentMenu.append(__separator__());
+			openRecentMenu.append(this.createMenuItem(nls.localize({ key: 'miMore', comment: ['&& denotes a mnemonic'] }, "&&More..."), 'workbench.action.openRecent'));
+			openRecentMenu.append(__separator__());
 			openRecentMenu.append(this.createMenuItem(nls.localize({ key: 'miClearRecentOpen', comment: ['&& denotes a mnemonic'] }, "&&Clear Recent Files"), 'workbench.action.clearRecentFiles'));
 		}
 	}
 
 	private createOpenRecentMenuItem(path: string, commandId: string): Electron.MenuItem {
-		let label = path;
-		if ((isMacintosh || isLinux) && path.indexOf(this.environmentService.userHome) === 0) {
-			label = `~${path.substr(this.environmentService.userHome.length)}`;
-		}
-
 		return new MenuItem(this.likeAction(commandId, {
-			label: this.unmnemonicLabel(label), click: (menuItem, win, event) => {
+			label: this.unmnemonicLabel(tildify(path, this.environmentService.userHome)), click: (menuItem, win, event) => {
 				const openInNewWindow = this.isOptionClick(event);
 				const success = !!this.windowsService.open({ context: OpenContext.MENU, cli: this.environmentService.args, pathsToOpen: [path], forceNewWindow: openInNewWindow });
 				if (!success) {
@@ -868,6 +763,7 @@ export class VSCodeMenu {
 		breakpointsMenu.append(this.createMenuItem(nls.localize({ key: 'miColumnBreakpoint', comment: ['&& denotes a mnemonic'] }, "C&&olumn Breakpoint"), 'editor.debug.action.toggleColumnBreakpoint'));
 		breakpointsMenu.append(this.createMenuItem(nls.localize({ key: 'miFunctionBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&Function Breakpoint..."), 'workbench.debug.viewlet.action.addFunctionBreakpointAction'));
 		const newBreakpoints = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miNewBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&New Breakpoint")), submenu: breakpointsMenu });
+		const enableAllBreakpoints = this.createMenuItem(nls.localize({ key: 'miEnableAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Enable All Breakpoints"), 'workbench.debug.viewlet.action.enableAllBreakpoints');
 		const disableAllBreakpoints = this.createMenuItem(nls.localize({ key: 'miDisableAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Disable A&&ll Breakpoints"), 'workbench.debug.viewlet.action.disableAllBreakpoints');
 		const removeAllBreakpoints = this.createMenuItem(nls.localize({ key: 'miRemoveAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Remove &&All Breakpoints"), 'workbench.debug.viewlet.action.removeAllBreakpoints');
 
@@ -888,6 +784,7 @@ export class VSCodeMenu {
 			__separator__(),
 			toggleBreakpoint,
 			newBreakpoints,
+			enableAllBreakpoints,
 			disableAllBreakpoints,
 			removeAllBreakpoints,
 			__separator__(),
@@ -898,12 +795,14 @@ export class VSCodeMenu {
 
 	private setMacWindowMenu(macWindowMenu: Electron.Menu): void {
 		const minimize = new MenuItem({ label: nls.localize('mMinimize', "Minimize"), role: 'minimize', accelerator: 'Command+M', enabled: this.windowsService.getWindowCount() > 0 });
-		const close = new MenuItem({ label: nls.localize('mClose', "Close"), role: 'close', accelerator: 'Command+W', enabled: this.windowsService.getWindowCount() > 0 });
+		const zoom = new MenuItem({ label: nls.localize('mZoom', "Zoom"), role: 'zoom', enabled: this.windowsService.getWindowCount() > 0 });
 		const bringAllToFront = new MenuItem({ label: nls.localize('mBringToFront', "Bring All to Front"), role: 'front', enabled: this.windowsService.getWindowCount() > 0 });
+		const switchWindow = this.createMenuItem(nls.localize({ key: 'miSwitchWindow', comment: ['&& denotes a mnemonic'] }, "Switch &&Window..."), 'workbench.action.switchWindow', this.windowsService.getWindowCount() > 0);
 
 		[
 			minimize,
-			close,
+			zoom,
+			switchWindow,
 			__separator__(),
 			bringAllToFront
 		].forEach(item => macWindowMenu.append(item));

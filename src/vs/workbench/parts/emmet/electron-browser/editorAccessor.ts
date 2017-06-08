@@ -114,13 +114,13 @@ export class EditorAccessor implements emmet.Editor {
 		// string to string conversion that tries to fix the
 		// snippet in-place
 
-		let marker = new SnippetParser(true, false).parse(template);
+		let marker = new SnippetParser().parse(template);
 		let maxIndex = -Number.MIN_VALUE;
 
 		// find highest placeholder index
 		walk(marker, candidate => {
 			if (candidate instanceof Placeholder) {
-				let index = Number(candidate.index);
+				let index = candidate.index;
 				if (index > maxIndex) {
 					maxIndex = index;
 				}
@@ -132,7 +132,7 @@ export class EditorAccessor implements emmet.Editor {
 		walk(marker, candidate => {
 			if (candidate instanceof Placeholder) {
 				if (candidate.isFinalTabstop) {
-					candidate.index = String(++maxIndex);
+					candidate.index = ++maxIndex;
 				}
 			}
 			return true;

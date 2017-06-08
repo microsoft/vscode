@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { EmmetCompletionItemProvider } from './emmetCompletionProvider';
+import { EmmetCompletionItemProviderHtml, EmmetCompletionItemProviderCss } from './emmetCompletionProvider';
 import { expandAbbreviation, wrapWithAbbreviation } from './abbreviationActions';
 import { removeTag } from './removeTag';
 import { updateTag } from './updateTag';
@@ -21,7 +21,7 @@ interface ISupportedLanguageMode {
 	triggerCharacters: string[];
 }
 
-const SUPPORTED_LANGUAGE_MODES: ISupportedLanguageMode[] = [
+const HTML_LANGUAGE_MODES: ISupportedLanguageMode[] = [
 	{ id: 'html', triggerCharacters: ['!', '.', '}'] },
 	{ id: 'jade', triggerCharacters: ['!', '.', '}'] },
 	{ id: 'slim', triggerCharacters: ['!', '.', '}'] },
@@ -29,23 +29,29 @@ const SUPPORTED_LANGUAGE_MODES: ISupportedLanguageMode[] = [
 	{ id: 'xml', triggerCharacters: ['.', '}'] },
 	{ id: 'xsl', triggerCharacters: ['.', '}'] },
 
-	{ id: 'css', triggerCharacters: [':'] },
-	{ id: 'scss', triggerCharacters: [':'] },
-	{ id: 'sass', triggerCharacters: [':'] },
-	{ id: 'less', triggerCharacters: [':'] },
-	{ id: 'stylus', triggerCharacters: [':'] },
-
 	{ id: 'javascriptreact', triggerCharacters: ['.'] },
 	{ id: 'typescriptreact', triggerCharacters: ['.'] }
 ];
 
+const CSS_LANGUAGE_MODES: ISupportedLanguageMode[] = [
+	{ id: 'css', triggerCharacters: [':'] },
+	{ id: 'scss', triggerCharacters: [':'] },
+	{ id: 'sass', triggerCharacters: [':'] },
+	{ id: 'less', triggerCharacters: [':'] },
+	{ id: 'stylus', triggerCharacters: [':'] }
+];
+
 export function activate(context: vscode.ExtensionContext) {
-	let completionProvider = new EmmetCompletionItemProvider();
+	let completionProviderHtml = new EmmetCompletionItemProviderHtml();
+	let completionProviderCss = new EmmetCompletionItemProviderCss();
 
-	for (let language of SUPPORTED_LANGUAGE_MODES) {
-		const selector: vscode.DocumentFilter = { language: language.id };
-		const provider = vscode.languages.registerCompletionItemProvider(selector, completionProvider, ...language.triggerCharacters);
+	for (let language of HTML_LANGUAGE_MODES) {
+		const provider = vscode.languages.registerCompletionItemProvider({ language: language.id }, completionProviderHtml, ...language.triggerCharacters);
+		context.subscriptions.push(provider);
+	}
 
+	for (let language of CSS_LANGUAGE_MODES) {
+		const provider = vscode.languages.registerCompletionItemProvider({ language: language.id }, completionProviderCss, ...language.triggerCharacters);
 		context.subscriptions.push(provider);
 	}
 

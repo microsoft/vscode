@@ -47,7 +47,7 @@ export function testConfigViews() {
 			await configView.enterBinding(['Control', 'u', 'NULL']);
 			await common.enter();
 			let html = await configView.getActivityBar(ActivityBarPosition.RIGHT);
-			assert.equal(html, undefined);;
+			assert.equal(html, undefined);
 			await app.wait();
 			await configView.toggleActivityBarPosition();
 			html = await configView.getActivityBar(ActivityBarPosition.RIGHT);

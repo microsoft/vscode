@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
 import { assign } from 'vs/base/common/objects';
-import { LinkedMap as Map } from 'vs/base/common/map';
+import { SimpleMap as Map } from 'vs/base/common/map';
 import { distinct } from 'vs/base/common/arrays';
 import URI from 'vs/base/common/uri';
 import { IReference } from 'vs/base/common/lifecycle';

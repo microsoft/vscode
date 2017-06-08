@@ -10,8 +10,8 @@ import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { parseMainProcessArgv } from 'vs/platform/environment/node/argv';
 import { mkdirp } from 'vs/base/node/pfs';
-import { validatePaths } from 'vs/code/electron-main/paths';
-import { LifecycleService, ILifecycleService } from 'vs/code/electron-main/lifecycle';
+import { validatePaths } from 'vs/code/node/paths';
+import { LifecycleService, ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ILaunchChannel, LaunchChannelClient } from './launch';
@@ -19,8 +19,8 @@ import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiati
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ILogService, MainLogService } from 'vs/code/electron-main/log';
-import { IStorageService, StorageService } from 'vs/code/electron-main/storage';
+import { ILogService, MainLogService } from 'vs/platform/log/common/log';
+import { IStorageService, StorageService } from 'vs/platform/storage/node/storage';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -32,7 +32,7 @@ import { RequestService } from 'vs/platform/request/electron-main/requestService
 import { IURLService } from 'vs/platform/url/common/url';
 import { URLService } from 'vs/platform/url/electron-main/urlService';
 import * as fs from 'original-fs';
-import { VSCodeApplication } from "vs/code/electron-main/app";
+import { CodeApplication } from "vs/code/electron-main/app";
 
 function createServices(args: ParsedArgs): IInstantiationService {
 	const services = new ServiceCollection();
@@ -193,7 +193,7 @@ function main() {
 		return instantiationService.invokeFunction(a => createPaths(a.get(IEnvironmentService)))
 			.then(() => instantiationService.invokeFunction(setupIPC))
 			.then(mainIpcServer => {
-				const app = instantiationService.createInstance(VSCodeApplication, mainIpcServer, instanceEnv);
+				const app = instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnv);
 				app.startup();
 			});
 	}).done(null, err => instantiationService.invokeFunction(quit, err));

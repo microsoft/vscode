@@ -196,6 +196,8 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	save(options?: IModelSaveOptions): TPromise<void>;
 
+	load(): TPromise<ITextFileEditorModel>;
+
 	revert(soft?: boolean): TPromise<void>;
 
 	getValue(): string;

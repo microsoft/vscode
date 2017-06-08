@@ -94,6 +94,12 @@ export function readAndRegisterSnippets(
 	return readFile(filePath).then(fileContents => {
 		let snippets = parseSnippetFile(fileContents.toString(), extensionName, collector);
 		snippetService.registerSnippets(languageIdentifier.id, snippets, filePath);
+	}, err => {
+		if (err && err.code === 'ENOENT') {
+			snippetService.registerSnippets(languageIdentifier.id, [], filePath);
+		} else {
+			throw err;
+		}
 	});
 }
 
@@ -153,7 +159,7 @@ function parseSnippetFile(snippetFileContent: string, extensionName?: string, co
 }
 
 function _rewriteBogousVariables(snippet: ISnippet): boolean {
-	const marker = new SnippetParser(true, false).parse(snippet.codeSnippet, false);
+	const marker = new SnippetParser().parse(snippet.codeSnippet, false);
 
 	let placeholders = new Map<string, number>();
 	let placeholderMax = 0;
