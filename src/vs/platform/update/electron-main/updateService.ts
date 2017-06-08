@@ -16,7 +16,7 @@ import { fromEventEmitter } from 'vs/base/node/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Win32AutoUpdaterImpl } from './auto-updater.win32';
 import { LinuxAutoUpdaterImpl } from './auto-updater.linux';
-import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
+import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IRequestService } from 'vs/platform/request/node/request';
 import product from 'vs/platform/node/product';
 import { TPromise } from 'vs/base/common/winjs.base';

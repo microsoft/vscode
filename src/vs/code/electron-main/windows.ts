@@ -15,20 +15,19 @@ import { assign, mixin } from 'vs/base/common/objects';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { trim } from 'vs/base/common/strings';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
-import { IStorageService } from 'vs/code/node/storage';
+import { IStorageService } from 'vs/platform/storage/node/storage';
 import { IPath, VSCodeWindow, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState, WindowMode } from 'vs/code/electron-main/window';
 import { ipcMain as ipc, app, screen, BrowserWindow, dialog } from 'electron';
 import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/node/paths';
-import { ILifecycleService, UnloadReason } from 'vs/code/electron-main/lifecycle';
+import { ILifecycleService, UnloadReason } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/code/common/log';
+import { ILogService } from 'vs/platform/log/common/log';
 import { getPathLabel } from 'vs/base/common/labels';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWindowSettings } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, OpenContext } from 'vs/platform/windows/common/windows';
 import { getLastActiveWindow, findBestWindowOrFolder } from 'vs/code/node/windowsUtils';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/node/product';
-import { OpenContext } from 'vs/code/common/windows';
 import { ITelemetryService, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { isParent, isEqual, isEqualOrParent } from 'vs/platform/files/common/files';
 import { KeyboardLayoutMonitor } from 'vs/code/node/keyboard';
@@ -253,7 +252,7 @@ export class WindowsManager implements IWindowsMainService {
 		});
 
 		// Update our windows state before quitting and before closing windows
-		this.lifecycleService.onBeforeWindowClose(win => this.onBeforeWindowClose(win));
+		this.lifecycleService.onBeforeWindowClose(win => this.onBeforeWindowClose(win as VSCodeWindow));
 		this.lifecycleService.onBeforeQuit(() => this.onBeforeQuit());
 
 		// Keyboard layout changes

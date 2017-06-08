@@ -5,17 +5,16 @@
 
 'use strict';
 
-import { OpenContext } from 'vs/code/common/windows';
 import { IWindowsMainService } from 'vs/code/electron-main/windows';
-import { VSCodeWindow } from 'vs/code/electron-main/window';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { ILogService } from 'vs/code/common/log';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IURLService } from 'vs/platform/url/common/url';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { once } from 'vs/base/common/event';
+import { ICodeWindow, OpenContext } from "vs/platform/windows/common/windows";
 
 export const ID = 'launchService';
 export const ILaunchService = createDecorator<ILaunchService>(ID);
@@ -94,7 +93,7 @@ export class LaunchService implements ILaunchService {
 
 		// Otherwise handle in windows service
 		const context = !!userEnv['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
-		let usedWindows: VSCodeWindow[];
+		let usedWindows: ICodeWindow[];
 		if (!!args.extensionDevelopmentPath) {
 			this.windowsService.openExtensionDevelopmentHostWindow({ context, cli: args, userEnv });
 		} else if (args._.length === 0 && (args['new-window'] || args['unity-launch'])) {

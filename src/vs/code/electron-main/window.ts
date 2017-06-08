@@ -9,20 +9,21 @@ import * as path from 'path';
 import * as objects from 'vs/base/common/objects';
 import { stopProfiling } from 'vs/base/node/profiler';
 import nls = require('vs/nls');
-import { IStorageService } from 'vs/code/node/storage';
+import { IStorageService } from 'vs/platform/storage/node/storage';
 import { shell, screen, BrowserWindow, systemPreferences, app } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
-import { ILogService } from 'vs/code/common/log';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/node/product';
 import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
-import { IWindowSettings, MenuBarVisibility } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, MenuBarVisibility, ICodeWindow, ReadyState, IWindowCloseEvent } from 'vs/platform/windows/common/windows';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyboardLayoutMonitor } from 'vs/code/node/keyboard';
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from "vs/base/common/platform";
+import CommonEvent, { Emitter } from "vs/base/common/event";
 
 export interface IWindowState {
 	width?: number;
@@ -102,30 +103,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	nodeCachedDataDir: string;
 }
 
-export enum ReadyState {
-
-	/**
-	 * This window has not loaded any HTML yet
-	 */
-	NONE,
-
-	/**
-	 * This window is loading HTML
-	 */
-	LOADING,
-
-	/**
-	 * This window is navigating to another HTML
-	 */
-	NAVIGATING,
-
-	/**
-	 * This window is done loading HTML
-	 */
-	READY
-}
-
-export class VSCodeWindow {
+export class VSCodeWindow implements ICodeWindow {
 
 	public static themeStorageKey = 'theme';
 	public static themeBackgroundStorageKey = 'themeBackground';
@@ -133,6 +111,7 @@ export class VSCodeWindow {
 	private static MIN_WIDTH = 200;
 	private static MIN_HEIGHT = 120;
 
+	private _onClose: Emitter<IWindowCloseEvent>;
 	private options: IWindowCreationOptions;
 	private hiddenTitleBarStyle: boolean;
 	private showTimeoutHandle: any;
@@ -167,6 +146,9 @@ export class VSCodeWindow {
 		this.whenReadyCallbacks = [];
 		this.toDispose = [];
 
+		this._onClose = new Emitter<IWindowCloseEvent>();
+		this.toDispose.push(this._onClose);
+
 		// create browser window
 		this.createBrowserWindow(config);
 
@@ -179,6 +161,10 @@ export class VSCodeWindow {
 
 		// Eventing
 		this.registerListeners();
+	}
+
+	public get onClose(): CommonEvent<IWindowCloseEvent> {
+		return this._onClose.event;
 	}
 
 	private createBrowserWindow(config: IWindowCreationOptions): void {
@@ -373,6 +359,11 @@ export class VSCodeWindow {
 	}
 
 	private registerListeners(): void {
+
+		// Re-emit close event
+		this._win.on('close', e => {
+			this._onClose.fire(e);
+		});
 
 		// Remember that we loaded
 		this._win.webContents.on('did-finish-load', () => {
@@ -858,6 +849,12 @@ export class VSCodeWindow {
 			} else {
 				this.win.maximize();
 			}
+		}
+	}
+
+	public close(): void {
+		if (this._win) {
+			this._win.close();
 		}
 	}
 

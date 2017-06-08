@@ -7,12 +7,12 @@
 
 import { ipcMain as ipc, app } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
-import { ReadyState, VSCodeWindow } from 'vs/code/electron-main/window';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILogService } from 'vs/code/common/log';
-import { IStorageService } from 'vs/code/node/storage';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IStorageService } from 'vs/platform/storage/node/storage';
 import Event, { Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ICodeWindow, ReadyState } from "vs/platform/windows/common/windows";
 
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
 
@@ -43,12 +43,12 @@ export interface ILifecycleService {
 	 * is called even when the window prevents the closing. We want an event that truly fires
 	 * before the window gets closed for real.
 	 */
-	onBeforeWindowClose: Event<VSCodeWindow>;
+	onBeforeWindowClose: Event<ICodeWindow>;
 
 	ready(): void;
-	registerWindow(vscodeWindow: VSCodeWindow): void;
+	registerWindow(codeWindow: ICodeWindow): void;
 
-	unload(vscodeWindow: VSCodeWindow, reason: UnloadReason): TPromise<boolean /* veto */>;
+	unload(codeWindow: ICodeWindow, reason: UnloadReason): TPromise<boolean /* veto */>;
 
 	relaunch(options?: { addArgs?: string[], removeArgs?: string[] });
 
@@ -74,8 +74,8 @@ export class LifecycleService implements ILifecycleService {
 	private _onBeforeQuit = new Emitter<void>();
 	onBeforeQuit: Event<void> = this._onBeforeQuit.event;
 
-	private _onBeforeWindowClose = new Emitter<VSCodeWindow>();
-	onBeforeWindowClose: Event<VSCodeWindow> = this._onBeforeWindowClose.event;
+	private _onBeforeWindowClose = new Emitter<ICodeWindow>();
+	onBeforeWindowClose: Event<ICodeWindow> = this._onBeforeWindowClose.event;
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -132,11 +132,11 @@ export class LifecycleService implements ILifecycleService {
 		});
 	}
 
-	public registerWindow(vscodeWindow: VSCodeWindow): void {
+	public registerWindow(codeWindow: ICodeWindow): void {
 
 		// Window Before Closing: Main -> Renderer
-		vscodeWindow.win.on('close', (e) => {
-			const windowId = vscodeWindow.id;
+		codeWindow.onClose(e => {
+			const windowId = codeWindow.id;
 			this.logService.log('Lifecycle#window-before-close', windowId);
 
 			// The window already acknowledged to be closed
@@ -150,11 +150,11 @@ export class LifecycleService implements ILifecycleService {
 
 			// Otherwise prevent unload and handle it from window
 			e.preventDefault();
-			this.unload(vscodeWindow, UnloadReason.CLOSE).done(veto => {
+			this.unload(codeWindow, UnloadReason.CLOSE).done(veto => {
 				if (!veto) {
 					this.windowToCloseRequest[windowId] = true;
-					this._onBeforeWindowClose.fire(vscodeWindow);
-					vscodeWindow.win.close();
+					this._onBeforeWindowClose.fire(codeWindow);
+					codeWindow.close();
 				} else {
 					this.quitRequested = false;
 					delete this.windowToCloseRequest[windowId];
@@ -163,14 +163,14 @@ export class LifecycleService implements ILifecycleService {
 		});
 	}
 
-	public unload(vscodeWindow: VSCodeWindow, reason: UnloadReason): TPromise<boolean /* veto */> {
+	public unload(codeWindow: ICodeWindow, reason: UnloadReason): TPromise<boolean /* veto */> {
 
 		// Always allow to unload a window that is not yet ready
-		if (vscodeWindow.readyState !== ReadyState.READY) {
+		if (codeWindow.readyState !== ReadyState.READY) {
 			return TPromise.as<boolean>(false);
 		}
 
-		this.logService.log('Lifecycle#unload()', vscodeWindow.id);
+		this.logService.log('Lifecycle#unload()', codeWindow.id);
 
 		return new TPromise<boolean>((c) => {
 			const oneTimeEventToken = this.oneTimeListenerTokenGenerator++;
@@ -193,7 +193,7 @@ export class LifecycleService implements ILifecycleService {
 				c(true); // veto
 			});
 
-			vscodeWindow.send('vscode:beforeUnload', { okChannel, cancelChannel, reason: this.quitRequested ? UnloadReason.QUIT : reason });
+			codeWindow.send('vscode:beforeUnload', { okChannel, cancelChannel, reason: this.quitRequested ? UnloadReason.QUIT : reason });
 		});
 	}
 

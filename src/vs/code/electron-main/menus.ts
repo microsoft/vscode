@@ -10,11 +10,11 @@ import { isMacintosh, isLinux, isWindows, language } from 'vs/base/common/platfo
 import * as arrays from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ipcMain as ipc, app, shell, dialog, Menu, MenuItem, BrowserWindow } from 'electron';
-import { OpenContext } from 'vs/code/common/windows';
+import { OpenContext } from "vs/platform/windows/common/windows";
 import { IWindowsMainService } from 'vs/code/electron-main/windows';
 import { VSCodeWindow } from 'vs/code/electron-main/window';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStorageService } from 'vs/code/node/storage';
+import { IStorageService } from 'vs/platform/storage/node/storage';
 import { IFilesConfiguration, AutoSaveConfiguration } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService, State as UpdateState } from 'vs/platform/update/common/update';

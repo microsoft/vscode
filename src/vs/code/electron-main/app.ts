@@ -7,12 +7,11 @@
 
 import { app, ipcMain as ipc, BrowserWindow } from 'electron';
 import * as platform from 'vs/base/common/platform';
-import { OpenContext } from 'vs/code/common/windows';
 import { IWindowsMainService, WindowsManager } from 'vs/code/electron-main/windows';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, OpenContext } from 'vs/platform/windows/common/windows';
 import { WindowsChannel } from 'vs/platform/windows/common/windowsIpc';
 import { WindowsService } from 'vs/platform/windows/electron-main/windowsService';
-import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
+import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { VSCodeMenu } from 'vs/code/electron-main/menus';
 import { getShellEnvironment } from 'vs/code/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
@@ -26,8 +25,8 @@ import { LaunchService, LaunchChannel, ILaunchService } from './launch';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ILogService } from 'vs/code/common/log';
-import { IStorageService } from 'vs/code/node/storage';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IStorageService } from 'vs/platform/storage/node/storage';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { BackupChannel } from 'vs/platform/backup/common/backupIpc';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';

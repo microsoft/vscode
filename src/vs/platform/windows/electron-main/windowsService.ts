@@ -9,16 +9,15 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, OpenContext } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { shell, crashReporter, app } from 'electron';
 import Event, { chain } from 'vs/base/common/event';
 import { fromEventEmitter } from 'vs/base/node/event';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { OpenContext } from 'vs/code/common/windows'; // TODO@Joao: remove this dependency, move all implementation to this class
 import { IWindowsMainService } from 'vs/code/electron-main/windows';
-import { ILifecycleService } from "vs/code/electron-main/lifecycle";
+import { ILifecycleService } from "vs/platform/lifecycle/electron-main/lifecycleMain";
 
 export interface ISharedProcess {
 	whenReady(): TPromise<void>;
