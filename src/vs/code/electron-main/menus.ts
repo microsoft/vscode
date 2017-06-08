@@ -12,7 +12,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ipcMain as ipc, app, shell, dialog, Menu, MenuItem, BrowserWindow } from 'electron';
 import { OpenContext } from "vs/platform/windows/common/windows";
 import { IWindowsMainService } from 'vs/code/electron-main/windows';
-import { VSCodeWindow } from 'vs/code/electron-main/window';
+import { CodeWindow } from 'vs/code/electron-main/window';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/node/storage';
 import { IFilesConfiguration, AutoSaveConfiguration } from 'vs/platform/files/common/files';
@@ -129,7 +129,7 @@ class KeybindingsResolver {
 		this.windowsService.onWindowReload(() => this.resolveKeybindings());
 	}
 
-	private resolveKeybindings(win: VSCodeWindow = this.windowsService.getLastActiveWindow()): void {
+	private resolveKeybindings(win: CodeWindow = this.windowsService.getLastActiveWindow()): void {
 		if (this.commandIds.size && win) {
 			const commandIds = [];
 			this.commandIds.forEach(id => commandIds.push(id));

@@ -103,7 +103,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	nodeCachedDataDir: string;
 }
 
-export class VSCodeWindow implements ICodeWindow {
+export class CodeWindow implements ICodeWindow {
 
 	public static themeStorageKey = 'theme';
 	public static themeBackgroundStorageKey = 'themeBackground';
@@ -126,7 +126,7 @@ export class VSCodeWindow implements ICodeWindow {
 	private toDispose: IDisposable[];
 	private representedFilename: string;
 
-	private whenReadyCallbacks: TValueCallback<VSCodeWindow>[];
+	private whenReadyCallbacks: TValueCallback<CodeWindow>[];
 
 	private currentConfig: IWindowConfiguration;
 	private pendingLoadConfig: IWindowConfiguration;
@@ -181,8 +181,8 @@ export class VSCodeWindow implements ICodeWindow {
 			x: this.windowState.x,
 			y: this.windowState.y,
 			backgroundColor: this.getBackgroundColor(),
-			minWidth: VSCodeWindow.MIN_WIDTH,
-			minHeight: VSCodeWindow.MIN_HEIGHT,
+			minWidth: CodeWindow.MIN_WIDTH,
+			minHeight: CodeWindow.MIN_HEIGHT,
 			show: !isFullscreenOrMaximized,
 			title: product.nameLong,
 			webPreferences: {
@@ -343,8 +343,8 @@ export class VSCodeWindow implements ICodeWindow {
 		}
 	}
 
-	public ready(): TPromise<VSCodeWindow> {
-		return new TPromise<VSCodeWindow>((c) => {
+	public ready(): TPromise<CodeWindow> {
+		return new TPromise<CodeWindow>((c) => {
 			if (this._readyState === ReadyState.READY) {
 				return c(this);
 			}
@@ -586,7 +586,7 @@ export class VSCodeWindow implements ICodeWindow {
 			return 'hc-black';
 		}
 
-		const theme = this.storageService.getItem<string>(VSCodeWindow.themeStorageKey, 'vs-dark');
+		const theme = this.storageService.getItem<string>(CodeWindow.themeStorageKey, 'vs-dark');
 
 		return theme.split(' ')[0];
 	}
@@ -596,7 +596,7 @@ export class VSCodeWindow implements ICodeWindow {
 			return '#000000';
 		}
 
-		const background = this.storageService.getItem<string>(VSCodeWindow.themeBackgroundStorageKey, null);
+		const background = this.storageService.getItem<string>(CodeWindow.themeBackgroundStorageKey, null);
 		if (!background) {
 			const baseTheme = this.getBaseTheme();
 

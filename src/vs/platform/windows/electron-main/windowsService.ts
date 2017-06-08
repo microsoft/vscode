@@ -57,38 +57,38 @@ export class WindowsService implements IWindowsService, IDisposable {
 	}
 
 	openFolderPicker(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
-		this.windowsMainService.openFolderPicker(forceNewWindow, vscodeWindow, data);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
+		this.windowsMainService.openFolderPicker(forceNewWindow, codeWindow, data);
 
 		return TPromise.as(null);
 	}
 
 	reloadWindow(windowId: number): TPromise<void> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
-		if (vscodeWindow) {
-			this.windowsMainService.reload(vscodeWindow);
+		if (codeWindow) {
+			this.windowsMainService.reload(codeWindow);
 		}
 
 		return TPromise.as(null);
 	}
 
 	openDevTools(windowId: number): TPromise<void> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
-		if (vscodeWindow) {
-			vscodeWindow.win.webContents.openDevTools();
+		if (codeWindow) {
+			codeWindow.win.webContents.openDevTools();
 		}
 
 		return TPromise.as(null);
 	}
 
 	toggleDevTools(windowId: number): TPromise<void> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
-		if (vscodeWindow) {
-			const contents = vscodeWindow.win.webContents;
-			if (vscodeWindow.hasHiddenTitleBarStyle() && !vscodeWindow.win.isFullScreen() && !contents.isDevToolsOpened()) {
+		if (codeWindow) {
+			const contents = codeWindow.win.webContents;
+			if (codeWindow.hasHiddenTitleBarStyle() && !codeWindow.win.isFullScreen() && !contents.isDevToolsOpened()) {
 				contents.openDevTools({ mode: 'undocked' }); // due to https://github.com/electron/electron/issues/3647
 			} else {
 				contents.toggleDevTools();
@@ -99,30 +99,30 @@ export class WindowsService implements IWindowsService, IDisposable {
 	}
 
 	closeFolder(windowId: number): TPromise<void> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
-		if (vscodeWindow) {
-			this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentService.args, forceEmpty: true, windowToUse: vscodeWindow, forceReuseWindow: true });
+		if (codeWindow) {
+			this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentService.args, forceEmpty: true, windowToUse: codeWindow, forceReuseWindow: true });
 		}
 
 		return TPromise.as(null);
 	}
 
 	toggleFullScreen(windowId: number): TPromise<void> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
-		if (vscodeWindow) {
-			vscodeWindow.toggleFullScreen();
+		if (codeWindow) {
+			codeWindow.toggleFullScreen();
 		}
 
 		return TPromise.as(null);
 	}
 
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
-		if (vscodeWindow) {
-			vscodeWindow.setRepresentedFilename(fileName);
+		if (codeWindow) {
+			codeWindow.setRepresentedFilename(fileName);
 		}
 
 		return TPromise.as(null);
@@ -146,10 +146,10 @@ export class WindowsService implements IWindowsService, IDisposable {
 	}
 
 	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
-		if (vscodeWindow) {
-			const { files, folders } = this.windowsMainService.getRecentPathsList(vscodeWindow.config.workspacePath, vscodeWindow.config.filesToOpen);
+		if (codeWindow) {
+			const { files, folders } = this.windowsMainService.getRecentPathsList(codeWindow.config.workspacePath, codeWindow.config.filesToOpen);
 			return TPromise.as({ files, folders });
 		}
 
@@ -157,70 +157,70 @@ export class WindowsService implements IWindowsService, IDisposable {
 	}
 
 	focusWindow(windowId: number): TPromise<void> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
-		if (vscodeWindow) {
-			vscodeWindow.win.focus();
+		if (codeWindow) {
+			codeWindow.win.focus();
 		}
 
 		return TPromise.as(null);
 	}
 
 	isFocused(windowId: number): TPromise<boolean> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
-		if (vscodeWindow) {
-			return TPromise.as(vscodeWindow.win.isFocused());
+		if (codeWindow) {
+			return TPromise.as(codeWindow.win.isFocused());
 		}
 
 		return TPromise.as(null);
 	}
 
 	isMaximized(windowId: number): TPromise<boolean> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
-		if (vscodeWindow) {
-			return TPromise.as(vscodeWindow.win.isMaximized());
+		if (codeWindow) {
+			return TPromise.as(codeWindow.win.isMaximized());
 		}
 
 		return TPromise.as(null);
 	}
 
 	maximizeWindow(windowId: number): TPromise<void> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
-		if (vscodeWindow) {
-			vscodeWindow.win.maximize();
+		if (codeWindow) {
+			codeWindow.win.maximize();
 		}
 
 		return TPromise.as(null);
 	}
 
 	unmaximizeWindow(windowId: number): TPromise<void> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
-		if (vscodeWindow) {
-			vscodeWindow.win.unmaximize();
+		if (codeWindow) {
+			codeWindow.win.unmaximize();
 		}
 
 		return TPromise.as(null);
 	}
 
 	onWindowTitleDoubleClick(windowId: number): TPromise<void> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
-		if (vscodeWindow) {
-			vscodeWindow.onWindowTitleDoubleClick();
+		if (codeWindow) {
+			codeWindow.onWindowTitleDoubleClick();
 		}
 
 		return TPromise.as(null);
 	}
 
 	setDocumentEdited(windowId: number, flag: boolean): TPromise<void> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
-		if (vscodeWindow && vscodeWindow.win.isDocumentEdited() !== flag) {
-			vscodeWindow.win.setDocumentEdited(flag);
+		if (codeWindow && codeWindow.win.isDocumentEdited() !== flag) {
+			codeWindow.win.setDocumentEdited(flag);
 		}
 
 		return TPromise.as(null);
@@ -241,10 +241,10 @@ export class WindowsService implements IWindowsService, IDisposable {
 	}
 
 	showWindow(windowId: number): TPromise<void> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
-		if (vscodeWindow) {
-			vscodeWindow.win.show();
+		if (codeWindow) {
+			codeWindow.win.show();
 		}
 
 		return TPromise.as(null);
