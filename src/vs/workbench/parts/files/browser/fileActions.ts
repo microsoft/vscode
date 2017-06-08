@@ -698,13 +698,15 @@ export class BaseDeleteFileAction extends BaseFileAction {
 					confirm = {
 						message: this.element.isDirectory ? nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", this.element.name) : nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", this.element.name),
 						detail: isWindows ? nls.localize('undoBin', "You can restore from the recycle bin.") : nls.localize('undoTrash', "You can restore from the trash."),
-						primaryButton
+						primaryButton,
+						type: 'question'
 					};
 				} else {
 					confirm = {
 						message: this.element.isDirectory ? nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", this.element.name) : nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", this.element.name),
 						detail: nls.localize('irreversible', "This action is irreversible!"),
-						primaryButton
+						primaryButton,
+						type: 'warning'
 					};
 				}
 
@@ -823,7 +825,8 @@ export class ImportFileAction extends BaseFileAction {
 						const confirm: IConfirmation = {
 							message: nls.localize('confirmOverwrite', "A file or folder with the same name already exists in the destination folder. Do you want to replace it?"),
 							detail: nls.localize('irreversible', "This action is irreversible!"),
-							primaryButton: nls.localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace")
+							primaryButton: nls.localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
+							type: 'warning'
 						};
 
 						overwrite = this.messageService.confirm(confirm);
