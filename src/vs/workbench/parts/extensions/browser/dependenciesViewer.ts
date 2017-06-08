@@ -166,11 +166,11 @@ export class Controller extends DefaultController {
 	}
 
 	protected onLeftClick(tree: ITree, element: IExtensionDependencies, event: IMouseEvent): boolean {
-		let currentFoucssed = tree.getFocus();
+		let currentFocused = tree.getFocus();
 		if (super.onLeftClick(tree, element, event)) {
 			if (element.dependent === null) {
-				if (currentFoucssed) {
-					tree.setFocus(currentFoucssed);
+				if (currentFocused) {
+					tree.setFocus(currentFocused);
 				} else {
 					tree.focusFirst();
 				}

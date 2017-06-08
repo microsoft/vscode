@@ -31,11 +31,11 @@ export class Controller extends treedefaults.DefaultController {
 	}
 
 	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.IMouseEvent): boolean {
-		let currentFoucssed = tree.getFocus();
+		let currentFocused = tree.getFocus();
 		if (super.onLeftClick(tree, element, event)) {
 			if (element instanceof MarkersModel) {
-				if (currentFoucssed) {
-					tree.setFocus(currentFoucssed);
+				if (currentFocused) {
+					tree.setFocus(currentFocused);
 				} else {
 					tree.focusFirst();
 				}
