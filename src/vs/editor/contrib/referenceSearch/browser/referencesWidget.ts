@@ -23,9 +23,8 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { GestureEvent } from 'vs/base/browser/touch';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { LeftRightWidget } from 'vs/base/browser/ui/leftRightWidget/leftRightWidget';
 import * as tree from 'vs/base/parts/tree/browser/tree';
-import { DefaultController, LegacyRenderer } from 'vs/base/parts/tree/browser/treeDefaults';
+import { DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -45,6 +44,7 @@ import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelE
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import URI from 'vs/base/common/uri';
 
 class DecorationsManager implements IDisposable {
 
@@ -344,81 +344,120 @@ class Controller extends DefaultController {
 	}
 }
 
-class Renderer extends LegacyRenderer {
-	private _contextService: IWorkspaceContextService;
-	private _themeService: IThemeService;
-	private _environmentService: IEnvironmentService;
+class FileReferencesTemplate {
+
+	readonly file: FileLabel;
+	readonly badge: CountBadge;
+	readonly dispose: () => void;
 
 	constructor(
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		container: HTMLElement,
+		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
+		@optional(IEnvironmentService) private _environmentService: IEnvironmentService,
 		@IThemeService themeService: IThemeService,
-		@optional(IEnvironmentService) environmentService: IEnvironmentService
 	) {
-		super();
+		const parent = document.createElement('div');
+		dom.addClass(parent, 'reference-file');
+		container.appendChild(parent);
 
-		this._contextService = contextService;
-		this._themeService = themeService;
-		this._environmentService = environmentService;
+		this.file = new FileLabel(parent, URI.parse('no:file'), this._contextService, this._environmentService);
+		this.badge = new CountBadge(parent);
+		const styler = attachBadgeStyler(this.badge, themeService);
+		this.dispose = () => styler.dispose();
 	}
 
-	public getHeight(tree: tree.ITree, element: any): number {
+	set(element: FileReferences) {
+		this.file.setFile(element.uri, this._contextService, this._environmentService);
+		const len = element.children.length;
+		this.badge.setCount(len);
+		if (element.failure) {
+			this.badge.setTitleFormat(nls.localize('referencesFailre', "Failed to resolve file."));
+		} else if (len > 1) {
+			this.badge.setTitleFormat(nls.localize('referencesCount', "{0} references", len));
+		} else {
+			this.badge.setTitleFormat(nls.localize('referenceCount', "{0} reference", len));
+		}
+	}
+}
+
+class OneReferenceTemplate {
+
+	readonly before: HTMLSpanElement;
+	readonly inside: HTMLSpanElement;
+	readonly after: HTMLSpanElement;
+
+	constructor(container: HTMLElement) {
+		const parent = document.createElement('div');
+		this.before = document.createElement('span');
+		this.inside = document.createElement('span');
+		this.after = document.createElement('span');
+		dom.addClass(this.inside, 'referenceMatch');
+		dom.addClass(parent, 'reference');
+		parent.appendChild(this.before);
+		parent.appendChild(this.inside);
+		parent.appendChild(this.after);
+		container.appendChild(parent);
+	}
+
+	set(element: OneReference): void {
+		const { before, inside, after } = element.parent.preview.preview(element.range);
+		this.before.innerHTML = strings.escape(before);
+		this.inside.innerHTML = strings.escape(inside);
+		this.after.innerHTML = strings.escape(after);
+	}
+}
+
+class Renderer implements tree.IRenderer {
+
+	private static _ids = {
+		FileReferences: 'FileReferences',
+		OneReference: 'OneReference'
+	};
+
+	constructor(
+		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
+		@IThemeService private _themeService: IThemeService,
+		@optional(IEnvironmentService) private _environmentService: IEnvironmentService
+	) {
+		//
+	}
+
+	getHeight(tree: tree.ITree, element: FileReferences | OneReference): number {
 		return 22;
 	}
 
-	protected render(tree: tree.ITree, element: FileReferences | OneReference, container: HTMLElement): tree.IElementCallback {
-
-		const toDispose: IDisposable[] = [];
-		dom.clearNode(container);
-
+	getTemplateId(tree: tree.ITree, element: FileReferences | OneReference): string {
 		if (element instanceof FileReferences) {
-			const fileReferencesContainer = $('.reference-file');
-
-			/* tslint:disable:no-unused-expression */
-			new LeftRightWidget(fileReferencesContainer, (left: HTMLElement) => {
-
-				const label = new FileLabel(left, element.uri, this._contextService, this._environmentService);
-				toDispose.push(label);
-				return <IDisposable>null;
-
-			}, (right: HTMLElement) => {
-
-				const len = element.children.length;
-				const badge = new CountBadge(right, { count: len });
-				toDispose.push(attachBadgeStyler(badge, this._themeService));
-
-				if (element.failure) {
-					badge.setTitleFormat(nls.localize('referencesFailre', "Failed to resolve file."));
-				} else if (len > 1) {
-					badge.setTitleFormat(nls.localize('referencesCount', "{0} references", len));
-				} else {
-					badge.setTitleFormat(nls.localize('referenceCount', "{0} reference", len));
-				}
-
-				return null;
-			});
-			/* tslint:enable:no-unused-expression */
-
-			fileReferencesContainer.appendTo(container);
-
+			return Renderer._ids.FileReferences;
 		} else if (element instanceof OneReference) {
-
-			const preview = element.parent.preview.preview(element.range);
-
-			if (!preview) {
-				return undefined;
-			}
-
-			$('.reference').innerHtml(
-				strings.format(
-					'<span>{0}</span><span class="referenceMatch">{1}</span><span>{2}</span>',
-					strings.escape(preview.before),
-					strings.escape(preview.inside),
-					strings.escape(preview.after))).appendTo(container);
+			return Renderer._ids.OneReference;
 		}
+		throw element;
+	}
 
-		return () => {
-			dispose(toDispose);
-		};
+	renderTemplate(tree: tree.ITree, templateId: string, container: HTMLElement) {
+		if (templateId === Renderer._ids.FileReferences) {
+			return new FileReferencesTemplate(container, this._contextService, this._environmentService, this._themeService);
+		} else if (templateId === Renderer._ids.OneReference) {
+			return new OneReferenceTemplate(container);
+		}
+		throw templateId;
+	}
+
+	renderElement(tree: tree.ITree, element: FileReferences | OneReference, templateId: string, templateData: any): void {
+		if (element instanceof FileReferences) {
+			(<FileReferencesTemplate>templateData).set(element);
+		} else if (element instanceof OneReference) {
+			(<OneReferenceTemplate>templateData).set(element);
+		} else {
+			throw templateId;
+		}
+	}
+
+	disposeTemplate(tree: tree.ITree, templateId: string, templateData: any): void {
+		if (templateData instanceof FileReferencesTemplate) {
+			templateData.dispose();
+		}
 	}
 }
 

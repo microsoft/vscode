@@ -37,17 +37,21 @@
 }
 
 .monaco-editor .reference-zone-widget .ref-tree .reference-file {
-	position: relative;
-	line-height: 22px;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
 }
 
 .monaco-editor .reference-zone-widget .monaco-count-badge {
-	margin-right: 12px;
+	margin-right: .5em;
+	height: 15px;
+	padding: 0 .5em .5em .5em
 }
 
 /* High Contrast Theming */
 
 .monaco-editor.hc-black .reference-zone-widget .ref-tree .reference-file {
-	line-height: 20px;
 	font-weight: bold;
+	display: flex;
+	justify-content: space-between;
 }
