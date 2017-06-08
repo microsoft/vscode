@@ -839,6 +839,7 @@ export class ReferenceWidget extends PeekViewWidget {
 			const model = ref.object;
 			if (model) {
 				this._previewModelReference = ref;
+				this._decorationsManager.removeDecorations();
 				this._preview.setModel(model.textEditorModel);
 				var sel = Range.lift(reference.range).collapseToStart();
 				this._preview.setSelection(sel);
