@@ -13,6 +13,12 @@
 	-webkit-user-select: none;
 }
 
+@media (min-resolution: 192dpi) {
+	.monaco-shell {
+		-webkit-font-smoothing: antialiased;
+	}
+}
+
 /* Font Families (with CJK support) */
 
 .monaco-shell { font-family: system-ui, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif; }
