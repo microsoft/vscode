@@ -21,8 +21,13 @@ export interface RenderOptions {
 }
 
 export function renderMarkedString(markedString: MarkedString, options: RenderOptions = {}): Node {
-	const htmlContentElement = typeof markedString === 'string' ? { markdown: markedString } : { code: markedString };
-	return renderHtml(htmlContentElement, options);
+	if (typeof markedString === 'string') {
+		return renderHtml({ markdown: markedString }, options);
+	}
+	if (markedString.language === 'markdown') {
+		return renderHtml({ markdown: markedString.value }, options);
+	}
+	return renderHtml({ code: markedString }, options);
 }
 
 /**
