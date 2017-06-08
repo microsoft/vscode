@@ -31,6 +31,7 @@
           ".jscsrc",
           ".eslintrc",
           ".babelrc",
+          ".stylelintrc",
           ".webmanifest"
         ],
         "mimetypes": [
