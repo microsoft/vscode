@@ -86,6 +86,9 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		this._editor = null;
 	}
 
+	/**
+	 * @param modelPromise either a PPromise<void, Location[]> or a TPromise<ReferencesMode>.
+	 */
 	public toggleWidget(range: Range, modelPromise: PPromise<ReferencesModel | void, Location[]>, options: RequestOptions): void {
 
 		// close current widget and return early is position didn't change
@@ -197,7 +200,11 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 			if (result instanceof ReferencesModel) {
 				return handleModel(result, true);
 			}
-			// All results should have been received via progress.
+			if (firstUpdate) {
+				// Didn't receive any non-empty progress events.
+				return handleModel(new ReferencesModel([]), true);
+			}
+			// Received all results via progress so we can ignore the final result.
 			this._widget.getProgressBar().done();
 			return TPromise.wrap(void 0);
 		}, error => {
