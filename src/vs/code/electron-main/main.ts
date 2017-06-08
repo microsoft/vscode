@@ -32,7 +32,7 @@ import { RequestService } from 'vs/platform/request/electron-main/requestService
 import { IURLService } from 'vs/platform/url/common/url';
 import { URLService } from 'vs/platform/url/electron-main/urlService';
 import * as fs from 'original-fs';
-import { VSCodeApplication } from "vs/code/electron-main/app";
+import { CodeApplication } from "vs/code/electron-main/app";
 
 function createServices(args: ParsedArgs): IInstantiationService {
 	const services = new ServiceCollection();
@@ -193,7 +193,7 @@ function main() {
 		return instantiationService.invokeFunction(a => createPaths(a.get(IEnvironmentService)))
 			.then(() => instantiationService.invokeFunction(setupIPC))
 			.then(mainIpcServer => {
-				const app = instantiationService.createInstance(VSCodeApplication, mainIpcServer, instanceEnv);
+				const app = instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnv);
 				app.startup();
 			});
 	}).done(null, err => instantiationService.invokeFunction(quit, err));

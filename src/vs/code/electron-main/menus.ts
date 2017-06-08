@@ -152,7 +152,7 @@ class KeybindingsResolver {
 
 const telemetryFrom = 'menu';
 
-export class VSCodeMenu {
+export class CodeMenu {
 
 	private static MAX_MENU_RECENT_ENTRIES = 10;
 
@@ -523,7 +523,7 @@ export class VSCodeMenu {
 		if (folders.length > 0) {
 			openRecentMenu.append(__separator__());
 
-			for (let i = 0; i < VSCodeMenu.MAX_MENU_RECENT_ENTRIES && i < folders.length; i++) {
+			for (let i = 0; i < CodeMenu.MAX_MENU_RECENT_ENTRIES && i < folders.length; i++) {
 				openRecentMenu.append(this.createOpenRecentMenuItem(folders[i], 'openRecentFolder'));
 			}
 		}
@@ -532,7 +532,7 @@ export class VSCodeMenu {
 		if (files.length > 0) {
 			openRecentMenu.append(__separator__());
 
-			for (let i = 0; i < VSCodeMenu.MAX_MENU_RECENT_ENTRIES && i < files.length; i++) {
+			for (let i = 0; i < CodeMenu.MAX_MENU_RECENT_ENTRIES && i < files.length; i++) {
 				openRecentMenu.append(this.createOpenRecentMenuItem(files[i], 'openRecentFile'));
 			}
 		}

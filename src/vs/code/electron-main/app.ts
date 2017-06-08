@@ -12,7 +12,7 @@ import { IWindowsService, OpenContext } from 'vs/platform/windows/common/windows
 import { WindowsChannel } from 'vs/platform/windows/common/windowsIpc';
 import { WindowsService } from 'vs/platform/windows/electron-main/windowsService';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
-import { VSCodeMenu } from 'vs/code/electron-main/menus';
+import { CodeMenu } from 'vs/code/electron-main/menus';
 import { getShellEnvironment } from 'vs/code/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { UpdateChannel } from 'vs/platform/update/common/updateIpc';
@@ -45,7 +45,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { TPromise } from "vs/base/common/winjs.base";
 
-export class VSCodeApplication {
+export class CodeApplication {
 	private toDispose: IDisposable[];
 	private windowsMainService: IWindowsMainService;
 
@@ -254,7 +254,7 @@ export class VSCodeApplication {
 		}
 
 		// Install Menu
-		appInstantiationService.createInstance(VSCodeMenu);
+		appInstantiationService.createInstance(CodeMenu);
 
 		// Jump List
 		this.windowsMainService.updateWindowsJumpList();
