@@ -109,20 +109,6 @@ export interface IWindowSettings {
 	enableMenuBarMnemonics: boolean;
 }
 
-export interface IWindowCloseEvent {
-	preventDefault: Function;
-}
-
-export interface ICodeWindow {
-	id: number;
-	readyState: ReadyState;
-
-	onClose: Event<IWindowCloseEvent>;
-
-	close(): void;
-	send(channel: string, ...args: any[]): void;
-}
-
 export enum ReadyState {
 
 	/**

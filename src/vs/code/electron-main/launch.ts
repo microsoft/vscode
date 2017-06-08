@@ -5,7 +5,6 @@
 
 'use strict';
 
-import { IWindowsMainService } from 'vs/code/electron-main/windows';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -14,7 +13,8 @@ import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { once } from 'vs/base/common/event';
-import { ICodeWindow, OpenContext } from "vs/platform/windows/common/windows";
+import { OpenContext } from "vs/platform/windows/common/windows";
+import { IWindowsMainService, ICodeWindow } from "vs/platform/windows/electron-main/windowsService";
 
 export const ID = 'launchService';
 export const ILaunchService = createDecorator<ILaunchService>(ID);

@@ -16,39 +16,25 @@ import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { trim } from 'vs/base/common/strings';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/platform/storage/node/storage';
-import { IPath, CodeWindow, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState, WindowMode } from 'vs/code/electron-main/window';
+import { CodeWindow, IWindowState as ISingleWindowState, defaultWindowState, WindowMode } from 'vs/code/electron-main/window';
 import { ipcMain as ipc, app, screen, BrowserWindow, dialog } from 'electron';
 import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/node/paths';
 import { ILifecycleService, UnloadReason } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getPathLabel } from 'vs/base/common/labels';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWindowSettings, OpenContext } from 'vs/platform/windows/common/windows';
 import { getLastActiveWindow, findBestWindowOrFolder } from 'vs/code/node/windowsUtils';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/node/product';
 import { ITelemetryService, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { isParent, isEqual, isEqualOrParent } from 'vs/platform/files/common/files';
-import { KeyboardLayoutMonitor } from 'vs/code/node/keyboard';
+import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
+import { IPath, IWindowsMainService, IOpenConfiguration, IRecentPathsList, IWindowConfiguration } from "vs/platform/windows/electron-main/windowsService";
 
 enum WindowError {
 	UNRESPONSIVE,
 	CRASHED
-}
-
-export interface IOpenConfiguration {
-	context: OpenContext;
-	cli: ParsedArgs;
-	userEnv?: platform.IProcessEnvironment;
-	pathsToOpen?: string[];
-	preferNewWindow?: boolean;
-	forceNewWindow?: boolean;
-	forceReuseWindow?: boolean;
-	forceEmpty?: boolean;
-	windowToUse?: CodeWindow;
-	diffMode?: boolean;
-	initialStartup?: boolean;
 }
 
 interface INewWindowState extends ISingleWindowState {
@@ -66,11 +52,6 @@ interface IWindowsState {
 	openedFolders: IWindowState[];
 }
 
-export interface IRecentPathsList {
-	folders: string[];
-	files: string[];
-}
-
 interface INativeOpenDialogOptions {
 	pickFolders?: boolean;
 	pickFiles?: boolean;
@@ -84,45 +65,6 @@ const ReopenFoldersSetting = {
 	ONE: 'one',
 	NONE: 'none'
 };
-
-export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
-
-export interface IWindowsMainService {
-	_serviceBrand: any;
-
-	// events
-	onWindowReady: CommonEvent<CodeWindow>;
-	onWindowClose: CommonEvent<number>;
-	onWindowReload: CommonEvent<number>;
-	onPathsOpen: CommonEvent<IPath[]>;
-	onRecentPathsChange: CommonEvent<void>;
-
-	// methods
-	ready(initialUserEnv: platform.IProcessEnvironment): void;
-	reload(win: CodeWindow, cli?: ParsedArgs): void;
-	open(openConfig: IOpenConfiguration): CodeWindow[];
-	openExtensionDevelopmentHostWindow(openConfig: IOpenConfiguration): void;
-	openFileFolderPicker(forceNewWindow?: boolean, data?: ITelemetryData): void;
-	openFilePicker(forceNewWindow?: boolean, path?: string, window?: CodeWindow, data?: ITelemetryData): void;
-	openFolderPicker(forceNewWindow?: boolean, window?: CodeWindow, data?: ITelemetryData): void;
-	focusLastActive(cli: ParsedArgs, context: OpenContext): CodeWindow;
-	getLastActiveWindow(): CodeWindow;
-	findWindow(workspacePath: string, filePath?: string, extensionDevelopmentPath?: string): CodeWindow;
-	openNewWindow(context: OpenContext): void;
-	sendToFocused(channel: string, ...args: any[]): void;
-	sendToAll(channel: string, payload: any, windowIdsToIgnore?: number[]): void;
-	getFocusedWindow(): CodeWindow;
-	getWindowById(windowId: number): CodeWindow;
-	getWindows(): CodeWindow[];
-	getWindowCount(): number;
-	addToRecentPathsList(paths: { path: string; isFile?: boolean; }[]): void;
-	getRecentPathsList(workspacePath?: string, filesToOpen?: IPath[]): IRecentPathsList;
-	removeFromRecentPathsList(path: string): void;
-	removeFromRecentPathsList(paths: string[]): void;
-	clearRecentPathsList(): void;
-	updateWindowsJumpList(): void;
-	quit(): void;
-}
 
 export class WindowsManager implements IWindowsMainService {
 
@@ -527,7 +469,7 @@ export class WindowsManager implements IWindowsMainService {
 				}
 
 				const configuration = this.toConfiguration(openConfig, folderToOpen, filesToOpen, filesToCreate, filesToDiff);
-				const browserWindow = this.openInBrowserWindow(configuration, openFolderInNewWindow, openFolderInNewWindow ? void 0 : openConfig.windowToUse);
+				const browserWindow = this.openInBrowserWindow(configuration, openFolderInNewWindow, openFolderInNewWindow ? void 0 : openConfig.windowToUse as CodeWindow);
 				usedWindows.push(browserWindow);
 
 				// Reset these because we handled them
@@ -559,7 +501,7 @@ export class WindowsManager implements IWindowsMainService {
 		else if (emptyToOpen.length > 0) {
 			emptyToOpen.forEach(() => {
 				const configuration = this.toConfiguration(openConfig);
-				const browserWindow = this.openInBrowserWindow(configuration, openFolderInNewWindow, openFolderInNewWindow ? void 0 : openConfig.windowToUse);
+				const browserWindow = this.openInBrowserWindow(configuration, openFolderInNewWindow, openFolderInNewWindow ? void 0 : openConfig.windowToUse as CodeWindow);
 				usedWindows.push(browserWindow);
 
 				openFolderInNewWindow = true; // any other folders to open must open in new window then

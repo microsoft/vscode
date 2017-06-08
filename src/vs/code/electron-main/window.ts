@@ -19,11 +19,11 @@ import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/node/product';
 import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
-import { IWindowSettings, MenuBarVisibility, ICodeWindow, ReadyState, IWindowCloseEvent } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, MenuBarVisibility, ReadyState } from 'vs/platform/windows/common/windows';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { KeyboardLayoutMonitor } from 'vs/code/node/keyboard';
-import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from "vs/base/common/platform";
-import CommonEvent, { Emitter } from "vs/base/common/event";
+import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
+import { isLinux, isMacintosh, isWindows } from "vs/base/common/platform";
+import { ICodeWindow, IWindowConfiguration } from "vs/platform/windows/electron-main/windowsService";
 
 export interface IWindowState {
 	width?: number;
@@ -55,54 +55,6 @@ export const defaultWindowState = function (mode = WindowMode.Normal): IWindowSt
 	};
 };
 
-export interface IPath {
-
-	// the workspace spath for a Code instance which can be null
-	workspacePath?: string;
-
-	// the file path to open within a Code instance
-	filePath?: string;
-
-	// the line number in the file path to open
-	lineNumber?: number;
-
-	// the column number in the file path to open
-	columnNumber?: number;
-
-	// indicator to create the file path in the Code instance
-	createFilePath?: boolean;
-}
-
-export interface IWindowConfiguration extends ParsedArgs {
-	appRoot: string;
-	execPath: string;
-
-	userEnv: IProcessEnvironment;
-
-	isISOKeyboard?: boolean;
-
-	zoomLevel?: number;
-	fullscreen?: boolean;
-	highContrast?: boolean;
-	baseTheme?: string;
-	backgroundColor?: string;
-	accessibilitySupport?: boolean;
-
-	isInitialStartup?: boolean;
-
-	perfStartTime?: number;
-	perfAppReady?: number;
-	perfWindowLoadTime?: number;
-
-	workspacePath?: string;
-
-	filesToOpen?: IPath[];
-	filesToCreate?: IPath[];
-	filesToDiff?: IPath[];
-
-	nodeCachedDataDir: string;
-}
-
 export class CodeWindow implements ICodeWindow {
 
 	public static themeStorageKey = 'theme';
@@ -111,7 +63,6 @@ export class CodeWindow implements ICodeWindow {
 	private static MIN_WIDTH = 200;
 	private static MIN_HEIGHT = 120;
 
-	private _onClose: Emitter<IWindowCloseEvent>;
 	private options: IWindowCreationOptions;
 	private hiddenTitleBarStyle: boolean;
 	private showTimeoutHandle: any;
@@ -146,9 +97,6 @@ export class CodeWindow implements ICodeWindow {
 		this.whenReadyCallbacks = [];
 		this.toDispose = [];
 
-		this._onClose = new Emitter<IWindowCloseEvent>();
-		this.toDispose.push(this._onClose);
-
 		// create browser window
 		this.createBrowserWindow(config);
 
@@ -161,10 +109,6 @@ export class CodeWindow implements ICodeWindow {
 
 		// Eventing
 		this.registerListeners();
-	}
-
-	public get onClose(): CommonEvent<IWindowCloseEvent> {
-		return this._onClose.event;
 	}
 
 	private createBrowserWindow(config: IWindowCreationOptions): void {
@@ -359,11 +303,6 @@ export class CodeWindow implements ICodeWindow {
 	}
 
 	private registerListeners(): void {
-
-		// Re-emit close event
-		this._win.on('close', e => {
-			this._onClose.fire(e);
-		});
 
 		// Remember that we loaded
 		this._win.webContents.on('did-finish-load', () => {

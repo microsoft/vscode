@@ -12,7 +12,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/node/storage';
 import Event, { Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICodeWindow, ReadyState } from "vs/platform/windows/common/windows";
+import { ReadyState } from "vs/platform/windows/common/windows";
+import { ICodeWindow } from "vs/platform/windows/electron-main/windowsService";
 
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
 
@@ -135,7 +136,7 @@ export class LifecycleService implements ILifecycleService {
 	public registerWindow(codeWindow: ICodeWindow): void {
 
 		// Window Before Closing: Main -> Renderer
-		codeWindow.onClose(e => {
+		codeWindow.win.on('close', e => {
 			const windowId = codeWindow.id;
 			this.logService.log('Lifecycle#window-before-close', windowId);
 

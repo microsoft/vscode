@@ -11,26 +11,16 @@ import * as arrays from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ipcMain as ipc, app, shell, dialog, Menu, MenuItem, BrowserWindow } from 'electron';
 import { OpenContext } from "vs/platform/windows/common/windows";
-import { IWindowsMainService } from 'vs/code/electron-main/windows';
-import { CodeWindow } from 'vs/code/electron-main/window';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStorageService } from 'vs/platform/storage/node/storage';
 import { IFilesConfiguration, AutoSaveConfiguration } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService, State as UpdateState } from 'vs/platform/update/common/update';
 import product from 'vs/platform/node/product';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import Event, { Emitter, once } from 'vs/base/common/event';
-import { ConfigWatcher } from 'vs/base/node/config';
-import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { tildify } from "vs/base/common/labels";
-
-interface IKeybinding {
-	id: string;
-	label: string;
-	isNative: boolean;
-}
+import { IWindowsMainService } from "vs/platform/windows/electron-main/windowsService";
+import { KeybindingsResolver } from "vs/code/electron-main/keyboard";
 
 interface IExtensionViewlet {
 	id: string;
@@ -55,99 +45,6 @@ interface IConfiguration extends IFilesConfiguration {
 	editor: {
 		multiCursorModifier: 'ctrlCmd' | 'alt'
 	};
-}
-
-class KeybindingsResolver {
-
-	private static lastKnownKeybindingsMapStorageKey = 'lastKnownKeybindings';
-
-	private commandIds: Set<string>;
-	private keybindings: { [commandId: string]: IKeybinding };
-	private keybindingsWatcher: ConfigWatcher<IUserFriendlyKeybinding[]>;
-
-	private _onKeybindingsChanged = new Emitter<void>();
-	onKeybindingsChanged: Event<void> = this._onKeybindingsChanged.event;
-
-	constructor(
-		@IStorageService private storageService: IStorageService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IWindowsMainService private windowsService: IWindowsMainService
-	) {
-		this.commandIds = new Set<string>();
-		this.keybindings = this.storageService.getItem<{ [id: string]: string; }>(KeybindingsResolver.lastKnownKeybindingsMapStorageKey) || Object.create(null);
-		this.keybindingsWatcher = new ConfigWatcher<IUserFriendlyKeybinding[]>(environmentService.appKeybindingsPath, { changeBufferDelay: 100 });
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-
-		// Resolve keybindings when any first window is loaded
-		const onceOnWindowReady = once(this.windowsService.onWindowReady);
-		onceOnWindowReady(win => this.resolveKeybindings(win));
-
-		// Listen to resolved keybindings from window
-		ipc.on('vscode:keybindingsResolved', (event, rawKeybindings: string) => {
-			let keybindings: IKeybinding[] = [];
-			try {
-				keybindings = JSON.parse(rawKeybindings);
-			} catch (error) {
-				// Should not happen
-			}
-
-			// Fill hash map of resolved keybindings and check for changes
-			let keybindingsChanged = false;
-			let keybindingsCount = 0;
-			const resolvedKeybindings: { [commandId: string]: IKeybinding } = Object.create(null);
-			keybindings.forEach(keybinding => {
-				keybindingsCount++;
-
-				resolvedKeybindings[keybinding.id] = keybinding;
-
-				if (!this.keybindings[keybinding.id] || keybinding.label !== this.keybindings[keybinding.id].label) {
-					keybindingsChanged = true;
-				}
-			});
-
-			// A keybinding might have been unassigned, so we have to account for that too
-			if (Object.keys(this.keybindings).length !== keybindingsCount) {
-				keybindingsChanged = true;
-			}
-
-			if (keybindingsChanged) {
-				this.keybindings = resolvedKeybindings;
-				this.storageService.setItem(KeybindingsResolver.lastKnownKeybindingsMapStorageKey, this.keybindings); // keep to restore instantly after restart
-
-				this._onKeybindingsChanged.fire();
-			}
-		});
-
-		// Resolve keybindings again when keybindings.json changes
-		this.keybindingsWatcher.onDidUpdateConfiguration(() => this.resolveKeybindings());
-
-		// Resolve keybindings when window reloads because an installed extension could have an impact
-		this.windowsService.onWindowReload(() => this.resolveKeybindings());
-	}
-
-	private resolveKeybindings(win: CodeWindow = this.windowsService.getLastActiveWindow()): void {
-		if (this.commandIds.size && win) {
-			const commandIds = [];
-			this.commandIds.forEach(id => commandIds.push(id));
-			win.sendWhenReady('vscode:resolveKeybindings', JSON.stringify(commandIds));
-		}
-	}
-
-	public getKeybinding(commandId: string): IKeybinding {
-		if (!commandId) {
-			return void 0;
-		}
-
-		if (!this.commandIds.has(commandId)) {
-			this.commandIds.add(commandId);
-		}
-
-		return this.keybindings[commandId];
-	}
 }
 
 const telemetryFrom = 'menu';

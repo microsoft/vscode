@@ -9,19 +9,146 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
-import { IWindowsService, OpenContext } from 'vs/platform/windows/common/windows';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWindowsService, OpenContext, ReadyState } from 'vs/platform/windows/common/windows';
+import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { shell, crashReporter, app } from 'electron';
 import Event, { chain } from 'vs/base/common/event';
 import { fromEventEmitter } from 'vs/base/node/event';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { IWindowsMainService } from 'vs/code/electron-main/windows';
 import { ILifecycleService } from "vs/platform/lifecycle/electron-main/lifecycleMain";
+import { createDecorator } from "vs/platform/instantiation/common/instantiation";
+import { IProcessEnvironment } from "vs/base/common/platform";
+
+export interface ICodeWindow {
+	id: number;
+	win: Electron.BrowserWindow;
+	config: IWindowConfiguration;
+	openedWorkspacePath: string;
+
+	readyState: ReadyState;
+
+	close(): void;
+
+	send(channel: string, ...args: any[]): void;
+	sendWhenReady(channel: string, ...args: any[]): void;
+
+	toggleFullScreen(): void;
+	hasHiddenTitleBarStyle(): boolean;
+	setRepresentedFilename(name: string): void;
+	getRepresentedFilename(): string;
+	onWindowTitleDoubleClick(): void;
+}
+
+export interface IWindowConfiguration extends ParsedArgs {
+	appRoot: string;
+	execPath: string;
+
+	userEnv: IProcessEnvironment;
+
+	isISOKeyboard?: boolean;
+
+	zoomLevel?: number;
+	fullscreen?: boolean;
+	highContrast?: boolean;
+	baseTheme?: string;
+	backgroundColor?: string;
+	accessibilitySupport?: boolean;
+
+	isInitialStartup?: boolean;
+
+	perfStartTime?: number;
+	perfAppReady?: number;
+	perfWindowLoadTime?: number;
+
+	workspacePath?: string;
+
+	filesToOpen?: IPath[];
+	filesToCreate?: IPath[];
+	filesToDiff?: IPath[];
+
+	nodeCachedDataDir: string;
+}
 
 export interface ISharedProcess {
 	whenReady(): TPromise<void>;
 	toggle(): void;
+}
+
+export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
+
+export interface IWindowsMainService {
+	_serviceBrand: any;
+
+	// events
+	onWindowReady: Event<ICodeWindow>;
+	onWindowClose: Event<number>;
+	onWindowReload: Event<number>;
+	onPathsOpen: Event<IPath[]>;
+	onRecentPathsChange: Event<void>;
+
+	// methods
+	ready(initialUserEnv: IProcessEnvironment): void;
+	reload(win: ICodeWindow, cli?: ParsedArgs): void;
+	open(openConfig: IOpenConfiguration): ICodeWindow[];
+	openExtensionDevelopmentHostWindow(openConfig: IOpenConfiguration): void;
+	openFileFolderPicker(forceNewWindow?: boolean, data?: ITelemetryData): void;
+	openFilePicker(forceNewWindow?: boolean, path?: string, window?: ICodeWindow, data?: ITelemetryData): void;
+	openFolderPicker(forceNewWindow?: boolean, window?: ICodeWindow, data?: ITelemetryData): void;
+	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow;
+	getLastActiveWindow(): ICodeWindow;
+	findWindow(workspacePath: string, filePath?: string, extensionDevelopmentPath?: string): ICodeWindow;
+	openNewWindow(context: OpenContext): void;
+	sendToFocused(channel: string, ...args: any[]): void;
+	sendToAll(channel: string, payload: any, windowIdsToIgnore?: number[]): void;
+	getFocusedWindow(): ICodeWindow;
+	getWindowById(windowId: number): ICodeWindow;
+	getWindows(): ICodeWindow[];
+	getWindowCount(): number;
+	addToRecentPathsList(paths: { path: string; isFile?: boolean; }[]): void;
+	getRecentPathsList(workspacePath?: string, filesToOpen?: IPath[]): IRecentPathsList;
+	removeFromRecentPathsList(path: string): void;
+	removeFromRecentPathsList(paths: string[]): void;
+	clearRecentPathsList(): void;
+	updateWindowsJumpList(): void;
+	quit(): void;
+}
+
+export interface IPath {
+
+	// the workspace spath for a Code instance which can be null
+	workspacePath?: string;
+
+	// the file path to open within a Code instance
+	filePath?: string;
+
+	// the line number in the file path to open
+	lineNumber?: number;
+
+	// the column number in the file path to open
+	columnNumber?: number;
+
+	// indicator to create the file path in the Code instance
+	createFilePath?: boolean;
+}
+
+export interface IOpenConfiguration {
+	context: OpenContext;
+	cli: ParsedArgs;
+	userEnv?: IProcessEnvironment;
+	pathsToOpen?: string[];
+	preferNewWindow?: boolean;
+	forceNewWindow?: boolean;
+	forceReuseWindow?: boolean;
+	forceEmpty?: boolean;
+	windowToUse?: ICodeWindow;
+	diffMode?: boolean;
+	initialStartup?: boolean;
+}
+
+export interface IRecentPathsList {
+	folders: string[];
+	files: string[];
 }
 
 export class WindowsService implements IWindowsService, IDisposable {
