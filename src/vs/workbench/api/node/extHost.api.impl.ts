@@ -377,6 +377,10 @@ export function createApiFactory(
 		// namespace: workspace
 		const workspace: typeof vscode.workspace = {
 			get rootPath() {
+				telemetryService.publicLog('api-getter', {
+					name: 'workspace#rootPath',
+					extension: extension.id
+				});
 				return extHostWorkspace.getPath();
 			},
 			set rootPath(value) {
