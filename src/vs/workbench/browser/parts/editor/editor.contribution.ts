@@ -93,6 +93,7 @@ interface ISerializedUntitledEditorInput {
 	resource: string;
 	resourceJSON: any;
 	modeId: string;
+	encoding: string;
 }
 
 // Register Editor Input Factory
@@ -118,7 +119,8 @@ class UntitledEditorInputFactory implements IEditorInputFactory {
 		const serialized: ISerializedUntitledEditorInput = {
 			resource: resource.toString(), // Keep for backwards compatibility
 			resourceJSON: resource.toJSON(),
-			modeId: untitledEditorInput.getModeId()
+			modeId: untitledEditorInput.getModeId(),
+			encoding: untitledEditorInput.getEncoding()
 		};
 
 		return JSON.stringify(serialized);
@@ -130,8 +132,9 @@ class UntitledEditorInputFactory implements IEditorInputFactory {
 			const resource = !!deserialized.resourceJSON ? URI.revive(deserialized.resourceJSON) : URI.parse(deserialized.resource);
 			const filePath = resource.scheme === 'file' ? resource.fsPath : void 0;
 			const language = deserialized.modeId;
+			const encoding = deserialized.encoding;
 
-			return accessor.get(IWorkbenchEditorService).createInput({ resource, filePath, language }) as UntitledEditorInput;
+			return accessor.get(IWorkbenchEditorService).createInput({ resource, filePath, language, encoding }) as UntitledEditorInput;
 		});
 	}
 }
