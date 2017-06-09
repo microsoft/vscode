@@ -15,7 +15,6 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionRegistryExtensions } from 'vs/workbench/common/actionRegistry';
 import { ToggleViewletAction, Extensions as ViewletExtensions, ViewletRegistry, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { TogglePanelAction, Extensions as PanelExtensions, PanelRegistry, PanelDescriptor } from 'vs/workbench/browser/panel';
-import { DebugViewRegistry } from 'vs/workbench/parts/debug/browser/debugViewRegistry';
 import { VariablesView, WatchExpressionsView, CallStackView, BreakpointsView } from 'vs/workbench/parts/debug/electron-browser/debugViews';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IDebugService, VIEWLET_ID, REPL_ID, CONTEXT_NOT_IN_DEBUG_MODE, CONTEXT_IN_DEBUG_MODE, INTERNAL_CONSOLE_OPTIONS_SCHEMA } from 'vs/workbench/parts/debug/common/debug';
@@ -35,6 +34,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import * as debugCommands from 'vs/workbench/parts/debug/electron-browser/debugCommands';
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { StatusBarColorProvider } from 'vs/workbench/parts/debug/electron-browser/statusbarColorProvider';
+import { ViewLocation, ViewsRegistry } from 'vs/workbench/parts/views/browser/viewsRegistry';
 
 class OpenDebugViewletAction extends ToggleViewletAction {
 	public static ID = VIEWLET_ID;
@@ -94,10 +94,10 @@ Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescri
 Registry.as<PanelRegistry>(PanelExtensions.Panels).setDefaultPanelId(REPL_ID);
 
 // Register default debug views
-DebugViewRegistry.registerDebugView(VariablesView, 10, 40);
-DebugViewRegistry.registerDebugView(WatchExpressionsView, 20, 10);
-DebugViewRegistry.registerDebugView(CallStackView, 30, 30);
-DebugViewRegistry.registerDebugView(BreakpointsView, 40, 20);
+ViewsRegistry.registerViews([{ id: 'workbench.debug.variablesView', name: '', ctor: VariablesView, order: 10, size: 40, location: ViewLocation.Debug }]);
+ViewsRegistry.registerViews([{ id: 'workbench.debug.watchExpressionsView', name: '', ctor: WatchExpressionsView, order: 20, size: 10, location: ViewLocation.Debug }]);
+ViewsRegistry.registerViews([{ id: 'workbench.debug.callStackView', name: '', ctor: CallStackView, order: 30, size: 30, location: ViewLocation.Debug }]);
+ViewsRegistry.registerViews([{ id: 'workbench.debug.breakPointsView', name: '', ctor: BreakpointsView, order: 40, size: 20, location: ViewLocation.Debug }]);
 
 // register action to open viewlet
 const registry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionRegistryExtensions.WorkbenchActions);

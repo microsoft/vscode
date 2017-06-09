@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
 import { Builder } from 'vs/base/browser/builder';
 import { VIEWLET_ID, ExplorerViewletVisibleContext, IFilesConfiguration } from 'vs/workbench/parts/files/common/files';
-import { ComposedViewsViewlet, IViewletView, IViewletViewOptions } from 'vs/workbench/parts/views/browser/views';
+import { ComposedViewsViewlet, IView, IViewletViewOptions } from 'vs/workbench/parts/views/browser/views';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ActionRunner, FileViewletState } from 'vs/workbench/parts/files/browser/views/explorerViewer';
 import { ExplorerView, IExplorerViewOptions } from 'vs/workbench/parts/files/browser/views/explorerView';
@@ -49,7 +49,7 @@ export class ExplorerViewlet extends ComposedViewsViewlet {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService
 	) {
-		super(VIEWLET_ID, ViewLocation.Explorer, ExplorerViewlet.EXPLORER_VIEWS_STATE, telemetryService, storageService, instantiationService, themeService, contextService);
+		super(VIEWLET_ID, ViewLocation.Explorer, ExplorerViewlet.EXPLORER_VIEWS_STATE, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService);
 
 		this.viewletState = new FileViewletState();
 		this.viewletVisibleContextKey = ExplorerViewletVisibleContext.bindTo(contextKeyService);
@@ -124,7 +124,7 @@ export class ExplorerViewlet extends ComposedViewsViewlet {
 		return !this.contextService.hasWorkspace() || (<IFilesConfiguration>this.configurationService.getConfiguration()).explorer.openEditors.visible !== 0;
 	}
 
-	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): IViewletView {
+	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): IView {
 		if (viewDescriptor.id === ExplorerView.ID) {
 			// Create a delegating editor service for the explorer to be able to delay the refresh in the opened
 			// editors view above. This is a workaround for being able to double click on a file to make it pinned
@@ -164,7 +164,7 @@ export class ExplorerViewlet extends ComposedViewsViewlet {
 			});
 
 			const explorerInstantiator = this.instantiationService.createChild(new ServiceCollection([IWorkbenchEditorService, delegatingEditorService]));
-			return explorerInstantiator.createInstance(ExplorerView, viewDescriptor.id, <IExplorerViewOptions>{ ...options, viewletState: this.viewletState });
+			return explorerInstantiator.createInstance(ExplorerView, <IExplorerViewOptions>{ ...options, viewletState: this.viewletState });
 		}
 		return super.createView(viewDescriptor, options);
 	}
@@ -222,7 +222,7 @@ export class ExplorerViewlet extends ComposedViewsViewlet {
 		super.focus();
 	}
 
-	private hasSelectionOrFocus(view: IViewletView): boolean {
+	private hasSelectionOrFocus(view: IView): boolean {
 		if (!view) {
 			return false;
 		}

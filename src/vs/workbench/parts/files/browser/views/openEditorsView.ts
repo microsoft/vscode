@@ -18,7 +18,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup } from 'vs/workbench/common/editor';
 import { SaveAllAction } from 'vs/workbench/parts/files/browser/fileActions';
-import { AdaptiveCollapsibleViewletView } from 'vs/workbench/parts/views/browser/views';
+import { CollapsibleView, IViewletViewOptions } from 'vs/workbench/parts/views/browser/views';
 import { IFilesConfiguration, VIEWLET_ID, OpenEditorsFocussedContext, ExplorerFocussedContext } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -33,11 +33,11 @@ import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
 import { attachListStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IViewOptions } from 'vs/workbench/parts/views/browser/viewsRegistry';
+import { ViewSizing } from 'vs/base/browser/ui/splitview/splitview';
 
 const $ = dom.$;
 
-export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
+export class OpenEditorsView extends CollapsibleView {
 
 	private static DEFAULT_VISIBLE_OPEN_EDITORS = 9;
 	private static DEFAULT_DYNAMIC_HEIGHT = true;
@@ -56,7 +56,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	private openEditorsFocussedContext: IContextKey<boolean>;
 	private explorerFocussedContext: IContextKey<boolean>;
 
-	constructor(readonly id: string, options: IViewOptions,
+	constructor(options: IViewletViewOptions,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITextFileService private textFileService: ITextFileService,
@@ -69,7 +69,12 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		@IViewletService private viewletService: IViewletService,
 		@IThemeService private themeService: IThemeService
 	) {
-		super(options.actionRunner, OpenEditorsView.computeExpandedBodySize(editorGroupService.getStacksModel()), options.collapsed, nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"), keybindingService, contextMenuService);
+		super({
+			...options,
+			ariaHeaderLabel: nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"),
+			sizing: ViewSizing.Fixed,
+			initialBodySize: OpenEditorsView.computeExpandedBodySize(editorGroupService.getStacksModel())
+		}, keybindingService, contextMenuService);
 
 		this.model = editorGroupService.getStacksModel();
 
@@ -223,7 +228,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 
 	private structuralTreeUpdate(): void {
 		// View size
-		this.expandedBodySize = this.getExpandedBodySize(this.model);
+		this.setBodySize(this.getExpandedBodySize(this.model));
 		// Show groups only if there is more than 1 group
 		const treeInput = this.model.groups.length === 1 ? this.model.groups[0] : this.model;
 		// TODO@Isidor temporary workaround due to a partial tree refresh issue
@@ -277,7 +282,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		}
 
 		// Adjust expanded body size
-		this.expandedBodySize = this.getExpandedBodySize(this.model);
+		this.setBodySize(this.getExpandedBodySize(this.model));
 	}
 
 	private updateDirtyIndicator(): void {

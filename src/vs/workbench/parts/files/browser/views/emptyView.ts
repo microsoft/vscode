@@ -13,32 +13,29 @@ import { IAction } from 'vs/base/common/actions';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { $ } from 'vs/base/browser/builder';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CollapsibleViewletView } from 'vs/workbench/parts/views/browser/views';
+import { CollapsibleView, IViewletViewOptions } from 'vs/workbench/parts/views/browser/views';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IViewOptions } from 'vs/workbench/parts/views/browser/viewsRegistry';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { ViewSizing } from 'vs/base/browser/ui/splitview/splitview';
 
-export class EmptyView extends CollapsibleViewletView {
+export class EmptyView extends CollapsibleView {
 
 	public static ID: string = 'workbench.explorer.emptyView';
 
 	private openFolderButton: Button;
 
 	constructor(
-		readonly id: string,
-		options: IViewOptions,
+		options: IViewletViewOptions,
 		@IThemeService private themeService: IThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IMessageService messageService: IMessageService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService
 	) {
-		super(options.actionRunner, options.collapsed, nls.localize('explorerSection', "Files Explorer Section"), messageService, keybindingService, contextMenuService, void 0, 5 * 22);
+		super({ ...options, ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section"), sizing: ViewSizing.Flexible }, keybindingService, contextMenuService);
 	}
 
 	public renderHeader(container: HTMLElement): void {

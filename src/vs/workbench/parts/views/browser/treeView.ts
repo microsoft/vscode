@@ -6,7 +6,6 @@
 import 'vs/css!./media/views';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose, empty as EmptyDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { CollapsibleViewletView } from 'vs/workbench/parts/views/browser/views';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
@@ -26,13 +25,14 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ITree, IDataSource, IRenderer, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ViewsRegistry, IViewOptions } from 'vs/workbench/parts/views/browser/viewsRegistry';
+import { ViewsRegistry } from 'vs/workbench/parts/views/browser/viewsRegistry';
 import { ITreeViewDataProvider, ITreeItem, TreeItemCollapsibleState, TreeViewItemHandleArg } from 'vs/workbench/parts/views/common/views';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { CollapsibleState } from 'vs/base/browser/ui/splitview/splitview';
+import { CollapsibleState, ViewSizing } from 'vs/base/browser/ui/splitview/splitview';
+import { CollapsibleView, IViewletViewOptions } from 'vs/workbench/parts/views/browser/views';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
-export class TreeView extends CollapsibleViewletView {
+export class TreeView extends CollapsibleView {
 
 	private menus: Menus;
 	private viewFocusContext: IContextKey<boolean>;
@@ -44,9 +44,8 @@ export class TreeView extends CollapsibleViewletView {
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		readonly id: string,
-		private options: IViewOptions,
-		@IMessageService messageService: IMessageService,
+		private options: IViewletViewOptions,
+		@IMessageService private messageService: IMessageService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -56,7 +55,7 @@ export class TreeView extends CollapsibleViewletView {
 		@IExtensionService private extensionService: IExtensionService,
 		@ICommandService private commandService: ICommandService
 	) {
-		super(options.actionRunner, options.collapsed, options.name, messageService, keybindingService, contextMenuService);
+		super({ ...options, ariaHeaderLabel: options.name, sizing: ViewSizing.Flexible, collapsed: options.collapsed === void 0 ? true : options.collapsed }, keybindingService, contextMenuService);
 		this.menus = this.instantiationService.createInstance(Menus, this.id);
 		this.viewFocusContext = this.contextKeyService.createKey<boolean>(this.id, void 0);
 		this.menus.onDidChangeTitle(() => this.updateActions(), this, this.disposables);
@@ -128,21 +127,27 @@ export class TreeView extends CollapsibleViewletView {
 		return super.setVisible(visible);
 	}
 
-	public setInput(): TPromise<void> {
-		if (this.listenToDataProvider()) {
-			this.treeInputPromise = this.tree.setInput(new Root());
-			return this.treeInputPromise;
-		}
-		this.treeInputPromise = new TPromise<void>((c, e) => {
-			this.dataProviderRegisteredListener = ViewsRegistry.onTreeViewDataProviderRegistered(id => {
-				if (this.id === id) {
-					if (this.listenToDataProvider()) {
-						this.tree.setInput(new Root()).then(() => c(null));
-						this.dataProviderRegisteredListener.dispose();
+	public create(): TPromise<void> {
+		return super.create().then(() => this.setInput());
+	}
+
+	private setInput(): TPromise<void> {
+		if (this.tree && !this.treeInputPromise) {
+			if (this.listenToDataProvider()) {
+				this.treeInputPromise = this.tree.setInput(new Root());
+				return this.treeInputPromise;
+			}
+			this.treeInputPromise = new TPromise<void>((c, e) => {
+				this.dataProviderRegisteredListener = ViewsRegistry.onTreeViewDataProviderRegistered(id => {
+					if (this.id === id) {
+						if (this.listenToDataProvider()) {
+							this.tree.setInput(new Root()).then(() => c(null));
+							this.dataProviderRegisteredListener.dispose();
+						}
 					}
-				}
+				});
 			});
-		});
+		}
 		return TPromise.as(null);
 	}
 
