@@ -149,7 +149,8 @@ export class ElectronWindow extends Themable {
 								if (draggedExternalResources.length > 20) {
 									doOpen = this.messageService.confirm({
 										message: nls.localize('confirmOpen', "Are you sure you want to open {0} folders?", draggedExternalResources.length),
-										primaryButton: nls.localize({ key: 'confirmOpenButton', comment: ['&& denotes a mnemonic'] }, "&&Open")
+										primaryButton: nls.localize({ key: 'confirmOpenButton', comment: ['&& denotes a mnemonic'] }, "&&Open"),
+										type: 'question'
 									});
 								}
 

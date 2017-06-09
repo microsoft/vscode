@@ -32,12 +32,13 @@ program.on('--help', () => {
 program.parse(process.argv);
 
 if (!program.latest) {
-	console.error('You must specify the binary to run the smoke test against');
-	process.exit(1);
+	fail('You must specify the binary to run the smoke test against');
 }
 if (!binaryExists(program.latest) || (program.stable && !binaryExists(program.stable))) {
-	console.error('The file path to electron binary does not exist or permissions do not allow to execute it. Please check the path provided.');
-	process.exit(1);
+	fail('The file path to electron binary does not exist or permissions do not allow to execute it. Please check the path provided.');
+}
+if (parseInt(process.version.substr(1)) < 6) {
+	fail('Please update your Node version to greater than 6 to run the smoke test.');
 }
 
 // Setting up environment variables
@@ -61,6 +62,10 @@ try {
 	throw new Error('Error caught running the smoke test: ' + e);
 }
 
+function fail(errorMessage) {
+	console.error(errorMessage);
+	process.exit(1);
+}
 
 function runTests() {
 	console.log('Running tests...')

@@ -43,8 +43,7 @@ export default class TypeScriptDocumentHighlightProvider implements DocumentHigh
 				});
 			}
 			return [];
-		}, (err) => {
-			this.client.error(`'occurrences' request failed with error.`, err);
+		}, () => {
 			return [];
 		});
 	}

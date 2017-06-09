@@ -84,5 +84,10 @@ suite('SnippetsService', function () {
 		result = provider.provideCompletionItems(model, new Position(1, 4));
 		assert.equal(result.suggestions.length, 1);
 		model.dispose();
+
+		model = Model.createFromString('a<?', undefined, modeService.getLanguageIdentifier('fooLang'));
+		result = provider.provideCompletionItems(model, new Position(1, 4));
+		assert.equal(result.suggestions.length, 0);
+		model.dispose();
 	});
 });

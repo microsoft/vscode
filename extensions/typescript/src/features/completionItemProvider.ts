@@ -223,8 +223,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			}
 
 			return completionItems;
-		}, (err) => {
-			this.client.error(`'completions' request failed with error.`, err);
+		}, () => {
 			return [];
 		});
 	}
@@ -264,8 +263,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			}
 
 			return item;
-		}, (err) => {
-			this.client.error(`'completionEntryDetails' request failed with error.`, err);
+		}, () => {
 			return item;
 		});
 	}

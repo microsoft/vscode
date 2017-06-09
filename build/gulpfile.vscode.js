@@ -42,7 +42,7 @@ const nodeModules = ['electron', 'original-fs']
 // Build
 
 const builtInExtensions = [
-	{ name: 'ms-vscode.node-debug', version: '1.13.10' },
+	{ name: 'ms-vscode.node-debug', version: '1.14.1' },
 	{ name: 'ms-vscode.node-debug2', version: '1.13.3' }
 ];
 
@@ -86,7 +86,7 @@ const BUNDLED_FILE_HEADER = [
 
 var languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'];
 if (process.env.VSCODE_QUALITY !== 'stable') {
-	languages = languages.concat(['ptb']); // Add languages requested by the community to non-stable builds
+	languages = languages.concat(['ptb', 'hun', 'trk']); // Add languages requested by the community to non-stable builds
 }
 
 gulp.task('clean-optimized-vscode', util.rimraf('out-vscode'));
@@ -369,7 +369,9 @@ const vscodeLanguages = [
 	'es',
 	'ru',
 	'it',
-	'pt-br'
+	'pt-br',
+	'hu',
+	'tr'
 ];
 const setupDefaultLanguages = [
 	'zh-hans',

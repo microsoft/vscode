@@ -74,9 +74,7 @@ export interface ITypescriptServiceClient {
 	normalizePath(resource: Uri): string | null;
 	asUrl(filepath: string): Uri;
 
-	info(message: string, data?: any): void;
 	warn(message: string, data?: any): void;
-	error(message: string, data?: any): void;
 
 	onProjectLanguageServiceStateChanged: Event<Proto.ProjectLanguageServiceStateEventBody>;
 	onDidBeginInstallTypings: Event<Proto.BeginInstallTypesEventBody>;

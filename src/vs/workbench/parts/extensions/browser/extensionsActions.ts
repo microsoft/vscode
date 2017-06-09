@@ -865,7 +865,7 @@ export class ReloadAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		if (this.messageService.confirm({ message: this.reloadMessaage, primaryButton: localize('reload', "&&Reload Window") })) {
+		if (this.messageService.confirm({ message: this.reloadMessaage, type: 'question', primaryButton: localize('reload', "&&Reload Window") })) {
 			return this.windowService.reloadWindow();
 		}
 		return TPromise.wrap(null);

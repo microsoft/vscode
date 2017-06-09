@@ -56,8 +56,7 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 				tree.childItems.forEach(item => this.walkNavTree(document, item, null, referenceableSpans));
 			}
 			return referenceableSpans.map(span => new ReferencesCodeLens(document.uri, filepath, span));
-		}, (err: any) => {
-			this.client.error(`'navtree' request failed with error.`, err);
+		}, () => {
 			return [];
 		});
 	}

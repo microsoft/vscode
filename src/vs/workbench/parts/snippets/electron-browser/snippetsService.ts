@@ -111,18 +111,21 @@ export class SnippetSuggestProvider implements ISuggestSupport {
 		for (const snippet of snippets) {
 
 			const lowPrefix = snippet.prefix.toLowerCase();
-			let overwriteBefore: number;
+			let overwriteBefore = 0;
+			let accetSnippet = true;
 
 			if (lowWordUntil.length > 0 && startsWith(lowPrefix, lowWordUntil)) {
 				// cheap match on the (none-empty) current word
 				overwriteBefore = lowWordUntil.length;
+				accetSnippet = true;
 
 			} else if (lowLineUntil.length > 0) {
 				// compute overlap between snippet and line on text
 				overwriteBefore = overlap(lowLineUntil, snippet.prefix.toLowerCase());
+				accetSnippet = overwriteBefore > 0 && !model.getWordAtPosition(new Position(position.lineNumber, position.column - overwriteBefore));
 			}
 
-			if (overwriteBefore !== 0) {
+			if (accetSnippet) {
 
 				items.push({
 					snippet,

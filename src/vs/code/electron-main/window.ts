@@ -9,20 +9,21 @@ import * as path from 'path';
 import * as objects from 'vs/base/common/objects';
 import { stopProfiling } from 'vs/base/node/profiler';
 import nls = require('vs/nls');
-import { IStorageService } from 'vs/code/electron-main/storage';
+import { IStorageService } from 'vs/platform/storage/node/storage';
 import { shell, screen, BrowserWindow, systemPreferences, app } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
-import { ILogService } from 'vs/code/electron-main/log';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/node/product';
 import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
-import { IWindowSettings, MenuBarVisibility } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState } from 'vs/platform/windows/common/windows';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { KeyboardLayoutMonitor } from 'vs/code/node/keyboard';
-import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from "vs/base/common/platform";
+import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { ICodeWindow } from "vs/platform/windows/electron-main/windows";
 
 export interface IWindowState {
 	width?: number;
@@ -54,87 +55,7 @@ export const defaultWindowState = function (mode = WindowMode.Normal): IWindowSt
 	};
 };
 
-export interface IPath {
-
-	// the workspace spath for a VSCode instance which can be null
-	workspacePath?: string;
-
-	// the file path to open within a VSCode instance
-	filePath?: string;
-
-	// the line number in the file path to open
-	lineNumber?: number;
-
-	// the column number in the file path to open
-	columnNumber?: number;
-
-	// indicator to create the file path in the VSCode instance
-	createFilePath?: boolean;
-}
-
-export interface IWindowConfiguration extends ParsedArgs {
-	appRoot: string;
-	execPath: string;
-
-	userEnv: IProcessEnvironment;
-
-	/**
-	 * The physical keyboard is of ISO type (on OSX).
-	 */
-	isISOKeyboard?: boolean;
-
-	zoomLevel?: number;
-	fullscreen?: boolean;
-	highContrast?: boolean;
-	baseTheme?: string;
-	backgroundColor?: string;
-	accessibilitySupport?: boolean;
-
-	isInitialStartup?: boolean;
-
-	perfStartTime?: number;
-	perfAppReady?: number;
-	perfWindowLoadTime?: number;
-
-	workspacePath?: string;
-
-	filesToOpen?: IPath[];
-	filesToCreate?: IPath[];
-	filesToDiff?: IPath[];
-
-	nodeCachedDataDir: string;
-}
-
-export enum ReadyState {
-
-	/**
-	 * This window has not loaded any HTML yet
-	 */
-	NONE,
-
-	/**
-	 * This window is loading HTML
-	 */
-	LOADING,
-
-	/**
-	 * This window is navigating to another HTML
-	 */
-	NAVIGATING,
-
-	/**
-	 * This window is done loading HTML
-	 */
-	READY
-}
-
-interface IConfiguration {
-	window: {
-		menuBarVisibility: MenuBarVisibility;
-	};
-}
-
-export class VSCodeWindow {
+export class CodeWindow implements ICodeWindow {
 
 	public static themeStorageKey = 'theme';
 	public static themeBackgroundStorageKey = 'themeBackground';
@@ -153,11 +74,10 @@ export class VSCodeWindow {
 	private _isExtensionTestHost: boolean;
 	private windowState: IWindowState;
 	private currentMenuBarVisibility: MenuBarVisibility;
-	private currentWindowMode: WindowMode;
 	private toDispose: IDisposable[];
 	private representedFilename: string;
 
-	private whenReadyCallbacks: TValueCallback<VSCodeWindow>[];
+	private whenReadyCallbacks: TValueCallback<CodeWindow>[];
 
 	private currentConfig: IWindowConfiguration;
 	private pendingLoadConfig: IWindowConfiguration;
@@ -177,11 +97,27 @@ export class VSCodeWindow {
 		this.whenReadyCallbacks = [];
 		this.toDispose = [];
 
+		// create browser window
+		this.createBrowserWindow(config);
+
+		// respect configured menu bar visibility
+		this.onConfigurationUpdated();
+
+		// TODO@joao: hook this up to some initialization routine this causes a race between setting the headers and doing
+		// a request that needs them. chances are low
+		this.setCommonHTTPHeaders();
+
+		// Eventing
+		this.registerListeners();
+	}
+
+	private createBrowserWindow(config: IWindowCreationOptions): void {
+
 		// Load window state
-		this.restoreWindowState(config.state);
+		this.windowState = this.restoreWindowState(config.state);
 
 		// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
-		const isFullscreenOrMaximized = (this.currentWindowMode === WindowMode.Maximized || this.currentWindowMode === WindowMode.Fullscreen);
+		const isFullscreenOrMaximized = (this.windowState.mode === WindowMode.Maximized || this.windowState.mode === WindowMode.Fullscreen);
 
 		const options: Electron.BrowserWindowOptions = {
 			width: this.windowState.width,
@@ -189,8 +125,8 @@ export class VSCodeWindow {
 			x: this.windowState.x,
 			y: this.windowState.y,
 			backgroundColor: this.getBackgroundColor(),
-			minWidth: VSCodeWindow.MIN_WIDTH,
-			minHeight: VSCodeWindow.MIN_HEIGHT,
+			minWidth: CodeWindow.MIN_WIDTH,
+			minHeight: CodeWindow.MIN_HEIGHT,
 			show: !isFullscreenOrMaximized,
 			title: product.nameLong,
 			webPreferences: {
@@ -248,7 +184,7 @@ export class VSCodeWindow {
 		if (isFullscreenOrMaximized) {
 			this._win.maximize();
 
-			if (this.currentWindowMode === WindowMode.Fullscreen) {
+			if (this.windowState.mode === WindowMode.Fullscreen) {
 				this._win.setFullScreen(true);
 			}
 
@@ -258,16 +194,6 @@ export class VSCodeWindow {
 		}
 
 		this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
-
-		// respect configured menu bar visibility
-		this.onConfigurationUpdated();
-
-		// TODO@joao: hook this up to some initialization routine this causes a race between setting the headers and doing
-		// a request that needs them. chances are low
-		this.setCommonHTTPHeaders();
-
-		// Eventing
-		this.registerListeners();
 	}
 
 	private setCommonHTTPHeaders(): void {
@@ -361,8 +287,8 @@ export class VSCodeWindow {
 		}
 	}
 
-	public ready(): TPromise<VSCodeWindow> {
-		return new TPromise<VSCodeWindow>((c) => {
+	public ready(): TPromise<CodeWindow> {
+		return new TPromise<CodeWindow>((c) => {
 			if (this._readyState === ReadyState.READY) {
 				return c(this);
 			}
@@ -374,20 +300,6 @@ export class VSCodeWindow {
 
 	public get readyState(): ReadyState {
 		return this._readyState;
-	}
-
-	private registerNavigationListenerOn(command: 'swipe' | 'app-command', back: 'left' | 'browser-backward', forward: 'right' | 'browser-forward', acrossEditors: boolean) {
-		this._win.on(command, (e, cmd) => {
-			if (this.readyState !== ReadyState.READY) {
-				return; // window must be ready
-			}
-
-			if (cmd === back) {
-				this.send('vscode:runAction', acrossEditors ? 'workbench.action.openPreviousRecentlyUsedEditor' : 'workbench.action.navigateBack');
-			} else if (cmd === forward) {
-				this.send('vscode:runAction', acrossEditors ? 'workbench.action.openNextRecentlyUsedEditor' : 'workbench.action.navigateForward');
-			}
-		});
 	}
 
 	private registerListeners(): void {
@@ -403,9 +315,9 @@ export class VSCodeWindow {
 				this.pendingLoadConfig = null;
 			}
 
-			// To prevent flashing, we set the window visible after the page has finished to load but before VSCode is loaded
+			// To prevent flashing, we set the window visible after the page has finished to load but before Code is loaded
 			if (!this._win.isVisible()) {
-				if (this.currentWindowMode === WindowMode.Maximized) {
+				if (this.windowState.mode === WindowMode.Maximized) {
 					this._win.maximize();
 				}
 
@@ -487,6 +399,20 @@ export class VSCodeWindow {
 		}
 	};
 
+	private registerNavigationListenerOn(command: 'swipe' | 'app-command', back: 'left' | 'browser-backward', forward: 'right' | 'browser-forward', acrossEditors: boolean) {
+		this._win.on(command, (e, cmd) => {
+			if (this.readyState !== ReadyState.READY) {
+				return; // window must be ready
+			}
+
+			if (cmd === back) {
+				this.send('vscode:runAction', acrossEditors ? 'workbench.action.openPreviousRecentlyUsedEditor' : 'workbench.action.navigateBack');
+			} else if (cmd === forward) {
+				this.send('vscode:runAction', acrossEditors ? 'workbench.action.openNextRecentlyUsedEditor' : 'workbench.action.navigateForward');
+			}
+		});
+	}
+
 	public load(config: IWindowConfiguration): void {
 
 		// If this is the first time the window is loaded, we associate the paths
@@ -527,8 +453,7 @@ export class VSCodeWindow {
 		// (--prof-startup) save profile to disk
 		const { profileStartup } = this.environmentService;
 		if (profileStartup) {
-			stopProfiling(profileStartup.dir, profileStartup.prefix)
-				.done(undefined, err => console.error(err));
+			stopProfiling(profileStartup.dir, profileStartup.prefix).done(undefined, err => console.error(err));
 		}
 	}
 
@@ -556,7 +481,6 @@ export class VSCodeWindow {
 	}
 
 	private getUrl(windowConfiguration: IWindowConfiguration): string {
-		let url = require.toUrl('vs/workbench/electron-browser/bootstrap/index.html');
 
 		// Set zoomlevel
 		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
@@ -593,16 +517,16 @@ export class VSCodeWindow {
 			}
 		}
 
-		url += '?config=' + encodeURIComponent(JSON.stringify(config));
-
-		return url;
+		return `${require.toUrl('vs/workbench/electron-browser/bootstrap/index.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
 	}
 
 	private getBaseTheme(): string {
 		if (isWindows && systemPreferences.isInvertedColorScheme()) {
 			return 'hc-black';
 		}
-		const theme = this.storageService.getItem<string>(VSCodeWindow.themeStorageKey, 'vs-dark');
+
+		const theme = this.storageService.getItem<string>(CodeWindow.themeStorageKey, 'vs-dark');
+
 		return theme.split(' ')[0];
 	}
 
@@ -611,9 +535,10 @@ export class VSCodeWindow {
 			return '#000000';
 		}
 
-		let background = this.storageService.getItem<string>(VSCodeWindow.themeBackgroundStorageKey, null);
+		const background = this.storageService.getItem<string>(CodeWindow.themeBackgroundStorageKey, null);
 		if (!background) {
-			let baseTheme = this.getBaseTheme();
+			const baseTheme = this.getBaseTheme();
+
 			return baseTheme === 'hc-black' ? '#000000' : (baseTheme === 'vs' ? '#FFFFFF' : (isMacintosh ? '#171717' : '#1E1E1E')); // https://github.com/electron/electron/issues/5150
 		}
 
@@ -668,7 +593,7 @@ export class VSCodeWindow {
 		return state;
 	}
 
-	private restoreWindowState(state?: IWindowState): void {
+	private restoreWindowState(state?: IWindowState): IWindowState {
 		if (state) {
 			try {
 				state = this.validateWindowState(state);
@@ -681,8 +606,7 @@ export class VSCodeWindow {
 			state = defaultWindowState();
 		}
 
-		this.windowState = state;
-		this.currentWindowMode = this.windowState.mode;
+		return state;
 	}
 
 	private validateWindowState(state: IWindowState): IWindowState {
@@ -864,6 +788,12 @@ export class VSCodeWindow {
 			} else {
 				this.win.maximize();
 			}
+		}
+	}
+
+	public close(): void {
+		if (this._win) {
+			this._win.close();
 		}
 	}
 

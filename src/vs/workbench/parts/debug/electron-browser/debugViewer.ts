@@ -355,7 +355,7 @@ export class CallStackDataSource implements IDataSource {
 
 	public getChildren(tree: ITree, element: any): TPromise<any> {
 		if (element instanceof Thread) {
-			return TPromise.as(this.getThreadChildren(element));
+			return this.getThreadChildren(element);
 		}
 		if (element instanceof Model) {
 			return TPromise.as(element.getProcesses());
@@ -365,25 +365,25 @@ export class CallStackDataSource implements IDataSource {
 		return TPromise.as(process.getAllThreads());
 	}
 
-	private getThreadChildren(thread: Thread): any[] {
+	private getThreadChildren(thread: Thread): TPromise<any> {
 		const callStack: any[] = thread.getCallStack();
-		if (!callStack) {
-			return [];
+		if (!callStack || !callStack.length) {
+			return thread.fetchCallStack(false).then(() => thread.getCallStack());
 		}
 		if (callStack.length === 1) {
 			// To reduce flashing of the call stack view simply append the stale call stack
 			// once we have the correct data the tree will refresh and we will no longer display it.
-			return callStack.concat(thread.getStaleCallStack().slice(1));
+			return TPromise.as(callStack.concat(thread.getStaleCallStack().slice(1)));
 		}
 
 		if (thread.stoppedDetails && thread.stoppedDetails.framesErrorMessage) {
-			return callStack.concat([thread.stoppedDetails.framesErrorMessage]);
+			return TPromise.as(callStack.concat([thread.stoppedDetails.framesErrorMessage]));
 		}
 		if (thread.stoppedDetails && thread.stoppedDetails.totalFrames > callStack.length && callStack.length > 1) {
-			return callStack.concat([new ThreadAndProcessIds(thread.process.getId(), thread.threadId)]);
+			return TPromise.as(callStack.concat([new ThreadAndProcessIds(thread.process.getId(), thread.threadId)]));
 		}
 
-		return callStack;
+		return TPromise.as(callStack);
 	}
 
 	public getParent(tree: ITree, element: any): TPromise<any> {

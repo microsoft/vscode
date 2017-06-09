@@ -9,6 +9,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+import { IProcessEnvironment } from "vs/base/common/platform";
+import { ParsedArgs } from "vs/platform/environment/common/environment";
 
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
@@ -107,4 +109,96 @@ export interface IWindowSettings {
 	newWindowDimensions: 'default' | 'inherit' | 'maximized' | 'fullscreen';
 	nativeTabs: boolean;
 	enableMenuBarMnemonics: boolean;
+}
+
+export enum OpenContext {
+
+	// opening when running from the command line
+	CLI,
+
+	// macOS only: opening from the dock (also when opening files to a running instance from desktop)
+	DOCK,
+
+	// opening from the main application window
+	MENU,
+
+	// opening from a file or folder dialog
+	DIALOG,
+
+	// opening from the OS's UI
+	DESKTOP,
+
+	// opening through the API
+	API
+}
+
+export enum ReadyState {
+
+	/**
+	 * This window has not loaded any HTML yet
+	 */
+	NONE,
+
+	/**
+	 * This window is loading HTML
+	 */
+	LOADING,
+
+	/**
+	 * This window is navigating to another HTML
+	 */
+	NAVIGATING,
+
+	/**
+	 * This window is done loading HTML
+	 */
+	READY
+}
+
+export interface IPath {
+
+	// the workspace spath for a Code instance which can be null
+	workspacePath?: string;
+
+	// the file path to open within a Code instance
+	filePath?: string;
+
+	// the line number in the file path to open
+	lineNumber?: number;
+
+	// the column number in the file path to open
+	columnNumber?: number;
+
+	// indicator to create the file path in the Code instance
+	createFilePath?: boolean;
+}
+
+export interface IWindowConfiguration extends ParsedArgs {
+	appRoot: string;
+	execPath: string;
+
+	userEnv: IProcessEnvironment;
+
+	isISOKeyboard?: boolean;
+
+	zoomLevel?: number;
+	fullscreen?: boolean;
+	highContrast?: boolean;
+	baseTheme?: string;
+	backgroundColor?: string;
+	accessibilitySupport?: boolean;
+
+	isInitialStartup?: boolean;
+
+	perfStartTime?: number;
+	perfAppReady?: number;
+	perfWindowLoadTime?: number;
+
+	workspacePath?: string;
+
+	filesToOpen?: IPath[];
+	filesToCreate?: IPath[];
+	filesToDiff?: IPath[];
+
+	nodeCachedDataDir: string;
 }

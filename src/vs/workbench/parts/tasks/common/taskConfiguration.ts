@@ -569,7 +569,7 @@ namespace CommandConfiguration {
 			return target;
 		}
 
-		export function fillDefault(value: Tasks.TerminalBehavior): Tasks.TerminalBehavior {
+		export function fillDefault(value: Tasks.TerminalBehavior, context: ParseContext): Tasks.TerminalBehavior {
 			if (value && Object.isFrozen(value)) {
 				return value;
 			}
@@ -577,7 +577,7 @@ namespace CommandConfiguration {
 				return { echo: false, reveal: Tasks.RevealKind.Always };
 			}
 			if (value.echo === void 0) {
-				value.echo = false;
+				value.echo = context.engine === Tasks.ExecutionEngine.Terminal ? true : false;
 			}
 			if (value.reveal === void 0) {
 				value.reveal = Tasks.RevealKind.Always;
@@ -732,14 +732,14 @@ namespace CommandConfiguration {
 		return target;
 	}
 
-	export function fillDefaults(value: Tasks.CommandConfiguration): void {
+	export function fillDefaults(value: Tasks.CommandConfiguration, context: ParseContext): void {
 		if (!value || Object.isFrozen(value)) {
 			return;
 		}
 		if (value.name !== void 0 && value.type === void 0) {
 			value.type = Tasks.CommandType.Process;
 		}
-		value.terminalBehavior = TerminalBehavior.fillDefault(value.terminalBehavior);
+		value.terminalBehavior = TerminalBehavior.fillDefault(value.terminalBehavior, context);
 		if (!isEmpty(value)) {
 			value.options = CommandOptions.fillDefaults(value.options);
 		}
@@ -933,7 +933,7 @@ namespace TaskDescription {
 				return;
 			}
 			fillGlobals(task, globals);
-			fillDefaults(task);
+			fillDefaults(task, context);
 			let addTask: boolean = true;
 			if (context.engine === Tasks.ExecutionEngine.Terminal && task.command && task.command.name && task.command.type === Tasks.CommandType.Shell && task.command.args && task.command.args.length > 0) {
 				if (hasUnescapedSpaces(task.command.name) || task.command.args.some(hasUnescapedSpaces)) {
@@ -1028,8 +1028,8 @@ namespace TaskDescription {
 	export function mergeGlobalsIntoAnnnotation(task: Tasks.Task, globals: Globals): void {
 	}
 
-	export function fillDefaults(task: Tasks.Task): void {
-		CommandConfiguration.fillDefaults(task.command);
+	export function fillDefaults(task: Tasks.Task, context: ParseContext): void {
+		CommandConfiguration.fillDefaults(task.command, context);
 		if (task.promptOnClose === void 0) {
 			task.promptOnClose = task.isBackground !== void 0 ? !task.isBackground : true;
 		}
@@ -1110,7 +1110,7 @@ namespace Globals {
 		if (command) {
 			result.command = command;
 		}
-		Globals.fillDefaults(result);
+		Globals.fillDefaults(result, context);
 		Globals.freeze(result);
 		return result;
 	}
@@ -1142,11 +1142,11 @@ namespace Globals {
 		return target;
 	}
 
-	export function fillDefaults(value: Globals): void {
+	export function fillDefaults(value: Globals, context: ParseContext): void {
 		if (!value) {
 			return;
 		}
-		CommandConfiguration.fillDefaults(value.command);
+		CommandConfiguration.fillDefaults(value.command, context);
 		if (value.suppressTaskName === void 0) {
 			value.suppressTaskName = false;
 		}
@@ -1350,7 +1350,7 @@ class ConfigurationParser {
 				problemMatchers: matchers
 			};
 			TaskDescription.fillGlobals(task, globals);
-			TaskDescription.fillDefaults(task);
+			TaskDescription.fillDefaults(task, context);
 			result.tasks = [task];
 		}
 		result.tasks = result.tasks || [];
