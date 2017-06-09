@@ -458,11 +458,16 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 
 	_getRangesToDelete(editor: ICommonCodeEditor): Range[] {
 		let rangesToDelete: Range[] = editor.getSelections();
+		let model = editor.getModel();
 
 		rangesToDelete.sort(Range.compareRangesUsingStarts);
 		rangesToDelete = rangesToDelete.map(selection => {
 			if (selection.isEmpty()) {
-				return new Range(selection.startLineNumber, 1, selection.startLineNumber, selection.startColumn);
+				if (selection.startColumn === 1) {
+					return new Range(selection.startLineNumber - 1, model.getLineContent(selection.startLineNumber - 1).length + 1, selection.startLineNumber, 1);
+				} else {
+					return new Range(selection.startLineNumber, 1, selection.startLineNumber, selection.startColumn);
+				}
 			} else {
 				return selection;
 			}
