@@ -595,12 +595,14 @@ export class TypeOperations {
 			});
 		}
 
-		let indentCommand = this._runAutoIndentType(config, model, selections[0], ch);
-		if (indentCommand) {
-			return new EditOperationResult([indentCommand], {
-				shouldPushStackElementBefore: true,
-				shouldPushStackElementAfter: false,
-			});
+		if (config.autoIndent) {
+			let indentCommand = this._runAutoIndentType(config, model, selections[0], ch);
+			if (indentCommand) {
+				return new EditOperationResult([indentCommand], {
+					shouldPushStackElementBefore: true,
+					shouldPushStackElementAfter: false,
+				});
+			}
 		}
 
 		if (this._isAutoClosingCloseCharType(config, model, selections, ch)) {
