@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Emitter, mapEvent } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { TrieMap } from 'vs/base/common/map';
 import { score } from 'vs/editor/common/modes/languageSelector';
 import * as Platform from 'vs/base/common/platform';
@@ -457,24 +457,11 @@ export function createApiFactory(
 			})
 		};
 
-		class SCM {
-
-			get activeSourceControl() {
-				return extHostSCM.activeProvider;
-			}
-
-			get onDidChangeActiveSourceControl() {
-				return extHostSCM.onDidChangeActiveProvider;
-			}
-
+		// namespace: scm
+		const scm: typeof vscode.scm = {
 			get inputBox() {
 				return extHostSCM.inputBox;
-			}
-
-			get onDidAcceptInputValue() {
-				return mapEvent(extHostSCM.inputBox.onDidAccept, () => extHostSCM.inputBox);
-			}
-
+			},
 			createSourceControl(id: string, label: string) {
 				telemetryService.publicLog('registerSCMProvider', {
 					extensionId: extension.id,
@@ -484,10 +471,7 @@ export function createApiFactory(
 
 				return extHostSCM.createSourceControl(id, label);
 			}
-		}
-
-		// namespace: scm
-		const scm: typeof vscode.scm = new SCM();
+		};
 
 		return {
 			version: pkg.version,
