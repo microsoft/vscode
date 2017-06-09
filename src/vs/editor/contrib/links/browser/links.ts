@@ -261,7 +261,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 
 	private recompute(): void {
-		if(!this.editor.getConfiguration().urlClickable) {
+		if (!this.editor.getConfiguration().urlClickable) {
 			this.computePromise = getLinks(this.editor.getModel()).then(links => {
 				this.updateDecorations(links);
 				this.computePromise = null;
