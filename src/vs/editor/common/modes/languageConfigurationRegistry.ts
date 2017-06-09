@@ -75,7 +75,7 @@ export class RichEditSupport {
 		this.indentationRules = this._conf.indentationRules;
 		if (this._conf.indentationRules) {
 			this.indentRulesSupport = new IndentRulesSupport(this._conf.indentationRules);
-	}
+		}
 	}
 
 	private static _mergeConf(prev: LanguageConfiguration, current: LanguageConfiguration): LanguageConfiguration {
@@ -417,7 +417,7 @@ export class LanguageConfigurationRegistryImpl {
 		}
 	}
 
-	public getIndentForEnter(model: ITokenizedModel, range: Range, indentConverter: any): {beforeEnter: string, afterEnter: string} {
+	public getIndentForEnter(model: ITokenizedModel, range: Range, indentConverter: any): { beforeEnter: string, afterEnter: string } {
 		let scopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber, range.startColumn);
 		let scopedLineText = scopedLineTokens.getLineContent();
 		let beforeEnterText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
@@ -492,6 +492,47 @@ export class LanguageConfigurationRegistryImpl {
 			afterEnter: afterEnterIndent
 		};
 	}
+
+	/**
+	 * We should always allow intentional indentation. It means, if users change the indentation of `lineNumber` and the content of
+	 * this line doesn't match decreaseIndentPattern, we should not adjust the indentation.
+	 */
+	public getIndentActionForType(model: ITokenizedModel, lineNumber: number, column: number, ch: string, indentConverter: any): string {
+		let maxColumn = model.getLineMaxColumn(lineNumber);
+		// let indentation = this.getIndentationAtPosition(model, lineNumber, column);
+
+		let scopedLineTokens = this.getScopedLineTokens(model, lineNumber, maxColumn);
+		let indentRulesSupport = this._getIndentRulesSupport(scopedLineTokens.languageId);
+		if (!indentRulesSupport) {
+			return null;
+		}
+
+		let scopedLineText = scopedLineTokens.getLineContent();
+		let beforeTypeText = scopedLineText.substr(0, column - 1);
+		let afterTypeText = scopedLineText.substr(column - 1);
+
+		if (indentRulesSupport.shouldDecrease(beforeTypeText + ch + afterTypeText)) {
+			// after typing `ch`, the content matches decreaseIndentPattern, we should adjust the indent to a good manner.
+			// 1. Get inherited indent action
+			let r = this.getInheritIndentForLine(model, lineNumber, false);
+			if (!r) {
+				return null;
+			}
+
+			let indentation = r.indentation;
+
+			if (r.action !== IndentAction.Indent) {
+				indentation = indentConverter.unshiftIndent(indentation);
+			}
+
+			return indentation;
+		}
+
+		return null;
+	}
+
+	// end Indent Rules
+
 	// begin onEnter
 
 	private _getOnEnterSupport(languageId: LanguageId): OnEnterSupport {
@@ -535,11 +576,11 @@ export class LanguageConfigurationRegistryImpl {
 		if (lineNumber > 1 && scopedLineTokens.firstCharOffset === 0) {
 			// This is not the first line and the entire line belongs to this mode
 			let oneLineAboveScopedLineTokens = this.getScopedLineTokens(model, lineNumber - 1);
-				if (oneLineAboveScopedLineTokens.languageId === scopedLineTokens.languageId) {
-					// The line above ends with text belonging to the same mode
-					oneLineAboveText = oneLineAboveScopedLineTokens.getLineContent();
-				}
+			if (oneLineAboveScopedLineTokens.languageId === scopedLineTokens.languageId) {
+				// The line above ends with text belonging to the same mode
+				oneLineAboveText = oneLineAboveScopedLineTokens.getLineContent();
 			}
+		}
 
 		let enterResult: EnterAction = null;
 		try {
@@ -561,8 +602,8 @@ export class LanguageConfigurationRegistryImpl {
 				} else {
 					enterResult.appendText = '';
 				}
-				}
 			}
+		}
 
 		if (enterResult.removeText) {
 			indentation = indentation.substring(0, indentation.length - enterResult.removeText);

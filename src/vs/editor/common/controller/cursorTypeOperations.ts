@@ -266,31 +266,31 @@ export class TypeOperations {
 	private static _enter(config: CursorConfiguration, model: ITokenizedModel, keepPosition: boolean, range: Range): ICommand {
 		let r = LanguageConfigurationRegistry.getEnterAction(model, range);
 		if (r) {
-		let enterAction = r.enterAction;
-		let indentation = r.indentation;
+			let enterAction = r.enterAction;
+			let indentation = r.indentation;
 
-		if (enterAction.indentAction === IndentAction.None) {
-			// Nothing special
+			if (enterAction.indentAction === IndentAction.None) {
+				// Nothing special
 				return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(indentation + enterAction.appendText), keepPosition);
 
-		} else if (enterAction.indentAction === IndentAction.Indent) {
-			// Indent once
+			} else if (enterAction.indentAction === IndentAction.Indent) {
+				// Indent once
 				return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(indentation + enterAction.appendText), keepPosition);
 
-		} else if (enterAction.indentAction === IndentAction.IndentOutdent) {
-			// Ultra special
-			let normalIndent = config.normalizeIndentation(indentation);
-			let increasedIndent = config.normalizeIndentation(indentation + enterAction.appendText);
+			} else if (enterAction.indentAction === IndentAction.IndentOutdent) {
+				// Ultra special
+				let normalIndent = config.normalizeIndentation(indentation);
+				let increasedIndent = config.normalizeIndentation(indentation + enterAction.appendText);
 
 				let typeText = '\n' + increasedIndent + '\n' + normalIndent;
 
-			if (keepPosition) {
-				return new ReplaceCommandWithoutChangingPosition(range, typeText, true);
-			} else {
-				return new ReplaceCommandWithOffsetCursorState(range, typeText, -1, increasedIndent.length - normalIndent.length, true);
-			}
-		} else if (enterAction.indentAction === IndentAction.Outdent) {
-			let actualIndentation = TypeOperations.unshiftIndent(config, indentation);
+				if (keepPosition) {
+					return new ReplaceCommandWithoutChangingPosition(range, typeText, true);
+				} else {
+					return new ReplaceCommandWithOffsetCursorState(range, typeText, -1, increasedIndent.length - normalIndent.length, true);
+				}
+			} else if (enterAction.indentAction === IndentAction.Outdent) {
+				let actualIndentation = TypeOperations.unshiftIndent(config, indentation);
 				return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(actualIndentation + enterAction.appendText), keepPosition);
 			}
 		}
@@ -591,6 +591,14 @@ export class TypeOperations {
 				commands[i] = TypeOperations._enter(config, model, false, selections[i]);
 			}
 			return new EditOperationResult(commands, {
+				shouldPushStackElementBefore: true,
+				shouldPushStackElementAfter: false,
+			});
+		}
+
+		let indentCommand = this._runAutoIndentType(config, model, selections, ch);
+		if (indentCommand) {
+			return new EditOperationResult([indentCommand], {
 				shouldPushStackElementBefore: true,
 				shouldPushStackElementAfter: false,
 			});
