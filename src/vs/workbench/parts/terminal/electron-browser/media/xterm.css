@@ -6,6 +6,7 @@
 .monaco-workbench .panel.integrated-terminal .xterm {
 	position: relative;
 	height: 100%;
+	user-select: none;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm:focus {
@@ -126,6 +127,22 @@
 	left: -9999em;
 }
 
+.monaco-workbench .panel.integrated-terminal .xterm.enable-mouse-events {
+	/* When mouse events are enabled (eg. tmux), revert to the standard pointer cursor */
+	cursor: default;
+}
+
+.monaco-workbench .panel.integrated-terminal .xterm .xterm-selection {
+	position: absolute;
+	left: 0;
+	bottom: 0;
+}
+
+.monaco-workbench .panel.integrated-terminal .xterm .xterm-selection div {
+	position: absolute;
+	opacity: 0.5;
+}
+
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-bold {
 	font-weight: bold;
 }
@@ -155,23 +172,6 @@
 
 .terminal .composition-view.active {
 	display: block;
-}
-
-/* Base selection colors */
-
-.monaco-workbench .panel.integrated-terminal .xterm ::selection {
-	color: #FFF;
-	background-color: rgba(51, 51, 51, 0.996);
-}
-
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm ::selection {
-	color: #1e1e1e;
-	background-color: rgba(204, 204, 204, 0.996);
-}
-
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm ::selection {
-	color: #000;
-	background-color: rgba(255, 255, 255, 0.996);
 }
 
 /* Terminal colors 16-255 */

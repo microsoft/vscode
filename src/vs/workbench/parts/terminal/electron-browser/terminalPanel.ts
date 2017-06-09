@@ -16,7 +16,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITerminalService, ITerminalFont, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR } from './terminalColorRegistry';
-import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { ColorIdentifier, selectionBackground } from 'vs/platform/theme/common/colorRegistry';
 import { KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -243,13 +243,8 @@ export class TerminalPanel extends Panel {
 		ansiColorIdentifiers.forEach((colorId: ColorIdentifier, index: number) => {
 			if (colorId) { // should not happen, all indices should have a color defined.
 				let color = theme.getColor(colorId);
-				let rgba = color.transparent(0.996);
 				css += `.monaco-workbench .panel.integrated-terminal .xterm .xterm-color-${index} { color: ${color}; }` +
-					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-color-${index}::selection,` +
-					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-color-${index} *::selection { background-color: ${rgba}; }` +
-					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-bg-color-${index} { background-color: ${color}; }` +
-					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-bg-color-${index}::selection,` +
-					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-bg-color-${index} *::selection { color: ${color}; }`;
+					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-bg-color-${index} { background-color: ${color}; }`;
 			}
 		});
 		const bgColor = theme.getColor(TERMINAL_BACKGROUND_COLOR);
@@ -266,6 +261,12 @@ export class TerminalPanel extends Panel {
 				`.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-underline .terminal-cursor::before { background-color: ${fgColor}; }` +
 				`.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-bar.focus.xterm-cursor-blink .terminal-cursor::before,` +
 				`.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-underline.focus.xterm-cursor-blink .terminal-cursor::before { background-color: ${fgColor}; }`;
+		}
+		// Use selection.background as the terminal selection, this is temporary
+		// until proper color inverting is implemented to ensure contrast.
+		const selectionColor = theme.getColor(selectionBackground);
+		if (selectionColor) {
+			css += `.monaco-workbench .panel.integrated-terminal .xterm .xterm-selection div { background-color: ${selectionColor}; }`;
 		}
 
 		this._themeStyleElement.innerHTML = css;
