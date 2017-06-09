@@ -10,7 +10,3 @@
 .monaco-editor .detected-link-active {
 	cursor: pointer;
 }
-
-.monaco-editor .detected-link-inactive {
-	text-decoration: none;
-}

@@ -56,11 +56,6 @@ const decoration = {
 		inlineClassName: 'detected-link-active',
 		hoverMessage: HOVER_MESSAGE_GENERAL_ALT
 	}),
-	inactive: ModelDecorationOptions.register({
-		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		inlineClassName: 'detected-link-inactive',
-		hoverMessage: null
-	})
 };
 
 class LinkOccurence {
@@ -216,23 +211,10 @@ class LinkDetector implements editorCommon.IEditorContribution {
 			}
 
 			var newDecorations: editorCommon.IModelDeltaDecoration[] = [];
-			if (links) {
+			if (links && this.editor.getConfiguration().urlClickable) {
 				// Not sure why this is sometimes null
 				for (var i = 0; i < links.length; i++) {
-					if (!this.editor.getConfiguration().urlClickable)
-					{
-						var inactiveDecoration: editorCommon.IModelDeltaDecoration = {
-							range: {
-								startLineNumber: links[i].range.startLineNumber,
-								startColumn: links[i].range.startColumn,
-								endLineNumber: links[i].range.endLineNumber,
-								endColumn: links[i].range.endColumn
-							},
-								options: (false ? decoration.inactive : decoration.inactive)
-							};
-					} else {
-						newDecorations.push(LinkOccurence.decoration(links[i], useMetaKey));
-					}
+					newDecorations.push(LinkOccurence.decoration(links[i], useMetaKey));
 				}
 			}
 

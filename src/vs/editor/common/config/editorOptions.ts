@@ -887,7 +887,7 @@ export class InternalEditorOptions {
 		this.viewInfo = source.viewInfo;
 		this.wrappingInfo = source.wrappingInfo;
 		this.contribInfo = source.contribInfo;
-		this.urlClickable = source.urlClickable
+		this.urlClickable = source.urlClickable;
 	}
 
 	/**
