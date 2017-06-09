@@ -417,6 +417,33 @@ export class LanguageConfigurationRegistryImpl {
 		}
 	}
 
+	public getGoodIndentForLine(virtualModel: IVirtualModel, languageId: LanguageId, lineNumber: number, indentConverter: any): string {
+		let indentRulesSupport = this._getIndentRulesSupport(languageId);
+		if (!indentRulesSupport) {
+			return null;
+		}
+
+		let indent = this.getInheritIndentForLine(virtualModel, lineNumber);
+		let lineContent = virtualModel.getLineContent(lineNumber);
+
+		if (indent) {
+			if (indentRulesSupport.shouldDecrease(lineContent)) {
+				if (indent.action === IndentAction.Indent) {
+					return indent.indentation;
+				} else {
+					return indentConverter.unshiftIndent(indent.indentation);
+				}
+			} else {
+				if (indent.action === IndentAction.Indent) {
+					return indentConverter.shiftIndent(indent.indentation);
+				} else {
+					return indent.indentation;
+				}
+			}
+		}
+		return null;
+	}
+
 	public getIndentForEnter(model: ITokenizedModel, range: Range, indentConverter: any): { beforeEnter: string, afterEnter: string } {
 		let scopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber, range.startColumn);
 		let scopedLineText = scopedLineTokens.getLineContent();
