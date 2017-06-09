@@ -10,3 +10,4 @@ import './electron-browser/toggleRenderWhitespace';
 import './electron-browser/toggleWordWrap';
 import './electron-browser/wordWrapMigration';
 import './electron-browser/inspectKeybindings';
+import './electron-browser/toggleURLClickable';

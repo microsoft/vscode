@@ -2896,6 +2896,11 @@ declare module monaco.editor {
 		 * Enable quick suggestions (shadow suggestions)
 		 * Defaults to true.
 		 */
+		urlClickable?: boolean;
+		/**
+		 * Enable quick suggestions (shadow suggestions)
+		 * Defaults to true.
+		 */
 		quickSuggestions?: boolean | {
 			other: boolean;
 			comments: boolean;
@@ -3275,6 +3280,7 @@ declare module monaco.editor {
 		readonly lineHeight: number;
 		readonly readOnly: boolean;
 		readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
+		readonly urlClickable: boolean;
 		readonly wordSeparators: string;
 		readonly autoClosingBrackets: boolean;
 		readonly useTabStops: boolean;
@@ -3418,6 +3424,7 @@ declare module monaco.editor {
 		readonly viewInfo: boolean;
 		readonly wrappingInfo: boolean;
 		readonly contribInfo: boolean;
+		readonly urlClickable: boolean;
 	}
 
 	/**

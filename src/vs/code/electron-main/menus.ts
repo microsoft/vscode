@@ -605,6 +605,7 @@ export class CodeMenu {
 		const splitEditor = this.createMenuItem(nls.localize({ key: 'miSplitEditor', comment: ['&& denotes a mnemonic'] }, "Split &&Editor"), 'workbench.action.splitEditor');
 		const toggleEditorLayout = this.createMenuItem(nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Toggle Editor Group &&Layout"), 'workbench.action.toggleEditorGroupLayout');
 		const toggleSidebar = this.createMenuItem(nls.localize({ key: 'miToggleSidebar', comment: ['&& denotes a mnemonic'] }, "&&Toggle Side Bar"), 'workbench.action.toggleSidebarVisibility');
+		const toggleURLClickable = this.createMenuItem(nls.localize({ key: 'miToggleURLClickable', comment: ['&& denotes a mnemonic'] }, "&&Toggle Clickable URLs"), 'editor.action.urlClickable');
 
 		let moveSideBarLabel: string;
 		if (this.currentSidebarLocation !== 'right') {
@@ -659,6 +660,7 @@ export class CodeMenu {
 			fullscreen,
 			toggleZenMode,
 			isWindows || isLinux ? toggleMenuBar : void 0,
+			toggleURLClickable,
 			__separator__(),
 			splitEditor,
 			toggleEditorLayout,
