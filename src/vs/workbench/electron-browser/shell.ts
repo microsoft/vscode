@@ -33,7 +33,7 @@ import { resolveWorkbenchCommonProperties, getOrCreateMachineId } from 'vs/platf
 import { machineIdIpcChannel } from 'vs/platform/telemetry/node/commonProperties';
 import { WorkspaceStats } from 'vs/workbench/services/telemetry/common/workspaceStats';
 import { IWindowIPCService, WindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
-import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
 import { MessageService } from 'vs/workbench/services/message/electron-browser/messageService';
@@ -86,8 +86,6 @@ import { UpdateChannelClient } from 'vs/platform/update/common/updateIpc';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { URLChannelClient } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
-import { IBackupService } from 'vs/platform/backup/common/backup';
-import { BackupChannelClient } from 'vs/platform/backup/common/backupIpc';
 import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
 import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { remote, ipcRenderer as ipc } from 'electron';
@@ -141,12 +139,14 @@ export class WorkbenchShell {
 	private content: HTMLElement;
 	private contentsContainer: Builder;
 
+	private configuration: IWindowConfiguration;
 	private options: IOptions;
 	private workbench: Workbench;
 
-	constructor(container: HTMLElement, services: ICoreServices, options: IOptions) {
+	constructor(container: HTMLElement, services: ICoreServices, configuration: IWindowConfiguration, options: IOptions) {
 		this.container = container;
 
+		this.configuration = configuration;
 		this.options = options;
 
 		this.contextService = services.contextService;
@@ -170,7 +170,7 @@ export class WorkbenchShell {
 		const [instantiationService, serviceCollection] = this.initServiceCollection(parent.getHTMLElement());
 
 		// Workbench
-		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.options, serviceCollection);
+		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.configuration, this.options, serviceCollection);
 		this.workbench.startup({
 			onWorkbenchStarted: (info: IWorkbenchStartedInfo) => {
 
@@ -385,9 +385,6 @@ export class WorkbenchShell {
 
 		const urlChannel = mainProcessClient.getChannel('url');
 		serviceCollection.set(IURLService, new SyncDescriptor(URLChannelClient, urlChannel, this.windowIPCService.getWindowId()));
-
-		const backupChannel = mainProcessClient.getChannel('backup');
-		serviceCollection.set(IBackupService, new SyncDescriptor(BackupChannelClient, backupChannel));
 
 		return [instantiationService, serviceCollection];
 	}

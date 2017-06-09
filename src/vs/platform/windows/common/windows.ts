@@ -97,6 +97,10 @@ export interface IWindowService {
 
 export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden';
 
+export interface IWindowConfiguration {
+	window: IWindowSettings;
+}
+
 export interface IWindowSettings {
 	openFilesInNewWindow: 'on' | 'off' | 'default';
 	openFoldersInNewWindow: 'on' | 'off' | 'default';
@@ -173,7 +177,13 @@ export interface IPath {
 	createFilePath?: boolean;
 }
 
-export interface IWindowConfiguration extends ParsedArgs {
+export interface IOpenFileRequest {
+	filesToOpen?: IPath[];
+	filesToCreate?: IPath[];
+	filesToDiff?: IPath[];
+}
+
+export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	appRoot: string;
 	execPath: string;
 
@@ -196,9 +206,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 
 	workspacePath?: string;
 
-	filesToOpen?: IPath[];
-	filesToCreate?: IPath[];
-	filesToDiff?: IPath[];
+	backupPath?: string;
 
 	nodeCachedDataDir: string;
 }

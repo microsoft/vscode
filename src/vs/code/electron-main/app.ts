@@ -27,8 +27,6 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/node/storage';
-import { IBackupMainService } from 'vs/platform/backup/common/backup';
-import { BackupChannel } from 'vs/platform/backup/common/backupIpc';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IURLService } from 'vs/platform/url/common/url';
@@ -303,10 +301,6 @@ export class CodeApplication {
 		const urlService = accessor.get(IURLService);
 		const urlChannel = appInstantiationService.createInstance(URLChannel, urlService);
 		this.electronIpcServer.registerChannel('url', urlChannel);
-
-		const backupService = accessor.get(IBackupMainService);
-		const backupChannel = appInstantiationService.createInstance(BackupChannel, backupService);
-		this.electronIpcServer.registerChannel('backup', backupChannel);
 
 		const windowsService = accessor.get(IWindowsService);
 		const windowsChannel = new WindowsChannel(windowsService);
