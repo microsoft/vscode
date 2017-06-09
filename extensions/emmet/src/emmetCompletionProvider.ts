@@ -62,9 +62,12 @@ export class EmmetCompletionItemProviderHtml extends EmmetCompletionItemProvider
 	protected getExpandedAbbreviation(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionItem {
 		let completionItem = super.getExpandedAbbreviation(document, position);
 
-		// In non stylesheet like syntax, this extension returns expanded abbr plus posssible abbr completions
-		// To differentiate between the 2, the former is given CompletionItemKind.Value so that it gets a different icon
-		completionItem.kind = vscode.CompletionItemKind.Value;
+		if (completionItem) {
+			// In non stylesheet like syntax, this extension returns expanded abbr plus posssible abbr completions
+			// To differentiate between the 2, the former is given CompletionItemKind.Value so that it gets a different icon
+			completionItem.kind = vscode.CompletionItemKind.Value;
+		}
+
 
 		return completionItem;
 	}
