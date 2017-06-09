@@ -14,7 +14,7 @@ import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/platform/storage/node/storage';
 import { CodeWindow, IWindowState as ISingleWindowState, defaultWindowState, WindowMode } from 'vs/code/electron-main/window';
-import { ipcMain as ipc, app, screen, BrowserWindow, dialog } from 'electron';
+import { ipcMain as ipc, screen, BrowserWindow, dialog } from 'electron';
 import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/node/paths';
 import { ILifecycleService, UnloadReason } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -231,15 +231,15 @@ export class WindowsManager implements IWindowsMainService {
 		let foldersToRestore = (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath) ? this.backupService.getWorkspaceBackupPaths() : [];
 		let filesToOpen: IPath[] = [];
 		let filesToDiff: IPath[] = [];
+		let filesToCreate = pathsToOpen.filter(iPath => !!iPath.filePath && iPath.createFilePath);
 		let emptyToOpen = pathsToOpen.filter(iPath => !iPath.workspacePath && !iPath.filePath);
 		let emptyToRestore = (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath) ? this.backupService.getEmptyWorkspaceBackupPaths() : [];
-		let filesToCreate = pathsToOpen.filter(iPath => !!iPath.filePath && iPath.createFilePath);
 
 		// Diff mode needs special care
-		const candidates = pathsToOpen.filter(iPath => !!iPath.filePath && !iPath.createFilePath);
+		const filesToOpenCandidates = pathsToOpen.filter(iPath => !!iPath.filePath && !iPath.createFilePath);
 		if (openConfig.diffMode) {
-			if (candidates.length === 2) {
-				filesToDiff = candidates;
+			if (filesToOpenCandidates.length === 2) {
+				filesToDiff = filesToOpenCandidates;
 			} else {
 				emptyToOpen = [Object.create(null)]; // improper use of diffMode, open empty
 			}
@@ -248,33 +248,15 @@ export class WindowsManager implements IWindowsMainService {
 			foldersToRestore = [];	// diff is always in empty workspace
 			filesToCreate = []; 	// diff ignores other files that do not exist
 		} else {
-			filesToOpen = candidates;
+			filesToOpen = filesToOpenCandidates;
 		}
 
-		// let the user settings override how folders are open in a new window or same window unless we are forced
-		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
-		let openFolderInNewWindow = (openConfig.preferNewWindow || openConfig.forceNewWindow) && !openConfig.forceReuseWindow;
-		if (!openConfig.forceNewWindow && !openConfig.forceReuseWindow && windowConfig && (windowConfig.openFoldersInNewWindow === 'on' || windowConfig.openFoldersInNewWindow === 'off')) {
-			openFolderInNewWindow = (windowConfig.openFoldersInNewWindow === 'on');
-		}
+		// Settings can decide if files/folders open in new window or not
+		let { openFolderInNewWindow, openFilesInNewWindow } = this.shouldOpenNewWindow(openConfig);
 
 		// Handle files to open/diff or to create when we dont open a folder and we do not restore any folder/untitled from hot-exit
 		const usedWindows: CodeWindow[] = [];
 		if (!foldersToOpen.length && !foldersToRestore.length && !emptyToRestore.length && (filesToOpen.length > 0 || filesToCreate.length > 0 || filesToDiff.length > 0)) {
-
-			// let the user settings override how files are open in a new window or same window unless we are forced (not for extension development though)
-			let openFilesInNewWindow: boolean;
-			if (openConfig.forceNewWindow || openConfig.forceReuseWindow) {
-				openFilesInNewWindow = openConfig.forceNewWindow && !openConfig.forceReuseWindow;
-			} else {
-				if (openConfig.context === OpenContext.DOCK) {
-					openFilesInNewWindow = true; // only on macOS do we allow to open files in a new window if this is triggered via DOCK context
-				}
-
-				if (!openConfig.cli.extensionDevelopmentPath && windowConfig && (windowConfig.openFilesInNewWindow === 'on' || windowConfig.openFilesInNewWindow === 'off')) {
-					openFilesInNewWindow = (windowConfig.openFilesInNewWindow === 'on');
-				}
-			}
 
 			// Open Files in last instance if any and flag tells us so
 			const fileToCheck = filesToOpen[0] || filesToCreate[0] || filesToDiff[0];
@@ -286,6 +268,7 @@ export class WindowsManager implements IWindowsMainService {
 				filePath: fileToCheck && fileToCheck.filePath,
 				userHome: this.environmentService.userHome
 			});
+
 			if (windowOrFolder instanceof CodeWindow) {
 				windowOrFolder.focus();
 				const files = { filesToOpen, filesToCreate, filesToDiff }; // copy to object because they get reset shortly after
@@ -328,6 +311,7 @@ export class WindowsManager implements IWindowsMainService {
 			if (windowsOnWorkspacePath.length > 0) {
 				const browserWindow = windowsOnWorkspacePath[0];
 				browserWindow.focus(); // just focus one of them
+
 				const files = { filesToOpen, filesToCreate, filesToDiff }; // copy to object because they get reset shortly after
 				browserWindow.ready().then(readyWindow => {
 					readyWindow.send('vscode:openFiles', files);
@@ -418,7 +402,6 @@ export class WindowsManager implements IWindowsMainService {
 
 			pathsToOpen.forEach(iPath => {
 				if (iPath.filePath || iPath.workspacePath) {
-					app.addRecentDocument(iPath.filePath || iPath.workspacePath);
 					recentPaths.push({ path: iPath.filePath || iPath.workspacePath, isFile: !!iPath.filePath });
 				}
 			});
@@ -574,6 +557,32 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		return null;
+	}
+
+	private shouldOpenNewWindow(openConfig: IOpenConfiguration): { openFolderInNewWindow: boolean; openFilesInNewWindow: boolean; } {
+
+		// let the user settings override how folders are open in a new window or same window unless we are forced
+		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+		let openFolderInNewWindow = (openConfig.preferNewWindow || openConfig.forceNewWindow) && !openConfig.forceReuseWindow;
+		if (!openConfig.forceNewWindow && !openConfig.forceReuseWindow && windowConfig && (windowConfig.openFoldersInNewWindow === 'on' || windowConfig.openFoldersInNewWindow === 'off')) {
+			openFolderInNewWindow = (windowConfig.openFoldersInNewWindow === 'on');
+		}
+
+		// let the user settings override how files are open in a new window or same window unless we are forced (not for extension development though)
+		let openFilesInNewWindow: boolean;
+		if (openConfig.forceNewWindow || openConfig.forceReuseWindow) {
+			openFilesInNewWindow = openConfig.forceNewWindow && !openConfig.forceReuseWindow;
+		} else {
+			if (openConfig.context === OpenContext.DOCK) {
+				openFilesInNewWindow = true; // only on macOS do we allow to open files in a new window if this is triggered via DOCK context
+			}
+
+			if (!openConfig.cli.extensionDevelopmentPath && windowConfig && (windowConfig.openFilesInNewWindow === 'on' || windowConfig.openFilesInNewWindow === 'off')) {
+				openFilesInNewWindow = (windowConfig.openFilesInNewWindow === 'on');
+			}
+		}
+
+		return { openFolderInNewWindow, openFilesInNewWindow };
 	}
 
 	public openExtensionDevelopmentHostWindow(openConfig: IOpenConfiguration): void {

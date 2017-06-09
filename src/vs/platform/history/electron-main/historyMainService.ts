@@ -6,7 +6,6 @@
 'use strict';
 
 import * as path from 'path';
-import * as platform from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import { trim } from 'vs/base/common/strings';
@@ -17,6 +16,7 @@ import { getPathLabel } from 'vs/base/common/labels';
 import { IPath } from 'vs/platform/windows/common/windows';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import { createDecorator } from "vs/platform/instantiation/common/instantiation";
+import { isWindows, isMacintosh, isLinux } from "vs/base/common/platform";
 
 export const IHistoryMainService = createDecorator<IHistoryMainService>('historyMainService');
 
@@ -69,15 +69,20 @@ export class HistoryMainService implements IHistoryMainService {
 
 			if (isFile) {
 				mru.files.unshift(path);
-				mru.files = arrays.distinct(mru.files, (f) => platform.isLinux ? f : f.toLowerCase());
+				mru.files = arrays.distinct(mru.files, (f) => isLinux ? f : f.toLowerCase());
 			} else {
 				mru.folders.unshift(path);
-				mru.folders = arrays.distinct(mru.folders, (f) => platform.isLinux ? f : f.toLowerCase());
+				mru.folders = arrays.distinct(mru.folders, (f) => isLinux ? f : f.toLowerCase());
 			}
 
 			// Make sure its bounded
 			mru.folders = mru.folders.slice(0, HistoryMainService.MAX_TOTAL_RECENT_ENTRIES);
 			mru.files = mru.files.slice(0, HistoryMainService.MAX_TOTAL_RECENT_ENTRIES);
+
+			// Add to recent documents (Windows/macOS only)
+			if (isMacintosh || isWindows) {
+				app.addRecentDocument(path);
+			}
 		});
 
 		this.storageService.setItem(HistoryMainService.recentPathsListStorageKey, mru);
@@ -157,7 +162,7 @@ export class HistoryMainService implements IHistoryMainService {
 	}
 
 	public updateWindowsJumpList(): void {
-		if (!platform.isWindows) {
+		if (!isWindows) {
 			return; // only on windows
 		}
 
