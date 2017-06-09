@@ -81,6 +81,7 @@ export class DebugService implements debug.IDebugService {
 	private debugState: IContextKey<string>;
 	private breakpointsToSendOnResourceSaved: Set<string>;
 	private callStackScheduler: RunOnceScheduler;
+	private launchJsonChanged: boolean;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -628,6 +629,7 @@ export class DebugService implements debug.IDebugService {
 				if (this.model.getProcesses().length === 0) {
 					this.removeReplExpressions();
 				}
+				this.launchJsonChanged = false;
 				const manager = this.getConfigurationManager();
 				configName = configName || this.viewModel.selectedConfigurationName;
 				const config = manager.getConfiguration(configName);
@@ -921,15 +923,19 @@ export class DebugService implements debug.IDebugService {
 		return process.session.disconnect(true).then(() =>
 			new TPromise<void>((c, e) => {
 				setTimeout(() => {
-					// Read the configuration again if a launch.json exists, if not just use the inmemory configuration #19366
-					const config = this.configurationManager.getConfiguration(process.configuration.name);
-					if (config) {
-						// Take the type from the process since the debug extension might overwrite it #21316
-						config.type = process.configuration.type;
-						config.noDebug = process.configuration.noDebug;
-						config.__restart = restartData;
+					// Read the configuration again if a launch.json has been changed, if not just use the inmemory configuration
+					let config = process.configuration;
+					if (this.launchJsonChanged) {
+						this.launchJsonChanged = false;
+						config = this.configurationManager.getConfiguration(process.configuration.name) || process.configuration;
+						if (config) {
+							// Take the type from the process since the debug extension might overwrite it #21316
+							config.type = process.configuration.type;
+							config.noDebug = process.configuration.noDebug;
+							config.__restart = restartData;
+						}
 					}
-					this.createProcess(config || process.configuration).then(() => c(null), err => e(err));
+					this.createProcess(config).then(() => c(null), err => e(err));
 				}, 300);
 			})
 		).then(() => {
@@ -1114,6 +1120,9 @@ export class DebugService implements debug.IDebugService {
 			if (this.breakpointsToSendOnResourceSaved.has(event.resource.toString())) {
 				this.breakpointsToSendOnResourceSaved.delete(event.resource.toString());
 				this.sendBreakpoints(event.resource, true).done(null, errors.onUnexpectedError);
+			}
+			if (event.resource.toString().indexOf('.vscode/launch.json') >= 0) {
+				this.launchJsonChanged = true;
 			}
 		});
 	}
