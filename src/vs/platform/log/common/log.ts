@@ -16,7 +16,7 @@ export interface ILogService {
 	log(...args: any[]): void;
 }
 
-export class MainLogService implements ILogService {
+export class LogMainService implements ILogService {
 
 	_serviceBrand: any;
 

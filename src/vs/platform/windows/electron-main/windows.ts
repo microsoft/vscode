@@ -43,7 +43,6 @@ export interface IWindowsMainService {
 	onWindowClose: Event<number>;
 	onWindowReload: Event<number>;
 	onPathsOpen: Event<IPath[]>;
-	onRecentPathsChange: Event<void>;
 
 	// methods
 	ready(initialUserEnv: IProcessEnvironment): void;
@@ -63,12 +62,6 @@ export interface IWindowsMainService {
 	getWindowById(windowId: number): ICodeWindow;
 	getWindows(): ICodeWindow[];
 	getWindowCount(): number;
-	addToRecentPathsList(paths: { path: string; isFile?: boolean; }[]): void;
-	getRecentPathsList(workspacePath?: string, filesToOpen?: IPath[]): IRecentPathsList;
-	removeFromRecentPathsList(path: string): void;
-	removeFromRecentPathsList(paths: string[]): void;
-	clearRecentPathsList(): void;
-	updateWindowsJumpList(): void;
 	quit(): void;
 }
 
@@ -84,11 +77,6 @@ export interface IOpenConfiguration {
 	windowToUse?: ICodeWindow;
 	diffMode?: boolean;
 	initialStartup?: boolean;
-}
-
-export interface IRecentPathsList {
-	folders: string[];
-	files: string[];
 }
 
 export interface ISharedProcess {

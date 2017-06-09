@@ -13,7 +13,6 @@ import * as types from 'vs/base/common/types';
 import * as arrays from 'vs/base/common/arrays';
 import { assign, mixin } from 'vs/base/common/objects';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
-import { trim } from 'vs/base/common/strings';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/platform/storage/node/storage';
 import { CodeWindow, IWindowState as ISingleWindowState, defaultWindowState, WindowMode } from 'vs/code/electron-main/window';
@@ -22,7 +21,6 @@ import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/node/pa
 import { ILifecycleService, UnloadReason } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { getPathLabel } from 'vs/base/common/labels';
 import { IWindowSettings, OpenContext, IPath, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { getLastActiveWindow, findBestWindowOrFolder } from 'vs/code/node/windowsUtils';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
@@ -30,7 +28,8 @@ import product from 'vs/platform/node/product';
 import { ITelemetryService, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { isParent, isEqual, isEqualOrParent } from 'vs/platform/files/common/files';
 import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
-import { IWindowsMainService, IOpenConfiguration, IRecentPathsList } from "vs/platform/windows/electron-main/windows";
+import { IWindowsMainService, IOpenConfiguration } from "vs/platform/windows/electron-main/windows";
+import { IHistoryMainService } from "vs/platform/history/electron-main/historyMainService";
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -70,9 +69,6 @@ export class WindowsManager implements IWindowsMainService {
 
 	_serviceBrand: any;
 
-	private static MAX_TOTAL_RECENT_ENTRIES = 100;
-
-	private static recentPathsListStorageKey = 'openedPathsList';
 	private static workingDirPickerStorageKey = 'pickerWorkingDir';
 	private static windowsStateStorageKey = 'windowsState';
 
@@ -82,9 +78,6 @@ export class WindowsManager implements IWindowsMainService {
 
 	private windowsState: IWindowsState;
 	private lastClosedWindowState: IWindowState;
-
-	private _onRecentPathsChange = new Emitter<void>();
-	onRecentPathsChange: CommonEvent<void> = this._onRecentPathsChange.event;
 
 	private _onWindowReady = new Emitter<CodeWindow>();
 	onWindowReady: CommonEvent<CodeWindow> = this._onWindowReady.event;
@@ -105,7 +98,8 @@ export class WindowsManager implements IWindowsMainService {
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IBackupMainService private backupService: IBackupMainService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IHistoryMainService private historyService: IHistoryMainService
 	) { }
 
 	public ready(initialUserEnv: platform.IProcessEnvironment): void {
@@ -521,7 +515,7 @@ export class WindowsManager implements IWindowsMainService {
 			});
 
 			if (recentPaths.length) {
-				this.addToRecentPathsList(recentPaths);
+				this.historyService.addToRecentPathsList(recentPaths);
 			}
 		}
 
@@ -531,103 +525,7 @@ export class WindowsManager implements IWindowsMainService {
 		return arrays.distinct(usedWindows);
 	}
 
-	public addToRecentPathsList(paths: { path: string; isFile?: boolean; }[]): void {
-		if (!paths || !paths.length) {
-			return;
-		}
 
-		const mru = this.getRecentPathsList();
-		paths.forEach(p => {
-			const { path, isFile } = p;
-
-			if (isFile) {
-				mru.files.unshift(path);
-				mru.files = arrays.distinct(mru.files, (f) => platform.isLinux ? f : f.toLowerCase());
-			} else {
-				mru.folders.unshift(path);
-				mru.folders = arrays.distinct(mru.folders, (f) => platform.isLinux ? f : f.toLowerCase());
-			}
-
-			// Make sure its bounded
-			mru.folders = mru.folders.slice(0, WindowsManager.MAX_TOTAL_RECENT_ENTRIES);
-			mru.files = mru.files.slice(0, WindowsManager.MAX_TOTAL_RECENT_ENTRIES);
-		});
-
-		this.storageService.setItem(WindowsManager.recentPathsListStorageKey, mru);
-		this._onRecentPathsChange.fire();
-	}
-
-	public removeFromRecentPathsList(path: string): void;
-	public removeFromRecentPathsList(paths: string[]): void;
-	public removeFromRecentPathsList(arg1: any): void {
-		let paths: string[];
-		if (Array.isArray(arg1)) {
-			paths = arg1;
-		} else {
-			paths = [arg1];
-		}
-
-		const mru = this.getRecentPathsList();
-		let update = false;
-
-		paths.forEach(path => {
-			let index = mru.files.indexOf(path);
-			if (index >= 0) {
-				mru.files.splice(index, 1);
-				update = true;
-			}
-
-			index = mru.folders.indexOf(path);
-			if (index >= 0) {
-				mru.folders.splice(index, 1);
-				update = true;
-			}
-		});
-
-		if (update) {
-			this.storageService.setItem(WindowsManager.recentPathsListStorageKey, mru);
-			this._onRecentPathsChange.fire();
-		}
-	}
-
-	public clearRecentPathsList(): void {
-		this.storageService.setItem(WindowsManager.recentPathsListStorageKey, { folders: [], files: [] });
-		app.clearRecentDocuments();
-
-		// Event
-		this._onRecentPathsChange.fire();
-	}
-
-	public getRecentPathsList(workspacePath?: string, filesToOpen?: IPath[]): IRecentPathsList {
-		let files: string[];
-		let folders: string[];
-
-		// Get from storage
-		const storedRecents = this.storageService.getItem<IRecentPathsList>(WindowsManager.recentPathsListStorageKey);
-		if (storedRecents) {
-			files = storedRecents.files || [];
-			folders = storedRecents.folders || [];
-		} else {
-			files = [];
-			folders = [];
-		}
-
-		// Add currently files to open to the beginning if any
-		if (filesToOpen) {
-			files.unshift(...filesToOpen.map(f => f.filePath));
-		}
-
-		// Add current workspace path to beginning if set
-		if (workspacePath) {
-			folders.unshift(workspacePath);
-		}
-
-		// Clear those dupes
-		files = arrays.distinct(files);
-		folders = arrays.distinct(folders);
-
-		return { files, folders };
-	}
 
 	private getWindowUserEnv(openConfig: IOpenConfiguration): platform.IProcessEnvironment {
 		return assign({}, this.initialUserEnv, openConfig.userEnv || {});
@@ -705,7 +603,7 @@ export class WindowsManager implements IWindowsMainService {
 					{ workspacePath: candidate };
 			}
 		} catch (error) {
-			this.removeFromRecentPathsList(candidate); // since file does not seem to exist anymore, remove from recent
+			this.historyService.removeFromRecentPathsList(candidate); // since file does not seem to exist anymore, remove from recent
 
 			if (ignoreFileNotFound) {
 				return { filePath: candidate, createFilePath: true }; // assume this is a file that does not yet exist
@@ -1180,68 +1078,6 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Emit
 		this._onWindowClose.fire(win.id);
-	}
-
-	public updateWindowsJumpList(): void {
-		if (!platform.isWindows) {
-			return; // only on windows
-		}
-
-		const jumpList: Electron.JumpListCategory[] = [];
-
-		// Tasks
-		jumpList.push({
-			type: 'tasks',
-			items: [
-				{
-					type: 'task',
-					title: nls.localize('newWindow', "New Window"),
-					description: nls.localize('newWindowDesc', "Opens a new window"),
-					program: process.execPath,
-					args: '-n', // force new window
-					iconPath: process.execPath,
-					iconIndex: 0
-				}
-			]
-		});
-
-		// Recent Folders
-		if (this.getRecentPathsList().folders.length > 0) {
-
-			// The user might have meanwhile removed items from the jump list and we have to respect that
-			// so we need to update our list of recent paths with the choice of the user to not add them again
-			// Also: Windows will not show our custom category at all if there is any entry which was removed
-			// by the user! See https://github.com/Microsoft/vscode/issues/15052
-			this.removeFromRecentPathsList(app.getJumpListSettings().removedItems.map(r => trim(r.args, '"')));
-
-			// Add entries
-			jumpList.push({
-				type: 'custom',
-				name: nls.localize('recentFolders', "Recent Folders"),
-				items: this.getRecentPathsList().folders.slice(0, 7 /* limit number of entries here */).map(folder => {
-					return <Electron.JumpListItem>{
-						type: 'task',
-						title: path.basename(folder) || folder, // use the base name to show shorter entries in the list
-						description: nls.localize('folderDesc', "{0} {1}", path.basename(folder), getPathLabel(path.dirname(folder))),
-						program: process.execPath,
-						args: `"${folder}"`, // open folder (use quotes to support paths with whitespaces)
-						iconPath: 'explorer.exe', // simulate folder icon
-						iconIndex: 0
-					};
-				}).filter(i => !!i)
-			});
-		}
-
-		// Recent
-		jumpList.push({
-			type: 'recent' // this enables to show files in the "recent" category
-		});
-
-		try {
-			app.setJumpList(jumpList);
-		} catch (error) {
-			this.logService.log('#setJumpList', error); // since setJumpList is relatively new API, make sure to guard for errors
-		}
 	}
 
 	public quit(): void {

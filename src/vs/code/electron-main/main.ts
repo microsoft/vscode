@@ -19,7 +19,7 @@ import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiati
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ILogService, MainLogService } from 'vs/platform/log/common/log';
+import { ILogService, LogMainService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageService } from 'vs/platform/storage/node/storage';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
@@ -33,12 +33,14 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { URLService } from 'vs/platform/url/electron-main/urlService';
 import * as fs from 'original-fs';
 import { CodeApplication } from "vs/code/electron-main/app";
+import { HistoryMainService, IHistoryMainService } from "vs/platform/history/electron-main/historyMainService";
 
 function createServices(args: ParsedArgs): IInstantiationService {
 	const services = new ServiceCollection();
 
 	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, args, process.execPath));
-	services.set(ILogService, new SyncDescriptor(MainLogService));
+	services.set(ILogService, new SyncDescriptor(LogMainService));
+	services.set(IHistoryMainService, new SyncDescriptor(HistoryMainService));
 	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
 	services.set(IStorageService, new SyncDescriptor(StorageService));
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));

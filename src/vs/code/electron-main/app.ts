@@ -45,6 +45,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { TPromise } from "vs/base/common/winjs.base";
 import { IWindowsMainService } from "vs/platform/windows/electron-main/windows";
+import { IHistoryMainService } from "vs/platform/history/electron-main/historyMainService";
 
 export class CodeApplication {
 	private toDispose: IDisposable[];
@@ -63,7 +64,8 @@ export class CodeApplication {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IConfigurationService private configurationService: ConfigurationService<any>,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@IHistoryMainService private historyService: IHistoryMainService
 	) {
 		this.toDispose = [mainIpcServer, configurationService];
 
@@ -258,8 +260,8 @@ export class CodeApplication {
 		appInstantiationService.createInstance(CodeMenu);
 
 		// Jump List
-		this.windowsMainService.updateWindowsJumpList();
-		this.windowsMainService.onRecentPathsChange(() => this.windowsMainService.updateWindowsJumpList());
+		this.historyService.updateWindowsJumpList();
+		this.historyService.onRecentPathsChange(() => this.historyService.updateWindowsJumpList());
 
 		// Start shared process here
 		this.sharedProcess.spawn();
