@@ -29,6 +29,7 @@ import { TerminateResponse, TerminateResponseCode } from 'vs/base/common/process
 import * as strings from 'vs/base/common/strings';
 import { ValidationStatus, ValidationState } from 'vs/base/common/parsers';
 import * as UUID from 'vs/base/common/uuid';
+import { LinkedMap, Touch } from 'vs/base/common/linkedMap';
 
 import { Registry } from 'vs/platform/platform';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -45,7 +46,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ProblemMatcherRegistry } from 'vs/platform/markers/common/problemMatcher';
-
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -516,6 +517,7 @@ interface WorkspaceConfigurationResult {
 class TaskService extends EventEmitter implements ITaskService {
 
 	// private static autoDetectTelemetryName: string = 'taskServer.autoDetect';
+	private static RecentlyUsedTasks_Key = 'workbench.tasks.recentlyUsedTasks';
 
 	public _serviceBrand: any;
 	public static SERVICE_ID: string = 'taskService';
@@ -544,6 +546,7 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	private _taskSystem: ITaskSystem;
 	private _taskSystemListeners: IDisposable[];
+	private _recentlyUsedTasks: LinkedMap<string, string>;
 
 	private _outputChannel: IOutputChannel;
 
@@ -559,7 +562,8 @@ class TaskService extends EventEmitter implements ITaskService {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
 		@ITerminalService private terminalService: ITerminalService,
-		@IWorkbenchEditorService private workbenchEditorService: IWorkbenchEditorService
+		@IWorkbenchEditorService private workbenchEditorService: IWorkbenchEditorService,
+		@IStorageService private storageService: IStorageService
 	) {
 
 		super();
@@ -689,6 +693,37 @@ class TaskService extends EventEmitter implements ITaskService {
 		return TPromise.as(this._taskSystem.getActiveTasks());
 	}
 
+	public getRecentlyUsedTasks(): LinkedMap<string, string> {
+		if (this._recentlyUsedTasks) {
+			return this._recentlyUsedTasks;
+		}
+		this._recentlyUsedTasks = new LinkedMap<string, string>();
+		let storageValue = this.storageService.get(TaskService.RecentlyUsedTasks_Key, StorageScope.WORKSPACE);
+		if (storageValue) {
+			try {
+				let values: string[] = JSON.parse(storageValue);
+				if (Array.isArray(values)) {
+					for (let value of values) {
+						this._recentlyUsedTasks.set(value, value);
+					}
+				}
+			} catch (error) {
+				// Ignore. We use the empty result
+			}
+		}
+		return this._recentlyUsedTasks;
+	}
+
+	private saveRecentlyUsedTasks(): void {
+		if (!this._recentlyUsedTasks) {
+			return;
+		}
+		let values = this._recentlyUsedTasks.values();
+		if (values.length > 30) {
+			values = values.slice(0, 30);
+		}
+		this.storageService.store(TaskService.RecentlyUsedTasks_Key, JSON.stringify(values), StorageScope.WORKSPACE);
+	}
 
 	public build(): TPromise<ITaskSummary> {
 		return this.getTaskSets().then((values) => {
@@ -896,6 +931,7 @@ class TaskService extends EventEmitter implements ITaskService {
 						throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is already a task running. Terminate it first before executing another task.'), TaskErrors.RunningTask);
 					}
 				}
+				this.getRecentlyUsedTasks().set(task.identifier, task.identifier, Touch.First);
 				return executeResult.promise;
 			});
 		});
@@ -1248,6 +1284,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	public beforeShutdown(): boolean | TPromise<boolean> {
+		this.saveRecentlyUsedTasks();
 		if (this._taskSystem && this._taskSystem.isActiveSync()) {
 			if (this._taskSystem.canAutoTerminate() || this.messageService.confirm({
 				message: nls.localize('TaskSystem.runningTask', 'There is a task running. Do you want to terminate it?'),
