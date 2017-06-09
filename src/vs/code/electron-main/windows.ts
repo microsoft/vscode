@@ -49,14 +49,6 @@ interface IWindowsState {
 	openedFolders: IWindowState[];
 }
 
-interface INativeOpenDialogOptions {
-	pickFolders?: boolean;
-	pickFiles?: boolean;
-	path?: string;
-	forceNewWindow?: boolean;
-	window?: CodeWindow;
-}
-
 const ReopenFoldersSetting = {
 	ALL: 'all',
 	ONE: 'one',
@@ -67,7 +59,6 @@ export class WindowsManager implements IWindowsMainService {
 
 	_serviceBrand: any;
 
-	private static workingDirPickerStorageKey = 'pickerWorkingDir';
 	private static windowsStateStorageKey = 'windowsState';
 
 	private static WINDOWS: CodeWindow[] = [];
@@ -76,6 +67,8 @@ export class WindowsManager implements IWindowsMainService {
 
 	private windowsState: IWindowsState;
 	private lastClosedWindowState: IWindowState;
+
+	private fileDialog: FileDialog;
 
 	private _onWindowReady = new Emitter<CodeWindow>();
 	onWindowReady: CommonEvent<CodeWindow> = this._onWindowReady.event;
@@ -100,6 +93,7 @@ export class WindowsManager implements IWindowsMainService {
 		@IHistoryMainService private historyService: IHistoryMainService
 	) {
 		this.windowsState = this.storageService.getItem<IWindowsState>(WindowsManager.windowsStateStorageKey) || { openedFolders: [] };
+		this.fileDialog = new FileDialog(environmentService, telemetryService, storageService, this);
 	}
 
 	public ready(initialUserEnv: platform.IProcessEnvironment): void {
@@ -206,19 +200,6 @@ export class WindowsManager implements IWindowsMainService {
 		if (this.getWindowCount() === 1) {
 			this.lastClosedWindowState = state;
 		}
-	}
-
-	public reload(win: CodeWindow, cli?: ParsedArgs): void {
-
-		// Only reload when the window has not vetoed this
-		this.lifecycleService.unload(win, UnloadReason.RELOAD).done(veto => {
-			if (!veto) {
-				win.reload(cli);
-
-				// Emit
-				this._onWindowReload.fire(win.id);
-			}
-		});
 	}
 
 	public open(openConfig: IOpenConfiguration): CodeWindow[] {
@@ -769,6 +750,19 @@ export class WindowsManager implements IWindowsMainService {
 		return state;
 	}
 
+	public reload(win: CodeWindow, cli?: ParsedArgs): void {
+
+		// Only reload when the window has not vetoed this
+		this.lifecycleService.unload(win, UnloadReason.RELOAD).done(veto => {
+			if (!veto) {
+				win.reload(cli);
+
+				// Emit
+				this._onWindowReload.fire(win.id);
+			}
+		});
+	}
+
 	public focusLastActive(cli: ParsedArgs, context: OpenContext): CodeWindow {
 		const lastActive = this.getLastActiveWindow();
 		if (lastActive) {
@@ -944,57 +938,15 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	public openFileFolderPicker(forceNewWindow?: boolean, data?: ITelemetryData): void {
-		this.doPickAndOpen({ pickFolders: true, pickFiles: true, forceNewWindow }, 'openFileFolder', data);
+		this.fileDialog.pickAndOpen({ pickFolders: true, pickFiles: true, forceNewWindow }, 'openFileFolder', data);
 	}
 
 	public openFilePicker(forceNewWindow?: boolean, path?: string, window?: CodeWindow, data?: ITelemetryData): void {
-		this.doPickAndOpen({ pickFiles: true, forceNewWindow, path, window }, 'openFile', data);
+		this.fileDialog.pickAndOpen({ pickFiles: true, forceNewWindow, path, window }, 'openFile', data);
 	}
 
 	public openFolderPicker(forceNewWindow?: boolean, window?: CodeWindow, data?: ITelemetryData): void {
-		this.doPickAndOpen({ pickFolders: true, forceNewWindow, window }, 'openFolder', data);
-	}
-
-	private doPickAndOpen(options: INativeOpenDialogOptions, eventName: string, data?: ITelemetryData): void {
-		this.getFileOrFolderPaths(options, (paths: string[]) => {
-			const nOfPaths = paths ? paths.length : 0;
-			if (nOfPaths) {
-				this.open({ context: OpenContext.DIALOG, cli: this.environmentService.args, pathsToOpen: paths, forceNewWindow: options.forceNewWindow });
-			}
-			this.telemetryService.publicLog(eventName, {
-				...data,
-				outcome: nOfPaths ? 'success' : 'canceled',
-				nOfPaths
-			});
-		});
-	}
-
-	private getFileOrFolderPaths(options: INativeOpenDialogOptions, clb: (paths: string[]) => void): void {
-		const workingDir = options.path || this.storageService.getItem<string>(WindowsManager.workingDirPickerStorageKey);
-		const focussedWindow = options.window || this.getFocusedWindow();
-
-		let pickerProperties: ('openFile' | 'openDirectory' | 'multiSelections' | 'createDirectory')[];
-		if (options.pickFiles && options.pickFolders) {
-			pickerProperties = ['multiSelections', 'openDirectory', 'openFile', 'createDirectory'];
-		} else {
-			pickerProperties = ['multiSelections', options.pickFolders ? 'openDirectory' : 'openFile', 'createDirectory'];
-		}
-
-		dialog.showOpenDialog(focussedWindow && focussedWindow.win, {
-			defaultPath: workingDir,
-			properties: pickerProperties
-		}, paths => {
-			if (paths && paths.length > 0) {
-
-				// Remember path in storage for next time
-				this.storageService.setItem(WindowsManager.workingDirPickerStorageKey, path.dirname(paths[0]));
-
-				// Return
-				clb(paths);
-			} else {
-				clb(void (0));
-			}
-		});
+		this.fileDialog.pickAndOpen({ pickFolders: true, forceNewWindow, window }, 'openFolder', data);
 	}
 
 	public quit(): void {
@@ -1012,5 +964,68 @@ export class WindowsManager implements IWindowsMainService {
 				this.lifecycleService.quit();
 			}, 10 /* delay to unwind callback stack (IPC) */);
 		}
+	}
+}
+
+interface INativeOpenDialogOptions {
+	pickFolders?: boolean;
+	pickFiles?: boolean;
+	path?: string;
+	forceNewWindow?: boolean;
+	window?: CodeWindow;
+}
+
+class FileDialog {
+
+	private static workingDirPickerStorageKey = 'pickerWorkingDir';
+
+	constructor(
+		private environmentService: IEnvironmentService,
+		private telemetryService: ITelemetryService,
+		private storageService: IStorageService,
+		private windowsMainService: IWindowsMainService
+	) {
+	}
+
+	public pickAndOpen(options: INativeOpenDialogOptions, eventName: string, data?: ITelemetryData): void {
+		this.getFileOrFolderPaths(options, (paths: string[]) => {
+			const nOfPaths = paths ? paths.length : 0;
+			if (nOfPaths) {
+				this.windowsMainService.open({ context: OpenContext.DIALOG, cli: this.environmentService.args, pathsToOpen: paths, forceNewWindow: options.forceNewWindow });
+			}
+			this.telemetryService.publicLog(eventName, {
+				...data,
+				outcome: nOfPaths ? 'success' : 'canceled',
+				nOfPaths
+			});
+		});
+	}
+
+	private getFileOrFolderPaths(options: INativeOpenDialogOptions, clb: (paths: string[]) => void): void {
+		const workingDir = options.path || this.storageService.getItem<string>(FileDialog.workingDirPickerStorageKey);
+		const focussedWindow = options.window || this.windowsMainService.getFocusedWindow();
+
+		let pickerProperties: ('openFile' | 'openDirectory' | 'multiSelections' | 'createDirectory')[];
+		if (options.pickFiles && options.pickFolders) {
+			pickerProperties = ['multiSelections', 'openDirectory', 'openFile', 'createDirectory'];
+		} else {
+			pickerProperties = ['multiSelections', options.pickFolders ? 'openDirectory' : 'openFile', 'createDirectory'];
+		}
+
+		dialog.showOpenDialog(focussedWindow && focussedWindow.win, {
+			defaultPath: workingDir,
+			properties: pickerProperties
+		}, paths => {
+			if (paths && paths.length > 0) {
+
+				// Remember path in storage for next time
+				this.storageService.setItem(FileDialog.workingDirPickerStorageKey, path.dirname(paths[0]));
+
+				// Return
+				clb(paths);
+			} else {
+				clb(void (0));
+			}
+		});
 	}
 }
