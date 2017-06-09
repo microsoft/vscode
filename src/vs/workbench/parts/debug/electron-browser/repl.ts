@@ -392,20 +392,14 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 }));
 
 @editorAction
-class ReplCopyAllAction extends EditorAction {
+export class ReplCopyAllAction extends EditorAction {
 
 	constructor() {
 		super({
 			id: 'repl.action.copyall',
-			label: nls.localize('actions.repl.copyall', "Debug Copy All"),
-			alias: 'Debug Copy All',
+			label: nls.localize('actions.repl.copyall', "Debug: Console Copy All"),
+			alias: 'Debug Console Copy All',
 			precondition: debug.CONTEXT_IN_DEBUG_REPL,
-			kbOpts: {
-				kbExpr: null,
-				primary: null,
-				weight: 50
-			}
-
 		});
 	}
 
