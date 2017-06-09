@@ -1,8 +1,8 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-"use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var path = require("path");
 var fs = require("fs");
@@ -501,60 +501,6 @@ function prepareXlfFiles(projectName, extensionName) {
 }
 exports.prepareXlfFiles = prepareXlfFiles;
 var editorProject = 'vscode-editor', workbenchProject = 'vscode-workbench', extensionsProject = 'vscode-extensions', setupProject = 'vscode-setup';
-/**
- * Ensure to update those arrays when new resources are pushed to Transifex.
- * Used because Transifex does not have API method to pull all project resources.
- */
-var editorResources = [
-    { name: 'vs/platform', project: editorProject },
-    { name: 'vs/editor/contrib', project: editorProject },
-    { name: 'vs/editor', project: editorProject },
-    { name: 'vs/base', project: editorProject }
-];
-var workbenchResources = [
-    { name: 'vs/code', project: workbenchProject },
-    { name: 'vs/workbench', project: workbenchProject },
-    { name: 'vs/workbench/parts/cli', project: workbenchProject },
-    { name: 'vs/workbench/parts/codeEditor', project: workbenchProject },
-    { name: 'vs/workbench/parts/debug', project: workbenchProject },
-    { name: 'vs/workbench/parts/emmet', project: workbenchProject },
-    { name: 'vs/workbench/parts/execution', project: workbenchProject },
-    { name: 'vs/workbench/parts/explorers', project: workbenchProject },
-    { name: 'vs/workbench/parts/extensions', project: workbenchProject },
-    { name: 'vs/workbench/parts/feedback', project: workbenchProject },
-    { name: 'vs/workbench/parts/files', project: workbenchProject },
-    { name: 'vs/workbench/parts/html', project: workbenchProject },
-    { name: 'vs/workbench/parts/markers', project: workbenchProject },
-    { name: 'vs/workbench/parts/nps', project: workbenchProject },
-    { name: 'vs/workbench/parts/output', project: workbenchProject },
-    { name: 'vs/workbench/parts/performance', project: workbenchProject },
-    { name: 'vs/workbench/parts/preferences', project: workbenchProject },
-    { name: 'vs/workbench/parts/quickopen', project: workbenchProject },
-    { name: 'vs/workbench/parts/relauncher', project: workbenchProject },
-    { name: 'vs/workbench/parts/scm', project: workbenchProject },
-    { name: 'vs/workbench/parts/search', project: workbenchProject },
-    { name: 'vs/workbench/parts/snippets', project: workbenchProject },
-    { name: 'vs/workbench/parts/surveys', project: workbenchProject },
-    { name: 'vs/workbench/parts/tasks', project: workbenchProject },
-    { name: 'vs/workbench/parts/terminal', project: workbenchProject },
-    { name: 'vs/workbench/parts/themes', project: workbenchProject },
-    { name: 'vs/workbench/parts/trust', project: workbenchProject },
-    { name: 'vs/workbench/parts/update', project: workbenchProject },
-    { name: 'vs/workbench/parts/views', project: workbenchProject },
-    { name: 'vs/workbench/parts/watermark', project: workbenchProject },
-    { name: 'vs/workbench/parts/welcome', project: workbenchProject },
-    { name: 'vs/workbench/services/configuration', project: workbenchProject },
-    { name: 'vs/workbench/services/crashReporter', project: workbenchProject },
-    { name: 'vs/workbench/services/editor', project: workbenchProject },
-    { name: 'vs/workbench/services/files', project: workbenchProject },
-    { name: 'vs/workbench/services/keybinding', project: workbenchProject },
-    { name: 'vs/workbench/services/message', project: workbenchProject },
-    { name: 'vs/workbench/services/mode', project: workbenchProject },
-    { name: 'vs/workbench/services/progress', project: workbenchProject },
-    { name: 'vs/workbench/services/textfile', project: workbenchProject },
-    { name: 'vs/workbench/services/themes', project: workbenchProject },
-    { name: 'setup_messages', project: workbenchProject }
-];
 function getResource(sourceFile) {
     var resource;
     if (/^vs\/platform/.test(sourceFile)) {
@@ -825,10 +771,12 @@ function updateResource(project, slug, xlfFile, apiHostname, credentials) {
 function obtainProjectResources(projectName) {
     var resources = [];
     if (projectName === editorProject) {
-        resources = editorResources;
+        var json = fs.readFileSync('./build/lib/i18n.resources.json', 'utf8');
+        resources = JSON.parse(json).editor;
     }
     else if (projectName === workbenchProject) {
-        resources = workbenchResources;
+        var json = fs.readFileSync('./build/lib/i18n.resources.json', 'utf8');
+        resources = JSON.parse(json).workbench;
     }
     else if (projectName === extensionsProject) {
         var extensionsToLocalize = glob.sync('./extensions/**/*.nls.json').map(function (extension) { return extension.split('/')[2]; });

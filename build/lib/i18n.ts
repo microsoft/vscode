@@ -578,61 +578,6 @@ const editorProject: string = 'vscode-editor',
 	extensionsProject: string = 'vscode-extensions',
 	setupProject: string = 'vscode-setup';
 
-/**
- * Ensure to update those arrays when new resources are pushed to Transifex.
- * Used because Transifex does not have API method to pull all project resources.
- */
-const editorResources: Resource[] = [
-	{ name: 'vs/platform', project: editorProject },
-	{ name: 'vs/editor/contrib', project: editorProject },
-	{ name: 'vs/editor', project: editorProject },
-	{ name: 'vs/base', project: editorProject }
-];
-const workbenchResources: Resource[] = [
-	{ name: 'vs/code', project: workbenchProject },
-	{ name: 'vs/workbench', project: workbenchProject },
-	{ name: 'vs/workbench/parts/cli', project: workbenchProject },
-	{ name: 'vs/workbench/parts/codeEditor', project: workbenchProject },
-	{ name: 'vs/workbench/parts/debug', project: workbenchProject },
-	{ name: 'vs/workbench/parts/emmet', project: workbenchProject },
-	{ name: 'vs/workbench/parts/execution', project: workbenchProject },
-	{ name: 'vs/workbench/parts/explorers', project: workbenchProject },
-	{ name: 'vs/workbench/parts/extensions', project: workbenchProject },
-	{ name: 'vs/workbench/parts/feedback', project: workbenchProject },
-	{ name: 'vs/workbench/parts/files', project: workbenchProject },
-	{ name: 'vs/workbench/parts/html', project: workbenchProject },
-	{ name: 'vs/workbench/parts/markers', project: workbenchProject },
-	{ name: 'vs/workbench/parts/nps', project: workbenchProject },
-	{ name: 'vs/workbench/parts/output', project: workbenchProject },
-	{ name: 'vs/workbench/parts/performance', project: workbenchProject },
-	{ name: 'vs/workbench/parts/preferences', project: workbenchProject },
-	{ name: 'vs/workbench/parts/quickopen', project: workbenchProject },
-	{ name: 'vs/workbench/parts/relauncher', project: workbenchProject },
-	{ name: 'vs/workbench/parts/scm', project: workbenchProject },
-	{ name: 'vs/workbench/parts/search', project: workbenchProject },
-	{ name: 'vs/workbench/parts/snippets', project: workbenchProject },
-	{ name: 'vs/workbench/parts/surveys', project: workbenchProject },
-	{ name: 'vs/workbench/parts/tasks', project: workbenchProject },
-	{ name: 'vs/workbench/parts/terminal', project: workbenchProject },
-	{ name: 'vs/workbench/parts/themes', project: workbenchProject },
-	{ name: 'vs/workbench/parts/trust', project: workbenchProject },
-	{ name: 'vs/workbench/parts/update', project: workbenchProject },
-	{ name: 'vs/workbench/parts/views', project: workbenchProject },
-	{ name: 'vs/workbench/parts/watermark', project: workbenchProject },
-	{ name: 'vs/workbench/parts/welcome', project: workbenchProject },
-	{ name: 'vs/workbench/services/configuration', project: workbenchProject },
-	{ name: 'vs/workbench/services/crashReporter', project: workbenchProject },
-	{ name: 'vs/workbench/services/editor', project: workbenchProject },
-	{ name: 'vs/workbench/services/files', project: workbenchProject },
-	{ name: 'vs/workbench/services/keybinding', project: workbenchProject },
-	{ name: 'vs/workbench/services/message', project: workbenchProject },
-	{ name: 'vs/workbench/services/mode', project: workbenchProject },
-	{ name: 'vs/workbench/services/progress', project: workbenchProject },
-	{ name: 'vs/workbench/services/textfile', project: workbenchProject },
-	{ name: 'vs/workbench/services/themes', project: workbenchProject },
-	{ name: 'setup_messages', project: workbenchProject }
-];
-
 export function getResource(sourceFile: string): Resource {
 	let resource: string;
 
@@ -923,9 +868,11 @@ function obtainProjectResources(projectName: string): Resource[] {
 	let resources: Resource[] = [];
 
 	if (projectName === editorProject) {
-		resources = editorResources;
+		const json = fs.readFileSync('./build/lib/i18n.resources.json', 'utf8');
+		resources = JSON.parse(json).editor;
 	} else if (projectName === workbenchProject) {
-		resources = workbenchResources;
+		const json = fs.readFileSync('./build/lib/i18n.resources.json', 'utf8');
+		resources = JSON.parse(json).workbench;
 	} else if (projectName === extensionsProject) {
 		let extensionsToLocalize: string[] = glob.sync('./extensions/**/*.nls.json').map(extension => extension.split('/')[2]);
 		let resourcesToPull: string[] = [];

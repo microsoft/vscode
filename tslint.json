@@ -69,6 +69,7 @@
 				"extensions",
 				"smoke"
 			]
-		]
+		],
+		"translation-remind": true
 	}
 }
