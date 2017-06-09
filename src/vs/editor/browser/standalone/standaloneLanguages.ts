@@ -89,9 +89,23 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 
 	private _toClassicTokens(tokens: IToken[], language: string, offsetDelta: number): Token[] {
 		let result: Token[] = [];
+		let previousStartIndex: number = 0;
 		for (let i = 0, len = tokens.length; i < len; i++) {
-			let t = tokens[i];
-			result[i] = new Token(t.startIndex + offsetDelta, t.scopes, language);
+			const t = tokens[i];
+			let startIndex = t.startIndex;
+
+			// Prevent issues stemming from a buggy external tokenizer.
+			if (i === 0) {
+				// Force first token to start at first index!
+				startIndex = 0;
+			} else if (startIndex < previousStartIndex) {
+				// Force tokens to be after one another!
+				startIndex = previousStartIndex;
+			}
+
+			result[i] = new Token(startIndex + offsetDelta, t.scopes, language);
+
+			previousStartIndex = startIndex;
 		}
 		return result;
 	}
@@ -112,19 +126,34 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 	}
 
 	private _toBinaryTokens(tokens: IToken[], offsetDelta: number): Uint32Array {
-		let languageId = this._languageIdentifier.id;
-		let tokenTheme = this._standaloneThemeService.getTheme().tokenTheme;
+		const languageId = this._languageIdentifier.id;
+		const tokenTheme = this._standaloneThemeService.getTheme().tokenTheme;
 
 		let result: number[] = [], resultLen = 0;
+		let previousStartIndex: number = 0;
 		for (let i = 0, len = tokens.length; i < len; i++) {
-			let t = tokens[i];
-			let metadata = tokenTheme.match(languageId, t.scopes);
+			const t = tokens[i];
+			const metadata = tokenTheme.match(languageId, t.scopes);
 			if (resultLen > 0 && result[resultLen - 1] === metadata) {
 				// same metadata
 				continue;
 			}
-			result[resultLen++] = t.startIndex;
+
+			let startIndex = t.startIndex;
+
+			// Prevent issues stemming from a buggy external tokenizer.
+			if (i === 0) {
+				// Force first token to start at first index!
+				startIndex = 0;
+			} else if (startIndex < previousStartIndex) {
+				// Force tokens to be after one another!
+				startIndex = previousStartIndex;
+			}
+
+			result[resultLen++] = startIndex + offsetDelta;
 			result[resultLen++] = metadata;
+
+			previousStartIndex = startIndex;
 		}
 
 		let actualResult = new Uint32Array(resultLen);
