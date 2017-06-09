@@ -37,6 +37,27 @@ suite('Editor Contrib - Line Operations', () => {
 				});
 		});
 
+		test('should jump to the previous line when on first column', function() {
+			withMockCodeEditor(
+				[
+					'one',
+					'two',
+					'three'
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let deleteAllLeftAction = new DeleteAllLeftAction();
+
+					editor.setSelection(new Selection(2, 1, 2, 1));
+					deleteAllLeftAction.run(null, editor);
+					assert.equal(model.getLineContent(1), 'onetwo', '001');
+
+					editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1)]);
+					deleteAllLeftAction.run(null, editor);
+					assert.equal(model.getLinesContent()[0], 'three');
+					assert.equal(model.getLinesContent().length, 1);
+				});
+		});
+
 		test('should work in multi cursor mode', function () {
 			withMockCodeEditor(
 				[
