@@ -437,7 +437,7 @@ export function parseToAsync(expression: IExpression, options?: IGlobOptions): P
 	const parsedExpression = parse(expression, options);
 	return (path: string, basename?: string, siblingsFn?: () => TPromise<string[]>): TPromise<string> => {
 		const result = parsedExpression(path, basename, siblingsFn);
-		return typeof result === 'string' ? TPromise.as(result) : result;
+		return result instanceof TPromise ? result : TPromise.as(result);
 	};
 }
 
