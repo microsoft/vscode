@@ -9,7 +9,6 @@ import * as path from 'path';
 import * as fs from 'original-fs';
 import * as platform from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
-import * as types from 'vs/base/common/types';
 import * as arrays from 'vs/base/common/arrays';
 import { assign, mixin } from 'vs/base/common/objects';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
@@ -26,8 +25,7 @@ import { getLastActiveWindow, findBestWindowOrFolder } from 'vs/code/node/window
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/node/product';
 import { ITelemetryService, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { isParent, isEqual, isEqualOrParent } from 'vs/platform/files/common/files';
-import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
+import { isEqual, isEqualOrParent } from 'vs/platform/files/common/files';
 import { IWindowsMainService, IOpenConfiguration } from "vs/platform/windows/electron-main/windows";
 import { IHistoryMainService } from "vs/platform/history/electron-main/historyMainService";
 
@@ -100,58 +98,19 @@ export class WindowsManager implements IWindowsMainService {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IHistoryMainService private historyService: IHistoryMainService
-	) { }
+	) {
+		this.windowsState = this.storageService.getItem<IWindowsState>(WindowsManager.windowsStateStorageKey) || { openedFolders: [] };
+	}
 
 	public ready(initialUserEnv: platform.IProcessEnvironment): void {
-		this.registerListeners();
-
 		this.initialUserEnv = initialUserEnv;
-		this.windowsState = this.storageService.getItem<IWindowsState>(WindowsManager.windowsStateStorageKey) || { openedFolders: [] };
+
+		this.registerListeners();
 	}
 
 	private registerListeners(): void {
 
-		app.on('accessibility-support-changed', (event: Event, accessibilitySupportEnabled: boolean) => {
-			this.sendToAll('vscode:accessibilitySupportChanged', accessibilitySupportEnabled);
-		});
-
-		app.on('activate', (event: Event, hasVisibleWindows: boolean) => {
-			this.logService.log('App#activate');
-
-			// Mac only event: open new window when we get activated
-			if (!hasVisibleWindows) {
-				this.openNewWindow(OpenContext.DOCK);
-			}
-		});
-
-		let macOpenFiles: string[] = [];
-		let runningTimeout: number = null;
-		app.on('open-file', (event: Event, path: string) => {
-			this.logService.log('App#open-file: ', path);
-			event.preventDefault();
-
-			// Keep in array because more might come!
-			macOpenFiles.push(path);
-
-			// Clear previous handler if any
-			if (runningTimeout !== null) {
-				clearTimeout(runningTimeout);
-				runningTimeout = null;
-			}
-
-			// Handle paths delayed in case more are coming!
-			runningTimeout = setTimeout(() => {
-				this.open({
-					context: OpenContext.DOCK /* can also be opening from finder while app is running */,
-					cli: this.environmentService.args,
-					pathsToOpen: macOpenFiles,
-					preferNewWindow: true /* dropping on the dock or opening from finder prefers to open in a new window */
-				});
-				macOpenFiles = [];
-				runningTimeout = null;
-			}, 100);
-		});
-
+		// React to workbench loaded events from windows
 		ipc.on('vscode:workbenchLoaded', (event, windowId: number) => {
 			this.logService.log('IPC#vscode-workbenchLoaded');
 
@@ -164,35 +123,9 @@ export class WindowsManager implements IWindowsMainService {
 			}
 		});
 
-		ipc.on('vscode:broadcast', (event, windowId: number, target: string, broadcast: { channel: string; payload: any; }) => {
-			if (broadcast.channel && !types.isUndefinedOrNull(broadcast.payload)) {
-				this.logService.log('IPC#vscode:broadcast', target, broadcast.channel, broadcast.payload);
-
-				// Handle specific events on main side
-				this.onBroadcast(broadcast.channel, broadcast.payload);
-
-				// Send to windows
-				if (target) {
-					const otherWindowsWithTarget = WindowsManager.WINDOWS.filter(w => w.id !== windowId && typeof w.openedWorkspacePath === 'string');
-					const directTargetMatch = otherWindowsWithTarget.filter(w => isEqual(target, w.openedWorkspacePath, !platform.isLinux /* ignorecase */));
-					const parentTargetMatch = otherWindowsWithTarget.filter(w => isParent(target, w.openedWorkspacePath, !platform.isLinux /* ignorecase */));
-
-					const targetWindow = directTargetMatch.length ? directTargetMatch[0] : parentTargetMatch[0]; // prefer direct match over parent match
-					if (targetWindow) {
-						targetWindow.send('vscode:broadcast', broadcast);
-					}
-				} else {
-					this.sendToAll('vscode:broadcast', broadcast, [windowId]);
-				}
-			}
-		});
-
 		// Update our windows state before quitting and before closing windows
 		this.lifecycleService.onBeforeWindowClose(win => this.onBeforeWindowClose(win as CodeWindow));
 		this.lifecycleService.onBeforeQuit(() => this.onBeforeQuit());
-
-		// Keyboard layout changes
-		KeyboardLayoutMonitor.INSTANCE.onDidChangeKeyboardLayout(isISOKeyboard => this.sendToAll('vscode:keyboardLayoutChanged', isISOKeyboard));
 	}
 
 	// Note that onBeforeQuit() and onBeforeWindowClose() are fired in different order depending on the OS:
@@ -275,16 +208,6 @@ export class WindowsManager implements IWindowsMainService {
 		}
 	}
 
-	private onBroadcast(event: string, payload: any): void {
-
-		// Theme changes
-		if (event === 'vscode:changeColorTheme' && typeof payload === 'string') {
-
-			let data = JSON.parse(payload);
-			this.storageService.setItem(CodeWindow.themeStorageKey, data.id);
-			this.storageService.setItem(CodeWindow.themeBackgroundStorageKey, data.background);
-		}
-	}
 	public reload(win: CodeWindow, cli?: ParsedArgs): void {
 
 		// Only reload when the window has not vetoed this
@@ -525,12 +448,6 @@ export class WindowsManager implements IWindowsMainService {
 		return arrays.distinct(usedWindows);
 	}
 
-
-
-	private getWindowUserEnv(openConfig: IOpenConfiguration): platform.IProcessEnvironment {
-		return assign({}, this.initialUserEnv, openConfig.userEnv || {});
-	}
-
 	public openExtensionDevelopmentHostWindow(openConfig: IOpenConfiguration): void {
 
 		// Reload an existing extension development host window on the same path
@@ -568,7 +485,7 @@ export class WindowsManager implements IWindowsMainService {
 		const configuration: IWindowConfiguration = mixin({}, config.cli); // inherit all properties from CLI
 		configuration.appRoot = this.environmentService.appRoot;
 		configuration.execPath = process.execPath;
-		configuration.userEnv = this.getWindowUserEnv(config);
+		configuration.userEnv = assign({}, this.initialUserEnv, config.userEnv || {});
 		configuration.isInitialStartup = config.initialStartup;
 		configuration.workspacePath = workspacePath;
 		configuration.filesToOpen = filesToOpen;
@@ -852,60 +769,6 @@ export class WindowsManager implements IWindowsMainService {
 		return state;
 	}
 
-	public openFileFolderPicker(forceNewWindow?: boolean, data?: ITelemetryData): void {
-		this.doPickAndOpen({ pickFolders: true, pickFiles: true, forceNewWindow }, 'openFileFolder', data);
-	}
-
-	public openFilePicker(forceNewWindow?: boolean, path?: string, window?: CodeWindow, data?: ITelemetryData): void {
-		this.doPickAndOpen({ pickFiles: true, forceNewWindow, path, window }, 'openFile', data);
-	}
-
-	public openFolderPicker(forceNewWindow?: boolean, window?: CodeWindow, data?: ITelemetryData): void {
-		this.doPickAndOpen({ pickFolders: true, forceNewWindow, window }, 'openFolder', data);
-	}
-
-	private doPickAndOpen(options: INativeOpenDialogOptions, eventName: string, data?: ITelemetryData): void {
-		this.getFileOrFolderPaths(options, (paths: string[]) => {
-			const nOfPaths = paths ? paths.length : 0;
-			if (nOfPaths) {
-				this.open({ context: OpenContext.DIALOG, cli: this.environmentService.args, pathsToOpen: paths, forceNewWindow: options.forceNewWindow });
-			}
-			this.telemetryService.publicLog(eventName, {
-				...data,
-				outcome: nOfPaths ? 'success' : 'canceled',
-				nOfPaths
-			});
-		});
-	}
-
-	private getFileOrFolderPaths(options: INativeOpenDialogOptions, clb: (paths: string[]) => void): void {
-		const workingDir = options.path || this.storageService.getItem<string>(WindowsManager.workingDirPickerStorageKey);
-		const focussedWindow = options.window || this.getFocusedWindow();
-
-		let pickerProperties: ('openFile' | 'openDirectory' | 'multiSelections' | 'createDirectory')[];
-		if (options.pickFiles && options.pickFolders) {
-			pickerProperties = ['multiSelections', 'openDirectory', 'openFile', 'createDirectory'];
-		} else {
-			pickerProperties = ['multiSelections', options.pickFolders ? 'openDirectory' : 'openFile', 'createDirectory'];
-		}
-
-		dialog.showOpenDialog(focussedWindow && focussedWindow.win, {
-			defaultPath: workingDir,
-			properties: pickerProperties
-		}, paths => {
-			if (paths && paths.length > 0) {
-
-				// Remember path in storage for next time
-				this.storageService.setItem(WindowsManager.workingDirPickerStorageKey, path.dirname(paths[0]));
-
-				// Return
-				clb(paths);
-			} else {
-				clb(void (0));
-			}
-		});
-	}
-
 	public focusLastActive(cli: ParsedArgs, context: OpenContext): CodeWindow {
 		const lastActive = this.getLastActiveWindow();
 		if (lastActive) {
@@ -1078,6 +941,60 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Emit
 		this._onWindowClose.fire(win.id);
+	}
+
+	public openFileFolderPicker(forceNewWindow?: boolean, data?: ITelemetryData): void {
+		this.doPickAndOpen({ pickFolders: true, pickFiles: true, forceNewWindow }, 'openFileFolder', data);
+	}
+
+	public openFilePicker(forceNewWindow?: boolean, path?: string, window?: CodeWindow, data?: ITelemetryData): void {
+		this.doPickAndOpen({ pickFiles: true, forceNewWindow, path, window }, 'openFile', data);
+	}
+
+	public openFolderPicker(forceNewWindow?: boolean, window?: CodeWindow, data?: ITelemetryData): void {
+		this.doPickAndOpen({ pickFolders: true, forceNewWindow, window }, 'openFolder', data);
+	}
+
+	private doPickAndOpen(options: INativeOpenDialogOptions, eventName: string, data?: ITelemetryData): void {
+		this.getFileOrFolderPaths(options, (paths: string[]) => {
+			const nOfPaths = paths ? paths.length : 0;
+			if (nOfPaths) {
+				this.open({ context: OpenContext.DIALOG, cli: this.environmentService.args, pathsToOpen: paths, forceNewWindow: options.forceNewWindow });
+			}
+			this.telemetryService.publicLog(eventName, {
+				...data,
+				outcome: nOfPaths ? 'success' : 'canceled',
+				nOfPaths
+			});
+		});
+	}
+
+	private getFileOrFolderPaths(options: INativeOpenDialogOptions, clb: (paths: string[]) => void): void {
+		const workingDir = options.path || this.storageService.getItem<string>(WindowsManager.workingDirPickerStorageKey);
+		const focussedWindow = options.window || this.getFocusedWindow();
+
+		let pickerProperties: ('openFile' | 'openDirectory' | 'multiSelections' | 'createDirectory')[];
+		if (options.pickFiles && options.pickFolders) {
+			pickerProperties = ['multiSelections', 'openDirectory', 'openFile', 'createDirectory'];
+		} else {
+			pickerProperties = ['multiSelections', options.pickFolders ? 'openDirectory' : 'openFile', 'createDirectory'];
+		}
+
+		dialog.showOpenDialog(focussedWindow && focussedWindow.win, {
+			defaultPath: workingDir,
+			properties: pickerProperties
+		}, paths => {
+			if (paths && paths.length > 0) {
+
+				// Remember path in storage for next time
+				this.storageService.setItem(WindowsManager.workingDirPickerStorageKey, path.dirname(paths[0]));
+
+				// Return
+				clb(paths);
+			} else {
+				clb(void (0));
+			}
+		});
 	}
 
 	public quit(): void {

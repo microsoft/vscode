@@ -46,6 +46,10 @@ import { ConfigurationService } from 'vs/platform/configuration/node/configurati
 import { TPromise } from "vs/base/common/winjs.base";
 import { IWindowsMainService } from "vs/platform/windows/electron-main/windows";
 import { IHistoryMainService } from "vs/platform/history/electron-main/historyMainService";
+import { isUndefinedOrNull } from "vs/base/common/types";
+import { CodeWindow } from "vs/code/electron-main/window";
+import { isEqual, isParent } from "vs/platform/files/common/files";
+import { KeyboardLayoutMonitor } from "vs/code/electron-main/keyboard";
 
 export class CodeApplication {
 	private toDispose: IDisposable[];
@@ -102,6 +106,51 @@ export class CodeApplication {
 			this.dispose();
 		});
 
+		app.on('accessibility-support-changed', (event: Event, accessibilitySupportEnabled: boolean) => {
+			if (this.windowsMainService) {
+				this.windowsMainService.sendToAll('vscode:accessibilitySupportChanged', accessibilitySupportEnabled);
+			}
+		});
+
+		app.on('activate', (event: Event, hasVisibleWindows: boolean) => {
+			this.logService.log('App#activate');
+
+			// Mac only event: open new window when we get activated
+			if (!hasVisibleWindows && this.windowsMainService) {
+				this.windowsMainService.openNewWindow(OpenContext.DOCK);
+			}
+		});
+
+		let macOpenFiles: string[] = [];
+		let runningTimeout: number = null;
+		app.on('open-file', (event: Event, path: string) => {
+			this.logService.log('App#open-file: ', path);
+			event.preventDefault();
+
+			// Keep in array because more might come!
+			macOpenFiles.push(path);
+
+			// Clear previous handler if any
+			if (runningTimeout !== null) {
+				clearTimeout(runningTimeout);
+				runningTimeout = null;
+			}
+
+			// Handle paths delayed in case more are coming!
+			runningTimeout = setTimeout(() => {
+				if (this.windowsMainService) {
+					this.windowsMainService.open({
+						context: OpenContext.DOCK /* can also be opening from finder while app is running */,
+						cli: this.environmentService.args,
+						pathsToOpen: macOpenFiles,
+						preferNewWindow: true /* dropping on the dock or opening from finder prefers to open in a new window */
+					});
+					macOpenFiles = [];
+					runningTimeout = null;
+				}
+			}, 100);
+		});
+
 		ipc.on('vscode:exit', (event, code: number) => {
 			this.logService.log('IPC#vscode:exit', code);
 
@@ -127,6 +176,47 @@ export class CodeApplication {
 				console.error('Error fetching shell env', err);
 			});
 		});
+
+		ipc.on('vscode:broadcast', (event, windowId: number, target: string, broadcast: { channel: string; payload: any; }) => {
+			if (this.windowsMainService && broadcast.channel && !isUndefinedOrNull(broadcast.payload)) {
+				this.logService.log('IPC#vscode:broadcast', target, broadcast.channel, broadcast.payload);
+
+				// Handle specific events on main side
+				this.onBroadcast(broadcast.channel, broadcast.payload);
+
+				// Send to windows
+				if (target) {
+					const otherWindowsWithTarget = this.windowsMainService.getWindows().filter(w => w.id !== windowId && typeof w.openedWorkspacePath === 'string');
+					const directTargetMatch = otherWindowsWithTarget.filter(w => isEqual(target, w.openedWorkspacePath, !platform.isLinux /* ignorecase */));
+					const parentTargetMatch = otherWindowsWithTarget.filter(w => isParent(target, w.openedWorkspacePath, !platform.isLinux /* ignorecase */));
+
+					const targetWindow = directTargetMatch.length ? directTargetMatch[0] : parentTargetMatch[0]; // prefer direct match over parent match
+					if (targetWindow) {
+						targetWindow.send('vscode:broadcast', broadcast);
+					}
+				} else {
+					this.windowsMainService.sendToAll('vscode:broadcast', broadcast, [windowId]);
+				}
+			}
+		});
+
+		// Keyboard layout changes
+		KeyboardLayoutMonitor.INSTANCE.onDidChangeKeyboardLayout(isISOKeyboard => {
+			if (this.windowsMainService) {
+				this.windowsMainService.sendToAll('vscode:keyboardLayoutChanged', isISOKeyboard);
+			}
+		});
+	}
+
+	private onBroadcast(event: string, payload: any): void {
+
+		// Theme changes
+		if (event === 'vscode:changeColorTheme' && typeof payload === 'string') {
+			let data = JSON.parse(payload);
+
+			this.storageService.setItem(CodeWindow.themeStorageKey, data.id);
+			this.storageService.setItem(CodeWindow.themeBackgroundStorageKey, data.background);
+		}
 	}
 
 	public startup(): void {
