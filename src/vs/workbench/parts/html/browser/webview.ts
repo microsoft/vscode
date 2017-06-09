@@ -21,7 +21,6 @@ declare interface WebviewElement extends HTMLElement {
 	autoSize: 'on';
 	preload: string;
 	contextIsolation: boolean;
-
 	send(channel: string, ...args: any[]);
 	openDevTools(): any;
 }
@@ -70,6 +69,7 @@ export default class Webview {
 		this._webview.setAttribute('disableblinkfeatures', 'Auxclick');
 
 		this._webview.setAttribute('disableguestresize', '');
+		this._webview.setAttribute('webpreferences', 'contextIsolation=yes');
 
 		this._webview.preload = require.toUrl('./webview-pre.js');
 		this._webview.src = require.toUrl('./webview.html');
