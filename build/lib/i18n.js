@@ -3,7 +3,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-exports.__esModule = true;
+Object.defineProperty(exports, "__esModule", { value: true });
 var path = require("path");
 var fs = require("fs");
 var event_stream_1 = require("event-stream");
@@ -664,8 +664,8 @@ function pushXlfFiles(apiHostname, username, password) {
         Promise.all(tryGetPromises).then(function () {
             Promise.all(updateCreatePromises).then(function () {
                 _this.emit('end');
-            })["catch"](function (reason) { throw new Error(reason); });
-        })["catch"](function (reason) { throw new Error(reason); });
+            }).catch(function (reason) { throw new Error(reason); });
+        }).catch(function (reason) { throw new Error(reason); });
     });
 }
 exports.pushXlfFiles = pushXlfFiles;
@@ -817,7 +817,7 @@ function pullXlfFiles(projectName, apiHostname, username, password, languages, r
                     retrieveResource(language, resource, apiHostname, credentials).then(function (file) {
                         stream_1.emit('data', file);
                         translationsRetrieved++;
-                    })["catch"](function (error) { throw new Error(error); });
+                    }).catch(function (error) { throw new Error(error); });
                 });
             });
         }
@@ -880,7 +880,8 @@ function prepareJsonFiles() {
     }, function () {
         var _this = this;
         Promise.all(parsePromises)
-            .then(function () { _this.emit('end'); })["catch"](function (reason) { throw new Error(reason); });
+            .then(function () { _this.emit('end'); })
+            .catch(function (reason) { throw new Error(reason); });
     });
 }
 exports.prepareJsonFiles = prepareJsonFiles;
