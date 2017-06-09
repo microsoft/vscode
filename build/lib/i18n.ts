@@ -1032,7 +1032,9 @@ const encodings: Map<string> = {
 	'esn': 'CP1252',
 	'rus': 'CP1251',
 	'ita': 'CP1252',
-    'ptb': 'CP1252'
+    'ptb': 'CP1252',
+	'hun': 'CP1250',
+	'trk': 'CP1254'
 };
 
 function createIslFile(base: string, originalFilePath: string, messages: Map<string>, language: string): File {

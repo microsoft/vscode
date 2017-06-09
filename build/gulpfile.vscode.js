@@ -86,7 +86,7 @@ const BUNDLED_FILE_HEADER = [
 
 var languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'];
 if (process.env.VSCODE_QUALITY !== 'stable') {
-	languages = languages.concat(['ptb']); // Add languages requested by the community to non-stable builds
+	languages = languages.concat(['ptb', 'hun', 'trk']); // Add languages requested by the community to non-stable builds
 }
 
 gulp.task('clean-optimized-vscode', util.rimraf('out-vscode'));
@@ -369,7 +369,9 @@ const vscodeLanguages = [
 	'es',
 	'ru',
 	'it',
-	'pt-br'
+	'pt-br',
+	'hu',
+	'tr'
 ];
 const setupDefaultLanguages = [
 	'zh-hans',
