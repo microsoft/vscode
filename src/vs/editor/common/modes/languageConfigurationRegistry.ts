@@ -497,24 +497,29 @@ export class LanguageConfigurationRegistryImpl {
 	 * We should always allow intentional indentation. It means, if users change the indentation of `lineNumber` and the content of
 	 * this line doesn't match decreaseIndentPattern, we should not adjust the indentation.
 	 */
-	public getIndentActionForType(model: ITokenizedModel, lineNumber: number, column: number, ch: string, indentConverter: any): string {
-		let maxColumn = model.getLineMaxColumn(lineNumber);
-		// let indentation = this.getIndentationAtPosition(model, lineNumber, column);
-
-		let scopedLineTokens = this.getScopedLineTokens(model, lineNumber, maxColumn);
+	public getIndentActionForType(model: ITokenizedModel, range: Range, ch: string, indentConverter: any): string {
+		let scopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber, range.startColumn);
 		let indentRulesSupport = this._getIndentRulesSupport(scopedLineTokens.languageId);
 		if (!indentRulesSupport) {
 			return null;
 		}
 
 		let scopedLineText = scopedLineTokens.getLineContent();
-		let beforeTypeText = scopedLineText.substr(0, column - 1);
-		let afterTypeText = scopedLineText.substr(column - 1);
+		let beforeTypeText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+		let afterTypeText;
+
+		// selection support
+		if (range.isEmpty()) {
+			afterTypeText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+		} else {
+			const endScopedLineTokens = this.getScopedLineTokens(model, range.endLineNumber, range.endColumn);
+			afterTypeText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
+		}
 
 		if (indentRulesSupport.shouldDecrease(beforeTypeText + ch + afterTypeText)) {
 			// after typing `ch`, the content matches decreaseIndentPattern, we should adjust the indent to a good manner.
 			// 1. Get inherited indent action
-			let r = this.getInheritIndentForLine(model, lineNumber, false);
+			let r = this.getInheritIndentForLine(model, range.startLineNumber, false);
 			if (!r) {
 				return null;
 			}

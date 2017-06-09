@@ -322,10 +322,9 @@ export class TypeOperations {
 		}
 	}
 
-	private static _runAutoIndentType(config: CursorConfiguration, model: ITokenizedModel, selections: Selection[], ch: string): ICommand {
-		let selection = selections[0];
-		let currentIndentation = LanguageConfigurationRegistry.getIndentationAtPosition(model, selection.startLineNumber, selection.startColumn);
-		let actualIndentation = LanguageConfigurationRegistry.getIndentActionForType(model, selections[0].startLineNumber, selections[0].startColumn, ch, {
+	private static _runAutoIndentType(config: CursorConfiguration, model: ITokenizedModel, range: Range, ch: string): ICommand {
+		let currentIndentation = LanguageConfigurationRegistry.getIndentationAtPosition(model, range.startLineNumber, range.startColumn);
+		let actualIndentation = LanguageConfigurationRegistry.getIndentActionForType(model, range, ch, {
 			shiftIndent: (indentation) => {
 				return TypeOperations.shiftIndent(config, indentation);
 			},
@@ -339,18 +338,18 @@ export class TypeOperations {
 		}
 
 		if (actualIndentation !== config.normalizeIndentation(currentIndentation)) {
-			let firstNonWhitespace = model.getLineFirstNonWhitespaceColumn(selection.startLineNumber);
+			let firstNonWhitespace = model.getLineFirstNonWhitespaceColumn(range.startLineNumber);
 			if (firstNonWhitespace === 0) {
 				return TypeOperations._typeCommand(
-					new Range(selection.startLineNumber, 0, selection.startLineNumber, selection.startColumn),
+					new Range(range.startLineNumber, 0, range.endLineNumber, range.endColumn),
 					actualIndentation + ch,
 					false
 				);
 			} else {
 				return TypeOperations._typeCommand(
-					new Range(selection.startLineNumber, 0, selection.startLineNumber, selection.startColumn),
+					new Range(range.startLineNumber, 0, range.endLineNumber, range.endColumn),
 					actualIndentation +
-					model.getLineContent(selection.startLineNumber).substring(firstNonWhitespace - 1, selection.startColumn) + ch,
+					model.getLineContent(range.startLineNumber).substring(firstNonWhitespace - 1, range.startColumn - 1) + ch,
 					false
 				);
 			}
@@ -596,7 +595,7 @@ export class TypeOperations {
 			});
 		}
 
-		let indentCommand = this._runAutoIndentType(config, model, selections, ch);
+		let indentCommand = this._runAutoIndentType(config, model, selections[0], ch);
 		if (indentCommand) {
 			return new EditOperationResult([indentCommand], {
 				shouldPushStackElementBefore: true,
