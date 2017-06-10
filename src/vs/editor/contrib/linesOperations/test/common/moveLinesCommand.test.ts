@@ -9,11 +9,11 @@ import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/common/moveL
 import { testCommand } from 'vs/editor/test/common/commands/commandTestUtils';
 
 function testMoveLinesDownCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, null, selection, (sel) => new MoveLinesCommand(sel, true), expectedLines, expectedSelection);
+	testCommand(lines, null, selection, (sel) => new MoveLinesCommand(sel, true, false), expectedLines, expectedSelection);
 }
 
 function testMoveLinesUpCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, null, selection, (sel) => new MoveLinesCommand(sel, false), expectedLines, expectedSelection);
+	testCommand(lines, null, selection, (sel) => new MoveLinesCommand(sel, false, false), expectedLines, expectedSelection);
 }
 
 suite('Editor Contrib - Move Lines Command', () => {
