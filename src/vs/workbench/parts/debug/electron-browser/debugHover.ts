@@ -22,6 +22,7 @@ import { Expression } from 'vs/workbench/parts/debug/common/debugModel';
 import { VariablesRenderer, renderExpressionValue, VariablesDataSource } from 'vs/workbench/parts/debug/electron-browser/debugViewer';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 const $ = dom.$;
 const MAX_ELEMENTS_SHOWN = 18;
@@ -55,9 +56,12 @@ export class DebugHoverWidget implements IContentWidget {
 		this.create(instantiationService);
 		this.registerListeners();
 
-		this.valueContainer = dom.append(this.domNode, $('.value'));
+		this.valueContainer = $('.value');
 		this.valueContainer.tabIndex = 0;
 		this.valueContainer.setAttribute('role', 'tooltip');
+		this.scrollbar = new DomScrollableElement(this.valueContainer, { canUseTranslate3d: false, horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Auto });
+		this.domNode.appendChild(this.scrollbar.getDomNode());
+		this.toDispose.push(this.scrollbar);
 
 		this._isVisible = false;
 		this.showAtPosition = null;
@@ -70,7 +74,6 @@ export class DebugHoverWidget implements IContentWidget {
 	private create(instantiationService: IInstantiationService): void {
 		this.domNode = $('.debug-hover-widget');
 		this.complexValueContainer = dom.append(this.domNode, $('.complex-value'));
-		this.scrollbar = new DomScrollableElement(this.complexValueContainer, { canUseTranslate3d: false });
 		this.complexValueTitle = dom.append(this.complexValueContainer, $('.title'));
 		this.treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
 		this.treeContainer.setAttribute('role', 'tree');
@@ -84,8 +87,6 @@ export class DebugHoverWidget implements IContentWidget {
 				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
 				keyboardSupport: false
 			});
-		this.toDispose.push(this.scrollbar);
-		this.domNode.appendChild(this.scrollbar.getDomNode());
 
 		this.toDispose.push(this.listService.register(this.tree));
 	}
@@ -242,6 +243,7 @@ export class DebugHoverWidget implements IContentWidget {
 				showChanged: false,
 				preserveWhitespace: true
 			});
+			this.scrollbar.scanDomNode();
 			this.valueContainer.title = '';
 			this.editor.layoutContentWidget(this);
 			if (focus) {
