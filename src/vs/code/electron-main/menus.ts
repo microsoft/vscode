@@ -21,6 +21,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { tildify } from 'vs/base/common/labels';
 import { KeybindingsResolver } from "vs/code/electron-main/keyboard";
 import { IWindowsMainService } from "vs/platform/windows/electron-main/windows";
+import { IHistoryMainService } from "vs/platform/history/electron-main/historyMainService";
 
 interface IExtensionViewlet {
 	id: string;
@@ -75,7 +76,8 @@ export class CodeMenu {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWindowsMainService private windowsService: IWindowsMainService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IHistoryMainService private historyService: IHistoryMainService
 	) {
 		this.extensionViewlets = [];
 
@@ -98,7 +100,7 @@ export class CodeMenu {
 
 		// Listen to some events from window service
 		this.windowsService.onPathsOpen(paths => this.updateMenu());
-		this.windowsService.onRecentPathsChange(paths => this.updateMenu());
+		this.historyService.onRecentPathsChange(paths => this.updateMenu());
 		this.windowsService.onWindowClose(_ => this.onClose(this.windowsService.getWindowCount()));
 
 		// Listen to extension viewlets
@@ -414,7 +416,7 @@ export class CodeMenu {
 	private setOpenRecentMenu(openRecentMenu: Electron.Menu): void {
 		openRecentMenu.append(this.createMenuItem(nls.localize({ key: 'miReopenClosedEditor', comment: ['&& denotes a mnemonic'] }, "&&Reopen Closed Editor"), 'workbench.action.reopenClosedEditor'));
 
-		const { folders, files } = this.windowsService.getRecentPathsList();
+		const { folders, files } = this.historyService.getRecentPathsList();
 
 		// Folders
 		if (folders.length > 0) {
@@ -448,7 +450,7 @@ export class CodeMenu {
 				const openInNewWindow = this.isOptionClick(event);
 				const success = !!this.windowsService.open({ context: OpenContext.MENU, cli: this.environmentService.args, pathsToOpen: [path], forceNewWindow: openInNewWindow });
 				if (!success) {
-					this.windowsService.removeFromRecentPathsList(path);
+					this.historyService.removeFromRecentPathsList(path);
 				}
 			}
 		}, false));

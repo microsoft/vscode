@@ -107,7 +107,7 @@ class ProfilingHint implements IWorkbenchContribution {
 
 		// Ignore virtual machines and only ask users
 		// to profile with a certain propability
-		if (virtualMachineHint.value() >= .5 || Math.ceil(Math.random() * 50) !== 1) {
+		if (virtualMachineHint.value() >= .5 || Math.ceil(Math.random() * 1000) !== 1) {
 			return;
 		}
 

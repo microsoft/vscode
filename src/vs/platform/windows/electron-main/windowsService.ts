@@ -18,6 +18,7 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { ILifecycleService } from "vs/platform/lifecycle/electron-main/lifecycleMain";
 import { IWindowsMainService, ISharedProcess } from "vs/platform/windows/electron-main/windows";
+import { IHistoryMainService } from "vs/platform/history/electron-main/historyMainService";
 
 export class WindowsService implements IWindowsService, IDisposable {
 
@@ -33,7 +34,8 @@ export class WindowsService implements IWindowsService, IDisposable {
 		@IWindowsMainService private windowsMainService: IWindowsMainService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IURLService urlService: IURLService,
-		@ILifecycleService private lifecycleService: ILifecycleService
+		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IHistoryMainService private historyService: IHistoryMainService
 	) {
 		chain(urlService.onOpenURL)
 			.filter(uri => uri.authority === 'file' && !!uri.path)
@@ -124,19 +126,19 @@ export class WindowsService implements IWindowsService, IDisposable {
 	}
 
 	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void> {
-		this.windowsMainService.addToRecentPathsList(paths);
+		this.historyService.addToRecentPathsList(paths);
 
 		return TPromise.as(null);
 	}
 
 	removeFromRecentlyOpen(paths: string[]): TPromise<void> {
-		this.windowsMainService.removeFromRecentPathsList(paths);
+		this.historyService.removeFromRecentPathsList(paths);
 
 		return TPromise.as(null);
 	}
 
 	clearRecentPathsList(): TPromise<void> {
-		this.windowsMainService.clearRecentPathsList();
+		this.historyService.clearRecentPathsList();
 		return TPromise.as(null);
 	}
 
@@ -144,7 +146,7 @@ export class WindowsService implements IWindowsService, IDisposable {
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
 		if (codeWindow) {
-			const { files, folders } = this.windowsMainService.getRecentPathsList(codeWindow.config.workspacePath, codeWindow.config.filesToOpen);
+			const { files, folders } = this.historyService.getRecentPathsList(codeWindow.config.workspacePath, codeWindow.config.filesToOpen);
 			return TPromise.as({ files, folders });
 		}
 
