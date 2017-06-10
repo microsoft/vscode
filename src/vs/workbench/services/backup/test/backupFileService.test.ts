@@ -48,10 +48,8 @@ const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', crypto.cre
 class TestBackupFileService extends BackupFileService {
 	constructor(workspace: Uri, backupHome: string, workspacesJsonPath: string) {
 		const fileService = new FileService(workspace.fsPath, { disableWatcher: true });
-		const environmentService = new TestEnvironmentService(backupHome, workspacesJsonPath);
 
-
-		super(workspaceBackupPath, environmentService, fileService);
+		super(workspaceBackupPath, fileService);
 	}
 
 	public getBackupResource(resource: Uri, legacyMacWindowsFormat?: boolean): Uri {
