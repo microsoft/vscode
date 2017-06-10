@@ -12,7 +12,6 @@ import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
 import { Queue } from 'vs/base/common/async';
 import { IBackupFileService, BACKUP_FILE_UPDATE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { readToMatchingString } from 'vs/base/node/stream';
@@ -103,7 +102,6 @@ export class BackupFileService implements IBackupFileService {
 
 	constructor(
 		private backupWorkspacePath: string,
-		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IFileService private fileService: IFileService
 	) {
 		this.isShuttingDown = false;
@@ -112,7 +110,7 @@ export class BackupFileService implements IBackupFileService {
 	}
 
 	private get backupEnabled(): boolean {
-		return !this.environmentService.isExtensionDevelopment; // Hot exit is disabled when doing extension development
+		return !!this.backupWorkspacePath; // Hot exit requires a backup path
 	}
 
 	private init(): TPromise<IBackupFilesModel> {
