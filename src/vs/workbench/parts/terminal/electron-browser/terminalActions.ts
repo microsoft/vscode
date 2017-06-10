@@ -93,6 +93,27 @@ export class CopyTerminalSelectionAction extends Action {
 	}
 }
 
+export class SelectAllTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.selectAll';
+	public static LABEL = nls.localize('workbench.action.terminal.selectAll', "Select All");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		let terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance) {
+			terminalInstance.selectAll();
+		}
+		return TPromise.as(void 0);
+	}
+}
+
 export class CreateNewTerminalAction extends Action {
 
 	public static ID = 'workbench.action.terminal.new';

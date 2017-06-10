@@ -24,6 +24,7 @@ export interface IModelLoadOrCreateOptions {
 	resource?: URI;
 	modeId?: string;
 	initialValue?: string;
+	encoding?: string;
 }
 
 export interface IUntitledEditorService {
@@ -77,7 +78,7 @@ export interface IUntitledEditorService {
 	 * It is valid to pass in a file resource. In that case the path will be used as identifier.
 	 * The use case is to be able to create a new file with a specific path with VSCode.
 	 */
-	createOrGet(resource?: URI, modeId?: string, initialValue?: string): UntitledEditorInput;
+	createOrGet(resource?: URI, modeId?: string, initialValue?: string, encoding?: string): UntitledEditorInput;
 
 	/**
 	 * Creates a new untitled model with the optional resource URI or returns an existing one
@@ -194,10 +195,10 @@ export class UntitledEditorService implements IUntitledEditorService {
 	}
 
 	public loadOrCreate(options: IModelLoadOrCreateOptions = Object.create(null)): TPromise<UntitledEditorModel> {
-		return this.createOrGet(options.resource, options.modeId, options.initialValue).resolve();
+		return this.createOrGet(options.resource, options.modeId, options.initialValue, options.encoding).resolve();
 	}
 
-	public createOrGet(resource?: URI, modeId?: string, initialValue?: string): UntitledEditorInput {
+	public createOrGet(resource?: URI, modeId?: string, initialValue?: string, encoding?: string): UntitledEditorInput {
 
 		// Massage resource if it comes with a file:// scheme
 		let hasAssociatedFilePath = false;
@@ -216,10 +217,10 @@ export class UntitledEditorService implements IUntitledEditorService {
 		}
 
 		// Create new otherwise
-		return this.doCreate(resource, hasAssociatedFilePath, modeId, initialValue);
+		return this.doCreate(resource, hasAssociatedFilePath, modeId, initialValue, encoding);
 	}
 
-	private doCreate(resource?: URI, hasAssociatedFilePath?: boolean, modeId?: string, initialValue?: string): UntitledEditorInput {
+	private doCreate(resource?: URI, hasAssociatedFilePath?: boolean, modeId?: string, initialValue?: string, encoding?: string): UntitledEditorInput {
 		if (!resource) {
 
 			// Create new taking a resource URI that is not already taken
@@ -238,7 +239,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 			}
 		}
 
-		const input = this.instantiationService.createInstance(UntitledEditorInput, resource, hasAssociatedFilePath, modeId, initialValue);
+		const input = this.instantiationService.createInstance(UntitledEditorInput, resource, hasAssociatedFilePath, modeId, initialValue, encoding);
 
 		const contentListener = input.onDidModelChangeContent(() => {
 			this._onDidChangeContent.fire(resource);

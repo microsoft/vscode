@@ -8,6 +8,8 @@ import nls = require('vs/nls');
 import Filters = require('vs/base/common/filters');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action, IAction } from 'vs/base/common/actions';
+import { IStringDictionary } from 'vs/base/common/collections';
+
 import Quickopen = require('vs/workbench/browser/quickopen');
 import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');
@@ -49,7 +51,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 
 	constructor(
 		protected quickOpenService: IQuickOpenService,
-		protected taskService: ITaskService,
+		protected taskService: ITaskService
 	) {
 		super();
 
@@ -71,39 +73,39 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 			if (tasks.length === 0) {
 				return new Model.QuickOpenModel(entries);
 			}
-			tasks = tasks.sort((a, b) => {
-				let aKind = a._source.kind;
-				let bKind = b._source.kind;
-				if (aKind === bKind) {
-					if (aKind === TaskSourceKind.Extension) {
-						let compare = a._source.label.localeCompare(b._source.label);
-						if (compare !== 0) {
-							return compare;
-						}
-					}
-					return a._label.localeCompare(b._label);
-				}
-				if (aKind === TaskSourceKind.Workspace) {
-					return -1;
-				} else {
-					return +1;
+			let recentlyUsedTasks = this.taskService.getRecentlyUsedTasks();
+			let recent: Task[] = [];
+			let others: Task[] = [];
+			let taskMap: IStringDictionary<Task> = Object.create(null);
+			tasks.forEach(task => taskMap[task.identifier] = task);
+			recentlyUsedTasks.keys().forEach(key => {
+				let task = taskMap[key];
+				if (task) {
+					recent.push(task);
 				}
 			});
-			let firstWorkspace: boolean = true;
-			let firstExtension: boolean = true;
-			let hadWorkspace: boolean = false;
 			for (let task of tasks) {
+				if (!recentlyUsedTasks.has(task.identifier)) {
+					others.push(task);
+				}
+			}
+			others = others.sort((a, b) => a._source.label.localeCompare(b._source.label));
+			let sortedTasks = recent.concat(others);
+			let recentlyUsed: boolean = recentlyUsedTasks.has(tasks[0].identifier);
+			let otherTasks: boolean = !recentlyUsedTasks.has(tasks[tasks.length - 1].identifier);
+			let hasRecentlyUsed: boolean = false;
+			for (let task of sortedTasks) {
 				let highlights = Filters.matchesContiguousSubString(input, task._label);
 				if (!highlights) {
 					continue;
 				}
-				if (task._source.kind === TaskSourceKind.Workspace && firstWorkspace) {
-					firstWorkspace = false;
-					hadWorkspace = true;
-					entries.push(new TaskGroupEntry(this.createEntry(this.taskService, task, highlights), nls.localize('configured', 'Configured Tasks'), false));
-				} else if (task._source.kind === TaskSourceKind.Extension && firstExtension) {
-					firstExtension = false;
-					entries.push(new TaskGroupEntry(this.createEntry(this.taskService, task, highlights), nls.localize('detected', 'Detected Tasks'), hadWorkspace));
+				if (recentlyUsed) {
+					recentlyUsed = false;
+					hasRecentlyUsed = true;
+					entries.push(new TaskGroupEntry(this.createEntry(this.taskService, task, highlights), nls.localize('recentlyUsed', 'recently used'), false));
+				} else if (!recentlyUsedTasks.has(task.identifier) && otherTasks) {
+					otherTasks = false;
+					entries.push(new TaskGroupEntry(this.createEntry(this.taskService, task, highlights), nls.localize('other tasks', 'other tasks'), hasRecentlyUsed));
 				} else {
 					entries.push(this.createEntry(this.taskService, task, highlights));
 				}

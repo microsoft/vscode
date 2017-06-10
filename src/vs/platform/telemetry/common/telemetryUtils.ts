@@ -16,7 +16,6 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService, ITelemetryExperiments, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { StorageService } from 'vs/platform/storage/common/storageService';
 import * as objects from 'vs/base/common/objects';
 
 export const defaultExperiments: ITelemetryExperiments = {
@@ -105,8 +104,10 @@ function splitExperimentsRandomness(storageService: IStorageService): ITelemetry
 	};
 }
 
+const GLOBAL_PREFIX = `storage://global/`; // TODO@Christoph debt, why do you need to know? just use the storageservice?
+
 function getExperimentsRandomness(storageService: IStorageService) {
-	const key = StorageService.GLOBAL_PREFIX + 'experiments.randomness';
+	const key = GLOBAL_PREFIX + 'experiments.randomness';
 	let valueString = storageService.get(key);
 	if (!valueString) {
 		valueString = Math.random().toString();
@@ -122,7 +123,7 @@ function splitRandom(random: number): [number, boolean] {
 	return [scaled - i, i === 1];
 }
 
-const experimentsOverridesKey = StorageService.GLOBAL_PREFIX + 'experiments.overrides';
+const experimentsOverridesKey = GLOBAL_PREFIX + 'experiments.overrides';
 
 function getExperimentsOverrides(storageService: IStorageService): ITelemetryExperiments {
 	const valueString = storageService.get(experimentsOverridesKey);
