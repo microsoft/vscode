@@ -51,8 +51,9 @@ interface IWindowsState {
 	openedFolders?: IWindowState[]; // TODO@Ben deprecated
 }
 
-const ReopenFoldersSetting = {
+const ReopenWindowsSetting = {
 	ALL: 'all',
+	FOLDERS: 'folders',
 	ONE: 'one',
 	NONE: 'none'
 };
@@ -181,7 +182,7 @@ export class WindowsManager implements IWindowsMainService {
 			currentWindowsState.lastPluginDevelopmentHostWindow = { workspacePath: extensionHostWindow.openedWorkspacePath, uiState: extensionHostWindow.serializeWindowState(), backupPath: extensionHostWindow.backupPath };
 		}
 
-		// 3.) All windows (except extension host) for N >= 2 to support reopenFolders: all or for auto update
+		// 3.) All windows (except extension host) for N >= 2 to support reopenWindows: all or for auto update
 		//
 		// Carefull here: asking a window for its window state after it has been closed returns bogus values (width: 0, height: 0)
 		// so if we ever want to persist the UI state of the last closed window (window count === 1), it has
@@ -502,18 +503,22 @@ export class WindowsManager implements IWindowsMainService {
 	private doExtractPathsFromLastSession(): IPath[] {
 		const candidates: string[] = [];
 
-		let reopenFolders: string;
+		let reopenWindows: string;
 		if (this.lifecycleService.wasRestarted) {
-			reopenFolders = ReopenFoldersSetting.ALL; // always reopen all folders when an update was applied
+			reopenWindows = ReopenWindowsSetting.ALL; // always reopen all windows when an update was applied
 		} else {
 			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
-			reopenFolders = (windowConfig && windowConfig.reopenFolders) || ReopenFoldersSetting.ONE;
+			reopenWindows = (windowConfig && windowConfig.reopenWindows) || ReopenWindowsSetting.ONE;
+
+			if (windowConfig && !windowConfig.reopenWindows && windowConfig.reopenFolders) {
+				reopenWindows = windowConfig.reopenFolders; // TODO@Ben migration
+			}
 		}
 
 		const lastActiveFolder = this.windowsState.lastActiveWindow && this.windowsState.lastActiveWindow.workspacePath;
 
 		// Restore all
-		if (reopenFolders === ReopenFoldersSetting.ALL) {
+		if (reopenWindows === ReopenWindowsSetting.ALL) {
 			const lastOpenedFolders = this.windowsState.openedWindows.filter(w => !!w.workspacePath).map(o => o.workspacePath);
 
 			// If we have a last active folder, move it to the end
@@ -526,7 +531,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Restore last active
-		else if (lastActiveFolder && (reopenFolders === ReopenFoldersSetting.ONE || reopenFolders !== ReopenFoldersSetting.NONE)) {
+		else if (lastActiveFolder && (reopenWindows === ReopenWindowsSetting.ONE || reopenWindows !== ReopenWindowsSetting.NONE)) {
 			candidates.push(lastActiveFolder);
 		}
 
