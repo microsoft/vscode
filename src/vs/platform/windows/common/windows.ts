@@ -104,7 +104,7 @@ export interface IWindowConfiguration {
 export interface IWindowSettings {
 	openFilesInNewWindow: 'on' | 'off' | 'default';
 	openFoldersInNewWindow: 'on' | 'off' | 'default';
-	reopenWindows: 'all' | 'folders' | 'one' | 'none';
+	restoreWindows: 'all' | 'folders' | 'one' | 'none';
 	reopenFolders: 'all' | 'one' | 'none'; // TODO@Ben deprecated
 	restoreFullscreen: boolean;
 	zoomLevel: number;

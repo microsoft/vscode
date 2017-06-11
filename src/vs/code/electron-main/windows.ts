@@ -51,12 +51,7 @@ interface IWindowsState {
 	openedFolders?: IWindowState[]; // TODO@Ben deprecated
 }
 
-const ReopenWindowsSetting = {
-	ALL: 'all',
-	FOLDERS: 'folders',
-	ONE: 'one',
-	NONE: 'none'
-};
+type RestoreWindowsSetting = 'all' | 'folders' | 'one' | 'none';
 
 interface IOpenBrowserWindowOptions {
 	userEnv?: IProcessEnvironment;
@@ -191,7 +186,7 @@ export class WindowsManager implements IWindowsMainService {
 			currentWindowsState.lastPluginDevelopmentHostWindow = { workspacePath: extensionHostWindow.openedWorkspacePath, uiState: extensionHostWindow.serializeWindowState(), backupPath: extensionHostWindow.backupPath };
 		}
 
-		// 3.) All windows (except extension host) for N >= 2 to support reopenWindows: all or for auto update
+		// 3.) All windows (except extension host) for N >= 2 to support restoreWindows: all or for auto update
 		//
 		// Carefull here: asking a window for its window state after it has been closed returns bogus values (width: 0, height: 0)
 		// so if we ever want to persist the UI state of the last closed window (window count === 1), it has
@@ -252,8 +247,8 @@ export class WindowsManager implements IWindowsMainService {
 		const emptyToOpen = pathsToOpen.filter(iPath => !iPath.workspacePath && !iPath.filePath);
 
 		const hotExitRestore = (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath);
-		const foldersToRestoreFromHotExit = hotExitRestore ? this.backupService.getWorkspaceBackupPaths() : [];
-		const emptyToRestoreFromHotExit = hotExitRestore ? this.backupService.getEmptyWorkspaceBackupPaths() : [];
+		const foldersToRestore = hotExitRestore ? this.backupService.getWorkspaceBackupPaths() : [];
+		const emptyToRestore = hotExitRestore ? this.backupService.getEmptyWorkspaceBackupPaths() : [];
 
 		let filesToOpen = pathsToOpen.filter(iPath => !!iPath.filePath && !iPath.createFilePath);
 		let filesToCreate = pathsToOpen.filter(iPath => !!iPath.filePath && iPath.createFilePath);
@@ -271,7 +266,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Handle files to open/diff or to create when we dont open a folder and we do not restore any folder/untitled from hot-exit
 		const usedWindows: CodeWindow[] = [];
-		if (!foldersToOpen.length && !foldersToRestoreFromHotExit.length && !emptyToRestoreFromHotExit.length && (filesToOpen.length > 0 || filesToCreate.length > 0 || filesToDiff.length > 0)) {
+		if (!foldersToOpen.length && !foldersToRestore.length && !emptyToRestore.length && (filesToOpen.length > 0 || filesToCreate.length > 0 || filesToDiff.length > 0)) {
 
 			// Open Files in last instance if any and flag tells us so
 			const fileToCheck = filesToOpen[0] || filesToCreate[0] || filesToDiff[0];
@@ -318,7 +313,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Handle folders to open (instructed and to restore)
-		let allFoldersToOpen = arrays.distinct([...foldersToOpen, ...foldersToRestoreFromHotExit], folder => isLinux ? folder : folder.toLowerCase()); // prevent duplicates
+		let allFoldersToOpen = arrays.distinct([...foldersToOpen, ...foldersToRestore], folder => isLinux ? folder : folder.toLowerCase()); // prevent duplicates
 		if (allFoldersToOpen.length > 0) {
 
 			// Check for existing instances
@@ -371,8 +366,8 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Handle empty
-		if (emptyToRestoreFromHotExit.length > 0) {
-			emptyToRestoreFromHotExit.forEach(emptyWorkspaceBackupFolder => {
+		if (emptyToRestore.length > 0) {
+			emptyToRestore.forEach(emptyWorkspaceBackupFolder => {
 				const browserWindow = this.openInBrowserWindow({
 					userEnv: openConfig.userEnv,
 					cli: openConfig.cli,
@@ -504,24 +499,11 @@ export class WindowsManager implements IWindowsMainService {
 
 	private doExtractPathsFromLastSession(): IPath[] {
 		const candidates: string[] = [];
-
-		// Extract setting for how to reopen windows
-		let reopenWindows: string;
-		if (this.lifecycleService.wasRestarted) {
-			reopenWindows = ReopenWindowsSetting.ALL; // always reopen all windows when an update was applied
-		} else {
-			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
-			reopenWindows = (windowConfig && windowConfig.reopenWindows) || ReopenWindowsSetting.ONE;
-
-			if (windowConfig && !windowConfig.reopenWindows && windowConfig.reopenFolders) {
-				reopenWindows = windowConfig.reopenFolders; // TODO@Ben migration
-			}
-		}
-
+		const restoreWindows = this.getRestoreWindowsSetting();
 		const lastActiveFolder = this.windowsState.lastActiveWindow && this.windowsState.lastActiveWindow.workspacePath;
 
-		// Restore all or all folders
-		if (reopenWindows === ReopenWindowsSetting.ALL || reopenWindows === ReopenWindowsSetting.FOLDERS) {
+		// Restore all windows or all folders
+		if (restoreWindows === 'all' || restoreWindows === 'folders') {
 			const lastOpenedFolders = this.windowsState.openedWindows.filter(w => !!w.workspacePath).map(o => o.workspacePath);
 
 			// If we have a last active folder, move it to the end
@@ -534,7 +516,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Restore last active
-		else if (lastActiveFolder && (reopenWindows === ReopenWindowsSetting.ONE || reopenWindows !== ReopenWindowsSetting.NONE)) {
+		else if (lastActiveFolder && (restoreWindows === 'one')) {
 			candidates.push(lastActiveFolder);
 		}
 
@@ -545,6 +527,26 @@ export class WindowsManager implements IWindowsMainService {
 
 		// No path provided, return empty to open empty
 		return [Object.create(null)];
+	}
+
+	private getRestoreWindowsSetting(): RestoreWindowsSetting {
+		let restoreWindows: RestoreWindowsSetting;
+		if (this.lifecycleService.wasRestarted) {
+			restoreWindows = 'all'; // always reopen all windows when an update was applied
+		} else {
+			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+			restoreWindows = (windowConfig && windowConfig.restoreWindows) as RestoreWindowsSetting;
+
+			if (windowConfig && !windowConfig.restoreWindows && windowConfig.reopenFolders) {
+				restoreWindows = windowConfig.reopenFolders; // TODO@Ben migration
+			}
+
+			if (['all', 'folders', 'one', 'none'].indexOf(restoreWindows) === -1) {
+				restoreWindows = 'one';
+			}
+		}
+
+		return restoreWindows;
 	}
 
 	private parsePath(anyPath: string, ignoreFileNotFound?: boolean, gotoLineMode?: boolean): IPathToOpen {
