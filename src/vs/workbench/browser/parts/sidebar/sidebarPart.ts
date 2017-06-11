@@ -58,6 +58,7 @@ export class SidebarPart extends CompositePart<Viewlet> {
 			themeService,
 			Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets),
 			SidebarPart.activeViewletSettingsKey,
+			Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).getDefaultViewletId(),
 			'sideBar',
 			'viewlet',
 			Scope.VIEWLET,
