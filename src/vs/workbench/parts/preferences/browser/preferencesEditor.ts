@@ -502,6 +502,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 			options.minimap = {
 				enabled: false
 			};
+			options.renderHyperlinks = true;
 		}
 		return options;
 	}

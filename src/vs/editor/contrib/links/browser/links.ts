@@ -145,6 +145,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		this.listenersToRemove.push(editor.onDidChangeModel((e) => this.onModelChanged()));
 		this.listenersToRemove.push(editor.onDidChangeModelLanguage((e) => this.onModelModeChanged()));
 		this.listenersToRemove.push(LinkProviderRegistry.onDidChange((e) => this.onModelModeChanged()));
+		this.listenersToRemove.push(editor.onDidChangeConfiguration((e) => this.onModelModeChanged()));
 
 		this.timeoutPromise = null;
 		this.computePromise = null;
@@ -184,6 +185,11 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 
 	private beginCompute(): void {
+		if (!this.editor.getConfiguration().viewInfo.renderHyperlinks) {
+			this.updateDecorations([]);
+			return;
+		}
+
 		if (!this.editor.getModel()) {
 			return;
 		}
@@ -316,6 +322,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		return (
 			mouseEvent.target.type === MouseTargetType.CONTENT_TEXT
 			&& (mouseEvent.hasTriggerModifier || (withKey && withKey.keyCodeIsTriggerKey))
+			&& this.editor.getConfiguration().viewInfo.renderHyperlinks
 		);
 	}
 

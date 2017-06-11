@@ -3013,6 +3013,10 @@ declare module monaco.editor {
 		 */
 		renderControlCharacters?: boolean;
 		/**
+		 * Render the URLs as interactive links
+		 */
+		renderHyperlinks?: boolean;
+		/**
 		 * Enable rendering of indent guides.
 		 * Defaults to false.
 		 */
@@ -3226,6 +3230,7 @@ declare module monaco.editor {
 		readonly stopRenderingLineAfter: number;
 		readonly renderWhitespace: 'none' | 'boundary' | 'all';
 		readonly renderControlCharacters: boolean;
+		readonly renderHyperlinks: boolean;
 		readonly fontLigatures: boolean;
 		readonly renderIndentGuides: boolean;
 		readonly renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';

@@ -240,6 +240,7 @@ const configurationValueWhitelist = [
 	'editor.hideCursorInOverviewRuler',
 	'editor.renderWhitespace',
 	'editor.renderControlCharacters',
+	'editor.renderHyperlinks',
 	'editor.renderIndentGuides',
 	'editor.renderLineHighlight',
 	'editor.codeLens',
