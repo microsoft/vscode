@@ -75,6 +75,15 @@ interface IOpenBrowserWindowOptions {
 	emptyWorkspaceBackupFolder?: string;
 }
 
+interface IPathToOpen extends IPath {
+
+	// the workspace spath for a Code instance which can be null
+	workspacePath?: string;
+
+	// indicator to create the file path in the Code instance
+	createFilePath?: boolean;
+}
+
 export class WindowsManager implements IWindowsMainService {
 
 	_serviceBrand: any;
@@ -242,9 +251,9 @@ export class WindowsManager implements IWindowsMainService {
 		const foldersToOpen = arrays.distinct(pathsToOpen.filter(iPath => iPath.workspacePath && !iPath.filePath).map(iPath => iPath.workspacePath), folder => isLinux ? folder : folder.toLowerCase()); // prevent duplicates
 		const emptyToOpen = pathsToOpen.filter(iPath => !iPath.workspacePath && !iPath.filePath);
 
-		const restore = (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath);
-		const foldersToRestore = restore ? this.backupService.getWorkspaceBackupPaths() : [];
-		const emptyToRestore = restore ? this.backupService.getEmptyWorkspaceBackupPaths() : [];
+		const hotExitRestore = (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath);
+		const foldersToRestoreFromHotExit = hotExitRestore ? this.backupService.getWorkspaceBackupPaths() : [];
+		const emptyToRestoreFromHotExit = hotExitRestore ? this.backupService.getEmptyWorkspaceBackupPaths() : [];
 
 		let filesToOpen = pathsToOpen.filter(iPath => !!iPath.filePath && !iPath.createFilePath);
 		let filesToCreate = pathsToOpen.filter(iPath => !!iPath.filePath && iPath.createFilePath);
@@ -262,7 +271,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Handle files to open/diff or to create when we dont open a folder and we do not restore any folder/untitled from hot-exit
 		const usedWindows: CodeWindow[] = [];
-		if (!foldersToOpen.length && !foldersToRestore.length && !emptyToRestore.length && (filesToOpen.length > 0 || filesToCreate.length > 0 || filesToDiff.length > 0)) {
+		if (!foldersToOpen.length && !foldersToRestoreFromHotExit.length && !emptyToRestoreFromHotExit.length && (filesToOpen.length > 0 || filesToCreate.length > 0 || filesToDiff.length > 0)) {
 
 			// Open Files in last instance if any and flag tells us so
 			const fileToCheck = filesToOpen[0] || filesToCreate[0] || filesToDiff[0];
@@ -309,7 +318,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Handle folders to open (instructed and to restore)
-		let allFoldersToOpen = arrays.distinct([...foldersToOpen, ...foldersToRestore], folder => isLinux ? folder : folder.toLowerCase()); // prevent duplicates
+		let allFoldersToOpen = arrays.distinct([...foldersToOpen, ...foldersToRestoreFromHotExit], folder => isLinux ? folder : folder.toLowerCase()); // prevent duplicates
 		if (allFoldersToOpen.length > 0) {
 
 			// Check for existing instances
@@ -362,8 +371,8 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Handle empty
-		if (emptyToRestore.length > 0) {
-			emptyToRestore.forEach(emptyWorkspaceBackupFolder => {
+		if (emptyToRestoreFromHotExit.length > 0) {
+			emptyToRestoreFromHotExit.forEach(emptyWorkspaceBackupFolder => {
 				const browserWindow = this.openInBrowserWindow({
 					userEnv: openConfig.userEnv,
 					cli: openConfig.cli,
@@ -423,7 +432,7 @@ export class WindowsManager implements IWindowsMainService {
 		return arrays.distinct(usedWindows);
 	}
 
-	private getPathsToOpen(openConfig: IOpenConfiguration): IPath[] {
+	private getPathsToOpen(openConfig: IOpenConfiguration): IPathToOpen[] {
 		let iPathsToOpen: IPath[];
 
 		// Extract paths: from API
@@ -451,7 +460,7 @@ export class WindowsManager implements IWindowsMainService {
 
 	private doExtractPathsFromAPI(paths: string[], gotoLineMode: boolean): IPath[] {
 		let iPathsToOpen = paths.map(pathToOpen => {
-			const iPath = this.toIPath(pathToOpen, false, gotoLineMode);
+			const iPath = this.parsePath(pathToOpen, false, gotoLineMode);
 
 			// Warn if the requested path to open does not exist
 			if (!iPath) {
@@ -484,7 +493,7 @@ export class WindowsManager implements IWindowsMainService {
 	private doExtractPathsFromCLI(cli: ParsedArgs): IPath[] {
 		const candidates: string[] = cli._;
 
-		const iPaths = candidates.map(candidate => this.toIPath(candidate, true /* ignoreFileNotFound */, cli.goto)).filter(path => !!path);
+		const iPaths = candidates.map(candidate => this.parsePath(candidate, true /* ignoreFileNotFound */, cli.goto)).filter(path => !!path);
 		if (iPaths.length > 0) {
 			return iPaths;
 		}
@@ -496,6 +505,7 @@ export class WindowsManager implements IWindowsMainService {
 	private doExtractPathsFromLastSession(): IPath[] {
 		const candidates: string[] = [];
 
+		// Extract setting for how to reopen windows
 		let reopenWindows: string;
 		if (this.lifecycleService.wasRestarted) {
 			reopenWindows = ReopenWindowsSetting.ALL; // always reopen all windows when an update was applied
@@ -510,8 +520,8 @@ export class WindowsManager implements IWindowsMainService {
 
 		const lastActiveFolder = this.windowsState.lastActiveWindow && this.windowsState.lastActiveWindow.workspacePath;
 
-		// Restore all
-		if (reopenWindows === ReopenWindowsSetting.ALL) {
+		// Restore all or all folders
+		if (reopenWindows === ReopenWindowsSetting.ALL || reopenWindows === ReopenWindowsSetting.FOLDERS) {
 			const lastOpenedFolders = this.windowsState.openedWindows.filter(w => !!w.workspacePath).map(o => o.workspacePath);
 
 			// If we have a last active folder, move it to the end
@@ -528,7 +538,7 @@ export class WindowsManager implements IWindowsMainService {
 			candidates.push(lastActiveFolder);
 		}
 
-		const iPaths = candidates.map(candidate => this.toIPath(candidate)).filter(path => !!path);
+		const iPaths = candidates.map(candidate => this.parsePath(candidate)).filter(path => !!path);
 		if (iPaths.length > 0) {
 			return iPaths;
 		}
@@ -537,7 +547,7 @@ export class WindowsManager implements IWindowsMainService {
 		return [Object.create(null)];
 	}
 
-	private toIPath(anyPath: string, ignoreFileNotFound?: boolean, gotoLineMode?: boolean): IPath {
+	private parsePath(anyPath: string, ignoreFileNotFound?: boolean, gotoLineMode?: boolean): IPathToOpen {
 		if (!anyPath) {
 			return null;
 		}

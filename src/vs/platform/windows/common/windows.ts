@@ -162,9 +162,6 @@ export enum ReadyState {
 
 export interface IPath {
 
-	// the workspace spath for a Code instance which can be null
-	workspacePath?: string;
-
 	// the file path to open within a Code instance
 	filePath?: string;
 
@@ -173,9 +170,6 @@ export interface IPath {
 
 	// the column number in the file path to open
 	columnNumber?: number;
-
-	// indicator to create the file path in the Code instance
-	createFilePath?: boolean;
 }
 
 export interface IOpenFileRequest {
