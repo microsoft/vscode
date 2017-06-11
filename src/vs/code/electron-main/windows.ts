@@ -239,31 +239,22 @@ export class WindowsManager implements IWindowsMainService {
 			return []; // return if there is nothing to open
 		}
 
-		let foldersToOpen = arrays.distinct(pathsToOpen.filter(iPath => iPath.workspacePath && !iPath.filePath).map(iPath => iPath.workspacePath), folder => isLinux ? folder : folder.toLowerCase()); // prevent duplicates
-		let emptyToOpen = pathsToOpen.filter(iPath => !iPath.workspacePath && !iPath.filePath);
+		const foldersToOpen = arrays.distinct(pathsToOpen.filter(iPath => iPath.workspacePath && !iPath.filePath).map(iPath => iPath.workspacePath), folder => isLinux ? folder : folder.toLowerCase()); // prevent duplicates
+		const emptyToOpen = pathsToOpen.filter(iPath => !iPath.workspacePath && !iPath.filePath);
 
 		const restore = (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath);
-		let foldersToRestore = restore ? this.backupService.getWorkspaceBackupPaths() : [];
+		const foldersToRestore = restore ? this.backupService.getWorkspaceBackupPaths() : [];
 		const emptyToRestore = restore ? this.backupService.getEmptyWorkspaceBackupPaths() : [];
 
-		let filesToOpen: IPath[] = [];
-		let filesToDiff: IPath[] = [];
+		let filesToOpen = pathsToOpen.filter(iPath => !!iPath.filePath && !iPath.createFilePath);
 		let filesToCreate = pathsToOpen.filter(iPath => !!iPath.filePath && iPath.createFilePath);
-
-		// Diff mode needs special care
-		const filesToOpenCandidates = pathsToOpen.filter(iPath => !!iPath.filePath && !iPath.createFilePath);
-		if (openConfig.diffMode) {
-			if (filesToOpenCandidates.length === 2) {
-				filesToDiff = filesToOpenCandidates;
-			} else {
-				emptyToOpen = [Object.create(null)]; // improper use of diffMode, open empty
-			}
-
-			foldersToOpen = []; 	// diff is always in empty workspace
-			foldersToRestore = [];	// diff is always in empty workspace
-			filesToCreate = []; 	// diff ignores other files that do not exist
+		let filesToDiff: IPath[];
+		if (openConfig.diffMode && filesToOpen.length === 2) {
+			filesToDiff = filesToOpen;
+			filesToOpen = [];
+			filesToCreate = []; // diff ignores other files that do not exist
 		} else {
-			filesToOpen = filesToOpenCandidates;
+			filesToDiff = [];
 		}
 
 		// Settings can decide if files/folders open in new window or not
