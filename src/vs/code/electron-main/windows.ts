@@ -237,7 +237,7 @@ export class WindowsManager implements IWindowsMainService {
 
 	public open(openConfig: IOpenConfiguration): CodeWindow[] {
 		const hotExitRestore = (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath);
-		const emptyWindowRestore = openConfig.initialStartup && !openConfig.forceEmpty;
+		const emptyWindowRestore = openConfig.initialStartup && !openConfig.forceEmpty && !openConfig.cli.wait;
 
 		const pathsToOpen = this.getPathsToOpen(openConfig);
 
