@@ -265,23 +265,26 @@ export class WindowsManager implements IWindowsMainService {
 		const emptyToRestore = hotExitRestore ? this.backupService.getEmptyWorkspaceBackupPaths() : [];
 		const restoreEmptyWindows = this.getRestoreWindowsSetting();
 		if (emptyWindowRestore && (restoreEmptyWindows === 'all' || restoreEmptyWindows === 'one')) {
+			const lastActiveWindow = this.windowsState.lastActiveWindow;
+
+			let lastActiveEmptyWorkspaceBackupPath: string;
+			if (lastActiveWindow && !lastActiveWindow.workspacePath && lastActiveWindow.backupPath) {
+				lastActiveEmptyWorkspaceBackupPath = path.basename(lastActiveWindow.backupPath);
+			}
 
 			// All empty windows from previous session
 			if (restoreEmptyWindows === 'all') {
 				const emptyWorkspaceBackupPaths = this.windowsState.openedWindows.filter(w => !w.workspacePath && w.backupPath).map(w => path.basename(w.backupPath));
 				emptyWorkspaceBackupPaths.forEach(emptyWorkspaceBackupPath => {
-					if (emptyToRestore.indexOf(emptyWorkspaceBackupPath) === -1) {
+					if (emptyToRestore.indexOf(emptyWorkspaceBackupPath) === -1 && emptyWorkspaceBackupPath !== lastActiveEmptyWorkspaceBackupPath /* added later */) {
 						emptyToRestore.push(emptyWorkspaceBackupPath);
 					}
 				});
 			}
 
-			// Last active window if it was empty
-			else if (this.windowsState.lastActiveWindow && !this.windowsState.lastActiveWindow.workspacePath && this.windowsState.lastActiveWindow.backupPath) {
-				const emptyWorkspaceBackupPath = path.basename(this.windowsState.lastActiveWindow.backupPath);
-				if (emptyToRestore.indexOf(emptyWorkspaceBackupPath) === -1) {
-					emptyToRestore.push(emptyWorkspaceBackupPath);
-				}
+			// Last active window if it was empty (always comes last to restore focus properly)
+			if (lastActiveEmptyWorkspaceBackupPath && emptyToRestore.indexOf(lastActiveEmptyWorkspaceBackupPath) === -1) {
+				emptyToRestore.push(lastActiveEmptyWorkspaceBackupPath);
 			}
 		}
 
