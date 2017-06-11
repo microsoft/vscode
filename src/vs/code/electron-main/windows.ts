@@ -235,8 +235,8 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Find paths to open from config
 		const pathsToOpen = this.getPathsToOpen(openConfig);
-		if (!pathsToOpen) {
-			return null; // indicate to outside that open failed
+		if (!pathsToOpen.length) {
+			return null; // return if there is nothing to open
 		}
 
 		let foldersToOpen = arrays.distinct(pathsToOpen.filter(iPath => iPath.workspacePath && !iPath.filePath).map(iPath => iPath.workspacePath), folder => isLinux ? folder : folder.toLowerCase()); // prevent duplicates
@@ -435,39 +435,9 @@ export class WindowsManager implements IWindowsMainService {
 	private getPathsToOpen(openConfig: IOpenConfiguration): IPath[] {
 		let iPathsToOpen: IPath[];
 
-		// Find paths from provided paths if any
+		// Extract paths: from API
 		if (openConfig.pathsToOpen && openConfig.pathsToOpen.length > 0) {
-			iPathsToOpen = openConfig.pathsToOpen.map(pathToOpen => {
-				const iPath = this.toIPath(pathToOpen, false, openConfig.cli && openConfig.cli.goto);
-
-				// Warn if the requested path to open does not exist
-				if (!iPath) {
-					const options: Electron.ShowMessageBoxOptions = {
-						title: product.nameLong,
-						type: 'info',
-						buttons: [nls.localize('ok', "OK")],
-						message: nls.localize('pathNotExistTitle', "Path does not exist"),
-						detail: nls.localize('pathNotExistDetail', "The path '{0}' does not seem to exist anymore on disk.", pathToOpen),
-						noLink: true
-					};
-
-					const activeWindow = BrowserWindow.getFocusedWindow();
-					if (activeWindow) {
-						dialog.showMessageBox(activeWindow, options);
-					} else {
-						dialog.showMessageBox(options);
-					}
-				}
-
-				return iPath;
-			});
-
-			// get rid of nulls
-			iPathsToOpen = arrays.coalesce(iPathsToOpen);
-
-			if (iPathsToOpen.length === 0) {
-				return null; // indicate to outside that open failed
-			}
+			iPathsToOpen = this.doExtractPathsFromAPI(openConfig.pathsToOpen, openConfig.cli && openConfig.cli.goto);
 		}
 
 		// Check for force empty
@@ -475,15 +445,47 @@ export class WindowsManager implements IWindowsMainService {
 			iPathsToOpen = [Object.create(null)];
 		}
 
-		// Otherwise infer from command line arguments
+		// Extract paths: from CLI
 		else if (openConfig.cli._.length > 0) {
 			iPathsToOpen = this.doExtractPathsFromCLI(openConfig.cli);
 		}
 
-		// Finally check for paths from previous session
+		// Extract paths: from previous session
 		else {
 			iPathsToOpen = this.doExtractPathsFromLastSession();
 		}
+
+		return iPathsToOpen;
+	}
+
+	private doExtractPathsFromAPI(paths: string[], gotoLineMode: boolean): IPath[] {
+		let iPathsToOpen = paths.map(pathToOpen => {
+			const iPath = this.toIPath(pathToOpen, false, gotoLineMode);
+
+			// Warn if the requested path to open does not exist
+			if (!iPath) {
+				const options: Electron.ShowMessageBoxOptions = {
+					title: product.nameLong,
+					type: 'info',
+					buttons: [nls.localize('ok', "OK")],
+					message: nls.localize('pathNotExistTitle', "Path does not exist"),
+					detail: nls.localize('pathNotExistDetail', "The path '{0}' does not seem to exist anymore on disk.", pathToOpen),
+					noLink: true
+				};
+
+				const activeWindow = BrowserWindow.getFocusedWindow();
+				if (activeWindow) {
+					dialog.showMessageBox(activeWindow, options);
+				} else {
+					dialog.showMessageBox(options);
+				}
+			}
+
+			return iPath;
+		});
+
+		// get rid of nulls
+		iPathsToOpen = arrays.coalesce(iPathsToOpen);
 
 		return iPathsToOpen;
 	}
