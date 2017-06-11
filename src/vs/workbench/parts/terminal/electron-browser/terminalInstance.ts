@@ -59,6 +59,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _isDisposed: boolean;
 	private _onDisposed: Emitter<ITerminalInstance>;
 	private _onDataForApi: Emitter<{ instance: ITerminalInstance, data: string }>;
+	private _onMessageTitleCheck: (message: any) => void;
 	private _onProcessIdReady: Emitter<TerminalInstance>;
 	private _onTitleChanged: Emitter<string>;
 	private _process: cp.ChildProcess;
@@ -479,13 +480,13 @@ export class TerminalInstance implements ITerminalInstance {
 		});
 		if (!shell.name) {
 			// Only listen for process title changes when a name is not provided
-			this._process.on('message', this._onPtyProcessMessageTitleChanged);
-			// this._process.on('message', (message) => {
-			// 	if (message.type === 'title') {
-			// 		this._title = message.content ? message.content : '';
-			// 		this._onTitleChanged.fire(this._title);
-			// 	}
-			// });
+			this._onMessageTitleCheck = (message) => {
+				if (message.type === 'title') {
+					this._title = message.content ? message.content : '';
+					this._onTitleChanged.fire(this._title);
+				}
+			};
+			this._process.on('message', this._onMessageTitleCheck);
 		}
 		this._process.on('message', (message) => {
 			if (message.type === 'pid') {
@@ -559,13 +560,6 @@ export class TerminalInstance implements ITerminalInstance {
 					this._messageService.show(Severity.Error, exitCodeMessage);
 				}
 			}
-		}
-	}
-
-	private _onPtyProcessMessageTitleChanged(message: any): void {
-		if (message.type === 'title') {
-			this._title = message.content ? message.content : '';
-			this._onTitleChanged.fire(this._title);
 		}
 	}
 
@@ -779,7 +773,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 		// if the title is set via API, unregister the handler that automatically updates the terminal name
 		if (this._process) {
-			this._process.removeListener('message', this._onPtyProcessMessageTitleChanged);
+			this._process.removeListener('message', this._onMessageTitleCheck);
 		}
 	}
 }
