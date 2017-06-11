@@ -31,6 +31,8 @@ import { TerminalLinkHandler } from 'vs/workbench/parts/terminal/electron-browse
 import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground } from 'vs/platform/theme/common/colorRegistry';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -56,6 +58,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _hadFocusOnExit: boolean;
 	private _isLaunching: boolean;
 	private _isVisible: boolean;
+	private _processReady: TPromise<void>;
 	private _isDisposed: boolean;
 	private _onDisposed: Emitter<ITerminalInstance>;
 	private _onDataForApi: Emitter<{ instance: ITerminalInstance, data: string }>;
@@ -98,7 +101,8 @@ export class TerminalInstance implements ITerminalInstance {
 		@IPanelService private _panelService: IPanelService,
 		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
 		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
-		@IInstantiationService private _instantiationService: IInstantiationService
+		@IInstantiationService private _instantiationService: IInstantiationService,
+		@IClipboardService private _clipboardService: IClipboardService
 	) {
 		this._instanceDisposables = [];
 		this._processDisposables = [];
@@ -115,6 +119,11 @@ export class TerminalInstance implements ITerminalInstance {
 		this._onDataForApi = new Emitter<{ instance: ITerminalInstance, data: string }>();
 		this._onProcessIdReady = new Emitter<TerminalInstance>();
 		this._onTitleChanged = new Emitter<string>();
+
+		// Create a promise that resolves when the pty is ready
+		this._processReady = new TPromise<void>(c => {
+			this.onProcessIdReady(() => c(void 0));
+		});
 
 		this._initDimensions();
 		this._createProcess(this._contextService.getWorkspace(), this._shellLaunchConfig);
@@ -317,19 +326,23 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public hasSelection(): boolean {
-		return !document.getSelection().isCollapsed;
+		return this._xterm.hasSelection();
 	}
 
 	public copySelection(): void {
-		if (document.activeElement.classList.contains('xterm')) {
-			document.execCommand('copy');
+		if (this.hasSelection()) {
+			this._clipboardService.writeText(this._xterm.getSelection());
 		} else {
-			this._messageService.show(Severity.Warning, nls.localize('terminal.integrated.copySelection.noSelection', 'Cannot copy terminal selection when terminal does not have focus'));
+			this._messageService.show(Severity.Warning, nls.localize('terminal.integrated.copySelection.noSelection', 'The terminal has no selection to copy'));
 		}
 	}
 
 	public clearSelection(): void {
-		window.getSelection().empty();
+		this._xterm.clearSelection();
+	}
+
+	public selectAll(): void {
+		this._xterm.selectAll();
 	}
 
 	public dispose(): void {
@@ -377,13 +390,15 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public sendText(text: string, addNewLine: boolean): void {
-		text = this._sanitizeInput(text);
-		if (addNewLine && text.substr(text.length - 1) !== '\r') {
-			text += '\r';
-		}
-		this._process.send({
-			event: 'input',
-			data: text
+		this._processReady.then(() => {
+			text = this._sanitizeInput(text);
+			if (addNewLine && text.substr(text.length - 1) !== '\r') {
+				text += '\r';
+			}
+			this._process.send({
+				event: 'input',
+				data: text
+			});
 		});
 	}
 
@@ -431,8 +446,8 @@ export class TerminalInstance implements ITerminalInstance {
 
 	private _refreshSelectionContextKey() {
 		const activePanel = this._panelService.getActivePanel();
-		const isFocused = activePanel && activePanel.getId() === TERMINAL_PANEL_ID;
-		this._terminalHasTextContextKey.set(isFocused && !window.getSelection().isCollapsed);
+		const isActive = activePanel && activePanel.getId() === TERMINAL_PANEL_ID;
+		this._terminalHasTextContextKey.set(isActive && this.hasSelection());
 	}
 
 	private _sanitizeInput(data: any) {
@@ -534,6 +549,8 @@ export class TerminalInstance implements ITerminalInstance {
 			let message = typeof this._shellLaunchConfig.waitOnExit === 'string'
 				? this._shellLaunchConfig.waitOnExit
 				: nls.localize('terminal.integrated.waitOnExit', 'Press any key to close the terminal');
+			// Bold the message and add an extra new line to make it stand out from the rest of the output
+			message = `\n\x1b[1m${message}\x1b[0m`;
 			this._xterm.writeln(message);
 			// Disable all input if the terminal is exiting and listen for next keypress
 			this._xterm.setOption('disableStdin', true);

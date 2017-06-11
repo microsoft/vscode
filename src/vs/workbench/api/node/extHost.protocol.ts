@@ -45,6 +45,8 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 
+import { ITreeItem } from 'vs/workbench/parts/views/common/views';
+
 export interface IEnvironment {
 	enableProposedApiForAll: boolean;
 	enableProposedApiFor: string | string[];
@@ -194,14 +196,6 @@ export abstract class MainThreadEditorsShape {
 	$getDiffInformation(id: string): TPromise<editorCommon.ILineChange[]> { throw ni(); }
 }
 
-export interface TreeItem extends vscode.TreeItem {
-	handle: number;
-	commandId?: string;
-	icon?: string;
-	iconDark?: string;
-	children?: TreeItem[];
-}
-
 export abstract class MainThreadTreeViewsShape {
 	$registerView(treeViewId: string): void { throw ni(); }
 	$refresh(treeViewId: string, treeItemHandle?: number): void { throw ni(); }
@@ -270,9 +264,9 @@ export interface MyQuickPickItems extends IPickOpenEntry {
 	handle: number;
 }
 export abstract class MainThreadQuickOpenShape {
-	$show(options: IPickOptions): Thenable<number> { throw ni(); }
-	$setItems(items: MyQuickPickItems[]): Thenable<any> { throw ni(); }
-	$setError(error: Error): Thenable<any> { throw ni(); }
+	$show(options: IPickOptions): TPromise<number> { throw ni(); }
+	$setItems(items: MyQuickPickItems[]): TPromise<any> { throw ni(); }
+	$setError(error: Error): TPromise<any> { throw ni(); }
 	$input(options: vscode.InputBoxOptions, validateInput: boolean): TPromise<string> { throw ni(); }
 }
 
@@ -407,15 +401,9 @@ export abstract class ExtHostDocumentsAndEditorsShape {
 	$acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta): void { throw ni(); }
 }
 
-export type TreeViewCommandArg = {
-	treeViewId: string,
-	treeItemHandle: number
-};
-
 export abstract class ExtHostTreeViewsShape {
-	$getElements(treeViewId: string): TPromise<TreeItem[]> { throw ni(); }
-	$getChildren(treeViewId: string, treeItemHandle: number): TPromise<TreeItem[]> { throw ni(); }
-	$restore(treeViewId: string, treeItems: TreeItem[]): TPromise<TreeItem[]> { throw ni(); }
+	$getElements(treeViewId: string): TPromise<ITreeItem[]> { throw ni(); }
+	$getChildren(treeViewId: string, treeItemHandle: number): TPromise<ITreeItem[]> { throw ni(); }
 }
 
 export abstract class ExtHostExtensionServiceShape {

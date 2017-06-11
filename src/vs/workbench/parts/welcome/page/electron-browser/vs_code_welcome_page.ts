@@ -52,11 +52,11 @@ export default () => `
 				<div class="section customize">
 					<h2 class="caption">${escape(localize('welcomePage.customize', "Customize"))}</h2>
 					<ul>
-						<li class="showLanguageExtensions"><button data-href="command:workbench.extensions.action.showLanguageExtensions"><h3 class="caption">${escape(localize('welcomePage.installExtensionPacks', "Tools and languages"))}</h3> <span class="detail">${escape(localize('welcomePage.installExtensionPacksDescription', "Install support for {0} and {1}"))
+						<li class="showLanguageExtensions"><button role="group" data-href="command:workbench.extensions.action.showLanguageExtensions"><h3 class="caption">${escape(localize('welcomePage.installExtensionPacks', "Tools and languages"))}</h3> <span class="detail">${escape(localize('welcomePage.installExtensionPacksDescription', "Install support for {0} and {1}"))
 		.replace('{0}', `<span class="extensionPackList"></span>`)
 		.replace('{1}', `<a href="command:workbench.extensions.action.showLanguageExtensions">${escape(localize('welcomePage.moreExtensions', "more"))}</a>`)}
 						</span></button></li>
-						<li class="showRecommendedKeymapExtensions"><button data-href="command:workbench.extensions.action.showRecommendedKeymapExtensions"><h3 class="caption">${escape(localize('welcomePage.installKeymapDescription', "Install keyboard shortcuts"))}</h3> <span class="detail">${escape(localize('welcomePage.installKeymapExtension', "Install the keyboard shortcuts of {0} and {1}"))
+						<li class="showRecommendedKeymapExtensions"><button role="group" data-href="command:workbench.extensions.action.showRecommendedKeymapExtensions"><h3 class="caption">${escape(localize('welcomePage.installKeymapDescription', "Install keyboard shortcuts"))}</h3> <span class="detail">${escape(localize('welcomePage.installKeymapExtension', "Install the keyboard shortcuts of {0} and {1}"))
 		.replace('{0}', `<span class="keymapList"></span>`)
 		.replace('{1}', `<a href="command:workbench.extensions.action.showRecommendedKeymapExtensions">${escape(localize('welcomePage.others', "others"))}</a>`)}
 						</span></button></li>

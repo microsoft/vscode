@@ -8,9 +8,9 @@
 	"shiftKey": "Shift",
 	"altKey": "Alt",
 	"windowsKey": "Windows",
-	"ctrlKey.long": "控件",
+	"ctrlKey.long": "Control",
 	"shiftKey.long": "Shift",
 	"altKey.long": "Alt",
-	"cmdKey.long": "命令",
+	"cmdKey.long": "Command",
 	"windowsKey.long": "Windows"
 }

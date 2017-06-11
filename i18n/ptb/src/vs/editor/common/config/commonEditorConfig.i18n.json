@@ -33,7 +33,6 @@
 	"wordWrapColumn": "Controla a coluna de quebra de linha do editor quando editor.wordWrap` é 'wordWrapColumn' ou 'bounded'.",
 	"wrappingIndent": "Controla o recuo de linhas quebradas. Pode ser \"none\", \"same\" ou \"indent\".",
 	"mouseWheelScrollSensitivity": "Um multiplicador a ser usado em \"deltaX\" e \"deltaY\" dos eventos de rolagem do botão de rolagem do mouse",
-	"multicursorModifier": "O modificador a ser utilizado para adicionar vários cursores com o mouse.",
 	"quickSuggestions.strings": "Habilitar sugestões rápidas dentro de strings.",
 	"quickSuggestions.comments": "Habilitar sugestões rápidas dentro de comentários.",
 	"quickSuggestions.other": "Habilitar sugestões rápidas fora de strings e comentários.",

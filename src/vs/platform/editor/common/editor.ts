@@ -90,6 +90,11 @@ export interface IUntitledResourceInput extends IBaseResourceInput {
 	 * Optional contents of the untitled resource.
 	 */
 	contents?: string;
+
+	/**
+	 * Optional encoding of the untitled resource.
+	 */
+	encoding?: string;
 }
 
 export interface IResourceDiffInput extends IBaseResourceInput {

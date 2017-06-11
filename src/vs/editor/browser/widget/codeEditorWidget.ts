@@ -33,6 +33,7 @@ import { CoreEditorCommand } from 'vs/editor/common/controller/coreCommands';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder } from 'vs/editor/common/view/editorColorRegistry';
 import { Color } from 'vs/base/common/color';
+import { IMouseEvent } from "vs/base/browser/mouseEvent";
 
 export abstract class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
@@ -98,7 +99,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		this._themeService = themeService;
 
 		this._focusTracker = new CodeEditorWidgetFocusTracker(domElement);
-		this._focusTracker.onChage(() => {
+		this._focusTracker.onChange(() => {
 			let hasFocus = this._focusTracker.hasFocus();
 
 			if (hasFocus) {
@@ -189,7 +190,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		return this.viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
 	}
 
-	public delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void {
+	public delegateVerticalScrollbarMouseDown(browserEvent: IMouseEvent): void {
 		if (!this.hasView) {
 			return;
 		}
@@ -524,7 +525,7 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 	private _domFocusTracker: dom.IFocusTracker;
 
 	private _onChange: Emitter<void> = this._register(new Emitter<void>());
-	public onChage: Event<void> = this._onChange.event;
+	public onChange: Event<void> = this._onChange.event;
 
 	constructor(domElement: HTMLElement) {
 		super();

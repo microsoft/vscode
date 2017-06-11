@@ -1482,6 +1482,8 @@ export interface IProblemMatcherRegistry {
 	onReady(): TPromise<void>;
 	exists(name: string): boolean;
 	get(name: string): ProblemMatcher;
+	values(): ProblemMatcher[];
+	keys(): string[];
 }
 
 class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
@@ -1534,6 +1536,14 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 
 	public remove(name: string): void {
 		delete this.matchers[name];
+	}
+
+	public keys(): string[] {
+		return Object.keys(this.matchers);
+	}
+
+	public values(): ProblemMatcher[] {
+		return Object.keys(this.matchers).map(key => this.matchers[key]);
 	}
 
 	private fillDefaults(): void {

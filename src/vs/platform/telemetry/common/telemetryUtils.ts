@@ -16,7 +16,6 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService, ITelemetryExperiments, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { StorageService } from 'vs/platform/storage/common/storageService';
 import * as objects from 'vs/base/common/objects';
 
 export const defaultExperiments: ITelemetryExperiments = {
@@ -50,15 +49,15 @@ export function loadExperiments(accessor: ServicesAccessor): ITelemetryExperimen
 	const storageService = accessor.get(IStorageService);
 	const configurationService = accessor.get(IConfigurationService);
 
-	updateExperimentsOverrides(configurationService);
-	configurationService.onDidUpdateConfiguration(e => updateExperimentsOverrides(configurationService));
+	updateExperimentsOverrides(configurationService, storageService);
+	configurationService.onDidUpdateConfiguration(e => updateExperimentsOverrides(configurationService, storageService));
 
 	let {
 		showNewUserWatermark,
 		openUntitledFile,
 		enableWelcomePage,
 		mergeQuickLinks,
-	} = splitExperimentsRandomness();
+	} = splitExperimentsRandomness(storageService);
 
 	const newUserDuration = 24 * 60 * 60 * 1000;
 	const firstSessionDate = storageService.get('telemetry.firstSessionDate');
@@ -73,16 +72,16 @@ export function loadExperiments(accessor: ServicesAccessor): ITelemetryExperimen
 		openUntitledFile,
 		enableWelcomePage,
 		mergeQuickLinks,
-	});
+	}, storageService);
 }
 
-export function isWelcomePageEnabled() {
-	const overrides = getExperimentsOverrides();
-	return 'enableWelcomePage' in overrides ? overrides.enableWelcomePage : splitExperimentsRandomness().enableWelcomePage;
+export function isWelcomePageEnabled(storageService: IStorageService) {
+	const overrides = getExperimentsOverrides(storageService);
+	return 'enableWelcomePage' in overrides ? overrides.enableWelcomePage : splitExperimentsRandomness(storageService).enableWelcomePage;
 }
 
-function applyOverrides(experiments: ITelemetryExperiments): ITelemetryExperiments {
-	const experimentsConfig = getExperimentsOverrides();
+function applyOverrides(experiments: ITelemetryExperiments, storageService: IStorageService): ITelemetryExperiments {
+	const experimentsConfig = getExperimentsOverrides(storageService);
 	Object.keys(experiments).forEach(key => {
 		if (key in experimentsConfig) {
 			experiments[key] = experimentsConfig[key];
@@ -91,8 +90,8 @@ function applyOverrides(experiments: ITelemetryExperiments): ITelemetryExperimen
 	return experiments;
 }
 
-function splitExperimentsRandomness(): ITelemetryExperiments {
-	const random1 = getExperimentsRandomness();
+function splitExperimentsRandomness(storageService: IStorageService): ITelemetryExperiments {
+	const random1 = getExperimentsRandomness(storageService);
 	const [random2, showNewUserWatermark] = splitRandom(random1);
 	const [random3, openUntitledFile] = splitRandom(random2);
 	const [random4, mergeQuickLinks] = splitRandom(random3);
@@ -105,12 +104,14 @@ function splitExperimentsRandomness(): ITelemetryExperiments {
 	};
 }
 
-function getExperimentsRandomness() {
-	const key = StorageService.GLOBAL_PREFIX + 'experiments.randomness';
-	let valueString = window.localStorage.getItem(key);
+const GLOBAL_PREFIX = `storage://global/`; // TODO@Christoph debt, why do you need to know? just use the storageservice?
+
+function getExperimentsRandomness(storageService: IStorageService) {
+	const key = GLOBAL_PREFIX + 'experiments.randomness';
+	let valueString = storageService.get(key);
 	if (!valueString) {
 		valueString = Math.random().toString();
-		window.localStorage.setItem(key, valueString);
+		storageService.store(key, valueString);
 	}
 
 	return parseFloat(valueString);
@@ -122,19 +123,19 @@ function splitRandom(random: number): [number, boolean] {
 	return [scaled - i, i === 1];
 }
 
-const experimentsOverridesKey = StorageService.GLOBAL_PREFIX + 'experiments.overrides';
+const experimentsOverridesKey = GLOBAL_PREFIX + 'experiments.overrides';
 
-function getExperimentsOverrides(): ITelemetryExperiments {
-	const valueString = window.localStorage.getItem(experimentsOverridesKey);
+function getExperimentsOverrides(storageService: IStorageService): ITelemetryExperiments {
+	const valueString = storageService.get(experimentsOverridesKey);
 	return valueString ? JSON.parse(valueString) : <any>{};
 }
 
-function updateExperimentsOverrides(configurationService: IConfigurationService) {
-	const storageOverrides = getExperimentsOverrides();
+function updateExperimentsOverrides(configurationService: IConfigurationService, storageService: IStorageService) {
+	const storageOverrides = getExperimentsOverrides(storageService);
 	const config: any = configurationService.getConfiguration('telemetry');
 	const configOverrides = config && config.experiments || {};
 	if (!objects.equals(storageOverrides, configOverrides)) {
-		window.localStorage.setItem(experimentsOverridesKey, JSON.stringify(configOverrides));
+		storageService.store(experimentsOverridesKey, JSON.stringify(configOverrides));
 	}
 }
 
@@ -190,82 +191,96 @@ export function telemetryURIDescriptor(uri: URI): URIDescriptor {
  * Only add settings that cannot contain any personal/private information of users (PII).
  */
 const configurationValueWhitelist = [
-	'window.zoomLevel',
-	'editor.fontSize',
+	'editor.tabCompletion',
 	'editor.fontFamily',
+	'editor.fontWeight',
+	'editor.fontSize',
+	'editor.lineHeight',
+	'editor.letterSpacing',
+	'editor.lineNumbers',
+	'editor.rulers',
+	'editor.wordSeparators',
 	'editor.tabSize',
+	'editor.insertSpaces',
+	'editor.detectIndentation',
+	'editor.roundedSelection',
+	'editor.scrollBeyondLastLine',
+	'editor.minimap.enabled',
+	'editor.minimap.renderCharacters',
+	'editor.minimap.maxColumn',
+	'editor.find.seedSearchStringFromSelection',
+	'editor.find.autoFindInSelection',
+	'editor.wordWrap',
+	'editor.wordWrapColumn',
+	'editor.wrappingIndent',
+	'editor.mouseWheelScrollSensitivity',
+	'editor.multiCursorModifier',
+	'editor.quickSuggestions',
+	'editor.quickSuggestionsDelay',
+	'editor.parameterHints',
+	'editor.autoClosingBrackets',
+	'editor.formatOnType',
+	'editor.formatOnPaste',
+	'editor.suggestOnTriggerCharacters',
+	'editor.acceptSuggestionOnEnter',
+	'editor.acceptSuggestionOnCommitCharacter',
+	'editor.snippetSuggestions',
+	'editor.emptySelectionClipboard',
+	'editor.wordBasedSuggestions',
+	'editor.suggestFontSize',
+	'editor.suggestLineHeight',
+	'editor.selectionHighlight',
+	'editor.occurrencesHighlight',
+	'editor.overviewRulerLanes',
+	'editor.overviewRulerBorder',
+	'editor.cursorBlinking',
+	'editor.cursorStyle',
+	'editor.mouseWheelZoom',
+	'editor.fontLigatures',
+	'editor.hideCursorInOverviewRuler',
+	'editor.renderWhitespace',
+	'editor.renderControlCharacters',
+	'editor.renderIndentGuides',
+	'editor.renderLineHighlight',
+	'editor.codeLens',
+	'editor.folding',
+	'editor.showFoldingControls',
+	'editor.matchBrackets',
+	'editor.glyphMargin',
+	'editor.useTabStops',
+	'editor.trimAutoWhitespace',
+	'editor.stablePeek',
+	'editor.dragAndDrop',
+	'editor.formatOnSave',
+
+	'window.zoomLevel',
 	'files.autoSave',
 	'files.hotExit',
 	'typescript.check.tscVersion',
-	'editor.renderWhitespace',
-	'editor.cursorBlinking',
-	'editor.cursorStyle',
 	'files.associations',
 	'workbench.statusBar.visible',
-	'editor.wordWrap',
-	'editor.wordWrapColumn',
-	'editor.insertSpaces',
-	'editor.renderIndentGuides',
 	'files.trimTrailingWhitespace',
 	'git.confirmSync',
-	'editor.rulers',
 	'workbench.sideBar.location',
-	'editor.fontLigatures',
-	'editor.wordWrap',
-	'editor.lineHeight',
-	'editor.detectIndentation',
-	'editor.formatOnType',
-	'editor.formatOnSave',
-	'editor.formatOnPaste',
-	'editor.dragAndDrop',
 	'window.openFilesInNewWindow',
 	'javascript.validate.enable',
-	'editor.mouseWheelZoom',
-	'editor.fontWeight',
-	'editor.scrollBeyondLastLine',
-	'editor.lineNumbers',
-	'editor.letterSpacing',
-	'editor.wrappingIndent',
-	'editor.renderControlCharacters',
-	'editor.autoClosingBrackets',
 	'window.reopenFolders',
 	'extensions.autoUpdate',
-	'editor.tabCompletion',
 	'files.eol',
 	'explorer.openEditors.visible',
 	'workbench.editor.enablePreview',
 	'files.autoSaveDelay',
-	'editor.roundedSelection',
-	'editor.quickSuggestions',
-	'editor.acceptSuggestionOnEnter',
-	'editor.acceptSuggestionOnCommitCharacter',
 	'workbench.editor.showTabs',
 	'files.encoding',
 	'files.autoGuessEncoding',
-	'editor.quickSuggestionsDelay',
-	'editor.snippetSuggestions',
-	'editor.selectionHighlight',
-	'editor.occurrencesHighlight',
-	'editor.glyphMargin',
-	'editor.wordSeparators',
-	'editor.mouseWheelScrollSensitivity',
-	'editor.suggestOnTriggerCharacters',
 	'git.enabled',
 	'http.proxyStrictSSL',
 	'terminal.integrated.fontFamily',
-	'editor.overviewRulerLanes',
-	'editor.overviewRulerBorder',
-	'editor.wordBasedSuggestions',
-	'editor.hideCursorInOverviewRuler',
-	'editor.trimAutoWhitespace',
-	'editor.folding',
-	'editor.matchBrackets',
 	'workbench.editor.enablePreviewFromQuickOpen',
 	'workbench.editor.swipeToNavigate',
 	'php.builtInCompletions.enable',
 	'php.validate.enable',
 	'php.validate.run',
-	'editor.parameterHints',
 	'workbench.welcome.enabled',
 ];
 

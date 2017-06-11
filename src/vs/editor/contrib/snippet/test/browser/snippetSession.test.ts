@@ -403,5 +403,35 @@ suite('SnippetSession', function () {
 		assert.equal(model.getValue(), '@line=1function foo() {\n    @line=2console.log(a);\n}');
 		assertSelections(editor, new Selection(1, 8, 1, 8), new Selection(2, 12, 2, 12));
 	});
+
+	test('snippets, merge', function () {
+		editor.setSelection(new Selection(1, 1, 1, 1));
+		const session = new SnippetSession(editor, 'This ${1:is ${2:nested}}.$0');
+		session.insert();
+		session.next();
+		assertSelections(editor, new Selection(1, 9, 1, 15));
+
+		session.merge('really ${1:nested}$0');
+		assertSelections(editor, new Selection(1, 16, 1, 22));
+
+		session.next();
+		assertSelections(editor, new Selection(1, 22, 1, 22));
+		assert.equal(session.isAtLastPlaceholder, false);
+
+		session.next();
+		assert.equal(session.isAtLastPlaceholder, true);
+		assertSelections(editor, new Selection(1, 23, 1, 23));
+
+		session.prev();
+		editor.trigger('test', 'type', { text: 'AAA' });
+
+		// back to `really ${1:nested}`
+		session.prev();
+		assertSelections(editor, new Selection(1, 16, 1, 22));
+
+		// back to `${1:is ...}` which now grew
+		session.prev();
+		assertSelections(editor, new Selection(1, 6, 1, 25));
+	});
 });
 

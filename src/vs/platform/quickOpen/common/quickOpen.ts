@@ -57,6 +57,11 @@ export interface IPickOptions {
 	 * an optional flag to not close the picker on focus lost
 	 */
 	ignoreFocusLost?: boolean;
+
+	/**
+	 * enables quick navigate in the picker to open an element without typing
+	 */
+	quickNavigateConfiguration?: IQuickNavigateConfiguration;
 }
 
 export interface IInputOptions {
@@ -96,6 +101,7 @@ export interface IInputOptions {
 
 export interface IShowOptions {
 	quickNavigateConfiguration?: IQuickNavigateConfiguration;
+	inputSelection?: { start: number; end: number; };
 }
 
 export const IQuickOpenService = createDecorator<IQuickOpenService>('quickOpenService');

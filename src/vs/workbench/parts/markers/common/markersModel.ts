@@ -125,14 +125,14 @@ export class FilterOptions {
 
 export class MarkersModel {
 
-	private markersByResource: Map.LinkedMap<URI, IMarker[]>;
+	private markersByResource: Map.SimpleMap<URI, IMarker[]>;
 
 	private _filteredResources: Resource[];
 	private _nonFilteredResources: Resource[];
 	private _filterOptions: FilterOptions;
 
 	constructor(markers: IMarker[] = []) {
-		this.markersByResource = new Map.LinkedMap<URI, IMarker[]>();
+		this.markersByResource = new Map.SimpleMap<URI, IMarker[]>();
 		this._filterOptions = new FilterOptions();
 		this.update(markers);
 	}

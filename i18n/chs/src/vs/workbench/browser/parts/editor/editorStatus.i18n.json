@@ -11,6 +11,7 @@
 	"endOfLineLineFeed": "LF",
 	"endOfLineCarriageReturnLineFeed": "CRLF",
 	"tabFocusModeEnabled": "按 Tab 移动焦点",
+	"screenReaderDetected": "检测到屏幕阅读器",
 	"disableTabMode": "禁用辅助功能模式",
 	"gotoLine": "转到行",
 	"indentation": "缩进",

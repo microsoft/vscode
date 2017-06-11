@@ -14,6 +14,7 @@
 	"mHelp": "&&Hilfe",
 	"miNewWindow": "Neues &&Fenster",
 	"mAbout": "Informationen zu {0}",
+	"mServices": "Dienste",
 	"mHide": "{0} ausblenden",
 	"mHideOthers": "Andere ausblenden",
 	"mShowAll": "Alle anzeigen",
@@ -148,12 +149,12 @@
 	"miLicense": "&&Lizenz anzeigen",
 	"miPrivacyStatement": "&&Datenschutzerklärung",
 	"miAbout": "&&Info",
+	"accessibilityOptionsWindowTitle": "Optionen für erleichterte Bedienung",
 	"miRestartToUpdate": "Für Update neu starten...",
 	"miCheckingForUpdates": "Überprüfen auf Updates...",
 	"miDownloadUpdate": "Verfügbares Update herunterladen",
 	"miDownloadingUpdate": "Das Update wird heruntergeladen...",
 	"miInstallingUpdate": "Update wird installiert...",
-	"miCheckForUpdates": "Auf Updates überprüfen...",
 	"aboutDetail": "\nVersion {0}\nCommit {1}\nDatum {2}\nShell {3}\nRenderer {4}\nNode {5}",
 	"okButton": "OK"
 }

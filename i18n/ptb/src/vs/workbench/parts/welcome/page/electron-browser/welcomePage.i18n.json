@@ -25,7 +25,5 @@
 	"welcomePage.extensionListSeparator": ", ",
 	"welcomePage.installedExtension": "{0} (instalado)",
 	"ok": "OK",
-	"cancel": "Cancelar",
-	"welcomePage.quickLinkBackground": "Cor de fundo para as ligações rápidas na página de boas-vindas.",
-	"welcomePage.quickLinkHoverBackground": "Passar sobre a cor de fundo para as ligações rápidas na página de boas-vindas."
+	"cancel": "Cancelar"
 }

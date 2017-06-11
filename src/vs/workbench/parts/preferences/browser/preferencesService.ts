@@ -8,7 +8,7 @@ import * as network from 'vs/base/common/network';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
-import { LinkedMap as Map } from 'vs/base/common/map';
+import { SimpleMap as Map } from 'vs/base/common/map';
 import * as labels from 'vs/base/common/labels';
 import * as strings from 'vs/base/common/strings';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -271,7 +271,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.fileService.resolveContent(resource, { acceptTextOnly: true }).then(null, error => {
 			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
 				return this.fileService.updateContent(resource, contents).then(null, error => {
-					return TPromise.wrapError<boolean>(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", labels.getPathLabel(resource, this.contextService), error)));
+					return TPromise.wrapError<boolean>(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", labels.getPathLabel(resource, this.contextService, this.environmentService), error)));
 				});
 			}
 
@@ -289,15 +289,16 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private fetchMostCommonlyUsedSettings(): TPromise<string[]> {
 		return TPromise.wrap([
-			'editor.fontSize',
 			'files.autoSave',
+			'editor.fontSize',
 			'editor.fontFamily',
 			'editor.tabSize',
 			'editor.renderWhitespace',
-			'files.exclude',
 			'editor.cursorStyle',
+			'editor.multiCursorModifier',
 			'editor.insertSpaces',
 			'editor.wordWrap',
+			'files.exclude',
 			'files.associations'
 		]);
 	}

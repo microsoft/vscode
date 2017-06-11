@@ -10,6 +10,8 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 import commonSchema from './jsonSchemaCommon';
 
+import { ProblemMatcherRegistry } from 'vs/platform/markers/common/problemMatcher';
+
 const shellCommand: IJSONSchema = {
 	anyOf: [
 		{
@@ -20,8 +22,8 @@ const shellCommand: IJSONSchema = {
 		{
 			$ref: '#definitions/shellConfiguration'
 		}
-	],
-	deprecationMessage: nls.localize('JsonSchema.tasks.isShellCommand.deprecated', 'The property isShellCommand is deprecated. Use the type property and the shell property in the options instead.')
+	]
+	// deprecationMessage: nls.localize('JsonSchema.tasks.isShellCommand.deprecated', 'The property isShellCommand is deprecated. Use the type property and the shell property in the options instead.')
 };
 
 const dependsOn: IJSONSchema = {
@@ -44,8 +46,7 @@ const dependsOn: IJSONSchema = {
 const terminal: IJSONSchema = {
 	type: 'object',
 	default: {
-		reveal: 'always',
-		echo: false
+		reveal: 'always'
 	},
 	description: nls.localize('JsonSchema.tasks.terminal', 'Describe how the terminal used to execute a task behaves.'),
 	properties: {
@@ -83,9 +84,9 @@ const version: IJSONSchema = {
 	description: nls.localize('JsonSchema.version', 'The config\'s version number.')
 };
 
-const identifier: IJSONSchema = {
+const customize: IJSONSchema = {
 	type: 'string',
-	description: nls.localize('JsonSchema.tasks.identifier', 'A unique identifier of the task.')
+	description: nls.localize('JsonSchema.tasks.customize', 'The contributed task to be customized.')
 };
 
 const schema: IJSONSchema = {
@@ -124,11 +125,11 @@ let definitions = schema.definitions;
 definitions.commandConfiguration.properties.isShellCommand = Objects.deepClone(shellCommand);
 definitions.taskDescription.properties.isShellCommand = Objects.deepClone(shellCommand);
 definitions.taskDescription.properties.dependsOn = dependsOn;
-definitions.showOutputType.deprecationMessage = nls.localize('JsonSchema.tasks.showOputput.deprecated', 'The property showOutput is deprecated. Use the terminal property instead.');
-definitions.taskDescription.properties.echoCommand.deprecationMessage = nls.localize('JsonSchema.tasks.echoCommand.deprecated', 'The property echoCommand is deprecated. Use the terminal property instead.');
-definitions.taskDescription.properties.isBuildCommand.deprecationMessage = nls.localize('JsonSchema.tasks.isBuildCommand.deprecated', 'The property isBuildCommand is deprecated. Use the group property instead.');
-definitions.taskDescription.properties.isTestCommand.deprecationMessage = nls.localize('JsonSchema.tasks.isTestCommand.deprecated', 'The property isTestCommand is deprecated. Use the group property instead.');
-definitions.taskDescription.properties.identifier = identifier;
+// definitions.showOutputType.deprecationMessage = nls.localize('JsonSchema.tasks.showOputput.deprecated', 'The property showOutput is deprecated. Use the terminal property instead.');
+// definitions.taskDescription.properties.echoCommand.deprecationMessage = nls.localize('JsonSchema.tasks.echoCommand.deprecated', 'The property echoCommand is deprecated. Use the terminal property instead.');
+// definitions.taskDescription.properties.isBuildCommand.deprecationMessage = nls.localize('JsonSchema.tasks.isBuildCommand.deprecated', 'The property isBuildCommand is deprecated. Use the group property instead.');
+// definitions.taskDescription.properties.isTestCommand.deprecationMessage = nls.localize('JsonSchema.tasks.isTestCommand.deprecated', 'The property isTestCommand is deprecated. Use the group property instead.');
+definitions.taskDescription.properties.customize = customize;
 definitions.taskDescription.properties.type = Objects.deepClone(taskType);
 definitions.taskDescription.properties.terminal = terminal;
 definitions.taskDescription.properties.group = group;
@@ -161,5 +162,15 @@ function fixReferences(literal: any) {
 	}
 }
 fixReferences(schema);
+
+ProblemMatcherRegistry.onReady().then(() => {
+	try {
+		let matcherIds = ProblemMatcherRegistry.keys().map(key => '$' + key);
+		definitions.problemMatcherType2.oneOf[0].enum = matcherIds;
+		(definitions.problemMatcherType2.oneOf[2].items as IJSONSchema).anyOf[1].enum = matcherIds;
+	} catch (err) {
+		console.log('Installing problem matcher ids failed');
+	}
+});
 
 export default schema;

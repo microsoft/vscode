@@ -66,8 +66,10 @@
 				"node",
 				"electron-main",
 				"electron-browser",
-				"extensions"
+				"extensions",
+				"smoke"
 			]
-		]
+		],
+		"translation-remind": true
 	}
 }

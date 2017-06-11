@@ -16,5 +16,9 @@
 	"editorBracketMatchBackground": "Colore di sfondo delle parentesi corrispondenti",
 	"editorBracketMatchBorder": "Colore delle caselle di parentesi corrispondenti",
 	"editorOverviewRulerBorder": "Colore del bordo del righello delle annotazioni.",
-	"editorGutter": "Colore di sfondo della barra di navigazione dell'editor. La barra contiene i margini di glifo e i numeri di riga."
+	"editorGutter": "Colore di sfondo della barra di navigazione dell'editor. La barra contiene i margini di glifo e i numeri di riga.",
+	"errorForeground": "Colore primo piano degli squiggle di errore nell'editor.",
+	"errorBorder": "Colore del bordo degli squiggle di errore nell'editor.",
+	"warningForeground": "Colore primo piano degli squiggle di avviso nell'editor",
+	"warningBorder": "Colore del bordo degli squggle di avviso nell'editor."
 }

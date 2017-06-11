@@ -13,14 +13,15 @@ import { crashReporter } from 'electron';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import * as os from 'os';
-import { ICrashReporterService, TELEMETRY_SECTION_ID, ICrashReporterConfig } from "vs/workbench/services/crashReporter/common/crashReporterService";
-import { isWindows, isMacintosh, isLinux } from "vs/base/common/platform";
+import { ICrashReporterService, TELEMETRY_SECTION_ID, ICrashReporterConfig } from 'vs/workbench/services/crashReporter/common/crashReporterService';
+import { isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
 
 export class CrashReporterService implements ICrashReporterService {
 
 	public _serviceBrand: any;
 
 	private options: Electron.CrashReporterStartOptions;
+	private isEnabled: boolean;
 
 	constructor(
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -28,30 +29,32 @@ export class CrashReporterService implements ICrashReporterService {
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		const config = configurationService.getConfiguration<ICrashReporterConfig>(TELEMETRY_SECTION_ID);
-		if (config.enableCrashReporter) {
+		this.isEnabled = !!config.enableCrashReporter;
+
+		if (this.isEnabled) {
 			this.startCrashReporter();
 		}
 	}
 
 	private startCrashReporter(): void {
 
-		// base options
+		// base options with product info
 		this.options = {
 			companyName: product.crashReporter.companyName,
 			productName: product.crashReporter.productName,
-			submitURL: this.getSubmitURL()
+			submitURL: this.getSubmitURL(),
+			extra: {
+				vscode_version: pkg.version,
+				vscode_commit: product.commit
+			}
 		};
 
-		// mixin telemetry info and product info
+		// mixin telemetry info
 		this.telemetryService.getTelemetryInfo()
 			.then(info => {
-				assign(this.options, {
-					extra: {
-						vscode_sessionId: info.sessionId,
-						vscode_version: pkg.version,
-						vscode_commit: product.commit,
-						vscode_machineId: info.machineId
-					}
+				assign(this.options.extra, {
+					vscode_sessionId: info.sessionId,
+					vscode_machineId: info.machineId
 				});
 
 				// start crash reporter right here
@@ -78,16 +81,12 @@ export class CrashReporterService implements ICrashReporterService {
 
 	public getChildProcessStartOptions(name: string): Electron.CrashReporterStartOptions {
 
-		// Experimental attempt on Mac only for now
-		if (isMacintosh) {
+		// Experimental crash reporting support for child processes on Mac only for now
+		if (this.isEnabled && isMacintosh) {
 			const childProcessOptions = clone(this.options);
-			if (childProcessOptions.extra) {
-				childProcessOptions.extra.processName = name;
-			} else {
-				childProcessOptions.extra = { processName: name };
-			}
-
+			childProcessOptions.extra.processName = name;
 			childProcessOptions.crashesDirectory = os.tmpdir();
+
 			return childProcessOptions;
 		}
 

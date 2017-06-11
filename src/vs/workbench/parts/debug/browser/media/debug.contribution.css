@@ -163,6 +163,18 @@
 	color: #B5CEA8;
 }
 
+.hc-black .monaco-workbench  .monaco-tree-row:not(.selected) .expression .value.number {
+	color: #89d185;
+}
+
+.hc-black .monaco-workbench  .monaco-tree-row:not(.selected) .expression .value.boolean {
+	color: #75bdfe;
+}
+
+.hc-black .monaco-workbench  .monaco-tree-row:not(.selected) .expression .value.string {
+	color: #f48771;
+}
+
 .vs-dark .monaco-workbench  .monaco-tree-row:not(.selected) .expression .value.boolean {
 	color: #4E94CE;
 }
@@ -233,6 +245,10 @@
 }
 
 /* High Contrast Theming */
+
+.monaco-editor.hc-black .debug-focused-stack-frame-line {
+	background: rgba(206, 231, 206, 1);
+}
 
 .hc-black .monaco-workbench .monaco-tree-row:not(.selected) .expression .name {
 	color: inherit;

@@ -16,5 +16,9 @@
 	"editorBracketMatchBackground": "匹配括号的背景色",
 	"editorBracketMatchBorder": "匹配括号外框颜色",
 	"editorOverviewRulerBorder": "概览标尺边框的颜色。",
-	"editorGutter": "编辑器导航线的背景色。导航线包括边缘符号和行号。"
+	"editorGutter": "编辑器导航线的背景色。导航线包括边缘符号和行号。",
+	"errorForeground": "编辑器中错误波浪线的前景色。",
+	"errorBorder": "编辑器中错误波浪线的边框颜色。",
+	"warningForeground": "编辑器中警告波浪线的前景色。",
+	"warningBorder": "编辑器中警告波浪线的边框颜色。"
 }

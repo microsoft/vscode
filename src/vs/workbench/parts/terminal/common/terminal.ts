@@ -231,6 +231,11 @@ export interface ITerminalInstance {
 	clearSelection(): void;
 
 	/**
+	 * Select all text in the terminal.
+	 */
+	selectAll(): void;
+
+	/**
 	 * Focuses the terminal instance.
 	 *
 	 * @param focus Force focus even if there is a selection.

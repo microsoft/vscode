@@ -31,7 +31,7 @@ interface IEmmetConfiguration {
 		triggerExpansionOnTab: boolean,
 		excludeLanguages: string[],
 		extensionsPath: string,
-		useModules: boolean
+		useNewEmmet: boolean
 	};
 }
 
@@ -290,7 +290,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 		const commandService = accessor.get(ICommandService);
 
 		let mappedCommand = this.actionMap[this.id];
-		if (mappedCommand && configurationService.getConfiguration<IEmmetConfiguration>().emmet.useModules) {
+		if (mappedCommand && configurationService.getConfiguration<IEmmetConfiguration>().emmet.useNewEmmet) {
 			return commandService.executeCommand<void>(mappedCommand);
 		}
 

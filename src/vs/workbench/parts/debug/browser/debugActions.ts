@@ -98,7 +98,7 @@ export class ConfigureAction extends AbstractDebugAction {
 	}
 
 	public run(event?: any): TPromise<any> {
-		if (!this.contextService.getWorkspace()) {
+		if (!this.contextService.hasWorkspace()) {
 			this.messageService.show(severity.Info, nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
 			return TPromise.as(null);
 		}
@@ -137,7 +137,7 @@ export class StartAction extends AbstractDebugAction {
 		const compound = this.debugService.getConfigurationManager().getCompound(this.debugService.getViewModel().selectedConfigurationName);
 		return state !== State.Initializing && processes.every(p => p.name !== this.debugService.getViewModel().selectedConfigurationName) &&
 			(!compound || !compound.configurations || processes.every(p => compound.configurations.indexOf(p.name) === -1)) &&
-			(!this.contextService || !!this.contextService.getWorkspace() || processes.length === 0);
+			(!this.contextService || this.contextService.hasWorkspace() || processes.length === 0);
 	}
 }
 

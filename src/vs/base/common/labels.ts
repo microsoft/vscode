@@ -29,18 +29,6 @@ export interface IUserHomeProvider {
 	userHome: string;
 }
 
-export class PathLabelProvider implements ILabelProvider {
-	private root: string;
-
-	constructor(arg1?: URI | string | IWorkspaceProvider) {
-		this.root = arg1 && getPath(arg1);
-	}
-
-	public getLabel(arg1: URI | string | IWorkspaceProvider): string {
-		return getPathLabel(getPath(arg1), this.root);
-	}
-}
-
 export function getPathLabel(resource: URI | string, basePathProvider?: URI | string | IWorkspaceProvider, userHomeProvider?: IUserHomeProvider): string {
 	const absolutePath = getPath(resource);
 	if (!absolutePath) {
@@ -134,7 +122,7 @@ export function shorten(paths: string[]): string[] {
 		let path = paths[pathIndex];
 
 		if (path === '') {
-			shortenedPaths[pathIndex] = '.';
+			shortenedPaths[pathIndex] = `.${nativeSep}`;
 			continue;
 		}
 

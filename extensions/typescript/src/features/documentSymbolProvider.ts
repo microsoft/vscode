@@ -53,8 +53,7 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 					}
 				}
 				return result;
-			}, (err) => {
-				this.client.error(`'navtree' request failed with error.`, err);
+			}, () => {
 				return [];
 			});
 		} else {
@@ -65,12 +64,10 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 					response.body.forEach(item => TypeScriptDocumentSymbolProvider.convertNavBar(resource.uri, 0, foldingMap, result, item));
 				}
 				return result;
-			}, (err) => {
-				this.client.error(`'navbar' request failed with error.`, err);
+			}, () => {
 				return [];
 			});
 		}
-
 	}
 
 	private static convertNavBar(resource: Uri, indent: number, foldingMap: ObjectMap<SymbolInformation>, bucket: SymbolInformation[], item: Proto.NavigationBarItem, containerLabel?: string): void {

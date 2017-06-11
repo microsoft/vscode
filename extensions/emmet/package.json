@@ -35,12 +35,12 @@
             "type": "object",
             "title": "Emmet configuration",
             "properties": {
-                "emmet.suggestExpandedAbbreviation": {
+                "emmet.showExpandedAbbreviation": {
                     "type": "boolean",
                     "default": true,
                     "description": "Shows expanded emmet abbreviations as suggestions"
                 },
-                "emmet.suggestAbbreviations": {
+                "emmet.showAbbreviationSuggestions": {
                     "type": "boolean",
                     "default": true,
                     "description": "Shows possible emmet abbreviations as suggestions"

@@ -19,6 +19,7 @@ import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer, DRAG_OVER_REJECT, IDragAndDropData, IDragOverReaction, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { InputBox, IInputValidationOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { DefaultController, DefaultDragAndDrop, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
+import { Constants } from 'vs/editor/common/core/uint';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -35,6 +36,7 @@ import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { once } from 'vs/base/common/functional';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IEnvironmentService } from "vs/platform/environment/common/environment";
 
 const $ = dom.$;
 const booleanRegex = /^true|false$/i;
@@ -178,12 +180,12 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 	}));
 }
 
-function getSourceName(source: Source, contextService: IWorkspaceContextService): string {
+function getSourceName(source: Source, contextService: IWorkspaceContextService, environmentService?: IEnvironmentService): string {
 	if (source.name) {
 		return source.name;
 	}
 
-	return getPathLabel(paths.basename(source.uri.fsPath), contextService);
+	return getPathLabel(paths.basename(source.uri.fsPath), contextService, environmentService);
 }
 
 export class BaseDebugController extends DefaultController {
@@ -250,7 +252,9 @@ export class CallStackController extends BaseDebugController {
 			return this.showMoreStackFrames(tree, element);
 		}
 		if (element instanceof StackFrame) {
+			super.onLeftClick(tree, element, event);
 			this.focusStackFrame(element, event, event.detail !== 2);
+			return true;
 		}
 
 		return super.onLeftClick(tree, element, event);
@@ -351,7 +355,7 @@ export class CallStackDataSource implements IDataSource {
 
 	public getChildren(tree: ITree, element: any): TPromise<any> {
 		if (element instanceof Thread) {
-			return TPromise.as(this.getThreadChildren(element));
+			return this.getThreadChildren(element);
 		}
 		if (element instanceof Model) {
 			return TPromise.as(element.getProcesses());
@@ -361,25 +365,25 @@ export class CallStackDataSource implements IDataSource {
 		return TPromise.as(process.getAllThreads());
 	}
 
-	private getThreadChildren(thread: Thread): any[] {
+	private getThreadChildren(thread: Thread): TPromise<any> {
 		const callStack: any[] = thread.getCallStack();
-		if (!callStack) {
-			return [];
+		if (!callStack || !callStack.length) {
+			return thread.fetchCallStack(false).then(() => thread.getCallStack());
 		}
 		if (callStack.length === 1) {
 			// To reduce flashing of the call stack view simply append the stale call stack
 			// once we have the correct data the tree will refresh and we will no longer display it.
-			return callStack.concat(thread.getStaleCallStack().slice(1));
+			return TPromise.as(callStack.concat(thread.getStaleCallStack().slice(1)));
 		}
 
 		if (thread.stoppedDetails && thread.stoppedDetails.framesErrorMessage) {
-			return callStack.concat([thread.stoppedDetails.framesErrorMessage]);
+			return TPromise.as(callStack.concat([thread.stoppedDetails.framesErrorMessage]));
 		}
 		if (thread.stoppedDetails && thread.stoppedDetails.totalFrames > callStack.length && callStack.length > 1) {
-			return callStack.concat([new ThreadAndProcessIds(thread.process.getId(), thread.threadId)]);
+			return TPromise.as(callStack.concat([new ThreadAndProcessIds(thread.process.getId(), thread.threadId)]));
 		}
 
-		return callStack;
+		return TPromise.as(callStack);
 	}
 
 	public getParent(tree: ITree, element: any): TPromise<any> {
@@ -425,7 +429,10 @@ export class CallStackRenderer implements IRenderer {
 	private static LOAD_MORE_TEMPLATE_ID = 'loadMore';
 	private static PROCESS_TEMPLATE_ID = 'process';
 
-	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor(
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IEnvironmentService private environmentService: IEnvironmentService
+	) {
 		// noop
 	}
 
@@ -547,7 +554,7 @@ export class CallStackRenderer implements IRenderer {
 		}
 		data.label.textContent = stackFrame.name;
 		data.label.title = stackFrame.name;
-		data.fileName.textContent = getSourceName(stackFrame.source, this.contextService);
+		data.fileName.textContent = getSourceName(stackFrame.source, this.contextService, this.environmentService);
 		if (stackFrame.range.startLineNumber !== undefined) {
 			data.lineNumber.textContent = `${stackFrame.range.startLineNumber}`;
 			if (stackFrame.range.startColumn) {
@@ -1022,7 +1029,7 @@ export class BreakpointsActionProvider implements IActionProvider {
 	}
 
 	public hasActions(tree: ITree, element: any): boolean {
-		return false;;
+		return false;
 	}
 
 	public hasSecondaryActions(tree: ITree, element: any): boolean {
@@ -1105,7 +1112,8 @@ export class BreakpointsRenderer implements IRenderer {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@debug.IDebugService private debugService: debug.IDebugService,
 		@IContextViewService private contextViewService: IContextViewService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		// noop
 	}
@@ -1167,7 +1175,7 @@ export class BreakpointsRenderer implements IRenderer {
 	}
 
 	private renderExceptionBreakpoint(exceptionBreakpoint: debug.IExceptionBreakpoint, data: IBaseBreakpointTemplateData): void {
-		data.name.textContent = exceptionBreakpoint.label || `${exceptionBreakpoint.filter} exceptions`;;
+		data.name.textContent = exceptionBreakpoint.label || `${exceptionBreakpoint.filter} exceptions`;
 		data.breakpoint.title = data.name.textContent;
 		data.checkbox.checked = exceptionBreakpoint.enabled;
 	}
@@ -1207,7 +1215,7 @@ export class BreakpointsRenderer implements IRenderer {
 		if (breakpoint.column) {
 			data.lineNumber.textContent += `:${breakpoint.column}`;
 		}
-		data.filePath.textContent = getPathLabel(paths.dirname(breakpoint.uri.fsPath), this.contextService);
+		data.filePath.textContent = getPathLabel(paths.dirname(breakpoint.uri.fsPath), this.contextService, this.environmentService);
 		data.checkbox.checked = breakpoint.enabled;
 
 		const debugActive = this.debugService.state === debug.State.Running || this.debugService.state === debug.State.Stopped || this.debugService.state === debug.State.Initializing;
@@ -1255,7 +1263,9 @@ export class BreakpointsController extends BaseDebugController {
 			return true;
 		}
 		if (element instanceof Breakpoint) {
+			super.onLeftClick(tree, element, event);
 			this.openBreakpointSource(element, event, event.detail !== 2);
+			return true;
 		}
 
 		return super.onLeftClick(tree, element, event);
@@ -1270,7 +1280,9 @@ export class BreakpointsController extends BaseDebugController {
 			endColumn: breakpoint.endColumn
 		} : {
 				startLineNumber: breakpoint.lineNumber,
-				startColumn: 1
+				startColumn: breakpoint.column || 1,
+				endLineNumber: breakpoint.lineNumber,
+				endColumn: breakpoint.column || Constants.MAX_SAFE_SMALL_INTEGER
 			};
 
 		this.editorService.openEditor({

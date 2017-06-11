@@ -234,15 +234,17 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		}, err => this._doCreateUntitled(asFileUri).then(resource => !!resource));
 	}
 
-	private _doCreateUntitled(uri?: URI, modeId?: string, initialValue?: string): TPromise<URI> {
-		let input = this._untitledEditorService.createOrGet(uri, modeId, initialValue);
-		return input.resolve(true).then(model => {
-			if (!this._modelIsSynced[input.getResource().toString()]) {
-				throw new Error(`expected URI ${input.getResource().toString()} to have come to LIFE`);
+	private _doCreateUntitled(resource?: URI, modeId?: string, initialValue?: string): TPromise<URI> {
+		return this._untitledEditorService.loadOrCreate({ resource, modeId, initialValue }).then(model => {
+			const resource = model.getResource();
+
+			if (!this._modelIsSynced[resource.toString()]) {
+				throw new Error(`expected URI ${resource.toString()} to have come to LIFE`);
 			}
-			return this._proxy.$acceptDirtyStateChanged(input.getResource().toString(), true); // mark as dirty
-		}).then(() => {
-			return input.getResource();
+
+			this._proxy.$acceptDirtyStateChanged(resource.toString(), true); // mark as dirty
+
+			return resource;
 		});
 	}
 

@@ -199,7 +199,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 
 	private updateDecorations(links: Link[]): void {
-		const useMetaKey = (this.editor.getConfiguration().multicursorModifier === 'altKey');
+		const useMetaKey = (this.editor.getConfiguration().multiCursorModifier === 'altKey');
 		this.editor.changeDecorations((changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => {
 			var oldDecorations: string[] = [];
 			let keys = Object.keys(this.currentOccurences);
@@ -229,7 +229,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 
 	private _onEditorMouseMove(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent): void {
-		const useMetaKey = (this.editor.getConfiguration().multicursorModifier === 'altKey');
+		const useMetaKey = (this.editor.getConfiguration().multiCursorModifier === 'altKey');
 		if (this.isEnabled(mouseEvent, withKey)) {
 			this.cleanUpActiveLinkDecoration(); // always remove previous link decoration as their can only be one
 			var occurence = this.getLinkOccurence(mouseEvent.target.position);
@@ -245,7 +245,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 
 	private cleanUpActiveLinkDecoration(): void {
-		const useMetaKey = (this.editor.getConfiguration().multicursorModifier === 'altKey');
+		const useMetaKey = (this.editor.getConfiguration().multiCursorModifier === 'altKey');
 		if (this.activeLinkDecorationId) {
 			var occurence = this.currentOccurences[this.activeLinkDecorationId];
 			if (occurence) {

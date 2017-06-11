@@ -10,6 +10,7 @@
   "engines": {
     "vscode": "*"
   },
+  "enableProposedApi": true,
   "dependencies": {
     "semver": "4.3.6",
     "vscode-extension-telemetry": "^0.0.7",
@@ -103,6 +104,15 @@
           "default": true,
           "description": "%typescript.check.tscVersion%"
         },
+        "typescript.npm": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "%typescript.npm%",
+          "isExecutable": true
+        },
         "typescript.check.npmIsInstalled": {
           "type": "boolean",
           "default": true,
@@ -115,7 +125,7 @@
         },
         "typescript.referencesCodeLens.enabled": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "%typescript.referencesCodeLens.enabled%"
         },
         "typescript.implementationsCodeLens.enabled": {
@@ -163,6 +173,11 @@
           "type": "boolean",
           "default": true,
           "description": "%format.insertSpaceAfterCommaDelimiter%"
+        },
+        "typescript.format.insertSpaceAfterConstructor": {
+          "type": "boolean",
+          "default": false,
+          "description": "%format.insertSpaceAfterConstructor%"
         },
         "typescript.format.insertSpaceAfterSemicolonInForStatements": {
           "type": "boolean",
@@ -238,6 +253,11 @@
           "type": "boolean",
           "default": true,
           "description": "%format.insertSpaceAfterCommaDelimiter%"
+        },
+        "javascript.format.insertSpaceAfterConstructor": {
+          "type": "boolean",
+          "default": false,
+          "description": "%format.insertSpaceAfterConstructor%"
         },
         "javascript.format.insertSpaceAfterSemicolonInForStatements": {
           "type": "boolean",
@@ -469,7 +489,7 @@
           "${cwd}"
         ],
         "pattern": "$tsc",
-        "watching": {
+        "background": {
           "activeOnStart": true,
           "beginsPattern": {
             "regexp": "^\\s*(?:message TS6032:|\\d{1,2}:\\d{1,2}:\\d{1,2}(?: AM| PM)? -) File change detected\\. Starting incremental compilation\\.\\.\\."

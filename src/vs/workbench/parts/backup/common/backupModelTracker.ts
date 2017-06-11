@@ -80,9 +80,8 @@ export class BackupModelTracker implements IWorkbenchContribution {
 	}
 
 	private onUntitledModelChanged(resource: Uri): void {
-		const input = this.untitledEditorService.get(resource);
-		if (input.isDirty()) {
-			input.resolve().then(model => this.backupFileService.backupResource(resource, model.getValue(), model.getVersionId())).done(null, errors.onUnexpectedError);
+		if (this.untitledEditorService.isDirty(resource)) {
+			this.untitledEditorService.loadOrCreate({ resource }).then(model => this.backupFileService.backupResource(resource, model.getValue(), model.getVersionId())).done(null, errors.onUnexpectedError);
 		} else {
 			this.discardBackup(resource);
 		}

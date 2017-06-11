@@ -41,6 +41,5 @@
 	"typescript.selectTypeScriptVersion.title": "Seleccionar versión de TypeScript",
 	"jsDocCompletion.enabled": "Habilita o deshabilita comentarios automaticos de JSDoc",
 	"javascript.implicitProjectConfig.checkJs": "Habilita/deshabilita la comprobación semántica de los archivos JavaScript. Los archivos jsconfig.json o tsconfig.json reemplazan esta configuración. Se requiere TypeScript >=2.3.1.",
-	"typescript.check.npmIsInstalled": "Comprueba si NPM esta instalado para recibir adquisiciones automaticas de Typings",
 	"javascript.nameSuggestions": "Habilitar/deshabilitar nombres únicos de la lista de sugerencias en los archivos de JavaScript. "
 }

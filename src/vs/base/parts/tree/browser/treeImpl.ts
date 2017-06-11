@@ -41,7 +41,7 @@ export class TreeContext implements _.ITreeContext {
 		}
 
 		this.dataSource = configuration.dataSource;
-		this.renderer = configuration.renderer || new TreeDefaults.LegacyRenderer();
+		this.renderer = configuration.renderer;
 		this.controller = configuration.controller || new TreeDefaults.DefaultController({ clickBehavior: TreeDefaults.ClickBehavior.ON_MOUSE_UP, keyboardSupport: typeof options.keyboardSupport !== 'boolean' || options.keyboardSupport });
 		this.dnd = configuration.dnd || new TreeDefaults.DefaultDragAndDrop();
 		this.filter = configuration.filter || new TreeDefaults.DefaultFilter();

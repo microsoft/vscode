@@ -25,11 +25,12 @@ export function matchTag() {
 	});
 	if (updatedSelections.length > 0) {
 		editor.selections = updatedSelections;
+		editor.revealRange(editor.selections[updatedSelections.length - 1]);
 	}
 }
 
 function getUpdatedSelections(editor: vscode.TextEditor, offset: number, rootNode: Node): vscode.Selection {
-	let currentNode = getNode(rootNode, offset);
+	let currentNode = getNode(rootNode, offset, true);
 
 	// If no closing tag or cursor is between open and close tag, then no-op
 	if (!currentNode.close || (currentNode.open.end < offset && currentNode.close.start > offset)) {

@@ -64,15 +64,17 @@ export class API {
 	public has230Features(): boolean {
 		return semver.gte(this._version, '2.3.0');
 	}
+
+	public has234Features(): boolean {
+		return semver.gte(this._version, '2.3.4');
+	}
 }
 
 export interface ITypescriptServiceClient {
 	normalizePath(resource: Uri): string | null;
 	asUrl(filepath: string): Uri;
 
-	info(message: string, data?: any): void;
 	warn(message: string, data?: any): void;
-	error(message: string, data?: any): void;
 
 	onProjectLanguageServiceStateChanged: Event<Proto.ProjectLanguageServiceStateEventBody>;
 	onDidBeginInstallTypings: Event<Proto.BeginInstallTypesEventBody>;
@@ -81,7 +83,6 @@ export interface ITypescriptServiceClient {
 
 	logTelemetry(eventName: string, properties?: { [prop: string]: string }): void;
 
-	experimentalAutoBuild: boolean;
 	apiVersion: API;
 	checkGlobalTSCVersion: boolean;
 

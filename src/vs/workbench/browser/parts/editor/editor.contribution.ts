@@ -93,6 +93,7 @@ interface ISerializedUntitledEditorInput {
 	resource: string;
 	resourceJSON: any;
 	modeId: string;
+	encoding: string;
 }
 
 // Register Editor Input Factory
@@ -118,7 +119,8 @@ class UntitledEditorInputFactory implements IEditorInputFactory {
 		const serialized: ISerializedUntitledEditorInput = {
 			resource: resource.toString(), // Keep for backwards compatibility
 			resourceJSON: resource.toJSON(),
-			modeId: untitledEditorInput.getModeId()
+			modeId: untitledEditorInput.getModeId(),
+			encoding: untitledEditorInput.getEncoding()
 		};
 
 		return JSON.stringify(serialized);
@@ -130,8 +132,9 @@ class UntitledEditorInputFactory implements IEditorInputFactory {
 			const resource = !!deserialized.resourceJSON ? URI.revive(deserialized.resourceJSON) : URI.parse(deserialized.resource);
 			const filePath = resource.scheme === 'file' ? resource.fsPath : void 0;
 			const language = deserialized.modeId;
+			const encoding = deserialized.encoding;
 
-			return accessor.get(IWorkbenchEditorService).createInput({ resource, filePath, language }) as UntitledEditorInput;
+			return accessor.get(IWorkbenchEditorService).createInput({ resource, filePath, language, encoding }) as UntitledEditorInput;
 		});
 	}
 }
@@ -315,9 +318,9 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 // Register Editor Actions
 const category = nls.localize('view', "View");
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenNextEditorInGroup, OpenNextEditorInGroup.ID, OpenNextEditorInGroup.LABEL), 'View: Open Next Editor in Group', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviousEditorInGroup, OpenPreviousEditorInGroup.ID, OpenPreviousEditorInGroup.LABEL), 'View: Open Next Recently Used Editor in Group', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(OpenNextRecentlyUsedEditorAction, OpenNextRecentlyUsedEditorAction.ID, OpenNextRecentlyUsedEditorAction.LABEL), 'View: Open Next Recently Used Editor');
-registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviousRecentlyUsedEditorAction, OpenPreviousRecentlyUsedEditorAction.ID, OpenPreviousRecentlyUsedEditorAction.LABEL), 'View: Open Previous Recently Used Editor');
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviousEditorInGroup, OpenPreviousEditorInGroup.ID, OpenPreviousEditorInGroup.LABEL), 'View: Open Previous Editor in Group', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenNextRecentlyUsedEditorAction, OpenNextRecentlyUsedEditorAction.ID, OpenNextRecentlyUsedEditorAction.LABEL), 'View: Open Next Recently Used Editor', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviousRecentlyUsedEditorAction, OpenPreviousRecentlyUsedEditorAction.ID, OpenPreviousRecentlyUsedEditorAction.LABEL), 'View: Open Previous Recently Used Editor', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenNextRecentlyUsedEditorInGroupAction, OpenNextRecentlyUsedEditorInGroupAction.ID, OpenNextRecentlyUsedEditorInGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.Tab, mac: { primary: KeyMod.WinCtrl | KeyCode.Tab } }), 'Open Next Recently Used Editor in Group');
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviousRecentlyUsedEditorInGroupAction, OpenPreviousRecentlyUsedEditorInGroupAction.ID, OpenPreviousRecentlyUsedEditorInGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab, mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab } }), 'Open Previous Recently Used Editor in Group');
 registry.registerWorkbenchAction(new SyncActionDescriptor(ShowAllEditorsAction, ShowAllEditorsAction.ID, ShowAllEditorsAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_P), mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Tab } }), 'View: Show All Editors', category);
@@ -342,7 +345,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(FocusActiveGroupAction
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusFirstGroupAction, FocusFirstGroupAction.ID, FocusFirstGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_1 }), 'View: Focus First Editor Group', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusSecondGroupAction, FocusSecondGroupAction.ID, FocusSecondGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_2 }), 'View: Focus Second Editor Group', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusThirdGroupAction, FocusThirdGroupAction.ID, FocusThirdGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_3 }), 'View: Focus Third Editor Group', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(FocusLastEditorInStackAction, FocusLastEditorInStackAction.ID, FocusLastEditorInStackAction.LABEL, { primary: KeyMod.Alt | KeyCode.KEY_0, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_0 } }), 'View: Focus Last Editor in Group', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(FocusLastEditorInStackAction, FocusLastEditorInStackAction.ID, FocusLastEditorInStackAction.LABEL, { primary: KeyMod.Alt | KeyCode.KEY_0, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_0 } }), 'View: Open Last Editor in Group', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(EvenGroupWidthsAction, EvenGroupWidthsAction.ID, EvenGroupWidthsAction.LABEL), 'View: Even Editor Group Widths', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(MaximizeGroupAction, MaximizeGroupAction.ID, MaximizeGroupAction.LABEL), 'View: Maximize Editor Group and Hide Sidebar', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(MinimizeOtherGroupsAction, MinimizeOtherGroupsAction.ID, MinimizeOtherGroupsAction.LABEL), 'View: Minimize Other Editor Groups', category);

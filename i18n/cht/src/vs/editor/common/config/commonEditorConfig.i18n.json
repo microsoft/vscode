@@ -9,6 +9,7 @@
 	"fontWeight": "控制字型寬度。",
 	"fontSize": "控制字型大小 (以像素為單位)。",
 	"lineHeight": "控制行高。使用 0 會從 fontSize 計算 lineHeight。",
+	"letterSpacing": "控制字元間距 (以像素為單位)",
 	"lineNumbers": "控制行號顯示。可能的值有 'on'、'off' 及 'relative'。'relative' 會從目前的資料指標位置顯示行數。",
 	"rulers": "要在其中顯示垂直尺規的資料行",
 	"wordSeparators": "執行文字相關導覽或作業時將作為文字分隔符號的字元",

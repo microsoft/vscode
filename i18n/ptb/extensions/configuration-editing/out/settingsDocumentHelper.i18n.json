@@ -6,9 +6,9 @@
 {
 	"activeEditorShort": "e.g. meuArquivo.txt",
 	"activeEditorMedium": "e.g. minhaPasta/meuArquivo.txt",
-	"activeEditorLong": "e.g. /Usuarios/Desenvolvimento/meuProjeto/minhaPasta/meuArquivo.txt",
+	"activeEditorLong": "por exemplo /Usuários/Desenvolvimento/meuProjeto/minhaPasta/meuArquivo/txt",
 	"rootName": "e.g. meuProjeto",
-	"rootPath": "e.g. /Usuarios/Desenvolvimento/meuProjeto",
+	"rootPath": "por exemplo /Usuários/desenvolvimento/meuProjeto",
 	"appName": "e.g. VS Code",
 	"dirty": "Um indicador de alteração se o editor ativo foi alterado",
 	"separator": "um separador condicional (' - ') que somente é mostrado quando envolvido por variáveis com valores",

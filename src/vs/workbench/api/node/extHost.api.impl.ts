@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Emitter, mapEvent } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { TrieMap } from 'vs/base/common/map';
 import { score } from 'vs/editor/common/modes/languageSelector';
 import * as Platform from 'vs/base/common/platform';
@@ -365,18 +365,22 @@ export function createApiFactory(
 				}
 				return extHostTerminalService.createTerminal(<string>nameOrOptions, shellPath, shellArgs);
 			},
+			registerTreeDataProvider(viewId: string, treeDataProvider: vscode.TreeDataProvider<any>): vscode.Disposable {
+				return extHostTreeViews.registerTreeDataProvider(viewId, treeDataProvider);
+			},
 			// proposed API
 			sampleFunction: proposedApiFunction(extension, () => {
 				return extHostMessageService.showMessage(Severity.Info, 'Hello Proposed Api!', {}, []);
 			}),
-			registerTreeDataProviderForView: proposedApiFunction(extension, (viewId: string, treeDataProvider: vscode.TreeDataProvider<any>): vscode.Disposable => {
-				return extHostTreeViews.registerTreeDataProviderForView(viewId, treeDataProvider);
-			})
 		};
 
 		// namespace: workspace
 		const workspace: typeof vscode.workspace = {
 			get rootPath() {
+				telemetryService.publicLog('api-getter', {
+					name: 'workspace#rootPath',
+					extension: extension.id
+				});
 				return extHostWorkspace.getPath();
 			},
 			set rootPath(value) {
@@ -448,29 +452,16 @@ export function createApiFactory(
 			getConfiguration: (section?: string): vscode.WorkspaceConfiguration => {
 				return extHostConfiguration.getConfiguration(section);
 			},
-			registerTaskProvider: (provider: vscode.TaskProvider) => {
+			registerTaskProvider: proposedApiFunction(extension, (provider: vscode.TaskProvider) => {
 				return extHostTask.registerTaskProvider(extension, provider);
-			}
+			})
 		};
 
-		class SCM {
-
-			get activeSourceControl() {
-				return extHostSCM.activeProvider;
-			}
-
-			get onDidChangeActiveSourceControl() {
-				return extHostSCM.onDidChangeActiveProvider;
-			}
-
+		// namespace: scm
+		const scm: typeof vscode.scm = {
 			get inputBox() {
 				return extHostSCM.inputBox;
-			}
-
-			get onDidAcceptInputValue() {
-				return mapEvent(extHostSCM.inputBox.onDidAccept, () => extHostSCM.inputBox);
-			}
-
+			},
 			createSourceControl(id: string, label: string) {
 				telemetryService.publicLog('registerSCMProvider', {
 					extensionId: extension.id,
@@ -480,10 +471,7 @@ export function createApiFactory(
 
 				return extHostSCM.createSourceControl(id, label);
 			}
-		}
-
-		// namespace: scm
-		const scm: typeof vscode.scm = new SCM();
+		};
 
 		return {
 			version: pkg.version,
@@ -535,9 +523,10 @@ export function createApiFactory(
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
 			ProgressLocation: extHostTypes.ProgressLocation,
 			TreeItemCollapsibleState: extHostTypes.TreeItemCollapsibleState,
+			TreeItem: extHostTypes.TreeItem,
 			ThemeColor: extHostTypes.ThemeColor,
 			// functions
-			RevealKind: extHostTypes.RevealKind,
+			TaskRevealKind: extHostTypes.TaskRevealKind,
 			TaskGroup: extHostTypes.TaskGroup,
 			ShellTask: extHostTypes.ShellTask,
 			ProcessTask: extHostTypes.ProcessTask

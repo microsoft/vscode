@@ -2656,6 +2656,11 @@ declare module monaco.editor {
 		 */
 		enabled?: boolean;
 		/**
+		 * Control the rendering of the minimap slider.
+		 * Defaults to 'mouseover'.
+		 */
+		showSlider?: 'always' | 'mouseover';
+		/**
 		 * Render the actual text on a line (as opposed to color blocks).
 		 * Defaults to true.
 		 */
@@ -2881,7 +2886,12 @@ declare module monaco.editor {
 		 * The modifier to be used to add multiple cursors with the mouse.
 		 * Defaults to 'alt'
 		 */
-		multicursorModifier?: 'cmd' | 'ctrl' | 'alt';
+		multiCursorModifier?: 'ctrlCmd' | 'alt';
+		/**
+		 * Configure the editor's accessibility support.
+		 * Defaults to 'auto'. It is best to leave this to 'auto'.
+		 */
+		accessibilitySupport?: 'auto' | 'off' | 'on';
 		/**
 		 * Enable quick suggestions (shadow suggestions)
 		 * Defaults to true.
@@ -3172,6 +3182,7 @@ declare module monaco.editor {
 
 	export interface InternalEditorMinimapOptions {
 		readonly enabled: boolean;
+		readonly showSlider: 'always' | 'mouseover';
 		readonly renderCharacters: boolean;
 		readonly maxColumn: number;
 	}
@@ -3263,7 +3274,7 @@ declare module monaco.editor {
 		readonly editorClassName: string;
 		readonly lineHeight: number;
 		readonly readOnly: boolean;
-		readonly multicursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
+		readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 		readonly wordSeparators: string;
 		readonly autoClosingBrackets: boolean;
 		readonly useTabStops: boolean;
@@ -3395,7 +3406,7 @@ declare module monaco.editor {
 		readonly lineHeight: boolean;
 		readonly readOnly: boolean;
 		readonly accessibilitySupport: boolean;
-		readonly multicursorModifier: boolean;
+		readonly multiCursorModifier: boolean;
 		readonly wordSeparators: boolean;
 		readonly autoClosingBrackets: boolean;
 		readonly useTabStops: boolean;

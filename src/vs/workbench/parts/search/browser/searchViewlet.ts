@@ -38,7 +38,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService } from 'vs/platform/message/common/message';
+import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -368,10 +368,11 @@ export class SearchViewlet extends Viewlet {
 		let replaceValue = this.searchWidget.getReplaceValue() || '';
 		let afterReplaceAllMessage = this.buildAfterReplaceAllMessage(occurrences, fileCount, replaceValue);
 
-		let confirmation = {
+		let confirmation: IConfirmation = {
 			title: nls.localize('replaceAll.confirmation.title', "Replace All"),
 			message: this.buildReplaceAllConfirmationMessage(occurrences, fileCount, replaceValue),
-			primaryButton: nls.localize('replaceAll.confirm.button', "Replace")
+			primaryButton: nls.localize('replaceAll.confirm.button', "Replace"),
+			type: 'question'
 		};
 
 		if (this.messageService.confirm(confirmation)) {

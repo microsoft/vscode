@@ -804,7 +804,8 @@ export class FileDragAndDrop implements IDragAndDrop {
 								const confirm: IConfirmation = {
 									message: nls.localize('confirmOverwriteMessage', "'{0}' already exists in the destination folder. Do you want to replace it?", source.name),
 									detail: nls.localize('irreversible', "This action is irreversible!"),
-									primaryButton: nls.localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace")
+									primaryButton: nls.localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
+									type: 'warning'
 								};
 
 								// Move with overwrite if the user confirms

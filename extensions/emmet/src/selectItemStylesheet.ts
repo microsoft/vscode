@@ -7,9 +7,7 @@ import * as vscode from 'vscode';
 import { getNode, getDeepestNode, findNextWord, findPrevWord } from './util';
 import Node from '@emmetio/node';
 
-export function nextItemStylesheet(selection: vscode.Selection, editor: vscode.TextEditor, rootNode: Node): vscode.Selection {
-	let startOffset = editor.document.offsetAt(selection.anchor);
-	let endOffset = editor.document.offsetAt(selection.active);
+export function nextItemStylesheet(startOffset: number, endOffset: number, editor: vscode.TextEditor, rootNode: Node): vscode.Selection {
 	let currentNode = getNode(rootNode, endOffset, true);
 
 	// Full property is selected, so select full property value next
@@ -47,9 +45,7 @@ export function nextItemStylesheet(selection: vscode.Selection, editor: vscode.T
 
 }
 
-export function prevItemStylesheet(selection: vscode.Selection, editor: vscode.TextEditor, rootNode: Node): vscode.Selection {
-	let startOffset = editor.document.offsetAt(selection.anchor);
-	let endOffset = editor.document.offsetAt(selection.active);
+export function prevItemStylesheet(startOffset: number, endOffset: number, editor: vscode.TextEditor, rootNode: Node): vscode.Selection {
 	let currentNode = getNode(rootNode, startOffset);
 	if (!currentNode) {
 		currentNode = rootNode;

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
 import * as Types from 'vs/base/common/types';
 
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -140,9 +139,15 @@ export interface CommandConfiguration {
 	taskSelector?: string;
 
 	/**
+	 * Whether to suppress the task name when merging global args
+	 *
+	 */
+	suppressTaskName?: boolean;
+
+	/**
 	 * Describes how the terminal is supposed to behave.
 	 */
-	terminal: TerminalBehavior;
+	terminalBehavior: TerminalBehavior;
 }
 
 export namespace TaskGroup {
@@ -184,6 +189,11 @@ export interface Task {
 	_id: string;
 
 	/**
+	 * The cached label.
+	 */
+	_label: string;
+
+	/**
 	 * Indicated the source of the task (e.g tasks.json or extension)
 	 */
 	_source: TaskSource;
@@ -199,6 +209,11 @@ export interface Task {
 	identifier: string;
 
 	/**
+	 * The id of the customized task
+	 */
+	customize?: string;
+
+	/**
 	 * the task's group;
 	 */
 	group?: string;
@@ -207,17 +222,6 @@ export interface Task {
 	 * The command configuration
 	 */
 	command: CommandConfiguration;
-
-	/**
-	 * Suppresses the task name when calling the task using the task runner.
-	 */
-	suppressTaskName?: boolean;
-
-	/**
-	 * Additional arguments passed to the command when this target is
-	 * invoked.
-	 */
-	args?: string[];
 
 	/**
 	 * Whether the task is a background task or not.
@@ -241,20 +245,16 @@ export interface Task {
 }
 
 export enum ExecutionEngine {
-	Unknown = 0,
-	Terminal = 1,
-	Process = 2
+	Process = 1,
+	Terminal = 2
+}
+
+export enum JsonSchemaVersion {
+	V0_1_0 = 1,
+	V2_0_0 = 2
 }
 
 export interface TaskSet {
 	tasks: Task[];
 	extension?: IExtensionDescription;
-}
-
-export function computeLabel(task: Task): string {
-	if (task._source.kind === TaskSourceKind.Extension) {
-		return nls.localize('taskEntry.label', '{0}: {1}', task._source.label, task.name);
-	} else {
-		return task.name;
-	}
 }

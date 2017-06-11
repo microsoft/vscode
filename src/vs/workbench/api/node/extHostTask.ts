@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as UUID from 'vs/base/common/uuid';
 import { asWinJsPromise } from 'vs/base/common/async';
@@ -191,15 +192,15 @@ namespace ProblemMatcher {
 }
 */
 
-namespace RevealKind {
-	export function from(value: vscode.RevealKind): TaskSystem.RevealKind {
+namespace TaskRevealKind {
+	export function from(value: vscode.TaskRevealKind): TaskSystem.RevealKind {
 		if (value === void 0 || value === null) {
 			return TaskSystem.RevealKind.Always;
 		}
 		switch (value) {
-			case types.RevealKind.Silent:
+			case types.TaskRevealKind.Silent:
 				return TaskSystem.RevealKind.Silent;
-			case types.RevealKind.Never:
+			case types.TaskRevealKind.Never:
 				return TaskSystem.RevealKind.Never;
 		}
 		return TaskSystem.RevealKind.Always;
@@ -207,11 +208,11 @@ namespace RevealKind {
 }
 
 namespace TerminalBehaviour {
-	export function from(value: vscode.TerminalBehaviour): TaskSystem.TerminalBehavior {
+	export function from(value: vscode.TaskTerminalBehavior): TaskSystem.TerminalBehavior {
 		if (value === void 0 || value === null) {
 			return { reveal: TaskSystem.RevealKind.Always, echo: false };
 		}
-		return { reveal: RevealKind.from(value.reveal), echo: !!value.echo };
+		return { reveal: TaskRevealKind.from(value.reveal), echo: !!value.echo };
 	}
 }
 
@@ -230,10 +231,10 @@ namespace Strings {
 }
 
 namespace CommandOptions {
-	function isShellOptions(value: any): value is vscode.ShellOptions {
+	function isShellOptions(value: any): value is vscode.ShellTaskOptions {
 		return value && typeof value.executable === 'string';
 	}
-	export function from(value: vscode.ShellOptions | vscode.ProcessOptions): TaskSystem.CommandOptions {
+	export function from(value: vscode.ShellTaskOptions | vscode.ProcessTaskOptions): TaskSystem.CommandOptions {
 		if (value === void 0 || value === null) {
 			return undefined;
 		}
@@ -294,7 +295,7 @@ namespace Tasks {
 	}
 
 	function fromSingle(task: vscode.Task, extension: IExtensionDescription, uuidMap: UUIDMap): TaskSystem.Task {
-		if (typeof task.name !== 'string' || typeof task.identifier !== 'string') {
+		if (typeof task.name !== 'string') {
 			return undefined;
 		}
 		let command: TaskSystem.CommandConfiguration;
@@ -308,19 +309,21 @@ namespace Tasks {
 		if (command === void 0) {
 			return undefined;
 		}
+		let source = {
+			kind: TaskSystem.TaskSourceKind.Extension,
+			label: typeof task.source === 'string' ? task.source : extension.name,
+			detail: extension.id
+		};
+		let label = nls.localize('task.label', '{0}: {1}', source.label, task.name);
 		let result: TaskSystem.Task = {
 			_id: uuidMap.getUUID(task.identifier),
-			_source: {
-				kind: TaskSystem.TaskSourceKind.Extension,
-				label: typeof task.source === 'string' ? task.source : extension.name,
-				detail: extension.id
-			},
+			_source: source,
+			_label: label,
 			name: task.name,
 			identifier: task.identifier ? task.identifier : `${extension.id}.${task.name}`,
 			group: types.TaskGroup.is(task.group) ? task.group : undefined,
 			command: command,
 			isBackground: !!task.isBackground,
-			suppressTaskName: true,
 			problemMatchers: task.problemMatchers.slice()
 		};
 		return result;
@@ -334,7 +337,8 @@ namespace Tasks {
 			name: value.process,
 			args: Strings.from(value.args),
 			type: TaskSystem.CommandType.Process,
-			terminal: TerminalBehaviour.from(value.terminal)
+			suppressTaskName: true,
+			terminalBehavior: TerminalBehaviour.from(value.terminalBehavior)
 		};
 		if (value.options) {
 			result.options = CommandOptions.from(value.options);
@@ -349,7 +353,7 @@ namespace Tasks {
 		let result: TaskSystem.CommandConfiguration = {
 			name: value.commandLine,
 			type: TaskSystem.CommandType.Shell,
-			terminal: TerminalBehaviour.from(value.terminal)
+			terminalBehavior: TerminalBehaviour.from(value.terminalBehavior)
 		};
 		if (value.options) {
 			result.options = CommandOptions.from(value.options);

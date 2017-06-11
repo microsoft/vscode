@@ -134,7 +134,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult {
 		let terminalData = this.activeTasks[task._id];
 		if (terminalData && terminalData.promise) {
-			let reveal = task.command.terminal.reveal;
+			let reveal = task.command.terminalBehavior.reveal;
 			if (reveal === RevealKind.Always) {
 				terminalData.terminal.setVisible(true);
 			}
@@ -213,7 +213,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		}
 
 		if (task.command) {
-			return TPromise.join(promises).then((summaries): ITaskSummary => {
+			return TPromise.join(promises).then((summaries): TPromise<ITaskSummary> | ITaskSummary => {
 				for (let summary of summaries) {
 					if (summary.exitCode !== 0) {
 						return { exitCode: summary.exitCode };
@@ -289,7 +289,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 						this.emit(TaskSystemEvents.Inactive, event);
 					}
 					eventCounter = 0;
-					let reveal = task.command.terminal.reveal;
+					let reveal = task.command.terminalBehavior.reveal;
 					if (exitCode && exitCode === 1 && watchingProblemMatcher.numberOfMatches === 0 && reveal !== RevealKind.Never) {
 						this.terminalService.setActiveInstance(terminal);
 						this.terminalService.showPanel(false);
@@ -332,7 +332,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			});
 		}
 		this.terminalService.setActiveInstance(terminal);
-		if (task.command.terminal.reveal === RevealKind.Always) {
+		if (task.command.terminalBehavior.reveal === RevealKind.Always) {
 			this.terminalService.showPanel(false);
 		}
 		this.activeTasks[task._id] = { terminal, task, promise };
@@ -369,7 +369,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		let { command, args } = this.resolveCommandAndArgs(task);
 		let terminalName = nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', task.name);
 		let waitOnExit: boolean | string = false;
-		if (task.command.terminal.reveal !== RevealKind.Never || !task.isBackground) {
+		if (task.command.terminalBehavior.reveal !== RevealKind.Never || !task.isBackground) {
 			waitOnExit = nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.');
 		};
 		let shellLaunchConfig: IShellLaunchConfig = undefined;
@@ -422,8 +422,8 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			});
 			shellArgs.push(commandLine);
 			shellLaunchConfig.args = Platform.isWindows ? shellArgs.join(' ') : shellArgs;
-			if (task.command.terminal.echo) {
-				shellLaunchConfig.initialText = `> ${commandLine}`;
+			if (task.command.terminalBehavior.echo) {
+				shellLaunchConfig.initialText = `\x1b[4mExecuting task: ${commandLine}\x1b[0m\n`;
 			}
 		} else {
 			let cwd = options && options.cwd ? options.cwd : process.cwd();
@@ -436,7 +436,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				args,
 				waitOnExit
 			};
-			if (task.command.terminal.echo) {
+			if (task.command.terminalBehavior.echo) {
 				let getArgsToEcho = (args: string | string[]): string => {
 					if (!args || args.length === 0) {
 						return '';
@@ -446,7 +446,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					}
 					return args.join(' ');
 				};
-				shellLaunchConfig.initialText = `> ${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}`;
+				shellLaunchConfig.initialText = `Executing task: ${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}\n`;
 			}
 		}
 		if (options.cwd) {
@@ -503,18 +503,6 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	private resolveCommandAndArgs(task: Task): { command: string, args: string[] } {
 		// First we need to use the command args:
 		let args: string[] = task.command.args ? task.command.args.slice() : [];
-		// We need to first pass the task name
-		if (!task.suppressTaskName) {
-			if (task.command.taskSelector) {
-				args.push(task.command.taskSelector + task.name);
-			} else {
-				args.push(task.name);
-			}
-		}
-		// And then additional arguments
-		if (task.args) {
-			args = args.concat(task.args);
-		}
 		args = this.resolveVariables(args);
 		let command: string = this.resolveVariable(task.command.name);
 		return { command, args };
@@ -571,7 +559,11 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		values.forEach((value) => {
 			let matcher: ProblemMatcher;
 			if (Types.isString(value)) {
-				matcher = ProblemMatcherRegistry.get(value);
+				if (value[0] === '$') {
+					matcher = ProblemMatcherRegistry.get(value.substring(1));
+				} else {
+					matcher = ProblemMatcherRegistry.get(value);
+				}
 			} else {
 				matcher = value;
 			}

@@ -22,10 +22,8 @@
 	"welcomePage.installingKeymap": "正在安装 {0} 键盘快捷方式...",
 	"welcomePage.keymapNotFound": "找不到 ID 为 {1} 的 {0} 键盘快捷方式。",
 	"welcome.title": "欢迎使用",
-	"welcomePage.extensionListSeparator": "，",
+	"welcomePage.extensionListSeparator": "、",
 	"welcomePage.installedExtension": "{0}（已安装）",
 	"ok": "确定",
-	"cancel": "取消",
-	"welcomePage.quickLinkBackground": "欢迎页快速链接的背景颜色。",
-	"welcomePage.quickLinkHoverBackground": "欢迎页快速链接被悬停时的背景颜色。"
+	"cancel": "取消"
 }

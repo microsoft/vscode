@@ -111,7 +111,10 @@ export class MessageList {
 			this.warningBackground = theme.getColor(inputValidationWarningBorder);
 			this.errorBackground = theme.getColor(inputValidationErrorBorder);
 
-			collector.addRule(`.global-message-list li.message-list-entry .actions-container .message-action .action-button:hover { background-color: ${theme.getColor(buttonHoverBackground)} !important; }`);
+			const buttonHoverBackgroundColor = theme.getColor(buttonHoverBackground);
+			if (buttonHoverBackgroundColor) {
+				collector.addRule(`.global-message-list li.message-list-entry .actions-container .message-action .action-button:hover { background-color: ${buttonHoverBackgroundColor} !important; }`);
+			}
 
 			this.updateStyles();
 		}));

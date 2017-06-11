@@ -81,7 +81,7 @@ export class FindWidgetViewZone implements IViewZone {
 }
 
 export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSashLayoutProvider {
-	private static ID = 'editor.contrib.findWidget';;
+	private static ID = 'editor.contrib.findWidget';
 	private _codeEditor: ICodeEditor;
 	private _state: FindReplaceState;
 	private _controller: IFindController;
@@ -236,10 +236,17 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			});
 		}));
 
+
 		this._register(this._codeEditor.onDidScrollChange((e) => {
 			if (e.scrollTopChanged) {
 				this._layoutViewZone();
+				return;
 			}
+
+			// for other scroll changes, layout the viewzone in next tick to avoid ruining current rendering.
+			setTimeout(() => {
+				this._layoutViewZone();
+			}, 0);
 		}));
 	}
 
@@ -402,6 +409,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 			setTimeout(() => {
 				dom.addClass(this._domNode, 'visible');
+				this._domNode.setAttribute('aria-hidden', 'false');
 				if (!animate) {
 					dom.addClass(this._domNode, 'noanimation');
 					setTimeout(() => {
@@ -410,7 +418,31 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				}
 			}, 0);
 			this._codeEditor.layoutOverlayWidget(this);
-			this._showViewZone();
+
+			let adjustEditorScrollTop = true;
+			if (this._codeEditor.getConfiguration().contribInfo.find.seedSearchStringFromSelection && selection) {
+				let editorCoords = dom.getDomNodePagePosition(this._codeEditor.getDomNode());
+				let startCoords = this._codeEditor.getScrolledVisiblePosition(selection.getStartPosition());
+				let startLeft = editorCoords.left + startCoords.left;
+				let startTop = startCoords.top;
+
+				if (startTop < this._viewZone.heightInPx) {
+					if (selection.endLineNumber > selection.startLineNumber) {
+						adjustEditorScrollTop = false;
+					}
+
+					let leftOfFindWidget = dom.getTopLeftOffset(this._domNode).left;
+					if (startLeft > leftOfFindWidget) {
+						adjustEditorScrollTop = false;
+					}
+					let endCoords = this._codeEditor.getScrolledVisiblePosition(selection.getEndPosition());
+					let endLeft = editorCoords.left + endCoords.left;
+					if (endLeft > leftOfFindWidget) {
+						adjustEditorScrollTop = false;
+					}
+				}
+			}
+			this._showViewZone(adjustEditorScrollTop);
 		}
 	}
 
@@ -421,6 +453,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			this._updateButtons();
 
 			dom.removeClass(this._domNode, 'visible');
+			this._domNode.setAttribute('aria-hidden', 'true');
 			if (focusTheEditor) {
 				this._codeEditor.focus();
 			}
@@ -452,11 +485,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			}
 
 			this._viewZoneId = accessor.addZone(this._viewZone);
+			// scroll top adjust to make sure the editor doesn't scroll when adding viewzone at the beginning.
 			this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() + this._viewZone.heightInPx);
 		});
 	}
 
-	private _showViewZone() {
+	private _showViewZone(adjustScroll: boolean = true) {
 		if (!this._isVisible) {
 			return;
 		}
@@ -477,7 +511,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				this._viewZone.heightInPx = FIND_INPUT_AREA_HEIGHT;
 			}
 			this._viewZoneId = accessor.addZone(this._viewZone);
-			this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() + scrollAdjustment);
+
+			if (adjustScroll) {
+				this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() + scrollAdjustment);
+			}
 		});
 	}
 
@@ -812,7 +849,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		// Widget
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'editor-widget find-widget';
-		this._domNode.setAttribute('aria-hidden', 'false');
+		this._domNode.setAttribute('aria-hidden', 'true');
 
 		this._domNode.appendChild(this._toggleReplaceBtn.domNode);
 		this._domNode.appendChild(findPart);
@@ -1034,7 +1071,7 @@ registerThemingParticipant((theme, collector) => {
 
 	let border = theme.getColor('panel.border');
 	if (border) {
-		collector.addRule(`.monaco-editor .find-widget .monaco-sash { background-color: ${border}; width: 2px !important; margin-left: -4px;}`);
+		collector.addRule(`.monaco-editor .find-widget .monaco-sash { background-color: ${border}; width: 3px !important; margin-left: -4px;}`);
 	}
 });
 

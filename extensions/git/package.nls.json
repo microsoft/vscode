@@ -27,7 +27,7 @@
 	"command.push": "Push",
 	"command.pushTo": "Push to...",
 	"command.sync": "Sync",
-	"command.publish": "Publish",
+	"command.publish": "Publish Branch",
 	"command.showOutput": "Show Git Output",
 	"config.enabled": "Whether git is enabled",
 	"config.path": "Path to the git executable",
