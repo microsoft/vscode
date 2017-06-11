@@ -871,9 +871,14 @@ export class Workbench implements IPartService {
 			this.storageService.store(Workbench.sidebarRestoreSettingKey, 'true', StorageScope.WORKSPACE);
 		}
 
-		const zenConfig = this.configurationService.getConfiguration<IZenModeSettings>('zenMode');
 		// Preserve zen mode only on reload. Real quit gets out of zen mode so novice users do not get stuck in zen mode.
-		this.storageService.store(Workbench.zenModeActiveSettingKey, (zenConfig.restore || reason === ShutdownReason.RELOAD) && this.zenMode.active, StorageScope.WORKSPACE);
+		const zenConfig = this.configurationService.getConfiguration<IZenModeSettings>('zenMode');
+		const zenModeActive = (zenConfig.restore || reason === ShutdownReason.RELOAD) && this.zenMode.active;
+		if (zenModeActive) {
+			this.storageService.store(Workbench.zenModeActiveSettingKey, zenModeActive, StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(Workbench.zenModeActiveSettingKey, StorageScope.WORKSPACE);
+		}
 
 		// Pass shutdown on to each participant
 		this.toShutdown.forEach(s => s.shutdown());

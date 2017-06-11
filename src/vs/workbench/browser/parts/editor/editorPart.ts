@@ -1250,7 +1250,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Persist UI State
 		const editorState: IEditorPartUIState = { ratio: this.editorGroupsControl.getRatio(), groupOrientation: this.editorGroupsControl.getGroupOrientation() };
-		this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY] = editorState;
+		if (editorState.ratio.length || editorState.groupOrientation !== 'vertical') {
+			this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY] = editorState;
+		} else {
+			delete this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
+		}
 
 		// Unload all Instantiated Editors
 		for (let i = 0; i < this.instantiatedEditors.length; i++) {
