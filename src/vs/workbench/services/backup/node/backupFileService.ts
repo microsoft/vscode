@@ -109,7 +109,7 @@ export class BackupFileService implements IBackupFileService {
 		this.ready = this.init();
 	}
 
-	private get backupEnabled(): boolean {
+	public get backupEnabled(): boolean {
 		return !!this.backupWorkspacePath; // Hot exit requires a backup path
 	}
 

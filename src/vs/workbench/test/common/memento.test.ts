@@ -18,7 +18,7 @@ suite('Workbench Memento', () => {
 
 	setup(() => {
 		context = new WorkspaceContextService(TestWorkspace);
-		storage = new StorageService(new InMemoryLocalStorage(), null, context);
+		storage = new StorageService(new InMemoryLocalStorage(), null, context.getWorkspace());
 	});
 
 	test('Loading and Saving Memento with Scopes', () => {

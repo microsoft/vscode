@@ -8,7 +8,6 @@ import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import URI from "vs/base/common/uri";
 
 // Browser localStorage interface
@@ -19,6 +18,12 @@ export interface IStorage {
 	setItem(key: string, value: any): void;
 	getItem(key: string): string;
 	removeItem(key: string): void;
+}
+
+export interface IWorkspaceStorageIdentifier {
+	resource: URI;
+	uid?: number;
+	name?: string;
 }
 
 export class StorageService implements IStorageService {
@@ -39,18 +44,18 @@ export class StorageService implements IStorageService {
 	constructor(
 		globalStorage: IStorage,
 		workspaceStorage: IStorage,
-		@IWorkspaceContextService contextService: IWorkspaceContextService
+		workspaceIdentifier?: IWorkspaceStorageIdentifier
 	) {
 		this.globalStorage = globalStorage;
 		this.workspaceStorage = workspaceStorage || globalStorage;
 
 		// Calculate workspace storage key
-		const workspace = contextService.getWorkspace();
-		this.workspaceKey = this.getWorkspaceKey(workspace ? workspace.resource : void 0);
+		this.workspaceKey = this.getWorkspaceKey(workspaceIdentifier ? workspaceIdentifier.resource : void 0);
 
 		// Make sure to delete all workspace storage if the workspace has been recreated meanwhile
-		if (workspace && types.isNumber(workspace.uid)) {
-			this.cleanupWorkspaceScope(workspace.uid, workspace.name);
+		// which is only possible if a UID property is provided that we can check on
+		if (workspaceIdentifier && types.isNumber(workspaceIdentifier.uid)) {
+			this.cleanupWorkspaceScope(workspaceIdentifier.uid, workspaceIdentifier.name);
 		}
 	}
 
@@ -59,15 +64,16 @@ export class StorageService implements IStorageService {
 			return StorageService.NO_WORKSPACE_IDENTIFIER;
 		}
 
-		const workspaceIdStr = workspaceId.toString();
+		let workspaceIdStr = workspaceId.toString();
 
-		const root = 'file:///';
-		const index = workspaceIdStr.indexOf(root);
-		if (index === 0) {
-			return `${strings.rtrim(workspaceIdStr.substr(root.length), '/')}/`;
+		// Special case file:// URIs: strip protocol from key to produce shorter key
+		const fileProtocol = 'file:///';
+		if (workspaceIdStr.indexOf(fileProtocol) === 0) {
+			workspaceIdStr = workspaceIdStr.substr(fileProtocol.length);
 		}
 
-		return workspaceIdStr;
+		// Always end with "/"
+		return `${strings.rtrim(workspaceIdStr, '/')}/`;
 	}
 
 	private cleanupWorkspaceScope(workspaceId: number, workspaceName: string): void {

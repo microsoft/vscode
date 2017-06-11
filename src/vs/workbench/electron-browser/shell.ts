@@ -89,6 +89,8 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
 import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { remote, ipcRenderer as ipc } from 'electron';
+import URI from "vs/base/common/uri";
+import { basename } from "path";
 import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
 import { MainProcessTextMateSyntax } from 'vs/editor/electron-browser/textMate/TMSyntax';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
@@ -272,8 +274,19 @@ export class WorkbenchShell {
 			.done(client => client.registerChannel('choice', instantiationService.createInstance(ChoiceChannel)));
 
 		// Storage Sevice
-		const disableWorkspaceStorage = this.environmentService.extensionTestsPath || (!this.contextService.hasWorkspace() && !this.environmentService.isExtensionDevelopment); // without workspace or in any extension test, we use inMemory storage unless we develop an extension where we want to preserve state
-		this.storageService = instantiationService.createInstance(StorageService, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
+		let workspaceIdentifier = this.contextService.getWorkspace();
+		if (!workspaceIdentifier && !!this.configuration.backupPath) {
+			// if we do not have a workspace open, we need to find another identifier for the window to store
+			// workspace UI state. if we have a backup path in the configuration we can use that because this
+			// will be a unique identifier per window that is stable between restarts as long as there are
+			// dirty files in the workspace.
+			// We use basename() to produce a short identifier, we do not need the full path. We use a custom
+			// scheme so that we can later distinguish these identifiers from the workspace one.
+			workspaceIdentifier = { resource: URI.from({ path: basename(this.configuration.backupPath), scheme: 'empty' }) };
+		}
+		const disableStorage = !!this.environmentService.extensionTestsPath; // never keep any state when running extension tests!
+		const storage = disableStorage ? inMemoryLocalStorageInstance : window.localStorage;
+		this.storageService = new StorageService(storage, storage, workspaceIdentifier);
 		serviceCollection.set(IStorageService, this.storageService);
 
 		// Warm up font cache information before building up too many dom elements

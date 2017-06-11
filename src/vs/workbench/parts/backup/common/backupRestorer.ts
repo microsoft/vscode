@@ -8,7 +8,6 @@
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IUntitledEditorService, UNTITLED_SCHEMA } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import errors = require('vs/base/common/errors');
@@ -25,7 +24,6 @@ export class BackupRestorer implements IWorkbenchContribution {
 
 	constructor(
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IPartService private partService: IPartService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IBackupFileService private backupFileService: IBackupFileService,
@@ -36,7 +34,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 	}
 
 	private restoreBackups(): void {
-		if (!this.environmentService.isExtensionDevelopment) {
+		if (this.backupFileService.backupEnabled) {
 			this.partService.joinCreation().then(() => {
 				this.doRestoreBackups().done(null, errors.onUnexpectedError);
 			});
@@ -55,7 +53,8 @@ export class BackupRestorer implements IWorkbenchContribution {
 				if (unresolved.length > 0) {
 					return this.doOpenEditors(unresolved).then(() => this.doResolveOpenedBackups(unresolved));
 				}
-				return undefined;
+
+				return void 0;
 			});
 		});
 	}
@@ -101,7 +100,6 @@ export class BackupRestorer implements IWorkbenchContribution {
 
 		return { resource, options };
 	}
-
 
 	public getId(): string {
 		return 'vs.backup.backupRestorer';

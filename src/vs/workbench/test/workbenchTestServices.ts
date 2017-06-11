@@ -342,7 +342,7 @@ export class TestStorageService extends EventEmitter implements IStorageService 
 		super();
 
 		let context = new TestContextService();
-		this.storage = new StorageService(new InMemoryLocalStorage(), null, context);
+		this.storage = new StorageService(new InMemoryLocalStorage(), null, context.getWorkspace());
 	}
 
 	store(key: string, value: any, scope: StorageScope = StorageScope.GLOBAL): void {
@@ -716,6 +716,8 @@ export class TestFileService implements IFileService {
 
 export class TestBackupFileService implements IBackupFileService {
 	public _serviceBrand: any;
+
+	public backupEnabled: boolean;
 
 	public hasBackups(): TPromise<boolean> {
 		return TPromise.as(false);
