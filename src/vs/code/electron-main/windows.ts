@@ -236,7 +236,7 @@ export class WindowsManager implements IWindowsMainService {
 		// Find paths to open from config
 		const pathsToOpen = this.getPathsToOpen(openConfig);
 		if (!pathsToOpen.length) {
-			return null; // return if there is nothing to open
+			return []; // return if there is nothing to open
 		}
 
 		let foldersToOpen = arrays.distinct(pathsToOpen.filter(iPath => iPath.workspacePath && !iPath.filePath).map(iPath => iPath.workspacePath), folder => isLinux ? folder : folder.toLowerCase()); // prevent duplicates
@@ -882,9 +882,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// No window - open new empty one
-		const res = this.open({ context, cli, forceEmpty: true });
-
-		return res && res[0];
+		return this.open({ context, cli, forceEmpty: true })[0];
 	}
 
 	public getLastActiveWindow(): CodeWindow {
