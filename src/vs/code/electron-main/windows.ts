@@ -236,19 +236,16 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	public open(openConfig: IOpenConfiguration): CodeWindow[] {
-
-		// Find paths to open from config
-		const pathsToOpen = this.getPathsToOpen(openConfig);
-		if (!pathsToOpen.length) {
-			return []; // return if there is nothing to open
-		}
-
-		const foldersToOpen = arrays.distinct(pathsToOpen.filter(iPath => iPath.workspacePath && !iPath.filePath).map(iPath => iPath.workspacePath), folder => isLinux ? folder : folder.toLowerCase()); // prevent duplicates
-		const emptyToOpen = pathsToOpen.filter(iPath => !iPath.workspacePath && !iPath.filePath);
-
 		const hotExitRestore = (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath);
-		const foldersToRestore = hotExitRestore ? this.backupService.getWorkspaceBackupPaths() : [];
-		const emptyToRestore = hotExitRestore ? this.backupService.getEmptyWorkspaceBackupPaths() : [];
+		const emptyWindowRestore = openConfig.initialStartup;
+
+		const pathsToOpen = this.getPathsToOpen(openConfig);
+
+		//
+		// These are windows to open to show either folders or files (including diffing files or creating them)
+		//
+		const foldersToOpen = arrays.distinct(pathsToOpen.filter(iPath => iPath.workspacePath && !iPath.filePath).map(iPath => iPath.workspacePath), folder => isLinux ? folder : folder.toLowerCase()); // prevent duplicates
+		const emptyToOpen = pathsToOpen.filter(iPath => !iPath.workspacePath && !iPath.filePath).length;
 
 		let filesToOpen = pathsToOpen.filter(iPath => !!iPath.filePath && !iPath.createFilePath);
 		let filesToCreate = pathsToOpen.filter(iPath => !!iPath.filePath && iPath.createFilePath);
@@ -260,6 +257,70 @@ export class WindowsManager implements IWindowsMainService {
 		} else {
 			filesToDiff = [];
 		}
+
+		//
+		// These are windows to restore, either because of hot-exit or because of user settings
+		//
+		const foldersToRestore = hotExitRestore ? this.backupService.getWorkspaceBackupPaths() : [];
+		const emptyToRestore = hotExitRestore ? this.backupService.getEmptyWorkspaceBackupPaths() : [];
+		const restoreEmptyWindows = this.getRestoreWindowsSetting();
+		if (emptyWindowRestore && (restoreEmptyWindows === 'all' || restoreEmptyWindows === 'one')) {
+
+			// All empty windows from previous session
+			if (restoreEmptyWindows === 'all') {
+				const emptyWorkspaceBackupPaths = this.windowsState.openedWindows.filter(w => !w.workspacePath && w.backupPath).map(w => path.basename(w.backupPath));
+				emptyWorkspaceBackupPaths.forEach(emptyWorkspaceBackupPath => {
+					if (emptyToRestore.indexOf(emptyWorkspaceBackupPath) === -1) {
+						emptyToRestore.push(emptyWorkspaceBackupPath);
+					}
+				});
+			}
+
+			// Last active window if it was empty
+			else if (this.windowsState.lastActiveWindow && !this.windowsState.lastActiveWindow.workspacePath && this.windowsState.lastActiveWindow.backupPath) {
+				const emptyWorkspaceBackupPath = path.basename(this.windowsState.lastActiveWindow.backupPath);
+				if (emptyToRestore.indexOf(emptyWorkspaceBackupPath) === -1) {
+					emptyToRestore.push(emptyWorkspaceBackupPath);
+				}
+			}
+		}
+
+		const usedWindows = this.doOpen(openConfig, foldersToOpen, foldersToRestore, emptyToRestore, emptyToOpen, filesToOpen, filesToCreate, filesToDiff);
+
+		// Remember in recent document list (unless this opens for extension development)
+		// Also do not add paths when files are opened for diffing, only if opened individually
+		if (!usedWindows.some(w => w.isExtensionDevelopmentHost) && !openConfig.cli.diff) {
+			const recentPaths: { path: string; isFile?: boolean; }[] = [];
+
+			pathsToOpen.forEach(iPath => {
+				if (iPath.filePath || iPath.workspacePath) {
+					recentPaths.push({ path: iPath.filePath || iPath.workspacePath, isFile: !!iPath.filePath });
+				}
+			});
+
+			if (recentPaths.length) {
+				this.historyService.addToRecentPathsList(recentPaths);
+			}
+		}
+
+		// Emit events
+		if (pathsToOpen.length) {
+			this._onPathsOpen.fire(pathsToOpen);
+		}
+
+		return usedWindows;
+	}
+
+	private doOpen(
+		openConfig: IOpenConfiguration,
+		foldersToOpen: string[],
+		foldersToRestore: string[],
+		emptyToRestore: string[],
+		emptyToOpen: number,
+		filesToOpen: IPathToOpen[],
+		filesToCreate: IPathToOpen[],
+		filesToDiff: IPathToOpen[]
+	) {
 
 		// Settings can decide if files/folders open in new window or not
 		let { openFolderInNewWindow, openFilesInNewWindow } = this.shouldOpenNewWindow(openConfig);
@@ -390,8 +451,8 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Only open empty if no empty workspaces were restored
-		else if (emptyToOpen.length > 0) {
-			emptyToOpen.forEach(() => {
+		else if (emptyToOpen > 0) {
+			for (let i = 0; i < emptyToOpen; i++) {
 				const browserWindow = this.openInBrowserWindow({
 					userEnv: openConfig.userEnv,
 					cli: openConfig.cli,
@@ -402,27 +463,8 @@ export class WindowsManager implements IWindowsMainService {
 				usedWindows.push(browserWindow);
 
 				openFolderInNewWindow = true; // any other folders to open must open in new window then
-			});
-		}
-
-		// Remember in recent document list (unless this opens for extension development)
-		// Also do not add paths when files are opened for diffing, only if opened individually
-		if (!usedWindows.some(w => w.isExtensionDevelopmentHost) && !openConfig.cli.diff) {
-			const recentPaths: { path: string; isFile?: boolean; }[] = [];
-
-			pathsToOpen.forEach(iPath => {
-				if (iPath.filePath || iPath.workspacePath) {
-					recentPaths.push({ path: iPath.filePath || iPath.workspacePath, isFile: !!iPath.filePath });
-				}
-			});
-
-			if (recentPaths.length) {
-				this.historyService.addToRecentPathsList(recentPaths);
 			}
 		}
-
-		// Emit events
-		this._onPathsOpen.fire(pathsToOpen);
 
 		return arrays.distinct(usedWindows);
 	}
