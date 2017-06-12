@@ -31,6 +31,7 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from "vs/platform/configuration/test/common/testConfigurationService";
 
 suite('ExtensionsActions Test', () => {
 
@@ -52,7 +53,7 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.stub(IURLService, { onOpenURL: new Emitter().event });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 
-		instantiationService.set(IWorkspaceContextService, new WorkspaceContextService(TestWorkspace));
+		instantiationService.set(IWorkspaceContextService, new WorkspaceContextService(new TestConfigurationService(), TestWorkspace));
 		instantiationService.stub(IConfigurationService, { onDidUpdateConfiguration: () => { }, getConfiguration: () => ({}) });
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);

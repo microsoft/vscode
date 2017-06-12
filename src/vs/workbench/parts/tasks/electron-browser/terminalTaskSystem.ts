@@ -332,7 +332,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			});
 		}
 		this.terminalService.setActiveInstance(terminal);
-		if (task.command.terminalBehavior.reveal === RevealKind.Always) {
+		if (task.command.terminalBehavior.reveal === RevealKind.Always || (task.command.terminalBehavior.reveal === RevealKind.Silent && task.problemMatchers.length === 0)) {
 			this.terminalService.showPanel(false);
 		}
 		this.activeTasks[task._id] = { terminal, task, promise };
@@ -423,7 +423,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			shellArgs.push(commandLine);
 			shellLaunchConfig.args = Platform.isWindows ? shellArgs.join(' ') : shellArgs;
 			if (task.command.terminalBehavior.echo) {
-				shellLaunchConfig.initialText = `\x1b[4mExecuting task: ${commandLine}\x1b[0m\n`;
+				shellLaunchConfig.initialText = `\x1b[1m>Executing task: ${commandLine}<\x1b[0m\n`;
 			}
 		} else {
 			let cwd = options && options.cwd ? options.cwd : process.cwd();
@@ -446,7 +446,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					}
 					return args.join(' ');
 				};
-				shellLaunchConfig.initialText = `Executing task: ${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}\n`;
+				shellLaunchConfig.initialText = `\x1b[1m>Executing task: ${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}<\x1b[0m\n`;
 			}
 		}
 		if (options.cwd) {

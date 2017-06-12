@@ -29,7 +29,7 @@ import { TerminateResponse, TerminateResponseCode } from 'vs/base/common/process
 import * as strings from 'vs/base/common/strings';
 import { ValidationStatus, ValidationState } from 'vs/base/common/parsers';
 import * as UUID from 'vs/base/common/uuid';
-import { LinkedMap, Touch } from 'vs/base/common/linkedMap';
+import { LinkedMap, Touch } from 'vs/base/common/map';
 
 import { Registry } from 'vs/platform/platform';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
