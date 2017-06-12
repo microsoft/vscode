@@ -761,13 +761,15 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xterm.resize(this._cols, this._rows);
 			this._xterm.element.style.width = terminalWidth + 'px';
 		}
-		if (this._process.connected) {
-			this._process.send({
-				event: 'resize',
-				cols: this._cols,
-				rows: this._rows
-			});
-		}
+		this._processReady.then(() => {
+			if (this._process) {
+				this._process.send({
+					event: 'resize',
+					cols: this._cols,
+					rows: this._rows
+				});
+			}
+		});
 	}
 
 	public enableApiOnData(): void {
