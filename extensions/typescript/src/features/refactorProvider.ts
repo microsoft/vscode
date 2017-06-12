@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands, workspace, WorkspaceEdit } from 'vscode';
+import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands, workspace, WorkspaceEdit, window, QuickPickItem } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
@@ -13,13 +13,18 @@ import { ITypescriptServiceClient } from '../typescriptService';
 
 export default class TypeScriptRefactorProvider implements CodeActionProvider {
 	private doRefactorCommandId: string;
+	private selectRefactorCommandId: string;
 
 	constructor(
 		private readonly client: ITypescriptServiceClient,
 		mode: string
 	) {
 		this.doRefactorCommandId = `_typescript.applyRefactoring.${mode}`;
-		commands.registerCommand(this.doRefactorCommandId, this.onCodeAction, this);
+		this.selectRefactorCommandId = `_typescript.selectRefactoring.${mode}`;
+
+		commands.registerCommand(this.doRefactorCommandId, this.doRefactoring, this);
+		commands.registerCommand(this.selectRefactorCommandId, this.selectRefactoring, this);
+
 	}
 
 	public async provideCodeActions(
@@ -51,12 +56,25 @@ export default class TypeScriptRefactorProvider implements CodeActionProvider {
 				return [];
 			}
 
-			return Array.prototype.concat.apply([], response.body.map(info =>
-				info.actions.map(action => ({
-					title: action.description,
-					command: this.doRefactorCommandId,
-					arguments: [file, info.name, action.name, range]
-				}))));
+			const actions: Command[] = [];
+			for (const info of response.body) {
+				if (info.inlineable === false) {
+					actions.push({
+						title: info.description,
+						command: this.selectRefactorCommandId,
+						arguments: [file, info, range]
+					});
+				} else {
+					for (const action of info.actions) {
+						actions.push({
+							title: action.description,
+							command: this.doRefactorCommandId,
+							arguments: [file, info.name, action.name, range]
+						});
+					}
+				}
+			}
+			return actions;
 		} catch (err) {
 			return [];
 		}
@@ -76,7 +94,19 @@ export default class TypeScriptRefactorProvider implements CodeActionProvider {
 		return workspaceEdit;
 	}
 
-	private async onCodeAction(file: string, refactor: string, action: string, range: Range): Promise<boolean> {
+	private async selectRefactoring(file: string, info: Proto.ApplicableRefactorInfo, range: Range): Promise<boolean> {
+		return window.showQuickPick(info.actions.map((action): QuickPickItem => ({
+			label: action.name,
+			description: action.description
+		}))).then(selected => {
+			if (!selected) {
+				return false;
+			}
+			return this.doRefactoring(file, info.name, selected.label, range);
+		});
+	}
+
+	private async doRefactoring(file: string, refactor: string, action: string, range: Range): Promise<boolean> {
 		const args: Proto.GetEditsForRefactorRequestArgs = {
 			file,
 			refactor,
