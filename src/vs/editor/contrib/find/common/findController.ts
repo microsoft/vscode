@@ -862,7 +862,7 @@ export class SelectHighlightsAction extends AbstractSelectHighlightsAction {
 	constructor() {
 		super({
 			id: 'editor.action.selectHighlights',
-			label: nls.localize('selectAllOccurencesOfFindMatch', "Select All Occurrences of Find Match"),
+			label: nls.localize('selectAllOccurrencesOfFindMatch', "Select All Occurrences of Find Match"),
 			alias: 'Select All Occurrences of Find Match',
 			precondition: null,
 			kbOpts: {
@@ -1005,10 +1005,10 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 			return null;
 		}
 
-		const hasFindOccurences = DocumentHighlightProviderRegistry.has(model);
+		const hasFindOccurrences = DocumentHighlightProviderRegistry.has(model);
 		if (r.currentMatch) {
 			// This is an empty selection
-			if (hasFindOccurences) {
+			if (hasFindOccurrences) {
 				// Do not interfere with semantic word highlighting in the no selection case
 				return null;
 			}
@@ -1070,7 +1070,7 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 		}
 
 		const model = this.editor.getModel();
-		const hasFindOccurences = DocumentHighlightProviderRegistry.has(model);
+		const hasFindOccurrences = DocumentHighlightProviderRegistry.has(model);
 
 		let allMatches = model.findMatches(this.state.searchText, true, false, this.state.matchCase, this.state.wordSeparators, false).map(m => m.range);
 		allMatches.sort(Range.compareRangesUsingStarts);
@@ -1108,7 +1108,7 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 			return {
 				range: r,
 				// Show in overviewRuler only if model has no semantic highlighting
-				options: (hasFindOccurences ? SelectionHighlighter._SELECTION_HIGHLIGHT : SelectionHighlighter._SELECTION_HIGHLIGHT_OVERVIEW)
+				options: (hasFindOccurrences ? SelectionHighlighter._SELECTION_HIGHLIGHT : SelectionHighlighter._SELECTION_HIGHLIGHT_OVERVIEW)
 			};
 		});
 

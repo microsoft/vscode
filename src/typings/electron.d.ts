@@ -584,7 +584,7 @@ declare namespace Electron {
 
 	/**
 	 * ok - Nothing went wrong.
-	 * error - One or more errors occured, enable runtime logging to figure out the likely cause.
+	 * error - One or more errors occurred, enable runtime logging to figure out the likely cause.
 	 * invalidSeparatorError - An attempt was made to add a separator to a custom category in the Jump List.
 	 *                         Separators are only allowed in the standard Tasks category.
 	 * fileTypeRegistrationError - An attempt was made to add a file link to the Jump List
