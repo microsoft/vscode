@@ -420,7 +420,7 @@ export class QuickOpenWidget implements IModelProvider {
 	}
 
 	public navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration): void {
-		if (this.isVisible) {
+		if (this.isVisible()) {
 
 			// Transition into quick navigate mode if not yet done
 			if (!this.quickNavigateConfiguration && quickNavigate) {
