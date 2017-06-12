@@ -12,7 +12,6 @@ import extfs = require('vs/base/node/extfs');
 import objects = require('vs/base/common/objects');
 import { RunOnceScheduler } from 'vs/base/common/async';
 import collections = require('vs/base/common/collections');
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { readFile } from 'vs/base/node/pfs';
@@ -24,7 +23,7 @@ import { ConfigurationService as BaseConfigurationService } from 'vs/platform/co
 import { IWorkspaceConfigurationValues, IWorkspaceConfigurationService, IWorkspaceConfigurationValue, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME, WORKSPACE_STANDALONE_CONFIGURATIONS, WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
 import { FileChangeType, FileChangesEvent, isEqual } from 'vs/platform/files/common/files';
 import Event, { Emitter } from 'vs/base/common/event';
-
+import { Workspace } from "vs/platform/workspace/common/workspace";
 
 interface IStat {
 	resource: uri;
@@ -62,8 +61,8 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	private reloadConfigurationScheduler: RunOnceScheduler;
 
 	constructor(
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		private environmentService: IEnvironmentService,
+		private workspace?: Workspace,
 		private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME
 	) {
 		super();
@@ -216,13 +215,13 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	private loadWorkspaceConfigFiles<T>(): TPromise<{ [relativeWorkspacePath: string]: IConfigModel<T> }> {
 
 		// Return early if we don't have a workspace
-		if (!this.contextService.hasWorkspace()) {
+		if (!this.workspace) {
 			return TPromise.as(Object.create(null));
 		}
 
 		// once: when invoked for the first time we fetch json files that contribute settings
 		if (!this.bulkFetchFromWorkspacePromise) {
-			this.bulkFetchFromWorkspacePromise = resolveStat(this.contextService.toResource(this.workspaceSettingsRootFolder)).then(stat => {
+			this.bulkFetchFromWorkspacePromise = resolveStat(this.workspace.toResource(this.workspaceSettingsRootFolder)).then(stat => {
 				if (!stat.isDirectory) {
 					return TPromise.as([]);
 				}
@@ -233,11 +232,11 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 						return false; // only JSON files
 					}
 
-					return this.isWorkspaceConfigurationFile(this.contextService.toWorkspaceRelativePath(stat.resource)); // only workspace config files
+					return this.isWorkspaceConfigurationFile(this.workspace.toWorkspaceRelativePath(stat.resource)); // only workspace config files
 				}).map(stat => stat.resource));
 			}, err => [] /* never fail this call */)
 				.then((contents: IContent[]) => {
-					contents.forEach(content => this.workspaceFilePathToConfiguration[this.contextService.toWorkspaceRelativePath(content.resource)] = TPromise.as(this.createConfigModel(content)));
+					contents.forEach(content => this.workspaceFilePathToConfiguration[this.workspace.toWorkspaceRelativePath(content.resource)] = TPromise.as(this.createConfigModel(content)));
 				}, errors.onUnexpectedError);
 		}
 
@@ -259,7 +258,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 				continue; // only JSON files or the actual settings folder
 			}
 
-			const workspacePath = this.contextService.toWorkspaceRelativePath(resource);
+			const workspacePath = this.workspace.toWorkspaceRelativePath(resource);
 			if (!workspacePath) {
 				continue; // event is not inside workspace
 			}
@@ -295,7 +294,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	}
 
 	private createConfigModel<T>(content: IContent): IConfigModel<T> {
-		const path = this.contextService.toWorkspaceRelativePath(content.resource);
+		const path = this.workspace.toWorkspaceRelativePath(content.resource);
 		if (path === WORKSPACE_CONFIG_DEFAULT_PATH) {
 			return new WorkspaceSettingsConfigModel<T>(content.value, content.resource.toString());
 		} else {

@@ -18,7 +18,7 @@ import paths = require('vs/base/common/paths');
 import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { IWorkspace, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { WorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { realpath, stat } from 'vs/base/node/pfs';
@@ -116,7 +116,7 @@ function toInputs(paths: IPath[], isUntitledFile?: boolean): IResourceInput[] {
 	});
 }
 
-function getWorkspace(workspacePath: string): TPromise<IWorkspace> {
+function getWorkspace(workspacePath: string): TPromise<Workspace> {
 	if (!workspacePath) {
 		return TPromise.as(null);
 	}
@@ -135,23 +135,23 @@ function getWorkspace(workspacePath: string): TPromise<IWorkspace> {
 		const folderName = path.basename(realWorkspacePath) || realWorkspacePath;
 
 		return stat(realWorkspacePath).then(folderStat => {
-			return <IWorkspace>{
-				'resource': workspaceResource,
-				'name': folderName,
-				'uid': platform.isLinux ? folderStat.ino : folderStat.birthtime.getTime() // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
-			};
+			return new Workspace(
+				workspaceResource,
+				platform.isLinux ? folderStat.ino : folderStat.birthtime.getTime(),
+				folderName // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
+			);
 		});
-	}, (error) => {
+	}, error => {
 		errors.onUnexpectedError(error);
 
 		return null; // treat invalid paths as empty workspace
 	});
 }
 
-function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace, options: IOptions): TPromise<void> {
+function openWorkbench(environment: IWindowConfiguration, workspace: Workspace, options: IOptions): TPromise<void> {
 	const environmentService = new EnvironmentService(environment, environment.execPath);
 	const contextService = new WorkspaceContextService(workspace);
-	const configurationService = new WorkspaceConfigurationService(contextService, environmentService);
+	const configurationService = new WorkspaceConfigurationService(environmentService, workspace);
 	const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, !contextService.hasWorkspace());
 
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
