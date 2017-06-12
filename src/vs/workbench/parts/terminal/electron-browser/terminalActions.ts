@@ -581,6 +581,5 @@ export class RenameTerminalAction extends Action {
 				terminalInstance.setTitle(name);
 			}
 		});
-
 	}
 }
