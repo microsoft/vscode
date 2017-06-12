@@ -137,7 +137,6 @@ export class WorkspaceContextService implements IWorkspaceContextService {
 	constructor(private configurationService: IConfigurationService, private workspace?: Workspace) {
 		this.toDispose = [];
 
-		this._onDidChangeFolders = new Emitter<URI[]>();
 		this.toDispose.push(this._onDidChangeFolders);
 
 		this.folders = workspace ? [workspace.resource] : [];
