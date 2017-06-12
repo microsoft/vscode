@@ -337,7 +337,7 @@ export class SearchViewlet extends Viewlet {
 
 		const isReplaceShown = this.searchAndReplaceWidget.isReplaceShown();
 		if (!isReplaceShown) {
-			this.storageService.store(SearchViewlet.SHOW_REPLACE_STORAGE_KEY, isReplaceShown, StorageScope.WORKSPACE);
+			this.storageService.store(SearchViewlet.SHOW_REPLACE_STORAGE_KEY, false, StorageScope.WORKSPACE);
 		} else {
 			this.storageService.remove(SearchViewlet.SHOW_REPLACE_STORAGE_KEY);
 		}

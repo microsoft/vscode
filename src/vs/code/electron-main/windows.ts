@@ -582,7 +582,7 @@ export class WindowsManager implements IWindowsMainService {
 			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
 			restoreWindows = (windowConfig && windowConfig.restoreWindows) as RestoreWindowsSetting;
 
-			if (windowConfig && !windowConfig.restoreWindows && windowConfig.reopenFolders) {
+			if (windowConfig && windowConfig.restoreWindows === 'one' /* default */ && windowConfig.reopenFolders) {
 				restoreWindows = windowConfig.reopenFolders; // TODO@Ben migration
 			}
 

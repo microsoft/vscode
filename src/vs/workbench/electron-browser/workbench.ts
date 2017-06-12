@@ -808,7 +808,7 @@ export class Workbench implements IPartService {
 
 			// Remember in settings
 			if (!hidden) {
-				this.storageService.store(Workbench.panelHiddenSettingKey, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
+				this.storageService.store(Workbench.panelHiddenSettingKey, 'false', StorageScope.WORKSPACE);
 			} else {
 				this.storageService.remove(Workbench.panelHiddenSettingKey, StorageScope.WORKSPACE);
 			}
@@ -885,7 +885,7 @@ export class Workbench implements IPartService {
 		const zenConfig = this.configurationService.getConfiguration<IZenModeSettings>('zenMode');
 		const zenModeActive = (zenConfig.restore || reason === ShutdownReason.RELOAD) && this.zenMode.active;
 		if (zenModeActive) {
-			this.storageService.store(Workbench.zenModeActiveSettingKey, zenModeActive, StorageScope.WORKSPACE);
+			this.storageService.store(Workbench.zenModeActiveSettingKey, true, StorageScope.WORKSPACE);
 		} else {
 			this.storageService.remove(Workbench.zenModeActiveSettingKey, StorageScope.WORKSPACE);
 		}
