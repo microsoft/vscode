@@ -1,8 +1,8 @@
-"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+"use strict";
 var __extends = (this && this.__extends) || (function () {
     var extendStatics = Object.setPrototypeOf ||
         ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
@@ -13,7 +13,7 @@ var __extends = (this && this.__extends) || (function () {
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
     };
 })();
-Object.defineProperty(exports, "__esModule", { value: true });
+exports.__esModule = true;
 var Lint = require("tslint");
 var fs = require("fs");
 var Rule = (function (_super) {
@@ -55,7 +55,14 @@ var TranslationRemindRuleWalker = (function (_super) {
         }
         var resource = matchService ? matchService[0] : matchPart[0];
         var resourceDefined = false;
-        var json = fs.readFileSync('./build/lib/i18n.resources.json', 'utf8');
+        var json;
+        try {
+            json = fs.readFileSync('./build/lib/i18n.resources.json', 'utf8');
+        }
+        catch (e) {
+            console.error('[translation-remind rule]: File with resources to pull from Transifex was not found. Aborting translation resource check for newly defined workbench part/service.');
+            return;
+        }
         var workbenchResources = JSON.parse(json).workbench;
         workbenchResources.forEach(function (existingResource) {
             if (existingResource.name === resource) {

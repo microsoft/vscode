@@ -5,72 +5,11 @@
 
 'use strict';
 
-import { BoundedMap, SimpleMap, TrieMap, ResourceMap } from 'vs/base/common/map';
+import { BoundedMap, TrieMap, ResourceMap } from 'vs/base/common/map';
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 
 suite('Map', () => {
-
-	test('SimpleMap - basics', function () {
-		const map = new SimpleMap<string, any>();
-
-		assert.equal(map.size, 0);
-
-		map.set('1', 1);
-		map.set('2', '2');
-		map.set('3', true);
-
-		const obj = Object.create(null);
-		map.set('4', obj);
-
-		const date = Date.now();
-		map.set('5', date);
-
-		assert.equal(map.size, 5);
-		assert.equal(map.get('1'), 1);
-		assert.equal(map.get('2'), '2');
-		assert.equal(map.get('3'), true);
-		assert.equal(map.get('4'), obj);
-		assert.equal(map.get('5'), date);
-		assert.ok(!map.get('6'));
-
-		map.delete('6');
-		assert.equal(map.size, 5);
-		assert.equal(map.delete('1'), 1);
-		assert.equal(map.delete('2'), '2');
-		assert.equal(map.delete('3'), true);
-		assert.equal(map.delete('4'), obj);
-		assert.equal(map.delete('5'), date);
-
-		assert.equal(map.size, 0);
-		assert.ok(!map.get('5'));
-		assert.ok(!map.get('4'));
-		assert.ok(!map.get('3'));
-		assert.ok(!map.get('2'));
-		assert.ok(!map.get('1'));
-
-		map.set('1', 1);
-		map.set('2', '2');
-		assert.ok(map.set('3', true)); // adding an element returns true
-		assert.ok(!map.set('3', true)); // adding it again returns false
-
-		assert.ok(map.has('1'));
-		assert.equal(map.get('1'), 1);
-		assert.equal(map.get('2'), '2');
-		assert.equal(map.get('3'), true);
-
-		map.clear();
-
-		assert.equal(map.size, 0);
-		assert.ok(!map.get('1'));
-		assert.ok(!map.get('2'));
-		assert.ok(!map.get('3'));
-		assert.ok(!map.has('1'));
-
-		const res = map.getOrSet('foo', 'bar');
-		assert.equal(map.get('foo'), res);
-		assert.equal(res, 'bar');
-	});
 
 	test('BoundedMap - basics', function () {
 		const map = new BoundedMap<any>();

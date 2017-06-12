@@ -6,25 +6,29 @@
 
 import URI from 'vs/base/common/uri';
 import { normalize } from 'vs/base/common/paths';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { relative } from 'path';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { fromRange, EndOfLine } from 'vs/workbench/api/node/extHostTypeConverters';
-import { MainContext, MainThreadWorkspaceShape } from './extHost.protocol';
+import { ExtHostWorkspaceShape, MainContext, MainThreadWorkspaceShape } from './extHost.protocol';
 import * as vscode from 'vscode';
 
-export class ExtHostWorkspace {
+export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 
 	private static _requestIdPool = 0;
 
 	private _proxy: MainThreadWorkspaceShape;
 	private _workspacePath: string;
 
-	constructor(threadService: IThreadService, workspacePath: string) {
+	constructor(threadService: IThreadService, folders: URI[]) {
+		super();
 		this._proxy = threadService.get(MainContext.MainThreadWorkspace);
-		this._workspacePath = workspacePath;
+		this._workspacePath = isFalsyOrEmpty(folders) ? undefined : folders[0].fsPath;
 	}
+
+	// --- workspace ---
 
 	getPath(): string {
 		return this._workspacePath;
@@ -54,6 +58,12 @@ export class ExtHostWorkspace {
 
 		return normalize(result);
 	}
+
+	$acceptWorkspaceData(folders: URI[]): void {
+		// todo@joh do something, align with ctor URI[] vs IWorkspace
+	}
+
+	// --- search ---
 
 	findFiles(include: string, exclude: string, maxResults?: number, token?: vscode.CancellationToken): Thenable<vscode.Uri[]> {
 		const requestId = ExtHostWorkspace._requestIdPool++;

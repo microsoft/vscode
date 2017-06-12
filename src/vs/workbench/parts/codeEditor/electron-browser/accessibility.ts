@@ -78,6 +78,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 
 	private _editor: ICodeEditor;
 	private _domNode: FastDomNode<HTMLElement>;
+	private _contentDomNode: FastDomNode<HTMLElement>;
 	private _isVisible: boolean;
 	private _isVisibleKey: IContextKey<boolean>;
 
@@ -99,8 +100,13 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		this._domNode.setWidth(AccessibilityHelpWidget.WIDTH);
 		this._domNode.setHeight(AccessibilityHelpWidget.HEIGHT);
 		this._domNode.setDisplay('none');
-		this._domNode.setAttribute('role', 'tooltip');
+		this._domNode.setAttribute('role', 'dialog');
 		this._domNode.setAttribute('aria-hidden', 'true');
+
+		this._contentDomNode = createFastDomNode(document.createElement('div'));
+		this._contentDomNode.setAttribute('role', 'document');
+		this._domNode.appendChild(this._contentDomNode);
+
 		this._isVisible = false;
 
 		this._register(this._editor.onDidLayoutChange(() => {
@@ -110,7 +116,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		}));
 
 		// Intentionally not configurable!
-		this._register(dom.addStandardDisposableListener(this._domNode.domNode, 'keydown', (e) => {
+		this._register(dom.addStandardDisposableListener(this._contentDomNode.domNode, 'keydown', (e) => {
 			if (!this._isVisible) {
 				return;
 			}
@@ -137,7 +143,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 			}
 		}));
 
-		this.onblur(this._domNode.domNode, () => {
+		this.onblur(this._contentDomNode.domNode, () => {
 			this.hide();
 		});
 
@@ -172,9 +178,9 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		this._layout();
 		this._domNode.setDisplay('block');
 		this._domNode.setAttribute('aria-hidden', 'false');
-		this._domNode.domNode.tabIndex = 0;
+		this._contentDomNode.domNode.tabIndex = 0;
 		this._buildContent();
-		this._domNode.domNode.focus();
+		this._contentDomNode.domNode.focus();
 	}
 
 	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
@@ -246,7 +252,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 
 		text += '\n\n' + nls.localize('outroMsg', "You can dismiss this tooltip and return to the editor by pressing Escape or Shift+Escape.");
 
-		this._domNode.domNode.appendChild(renderHtml({
+		this._contentDomNode.domNode.appendChild(renderHtml({
 			formattedText: text
 		}));
 	}
@@ -259,8 +265,8 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		this._isVisibleKey.reset();
 		this._domNode.setDisplay('none');
 		this._domNode.setAttribute('aria-hidden', 'true');
-		this._domNode.domNode.tabIndex = -1;
-		dom.clearNode(this._domNode.domNode);
+		this._contentDomNode.domNode.tabIndex = -1;
+		dom.clearNode(this._contentDomNode.domNode);
 
 		this._editor.focus();
 	}

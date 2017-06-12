@@ -13,38 +13,40 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { ICommonCodeEditor, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { bulkEdit, IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Uri } from 'vscode';
-import { MainThreadWorkspaceShape } from '../node/extHost.protocol';
+import { MainThreadWorkspaceShape, ExtHostWorkspaceShape, ExtHostContext } from '../node/extHost.protocol';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { IDisposable } from 'vs/base/common/lifecycle';
+
 
 export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 
-	private _activeSearches: { [id: number]: TPromise<Uri[]> } = Object.create(null);
-	private _searchService: ISearchService;
-	private _contextService: IWorkspaceContextService;
-	private _textFileService: ITextFileService;
-	private _editorService: IWorkbenchEditorService;
-	private _textModelResolverService: ITextModelResolverService;
-	private _fileService: IFileService;
+	private readonly _toDispose: IDisposable[] = [];
+	private readonly _activeSearches: { [id: number]: TPromise<URI[]> } = Object.create(null);
+	private readonly _proxy: ExtHostWorkspaceShape;
 
 	constructor(
-		@ISearchService searchService: ISearchService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@ITextFileService textFileService: ITextFileService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@ITextModelResolverService textModelResolverService: ITextModelResolverService,
-		@IFileService fileService: IFileService
+		@ISearchService private readonly _searchService: ISearchService,
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
+		@ITextFileService private readonly _textFileService: ITextFileService,
+		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
+		@ITextModelResolverService private readonly _textModelResolverService: ITextModelResolverService,
+		@IFileService private readonly _fileService: IFileService,
+		@IThreadService threadService: IThreadService
 	) {
 		super();
-
-		this._searchService = searchService;
-		this._contextService = contextService;
-		this._textFileService = textFileService;
-		this._editorService = editorService;
-		this._fileService = fileService;
-		this._textModelResolverService = textModelResolverService;
+		this._proxy = threadService.get(ExtHostContext.ExtHostWorkspace);
+		this._contextService.onDidChangeFolders(this._onDidChangeWorkspace, this, this._toDispose);
 	}
+
+	// --- workspace ---
+
+	private _onDidChangeWorkspace(folders: URI[]): void {
+		this._proxy.$acceptWorkspaceData(folders);
+	}
+
+	// --- search ---
 
 	$startSearch(include: string, exclude: string, maxResults: number, requestId: number): Thenable<URI[]> {
 		const workspace = this._contextService.getWorkspace();
@@ -83,6 +85,8 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 		}
 		return undefined;
 	}
+
+	// --- save & edit resources ---
 
 	$saveAll(includeUntitled?: boolean): Thenable<boolean> {
 		return this._textFileService.saveAll(includeUntitled).then(result => {

@@ -43,6 +43,7 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { clipboard } from 'electron';
 
 const $ = dom.$;
 
@@ -59,6 +60,7 @@ export interface IPrivateReplService {
 	_serviceBrand: any;
 	navigateHistory(previous: boolean): void;
 	acceptReplInput(): void;
+	copyAllReplOutput(): void;
 }
 
 export class Repl extends Panel implements IPrivateReplService {
@@ -230,6 +232,19 @@ export class Repl extends Panel implements IPrivateReplService {
 		this.layout(this.dimension);
 	}
 
+	public copyAllReplOutput(): void {
+		let text = '';
+		const navigator = this.tree.getNavigator();
+		// skip first navigator element - the root node
+		while (navigator.next()) {
+			if (text) {
+				text += `\n`;
+			}
+			text += navigator.current().toString();
+		}
+		clipboard.writeText(text);
+	}
+
 	public layout(dimension: Dimension): void {
 		this.dimension = dimension;
 		if (this.tree) {
@@ -378,3 +393,20 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 		primary: KeyCode.RightArrow
 	}
 }));
+
+@editorAction
+export class ReplCopyAllAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'repl.action.copyall',
+			label: nls.localize('actions.repl.copyall', "Debug: Console Copy All"),
+			alias: 'Debug Console Copy All',
+			precondition: debug.CONTEXT_IN_DEBUG_REPL,
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void | TPromise<void> {
+		accessor.get(IPrivateReplService).copyAllReplOutput();
+	}
+}

@@ -11,13 +11,14 @@ import { StorageScope } from 'vs/platform/storage/common/storage';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { Memento, Scope } from 'vs/workbench/common/memento';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
+import { TestConfigurationService } from "vs/platform/configuration/test/common/testConfigurationService";
 
 suite('Workbench Memento', () => {
 	let context;
 	let storage;
 
 	setup(() => {
-		context = new WorkspaceContextService(TestWorkspace);
+		context = new WorkspaceContextService(new TestConfigurationService(), TestWorkspace);
 		storage = new StorageService(new InMemoryLocalStorage(), null, context);
 	});
 

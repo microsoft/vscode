@@ -14,6 +14,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { TestThemeService } from 'vs/workbench/test/workbenchTestServices';
+import { TestConfigurationService } from "vs/platform/configuration/test/common/testConfigurationService";
 
 class MyPart extends Part {
 
@@ -91,7 +92,7 @@ suite('Workbench Part', () => {
 		fixture = document.createElement('div');
 		fixture.id = fixtureId;
 		document.body.appendChild(fixture);
-		context = new WorkspaceContextService(TestWorkspace);
+		context = new WorkspaceContextService(new TestConfigurationService(), TestWorkspace);
 		storage = new StorageService(new InMemoryLocalStorage(), null, context);
 	});
 
