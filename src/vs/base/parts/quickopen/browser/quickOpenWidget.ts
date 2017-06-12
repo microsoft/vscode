@@ -99,6 +99,7 @@ export class QuickOpenWidget implements IModelProvider {
 	private static MAX_WIDTH = 600;				// Max total width of quick open widget
 	private static MAX_ITEMS_HEIGHT = 20 * 22;	// Max height of item list below input field
 
+	private isDisposed: boolean;
 	private options: IQuickOpenOptions;
 	private builder: Builder;
 	private tree: ITree;
@@ -123,6 +124,7 @@ export class QuickOpenWidget implements IModelProvider {
 	private renderer: Renderer;
 
 	constructor(container: HTMLElement, callbacks: IQuickOpenCallbacks, options: IQuickOpenOptions, usageLogger?: IQuickOpenUsageLogger) {
+		this.isDisposed = false;
 		this.toUnbind = [];
 		this.container = container;
 		this.callbacks = callbacks;
@@ -944,6 +946,9 @@ export class QuickOpenWidget implements IModelProvider {
 			if (!this.isLoosingFocus) {
 				return;
 			}
+			if (this.isDisposed) {
+				return;
+			}
 
 			const veto = this.callbacks.onFocusLost && this.callbacks.onFocusLost();
 			if (!veto) {
@@ -953,6 +958,7 @@ export class QuickOpenWidget implements IModelProvider {
 	}
 
 	public dispose(): void {
+		this.isDisposed = true;
 		this.toUnbind = dispose(this.toUnbind);
 
 		this.progressBar.dispose();
