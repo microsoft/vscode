@@ -36,7 +36,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import FileResultsNavigation from 'vs/workbench/browser/fileResultsNavigation';
+import FileResultsNavigation from 'vs/workbench/parts/files/browser/fileResultsNavigation';
 import { debounceEvent } from 'vs/base/common/event';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 
