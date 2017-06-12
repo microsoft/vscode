@@ -8,6 +8,7 @@ import * as nls from 'vs/nls';
 import { Delayer } from 'vs/base/common/async';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { flatten, distinct } from 'vs/base/common/arrays';
+import { values } from 'vs/base/common/map';
 import { ArrayNavigator, INavigator } from 'vs/base/common/iterator';
 import { IAction } from 'vs/base/common/actions';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -465,7 +466,7 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 		if (result) {
 			this.hiddenAreas = this.computeHiddenRanges(result.filteredGroups, result.allGroups, model);
 			this.editor.changeDecorations(changeAccessor => {
-				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, flatten(result.matches.values()).map(match => this.createDecoration(match, model)));
+				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, flatten(values(result.matches)).map(match => this.createDecoration(match, model)));
 			});
 		}
 	}

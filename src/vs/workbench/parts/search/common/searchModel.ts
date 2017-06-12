@@ -11,7 +11,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { TPromise, PPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import { SimpleMap } from 'vs/base/common/map';
+import { values, ResourceMap } from 'vs/base/common/map';
 import Event, { Emitter, fromPromise, stopwatch, any } from 'vs/base/common/event';
 import { ISearchService, ISearchProgressItem, ISearchComplete, ISearchQuery, IPatternInfo, IFileMatch } from 'vs/platform/search/common/search';
 import { ReplacePattern } from 'vs/platform/search/common/replace';
@@ -125,7 +125,7 @@ export class FileMatch extends Disposable {
 	private _resource: URI;
 	private _model: IModel;
 	private _modelListener: IDisposable;
-	private _matches: SimpleMap<string, Match>;
+	private _matches: Map<string, Match>;
 	private _removedMatches: Set<string>;
 	private _selectedMatch: Match;
 
@@ -136,7 +136,7 @@ export class FileMatch extends Disposable {
 		@IModelService private modelService: IModelService, @IReplaceService private replaceService: IReplaceService) {
 		super();
 		this._resource = this.rawMatch.resource;
-		this._matches = new SimpleMap<string, Match>();
+		this._matches = new Map<string, Match>();
 		this._removedMatches = new Set<string>();
 		this._updateScheduler = new RunOnceScheduler(this.updateMatchesForModel.bind(this), 250);
 
@@ -197,7 +197,7 @@ export class FileMatch extends Disposable {
 		if (!this._model) {
 			return;
 		}
-		this._matches = new SimpleMap<string, Match>();
+		this._matches = new Map<string, Match>();
 		let matches = this._model
 			.findMatches(this._query.pattern, this._model.getFullModelRange(), this._query.isRegExp, this._query.isCaseSensitive, this._query.isWordMatch ? this._query.wordSeparators : null, false, this._maxResults);
 
@@ -211,7 +211,7 @@ export class FileMatch extends Disposable {
 			endLineNumber: lineNumber,
 			endColumn: this._model.getLineMaxColumn(lineNumber)
 		};
-		const oldMatches = this._matches.values().filter(match => match.range().startLineNumber === lineNumber);
+		const oldMatches = values(this._matches).filter(match => match.range().startLineNumber === lineNumber);
 		oldMatches.forEach(match => this._matches.delete(match.id()));
 
 		const matches = this._model.findMatches(this._query.pattern, range, this._query.isRegExp, this._query.isCaseSensitive, this._query.isWordMatch ? this._query.wordSeparators : null, false, this._maxResults);
@@ -257,7 +257,7 @@ export class FileMatch extends Disposable {
 	}
 
 	public matches(): Match[] {
-		return this._matches.values();
+		return values(this._matches);
 	}
 
 	public remove(match: Match): void {
@@ -339,8 +339,8 @@ export class SearchResult extends Disposable {
 	private _onChange = this._register(new Emitter<IChangeEvent>());
 	public onChange: Event<IChangeEvent> = this._onChange.event;
 
-	private _fileMatches: SimpleMap<URI, FileMatch>;
-	private _unDisposedFileMatches: SimpleMap<URI, FileMatch>;
+	private _fileMatches: ResourceMap<FileMatch>;
+	private _unDisposedFileMatches: ResourceMap<FileMatch>;
 	private _query: IPatternInfo = null;
 	private _maxResults: number;
 	private _showHighlights: boolean;
@@ -351,8 +351,8 @@ export class SearchResult extends Disposable {
 	constructor(private _searchModel: SearchModel, @IReplaceService private replaceService: IReplaceService, @ITelemetryService private telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService) {
 		super();
-		this._fileMatches = new SimpleMap<URI, FileMatch>();
-		this._unDisposedFileMatches = new SimpleMap<URI, FileMatch>();
+		this._fileMatches = new ResourceMap<FileMatch>();
+		this._unDisposedFileMatches = new ResourceMap<FileMatch>();
 		this._rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
 	}
 

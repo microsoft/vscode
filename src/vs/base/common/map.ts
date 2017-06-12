@@ -16,108 +16,19 @@ export interface Entry<K, T> {
 	value: T;
 }
 
-/**
- * A simple map to store value by a key object. Key can be any object that has toString() function to get
- * string value of the key.
- */
-export class SimpleMap<K extends Key, T> {
+export function values<K, V>(map: Map<K, V>): V[] {
+	const result: V[] = [];
+	map.forEach(value => result.push(value));
+	return result;
+}
 
-	protected map: { [key: string]: Entry<K, T> };
-	protected _size: number;
-
-	constructor() {
-		this.map = Object.create(null);
-		this._size = 0;
+export function getOrSet<K, V>(map: Map<K, V>, key: K, value: V): V {
+	let result = map.get(key);
+	if (result === void 0) {
+		result = value;
+		map.set(key, result);
 	}
-
-	public get size(): number {
-		return this._size;
-	}
-
-	public get(k: K): T {
-		const value = this.peek(k);
-
-		return value ? value : null;
-	}
-
-	public getOrSet(k: K, t: T): T {
-		const res = this.get(k);
-		if (res) {
-			return res;
-		}
-
-		this.set(k, t);
-
-		return t;
-	}
-
-	public keys(): K[] {
-		const keys: K[] = [];
-		for (let key in this.map) {
-			keys.push(this.map[key].key);
-		}
-		return keys;
-	}
-
-	public values(): T[] {
-		const values: T[] = [];
-		for (let key in this.map) {
-			values.push(this.map[key].value);
-		}
-		return values;
-	}
-
-	public entries(): Entry<K, T>[] {
-		const entries: Entry<K, T>[] = [];
-		for (let key in this.map) {
-			entries.push(this.map[key]);
-		}
-		return entries;
-	}
-
-	public set(k: K, t: T): boolean {
-		if (this.get(k)) {
-			return false; // already present!
-		}
-
-		this.push(k, t);
-
-		return true;
-	}
-
-	public delete(k: K): T {
-		let value: T = this.get(k);
-		if (value) {
-			this.pop(k);
-			return value;
-		}
-		return null;
-	}
-
-	public has(k: K): boolean {
-		return !!this.get(k);
-	}
-
-	public clear(): void {
-		this.map = Object.create(null);
-		this._size = 0;
-	}
-
-	protected push(key: K, value: T): void {
-		const entry: Entry<K, T> = { key, value };
-		this.map[key.toString()] = entry;
-		this._size++;
-	}
-
-	protected pop(k: K): void {
-		delete this.map[k.toString()];
-		this._size--;
-	}
-
-	protected peek(k: K): T {
-		const entry = this.map[k.toString()];
-		return entry ? entry.value : null;
-	}
+	return result;
 }
 
 export interface ISerializedBoundedLinkedMap<T> {
@@ -455,10 +366,7 @@ export class ResourceMap<T> {
 	}
 
 	public values(): T[] {
-		const values: T[] = [];
-		this.map.forEach(value => values.push(value));
-
-		return values;
+		return values(this.map);
 	}
 
 	private toKey(resource: URI): string {

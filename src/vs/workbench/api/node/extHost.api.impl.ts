@@ -65,33 +65,6 @@ function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
 	}
 }
 
-function proposed(extension: IExtensionDescription): Function {
-	return (target: any, key: string, descriptor: any) => {
-		let fnKey: string = null;
-		let fn: Function = null;
-
-		if (typeof descriptor.value === 'function') {
-			fnKey = 'value';
-			fn = descriptor.value;
-		} else if (typeof descriptor.get === 'function') {
-			fnKey = 'get';
-			fn = descriptor.get;
-		}
-
-		if (!fn) {
-			throw new Error('not supported');
-		}
-
-		if (extension.enableProposedApi) {
-			return;
-		}
-
-		descriptor[fnKey] = () => {
-			throw new Error(`${extension.id} cannot access proposed api`);
-		};
-	};
-}
-
 /**
  * This method instantiates and returns the extension API surface
  */
@@ -153,12 +126,11 @@ export function createApiFactory(
 			}
 		}
 
-		class Commands {
-
+		// namespace: commands
+		const commands: typeof vscode.commands = {
 			registerCommand<T>(id: string, command: <T>(...args: any[]) => T | Thenable<T>, thisArgs?: any): vscode.Disposable {
 				return extHostCommands.registerCommand(id, command, thisArgs);
-			}
-
+			},
 			registerTextEditorCommand(id: string, callback: (textEditor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args: any[]) => void, thisArg?: any): vscode.Disposable {
 				return extHostCommands.registerCommand(id, (...args: any[]) => {
 					let activeTextEditor = extHostEditors.getActiveTextEditor();
@@ -179,10 +151,8 @@ export function createApiFactory(
 						console.warn('An error occured while running command ' + id, err);
 					});
 				});
-			}
-
-			@proposed(extension)
-			registerDiffInformationCommand(id: string, callback: (diff: vscode.LineChange[], ...args: any[]) => any, thisArg?: any): vscode.Disposable {
+			},
+			registerDiffInformationCommand: proposedApiFunction(extension, (id: string, callback: (diff: vscode.LineChange[], ...args: any[]) => any, thisArg?: any): vscode.Disposable => {
 				return extHostCommands.registerCommand(id, async (...args: any[]) => {
 					let activeTextEditor = extHostEditors.getActiveTextEditor();
 					if (!activeTextEditor) {
@@ -193,19 +163,14 @@ export function createApiFactory(
 					const diff = await extHostEditors.getDiffInformation(activeTextEditor.id);
 					callback.apply(thisArg, [diff, ...args]);
 				});
-			}
-
+			}),
 			executeCommand<T>(id: string, ...args: any[]): Thenable<T> {
 				return extHostCommands.executeCommand<T>(id, ...args);
-			}
-
+			},
 			getCommands(filterInternal: boolean = false): Thenable<string[]> {
 				return extHostCommands.getCommands(filterInternal);
 			}
-		}
-
-		// namespace: commands
-		const commands: typeof vscode.commands = new Commands();
+		};
 
 		// namespace: env
 		const env: typeof vscode.env = Object.freeze({

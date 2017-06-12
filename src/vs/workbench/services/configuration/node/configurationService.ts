@@ -246,6 +246,10 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	}
 
 	public handleWorkspaceFileEvents(event: FileChangesEvent): void {
+		if (!this.workspace) {
+			return; // only enabled when we have a known workspace
+		}
+
 		const events = event.changes;
 		let affectedByChanges = false;
 
@@ -303,6 +307,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 				return new ScopedConfigModel<T>(content.value, content.resource.toString(), matches[1]);
 			}
 		}
+
 		return new ConfigModel<T>(null);
 	}
 
