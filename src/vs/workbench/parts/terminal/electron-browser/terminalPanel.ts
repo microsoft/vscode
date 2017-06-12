@@ -266,7 +266,9 @@ export class TerminalPanel extends Panel {
 		// until proper color inverting is implemented to ensure contrast.
 		const selectionColor = theme.getColor(selectionBackground);
 		if (selectionColor) {
-			css += `.monaco-workbench .panel.integrated-terminal .xterm .xterm-selection div { background-color: ${selectionColor}; }`;
+			// selection.background is set to null when not defined by the
+			// theme, as such it's default values are defined in CSS.
+			css += `.monaco-workbench .panel.integrated-terminal .xterm .xterm-selection div { background-color: ${selectionColor} !important; }`;
 		}
 
 		this._themeStyleElement.innerHTML = css;
