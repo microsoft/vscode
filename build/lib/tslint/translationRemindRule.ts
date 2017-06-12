@@ -50,7 +50,13 @@ class TranslationRemindRuleWalker extends Lint.RuleWalker {
 		const resource = matchService ? matchService[0] : matchPart[0];
 		let resourceDefined = false;
 
-		const json = fs.readFileSync('./build/lib/i18n.resources.json', 'utf8');
+		let json;
+		try {
+			json = fs.readFileSync('./build/lib/i18n.resources.json', 'utf8');
+		} catch (e) {
+			console.error('[translation-remind rule]: File with resources to pull from Transifex was not found. Aborting translation resource check for newly defined workbench part/service.');
+			return;
+		}
 		const workbenchResources = JSON.parse(json).workbench;
 
 		workbenchResources.forEach(existingResource => {
