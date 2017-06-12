@@ -60,9 +60,7 @@ export interface IEnvironment {
 export interface IInitData {
 	parentPid: number;
 	environment: IEnvironment;
-	contextService: {
-		workspace: IWorkspace;
-	};
+	workspace: IWorkspace;
 	extensions: IExtensionDescription[];
 	configuration: IWorkspaceConfigurationValues;
 	telemetryInfo: ITelemetryInfo;
