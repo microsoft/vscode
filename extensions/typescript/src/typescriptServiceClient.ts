@@ -497,7 +497,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 						args.push('--enableTelemetry');
 					}
 					if (this.apiVersion.has222Features()) {
-						this.cancellationPipeName = electron.getPipeName(`tscancellation-${electron.makeRandomHexString(20)}`);
+						this.cancellationPipeName = electron.getTempFile(`tscancellation-${electron.makeRandomHexString(20)}`);
 						args.push('--cancellationPipeName', this.cancellationPipeName + '*');
 					}
 
@@ -947,7 +947,11 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 			if (this.apiVersion.has222Features() && this.cancellationPipeName) {
 				this.tracer.logTrace(`TypeScript Service: trying to cancel ongoing request with sequence number ${seq}`);
-				fs.writeFileSync(this.cancellationPipeName + seq, '');
+				try {
+					fs.writeFileSync(this.cancellationPipeName + seq, '');
+				} catch (e) {
+					// noop
+				}
 				return true;
 			}
 
