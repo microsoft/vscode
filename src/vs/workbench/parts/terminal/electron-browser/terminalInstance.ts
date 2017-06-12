@@ -76,6 +76,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _terminalHasTextContextKey: IContextKey<boolean>;
 	private _cols: number;
 	private _rows: number;
+	private _messageTitleListener: (message: { type: string, content: string }) => void;
 
 	private _widgetManager: TerminalWidgetManager;
 	private _linkHandler: TerminalLinkHandler;
@@ -494,12 +495,13 @@ export class TerminalInstance implements ITerminalInstance {
 		});
 		if (!shell.name) {
 			// Only listen for process title changes when a name is not provided
-			this._process.on('message', (message) => {
+			this._messageTitleListener = (message) => {
 				if (message.type === 'title') {
 					this._title = message.content ? message.content : '';
 					this._onTitleChanged.fire(this._title);
 				}
-			});
+			};
+			this._process.on('message', this._messageTitleListener);
 		}
 		this._process.on('message', (message) => {
 			if (message.type === 'pid') {
@@ -779,6 +781,20 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public static setTerminalProcessFactory(factory: ITerminalProcessFactory): void {
 		this._terminalProcessFactory = factory;
+	}
+
+	public setTitle(title: string): void {
+		const didTitleChange = title !== this._title;
+		if (didTitleChange) {
+			this._onTitleChanged.fire(title);
+		}
+
+		// If the title was not set by the API, unregister the handler that
+		// automatically updates the terminal name
+		if (this._process && this._messageTitleListener) {
+			this._process.removeListener('message', this._messageTitleListener);
+			this._messageTitleListener = null;
+		}
 	}
 }
 
