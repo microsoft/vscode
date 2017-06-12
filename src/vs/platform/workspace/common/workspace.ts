@@ -122,7 +122,7 @@ export class Workspace implements IWorkspace {
 	}
 }
 
-type IWorkspaceConfiguration = { path: string; folders: string[]; }[];
+type IWorkspaceConfiguration = { [rootFolder: string]: { folders: string[]; } };
 
 export class WorkspaceContextService implements IWorkspaceContextService {
 
@@ -161,18 +161,14 @@ export class WorkspaceContextService implements IWorkspaceContextService {
 		// Resovled configured folders for workspace
 		let configuredFolders: URI[] = [this.workspace.resource];
 		const config = this.configurationService.getConfiguration<IWorkspaceConfiguration>('workspace');
-		if (Array.isArray(config)) {
-			for (let i = 0; i < config.length; i++) {
-				const targetWorkspace = config[i];
-				if (targetWorkspace.path === this.workspace.resource.toString()) {
-					const additionalFolders = targetWorkspace.folders
-						.map(f => URI.parse(f))
-						.filter(r => r.scheme === Schemas.file); // only support files for now
+		if (config) {
+			const workspaceConfig = config[this.workspace.resource.toString()];
+			if (workspaceConfig) {
+				const additionalFolders = workspaceConfig.folders
+					.map(f => URI.parse(f))
+					.filter(r => r.scheme === Schemas.file); // only support files for now
 
-					configuredFolders.push(...additionalFolders);
-
-					break;
-				}
+				configuredFolders.push(...additionalFolders);
 			}
 		}
 

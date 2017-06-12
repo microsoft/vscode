@@ -360,29 +360,29 @@ configurationRegistry.registerConfiguration({
 });
 
 // Configuration: Workspace
-configurationRegistry.registerConfiguration(<any>{
+configurationRegistry.registerConfiguration({
 	'id': 'workspace',
 	'order': 10000,
 	'title': nls.localize('workspaceConfigurationTitle', "Workspace"),
 	'type': 'object',
 	'properties': {
 		'workspace': {
-			'type': 'array',
-			'title': nls.localize('workspaces.title', "Folder configuration of the workspace"),
-			'items': {
-				'required': ['path'],
-				'type': 'object',
-				'defaultSnippets': [{ 'body': { 'path': '$1', 'folders': ['$2'] } }],
-				'properties': {
-					'path': {
-						'type': 'string',
-						'description': nls.localize('workspaces.path', "Path of the folder to configure folders for"),
-					},
-					'folders': {
-						'description': nls.localize('workspaces.additionalFolders', "Folders of this workspace"),
-						'type': 'array'
+			'type': 'object',
+			'description': nls.localize('workspaces.title', "Folder configuration of the workspace"),
+			'additionalProperties': {
+				'anyOf': [{
+					'type': 'object',
+					'description': nls.localize('files.exclude.boolean', "The glob pattern to match file paths against. Set to true or false to enable or disable the pattern."),
+					'properties': {
+						'folders': {
+							'description': nls.localize('workspaces.additionalFolders', "Folders of this workspace"),
+							'type': 'array',
+							'items': {
+								'type': 'string'
+							}
+						}
 					}
-				}
+				}]
 			}
 		}
 	}
