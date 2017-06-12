@@ -37,7 +37,7 @@ suite('Editor Contrib - Line Operations', () => {
 				});
 		});
 
-		test('should jump to the previous line when on first column', function() {
+		test('should jump to the previous line when on first column', function () {
 			withMockCodeEditor(
 				[
 					'one',
@@ -53,8 +53,12 @@ suite('Editor Contrib - Line Operations', () => {
 
 					editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1)]);
 					deleteAllLeftAction.run(null, editor);
-					assert.equal(model.getLinesContent()[0], 'three');
+					assert.equal(model.getLinesContent()[0], 'onetwothree');
 					assert.equal(model.getLinesContent().length, 1);
+
+					editor.setSelection(new Selection(1, 1, 1, 1));
+					deleteAllLeftAction.run(null, editor);
+					assert.equal(model.getLinesContent()[0], 'onetwothree');
 				});
 		});
 

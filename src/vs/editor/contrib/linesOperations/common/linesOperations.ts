@@ -464,8 +464,9 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 		rangesToDelete = rangesToDelete.map(selection => {
 			if (selection.isEmpty()) {
 				if (selection.startColumn === 1) {
-					let prevLine = Math.max(1, selection.startLineNumber - 1);
-					return new Range(prevLine, model.getLineContent(prevLine).length + 1, selection.startLineNumber, 1);
+					let deleteFromLine = Math.max(1, selection.startLineNumber - 1);
+					let deleteFromColumn = selection.startLineNumber === 1 ? 1 : model.getLineContent(deleteFromLine).length + 1;
+					return new Range(deleteFromLine, deleteFromColumn, selection.startLineNumber, 1);
 				} else {
 					return new Range(selection.startLineNumber, 1, selection.startLineNumber, selection.startColumn);
 				}
