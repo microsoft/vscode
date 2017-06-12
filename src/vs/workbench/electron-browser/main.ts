@@ -150,8 +150,8 @@ function getWorkspace(workspacePath: string): TPromise<Workspace> {
 
 function openWorkbench(environment: IWindowConfiguration, workspace: Workspace, options: IOptions): TPromise<void> {
 	const environmentService = new EnvironmentService(environment, environment.execPath);
-	const contextService = new WorkspaceContextService(workspace);
 	const configurationService = new WorkspaceConfigurationService(environmentService, workspace);
+	const contextService = new WorkspaceContextService(configurationService, workspace);
 	const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, !contextService.hasWorkspace());
 
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it

@@ -116,8 +116,8 @@ suite('ConfigurationEditingService', () => {
 		const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
 		instantiationService.stub(IEnvironmentService, environmentService);
 		const workspace = noWorkspace ? null : new Workspace(URI.file(workspaceDir));
-		instantiationService.stub(IWorkspaceContextService, new WorkspaceContextService(workspace));
 		const configurationService = new WorkspaceConfigurationService(environmentService, workspace);
+		instantiationService.stub(IWorkspaceContextService, new WorkspaceContextService(configurationService, workspace));
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
 		instantiationService.stub(IEditorGroupService, new TestEditorGroupService());

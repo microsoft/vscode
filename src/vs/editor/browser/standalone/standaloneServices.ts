@@ -115,13 +115,14 @@ export module StaticServices {
 
 	export const instantiationService = define<IInstantiationService>(IInstantiationService, () => new InstantiationService(_serviceCollection, true));
 
-	export const contextService = define(IWorkspaceContextService, () => new WorkspaceContextService(new Workspace(
+	const configurationServiceImpl = new SimpleConfigurationService();
+	export const configurationService = define(IConfigurationService, () => configurationServiceImpl);
+
+	export const contextService = define(IWorkspaceContextService, () => new WorkspaceContextService(configurationServiceImpl, new Workspace(
 		URI.from({ scheme: 'inmemory', authority: 'model', path: '/' })
 	)));
 
 	export const telemetryService = define(ITelemetryService, () => new StandaloneTelemetryService());
-
-	export const configurationService = define(IConfigurationService, () => new SimpleConfigurationService());
 
 	export const messageService = define(IMessageService, () => new SimpleMessageService());
 

@@ -18,6 +18,7 @@ import { RemoteTelemetryService } from 'vs/workbench/api/node/extHostTelemetry';
 import { IWorkspaceContextService, WorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
 import { IInitData, IEnvironment, MainContext } from 'vs/workbench/api/node/extHost.protocol';
 import * as errors from 'vs/base/common/errors';
+import { NullConfigurationService } from "vs/workbench/services/configuration/node/nullConfigurationService";
 
 const nativeExit = process.exit.bind(process);
 process.exit = function () {
@@ -49,7 +50,7 @@ export class ExtensionHostMain {
 		if (workspaceRaw) {
 			workspace = new Workspace(workspaceRaw.resource, workspaceRaw.uid, workspaceRaw.name);
 		}
-		this._contextService = new WorkspaceContextService(workspace);
+		this._contextService = new WorkspaceContextService(new NullConfigurationService(), workspace); //TODO@Ben implement for exthost
 
 		const threadService = new ExtHostThreadService(remoteCom);
 		const telemetryService = new RemoteTelemetryService('pluginHostTelemetry', threadService);

@@ -9,6 +9,11 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import paths = require('vs/base/common/paths');
 import { isEqualOrParent } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
+import Event, { Emitter } from 'vs/base/common/event';
+import { IConfigurationService } from "vs/platform/configuration/common/configuration";
+import { IDisposable, dispose } from "vs/base/common/lifecycle";
+import { distinct, equals } from "vs/base/common/arrays";
+import { Schemas } from "vs/base/common/network";
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
@@ -42,6 +47,12 @@ export interface IWorkspaceContextService {
 	 * Given a workspace relative path, returns the resource with the absolute path.
 	 */
 	toResource: (workspaceRelativePath: string) => URI;
+
+	/**
+	 * TODO@Ben multiroot
+	 */
+	getFolders(): URI[];
+	onDidChangeFolders: Event<URI[]>;
 }
 
 export interface IWorkspace {
@@ -111,14 +122,79 @@ export class Workspace implements IWorkspace {
 	}
 }
 
+type IWorkspaceConfiguration = { path: string; folders: string[]; }[];
+
 export class WorkspaceContextService implements IWorkspaceContextService {
 
 	public _serviceBrand: any;
 
-	private workspace: Workspace;
+	private _onDidChangeFolders: Emitter<URI[]>;
+	private folders: URI[];
+	private toDispose: IDisposable[];
 
-	constructor(workspace?: Workspace) {
-		this.workspace = workspace;
+	constructor(private configurationService: IConfigurationService, private workspace?: Workspace) {
+		this.toDispose = [];
+
+		this._onDidChangeFolders = new Emitter<URI[]>();
+		this.toDispose.push(this._onDidChangeFolders);
+
+		this.folders = workspace ? [workspace.resource] : [];
+
+		this.resolveAdditionalFolders();
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onDidUpdateConfiguration()));
+	}
+
+	private onDidUpdateConfiguration(): void {
+		this.resolveAdditionalFolders(true);
+	}
+
+	private resolveAdditionalFolders(notify?: boolean): void {
+		if (!this.workspace) {
+			return; // no additional folders for empty workspaces
+		}
+
+		// Resovled configured folders for workspace
+		let configuredFolders: URI[] = [this.workspace.resource];
+		const config = this.configurationService.getConfiguration<IWorkspaceConfiguration>('workspace');
+		if (Array.isArray(config)) {
+			for (let i = 0; i < config.length; i++) {
+				const targetWorkspace = config[i];
+				if (targetWorkspace.path === this.workspace.resource.toString()) {
+					const additionalFolders = targetWorkspace.folders
+						.map(f => URI.parse(f))
+						.filter(r => r.scheme === Schemas.file); // only support files for now
+
+					configuredFolders.push(...additionalFolders);
+
+					break;
+				}
+			}
+		}
+
+		// Remove duplicates
+		configuredFolders = distinct(configuredFolders, r => r.toString());
+
+		// Find changes
+		const changed = !equals(this.folders, configuredFolders, (r1, r2) => r1.toString() === r2.toString());
+
+		this.folders = configuredFolders;
+
+		if (notify && changed) {
+			this._onDidChangeFolders.fire(configuredFolders);
+		}
+	}
+
+	public get onDidChangeFolders(): Event<URI[]> {
+		return this._onDidChangeFolders && this._onDidChangeFolders.event; //TODO@Sandeep sinon is a pita
+	}
+
+	public getFolders(): URI[] {
+		return this.folders;
 	}
 
 	public getWorkspace(): IWorkspace {
@@ -139,5 +215,9 @@ export class WorkspaceContextService implements IWorkspaceContextService {
 
 	public toResource(workspaceRelativePath: string): URI {
 		return this.workspace ? this.workspace.toResource(workspaceRelativePath) : null;
+	}
+
+	public dispose(): void {
+		dispose(this.toDispose);
 	}
 }

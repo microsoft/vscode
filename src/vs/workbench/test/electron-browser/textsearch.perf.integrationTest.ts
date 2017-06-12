@@ -60,9 +60,9 @@ suite('TextSearch performance (integration)', () => {
 		const configurationService = new SimpleConfigurationService();
 		const instantiationService = new InstantiationService(new ServiceCollection(
 			[ITelemetryService, telemetryService],
-			[IConfigurationService, new SimpleConfigurationService()],
+			[IConfigurationService, configurationService],
 			[IModelService, new ModelServiceImpl(null, configurationService)],
-			[IWorkspaceContextService, new WorkspaceContextService(new Workspace(URI.file(testWorkspacePath)))],
+			[IWorkspaceContextService, new WorkspaceContextService(configurationService, new Workspace(URI.file(testWorkspacePath)))],
 			[IWorkbenchEditorService, new TestEditorService()],
 			[IEditorGroupService, new TestEditorGroupService()],
 			[IEnvironmentService, TestEnvironmentService],

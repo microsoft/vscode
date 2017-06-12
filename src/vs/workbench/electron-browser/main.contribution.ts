@@ -358,3 +358,32 @@ configurationRegistry.registerConfiguration({
 		}
 	}
 });
+
+// Configuration: Workspace
+configurationRegistry.registerConfiguration(<any>{
+	'id': 'workspace',
+	'order': 10000,
+	'title': nls.localize('workspaceConfigurationTitle', "Workspace"),
+	'type': 'object',
+	'properties': {
+		'workspace': {
+			'type': 'array',
+			'title': nls.localize('workspaces.title', "Folder configuration of the workspace"),
+			'items': {
+				'required': ['path'],
+				'type': 'object',
+				'defaultSnippets': [{ 'body': { 'path': '$1', 'folders': ['$2'] } }],
+				'properties': {
+					'path': {
+						'type': 'string',
+						'description': nls.localize('workspaces.path', "Path of the folder to configure folders for"),
+					},
+					'folders': {
+						'description': nls.localize('workspaces.additionalFolders', "Folders of this workspace"),
+						'type': 'array'
+					}
+				}
+			}
+		}
+	}
+});
