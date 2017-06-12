@@ -197,18 +197,18 @@ export default class MergeDectorator implements vscode.Disposable {
 				pushDecoration('current.content', { range: conflict.current.decoratorContent });
 				pushDecoration('incoming.content', { range: conflict.incoming.decoratorContent });
 
-				if (conflict.commonAncestors !== null) {
-					pushDecoration('commonAncestors.content', { range: conflict.commonAncestors.decoratorContent });
-				}
+				conflict.commonAncestors.forEach(commonAncestorsRegion => {
+					pushDecoration('commonAncestors.content', { range: commonAncestorsRegion.decoratorContent });
+				});
 
 				if (this.config.enableDecorations) {
 					pushDecoration('current.header', { range: conflict.current.header });
 					pushDecoration('splitter', { range: conflict.splitter });
 					pushDecoration('incoming.header', { range: conflict.incoming.header });
 
-					if (conflict.commonAncestors !== null) {
-						pushDecoration('commonAncestors.header', { range: conflict.commonAncestors.header });
-					}
+					conflict.commonAncestors.forEach(commonAncestorsRegion => {
+						pushDecoration('commonAncestors.header', { range: commonAncestorsRegion.header });
+					});
 				}
 			});
 

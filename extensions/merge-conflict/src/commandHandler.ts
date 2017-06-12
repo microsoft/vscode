@@ -113,8 +113,8 @@ export default class CommandHandler implements vscode.Disposable {
 		let typeToAccept: interfaces.CommitType;
 		let tokenAfterCurrentBlock: vscode.Range = conflict.splitter;
 
-		if (conflict.commonAncestors !== null) {
-			tokenAfterCurrentBlock = conflict.commonAncestors.header;
+		if (conflict.commonAncestors.length > 0) {
+			tokenAfterCurrentBlock = conflict.commonAncestors[0].header;
 		}
 
 		// Figure out if the cursor is in current or incoming, we do this by seeing if
