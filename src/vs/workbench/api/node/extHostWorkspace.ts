@@ -19,19 +19,19 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 
 	private static _requestIdPool = 0;
 
-	private _proxy: MainThreadWorkspaceShape;
-	private _workspacePath: string;
+	private readonly _proxy: MainThreadWorkspaceShape;
+	private _workspaceFolders: URI[];
 
 	constructor(threadService: IThreadService, folders: URI[]) {
 		super();
 		this._proxy = threadService.get(MainContext.MainThreadWorkspace);
-		this._workspacePath = isFalsyOrEmpty(folders) ? undefined : folders[0].fsPath;
+		this._workspaceFolders = folders;
 	}
 
 	// --- workspace ---
 
 	getPath(): string {
-		return this._workspacePath;
+		return isFalsyOrEmpty(this._workspaceFolders) ? undefined : this._workspaceFolders[0].fsPath;
 	}
 
 	getRelativePath(pathOrUri: string | vscode.Uri): string {
@@ -47,20 +47,24 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 			return path;
 		}
 
-		if (!this._workspacePath) {
+		if (isFalsyOrEmpty(this._workspaceFolders)) {
 			return normalize(path);
 		}
 
-		let result = relative(this._workspacePath, path);
-		if (!result || result.indexOf('..') === 0) {
-			return normalize(path);
+		for (const { fsPath } of this._workspaceFolders) {
+			let result = relative(fsPath, path);
+			if (!result || result.indexOf('..') === 0) {
+				continue;
+			}
+			return normalize(result);
 		}
 
-		return normalize(result);
+		return normalize(path);
 	}
 
-	$acceptWorkspaceData(folders: URI[]): void {
-		// todo@joh do something, align with ctor URI[] vs IWorkspace
+	$acceptWorkspaceData(workspaceFolders: URI[]): void {
+		//TODO@joh equality-check, emit event etc.
+		this._workspaceFolders = workspaceFolders;
 	}
 
 	// --- search ---
