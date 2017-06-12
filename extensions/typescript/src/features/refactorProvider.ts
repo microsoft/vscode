@@ -12,14 +12,14 @@ import { ITypescriptServiceClient } from '../typescriptService';
 
 
 export default class TypeScriptRefactorProvider implements CodeActionProvider {
-	private commandId: string;
+	private doRefactorCommandId: string;
 
 	constructor(
 		private readonly client: ITypescriptServiceClient,
 		mode: string
 	) {
-		this.commandId = `_typescript.applyRefactoring.${mode}`;
-		commands.registerCommand(this.commandId, this.onCodeAction, this);
+		this.doRefactorCommandId = `_typescript.applyRefactoring.${mode}`;
+		commands.registerCommand(this.doRefactorCommandId, this.onCodeAction, this);
 	}
 
 	public async provideCodeActions(
@@ -51,49 +51,48 @@ export default class TypeScriptRefactorProvider implements CodeActionProvider {
 				return [];
 			}
 
-			return response.body.map(action => ({
-				title: action.description,
-				command: this.commandId,
-				arguments: [file, action.name, range]
-			}));
+			return Array.prototype.concat.apply([], response.body.map(info =>
+				info.actions.map(action => ({
+					title: action.description,
+					command: this.doRefactorCommandId,
+					arguments: [file, info.name, action.name, range]
+				}))));
 		} catch (err) {
-			this.client.error(`'getApplicableRefactors' request failed with error.`, err);
 			return [];
 		}
 	}
 
-	private actionsToEdit(actions: Proto.CodeAction[]): WorkspaceEdit {
+	private toWorkspaceEdit(edits: Proto.FileCodeEdits[]): WorkspaceEdit {
 		const workspaceEdit = new WorkspaceEdit();
-		for (const action of actions) {
-			for (const change of action.changes) {
-				for (const textChange of change.textChanges) {
-					workspaceEdit.replace(this.client.asUrl(change.fileName),
-						new Range(
-							textChange.start.line - 1, textChange.start.offset - 1,
-							textChange.end.line - 1, textChange.end.offset - 1),
-						textChange.newText);
-				}
+		for (const edit of edits) {
+			for (const textChange of edit.textChanges) {
+				workspaceEdit.replace(this.client.asUrl(edit.fileName),
+					new Range(
+						textChange.start.line - 1, textChange.start.offset - 1,
+						textChange.end.line - 1, textChange.end.offset - 1),
+					textChange.newText);
 			}
 		}
 		return workspaceEdit;
 	}
 
-	private async onCodeAction(file: string, refactorName: string, range: Range): Promise<boolean> {
-		const args: Proto.GetRefactorCodeActionsRequestArgs = {
+	private async onCodeAction(file: string, refactor: string, action: string, range: Range): Promise<boolean> {
+		const args: Proto.GetEditsForRefactorRequestArgs = {
 			file,
-			refactorName,
+			refactor,
+			action,
 			startLine: range.start.line + 1,
 			startOffset: range.start.character + 1,
 			endLine: range.end.line + 1,
 			endOffset: range.end.character + 1
 		};
 
-		const response = await this.client.execute('getRefactorCodeActions', args);
-		if (!response || !response.body || !response.body.actions.length) {
+		const response = await this.client.execute('getEditsForRefactor', args);
+		if (!response || !response.body || !response.body.edits.length) {
 			return false;
 		}
 
-		const edit = this.actionsToEdit(response.body.actions);
+		const edit = this.toWorkspaceEdit(response.body.edits);
 		return workspace.applyEdit(edit);
 	}
 }

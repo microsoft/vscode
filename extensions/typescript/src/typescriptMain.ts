@@ -38,8 +38,6 @@ import BufferSyncSupport from './features/bufferSyncSupport';
 import CompletionItemProvider from './features/completionItemProvider';
 import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
 import CodeActionProvider from './features/codeActionProvider';
-import RefactorProvider from './features/refactorProvider';
-
 import ReferenceCodeLensProvider from './features/referencesCodeLensProvider';
 import { JsDocCompletionProvider, TryCompleteJsDocCommand } from './features/jsDocCompletionProvider';
 import { DirectiveCommentCompletionProvider } from './features/directiveCommentCompletionProvider';
@@ -169,6 +167,7 @@ export function activate(context: ExtensionContext): void {
 const validateSetting = 'validate.enable';
 
 class LanguageProvider {
+
 	private syntaxDiagnostics: ObjectMap<Diagnostic[]>;
 	private readonly currentDiagnostics: DiagnosticCollection;
 	private readonly bufferSyncSupport: BufferSyncSupport;
@@ -265,7 +264,6 @@ class LanguageProvider {
 		this.disposables.push(languages.registerRenameProvider(selector, new RenameProvider(client)));
 
 		this.disposables.push(languages.registerCodeActionsProvider(selector, new CodeActionProvider(client, this.description.id)));
-		this.disposables.push(languages.registerCodeActionsProvider(selector, new RefactorProvider(client, this.description.id)));
 
 		this.registerVersionDependentProviders();
 
