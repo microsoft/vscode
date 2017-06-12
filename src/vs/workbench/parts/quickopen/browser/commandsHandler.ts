@@ -149,6 +149,31 @@ export class ShowAllCommandsAction extends Action {
 	}
 }
 
+export class ShowTasksAction extends Action {
+
+	public static ID = 'workbench.action.showTasks';
+	public static LABEL = nls.localize('showTasks', "Show Task Menu");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IConfigurationService private configurationService: IConfigurationService
+	) {
+		super(id, label);
+	}
+
+	public run(context?: any): TPromise<any> {
+		let value = ALL_COMMANDS_PREFIX;
+		let taskStr = 'tasks';
+		value = `${value}${taskStr}`;
+
+		this.quickOpenService.show(value);
+
+		return TPromise.as(null);
+	}
+}
+
 export class ClearCommandHistoryAction extends Action {
 
 	public static ID = 'workbench.action.clearCommandHistory';
