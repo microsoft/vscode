@@ -7,7 +7,7 @@
 
 import 'vs/workbench/parts/search/browser/search.contribution'; // load contributions
 import * as assert from 'assert';
-import { WorkspaceContextService, IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
+import { WorkspaceContextService, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ISearchService } from 'vs/platform/search/common/search';
@@ -73,7 +73,7 @@ suite('QuickOpen performance (integration)', () => {
 			[ITelemetryService, telemetryService],
 			[IConfigurationService, new SimpleConfigurationService()],
 			[IModelService, new ModelServiceImpl(null, configurationService)],
-			[IWorkspaceContextService, new WorkspaceContextService(new Workspace(URI.file(testWorkspacePath)))],
+			[IWorkspaceContextService, new WorkspaceContextService({ resource: URI.file(testWorkspacePath) })],
 			[IWorkbenchEditorService, new TestEditorService()],
 			[IEditorGroupService, new TestEditorGroupService()],
 			[IEnvironmentService, TestEnvironmentService],
