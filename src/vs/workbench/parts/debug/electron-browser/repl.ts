@@ -60,7 +60,7 @@ export interface IPrivateReplService {
 	_serviceBrand: any;
 	navigateHistory(previous: boolean): void;
 	acceptReplInput(): void;
-	copyAllReplOutput(): void;
+	getVisibleContent(): string;
 }
 
 export class Repl extends Panel implements IPrivateReplService {
@@ -232,7 +232,7 @@ export class Repl extends Panel implements IPrivateReplService {
 		this.layout(this.dimension);
 	}
 
-	public copyAllReplOutput(): void {
+	public getVisibleContent(): string {
 		let text = '';
 		const navigator = this.tree.getNavigator();
 		// skip first navigator element - the root node
@@ -242,7 +242,8 @@ export class Repl extends Panel implements IPrivateReplService {
 			}
 			text += navigator.current().toString();
 		}
-		clipboard.writeText(text);
+
+		return text;
 	}
 
 	public layout(dimension: Dimension): void {
@@ -399,14 +400,14 @@ export class ReplCopyAllAction extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'repl.action.copyall',
-			label: nls.localize('actions.repl.copyall', "Debug: Console Copy All"),
+			id: 'repl.action.copyAll',
+			label: nls.localize('actions.repl.copyAll', "Debug: Console Copy All"),
 			alias: 'Debug Console Copy All',
 			precondition: debug.CONTEXT_IN_DEBUG_REPL,
 		});
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void | TPromise<void> {
-		accessor.get(IPrivateReplService).copyAllReplOutput();
+		clipboard.writeText(accessor.get(IPrivateReplService).getVisibleContent());
 	}
 }
