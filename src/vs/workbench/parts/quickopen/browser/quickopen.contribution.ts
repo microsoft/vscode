@@ -41,7 +41,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenViewPickerAct
 }), 'Quick Open View');
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(ShowTasksAction, ShowTasksAction.ID, ShowTasksAction.LABEL, {
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_T
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_T
 }), 'Show Task Menu');
 
 // Register Quick Open Handler

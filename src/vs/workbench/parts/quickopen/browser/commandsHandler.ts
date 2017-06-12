@@ -164,10 +164,7 @@ export class ShowTasksAction extends Action {
 	}
 
 	public run(context?: any): TPromise<any> {
-		let value = ALL_COMMANDS_PREFIX;
-		let taskStr = 'tasks';
-		value = `${value}${taskStr}`;
-
+		const value = `${ALL_COMMANDS_PREFIX}tasks`;
 		this.quickOpenService.show(value);
 
 		return TPromise.as(null);
