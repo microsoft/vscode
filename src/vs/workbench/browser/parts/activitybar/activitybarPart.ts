@@ -462,7 +462,9 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			const index = this.pinnedViewlets.indexOf(viewletId);
 			this.pinnedViewlets.splice(index, 1);
 
-			this.updateViewletSwitcher();
+			if (this.viewletSwitcherBar) {
+				this.updateViewletSwitcher();
+			}
 		});
 	}
 
