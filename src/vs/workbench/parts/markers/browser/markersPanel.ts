@@ -6,7 +6,6 @@
 import 'vs/css!./media/markers';
 
 import * as errors from 'vs/base/common/errors';
-import * as Set from 'vs/base/common/set';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';
@@ -53,7 +52,7 @@ export class MarkersPanel extends Panel {
 	private hasToAutoReveal: boolean;
 
 	private tree: Tree.ITree;
-	private autoExpanded: Set.ArraySet<string>;
+	private autoExpanded: Set<string>;
 	private rangeHighlightDecorations: RangeHighlightDecorations;
 
 	private actions: IAction[];
@@ -81,7 +80,7 @@ export class MarkersPanel extends Panel {
 		super(Constants.MARKERS_PANEL_ID, telemetryService, themeService);
 		this.toDispose = [];
 		this.delayedRefresh = new Delayer<void>(500);
-		this.autoExpanded = new Set.ArraySet<string>();
+		this.autoExpanded = new Set<string>();
 		this.markerFocusContextKey = Constants.MarkerFocusContextKey.bindTo(contextKeyService);
 	}
 
@@ -188,7 +187,7 @@ export class MarkersPanel extends Panel {
 
 	public updateFilter(filter: string) {
 		this.markersModel.update(new FilterOptions(filter));
-		this.autoExpanded = new Set.ArraySet<string>();
+		this.autoExpanded = new Set<string>();
 		this.refreshPanel();
 		this.autoReveal();
 	}
@@ -304,7 +303,7 @@ export class MarkersPanel extends Panel {
 		bulkUpdater.done();
 		for (const resource of resources) {
 			if (!this.markersModel.hasResource(resource)) {
-				this.autoExpanded.unset(resource.toString());
+				this.autoExpanded.delete(resource.toString());
 			}
 		}
 	}
@@ -326,9 +325,9 @@ export class MarkersPanel extends Panel {
 	private autoExpand(): void {
 		for (const resource of this.markersModel.filteredResources) {
 			const resourceUri = resource.uri.toString();
-			if (!this.autoExpanded.contains(resourceUri)) {
+			if (!this.autoExpanded.has(resourceUri)) {
 				this.tree.expand(resource).done(null, errors.onUnexpectedError);
-				this.autoExpanded.set(resourceUri);
+				this.autoExpanded.add(resourceUri);
 			}
 		}
 	}

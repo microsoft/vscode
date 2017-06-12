@@ -12,7 +12,6 @@ import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { TPromise, PPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { SimpleMap } from 'vs/base/common/map';
-import { ArraySet } from 'vs/base/common/set';
 import Event, { Emitter, fromPromise, stopwatch, any } from 'vs/base/common/event';
 import { ISearchService, ISearchProgressItem, ISearchComplete, ISearchQuery, IPatternInfo, IFileMatch } from 'vs/platform/search/common/search';
 import { ReplacePattern } from 'vs/platform/search/common/replace';
@@ -127,7 +126,7 @@ export class FileMatch extends Disposable {
 	private _model: IModel;
 	private _modelListener: IDisposable;
 	private _matches: SimpleMap<string, Match>;
-	private _removedMatches: ArraySet<string>;
+	private _removedMatches: Set<string>;
 	private _selectedMatch: Match;
 
 	private _updateScheduler: RunOnceScheduler;
@@ -138,7 +137,7 @@ export class FileMatch extends Disposable {
 		super();
 		this._resource = this.rawMatch.resource;
 		this._matches = new SimpleMap<string, Match>();
-		this._removedMatches = new ArraySet<string>();
+		this._removedMatches = new Set<string>();
 		this._updateScheduler = new RunOnceScheduler(this.updateMatchesForModel.bind(this), 250);
 
 		this.createMatches();
@@ -222,7 +221,7 @@ export class FileMatch extends Disposable {
 	private updateMatches(matches: FindMatch[], modelChange: boolean) {
 		matches.forEach(m => {
 			let match = new Match(this, this._model.getLineContent(m.range.startLineNumber), m.range.startLineNumber - 1, m.range.startColumn - 1, m.range.endColumn - m.range.startColumn);
-			if (!this._removedMatches.contains(match.id())) {
+			if (!this._removedMatches.has(match.id())) {
 				this.add(match);
 				if (this.isMatchSelected(match)) {
 					this._selectedMatch = match;
@@ -263,7 +262,7 @@ export class FileMatch extends Disposable {
 
 	public remove(match: Match): void {
 		this.removeMatch(match);
-		this._removedMatches.set(match.id());
+		this._removedMatches.add(match.id());
 		this._onChange.fire(false);
 	}
 
