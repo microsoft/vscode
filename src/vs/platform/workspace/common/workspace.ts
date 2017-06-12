@@ -65,13 +65,59 @@ export interface IWorkspace {
 	name?: string;
 }
 
+export class Workspace implements IWorkspace {
+
+	constructor(private _resource: URI, private _uid?: number, private _name?: string) {
+	}
+
+	public get resource(): URI {
+		return this._resource;
+	}
+
+	public get uid(): number {
+		return this._uid;
+	}
+
+	public get name(): string {
+		return this._name;
+	}
+
+	public isInsideWorkspace(resource: URI): boolean {
+		if (resource) {
+			return isEqualOrParent(resource.fsPath, this._resource.fsPath, !isLinux /* ignorecase */);
+		}
+
+		return false;
+	}
+
+	public toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
+		if (this.isInsideWorkspace(resource)) {
+			return paths.normalize(paths.relative(this._resource.fsPath, resource.fsPath), toOSPath);
+		}
+
+		return null;
+	}
+
+	public toResource(workspaceRelativePath: string): URI {
+		if (typeof workspaceRelativePath === 'string') {
+			return URI.file(paths.join(this._resource.fsPath, workspaceRelativePath));
+		}
+
+		return null;
+	}
+
+	public toJSON() {
+		return { resource: this._resource, uid: this._uid, name: this._name };
+	}
+}
+
 export class WorkspaceContextService implements IWorkspaceContextService {
 
 	public _serviceBrand: any;
 
-	private workspace: IWorkspace;
+	private workspace: Workspace;
 
-	constructor(workspace: IWorkspace) {
+	constructor(workspace?: Workspace) {
 		this.workspace = workspace;
 	}
 
@@ -84,26 +130,14 @@ export class WorkspaceContextService implements IWorkspaceContextService {
 	}
 
 	public isInsideWorkspace(resource: URI): boolean {
-		if (resource && this.workspace) {
-			return isEqualOrParent(resource.fsPath, this.workspace.resource.fsPath, !isLinux /* ignorecase */);
-		}
-
-		return false;
+		return this.workspace ? this.workspace.isInsideWorkspace(resource) : false;
 	}
 
 	public toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
-		if (this.isInsideWorkspace(resource)) {
-			return paths.normalize(paths.relative(this.workspace.resource.fsPath, resource.fsPath), toOSPath);
-		}
-
-		return null;
+		return this.workspace ? this.workspace.toWorkspaceRelativePath(resource, toOSPath) : null;
 	}
 
 	public toResource(workspaceRelativePath: string): URI {
-		if (typeof workspaceRelativePath === 'string' && this.workspace) {
-			return URI.file(paths.join(this.workspace.resource.fsPath, workspaceRelativePath));
-		}
-
-		return null;
+		return this.workspace ? this.workspace.toResource(workspaceRelativePath) : null;
 	}
 }

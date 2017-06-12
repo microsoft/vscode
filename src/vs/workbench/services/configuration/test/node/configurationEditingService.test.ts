@@ -15,7 +15,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { parseArgs } from 'vs/platform/environment/node/argv';
-import { WorkspaceContextService, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { WorkspaceContextService, IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import extfs = require('vs/base/node/extfs');
 import { TestTextFileService, TestEditorGroupService, TestLifecycleService, TestBackupFileService } from 'vs/workbench/test/workbenchTestServices';
@@ -113,9 +113,11 @@ suite('ConfigurationEditingService', () => {
 		clearServices();
 
 		instantiationService = new TestInstantiationService();
-		instantiationService.stub(IEnvironmentService, new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile));
-		instantiationService.stub(IWorkspaceContextService, new WorkspaceContextService(noWorkspace ? null : { resource: URI.file(workspaceDir) }));
-		const configurationService = instantiationService.createInstance(WorkspaceConfigurationService);
+		const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
+		instantiationService.stub(IEnvironmentService, environmentService);
+		const workspace = noWorkspace ? null : new Workspace(URI.file(workspaceDir));
+		instantiationService.stub(IWorkspaceContextService, new WorkspaceContextService(workspace));
+		const configurationService = new WorkspaceConfigurationService(environmentService, workspace);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
 		instantiationService.stub(IEditorGroupService, new TestEditorGroupService());
