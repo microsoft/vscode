@@ -288,7 +288,16 @@ export class WindowsManager implements IWindowsMainService {
 			}
 		}
 
+		// Open based on config
 		const usedWindows = this.doOpen(openConfig, foldersToOpen, foldersToRestore, emptyToRestore, emptyToOpen, filesToOpen, filesToCreate, filesToDiff);
+
+		// Make sure the last active window gets focus if we opened multiple
+		if (usedWindows.length > 1 && this.windowsState.lastActiveWindow) {
+			let lastActiveWindw = usedWindows.filter(w => w.backupPath === this.windowsState.lastActiveWindow.backupPath);
+			if (lastActiveWindw.length) {
+				lastActiveWindw[0].focus();
+			}
+		}
 
 		// Remember in recent document list (unless this opens for extension development)
 		// Also do not add paths when files are opened for diffing, only if opened individually
