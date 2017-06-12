@@ -6,6 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
+import URI from 'vs/base/common/uri';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { TestThreadService } from './testThreadService';
 
@@ -13,7 +14,7 @@ suite('ExtHostWorkspace', function () {
 
 	test('asRelativePath', function () {
 
-		const ws = new ExtHostWorkspace(new TestThreadService(), '/Coding/Applications/NewsWoWBot');
+		const ws = new ExtHostWorkspace(new TestThreadService(), [URI.file('/Coding/Applications/NewsWoWBot')]);
 
 		assert.equal(ws.getRelativePath('/Coding/Applications/NewsWoWBot/bernd/das/brot'), 'bernd/das/brot');
 		assert.equal(ws.getRelativePath('/Apps/DartPubCache/hosted/pub.dartlang.org/convert-2.0.1/lib/src/hex.dart'),
@@ -26,7 +27,7 @@ suite('ExtHostWorkspace', function () {
 	test('asRelativePath, same paths, #11402', function () {
 		const root = '/home/aeschli/workspaces/samples/docker';
 		const input = '/home/aeschli/workspaces/samples/docker';
-		const ws = new ExtHostWorkspace(new TestThreadService(), root);
+		const ws = new ExtHostWorkspace(new TestThreadService(), [URI.file(root)]);
 
 		assert.equal(ws.getRelativePath(input), input);
 
