@@ -119,9 +119,11 @@ export class WindowsManager implements IWindowsMainService {
 		this.windowsState = this.storageService.getItem<IWindowsState>(WindowsManager.windowsStateStorageKey) || { openedWindows: [] };
 
 		// TODO@Ben migration from previous openedFolders to new openedWindows property
-		if (this.windowsState.openedFolders && this.windowsState.openedFolders.length > 0) {
+		if (Array.isArray(this.windowsState.openedFolders) && this.windowsState.openedFolders.length > 0) {
 			this.windowsState.openedWindows = this.windowsState.openedFolders;
 			this.windowsState.openedFolders = void 0;
+		} else if (!this.windowsState.openedWindows) {
+			this.windowsState.openedWindows = [];
 		}
 
 		this.fileDialog = new FileDialog(environmentService, telemetryService, storageService, this);
