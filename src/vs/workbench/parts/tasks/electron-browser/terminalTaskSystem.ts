@@ -156,6 +156,15 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		}
 	}
 
+	public show(task: Task, forceFocus: boolean = false): void {
+		let terminalData = this.activeTasks[task._id];
+		if (terminalData === void 0) {
+			return;
+		}
+		this.terminalService.setActiveInstance(terminalData.terminal);
+		this.terminalService.showPanel(forceFocus);
+	}
+
 	public isActive(): TPromise<boolean> {
 		return TPromise.as(this.isActiveSync());
 	}

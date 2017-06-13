@@ -444,6 +444,9 @@ class NullTaskSystem extends EventEmitter implements ITaskSystem {
 			promise: TPromise.as<ITaskSummary>({})
 		};
 	}
+	public show(task: Task, forceFocus: boolean = false): void {
+		return;
+	}
 	public isActive(): TPromise<boolean> {
 		return TPromise.as(false);
 	}
@@ -929,8 +932,13 @@ class TaskService extends EventEmitter implements ITaskService {
 				let executeResult = this.getTaskSystem().run(task, resolver);
 				if (executeResult.kind === TaskExecuteKind.Active) {
 					let active = executeResult.active;
-					if (active.same && active.background) {
-						this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame', 'The task is already active and in watch mode. To terminate the task use `F1 > terminate task`'));
+					if (active.same) {
+						if (active.background) {
+							this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame.background', 'The task is already active and in background mode. To terminate the task use `F1 > terminate task`'));
+						} else {
+							this.getTaskSystem().show(task, true);
+							// this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame.noBackground', 'The task is already active. To terminate the task use `F1 > terminate task`'));
+						}
 					} else {
 						throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is already a task running. Terminate it first before executing another task.'), TaskErrors.RunningTask);
 					}
