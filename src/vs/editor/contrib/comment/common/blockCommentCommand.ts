@@ -145,7 +145,7 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 			);
 		} else {
 			var srcRange = inverseEditOperations[0].range;
-			var deltaColumn = this._usedEndToken ? -this._usedEndToken.length : 0;
+			var deltaColumn = this._usedEndToken ? -this._usedEndToken.length - 1 : 0; // minus 1 space before endToken
 			return new Selection(
 				srcRange.endLineNumber,
 				srcRange.endColumn + deltaColumn,
