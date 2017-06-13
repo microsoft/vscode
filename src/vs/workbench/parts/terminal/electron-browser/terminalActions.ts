@@ -17,6 +17,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
 export class ToggleTerminalAction extends TogglePanelAction {
 
@@ -552,5 +553,33 @@ export class DisallowWorkspaceShellTerminalCommand extends Action {
 	public run(event?: any): TPromise<any> {
 		this.terminalService.setWorkspaceShellAllowed(false);
 		return TPromise.as(void 0);
+	}
+}
+
+export class RenameTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.rename';
+	public static LABEL = nls.localize('workbench.action.terminal.rename', "Rename");
+
+	constructor(
+		id: string, label: string,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const terminalInstance = this.terminalService.getActiveInstance();
+		if (!terminalInstance) {
+			return TPromise.as(void 0);
+		}
+		return this.quickOpenService.input({
+			prompt: nls.localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
+		}).then(name => {
+			if (name) {
+				terminalInstance.setTitle(name);
+			}
+		});
 	}
 }

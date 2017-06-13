@@ -33,18 +33,19 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 	public constructor(
 		private client: ITypescriptServiceClient) { }
 
-	public provideDocumentSymbols(resource: TextDocument, token: CancellationToken): Promise<SymbolInformation[]> {
+	public async provideDocumentSymbols(resource: TextDocument, token: CancellationToken): Promise<SymbolInformation[]> {
 		const filepath = this.client.normalizePath(resource.uri);
 		if (!filepath) {
-			return Promise.resolve<SymbolInformation[]>([]);
+			return [];
 		}
 		const args: Proto.FileRequestArgs = {
 			file: filepath
 		};
 
-		if (this.client.apiVersion.has206Features()) {
-			return this.client.execute('navtree', args, token).then((response) => {
-				const result: SymbolInformation[] = [];
+		try {
+			const result: SymbolInformation[] = [];
+			if (this.client.apiVersion.has206Features()) {
+				const response = await this.client.execute('navtree', args, token);
 				if (response.body) {
 					// The root represents the file. Ignore this when showing in the UI
 					let tree = response.body;
@@ -52,21 +53,16 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 						tree.childItems.forEach(item => TypeScriptDocumentSymbolProvider.convertNavTree(resource.uri, result, item));
 					}
 				}
-				return result;
-			}, () => {
-				return [];
-			});
-		} else {
-			return this.client.execute('navbar', args, token).then((response) => {
-				const result: SymbolInformation[] = [];
+			} else {
+				const response = await this.client.execute('navbar', args, token);
 				if (response.body) {
 					let foldingMap: ObjectMap<SymbolInformation> = Object.create(null);
 					response.body.forEach(item => TypeScriptDocumentSymbolProvider.convertNavBar(resource.uri, 0, foldingMap, result, item));
 				}
-				return result;
-			}, () => {
-				return [];
-			});
+			}
+			return result;
+		} catch (e) {
+			return [];
 		}
 	}
 

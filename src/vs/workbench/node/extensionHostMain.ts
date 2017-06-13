@@ -15,10 +15,9 @@ import { ExtHostThreadService } from 'vs/workbench/services/thread/common/extHos
 import { QueryType, ISearchQuery } from 'vs/platform/search/common/search';
 import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
 import { RemoteTelemetryService } from 'vs/workbench/api/node/extHostTelemetry';
-import { IWorkspaceContextService, WorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
 import { IInitData, IEnvironment, MainContext } from 'vs/workbench/api/node/extHost.protocol';
 import * as errors from 'vs/base/common/errors';
-import { NullConfigurationService } from "vs/workbench/services/configuration/node/nullConfigurationService";
+import { IWorkspace } from "vs/platform/workspace/common/workspace";
 
 const nativeExit = process.exit.bind(process);
 process.exit = function () {
@@ -36,25 +35,19 @@ interface ITestRunner {
 export class ExtensionHostMain {
 
 	private _isTerminating: boolean = false;
-	private _contextService: IWorkspaceContextService;
 	private _diskSearch: DiskSearch;
+	private _workspace: IWorkspace;
 	private _environment: IEnvironment;
 	private _extensionService: ExtHostExtensionService;
 
 	constructor(remoteCom: IRemoteCom, initData: IInitData) {
-		// services
 		this._environment = initData.environment;
+		this._workspace = initData.workspace;
 
-		const workspaceRaw = initData.contextService.workspace;
-		let workspace: Workspace;
-		if (workspaceRaw) {
-			workspace = new Workspace(workspaceRaw.resource, workspaceRaw.uid, workspaceRaw.name);
-		}
-		this._contextService = new WorkspaceContextService(new NullConfigurationService(), workspace); //TODO@Ben implement for exthost
-
+		// services
 		const threadService = new ExtHostThreadService(remoteCom);
 		const telemetryService = new RemoteTelemetryService('pluginHostTelemetry', threadService);
-		this._extensionService = new ExtHostExtensionService(initData, threadService, telemetryService, this._contextService);
+		this._extensionService = new ExtHostExtensionService(initData, threadService, telemetryService);
 
 		// Error forwarding
 		const mainThreadErrors = threadService.get(MainContext.MainThreadErrors);
@@ -108,12 +101,11 @@ export class ExtensionHostMain {
 	}
 
 	private handleWorkspaceContainsEagerExtensions(): TPromise<void> {
-		let workspace = this._contextService.getWorkspace();
-		if (!workspace || !workspace.resource) {
+		if (!this._workspace || !this._workspace.resource) {
 			return TPromise.as(null);
 		}
 
-		const folderPath = workspace.resource.fsPath;
+		const folderPath = this._workspace.resource.fsPath;
 
 		const desiredFilesMap: {
 			[filename: string]: boolean;
@@ -143,7 +135,7 @@ export class ExtensionHostMain {
 				}
 
 				const query: ISearchQuery = {
-					folderResources: [workspace.resource],
+					folderResources: [this._workspace.resource],
 					type: QueryType.File,
 					maxResults: 1,
 					includePattern: { [p]: true }

@@ -122,20 +122,21 @@ export class Workspace implements IWorkspace {
 	}
 }
 
-type IWorkspaceConfiguration = { path: string; folders: string[]; }[];
+type IWorkspaceConfiguration = { [rootFolder: string]: { folders: string[]; } };
 
 export class WorkspaceContextService implements IWorkspaceContextService {
 
 	public _serviceBrand: any;
 
-	private _onDidChangeFolders: Emitter<URI[]>;
+	private readonly _onDidChangeFolders: Emitter<URI[]> = new Emitter<URI[]>();
+	public readonly onDidChangeFolders: Event<URI[]> = this._onDidChangeFolders.event;
+
 	private folders: URI[];
 	private toDispose: IDisposable[];
 
 	constructor(private configurationService: IConfigurationService, private workspace?: Workspace) {
 		this.toDispose = [];
 
-		this._onDidChangeFolders = new Emitter<URI[]>();
 		this.toDispose.push(this._onDidChangeFolders);
 
 		this.folders = workspace ? [workspace.resource] : [];
@@ -161,18 +162,14 @@ export class WorkspaceContextService implements IWorkspaceContextService {
 		// Resovled configured folders for workspace
 		let configuredFolders: URI[] = [this.workspace.resource];
 		const config = this.configurationService.getConfiguration<IWorkspaceConfiguration>('workspace');
-		if (Array.isArray(config)) {
-			for (let i = 0; i < config.length; i++) {
-				const targetWorkspace = config[i];
-				if (targetWorkspace.path === this.workspace.resource.toString()) {
-					const additionalFolders = targetWorkspace.folders
-						.map(f => URI.parse(f))
-						.filter(r => r.scheme === Schemas.file); // only support files for now
+		if (config) {
+			const workspaceConfig = config[this.workspace.resource.toString()];
+			if (workspaceConfig) {
+				const additionalFolders = workspaceConfig.folders
+					.map(f => URI.parse(f))
+					.filter(r => r.scheme === Schemas.file); // only support files for now
 
-					configuredFolders.push(...additionalFolders);
-
-					break;
-				}
+				configuredFolders.push(...additionalFolders);
 			}
 		}
 
@@ -187,10 +184,6 @@ export class WorkspaceContextService implements IWorkspaceContextService {
 		if (notify && changed) {
 			this._onDidChangeFolders.fire(configuredFolders);
 		}
-	}
-
-	public get onDidChangeFolders(): Event<URI[]> {
-		return this._onDidChangeFolders && this._onDidChangeFolders.event; //TODO@Sandeep sinon is a pita
 	}
 
 	public getFolders(): URI[] {

@@ -586,6 +586,7 @@ export class CodeMenu {
 		const output = this.createMenuItem(nls.localize({ key: 'miToggleOutput', comment: ['&& denotes a mnemonic'] }, "&&Output"), 'workbench.action.output.toggleOutput');
 		const debugConsole = this.createMenuItem(nls.localize({ key: 'miToggleDebugConsole', comment: ['&& denotes a mnemonic'] }, "De&&bug Console"), 'workbench.debug.action.toggleRepl');
 		const integratedTerminal = this.createMenuItem(nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "&&Integrated Terminal"), 'workbench.action.terminal.toggleTerminal');
+		const taskMenu = this.createMenuItem(nls.localize({ key: 'miShowTask', comment: ['&& denotes a mnemonic'] }, "Show Tas&&ks..."), 'workbench.action.showTasks');
 		const problems = this.createMenuItem(nls.localize({ key: 'miMarker', comment: ['&& denotes a mnemonic'] }, "&&Problems"), 'workbench.actions.view.problems');
 
 		let additionalViewlets: Electron.MenuItem;
@@ -657,6 +658,7 @@ export class CodeMenu {
 			problems,
 			debugConsole,
 			integratedTerminal,
+			taskMenu,
 			__separator__(),
 			fullscreen,
 			toggleZenMode,
