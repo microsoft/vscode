@@ -9,6 +9,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { generateUuid } from 'vs/base/common/uuid';
+import * as errors from 'vs/base/common/errors';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { clone } from 'vs/base/common/objects';
 import severity from 'vs/base/common/severity';
 import { isObject, isString } from 'vs/base/common/types';
@@ -435,22 +437,14 @@ export class Thread implements IThread {
 	 * Only fetches the first stack frame for performance reasons. Calling this method consecutive times
 	 * gets the remainder of the call stack.
 	 */
-	public fetchCallStack(smartFetch = true): TPromise<void> {
+	public fetchCallStack(levels = 20): TPromise<void> {
 		if (!this.stopped) {
 			return TPromise.as(null);
 		}
 
-		if (!this.fetchPromise && smartFetch) {
-			this.fetchPromise = this.getCallStackImpl(0, 1).then(callStack => {
-				this.callStack = callStack || [];
-			});
-		} else {
-			this.fetchPromise = (this.fetchPromise || TPromise.as(null)).then(() => this.getCallStackImpl(this.callStack.length, 20).then(callStackSecondPart => {
-				this.callStack = this.callStack.concat(callStackSecondPart);
-			}));
-		}
-
-		return this.fetchPromise;
+		return this.getCallStackImpl(this.callStack.length, levels).then(callStack => {
+			this.callStack = this.callStack.concat(callStack || []);
+		});
 	}
 
 	private getCallStackImpl(startFrame: number, levels: number): TPromise<IStackFrame[]> {
@@ -738,6 +732,7 @@ export class Model implements IModel {
 	private processes: Process[];
 	private toDispose: lifecycle.IDisposable[];
 	private replElements: IReplElement[];
+	private schedulers = new Map<string, RunOnceScheduler>();
 	private _onDidChangeBreakpoints: Emitter<void>;
 	private _onDidChangeCallStack: Emitter<void>;
 	private _onDidChangeWatchExpressions: Emitter<IExpression>;
@@ -805,6 +800,9 @@ export class Model implements IModel {
 
 	public clearThreads(id: string, removeThreads: boolean, reference: number = undefined): void {
 		const process = this.processes.filter(p => p.getId() === id).pop();
+		this.schedulers.forEach(scheduler => scheduler.dispose());
+		this.schedulers.clear();
+
 		if (process) {
 			process.clearThreads(removeThreads, reference);
 			this._onDidChangeCallStack.fire();
@@ -812,7 +810,21 @@ export class Model implements IModel {
 	}
 
 	public fetchCallStack(thread: IThread): TPromise<void> {
-		return (<Thread>thread).fetchCallStack().then(() => {
+		return (<Thread>thread).fetchCallStack(1).then(() => {
+			if (!this.schedulers.has(thread.getId())) {
+				this.schedulers.set(thread.getId(), new RunOnceScheduler(() => {
+					const callStack = thread.getCallStack();
+					// Some adapters might not respect the number levels in StackTraceRequest and might
+					// return more stackFrames than requested. For those do not send an additional stackTrace request.
+					if (callStack.length <= 1) {
+						(<Thread>thread).fetchCallStack(19).done(() => {
+							this._onDidChangeCallStack.fire();
+						}, errors.onUnexpectedError);
+					}
+				}, 420));
+			}
+
+			this.schedulers.get(thread.getId()).schedule();
 			this._onDidChangeCallStack.fire();
 		});
 	}

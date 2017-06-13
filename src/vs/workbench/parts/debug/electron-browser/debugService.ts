@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as paths from 'vs/base/common/paths';
-import { RunOnceScheduler } from 'vs/base/common/async';
 import * as strings from 'vs/base/common/strings';
 import { generateUuid } from 'vs/base/common/uuid';
 import uri from 'vs/base/common/uri';
@@ -80,9 +79,7 @@ export class DebugService implements debug.IDebugService {
 	private debugType: IContextKey<string>;
 	private debugState: IContextKey<string>;
 	private breakpointsToSendOnResourceSaved: Set<string>;
-	private callStackScheduler: RunOnceScheduler;
 	private launchJsonChanged: boolean;
-	private threadToFetch: debug.IThread;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -121,17 +118,6 @@ export class DebugService implements debug.IDebugService {
 			this.loadExceptionBreakpoints(), this.loadWatchExpressions());
 		this.toDispose.push(this.model);
 		this.viewModel = new ViewModel(this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE, null));
-		this.callStackScheduler = new RunOnceScheduler(() => {
-			if (this.threadToFetch) {
-				const callStack = this.threadToFetch.getCallStack();
-				// Some adapters might not respect the number levels in StackTraceRequest and might
-				// return more stackFrames than requested. For those do not send an additional stackTrace request.
-				if (callStack.length <= 1) {
-					this.model.fetchCallStack(this.threadToFetch).done(() =>
-						this.tryToAutoFocusStackFrame(this.threadToFetch), errors.onUnexpectedError);
-				}
-			}
-		}, 420);
 
 		this.registerListeners(lifecycleService);
 	}
@@ -330,8 +316,6 @@ export class DebugService implements debug.IDebugService {
 					// Call fetch call stack twice, the first only return the top stack frame.
 					// Second retrieves the rest of the call stack. For performance reasons #25605
 					this.model.fetchCallStack(thread).then(() => {
-						this.threadToFetch = thread;
-						this.callStackScheduler.schedule();
 						return this.tryToAutoFocusStackFrame(thread);
 					});
 				}

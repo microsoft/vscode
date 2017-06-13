@@ -366,9 +366,9 @@ export class CallStackDataSource implements IDataSource {
 	}
 
 	private getThreadChildren(thread: Thread): TPromise<any> {
-		const callStack: any[] = thread.getCallStack();
+		let callStack: any[] = thread.getCallStack();
 		if (!callStack || !callStack.length) {
-			return thread.fetchCallStack(false).then(() => thread.getCallStack());
+			thread.fetchCallStack().then(() => callStack = thread.getCallStack());
 		}
 		if (callStack.length === 1) {
 			// To reduce flashing of the call stack view simply append the stale call stack
