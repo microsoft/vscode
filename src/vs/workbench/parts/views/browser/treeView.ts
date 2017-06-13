@@ -132,21 +132,24 @@ export class TreeView extends CollapsibleView {
 	}
 
 	private setInput(): TPromise<void> {
-		if (this.tree && !this.treeInputPromise) {
-			if (this.listenToDataProvider()) {
-				this.treeInputPromise = this.tree.setInput(new Root());
-				return this.treeInputPromise;
+		if (this.tree) {
+			if (!this.treeInputPromise) {
+				if (this.listenToDataProvider()) {
+					this.treeInputPromise = this.tree.setInput(new Root());
+				} else {
+					this.treeInputPromise = new TPromise<void>((c, e) => {
+						this.dataProviderRegisteredListener = ViewsRegistry.onTreeViewDataProviderRegistered(id => {
+							if (this.id === id) {
+								if (this.listenToDataProvider()) {
+									this.tree.setInput(new Root()).then(() => c(null));
+									this.dataProviderRegisteredListener.dispose();
+								}
+							}
+						});
+					});
+				}
 			}
-			this.treeInputPromise = new TPromise<void>((c, e) => {
-				this.dataProviderRegisteredListener = ViewsRegistry.onTreeViewDataProviderRegistered(id => {
-					if (this.id === id) {
-						if (this.listenToDataProvider()) {
-							this.tree.setInput(new Root()).then(() => c(null));
-							this.dataProviderRegisteredListener.dispose();
-						}
-					}
-				});
-			});
+			return this.treeInputPromise;
 		}
 		return TPromise.as(null);
 	}
