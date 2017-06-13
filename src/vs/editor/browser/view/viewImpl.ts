@@ -48,7 +48,8 @@ import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/edi
 import { Minimap } from 'vs/editor/browser/viewParts/minimap/minimap';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IThemeService, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
-import { Cursor } from "vs/editor/common/controller/cursor";
+import { Cursor } from 'vs/editor/common/controller/cursor';
+import { IMouseEvent } from "vs/base/browser/mouseEvent";
 
 export interface IContentWidgetData {
 	widget: editorBrowser.IContentWidget;
@@ -105,7 +106,7 @@ export class View extends ViewEventHandler {
 		this._renderAnimationFrame = null;
 		this.outgoingEvents = new ViewOutgoingEvents(model);
 
-		let viewController = new ViewController(model, execCoreEditorCommandFunc, this.outgoingEvents, commandService);
+		let viewController = new ViewController(configuration, model, execCoreEditorCommandFunc, this.outgoingEvents, commandService);
 
 		// The event dispatcher will always go through _renderOnce before dispatching any events
 		this.eventDispatcher = new ViewEventDispatcher((callback: () => void) => this._renderOnce(callback));
@@ -403,25 +404,20 @@ export class View extends ViewEventHandler {
 
 		if (!this.viewLines.shouldRender() && viewPartsToRender.length === 0) {
 			// Nothing to render
-			this._textAreaHandler.writeToTextArea();
 			return;
 		}
 
 		const partialViewportData = this._context.viewLayout.getLinesViewportData();
 		this._context.model.setViewport(partialViewportData.startLineNumber, partialViewportData.endLineNumber, partialViewportData.centeredLineNumber);
 
-		let viewportData = new ViewportData(partialViewportData, this._context.model);
+		let viewportData = new ViewportData(partialViewportData, this._context.viewLayout.getWhitespaceViewportData(), this._context.model);
 
 		if (this.viewLines.shouldRender()) {
-			this.viewLines.renderText(viewportData, () => {
-				this._textAreaHandler.writeToTextArea();
-			});
+			this.viewLines.renderText(viewportData);
 			this.viewLines.onDidRender();
 
 			// Rendering of viewLines might cause scroll events to occur, so collect view parts to render again
 			viewPartsToRender = this._getViewPartsToRender();
-		} else {
-			this._textAreaHandler.writeToTextArea();
 		}
 
 		let renderingContext = new RenderingContext(this._context.viewLayout, viewportData, this.viewLines);
@@ -441,7 +437,7 @@ export class View extends ViewEventHandler {
 
 	// --- BEGIN CodeEditor helpers
 
-	public delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void {
+	public delegateVerticalScrollbarMouseDown(browserEvent: IMouseEvent): void {
 		this._scrollbar.delegateVerticalScrollbarMouseDown(browserEvent);
 	}
 

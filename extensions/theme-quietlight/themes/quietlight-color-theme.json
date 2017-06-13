@@ -461,6 +461,7 @@
 		"list.activeSelectionBackground": "#c4d9b1",
 		"list.inactiveSelectionBackground": "#d3dbcd",
 		"list.highlightForeground": "#9769dc",
+		"selection.background": "#C9D0D9",
 		"editor.background": "#F5F5F5",
 		"editorWhitespace.foreground": "#AAAAAA",
 		"editor.lineHighlightBackground": "#E4F6D4",
@@ -496,6 +497,7 @@
 		"inputValidation.warningBorder": "#ffe055",
 		"inputValidation.errorBackground": "#ffeaea",
 		"inputValidation.errorBorder": "#f1897f",
+		"errorForeground": "#ffeaea",
 		"badge.background": "#705697AA",
 		"progressBar.background": "#705697"
 	}

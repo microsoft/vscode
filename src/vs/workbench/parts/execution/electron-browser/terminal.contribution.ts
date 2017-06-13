@@ -11,7 +11,7 @@ import baseplatform = require('vs/base/common/platform');
 import { IAction, Action } from 'vs/base/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import paths = require('vs/base/common/paths');
-import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor } from 'vs/workbench/browser/actionBarRegistry';
+import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor } from 'vs/workbench/browser/actions';
 import uri from 'vs/base/common/uri';
 import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';

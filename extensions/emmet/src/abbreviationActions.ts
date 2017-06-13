@@ -20,11 +20,13 @@ export function wrapWithAbbreviation() {
 		rangeToReplace = new vscode.Range(rangeToReplace.start.line, 0, rangeToReplace.start.line, editor.document.lineAt(rangeToReplace.start.line).text.length);
 	}
 	let textToReplace = editor.document.getText(rangeToReplace);
+	let syntax = getSyntax(editor.document);
 	let options = {
 		field: field,
-		syntax: getSyntax(editor.document),
+		syntax: syntax,
 		profile: getProfile(getSyntax(editor.document)),
-		text: textToReplace
+		text: textToReplace,
+		addons: syntax === 'jsx' ? { 'jsx': syntax === 'jsx' } : null
 	};
 
 	vscode.window.showInputBox({ prompt: 'Enter Abbreviation' }).then(abbr => {
@@ -45,11 +47,12 @@ export function expandAbbreviation() {
 	if (rangeToReplace.isEmpty) {
 		[rangeToReplace, abbr] = extractAbbreviation(rangeToReplace.start);
 	}
-
+	let syntax = getSyntax(editor.document);
 	let options = {
 		field: field,
-		syntax: getSyntax(editor.document),
-		profile: getProfile(getSyntax(editor.document))
+		syntax: syntax,
+		profile: getProfile(getSyntax(editor.document)),
+		addons: syntax === 'jsx' ? { 'jsx': true } : null
 	};
 
 	let expandedText = expand(abbr, options);

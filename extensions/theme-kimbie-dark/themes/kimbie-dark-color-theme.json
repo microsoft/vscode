@@ -14,6 +14,7 @@
 		"pickerGroup.foreground": "#e3b583",
 		"pickerGroup.border": "#e3b583",
 		"inputOption.activeBorder": "#a57a4c",
+		"selection.background": "#84613daa",
 		"editor.selectionBackground": "#84613daa",
 		"editorWidget.background": "#131510",
 		"editorHoverWidget.background": "#221a14",
@@ -369,7 +370,7 @@
 				"variable.interpolation"
 			],
 			"settings": {
-				"foreground": "#18401e"
+				"foreground": "#088649"
 			}
 		},
 		{

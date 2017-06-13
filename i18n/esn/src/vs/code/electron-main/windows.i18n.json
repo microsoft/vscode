@@ -7,7 +7,6 @@
 	"ok": "Aceptar",
 	"pathNotExistTitle": "La ruta no existe",
 	"pathNotExistDetail": "Parece que la ruta '{0}' ya no existe en el disco.",
-	"accessibilityOptionsWindowTitle": "Opciones de accesibilidad",
 	"reopen": "Volver a abrir",
 	"wait": "Siga esperando",
 	"close": "Cerrar",

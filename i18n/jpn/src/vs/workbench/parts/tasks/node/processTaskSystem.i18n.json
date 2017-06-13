@@ -7,5 +7,6 @@
 	"TaskRunnerSystem.unknownError": "タスクの実行中に不明なエラーが発生しました。詳細については、タスク出力ログを参照してください。",
 	"TaskRunnerSystem.watchingBuildTaskFinished": "\nビルド タスクのウォッチが終了しました。",
 	"TaskRunnerSystem.childProcessError": "Failed to launch external program {0} {1}.",
-	"TaskRunnerSystem.cancelRequested": "\nユーザー要求ごとにタスク '{0}' が終了しました。"
+	"TaskRunnerSystem.cancelRequested": "\nユーザー要求ごとにタスク '{0}' が終了しました。",
+	"unkownProblemMatcher": "問題マッチャー {0} は解決できませんでした。マッチャーは無視されます"
 }

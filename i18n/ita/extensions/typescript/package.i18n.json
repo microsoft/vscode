@@ -37,9 +37,10 @@
 	"typescript.referencesCodeLens.enabled": "Abilita/disabilita riferimenti CodeLens nei file TypeScript. Richiede TypeScript >= 2.0.6.",
 	"typescript.implementationsCodeLens.enabled": "Abilita/Disabilita le finestre CodeLens per le implementazioni. Richiede una versione di TypeScript uguale o successiva alla 2.2.0.",
 	"typescript.openTsServerLog.title": "Apri il log del server TypeScript",
+	"typescript.restartTsServer": "Riavvia server TS",
 	"typescript.selectTypeScriptVersion.title": "Seleziona la versione di TypeScript",
 	"jsDocCompletion.enabled": "Abilita/Disabilita commenti automatici JSDoc",
 	"javascript.implicitProjectConfig.checkJs": "Abilita/disabilita il controllo semantico di file JavaScript. File jsconfig.json o tsconfig.json esistenti sovrascrivono su questa impostazione. Richiede TypeScript >= 2.3.1.",
-	"typescript.check.npmIsInstalled": "Controllare se NPM è installato per l'acquisizione automatica delle definizioni di tipi",
-	"javascript.nameSuggestions": "Abilita/disabilita l'inclusione di nomi univoci dal file negli elenchi di suggerimento di JavaScript."
+	"javascript.nameSuggestions": "Abilita/disabilita l'inclusione di nomi univoci dal file negli elenchi di suggerimento di JavaScript.",
+	"typescript.tsc.autoDetect": "Controlla se la rilevazione automatica di attività tsc è on/off."
 }

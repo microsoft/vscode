@@ -1,4 +1,9 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/ionide/ionide-fsgrammar/blob/master/grammar/fsharp.json",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
 	"name": "fsharp",
 	"scopeName": "source.fsharp",
 	"fileTypes": [
@@ -456,6 +461,5 @@
 				}
 			]
 		}
-	},
-	"version": "https://github.com/ionide/ionide-fsgrammar/commit/f2e3c30f0ebfcc89fb78ad908701159f20516812"
+	}
 }

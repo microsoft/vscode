@@ -13,7 +13,7 @@ import errors = require('vs/base/common/errors');
 import labels = require('vs/base/common/labels');
 import paths = require('vs/base/common/paths');
 import { Action, IAction } from 'vs/base/common/actions';
-import { prepareActions } from 'vs/workbench/browser/actionBarRegistry';
+import { prepareActions } from 'vs/workbench/browser/actions';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocussedContext, ExplorerFocussedContext } from 'vs/workbench/parts/files/common/files';
@@ -22,10 +22,10 @@ import { RefreshViewExplorerAction, NewFolderAction, NewFileAction } from 'vs/wo
 import { FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/browser/views/explorerViewer';
 import { toResource } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import * as DOM from 'vs/base/browser/dom';
-import { CollapseAction, CollapsibleViewletView } from 'vs/workbench/browser/viewlet';
+import { CollapseAction } from 'vs/workbench/browser/viewlet';
+import { CollapsibleView, IViewletViewOptions } from 'vs/workbench/parts/views/browser/views';
 import { FileStat } from 'vs/workbench/parts/files/common/explorerViewModel';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -43,10 +43,14 @@ import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/th
 import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
-import { IViewOptions } from 'vs/workbench/parts/views/browser/views';
+import { ViewSizing } from 'vs/base/browser/ui/splitview/splitview';
 import { Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 
-export class ExplorerView extends CollapsibleViewletView {
+export interface IExplorerViewOptions extends IViewletViewOptions {
+	viewletState: FileViewletState;
+}
+
+export class ExplorerView extends CollapsibleView {
 
 	public static ID: string = 'workbench.explorer.fileView';
 	private static EXPLORER_FILE_CHANGES_REACT_DELAY = 500; // delay in ms to react to file changes to give our internal events a chance to react first
@@ -80,11 +84,8 @@ export class ExplorerView extends CollapsibleViewletView {
 	private settings: any;
 
 	constructor(
-		viewletState: FileViewletState,
-		options: IViewOptions,
-		settings: any,
-		headerSize: number,
-		@IMessageService messageService: IMessageService,
+		options: IExplorerViewOptions,
+		@IMessageService private messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
@@ -100,10 +101,10 @@ export class ExplorerView extends CollapsibleViewletView {
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
-		super(options.actionRunner, options.collapsed, nls.localize('explorerSection', "Files Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
+		super({ ...options, ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section"), sizing: ViewSizing.Flexible }, keybindingService, contextMenuService);
 
-		this.settings = settings;
-		this.viewletState = viewletState;
+		this.settings = options.viewletSettings;
+		this.viewletState = options.viewletState;
 		this.actionRunner = options.actionRunner;
 		this.autoReveal = true;
 
@@ -132,7 +133,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		this.tree = this.createViewer($(this.treeContainer));
 
 		if (this.toolBar) {
-			this.toolBar.setActions(prepareActions(this.getActions()), [])();
+			this.toolBar.setActions(prepareActions(this.getActions()), this.getSecondaryActions())();
 		}
 
 		const onFileIconThemeChange = (fileIconTheme: IFileIconTheme) => {
@@ -205,7 +206,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 		// Handle closed or untitled file (convince explorer to not reopen any file when getting visible)
 		const activeInput = this.editorService.getActiveEditorInput();
-		if (activeInput instanceof UntitledEditorInput || !activeInput) {
+		if (!activeInput || toResource(activeInput, { supportSideBySide: true, filter: 'untitled' })) {
 			this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = void 0;
 			clearFocus = true;
 		}
@@ -854,7 +855,16 @@ export class ExplorerView extends CollapsibleViewletView {
 				.filter((e: FileStat) => e.resource.toString() !== this.contextService.getWorkspace().resource.toString())
 				.map((e: FileStat) => e.resource.toString());
 
-			this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES] = expanded;
+			if (expanded.length) {
+				this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES] = expanded;
+			} else {
+				delete this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES];
+			}
+		}
+
+		// Clean up last focussed if not set
+		if (!this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE]) {
+			delete this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE];
 		}
 
 		super.shutdown();

@@ -28,8 +28,8 @@ import {
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CommonEditorRegistry } from "vs/editor/common/editorCommonExtensions";
-import { VerticalRevealType } from "vs/editor/common/view/viewEvents";
+import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
 
 let EDITOR_ID = 0;
 

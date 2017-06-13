@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as path from 'path';
 import VsCodeTelemetryReporter from 'vscode-extension-telemetry';
-import { Disposable } from "vscode";
+import { Disposable } from 'vscode';
 
 
 interface IPackageInfo {

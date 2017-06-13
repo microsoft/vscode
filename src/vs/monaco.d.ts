@@ -1068,19 +1068,19 @@ declare module monaco.editor {
 	export interface IModelDecorationOverviewRulerOptions {
 		/**
 		 * CSS color to render in the overview ruler.
-		 * e.g.: rgba(100, 100, 100, 0.5)
+		 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 		 */
-		color: string;
+		color: string | ThemeColor;
 		/**
 		 * CSS color to render in the overview ruler.
-		 * e.g.: rgba(100, 100, 100, 0.5)
+		 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 		 */
-		darkColor: string;
+		darkColor: string | ThemeColor;
 		/**
 		 * CSS color to render in the overview ruler.
-		 * e.g.: rgba(100, 100, 100, 0.5)
+		 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 		 */
-		hcColor?: string;
+		hcColor?: string | ThemeColor;
 		/**
 		 * The position in the overview ruler.
 		 */
@@ -1092,7 +1092,7 @@ declare module monaco.editor {
 	 */
 	export interface IModelDecorationOptions {
 		/**
-		 * Customize the growing behaviour of the decoration when typing at the edges of the decoration.
+		 * Customize the growing behavior of the decoration when typing at the edges of the decoration.
 		 * Defaults to TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
 		 */
 		stickiness?: TrackedRangeStickiness;
@@ -1638,7 +1638,8 @@ declare module monaco.editor {
 	}
 
 	/**
-	 * Describes the behaviour of decorations when typing/editing near their edges.
+	 * Describes the behavior of decorations when typing/editing near their edges.
+	 * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehavior`
 	 */
 	export enum TrackedRangeStickiness {
 		AlwaysGrowsWhenTypingAtEdges = 0,
@@ -2158,6 +2159,10 @@ declare module monaco.editor {
 		restoreViewState?(state: any): void;
 	}
 
+	export interface ThemeColor {
+		id: string;
+	}
+
 	export interface ICommonCodeEditor extends IEditor {
 		/**
 		 * An event emitted when the content of the current model has changed.
@@ -2651,6 +2656,11 @@ declare module monaco.editor {
 		 */
 		enabled?: boolean;
 		/**
+		 * Control the rendering of the minimap slider.
+		 * Defaults to 'mouseover'.
+		 */
+		showSlider?: 'always' | 'mouseover';
+		/**
 		 * Render the actual text on a line (as opposed to color blocks).
 		 * Defaults to true.
 		 */
@@ -2666,11 +2676,6 @@ declare module monaco.editor {
 	 * Configuration options for the editor.
 	 */
 	export interface IEditorOptions {
-		/**
-		 * Enable experimental screen reader support.
-		 * Defaults to `true`.
-		 */
-		experimentalScreenReader?: boolean;
 		/**
 		 * The aria label for the editor's textarea (when it is focused).
 		 */
@@ -2868,6 +2873,11 @@ declare module monaco.editor {
 		 */
 		hover?: boolean;
 		/**
+		 * Enable detecting links and making them clickable.
+		 * Defaults to true.
+		 */
+		links?: boolean;
+		/**
 		 * Enable custom contextmenu.
 		 * Defaults to true.
 		 */
@@ -2877,6 +2887,16 @@ declare module monaco.editor {
 		 * Defaults to 1.
 		 */
 		mouseWheelScrollSensitivity?: number;
+		/**
+		 * The modifier to be used to add multiple cursors with the mouse.
+		 * Defaults to 'alt'
+		 */
+		multiCursorModifier?: 'ctrlCmd' | 'alt';
+		/**
+		 * Configure the editor's accessibility support.
+		 * Defaults to 'auto'. It is best to leave this to 'auto'.
+		 */
+		accessibilitySupport?: 'auto' | 'off' | 'on';
 		/**
 		 * Enable quick suggestions (shadow suggestions)
 		 * Defaults to true.
@@ -3167,6 +3187,7 @@ declare module monaco.editor {
 
 	export interface InternalEditorMinimapOptions {
 		readonly enabled: boolean;
+		readonly showSlider: 'always' | 'mouseover';
 		readonly renderCharacters: boolean;
 		readonly maxColumn: number;
 	}
@@ -3191,7 +3212,6 @@ declare module monaco.editor {
 	export interface InternalEditorViewOptions {
 		readonly extraEditorClassName: string;
 		readonly disableMonospaceOptimizations: boolean;
-		readonly experimentalScreenReader: boolean;
 		readonly rulers: number[];
 		readonly ariaLabel: string;
 		readonly renderLineNumbers: boolean;
@@ -3222,6 +3242,7 @@ declare module monaco.editor {
 	export interface EditorContribOptions {
 		readonly selectionClipboard: boolean;
 		readonly hover: boolean;
+		readonly links: boolean;
 		readonly contextmenu: boolean;
 		readonly quickSuggestions: boolean | {
 			other: boolean;
@@ -3259,6 +3280,7 @@ declare module monaco.editor {
 		readonly editorClassName: string;
 		readonly lineHeight: number;
 		readonly readOnly: boolean;
+		readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 		readonly wordSeparators: string;
 		readonly autoClosingBrackets: boolean;
 		readonly useTabStops: boolean;
@@ -3389,6 +3411,8 @@ declare module monaco.editor {
 		readonly editorClassName: boolean;
 		readonly lineHeight: boolean;
 		readonly readOnly: boolean;
+		readonly accessibilitySupport: boolean;
+		readonly multiCursorModifier: boolean;
 		readonly wordSeparators: boolean;
 		readonly autoClosingBrackets: boolean;
 		readonly useTabStops: boolean;

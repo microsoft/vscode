@@ -7,6 +7,7 @@
 import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { MainThreadStatusBarShape } from '../node/extHost.protocol';
+import { ThemeColor } from 'vs/editor/common/editorCommon';
 
 export class MainThreadStatusBar extends MainThreadStatusBarShape {
 	private mapIdToDisposable: { [id: number]: IDisposable };
@@ -18,7 +19,7 @@ export class MainThreadStatusBar extends MainThreadStatusBarShape {
 		this.mapIdToDisposable = Object.create(null);
 	}
 
-	$setEntry(id: number, extensionId: string, text: string, tooltip: string, command: string, color: string, alignment: MainThreadStatusBarAlignment, priority: number): void {
+	$setEntry(id: number, extensionId: string, text: string, tooltip: string, command: string, color: string | ThemeColor, alignment: MainThreadStatusBarAlignment, priority: number): void {
 
 		// Dispose any old
 		this.$dispose(id);

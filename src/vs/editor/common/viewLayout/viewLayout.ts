@@ -12,7 +12,7 @@ import { IViewLayout, IViewWhitespaceViewportData, Viewport } from 'vs/editor/co
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 import Event from 'vs/base/common/event';
-import { IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
+import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 
 export class ViewLayout extends Disposable implements IViewLayout {
 

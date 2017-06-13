@@ -26,9 +26,9 @@ import { parseTree, Node } from 'vs/base/common/json';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { WindowsNativeResolvedKeybinding } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 
 const NLS_LAUNCH_MESSAGE = nls.localize('defineKeybinding.start', "Define Keybinding");
-const NLS_KB_LAYOUT_INFO_MESSAGE = nls.localize('defineKeybinding.kbLayoutInfoMessage', "For your current keyboard layout press ");
 const NLS_KB_LAYOUT_ERROR_MESSAGE = nls.localize('defineKeybinding.kbLayoutErrorMessage', "You won't be able to produce this key combination under your current keyboard layout.");
 
 const INTERESTING_FILE = /keybindings\.json$/;
@@ -230,15 +230,22 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 
 			const resolvedKeybindings = this._keybindingService.resolveUserBinding(value.value);
 			if (resolvedKeybindings.length === 0) {
-				return this._createDecoration(true, null, model, value);
+				return this._createDecoration(true, null, null, model, value);
 			}
 			const resolvedKeybinding = resolvedKeybindings[0];
+			let usLabel: string = null;
+			if (resolvedKeybinding instanceof WindowsNativeResolvedKeybinding) {
+				usLabel = resolvedKeybinding.getUSLabel();
+			}
 			if (!resolvedKeybinding.isWYSIWYG()) {
-				return this._createDecoration(false, resolvedKeybinding.getLabel(), model, value);
+				return this._createDecoration(false, resolvedKeybinding.getLabel(), usLabel, model, value);
+			}
+			if (/abnt_|oem_/.test(value.value)) {
+				return this._createDecoration(false, resolvedKeybinding.getLabel(), usLabel, model, value);
 			}
 			const expectedUserSettingsLabel = resolvedKeybinding.getUserSettingsLabel();
 			if (!KeybindingEditorDecorationsRenderer._userSettingsFuzzyEquals(value.value, expectedUserSettingsLabel)) {
-				return this._createDecoration(false, resolvedKeybinding.getLabel(), model, value);
+				return this._createDecoration(false, resolvedKeybinding.getLabel(), usLabel, model, value);
 			}
 			return null;
 		}
@@ -281,7 +288,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 		return false;
 	}
 
-	private _createDecoration(isError: boolean, message: string, model: editorCommon.IModel, keyNode: Node): editorCommon.IModelDeltaDecoration {
+	private _createDecoration(isError: boolean, uiLabel: string, usLabel: string, model: editorCommon.IModel, keyNode: Node): editorCommon.IModelDeltaDecoration {
 		let msg: MarkedString[];
 		let className: string;
 		let beforeContentClassName: string;
@@ -295,8 +302,27 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 			overviewRulerColor = 'rgba(250, 100, 100, 0.6)';
 		} else {
 			// this is the info case
-			msg = [NLS_KB_LAYOUT_INFO_MESSAGE];
-			msg = msg.concat(message);
+			if (usLabel && uiLabel !== usLabel) {
+				msg = [
+					nls.localize({
+						key: 'defineKeybinding.kbLayoutLocalAndUSMessage',
+						comment: [
+							'Please translate maintaining the stars (*) around the placeholders such that they will be rendered in bold.',
+							'The placeholders will contain a keyboard combination e.g. Ctrl+Shift+/'
+						]
+					}, "**{0}** for your current keyboard layout (**{1}** for US standard).", uiLabel, usLabel)
+				];
+			} else {
+				msg = [
+					nls.localize({
+						key: 'defineKeybinding.kbLayoutLocalMessage',
+						comment: [
+							'Please translate maintaining the stars (*) around the placeholder such that it will be rendered in bold.',
+							'The placeholder will contain a keyboard combination e.g. Ctrl+Shift+/'
+						]
+					}, "**{0}** for your current keyboard layout.", uiLabel)
+				];
+			}
 			className = 'keybindingInfo';
 			beforeContentClassName = 'inlineKeybindingInfo';
 			overviewRulerColor = 'rgba(100, 100, 250, 0.6)';

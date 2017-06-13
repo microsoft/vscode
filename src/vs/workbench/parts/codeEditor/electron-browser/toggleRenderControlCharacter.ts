@@ -16,7 +16,7 @@ export class ToggleRenderControlCharacterAction extends EditorAction {
 		super({
 			id: 'editor.action.toggleRenderControlCharacter',
 			label: nls.localize('toggleRenderControlCharacters', "Toggle Control Characters"),
-			alias: 'Toggle Render Control Characters',
+			alias: 'Toggle Control Characters',
 			precondition: null
 		});
 	}

@@ -45,6 +45,8 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 
+import { ITreeItem } from 'vs/workbench/parts/views/common/views';
+
 export interface IEnvironment {
 	enableProposedApiForAll: boolean;
 	enableProposedApiFor: string | string[];
@@ -58,9 +60,7 @@ export interface IEnvironment {
 export interface IInitData {
 	parentPid: number;
 	environment: IEnvironment;
-	contextService: {
-		workspace: IWorkspace;
-	};
+	workspace: IWorkspace;
 	extensions: IExtensionDescription[];
 	configuration: IWorkspaceConfigurationValues;
 	telemetryInfo: ITelemetryInfo;
@@ -194,14 +194,6 @@ export abstract class MainThreadEditorsShape {
 	$getDiffInformation(id: string): TPromise<editorCommon.ILineChange[]> { throw ni(); }
 }
 
-export interface TreeItem extends vscode.TreeItem {
-	handle: number;
-	commandId?: string;
-	icon?: string;
-	iconDark?: string;
-	children?: TreeItem[];
-}
-
 export abstract class MainThreadTreeViewsShape {
 	$registerView(treeViewId: string): void { throw ni(); }
 	$refresh(treeViewId: string, treeItemHandle?: number): void { throw ni(); }
@@ -270,14 +262,14 @@ export interface MyQuickPickItems extends IPickOpenEntry {
 	handle: number;
 }
 export abstract class MainThreadQuickOpenShape {
-	$show(options: IPickOptions): Thenable<number> { throw ni(); }
-	$setItems(items: MyQuickPickItems[]): Thenable<any> { throw ni(); }
-	$setError(error: Error): Thenable<any> { throw ni(); }
+	$show(options: IPickOptions): TPromise<number> { throw ni(); }
+	$setItems(items: MyQuickPickItems[]): TPromise<any> { throw ni(); }
+	$setError(error: Error): TPromise<any> { throw ni(); }
 	$input(options: vscode.InputBoxOptions, validateInput: boolean): TPromise<string> { throw ni(); }
 }
 
 export abstract class MainThreadStatusBarShape {
-	$setEntry(id: number, extensionId: string, text: string, tooltip: string, command: string, color: string, alignment: MainThreadStatusBarAlignment, priority: number): void { throw ni(); }
+	$setEntry(id: number, extensionId: string, text: string, tooltip: string, command: string, color: string | editorCommon.ThemeColor, alignment: MainThreadStatusBarAlignment, priority: number): void { throw ni(); }
 	$dispose(id: number) { throw ni(); }
 }
 
@@ -371,8 +363,7 @@ export abstract class ExtHostDocumentsShape {
 	$provideTextDocumentContent(handle: number, uri: URI): TPromise<string> { throw ni(); }
 	$acceptModelModeChanged(strURL: string, oldModeId: string, newModeId: string): void { throw ni(); }
 	$acceptModelSaved(strURL: string): void { throw ni(); }
-	$acceptModelDirty(strURL: string): void { throw ni(); }
-	$acceptModelReverted(strURL: string): void { throw ni(); }
+	$acceptDirtyStateChanged(strURL: string, isDirty: boolean): void { throw ni(); }
 	$acceptModelChanged(strURL: string, e: IModelChangedEvent, isDirty: boolean): void { throw ni(); }
 }
 
@@ -408,19 +399,16 @@ export abstract class ExtHostDocumentsAndEditorsShape {
 	$acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta): void { throw ni(); }
 }
 
-export type TreeViewCommandArg = {
-	treeViewId: string,
-	treeItemHandle: number
-};
-
 export abstract class ExtHostTreeViewsShape {
-	$getElements(treeViewId: string): TPromise<TreeItem[]> { throw ni(); }
-	$getChildren(treeViewId: string, treeItemHandle: number): TPromise<TreeItem[]> { throw ni(); }
-	$restore(treeViewId: string, treeItems: TreeItem[]): TPromise<TreeItem[]> { throw ni(); }
+	$getElements(treeViewId: string): TPromise<ITreeItem[]> { throw ni(); }
+	$getChildren(treeViewId: string, treeItemHandle: number): TPromise<ITreeItem[]> { throw ni(); }
+}
+
+export abstract class ExtHostWorkspaceShape {
+	$acceptWorkspaceData(folders: URI[]): void { throw ni(); }
 }
 
 export abstract class ExtHostExtensionServiceShape {
-	$localShowMessage(severity: Severity, msg: string): void { throw ni(); }
 	$activateExtension(extensionDescription: IExtensionDescription): TPromise<void> { throw ni(); }
 }
 
@@ -540,5 +528,6 @@ export const ExtHostContext = {
 	ExtHostExtensionService: createExtId<ExtHostExtensionServiceShape>('ExtHostExtensionService', ExtHostExtensionServiceShape),
 	ExtHostTerminalService: createExtId<ExtHostTerminalServiceShape>('ExtHostTerminalService', ExtHostTerminalServiceShape),
 	ExtHostSCM: createExtId<ExtHostSCMShape>('ExtHostSCM', ExtHostSCMShape),
-	ExtHostTask: createExtId<ExtHostTaskShape>('ExtHostTask', ExtHostTaskShape)
+	ExtHostTask: createExtId<ExtHostTaskShape>('ExtHostTask', ExtHostTaskShape),
+	ExtHostWorkspace: createExtId<ExtHostWorkspaceShape>('ExtHostWorkspace', ExtHostWorkspaceShape),
 };

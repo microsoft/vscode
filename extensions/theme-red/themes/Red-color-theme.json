@@ -11,6 +11,7 @@
 		"editorGroupHeader.tabsBackground": "#330000",
 		"titleBar.activeBackground": "#770000",
 		"titleBar.inactiveBackground": "#772222",
+		"selection.background": "#ff777788",
 		// editor
 		"editor.background": "#390000",
 		"editorGroup.border": "#ff666633",
@@ -51,7 +52,10 @@
 		"pickerGroup.foreground": "#cc9999",
 		"pickerGroup.border": "#ff000033",
 		"badge.background": "#cc3333",
-		"progressBar.background": "#cc3333"
+		"progressBar.background": "#cc3333",
+		"errorForeground": "#ffeaea",
+		"extensionButton.prominentBackground": "#cc3333",
+		"extensionButton.prominentHoverBackground": "#cc333388"
 	},
 	"name": "Red"
 }

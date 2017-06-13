@@ -6,7 +6,6 @@
 
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
-import { Constants } from 'vs/editor/common/core/uint';
 import * as strings from 'vs/base/common/strings';
 
 export interface ITextAreaWrapper {
@@ -31,18 +30,16 @@ export interface ITypeData {
 
 export class TextAreaState {
 
-	public static EMPTY = new TextAreaState('', 0, 0, 0);
+	public static EMPTY = new TextAreaState('', 0, 0);
 
 	public readonly value: string;
 	public readonly selectionStart: number;
 	public readonly selectionEnd: number;
-	public readonly selectionToken: number;
 
-	constructor(value: string, selectionStart: number, selectionEnd: number, selectionToken: number) {
+	constructor(value: string, selectionStart: number, selectionEnd: number) {
 		this.value = value;
 		this.selectionStart = selectionStart;
 		this.selectionEnd = selectionEnd;
-		this.selectionToken = selectionToken;
 	}
 
 	public equals(other: TextAreaState): boolean {
@@ -51,22 +48,21 @@ export class TextAreaState {
 				this.value === other.value
 				&& this.selectionStart === other.selectionStart
 				&& this.selectionEnd === other.selectionEnd
-				&& this.selectionToken === other.selectionToken
 			);
 		}
 		return false;
 	}
 
 	public toString(): string {
-		return '[ <' + this.value + '>, selectionStart: ' + this.selectionStart + ', selectionEnd: ' + this.selectionEnd + ', selectionToken: ' + this.selectionToken + ']';
+		return '[ <' + this.value + '>, selectionStart: ' + this.selectionStart + ', selectionEnd: ' + this.selectionEnd + ']';
 	}
 
 	public readFromTextArea(textArea: ITextAreaWrapper): TextAreaState {
-		return new TextAreaState(textArea.getValue(), textArea.getSelectionStart(), textArea.getSelectionEnd(), this.selectionToken);
+		return new TextAreaState(textArea.getValue(), textArea.getSelectionStart(), textArea.getSelectionEnd());
 	}
 
 	public collapseSelection(): TextAreaState {
-		return new TextAreaState(this.value, this.value.length, this.value.length, this.selectionToken);
+		return new TextAreaState(this.value, this.value.length, this.value.length);
 	}
 
 	public writeToTextArea(reason: string, textArea: ITextAreaWrapper, select: boolean): void {
@@ -78,7 +74,7 @@ export class TextAreaState {
 	}
 
 	public static selectedText(text: string): TextAreaState {
-		return new TextAreaState(text, 0, text.length, 0);
+		return new TextAreaState(text, 0, text.length);
 	}
 
 	public static deduceInput(previousState: TextAreaState, currentState: TextAreaState, couldBeEmojiInput: boolean): ITypeData {
@@ -198,79 +194,27 @@ export class TextAreaState {
 	}
 }
 
-export class IENarratorStrategy {
-
-	public static fromEditorSelection(previousState: TextAreaState, model: ISimpleModel, selection: Range): TextAreaState {
-		let LIMIT_CHARS = 100;
-		let PADDING_LINES_COUNT = 0;
-
-		let selectionStartLineNumber = selection.startLineNumber,
-			selectionStartColumn = selection.startColumn,
-			selectionEndLineNumber = selection.endLineNumber,
-			selectionEndColumn = selection.endColumn,
-			selectionEndLineNumberMaxColumn = model.getLineMaxColumn(selectionEndLineNumber);
-
-		// If the selection is empty and we have switched line numbers, expand selection to full line (helps Narrator trigger a full line read)
-		if (selection.isEmpty() && previousState && previousState.selectionToken !== selectionStartLineNumber) {
-			selectionStartColumn = 1;
-			selectionEndColumn = selectionEndLineNumberMaxColumn;
-		}
-
-		// `pretext` contains the text before the selection
-		let pretext = '';
-		let startLineNumber = Math.max(1, selectionStartLineNumber - PADDING_LINES_COUNT);
-		if (startLineNumber < selectionStartLineNumber) {
-			pretext = model.getValueInRange(new Range(startLineNumber, 1, selectionStartLineNumber, 1), EndOfLinePreference.LF);
-		}
-		pretext += model.getValueInRange(new Range(selectionStartLineNumber, 1, selectionStartLineNumber, selectionStartColumn), EndOfLinePreference.LF);
-		if (pretext.length > LIMIT_CHARS) {
-			pretext = pretext.substring(pretext.length - LIMIT_CHARS, pretext.length);
-		}
-
-
-		// `posttext` contains the text after the selection
-		let posttext = '';
-		let endLineNumber = Math.min(selectionEndLineNumber + PADDING_LINES_COUNT, model.getLineCount());
-		posttext += model.getValueInRange(new Range(selectionEndLineNumber, selectionEndColumn, selectionEndLineNumber, selectionEndLineNumberMaxColumn), EndOfLinePreference.LF);
-		if (endLineNumber > selectionEndLineNumber) {
-			posttext = '\n' + model.getValueInRange(new Range(selectionEndLineNumber + 1, 1, endLineNumber, model.getLineMaxColumn(endLineNumber)), EndOfLinePreference.LF);
-		}
-		if (posttext.length > LIMIT_CHARS) {
-			posttext = posttext.substring(0, LIMIT_CHARS);
-		}
-
-
-		// `text` contains the text of the selection
-		let text = model.getValueInRange(new Range(selectionStartLineNumber, selectionStartColumn, selectionEndLineNumber, selectionEndColumn), EndOfLinePreference.LF);
-		if (text.length > 2 * LIMIT_CHARS) {
-			text = text.substring(0, LIMIT_CHARS) + String.fromCharCode(8230) + text.substring(text.length - LIMIT_CHARS, text.length);
-		}
-
-		return new TextAreaState(pretext + text + posttext, pretext.length, pretext.length + text.length, selectionStartLineNumber);
-	}
-}
-
-export class NVDAPagedStrategy {
+export class PagedScreenReaderStrategy {
 	private static _LINES_PER_PAGE = 10;
 
 	private static _getPageOfLine(lineNumber: number): number {
-		return Math.floor((lineNumber - 1) / NVDAPagedStrategy._LINES_PER_PAGE);
+		return Math.floor((lineNumber - 1) / PagedScreenReaderStrategy._LINES_PER_PAGE);
 	}
 
 	private static _getRangeForPage(page: number): Range {
-		let offset = page * NVDAPagedStrategy._LINES_PER_PAGE;
+		let offset = page * PagedScreenReaderStrategy._LINES_PER_PAGE;
 		let startLineNumber = offset + 1;
-		let endLineNumber = offset + NVDAPagedStrategy._LINES_PER_PAGE;
-		return new Range(startLineNumber, 1, endLineNumber, Constants.MAX_SAFE_SMALL_INTEGER);
+		let endLineNumber = offset + PagedScreenReaderStrategy._LINES_PER_PAGE;
+		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
 	}
 
 	public static fromEditorSelection(previousState: TextAreaState, model: ISimpleModel, selection: Range): TextAreaState {
 
-		let selectionStartPage = NVDAPagedStrategy._getPageOfLine(selection.startLineNumber);
-		let selectionStartPageRange = NVDAPagedStrategy._getRangeForPage(selectionStartPage);
+		let selectionStartPage = PagedScreenReaderStrategy._getPageOfLine(selection.startLineNumber);
+		let selectionStartPageRange = PagedScreenReaderStrategy._getRangeForPage(selectionStartPage);
 
-		let selectionEndPage = NVDAPagedStrategy._getPageOfLine(selection.endLineNumber);
-		let selectionEndPageRange = NVDAPagedStrategy._getRangeForPage(selectionEndPage);
+		let selectionEndPage = PagedScreenReaderStrategy._getPageOfLine(selection.endLineNumber);
+		let selectionEndPageRange = PagedScreenReaderStrategy._getRangeForPage(selectionEndPage);
 
 		let pretextRange = selectionStartPageRange.intersectRanges(new Range(1, 1, selection.startLineNumber, selection.startColumn));
 		let pretext = model.getValueInRange(pretextRange, EndOfLinePreference.LF);
@@ -307,6 +251,6 @@ export class NVDAPagedStrategy {
 			text = text.substring(0, LIMIT_CHARS) + String.fromCharCode(8230) + text.substring(text.length - LIMIT_CHARS, text.length);
 		}
 
-		return new TextAreaState(pretext + text + posttext, pretext.length, pretext.length + text.length, selection.startLineNumber);
+		return new TextAreaState(pretext + text + posttext, pretext.length, pretext.length + text.length);
 	}
 }

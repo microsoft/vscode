@@ -7,11 +7,13 @@ import * as interfaces from './interfaces';
 import { DocumentMergeConflict } from './documentMergeConflict';
 
 const startHeaderMarker = '<<<<<<< ';
+const commonAncestorsMarker = '||||||| ';
 const splitterMarker = '=======';
 const endFooterMarker = '>>>>>>> ';
 
 interface IScanMergedConflict {
 	startHeader: vscode.TextLine;
+	commonAncestors: vscode.TextLine[];
 	splitter?: vscode.TextLine;
 	endFooter?: vscode.TextLine;
 }
@@ -49,10 +51,14 @@ export class MergeConflictParser {
 				}
 
 				// Create a new conflict starting at this line
-				currentConflict = { startHeader: line };
+				currentConflict = { startHeader: line, commonAncestors: [] };
+			}
+			// Are we within a conflict block and is this a common ancestors marker? |||||||
+			else if (currentConflict && !currentConflict.splitter && line.text.startsWith(commonAncestorsMarker)) {
+				currentConflict.commonAncestors.push(line);
 			}
 			// Are we within a conflict block and is this a splitter? =======
-			else if (currentConflict && line.text.startsWith(splitterMarker)) {
+			else if (currentConflict && !currentConflict.splitter && line.text.startsWith(splitterMarker)) {
 				currentConflict.splitter = line;
 			}
 			// Are we withon a conflict block and is this a footer? >>>>>>>
@@ -84,6 +90,8 @@ export class MergeConflictParser {
 			return null;
 		}
 
+		let tokenAfterCurrentBlock: vscode.TextLine = scanned.commonAncestors[0] || scanned.splitter;
+
 		// Assume that descriptor.current.header, descriptor.incoming.header and descriptor.spliiter
 		// have valid ranges, fill in content and total ranges from these parts.
 		// NOTE: We need to shift the decortator range back one character so the splitter does not end up with
@@ -94,13 +102,28 @@ export class MergeConflictParser {
 				header: scanned.startHeader.range,
 				decoratorContent: new vscode.Range(
 					scanned.startHeader.rangeIncludingLineBreak.end,
-					MergeConflictParser.shiftBackOneCharacter(document, scanned.splitter.range.start)),
-				// Current content is range between header (shifted for linebreak) and splitter start
+					MergeConflictParser.shiftBackOneCharacter(document, tokenAfterCurrentBlock.range.start)),
+				// Current content is range between header (shifted for linebreak) and splitter or common ancestors mark start
 				content: new vscode.Range(
 					scanned.startHeader.rangeIncludingLineBreak.end,
-					scanned.splitter.range.start),
+					tokenAfterCurrentBlock.range.start),
 				name: scanned.startHeader.text.substring(startHeaderMarker.length)
 			},
+			commonAncestors: scanned.commonAncestors.map((currentTokenLine, index, commonAncestors) => {
+				let nextTokenLine = commonAncestors[index + 1] || scanned.splitter;
+				return {
+					header: currentTokenLine.range,
+					decoratorContent: new vscode.Range(
+						currentTokenLine.rangeIncludingLineBreak.end,
+						MergeConflictParser.shiftBackOneCharacter(document, nextTokenLine.range.start)),
+					// Each common ancestors block is range between one common ancestors token
+					// (shifted for linebreak) and start of next common ancestors token or splitter
+					content: new vscode.Range(
+						currentTokenLine.rangeIncludingLineBreak.end,
+						nextTokenLine.range.start),
+					name: currentTokenLine.text.substring(commonAncestorsMarker.length)
+				};
+			}),
 			splitter: scanned.splitter.range,
 			incoming: {
 				header: scanned.endFooter.range,

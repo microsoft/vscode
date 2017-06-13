@@ -8,7 +8,7 @@
 import { Position } from 'vs/editor/common/core/position';
 import * as nls from 'vs/nls';
 import { Range } from 'vs/editor/common/core/range';
-import { IModel } from "vs/editor/common/editorCommon";
+import { IModel } from 'vs/editor/common/editorCommon';
 import { Selection } from 'vs/editor/common/core/selection';
 
 export class ScreenReaderMessageGenerator {

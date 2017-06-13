@@ -28,7 +28,7 @@ import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceIn
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
 import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -50,8 +50,7 @@ import { IWindowsService, IWindowService } from 'vs/platform/windows/common/wind
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { RawTextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IThemeService, ITheme, IThemingParticipant, ThemeType } from 'vs/platform/theme/common/themeService';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IThemeService, ITheme, DARK } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { isLinux } from 'vs/base/common/platform';
 
@@ -67,9 +66,20 @@ export class TestContextService implements IWorkspaceContextService {
 	private workspace: any;
 	private options: any;
 
+	private _onDidChangeFolders: Emitter<URI[]>;
+
 	constructor(workspace: any = TestWorkspace, options: any = null) {
 		this.workspace = workspace;
 		this.options = options || Object.create(null);
+		this._onDidChangeFolders = new Emitter<URI[]>();
+	}
+
+	public get onDidChangeFolders(): Event<URI[]> {
+		return this._onDidChangeFolders.event;
+	}
+
+	public getFolders(): URI[] {
+		return this.workspace ? [this.workspace.resource] : [];
 	}
 
 	public hasWorkspace(): boolean {
@@ -343,7 +353,7 @@ export class TestStorageService extends EventEmitter implements IStorageService 
 		super();
 
 		let context = new TestContextService();
-		this.storage = new StorageService(new InMemoryLocalStorage(), null, context);
+		this.storage = new StorageService(new InMemoryLocalStorage(), null, context.getWorkspace());
 	}
 
 	store(key: string, value: any, scope: StorageScope = StorageScope.GLOBAL): void {
@@ -718,6 +728,8 @@ export class TestFileService implements IFileService {
 export class TestBackupFileService implements IBackupFileService {
 	public _serviceBrand: any;
 
+	public backupEnabled: boolean;
+
 	public hasBackups(): TPromise<boolean> {
 		return TPromise.as(false);
 	}
@@ -848,20 +860,23 @@ export class TestWindowService implements IWindowService {
 	unmaximizeWindow(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
+	onWindowTitleDoubleClick(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
 }
 
 export class TestLifecycleService implements ILifecycleService {
 
 	public _serviceBrand: any;
 
-	public willShutdown: boolean;
+	public phase: LifecyclePhase;
 	public startupKind: StartupKind;
 
+	private _onDidChangePhase = new Emitter<LifecyclePhase>();
 	private _onWillShutdown = new Emitter<ShutdownEvent>();
 	private _onShutdown = new Emitter<ShutdownReason>();
 
-	constructor() {
-	}
 
 	public fireShutdown(reason = ShutdownReason.QUIT): void {
 		this._onShutdown.fire(reason);
@@ -869,6 +884,10 @@ export class TestLifecycleService implements ILifecycleService {
 
 	public fireWillShutdown(event: ShutdownEvent): void {
 		this._onWillShutdown.fire(event);
+	}
+
+	public get onDidChangePhase(): Event<LifecyclePhase> {
+		return this._onDidChangePhase.event;
 	}
 
 	public get onWillShutdown(): Event<ShutdownEvent> {
@@ -945,6 +964,9 @@ export class TestWindowsService implements IWindowsService {
 	unmaximizeWindow(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+	onWindowTitleDoubleClick(windowId: number): TPromise<void> {
+		return TPromise.as(void 0);
+	}
 	setDocumentEdited(windowId: number, flag: boolean): TPromise<void> {
 		return TPromise.as(void 0);
 	}
@@ -1000,10 +1022,16 @@ export class TestWindowsService implements IWindowsService {
 }
 
 export class TestTheme implements ITheme {
-	type: ThemeType;
+
+	constructor(private colors: { [id: string]: string; } = {}, public type = DARK) {
+	}
 
 	getColor(color: string, useDefault?: boolean): Color {
-		throw new Error('Method not implemented.');
+		let value = this.colors[color];
+		if (value) {
+			return Color.fromHex(value);
+		}
+		return void 0;
 	}
 
 	defines(color: string): boolean {
@@ -1011,17 +1039,30 @@ export class TestTheme implements ITheme {
 	}
 }
 
-const testTheme = new TestTheme();
-
 export class TestThemeService implements IThemeService {
 
 	_serviceBrand: any;
+	_theme: ITheme;
+	_onThemeChange = new Emitter<ITheme>();
 
-	getTheme(): ITheme {
-		return testTheme;
+	constructor(theme = new TestTheme()) {
+		this._theme = theme;
 	}
 
-	onThemeChange(participant: IThemingParticipant): IDisposable {
-		return { dispose: () => { } };
+	getTheme(): ITheme {
+		return this._theme;
+	}
+
+	setTheme(theme: ITheme) {
+		this._theme = theme;
+		this.fireThemeChange();
+	}
+
+	fireThemeChange() {
+		this._onThemeChange.fire(this._theme);
+	}
+
+	public get onThemeChange(): Event<ITheme> {
+		return this._onThemeChange.event;
 	}
 }

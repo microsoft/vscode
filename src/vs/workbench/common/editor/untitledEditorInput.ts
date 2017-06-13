@@ -26,12 +26,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 export class UntitledEditorInput extends EditorInput implements IEncodingSupport {
 
 	public static ID: string = 'workbench.editors.untitledEditorInput';
-	public static SCHEMA: string = 'untitled';
 
-	private resource: URI;
 	private _hasAssociatedFilePath: boolean;
-	private initialValue: string;
-	private modeId: string;
 	private cachedModel: UntitledEditorModel;
 	private modelResolve: TPromise<UntitledEditorModel>;
 
@@ -41,10 +37,11 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	private toUnbind: IDisposable[];
 
 	constructor(
-		resource: URI,
+		private resource: URI,
 		hasAssociatedFilePath: boolean,
-		modeId: string,
-		initialValue: string,
+		private modeId: string,
+		private initialValue: string,
+		private preferredEncoding: string,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITextFileService private textFileService: ITextFileService,
@@ -52,11 +49,9 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	) {
 		super();
 
-		this.resource = resource;
-		this.initialValue = initialValue;
 		this._hasAssociatedFilePath = hasAssociatedFilePath;
-		this.modeId = modeId;
 		this.toUnbind = [];
+
 		this._onDidModelChangeContent = new Emitter<void>();
 		this._onDidModelChangeEncoding = new Emitter<void>();
 	}
@@ -147,16 +142,18 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 			return this.cachedModel.getEncoding();
 		}
 
-		return null;
+		return this.preferredEncoding;
 	}
 
 	public setEncoding(encoding: string, mode: EncodingMode /* ignored, we only have Encode */): void {
+		this.preferredEncoding = encoding;
+
 		if (this.cachedModel) {
 			this.cachedModel.setEncoding(encoding);
 		}
 	}
 
-	public resolve(refresh?: boolean): TPromise<UntitledEditorModel> {
+	public resolve(): TPromise<UntitledEditorModel> {
 
 		// Join a model resolve if we have had one before
 		if (this.modelResolve) {
@@ -171,7 +168,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	}
 
 	private createModel(): UntitledEditorModel {
-		const model = this.instantiationService.createInstance(UntitledEditorModel, this.modeId, this.resource, this.hasAssociatedFilePath, this.initialValue);
+		const model = this.instantiationService.createInstance(UntitledEditorModel, this.modeId, this.resource, this.hasAssociatedFilePath, this.initialValue, this.preferredEncoding);
 
 		// re-emit some events from the model
 		this.toUnbind.push(model.onDidChangeContent(() => this._onDidModelChangeContent.fire()));

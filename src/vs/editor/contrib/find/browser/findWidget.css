@@ -51,7 +51,9 @@
 	height: 64px; /* find input height + replace input height */
 }
 .monaco-editor .find-widget.replaceToggled > .replace-part {
-	display: inline-block;
+	display: flex;
+	display: -webkit-flex;
+	align-items: center;
 }
 
 .monaco-editor .find-widget.visible,
@@ -81,6 +83,9 @@
 .monaco-editor .find-widget > .replace-part {
 	margin: 4px 0 0 17px;
 	font-size: 12px;
+	display: flex;
+	display: -webkit-flex;
+	align-items: center;
 }
 
 .monaco-editor .find-widget > .find-part .monaco-inputbox,
@@ -88,6 +93,10 @@
 	height: 25px;
 }
 
+.monaco-editor .find-widget > .find-part .monaco-inputbox > .wrapper > .input {
+	width: 100% !important;
+	padding-right: 66px;
+}
 .monaco-editor .find-widget > .find-part .monaco-inputbox > .wrapper > .input,
 .monaco-editor .find-widget > .replace-part .monaco-inputbox > .wrapper > .input {
 	padding-top: 2px;
@@ -95,12 +104,16 @@
 }
 
 .monaco-editor .find-widget .monaco-findInput {
-	display: inline-block;
 	vertical-align: middle;
+	display: flex;
+	display: -webkit-flex;
+	flex:1;
 }
 
 .monaco-editor .find-widget .matchesCount {
-	display: inline-block;
+	display: flex;
+	display: -webkit-flex;
+	flex: initial;
 	margin: 0 1px 0 3px;
 	padding: 2px 2px 0 2px;
 	height: 25px;
@@ -111,10 +124,12 @@
 }
 
 .monaco-editor .find-widget .button {
+	min-width: 20px;
 	width: 20px;
 	height: 20px;
-	display: inline-block;
-	vertical-align: middle;
+	display: flex;
+	display: -webkit-flex;
+	flex: initial;
 	margin-left: 3px;
 	background-position: center center;
 	background-repeat: no-repeat;
@@ -227,12 +242,10 @@
 }
 
 .monaco-editor .find-widget > .replace-part > .replace-input {
-	display: inline-block;
+	display: flex;
+	display: -webkit-flex;
 	vertical-align: middle;
-}
-
-.monaco-editor .find-widget > .replace-part > .replace-input > .monaco-inputbox {
-	width: 100%;
+	width: auto !important;
 }
 
 /* REDUCED */
@@ -242,15 +255,15 @@
 }
 
 /* NARROW (SMALLER THAN REDUCED) */
-.monaco-editor .find-widget.narrow-find-widget > .find-part .monaco-findInput,
-.monaco-editor .find-widget.narrow-find-widget > .replace-part .replace-input {
-	width: 171px !important;
-}
-.monaco-editor .find-widget.narrow-find-widget > .find-part .monaco-inputbox > .wrapper > .input {
-	width: 105px !important;
+.monaco-editor .find-widget.narrow-find-widget {
+	max-width: 257px !important;
 }
 
 /* COLLAPSED (SMALLER THAN NARROW) */
+.monaco-editor .find-widget.collapsed-find-widget {
+	max-width: 111px !important;
+}
+
 .monaco-editor .find-widget.collapsed-find-widget .button.previous,
 .monaco-editor .find-widget.collapsed-find-widget .button.next,
 .monaco-editor .find-widget.collapsed-find-widget .button.replace,
@@ -258,10 +271,9 @@
 .monaco-editor .find-widget.collapsed-find-widget > .find-part .monaco-findInput .controls {
 	display:none;
 }
-.monaco-editor .find-widget.collapsed-find-widget > .find-part .monaco-findInput,
-.monaco-editor .find-widget.collapsed-find-widget > .replace-part .replace-input,
+
 .monaco-editor .find-widget.collapsed-find-widget > .find-part .monaco-inputbox > .wrapper > .input {
-	width: 71px !important;
+	padding-right: 0px;
 }
 
 .monaco-editor .findMatch {
@@ -273,6 +285,11 @@
 	-ms-animation-name: inherit !important;
 	animation-duration: 0;
 	animation-name: inherit !important;
+}
+
+.monaco-editor .find-widget .monaco-sash {
+	width: 2px !important;
+	margin-left: -4px;
 }
 
 .monaco-editor.hc-black .find-widget .previous,

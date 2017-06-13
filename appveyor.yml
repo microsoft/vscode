@@ -4,7 +4,7 @@ environment:
 
 install:
   - ps: Install-Product node 7.4.0 x64
-  - npm install -g npm --silent
+  - npm install -g npm@4 --silent
   - npm install -g gulp mocha --silent
 
 build_script:

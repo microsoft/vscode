@@ -8,17 +8,6 @@ import * as Platform from 'vs/base/common/platform';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
-export const enum AccessibilitySupport {
-	/**
-	 * This should be the browser case where it is not known if a screen reader is attached or no.
-	 */
-	Unknown = 0,
-
-	Disabled = 1,
-
-	Enabled = 2
-}
-
 class WindowManager {
 
 	public static INSTANCE = new WindowManager();
@@ -88,11 +77,11 @@ class WindowManager {
 	}
 
 	// --- Accessibility
-	private _accessibilitySupport = AccessibilitySupport.Unknown;
+	private _accessibilitySupport = Platform.AccessibilitySupport.Unknown;
 	private _onDidChangeAccessibilitySupport: Emitter<void> = new Emitter<void>();
 
 	public onDidChangeAccessibilitySupport: Event<void> = this._onDidChangeAccessibilitySupport.event;
-	public setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void {
+	public setAccessibilitySupport(accessibilitySupport: Platform.AccessibilitySupport): void {
 		if (this._accessibilitySupport === accessibilitySupport) {
 			return;
 		}
@@ -100,7 +89,7 @@ class WindowManager {
 		this._accessibilitySupport = accessibilitySupport;
 		this._onDidChangeAccessibilitySupport.fire();
 	}
-	public getAccessibilitySupport(): AccessibilitySupport {
+	public getAccessibilitySupport(): Platform.AccessibilitySupport {
 		return this._accessibilitySupport;
 	}
 
@@ -144,10 +133,10 @@ export function onDidChangeFullscreen(callback: () => void): IDisposable {
 	return WindowManager.INSTANCE.onDidChangeFullscreen(callback);
 }
 
-export function setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void {
+export function setAccessibilitySupport(accessibilitySupport: Platform.AccessibilitySupport): void {
 	WindowManager.INSTANCE.setAccessibilitySupport(accessibilitySupport);
 }
-export function getAccessibilitySupport(): AccessibilitySupport {
+export function getAccessibilitySupport(): Platform.AccessibilitySupport {
 	return WindowManager.INSTANCE.getAccessibilitySupport();
 }
 export function onDidChangeAccessibilitySupport(callback: () => void): IDisposable {

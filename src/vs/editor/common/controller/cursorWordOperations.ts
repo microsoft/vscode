@@ -6,7 +6,7 @@
 
 import { SingleCursorState, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
 import { Position } from 'vs/editor/common/core/position';
-import { WordCharacterClassifier, WordCharacterClass, getMapForWordSeparators } from "vs/editor/common/controller/wordCharacterClassifier";
+import { WordCharacterClassifier, WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
 import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';

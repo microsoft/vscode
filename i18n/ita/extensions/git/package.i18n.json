@@ -26,6 +26,7 @@
 	"command.undoCommit": "Annulla ultimo commit",
 	"command.checkout": "Estrai in...",
 	"command.branch": "Crea ramo...",
+	"command.deleteBranch": "Elimina ramo...",
 	"command.pull": "Esegui pull",
 	"command.pullRebase": "Esegui pull (Riassegna)",
 	"command.push": "Esegui push",

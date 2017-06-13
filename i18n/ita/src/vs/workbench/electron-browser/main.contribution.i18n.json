@@ -7,6 +7,7 @@
 	"view": "Visualizza",
 	"help": "Guida",
 	"file": "File",
+	"developer": "Sviluppatore",
 	"showEditorTabs": "Controlla se visualizzare o meno gli editor aperti in schede.",
 	"editorTabCloseButton": "Controlla la posizione dei pulsanti di chiusura delle schede dell'editor oppure li disabilita quando è impostata su 'off'.",
 	"showIcons": "Controlla se visualizzare o meno un'icona per gli editor aperti. Richiede l'abilitazione anche di un tema dell'icona.",

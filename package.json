@@ -1,8 +1,8 @@
 {
   "name": "code-oss-dev",
-  "version": "1.13.0",
+  "version": "1.14.0",
   "electronVersion": "1.6.6",
-  "distro": "4de68ec7f643597f97a2bd849d6afeba2ae6a729",
+  "distro": "cb257c519d1ee526acfd00c0a7adc6b0fa4c18d2",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -18,7 +18,8 @@
     "monaco-editor-test": "mocha --only-monaco-editor",
     "precommit": "node build/gulpfile.hygiene.js",
     "gulp": "gulp --max_old_space_size=4096",
-    "7z": "7z"
+    "7z": "7z",
+    "update-grammars": "node build/npm/update-all-grammars.js"
   },
   "dependencies": {
     "applicationinsights": "0.17.1",
@@ -34,14 +35,14 @@
     "jschardet": "^1.4.2",
     "minimist": "1.2.0",
     "native-keymap": "1.2.4",
-    "node-pty": "0.6.6",
+    "node-pty": "0.6.8",
     "semver": "4.3.6",
     "v8-profiler": "jrieken/v8-profiler#vscode",
-    "vscode-debugprotocol": "1.19.0",
+    "vscode-debugprotocol": "1.20.0",
     "vscode-ripgrep": "0.0.12",
-    "vscode-textmate": "^3.1.4",
+    "vscode-textmate": "^3.1.5",
     "winreg": "1.2.0",
-    "xterm": "Tyriar/xterm.js#vscode-release/1.13",
+    "xterm": "Tyriar/xterm.js#vscode-release/1.14",
     "yauzl": "2.3.1"
   },
   "devDependencies": {

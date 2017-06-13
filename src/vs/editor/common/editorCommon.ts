@@ -41,19 +41,19 @@ export enum OverviewRulerLane {
 export interface IModelDecorationOverviewRulerOptions {
 	/**
 	 * CSS color to render in the overview ruler.
-	 * e.g.: rgba(100, 100, 100, 0.5)
+	 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 	 */
-	color: string;
+	color: string | ThemeColor;
 	/**
 	 * CSS color to render in the overview ruler.
-	 * e.g.: rgba(100, 100, 100, 0.5)
+	 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 	 */
-	darkColor: string;
+	darkColor: string | ThemeColor;
 	/**
 	 * CSS color to render in the overview ruler.
-	 * e.g.: rgba(100, 100, 100, 0.5)
+	 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 	 */
-	hcColor?: string;
+	hcColor?: string | ThemeColor;
 	/**
 	 * The position in the overview ruler.
 	 */
@@ -65,7 +65,7 @@ export interface IModelDecorationOverviewRulerOptions {
  */
 export interface IModelDecorationOptions {
 	/**
-	 * Customize the growing behaviour of the decoration when typing at the edges of the decoration.
+	 * Customize the growing behavior of the decoration when typing at the edges of the decoration.
 	 * Defaults to TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
 	 */
 	stickiness?: TrackedRangeStickiness;
@@ -925,7 +925,8 @@ export interface ITextModelWithMarkers extends ITextModel {
 }
 
 /**
- * Describes the behaviour of decorations when typing/editing near their edges.
+ * Describes the behavior of decorations when typing/editing near their edges.
+ * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehavior`
  */
 export enum TrackedRangeStickiness {
 	AlwaysGrowsWhenTypingAtEdges = 0,
@@ -1621,19 +1622,30 @@ export interface IEditorContribution {
 	restoreViewState?(state: any): void;
 }
 
+export interface ThemeColor {
+	id: string;
+}
+
+/**
+ * @internal
+ */
+export function isThemeColor(o): o is ThemeColor {
+	return o && typeof o.id === 'string';
+}
+
 /**
  * @internal
  */
 export interface IThemeDecorationRenderOptions {
-	backgroundColor?: string;
+	backgroundColor?: string | ThemeColor;
 
 	outline?: string;
-	outlineColor?: string;
+	outlineColor?: string | ThemeColor;
 	outlineStyle?: string;
 	outlineWidth?: string;
 
 	border?: string;
-	borderColor?: string;
+	borderColor?: string | ThemeColor;
 	borderRadius?: string;
 	borderSpacing?: string;
 	borderStyle?: string;
@@ -1641,13 +1653,13 @@ export interface IThemeDecorationRenderOptions {
 
 	textDecoration?: string;
 	cursor?: string;
-	color?: string;
+	color?: string | ThemeColor;
 	letterSpacing?: string;
 
 	gutterIconPath?: string | URI;
 	gutterIconSize?: string;
 
-	overviewRulerColor?: string;
+	overviewRulerColor?: string | ThemeColor;
 
 	before?: IContentDecorationRenderOptions;
 	after?: IContentDecorationRenderOptions;
@@ -1661,9 +1673,10 @@ export interface IContentDecorationRenderOptions {
 	contentIconPath?: string | URI;
 
 	border?: string;
+	borderColor?: string | ThemeColor;
 	textDecoration?: string;
-	color?: string;
-	backgroundColor?: string;
+	color?: string | ThemeColor;
+	backgroundColor?: string | ThemeColor;
 
 	margin?: string;
 	width?: string;
@@ -1675,6 +1688,7 @@ export interface IContentDecorationRenderOptions {
  */
 export interface IDecorationRenderOptions extends IThemeDecorationRenderOptions {
 	isWholeLine?: boolean;
+	rangeBehavior?: TrackedRangeStickiness;
 	overviewRulerLane?: OverviewRulerLane;
 
 	light?: IThemeDecorationRenderOptions;

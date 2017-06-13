@@ -16,7 +16,7 @@ import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEdi
 import { workbenchInstantiationService, TestThemeService } from 'vs/workbench/test/workbenchTestServices';
 import { DelegatingWorkbenchEditorService, WorkbenchEditorService, IEditorPart } from 'vs/workbench/services/editor/browser/editorService';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
-import { ResourceEditorInput } from "vs/workbench/common/editor/resourceEditorInput";
+import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 
 let activeEditor: BaseEditor = <any>{
 	getSelection: function () {

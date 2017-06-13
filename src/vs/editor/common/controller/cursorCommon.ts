@@ -18,7 +18,7 @@ import { IAutoClosingPair } from 'vs/editor/common/modes/languageConfiguration';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
-import { VerticalRevealType } from "vs/editor/common/view/viewEvents";
+import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
 
 export interface IColumnSelectData {
 	toViewLineNumber: number;

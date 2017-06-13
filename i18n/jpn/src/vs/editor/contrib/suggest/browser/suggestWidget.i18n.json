@@ -12,6 +12,7 @@
 	"readMore": "詳細を表示...{0}",
 	"suggestionWithDetailsAriaLabel": "{0}、候補、詳細あり",
 	"suggestionAriaLabel": "{0}、候補",
+	"readLess": "詳細を隠す...{0}",
 	"suggestWidget.loading": "読み込んでいます...",
 	"suggestWidget.noSuggestions": "候補はありません。",
 	"suggestionAriaAccepted": "{0}、受け入れ済み",

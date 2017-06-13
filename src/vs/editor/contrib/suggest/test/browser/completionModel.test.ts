@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import { ISuggestion, ISuggestResult, ISuggestSupport, SuggestionType } from 'vs/editor/common/modes';
-import { ISuggestionItem } from 'vs/editor/contrib/suggest/browser/suggest';
+import { ISuggestionItem, getSuggestionComparator } from 'vs/editor/contrib/suggest/browser/suggest';
 import { CompletionModel } from 'vs/editor/contrib/suggest/browser/completionModel';
 import { IPosition } from 'vs/editor/common/core/position';
 import { TPromise } from "vs/base/common/winjs.base";
@@ -202,4 +202,30 @@ suite('CompletionModel', function () {
 		};
 		assert.equal(model.items.length, 1);
 	});
+
+	test('Vscode 1.12 no longer obeys \'sortText\' in completion items (from language server), #26096', function () {
+
+		const item1 = createSuggestItem('<- groups', 2, 'property', false, { lineNumber: 1, column: 3 });
+		item1.suggestion.filterText = '  groups';
+		item1.suggestion.sortText = '00002';
+
+		const item2 = createSuggestItem('source', 0, 'property', false, { lineNumber: 1, column: 3 });
+		item2.suggestion.filterText = 'source';
+		item2.suggestion.sortText = '00001';
+
+		const items = [item1, item2].sort(getSuggestionComparator('inline'));
+
+		model = new CompletionModel(items, 3, {
+			leadingLineContent: '  ',
+			characterCountDelta: 0
+		});
+
+		assert.equal(model.items.length, 2);
+
+		const [first, second] = model.items;
+		assert.equal(first.suggestion.label, 'source');
+		assert.equal(second.suggestion.label, '<- groups');
+
+	});
+
 });

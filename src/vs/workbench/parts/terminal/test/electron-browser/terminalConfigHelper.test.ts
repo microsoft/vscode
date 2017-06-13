@@ -10,7 +10,7 @@ import { IConfigurationService, getConfigurationValue } from 'vs/platform/config
 import { Platform } from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
-import { EDITOR_FONT_DEFAULTS } from "vs/editor/common/config/editorOptions";
+import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 
 
 class MockConfigurationService implements IConfigurationService {

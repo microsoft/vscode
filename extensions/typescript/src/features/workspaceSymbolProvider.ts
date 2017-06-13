@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { workspace, window, Uri, WorkspaceSymbolProvider, SymbolInformation, SymbolKind, Range, Location, CancellationToken } from 'vscode';
 
 import * as Proto from '../protocol';
@@ -79,8 +77,7 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 				}
 			}
 			return result;
-		}, (err) => {
-			this.client.error(`'navto' request failed with error.`, err);
+		}, () => {
 			return [];
 		});
 	}

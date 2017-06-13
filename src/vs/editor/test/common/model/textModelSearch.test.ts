@@ -10,8 +10,8 @@ import { FindMatch, EndOfLineSequence } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { TextModelSearch, SearchParams, SearchData } from 'vs/editor/common/model/textModelSearch';
-import { getMapForWordSeparators } from "vs/editor/common/controller/wordCharacterClassifier";
-import { USUAL_WORD_SEPARATORS } from "vs/editor/common/model/wordHelper";
+import { getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
+import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 
 // --------- Find
 suite('TextModelSearch', () => {
@@ -31,7 +31,7 @@ suite('TextModelSearch', () => {
 		let match = TextModelSearch.findNextMatch(model, searchParams, startPos, false);
 		assert.deepEqual(match, expectedMatches[0], `findNextMatch ${startPos}`);
 		for (let i = 0; i < expectedMatches.length; i++) {
-			startPos = expectedMatches[i].range.getStartPosition();;
+			startPos = expectedMatches[i].range.getStartPosition();
 			match = TextModelSearch.findNextMatch(model, searchParams, startPos, false);
 			assert.deepEqual(match, expectedMatches[i], `findNextMatch ${startPos}`);
 		}
@@ -350,6 +350,32 @@ suite('TextModelSearch', () => {
 				[1, 1, 1, 2],
 				[4, 2, 4, 3],
 				[4, 4, 4, 5],
+			]
+		);
+	});
+
+	test('issue #27459: Match whole words regression', () => {
+		assertFindMatches(
+			[
+				'this._register(this._textAreaInput.onKeyDown((e: IKeyboardEvent) => {',
+				'	this._viewController.emitKeyDown(e);',
+				'}));',
+			].join('\n'),
+			'((e: ', false, false, USUAL_WORD_SEPARATORS,
+			[
+				[1, 45, 1, 50]
+			]
+		);
+	});
+
+	test('issue #27594: Search results disappear', () => {
+		assertFindMatches(
+			[
+				'this.server.listen(0);',
+			].join('\n'),
+			'listen(', false, false, USUAL_WORD_SEPARATORS,
+			[
+				[1, 13, 1, 20]
 			]
 		);
 	});

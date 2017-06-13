@@ -13,33 +13,41 @@ import { Builder, $ } from 'vs/base/browser/builder';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { Action } from 'vs/base/common/actions';
 import { BaseActionItem, Separator, IBaseActionItemOptions } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IActivityBarService, DotBadge, ProgressBadge, TextBadge, NumberBadge, IconBadge, IBadge } from 'vs/workbench/services/activity/common/activityBarService';
+import { IActivityBarService, ProgressBadge, TextBadge, NumberBadge, IconBadge, IBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
-import { IActivity } from 'vs/workbench/browser/activity';
+import { IActivity, IGlobalActivity } from 'vs/workbench/browser/activity';
 import { dispose } from 'vs/base/common/lifecycle';
 import { IViewletService, } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IThemeService, ITheme, registerThemingParticipant, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { contrastBorder, activeContrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+
+export interface IViewletActivity {
+	badge: IBadge;
+	clazz: string;
+}
 
 export class ActivityAction extends Action {
 	private badge: IBadge;
 	private _onDidChangeBadge = new Emitter<this>();
 
-	get activity(): IActivity {
-		return this._activity;
-	}
-
 	constructor(private _activity: IActivity) {
 		super(_activity.id, _activity.name, _activity.cssClass);
 
 		this.badge = null;
+	}
+
+	public get activity(): IActivity {
+		return this._activity;
 	}
 
 	public get onDidChangeBadge(): Event<this> {
@@ -108,14 +116,12 @@ export class ViewletActivityAction extends ActivityAction {
 }
 
 export class ActivityActionItem extends BaseActionItem {
-
+	protected $container: Builder;
 	protected $label: Builder;
 	protected $badge: Builder;
-	private $badgeContent: Builder;
 
-	protected get activity(): IActivity {
-		return (this._action as ActivityAction).activity;
-	}
+	private $badgeContent: Builder;
+	private mouseUpTimeout: number;
 
 	constructor(
 		action: ActivityAction,
@@ -126,6 +132,10 @@ export class ActivityActionItem extends BaseActionItem {
 
 		this.themeService.onThemeChange(this.onThemeChange, this, this._callOnDispose);
 		action.onDidChangeBadge(this.handleBadgeChangeEvenet, this, this._callOnDispose);
+	}
+
+	protected get activity(): IActivity {
+		return (this._action as ActivityAction).activity;
 	}
 
 	protected updateStyles(): void {
@@ -156,7 +166,27 @@ export class ActivityActionItem extends BaseActionItem {
 	public render(container: HTMLElement): void {
 		super.render(container);
 
-		container.title = this.activity.name;
+		// Make the container tab-able for keyboard navigation
+		this.$container = $(container).attr({
+			tabIndex: '0',
+			role: 'button',
+			title: this.activity.name
+		});
+
+		// Try hard to prevent keyboard only focus feedback when using mouse
+		this.$container.on(DOM.EventType.MOUSE_DOWN, () => {
+			this.$container.addClass('clicked');
+		});
+
+		this.$container.on(DOM.EventType.MOUSE_UP, () => {
+			if (this.mouseUpTimeout) {
+				clearTimeout(this.mouseUpTimeout);
+			}
+
+			this.mouseUpTimeout = setTimeout(() => {
+				this.$container.removeClass('clicked');
+			}, 800); // delayed to prevent focus feedback from showing on mouse up
+		});
 
 		// Label
 		this.$label = $('a.action-label').appendTo(this.builder);
@@ -206,13 +236,6 @@ export class ActivityActionItem extends BaseActionItem {
 				this.$badge.show();
 			}
 
-			// Dot
-			else if (badge instanceof DotBadge) {
-				this.$badge.addClass('dot-badge');
-				this.$badge.title(badge.getDescription());
-				this.$badge.show();
-			}
-
 			// Progress
 			else if (badge instanceof ProgressBadge) {
 				this.$badge.show();
@@ -231,6 +254,11 @@ export class ActivityActionItem extends BaseActionItem {
 
 	public dispose(): void {
 		super.dispose();
+
+		if (this.mouseUpTimeout) {
+			clearTimeout(this.mouseUpTimeout);
+		}
+
 		this.$badge.destroy();
 	}
 }
@@ -241,14 +269,8 @@ export class ViewletActionItem extends ActivityActionItem {
 	private static toggleViewletPinnedAction: ToggleViewletPinnedAction;
 	private static draggedViewlet: ViewletDescriptor;
 
-	private $container: Builder;
 	private _keybinding: string;
 	private cssClass: string;
-	private mouseUpTimeout: number;
-
-	private get viewlet(): ViewletDescriptor {
-		return this.action.activity as ViewletDescriptor;
-	}
 
 	constructor(
 		private action: ViewletActivityAction,
@@ -272,6 +294,10 @@ export class ViewletActionItem extends ActivityActionItem {
 		}
 	}
 
+	private get viewlet(): ViewletDescriptor {
+		return this.action.activity as ViewletDescriptor;
+	}
+
 	private getKeybindingLabel(id: string): string {
 		const kb = this.keybindingService.lookupKeybinding(id);
 		if (kb) {
@@ -283,27 +309,6 @@ export class ViewletActionItem extends ActivityActionItem {
 
 	public render(container: HTMLElement): void {
 		super.render(container);
-
-		// Make the container tab-able for keyboard navigation
-		this.$container = $(container).attr({
-			tabIndex: '0',
-			role: 'button'
-		});
-
-		// Try hard to prevent keyboard only focus feedback when using mouse
-		this.$container.on(DOM.EventType.MOUSE_DOWN, () => {
-			this.$container.addClass('clicked');
-		});
-
-		this.$container.on(DOM.EventType.MOUSE_UP, () => {
-			if (this.mouseUpTimeout) {
-				clearTimeout(this.mouseUpTimeout);
-			}
-
-			this.mouseUpTimeout = setTimeout(() => {
-				this.$container.removeClass('clicked');
-			}, 800); // delayed to prevent focus feedback from showing on mouse up
-		});
 
 		this.$container.on('contextmenu', e => {
 			DOM.EventHelper.stop(e, true);
@@ -453,9 +458,9 @@ export class ViewletActionItem extends ActivityActionItem {
 
 	protected _updateChecked(): void {
 		if (this.getAction().checked) {
-			this.$container.addClass('active');
+			this.$container.addClass('checked');
 		} else {
-			this.$container.removeClass('active');
+			this.$container.removeClass('checked');
 		}
 	}
 
@@ -471,10 +476,6 @@ export class ViewletActionItem extends ActivityActionItem {
 		super.dispose();
 
 		ViewletActionItem.clearDraggedViewlet();
-
-		if (this.mouseUpTimeout) {
-			clearTimeout(this.mouseUpTimeout);
-		}
 
 		this.$label.destroy();
 	}
@@ -500,7 +501,6 @@ export class ViewletOverflowActivityAction extends ActivityAction {
 }
 
 export class ViewletOverflowActivityActionItem extends ActivityActionItem {
-
 	private name: string;
 	private cssClass: string;
 	private actions: OpenViewletAction[];
@@ -511,7 +511,6 @@ export class ViewletOverflowActivityActionItem extends ActivityActionItem {
 		private getBadge: (viewlet: ViewletDescriptor) => IBadge,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IViewletService private viewletService: IViewletService,
-		@IKeybindingService private keybindingService: IKeybindingService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -555,7 +554,6 @@ export class ViewletOverflowActivityActionItem extends ActivityActionItem {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.builder.getHTMLElement(),
 			getActions: () => TPromise.as(this.actions),
-			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id),
 			onHide: () => dispose(this.actions)
 		});
 	}
@@ -656,6 +654,58 @@ export class ToggleViewletPinnedAction extends Action {
 	}
 }
 
+export class GlobalActivityAction extends ActivityAction {
+
+	constructor(activity: IGlobalActivity) {
+		super(activity);
+	}
+}
+
+export class GlobalActivityActionItem extends ActivityActionItem {
+
+	constructor(
+		action: GlobalActivityAction,
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService protected contextMenuService: IContextMenuService
+	) {
+		super(action, { draggable: false }, themeService);
+	}
+
+	public render(container: HTMLElement): void {
+		super.render(container);
+
+		// Context menus are triggered on mouse down so that an item can be picked
+		// and executed with releasing the mouse over it
+		this.$container.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+			DOM.EventHelper.stop(e, true);
+
+			const event = new StandardMouseEvent(e);
+			this.showContextMenu({ x: event.posx, y: event.posy });
+		});
+
+		this.$container.on(DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
+			let event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+				DOM.EventHelper.stop(e, true);
+
+				this.showContextMenu(this.$container.getHTMLElement());
+			}
+		});
+	}
+
+	private showContextMenu(location: HTMLElement | { x: number, y: number }): void {
+		const globalAction = this._action as GlobalActivityAction;
+		const activity = globalAction.activity as IGlobalActivity;
+		const actions = activity.getActions();
+
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => location,
+			getActions: () => TPromise.as(actions),
+			onHide: () => dispose(actions)
+		});
+	}
+}
+
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 	// Styling with Outline color (e.g. high contrast theme)
@@ -673,7 +723,9 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			}
 
 			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:before,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:hover:before {
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:hover:before,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.checked:before,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.checked:hover:before {
 				outline: 1px solid;
 			}
 
@@ -682,6 +734,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			}
 
 			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:before,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.checked:before,
 			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover:before {
 				opacity: 1;
 			}
@@ -692,6 +745,8 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:before,
 			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:hover:before,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.checked:before,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.checked:hover:before,
 			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover:before {
 				outline-color: ${outline};
 			}
@@ -701,21 +756,23 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	// Styling without outline color
 	else {
 		const focusBorderColor = theme.getColor(focusBorder);
+		if (focusBorderColor) {
+			collector.addRule(`
+				.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active .action-label,
+				.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.checked .action-label,
+				.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus .action-label,
+				.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover .action-label {
+					opacity: 1;
+				}
 
-		collector.addRule(`
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active .action-label,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus .action-label,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover .action-label {
-				opacity: 1;
-			}
+				.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label {
+					opacity: 0.6;
+				}
 
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label {
-				opacity: 0.6;
-			}
-
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus:before {
-				border-left-color: ${focusBorderColor};
-			}
-		`);
+				.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus:before {
+					border-left-color: ${focusBorderColor};
+				}
+			`);
+		}
 	}
 });

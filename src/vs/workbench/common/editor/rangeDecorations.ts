@@ -12,7 +12,7 @@ import { toResource } from 'vs/workbench/common/editor';
 import { isEqual } from 'vs/platform/files/common/files';
 import { IRange } from 'vs/editor/common/core/range';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { ModelDecorationOptions } from "vs/editor/common/model/textModelWithDecorations";
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 export interface IRangeHighlightDecoration {
 	resource: URI;

@@ -87,7 +87,7 @@ export class ContextMenuService implements IContextMenuService {
 					}
 				};
 
-				const keybinding = !!delegate.getKeyBinding ? delegate.getKeyBinding(e) : undefined;
+				const keybinding = !!delegate.getKeyBinding ? delegate.getKeyBinding(e) : this.keybindingService.lookupKeybinding(e.id);
 				if (keybinding) {
 					const electronAccelerator = keybinding.getElectronAccelerator();
 					if (electronAccelerator) {

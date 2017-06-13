@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { MessageItem, workspace, Disposable, ProgressLocation, window, commands, Uri } from 'vscode';
 import { ITypescriptServiceClient } from '../typescriptService';
 import { loadMessageBundle } from 'vscode-nls';
@@ -108,7 +106,7 @@ export class AtaProgressReporter {
 			window.showWarningMessage<MyMessageItem>(
 				localize(
 					'typesInstallerInitializationFailed.title',
-					"Could not install typings files for JavaScript language features. Please ensure that NPM is installed and is in your PATH"
+					"Could not install typings files for JavaScript language features. Please ensure that NPM is installed or configure 'typescript.npm' in your user settings"
 				), {
 					title: localize('typesInstallerInitializationFailed.moreInformation', "More Information"),
 					id: 1

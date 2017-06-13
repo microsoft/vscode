@@ -115,7 +115,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 			if (mouseClickEvent.detail === 2) {
 				// double click on debug bar centers it again #8250
 				const widgetWidth = this.$el.getHTMLElement().clientWidth;
-				this.setXCoordinate(window.innerWidth - widgetWidth);
+				this.setXCoordinate(0.5 * window.innerWidth - 0.5 * widgetWidth);
 				this.storePosition();
 			}
 		});
@@ -173,11 +173,12 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		if (!this.isVisible) {
 			return;
 		}
+		const widgetWidth = this.$el.getHTMLElement().clientWidth;
 		if (x === undefined) {
-			x = parseFloat(this.storageService.get(DEBUG_ACTIONS_WIDGET_POSITION_KEY, StorageScope.WORKSPACE, '1')) * window.innerWidth;
+			const positionPercentage = this.storageService.get(DEBUG_ACTIONS_WIDGET_POSITION_KEY, StorageScope.WORKSPACE);
+			x = positionPercentage !== undefined ? parseFloat(positionPercentage) * window.innerWidth : (0.5 * window.innerWidth - 0.5 * widgetWidth);
 		}
 
-		const widgetWidth = this.$el.getHTMLElement().clientWidth;
 		x = Math.max(0, Math.min(x, window.innerWidth - widgetWidth)); // do not allow the widget to overflow on the right
 		this.$el.style('left', `${x}px`);
 	}

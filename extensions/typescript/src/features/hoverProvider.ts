@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { HoverProvider, Hover, TextDocument, Position, Range, CancellationToken } from 'vscode';
 
 import * as Proto from '../protocol';
@@ -34,8 +32,7 @@ export default class TypeScriptHoverProvider implements HoverProvider {
 					new Range(data.start.line - 1, data.start.offset - 1, data.end.line - 1, data.end.offset - 1));
 			}
 			return undefined;
-		}, (err) => {
-			this.client.error(`'quickinfo' request failed with error.`, err);
+		}, () => {
 			return null;
 		});
 	}

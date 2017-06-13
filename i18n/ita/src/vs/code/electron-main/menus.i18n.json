@@ -148,12 +148,12 @@
 	"miLicense": "&&Visualizza licenza",
 	"miPrivacyStatement": "&&Informativa sulla privacy",
 	"miAbout": "&&Informazioni su",
+	"accessibilityOptionsWindowTitle": "Opzioni accessibilità",
 	"miRestartToUpdate": "Riavvia per aggiornare...",
 	"miCheckingForUpdates": "Verifica della disponibilità di aggiornamenti...",
 	"miDownloadUpdate": "Scarica l'aggiornamento disponibile",
 	"miDownloadingUpdate": "Download dell'aggiornamento...",
 	"miInstallingUpdate": "Installazione dell'aggiornamento...",
-	"miCheckForUpdates": "Verifica disponibilità aggiornamenti...",
 	"aboutDetail": "\nVersione {0}\nCommit {1}\nData {2}\nShell {3}\nRenderer {4}\nNode {5}",
 	"okButton": "OK"
 }

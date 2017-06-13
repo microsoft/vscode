@@ -29,7 +29,7 @@ import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEv
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType
 } from 'vs/workbench/parts/tasks/common/taskSystem';
-import { Task, CommandOptions, ShowOutput, CommandConfiguration } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, CommandOptions, RevealKind, CommandConfiguration, CommandType } from 'vs/workbench/parts/tasks/common/tasks';
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
@@ -120,6 +120,7 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 	private executeTask(task: Task, trigger: string = Triggers.command): ITaskExecuteResult {
 		let telemetryEvent: TelemetryEvent = {
 			trigger: trigger,
+			runner: 'output',
 			command: 'other',
 			success: true
 		};
@@ -161,28 +162,17 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		}
 
 		let args: string[] = commandConfig.args ? commandConfig.args.slice() : [];
-		// We need to first pass the task name
-		if (!task.suppressTaskName) {
-			if (commandConfig.taskSelector) {
-				args.push(commandConfig.taskSelector + task.name);
-			} else {
-				args.push(task.name);
-			}
-		}
-		// And then additional arguments
-		if (task.args) {
-			args = args.concat(task.args);
-		}
 		args = this.resolveVariables(args);
 		let command: string = this.resolveVariable(commandConfig.name);
-		this.childProcess = new LineProcess(command, args, !!commandConfig.isShellCommand, this.resolveOptions(commandConfig.options));
+		this.childProcess = new LineProcess(command, args, commandConfig.type === CommandType.Shell, this.resolveOptions(commandConfig.options));
 		telemetryEvent.command = this.childProcess.getSanitizedCommand();
 		// we have no problem matchers defined. So show the output log
-		if (task.showOutput === ShowOutput.Always || (task.showOutput === ShowOutput.Silent && task.problemMatchers.length === 0)) {
+		let reveal = task.command.terminalBehavior.reveal;
+		if (reveal === RevealKind.Always || (reveal === RevealKind.Silent && task.problemMatchers.length === 0)) {
 			this.showOutput();
 		}
 
-		if (commandConfig.echo) {
+		if (commandConfig.terminalBehavior.echo) {
 			let prompt: string = Platform.isWindows ? '>' : '$';
 			this.log(`running command${prompt} ${command} ${args.join(' ')}`);
 		}
@@ -214,7 +204,7 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 				if (!this.checkTerminated(task, success)) {
 					this.log(nls.localize('TaskRunnerSystem.watchingBuildTaskFinished', '\nWatching build tasks has finished.'));
 				}
-				if (success.cmdCode && success.cmdCode === 1 && watchingProblemMatcher.numberOfMatches === 0 && task.showOutput !== ShowOutput.Never) {
+				if (success.cmdCode && success.cmdCode === 1 && watchingProblemMatcher.numberOfMatches === 0 && reveal !== RevealKind.Never) {
 					this.showOutput();
 				}
 				taskSummary.exitCode = success.cmdCode;
@@ -258,7 +248,7 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 				startStopProblemMatcher.dispose();
 				this.checkTerminated(task, success);
 				this.emit(TaskSystemEvents.Inactive, event);
-				if (success.cmdCode && success.cmdCode === 1 && startStopProblemMatcher.numberOfMatches === 0 && task.showOutput !== ShowOutput.Never) {
+				if (success.cmdCode && success.cmdCode === 1 && startStopProblemMatcher.numberOfMatches === 0 && reveal !== RevealKind.Never) {
 					this.showOutput();
 				}
 				taskSummary.exitCode = success.cmdCode;
@@ -343,7 +333,11 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		values.forEach((value) => {
 			let matcher: ProblemMatcher;
 			if (Types.isString(value)) {
-				matcher = ProblemMatcherRegistry.get(value);
+				if (value[0] === '$') {
+					matcher = ProblemMatcherRegistry.get(value.substring(1));
+				} else {
+					matcher = ProblemMatcherRegistry.get(value);
+				}
 			} else {
 				matcher = value;
 			}

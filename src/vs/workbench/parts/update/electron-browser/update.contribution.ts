@@ -8,7 +8,7 @@
 import * as nls from 'vs/nls';
 import 'vs/css!./media/update.contribution';
 import { Registry } from 'vs/platform/platform';
-import { isMacintosh } from 'vs/base/common/platform';
+import product from 'vs/platform/node/product';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ReleaseNotesEditor } from 'vs/workbench/parts/update/electron-browser/releaseNotesEditor';
 import { ReleaseNotesInput } from 'vs/workbench/parts/update/electron-browser/releaseNotesInput';
@@ -24,7 +24,7 @@ import { ShowCurrentReleaseNotesAction, ProductContribution, UpdateContribution,
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(ProductContribution);
 
-if (isMacintosh) {
+if (product.quality !== 'stable') {
 	Registry.as<IGlobalActivityRegistry>(GlobalActivityExtensions)
 		.registerActivity(LightUpdateContribution);
 } else {
@@ -44,7 +44,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 	.registerEditor(editorDescriptor, [new SyncDescriptor(ReleaseNotesInput)]);
 
 Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions)
-	.registerWorkbenchAction(new SyncActionDescriptor(ShowCurrentReleaseNotesAction, ShowCurrentReleaseNotesAction.ID, ShowCurrentReleaseNotesAction.LABEL), 'Open Release Notes');
+	.registerWorkbenchAction(new SyncActionDescriptor(ShowCurrentReleaseNotesAction, ShowCurrentReleaseNotesAction.ID, ShowCurrentReleaseNotesAction.LABEL), 'Show Release Notes');
 
 // Configuration: Update
 const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);

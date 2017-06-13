@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { CodeLensProvider, CodeLens, CancellationToken, TextDocument, Range, Uri, Position, Event, EventEmitter, ProviderResult, } from 'vscode';
 import * as Proto from '../protocol';
 
@@ -58,8 +56,7 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 				tree.childItems.forEach(item => this.walkNavTree(document, item, null, referenceableSpans));
 			}
 			return referenceableSpans.map(span => new ReferencesCodeLens(document.uri, filepath, span));
-		}, (err: any) => {
-			this.client.error(`'navtree' request failed with error.`, err);
+		}, () => {
 			return [];
 		});
 	}
@@ -108,7 +105,7 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 
 		const text = document.getText(range);
 
-		const identifierMatch = new RegExp(`^(.*?(\\b|\\W))${(item.text || '').replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')}\\b`, 'gm');
+		const identifierMatch = new RegExp(`^(.*?(\\b|\\W))${(item.text || '').replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')}(\\b|\\W)`, 'gm');
 		const match = identifierMatch.exec(text);
 		const prefixLength = match ? match.index + match[1].length : 0;
 		const startOffset = document.offsetAt(new Position(range.start.line, range.start.character)) + prefixLength;

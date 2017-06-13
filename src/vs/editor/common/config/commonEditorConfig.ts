@@ -59,6 +59,7 @@ export interface IEnvConfiguration {
 	emptySelectionClipboard: boolean;
 	pixelRatio: number;
 	zoomLevel: number;
+	accessibilitySupport: platform.AccessibilitySupport;
 }
 
 export abstract class CommonEditorConfiguration extends Disposable implements editorCommon.IConfiguration {
@@ -75,7 +76,12 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	constructor(options: editorOptions.IEditorOptions) {
 		super();
 
+		// Do a "deep clone of sorts" on the incoming options
 		this._rawOptions = objects.mixin({}, options || {});
+		this._rawOptions.scrollbar = objects.mixin({}, this._rawOptions.scrollbar || {});
+		this._rawOptions.minimap = objects.mixin({}, this._rawOptions.minimap || {});
+		this._rawOptions.find = objects.mixin({}, this._rawOptions.find || {});
+
 		this._validatedOptions = editorOptions.EditorOptionsValidator.validate(this._rawOptions, EDITOR_DEFAULTS);
 		this.editor = null;
 		this._isDominatedByLongLines = false;
@@ -122,7 +128,8 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			canUseTranslate3d: partialEnv.canUseTranslate3d,
 			emptySelectionClipboard: partialEnv.emptySelectionClipboard,
 			pixelRatio: partialEnv.pixelRatio,
-			tabFocusMode: TabFocus.getTabFocusMode()
+			tabFocusMode: TabFocus.getTabFocusMode(),
+			accessibilitySupport: partialEnv.accessibilitySupport
 		};
 		return editorOptions.InternalEditorOptionsFactory.createInternalEditorOptions(env, opts);
 	}
@@ -247,6 +254,12 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.enabled,
 			'description': nls.localize('minimap.enabled', "Controls if the minimap is shown")
 		},
+		'editor.minimap.showSlider': {
+			'type': 'string',
+			'enum': ['always', 'mouseover'],
+			'default': EDITOR_DEFAULTS.viewInfo.minimap.showSlider,
+			'description': nls.localize('minimap.showSlider', "Controls whether the minimap slider is automatically hidden.")
+		},
 		'editor.minimap.renderCharacters': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.renderCharacters,
@@ -319,6 +332,22 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.viewInfo.scrollbar.mouseWheelScrollSensitivity,
 			'description': nls.localize('mouseWheelScrollSensitivity', "A multiplier to be used on the `deltaX` and `deltaY` of mouse wheel scroll events")
 		},
+		'editor.multiCursorModifier': {
+			'type': 'string',
+			'enum': ['ctrlCmd', 'alt'],
+			'enumDescriptions': [
+				nls.localize('multiCursorModifier.ctrlCmd', "Maps to `Control` on Windows and Linux and to `Command` on OSX."),
+				nls.localize('multiCursorModifier.alt', "Maps to `Alt` on Windows and Linux and to `Option` on OSX.")
+			],
+			'default': 'alt',
+			'description': nls.localize({
+				key: 'multiCursorModifier',
+				comment: [
+					'- `ctrlCmd` refers to a value the setting can take and should not be localized.',
+					'- `Control` and `Command` refer to the modifier keys Ctrl or Cmd on the keyboard and can be localized.'
+				]
+			}, "The modifier to be used to add multiple cursors with the mouse. `ctrlCmd` maps to `Control` on Windows and Linux and to `Command` on OSX. The Go To Definition and Open Link mouse gestures will adapt such that they do not conflict with the multicursor modifier.")
+		},
 		'editor.quickSuggestions': {
 			'anyOf': [
 				{
@@ -357,7 +386,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.parameterHints': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.parameterHints,
-			'description': nls.localize('parameterHints', "Enables parameter hints")
+			'description': nls.localize('parameterHints', "Enables pop-up that shows parameter documentation and type information as you type")
 		},
 		'editor.autoClosingBrackets': {
 			'type': 'boolean',
@@ -383,7 +412,7 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'string',
 			'enum': ['on', 'smart', 'off'],
 			'default': EDITOR_DEFAULTS.contribInfo.acceptSuggestionOnEnter,
-			'description': nls.localize('acceptSuggestionOnEnter', "Controls if suggestions should be accepted on 'Enter' - in addition to 'Tab'. Helps to avoid ambiguity between inserting new lines or accepting suggestions.")
+			'description': nls.localize('acceptSuggestionOnEnter', "Controls if suggestions should be accepted on 'Enter' - in addition to 'Tab'. Helps to avoid ambiguity between inserting new lines or accepting suggestions. The value 'smart' means only accept a suggestion with Enter when it makes a textual change")
 		},
 		'editor.acceptSuggestionOnCommitCharacter': {
 			'type': 'boolean',
@@ -532,6 +561,22 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.dragAndDrop,
 			'description': nls.localize('dragAndDrop', "Controls if the editor should allow to move selections via drag and drop.")
+		},
+		'editor.accessibilitySupport': {
+			'type': 'string',
+			'enum': ['auto', 'on', 'off'],
+			'enumDescriptions': [
+				nls.localize('accessibilitySupport.auto', "The editor will use platform APIs to detect when a Screen Reader is attached."),
+				nls.localize('accessibilitySupport.on', "The editor will be permanently optimized for usage with a Screen Reader."),
+				nls.localize('accessibilitySupport.off', "The editor will never be optimized for usage with a Screen Reader."),
+			],
+			'default': EDITOR_DEFAULTS.accessibilitySupport,
+			'description': nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers.")
+		},
+		'editor.links': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.contribInfo.links,
+			'description': nls.localize('links', "Controls whether the editor should detect links and make them clickable")
 		},
 		'diffEditor.renderSideBySide': {
 			'type': 'boolean',

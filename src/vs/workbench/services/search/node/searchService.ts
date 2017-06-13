@@ -120,7 +120,7 @@ export class SearchService implements ISearchService {
 
 				// Support untitled files
 				if (resource.scheme === 'untitled') {
-					if (!this.untitledEditorService.get(resource)) {
+					if (!this.untitledEditorService.exists(resource)) {
 						return;
 					}
 				}
@@ -200,13 +200,18 @@ export class DiskSearch {
 
 	private raw: IRawSearchService;
 
-	constructor(verboseLogging: boolean) {
+	constructor(verboseLogging: boolean, timeout: number = 60 * 60 * 1000) {
 		const client = new Client(
 			uri.parse(require.toUrl('bootstrap')).fsPath,
 			{
 				serverName: 'Search',
-				timeout: 60 * 60 * 1000,
+				timeout: timeout,
 				args: ['--type=searchService'],
+				// See https://github.com/Microsoft/vscode/issues/27665
+				// Pass in fresh execArgv to the forked process such that it doesn't inherit them from `process.execArgv`.
+				// e.g. Launching the extension host process with `--debug-brk=xxx` and then forking a process from the extension host
+				// results in the forked process inheriting `--debug-brk=xxx`.
+				freshExecArgv: true,
 				env: {
 					AMD_ENTRYPOINT: 'vs/workbench/services/search/node/searchApp',
 					PIPE_LOGGING: 'true',

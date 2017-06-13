@@ -14,6 +14,7 @@
 	"mHelp": "說明 (&&H)",
 	"miNewWindow": "開新視窗(&&W)",
 	"mAbout": "關於 {0}",
+	"mServices": "服務",
 	"mHide": "隱藏 {0}",
 	"mHideOthers": "隱藏其他",
 	"mShowAll": "全部顯示",
@@ -148,12 +149,12 @@
 	"miLicense": "檢視授權(&&L)",
 	"miPrivacyStatement": "隱私權聲明(&&P)",
 	"miAbout": "關於(&&A)",
+	"accessibilityOptionsWindowTitle": "協助工具選項",
 	"miRestartToUpdate": "重新啟動以更新...",
 	"miCheckingForUpdates": "正在查看是否有更新...",
 	"miDownloadUpdate": "下載可用更新",
 	"miDownloadingUpdate": "正在下載更新...",
 	"miInstallingUpdate": "正在安裝更新...",
-	"miCheckForUpdates": "查看是否有更新...",
 	"aboutDetail": "\n版本 {0}\n認可 {1}\n日期 {2}\nShell {3}\n轉譯器 {4}\nNode {5}",
 	"okButton": "確定"
 }

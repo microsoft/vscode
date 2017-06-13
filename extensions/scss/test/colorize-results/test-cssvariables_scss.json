@@ -89,7 +89,7 @@
 	},
 	{
 		"c": "6",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -100,7 +100,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -177,7 +177,7 @@
 	},
 	{
 		"c": "4",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -397,7 +397,7 @@
 	},
 	{
 		"c": "4",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -496,7 +496,7 @@
 	},
 	{
 		"c": "5",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -507,7 +507,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",

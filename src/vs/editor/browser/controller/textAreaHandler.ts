@@ -5,9 +5,10 @@
 'use strict';
 
 import 'vs/css!./textAreaHandler';
+import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 import { TextAreaInput, ITextAreaInputHost, IPasteData, ICompositionData } from 'vs/editor/browser/controller/textAreaInput';
-import { ISimpleModel, ITypeData, TextAreaState, IENarratorStrategy, NVDAPagedStrategy } from 'vs/editor/browser/controller/textAreaState';
+import { ISimpleModel, ITypeData, TextAreaState, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/textAreaState';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
@@ -17,12 +18,12 @@ import { HorizontalRange, RenderingContext, RestrictedRenderingContext } from 'v
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ViewController } from 'vs/editor/browser/view/viewController';
-import { EndOfLinePreference } from "vs/editor/common/editorCommon";
-import { IKeyboardEvent } from "vs/base/browser/keyboardEvent";
-import { PartFingerprints, PartFingerprint, ViewPart } from "vs/editor/browser/view/viewPart";
-import { Margin } from "vs/editor/browser/viewParts/margin/margin";
-import { LineNumbersOverlay } from "vs/editor/browser/viewParts/lineNumbers/lineNumbers";
-import { BareFontInfo } from "vs/editor/common/config/fontInfo";
+import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { PartFingerprints, PartFingerprint, ViewPart } from 'vs/editor/browser/view/viewPart';
+import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
+import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
+import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 
 export interface ITextAreaHandlerHelper {
 	visibleRangeForPositionRelativeToEditor(lineNumber: number, column: number): HorizontalRange;
@@ -54,12 +55,12 @@ export class TextAreaHandler extends ViewPart {
 	private readonly _viewHelper: ITextAreaHandlerHelper;
 
 	private _pixelRatio: number;
+	private _accessibilitySupport: platform.AccessibilitySupport;
 	private _contentLeft: number;
 	private _contentWidth: number;
 	private _contentHeight: number;
 	private _scrollLeft: number;
 	private _scrollTop: number;
-	private _experimentalScreenReader: boolean;
 	private _fontInfo: BareFontInfo;
 	private _lineHeight: number;
 	private _emptySelectionClipboard: boolean;
@@ -85,12 +86,12 @@ export class TextAreaHandler extends ViewPart {
 		const conf = this._context.configuration.editor;
 
 		this._pixelRatio = conf.pixelRatio;
+		this._accessibilitySupport = conf.accessibilitySupport;
 		this._contentLeft = conf.layoutInfo.contentLeft;
 		this._contentWidth = conf.layoutInfo.contentWidth;
 		this._contentHeight = conf.layoutInfo.contentHeight;
 		this._scrollLeft = 0;
 		this._scrollTop = 0;
-		this._experimentalScreenReader = conf.viewInfo.experimentalScreenReader;
 		this._fontInfo = conf.fontInfo;
 		this._lineHeight = conf.lineHeight;
 		this._emptySelectionClipboard = conf.emptySelectionClipboard;
@@ -107,6 +108,7 @@ export class TextAreaHandler extends ViewPart {
 		this.textArea.setAttribute('wrap', 'off');
 		this.textArea.setAttribute('autocorrect', 'off');
 		this.textArea.setAttribute('autocapitalize', 'off');
+		this.textArea.setAttribute('autocomplete', 'off');
 		this.textArea.setAttribute('spellcheck', 'false');
 		this.textArea.setAttribute('aria-label', conf.viewInfo.ariaLabel);
 		this.textArea.setAttribute('role', 'textbox');
@@ -160,13 +162,12 @@ export class TextAreaHandler extends ViewPart {
 					return TextAreaState.EMPTY;
 				}
 
-				const selection = this._selections[0];
-
-				if (this._experimentalScreenReader) {
-					return NVDAPagedStrategy.fromEditorSelection(currentState, simpleModel, selection);
+				if (this._accessibilitySupport === platform.AccessibilitySupport.Disabled) {
+					// We know for a fact that a screen reader is not attached
+					return TextAreaState.EMPTY;
 				}
 
-				return IENarratorStrategy.fromEditorSelection(currentState, simpleModel, selection);
+				return PagedScreenReaderStrategy.fromEditorSelection(currentState, simpleModel, this._selections[0]);
 			}
 		};
 
@@ -271,8 +272,6 @@ export class TextAreaHandler extends ViewPart {
 			this._fontInfo = conf.fontInfo;
 		}
 		if (e.viewInfo) {
-			this._experimentalScreenReader = conf.viewInfo.experimentalScreenReader;
-			this._textAreaInput.writeScreenReaderContent('strategy changed');
 			this.textArea.setAttribute('aria-label', conf.viewInfo.ariaLabel);
 		}
 		if (e.layoutInfo) {
@@ -286,6 +285,10 @@ export class TextAreaHandler extends ViewPart {
 		if (e.pixelRatio) {
 			this._pixelRatio = conf.pixelRatio;
 		}
+		if (e.accessibilitySupport) {
+			this._accessibilitySupport = conf.accessibilitySupport;
+			this._textAreaInput.writeScreenReaderContent('strategy changed');
+		}
 		if (e.emptySelectionClipboard) {
 			this._emptySelectionClipboard = conf.emptySelectionClipboard;
 		}
@@ -294,6 +297,7 @@ export class TextAreaHandler extends ViewPart {
 	}
 	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		this._selections = e.selections.slice(0);
+		this._textAreaInput.writeScreenReaderContent('selection changed');
 		return true;
 	}
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
@@ -333,10 +337,6 @@ export class TextAreaHandler extends ViewPart {
 		this._textAreaInput.focusTextArea();
 	}
 
-	public writeToTextArea(): void {
-		this._textAreaInput.writeScreenReaderContent('selection changed');
-	}
-
 	public setAriaActiveDescendant(id: string): void {
 		if (id) {
 			this.textArea.setAttribute('role', 'combobox');
@@ -356,11 +356,18 @@ export class TextAreaHandler extends ViewPart {
 	private _primaryCursorVisibleRange: HorizontalRange = null;
 
 	public prepareRender(ctx: RenderingContext): void {
-		const primaryCursorPosition = new Position(this._selections[0].positionLineNumber, this._selections[0].positionColumn);
-		this._primaryCursorVisibleRange = ctx.visibleRangeForPosition(primaryCursorPosition);
+		if (this._accessibilitySupport === platform.AccessibilitySupport.Enabled) {
+			// Do not move the textarea with the cursor, as this generates accessibility events that might confuse screen readers
+			// See https://github.com/Microsoft/vscode/issues/26730
+			this._primaryCursorVisibleRange = null;
+		} else {
+			const primaryCursorPosition = new Position(this._selections[0].positionLineNumber, this._selections[0].positionColumn);
+			this._primaryCursorVisibleRange = ctx.visibleRangeForPosition(primaryCursorPosition);
+		}
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
+		this._textAreaInput.writeScreenReaderContent('render');
 		this._render();
 	}
 
@@ -415,7 +422,24 @@ export class TextAreaHandler extends ViewPart {
 			ta.setFontSize(1);
 			// Chrome does not generate input events in empty textareas that end
 			// up having a line height smaller than 1 screen pixel.
-			ta.setLineHeight(Math.ceil(Math.max(this._pixelRatio, 1 / this._pixelRatio)));
+
+			// The problem is that I could not find any formula to explain how Chromium converts css px to screen px in the DOM.
+			// Observed values on a retina screen (by taking screenshots):
+			// |--------|-----------|------------|------------|-----------|
+			// | css px | zoomLevel | zoomFactor | pixelRatio | screen px |
+			// |--------|-----------|------------|------------|-----------|
+			// |   18   |    -8     |   0.2325   |   0.5000   |      8    |
+			// |   18   |    -7     |   0.2790   |   0.5581   |     10    |
+			// |   18   |    -6     |   0.3348   |   0.6697   |     12    |
+			// |   18   |    -5     |   0.4018   |   0.8037   |     14    |
+			// |   18   |    -4     |   0.4822   |   0.9645   |     18    |
+			// |   18   |    -3     |   0.5787   |   1.1574   |     20    |
+			// |   18   |    -2     |   0.6944   |   1.3888   |     26    |
+			// |   18   |    -1     |   0.8333   |   1.6666   |     30    |
+			// |   18   |     0     |   1.0000   |   2.0000   |     36    |
+			// |--------|-----------|------------|------------|-----------|
+
+			ta.setLineHeight(this._fontInfo.lineHeight);
 		}
 
 		ta.setTop(top);

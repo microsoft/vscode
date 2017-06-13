@@ -36,7 +36,9 @@ const extensions = [
 	'grunt',
 	'jake',
 	'merge-conflict',
-	'emmet'
+	'emmet',
+	'npm',
+	'jake'
 ];
 
 extensions.forEach(extension => npmInstall(`extensions/${extension}`));

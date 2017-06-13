@@ -195,7 +195,7 @@ suite('Filters', () => {
 
 	function assertMatches(pattern: string, word: string, decoratedWord: string, filter: typeof fuzzyScore) {
 		let r = filter(pattern, word);
-		assert.ok(Boolean(r) === Boolean(decoratedWord));
+		assert.ok(!decoratedWord === (!r || r[1].length === 0));
 		if (r) {
 			const [, matches] = r;
 			let pos = 0;
@@ -248,6 +248,7 @@ suite('Filters', () => {
 		assertMatches('ccm', 'cacmelCase', '^ca^c^melCase', fuzzyScore);
 		assertMatches('bti', 'the_black_knight', undefined, fuzzyScore);
 		assertMatches('ccm', 'camelCase', undefined, fuzzyScore);
+		assertMatches('cmcm', 'camelCase', undefined, fuzzyScore);
 		assertMatches('BK', 'the_black_knight', 'the_^black_^knight', fuzzyScore);
 		assertMatches('KeyboardLayout=', 'KeyboardLayout', undefined, fuzzyScore);
 		assertMatches('LLL', 'SVisualLoggerLogsList', 'SVisual^Logger^Logs^List', fuzzyScore);
@@ -306,6 +307,9 @@ suite('Filters', () => {
 	});
 
 	test('fuzzyScore, issue #26423', function () {
+
+		assertMatches('baba', 'abababab', undefined, fuzzyScore);
+
 		assertMatches(
 			'fsfsfs',
 			'dsafdsafdsafdsafdsafdsafdsafasdfdsa',
@@ -325,11 +329,16 @@ suite('Filters', () => {
 		assertMatches('f', ':foo', ':^foo', fuzzyScore);
 	});
 
-	test('fuzzyScore with offset', function () {
-		const matches = fuzzyScore('bc', 'abc', 0, 1);
-		assert.ok(matches);
-		const [, range] = matches;
-		assert.deepEqual(range, [1, 2]);
+	test('Vscode 1.12 no longer obeys \'sortText\' in completion items (from language server), #26096', function () {
+		assertMatches('  ', '  group', undefined, fuzzyScore);
+		assertMatches('  g', '  group', '  ^group', fuzzyScore);
+		assertMatches('g', '  group', '  ^group', fuzzyScore);
+		assertMatches('g g', '  groupGroup', undefined, fuzzyScore);
+		assertMatches('g g', '  group Group', '  ^group^ ^Group', fuzzyScore);
+		assertMatches(' g g', '  group Group', '  ^group^ ^Group', fuzzyScore);
+		assertMatches('zz', 'zzGroup', '^z^zGroup', fuzzyScore);
+		assertMatches('zzg', 'zzGroup', '^z^z^Group', fuzzyScore);
+		assertMatches('g', 'zzGroup', 'zz^Group', fuzzyScore);
 	});
 
 	function assertTopScore(filter: typeof fuzzyScore, pattern: string, expected: number, ...words: string[]) {

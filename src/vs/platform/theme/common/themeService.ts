@@ -14,9 +14,9 @@ import Event, { Emitter } from 'vs/base/common/event';
 export let IThemeService = createDecorator<IThemeService>('themeService');
 
 // base themes
-export const DARK = 'dark';
-export const LIGHT = 'light';
-export const HIGH_CONTRAST = 'hc';
+export const DARK: ThemeType = 'dark';
+export const LIGHT: ThemeType = 'light';
+export const HIGH_CONTRAST: ThemeType = 'hc';
 export type ThemeType = 'light' | 'dark' | 'hc';
 
 export function getThemeTypeSelector(type: ThemeType): string {

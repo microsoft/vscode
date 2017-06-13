@@ -1,4 +1,9 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/atom/language-less/blob/master/grammars/less.cson",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
 	"name": "Less",
 	"scopeName": "source.css.less",
 	"fileTypes": [
@@ -146,12 +151,7 @@
 			"name": "comment.block.css"
 		},
 		{
-			"match": "[+-]?\\d*\\.?\\d+",
-			"name": "constant.numeric.css"
-		},
-		{
-			"match": "(?<=[\\d])(ch|cm|deg|dpi|dpcm|dppx|em|ex|grad|in|mm|ms|pc|pt|px|rad|rem|turn|s|vh|vmin|vw)\\b|%",
-			"name": "keyword.other.unit.css"
+			"include": "source.css#numeric-values"
 		},
 		{
 			"captures": {
@@ -281,13 +281,13 @@
 			]
 		},
 		{
+			"match": "(@|\\-\\-)[\\w-]+(?=\\s*)",
+			"name": "variable.other.less",
 			"captures": {
 				"1": {
 					"name": "punctuation.definition.variable.less"
 				}
-			},
-			"match": "(?:@|\\-\\-)[a-zA-Z0-9_-][\\w-]*(?=\\s*)",
-			"name": "variable.other.less"
+			}
 		},
 		{
 			"include": "#variable_interpolation"
@@ -516,7 +516,7 @@
 							"include": "#strings"
 						},
 						{
-							"match": "(\\b|\\.{0,2}/).*\\b",
+							"match": "(\\b|\\.{0,2}/)[^)]*\\b",
 							"name": "string.url.css"
 						}
 					]
@@ -545,6 +545,5 @@
 			"match": "\\b(abs|acos|alpha|argb|asin|atan|average|blue|calc|ceil|color|contrast|convert|convert|cos|darken|data-uri|desaturate|difference|e|escape|exclusion|extract|fade|fadein|fadeout|floor|format|green|greyscale|hardlight|hsl|hsla|hsv|hsva|hsvhue|hsvsaturation|hsvvalue|hue|length|lighten|lightness|luma|max|min|mix|mod|multiply|negation|overlay|percentage|pi|pow|red|replace|round|saturate|saturation|screen|sin|softlight|spin|sqrt|tan|unit)\\b",
 			"name": "support.function.any-method.builtin.less"
 		}
-	},
-	"version": "https://github.com/atom/language-less/commit/7d70b66aa9c853d59e27cce25b5bc25cb067e75a"
+	}
 }

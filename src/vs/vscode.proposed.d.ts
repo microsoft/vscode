@@ -7,87 +7,338 @@
 
 declare module 'vscode' {
 
+	/**
+	 * Controls the behaviour of the terminal's visibility.
+	 */
+	export enum TaskRevealKind {
+		/**
+		 * Always brings the terminal to front if the task is executed.
+		 */
+		Always = 1,
+
+		/**
+		 * Only brings the terminal to front if a problem is detected executing the task
+		 * (e.g. the task couldn't be started because).
+		 */
+		Silent = 2,
+
+		/**
+		 * The terminal never comes to front when the task is executed.
+		 */
+		Never = 3
+	}
+
+	/**
+	 * Controls terminal specific behavior.
+	 */
+	export interface TaskTerminalBehavior {
+		/**
+		 * Controls whether the terminal executing a task is brought to front or not.
+		 * Defaults to `RevealKind.Always`.
+		 */
+		reveal?: TaskRevealKind;
+
+		/**
+		 * Controls whether the command is echoed in the terminal or not.
+		 */
+		echo?: boolean;
+	}
+
+	export interface ProcessTaskOptions {
+		/**
+		 * The current working directory of the executed program or shell.
+		 * If omitted the tools current workspace root is used.
+		 */
+		cwd?: string;
+
+		/**
+		 * The additional environment of the executed program or shell. If omitted
+		 * the parent process' environment is used. If provided it is merged with
+		 * the parent process' environment.
+		 */
+		env?: { [key: string]: string };
+	}
+
+	export namespace TaskGroup {
+		/**
+		 * The clean task group
+		 */
+		export const Clean: 'clean';
+		/**
+		 * The build task group. If a task is part of the build task group
+		 * it can be executed via the run build short cut.
+		 */
+		export const Build: 'build';
+		/**
+		 * The rebuild all task group
+		 */
+		export const RebuildAll: 'rebuildAll';
+		/**
+		 * The test task group. If a task is part of the test task group
+		 * it can be executed via the run test short cut.
+		 */
+		export const Test: 'test';
+	}
+
+	/**
+	 * A task that starts an external process.
+	 */
+	export class ProcessTask {
+
+		/**
+		 * Creates a process task.
+		 *
+		 * @param name the task's name. Is presented in the user interface.
+		 * @param process the process to start.
+		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
+		 *  or '$eslint'. Problem matchers can be contributed by an extension using
+		 *  the `problemMatchers` extension point.
+		 */
+		constructor(name: string, process: string, problemMatchers?: string | string[]);
+
+		/**
+		 * Creates a process task.
+		 *
+		 * @param name the task's name. Is presented in the user interface.
+		 * @param process the process to start.
+		 * @param args arguments to be passed to the process.
+		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
+		 *  or '$eslint'. Problem matchers can be contributed by an extension using
+		 *  the `problemMatchers` extension point.
+		 */
+		constructor(name: string, process: string, args: string[], problemMatchers?: string | string[]);
+
+		/**
+		 * Creates a process task.
+		 *
+		 * @param name the task's name. Is presented in the user interface.
+		 * @param process the process to start.
+		 * @param args arguments to be passed to the process.
+		 * @param options additional options for the started process.
+		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
+		 *  or '$eslint'. Problem matchers can be contributed by an extension using
+		 *  the `problemMatchers` extension point.
+		 */
+		constructor(name: string, process: string, args: string[], options: ProcessTaskOptions, problemMatchers?: string | string[]);
+
+		/**
+		 * The task's name
+		 */
+		readonly name: string;
+
+		/**
+		 * The task's identifier. If omitted the internal identifier will
+		 * be `${extensionName}:${name}`
+		 */
+		identifier: string | undefined;
+
+		/**
+		 * Whether the task is a background task or not.
+		 */
+		isBackground: boolean;
+
+		/**
+		 * The process to be executed.
+		 */
+		readonly process: string;
+
+		/**
+		 * The arguments passed to the process. Defaults to an empty array.
+		 */
+		args: string[];
+
+		/**
+		 * A human-readable string describing the source of this
+		 * shell task, e.g. 'gulp' or 'npm'.
+		 */
+		source: string | undefined;
+
+		/**
+		 * The task group this tasks belongs to. See TaskGroup
+		 * for a predefined set of available groups.
+		 * Defaults to undefined meaning that the task doesn't
+		 * belong to any special group.
+		 */
+		group: string | undefined;
+
+		/**
+		 * The process options used when the process is executed.
+		 * Defaults to an empty object literal.
+		 */
+		options: ProcessTaskOptions;
+
+		/**
+		 * The terminal behavior. Defaults to an empty object literal.
+		 */
+		terminalBehavior: TaskTerminalBehavior;
+
+		/**
+		 * The problem matchers attached to the task. Defaults to an empty
+		 * array.
+		 */
+		problemMatchers: string[];
+	}
+
+	export type ShellTaskOptions = {
+		/**
+		 * The shell executable.
+		 */
+		executable: string;
+
+		/**
+		 * The arguments to be passed to the shell executable used to run the task.
+		 */
+		shellArgs?: string[];
+
+		/**
+		 * The current working directory of the executed shell.
+		 * If omitted the tools current workspace root is used.
+		 */
+		cwd?: string;
+
+		/**
+		 * The additional environment of the executed shell. If omitted
+		 * the parent process' environment is used. If provided it is merged with
+		 * the parent process' environment.
+		 */
+		env?: { [key: string]: string };
+	} | {
+			/**
+			 * The current working directory of the executed shell.
+			 * If omitted the tools current workspace root is used.
+			 */
+			cwd: string;
+
+			/**
+			 * The additional environment of the executed shell. If omitted
+			 * the parent process' environment is used. If provided it is merged with
+			 * the parent process' environment.
+			 */
+			env?: { [key: string]: string };
+		} | {
+			/**
+			 * The current working directory of the executed shell.
+			 * If omitted the tools current workspace root is used.
+			 */
+			cwd?: string;
+
+			/**
+			 * The additional environment of the executed shell. If omitted
+			 * the parent process' environment is used. If provided it is merged with
+			 * the parent process' environment.
+			 */
+			env: { [key: string]: string };
+		};
+
+	/**
+	 * A task that executes a shell command.
+	 */
+	export class ShellTask {
+
+		/**
+		 * Creates a shell task.
+		 *
+		 * @param name the task's name. Is presented in the user interface.
+		 * @param commandLine the command line to execute.
+		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
+		 *  or '$eslint'. Problem matchers can be contributed by an extension using
+		 *  the `problemMatchers` extension point.
+		 */
+		constructor(name: string, commandLine: string, problemMatchers?: string | string[]);
+
+		/**
+		 * Creates a shell task.
+		 *
+		 * @param name the task's name. Is presented in the user interface.
+		 * @param commandLine the command line to execute.
+		 * @param options additional options used when creating the shell.
+		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
+		 *  or '$eslint'. Problem matchers can be contributed by an extension using
+		 *  the `problemMatchers` extension point.
+		 */
+		constructor(name: string, commandLine: string, options: ShellTaskOptions, problemMatchers?: string | string[]);
+
+		/**
+		 * The task's name
+		 */
+		readonly name: string;
+
+		/**
+		 * The task's identifier. If omitted the internal identifier will
+		 * be `${extensionName}:${name}`
+		 */
+		identifier: string | undefined;
+
+		/**
+		 * Whether the task is a background task or not.
+		 */
+		isBackground: boolean;
+
+		/**
+		 * The command line to execute.
+		 */
+		readonly commandLine: string;
+
+		/**
+		 * A human-readable string describing the source of this
+		 * shell task, e.g. 'gulp' or 'npm'.
+		 */
+		source: string | undefined;
+
+		/**
+		 * The task group this tasks belongs to. See TaskGroup
+		 * for a predefined set of available groups.
+		 * Defaults to undefined meaning that the task doesn't
+		 * belong to any special group.
+		 */
+		group: string | undefined;
+
+		/**
+		 * The shell options used when the shell is executed. Defaults to an
+		 * empty object literal.
+		 */
+		options: ShellTaskOptions;
+
+		/**
+		 * The terminal behavior. Defaults to an empty object literal.
+		 */
+		terminalBehavior: TaskTerminalBehavior;
+
+		/**
+		 * The problem matchers attached to the task. Defaults to an empty
+		 * array.
+		 */
+		problemMatchers: string[];
+	}
+
+	export type Task = ProcessTask | ShellTask;
+
+	/**
+	 * A task provider allows to add tasks to the task service.
+	 * A task provider is registerd via #workspace.registerTaskProvider.
+	 */
+	export interface TaskProvider {
+		/**
+		 * Provides additional tasks.
+		 * @param token A cancellation token.
+		 * @return a #TaskSet
+		 */
+		provideTasks(token: CancellationToken): ProviderResult<Task[]>;
+	}
+
+	export namespace workspace {
+		/**
+		 * Register a task provider.
+		 *
+		 * @param provider A task provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerTaskProvider(provider: TaskProvider): Disposable;
+	}
+
 	export namespace window {
 
 		export function sampleFunction(): Thenable<any>;
-	}
-
-	export namespace window {
-		/**
-		 * Register a [TreeDataProvider](#TreeDataProvider) for the registered view `id`.
-		 * @param viewId View id.
-		 * @param treeDataProvider A [TreeDataProvider](#TreeDataProvider) that provides tree data for the view
-		 */
-		export function registerTreeDataProviderForView<T>(viewId: string, treeDataProvider: TreeDataProvider<T>): Disposable;
-	}
-
-	/**
-	 * A data provider that provides tree data for a view
-	 */
-	export interface TreeDataProvider<T> {
-		/**
-		 * An optional event to signal that an element or root has changed.
-		 */
-		onDidChangeTreeData?: Event<T | undefined | null>;
-
-		/**
-		 * get [TreeItem](#TreeItem) representation of the `element`
-		 *
-		 * @param element The element for which [TreeItem](#TreeItem) representation is asked for.
-		 * @return [TreeItem](#TreeItem) representation of the element
-		 */
-		getTreeItem(element: T): TreeItem;
-
-		/**
-		 * get the children of `element` or root.
-		 *
-		 * @param element The element from which the provider gets children for.
-		 * @return Children of `element` or root.
-		 */
-		getChildren(element?: T): T[] | Thenable<T[]>;
-	}
-
-	export interface TreeItem {
-		/**
-		 * Label of the tree item
-		 */
-		readonly label: string;
-
-		/**
-		 * The icon path for the tree item
-		 */
-		readonly iconPath?: string | Uri | { light: string | Uri; dark: string | Uri };
-
-		/**
-		 * The [command](#Command) which should be run when the tree item
-		 * is open in the Source Control viewlet.
-		 */
-		readonly command?: Command;
-
-		/**
-		 * Context value of the tree node
-		 */
-		readonly contextValue?: string;
-
-		/**
-		 * Collapsible state of the tree item.
-		 * Required only when item has children.
-		 */
-		readonly collapsibleState?: TreeItemCollapsibleState;
-	}
-
-	/**
-	 * Collapsible state of the tree item
-	 */
-	export enum TreeItemCollapsibleState {
-		/**
-		 * Determines an item is collapsed
-		 */
-		Collapsed = 1,
-		/**
-		 * Determines an item is expanded
-		 */
-		Expanded = 2
 	}
 
 	/**

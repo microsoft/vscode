@@ -1,4 +1,9 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/textmate/shellscript.tmbundle/blob/master/Syntaxes/Shell-Unix-Bash.tmLanguage",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
 	"fileTypes": [
 		"sh",
 		"bash",
@@ -1237,6 +1242,5 @@
 		}
 	},
 	"scopeName": "source.shell",
-	"uuid": "DDEEA3ED-6B1C-11D9-8B10-000D93589AF6",
-	"version": "https://github.com/textmate/shellscript.tmbundle/commit/ba95d7b742caef130911d878f42f66bdd80181e4"
+	"uuid": "DDEEA3ED-6B1C-11D9-8B10-000D93589AF6"
 }

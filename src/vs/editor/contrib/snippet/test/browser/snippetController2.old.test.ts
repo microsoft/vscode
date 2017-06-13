@@ -10,8 +10,8 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { MockCodeEditor, withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import { Cursor } from 'vs/editor/common/controller/cursor';
-import { IContextKeyService } from "vs/platform/contextkey/common/contextkey";
-import { ICommonCodeEditor } from "vs/editor/common/editorCommon";
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 
 class TestSnippetController extends SnippetController2 {
 
@@ -189,16 +189,16 @@ suite('SnippetController', () => {
 		});
 	});
 
-	// test('Stops when undoing', () => {
-	// 	snippetTest((editor, cursor, codeSnippet, snippetController) => {
-	// 		editor.setPosition({ lineNumber: 4, column: 2 });
-	// 		snippetController.run(codeSnippet, 0, 0);
+	test('Stops when undoing', () => {
+		snippetTest((editor, cursor, codeSnippet, snippetController) => {
+			editor.setPosition({ lineNumber: 4, column: 2 });
+			snippetController.insert(codeSnippet, 0, 0);
 
-	// 		editor.getModel().undo();
+			editor.getModel().undo();
 
-	// 		assert.equal(snippetController.isInSnippetMode(), false);
-	// 	});
-	// });
+			assert.equal(snippetController.isInSnippetMode(), false);
+		});
+	});
 
 	test('Stops when moving cursor outside', () => {
 		snippetTest((editor, cursor, codeSnippet, snippetController) => {

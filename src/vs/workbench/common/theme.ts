@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import { registerColor, editorBackground, contrastBorder, transparent, badgeForeground, badgeBackground } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorBackground, contrastBorder, transparent, badgeForeground, badgeBackground, lighten, darken } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
@@ -33,13 +33,25 @@ export const TAB_ACTIVE_FOREGROUND = registerColor('tab.activeForeground', {
 	dark: Color.white,
 	light: '#333333',
 	hc: Color.white
-}, nls.localize('tabActiveEditorGroupActiveForeground', "Active tab foreground color in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+}, nls.localize('tabActiveForeground', "Active tab foreground color in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 export const TAB_INACTIVE_FOREGROUND = registerColor('tab.inactiveForeground', {
 	dark: transparent(TAB_ACTIVE_FOREGROUND, 0.5),
 	light: transparent(TAB_ACTIVE_FOREGROUND, 0.5),
 	hc: Color.white
-}, nls.localize('tabInactiveEditorGroupActiveForeground', "Inactive tab foreground color in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+}, nls.localize('tabInactiveForeground', "Inactive tab foreground color in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+export const TAB_UNFOCUSED_ACTIVE_FOREGROUND = registerColor('tab.unfocusedActiveForeground', {
+	dark: transparent(TAB_ACTIVE_FOREGROUND, 0.5),
+	light: transparent(TAB_ACTIVE_FOREGROUND, 0.7),
+	hc: Color.white
+}, nls.localize('tabUnfocusedActiveForeground', "Active tab foreground color in an inactive group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+export const TAB_UNFOCUSED_INACTIVE_FOREGROUND = registerColor('tab.unfocusedInactiveForeground', {
+	dark: transparent(TAB_INACTIVE_FOREGROUND, 0.5),
+	light: transparent(TAB_INACTIVE_FOREGROUND, 0.5),
+	hc: Color.white
+}, nls.localize('tabUnfocusedInactiveForeground', "Inactive tab foreground color in an inactive group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 
 // < --- Editors --- >
@@ -141,6 +153,12 @@ export const STATUS_BAR_NO_FOLDER_BACKGROUND = registerColor('statusBar.noFolder
 	light: '#68217A',
 	hc: null
 }, nls.localize('statusBarNoFolderBackground', "Status bar background color when no folder is opened. The status bar is shown in the bottom of the window."));
+
+export const STATUS_BAR_NO_FOLDER_FOREGROUND = registerColor('statusBar.noFolderForeground', {
+	dark: STATUS_BAR_FOREGROUND,
+	light: STATUS_BAR_FOREGROUND,
+	hc: STATUS_BAR_FOREGROUND
+}, nls.localize('statusBarNoFolderForeground', "Status bar foreground color when no folder is opened. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_ITEM_ACTIVE_BACKGROUND = registerColor('statusBarItem.activeBackground', {
 	dark: Color.white.transparent(0.18),
@@ -287,6 +305,60 @@ export const NOTIFICATIONS_BACKGROUND = registerColor('notification.background',
 	light: '#2C2C2C',
 	hc: '#000000'
 }, nls.localize('notificationsBackground', "Notifications background color. Notifications slide in from the top of the window."));
+
+export const NOTIFICATIONS_BUTTON_BACKGROUND = registerColor('notification.buttonBackground', {
+	dark: '#0E639C',
+	light: '#007ACC',
+	hc: null
+}, nls.localize('notificationsButtonBackground', "Notifications button background color. Notifications slide in from the top of the window."));
+
+export const NOTIFICATIONS_BUTTON_HOVER_BACKGROUND = registerColor('notification.buttonHoverBackground', {
+	dark: lighten(NOTIFICATIONS_BUTTON_BACKGROUND, 0.2),
+	light: darken(NOTIFICATIONS_BUTTON_BACKGROUND, 0.2),
+	hc: null
+}, nls.localize('notificationsButtonHoverBackground', "Notifications button background color when hovering. Notifications slide in from the top of the window."));
+
+export const NOTIFICATIONS_BUTTON_FOREGROUND = registerColor('notification.buttonForeground', {
+	dark: Color.white,
+	light: Color.white,
+	hc: Color.white
+}, nls.localize('notificationsButtonForeground', "Notifications button foreground color. Notifications slide in from the top of the window."));
+
+export const NOTIFICATIONS_INFO_BACKGROUND = registerColor('notification.infoBackground', {
+	dark: '#007acc',
+	light: '#007acc',
+	hc: contrastBorder
+}, nls.localize('notificationsInfoBackground', "Notifications info background color. Notifications slide in from the top of the window."));
+
+export const NOTIFICATIONS_INFO_FOREGROUND = registerColor('notification.infoForeground', {
+	dark: NOTIFICATIONS_FOREGROUND,
+	light: NOTIFICATIONS_FOREGROUND,
+	hc: null
+}, nls.localize('notificationsInfoForeground', "Notifications info foreground color. Notifications slide in from the top of the window."));
+
+export const NOTIFICATIONS_WARNING_BACKGROUND = registerColor('notification.warningBackground', {
+	dark: '#B89500',
+	light: '#B89500',
+	hc: contrastBorder
+}, nls.localize('notificationsWarningBackground', "Notifications warning background color. Notifications slide in from the top of the window."));
+
+export const NOTIFICATIONS_WARNING_FOREGROUND = registerColor('notification.warningForeground', {
+	dark: NOTIFICATIONS_FOREGROUND,
+	light: NOTIFICATIONS_FOREGROUND,
+	hc: null
+}, nls.localize('notificationsWarningForeground', "Notifications warning foreground color. Notifications slide in from the top of the window."));
+
+export const NOTIFICATIONS_ERROR_BACKGROUND = registerColor('notification.errorBackground', {
+	dark: '#BE1100',
+	light: '#BE1100',
+	hc: contrastBorder
+}, nls.localize('notificationsErrorBackground', "Notifications error background color. Notifications slide in from the top of the window."));
+
+export const NOTIFICATIONS_ERROR_FOREGROUND = registerColor('notification.errorForeground', {
+	dark: NOTIFICATIONS_FOREGROUND,
+	light: NOTIFICATIONS_FOREGROUND,
+	hc: null
+}, nls.localize('notificationsErrorForeground', "Notifications error foreground color. Notifications slide in from the top of the window."));
 
 /**
  * Base class for all themable workbench components.

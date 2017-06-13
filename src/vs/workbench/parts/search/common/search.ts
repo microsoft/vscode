@@ -12,10 +12,10 @@ import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ISearchConfiguration } from 'vs/platform/search/common/search';
 import glob = require('vs/base/common/glob');
 import { SymbolInformation } from 'vs/editor/common/modes';
-import { IEditorGroupService } from "vs/workbench/services/group/common/groupService";
-import { IWorkspaceContextService } from "vs/platform/workspace/common/workspace";
-import URI from "vs/base/common/uri";
-import { toResource } from "vs/workbench/common/editor";
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import URI from 'vs/base/common/uri';
+import { toResource } from 'vs/workbench/common/editor';
 
 export interface IWorkspaceSymbolProvider {
 	provideWorkspaceSymbols(search: string): TPromise<SymbolInformation[]>;

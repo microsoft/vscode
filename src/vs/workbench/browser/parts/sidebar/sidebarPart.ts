@@ -15,7 +15,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPartService, Parts, Position as SideBarPosition } from 'vs/workbench/services/part/common/partService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { Scope } from 'vs/workbench/browser/actionBarRegistry';
+import { Scope } from 'vs/workbench/browser/actions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -58,6 +58,7 @@ export class SidebarPart extends CompositePart<Viewlet> {
 			themeService,
 			Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets),
 			SidebarPart.activeViewletSettingsKey,
+			Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).getDefaultViewletId(),
 			'sideBar',
 			'viewlet',
 			Scope.VIEWLET,
@@ -68,11 +69,11 @@ export class SidebarPart extends CompositePart<Viewlet> {
 	}
 
 	public get onDidViewletOpen(): Event<IViewlet> {
-		return this._onDidCompositeOpen.event;
+		return this._onDidCompositeOpen.event as Event<IViewlet>;
 	}
 
 	public get onDidViewletClose(): Event<IViewlet> {
-		return this._onDidCompositeClose.event;
+		return this._onDidCompositeClose.event as Event<IViewlet>;
 	}
 
 	public updateStyles(): void {
@@ -110,7 +111,7 @@ export class SidebarPart extends CompositePart<Viewlet> {
 			}
 		}
 
-		return promise.then(() => this.openComposite(id, focus));
+		return promise.then(() => this.openComposite(id, focus)) as TPromise<Viewlet>;
 	}
 
 	public getActiveViewlet(): IViewlet {

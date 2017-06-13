@@ -218,6 +218,7 @@ export interface IActionItemOptions extends IBaseActionItemOptions {
 	icon?: boolean;
 	label?: boolean;
 	keybinding?: string;
+	isMenu?: boolean;
 }
 
 export class ActionItem extends BaseActionItem {
@@ -239,7 +240,11 @@ export class ActionItem extends BaseActionItem {
 		super.render(container);
 
 		this.$e = $('a.action-label').appendTo(this.builder);
-		this.$e.attr({ role: 'button' });
+		if (this.options.isMenu) {
+			this.$e.attr({ role: 'menuitem' });
+		} else {
+			this.$e.attr({ role: 'button' });
+		}
 
 		if (this.options.label && this.options.keybinding) {
 			$('span.keybinding').text(this.options.keybinding).appendTo(this.builder);
@@ -343,6 +348,7 @@ export interface IActionBarOptions {
 	actionRunner?: IActionRunner;
 	ariaLabel?: string;
 	animated?: boolean;
+	isMenu?: boolean;
 }
 
 let defaultOptions: IActionBarOptions = {
@@ -458,7 +464,11 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 
 		this.actionsList = document.createElement('ul');
 		this.actionsList.className = 'actions-container';
-		this.actionsList.setAttribute('role', 'toolbar');
+		if (this.options.isMenu) {
+			this.actionsList.setAttribute('role', 'menubar');
+		} else {
+			this.actionsList.setAttribute('role', 'toolbar');
+		}
 		if (this.options.ariaLabel) {
 			this.actionsList.setAttribute('aria-label', this.options.ariaLabel);
 		}

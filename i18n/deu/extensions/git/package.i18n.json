@@ -26,6 +26,7 @@
 	"command.undoCommit": "Letzten Commit rückgängig machen",
 	"command.checkout": "Auschecken an...",
 	"command.branch": "Branch erstellen...",
+	"command.deleteBranch": "Branch löschen...",
 	"command.pull": "Pull",
 	"command.pullRebase": "Pull (Rebase)",
 	"command.push": "Push",

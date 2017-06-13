@@ -79,7 +79,15 @@ function registerExtensionsCompletions(): vscode.Disposable {
 							|| e.id === 'Microsoft.vscode-markdown'
 							|| alreadyEnteredExtensions.indexOf(e.id) > -1
 						))
-						.map(e => newSimpleCompletionItem(e.id, range, undefined, '"' + e.id + '"'));
+						.map(e => {
+							const item = new vscode.CompletionItem(e.id);
+							const insertText = `"${e.id}"`;
+							item.kind = vscode.CompletionItemKind.Value;
+							item.insertText = insertText;
+							item.range = range;
+							item.filterText = insertText;
+							return item;
+						});
 				}
 			}
 			return [];
@@ -87,11 +95,11 @@ function registerExtensionsCompletions(): vscode.Disposable {
 	});
 }
 
-function newSimpleCompletionItem(text: string, range: vscode.Range, description?: string, insertText?: string): vscode.CompletionItem {
-	const item = new vscode.CompletionItem(text);
+function newSimpleCompletionItem(label: string, range: vscode.Range, description?: string, insertText?: string): vscode.CompletionItem {
+	const item = new vscode.CompletionItem(label);
 	item.kind = vscode.CompletionItemKind.Value;
 	item.detail = description;
-	item.insertText = insertText || text;
+	item.insertText = insertText || label;
 	item.range = range;
 
 	return item;

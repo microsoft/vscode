@@ -14,9 +14,9 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { WordNavigationType, WordOperations } from 'vs/editor/common/controller/cursorWordOperations';
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
-import { getMapForWordSeparators, WordCharacterClassifier } from "vs/editor/common/controller/wordCharacterClassifier";
-import { CursorState } from "vs/editor/common/controller/cursorCommon";
-import { CursorChangeReason } from "vs/editor/common/controller/cursorEvents";
+import { getMapForWordSeparators, WordCharacterClassifier } from 'vs/editor/common/controller/wordCharacterClassifier';
+import { CursorState } from 'vs/editor/common/controller/cursorCommon';
+import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 
 export interface MoveWordOptions extends ICommandOptions {
 	inSelectionMode: boolean;

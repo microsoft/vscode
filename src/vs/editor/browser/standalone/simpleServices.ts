@@ -17,6 +17,7 @@ import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingReso
 import { IKeybindingEvent, KeybindingSource, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IMessageService } from 'vs/platform/message/common/message';
+import { IWorkspaceContextService, Workspace, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -487,5 +488,43 @@ export class StandaloneTelemetryService implements ITelemetryService {
 
 	public getExperiments(): ITelemetryExperiments {
 		return null;
+	}
+}
+
+export class SimpleWorkspaceContextService implements IWorkspaceContextService {
+
+	public _serviceBrand: any;
+
+	private readonly _onDidChangeFolders: Emitter<URI[]> = new Emitter<URI[]>();
+	public readonly onDidChangeFolders: Event<URI[]> = this._onDidChangeFolders.event;
+
+	private readonly folders: URI[];
+
+	constructor(private workspace?: Workspace) {
+		this.folders = workspace ? [workspace.resource] : [];
+	}
+
+	public getFolders(): URI[] {
+		return this.folders;
+	}
+
+	public getWorkspace(): IWorkspace {
+		return this.workspace;
+	}
+
+	public hasWorkspace(): boolean {
+		return !!this.workspace;
+	}
+
+	public isInsideWorkspace(resource: URI): boolean {
+		return this.workspace ? this.workspace.isInsideWorkspace(resource) : false;
+	}
+
+	public toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
+		return this.workspace ? this.workspace.toWorkspaceRelativePath(resource, toOSPath) : null;
+	}
+
+	public toResource(workspaceRelativePath: string): URI {
+		return this.workspace ? this.workspace.toResource(workspaceRelativePath) : null;
 	}
 }

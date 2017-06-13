@@ -73,7 +73,7 @@ export class KeymapExtensions implements IWorkbenchContribution {
 			oldKeymaps: oldKeymaps.map(k => k.identifier)
 		};
 		this.telemetryService.publicLog('disableOtherKeymapsConfirmation', telemetryData);
-		const message = localize('disableOtherKeymapsConfirmation', "Disable other keymaps to avoid conflicts between keybindings?");
+		const message = localize('disableOtherKeymapsConfirmation', "Disable other keymaps ({0}) to avoid conflicts between keybindings?", oldKeymaps.map(k => `'${k.local.manifest.displayName}'`).join(', '));
 		const options = [
 			localize('yes', "Yes"),
 			localize('no', "No")

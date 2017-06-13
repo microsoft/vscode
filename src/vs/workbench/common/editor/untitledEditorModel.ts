@@ -38,16 +38,13 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 	private contentChangeEventScheduler: RunOnceScheduler;
 
 	private configuredEncoding: string;
-	private preferredEncoding: string;
-
-	private hasAssociatedFilePath: boolean;
-	private initialValue: string;
 
 	constructor(
 		private modeId: string,
 		private resource: URI,
-		hasAssociatedFilePath: boolean,
-		initialValue: string,
+		private hasAssociatedFilePath: boolean,
+		private initialValue: string,
+		private preferredEncoding: string,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IBackupFileService private backupFileService: IBackupFileService,
@@ -56,8 +53,6 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 	) {
 		super(modelService, modeService);
 
-		this.hasAssociatedFilePath = hasAssociatedFilePath;
-		this.initialValue = initialValue;
 		this.dirty = false;
 		this.versionId = 0;
 

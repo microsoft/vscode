@@ -118,10 +118,6 @@
 	width: 20%;
 }
 
-.monaco-shell .feedback-form .feedback-sentiment span {
-	color:rgb(111, 111, 111);
-}
-
 .monaco-shell .feedback-form .sentiment {
 	height: 32px;
 	width: 32px;

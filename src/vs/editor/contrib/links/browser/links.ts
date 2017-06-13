@@ -8,35 +8,59 @@
 import 'vs/css!./links';
 import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { KeyCode } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { LinkProviderRegistry } from 'vs/editor/common/modes';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { IEditorMouseEvent, ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { getLinks, Link } from 'vs/editor/contrib/links/common/links';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { Position } from 'vs/editor/common/core/position';
-import { ModelDecorationOptions } from "vs/editor/common/model/textModelWithDecorations";
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'vs/editor/contrib/goToDeclaration/browser/clickLinkGesture';
 
-const HOVER_MESSAGE_GENERAL = (
+const HOVER_MESSAGE_GENERAL_META = (
 	platform.isMacintosh
 		? nls.localize('links.navigate.mac', "Cmd + click to follow link")
 		: nls.localize('links.navigate', "Ctrl + click to follow link")
 );
 
+const HOVER_MESSAGE_GENERAL_ALT = nls.localize('links.navigate.al', "Alt + click to follow link");
+
+const decoration = {
+	meta: ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		inlineClassName: 'detected-link',
+		hoverMessage: HOVER_MESSAGE_GENERAL_META
+	}),
+	metaActive: ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		inlineClassName: 'detected-link-active',
+		hoverMessage: HOVER_MESSAGE_GENERAL_META
+	}),
+	alt: ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		inlineClassName: 'detected-link',
+		hoverMessage: HOVER_MESSAGE_GENERAL_ALT
+	}),
+	altActive: ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		inlineClassName: 'detected-link-active',
+		hoverMessage: HOVER_MESSAGE_GENERAL_ALT
+	}),
+};
+
 class LinkOccurence {
 
-	public static decoration(link: Link): editorCommon.IModelDeltaDecoration {
+	public static decoration(link: Link, useMetaKey: boolean): editorCommon.IModelDeltaDecoration {
 		return {
 			range: {
 				startLineNumber: link.range.startLineNumber,
@@ -44,40 +68,31 @@ class LinkOccurence {
 				endLineNumber: link.range.endLineNumber,
 				endColumn: link.range.endColumn
 			},
-			options: LinkOccurence._getOptions(false)
+			options: LinkOccurence._getOptions(useMetaKey, false)
 		};
 	}
 
-	private static _LINK_DECORATION = ModelDecorationOptions.register({
-		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		inlineClassName: 'detected-link',
-		hoverMessage: HOVER_MESSAGE_GENERAL
-	});
-
-	private static _ACTIVE_LINK_DECORATION = ModelDecorationOptions.register({
-		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		inlineClassName: 'detected-link-active',
-		hoverMessage: HOVER_MESSAGE_GENERAL
-	});
-
-	private static _getOptions(isActive: boolean): ModelDecorationOptions {
-		return (isActive ? this._ACTIVE_LINK_DECORATION : this._LINK_DECORATION);
+	private static _getOptions(useMetaKey: boolean, isActive: boolean): ModelDecorationOptions {
+		if (useMetaKey) {
+			return (isActive ? decoration.metaActive : decoration.meta);
+		}
+		return (isActive ? decoration.altActive : decoration.alt);
 	}
 
 	public decorationId: string;
 	public link: Link;
 
-	constructor(link: Link, decorationId: string/*, changeAccessor:editorCommon.IModelDecorationsChangeAccessor*/) {
+	constructor(link: Link, decorationId: string) {
 		this.link = link;
 		this.decorationId = decorationId;
 	}
 
-	public activate(changeAccessor: editorCommon.IModelDecorationsChangeAccessor): void {
-		changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurence._getOptions(true));
+	public activate(changeAccessor: editorCommon.IModelDecorationsChangeAccessor, useMetaKey: boolean): void {
+		changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurence._getOptions(useMetaKey, true));
 	}
 
-	public deactivate(changeAccessor: editorCommon.IModelDecorationsChangeAccessor): void {
-		changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurence._getOptions(false));
+	public deactivate(changeAccessor: editorCommon.IModelDecorationsChangeAccessor, useMetaKey: boolean): void {
+		changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurence._getOptions(useMetaKey, false));
 	}
 }
 
@@ -91,15 +106,13 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 
 	static RECOMPUTE_TIME = 1000; // ms
-	static TRIGGER_KEY_VALUE = platform.isMacintosh ? KeyCode.Meta : KeyCode.Ctrl;
-	static TRIGGER_MODIFIER = platform.isMacintosh ? 'metaKey' : 'ctrlKey';
 
 	private editor: ICodeEditor;
+	private enabled: boolean;
 	private listenersToRemove: IDisposable[];
 	private timeoutPromise: TPromise<void>;
 	private computePromise: TPromise<void>;
 	private activeLinkDecorationId: string;
-	private lastMouseEvent: IEditorMouseEvent;
 	private openerService: IOpenerService;
 	private messageService: IMessageService;
 	private editorWorkerService: IEditorWorkerService;
@@ -116,14 +129,42 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		this.messageService = messageService;
 		this.editorWorkerService = editorWorkerService;
 		this.listenersToRemove = [];
+
+		let clickLinkGesture = new ClickLinkGesture(editor);
+		this.listenersToRemove.push(clickLinkGesture);
+		this.listenersToRemove.push(clickLinkGesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, keyboardEvent]) => {
+			this._onEditorMouseMove(mouseEvent, keyboardEvent);
+		}));
+		this.listenersToRemove.push(clickLinkGesture.onExecute((e) => {
+			this.onEditorMouseUp(e);
+		}));
+		this.listenersToRemove.push(clickLinkGesture.onCancel((e) => {
+			this.cleanUpActiveLinkDecoration();
+		}));
+
+		this.enabled = editor.getConfiguration().contribInfo.links;
+		this.listenersToRemove.push(editor.onDidChangeConfiguration((e) => {
+			let enabled = editor.getConfiguration().contribInfo.links;
+			if (this.enabled === enabled) {
+				// No change in our configuration option
+				return;
+			}
+			this.enabled = enabled;
+
+			// Remove any links (for the getting disabled case)
+			this.updateDecorations([]);
+
+			// Stop any computation (for the getting disabled case)
+			this.stop();
+
+			// Start computing (for the getting enabled case)
+			this.beginCompute();
+		}));
 		this.listenersToRemove.push(editor.onDidChangeModelContent((e) => this.onChange()));
 		this.listenersToRemove.push(editor.onDidChangeModel((e) => this.onModelChanged()));
 		this.listenersToRemove.push(editor.onDidChangeModelLanguage((e) => this.onModelModeChanged()));
 		this.listenersToRemove.push(LinkProviderRegistry.onDidChange((e) => this.onModelModeChanged()));
-		this.listenersToRemove.push(this.editor.onMouseUp((e: IEditorMouseEvent) => this.onEditorMouseUp(e)));
-		this.listenersToRemove.push(this.editor.onMouseMove((e: IEditorMouseEvent) => this.onEditorMouseMove(e)));
-		this.listenersToRemove.push(this.editor.onKeyDown((e: IKeyboardEvent) => this.onEditorKeyDown(e)));
-		this.listenersToRemove.push(this.editor.onKeyUp((e: IKeyboardEvent) => this.onEditorKeyUp(e)));
+
 		this.timeoutPromise = null;
 		this.computePromise = null;
 		this.currentOccurences = {};
@@ -140,7 +181,6 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 
 	private onModelChanged(): void {
-		this.lastMouseEvent = null;
 		this.currentOccurences = {};
 		this.activeLinkDecorationId = null;
 		this.stop();
@@ -163,7 +203,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 
 	private beginCompute(): void {
-		if (!this.editor.getModel()) {
+		if (!this.editor.getModel() || !this.enabled) {
 			return;
 		}
 
@@ -178,6 +218,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 
 	private updateDecorations(links: Link[]): void {
+		const useMetaKey = (this.editor.getConfiguration().multiCursorModifier === 'altKey');
 		this.editor.changeDecorations((changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => {
 			var oldDecorations: string[] = [];
 			let keys = Object.keys(this.currentOccurences);
@@ -191,7 +232,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 			if (links) {
 				// Not sure why this is sometimes null
 				for (var i = 0; i < links.length; i++) {
-					newDecorations.push(LinkOccurence.decoration(links[i]));
+					newDecorations.push(LinkOccurence.decoration(links[i], useMetaKey));
 				}
 			}
 
@@ -206,27 +247,14 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		});
 	}
 
-	private onEditorKeyDown(e: IKeyboardEvent): void {
-		if (e.keyCode === LinkDetector.TRIGGER_KEY_VALUE && this.lastMouseEvent) {
-			this.onEditorMouseMove(this.lastMouseEvent, e);
-		}
-	}
-
-	private onEditorKeyUp(e: IKeyboardEvent): void {
-		if (e.keyCode === LinkDetector.TRIGGER_KEY_VALUE) {
-			this.cleanUpActiveLinkDecoration();
-		}
-	}
-
-	private onEditorMouseMove(mouseEvent: IEditorMouseEvent, withKey?: IKeyboardEvent): void {
-		this.lastMouseEvent = mouseEvent;
-
+	private _onEditorMouseMove(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent): void {
+		const useMetaKey = (this.editor.getConfiguration().multiCursorModifier === 'altKey');
 		if (this.isEnabled(mouseEvent, withKey)) {
 			this.cleanUpActiveLinkDecoration(); // always remove previous link decoration as their can only be one
 			var occurence = this.getLinkOccurence(mouseEvent.target.position);
 			if (occurence) {
 				this.editor.changeDecorations((changeAccessor) => {
-					occurence.activate(changeAccessor);
+					occurence.activate(changeAccessor, useMetaKey);
 					this.activeLinkDecorationId = occurence.decorationId;
 				});
 			}
@@ -236,11 +264,12 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 
 	private cleanUpActiveLinkDecoration(): void {
+		const useMetaKey = (this.editor.getConfiguration().multiCursorModifier === 'altKey');
 		if (this.activeLinkDecorationId) {
 			var occurence = this.currentOccurences[this.activeLinkDecorationId];
 			if (occurence) {
 				this.editor.changeDecorations((changeAccessor) => {
-					occurence.deactivate(changeAccessor);
+					occurence.deactivate(changeAccessor, useMetaKey);
 				});
 			}
 
@@ -248,7 +277,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		}
 	}
 
-	private onEditorMouseUp(mouseEvent: IEditorMouseEvent): void {
+	private onEditorMouseUp(mouseEvent: ClickLinkMouseEvent): void {
 		if (!this.isEnabled(mouseEvent)) {
 			return;
 		}
@@ -256,7 +285,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		if (!occurence) {
 			return;
 		}
-		this.openLinkOccurence(occurence, mouseEvent.event.altKey);
+		this.openLinkOccurence(occurence, mouseEvent.hasSideBySideModifier);
 	}
 
 	public openLinkOccurence(occurence: LinkOccurence, openToSide: boolean): void {
@@ -302,9 +331,11 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		return null;
 	}
 
-	private isEnabled(mouseEvent: IEditorMouseEvent, withKey?: IKeyboardEvent): boolean {
-		return mouseEvent.target.type === MouseTargetType.CONTENT_TEXT &&
-			(mouseEvent.event[LinkDetector.TRIGGER_MODIFIER] || (withKey && withKey.keyCode === LinkDetector.TRIGGER_KEY_VALUE));
+	private isEnabled(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent): boolean {
+		return (
+			mouseEvent.target.type === MouseTargetType.CONTENT_TEXT
+			&& (mouseEvent.hasTriggerModifier || (withKey && withKey.keyCodeIsTriggerKey))
+		);
 	}
 
 	private stop(): void {

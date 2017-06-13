@@ -306,7 +306,6 @@ export interface IDebugConfiguration {
 	inlineValues: boolean;
 	hideActionBar: boolean;
 	internalConsoleOptions: string;
-	variablesDelay: number;
 }
 
 export interface IGlobalConfig {

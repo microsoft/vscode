@@ -8,6 +8,7 @@ import * as nls from 'vs/nls';
 import { Delayer } from 'vs/base/common/async';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { flatten, distinct } from 'vs/base/common/arrays';
+import { values } from 'vs/base/common/map';
 import { ArrayNavigator, INavigator } from 'vs/base/common/iterator';
 import { IAction } from 'vs/base/common/actions';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -32,7 +33,7 @@ import { IWorkspaceConfigurationService } from 'vs/workbench/services/configurat
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { ModelDecorationOptions } from "vs/editor/common/model/textModelWithDecorations";
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	preferencesModel: IPreferencesEditorModel<T>;
@@ -465,7 +466,7 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 		if (result) {
 			this.hiddenAreas = this.computeHiddenRanges(result.filteredGroups, result.allGroups, model);
 			this.editor.changeDecorations(changeAccessor => {
-				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, flatten(result.matches.values()).map(match => this.createDecoration(match, model)));
+				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, flatten(values(result.matches)).map(match => this.createDecoration(match, model)));
 			});
 		}
 	}

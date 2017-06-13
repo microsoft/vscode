@@ -23,15 +23,15 @@ import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { CoreNavigationCommands, CoreEditingCommands } from 'vs/editor/common/controller/coreCommands';
-import { withMockCodeEditor, MockCodeEditor } from "vs/editor/test/common/mocks/mockCodeEditor";
-import { TextModel } from "vs/editor/common/model/textModel";
-import { ViewModel } from "vs/editor/common/viewModel/viewModelImpl";
+import { withMockCodeEditor, MockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ScreenReaderMessageGenerator } from "vs/editor/common/controller/accGenerator";
+import { ScreenReaderMessageGenerator } from 'vs/editor/common/controller/accGenerator';
 import {
 	CursorWordLeft, CursorWordLeftSelect, CursorWordRight, CursorWordRightSelect
 } from 'vs/editor/contrib/wordOperations/common/wordOperations';
-import { EditorCommand } from "vs/editor/common/editorCommonExtensions";
+import { EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 let H = Handler;
 
 // --------- utils
@@ -1131,6 +1131,33 @@ class IndentRulesMode extends MockMode {
 }
 
 suite('Editor Controller - Regression tests', () => {
+
+	test('issue Microsoft/monaco-editor#443: Indentation of a single row deletes selected text in some cases', () => {
+		let model = Model.createFromString(
+			[
+				'Hello world!',
+				'another line'
+			].join('\n'),
+			{
+				defaultEOL: DefaultEndOfLine.LF,
+				detectIndentation: false,
+				insertSpaces: false,
+				tabSize: 4,
+				trimAutoWhitespace: false
+			},
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 1, 1, 13)]);
+
+			// Check that indenting maintains the selection start at column 1
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
+			assert.deepEqual(cursor.getSelection(), new Selection(1, 1, 1, 14));
+		});
+
+		model.dispose();
+	});
+
 	test('Bug 9121: Auto indent + undo + redo is funky', () => {
 		let model = Model.createFromString(
 			[

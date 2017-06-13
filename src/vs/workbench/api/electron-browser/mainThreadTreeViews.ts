@@ -9,7 +9,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape } from '../node/extHost.protocol';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { ViewsRegistry, ITreeViewDataProvider, ITreeItem, TreeItemCollapsibleState } from 'vs/workbench/parts/views/browser/views';
+import { ViewsRegistry } from 'vs/workbench/parts/views/browser/viewsRegistry';
+import { ITreeViewDataProvider, ITreeItem, TreeItemCollapsibleState } from 'vs/workbench/parts/views/common/views';
 
 export class MainThreadTreeViews extends MainThreadTreeViewsShape {
 
@@ -39,8 +40,8 @@ type TreeItemHandle = number;
 
 class TreeViewDataProvider implements ITreeViewDataProvider {
 
-	private _onDidChange: Emitter<ITreeItem | undefined | void> = new Emitter<ITreeItem | undefined | void>();
-	readonly onDidChange: Event<ITreeItem | undefined | void> = this._onDidChange.event;
+	private _onDidChange: Emitter<ITreeItem | undefined | null> = new Emitter<ITreeItem | undefined | null>();
+	readonly onDidChange: Event<ITreeItem | undefined | null> = this._onDidChange.event;
 
 	private childrenMap: Map<TreeItemHandle, TreeItemHandle[]> = new Map<TreeItemHandle, TreeItemHandle[]>();
 	private itemsMap: Map<TreeItemHandle, ITreeItem> = new Map<TreeItemHandle, ITreeItem>();

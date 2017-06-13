@@ -24,8 +24,6 @@ export class BaseBadge implements IBadge {
 	}
 }
 
-export class DotBadge extends BaseBadge { }
-
 export class NumberBadge extends BaseBadge {
 	public number: number;
 

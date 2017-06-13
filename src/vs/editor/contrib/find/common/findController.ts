@@ -21,7 +21,7 @@ import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { ModelDecorationOptions } from "vs/editor/common/model/textModelWithDecorations";
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 export const enum FindStartFocusAction {
 	NoFocusChange,
@@ -508,13 +508,13 @@ export class StartFindReplaceAction extends EditorAction {
 		let controller = CommonFindController.get(editor);
 		let currentSelection = editor.getSelection();
 		// we only seed search string from selection when the current selection is single line and not empty.
-		let seedSearchStringFromSelection = currentSelection.isEmpty() ||
-			currentSelection.startLineNumber !== currentSelection.endLineNumber;
+		let seedSearchStringFromSelection = !currentSelection.isEmpty() &&
+			currentSelection.startLineNumber === currentSelection.endLineNumber;
 		let oldSearchString = controller.getState().searchString;
 		// if the existing search string in find widget is empty and we don't seed search string from selection, it means the Find Input
 		// is still empty, so we should focus the Find Input instead of Replace Input.
-		let shouldFocus = !oldSearchString && seedSearchStringFromSelection ?
-			FindStartFocusAction.FocusFindInput : FindStartFocusAction.FocusReplaceInput;
+		let shouldFocus = (!!oldSearchString || seedSearchStringFromSelection) ?
+			FindStartFocusAction.FocusReplaceInput : FindStartFocusAction.FocusFindInput;
 
 		if (controller) {
 			controller.start({

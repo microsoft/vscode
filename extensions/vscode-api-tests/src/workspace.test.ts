@@ -7,13 +7,13 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { createRandomFile, deleteFile, cleanUp, pathEquals } from './utils';
+import { createRandomFile, deleteFile, closeAllEditors, pathEquals } from './utils';
 import { join, basename } from 'path';
 import * as fs from 'fs';
 
 suite('workspace-namespace', () => {
 
-	teardown(cleanUp);
+	teardown(closeAllEditors);
 
 
 	test('textDocuments', () => {

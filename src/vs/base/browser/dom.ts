@@ -710,7 +710,7 @@ export function createCSSRule(selector: string, cssText: string, style: HTMLStyl
 		return;
 	}
 
-	(<any>style.sheet).insertRule(selector + '{' + cssText + '}', 0);
+	(<CSSStyleSheet>style.sheet).insertRule(selector + '{' + cssText + '}', 0);
 }
 
 export function getCSSRule(selector: string, style: HTMLStyleElement = sharedStyle): any {
@@ -739,8 +739,7 @@ export function removeCSSRulesContainingSelector(ruleName: string, style = share
 	let toDelete: number[] = [];
 	for (let i = 0; i < rules.length; i++) {
 		let rule = rules[i];
-		let normalizedSelectorText = rule.selectorText.replace(/::/gi, ':');
-		if (normalizedSelectorText.indexOf(ruleName) !== -1) {
+		if (rule.selectorText.indexOf(ruleName) !== -1) {
 			toDelete.push(i);
 		}
 	}

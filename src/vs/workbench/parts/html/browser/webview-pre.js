@@ -47,7 +47,7 @@
 		/** @type {any} */
 		var node = event.target;
 		while (node) {
-			if (node.tagName === "A" && node.href) {
+			if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
 				var baseElement = event.view.document.getElementsByTagName("base")[0];
 				if (node.getAttribute("href") === "#") {
 					event.view.scrollTo(0, 0);

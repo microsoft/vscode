@@ -8,7 +8,7 @@
 	"indentationToTabs": "将缩进转换为制表符",
 	"configuredTabSize": "已配置制表符大小",
 	"selectTabWidth": "选择当前文件的制表符大小",
-	"indentUsingTabs": "使用 \\\\\"Tab\\\\\" 缩进",
+	"indentUsingTabs": "使用“Tab”缩进",
 	"indentUsingSpaces": "使用空格缩进",
 	"detectIndentation": "检查内容中的缩进",
 	"editor.reindentlines": "重新缩进行"

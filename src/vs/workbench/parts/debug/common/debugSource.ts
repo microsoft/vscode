@@ -13,7 +13,7 @@ export class Source {
 
 	public uri: uri;
 
-	constructor(public raw: DebugProtocol.Source, public presenationHint: string) {
+	constructor(public raw: DebugProtocol.Source, public presentationHint: string) {
 		if (!raw) {
 			this.raw = { name: UNKNOWN_SOURCE_LABEL };
 		}

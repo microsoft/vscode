@@ -37,7 +37,7 @@ import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/pref
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
-import { CoreEditingCommands } from "vs/editor/common/controller/coreCommands";
+import { CoreEditingCommands } from 'vs/editor/common/controller/coreCommands';
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;
@@ -356,8 +356,13 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		// Toggles exception widget based on the state of the current editor model and debug stack frame
 		const model = this.editor.getModel();
 		const focusedSf = this.debugService.getViewModel().focusedStackFrame;
-		const callStack = focusedSf ? focusedSf.thread.getCallStack() : null;
-		if (!model || !focusedSf || !callStack || callStack.length === 0) {
+		if (!model || !focusedSf || !focusedSf.source || !focusedSf.source.available) {
+			this.closeExceptionWidget();
+			return;
+		}
+
+		const callStack = focusedSf.thread.getCallStack();
+		if (!callStack || callStack.length === 0) {
 			this.closeExceptionWidget();
 			return;
 		}

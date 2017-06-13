@@ -28,8 +28,9 @@ export class SnippetController2 {
 	private readonly _hasNextTabstop: IContextKey<boolean>;
 	private readonly _hasPrevTabstop: IContextKey<boolean>;
 
-	private _snippet: SnippetSession;
+	private _session: SnippetSession;
 	private _snippetListener: IDisposable[] = [];
+	private _modelVersionId: number;
 
 	constructor(
 		private readonly _editor: ICommonCodeEditor,
@@ -44,7 +45,7 @@ export class SnippetController2 {
 		this._inSnippet.reset();
 		this._hasPrevTabstop.reset();
 		this._hasNextTabstop.reset();
-		dispose(this._snippet);
+		dispose(this._session);
 	}
 
 	getId(): string {
@@ -56,43 +57,59 @@ export class SnippetController2 {
 		overwriteBefore: number = 0, overwriteAfter: number = 0,
 		undoStopBefore: boolean = true, undoStopAfter: boolean = true
 	): void {
+
+		// don't listen while inserting the snippet
+		// as that is the inflight state causing cancelation
+		this._snippetListener = dispose(this._snippetListener);
+
 		if (undoStopBefore) {
 			this._editor.getModel().pushStackElement();
 		}
-		if (!this._snippet) {
-			// create a new session
-			this._snippet = new SnippetSession(this._editor);
+
+		if (!this._session) {
+			this._modelVersionId = this._editor.getModel().getAlternativeVersionId();
+			this._session = new SnippetSession(this._editor, template, overwriteBefore, overwriteAfter);
+			this._session.insert();
+		} else {
+			this._session.merge(template, overwriteBefore, overwriteAfter);
 		}
-		this._snippet.insert(template, overwriteBefore, overwriteAfter);
+
+		if (undoStopAfter) {
+			this._editor.getModel().pushStackElement();
+		}
+
 		this._snippetListener = [
 			this._editor.onDidChangeModel(() => this.cancel()),
 			this._editor.onDidChangeCursorSelection(() => this._updateState())
 		];
-		if (undoStopAfter) {
-			this._editor.getModel().pushStackElement();
-		}
 		this._updateState();
 	}
 
 	private _updateState(): void {
-		if (!this._snippet) {
+		if (!this._session) {
 			// canceled in the meanwhile
 			return;
 		}
 
-		if (!this._snippet.hasPlaceholder) {
+		if (this._modelVersionId === this._editor.getModel().getAlternativeVersionId()) {
+			// undo until the 'before' state happened
+			// and makes use cancel snippet mode
+			return this.cancel();
+		}
+
+		if (!this._session.hasPlaceholder) {
 			// don't listen for selection changes and don't
 			// update context keys when the snippet is plain text
 			return this.cancel();
 		}
 
-		if (this._snippet.isAtFinalPlaceholder || !this._snippet.isSelectionWithPlaceholders()) {
+		if (this._session.isAtLastPlaceholder || !this._session.isSelectionWithinPlaceholders()) {
 			return this.cancel();
 		}
 
 		this._inSnippet.set(true);
-		this._hasPrevTabstop.set(!this._snippet.isAtFirstPlaceholder);
-		this._hasNextTabstop.set(!this._snippet.isAtFinalPlaceholder);
+		this._hasPrevTabstop.set(!this._session.isAtFirstPlaceholder);
+		this._hasNextTabstop.set(!this._session.isAtLastPlaceholder);
 	}
 
 	finish(): void {
@@ -102,28 +119,23 @@ export class SnippetController2 {
 	}
 
 	cancel(): void {
-		if (this._snippet) {
-			this._inSnippet.reset();
-			this._hasPrevTabstop.reset();
-			this._hasNextTabstop.reset();
-			dispose(this._snippetListener);
-			dispose(this._snippet);
-			this._snippet = undefined;
-		}
+		this._inSnippet.reset();
+		this._hasPrevTabstop.reset();
+		this._hasNextTabstop.reset();
+		dispose(this._snippetListener);
+		dispose(this._session);
+		this._session = undefined;
+		this._modelVersionId = -1;
 	}
 
 	prev(): void {
-		if (this._snippet) {
-			this._snippet.prev();
-			this._updateState();
-		}
+		this._session.prev();
+		this._updateState();
 	}
 
 	next(): void {
-		if (this._snippet) {
-			this._snippet.next();
-			this._updateState();
-		}
+		this._session.next();
+		this._updateState();
 	}
 }
 
