@@ -22,7 +22,7 @@ import { CollapsibleView, IViewletViewOptions } from 'vs/workbench/parts/views/b
 import { IFilesConfiguration, VIEWLET_ID, OpenEditorsFocussedContext, ExplorerFocussedContext } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { OpenEditor } from 'vs/workbench/parts/files/common/explorerViewModel';
+import { OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 import { Renderer, DataSource, Controller, AccessibilityProvider, ActionProvider, DragAndDrop } from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { CloseAllEditorsAction } from 'vs/workbench/browser/parts/editor/editorActions';

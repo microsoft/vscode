@@ -26,7 +26,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import * as DOM from 'vs/base/browser/dom';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { CollapsibleView, IViewletViewOptions } from 'vs/workbench/parts/views/browser/views';
-import { FileStat } from 'vs/workbench/parts/files/common/explorerViewModel';
+import { FileStat } from 'vs/workbench/parts/files/common/explorerModel';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';

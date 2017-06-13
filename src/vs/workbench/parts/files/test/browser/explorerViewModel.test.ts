@@ -11,7 +11,7 @@ import { isLinux, isWindows } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import { join } from 'vs/base/common/paths';
 import { validateFileName } from 'vs/workbench/parts/files/browser/fileActions';
-import { FileStat } from 'vs/workbench/parts/files/common/explorerViewModel';
+import { FileStat } from 'vs/workbench/parts/files/common/explorerModel';
 
 function createStat(path, name, isFolder, hasChildren, size, mtime) {
 	return new FileStat(toResource(path), isFolder, hasChildren, name, mtime);
