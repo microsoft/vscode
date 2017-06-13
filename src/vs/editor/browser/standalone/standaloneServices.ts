@@ -22,7 +22,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IStorageService, NullStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService, WorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
@@ -34,7 +34,7 @@ import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServ
 import {
 	SimpleConfigurationService, SimpleMenuService, SimpleMessageService,
 	SimpleProgressService, StandaloneCommandService, StandaloneKeybindingService,
-	StandaloneTelemetryService
+	StandaloneTelemetryService, SimpleWorkspaceContextService
 } from 'vs/editor/browser/standalone/simpleServices';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IMenuService } from 'vs/platform/actions/common/actions';
@@ -118,7 +118,7 @@ export module StaticServices {
 	const configurationServiceImpl = new SimpleConfigurationService();
 	export const configurationService = define(IConfigurationService, () => configurationServiceImpl);
 
-	export const contextService = define(IWorkspaceContextService, () => new WorkspaceContextService(configurationServiceImpl, new Workspace(
+	export const contextService = define(IWorkspaceContextService, () => new SimpleWorkspaceContextService(new Workspace(
 		URI.from({ scheme: 'inmemory', authority: 'model', path: '/' })
 	)));
 

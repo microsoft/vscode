@@ -9,12 +9,10 @@ import * as assert from 'assert';
 import { Build, Builder } from 'vs/base/browser/builder';
 import { Part } from 'vs/workbench/browser/part';
 import * as Types from 'vs/base/common/types';
-import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
-import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { TestThemeService } from 'vs/workbench/test/workbenchTestServices';
-import { TestConfigurationService } from "vs/platform/configuration/test/common/testConfigurationService";
+import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 class MyPart extends Part {
 
@@ -85,15 +83,13 @@ class MyPart3 extends Part {
 suite('Workbench Part', () => {
 	let fixture: HTMLElement;
 	let fixtureId = 'workbench-part-fixture';
-	let context: IWorkspaceContextService;
 	let storage: IStorageService;
 
 	setup(() => {
 		fixture = document.createElement('div');
 		fixture.id = fixtureId;
 		document.body.appendChild(fixture);
-		context = new WorkspaceContextService(new TestConfigurationService(), TestWorkspace);
-		storage = new StorageService(new InMemoryLocalStorage(), null, context.getWorkspace());
+		storage = new StorageService(new InMemoryLocalStorage(), null, TestWorkspace);
 	});
 
 	teardown(() => {

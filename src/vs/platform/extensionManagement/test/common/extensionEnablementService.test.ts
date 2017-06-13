@@ -12,17 +12,16 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { Emitter } from 'vs/base/common/event';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 function storageService(instantiationService: TestInstantiationService): IStorageService {
 	let service = instantiationService.get(IStorageService);
 	if (!service) {
 		let workspaceContextService = instantiationService.get(IWorkspaceContextService);
 		if (!workspaceContextService) {
-			workspaceContextService = instantiationService.stub(IWorkspaceContextService, WorkspaceContextService);
-			instantiationService.stub(IWorkspaceContextService, 'getWorkspace', TestWorkspace);
+			workspaceContextService = instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		}
 		service = instantiationService.stub(IStorageService, instantiationService.createInstance(StorageService, new InMemoryLocalStorage(), new InMemoryLocalStorage()));
 	}

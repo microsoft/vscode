@@ -6,20 +6,18 @@
 'use strict';
 
 import * as assert from 'assert';
-import { WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+
 import { StorageScope } from 'vs/platform/storage/common/storage';
-import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { Memento, Scope } from 'vs/workbench/common/memento';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
-import { TestConfigurationService } from "vs/platform/configuration/test/common/testConfigurationService";
+import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 suite('Workbench Memento', () => {
 	let context;
 	let storage;
 
 	setup(() => {
-		context = new WorkspaceContextService(new TestConfigurationService(), TestWorkspace);
-		storage = new StorageService(new InMemoryLocalStorage(), null, context.getWorkspace());
+		storage = new StorageService(new InMemoryLocalStorage(), null, TestWorkspace);
 	});
 
 	test('Loading and Saving Memento with Scopes', () => {

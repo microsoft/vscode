@@ -6,11 +6,10 @@
 
 import * as assert from 'assert';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/node/workbenchCommonProperties';
-import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
+
 
 suite('Telemetry - common properties', function () {
 
@@ -19,10 +18,7 @@ suite('Telemetry - common properties', function () {
 	let storageService;
 
 	setup(() => {
-		let instantiationService = new TestInstantiationService();
-		let contextService = instantiationService.stub(IWorkspaceContextService, WorkspaceContextService);
-		instantiationService.stub(IWorkspaceContextService, 'getWorkspace', TestWorkspace);
-		storageService = new StorageService(new InMemoryLocalStorage(), null, contextService.getWorkspace());
+		storageService = new StorageService(new InMemoryLocalStorage(), null, TestWorkspace);
 	});
 
 	test('default', function () {
