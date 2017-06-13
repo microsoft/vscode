@@ -20,40 +20,19 @@ import strings = require('vs/base/common/strings');
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { WorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { realpath, stat } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import path = require('path');
 import gracefulFs = require('graceful-fs');
-import { IPath, IOpenFileRequest } from 'vs/workbench/electron-browser/common';
 import { IInitData } from 'vs/workbench/services/timer/common/timerService';
 import { TimerService } from 'vs/workbench/services/timer/node/timerService';
 import { KeyboardMapperFactory } from "vs/workbench/services/keybinding/electron-browser/keybindingService";
+import { IWindowConfiguration, IPath } from "vs/platform/windows/common/windows";
 
 import { webFrame } from 'electron';
 
 import fs = require('fs');
 gracefulFs.gracefulify(fs); // enable gracefulFs
-
-export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
-
-	/**
-	 * The physical keyboard is of ISO type (on OSX).
-	 */
-	isISOKeyboard?: boolean;
-
-	accessibilitySupport?: boolean;
-
-	appRoot: string;
-	execPath: string;
-
-	userEnv: any; /* vs/code/electron-main/env/IProcessEnvironment*/
-
-	workspacePath?: string;
-
-	zoomLevel?: number;
-	fullscreen?: boolean;
-}
 
 export function startup(configuration: IWindowConfiguration): TPromise<void> {
 
@@ -148,8 +127,8 @@ function getWorkspace(workspacePath: string): TPromise<Workspace> {
 	});
 }
 
-function openWorkbench(environment: IWindowConfiguration, workspace: Workspace, options: IOptions): TPromise<void> {
-	const environmentService = new EnvironmentService(environment, environment.execPath);
+function openWorkbench(configuration: IWindowConfiguration, workspace: Workspace, options: IOptions): TPromise<void> {
+	const environmentService = new EnvironmentService(configuration, configuration.execPath);
 	const configurationService = new WorkspaceConfigurationService(environmentService, workspace);
 	const contextService = new WorkspaceContextService(configurationService, workspace);
 	const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, !contextService.hasWorkspace());
@@ -169,7 +148,7 @@ function openWorkbench(environment: IWindowConfiguration, workspace: Workspace, 
 				contextService,
 				environmentService,
 				timerService
-			}, options);
+			}, configuration, options);
 			shell.open();
 
 			// Inform user about loading issues from the loader
