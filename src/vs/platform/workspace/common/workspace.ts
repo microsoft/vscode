@@ -128,14 +128,15 @@ export class WorkspaceContextService implements IWorkspaceContextService {
 
 	public _serviceBrand: any;
 
-	private _onDidChangeFolders: Emitter<URI[]>;
+	private readonly _onDidChangeFolders: Emitter<URI[]> = new Emitter<URI[]>();
+	public readonly onDidChangeFolders: Event<URI[]> = this._onDidChangeFolders.event;
+
 	private folders: URI[];
 	private toDispose: IDisposable[];
 
 	constructor(private configurationService: IConfigurationService, private workspace?: Workspace) {
 		this.toDispose = [];
 
-		this._onDidChangeFolders = new Emitter<URI[]>();
 		this.toDispose.push(this._onDidChangeFolders);
 
 		this.folders = workspace ? [workspace.resource] : [];
@@ -183,10 +184,6 @@ export class WorkspaceContextService implements IWorkspaceContextService {
 		if (notify && changed) {
 			this._onDidChangeFolders.fire(configuredFolders);
 		}
-	}
-
-	public get onDidChangeFolders(): Event<URI[]> {
-		return this._onDidChangeFolders && this._onDidChangeFolders.event; //TODO@Sandeep sinon is a pita
 	}
 
 	public getFolders(): URI[] {

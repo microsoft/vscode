@@ -518,6 +518,7 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	// private static autoDetectTelemetryName: string = 'taskServer.autoDetect';
 	private static RecentlyUsedTasks_Key = 'workbench.tasks.recentlyUsedTasks';
+	private static RanTaskBefore_Key = 'workbench.tasks.ranTaskBefore';
 
 	public _serviceBrand: any;
 	public static SERVICE_ID: string = 'taskService';
@@ -920,6 +921,9 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	private executeTask(task: Task, resolver: ITaskResolver): TPromise<ITaskSummary> {
+		if (!this.storageService.get(TaskService.RanTaskBefore_Key, StorageScope.GLOBAL)) {
+			this.storageService.store(TaskService.RanTaskBefore_Key, true, StorageScope.GLOBAL);
+		}
 		return ProblemMatcherRegistry.onReady().then(() => {
 			return this.textFileService.saveAll().then((value) => { // make sure all dirty files are saved
 				let executeResult = this.getTaskSystem().run(task, resolver);

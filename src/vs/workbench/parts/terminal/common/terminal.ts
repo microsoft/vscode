@@ -330,4 +330,9 @@ export interface ITerminalInstance {
 	 * Experimental: Call to enable onData to be passed over IPC to the extension host.
 	 */
 	enableApiOnData(): void;
+
+	/**
+	 * Sets the title of the terminal instance.
+	 */
+	setTitle(title: string): void;
 }

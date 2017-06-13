@@ -76,6 +76,8 @@ export interface ITypescriptServiceClient {
 
 	warn(message: string, data?: any): void;
 
+	onTsServerStarted: Event<void>;
+
 	onProjectLanguageServiceStateChanged: Event<Proto.ProjectLanguageServiceStateEventBody>;
 	onDidBeginInstallTypings: Event<Proto.BeginInstallTypesEventBody>;
 	onDidEndInstallTypings: Event<Proto.EndInstallTypesEventBody>;

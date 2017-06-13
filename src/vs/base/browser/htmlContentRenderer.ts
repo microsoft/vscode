@@ -134,6 +134,9 @@ function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}):
 			}
 			title = removeMarkdownEscapes(title);
 			href = removeMarkdownEscapes(href);
+			if (href && !href.match(/^http:|https:|file:|mailto:/i)) {
+				return text;
+			}
 			return `<a href="#" data-href="${href}" title="${title || text}">${text}</a>`;
 		};
 		renderer.paragraph = (text): string => {

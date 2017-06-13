@@ -22,6 +22,7 @@ suite('ExtHostWorkspace', function () {
 
 		assert.equal(ws.getRelativePath(''), '');
 		assert.equal(ws.getRelativePath('/foo/bar'), '/foo/bar');
+		assert.equal(ws.getRelativePath('in/out'), 'in/out');
 	});
 
 	test('asRelativePath, same paths, #11402', function () {
@@ -33,6 +34,18 @@ suite('ExtHostWorkspace', function () {
 
 		const input2 = '/home/aeschli/workspaces/samples/docker/a.file';
 		assert.equal(ws.getRelativePath(input2), 'a.file');
+	});
 
+	test('asRelativePath, no workspace', function () {
+		const ws = new ExtHostWorkspace(new TestThreadService(), null);
+		assert.equal(ws.getRelativePath(''), '');
+		assert.equal(ws.getRelativePath('/foo/bar'), '/foo/bar');
+	});
+
+	test('asRelativePath, multiple folders', function () {
+		const ws = new ExtHostWorkspace(new TestThreadService(), [URI.file('/Coding/One'), URI.file('/Coding/Two')]);
+		assert.equal(ws.getRelativePath('/Coding/One/file.txt'), 'file.txt');
+		assert.equal(ws.getRelativePath('/Coding/Two/files/out.txt'), 'files/out.txt');
+		assert.equal(ws.getRelativePath('/Coding/Two2/files/out.txt'), '/Coding/Two2/files/out.txt');
 	});
 });
