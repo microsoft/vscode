@@ -1064,7 +1064,11 @@ export class EditorStacksModel implements IEditorStacksModel {
 	private save(): void {
 		const serialized = this.serialize();
 
-		this.storageService.store(EditorStacksModel.STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE);
+		if (serialized.groups.length) {
+			this.storageService.store(EditorStacksModel.STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(EditorStacksModel.STORAGE_KEY, StorageScope.WORKSPACE);
+		}
 	}
 
 	private serialize(): ISerializedEditorStacksModel {

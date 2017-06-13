@@ -22,7 +22,7 @@ suite('Telemetry - common properties', function () {
 		let instantiationService = new TestInstantiationService();
 		let contextService = instantiationService.stub(IWorkspaceContextService, WorkspaceContextService);
 		instantiationService.stub(IWorkspaceContextService, 'getWorkspace', TestWorkspace);
-		storageService = new StorageService(new InMemoryLocalStorage(), null, contextService);
+		storageService = new StorageService(new InMemoryLocalStorage(), null, contextService.getWorkspace());
 	});
 
 	test('default', function () {

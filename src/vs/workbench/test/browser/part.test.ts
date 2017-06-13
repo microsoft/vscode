@@ -93,7 +93,7 @@ suite('Workbench Part', () => {
 		fixture.id = fixtureId;
 		document.body.appendChild(fixture);
 		context = new WorkspaceContextService(new TestConfigurationService(), TestWorkspace);
-		storage = new StorageService(new InMemoryLocalStorage(), null, context);
+		storage = new StorageService(new InMemoryLocalStorage(), null, context.getWorkspace());
 	});
 
 	teardown(() => {
