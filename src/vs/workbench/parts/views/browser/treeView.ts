@@ -76,6 +76,7 @@ export class TreeView extends CollapsibleView {
 		DOM.addClass(this.treeContainer, 'tree-explorer-viewlet-tree-view');
 
 		this.tree = this.createViewer($(this.treeContainer));
+		this.setInput();
 	}
 
 	protected changeState(state: CollapsibleState): void {
@@ -125,10 +126,6 @@ export class TreeView extends CollapsibleView {
 
 	public setVisible(visible: boolean): TPromise<void> {
 		return super.setVisible(visible);
-	}
-
-	public create(): TPromise<void> {
-		return super.create().then(() => this.setInput());
 	}
 
 	private setInput(): TPromise<void> {
