@@ -448,7 +448,7 @@ class LanguageProvider {
 class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	private client: TypeScriptServiceClient;
 	private languages: LanguageProvider[] = [];
-	private languagePerId: ObjectMap<LanguageProvider>;
+	private languagePerId: Map<string, LanguageProvider>;
 	private readonly disposables: Disposable[] = [];
 	private readonly versionStatus: VersionStatus;
 
@@ -476,12 +476,12 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		this.disposables.push(this.versionStatus);
 
 		this.client = new TypeScriptServiceClient(this, workspaceState, this.versionStatus, plugins, this.disposables);
-		this.languagePerId = Object.create(null);
+		this.languagePerId = new Map();
 		for (const description of descriptions) {
 			const manager = new LanguageProvider(this.client, description);
 			this.languages.push(manager);
 			this.disposables.push(manager);
-			this.languagePerId[description.id] = manager;
+			this.languagePerId.set(description.id, manager);
 		}
 
 		this.client.onReady().then(() => {
@@ -504,7 +504,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 				const manager = new LanguageProvider(this.client, description);
 				this.languages.push(manager);
 				this.disposables.push(manager);
-				this.languagePerId[description.id] = manager;
+				this.languagePerId.set(description.id, manager);
 			}
 		});
 
@@ -615,13 +615,17 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	}
 
 	private triggerAllDiagnostics() {
-		Object.keys(this.languagePerId).forEach(key => this.languagePerId[key].triggerAllDiagnostics());
+		for (const language of this.languagePerId.values()) {
+			language.triggerAllDiagnostics();
+		}
 	}
 
 	/* internal */ populateService(): void {
 		// See https://github.com/Microsoft/TypeScript/issues/5530
-		workspace.saveAll(false).then(_ => {
-			Object.keys(this.languagePerId).forEach(key => this.languagePerId[key].reInitialize());
+		workspace.saveAll(false).then(() => {
+			for (const language of this.languagePerId.values()) {
+				language.reInitialize();
+			}
 		});
 	}
 
