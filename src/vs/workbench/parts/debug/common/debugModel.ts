@@ -467,7 +467,7 @@ export class Thread implements IThread {
 				let source = new Source(rsf.source, rsf.source ? rsf.source.presentationHint : rsf.presentationHint);
 				if (this.process.sources.has(source.uri.toString())) {
 					const alreadyCreatedSource = this.process.sources.get(source.uri.toString());
-					alreadyCreatedSource.presenationHint = source.presenationHint;
+					alreadyCreatedSource.presentationHint = source.presentationHint;
 					source = alreadyCreatedSource;
 				} else {
 					this.process.sources.set(source.uri.toString(), source);
@@ -1039,7 +1039,7 @@ export class Model implements IModel {
 	public deemphasizeSource(uri: uri): void {
 		this.processes.forEach(p => {
 			if (p.sources.has(uri.toString())) {
-				p.sources.get(uri.toString()).presenationHint = 'deemphasize';
+				p.sources.get(uri.toString()).presentationHint = 'deemphasize';
 			}
 		});
 		this._onDidChangeCallStack.fire();
