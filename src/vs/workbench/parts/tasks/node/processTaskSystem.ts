@@ -89,6 +89,10 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		return this.executeTask(task);
 	}
 
+	public show(task: Task, forceFocus: boolean = false): void {
+		this.outputChannel.show(!focus);
+	}
+
 	public hasErrors(value: boolean): void {
 		this.errorsShown = !value;
 	}
