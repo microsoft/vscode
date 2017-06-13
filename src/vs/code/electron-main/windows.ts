@@ -238,14 +238,11 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	public open(openConfig: IOpenConfiguration): CodeWindow[] {
-		const hotExitRestore = (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath);
-		const emptyWindowRestore = openConfig.initialStartup && !openConfig.forceEmpty && !openConfig.cli.wait;
-
-		const pathsToOpen = this.getPathsToOpen(openConfig);
 
 		//
 		// These are windows to open to show either folders or files (including diffing files or creating them)
 		//
+		const pathsToOpen = this.getPathsToOpen(openConfig);
 		const foldersToOpen = arrays.distinct(pathsToOpen.filter(iPath => iPath.workspacePath && !iPath.filePath).map(iPath => iPath.workspacePath), folder => isLinux ? folder : folder.toLowerCase()); // prevent duplicates
 		const emptyToOpen = pathsToOpen.filter(iPath => !iPath.workspacePath && !iPath.filePath).length;
 
@@ -263,6 +260,9 @@ export class WindowsManager implements IWindowsMainService {
 		//
 		// These are windows to restore, either because of hot-exit or because of user settings
 		//
+		const hotExitRestore = (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath);
+		const emptyWindowRestore = openConfig.initialStartup && !openConfig.forceEmpty && !openConfig.cli.wait;
+
 		const foldersToRestore = hotExitRestore ? this.backupService.getWorkspaceBackupPaths() : [];
 		const emptyToRestore = hotExitRestore ? this.backupService.getEmptyWorkspaceBackupPaths() : [];
 		const restoreEmptyWindows = this.getRestoreWindowsSetting();
@@ -331,9 +331,9 @@ export class WindowsManager implements IWindowsMainService {
 		foldersToRestore: string[],
 		emptyToRestore: string[],
 		emptyToOpen: number,
-		filesToOpen: IPathToOpen[],
-		filesToCreate: IPathToOpen[],
-		filesToDiff: IPathToOpen[]
+		filesToOpen: IPath[],
+		filesToCreate: IPath[],
+		filesToDiff: IPath[]
 	) {
 
 		// Settings can decide if files/folders open in new window or not
@@ -484,33 +484,33 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	private getPathsToOpen(openConfig: IOpenConfiguration): IPathToOpen[] {
-		let iPathsToOpen: IPath[];
+		let pathsToOpen: IPathToOpen[];
 
 		// Extract paths: from API
 		if (openConfig.pathsToOpen && openConfig.pathsToOpen.length > 0) {
-			iPathsToOpen = this.doExtractPathsFromAPI(openConfig.pathsToOpen, openConfig.cli && openConfig.cli.goto);
+			pathsToOpen = this.doExtractPathsFromAPI(openConfig.pathsToOpen, openConfig.cli && openConfig.cli.goto);
 		}
 
 		// Check for force empty
 		else if (openConfig.forceEmpty) {
-			iPathsToOpen = [Object.create(null)];
+			pathsToOpen = [Object.create(null)];
 		}
 
 		// Extract paths: from CLI
 		else if (openConfig.cli._.length > 0) {
-			iPathsToOpen = this.doExtractPathsFromCLI(openConfig.cli);
+			pathsToOpen = this.doExtractPathsFromCLI(openConfig.cli);
 		}
 
 		// Extract paths: from previous session
 		else {
-			iPathsToOpen = this.doExtractPathsFromLastSession();
+			pathsToOpen = this.doExtractPathsFromLastSession();
 		}
 
-		return iPathsToOpen;
+		return pathsToOpen;
 	}
 
 	private doExtractPathsFromAPI(paths: string[], gotoLineMode: boolean): IPath[] {
-		let iPathsToOpen = paths.map(pathToOpen => {
+		let pathsToOpen = paths.map(pathToOpen => {
 			const iPath = this.parsePath(pathToOpen, false, gotoLineMode);
 
 			// Warn if the requested path to open does not exist
@@ -536,17 +536,15 @@ export class WindowsManager implements IWindowsMainService {
 		});
 
 		// get rid of nulls
-		iPathsToOpen = arrays.coalesce(iPathsToOpen);
+		pathsToOpen = arrays.coalesce(pathsToOpen);
 
-		return iPathsToOpen;
+		return pathsToOpen;
 	}
 
 	private doExtractPathsFromCLI(cli: ParsedArgs): IPath[] {
-		const candidates: string[] = cli._;
-
-		const iPaths = candidates.map(candidate => this.parsePath(candidate, true /* ignoreFileNotFound */, cli.goto)).filter(path => !!path);
-		if (iPaths.length > 0) {
-			return iPaths;
+		const pathsToOpen = cli._.map(candidate => this.parsePath(candidate, true /* ignoreFileNotFound */, cli.goto)).filter(path => !!path);
+		if (pathsToOpen.length > 0) {
+			return pathsToOpen;
 		}
 
 		// No path provided, return empty to open empty
@@ -561,13 +559,6 @@ export class WindowsManager implements IWindowsMainService {
 		// Restore all windows or all folders
 		if (restoreWindows === 'all' || restoreWindows === 'folders') {
 			const lastOpenedFolders = this.windowsState.openedWindows.filter(w => !!w.workspacePath).map(o => o.workspacePath);
-
-			// If we have a last active folder, move it to the end
-			if (lastActiveFolder) {
-				lastOpenedFolders.splice(lastOpenedFolders.indexOf(lastActiveFolder), 1);
-				lastOpenedFolders.push(lastActiveFolder);
-			}
-
 			candidates.push(...lastOpenedFolders);
 		}
 
@@ -576,9 +567,9 @@ export class WindowsManager implements IWindowsMainService {
 			candidates.push(lastActiveFolder);
 		}
 
-		const iPaths = candidates.map(candidate => this.parsePath(candidate)).filter(path => !!path);
-		if (iPaths.length > 0) {
-			return iPaths;
+		const pathsToOpen = candidates.map(candidate => this.parsePath(candidate)).filter(path => !!path);
+		if (pathsToOpen.length > 0) {
+			return pathsToOpen;
 		}
 
 		// No path provided, return empty to open empty
