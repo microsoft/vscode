@@ -356,8 +356,13 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		// Toggles exception widget based on the state of the current editor model and debug stack frame
 		const model = this.editor.getModel();
 		const focusedSf = this.debugService.getViewModel().focusedStackFrame;
-		const callStack = focusedSf ? focusedSf.thread.getCallStack() : null;
-		if (!model || !focusedSf || !callStack || callStack.length === 0) {
+		if (!model || !focusedSf || !focusedSf.source || !focusedSf.source.available) {
+			this.closeExceptionWidget();
+			return;
+		}
+
+		const callStack = focusedSf.thread.getCallStack();
+		if (!callStack || callStack.length === 0) {
 			this.closeExceptionWidget();
 			return;
 		}
