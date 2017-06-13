@@ -80,7 +80,7 @@ import { SCMService } from 'vs/workbench/services/scm/common/scmService';
 import { IProgressService2 } from 'vs/platform/progress/common/progress';
 import { ProgressService2 } from 'vs/workbench/services/progress/browser/progressService2';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWindowService, IWindowConfiguration as IWindowSettings, IWindowConfiguration } from 'vs/platform/windows/common/windows';
@@ -534,7 +534,7 @@ export class Workbench implements IPartService {
 		serviceCollection.set(ISCMService, new SyncDescriptor(SCMService));
 
 		// Text Model Resolver Service
-		serviceCollection.set(ITextModelResolverService, new SyncDescriptor(TextModelResolverService));
+		serviceCollection.set(ITextModelService, new SyncDescriptor(TextModelResolverService));
 
 		// Configuration Editing
 		this.configurationEditingService = this.instantiationService.createInstance(ConfigurationEditingService);

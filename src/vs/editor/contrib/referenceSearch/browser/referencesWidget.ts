@@ -36,7 +36,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { PeekViewWidget, IPeekViewService } from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
-import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { registerColor, activeContrastBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/styler';
@@ -166,7 +166,7 @@ class DecorationsManager implements IDisposable {
 class DataSource implements tree.IDataSource {
 
 	constructor(
-		@ITextModelResolverService private _textModelResolverService: ITextModelResolverService
+		@ITextModelService private _textModelResolverService: ITextModelService
 	) {
 		//
 	}
@@ -583,7 +583,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	constructor(
 		editor: ICodeEditor,
 		public layoutData: LayoutData,
-		private _textModelResolverService: ITextModelResolverService,
+		private _textModelResolverService: ITextModelService,
 		private _contextService: IWorkspaceContextService,
 		private _themeService: IThemeService,
 		private _instantiationService: IInstantiationService,

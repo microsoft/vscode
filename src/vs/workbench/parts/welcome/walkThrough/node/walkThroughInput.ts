@@ -10,7 +10,7 @@ import { EditorInput, EditorModel, ITextEditorModel } from 'vs/workbench/common/
 import URI from 'vs/base/common/uri';
 import { IReference, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { marked } from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -60,7 +60,7 @@ export class WalkThroughInput extends EditorInput {
 		public readonly onReady: (container: HTMLElement) => void,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService
+		@ITextModelService private textModelResolverService: ITextModelService
 	) {
 		super();
 		this.disposables.push(lifecycleService.onShutdown(e => this.disposeTelemetry(e)));

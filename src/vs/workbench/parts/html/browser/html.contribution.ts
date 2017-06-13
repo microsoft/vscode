@@ -19,7 +19,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { isCommonCodeEditor, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { HtmlZoneController } from './htmlEditorZone';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 // --- Register Editor
 (<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(HtmlPreviewPart.ID,
@@ -60,7 +60,7 @@ CommandsRegistry.registerCommand('_workbench.htmlZone', function (accessor: Serv
 		return undefined;
 	}
 
-	const textModelResolverService = accessor.get(ITextModelResolverService);
+	const textModelResolverService = accessor.get(ITextModelService);
 
 	return textModelResolverService.createModelReference(params.resource).then(ref => {
 		const model = ref.object;

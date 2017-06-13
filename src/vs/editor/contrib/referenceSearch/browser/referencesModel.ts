@@ -15,7 +15,7 @@ import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Location } from 'vs/editor/common/modes';
-import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { Position } from 'vs/editor/common/core/position';
 
 export class OneReference {
@@ -160,7 +160,7 @@ export class FileReferences implements IDisposable {
 		}
 	}
 
-	public resolve(textModelResolverService: ITextModelResolverService): TPromise<FileReferences> {
+	public resolve(textModelResolverService: ITextModelService): TPromise<FileReferences> {
 
 		if (this._resolved) {
 			return TPromise.as(this);

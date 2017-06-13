@@ -25,7 +25,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { getDefaultValues as getDefaultConfiguration } from 'vs/platform/configuration/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
-import { ITextModelResolverService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IDisposable, IReference, ImmortalReference, combinedDisposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -173,7 +173,7 @@ export class SimpleEditorService implements IEditorService {
 	}
 }
 
-export class SimpleEditorModelResolverService implements ITextModelResolverService {
+export class SimpleEditorModelResolverService implements ITextModelService {
 	public _serviceBrand: any;
 
 	private editor: SimpleEditor;

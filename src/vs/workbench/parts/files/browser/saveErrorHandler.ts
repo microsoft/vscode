@@ -23,7 +23,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { ResourceMap } from 'vs/base/common/map';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -43,7 +43,7 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 	constructor(
 		@IMessageService private messageService: IMessageService,
 		@ITextFileService private textFileService: ITextFileService,
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
+		@ITextModelService private textModelResolverService: ITextModelService,
 		@IModelService private modelService: IModelService,
 		@IModeService private modeService: IModeService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -240,7 +240,7 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 
 export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: URI) => {
 	const editorService = accessor.get(IWorkbenchEditorService);
-	const resolverService = accessor.get(ITextModelResolverService);
+	const resolverService = accessor.get(ITextModelService);
 
 	const editor = editorService.getActiveEditor();
 	const input = editor.input;
@@ -275,7 +275,7 @@ export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 
 export const revertLocalChangesCommand = (accessor: ServicesAccessor, resource: URI) => {
 	const editorService = accessor.get(IWorkbenchEditorService);
-	const resolverService = accessor.get(ITextModelResolverService);
+	const resolverService = accessor.get(ITextModelService);
 
 	const editor = editorService.getActiveEditor();
 	const input = editor.input;

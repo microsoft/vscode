@@ -14,7 +14,7 @@ import { ICommonCodeEditor, isCommonCodeEditor } from 'vs/editor/common/editorCo
 import { bulkEdit, IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { MainThreadWorkspaceShape, ExtHostWorkspaceShape, ExtHostContext } from '../node/extHost.protocol';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -31,7 +31,7 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
-		@ITextModelResolverService private readonly _textModelResolverService: ITextModelResolverService,
+		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@IFileService private readonly _fileService: IFileService,
 		@IThreadService threadService: IThreadService
 	) {

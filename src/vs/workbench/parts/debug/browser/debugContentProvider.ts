@@ -10,14 +10,14 @@ import { guessMimeTypes, MIME_TEXT } from 'vs/base/common/mime';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { DEBUG_SCHEME, IDebugService } from 'vs/workbench/parts/debug/common/debug';
 
 export class DebugContentProvider implements IWorkbenchContribution, ITextModelContentProvider {
 
 	constructor(
-		@ITextModelResolverService textModelResolverService: ITextModelResolverService,
+		@ITextModelService textModelResolverService: ITextModelService,
 		@IDebugService private debugService: IDebugService,
 		@IModelService private modelService: IModelService,
 		@IModeService private modeService: IModeService
