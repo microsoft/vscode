@@ -768,7 +768,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			}
 
 			// Get results
-			return resolvedHandler.getResults(value).then(result => {
+			const handleResult = (result: IModel<any>, final: boolean) => {
 				if (this.currentResultToken === currentResultToken) {
 
 					// now is the time to show the input if we did not have set it before
@@ -779,9 +779,10 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 					// merge history and default handler results
 					const handlerResults = (result && result.entries) || [];
-					this.mergeResults(quickOpenModel, handlerResults, resolvedHandler.getGroupLabel());
+					this.mergeResults(quickOpenModel, matchingHistoryEntries, handlerResults, resolvedHandler.getGroupLabel(), final);
 				}
-			});
+			};
+			return resolvedHandler.getResults(value).then(result => handleResult(result, true), undefined, result => handleResult(result, false));
 		});
 	}
 
@@ -838,7 +839,9 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		return results.sort((elementA: EditorHistoryEntry, elementB: EditorHistoryEntry) => QuickOpenEntry.compare(elementA, elementB, normalizedSearchValue));
 	}
 
-	private mergeResults(quickOpenModel: QuickOpenModel, handlerResults: QuickOpenEntry[], groupLabel: string): void {
+	private mergeResults(quickOpenModel: QuickOpenModel, matchingHistoryEntries: QuickOpenEntry[], handlerResults: QuickOpenEntry[], groupLabel: string, final: Boolean): void {
+		// Matching history entries always come first.
+		quickOpenModel.setEntries(matchingHistoryEntries);
 
 		// Remove results already showing by checking for a "resource" property
 		const mapEntryToResource = this.mapEntriesToResource(quickOpenModel);
@@ -856,13 +859,14 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		if (additionalHandlerResults.length > 0) {
 			const autoFocusFirstEntry = (quickOpenModel.getEntries().length === 0); // the user might have selected another entry meanwhile in local history (see https://github.com/Microsoft/vscode/issues/20828)
 			const useTopBorder = quickOpenModel.getEntries().length > 0;
-			additionalHandlerResults[0] = new QuickOpenEntryGroup(additionalHandlerResults[0], groupLabel, useTopBorder);
-			quickOpenModel.addEntries(additionalHandlerResults);
+			const group = new QuickOpenEntryGroup(additionalHandlerResults[0], groupLabel, useTopBorder);
+			quickOpenModel.entries.push(group);
+			quickOpenModel.addEntries(additionalHandlerResults.slice(1));
 			this.quickOpenWidget.refresh(quickOpenModel, { autoFocusFirstEntry });
 		}
 
 		// Otherwise if no results are present (even from histoy) indicate this to the user
-		else if (quickOpenModel.getEntries().length === 0) {
+		else if (final && quickOpenModel.getEntries().length === 0) {
 			quickOpenModel.addEntries([new PlaceholderQuickOpenEntry(nls.localize('noResultsFound1', "No results found"))]);
 			this.quickOpenWidget.refresh(quickOpenModel, { autoFocusFirstEntry: true });
 		}

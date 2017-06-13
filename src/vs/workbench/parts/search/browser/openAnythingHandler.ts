@@ -7,7 +7,7 @@
 
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { TPromise, PPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import { ThrottledDelayer } from 'vs/base/common/async';
 import types = require('vs/base/common/types');
@@ -16,7 +16,7 @@ import strings = require('vs/base/common/strings');
 import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
-import { FileEntry, OpenFileHandler, FileQuickOpenModel } from 'vs/workbench/parts/search/browser/openFileHandler';
+import { FileEntry, OpenFileHandler } from 'vs/workbench/parts/search/browser/openFileHandler';
 import * as openSymbolHandler from 'vs/workbench/parts/search/browser/openSymbolHandler';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -91,7 +91,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	private openSymbolHandler: OpenSymbolHandler;
 	private openFileHandler: OpenFileHandler;
 	private searchDelayer: ThrottledDelayer<QuickOpenModel>;
-	private pendingSearch: TPromise<QuickOpenModel>;
+	private pendingSearch: PPromise<QuickOpenModel, QuickOpenModel>;
 	private isClosed: boolean;
 	private scorerCache: { [key: string]: number };
 	private includeSymbols: boolean;
@@ -135,7 +135,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		});
 	}
 
-	public getResults(searchValue: string): TPromise<QuickOpenModel> {
+	public getResults(searchValue: string): PPromise<QuickOpenModel, QuickOpenModel> {
 		const startTime = Date.now();
 
 		this.cancelPendingSearch();
@@ -158,7 +158,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 		// The throttler needs a factory for its promises
 		const promiseFactory = () => {
-			const resultPromises: TPromise<QuickOpenModel | FileQuickOpenModel>[] = [];
+			const resultPromises: TPromise<QuickOpenModel>[] = [];
 
 			// File Results
 			const filePromise = this.openFileHandler.getResults(searchValue, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);
@@ -170,26 +170,27 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			}
 
 			// Join and sort unified
-			this.pendingSearch = TPromise.join(resultPromises).then(results => {
+			const model = new QuickOpenModel();
+			const handleEntries = (entries: QuickOpenEntry[]) => {
 				this.pendingSearch = null;
 
 				// If the quick open widget has been closed meanwhile, ignore the result
 				if (this.isClosed) {
-					return TPromise.as<QuickOpenModel>(new QuickOpenModel());
+					return new QuickOpenModel();
 				}
 
-				// Combine results.
-				const mergedResults = [].concat(...results.map(r => r.entries));
+				model.addEntries(entries);
+				const resultCount = model.entries.length;
 
 				// Sort
 				const unsortedResultTime = Date.now();
 				const normalizedSearchValue = strings.stripWildcards(searchValue).toLowerCase();
 				const compare = (elementA: QuickOpenEntry, elementB: QuickOpenEntry) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, normalizedSearchValue, this.scorerCache);
-				const viewResults = arrays.top(mergedResults, compare, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);
+				model.entries = arrays.top(model.entries, compare, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);
 				const sortedResultTime = Date.now();
 
 				// Apply range and highlights to file entries
-				viewResults.forEach(entry => {
+				model.entries.forEach(entry => {
 					if (entry instanceof FileEntry) {
 						entry.setRange(searchWithRange ? searchWithRange.range : null);
 
@@ -204,7 +205,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 						searchLength: searchValue.length,
 						unsortedResultTime,
 						sortedResultTime,
-						resultCount: mergedResults.length,
+						resultCount,
 						symbols: { fromCache: false },
 						files: fileModel.stats,
 					});
@@ -212,12 +213,28 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 					this.telemetryService.publicLog('openAnything', objects.assign(data, { duration }));
 				});
 
-				return TPromise.as<QuickOpenModel>(new QuickOpenModel(viewResults));
-			}, (error: Error) => {
-				this.pendingSearch = null;
-				this.messageService.show(Severity.Error, error);
-			});
+				return model;
+			};
 
+			this.pendingSearch = new PPromise<QuickOpenModel, QuickOpenModel>((complete, error, progress) => {
+				// When any of the result promises return, forward the result as progress.
+				const promises = resultPromises.map(resultPromise => {
+					return resultPromise.then(result => {
+						// The timeout is necessary to get this to work when a handler returns synchronously.
+						// This timeout wouldn't be necessary if TPromise implemented A+ spec (https://promisesaplus.com/#point-67), but it doesn't :(
+						// Without the timeout, the progress handler will get called before there is a progress listener if a handler returns synchronously.
+						return TPromise.timeout(0).then(() => progress(handleEntries(result.entries)));
+					});
+				});
+
+				// Complete the promise when all promises have completed.
+				TPromise.join(promises).then(() => {
+					complete(model);
+				}, error => {
+					this.pendingSearch = null;
+					this.messageService.show(Severity.Error, error);
+				});
+			}, () => resultPromises.forEach(p => p.cancel()));
 			return this.pendingSearch;
 		};
 
