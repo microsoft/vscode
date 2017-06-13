@@ -257,11 +257,13 @@ export default class BufferSyncSupport {
 			}
 		}
 
-		let args: Proto.GeterrRequestArgs = {
-			delay: 0,
-			files: files
-		};
-		this.client.execute('geterr', args, false);
+		if (files.length) {
+			const args: Proto.GeterrRequestArgs = {
+				delay: 0,
+				files: files
+			};
+			this.client.execute('geterr', args, false);
+		}
 		this.pendingDiagnostics = Object.create(null);
 	}
 

@@ -507,6 +507,10 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 				this.languagePerId[description.id] = manager;
 			}
 		});
+
+		this.client.onTsServerStarted(() => {
+			this.triggerAllDiagnostics();
+		});
 	}
 
 	public dispose(): void {

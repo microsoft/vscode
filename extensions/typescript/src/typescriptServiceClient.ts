@@ -245,6 +245,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private requestQueue: RequestQueue;
 	private callbacks: CallbackMap;
 
+	private readonly _onTsServerStarted = new EventEmitter<void>();
 	private readonly _onProjectLanguageServiceStateChanged = new EventEmitter<Proto.ProjectLanguageServiceStateEventBody>();
 	private readonly _onDidBeginInstallTypings = new EventEmitter<Proto.BeginInstallTypesEventBody>();
 	private readonly _onDidEndInstallTypings = new EventEmitter<Proto.EndInstallTypesEventBody>();
@@ -317,6 +318,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		} else {
 			start();
 		}
+	}
+
+	get onTsServerStarted(): Event<void> {
+		return this._onTsServerStarted.event;
 	}
 
 	get onProjectLanguageServiceStateChanged(): Event<Proto.ProjectLanguageServiceStateEventBody> {
@@ -572,6 +577,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 						this._onReady.resolve();
 						resolve(childProcess);
+						this._onTsServerStarted.fire();
+
 						this.serviceStarted(resendModels);
 					});
 				} catch (error) {
@@ -922,7 +929,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private sendRequest(requestItem: RequestItem): void {
-		let serverRequest = requestItem.request;
+		const serverRequest = requestItem.request;
 		this.tracer.traceRequest(serverRequest, !!requestItem.callbacks, this.requestQueue.length);
 		if (requestItem.callbacks) {
 			this.callbacks.add(serverRequest.seq, requestItem.callbacks);
@@ -930,7 +937,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.service()
 			.then((childProcess) => {
 				childProcess.stdin.write(JSON.stringify(serverRequest) + '\r\n', 'utf8');
-			}).then(undefined, err => {
+			})
+			.then(undefined, err => {
 				const callback = this.callbacks.fetch(serverRequest.seq);
 				if (callback) {
 					callback.e(err);
