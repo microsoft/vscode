@@ -860,7 +860,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			const autoFocusFirstEntry = (quickOpenModel.getEntries().length === 0); // the user might have selected another entry meanwhile in local history (see https://github.com/Microsoft/vscode/issues/20828)
 			const useTopBorder = quickOpenModel.getEntries().length > 0;
 			const group = new QuickOpenEntryGroup(additionalHandlerResults[0], groupLabel, useTopBorder);
-			quickOpenModel.entries.push(group);
+			quickOpenModel.addEntries([group]);
 			quickOpenModel.addEntries(additionalHandlerResults.slice(1));
 			this.quickOpenWidget.refresh(quickOpenModel, { autoFocusFirstEntry });
 		}
