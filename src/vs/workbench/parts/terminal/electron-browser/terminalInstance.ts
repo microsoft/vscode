@@ -794,6 +794,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public setTitle(title: string): void {
 		const didTitleChange = title !== this._title;
+		this._title = title;
 		if (didTitleChange) {
 			this._onTitleChanged.fire(title);
 		}
