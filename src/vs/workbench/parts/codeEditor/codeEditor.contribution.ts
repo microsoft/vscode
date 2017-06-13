@@ -5,6 +5,7 @@
 
 import './electron-browser/accessibility';
 import './electron-browser/toggleMultiCursorModifier';
+import './electron-browser/toggleRenderHyperlink';
 import './electron-browser/toggleRenderControlCharacter';
 import './electron-browser/toggleRenderWhitespace';
 import './electron-browser/toggleWordWrap';

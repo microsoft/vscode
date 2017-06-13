@@ -468,6 +468,10 @@ export interface IEditorOptions {
 	 */
 	renderControlCharacters?: boolean;
 	/**
+	 * Render the URLs as interactive links
+	 */
+	renderHyperlinks?: boolean;
+	/**
 	 * Enable rendering of indent guides.
 	 * Defaults to false.
 	 */
@@ -740,6 +744,7 @@ export interface InternalEditorViewOptions {
 	readonly stopRenderingLineAfter: number;
 	readonly renderWhitespace: 'none' | 'boundary' | 'all';
 	readonly renderControlCharacters: boolean;
+	readonly renderHyperlinks: boolean;
 	readonly fontLigatures: boolean;
 	readonly renderIndentGuides: boolean;
 	readonly renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
@@ -999,6 +1004,7 @@ export class InternalEditorOptions {
 			&& a.stopRenderingLineAfter === b.stopRenderingLineAfter
 			&& a.renderWhitespace === b.renderWhitespace
 			&& a.renderControlCharacters === b.renderControlCharacters
+			&& a.renderHyperlinks === b.renderHyperlinks
 			&& a.fontLigatures === b.fontLigatures
 			&& a.renderIndentGuides === b.renderIndentGuides
 			&& a.renderLineHighlight === b.renderLineHighlight
@@ -1592,6 +1598,7 @@ export class EditorOptionsValidator {
 			stopRenderingLineAfter: _clampedInt(opts.stopRenderingLineAfter, defaults.stopRenderingLineAfter, -1, Constants.MAX_SAFE_SMALL_INTEGER),
 			renderWhitespace: renderWhitespace,
 			renderControlCharacters: _boolean(opts.renderControlCharacters, defaults.renderControlCharacters),
+			renderHyperlinks: _boolean(opts.renderHyperlinks, defaults.renderHyperlinks),
 			fontLigatures: fontLigatures,
 			renderIndentGuides: _boolean(opts.renderIndentGuides, defaults.renderIndentGuides),
 			renderLineHighlight: renderLineHighlight,
@@ -1690,6 +1697,7 @@ export class InternalEditorOptionsFactory {
 				stopRenderingLineAfter: opts.viewInfo.stopRenderingLineAfter,
 				renderWhitespace: (accessibilityIsOn ? 'none' : opts.viewInfo.renderWhitespace), // DISABLED WHEN SCREEN READER IS ATTACHED
 				renderControlCharacters: (accessibilityIsOn ? false : opts.viewInfo.renderControlCharacters), // DISABLED WHEN SCREEN READER IS ATTACHED
+				renderHyperlinks: (accessibilityIsOn ? false : opts.viewInfo.renderHyperlinks), // DISABLED WHEN SCREEN READER IS ATTACHED
 				fontLigatures: (accessibilityIsOn ? false : opts.viewInfo.fontLigatures), // DISABLED WHEN SCREEN READER IS ATTACHED
 				renderIndentGuides: (accessibilityIsOn ? false : opts.viewInfo.renderIndentGuides), // DISABLED WHEN SCREEN READER IS ATTACHED
 				renderLineHighlight: (accessibilityIsOn ? 'none' : opts.viewInfo.renderLineHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
@@ -2108,6 +2116,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		stopRenderingLineAfter: 10000,
 		renderWhitespace: 'none',
 		renderControlCharacters: false,
+		renderHyperlinks: true,
 		fontLigatures: false,
 		renderIndentGuides: true,
 		renderLineHighlight: 'line',

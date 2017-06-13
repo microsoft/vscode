@@ -505,6 +505,11 @@ const editorConfiguration: IConfigurationNode = {
 			default: EDITOR_DEFAULTS.viewInfo.renderControlCharacters,
 			description: nls.localize('renderControlCharacters', "Controls whether the editor should render control characters")
 		},
+		'editor.renderHyperlinks': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.viewInfo.renderHyperlinks,
+			'description': nls.localize('renderHyperlinks', "Controls whether the editor should make URLs as clickable links")
+		},
 		'editor.renderIndentGuides': {
 			'type': 'boolean',
 			default: EDITOR_DEFAULTS.viewInfo.renderIndentGuides,
