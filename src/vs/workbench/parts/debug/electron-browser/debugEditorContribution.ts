@@ -38,6 +38,7 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
 import { CoreEditingCommands } from 'vs/editor/common/controller/coreCommands';
+import { first } from 'vs/base/common/arrays';
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;
@@ -363,13 +364,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}
 
 		// First call stack frame that is available is the frame where exception has been thrown
-		let exceptionSf;
-		for (let sf of callStack) {
-			if (sf.source && sf.source.available) {
-				exceptionSf = sf;
-				break;
-			}
-		}
+		const exceptionSf = first(callStack, sf => sf.source && sf.source.available, undefined);
 		if (!exceptionSf) {
 			this.closeExceptionWidget();
 			return;
