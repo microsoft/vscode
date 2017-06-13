@@ -41,7 +41,13 @@ export function combinedDisposable(disposables: IDisposable[]): IDisposable {
 }
 
 export function toDisposable(...fns: (() => void)[]): IDisposable {
-	return combinedDisposable(fns.map(fn => ({ dispose: fn })));
+	return {
+		dispose() {
+			for (const fn of fns) {
+				fn();
+			}
+		}
+	};
 }
 
 export abstract class Disposable implements IDisposable {
