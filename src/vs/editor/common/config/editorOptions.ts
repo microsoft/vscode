@@ -322,6 +322,11 @@ export interface IEditorOptions {
 	 */
 	hover?: boolean;
 	/**
+	 * Enable detecting links and making them clickable.
+	 * Defaults to true.
+	 */
+	links?: boolean;
+	/**
 	 * Enable custom contextmenu.
 	 * Defaults to true.
 	 */
@@ -341,11 +346,6 @@ export interface IEditorOptions {
 	 * Defaults to 'auto'. It is best to leave this to 'auto'.
 	 */
 	accessibilitySupport?: 'auto' | 'off' | 'on';
-	/**
-	 * Enable underlining URL and make it as a clickable link through CTRL-click
-	 * Defaults to true.
-	 */
-	urlClickable?: boolean;
 	/**
 	 * Enable quick suggestions (shadow suggestions)
 	 * Defaults to true.
@@ -750,6 +750,7 @@ export interface InternalEditorViewOptions {
 export interface EditorContribOptions {
 	readonly selectionClipboard: boolean;
 	readonly hover: boolean;
+	readonly links: boolean;
 	readonly contextmenu: boolean;
 	readonly quickSuggestions: boolean | { other: boolean, comments: boolean, strings: boolean };
 	readonly quickSuggestionsDelay: number;
@@ -800,7 +801,6 @@ export interface IValidatedEditorOptions {
 	readonly useTabStops: boolean;
 	readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 	readonly accessibilitySupport: 'auto' | 'off' | 'on';
-	readonly urlClickable: boolean;
 
 	readonly viewInfo: InternalEditorViewOptions;
 	readonly contribInfo: EditorContribOptions;
@@ -822,7 +822,6 @@ export class InternalEditorOptions {
 	 */
 	readonly accessibilitySupport: platform.AccessibilitySupport;
 	readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
-	readonly urlClickable: boolean;
 
 	// ---- cursor options
 	readonly wordSeparators: string;
@@ -861,7 +860,6 @@ export class InternalEditorOptions {
 		viewInfo: InternalEditorViewOptions;
 		wrappingInfo: EditorWrappingInfo;
 		contribInfo: EditorContribOptions;
-		urlClickable: boolean;
 	}) {
 		this.canUseTranslate3d = source.canUseTranslate3d;
 		this.pixelRatio = source.pixelRatio;
@@ -881,7 +879,6 @@ export class InternalEditorOptions {
 		this.viewInfo = source.viewInfo;
 		this.wrappingInfo = source.wrappingInfo;
 		this.contribInfo = source.contribInfo;
-		this.urlClickable = source.urlClickable;
 	}
 
 	/**
@@ -902,7 +899,6 @@ export class InternalEditorOptions {
 			&& this.tabFocusMode === other.tabFocusMode
 			&& this.dragAndDrop === other.dragAndDrop
 			&& this.emptySelectionClipboard === other.emptySelectionClipboard
-			&& this.urlClickable === other.urlClickable
 			&& InternalEditorOptions._equalsLayoutInfo(this.layoutInfo, other.layoutInfo)
 			&& this.fontInfo.equals(other.fontInfo)
 			&& InternalEditorOptions._equalsViewOptions(this.viewInfo, other.viewInfo)
@@ -933,8 +929,7 @@ export class InternalEditorOptions {
 			fontInfo: (!this.fontInfo.equals(newOpts.fontInfo)),
 			viewInfo: (!InternalEditorOptions._equalsViewOptions(this.viewInfo, newOpts.viewInfo)),
 			wrappingInfo: (!InternalEditorOptions._equalsWrappingInfo(this.wrappingInfo, newOpts.wrappingInfo)),
-			contribInfo: (!InternalEditorOptions._equalsContribOptions(this.contribInfo, newOpts.contribInfo)),
-			urlClickable: (this.urlClickable !== newOpts.urlClickable),
+			contribInfo: (!InternalEditorOptions._equalsContribOptions(this.contribInfo, newOpts.contribInfo))
 		};
 	}
 
@@ -1091,6 +1086,7 @@ export class InternalEditorOptions {
 		return (
 			a.selectionClipboard === b.selectionClipboard
 			&& a.hover === b.hover
+			&& a.links === b.links
 			&& a.contextmenu === b.contextmenu
 			&& InternalEditorOptions._equalsQuickSuggestions(a.quickSuggestions, b.quickSuggestions)
 			&& a.quickSuggestionsDelay === b.quickSuggestionsDelay
@@ -1273,7 +1269,6 @@ export interface IConfigurationChangedEvent {
 	readonly viewInfo: boolean;
 	readonly wrappingInfo: boolean;
 	readonly contribInfo: boolean;
-	readonly urlClickable: boolean;
 }
 
 /**
@@ -1448,7 +1443,6 @@ export class EditorOptionsValidator {
 			useTabStops: _boolean(opts.useTabStops, defaults.useTabStops),
 			multiCursorModifier: multiCursorModifier,
 			accessibilitySupport: _stringSet<'auto' | 'on' | 'off'>(opts.accessibilitySupport, defaults.accessibilitySupport, ['auto', 'on', 'off']),
-			urlClickable: _boolean(opts.urlClickable, defaults.urlClickable),
 			viewInfo: viewInfo,
 			contribInfo: contribInfo,
 		};
@@ -1617,6 +1611,7 @@ export class EditorOptionsValidator {
 		return {
 			selectionClipboard: _boolean(opts.selectionClipboard, defaults.selectionClipboard),
 			hover: _boolean(opts.hover, defaults.hover),
+			links: _boolean(opts.links, defaults.links),
 			contextmenu: _boolean(opts.contextmenu, defaults.contextmenu),
 			quickSuggestions: quickSuggestions,
 			quickSuggestionsDelay: _clampedInt(opts.quickSuggestionsDelay, defaults.quickSuggestionsDelay, Constants.MIN_SAFE_SMALL_INTEGER, Constants.MAX_SAFE_SMALL_INTEGER),
@@ -1672,7 +1667,6 @@ export class InternalEditorOptionsFactory {
 			useTabStops: opts.useTabStops,
 			multiCursorModifier: opts.multiCursorModifier,
 			accessibilitySupport: opts.accessibilitySupport,
-			urlClickable: opts.urlClickable,
 
 			viewInfo: {
 				extraEditorClassName: opts.viewInfo.extraEditorClassName,
@@ -1711,6 +1705,7 @@ export class InternalEditorOptionsFactory {
 			contribInfo: {
 				selectionClipboard: opts.contribInfo.selectionClipboard,
 				hover: opts.contribInfo.hover,
+				links: (accessibilityIsOn ? false : opts.contribInfo.links), // DISABLED WHEN SCREEN READER IS ATTACHED
 				contextmenu: opts.contribInfo.contextmenu,
 				quickSuggestions: opts.contribInfo.quickSuggestions,
 				quickSuggestionsDelay: opts.contribInfo.quickSuggestionsDelay,
@@ -1880,8 +1875,7 @@ export class InternalEditorOptionsFactory {
 			fontInfo: env.fontInfo,
 			viewInfo: opts.viewInfo,
 			wrappingInfo: wrappingInfo,
-			contribInfo: opts.contribInfo,
-			urlClickable: opts.urlClickable
+			contribInfo: opts.contribInfo
 		});
 	}
 }
@@ -2091,7 +2085,6 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	useTabStops: true,
 	multiCursorModifier: 'altKey',
 	accessibilitySupport: 'auto',
-	urlClickable: true,
 
 	viewInfo: {
 		extraEditorClassName: '',
@@ -2143,6 +2136,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	contribInfo: {
 		selectionClipboard: true,
 		hover: true,
+		links: true,
 		contextmenu: true,
 		quickSuggestions: { other: true, comments: false, strings: false },
 		quickSuggestionsDelay: 10,

@@ -562,10 +562,10 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.accessibilitySupport,
 			'description': nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers.")
 		},
-		'editor.urlClickable': {
+		'editor.links': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.urlClickable,
-			'description': nls.localize('urlClickable', "Controls whether the editor should underline any URL and make them clickable through CTRL-Left Click")
+			'default': EDITOR_DEFAULTS.contribInfo.links,
+			'description': nls.localize('links', "Controls whether the editor should detect links and make them clickable")
 		},
 		'diffEditor.renderSideBySide': {
 			'type': 'boolean',

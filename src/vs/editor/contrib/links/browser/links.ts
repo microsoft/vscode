@@ -184,7 +184,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 
 	private beginCompute(): void {
-		if (!this.editor.getModel() || !this.editor.getConfiguration().urlClickable) {
+		if (!this.editor.getModel() || !this.editor.getConfiguration().contribInfo.links) {
 			return;
 		}
 
