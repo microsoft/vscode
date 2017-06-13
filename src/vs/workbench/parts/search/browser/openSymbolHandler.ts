@@ -42,6 +42,17 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		super(editorService);
 	}
 
+	public getId(): string {
+		const loc = this._bearing.location;
+		return [
+			loc.uri.toString(),
+			loc.range.startLineNumber,
+			loc.range.startColumn,
+			loc.range.endLineNumber,
+			loc.range.endColumn,
+		].join(':');
+	}
+
 	public getLabel(): string {
 		return this._bearing.name;
 	}

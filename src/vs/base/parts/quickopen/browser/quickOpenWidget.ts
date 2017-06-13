@@ -619,6 +619,10 @@ export class QuickOpenWidget implements IModelProvider {
 	}
 
 	private autoFocus(input: IModel<any>, autoFocus: IAutoFocus = {}): void {
+		if (this.tree.getFocus()) {
+			// Auto focus should not override previous focus.
+			return;
+		}
 		const entries = input.entries.filter(e => this.isElementVisible(input, e));
 
 		// First check for auto focus of prefix matches

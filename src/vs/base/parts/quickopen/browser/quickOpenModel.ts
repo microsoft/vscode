@@ -294,6 +294,15 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 		this.withBorder = withBorder;
 	}
 
+	public getId(): string {
+		return [
+			'group',
+			this.entry.getId(),
+			this.groupLabel,
+			this.withBorder,
+		].join(':');
+	}
+
 	/**
 	 * The label of the group or null if none.
 	 */
