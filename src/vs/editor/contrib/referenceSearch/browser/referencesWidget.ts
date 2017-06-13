@@ -10,7 +10,7 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { getPathLabel } from 'vs/base/common/labels';
 import Event, { Emitter } from 'vs/base/common/event';
-import { IDisposable, dispose, Disposables, IReference } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -484,7 +484,7 @@ class AriaProvider implements tree.IAccessibilityProvider {
 
 class VSash {
 
-	private _disposables = new Disposables();
+	private _disposables: IDisposable[] = [];
 	private _sash: Sash;
 	private _ratio: number;
 	private _height: number;
@@ -501,11 +501,11 @@ class VSash {
 		// compute the current widget clientX postion since
 		// the sash works with clientX when dragging
 		let clientX: number;
-		this._disposables.add(this._sash.addListener('start', (e: ISashEvent) => {
+		this._disposables.push(this._sash.addListener('start', (e: ISashEvent) => {
 			clientX = e.startX - (this._width * this.ratio);
 		}));
 
-		this._disposables.add(this._sash.addListener('change', (e: ISashEvent) => {
+		this._disposables.push(this._sash.addListener('change', (e: ISashEvent) => {
 			// compute the new position of the sash and from that
 			// compute the new ratio that we are using
 			let newLeft = e.currentX - clientX;
@@ -520,7 +520,7 @@ class VSash {
 	dispose() {
 		this._sash.dispose();
 		this._onDidChangePercentages.dispose();
-		this._disposables.dispose();
+		dispose(this._disposables);
 	}
 
 	get onDidChangePercentages() {

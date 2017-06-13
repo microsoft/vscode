@@ -13,7 +13,7 @@ import * as platform from 'vs/base/common/platform';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
 import dom = require('vs/base/browser/dom');
 import aria = require('vs/base/browser/ui/aria/aria');
-import { dispose, IDisposable, Disposables } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import product from 'vs/platform/node/product';
@@ -244,7 +244,7 @@ export class WorkbenchShell {
 	}
 
 	private initServiceCollection(container: HTMLElement): [IInstantiationService, ServiceCollection] {
-		const disposables = new Disposables();
+		const disposables: IDisposable[] = [];
 
 		const serviceCollection = new ServiceCollection();
 		serviceCollection.set(IWorkspaceContextService, this.contextService);
@@ -259,7 +259,7 @@ export class WorkbenchShell {
 		serviceCollection.set(IWindowIPCService, this.windowIPCService);
 
 		const mainProcessClient = new ElectronIPCClient(String(`window${currentWindow.id}`));
-		disposables.add(mainProcessClient);
+		disposables.push(mainProcessClient);
 
 		const windowsChannel = mainProcessClient.getChannel('windows');
 		this.windowsService = new WindowsChannelClient(windowsChannel);
@@ -319,14 +319,14 @@ export class WorkbenchShell {
 					: TelemetryService.IDLE_START_EVENT_NAME
 				));
 
-			disposables.add(telemetryService, errorTelemetry, listener, idleMonitor);
+			disposables.push(telemetryService, errorTelemetry, listener, idleMonitor);
 		} else {
 			NullTelemetryService._experiments = instantiationService.invokeFunction(loadExperiments);
 			this.telemetryService = NullTelemetryService;
 		}
 
 		serviceCollection.set(ITelemetryService, this.telemetryService);
-		disposables.add(configurationTelemetry(this.telemetryService, this.configurationService));
+		disposables.push(configurationTelemetry(this.telemetryService, this.configurationService));
 
 		let crashReporterService = NullCrashReporterService;
 		if (product.crashReporter && product.hockeyApp) {
@@ -339,10 +339,10 @@ export class WorkbenchShell {
 		serviceCollection.set(IChoiceService, this.messageService);
 
 		const lifecycleService = instantiationService.createInstance(LifecycleService);
-		this.toUnbind.push(lifecycleService.onShutdown(reason => disposables.dispose()));
+		this.toUnbind.push(lifecycleService.onShutdown(reason => dispose(disposables)));
 		this.toUnbind.push(lifecycleService.onShutdown(reason => saveFontInfo(this.storageService)));
 		serviceCollection.set(ILifecycleService, lifecycleService);
-		disposables.add(lifecycleTelemetry(this.telemetryService, lifecycleService));
+		disposables.push(lifecycleTelemetry(this.telemetryService, lifecycleService));
 		this.lifecycleService = lifecycleService;
 
 		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));
@@ -350,7 +350,7 @@ export class WorkbenchShell {
 
 		const extensionEnablementService = instantiationService.createInstance(ExtensionEnablementService);
 		serviceCollection.set(IExtensionEnablementService, extensionEnablementService);
-		disposables.add(extensionEnablementService);
+		disposables.push(extensionEnablementService);
 
 		const extensionHostProcessWorker = instantiationService.createInstance(ExtensionHostProcessWorker);
 		this.threadService = instantiationService.createInstance(MainThreadService, extensionHostProcessWorker.messagingProtocol);
