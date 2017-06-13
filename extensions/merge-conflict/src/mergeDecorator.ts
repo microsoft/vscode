@@ -73,6 +73,11 @@ export default class MergeDectorator implements vscode.Disposable {
 			this.decorations['incoming.content'] = vscode.window.createTextEditorDecorationType(
 				this.generateBlockRenderOptions('merge.incomingContentBackground', 'editorOverviewRuler.incomingContentForeground', config)
 			);
+
+			this.decorations['commonAncestors.content'] = vscode.window.createTextEditorDecorationType({
+				color: new vscode.ThemeColor('editor.foreground'),
+				isWholeLine: this.decorationUsesWholeLine,
+			});
 		}
 
 		if (config.enableDecorations) {
@@ -87,6 +92,11 @@ export default class MergeDectorator implements vscode.Disposable {
 					contentText: ' ' + localize('currentChange', '(Current Change)'),
 					color: new vscode.ThemeColor('descriptionForeground')
 				}
+			});
+
+			this.decorations['commonAncestors.header'] = vscode.window.createTextEditorDecorationType({
+				color: new vscode.ThemeColor('editor.foreground'),
+				isWholeLine: this.decorationUsesWholeLine,
 			});
 
 			this.decorations['splitter'] = vscode.window.createTextEditorDecorationType({
@@ -187,10 +197,18 @@ export default class MergeDectorator implements vscode.Disposable {
 				pushDecoration('current.content', { range: conflict.current.decoratorContent });
 				pushDecoration('incoming.content', { range: conflict.incoming.decoratorContent });
 
+				conflict.commonAncestors.forEach(commonAncestorsRegion => {
+					pushDecoration('commonAncestors.content', { range: commonAncestorsRegion.decoratorContent });
+				});
+
 				if (this.config.enableDecorations) {
 					pushDecoration('current.header', { range: conflict.current.header });
 					pushDecoration('splitter', { range: conflict.splitter });
 					pushDecoration('incoming.header', { range: conflict.incoming.header });
+
+					conflict.commonAncestors.forEach(commonAncestorsRegion => {
+						pushDecoration('commonAncestors.header', { range: commonAncestorsRegion.header });
+					});
 				}
 			});
 

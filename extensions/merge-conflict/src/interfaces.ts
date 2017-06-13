@@ -32,6 +32,7 @@ export interface IDocumentMergeConflictDescriptor {
 	range: vscode.Range;
 	current: IMergeRegion;
 	incoming: IMergeRegion;
+	commonAncestors: IMergeRegion[];
 	splitter: vscode.Range;
 }
 
