@@ -327,6 +327,11 @@ export interface IEditorOptions {
 	 */
 	hover?: boolean;
 	/**
+	 * Enable detecting links and making them clickable.
+	 * Defaults to true.
+	 */
+	links?: boolean;
+	/**
 	 * Enable custom contextmenu.
 	 * Defaults to true.
 	 */
@@ -751,6 +756,7 @@ export interface InternalEditorViewOptions {
 export interface EditorContribOptions {
 	readonly selectionClipboard: boolean;
 	readonly hover: boolean;
+	readonly links: boolean;
 	readonly contextmenu: boolean;
 	readonly quickSuggestions: boolean | { other: boolean, comments: boolean, strings: boolean };
 	readonly quickSuggestionsDelay: number;
@@ -929,7 +935,7 @@ export class InternalEditorOptions {
 			fontInfo: (!this.fontInfo.equals(newOpts.fontInfo)),
 			viewInfo: (!InternalEditorOptions._equalsViewOptions(this.viewInfo, newOpts.viewInfo)),
 			wrappingInfo: (!InternalEditorOptions._equalsWrappingInfo(this.wrappingInfo, newOpts.wrappingInfo)),
-			contribInfo: (!InternalEditorOptions._equalsContribOptions(this.contribInfo, newOpts.contribInfo)),
+			contribInfo: (!InternalEditorOptions._equalsContribOptions(this.contribInfo, newOpts.contribInfo))
 		};
 	}
 
@@ -1087,6 +1093,7 @@ export class InternalEditorOptions {
 		return (
 			a.selectionClipboard === b.selectionClipboard
 			&& a.hover === b.hover
+			&& a.links === b.links
 			&& a.contextmenu === b.contextmenu
 			&& InternalEditorOptions._equalsQuickSuggestions(a.quickSuggestions, b.quickSuggestions)
 			&& a.quickSuggestionsDelay === b.quickSuggestionsDelay
@@ -1612,6 +1619,7 @@ export class EditorOptionsValidator {
 		return {
 			selectionClipboard: _boolean(opts.selectionClipboard, defaults.selectionClipboard),
 			hover: _boolean(opts.hover, defaults.hover),
+			links: _boolean(opts.links, defaults.links),
 			contextmenu: _boolean(opts.contextmenu, defaults.contextmenu),
 			quickSuggestions: quickSuggestions,
 			quickSuggestionsDelay: _clampedInt(opts.quickSuggestionsDelay, defaults.quickSuggestionsDelay, Constants.MIN_SAFE_SMALL_INTEGER, Constants.MAX_SAFE_SMALL_INTEGER),
@@ -1706,6 +1714,7 @@ export class InternalEditorOptionsFactory {
 			contribInfo: {
 				selectionClipboard: opts.contribInfo.selectionClipboard,
 				hover: opts.contribInfo.hover,
+				links: (accessibilityIsOn ? false : opts.contribInfo.links), // DISABLED WHEN SCREEN READER IS ATTACHED
 				contextmenu: opts.contribInfo.contextmenu,
 				quickSuggestions: opts.contribInfo.quickSuggestions,
 				quickSuggestionsDelay: opts.contribInfo.quickSuggestionsDelay,
@@ -2137,6 +2146,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	contribInfo: {
 		selectionClipboard: true,
 		hover: true,
+		links: true,
 		contextmenu: true,
 		quickSuggestions: { other: true, comments: false, strings: false },
 		quickSuggestionsDelay: 10,

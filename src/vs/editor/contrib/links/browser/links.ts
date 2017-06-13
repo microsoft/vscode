@@ -108,6 +108,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	static RECOMPUTE_TIME = 1000; // ms
 
 	private editor: ICodeEditor;
+	private enabled: boolean;
 	private listenersToRemove: IDisposable[];
 	private timeoutPromise: TPromise<void>;
 	private computePromise: TPromise<void>;
@@ -141,6 +142,24 @@ class LinkDetector implements editorCommon.IEditorContribution {
 			this.cleanUpActiveLinkDecoration();
 		}));
 
+		this.enabled = editor.getConfiguration().contribInfo.links;
+		this.listenersToRemove.push(editor.onDidChangeConfiguration((e) => {
+			let enabled = editor.getConfiguration().contribInfo.links;
+			if (this.enabled === enabled) {
+				// No change in our configuration option
+				return;
+			}
+			this.enabled = enabled;
+
+			// Remove any links (for the getting disabled case)
+			this.updateDecorations([]);
+
+			// Stop any computation (for the getting disabled case)
+			this.stop();
+
+			// Start computing (for the getting enabled case)
+			this.beginCompute();
+		}));
 		this.listenersToRemove.push(editor.onDidChangeModelContent((e) => this.onChange()));
 		this.listenersToRemove.push(editor.onDidChangeModel((e) => this.onModelChanged()));
 		this.listenersToRemove.push(editor.onDidChangeModelLanguage((e) => this.onModelModeChanged()));
@@ -184,7 +203,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 
 	private beginCompute(): void {
-		if (!this.editor.getModel()) {
+		if (!this.editor.getModel() || !this.enabled) {
 			return;
 		}
 
