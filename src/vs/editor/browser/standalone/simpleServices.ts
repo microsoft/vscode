@@ -17,6 +17,7 @@ import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingReso
 import { IKeybindingEvent, KeybindingSource, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IMessageService } from 'vs/platform/message/common/message';
+import { IWorkspaceContextService, Workspace, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -24,7 +25,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { getDefaultValues as getDefaultConfiguration } from 'vs/platform/configuration/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
-import { ITextModelResolverService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IDisposable, IReference, ImmortalReference, combinedDisposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -35,6 +36,7 @@ import { ITelemetryService, ITelemetryExperiments, ITelemetryInfo } from 'vs/pla
 import { ResolvedKeybinding, Keybinding, createKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { OS } from 'vs/base/common/platform';
+import { IRange } from 'vs/editor/common/core/range';
 
 export class SimpleEditor implements IEditor {
 
@@ -55,7 +57,7 @@ export class SimpleEditor implements IEditor {
 	public isVisible(): boolean { return true; }
 
 	public withTypedEditor<T>(codeEditorCallback: (editor: ICodeEditor) => T, diffEditorCallback: (editor: IDiffEditor) => T): T {
-		if (this._widget.getEditorType() === editorCommon.EditorType.ICodeEditor) {
+		if (editorCommon.isCommonCodeEditor(this._widget)) {
 			// Single Editor
 			return codeEditorCallback(<ICodeEditor>this._widget);
 		} else {
@@ -143,7 +145,7 @@ export class SimpleEditorService implements IEditorService {
 			return null;
 		}
 
-		let selection = <editorCommon.IRange>data.options.selection;
+		let selection = <IRange>data.options.selection;
 		if (selection) {
 			if (typeof selection.endLineNumber === 'number' && typeof selection.endColumn === 'number') {
 				editor.setSelection(selection);
@@ -171,7 +173,7 @@ export class SimpleEditorService implements IEditorService {
 	}
 }
 
-export class SimpleEditorModelResolverService implements ITextModelResolverService {
+export class SimpleEditorModelResolverService implements ITextModelService {
 	public _serviceBrand: any;
 
 	private editor: SimpleEditor;
@@ -293,7 +295,7 @@ export class StandaloneCommandService implements ICommandService {
 	public executeCommand<T>(id: string, ...args: any[]): TPromise<T> {
 		const command = (CommandsRegistry.getCommand(id) || this._dynamicCommands[id]);
 		if (!command) {
-			return TPromise.wrapError(new Error(`command '${id}' not found`));
+			return TPromise.wrapError<T>(new Error(`command '${id}' not found`));
 		}
 
 		try {
@@ -301,7 +303,7 @@ export class StandaloneCommandService implements ICommandService {
 			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler].concat(args));
 			return TPromise.as(result);
 		} catch (err) {
-			return TPromise.wrapError(err);
+			return TPromise.wrapError<T>(err);
 		}
 	}
 }
@@ -402,8 +404,8 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		return result;
 	}
 
-	public resolveKeybinding(kb: Keybinding): ResolvedKeybinding[] {
-		return [new USLayoutResolvedKeybinding(kb, OS)];
+	public resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[] {
+		return [new USLayoutResolvedKeybinding(keybinding, OS)];
 	}
 
 	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
@@ -414,7 +416,11 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 			keyboardEvent.metaKey,
 			keyboardEvent.keyCode
 		);
-		return this.resolveKeybinding(keybinding)[0];
+		return new USLayoutResolvedKeybinding(keybinding, OS);
+	}
+
+	public resolveUserBinding(userBinding: string): ResolvedKeybinding[] {
+		return [];
 	}
 }
 
@@ -436,7 +442,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 	}
 
 	public reloadConfiguration<T>(section?: string): TPromise<T> {
-		return TPromise.as(this.getConfiguration(section));
+		return TPromise.as<T>(this.getConfiguration<T>(section));
 	}
 
 	public lookup<C>(key: string): IConfigurationValue<C> {
@@ -482,5 +488,43 @@ export class StandaloneTelemetryService implements ITelemetryService {
 
 	public getExperiments(): ITelemetryExperiments {
 		return null;
+	}
+}
+
+export class SimpleWorkspaceContextService implements IWorkspaceContextService {
+
+	public _serviceBrand: any;
+
+	private readonly _onDidChangeFolders: Emitter<URI[]> = new Emitter<URI[]>();
+	public readonly onDidChangeFolders: Event<URI[]> = this._onDidChangeFolders.event;
+
+	private readonly folders: URI[];
+
+	constructor(private workspace?: Workspace) {
+		this.folders = workspace ? [workspace.resource] : [];
+	}
+
+	public getFolders(): URI[] {
+		return this.folders;
+	}
+
+	public getWorkspace(): IWorkspace {
+		return this.workspace;
+	}
+
+	public hasWorkspace(): boolean {
+		return !!this.workspace;
+	}
+
+	public isInsideWorkspace(resource: URI): boolean {
+		return this.workspace ? this.workspace.isInsideWorkspace(resource) : false;
+	}
+
+	public toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
+		return this.workspace ? this.workspace.toWorkspaceRelativePath(resource, toOSPath) : null;
+	}
+
+	public toResource(workspaceRelativePath: string): URI {
+		return this.workspace ? this.workspace.toResource(workspaceRelativePath) : null;
 	}
 }

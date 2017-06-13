@@ -10,7 +10,7 @@ import { IAction } from 'vs/base/common/actions';
 import Event from 'vs/base/common/event';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { Registry } from 'vs/platform/platform';
-import { Scope } from 'vs/workbench/browser/actionBarRegistry';
+import { Scope } from 'vs/workbench/browser/actions';
 import { IPanel } from 'vs/workbench/common/panel';
 import { CompositePart, ICompositeTitleLabel } from 'vs/workbench/browser/parts/compositePart';
 import { Panel, PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
@@ -24,8 +24,9 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ClosePanelAction, PanelAction, ToggleMaximizedPanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { PANEL_BACKGROUND, PANEL_BORDER_TOP_COLOR } from 'vs/workbench/common/theme';
+import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER } from 'vs/workbench/common/theme';
+import { activeContrastBorder, focusBorder, contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
@@ -60,10 +61,11 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			themeService,
 			Registry.as<PanelRegistry>(PanelExtensions.Panels),
 			PanelPart.activePanelSettingsKey,
+			Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId(),
 			'panel',
 			'panel',
 			Scope.PANEL,
-			null, // TODO@theme
+			null,
 			id,
 			{ hasTitle: true }
 		);
@@ -103,7 +105,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		container.style('background-color', this.getColor(PANEL_BACKGROUND));
 
 		const title = this.getTitleArea();
-		title.style('border-top-color', this.getColor(PANEL_BORDER_TOP_COLOR));
+		title.style('border-top-color', this.getColor(PANEL_BORDER) || this.getColor(contrastBorder));
 	}
 
 	public openPanel(id: string, focus?: boolean): TPromise<Panel> {
@@ -112,7 +114,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 
 		// First check if panel is hidden and show if so
-		let promise = TPromise.as(null);
+		let promise = TPromise.as<any>(null);
 		if (!this.partService.isVisible(Parts.PANEL_PART)) {
 			try {
 				this.blockOpeningPanel = true;
@@ -172,7 +174,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 				}
 			},
 			updateStyles: () => {
-				// TODO@theme
+				// Handled via theming participant
 			}
 		};
 	}
@@ -190,3 +192,78 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}));
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+
+	// Panel Background: since panels can host editors, we apply a background rule if the panel background
+	// color is different from the editor background color. This is a bit of a hack though. The better way
+	// would be to have a way to push the background color onto each editor widget itself somehow.
+	const panelBackground = theme.getColor(PANEL_BACKGROUND);
+	if (panelBackground && panelBackground !== theme.getColor(editorBackground)) {
+		collector.addRule(`
+			.monaco-workbench > .part.panel > .content .monaco-editor,
+			.monaco-workbench > .part.panel > .content .monaco-editor .margin,
+			.monaco-workbench > .part.panel > .content .monaco-editor .monaco-editor-background {
+				background-color: ${panelBackground};
+			}
+		`);
+	}
+
+	// Title Active
+	const titleActive = theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND);
+	const titleActiveBorder = theme.getColor(PANEL_ACTIVE_TITLE_BORDER);
+	if (titleActive || titleActiveBorder) {
+		collector.addRule(`
+			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label,
+			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
+				color: ${titleActive};
+				border-bottom-color: ${titleActiveBorder};
+			}
+		`);
+	}
+
+	// Title Inactive
+	const titleInactive = theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND);
+	if (titleInactive) {
+		collector.addRule(`
+			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
+				color: ${titleInactive};
+			}
+		`);
+	}
+
+	// Title focus
+	const focusBorderColor = theme.getColor(focusBorder);
+	if (focusBorderColor) {
+		collector.addRule(`
+			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:focus {
+				color: ${titleActive};
+				border-bottom-color: ${focusBorderColor} !important;
+				border-bottom: 1px solid;
+				outline: none;
+			}
+		`);
+	}
+
+	// Styling with Outline color (e.g. high contrast theme)
+	const outline = theme.getColor(activeContrastBorder);
+	if (outline) {
+		const outline = theme.getColor(activeContrastBorder);
+
+		collector.addRule(`
+			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked,
+			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:hover {
+				outline-color: ${outline};
+				outline-width: 1px;
+				outline-style: solid;
+				border-bottom: none;
+				padding-bottom: 0;
+				outline-offset: 3px;
+			}
+
+			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:hover:not(.checked) {
+				outline-style: dashed;
+			}
+		`);
+	}
+});

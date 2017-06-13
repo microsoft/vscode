@@ -100,7 +100,7 @@
 	},
 	{
 		"c": "-",
-		"t": "source.diff markup.deleted.diff punctuation.definition.inserted.diff",
+		"t": "source.diff markup.deleted.diff punctuation.definition.deleted.diff",
 		"r": {
 			"dark_plus": "markup.deleted: #CE9178",
 			"light_plus": "markup.deleted: #A31515",
@@ -122,7 +122,7 @@
 	},
 	{
 		"c": "-",
-		"t": "source.diff markup.deleted.diff punctuation.definition.inserted.diff",
+		"t": "source.diff markup.deleted.diff punctuation.definition.deleted.diff",
 		"r": {
 			"dark_plus": "markup.deleted: #CE9178",
 			"light_plus": "markup.deleted: #A31515",
@@ -155,7 +155,7 @@
 	},
 	{
 		"c": "-",
-		"t": "source.diff markup.deleted.diff punctuation.definition.inserted.diff",
+		"t": "source.diff markup.deleted.diff punctuation.definition.deleted.diff",
 		"r": {
 			"dark_plus": "markup.deleted: #CE9178",
 			"light_plus": "markup.deleted: #A31515",

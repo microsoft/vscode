@@ -20,7 +20,7 @@ import severity from 'vs/base/common/severity';
 import diagnostics = require('vs/base/common/diagnostics');
 import { Action, IAction } from 'vs/base/common/actions';
 import { MessageType, IInputValidator } from 'vs/base/browser/ui/inputbox/inputBox';
-import { ITree, IHighlightEvent } from 'vs/base/parts/tree/browser/tree';
+import { ITree, IHighlightEvent, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import labels = require('vs/base/common/labels');
@@ -30,7 +30,6 @@ import { toResource, IEditorIdentifier, EditorInput } from 'vs/workbench/common/
 import { FileStat, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerViewModel';
 import { ExplorerView } from 'vs/workbench/parts/files/browser/views/explorerView';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/browser/explorerViewlet';
-import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
@@ -38,17 +37,17 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IQuickOpenService, IFilePickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { Position, IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
+import { Position, IResourceInput, IEditorInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature2, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { withFocussedFilesExplorer, revealInOSCommand, revealInExplorerCommand, copyPathCommand } from 'vs/workbench/parts/files/browser/fileCommands';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export interface IEditableData {
 	action: IAction;
@@ -194,7 +193,7 @@ export class TriggerRenameFileAction extends BaseFileAction {
 		this.tree.refresh(stat, false).then(() => {
 			this.tree.setHighlight(stat);
 
-			const unbind = this.tree.addListener2(CommonEventType.HIGHLIGHT, (e: IHighlightEvent) => {
+			const unbind = this.tree.addListener(CommonEventType.HIGHLIGHT, (e: IHighlightEvent) => {
 				if (!e.highlight) {
 					viewletState.clearEditable(stat);
 					this.tree.refresh(stat).done(null, errors.onUnexpectedError);
@@ -277,7 +276,6 @@ class RenameFileAction extends BaseRenameAction {
 		@IFileService fileService: IFileService,
 		@IMessageService messageService: IMessageService,
 		@ITextFileService textFileService: ITextFileService,
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
 		@IBackupFileService private backupFileService: IBackupFileService
 	) {
 		super(RenameFileAction.ID, nls.localize('rename', "Rename"), element, fileService, messageService, textFileService);
@@ -286,10 +284,11 @@ class RenameFileAction extends BaseRenameAction {
 	}
 
 	public runAction(newName: string): TPromise<any> {
-		let isDirtyCaseChange = false;
 
 		const dirty = this.textFileService.getDirty().filter(d => isEqualOrParent(d.fsPath, this.element.resource.fsPath, !isLinux /* ignorecase */));
-		const dirtyRenamed = dirty.map(d => {
+		const dirtyRenamed: URI[] = [];
+		return TPromise.join(dirty.map(d => {
+
 			const targetPath = paths.join(this.element.parent.resource.fsPath, newName);
 			let renamed: URI;
 
@@ -303,27 +302,9 @@ class RenameFileAction extends BaseRenameAction {
 				renamed = URI.file(paths.join(targetPath, d.fsPath.substr(this.element.resource.fsPath.length + 1)));
 			}
 
-			// Detect if any dirty file got renamed with different case
-			if (!isDirtyCaseChange && isEqual(d.fsPath, renamed.fsPath)) {
-				isDirtyCaseChange = true;
-			}
+			dirtyRenamed.push(renamed);
 
-			return renamed;
-		});
-
-		// Corner case in our backup story: A dirty resource is being renamed (either the file itself or one of its parent)
-		// to a different casing, but same path. Since our backup story is does not distinguish different casing on file
-		// systems that do not distinguish, we cannot backup the contents here and restore it later.
-		if (isDirtyCaseChange) {
-			const res = this.confirmDirtyCaseChange(dirty);
-			if (!res) {
-				return TPromise.as(null);
-			}
-		}
-
-		// 1. check for dirty files that are being moved and backup to new target
-		return TPromise.join(dirtyRenamed.map((renamed, index) => {
-			const model = this.textFileService.models.get(dirty[index]);
+			const model = this.textFileService.models.get(d);
 
 			return this.backupFileService.backupResource(renamed, model.getValue(), model.getVersionId());
 		}))
@@ -340,28 +321,8 @@ class RenameFileAction extends BaseRenameAction {
 
 			// 4.) resolve those that were dirty to load their previous dirty contents from disk
 			.then(() => {
-				return TPromise.join(dirtyRenamed.map(t => this.textModelResolverService.createModelReference(t)));
+				return TPromise.join(dirtyRenamed.map(t => this.textFileService.models.loadOrCreate(t)));
 			});
-	}
-
-	private confirmDirtyCaseChange(dirty: URI[]): boolean {
-		let message: string;
-		if (this.element.isDirectory) {
-			if (dirty.length === 1) {
-				message = nls.localize('dirtyMessageFolderOne', "You are renaming a folder with unsaved changes in 1 file. Do you want to continue?");
-			} else {
-				message = nls.localize('dirtyMessageFolder', "You are renaming a folder with unsaved changes in {0} files. Do you want to continue?", dirty.length);
-			}
-		} else {
-			message = nls.localize('dirtyMessageFile', "You are renaming a file with unsaved changes. Do you want to continue?");
-		}
-
-		return this.messageService.confirm({
-			message,
-			type: 'warning',
-			detail: nls.localize('dirtyWarning', "Your changes will be lost if you don't save them."),
-			primaryButton: nls.localize({ key: 'renameLabel', comment: ['&& denotes a mnemonic'] }, "&&Rename")
-		});
 	}
 }
 
@@ -446,7 +407,7 @@ export class BaseNewAction extends BaseFileAction {
 						return this.tree.reveal(stat, 0.5).then(() => {
 							this.tree.setHighlight(stat);
 
-							const unbind = this.tree.addListener2(CommonEventType.HIGHLIGHT, (e: IHighlightEvent) => {
+							const unbind = this.tree.addListener(CommonEventType.HIGHLIGHT, (e: IHighlightEvent) => {
 								if (!e.highlight) {
 									stat.destroy();
 									this.tree.refresh(folder).done(null, errors.onUnexpectedError);
@@ -554,16 +515,13 @@ export class GlobalNewUntitledFileAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		const input = this.untitledEditorService.createOrGet();
-
-		return this.editorService.openEditor(input, { pinned: true }); // untitled are always pinned
+		return this.editorService.openEditor({ options: { pinned: true } } as IUntitledResourceInput); // untitled are always pinned
 	}
 }
 
@@ -740,13 +698,15 @@ export class BaseDeleteFileAction extends BaseFileAction {
 					confirm = {
 						message: this.element.isDirectory ? nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", this.element.name) : nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", this.element.name),
 						detail: isWindows ? nls.localize('undoBin', "You can restore from the recycle bin.") : nls.localize('undoTrash', "You can restore from the trash."),
-						primaryButton
+						primaryButton,
+						type: 'question'
 					};
 				} else {
 					confirm = {
 						message: this.element.isDirectory ? nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", this.element.name) : nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", this.element.name),
 						detail: nls.localize('irreversible', "This action is irreversible!"),
-						primaryButton
+						primaryButton,
+						type: 'warning'
 					};
 				}
 
@@ -865,7 +825,8 @@ export class ImportFileAction extends BaseFileAction {
 						const confirm: IConfirmation = {
 							message: nls.localize('confirmOverwrite', "A file or folder with the same name already exists in the destination folder. Do you want to replace it?"),
 							detail: nls.localize('irreversible', "This action is irreversible!"),
-							primaryButton: nls.localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace")
+							primaryButton: nls.localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
+							type: 'warning'
 						};
 
 						overwrite = this.messageService.confirm(confirm);
@@ -885,7 +846,7 @@ export class ImportFileAction extends BaseFileAction {
 							// if the target exists and is dirty, make sure to revert it. otherwise the dirty contents
 							// of the target file would replace the contents of the imported file. since we already
 							// confirmed the overwrite before, this is OK.
-							let revertPromise = TPromise.as(null);
+							let revertPromise = TPromise.as<any>(null);
 							if (this.textFileService.isDirty(targetFile)) {
 								revertPromise = this.textFileService.revertAll([targetFile], { soft: true });
 							}
@@ -1005,7 +966,7 @@ export class PasteFileAction extends BaseFileAction {
 
 		// Find target
 		let target: FileStat;
-		if (isEqual(this.element.resource.fsPath, fileToCopy.resource.fsPath)) {
+		if (this.element.resource.toString() === fileToCopy.resource.toString()) {
 			target = this.element.parent;
 		} else {
 			target = this.element.isDirectory ? this.element : this.element.parent;
@@ -1206,7 +1167,8 @@ export class GlobalCompareResourcesAction extends Action {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IHistoryService private historyService: IHistoryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IMessageService private messageService: IMessageService
+		@IMessageService private messageService: IMessageService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(id, label);
 	}
@@ -1240,7 +1202,7 @@ export class GlobalCompareResourcesAction extends Action {
 				}
 
 				label = paths.basename(resource.fsPath);
-				description = resource.scheme === 'file' ? labels.getPathLabel(paths.dirname(resource.fsPath), this.contextService) : void 0;
+				description = resource.scheme === 'file' ? labels.getPathLabel(paths.dirname(resource.fsPath), this.contextService, this.environmentService) : void 0;
 
 				return <IHistoryPickEntry>{ input, resource, label, description };
 			}).filter(p => !!p);
@@ -1311,7 +1273,7 @@ export class CompareResourcesAction extends Action {
 		}
 
 		// Check if target is identical to source
-		if (isEqual(this.resource.fsPath, globalResourceToCompare.fsPath)) {
+		if (this.resource.toString() === globalResourceToCompare.toString()) {
 			return false;
 		}
 
@@ -1395,7 +1357,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 			if (this.isSaveAs() || source.scheme === 'untitled') {
 				let encodingOfSource: string;
 				if (source.scheme === 'untitled') {
-					encodingOfSource = this.untitledEditorService.get(source).getEncoding();
+					encodingOfSource = this.untitledEditorService.getEncoding(source);
 				} else if (source.scheme === 'file') {
 					const textModel = this.textFileService.models.get(source);
 					encodingOfSource = textModel && textModel.getEncoding(); // text model can be null e.g. if this is a binary file!
@@ -1406,7 +1368,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 				const editor = getCodeEditor(activeEditor);
 				if (editor) {
 					const activeResource = toResource(activeEditor.input, { supportSideBySide: true, filter: ['file', 'untitled'] });
-					if (activeResource && isEqual(activeResource.fsPath, source.fsPath)) {
+					if (activeResource && activeResource.toString() === source.toString()) {
 						viewStateOfSource = editor.saveViewState();
 					}
 				}
@@ -1535,17 +1497,32 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 
 		// Store some properties per untitled file to restore later after save is completed
 		const mapUntitledToProperties: { [resource: string]: { encoding: string; indexInGroups: number[]; activeInGroups: boolean[] } } = Object.create(null);
-		this.textFileService.getDirty()
-			.filter(r => r.scheme === 'untitled')			// All untitled resources
-			.map(r => this.untitledEditorService.get(r))	// Mapped to their inputs
-			.filter(input => !!input)								// If possible :)
-			.forEach(input => {
-				mapUntitledToProperties[input.getResource().toString()] = {
-					encoding: input.getEncoding(),
-					indexInGroups: stacks.groups.map(g => g.indexOf(input)),
-					activeInGroups: stacks.groups.map(g => g.isActive(input))
-				};
+		this.untitledEditorService.getDirty().forEach(resource => {
+			const activeInGroups: boolean[] = [];
+			const indexInGroups: number[] = [];
+			const encoding = this.untitledEditorService.getEncoding(resource);
+
+			// For each group
+			stacks.groups.forEach((group, groupIndex) => {
+
+				// Find out if editor is active in group
+				const activeEditor = group.activeEditor;
+				const activeResource = toResource(activeEditor, { supportSideBySide: true });
+				activeInGroups[groupIndex] = (activeResource && activeResource.toString() === resource.toString());
+
+				// Find index of editor in group
+				indexInGroups[groupIndex] = -1;
+				group.getEditors().forEach((editor, editorIndex) => {
+					const editorResource = toResource(editor, { supportSideBySide: true });
+					if (editorResource && editorResource.toString() === resource.toString()) {
+						indexInGroups[groupIndex] = editorIndex;
+						return;
+					}
+				});
 			});
+
+			mapUntitledToProperties[resource.toString()] = { encoding, indexInGroups, activeInGroups };
+		});
 
 		// Save all
 		return this.textFileService.saveAll(this.getSaveAllArguments(context)).then(results => {

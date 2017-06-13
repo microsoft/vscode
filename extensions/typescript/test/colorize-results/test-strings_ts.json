@@ -29,7 +29,7 @@
 			"light_plus": "variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -106,7 +106,7 @@
 			"light_plus": "variable: #001080",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -155,18 +155,18 @@
 	},
 	{
 		"c": "console",
-		"t": "source.ts support.class.console.ts",
+		"t": "source.ts meta.function-call.ts support.class.console.ts",
 		"r": {
 			"dark_plus": "support.class: #4EC9B0",
 			"light_plus": "support.class: #267F99",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.class: #4EC9B0"
 		}
 	},
 	{
 		"c": ".",
-		"t": "source.ts punctuation.accessor.ts",
+		"t": "source.ts meta.function-call.ts punctuation.accessor.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -177,13 +177,13 @@
 	},
 	{
 		"c": "log",
-		"t": "source.ts support.function.console.ts",
+		"t": "source.ts meta.function-call.ts support.function.console.ts",
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.function: #DCDCAA"
 		}
 	},
 	{
@@ -271,7 +271,7 @@
 			"light_plus": "variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -315,7 +315,7 @@
 			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+			"hc_black": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
@@ -370,7 +370,7 @@
 			"light_plus": "variable: #001080",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -414,7 +414,7 @@
 			"light_plus": "variable: #001080",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -480,7 +480,7 @@
 			"light_plus": "variable: #001080",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -524,7 +524,7 @@
 			"light_plus": "variable: #001080",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{

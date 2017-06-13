@@ -74,6 +74,10 @@ export abstract class Composite extends Component implements IComposite {
 		return TPromise.as(null);
 	}
 
+	public updateStyles(): void {
+		super.updateStyles();
+	}
+
 	/**
 	 * Returns the container this composite is being build in.
 	 */

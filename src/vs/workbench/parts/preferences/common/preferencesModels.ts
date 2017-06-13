@@ -6,21 +6,21 @@
 import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
 import { assign } from 'vs/base/common/objects';
-import { LinkedMap as Map } from 'vs/base/common/map';
 import { distinct } from 'vs/base/common/arrays';
 import URI from 'vs/base/common/uri';
 import { IReference } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/platform';
 import { visit, JSONVisitor } from 'vs/base/common/json';
-import { IModel, IRange } from 'vs/editor/common/editorCommon';
+import { IModel } from 'vs/editor/common/editorCommon';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { EditorModel } from 'vs/workbench/common/editor';
-import { IConfigurationNode, IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationNode, IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, ISettingsSection } from 'vs/workbench/parts/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IMatch, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from 'vs/base/common/filters';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { IRange } from 'vs/editor/common/core/range';
 
 class SettingMatches {
 
@@ -550,7 +550,9 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 				result.push(settingsGroup);
 			}
 			const configurationSettings: ISetting[] = this.parseSettings(config.properties);
-			settingsGroup.sections[settingsGroup.sections.length - 1].settings.push(...configurationSettings);
+			if (configurationSettings.length) {
+				settingsGroup.sections[settingsGroup.sections.length - 1].settings.push(...configurationSettings);
+			}
 		}
 		if (config.allOf) {
 			config.allOf.forEach(c => this.parseConfig(c, result, configurations, settingsGroup));
@@ -558,14 +560,18 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return result;
 	}
 
-	private parseSettings(settingsObject: any): ISetting[] {
-		return Object.keys(settingsObject).map((key) => {
+	private parseSettings(settingsObject: { [path: string]: IConfigurationPropertySchema; }): ISetting[] {
+		let result = [];
+		for (let key in settingsObject) {
 			const prop = settingsObject[key];
-			const value = prop.default;
-			const description = (prop.description || '').split('\n');
-			const overrides = OVERRIDE_PROPERTY_PATTERN.test(key) ? this.parseOverrideSettings(prop.default) : [];
-			return { key, value, description, range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides };
-		});
+			if (!prop.deprecationMessage) {
+				const value = prop.default;
+				const description = (prop.description || '').split('\n');
+				const overrides = OVERRIDE_PROPERTY_PATTERN.test(key) ? this.parseOverrideSettings(prop.default) : [];
+				result.push({ key, value, description, range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides });
+			}
+		}
+		return result;
 	}
 
 	private parseOverrideSettings(overrideSettings: any): ISetting[] {
@@ -692,6 +698,11 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	}
 }
 
+export function defaultKeybindingsContents(keybindingService: IKeybindingService): string {
+	const defaultsHeader = '// ' + nls.localize('defaultKeybindingsHeader', "Overwrite key bindings by placing them into your key bindings file.");
+	return defaultsHeader + '\n' + keybindingService.getDefaultKeybindingsContent();
+}
+
 export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel<any> {
 
 	private _content: string;
@@ -705,8 +716,7 @@ export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel<an
 
 	public get content(): string {
 		if (!this._content) {
-			const defaultsHeader = '// ' + nls.localize('defaultKeybindingsHeader', "Overwrite key bindings by placing them into your key bindings file.");
-			this._content = defaultsHeader + '\n' + this.keybindingService.getDefaultKeybindings();
+			this._content = defaultKeybindingsContents(this.keybindingService);
 		}
 		return this._content;
 	}

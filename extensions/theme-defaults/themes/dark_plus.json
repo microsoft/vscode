@@ -48,7 +48,6 @@
 		{
 			"name": "Types declaration and references, TS grammar specific",
 			"scope": [
-				"meta.return.type",
 				"meta.type.cast.expr",
 				"meta.type.new.expr",
 				"support.constant.math",

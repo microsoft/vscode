@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/sidebysideEditor';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
 import * as DOM from 'vs/base/browser/dom';
@@ -18,6 +17,7 @@ import { VSash } from 'vs/base/browser/ui/sash/sash';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 
 export class SideBySideEditor extends BaseEditor {
 
@@ -25,10 +25,10 @@ export class SideBySideEditor extends BaseEditor {
 
 	private dimension: Dimension;
 
-	private masterEditor: BaseEditor;
+	protected masterEditor: BaseEditor;
 	private masterEditorContainer: HTMLElement;
 
-	private detailsEditor: BaseEditor;
+	protected detailsEditor: BaseEditor;
 	private detailsEditorContainer: HTMLElement;
 
 	private sash: VSash;
@@ -134,7 +134,7 @@ export class SideBySideEditor extends BaseEditor {
 	private _createEditor(editorInput: EditorInput, container: HTMLElement): TPromise<BaseEditor> {
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editorInput);
 		if (!descriptor) {
-			return TPromise.wrapError(new Error(strings.format('Can not find a registered editor for the input {0}', editorInput)));
+			return TPromise.wrapError<BaseEditor>(new Error(strings.format('Can not find a registered editor for the input {0}', editorInput)));
 		}
 		return this.instantiationService.createInstance(<EditorDescriptor>descriptor)
 			.then((editor: BaseEditor) => {
@@ -157,6 +157,16 @@ export class SideBySideEditor extends BaseEditor {
 		this.detailsEditorContainer.style.position = 'absolute';
 		this.masterEditorContainer = DOM.append(parentElement, DOM.$('.master-editor-container'));
 		this.masterEditorContainer.style.position = 'absolute';
+
+		this.updateStyles();
+	}
+
+	public updateStyles(): void {
+		super.updateStyles();
+
+		if (this.masterEditorContainer) {
+			this.masterEditorContainer.style.boxShadow = `-6px 0 5px -5px ${this.getColor(scrollbarShadow)}`;
+		}
 	}
 
 	private createSash(parentElement: HTMLElement): void {

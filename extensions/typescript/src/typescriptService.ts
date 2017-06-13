@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
 
 import { CancellationToken, Uri, Event } from 'vscode';
 import * as Proto from './protocol';
@@ -61,23 +60,31 @@ export class API {
 	public has222Features(): boolean {
 		return semver.gte(this._version, '2.2.2');
 	}
+
+	public has230Features(): boolean {
+		return semver.gte(this._version, '2.3.0');
+	}
+
+	public has234Features(): boolean {
+		return semver.gte(this._version, '2.3.4');
+	}
 }
 
 export interface ITypescriptServiceClient {
 	normalizePath(resource: Uri): string | null;
 	asUrl(filepath: string): Uri;
 
-	info(message: string, data?: any): void;
 	warn(message: string, data?: any): void;
-	error(message: string, data?: any): void;
+
+	onTsServerStarted: Event<void>;
 
 	onProjectLanguageServiceStateChanged: Event<Proto.ProjectLanguageServiceStateEventBody>;
 	onDidBeginInstallTypings: Event<Proto.BeginInstallTypesEventBody>;
 	onDidEndInstallTypings: Event<Proto.EndInstallTypesEventBody>;
+	onTypesInstallerInitializationFailed: Event<Proto.TypesInstallerInitializationFailedEventBody>;
 
 	logTelemetry(eventName: string, properties?: { [prop: string]: string }): void;
 
-	experimentalAutoBuild: boolean;
 	apiVersion: API;
 	checkGlobalTSCVersion: boolean;
 

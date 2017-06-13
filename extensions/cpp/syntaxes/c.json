@@ -1,4 +1,9 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/atom/language-c/blob/master/grammars/c.cson",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
 	"scopeName": "source.c",
 	"fileTypes": [
 		"c",
@@ -513,7 +518,7 @@
 		"numbers": {
 			"patterns": [
 				{
-					"match": "\\b((0(x|X)[0-9a-fA-F']*)|(0(b|B)[01']*)|(([0-9']+\\.?[0-9']*)|(\\.[0-9']+))((e|E)(\\+|-)?[0-9']+)?)(L|l|UL|ul|u|U|F|f|ll|LL|ull|ULL)?\\b",
+					"match": "\\b((0(x|X)[0-9a-fA-F]([0-9a-fA-F']*[0-9a-fA-F])?)|(0(b|B)[01]([01']*[01])?)|(([0-9]([0-9']*[0-9])?\\.?[0-9]*([0-9']*[0-9])?)|(\\.[0-9]([0-9']*[0-9])?))((e|E)(\\+|-)?[0-9]([0-9']*[0-9])?)?)(L|l|UL|ul|u|U|F|f|ll|LL|ull|ULL)?\\b",
 					"name": "constant.numeric.c"
 				}
 			]
@@ -628,6 +633,7 @@
 						}
 					},
 					"end": ":",
+					"applyEndPatternLast": true,
 					"endCaptures": {
 						"0": {
 							"name": "keyword.operator.ternary.c"
@@ -644,7 +650,7 @@
 							"include": "#c_function_call"
 						},
 						{
-							"include": "$self"
+							"include": "$base"
 						}
 					]
 				}
@@ -772,7 +778,7 @@
 					},
 					"patterns": [
 						{
-							"begin": "\\G",
+							"begin": "\\G(?=.)",
 							"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
 							"name": "meta.preprocessor.c",
 							"patterns": [
@@ -852,7 +858,7 @@
 					},
 					"patterns": [
 						{
-							"begin": "\\G",
+							"begin": "\\G(?=.)",
 							"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
 							"name": "meta.preprocessor.c",
 							"patterns": [
@@ -1005,7 +1011,7 @@
 					},
 					"patterns": [
 						{
-							"begin": "\\G",
+							"begin": "\\G(?=.)",
 							"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?=\\n)",
 							"name": "meta.preprocessor.c",
 							"patterns": [
@@ -1042,7 +1048,7 @@
 							"end": "(?=^\\s*((#)\\s*(?:elif|else|endif)\\b))",
 							"patterns": [
 								{
-									"begin": "\\G",
+									"begin": "\\G(?=.)",
 									"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
 									"name": "meta.preprocessor.c",
 									"patterns": [
@@ -1102,7 +1108,7 @@
 					},
 					"patterns": [
 						{
-							"begin": "\\G",
+							"begin": "\\G(?=.)",
 							"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?=\\n)",
 							"name": "meta.preprocessor.c",
 							"patterns": [
@@ -1139,7 +1145,7 @@
 							"end": "(?=^\\s*((#)\\s*(?:elif|else|endif)\\b))",
 							"patterns": [
 								{
-									"begin": "\\G",
+									"begin": "\\G(?=.)",
 									"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
 									"name": "meta.preprocessor.c",
 									"patterns": [
@@ -1186,7 +1192,7 @@
 			"end": "(?=^\\s*((#)\\s*(?:elif|else|endif)\\b))",
 			"patterns": [
 				{
-					"begin": "\\G",
+					"begin": "\\G(?=.)",
 					"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
 					"name": "meta.preprocessor.c",
 					"patterns": [
@@ -1245,7 +1251,7 @@
 					},
 					"patterns": [
 						{
-							"begin": "\\G",
+							"begin": "\\G(?=.)",
 							"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?=\\n)",
 							"name": "meta.preprocessor.c",
 							"patterns": [
@@ -1347,7 +1353,7 @@
 					},
 					"patterns": [
 						{
-							"begin": "\\G",
+							"begin": "\\G(?=.)",
 							"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?=\\n)",
 							"name": "meta.preprocessor.c",
 							"patterns": [
@@ -1436,7 +1442,7 @@
 			"end": "(?=^\\s*((#)\\s*endif\\b))",
 			"patterns": [
 				{
-					"begin": "\\G",
+					"begin": "\\G(?=.)",
 					"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
 					"name": "meta.preprocessor.c",
 					"patterns": [
@@ -1523,7 +1529,7 @@
 			"end": "(?=^\\s*((#)\\s*endif\\b))",
 			"patterns": [
 				{
-					"begin": "\\G",
+					"begin": "\\G(?=.)",
 					"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
 					"name": "meta.preprocessor.c",
 					"patterns": [
@@ -1949,6 +1955,5 @@
 				}
 			]
 		}
-	},
-	"version": "https://github.com/atom/language-c/commit/676056d40356884d161ea3170257121874092ace"
+	}
 }

@@ -6,28 +6,32 @@
 
 import URI from 'vs/base/common/uri';
 import { normalize } from 'vs/base/common/paths';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { relative } from 'path';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { fromRange } from 'vs/workbench/api/node/extHostTypeConverters';
-import { MainContext, MainThreadWorkspaceShape } from './extHost.protocol';
+import { fromRange, EndOfLine } from 'vs/workbench/api/node/extHostTypeConverters';
+import { ExtHostWorkspaceShape, MainContext, MainThreadWorkspaceShape } from './extHost.protocol';
 import * as vscode from 'vscode';
 
-export class ExtHostWorkspace {
+export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 
 	private static _requestIdPool = 0;
 
-	private _proxy: MainThreadWorkspaceShape;
-	private _workspacePath: string;
+	private readonly _proxy: MainThreadWorkspaceShape;
+	private _workspaceFolders: URI[];
 
-	constructor(threadService: IThreadService, workspacePath: string) {
+	constructor(threadService: IThreadService, folders: URI[]) {
+		super();
 		this._proxy = threadService.get(MainContext.MainThreadWorkspace);
-		this._workspacePath = workspacePath;
+		this._workspaceFolders = folders;
 	}
 
+	// --- workspace ---
+
 	getPath(): string {
-		return this._workspacePath;
+		return isFalsyOrEmpty(this._workspaceFolders) ? undefined : this._workspaceFolders[0].fsPath;
 	}
 
 	getRelativePath(pathOrUri: string | vscode.Uri): string {
@@ -43,17 +47,27 @@ export class ExtHostWorkspace {
 			return path;
 		}
 
-		if (!this._workspacePath) {
+		if (isFalsyOrEmpty(this._workspaceFolders)) {
 			return normalize(path);
 		}
 
-		let result = relative(this._workspacePath, path);
-		if (!result || result.indexOf('..') === 0) {
-			return normalize(path);
+		for (const { fsPath } of this._workspaceFolders) {
+			let result = relative(fsPath, path);
+			if (!result || result.indexOf('..') === 0) {
+				continue;
+			}
+			return normalize(result);
 		}
 
-		return normalize(result);
+		return normalize(path);
 	}
+
+	$acceptWorkspaceData(workspaceFolders: URI[]): void {
+		//TODO@joh equality-check, emit event etc.
+		this._workspaceFolders = workspaceFolders;
+	}
+
+	// --- search ---
 
 	findFiles(include: string, exclude: string, maxResults?: number, token?: vscode.CancellationToken): Thenable<vscode.Uri[]> {
 		const requestId = ExtHostWorkspace._requestIdPool++;
@@ -80,7 +94,8 @@ export class ExtHostWorkspace {
 				resourceEdits.push({
 					resource: <URI>uri,
 					newText: edit.newText,
-					range: fromRange(edit.range)
+					newEol: EndOfLine.from(edit.newEol),
+					range: edit.range && fromRange(edit.range)
 				});
 			}
 		}

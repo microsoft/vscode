@@ -348,7 +348,7 @@ export class FileWalker {
 		return tree;
 	}
 
-	private addDirectoryEntries({pathToEntries}: IDirectoryTree, base: string, relativeFiles: string[], onResult: (result: IRawFileMatch) => void) {
+	private addDirectoryEntries({ pathToEntries }: IDirectoryTree, base: string, relativeFiles: string[], onResult: (result: IRawFileMatch) => void) {
 		this.cmdResultCount += relativeFiles.length;
 
 		// Support relative paths to files from a root resource (ignores excludes)
@@ -357,7 +357,7 @@ export class FileWalker {
 			this.matchFile(onResult, { base: base, relativePath: this.filePattern, basename });
 		}
 
-		relativeFiles.forEach(function add(relativePath: string) {
+		function add(relativePath: string) {
 			const basename = paths.basename(relativePath);
 			const dirname = paths.dirname(relativePath);
 			let entries = pathToEntries[dirname];
@@ -370,7 +370,8 @@ export class FileWalker {
 				relativePath,
 				basename
 			});
-		});
+		}
+		relativeFiles.forEach(add);
 	}
 
 	private matchDirectoryTree({ rootEntries, pathToEntries }: IDirectoryTree, rootFolder: string, onResult: (result: IRawFileMatch) => void) {
@@ -381,7 +382,7 @@ export class FileWalker {
 			self.directoriesWalked++;
 			for (let i = 0, n = entries.length; i < n; i++) {
 				const entry = entries[i];
-				const {relativePath, basename} = entry;
+				const { relativePath, basename } = entry;
 
 				// Check exclude pattern
 				// If the user searches for the exact file name, we adjust the glob matching

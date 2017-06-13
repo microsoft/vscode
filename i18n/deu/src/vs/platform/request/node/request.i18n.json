@@ -6,6 +6,6 @@
 {
 	"httpConfigurationTitle": "HTTP",
 	"proxy": "Die zu verwendende Proxyeinstellung. Wenn diese Option nicht festgelegt wird, wird der Wert aus den Umgebungsvariablen \"http_proxy\" und \"https_proxy\" übernommen.",
-	"proxyAuthorization": "Der Wert, der als Proxy-Authorization-Header für jede Netzwerkanforderung gesendet werden soll.",
-	"strictSSL": "Gibt an, ob das Proxyserverzertifikat anhand der Liste der bereitgestellten Zertifizierungsstellen überprüft werden soll."
+	"strictSSL": "Gibt an, ob das Proxyserverzertifikat anhand der Liste der bereitgestellten Zertifizierungsstellen überprüft werden soll.",
+	"proxyAuthorization": "Der Wert, der als Proxy-Authorization-Header für jede Netzwerkanforderung gesendet werden soll."
 }

@@ -19,6 +19,8 @@ export function resolveCommonProperties(commit: string, version: string): TPromi
 	result['version'] = version;
 	result['common.osVersion'] = os.release();
 	result['common.platform'] = Platform.Platform[Platform.platform];
+	result['common.nodePlatform'] = process.platform;
+	result['common.nodeArch'] = process.arch;
 
 	// dynamic properties which value differs on each call
 	let seq = 0;

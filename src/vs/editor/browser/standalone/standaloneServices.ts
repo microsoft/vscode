@@ -22,7 +22,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IStorageService, NullStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
@@ -34,7 +34,7 @@ import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServ
 import {
 	SimpleConfigurationService, SimpleMenuService, SimpleMessageService,
 	SimpleProgressService, StandaloneCommandService, StandaloneKeybindingService,
-	StandaloneTelemetryService
+	StandaloneTelemetryService, SimpleWorkspaceContextService
 } from 'vs/editor/browser/standalone/simpleServices';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IMenuService } from 'vs/platform/actions/common/actions';
@@ -115,13 +115,14 @@ export module StaticServices {
 
 	export const instantiationService = define<IInstantiationService>(IInstantiationService, () => new InstantiationService(_serviceCollection, true));
 
-	export const contextService = define(IWorkspaceContextService, () => new WorkspaceContextService({
-		resource: URI.from({ scheme: 'inmemory', authority: 'model', path: '/' })
-	}));
+	const configurationServiceImpl = new SimpleConfigurationService();
+	export const configurationService = define(IConfigurationService, () => configurationServiceImpl);
+
+	export const contextService = define(IWorkspaceContextService, () => new SimpleWorkspaceContextService(new Workspace(
+		URI.from({ scheme: 'inmemory', authority: 'model', path: '/' })
+	)));
 
 	export const telemetryService = define(ITelemetryService, () => new StandaloneTelemetryService());
-
-	export const configurationService = define(IConfigurationService, () => new SimpleConfigurationService());
 
 	export const messageService = define(IMessageService, () => new SimpleMessageService());
 
@@ -131,15 +132,16 @@ export module StaticServices {
 
 	export const modelService = define(IModelService, (o) => new ModelServiceImpl(markerService.get(o), configurationService.get(o)));
 
-	export const editorWorkerService = define(IEditorWorkerService, (o) => new EditorWorkerServiceImpl(modelService.get(o), configurationService.get(o)));
+	export const editorWorkerService = define(IEditorWorkerService, (o) => new EditorWorkerServiceImpl(modelService.get(o), configurationService.get(o), modeService.get(o)));
 
-	export const codeEditorService = define(ICodeEditorService, () => new CodeEditorServiceImpl());
+	export const standaloneThemeService = define(IStandaloneThemeService, () => new StandaloneThemeServiceImpl());
+
+	export const codeEditorService = define(ICodeEditorService, (o) => new CodeEditorServiceImpl(standaloneThemeService.get(o)));
 
 	export const progressService = define(IProgressService, () => new SimpleProgressService());
 
 	export const storageService = define(IStorageService, () => NullStorageService);
 
-	export const standaloneThemeService = define(IStandaloneThemeService, () => new StandaloneThemeServiceImpl());
 }
 
 export class DynamicStandaloneServices extends Disposable {

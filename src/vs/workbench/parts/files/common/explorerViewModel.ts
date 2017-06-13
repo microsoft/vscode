@@ -8,7 +8,6 @@
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import { IFileStat, isEqual, isParent, isEqualOrParent } from 'vs/platform/files/common/files';
-import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
 import { ResourceMap } from 'vs/base/common/map';
@@ -85,7 +84,7 @@ export class FileStat implements IFileStat {
 	 * exists locally.
 	 */
 	public static mergeLocalWithDisk(disk: FileStat, local: FileStat): void {
-		if (!isEqual(disk.resource.fsPath, local.resource.fsPath)) {
+		if (disk.resource.toString() !== local.resource.toString()) {
 			return; // Merging only supported for stats with the same resource
 		}
 
@@ -180,7 +179,7 @@ export class FileStat implements IFileStat {
 	 */
 	public removeChild(child: FileStat): void {
 		for (let i = 0; i < this.children.length; i++) {
-			if (isEqual(this.children[i].resource.fsPath, child.resource.fsPath)) {
+			if (this.children[i].resource.toString() === child.resource.toString()) {
 				this.children.splice(i, 1);
 				break;
 			}
@@ -361,7 +360,7 @@ export class OpenEditor {
 	}
 
 	public isUntitled(): boolean {
-		return this.editor instanceof UntitledEditorInput;
+		return !!toResource(this.editor, { supportSideBySide: true, filter: 'untitled' });
 	}
 
 	public isDirty(): boolean {

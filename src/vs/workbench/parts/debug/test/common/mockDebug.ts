@@ -114,10 +114,24 @@ export class MockSession implements debug.ISession {
 
 	public stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse> {
 		return TPromise.as({
+			seq: 1,
+			type: 'response',
+			request_seq: 1,
+			success: true,
+			command: 'stackTrace',
 			body: {
-				stackFrames: []
+				stackFrames: [{
+					id: 1,
+					name: 'mock',
+					line: 5,
+					column: 6
+				}]
 			}
 		});
+	}
+
+	public exceptionInfo(args: DebugProtocol.ExceptionInfoArguments): TPromise<DebugProtocol.ExceptionInfoResponse> {
+		return TPromise.as(null);
 	}
 
 	public attach(args: DebugProtocol.AttachRequestArguments): TPromise<DebugProtocol.AttachResponse> {

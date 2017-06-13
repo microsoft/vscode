@@ -21,6 +21,9 @@ import { IStandaloneThemeService } from 'vs/editor/common/services/standaloneThe
 import { NULL_STATE, nullTokenize, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { Token } from 'vs/editor/common/core/token';
 import { Color } from 'vs/base/common/color';
+import { registerThemingParticipant, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
+import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
+
 
 @editorContribution
 class InspectTokensController extends Disposable implements IEditorContribution {
@@ -230,7 +233,7 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 		}
 		result += `<h2 class="tm-token">${renderTokenText(tokenText)}<span class="tm-token-length">(${tokenText.length} ${tokenText.length === 1 ? 'char' : 'chars'})</span></h2>`;
 
-		result += `<hr style="clear:both"/>`;
+		result += `<hr class="tokens-inspect-separator" style="clear:both"/>`;
 
 		let metadata = this._decodeMetadata(data.tokens2[(token2Index << 1) + 1]);
 		result += `<table class="tm-metadata-table"><tbody>`;
@@ -241,7 +244,7 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 		result += `<tr><td class="tm-metadata-key">background</td><td class="tm-metadata-value">${metadata.background.toRGBHex()}</td>`;
 		result += `</tbody></table>`;
 
-		result += `<hr/>`;
+		result += `<hr class="tokens-inspect-separator"/>`;
 
 		if (token1Index < data.tokens1.length) {
 			result += `<span class="tm-token-type">${escape(data.tokens1[token1Index].type)}</span>`;
@@ -330,3 +333,16 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 		};
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let border = theme.getColor(editorHoverBorder);
+	if (border) {
+		let borderWidth = theme.type === HIGH_CONTRAST ? 2 : 1;
+		collector.addRule(`.monaco-editor .tokens-inspect-widget { border: ${borderWidth}px solid ${border}; }`);
+		collector.addRule(`.monaco-editor .tokens-inspect-widget .tokens-inspect-separator { background-color: ${border}; }`);
+	}
+	let background = theme.getColor(editorHoverBackground);
+	if (background) {
+		collector.addRule(`.monaco-editor .tokens-inspect-widget { background-color: ${background}; }`);
+	}
+});

@@ -36,10 +36,11 @@ export class Menu extends EventEmitter {
 			orientation: ActionsOrientation.VERTICAL,
 			actionItemProvider: options.actionItemProvider,
 			context: options.context,
-			actionRunner: options.actionRunner
+			actionRunner: options.actionRunner,
+			isMenu: true
 		});
 
-		this.listener = this.addEmitter2(this.actionBar);
+		this.listener = this.addEmitter(this.actionBar);
 
 		this.actionBar.push(actions, { icon: true, label: true });
 	}

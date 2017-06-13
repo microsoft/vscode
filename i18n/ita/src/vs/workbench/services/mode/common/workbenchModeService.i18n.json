@@ -6,11 +6,11 @@
 {
 	"invalid": "Il valore di `contributes.{0}` non è valido. È prevista una matrice.",
 	"invalid.empty": "Il valore di `contributes.{0}` è vuoto",
-	"opt.aliases": "la proprietà `{0}` può essere omessa e deve essere di tipo `string[]`",
-	"opt.configuration": "la proprietà `{0}` può essere omessa e deve essere di tipo `string`",
+	"require.id": "la proprietà `{0}` è obbligatoria e deve essere di tipo `string`",
 	"opt.extensions": "la proprietà `{0}` può essere omessa e deve essere di tipo `string[]`",
 	"opt.filenames": "la proprietà `{0}` può essere omessa e deve essere di tipo `string[]`",
 	"opt.firstLine": "la proprietà `{0}` può essere omessa e deve essere di tipo `string`",
-	"opt.mimetypes": "la proprietà `{0}` può essere omessa e deve essere di tipo `string[]`",
-	"require.id": "la proprietà `{0}` è obbligatoria e deve essere di tipo `string`"
+	"opt.configuration": "la proprietà `{0}` può essere omessa e deve essere di tipo `string`",
+	"opt.aliases": "la proprietà `{0}` può essere omessa e deve essere di tipo `string[]`",
+	"opt.mimetypes": "la proprietà `{0}` può essere omessa e deve essere di tipo `string[]`"
 }

@@ -25,7 +25,10 @@ import { IPeekViewService } from 'vs/editor/contrib/zoneWidget/browser/peekViewW
 import { ReferencesModel, OneReference } from './referencesModel';
 import { ReferenceWidget, LayoutData } from './referencesWidget';
 import { Range } from 'vs/editor/common/core/range';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { Position } from 'vs/editor/common/core/position';
+import { IEnvironmentService } from "vs/platform/environment/common/environment";
 
 export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false);
 
@@ -56,14 +59,16 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorService private _editorService: IEditorService,
-		@ITextModelResolverService private _textModelResolverService,
+		@ITextModelService private _textModelResolverService: ITextModelService,
 		@ITelemetryService private _telemetryService: ITelemetryService,
 		@IMessageService private _messageService: IMessageService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
 		@IStorageService private _storageService: IStorageService,
+		@IThemeService private _themeService: IThemeService,
 		@IConfigurationService private _configurationService: IConfigurationService,
-		@optional(IPeekViewService) private _peekViewService: IPeekViewService
+		@optional(IPeekViewService) private _peekViewService: IPeekViewService,
+		@optional(IEnvironmentService) private _environmentService: IEnvironmentService
 	) {
 		this._editor = editor;
 		this._referenceSearchVisible = ctxReferenceSearchVisible.bindTo(contextKeyService);
@@ -84,7 +89,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 	public toggleWidget(range: Range, modelPromise: TPromise<ReferencesModel>, options: RequestOptions): void {
 
 		// close current widget and return early is position didn't change
-		let widgetPosition: editorCommon.IPosition;
+		let widgetPosition: Position;
 		if (this._widget) {
 			widgetPosition = this._widget.position;
 		}
@@ -104,7 +109,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		}));
 		const storageKey = 'peekViewLayout';
 		const data = <LayoutData>JSON.parse(this._storageService.get(storageKey, undefined, '{}'));
-		this._widget = new ReferenceWidget(this._editor, data, this._textModelResolverService, this._contextService, this._instantiationService);
+		this._widget = new ReferenceWidget(this._editor, data, this._textModelResolverService, this._contextService, this._themeService, this._instantiationService, this._environmentService);
 		this._widget.setTitle(nls.localize('labelLoading', "Loading..."));
 		this._widget.show(range);
 		this._disposables.push(this._widget.onDidClose(() => {
@@ -116,7 +121,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		}));
 
 		this._disposables.push(this._widget.onDidSelectReference(event => {
-			let {element, kind} = event;
+			let { element, kind } = event;
 			switch (kind) {
 				case 'open':
 					if (event.source === 'editor'
@@ -173,7 +178,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 
 				// set 'best' selection
 				let uri = this._editor.getModel().uri;
-				let pos = { lineNumber: range.startLineNumber, column: range.startColumn };
+				let pos = new Position(range.startLineNumber, range.startColumn);
 				let selection = this._model.nearestReference(uri, pos);
 				if (selection) {
 					return this._widget.setSelection(selection);
@@ -212,7 +217,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		this._widget.hide();
 
 		this._ignoreModelChangeEvent = true;
-		const {uri, range} = ref;
+		const { uri, range } = ref;
 
 		this._editorService.openEditor({
 			resource: uri,
@@ -242,7 +247,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 	}
 
 	private _openReference(ref: OneReference, sideBySide: boolean): void {
-		const {uri, range} = ref;
+		const { uri, range } = ref;
 		this._editorService.openEditor({
 			resource: uri,
 			options: { selection: range }

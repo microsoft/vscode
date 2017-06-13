@@ -12,6 +12,9 @@ import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { QuickOpenEditorWidget } from './quickOpenEditorWidget';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IActionOptions, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { Range } from 'vs/editor/common/core/range';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 export interface IQuickOpenControllerOpts {
 	inputAriaLabel: string;
@@ -33,7 +36,7 @@ export class QuickOpenController implements editorCommon.IEditorContribution {
 	private rangeHighlightDecorationId: string;
 	private lastKnownEditorSelection: Selection;
 
-	constructor(editor: ICodeEditor) {
+	constructor(editor: ICodeEditor, @IThemeService private themeService: IThemeService) {
 		this.editor = editor;
 	}
 
@@ -79,7 +82,8 @@ export class QuickOpenController implements editorCommon.IEditorContribution {
 			},
 			{
 				inputAriaLabel: opts.inputAriaLabel
-			}
+			},
+			this.themeService
 		);
 
 		// Remember selection to be able to restore on cancel
@@ -91,7 +95,12 @@ export class QuickOpenController implements editorCommon.IEditorContribution {
 		this.widget.show('');
 	}
 
-	public decorateLine(range: editorCommon.IRange, editor: ICodeEditor): void {
+	private static _RANGE_HIGHLIGHT_DECORATION = ModelDecorationOptions.register({
+		className: 'rangeHighlight',
+		isWholeLine: true
+	});
+
+	public decorateLine(range: Range, editor: ICodeEditor): void {
 		editor.changeDecorations((changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => {
 			var oldDecorations: string[] = [];
 			if (this.rangeHighlightDecorationId) {
@@ -102,10 +111,7 @@ export class QuickOpenController implements editorCommon.IEditorContribution {
 			var newDecorations: editorCommon.IModelDeltaDecoration[] = [
 				{
 					range: range,
-					options: {
-						className: 'rangeHighlight',
-						isWholeLine: true
-					}
+					options: QuickOpenController._RANGE_HIGHLIGHT_DECORATION
 				}
 			];
 
@@ -162,6 +168,6 @@ export abstract class BaseEditorQuickOpenAction extends EditorAction {
 }
 
 export interface IDecorator {
-	decorateLine(range: editorCommon.IRange, editor: editorCommon.IEditor): void;
+	decorateLine(range: Range, editor: editorCommon.IEditor): void;
 	clearDecorations(): void;
 }

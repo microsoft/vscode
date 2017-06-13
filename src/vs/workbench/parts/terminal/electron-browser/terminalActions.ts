@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
-import os = require('os');
+import * as nls from 'vs/nls';
+import * as os from 'os';
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
@@ -15,6 +15,9 @@ import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
 export class ToggleTerminalAction extends TogglePanelAction {
 
@@ -24,9 +27,19 @@ export class ToggleTerminalAction extends TogglePanelAction {
 	constructor(
 		id: string, label: string,
 		@IPanelService panelService: IPanelService,
-		@IPartService partService: IPartService
+		@IPartService partService: IPartService,
+		@ITerminalService private terminalService: ITerminalService
 	) {
 		super(id, label, TERMINAL_PANEL_ID, panelService, partService);
+	}
+
+	public run(event?: any): TPromise<any> {
+		if (this.terminalService.terminalInstances.length === 0) {
+			// If there is not yet an instance attempt to create it here so that we can suggest a
+			// new shell on Windows (and not do so when the panel is restored on reload).
+			this.terminalService.createInstance(undefined, true);
+		}
+		return super.run();
 	}
 }
 
@@ -81,6 +94,27 @@ export class CopyTerminalSelectionAction extends Action {
 	}
 }
 
+export class SelectAllTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.selectAll';
+	public static LABEL = nls.localize('workbench.action.terminal.selectAll', "Select All");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		let terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance) {
+			terminalInstance.selectAll();
+		}
+		return TPromise.as(void 0);
+	}
+}
+
 export class CreateNewTerminalAction extends Action {
 
 	public static ID = 'workbench.action.terminal.new';
@@ -96,7 +130,11 @@ export class CreateNewTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		this.terminalService.setActiveInstance(this.terminalService.createInstance());
+		const instance = this.terminalService.createInstance(undefined, true);
+		if (!instance) {
+			return TPromise.as(void 0);
+		}
+		this.terminalService.setActiveInstance(instance);
 		return this.terminalService.showPanel(true);
 	}
 }
@@ -114,11 +152,11 @@ export class FocusActiveTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		let terminalInstance = this.terminalService.getActiveInstance();
-		if (!terminalInstance) {
-			terminalInstance = this.terminalService.createInstance();
+		const instance = this.terminalService.getActiveOrCreateInstance(true);
+		if (!instance) {
+			return TPromise.as(void 0);
 		}
-		this.terminalService.setActiveInstance(terminalInstance);
+		this.terminalService.setActiveInstance(instance);
 		return this.terminalService.showPanel(true);
 	}
 }
@@ -199,12 +237,28 @@ export class TerminalPasteAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		let terminalInstance = this.terminalService.getActiveInstance();
-		if (!terminalInstance) {
-			terminalInstance = this.terminalService.createInstance();
+		const instance = this.terminalService.getActiveOrCreateInstance();
+		if (instance) {
+			instance.paste();
 		}
-		terminalInstance.paste();
 		return TPromise.as(void 0);
+	}
+}
+
+export class SelectDefaultShellWindowsTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.selectDefaultShell';
+	public static LABEL = nls.localize('workbench.action.terminal.DefaultShell', "Select Default Shell");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		return this.terminalService.selectDefaultWindowsShell();
 	}
 }
 
@@ -222,23 +276,24 @@ export class RunSelectedTextInTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		let terminalInstance = this.terminalService.getActiveInstance();
-		if (!terminalInstance) {
-			terminalInstance = this.terminalService.createInstance();
+		const instance = this.terminalService.getActiveOrCreateInstance();
+		if (!instance) {
+			return TPromise.as(void 0);
 		}
 		let editor = this.codeEditorService.getFocusedCodeEditor();
-		if (editor) {
-			let selection = editor.getSelection();
-			let text: string;
-			if (selection.isEmpty()) {
-				text = editor.getModel().getLineContent(selection.selectionStartLineNumber).trim();
-			} else {
-				let endOfLinePreference = os.EOL === '\n' ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
-				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
-			}
-			terminalInstance.sendText(text, true);
+		if (!editor) {
+			return TPromise.as(void 0);
 		}
-		return TPromise.as(void 0);
+		let selection = editor.getSelection();
+		let text: string;
+		if (selection.isEmpty()) {
+			text = editor.getModel().getLineContent(selection.selectionStartLineNumber).trim();
+		} else {
+			let endOfLinePreference = os.EOL === '\n' ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
+			text = editor.getModel().getValueInRange(selection, endOfLinePreference);
+		}
+		instance.sendText(text, true);
+		return this.terminalService.showPanel();
 	}
 }
 
@@ -257,20 +312,21 @@ export class RunActiveFileInTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		let terminalInstance = this.terminalService.getActiveInstance();
-		if (!terminalInstance) {
-			terminalInstance = this.terminalService.createInstance();
+		const instance = this.terminalService.getActiveOrCreateInstance();
+		if (!instance) {
+			return TPromise.as(void 0);
 		}
 		const editor = this.codeEditorService.getFocusedCodeEditor();
-		if (editor) {
-			const uri = editor.getModel().uri;
-			if (uri.scheme === 'file') {
-				terminalInstance.sendText(uri.fsPath, true);
-			} else {
-				this.messageService.show(Severity.Warning, nls.localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
-			}
+		if (!editor) {
+			return TPromise.as(void 0);
 		}
-		return TPromise.as(void 0);
+		const uri = editor.getModel().uri;
+		if (uri.scheme !== 'file') {
+			this.messageService.show(Severity.Warning, nls.localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
+			return TPromise.as(void 0);
+		}
+		instance.sendText(uri.fsPath, true);
+		return this.terminalService.showPanel();
 	}
 }
 
@@ -301,12 +357,15 @@ export class SwitchTerminalInstanceActionItem extends SelectActionItem {
 
 	constructor(
 		action: IAction,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private terminalService: ITerminalService,
+		@IThemeService themeService: IThemeService
 	) {
 		super(null, action, terminalService.getInstanceLabels(), terminalService.activeTerminalInstanceIndex);
+
 		this.toDispose.push(terminalService.onInstancesChanged(this._updateItems, this));
 		this.toDispose.push(terminalService.onActiveInstanceChanged(this._updateItems, this));
 		this.toDispose.push(terminalService.onInstanceTitleChanged(this._updateItems, this));
+		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
 	}
 
 	private _updateItems(): void {
@@ -458,5 +517,69 @@ export class ClearTerminalAction extends Action {
 			terminalInstance.clear();
 		}
 		return TPromise.as(void 0);
+	}
+}
+
+export class AllowWorkspaceShellTerminalCommand extends Action {
+
+	public static ID = 'workbench.action.terminal.allowWorkspaceShell';
+	public static LABEL = nls.localize('workbench.action.terminal.allowWorkspaceShell', "Allow Workspace Shell Configuration");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		this.terminalService.setWorkspaceShellAllowed(true);
+		return TPromise.as(void 0);
+	}
+}
+
+export class DisallowWorkspaceShellTerminalCommand extends Action {
+
+	public static ID = 'workbench.action.terminal.disallowWorkspaceShell';
+	public static LABEL = nls.localize('workbench.action.terminal.disallowWorkspaceShell', "Disallow Workspace Shell Configuration");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		this.terminalService.setWorkspaceShellAllowed(false);
+		return TPromise.as(void 0);
+	}
+}
+
+export class RenameTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.rename';
+	public static LABEL = nls.localize('workbench.action.terminal.rename', "Rename");
+
+	constructor(
+		id: string, label: string,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const terminalInstance = this.terminalService.getActiveInstance();
+		if (!terminalInstance) {
+			return TPromise.as(void 0);
+		}
+		return this.quickOpenService.input({
+			prompt: nls.localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
+		}).then(name => {
+			if (name) {
+				terminalInstance.setTitle(name);
+			}
+		});
 	}
 }

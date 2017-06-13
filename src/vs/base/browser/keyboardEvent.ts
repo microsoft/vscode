@@ -120,6 +120,8 @@ let KEY_CODE_MAP: { [keyCode: number]: KeyCode } = {};
 	KEY_CODE_MAP[190] = KeyCode.US_DOT;
 	KEY_CODE_MAP[191] = KeyCode.US_SLASH;
 	KEY_CODE_MAP[192] = KeyCode.US_BACKTICK;
+	KEY_CODE_MAP[193] = KeyCode.ABNT_C1;
+	KEY_CODE_MAP[194] = KeyCode.ABNT_C2;
 	KEY_CODE_MAP[219] = KeyCode.US_OPEN_SQUARE_BRACKET;
 	KEY_CODE_MAP[220] = KeyCode.US_BACKSLASH;
 	KEY_CODE_MAP[221] = KeyCode.US_CLOSE_SQUARE_BRACKET;
@@ -127,6 +129,12 @@ let KEY_CODE_MAP: { [keyCode: number]: KeyCode } = {};
 	KEY_CODE_MAP[223] = KeyCode.OEM_8;
 
 	KEY_CODE_MAP[226] = KeyCode.OEM_102;
+
+	/**
+	 * https://lists.w3.org/Archives/Public/www-dom/2010JulSep/att-0182/keyCode-spec.html
+	 * If an Input Method Editor is processing key input and the event is keydown, return 229.
+	 */
+	KEY_CODE_MAP[229] = KeyCode.KEY_IN_COMPOSITION;
 
 	if (browser.isIE) {
 		KEY_CODE_MAP[91] = KeyCode.Meta;
@@ -148,22 +156,14 @@ let KEY_CODE_MAP: { [keyCode: number]: KeyCode } = {};
 	}
 })();
 
-export function lookupKeyCode(e: KeyboardEvent): KeyCode {
-	return KEY_CODE_MAP[e.keyCode] || KeyCode.Unknown;
-}
-
-let extractKeyCode = function extractKeyCode(e: KeyboardEvent): KeyCode {
+function extractKeyCode(e: KeyboardEvent): KeyCode {
 	if (e.charCode) {
 		// "keypress" events mostly
 		let char = String.fromCharCode(e.charCode).toUpperCase();
 		return KeyCodeUtils.fromString(char);
 	}
-	return lookupKeyCode(e);
+	return KEY_CODE_MAP[e.keyCode] || KeyCode.Unknown;
 };
-
-export function setExtractKeyCode(newExtractKeyCode: (e: KeyboardEvent) => KeyCode): void {
-	extractKeyCode = newExtractKeyCode;
-}
 
 export interface IKeyboardEvent {
 	readonly browserEvent: KeyboardEvent;

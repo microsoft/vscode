@@ -39,15 +39,6 @@
 	box-sizing: border-box;
 }
 
-@keyframes monaco-cursor-blink {
-	50% {
-		opacity: 0;
-	}
-	100% {
-		opacity: 1;
-	}
-}
-
 @keyframes monaco-cursor-smooth {
 	0%,
 	20% {
@@ -81,18 +72,14 @@
 	}
 }
 
-.cursor-blink {
-	animation: monaco-cursor-blink 1s step-start 0s infinite;
-}
-
 .cursor-smooth {
-	animation: monaco-cursor-smooth 0.5s ease-in-out 0s infinite alternate;
+	animation: monaco-cursor-smooth 0.5s ease-in-out 0s 20 alternate;
 }
 
 .cursor-phase {
-	animation: monaco-cursor-phase 0.5s ease-in-out 0s infinite alternate;
+	animation: monaco-cursor-phase 0.5s ease-in-out 0s 20 alternate;
 }
 
 .cursor-expand > .cursor {
-	animation: monaco-cursor-expand 0.5s ease-in-out 0s infinite alternate;
+	animation: monaco-cursor-expand 0.5s ease-in-out 0s 20 alternate;
 }

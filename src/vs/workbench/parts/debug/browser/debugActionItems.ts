@@ -16,6 +16,10 @@ import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 
 const $ = dom.$;
 
@@ -34,12 +38,17 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 		private context: any,
 		private action: IAction,
 		@IDebugService private debugService: IDebugService,
+		@IThemeService private themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService
 	) {
 		super();
 		this.toDispose = [];
 		this.selectBox = new SelectBox([], -1);
+		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService, {
+			selectBackground: SIDE_BAR_BACKGROUND
+		}));
+
 		this.registerListeners();
 	}
 
@@ -107,6 +116,10 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 				event.stopPropagation();
 			}
 		}));
+		this.toDispose.push(attachStylerCallback(this.themeService, { selectBorder }, colors => {
+			this.container.style.border = colors.selectBorder ? `1px solid ${colors.selectBorder}` : null;
+			selectBoxContainer.style.borderLeft = colors.selectBorder ? `1px solid ${colors.selectBorder}` : null;
+		}));
 
 		this.updateOptions();
 	}
@@ -150,9 +163,12 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 export class FocusProcessActionItem extends SelectActionItem {
 	constructor(
 		action: IAction,
-		@IDebugService private debugService: IDebugService
+		@IDebugService private debugService: IDebugService,
+		@IThemeService themeService: IThemeService
 	) {
 		super(null, action, [], -1);
+
+		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
 
 		this.debugService.getViewModel().onDidFocusStackFrame(() => {
 			const process = this.debugService.getViewModel().focusedProcess;
@@ -162,10 +178,13 @@ export class FocusProcessActionItem extends SelectActionItem {
 			}
 		});
 
-		this.debugService.getModel().onDidChangeCallStack(() => {
-			const process = this.debugService.getViewModel().focusedProcess;
-			const names = this.debugService.getModel().getProcesses().map(p => p.name);
-			this.setOptions(names, process ? names.indexOf(process.name) : undefined);
-		});
+		this.debugService.getModel().onDidChangeCallStack(() => this.update());
+		this.update();
+	}
+
+	private update() {
+		const process = this.debugService.getViewModel().focusedProcess;
+		const names = this.debugService.getModel().getProcesses().map(p => p.name);
+		this.setOptions(names, process ? names.indexOf(process.name) : undefined);
 	}
 }

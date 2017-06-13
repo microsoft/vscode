@@ -55,18 +55,7 @@
 		}
 	},
 	{
-		"c": "/",
-		"t": "text.html.basic meta.tag.other.html",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": ">",
+		"c": "/>",
 		"t": "text.html.basic meta.tag.other.html punctuation.definition.tag.end.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",

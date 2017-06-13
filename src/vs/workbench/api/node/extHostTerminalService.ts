@@ -20,6 +20,8 @@ export class ExtHostTerminal implements vscode.Terminal {
 	private _pidPromise: TPromise<number>;
 	private _pidPromiseComplete: TValueCallback<number>;
 
+	private _onDataCallback: (data: string) => any;
+
 	constructor(
 		proxy: MainThreadTerminalServiceShape,
 		name?: string,
@@ -67,6 +69,11 @@ export class ExtHostTerminal implements vscode.Terminal {
 		this._queueApiRequest(this._proxy.$hide, []);
 	}
 
+	public onData(callback: (data: string) => any): void {
+		this._onDataCallback = callback;
+		this._queueApiRequest(this._proxy.$registerOnData, []);
+	}
+
 	public dispose(): void {
 		if (!this._disposed) {
 			this._disposed = true;
@@ -77,6 +84,10 @@ export class ExtHostTerminal implements vscode.Terminal {
 	public _setProcessId(processId: number): void {
 		this._pidPromiseComplete(processId);
 		this._pidPromiseComplete = null;
+	}
+
+	public _onData(data: string): void {
+		this._onDataCallback(data);
 	}
 
 	private _queueApiRequest(callback: (...args: any[]) => void, args: any[]) {
@@ -136,6 +147,11 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	public $acceptTerminalProcessId(id: number, processId: number): void {
 		let terminal = this._getTerminalById(id);
 		terminal._setProcessId(processId);
+	}
+
+	public $acceptTerminalData(id: number, data: string): void {
+		let terminal = this._getTerminalById(id);
+		terminal._onData(data);
 	}
 
 	private _getTerminalById(id: number): ExtHostTerminal {

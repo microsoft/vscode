@@ -10,9 +10,10 @@
   "engines": {
     "vscode": "*"
   },
+  "enableProposedApi": true,
   "dependencies": {
     "semver": "4.3.6",
-    "vscode-extension-telemetry": "^0.0.6",
+    "vscode-extension-telemetry": "^0.0.7",
     "vscode-nls": "^2.0.1"
   },
   "devDependencies": {
@@ -21,7 +22,7 @@
   },
   "scripts": {
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript ./tsconfig.json",
-    "update-grammars": "node ./build/update-grammars.js"
+    "update-grammar": "node ./build/update-grammars.js"
   },
   "activationEvents": [
     "onLanguage:javascript",
@@ -35,11 +36,9 @@
     "onCommand:javascript.goToProjectConfig",
     "onCommand:typescript.goToProjectConfig",
     "onCommand:typescript.openTsServerLog",
-    "workspaceContains:jsconfig.json",
-    "workspaceContains:tsconfig.json"
+    "onCommand:workbench.action.tasks.runTask"
   ],
   "main": "./out/typescriptMain",
-  "enableProposedApi": true,
   "contributes": {
     "languages": [
       {
@@ -105,6 +104,25 @@
           "default": true,
           "description": "%typescript.check.tscVersion%"
         },
+        "typescript.npm": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "%typescript.npm%",
+          "isExecutable": true
+        },
+        "typescript.check.npmIsInstalled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.check.npmIsInstalled%"
+        },
+        "javascript.referencesCodeLens.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "%javascript.referencesCodeLens.enabled%"
+        },
         "typescript.referencesCodeLens.enabled": {
           "type": "boolean",
           "default": false,
@@ -156,6 +174,11 @@
           "default": true,
           "description": "%format.insertSpaceAfterCommaDelimiter%"
         },
+        "typescript.format.insertSpaceAfterConstructor": {
+          "type": "boolean",
+          "default": false,
+          "description": "%format.insertSpaceAfterConstructor%"
+        },
         "typescript.format.insertSpaceAfterSemicolonInForStatements": {
           "type": "boolean",
           "default": true,
@@ -190,6 +213,11 @@
           "type": "boolean",
           "default": false,
           "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets%"
+        },
+        "typescript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": {
+          "type": "boolean",
+          "default": true,
+          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces%"
         },
         "typescript.format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": {
           "type": "boolean",
@@ -226,6 +254,11 @@
           "default": true,
           "description": "%format.insertSpaceAfterCommaDelimiter%"
         },
+        "javascript.format.insertSpaceAfterConstructor": {
+          "type": "boolean",
+          "default": false,
+          "description": "%format.insertSpaceAfterConstructor%"
+        },
         "javascript.format.insertSpaceAfterSemicolonInForStatements": {
           "type": "boolean",
           "default": true,
@@ -261,6 +294,11 @@
           "default": false,
           "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets%"
         },
+        "javascript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": {
+          "type": "boolean",
+          "default": true,
+          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces%"
+        },
         "javascript.format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": {
           "type": "boolean",
           "default": false,
@@ -280,6 +318,30 @@
           "type": "boolean",
           "default": false,
           "description": "%format.placeOpenBraceOnNewLineForControlBlocks%"
+        },
+        "jsDocCompletion.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%jsDocCompletion.enabled%"
+        },
+        "javascript.implicitProjectConfig.checkJs": {
+          "type": "boolean",
+          "default": false,
+          "description": "%javascript.implicitProjectConfig.checkJs%"
+        },
+        "javascript.nameSuggestions": {
+          "type": "boolean",
+          "default": true,
+          "description": "%javascript.nameSuggestions%"
+        },
+        "typescript.tsc.autoDetect": {
+          "type": "string",
+          "default": "on",
+          "enum": [
+            "on",
+            "off"
+          ],
+          "description": "%typescript.tsc.autoDetect%"
         }
       }
     },
@@ -312,6 +374,11 @@
       {
         "command": "typescript.openTsServerLog",
         "title": "%typescript.openTsServerLog.title%",
+        "category": "TypeScript"
+      },
+      {
+        "command": "typescript.restartTsServer",
+        "title": "%typescript.restartTsServer%",
         "category": "TypeScript"
       }
     ],
@@ -379,6 +446,14 @@
         "url": "./schemas/tsconfig.schema.json"
       },
       {
+        "fileMatch": "tsconfig.*.json",
+        "url": "http://json.schemastore.org/tsconfig"
+      },
+      {
+        "fileMatch": "tsconfig.*.json",
+        "url": "./schemas/tsconfig.schema.json"
+      },
+      {
         "fileMatch": "typings.json",
         "url": "http://json.schemastore.org/typings"
       }
@@ -399,16 +474,22 @@
         "name": "tsc",
         "owner": "typescript",
         "applyTo": "closedDocuments",
-        "fileLocation": ["relative", "${cwd}"],
-	      "pattern": "$tsc"
+        "fileLocation": [
+          "relative",
+          "${cwd}"
+        ],
+        "pattern": "$tsc"
       },
       {
         "name": "tsc-watch",
         "owner": "typescript",
         "applyTo": "closedDocuments",
-        "fileLocation": ["relative", "${cwd}"],
+        "fileLocation": [
+          "relative",
+          "${cwd}"
+        ],
         "pattern": "$tsc",
-        "watching": {
+        "background": {
           "activeOnStart": true,
           "beginsPattern": {
             "regexp": "^\\s*(?:message TS6032:|\\d{1,2}:\\d{1,2}:\\d{1,2}(?: AM| PM)? -) File change detected\\. Starting incremental compilation\\.\\.\\."

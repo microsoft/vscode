@@ -23,6 +23,7 @@ import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
@@ -34,13 +35,21 @@ import { IWorkspaceConfigurationValues } from 'vs/workbench/services/configurati
 
 import { IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
-import { IApplyEditsOptions, IUndoStopOptions, TextEditorRevealType, ITextEditorConfigurationUpdate, IResolvedTextEditorConfiguration, ISelectionChangeEvent } from './mainThreadEditor';
+import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
+import { EndOfLine, TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
 
-import { InternalTreeExplorerNodeContent } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
+
+import { TaskSet } from 'vs/workbench/parts/tasks/common/tasks';
+import { IModelChangedEvent } from 'vs/editor/common/model/mirrorModel';
+import { IPosition } from 'vs/editor/common/core/position';
+import { IRange } from 'vs/editor/common/core/range';
+import { ISelection, Selection } from 'vs/editor/common/core/selection';
+
+import { ITreeItem } from 'vs/workbench/parts/views/common/views';
 
 export interface IEnvironment {
-	enableProposedApi: boolean;
+	enableProposedApiForAll: boolean;
+	enableProposedApiFor: string | string[];
 	appSettingsHome: string;
 	disableExtensions: boolean;
 	userExtensionsHome: string;
@@ -51,9 +60,7 @@ export interface IEnvironment {
 export interface IInitData {
 	parentPid: number;
 	environment: IEnvironment;
-	contextService: {
-		workspace: IWorkspace;
-	};
+	workspace: IWorkspace;
 	extensions: IExtensionDescription[];
 	configuration: IWorkspaceConfigurationValues;
 	telemetryInfo: ITelemetryInfo;
@@ -128,22 +135,68 @@ export abstract class MainThreadDocumentsShape {
 	$trySaveDocument(uri: URI): TPromise<boolean> { throw ni(); }
 }
 
+
+export interface ISelectionChangeEvent {
+	selections: Selection[];
+	source?: string;
+}
+
+export interface ITextEditorConfigurationUpdate {
+	tabSize?: number | 'auto';
+	insertSpaces?: boolean | 'auto';
+	cursorStyle?: TextEditorCursorStyle;
+	lineNumbers?: TextEditorLineNumbersStyle;
+}
+
+export interface IResolvedTextEditorConfiguration {
+	tabSize: number;
+	insertSpaces: boolean;
+	cursorStyle: TextEditorCursorStyle;
+	lineNumbers: TextEditorLineNumbersStyle;
+}
+
+export enum TextEditorRevealType {
+	Default = 0,
+	InCenter = 1,
+	InCenterIfOutsideViewport = 2,
+	AtTop = 3
+}
+
+export interface IUndoStopOptions {
+	undoStopBefore: boolean;
+	undoStopAfter: boolean;
+}
+
+export interface IApplyEditsOptions extends IUndoStopOptions {
+	setEndOfLine: EndOfLine;
+}
+
+
+
+export interface ITextDocumentShowOptions {
+	position?: EditorPosition;
+	preserveFocus?: boolean;
+	pinned?: boolean;
+}
+
 export abstract class MainThreadEditorsShape {
-	$tryShowTextDocument(resource: URI, position: EditorPosition, preserveFocus: boolean): TPromise<string> { throw ni(); }
+	$tryShowTextDocument(resource: URI, options: ITextDocumentShowOptions): TPromise<string> { throw ni(); }
 	$registerTextEditorDecorationType(key: string, options: editorCommon.IDecorationRenderOptions): void { throw ni(); }
 	$removeTextEditorDecorationType(key: string): void { throw ni(); }
 	$tryShowEditor(id: string, position: EditorPosition): TPromise<void> { throw ni(); }
 	$tryHideEditor(id: string): TPromise<void> { throw ni(); }
 	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): TPromise<any> { throw ni(); }
 	$trySetDecorations(id: string, key: string, ranges: editorCommon.IDecorationOptions[]): TPromise<any> { throw ni(); }
-	$tryRevealRange(id: string, range: editorCommon.IRange, revealType: TextEditorRevealType): TPromise<any> { throw ni(); }
-	$trySetSelections(id: string, selections: editorCommon.ISelection[]): TPromise<any> { throw ni(); }
+	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): TPromise<any> { throw ni(); }
+	$trySetSelections(id: string, selections: ISelection[]): TPromise<any> { throw ni(); }
 	$tryApplyEdits(id: string, modelVersionId: number, edits: editorCommon.ISingleEditOperation[], opts: IApplyEditsOptions): TPromise<boolean> { throw ni(); }
-	$tryInsertSnippet(id: string, template: string, selections: editorCommon.IRange[], opts: IUndoStopOptions): TPromise<any> { throw ni(); }
+	$tryInsertSnippet(id: string, template: string, selections: IRange[], opts: IUndoStopOptions): TPromise<any> { throw ni(); }
+	$getDiffInformation(id: string): TPromise<editorCommon.ILineChange[]> { throw ni(); }
 }
 
-export abstract class MainThreadTreeExplorersShape {
-	$registerTreeExplorerNodeProvider(providerId: string): void { throw ni(); }
+export abstract class MainThreadTreeViewsShape {
+	$registerView(treeViewId: string): void { throw ni(); }
+	$refresh(treeViewId: string, treeItemHandle?: number): void { throw ni(); }
 }
 
 export abstract class MainThreadErrorsShape {
@@ -191,9 +244,8 @@ export abstract class MainThreadOutputServiceShape {
 
 export abstract class MainThreadProgressShape {
 
-	$startWindow(handle: number, title: string): void { throw ni(); };
-	$startScm(handle: number): void { throw ni(); };
-	$progressReport(handle: number, message: string): void { throw ni(); }
+	$startProgress(handle: number, options: IProgressOptions): void { throw ni(); };
+	$progressReport(handle: number, message: IProgressStep): void { throw ni(); }
 	$progressEnd(handle: number): void { throw ni(); }
 }
 
@@ -203,20 +255,21 @@ export abstract class MainThreadTerminalServiceShape {
 	$hide(terminalId: number): void { throw ni(); }
 	$sendText(terminalId: number, text: string, addNewLine: boolean): void { throw ni(); }
 	$show(terminalId: number, preserveFocus: boolean): void { throw ni(); }
+	$registerOnData(terminalId: number): void { throw ni(); }
 }
 
 export interface MyQuickPickItems extends IPickOpenEntry {
 	handle: number;
 }
 export abstract class MainThreadQuickOpenShape {
-	$show(options: IPickOptions): Thenable<number> { throw ni(); }
-	$setItems(items: MyQuickPickItems[]): Thenable<any> { throw ni(); }
-	$setError(error: Error): Thenable<any> { throw ni(); }
+	$show(options: IPickOptions): TPromise<number> { throw ni(); }
+	$setItems(items: MyQuickPickItems[]): TPromise<any> { throw ni(); }
+	$setError(error: Error): TPromise<any> { throw ni(); }
 	$input(options: vscode.InputBoxOptions, validateInput: boolean): TPromise<string> { throw ni(); }
 }
 
 export abstract class MainThreadStatusBarShape {
-	$setEntry(id: number, extensionId: string, text: string, tooltip: string, command: string, color: string, alignment: MainThreadStatusBarAlignment, priority: number): void { throw ni(); }
+	$setEntry(id: number, extensionId: string, text: string, tooltip: string, command: string, color: string | editorCommon.ThemeColor, alignment: MainThreadStatusBarAlignment, priority: number): void { throw ni(); }
 	$dispose(id: number) { throw ni(); }
 }
 
@@ -237,6 +290,11 @@ export abstract class MainThreadWorkspaceShape {
 	$applyWorkspaceEdit(edits: IResourceEdit[]): TPromise<boolean> { throw ni(); }
 }
 
+export abstract class MainThreadTaskShape {
+	$registerTaskProvider(handle: number): TPromise<any> { throw ni(); }
+	$unregisterTaskProvider(handle: number): TPromise<any> { throw ni(); }
+}
+
 export abstract class MainProcessExtensionServiceShape {
 	$localShowMessage(severity: Severity, msg: string): void { throw ni(); }
 	$onExtensionActivated(extensionId: string): void { throw ni(); }
@@ -244,24 +302,37 @@ export abstract class MainProcessExtensionServiceShape {
 }
 
 export interface SCMProviderFeatures {
-	label: string;
-	supportsOpen: boolean;
-	supportsAcceptChanges: boolean;
-	supportsDrag: boolean;
-	supportsOriginalResource: boolean;
+	hasQuickDiffProvider?: boolean;
+	count?: number;
+	commitTemplate?: string;
+	acceptInputCommand?: modes.Command;
+	statusBarCommands?: modes.Command[];
+}
+
+export interface SCMGroupFeatures {
+	hideWhenEmpty?: boolean;
 }
 
 export type SCMRawResource = [
-	string /*uri*/,
+	number /*handle*/,
+	string /*resourceUri*/,
+	modes.Command /*command*/,
 	string[] /*icons: light, dark*/,
-	boolean /*strike through*/
+	boolean /*strike through*/,
+	boolean /*faded*/
 ];
-export type SCMRawResourceGroup = [string /*id*/, string /*label*/, SCMRawResource[]];
 
 export abstract class MainThreadSCMShape {
-	$register(id: string, features: SCMProviderFeatures): void { throw ni(); }
-	$unregister(id: string): void { throw ni(); }
-	$onChange(id: string, resources: SCMRawResourceGroup[], count: number | undefined, state: string | undefined): void { throw ni(); }
+	$registerSourceControl(handle: number, id: string, label: string): void { throw ni(); }
+	$updateSourceControl(handle: number, features: SCMProviderFeatures): void { throw ni(); }
+	$unregisterSourceControl(handle: number): void { throw ni(); }
+
+	$registerGroup(sourceControlHandle: number, handle: number, id: string, label: string): void { throw ni(); }
+	$updateGroup(sourceControlHandle: number, handle: number, features: SCMGroupFeatures): void { throw ni(); }
+	$updateGroupLabel(sourceControlHandle: number, handle: number, label: string): void { throw ni(); }
+	$updateGroupResourceStates(sourceControlHandle: number, groupHandle: number, resources: SCMRawResource[]): void { throw ni(); }
+	$unregisterGroup(sourceControlHandle: number, handle: number): void { throw ni(); }
+
 	$setInputBoxValue(value: string): void { throw ni(); }
 }
 
@@ -292,9 +363,8 @@ export abstract class ExtHostDocumentsShape {
 	$provideTextDocumentContent(handle: number, uri: URI): TPromise<string> { throw ni(); }
 	$acceptModelModeChanged(strURL: string, oldModeId: string, newModeId: string): void { throw ni(); }
 	$acceptModelSaved(strURL: string): void { throw ni(); }
-	$acceptModelDirty(strURL: string): void { throw ni(); }
-	$acceptModelReverted(strURL: string): void { throw ni(); }
-	$acceptModelChanged(strURL: string, events: editorCommon.IModelContentChangedEvent2[], isDirty: boolean): void { throw ni(); }
+	$acceptDirtyStateChanged(strURL: string, isDirty: boolean): void { throw ni(); }
+	$acceptModelChanged(strURL: string, e: IModelChangedEvent, isDirty: boolean): void { throw ni(); }
 }
 
 export abstract class ExtHostDocumentSaveParticipantShape {
@@ -305,7 +375,7 @@ export interface ITextEditorAddData {
 	id: string;
 	document: URI;
 	options: IResolvedTextEditorConfiguration;
-	selections: editorCommon.ISelection[];
+	selections: ISelection[];
 	editorPosition: EditorPosition;
 }
 export interface ITextEditorPositionData {
@@ -329,15 +399,16 @@ export abstract class ExtHostDocumentsAndEditorsShape {
 	$acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta): void { throw ni(); }
 }
 
+export abstract class ExtHostTreeViewsShape {
+	$getElements(treeViewId: string): TPromise<ITreeItem[]> { throw ni(); }
+	$getChildren(treeViewId: string, treeItemHandle: number): TPromise<ITreeItem[]> { throw ni(); }
+}
 
-export abstract class ExtHostTreeExplorersShape {
-	$provideRootNode(providerId: string): TPromise<InternalTreeExplorerNodeContent> { throw ni(); };
-	$resolveChildren(providerId: string, node: InternalTreeExplorerNodeContent): TPromise<InternalTreeExplorerNodeContent[]> { throw ni(); }
-	$getInternalCommand(providerId: string, node: InternalTreeExplorerNodeContent): TPromise<modes.Command> { throw ni(); }
+export abstract class ExtHostWorkspaceShape {
+	$acceptWorkspaceData(folders: URI[]): void { throw ni(); }
 }
 
 export abstract class ExtHostExtensionServiceShape {
-	$localShowMessage(severity: Severity, msg: string): void { throw ni(); }
 	$activateExtension(extensionDescription: IExtensionDescription): TPromise<void> { throw ni(); }
 }
 
@@ -373,22 +444,22 @@ export abstract class ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: URI): TPromise<modes.SymbolInformation[]> { throw ni(); }
 	$provideCodeLenses(handle: number, resource: URI): TPromise<modes.ICodeLensSymbol[]> { throw ni(); }
 	$resolveCodeLens(handle: number, resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICodeLensSymbol> { throw ni(); }
-	$provideDefinition(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.Definition> { throw ni(); }
-	$provideImplementation(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.Definition> { throw ni(); }
-	$provideTypeDefinition(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.Definition> { throw ni(); }
-	$provideHover(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.Hover> { throw ni(); }
-	$provideDocumentHighlights(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.DocumentHighlight[]> { throw ni(); }
-	$provideReferences(handle: number, resource: URI, position: editorCommon.IPosition, context: modes.ReferenceContext): TPromise<modes.Location[]> { throw ni(); }
-	$provideCodeActions(handle: number, resource: URI, range: editorCommon.IRange): TPromise<modes.CodeAction[]> { throw ni(); }
+	$provideDefinition(handle: number, resource: URI, position: IPosition): TPromise<modes.Definition> { throw ni(); }
+	$provideImplementation(handle: number, resource: URI, position: IPosition): TPromise<modes.Definition> { throw ni(); }
+	$provideTypeDefinition(handle: number, resource: URI, position: IPosition): TPromise<modes.Definition> { throw ni(); }
+	$provideHover(handle: number, resource: URI, position: IPosition): TPromise<modes.Hover> { throw ni(); }
+	$provideDocumentHighlights(handle: number, resource: URI, position: IPosition): TPromise<modes.DocumentHighlight[]> { throw ni(); }
+	$provideReferences(handle: number, resource: URI, position: IPosition, context: modes.ReferenceContext): TPromise<modes.Location[]> { throw ni(); }
+	$provideCodeActions(handle: number, resource: URI, range: IRange): TPromise<modes.CodeAction[]> { throw ni(); }
 	$provideDocumentFormattingEdits(handle: number, resource: URI, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]> { throw ni(); }
-	$provideDocumentRangeFormattingEdits(handle: number, resource: URI, range: editorCommon.IRange, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]> { throw ni(); }
-	$provideOnTypeFormattingEdits(handle: number, resource: URI, position: editorCommon.IPosition, ch: string, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]> { throw ni(); }
-	$provideWorkspaceSymbols(handle: number, search: string): TPromise<IWorkspaceSymbol[]> { throw ni(); }
-	$resolveWorkspaceSymbol(handle: number, symbol: IWorkspaceSymbol): TPromise<IWorkspaceSymbol> { throw ni(); }
-	$provideRenameEdits(handle: number, resource: URI, position: editorCommon.IPosition, newName: string): TPromise<modes.WorkspaceEdit> { throw ni(); }
-	$provideCompletionItems(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.ISuggestResult> { throw ni(); }
-	$resolveCompletionItem(handle: number, resource: URI, position: editorCommon.IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> { throw ni(); }
-	$provideSignatureHelp(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.SignatureHelp> { throw ni(); }
+	$provideDocumentRangeFormattingEdits(handle: number, resource: URI, range: IRange, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]> { throw ni(); }
+	$provideOnTypeFormattingEdits(handle: number, resource: URI, position: IPosition, ch: string, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]> { throw ni(); }
+	$provideWorkspaceSymbols(handle: number, search: string): TPromise<modes.SymbolInformation[]> { throw ni(); }
+	$resolveWorkspaceSymbol(handle: number, symbol: modes.SymbolInformation): TPromise<modes.SymbolInformation> { throw ni(); }
+	$provideRenameEdits(handle: number, resource: URI, position: IPosition, newName: string): TPromise<modes.WorkspaceEdit> { throw ni(); }
+	$provideCompletionItems(handle: number, resource: URI, position: IPosition): TPromise<modes.ISuggestResult> { throw ni(); }
+	$resolveCompletionItem(handle: number, resource: URI, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> { throw ni(); }
+	$provideSignatureHelp(handle: number, resource: URI, position: IPosition): TPromise<modes.SignatureHelp> { throw ni(); }
 	$provideDocumentLinks(handle: number, resource: URI): TPromise<modes.ILink[]> { throw ni(); }
 	$resolveDocumentLink(handle: number, link: modes.ILink): TPromise<modes.ILink> { throw ni(); }
 }
@@ -401,14 +472,18 @@ export abstract class ExtHostQuickOpenShape {
 export abstract class ExtHostTerminalServiceShape {
 	$acceptTerminalClosed(id: number): void { throw ni(); }
 	$acceptTerminalProcessId(id: number, processId: number): void { throw ni(); }
+	$acceptTerminalData(id: number, data: string): void { throw ni(); }
 }
 
 export abstract class ExtHostSCMShape {
-	$open(id: string, resourceGroupId: string, uri: string): TPromise<void> { throw ni(); }
-	$acceptChanges(id: string): TPromise<void> { throw ni(); }
-	$drag(id: string, fromResourceGroupId: string, fromUri: string, toResourceGroupId: string): TPromise<void> { throw ni(); }
-	$getOriginalResource(id: string, uri: URI): TPromise<URI> { throw ni(); }
+	$provideOriginalResource(sourceControlHandle: number, uri: URI): TPromise<URI> { throw ni(); }
+	$onActiveSourceControlChange(sourceControlHandle: number): TPromise<void> { throw ni(); }
 	$onInputBoxValueChange(value: string): TPromise<void> { throw ni(); }
+	$onInputBoxAcceptChanges(): TPromise<void> { throw ni(); }
+}
+
+export abstract class ExtHostTaskShape {
+	$provideTasks(handle: number): TPromise<TaskSet> { throw ni(); }
 }
 
 // --- proxy identifiers
@@ -420,7 +495,7 @@ export const MainContext = {
 	MainThreadDocuments: createMainId<MainThreadDocumentsShape>('MainThreadDocuments', MainThreadDocumentsShape),
 	MainThreadEditors: createMainId<MainThreadEditorsShape>('MainThreadEditors', MainThreadEditorsShape),
 	MainThreadErrors: createMainId<MainThreadErrorsShape>('MainThreadErrors', MainThreadErrorsShape),
-	MainThreadExplorers: createMainId<MainThreadTreeExplorersShape>('MainThreadExplorers', MainThreadTreeExplorersShape),
+	MainThreadTreeViews: createMainId<MainThreadTreeViewsShape>('MainThreadTreeViews', MainThreadTreeViewsShape),
 	MainThreadLanguageFeatures: createMainId<MainThreadLanguageFeaturesShape>('MainThreadLanguageFeatures', MainThreadLanguageFeaturesShape),
 	MainThreadLanguages: createMainId<MainThreadLanguagesShape>('MainThreadLanguages', MainThreadLanguagesShape),
 	MainThreadMessageService: createMainId<MainThreadMessageServiceShape>('MainThreadMessageService', MainThreadMessageServiceShape),
@@ -433,7 +508,8 @@ export const MainContext = {
 	MainThreadTerminalService: createMainId<MainThreadTerminalServiceShape>('MainThreadTerminalService', MainThreadTerminalServiceShape),
 	MainThreadWorkspace: createMainId<MainThreadWorkspaceShape>('MainThreadWorkspace', MainThreadWorkspaceShape),
 	MainProcessExtensionService: createMainId<MainProcessExtensionServiceShape>('MainProcessExtensionService', MainProcessExtensionServiceShape),
-	MainThreadSCM: createMainId<MainThreadSCMShape>('MainThreadSCM', MainThreadSCMShape)
+	MainThreadSCM: createMainId<MainThreadSCMShape>('MainThreadSCM', MainThreadSCMShape),
+	MainThreadTask: createMainId<MainThreadTaskShape>('MainThreadTask', MainThreadTaskShape)
 };
 
 export const ExtHostContext = {
@@ -444,12 +520,14 @@ export const ExtHostContext = {
 	ExtHostDocuments: createExtId<ExtHostDocumentsShape>('ExtHostDocuments', ExtHostDocumentsShape),
 	ExtHostDocumentSaveParticipant: createExtId<ExtHostDocumentSaveParticipantShape>('ExtHostDocumentSaveParticipant', ExtHostDocumentSaveParticipantShape),
 	ExtHostEditors: createExtId<ExtHostEditorsShape>('ExtHostEditors', ExtHostEditorsShape),
-	ExtHostExplorers: createExtId<ExtHostTreeExplorersShape>('ExtHostExplorers', ExtHostTreeExplorersShape),
+	ExtHostTreeViews: createExtId<ExtHostTreeViewsShape>('ExtHostTreeViews', ExtHostTreeViewsShape),
 	ExtHostFileSystemEventService: createExtId<ExtHostFileSystemEventServiceShape>('ExtHostFileSystemEventService', ExtHostFileSystemEventServiceShape),
 	ExtHostHeapService: createExtId<ExtHostHeapServiceShape>('ExtHostHeapMonitor', ExtHostHeapServiceShape),
 	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures', ExtHostLanguageFeaturesShape),
 	ExtHostQuickOpen: createExtId<ExtHostQuickOpenShape>('ExtHostQuickOpen', ExtHostQuickOpenShape),
 	ExtHostExtensionService: createExtId<ExtHostExtensionServiceShape>('ExtHostExtensionService', ExtHostExtensionServiceShape),
 	ExtHostTerminalService: createExtId<ExtHostTerminalServiceShape>('ExtHostTerminalService', ExtHostTerminalServiceShape),
-	ExtHostSCM: createExtId<ExtHostSCMShape>('ExtHostSCM', ExtHostSCMShape)
+	ExtHostSCM: createExtId<ExtHostSCMShape>('ExtHostSCM', ExtHostSCMShape),
+	ExtHostTask: createExtId<ExtHostTaskShape>('ExtHostTask', ExtHostTaskShape),
+	ExtHostWorkspace: createExtId<ExtHostWorkspaceShape>('ExtHostWorkspace', ExtHostWorkspaceShape),
 };

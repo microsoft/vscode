@@ -84,7 +84,7 @@ export class Lock {
 			var unbindListener: IDisposable;
 
 			return new WinJS.Promise((c, e) => {
-				unbindListener = lock.addOneTimeDisposableListener('unlock', () => {
+				unbindListener = lock.addOneTimeListener('unlock', () => {
 					return this.run(item, fn).then(c, e);
 				});
 			}, () => { unbindListener.dispose(); });
@@ -138,7 +138,7 @@ export class ItemRegistry extends Events.EventEmitter {
 
 	public register(item: Item): void {
 		Assert.ok(!this.isRegistered(item.id), 'item already registered: ' + item.id);
-		this.items[item.id] = { item, disposable: this.addEmitter2(item) };
+		this.items[item.id] = { item, disposable: this.addEmitter(item) };
 	}
 
 	public deregister(item: Item): void {
@@ -241,7 +241,7 @@ export class Item extends Events.EventEmitter {
 		this.userContent = null;
 		this.traits = {};
 		this.depth = 0;
-		this.expanded = false;
+		this.expanded = this.context.dataSource.shouldAutoexpand && this.context.dataSource.shouldAutoexpand(this.context.tree, element);
 
 		this.emit('item:create', { item: this });
 
@@ -644,7 +644,7 @@ export class TreeNavigator implements INavigator<Item> {
 		if (!item) {
 			return null;
 		} else {
-			if (!item.isVisible() || !item.isExpanded() || item.lastChild === null) {
+			if (!(item instanceof RootItem) && (!item.isVisible() || !item.isExpanded() || item.lastChild === null)) {
 				return item;
 			} else {
 				return TreeNavigator.lastDescendantOf(item.lastChild);
@@ -718,15 +718,7 @@ export class TreeNavigator implements INavigator<Item> {
 	}
 
 	public last(): Item {
-		if (this.start && this.start.isExpanded()) {
-			this.item = this.start.lastChild;
-
-			if (this.item && !this.item.isVisible()) {
-				this.previous();
-			}
-		}
-
-		return this.item || null;
+		return TreeNavigator.lastDescendantOf(this.start);
 	}
 }
 
@@ -815,8 +807,8 @@ export class TreeModel extends Events.EventEmitter {
 		this.registry = new ItemRegistry();
 
 		this.registryDisposable = combinedDisposable([
-			this.addEmitter2(this.registry),
-			this.registry.addListener2('item:dispose', (event: IItemDisposeEvent) => {
+			this.addEmitter(this.registry),
+			this.registry.addListener('item:dispose', (event: IItemDisposeEvent) => {
 				event.item.getAllTraits()
 					.forEach(trait => delete this.traitsToItems[trait][event.item.id]);
 			})
@@ -849,10 +841,10 @@ export class TreeModel extends Events.EventEmitter {
 
 	public refreshAll(elements: any[], recursive: boolean = true): WinJS.Promise {
 		try {
-			this._beginDeferredEmit();
+			this.beginDeferredEmit();
 			return this._refreshAll(elements, recursive);
 		} finally {
-			this._endDeferredEmit();
+			this.endDeferredEmit();
 		}
 	}
 
@@ -1215,12 +1207,13 @@ export class TreeModel extends Events.EventEmitter {
 		}
 	}
 
-	public focusFirst(eventPayload?: any): void {
-		this.focusNth(0, eventPayload);
+	public focusFirst(eventPayload?: any, from?: any): void {
+		this.focusNth(0, eventPayload, from);
 	}
 
-	public focusNth(index: number, eventPayload?: any): void {
-		var nav = this.getNavigator(this.input);
+	public focusNth(index: number, eventPayload?: any, from?: any): void {
+		var navItem = this.getParent(from);
+		var nav = this.getNavigator(navItem);
 		var item = nav.first();
 		for (var i = 0; i < index; i++) {
 			item = nav.next();
@@ -1231,13 +1224,30 @@ export class TreeModel extends Events.EventEmitter {
 		}
 	}
 
-	public focusLast(eventPayload?: any): void {
-		var nav = this.getNavigator(this.input);
-		var item = nav.last();
+	public focusLast(eventPayload?: any, from?: any): void {
+		var navItem = this.getParent(from);
+		var item: Item;
+		if (from) {
+			item = navItem.lastChild;
+		} else {
+			var nav = this.getNavigator(navItem);
+			item = nav.last();
+		}
 
 		if (item) {
 			this.setFocus(item, eventPayload);
 		}
+	}
+
+	private getParent(from?: any): Item {
+		if (from) {
+			var fromItem = this.getItem(from);
+			if (fromItem && fromItem.parent) {
+				return fromItem.parent;
+			}
+		}
+
+		return this.getItem(this.input);
 	}
 
 	public getNavigator(element: any = null, subTreeOnly: boolean = true): INavigator<Item> {

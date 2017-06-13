@@ -25,8 +25,8 @@
 		"libXfixes.so.3()(64bit)",
 		"libXrender.so.1()(64bit)",
 		"libX11.so.6()(64bit)",
-		"libXtst.so.6()(64bit)",
 		"libXss.so.1()(64bit)",
+		"libXtst.so.6()(64bit)",
 		"libgconf-2.so.4()(64bit)",
 		"libgmodule-2.0.so.0()(64bit)",
 		"librt.so.1()(64bit)",
@@ -61,7 +61,8 @@
 		"libc.so.6(GLIBC_2.6)(64bit)",
 		"libc.so.6(GLIBC_2.7)(64bit)",
 		"libc.so.6(GLIBC_2.9)(64bit)",
-		"libxcb.so.1()(64bit)"
+		"libxcb.so.1()(64bit)",
+		"libxkbfile.so.1()(64bit)"
 	],
 	"i386": [
 		"ld-linux.so.2",
@@ -138,6 +139,7 @@
 		"libstdc++.so.6(GLIBCXX_3.4.14)",
 		"libstdc++.so.6(GLIBCXX_3.4.15)",
 		"libstdc++.so.6(GLIBCXX_3.4.9)",
-		"libxcb.so.1"
+		"libxcb.so.1",
+		"libxkbfile.so.1"
 	]
 }

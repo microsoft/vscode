@@ -12,7 +12,7 @@ import uri from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import * as paths from 'vs/base/common/paths';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IModel, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { IModel, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import * as extensionsRegistry from 'vs/platform/extensions/common/extensionsRegistry';
 import { Registry } from 'vs/platform/platform';
@@ -272,7 +272,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 	}
 
 	public getCompound(name: string): debug.ICompound {
-		if (!this.contextService.getWorkspace()) {
+		if (!this.contextService.hasWorkspace()) {
 			return null;
 		}
 
@@ -302,7 +302,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 	}
 
 	public getConfiguration(name: string): debug.IConfig {
-		if (!this.contextService.getWorkspace()) {
+		if (!this.contextService.hasWorkspace()) {
 			return null;
 		}
 
@@ -311,11 +311,11 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 			return null;
 		}
 
-		return config.configurations.filter(config => config && config.name === name).pop();
+		return config.configurations.filter(config => config && config.name === name).shift();
 	}
 
 	public resloveConfiguration(config: debug.IConfig): TPromise<debug.IConfig> {
-		if (!this.contextService.getWorkspace()) {
+		if (!this.contextService.hasWorkspace()) {
 			return TPromise.as(config);
 		}
 
@@ -398,22 +398,24 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 		const editor = this.editorService.getActiveEditor();
 		if (editor) {
-			const codeEditor = <ICommonCodeEditor>editor.getControl();
-			const model = codeEditor ? codeEditor.getModel() : undefined;
-			const language = model ? model.getLanguageIdentifier().language : undefined;
-			const adapters = this.adapters.filter(a => a.languages && a.languages.indexOf(language) >= 0);
-			if (adapters.length === 1) {
-				return TPromise.as(adapters[0]);
+			const codeEditor = editor.getControl();
+			if (isCommonCodeEditor(codeEditor)) {
+				const model = codeEditor.getModel();
+				const language = model ? model.getLanguageIdentifier().language : undefined;
+				const adapters = this.adapters.filter(a => a.languages && a.languages.indexOf(language) >= 0);
+				if (adapters.length === 1) {
+					return TPromise.as(adapters[0]);
+				}
 			}
 		}
 
-		return this.quickOpenService.pick([...this.adapters.filter(a => a.hasInitialConfiguration()), { label: 'More...' }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
+		return this.quickOpenService.pick([...this.adapters.filter(a => a.hasInitialConfiguration()), { label: 'More...', separator: { border: true } }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
 			.then(picked => {
 				if (picked instanceof Adapter) {
 					return picked;
 				}
 				if (picked) {
-					this.commandService.executeCommand('debug.installMoreDebuggers');
+					this.commandService.executeCommand('debug.installAdditionalDebuggers');
 				}
 				return undefined;
 			});

@@ -1,4 +1,9 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/textmate/make.tmbundle/blob/master/Syntaxes/Makefile.plist",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
 	"fileTypes": [
 		"Makefile",
 		"makefile",
@@ -470,6 +475,5 @@
 		}
 	},
 	"scopeName": "source.makefile",
-	"uuid": "FF1825E8-6B1C-11D9-B883-000D93589AF6",
-	"version": "https://github.com/textmate/make.tmbundle/commit/1a1827da81e20fdce56e2658451340c070ca44b7"
+	"uuid": "FF1825E8-6B1C-11D9-B883-000D93589AF6"
 }

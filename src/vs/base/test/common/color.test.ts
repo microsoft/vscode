@@ -107,6 +107,9 @@ suite('Color', () => {
 		assertParseColor('#0f0F0f', new RGBA(15, 15, 15, 255));
 		assertParseColor('#a0A0a0', new RGBA(160, 160, 160, 255));
 		assertParseColor('#FFFFFF', new RGBA(255, 255, 255, 255));
+
+		assertParseColor('#CFA', new RGBA(204, 255, 170, 255));
+		assertParseColor('#CFA8', new RGBA(204, 255, 170, 136));
 	});
 
 	test('isValidHexColor', function () {
@@ -134,6 +137,9 @@ suite('Color', () => {
 		assert.equal(isValidHexColor('#0f0F0f'), true);
 		assert.equal(isValidHexColor('#a0A0a0'), true);
 		assert.equal(isValidHexColor('#FFFFFF'), true);
+
+		assert.equal(isValidHexColor('#CFA'), true);
+		assert.equal(isValidHexColor('#CFAF'), true);
 	});
 
 	test('isLighterColor', function () {

@@ -9,7 +9,7 @@ import platform = require('vs/base/common/platform');
 import types = require('vs/base/common/types');
 import { nativeSep, normalize } from 'vs/base/common/paths';
 import { endsWith, ltrim } from 'vs/base/common/strings';
-import { isEqualOrParent } from 'vs/platform/files/common/files';
+import { isEqualOrParent, isEqual } from 'vs/platform/files/common/files';
 
 export interface ILabelProvider {
 
@@ -25,19 +25,11 @@ export interface IWorkspaceProvider {
 	};
 }
 
-export class PathLabelProvider implements ILabelProvider {
-	private root: string;
-
-	constructor(arg1?: URI | string | IWorkspaceProvider) {
-		this.root = arg1 && getPath(arg1);
-	}
-
-	public getLabel(arg1: URI | string | IWorkspaceProvider): string {
-		return getPathLabel(getPath(arg1), this.root);
-	}
+export interface IUserHomeProvider {
+	userHome: string;
 }
 
-export function getPathLabel(resource: URI | string, basePathProvider?: URI | string | IWorkspaceProvider): string {
+export function getPathLabel(resource: URI | string, basePathProvider?: URI | string | IWorkspaceProvider, userHomeProvider?: IUserHomeProvider): string {
 	const absolutePath = getPath(resource);
 	if (!absolutePath) {
 		return null;
@@ -46,7 +38,7 @@ export function getPathLabel(resource: URI | string, basePathProvider?: URI | st
 	const basepath = basePathProvider && getPath(basePathProvider);
 
 	if (basepath && isEqualOrParent(absolutePath, basepath, !platform.isLinux /* ignorecase */)) {
-		if (basepath === absolutePath) {
+		if (isEqual(basepath, absolutePath, !platform.isLinux /* ignorecase */)) {
 			return ''; // no label if pathes are identical
 		}
 
@@ -57,7 +49,12 @@ export function getPathLabel(resource: URI | string, basePathProvider?: URI | st
 		return normalize(absolutePath.charAt(0).toUpperCase() + absolutePath.slice(1), true); // convert c:\something => C:\something
 	}
 
-	return normalize(absolutePath, true);
+	let res = normalize(absolutePath, true);
+	if (!platform.isWindows && userHomeProvider) {
+		res = tildify(res, userHomeProvider.userHome);
+	}
+
+	return res;
 }
 
 function getPath(arg1: URI | string | IWorkspaceProvider): string {
@@ -78,7 +75,7 @@ function getPath(arg1: URI | string | IWorkspaceProvider): string {
 }
 
 export function tildify(path: string, userHome: string): string {
-	if (path && (platform.isMacintosh || platform.isLinux) && path.indexOf(userHome) === 0) {
+	if (path && (platform.isMacintosh || platform.isLinux) && isEqualOrParent(path, userHome, !platform.isLinux /* ignorecase */)) {
 		path = `~${path.substr(userHome.length)}`;
 	}
 
@@ -125,7 +122,7 @@ export function shorten(paths: string[]): string[] {
 		let path = paths[pathIndex];
 
 		if (path === '') {
-			shortenedPaths[pathIndex] = '.';
+			shortenedPaths[pathIndex] = `.${nativeSep}`;
 			continue;
 		}
 

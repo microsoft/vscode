@@ -6,121 +6,38 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
 
 export interface Key {
 	toString(): string;
 }
 
 export interface Entry<K, T> {
-	next?: Entry<K, T>;
-	prev?: Entry<K, T>;
 	key: K;
 	value: T;
 }
 
-/**
- * A simple map to store value by a key object. Key can be any object that has toString() function to get
- * string value of the key.
- */
-export class LinkedMap<K extends Key, T> {
+export function values<K, V>(map: Map<K, V>): V[] {
+	const result: V[] = [];
+	map.forEach(value => result.push(value));
+	return result;
+}
 
-	protected map: { [key: string]: Entry<K, T> };
-	protected _size: number;
-
-	constructor() {
-		this.map = Object.create(null);
-		this._size = 0;
+export function getOrSet<K, V>(map: Map<K, V>, key: K, value: V): V {
+	let result = map.get(key);
+	if (result === void 0) {
+		result = value;
+		map.set(key, result);
 	}
+	return result;
+}
 
-	public get size(): number {
-		return this._size;
-	}
+export interface ISerializedBoundedLinkedMap<T> {
+	entries: { key: string; value: T }[];
+}
 
-	public get(k: K): T {
-		const value = this.peek(k);
-
-		return value ? value : null;
-	}
-
-	public getOrSet(k: K, t: T): T {
-		const res = this.get(k);
-		if (res) {
-			return res;
-		}
-
-		this.set(k, t);
-
-		return t;
-	}
-
-	public keys(): K[] {
-		const keys: K[] = [];
-		for (let key in this.map) {
-			keys.push(this.map[key].key);
-		}
-		return keys;
-	}
-
-	public values(): T[] {
-		const values: T[] = [];
-		for (let key in this.map) {
-			values.push(this.map[key].value);
-		}
-		return values;
-	}
-
-	public entries(): Entry<K, T>[] {
-		const entries: Entry<K, T>[] = [];
-		for (let key in this.map) {
-			entries.push(this.map[key]);
-		}
-		return entries;
-	}
-
-	public set(k: K, t: T): boolean {
-		if (this.get(k)) {
-			return false; // already present!
-		}
-
-		this.push(k, t);
-
-		return true;
-	}
-
-	public delete(k: K): T {
-		let value: T = this.get(k);
-		if (value) {
-			this.pop(k);
-			return value;
-		}
-		return null;
-	}
-
-	public has(k: K): boolean {
-		return !!this.get(k);
-	}
-
-	public clear(): void {
-		this.map = Object.create(null);
-		this._size = 0;
-	}
-
-	protected push(key: K, value: T): void {
-		const entry: Entry<K, T> = { key, value };
-		this.map[key.toString()] = entry;
-		this._size++;
-	}
-
-	protected pop(k: K): void {
-		delete this.map[k.toString()];
-		this._size--;
-	}
-
-	protected peek(k: K): T {
-		const entry = this.map[k.toString()];
-		return entry ? entry.value : null;
-	}
+export interface LinkedEntry<K, T> extends Entry<K, T> {
+	next?: LinkedEntry<K, T>;
+	prev?: LinkedEntry<K, T>;
 }
 
 /**
@@ -128,17 +45,50 @@ export class LinkedMap<K extends Key, T> {
  * the cache will remove the entry that was last recently added. Or, if a ratio is provided below 1,
  * all elements will be removed until the ratio is full filled (e.g. 0.75 to remove 25% of old elements).
  */
-export class BoundedLinkedMap<T> {
-	protected map: { [key: string]: Entry<string, T> };
-	private head: Entry<string, T>;
-	private tail: Entry<string, T>;
+export class BoundedMap<T> {
+	protected map: { [key: string]: LinkedEntry<string, T> };
+
+	private head: LinkedEntry<string, T>;
+	private tail: LinkedEntry<string, T>;
 	private _size: number;
 	private ratio: number;
 
-	constructor(private limit = Number.MAX_VALUE, ratio = 1) {
+	constructor(private limit = Number.MAX_VALUE, ratio = 1, value?: ISerializedBoundedLinkedMap<T>) {
 		this.map = Object.create(null);
 		this._size = 0;
 		this.ratio = limit * ratio;
+
+		if (value) {
+			value.entries.forEach(entry => {
+				this.set(entry.key, entry.value);
+			});
+		}
+	}
+
+	public setLimit(limit: number): void {
+		if (limit < 0) {
+			return; // invalid limit
+		}
+
+		this.limit = limit;
+		while (this._size > this.limit) {
+			this.trim();
+		}
+	}
+
+	public serialize(): ISerializedBoundedLinkedMap<T> {
+		const serialized: ISerializedBoundedLinkedMap<T> = { entries: [] };
+
+		let element = this.tail;
+		while (element) {
+			serialized.entries.push({ key: element.key, value: element.value });
+			if (element === element.next) {
+				break; // end reached
+			}
+			element = element.next;
+		}
+
+		return serialized;
 	}
 
 	public get size(): number {
@@ -150,7 +100,7 @@ export class BoundedLinkedMap<T> {
 			return false; // already present!
 		}
 
-		const entry: Entry<string, T> = { key, value };
+		const entry: LinkedEntry<string, T> = { key, value };
 		this.push(entry);
 
 		if (this._size > this.limit) {
@@ -213,7 +163,7 @@ export class BoundedLinkedMap<T> {
 		this.tail = null;
 	}
 
-	protected push(entry: Entry<string, T>): void {
+	protected push(entry: LinkedEntry<string, T>): void {
 		if (this.head) {
 			// [A]-[B] = [A]-[B]->[X]
 			entry.prev = this.head;
@@ -265,38 +215,11 @@ export class BoundedLinkedMap<T> {
 
 				// [x]-[B] = [B]
 				this.tail = this.tail.next;
-				this.tail.prev = null;
+				if (this.tail) {
+					this.tail.prev = null;
+				}
 			}
 		}
-	}
-}
-
-/**
- * A subclass of Map<T> that makes an entry the MRU entry as soon
- * as it is being accessed. In combination with the limit for the
- * maximum number of elements in the cache, it helps to remove those
- * entries from the cache that are LRU.
- */
-export class LRUCache<T> extends BoundedLinkedMap<T> {
-
-	constructor(limit: number) {
-		super(limit);
-	}
-
-	public get(key: string): T {
-
-		// Upon access of an entry, make it the head of
-		// the linked map so that it is the MRU element
-		const entry = this.map[key];
-		if (entry) {
-			this.delete(key);
-			this.push(entry);
-
-			return entry.value;
-		}
-
-
-		return null;
 	}
 }
 
@@ -443,25 +366,319 @@ export class ResourceMap<T> {
 	}
 
 	public values(): T[] {
-		const values: T[] = [];
-		this.map.forEach(value => values.push(value));
-
-		return values;
+		return values(this.map);
 	}
 
 	private toKey(resource: URI): string {
-		let key: string;
-
-		if (resource.scheme === Schemas.file) {
-			key = resource.fsPath;
-		} else {
-			key = resource.toString();
-		}
-
+		let key = resource.toString();
 		if (this.ignoreCase) {
 			key = key.toLowerCase();
 		}
 
 		return key;
+	}
+}
+
+// We should fold BoundedMap and LinkedMap. See https://github.com/Microsoft/vscode/issues/28496
+
+interface Item<K, V> {
+	previous: Item<K, V> | undefined;
+	next: Item<K, V> | undefined;
+	key: K;
+	value: V;
+}
+
+export namespace Touch {
+	export const None: 0 = 0;
+	export const First: 1 = 1;
+	export const Last: 2 = 2;
+}
+
+export type Touch = 0 | 1 | 2;
+
+export class LinkedMap<K, V> {
+
+	private _map: Map<K, Item<K, V>>;
+	private _head: Item<K, V> | undefined;
+	private _tail: Item<K, V> | undefined;
+	private _size: number;
+
+	constructor() {
+		this._map = new Map<K, Item<K, V>>();
+		this._head = undefined;
+		this._tail = undefined;
+		this._size = 0;
+	}
+
+	public clear(): void {
+		this._map.clear();
+		this._head = undefined;
+		this._tail = undefined;
+		this._size = 0;
+	}
+
+	public isEmpty(): boolean {
+		return !this._head && !this._tail;
+	}
+
+	public get size(): number {
+		return this._size;
+	}
+
+	public has(key: K): boolean {
+		return this._map.has(key);
+	}
+
+	public get(key: K): V | undefined {
+		const item = this._map.get(key);
+		if (!item) {
+			return undefined;
+		}
+		return item.value;
+	}
+
+	public set(key: K, value: V, touch: Touch = Touch.None): void {
+		let item = this._map.get(key);
+		if (item) {
+			item.value = value;
+			if (touch !== Touch.None) {
+				this.touch(item, touch);
+			}
+		} else {
+			item = { key, value, next: undefined, previous: undefined };
+			switch (touch) {
+				case Touch.None:
+					this.addItemLast(item);
+					break;
+				case Touch.First:
+					this.addItemFirst(item);
+					break;
+				case Touch.Last:
+					this.addItemLast(item);
+					break;
+				default:
+					this.addItemLast(item);
+					break;
+			}
+			this._map.set(key, item);
+			this._size++;
+		}
+	}
+
+	public delete(key: K): boolean {
+		const item = this._map.get(key);
+		if (!item) {
+			return false;
+		}
+		this._map.delete(key);
+		this.removeItem(item);
+		this._size--;
+		return true;
+	}
+
+	public shift(): V | undefined {
+		if (!this._head && !this._tail) {
+			return undefined;
+		}
+		if (!this._head || !this._tail) {
+			throw new Error('Invalid list');
+		}
+		const item = this._head;
+		this._map.delete(item.key);
+		this.removeItem(item);
+		this._size--;
+		return item.value;
+	}
+
+	public forEach(callbackfn: (value: V, key: K, map: LinkedMap<K, V>) => void, thisArg?: any): void {
+		let current = this._head;
+		while (current) {
+			if (thisArg) {
+				callbackfn.bind(thisArg)(current.value, current.key, this);
+			} else {
+				callbackfn(current.value, current.key, this);
+			}
+			current = current.next;
+		}
+	}
+
+	public forEachReverse(callbackfn: (value: V, key: K, map: LinkedMap<K, V>) => void, thisArg?: any): void {
+		let current = this._tail;
+		while (current) {
+			if (thisArg) {
+				callbackfn.bind(thisArg)(current.value, current.key, this);
+			} else {
+				callbackfn(current.value, current.key, this);
+			}
+			current = current.previous;
+		}
+	}
+
+	public values(): V[] {
+		let result: V[] = [];
+		let current = this._head;
+		while (current) {
+			result.push(current.value);
+			current = current.next;
+		}
+		return result;
+	}
+
+	public keys(): K[] {
+		let result: K[] = [];
+		let current = this._head;
+		while (current) {
+			result.push(current.key);
+			current = current.next;
+		}
+		return result;
+	}
+
+	/* VS Code / Monaco editor runs on es5 which has no Symbol.iterator
+	public keys(): IterableIterator<K> {
+		let current = this._head;
+		let iterator: IterableIterator<K> = {
+			[Symbol.iterator]() {
+				return iterator;
+			},
+			next():IteratorResult<K> {
+				if (current) {
+					let result = { value: current.key, done: false };
+					current = current.next;
+					return result;
+				} else {
+					return { value: undefined, done: true };
+				}
+			}
+		};
+		return iterator;
+	}
+
+	public values(): IterableIterator<V> {
+		let current = this._head;
+		let iterator: IterableIterator<V> = {
+			[Symbol.iterator]() {
+				return iterator;
+			},
+			next():IteratorResult<V> {
+				if (current) {
+					let result = { value: current.value, done: false };
+					current = current.next;
+					return result;
+				} else {
+					return { value: undefined, done: true };
+				}
+			}
+		};
+		return iterator;
+	}
+	*/
+
+	private addItemFirst(item: Item<K, V>): void {
+		// First time Insert
+		if (!this._head && !this._tail) {
+			this._tail = item;
+		} else if (!this._head) {
+			throw new Error('Invalid list');
+		} else {
+			item.next = this._head;
+			this._head.previous = item;
+		}
+		this._head = item;
+	}
+
+	private addItemLast(item: Item<K, V>): void {
+		// First time Insert
+		if (!this._head && !this._tail) {
+			this._head = item;
+		} else if (!this._tail) {
+			throw new Error('Invalid list');
+		} else {
+			item.previous = this._tail;
+			this._tail.next = item;
+		}
+		this._tail = item;
+	}
+
+	private removeItem(item: Item<K, V>): void {
+		if (item === this._head && item === this._tail) {
+			this._head = undefined;
+			this._tail = undefined;
+		}
+		else if (item === this._head) {
+			this._head = item.next;
+		}
+		else if (item === this._tail) {
+			this._tail = item.previous;
+		}
+		else {
+			const next = item.next;
+			const previous = item.previous;
+			if (!next || !previous) {
+				throw new Error('Invalid list');
+			}
+			next.previous = previous;
+			previous.next = next;
+		}
+	}
+
+	private touch(item: Item<K, V>, touch: Touch): void {
+		if (!this._head || !this._tail) {
+			throw new Error('Invalid list');
+		}
+		if ((touch !== Touch.First && touch !== Touch.Last)) {
+			return;
+		}
+
+		if (touch === Touch.First) {
+			if (item === this._head) {
+				return;
+			}
+
+			const next = item.next;
+			const previous = item.previous;
+
+			// Unlink the item
+			if (item === this._tail) {
+				// previous must be defined since item was not head but is tail
+				// So there are more than on item in the map
+				previous!.next = undefined;
+				this._tail = previous;
+			}
+			else {
+				// Both next and previous are not undefined since item was neither head nor tail.
+				next!.previous = previous;
+				previous!.next = next;
+			}
+
+			// Insert the node at head
+			item.previous = undefined;
+			item.next = this._head;
+			this._head.previous = item;
+			this._head = item;
+		} else if (touch === Touch.Last) {
+			if (item === this._tail) {
+				return;
+			}
+
+			const next = item.next;
+			const previous = item.previous;
+
+			// Unlink the item.
+			if (item === this._head) {
+				// next must be defined since item was not tail but is head
+				// So there are more than on item in the map
+				next!.previous = undefined;
+				this._head = next;
+			} else {
+				// Both next and previous are not undefined since item was neither head nor tail.
+				next!.previous = previous;
+				previous!.next = next;
+			}
+			item.next = undefined;
+			item.previous = this._tail;
+			this._tail.next = item;
+			this._tail = item;
+		}
 	}
 }

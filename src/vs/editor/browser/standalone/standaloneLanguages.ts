@@ -89,9 +89,23 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 
 	private _toClassicTokens(tokens: IToken[], language: string, offsetDelta: number): Token[] {
 		let result: Token[] = [];
+		let previousStartIndex: number = 0;
 		for (let i = 0, len = tokens.length; i < len; i++) {
-			let t = tokens[i];
-			result[i] = new Token(t.startIndex + offsetDelta, t.scopes, language);
+			const t = tokens[i];
+			let startIndex = t.startIndex;
+
+			// Prevent issues stemming from a buggy external tokenizer.
+			if (i === 0) {
+				// Force first token to start at first index!
+				startIndex = 0;
+			} else if (startIndex < previousStartIndex) {
+				// Force tokens to be after one another!
+				startIndex = previousStartIndex;
+			}
+
+			result[i] = new Token(startIndex + offsetDelta, t.scopes, language);
+
+			previousStartIndex = startIndex;
 		}
 		return result;
 	}
@@ -112,19 +126,34 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 	}
 
 	private _toBinaryTokens(tokens: IToken[], offsetDelta: number): Uint32Array {
-		let languageId = this._languageIdentifier.id;
-		let tokenTheme = this._standaloneThemeService.getTheme().tokenTheme;
+		const languageId = this._languageIdentifier.id;
+		const tokenTheme = this._standaloneThemeService.getTheme().tokenTheme;
 
 		let result: number[] = [], resultLen = 0;
+		let previousStartIndex: number = 0;
 		for (let i = 0, len = tokens.length; i < len; i++) {
-			let t = tokens[i];
-			let metadata = tokenTheme.match(languageId, t.scopes);
+			const t = tokens[i];
+			const metadata = tokenTheme.match(languageId, t.scopes);
 			if (resultLen > 0 && result[resultLen - 1] === metadata) {
 				// same metadata
 				continue;
 			}
-			result[resultLen++] = t.startIndex;
+
+			let startIndex = t.startIndex;
+
+			// Prevent issues stemming from a buggy external tokenizer.
+			if (i === 0) {
+				// Force first token to start at first index!
+				startIndex = 0;
+			} else if (startIndex < previousStartIndex) {
+				// Force tokens to be after one another!
+				startIndex = previousStartIndex;
+			}
+
+			result[resultLen++] = startIndex + offsetDelta;
 			result[resultLen++] = metadata;
+
+			previousStartIndex = startIndex;
 		}
 
 		let actualResult = new Uint32Array(resultLen);
@@ -242,7 +271,7 @@ export function registerHoverProvider(languageId: string, provider: modes.HoverP
 					return undefined;
 				}
 				if (!value.range && word) {
-					value.range = new Range(position.lineNumber, word.startColumn, position.column, word.endColumn);
+					value.range = new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
 				}
 				if (!value.range) {
 					value.range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
@@ -411,7 +440,7 @@ export enum CompletionItemKind {
  * and `${3:foo}`. `$0` defines the final tab stop, it defaults to
  * the end of the snippet. Variables are defined with `$name` and
  * `${name:default value}`. The full snippet syntax is documented
- * [here](http://code.visualstudio.com/docs/customization/userdefinedsnippets#_creating-your-own-snippets).
+ * [here](http://code.visualstudio.com/docs/editor/userdefinedsnippets#_creating-your-own-snippets).
  */
 export interface SnippetString {
 
@@ -503,7 +532,7 @@ export interface CompletionList {
 }
 /**
  * The completion item provider interface defines the contract between extensions and
- * the [IntelliSense](https://code.visualstudio.com/docs/editor/editingevolved#_intellisense).
+ * the [IntelliSense](https://code.visualstudio.com/docs/editor/intellisense).
  *
  * When computing *complete* completion items is expensive, providers can optionally implement
  * the `resolveCompletionItem`-function. In that case it is enough to return completion

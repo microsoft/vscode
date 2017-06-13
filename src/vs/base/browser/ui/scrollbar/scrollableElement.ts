@@ -18,7 +18,7 @@ import { Scrollable, ScrollState, ScrollEvent, INewScrollState, ScrollbarVisibil
 import { Widget } from 'vs/base/browser/ui/widget';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
+import { ScrollbarHost, ISimplifiedMouseEvent } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 import Event, { Emitter } from 'vs/base/common/event';
 
 const HIDE_TIMEOUT = 500;
@@ -141,8 +141,16 @@ export class ScrollableElement extends Widget {
 	 * Delegate a mouse down event to the vertical scrollbar.
 	 * This is to help with clicking somewhere else and having the scrollbar react.
 	 */
-	public delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void {
+	public delegateVerticalScrollbarMouseDown(browserEvent: IMouseEvent): void {
 		this._verticalScrollbar.delegateMouseDown(browserEvent);
+	}
+
+	/**
+	 * Delegate a mouse down event to the vertical scrollbar (directly to the slider!).
+	 * This is to help with clicking somewhere else and having the scrollbar react.
+	 */
+	public delegateSliderMouseDown(e: ISimplifiedMouseEvent, onDragFinished: () => void): void {
+		this._verticalScrollbar.delegateSliderMouseDown(e, onDragFinished);
 	}
 
 	public getVerticalSliderVerticalCenter(): number {
@@ -225,7 +233,10 @@ export class ScrollableElement extends Widget {
 				[deltaY, deltaX] = [deltaX, deltaY];
 			}
 
-			if (this._options.scrollYToX && !deltaX) {
+			// Convert vertical scrolling to horizontal if shift is held, this
+			// is handled at a higher level on Mac
+			const shiftConvert = !Platform.isMacintosh && e.browserEvent.shiftKey;
+			if ((this._options.scrollYToX || shiftConvert) && !deltaX) {
 				deltaX = deltaY;
 				deltaY = 0;
 			}
@@ -398,7 +409,7 @@ export class DomScrollableElement extends ScrollableElement {
 
 function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableElementResolvedOptions {
 	let result: ScrollableElementResolvedOptions = {
-		canUseTranslate3d: opts.canUseTranslate3d && Browser.canUseTranslate3d,
+		canUseTranslate3d: opts.canUseTranslate3d && Browser.supportsTranslate3d,
 		lazyRender: (typeof opts.lazyRender !== 'undefined' ? opts.lazyRender : false),
 		className: (typeof opts.className !== 'undefined' ? opts.className : ''),
 		useShadows: (typeof opts.useShadows !== 'undefined' ? opts.useShadows : true),

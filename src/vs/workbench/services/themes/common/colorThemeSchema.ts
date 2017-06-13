@@ -114,60 +114,72 @@ let textMateScopes = [
 	'variable.parameter'
 ];
 
+export const colorsSchema = themingRegistry.getColorSchema();
+export const tokenColorsSchema = {
+	type: 'array',
+	description: nls.localize('schema.colors', 'Colors for syntax highlighting'),
+	items: {
+		type: 'object',
+		properties: {
+			name: {
+				type: 'string',
+				description: nls.localize('schema.properties.name', 'Description of the rule')
+			},
+			scope: {
+				anyOf: [
+					{
+						enum: textMateScopes
+					},
+					{
+						type: 'string'
+					},
+					{
+						type: 'array',
+						items: {
+							enum: textMateScopes
+						}
+					},
+					{
+						type: 'array',
+						items: {
+							type: 'string'
+						}
+					}
+				]
+			},
+			settings: {
+				type: 'object',
+				properties: {
+					foreground: {
+						type: 'string',
+						format: 'color'
+					},
+					background: {
+						type: 'string',
+						format: 'color'
+					},
+					fontStyle: {
+						type: 'string',
+						description: nls.localize('schema.fontStyle', 'Font style of the rule: One or a combination of \'italic\', \'bold\' and \'underline\'')
+					}
+				}
+			}
+		}
+	}
+};
+
 const schemaId = 'vscode://schemas/color-theme';
 const schema: IJSONSchema = {
 	type: 'object',
 	properties: {
-		colors: themingRegistry.getColorSchema(),
+		colors: colorsSchema,
 		tokenColors: {
-			type: 'array',
-			description: nls.localize('schema.colors', 'Colors for syntax highlighting'),
-			items: {
-				type: 'object',
-				properties: {
-					name: {
-						type: 'string',
-						description: nls.localize('schema.properties.name', 'Description of the rule')
-					},
-					scope: {
-						anyOf: [
-							{
-								enum: textMateScopes
-							},
-							{
-								type: 'string'
-							},
-							{
-								type: 'array',
-								items: {
-									enum: textMateScopes
-								}
-							},
-							{
-								type: 'array',
-								items: {
-									type: 'string'
-								}
-							}
-						]
-					},
-					settings: {
-						type: 'object',
-						properties: {
-							foreground: {
-								type: 'string'
-							},
-							background: {
-								type: 'string'
-							},
-							fontStyle: {
-								type: 'string',
-								description: nls.localize('schema.fontStyle', 'Font style of the rule: One or a combination of \'italic\', \'bold\' and \'underline\'')
-							}
-						}
-					}
-				}
-			}
+			anyOf: [{
+				type: 'string',
+				description: nls.localize('schema.tokenColors.path', 'Path to a tmTheme file (relative to the current file)')
+			},
+				tokenColorsSchema
+			]
 		}
 	}
 };

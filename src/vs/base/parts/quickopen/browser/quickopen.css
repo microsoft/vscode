@@ -36,7 +36,11 @@
 }
 
 .quick-open-widget .quick-open-tree {
-	line-height: 1.8em;
+	line-height: 22px;
+}
+
+.quick-open-widget .quick-open-tree .monaco-tree-row  > .content > .sub-content {
+	overflow: hidden;
 }
 
 .quick-open-widget.content-changing .quick-open-tree .monaco-scrollable-element .slider {
@@ -65,12 +69,6 @@
 	flex-shrink: 0;
 }
 
-.quick-open-widget .quick-open-tree .quick-open-entry .quick-open-help-entry-label {
-	float: left;
-	min-width: 16px;
-	text-align: center;
-}
-
 .quick-open-widget .quick-open-tree .quick-open-entry .monaco-highlighted-label span {
 	opacity: 1;
 }
@@ -89,18 +87,22 @@
 	text-overflow: ellipsis;
 }
 
+.quick-open-widget .quick-open-tree .content.has-group-label .quick-open-entry-keybinding {
+	margin-right: 8px;
+}
+
+.quick-open-widget .quick-open-tree .quick-open-entry-keybinding .monaco-kbkey {
+	vertical-align: text-bottom;
+}
+
 .quick-open-widget .quick-open-tree .results-group {
-	float: right;
 	margin-right: 18px;
 }
 
-.vs .quick-open-widget .quick-open-tree .results-group,
-.vs-dark .quick-open-widget .quick-open-tree .results-group {
-	opacity: 0.6;
-}
-
-.quick-open-widget .quick-open-tree .content.has-actions .results-group {
-	margin-right: 34px; /* push more to the right if we have actions */
+.quick-open-widget .quick-open-tree .monaco-tree-row.focused > .content.has-actions > .results-group,
+.quick-open-widget .quick-open-tree .monaco-tree-row:hover:not(.highlighted) > .content.has-actions > .results-group,
+.quick-open-widget .quick-open-tree .focused .monaco-tree-row.focused > .content.has-actions > .results-group {
+	margin-right: 0px;
 }
 
 .quick-open-widget .quick-open-tree .results-group-separator {
@@ -111,93 +113,50 @@
 	padding-left: 11px;
 }
 
-/* Theming */
+/* Actions in Quick Open Items */
 
-.quick-open-widget {
-	background-color: #F6F6F6;
-	box-shadow: 0 5px 8px #A8A8A8;
+.monaco-tree .monaco-tree-row > .content.actions {
+	position: relative;
+	display: flex;
 }
 
-.vs-dark .quick-open-widget {
-	background-color: #252526;
-	box-shadow: 0 5px 8px #000;
+.monaco-tree .monaco-tree-row > .content.actions > .sub-content {
+	flex: 1;
 }
 
-.vs-dark .quick-open-widget input {
-	background-color: #3C3C3C;
-	color: inherit;
+.monaco-tree .monaco-tree-row > .content.actions .action-item {
+	margin: 0;
 }
 
-.hc-black .quick-open-widget input {
-	background-color: #000;
-	color: inherit;
+.monaco-tree .monaco-tree-row > .content.actions > .primary-action-bar {
+	line-height: 22px;
 }
 
-.monaco .quick-open-widget {
-	background-color: #F9F9F9;
+.monaco-tree .monaco-tree-row > .content.actions > .primary-action-bar {
+	display: none;
+	padding: 0 0.8em 0 0.4em;
 }
 
-.quick-open-widget .quick-open-tree .quick-open-entry .quick-open-help-entry-label {
-	color: #007ACC;
+.monaco-tree .monaco-tree-row.focused > .content.has-actions > .primary-action-bar {
+	width: 0; /* in order to support a11y with keyboard, we use width: 0 to hide the actions, which still allows to "Tab" into the actions */
+	display: block;
 }
 
-.vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-help-entry-label {
-	color: #0097FB;
+.monaco-tree .monaco-tree-row:hover:not(.highlighted) > .content.has-actions > .primary-action-bar,
+.monaco-tree.focused .monaco-tree-row.focused > .content.has-actions > .primary-action-bar,
+.monaco-tree .monaco-tree-row > .content.has-actions.more > .primary-action-bar {
+	width: inherit;
+	display: block;
 }
 
-.quick-open-widget .quick-open-tree .results-group {
-	color: #007ACC;
-}
-
-.vs-dark .quick-open-widget .quick-open-tree .results-group {
-	color: #0097FB;
-}
-
-.hc-black .quick-open-widget .quick-open-tree .results-group {
-	color: white;
-}
-
-.quick-open-widget .quick-open-tree .results-group-separator {
-	border-top-color: #CCCEDB;
-}
-
-.vs-dark .quick-open-widget .quick-open-tree .results-group-separator {
-	border-top-color: #3F3F46;
-}
-
-.hc-black .quick-open-widget .quick-open-tree .results-group-separator {
-	border-top-color: white;
+.monaco-tree .monaco-tree-row > .content.actions > .primary-action-bar .action-label {
+	margin-right: 0.2em;
+	margin-top: 4px;
+	background-repeat: no-repeat;
+	width: 16px;
+	height: 16px;
 }
 
 .quick-open-widget .quick-open-tree .monaco-highlighted-label .highlight {
-	color: #007ACC;
 	font-weight: bold;
-}
-
-.vs-dark .quick-open-widget .quick-open-tree .monaco-highlighted-label .highlight {
-	color: #0097FB;
-}
-
-.quick-open-widget .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected,
-.quick-open-widget .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected.focused {
-	background: #DCEBFC;
-	color: inherit;
-}
-
-/* High Contrast Theming */
-.hc-black .quick-open-widget {
-	border: 2px solid #6FC3DF;
-	background-color: #0C141F;
-	color: #fff;
-	box-shadow: none;
-}
-
-.hc-black .quick-open-widget .monaco-tree.focused .monaco-tree-row.focused:not(.highlighted) > .content.actions > .primary-action-bar,
-.hc-black .quick-open-widget .monaco-tree.focused .monaco-tree-row.selected:not(.highlighted) > .content.actions > .primary-action-bar,
-.hc-black .quick-open-widget .monaco-tree .monaco-tree-row.focused:not(.highlighted) > .content.actions > .primary-action-bar,
-.hc-black .quick-open-widget .monaco-tree .monaco-tree-row.selected:not(.highlighted) > .content.actions > .primary-action-bar,
-.hc-black .quick-open-widget .monaco-tree .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused) > .content.actions > .primary-action-bar,
-.hc-black .quick-open-widget .monaco-tree .monaco-tree-row.drop-target > .content.actions > .primary-action-bar,
-.hc-black .quick-open-widget .monaco-tree .monaco-tree-row > .content.actions.more > .primary-action-bar {
-	background-color: #0C141F;
 }

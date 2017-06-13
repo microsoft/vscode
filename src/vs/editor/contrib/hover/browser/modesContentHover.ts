@@ -15,7 +15,6 @@ import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/ope
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/editorCommon';
 import { HoverProviderRegistry, Hover } from 'vs/editor/common/modes';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -23,6 +22,7 @@ import { getHover } from '../common/hover';
 import { HoverOperation, IHoverComputer } from './hoverOperation';
 import { ContentHoverWidget } from './hoverWidgets';
 import { textToMarkedString, MarkedString } from 'vs/base/common/htmlContent';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 class ModesContentComputer implements IHoverComputer<Hover[]> {
 
@@ -227,7 +227,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		}
 	}
 
-	private _renderMessages(renderRange: IRange, messages: Hover[]): void {
+	private _renderMessages(renderRange: Range, messages: Hover[]): void {
 
 		// update column from which to show
 		var renderColumn = Number.MAX_VALUE,
@@ -268,20 +268,19 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		});
 
 		// show
-		this.showAt({
-			lineNumber: renderRange.startLineNumber,
-			column: renderColumn
-		}, this._shouldFocus);
+		this.showAt(new Position(renderRange.startLineNumber, renderColumn), this._shouldFocus);
 
 		this.updateContents(fragment);
 
 		this._isChangingDecorations = true;
 		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, [{
 			range: highlightRange,
-			options: {
-				className: 'hoverHighlight'
-			}
+			options: ModesContentHoverWidget._DECORATION_OPTIONS
 		}]);
 		this._isChangingDecorations = false;
 	}
+
+	private static _DECORATION_OPTIONS = ModelDecorationOptions.register({
+		className: 'hoverHighlight'
+	});
 }

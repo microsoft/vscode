@@ -20,6 +20,3 @@
 .monaco-editor.hc-black .bottom-left-radius		{ border-bottom-left-radius: 0; }
 .monaco-editor.hc-black .top-right-radius		{ border-top-right-radius: 0; }
 .monaco-editor.hc-black .bottom-right-radius	{ border-bottom-right-radius: 0; }
-
-.monaco-editor.ie.hc-black		.view-overlays.focused	.selected-text { background: none; border: 2px solid #f38518; }
-.monaco-editor.edge.hc-black	.view-overlays.focused	.selected-text { background: none; border: 2px solid #f38518; }

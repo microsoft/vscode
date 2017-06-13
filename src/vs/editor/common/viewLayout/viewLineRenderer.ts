@@ -43,6 +43,7 @@ export class RenderLineInput {
 	public readonly stopRenderingLineAfter: number;
 	public readonly renderWhitespace: RenderWhitespace;
 	public readonly renderControlCharacters: boolean;
+	public readonly fontLigatures: boolean;
 
 	constructor(
 		useMonospaceOptimizations: boolean,
@@ -56,6 +57,7 @@ export class RenderLineInput {
 		stopRenderingLineAfter: number,
 		renderWhitespace: 'none' | 'boundary' | 'all',
 		renderControlCharacters: boolean,
+		fontLigatures: boolean
 	) {
 		this.useMonospaceOptimizations = useMonospaceOptimizations;
 		this.lineContent = lineContent;
@@ -74,6 +76,7 @@ export class RenderLineInput {
 					: RenderWhitespace.None
 		);
 		this.renderControlCharacters = renderControlCharacters;
+		this.fontLigatures = fontLigatures;
 	}
 
 	public equals(other: RenderLineInput): boolean {
@@ -87,6 +90,7 @@ export class RenderLineInput {
 			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
 			&& this.renderWhitespace === other.renderWhitespace
 			&& this.renderControlCharacters === other.renderControlCharacters
+			&& this.fontLigatures === other.fontLigatures
 			&& LineDecoration.equalsArr(this.lineDecorations, other.lineDecorations)
 			&& ViewLineToken.equalsArr(this.lineTokens, other.lineTokens)
 		);
@@ -297,7 +301,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 	if (input.mightContainRTL) {
 		containsRTL = strings.containsRTL(lineContent);
 	}
-	if (!containsRTL) {
+	if (!containsRTL && !input.fontLigatures) {
 		tokens = splitLargeTokens(lineContent, tokens);
 	}
 

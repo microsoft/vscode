@@ -21,7 +21,8 @@ export class TableOfContentsProvider {
 
 	public constructor(
 		private engine: MarkdownEngine,
-		private document: vscode.TextDocument) { }
+		private document: vscode.TextDocument
+	) { }
 
 	public getToc(): TocEntry[] {
 		if (!this.toc) {
@@ -44,7 +45,7 @@ export class TableOfContentsProvider {
 		return NaN;
 	}
 
-	private buildToc(document: vscode.TextDocument): any {
+	private buildToc(document: vscode.TextDocument): TocEntry[] {
 		const toc: TocEntry[] = [];
 		const tokens: IToken[] = this.engine.parse(document.uri, document.getText());
 
@@ -65,7 +66,7 @@ export class TableOfContentsProvider {
 	}
 
 	private static getHeaderText(header: string): string {
-		return header.replace(/^\s*(#)+\s*(.*?)\s*\1*$/, '$2').trim();
+		return header.replace(/^\s*(#+)\s*(.*?)\s*\1*$/, (_, level, word) => `${level} ${word.trim()}`);
 	}
 
 	public static slugify(header: string): string {

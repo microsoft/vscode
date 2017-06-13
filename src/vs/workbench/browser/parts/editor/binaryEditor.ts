@@ -7,6 +7,7 @@
 
 import nls = require('vs/nls');
 import Event, { Emitter } from 'vs/base/common/event';
+import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
 import { ResourceViewer } from 'vs/base/browser/ui/resourceviewer/resourceViewer';
@@ -17,6 +18,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 
 /*
  * This class is only intended to be subclassed and not instantiated.
@@ -31,7 +33,8 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 	constructor(
 		id: string,
 		telemetryService: ITelemetryService,
-		themeService: IThemeService
+		themeService: IThemeService,
+		private windowsService: IWindowsService
 	) {
 		super(id, telemetryService, themeService);
 
@@ -52,6 +55,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		const binaryContainerElement = document.createElement('div');
 		binaryContainerElement.className = 'binary-container';
 		this.binaryContainer = $(binaryContainerElement);
+		this.binaryContainer.style('outline', 'none');
 		this.binaryContainer.tabindex(0); // enable focus support from the editor part (do not remove)
 
 		// Custom Scrollbars
@@ -76,7 +80,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
 			// Assert Model instance
 			if (!(resolvedModel instanceof BinaryEditorModel)) {
-				return TPromise.wrapError<void>('Invalid editor input. Binary resource editor requires a model instance of BinaryEditorModel.');
+				return TPromise.wrapError<void>('Unable to open file as binary');
 			}
 
 			// Assert that the current input is still the one we expect. This prevents a race condition when loading takes long and another input was set meanwhile
@@ -86,7 +90,19 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
 			// Render Input
 			const model = <BinaryEditorModel>resolvedModel;
-			ResourceViewer.show({ name: model.getName(), resource: model.getResource(), size: model.getSize(), etag: model.getETag() }, this.binaryContainer, this.scrollbar, (meta) => this.handleMetadataChanged(meta));
+			ResourceViewer.show(
+				{ name: model.getName(), resource: model.getResource(), size: model.getSize(), etag: model.getETag() },
+				this.binaryContainer,
+				this.scrollbar,
+				(resource: URI) => {
+					this.windowsService.openExternal(resource.toString()).then(didOpen => {
+						if (!didOpen) {
+							return this.windowsService.showItemInFolder(resource.fsPath);
+						}
+						return undefined;
+					});
+				},
+				(meta) => this.handleMetadataChanged(meta));
 
 			return TPromise.as<void>(null);
 		});

@@ -85,6 +85,10 @@ export class PagedList<T> {
 		return mapEvent(this.list.onSelectionChange, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
 	}
 
+	get onPin(): Event<IListEvent<T>> {
+		return mapEvent(this.list.onPin, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
+	}
+
 	get model(): IPagedModel<T> {
 		return this._model;
 	}

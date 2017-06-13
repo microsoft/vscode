@@ -34,9 +34,11 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts, Position as SidebarPosition } from 'vs/workbench/services/part/common/partService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { IKeybindingService } from "vs/platform/keybinding/common/keybinding";
 
 import * as os from 'os';
 import { webFrame } from 'electron';
+import { getPathLabel } from "vs/base/common/labels";
 
 // --- actions
 
@@ -76,37 +78,6 @@ export class CloseWindowAction extends Action {
 		this.windowService.getWindow().close();
 
 		return TPromise.as(true);
-	}
-}
-
-export class SwitchWindow extends Action {
-
-	static ID = 'workbench.action.switchWindow';
-	static LABEL = nls.localize('switchWindow', "Switch Window");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWindowsService private windowsService: IWindowsService,
-		@IWindowService private windowService: IWindowService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
-	) {
-		super(id, label);
-	}
-
-	run(): TPromise<void> {
-		const currentWindowId = this.windowService.getCurrentWindowId();
-
-		return this.windowsService.getWindows().then(workspaces => {
-			const placeHolder = nls.localize('switchWindowPlaceHolder', "Select a window");
-			const picks = workspaces.map(w => ({
-				label: w.title,
-				description: (currentWindowId === w.id) ? nls.localize('current', "Current Window") : void 0,
-				run: () => this.windowsService.showWindow(w.id)
-			}));
-
-			this.quickOpenService.pick(picks, { placeHolder });
-		});
 	}
 }
 
@@ -197,9 +168,7 @@ export class ToggleMenuBarAction extends Action {
 			newVisibilityValue = 'default';
 		}
 
-		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ToggleMenuBarAction.menuBarVisibilityKey, value: newVisibilityValue }).then(null, error => {
-			this.messageService.show(Severity.Error, error);
-		});
+		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ToggleMenuBarAction.menuBarVisibilityKey, value: newVisibilityValue });
 
 		return TPromise.as(null);
 	}
@@ -242,10 +211,13 @@ export abstract class BaseZoomAction extends Action {
 		const applyZoom = () => {
 			webFrame.setZoomLevel(level);
 			browser.setZoomFactor(webFrame.getZoomFactor());
-			browser.setZoomLevel(level); // Ensure others can listen to zoom level changes
+			// See https://github.com/Microsoft/vscode/issues/26151
+			// Cannot be trusted because the webFrame might take some time
+			// until it really applies the new zoom level
+			browser.setZoomLevel(webFrame.getZoomLevel(), /*isTrusted*/false);
 		};
 
-		this.configurationEditingService.writeConfiguration(target, { key: BaseZoomAction.SETTING_KEY, value: level }).done(() => applyZoom(), error => applyZoom());
+		this.configurationEditingService.writeConfiguration(target, { key: BaseZoomAction.SETTING_KEY, value: level }, { donotNotifyError: true }).done(() => applyZoom(), error => applyZoom());
 	}
 }
 
@@ -583,21 +555,107 @@ export class ReloadWindowAction extends Action {
 	}
 }
 
-export class OpenRecentAction extends Action {
-
-	public static ID = 'workbench.action.openRecent';
-	public static LABEL = nls.localize('openRecent', "Open Recent");
+export abstract class BaseSwitchWindow extends Action {
 
 	constructor(
 		id: string,
 		label: string,
-		@IWindowsService private windowsService: IWindowsService,
-		@IWindowService private windowService: IWindowService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		private windowsService: IWindowsService,
+		private windowService: IWindowService,
+		private quickOpenService: IQuickOpenService,
+		private keybindingService: IKeybindingService
 	) {
 		super(id, label);
 	}
+
+	protected abstract isQuickNavigate(): boolean;
+
+	public run(): TPromise<void> {
+		const currentWindowId = this.windowService.getCurrentWindowId();
+
+		return this.windowsService.getWindows().then(workspaces => {
+			const placeHolder = nls.localize('switchWindowPlaceHolder', "Select a window to switch to");
+			const picks = workspaces.map(win => ({
+				resource: win.filename ? URI.file(win.filename) : win.path,
+				isFolder: !win.filename && !!win.path,
+				label: win.title,
+				description: (currentWindowId === win.id) ? nls.localize('current', "Current Window") : void 0,
+				run: () => {
+					setTimeout(() => {
+						// Bug: somehow when not running this code in a timeout, it is not possible to use this picker
+						// with quick navigate keys (not able to trigger quick navigate once running it once).
+						this.windowsService.showWindow(win.id).done(null, errors.onUnexpectedError);
+					});
+				}
+			} as IFilePickOpenEntry));
+
+			this.quickOpenService.pick(picks, {
+				autoFocus: { autoFocusFirstEntry: true },
+				placeHolder,
+				quickNavigateConfiguration: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : void 0
+			});
+		});
+	}
+}
+
+export class SwitchWindow extends BaseSwitchWindow {
+
+	static ID = 'workbench.action.switchWindow';
+	static LABEL = nls.localize('switchWindow', "Switch Window...");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService windowsService: IWindowsService,
+		@IWindowService windowService: IWindowService,
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IKeybindingService keybindingService: IKeybindingService
+	) {
+		super(id, label, windowsService, windowService, quickOpenService, keybindingService);
+	}
+
+	protected isQuickNavigate(): boolean {
+		return false;
+	}
+}
+
+export class QuickSwitchWindow extends BaseSwitchWindow {
+
+	static ID = 'workbench.action.quickSwitchWindow';
+	static LABEL = nls.localize('quickSwitchWindow', "Quick Switch Window...");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService windowsService: IWindowsService,
+		@IWindowService windowService: IWindowService,
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IKeybindingService keybindingService: IKeybindingService
+	) {
+		super(id, label, windowsService, windowService, quickOpenService, keybindingService);
+	}
+
+	protected isQuickNavigate(): boolean {
+		return true;
+	}
+}
+
+export abstract class BaseOpenRecentAction extends Action {
+
+	constructor(
+		id: string,
+		label: string,
+		private windowsService: IWindowsService,
+		private windowService: IWindowService,
+		private quickOpenService: IQuickOpenService,
+		private contextService: IWorkspaceContextService,
+		private environmentService: IEnvironmentService,
+		private keybindingService: IKeybindingService
+	) {
+		super(id, label);
+	}
+
+	protected abstract isQuickNavigate(): boolean;
 
 	public run(): TPromise<void> {
 		return this.windowService.getRecentlyOpen()
@@ -605,14 +663,21 @@ export class OpenRecentAction extends Action {
 	}
 
 	private openRecent(recentFiles: string[], recentFolders: string[]): void {
-		function toPick(path: string, separator: ISeparator, isFolder: boolean): IFilePickOpenEntry {
+
+		function toPick(path: string, separator: ISeparator, isFolder: boolean, environmentService: IEnvironmentService): IFilePickOpenEntry {
 			return {
 				resource: URI.file(path),
 				isFolder,
 				label: paths.basename(path),
-				description: paths.dirname(path),
+				description: getPathLabel(paths.dirname(path), null, environmentService),
 				separator,
-				run: context => runPick(path, context)
+				run: context => {
+					setTimeout(() => {
+						// Bug: somehow when not running this code in a timeout, it is not possible to use this picker
+						// with quick navigate keys (not able to trigger quick navigate once running it once).
+						runPick(path, context);
+					});
+				}
 			};
 		}
 
@@ -621,16 +686,63 @@ export class OpenRecentAction extends Action {
 			this.windowsService.openWindow([path], { forceNewWindow });
 		};
 
-		const folderPicks: IFilePickOpenEntry[] = recentFolders.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('folders', "folders") } : void 0, true));
-		const filePicks: IFilePickOpenEntry[] = recentFiles.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0, false));
+		const folderPicks: IFilePickOpenEntry[] = recentFolders.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('folders', "folders") } : void 0, true, this.environmentService));
+		const filePicks: IFilePickOpenEntry[] = recentFiles.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0, false, this.environmentService));
 
 		const hasWorkspace = this.contextService.hasWorkspace();
 
 		this.quickOpenService.pick(folderPicks.concat(...filePicks), {
 			autoFocus: { autoFocusFirstEntry: !hasWorkspace, autoFocusSecondEntry: hasWorkspace },
 			placeHolder: isMacintosh ? nls.localize('openRecentPlaceHolderMac', "Select a path (hold Cmd-key to open in new window)") : nls.localize('openRecentPlaceHolder', "Select a path to open (hold Ctrl-key to open in new window)"),
-			matchOnDescription: true
+			matchOnDescription: true,
+			quickNavigateConfiguration: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : void 0
 		}).done(null, errors.onUnexpectedError);
+	}
+}
+
+export class OpenRecentAction extends BaseOpenRecentAction {
+
+	public static ID = 'workbench.action.openRecent';
+	public static LABEL = nls.localize('openRecent', "Open Recent...");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService windowsService: IWindowsService,
+		@IWindowService windowService: IWindowService,
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IKeybindingService keybindingService: IKeybindingService
+	) {
+		super(id, label, windowsService, windowService, quickOpenService, contextService, environmentService, keybindingService);
+	}
+
+	protected isQuickNavigate(): boolean {
+		return false;
+	}
+}
+
+export class QuickOpenRecentAction extends BaseOpenRecentAction {
+
+	public static ID = 'workbench.action.quickOpenRecent';
+	public static LABEL = nls.localize('quickOpenRecent', "Quick Open Recent...");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService windowsService: IWindowsService,
+		@IWindowService windowService: IWindowService,
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IKeybindingService keybindingService: IKeybindingService
+	) {
+		super(id, label, windowsService, windowService, quickOpenService, contextService, environmentService, keybindingService);
+	}
+
+	protected isQuickNavigate(): boolean {
+		return true;
 	}
 }
 
@@ -730,11 +842,18 @@ Steps to Reproduce:
 			return `|${e.manifest.name}|${e.manifest.publisher}|${e.manifest.version}|`;
 		}).join('\n');
 
-		return `
+		const extensionTable = `
 
 ${tableHeader}\n${table};
 
 `;
+		// 2000 chars is browsers de-facto limit for URLs, 400 chars are allowed for other string parts of the issue URL
+		// http://stackoverflow.com/questions/417142/what-is-the-maximum-length-of-a-url-in-different-browsers
+		if (encodeURIComponent(extensionTable).length > 1600) {
+			return 'the listing length exceeds browsers\' URL characters limit';
+		}
+
+		return extensionTable;
 	}
 }
 
@@ -1042,7 +1161,7 @@ export abstract class BaseNavigationAction extends Action {
 export class NavigateLeftAction extends BaseNavigationAction {
 
 	public static ID = 'workbench.action.navigateLeft';
-	public static LABEL = nls.localize('navigateLeft', "Move to the View Part on the Left");
+	public static LABEL = nls.localize('navigateLeft', "Navigate to the View on the Left");
 
 	constructor(
 		id: string,
@@ -1092,7 +1211,7 @@ export class NavigateLeftAction extends BaseNavigationAction {
 export class NavigateRightAction extends BaseNavigationAction {
 
 	public static ID = 'workbench.action.navigateRight';
-	public static LABEL = nls.localize('navigateRight', "Move to the View Part on the Right");
+	public static LABEL = nls.localize('navigateRight', "Navigate to the View on the Right");
 
 	constructor(
 		id: string,
@@ -1142,7 +1261,7 @@ export class NavigateRightAction extends BaseNavigationAction {
 export class NavigateUpAction extends BaseNavigationAction {
 
 	public static ID = 'workbench.action.navigateUp';
-	public static LABEL = nls.localize('navigateUp', "Move to the View Part Above");
+	public static LABEL = nls.localize('navigateUp', "Navigate to the View Above");
 
 	constructor(
 		id: string,
@@ -1173,7 +1292,7 @@ export class NavigateUpAction extends BaseNavigationAction {
 export class NavigateDownAction extends BaseNavigationAction {
 
 	public static ID = 'workbench.action.navigateDown';
-	public static LABEL = nls.localize('navigateDown', "Move to the View Part Below");
+	public static LABEL = nls.localize('navigateDown', "Navigate to the View Below");
 
 	constructor(
 		id: string,
@@ -1197,5 +1316,78 @@ export class NavigateDownAction extends BaseNavigationAction {
 				}
 				return this.navigateToPanel();
 			});
+	}
+}
+
+// Resize focused view actions
+export abstract class BaseResizeViewAction extends Action {
+
+	// This is a media-size percentage
+	protected static RESIZE_INCREMENT = 6.5;
+
+	constructor(
+		id: string,
+		label: string,
+		@IPartService protected partService: IPartService
+	) {
+		super(id, label);
+	}
+
+	protected resizePart(sizeChange: number): void {
+		const isEditorFocus = this.partService.hasFocus(Parts.EDITOR_PART);
+		const isSidebarFocus = this.partService.hasFocus(Parts.SIDEBAR_PART);
+		const isPanelFocus = this.partService.hasFocus(Parts.PANEL_PART);
+
+		let part: Parts;
+		if (isSidebarFocus) {
+			part = Parts.SIDEBAR_PART;
+		} else if (isPanelFocus) {
+			part = Parts.PANEL_PART;
+		} else if (isEditorFocus) {
+			part = Parts.EDITOR_PART;
+		}
+
+		if (part) {
+			this.partService.resizePart(part, sizeChange);
+		}
+	}
+}
+
+export class IncreaseViewSizeAction extends BaseResizeViewAction {
+
+	public static ID = 'workbench.action.increaseViewSize';
+	public static LABEL = nls.localize('increaseViewSize', "Increase Current View Size");
+
+	constructor(
+		id: string,
+		label: string,
+		@IPartService partService: IPartService
+	) {
+		super(id, label, partService);
+	}
+
+	public run(): TPromise<boolean> {
+		this.resizePart(BaseResizeViewAction.RESIZE_INCREMENT);
+		return TPromise.as(true);
+	}
+}
+
+export class DecreaseViewSizeAction extends BaseResizeViewAction {
+
+	public static ID = 'workbench.action.decreaseViewSize';
+	public static LABEL = nls.localize('decreaseViewSize', "Decrease Current View Size");
+
+	constructor(
+		id: string,
+		label: string,
+		@IPartService partService: IPartService
+
+	) {
+		super(id, label, partService);
+	}
+
+	public run(): TPromise<boolean> {
+		this.resizePart(-BaseResizeViewAction.RESIZE_INCREMENT);
+		return TPromise.as(true);
 	}
 }

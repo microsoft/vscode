@@ -3,10 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IConfiguration as IEditorConfiguration, DefaultConfig } from 'vs/editor/common/config/defaultConfig';
+import * as nls from 'vs/nls';
+import * as platform from 'vs/base/common/platform';
+import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
-import { Platform } from 'vs/base/common/platform';
+import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { IChoiceService } from 'vs/platform/message/common/message';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLaunchConfig, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY } from 'vs/workbench/parts/terminal/common/terminal';
+import { Severity } from 'vs/editor/common/standalone/standaloneBase';
+import { TPromise } from 'vs/base/common/winjs.base';
+
+interface IEditorConfiguration {
+	editor: IEditorOptions;
+}
 
 interface IFullTerminalConfiguration {
 	terminal: {
@@ -27,8 +37,11 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	private _lastFontMeasurement: ITerminalFont;
 
 	public constructor(
-		private _platform: Platform,
-		@IConfigurationService private _configurationService: IConfigurationService) {
+		private _platform: platform.Platform,
+		@IConfigurationService private _configurationService: IConfigurationService,
+		@IWorkspaceConfigurationService private _workspaceConfigurationService: IWorkspaceConfigurationService,
+		@IChoiceService private _choiceService: IChoiceService,
+		@IStorageService private _storageService: IStorageService) {
 	}
 
 	public get config(): ITerminalConfiguration {
@@ -77,7 +90,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		const fontFamily = terminalConfig.fontFamily || editorConfig.fontFamily;
 		let fontSize = this._toInteger(terminalConfig.fontSize, 0);
 		if (fontSize <= 0) {
-			fontSize = DefaultConfig.editor.fontSize;
+			fontSize = EDITOR_FONT_DEFAULTS.fontSize;
 		}
 		let lineHeight = terminalConfig.lineHeight <= 0 ? DEFAULT_LINE_HEIGHT : terminalConfig.lineHeight;
 		if (!lineHeight) {
@@ -87,22 +100,58 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		return this._measureFont(fontFamily, fontSize, lineHeight);
 	}
 
+	public setWorkspaceShellAllowed(isAllowed: boolean): void {
+		this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, isAllowed, StorageScope.WORKSPACE);
+	}
+
 	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig): void {
-		const config = this.config;
-		shell.executable = '';
-		shell.args = [];
-		if (config && config.shell && config.shellArgs) {
-			if (this._platform === Platform.Windows) {
-				shell.executable = config.shell.windows;
-				shell.args = config.shellArgs.windows;
-			} else if (this._platform === Platform.Mac) {
-				shell.executable = config.shell.osx;
-				shell.args = config.shellArgs.osx;
-			} else if (this._platform === Platform.Linux) {
-				shell.executable = config.shell.linux;
-				shell.args = config.shellArgs.linux;
-			}
+		// Check whether there is a workspace setting
+		const platformKey = platform.isWindows ? 'windows' : platform.isMacintosh ? 'osx' : 'linux';
+		const shellConfigValue = this._workspaceConfigurationService.lookup<string>(`terminal.integrated.shell.${platformKey}`);
+		const shellArgsConfigValue = this._workspaceConfigurationService.lookup<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
+
+		// Check if workspace setting exists and whether it's whitelisted
+		let isWorkspaceShellAllowed = false;
+		if (shellConfigValue.workspace !== undefined || shellArgsConfigValue.workspace !== undefined) {
+			isWorkspaceShellAllowed = this._storageService.getBoolean(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, StorageScope.WORKSPACE, undefined);
 		}
+
+		// Check if the value is neither blacklisted (false) or whitelisted (true) and ask for
+		// permission
+		if (isWorkspaceShellAllowed === undefined) {
+			let shellString: string;
+			if (shellConfigValue.workspace) {
+				shellString = `"${shellConfigValue.workspace}"`;
+			}
+			let argsString: string;
+			if (shellArgsConfigValue.workspace) {
+				argsString = `[${shellArgsConfigValue.workspace.map(v => '"' + v + '"').join(', ')}]`;
+			}
+			// Should not be localized as it's json-like syntax referencing settings keys
+			let changeString: string;
+			if (shellConfigValue.workspace !== undefined) {
+				if (shellArgsConfigValue.workspace !== undefined) {
+					changeString = `shell: ${shellString}, shellArgs: ${argsString}`;
+				} else {
+					changeString = `shell: ${shellString}`;
+				}
+			} else { // if (shellArgsConfigValue.workspace !== undefined)
+				changeString = `shellArgs: ${argsString}`;
+			}
+			const message = nls.localize('terminal.integrated.allowWorkspaceShell', "Do you allow {0} (defined as a workspace setting) to be launched in the terminal?", changeString);
+			const options = [nls.localize('allow', "Allow"), nls.localize('disallow', "Disallow")];
+			this._choiceService.choose(Severity.Info, message, options, 1).then(choice => {
+				if (choice === 0) {
+					this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, true, StorageScope.WORKSPACE);
+				} else {
+					this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, false, StorageScope.WORKSPACE);
+				}
+				return TPromise.as(null);
+			});
+		}
+
+		shell.executable = (isWorkspaceShellAllowed ? shellConfigValue.value : shellConfigValue.user) || shellConfigValue.default;
+		shell.args = (isWorkspaceShellAllowed ? shellArgsConfigValue.value : shellArgsConfigValue.user) || shellArgsConfigValue.default;
 	}
 
 	private _toInteger(source: any, minimum?: number): number {

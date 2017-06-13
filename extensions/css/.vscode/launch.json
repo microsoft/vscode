@@ -29,6 +29,7 @@
 			"name": "Attach Language Server",
 			"type": "node",
 			"request": "attach",
+			"protocol": "legacy",
 			"port": 6004,
 			"sourceMaps": true,
 			"outFiles": ["${workspaceRoot}/server/out/**/*.js"]

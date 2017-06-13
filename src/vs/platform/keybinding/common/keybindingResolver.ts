@@ -19,14 +19,12 @@ export interface IResolveResult {
 export class KeybindingResolver {
 	private readonly _defaultKeybindings: ResolvedKeybindingItem[];
 	private readonly _keybindings: ResolvedKeybindingItem[];
-	private readonly _shouldWarnOnConflict: boolean;
 	private readonly _defaultBoundCommands: Map<string, boolean>;
 	private readonly _map: Map<string, ResolvedKeybindingItem[]>;
 	private readonly _lookupMap: Map<string, ResolvedKeybindingItem[]>;
 
-	constructor(defaultKeybindings: ResolvedKeybindingItem[], overrides: ResolvedKeybindingItem[], shouldWarnOnConflict: boolean = true) {
+	constructor(defaultKeybindings: ResolvedKeybindingItem[], overrides: ResolvedKeybindingItem[]) {
 		this._defaultKeybindings = defaultKeybindings;
-		this._shouldWarnOnConflict = shouldWarnOnConflict;
 
 		this._defaultBoundCommands = new Map<string, boolean>();
 		for (let i = 0, len = defaultKeybindings.length; i < len; i++) {
@@ -125,10 +123,6 @@ export class KeybindingResolver {
 
 			if (KeybindingResolver.whenIsEntirelyIncluded(true, conflict.when, item.when)) {
 				// `item` completely overwrites `conflict`
-				if (this._shouldWarnOnConflict && item.isDefault) {
-					console.warn('Conflict detected, command `' + conflict.command + '` cannot be triggered due to ' + item.command);
-				}
-
 				// Remove conflict from the lookupMap
 				this._removeFromLookupMap(conflict);
 			}

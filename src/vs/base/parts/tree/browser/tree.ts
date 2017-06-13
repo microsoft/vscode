@@ -12,6 +12,8 @@ import Keyboard = require('vs/base/browser/keyboardEvent');
 import { INavigator } from 'vs/base/common/iterator';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import Event from 'vs/base/common/event';
+import { IAction, IActionItem } from 'vs/base/common/actions';
+import { Color } from 'vs/base/common/color';
 
 export interface ITree extends Events.IEventEmitter {
 
@@ -281,9 +283,10 @@ export interface ITree extends Events.IEventEmitter {
 	focusFirstChild(eventPayload?: any): void;
 
 	/**
-	 * Focuses the second element, in visible order.
+	 * Focuses the second element, in visible order. Will focus the first
+	 * child from the provided element's parent if any.
 	 */
-	focusFirst(eventPayload?: any): void;
+	focusFirst(eventPayload?: any, from?: any): void;
 
 	/**
 	 * Focuses the nth element, in visible order.
@@ -291,9 +294,10 @@ export interface ITree extends Events.IEventEmitter {
 	focusNth(index: number, eventPayload?: any): void;
 
 	/**
-	 * Focuses the last element, in visible order.
+	 * Focuses the last element, in visible order. Will focus the last
+	 * child from the provided element's parent if any.
 	 */
-	focusLast(eventPayload?: any): void;
+	focusLast(eventPayload?: any, from?: any): void;
 
 	/**
 	 * Focuses the element at the end of the next page, in visible order.
@@ -337,6 +341,11 @@ export interface ITree extends Events.IEventEmitter {
 	getNavigator(fromElement?: any, subTreeOnly?: boolean): INavigator<any>;
 
 	/**
+	 * Apply styles to the tree.
+	 */
+	style(styles: ITreeStyles): void;
+
+	/**
 	 * Disposes the tree
 	 */
 	dispose(): void;
@@ -364,6 +373,11 @@ export interface IDataSource {
 	 * Returns the element's parent in a promise.
 	 */
 	getParent(tree: ITree, element: any): WinJS.Promise;
+
+	/**
+	 * Returns whether an element should be expanded when first added to the tree.
+	 */
+	shouldAutoexpand?(tree: ITree, element: any): boolean;
 }
 
 export interface IRenderer {
@@ -550,7 +564,7 @@ export const DRAG_OVER_ACCEPT: IDragOverReaction = { accept: true };
 export const DRAG_OVER_ACCEPT_BUBBLE_UP: IDragOverReaction = { accept: true, bubble: DragOverBubble.BUBBLE_UP };
 export const DRAG_OVER_ACCEPT_BUBBLE_DOWN = (autoExpand = false) => ({ accept: true, bubble: DragOverBubble.BUBBLE_DOWN, autoExpand });
 export const DRAG_OVER_ACCEPT_BUBBLE_UP_COPY: IDragOverReaction = { accept: true, bubble: DragOverBubble.BUBBLE_UP, effect: DragOverEffect.COPY };
-export const DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY = (autoExpand = false) => ({ accept: true, bubble: DragOverBubble.BUBBLE_DOWN, effect: DragOverEffect.COPY });
+export const DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY = (autoExpand = false) => ({ accept: true, bubble: DragOverBubble.BUBBLE_DOWN, effect: DragOverEffect.COPY, autoExpand });
 
 export interface IDragAndDropData {
 	update(event: Mouse.DragMouseEvent): void;
@@ -638,7 +652,7 @@ export interface ITreeConfiguration {
 	accessibilityProvider?: IAccessibilityProvider;
 }
 
-export interface ITreeOptions {
+export interface ITreeOptions extends ITreeStyles {
 	twistiePixels?: number;
 	showTwistie?: boolean;
 	indentPixels?: number;
@@ -651,7 +665,50 @@ export interface ITreeOptions {
 	keyboardSupport?: boolean;
 }
 
+export interface ITreeStyles {
+	listFocusBackground?: Color;
+	listFocusForeground?: Color;
+	listActiveSelectionBackground?: Color;
+	listActiveSelectionForeground?: Color;
+	listFocusAndSelectionBackground?: Color;
+	listFocusAndSelectionForeground?: Color;
+	listInactiveSelectionBackground?: Color;
+	listInactiveSelectionForeground?: Color;
+	listHoverBackground?: Color;
+	listHoverForeground?: Color;
+	listDropBackground?: Color;
+	listFocusOutline?: Color;
+}
+
 export interface ITreeContext extends ITreeConfiguration {
 	tree: ITree;
 	options: ITreeOptions;
+}
+
+export interface IActionProvider {
+
+	/**
+	 * Returns whether or not the element has actions. These show up in place right to the element in the tree.
+	 */
+	hasActions(tree: ITree, element: any): boolean;
+
+	/**
+	 * Returns a promise of an array with the actions of the element that should show up in place right to the element in the tree.
+	 */
+	getActions(tree: ITree, element: any): WinJS.TPromise<IAction[]>;
+
+	/**
+	 * Returns whether or not the element has secondary actions. These show up once the user has expanded the element's action bar.
+	 */
+	hasSecondaryActions(tree: ITree, element: any): boolean;
+
+	/**
+	 * Returns a promise of an array with the secondary actions of the element that should show up once the user has expanded the element's action bar.
+	 */
+	getSecondaryActions(tree: ITree, element: any): WinJS.TPromise<IAction[]>;
+
+	/**
+	 * Returns an action item to render an action.
+	 */
+	getActionItem(tree: ITree, element: any, action: IAction): IActionItem;
 }

@@ -5,7 +5,7 @@
 'use strict';
 
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, IActionRunner, Action } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
@@ -50,10 +50,11 @@ export interface IContextMenuDelegate {
 	getKeyBinding?(action: IAction): ResolvedKeybinding;
 	getMenuClassName?(): string;
 	onHide?(didCancel: boolean): void;
+	actionRunner?: IActionRunner;
 }
 
-export class ContextSubMenu {
-	constructor(public label: string, public entries: (ContextSubMenu | IAction)[]) {
-		// noop
+export class ContextSubMenu extends Action {
+	constructor(label: string, public entries: (ContextSubMenu | IAction)[]) {
+		super('contextsubmenu', label, '', true);
 	}
 }

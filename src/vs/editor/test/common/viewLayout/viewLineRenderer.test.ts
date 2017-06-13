@@ -31,6 +31,7 @@ suite('viewLineRenderer.renderLine', () => {
 			0,
 			-1,
 			'none',
+			false,
 			false
 		));
 
@@ -78,6 +79,7 @@ suite('viewLineRenderer.renderLine', () => {
 			0,
 			-1,
 			'none',
+			false,
 			false
 		));
 
@@ -127,6 +129,7 @@ suite('viewLineRenderer.renderLine', () => {
 			10,
 			6,
 			'boundary',
+			false,
 			false
 		));
 
@@ -212,6 +215,7 @@ suite('viewLineRenderer.renderLine', () => {
 			10,
 			-1,
 			'boundary',
+			false,
 			false
 		));
 
@@ -271,6 +275,7 @@ suite('viewLineRenderer.renderLine', () => {
 			10,
 			-1,
 			'none',
+			false,
 			false
 		));
 
@@ -330,6 +335,7 @@ suite('viewLineRenderer.renderLine', () => {
 			10,
 			-1,
 			'none',
+			false,
 			false
 		));
 
@@ -366,6 +372,7 @@ suite('viewLineRenderer.renderLine', () => {
 			10,
 			-1,
 			'none',
+			false,
 			false
 		));
 
@@ -392,6 +399,7 @@ suite('viewLineRenderer.renderLine', () => {
 				10,
 				-1,
 				'none',
+				false,
 				false
 			));
 			assert.equal(actual.html, '<span>' + expectedOutput.join('') + '</span>', message);
@@ -469,6 +477,43 @@ suite('viewLineRenderer.renderLine', () => {
 		}
 	});
 
+	test('issue #21476: Does not split large tokens when ligatures are on', () => {
+		//                                                                                                                  1         1         1
+		//                        1         2         3         4         5         6         7         8         9         0         1         2
+		//               1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234
+		let _lineText = 'This is just a long line that contains very interesting text. This is just a long line that contains very interesting text.';
+
+		function assertSplitsTokens(message: string, lineText: string, expectedOutput: string[]): void {
+			let lineParts = [createPart(lineText.length, 1)];
+			let actual = renderViewLine(new RenderLineInput(
+				false,
+				lineText,
+				false,
+				0,
+				lineParts,
+				[],
+				4,
+				10,
+				-1,
+				'none',
+				false,
+				true
+			));
+			assert.equal(actual.html, '<span>' + expectedOutput.join('') + '</span>', message);
+		}
+
+		// A token with 101 chars
+		{
+			assertSplitsTokens(
+				'101 chars',
+				_lineText.substr(0, 101),
+				[
+					'<span class="mtk1">This&nbsp;is&nbsp;just&nbsp;a&nbsp;long&nbsp;line&nbsp;that&nbsp;contains&nbsp;very&nbsp;interesting&nbsp;text.&nbsp;This&nbsp;is&nbsp;just&nbsp;a&nbsp;long&nbsp;line&nbsp;that&nbsp;contains&nbsp;</span>',
+				]
+			);
+		}
+	});
+
 	test('issue #20624: Unaligned surrogate pairs are corrupted at multiples of 50 columns', () => {
 		let lineText = 'a𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷';
 
@@ -484,6 +529,7 @@ suite('viewLineRenderer.renderLine', () => {
 			10,
 			-1,
 			'none',
+			false,
 			false
 		));
 		let expectedOutput = [
@@ -513,6 +559,7 @@ suite('viewLineRenderer.renderLine', () => {
 			10,
 			-1,
 			'none',
+			false,
 			false
 		));
 		assert.equal(actual.html, '<span>' + expectedOutput.join('') + '</span>');
@@ -555,6 +602,7 @@ suite('viewLineRenderer.renderLine', () => {
 			10,
 			-1,
 			'none',
+			false,
 			false
 		));
 
@@ -623,6 +671,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			10,
 			-1,
 			renderWhitespace,
+			false,
 			false
 		));
 
@@ -644,6 +693,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			10,
 			-1,
 			'none',
+			false,
 			false
 		));
 
@@ -679,6 +729,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			10,
 			-1,
 			'none',
+			false,
 			false
 		));
 
@@ -938,6 +989,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			10,
 			-1,
 			'none',
+			false,
 			false
 		));
 
@@ -971,6 +1023,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			10,
 			-1,
 			'none',
+			false,
 			false
 		));
 

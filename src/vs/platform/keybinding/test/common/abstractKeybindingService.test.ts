@@ -20,7 +20,13 @@ import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKe
 import { OS } from 'vs/base/common/platform';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 
-const createContext = ctx => ({ getValue: key => ctx[key] });
+function createContext(ctx: any) {
+	return {
+		getValue: (key: string) => {
+			return ctx[key];
+		}
+	};
+}
 
 suite('AbstractKeybindingService', () => {
 
@@ -55,6 +61,10 @@ suite('AbstractKeybindingService', () => {
 				keyboardEvent.keyCode
 			);
 			return this.resolveKeybinding(keybinding)[0];
+		}
+
+		public resolveUserBinding(userBinding: string): ResolvedKeybinding[] {
+			return [];
 		}
 
 		public testDispatch(kb: number): boolean {
@@ -136,7 +146,7 @@ suite('AbstractKeybindingService', () => {
 				}
 			};
 
-			let resolver = new KeybindingResolver(items, [], false);
+			let resolver = new KeybindingResolver(items, []);
 
 			return new TestKeybindingService(resolver, contextKeyService, commandService, messageService, statusbarService);
 		};

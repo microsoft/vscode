@@ -8,154 +8,342 @@
 declare module 'vscode' {
 
 	/**
-	 * Defines a generalized way of reporing progress updates.
+	 * Controls the behaviour of the terminal's visibility.
 	 */
-	export interface Progress<T> {
+	export enum TaskRevealKind {
+		/**
+		 * Always brings the terminal to front if the task is executed.
+		 */
+		Always = 1,
 
 		/**
-		 * Report a progress update.
-		 * @param value A progress item, like a message or an updated percentage value
+		 * Only brings the terminal to front if a problem is detected executing the task
+		 * (e.g. the task couldn't be started because).
 		 */
-		report(value: T): void
+		Silent = 2,
+
+		/**
+		 * The terminal never comes to front when the task is executed.
+		 */
+		Never = 3
+	}
+
+	/**
+	 * Controls terminal specific behavior.
+	 */
+	export interface TaskTerminalBehavior {
+		/**
+		 * Controls whether the terminal executing a task is brought to front or not.
+		 * Defaults to `RevealKind.Always`.
+		 */
+		reveal?: TaskRevealKind;
+
+		/**
+		 * Controls whether the command is echoed in the terminal or not.
+		 */
+		echo?: boolean;
+	}
+
+	export interface ProcessTaskOptions {
+		/**
+		 * The current working directory of the executed program or shell.
+		 * If omitted the tools current workspace root is used.
+		 */
+		cwd?: string;
+
+		/**
+		 * The additional environment of the executed program or shell. If omitted
+		 * the parent process' environment is used. If provided it is merged with
+		 * the parent process' environment.
+		 */
+		env?: { [key: string]: string };
+	}
+
+	export namespace TaskGroup {
+		/**
+		 * The clean task group
+		 */
+		export const Clean: 'clean';
+		/**
+		 * The build task group. If a task is part of the build task group
+		 * it can be executed via the run build short cut.
+		 */
+		export const Build: 'build';
+		/**
+		 * The rebuild all task group
+		 */
+		export const RebuildAll: 'rebuildAll';
+		/**
+		 * The test task group. If a task is part of the test task group
+		 * it can be executed via the run test short cut.
+		 */
+		export const Test: 'test';
+	}
+
+	/**
+	 * A task that starts an external process.
+	 */
+	export class ProcessTask {
+
+		/**
+		 * Creates a process task.
+		 *
+		 * @param name the task's name. Is presented in the user interface.
+		 * @param process the process to start.
+		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
+		 *  or '$eslint'. Problem matchers can be contributed by an extension using
+		 *  the `problemMatchers` extension point.
+		 */
+		constructor(name: string, process: string, problemMatchers?: string | string[]);
+
+		/**
+		 * Creates a process task.
+		 *
+		 * @param name the task's name. Is presented in the user interface.
+		 * @param process the process to start.
+		 * @param args arguments to be passed to the process.
+		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
+		 *  or '$eslint'. Problem matchers can be contributed by an extension using
+		 *  the `problemMatchers` extension point.
+		 */
+		constructor(name: string, process: string, args: string[], problemMatchers?: string | string[]);
+
+		/**
+		 * Creates a process task.
+		 *
+		 * @param name the task's name. Is presented in the user interface.
+		 * @param process the process to start.
+		 * @param args arguments to be passed to the process.
+		 * @param options additional options for the started process.
+		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
+		 *  or '$eslint'. Problem matchers can be contributed by an extension using
+		 *  the `problemMatchers` extension point.
+		 */
+		constructor(name: string, process: string, args: string[], options: ProcessTaskOptions, problemMatchers?: string | string[]);
+
+		/**
+		 * The task's name
+		 */
+		readonly name: string;
+
+		/**
+		 * The task's identifier. If omitted the internal identifier will
+		 * be `${extensionName}:${name}`
+		 */
+		identifier: string | undefined;
+
+		/**
+		 * Whether the task is a background task or not.
+		 */
+		isBackground: boolean;
+
+		/**
+		 * The process to be executed.
+		 */
+		readonly process: string;
+
+		/**
+		 * The arguments passed to the process. Defaults to an empty array.
+		 */
+		args: string[];
+
+		/**
+		 * A human-readable string describing the source of this
+		 * shell task, e.g. 'gulp' or 'npm'.
+		 */
+		source: string | undefined;
+
+		/**
+		 * The task group this tasks belongs to. See TaskGroup
+		 * for a predefined set of available groups.
+		 * Defaults to undefined meaning that the task doesn't
+		 * belong to any special group.
+		 */
+		group: string | undefined;
+
+		/**
+		 * The process options used when the process is executed.
+		 * Defaults to an empty object literal.
+		 */
+		options: ProcessTaskOptions;
+
+		/**
+		 * The terminal behavior. Defaults to an empty object literal.
+		 */
+		terminalBehavior: TaskTerminalBehavior;
+
+		/**
+		 * The problem matchers attached to the task. Defaults to an empty
+		 * array.
+		 */
+		problemMatchers: string[];
+	}
+
+	export type ShellTaskOptions = {
+		/**
+		 * The shell executable.
+		 */
+		executable: string;
+
+		/**
+		 * The arguments to be passed to the shell executable used to run the task.
+		 */
+		shellArgs?: string[];
+
+		/**
+		 * The current working directory of the executed shell.
+		 * If omitted the tools current workspace root is used.
+		 */
+		cwd?: string;
+
+		/**
+		 * The additional environment of the executed shell. If omitted
+		 * the parent process' environment is used. If provided it is merged with
+		 * the parent process' environment.
+		 */
+		env?: { [key: string]: string };
+	} | {
+			/**
+			 * The current working directory of the executed shell.
+			 * If omitted the tools current workspace root is used.
+			 */
+			cwd: string;
+
+			/**
+			 * The additional environment of the executed shell. If omitted
+			 * the parent process' environment is used. If provided it is merged with
+			 * the parent process' environment.
+			 */
+			env?: { [key: string]: string };
+		} | {
+			/**
+			 * The current working directory of the executed shell.
+			 * If omitted the tools current workspace root is used.
+			 */
+			cwd?: string;
+
+			/**
+			 * The additional environment of the executed shell. If omitted
+			 * the parent process' environment is used. If provided it is merged with
+			 * the parent process' environment.
+			 */
+			env: { [key: string]: string };
+		};
+
+	/**
+	 * A task that executes a shell command.
+	 */
+	export class ShellTask {
+
+		/**
+		 * Creates a shell task.
+		 *
+		 * @param name the task's name. Is presented in the user interface.
+		 * @param commandLine the command line to execute.
+		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
+		 *  or '$eslint'. Problem matchers can be contributed by an extension using
+		 *  the `problemMatchers` extension point.
+		 */
+		constructor(name: string, commandLine: string, problemMatchers?: string | string[]);
+
+		/**
+		 * Creates a shell task.
+		 *
+		 * @param name the task's name. Is presented in the user interface.
+		 * @param commandLine the command line to execute.
+		 * @param options additional options used when creating the shell.
+		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
+		 *  or '$eslint'. Problem matchers can be contributed by an extension using
+		 *  the `problemMatchers` extension point.
+		 */
+		constructor(name: string, commandLine: string, options: ShellTaskOptions, problemMatchers?: string | string[]);
+
+		/**
+		 * The task's name
+		 */
+		readonly name: string;
+
+		/**
+		 * The task's identifier. If omitted the internal identifier will
+		 * be `${extensionName}:${name}`
+		 */
+		identifier: string | undefined;
+
+		/**
+		 * Whether the task is a background task or not.
+		 */
+		isBackground: boolean;
+
+		/**
+		 * The command line to execute.
+		 */
+		readonly commandLine: string;
+
+		/**
+		 * A human-readable string describing the source of this
+		 * shell task, e.g. 'gulp' or 'npm'.
+		 */
+		source: string | undefined;
+
+		/**
+		 * The task group this tasks belongs to. See TaskGroup
+		 * for a predefined set of available groups.
+		 * Defaults to undefined meaning that the task doesn't
+		 * belong to any special group.
+		 */
+		group: string | undefined;
+
+		/**
+		 * The shell options used when the shell is executed. Defaults to an
+		 * empty object literal.
+		 */
+		options: ShellTaskOptions;
+
+		/**
+		 * The terminal behavior. Defaults to an empty object literal.
+		 */
+		terminalBehavior: TaskTerminalBehavior;
+
+		/**
+		 * The problem matchers attached to the task. Defaults to an empty
+		 * array.
+		 */
+		problemMatchers: string[];
+	}
+
+	export type Task = ProcessTask | ShellTask;
+
+	/**
+	 * A task provider allows to add tasks to the task service.
+	 * A task provider is registerd via #workspace.registerTaskProvider.
+	 */
+	export interface TaskProvider {
+		/**
+		 * Provides additional tasks.
+		 * @param token A cancellation token.
+		 * @return a #TaskSet
+		 */
+		provideTasks(token: CancellationToken): ProviderResult<Task[]>;
+	}
+
+	export namespace workspace {
+		/**
+		 * Register a task provider.
+		 *
+		 * @param provider A task provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerTaskProvider(provider: TaskProvider): Disposable;
 	}
 
 	export namespace window {
-
-		/**
-		 * Show window-wide progress, e.g. in the status bar, for the provided task. The task is
-		 * considering running as long as the promise it returned isn't resolved or rejected.
-		 *
-		 * @param task A function callback that represents a long running operation.
-		 */
-		export function withWindowProgress<R>(title: string, task: (progress: Progress<string>, token: CancellationToken) => Thenable<R>): Thenable<R>;
-
-		export function withScmProgress<R>(task: (progress: Progress<number>) => Thenable<R>): Thenable<R>;
 
 		export function sampleFunction(): Thenable<any>;
 	}
 
-	export namespace window {
-
-		/**
-		 * Register a [TreeExplorerNodeProvider](#TreeExplorerNodeProvider).
-		 *
-		 * @param providerId A unique id that identifies the provider.
-		 * @param provider A [TreeExplorerNodeProvider](#TreeExplorerNodeProvider).
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerTreeExplorerNodeProvider(providerId: string, provider: TreeExplorerNodeProvider<any>): Disposable;
-	}
-
 	/**
-	 * A node provider for a tree explorer contribution.
-	 *
-	 * Providers are registered through (#window.registerTreeExplorerNodeProvider) with a
-	 * `providerId` that corresponds to the `treeExplorerNodeProviderId` in the extension's
-	 * `contributes.explorer` section.
-	 *
-	 * The contributed tree explorer will ask the corresponding provider to provide the root
-	 * node and resolve children for each node. In addition, the provider could **optionally**
-	 * provide the following information for each node:
-	 * - label: A human-readable label used for rendering the node.
-	 * - hasChildren: Whether the node has children and is expandable.
-	 * - clickCommand: A command to execute when the node is clicked.
+	 * The contiguous set of modified lines in a diff.
 	 */
-	export interface TreeExplorerNodeProvider<T> {
-
-		/**
-		 * Provide the root node. This function will be called when the tree explorer is activated
-		 * for the first time. The root node is hidden and its direct children will be displayed on the first level of
-		 * the tree explorer.
-		 *
-		 * @return The root node.
-		 */
-		provideRootNode(): T | Thenable<T>;
-
-		/**
-		 * Resolve the children of `node`.
-		 *
-		 * @param node The node from which the provider resolves children.
-		 * @return Children of `node`.
-		 */
-		resolveChildren(node: T): T[] | Thenable<T[]>;
-
-		/**
-		 * Provide a human-readable string that will be used for rendering the node. Default to use
-		 * `node.toString()` if not provided.
-		 *
-		 * @param node The node from which the provider computes label.
-		 * @return A human-readable label.
-		 */
-		getLabel?(node: T): string;
-
-		/**
-		 * Determine if `node` has children and is expandable. Default to `true` if not provided.
-		 *
-		 * @param node The node to determine if it has children and is expandable.
-		 * @return A boolean that determines if `node` has children and is expandable.
-		 */
-		getHasChildren?(node: T): boolean;
-
-		/**
-		 * Get the command to execute when `node` is clicked.
-		 *
-		 * Commands can be registered through [registerCommand](#commands.registerCommand). `node` will be provided
-		 * as the first argument to the command's callback function.
-		 *
-		 * @param node The node that the command is associated with.
-		 * @return The command to execute when `node` is clicked.
-		 */
-		getClickCommand?(node: T): string;
-	}
-
-	export interface SCMResourceThemableDecorations {
-		readonly iconPath?: string | Uri;
-	}
-
-	export interface SCMResourceDecorations extends SCMResourceThemableDecorations {
-		readonly strikeThrough?: boolean;
-		readonly light?: SCMResourceThemableDecorations;
-		readonly dark?: SCMResourceThemableDecorations;
-	}
-
-	export interface SCMResource {
-		readonly uri: Uri;
-		readonly decorations?: SCMResourceDecorations;
-	}
-
-	export interface SCMResourceGroup {
-		readonly id: string;
-		readonly label: string;
-		readonly resources: SCMResource[];
-	}
-
-	export interface SCMProvider {
-		readonly label: string;
-		readonly resources: SCMResourceGroup[];
-		readonly onDidChange: Event<SCMResourceGroup[]>;
-		readonly count?: number | undefined;
-		readonly state?: string;
-
-		getOriginalResource?(uri: Uri, token: CancellationToken): ProviderResult<Uri>;
-		open?(resource: SCMResource, token: CancellationToken): ProviderResult<void>;
-		drag?(resource: SCMResource, resourceGroup: SCMResourceGroup, token: CancellationToken): ProviderResult<void>;
-		acceptChanges?(token: CancellationToken): ProviderResult<void>;
-	}
-
-	export interface SCMInputBox {
-		value: string;
-		readonly onDidChange: Event<string>;
-	}
-
-	export namespace scm {
-		export const onDidChangeActiveProvider: Event<SCMProvider>;
-		export let activeProvider: SCMProvider | undefined;
-		export const inputBox: SCMInputBox;
-
-		export function getResourceFromURI(uri: Uri): SCMResource | SCMResourceGroup | undefined;
-		export function registerSCMProvider(id: string, provider: SCMProvider): Disposable;
-	}
-
 	export interface LineChange {
 		readonly originalStartLineNumber: number;
 		readonly originalEndLineNumber: number;
@@ -163,5 +351,71 @@ declare module 'vscode' {
 		readonly modifiedEndLineNumber: number;
 	}
 
-	export function computeDiff(oneDocument: TextDocument, otherDocument: TextDocument): Thenable<LineChange[]>;
+	export namespace commands {
+
+		/**
+		 * Registers a diff information command that can be invoked via a keyboard shortcut,
+		 * a menu item, an action, or directly.
+		 *
+		 * Diff information commands are different from ordinary [commands](#commands.registerCommand) as
+		 * they only execute when there is an active diff editor when the command is called, and the diff
+		 * information has been computed. Also, the command handler of an editor command has access to
+		 * the diff information.
+		 *
+		 * @param command A unique identifier for the command.
+		 * @param callback A command handler function with access to the [diff information](#LineChange).
+		 * @param thisArg The `this` context used when invoking the handler function.
+		 * @return Disposable which unregisters this command on disposal.
+		 */
+		export function registerDiffInformationCommand(command: string, callback: (diff: LineChange[], ...args: any[]) => any, thisArg?: any): Disposable;
+	}
+
+	export interface Terminal {
+
+		/**
+		 * The name of the terminal.
+		 */
+		readonly name: string;
+
+		/**
+		 * The process ID of the shell process.
+		 */
+		readonly processId: Thenable<number>;
+
+		/**
+		 * Send text to the terminal. The text is written to the stdin of the underlying pty process
+		 * (shell) of the terminal.
+		 *
+		 * @param text The text to send.
+		 * @param addNewLine Whether to add a new line to the text being sent, this is normally
+		 * required to run a command in the terminal. The character(s) added are \n or \r\n
+		 * depending on the platform. This defaults to `true`.
+		 */
+		sendText(text: string, addNewLine?: boolean): void;
+
+		/**
+		 * Show the terminal panel and reveal this terminal in the UI.
+		 *
+		 * @param preserveFocus When `true` the terminal will not take focus.
+		 */
+		show(preserveFocus?: boolean): void;
+
+		/**
+		 * Hide the terminal panel if this terminal is currently showing.
+		 */
+		hide(): void;
+
+		/**
+		 * Dispose and free associated resources.
+		 */
+		dispose(): void;
+
+		/**
+		 * Experimental API that allows listening to the raw data stream coming from the terminal's
+		 * pty process (including ANSI escape sequences).
+		 *
+		 * @param callback The callback that is triggered when data is sent to the terminal.
+		 */
+		onData(callback: (data: string) => any): void;
+	}
 }

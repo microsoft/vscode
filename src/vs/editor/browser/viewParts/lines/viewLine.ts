@@ -11,7 +11,6 @@ import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IConfiguration } from 'vs/editor/common/editorCommon';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { renderViewLine, RenderLineInput, CharacterMapping } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { IVisibleLine } from 'vs/editor/browser/view/viewLayer';
 import { RangeUtil } from 'vs/editor/browser/viewParts/lines/rangeUtil';
 import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
@@ -72,6 +71,7 @@ export class ViewLineOptions {
 	public readonly useMonospaceOptimizations: boolean;
 	public readonly lineHeight: number;
 	public readonly stopRenderingLineAfter: number;
+	public readonly fontLigatures: boolean;
 
 	constructor(config: IConfiguration) {
 		this.renderWhitespace = config.editor.viewInfo.renderWhitespace;
@@ -83,6 +83,7 @@ export class ViewLineOptions {
 		);
 		this.lineHeight = config.editor.lineHeight;
 		this.stopRenderingLineAfter = config.editor.viewInfo.stopRenderingLineAfter;
+		this.fontLigatures = config.editor.viewInfo.fontLigatures;
 	}
 
 	public equals(other: ViewLineOptions): boolean {
@@ -93,11 +94,14 @@ export class ViewLineOptions {
 			&& this.useMonospaceOptimizations === other.useMonospaceOptimizations
 			&& this.lineHeight === other.lineHeight
 			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
+			&& this.fontLigatures === other.fontLigatures
 		);
 	}
 }
 
 export class ViewLine implements IVisibleLine {
+
+	public static CLASS_NAME = 'view-line';
 
 	private _options: ViewLineOptions;
 	private _isMaybeInvalid: boolean;
@@ -161,7 +165,8 @@ export class ViewLine implements IVisibleLine {
 			options.spaceWidth,
 			options.stopRenderingLineAfter,
 			options.renderWhitespace,
-			options.renderControlCharacters
+			options.renderControlCharacters,
+			options.fontLigatures
 		);
 
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {
@@ -201,7 +206,7 @@ export class ViewLine implements IVisibleLine {
 
 		this._renderedViewLine = renderedViewLine;
 
-		return `<div style="top:${deltaTop}px;height:${this._options.lineHeight}px;" class="${ClassNames.VIEW_LINE}">${output.html}</div>`;
+		return `<div style="top:${deltaTop}px;height:${this._options.lineHeight}px;" class="${ViewLine.CLASS_NAME}">${output.html}</div>`;
 	}
 
 	public layoutLine(lineNumber: number, deltaTop: number): void {

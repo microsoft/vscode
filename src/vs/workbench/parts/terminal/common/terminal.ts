@@ -27,6 +27,9 @@ export const KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED = new RawContextKey<boole
 /** A keybinding context key that is set when the integrated terminal does not have text selected. */
 export const KEYBINDING_CONTEXT_TERMINAL_TEXT_NOT_SELECTED: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.toNegated();
 
+export const IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY = 'terminal.integrated.isWorkspaceShellAllowed';
+export const NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY = 'terminal.integrated.neverSuggestSelectWindowsShell';
+
 export const ITerminalService = createDecorator<ITerminalService>(TERMINAL_SERVICE_ID);
 
 export const TerminalCursorStyle = {
@@ -68,6 +71,8 @@ export interface ITerminalConfigHelper {
 	 * Merges the default shell path and args into the provided launch configuration
 	 */
 	mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig): void;
+	/** Sets whether a workspace shell configuration is allowed or not */
+	setWorkspaceShellAllowed(isAllowed: boolean): void;
 }
 
 export interface ITerminalFont {
@@ -104,8 +109,10 @@ export interface IShellLaunchConfig {
 	 * shell is being launched by an extension).
 	 */
 	ignoreConfigurationCwd?: boolean;
+
 	/** Whether to wait for a key press before closing the terminal. */
-	waitOnExit?: boolean;
+	waitOnExit?: boolean | string;
+
 	/**
 	 * A string including ANSI escape sequences that will be written to the terminal emulator
 	 * _before_ the terminal process has launched, a trailing \n is added at the end of the string.
@@ -123,11 +130,12 @@ export interface ITerminalService {
 	onActiveInstanceChanged: Event<string>;
 	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
+	onInstanceData: Event<{ instance: ITerminalInstance, data: string }>;
 	onInstancesChanged: Event<string>;
 	onInstanceTitleChanged: Event<string>;
 	terminalInstances: ITerminalInstance[];
 
-	createInstance(shell?: IShellLaunchConfig): ITerminalInstance;
+	createInstance(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance;
 	getInstanceLabels(): string[];
 	getActiveInstance(): ITerminalInstance;
@@ -135,11 +143,14 @@ export interface ITerminalService {
 	setActiveInstanceByIndex(terminalIndex: number): void;
 	setActiveInstanceToNext(): void;
 	setActiveInstanceToPrevious(): void;
+	getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
 
 	showPanel(focus?: boolean): TPromise<void>;
 	hidePanel(): void;
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	updateConfig(): void;
+	selectDefaultWindowsShell(): TPromise<string>;
+	setWorkspaceShellAllowed(isAllowed: boolean): void;
 }
 
 export interface ITerminalInstance {
@@ -218,6 +229,11 @@ export interface ITerminalInstance {
 	 * Clear current selection.
 	 */
 	clearSelection(): void;
+
+	/**
+	 * Select all text in the terminal.
+	 */
+	selectAll(): void;
 
 	/**
 	 * Focuses the terminal instance.
@@ -309,4 +325,14 @@ export interface ITerminalInstance {
 	 * @param shell The new launch configuration.
 	 */
 	reuseTerminal(shell?: IShellLaunchConfig): void;
+
+	/**
+	 * Experimental: Call to enable onData to be passed over IPC to the extension host.
+	 */
+	enableApiOnData(): void;
+
+	/**
+	 * Sets the title of the terminal instance.
+	 */
+	setTitle(title: string): void;
 }

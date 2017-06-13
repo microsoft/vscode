@@ -82,40 +82,6 @@ function _cloneAndChange(obj: any, changer: (orig: any) => any, encounteredObjec
 	return obj;
 }
 
-// DON'T USE THESE FUNCTION UNLESS YOU KNOW HOW CHROME
-// WORKS... WE HAVE SEEN VERY WEIRD BEHAVIOUR WITH CHROME >= 37
-
-///**
-// * Recursively call Object.freeze on object and any properties that are objects.
-// */
-//export function deepFreeze(obj:any):void {
-//	Object.freeze(obj);
-//	Object.keys(obj).forEach((key) => {
-//		if(!(typeof obj[key] === 'object') || Object.isFrozen(obj[key])) {
-//			return;
-//		}
-//
-//		deepFreeze(obj[key]);
-//	});
-//	if(!Object.isFrozen(obj)) {
-//		console.log('too warm');
-//	}
-//}
-//
-//export function deepSeal(obj:any):void {
-//	Object.seal(obj);
-//	Object.keys(obj).forEach((key) => {
-//		if(!(typeof obj[key] === 'object') || Object.isSealed(obj[key])) {
-//			return;
-//		}
-//
-//		deepSeal(obj[key]);
-//	});
-//	if(!Object.isSealed(obj)) {
-//		console.log('NOT sealed');
-//	}
-//}
-
 /**
  * Copies all properties of source into destination. The optional parameter "overwrite" allows to control
  * if existing properties on the destination should be overwritten or not. Defaults to true (overwrite).
@@ -148,8 +114,8 @@ export function assign(destination: any, ...sources: any[]): any {
 	return destination;
 }
 
-export function toObject<T, R>(arr: T[], keyMap: (T) => string, valueMap: (T) => R = x => x): { [key: string]: R } {
-	return arr.reduce((o, d) => assign(o, { [keyMap(d)]: valueMap(d) }), Object.create(null));
+export function toObject<T>(arr: T[], keyMap: (t: T) => string): { [key: string]: T } {
+	return arr.reduce((o, d) => assign(o, { [keyMap(d)]: d }), Object.create(null));
 }
 
 export function equals(one: any, other: any): boolean {
@@ -304,7 +270,7 @@ export function getOrDefault<T, R>(obj: T, fn: (obj: T) => R, defaultValue: R = 
  * @param obj the object to use for diffing
  */
 export type obj = { [key: string]: any; };
-export function distinct<T>(base: obj, target: obj): obj {
+export function distinct(base: obj, target: obj): obj {
 	const result = Object.create(null);
 
 	if (!base || !target) {

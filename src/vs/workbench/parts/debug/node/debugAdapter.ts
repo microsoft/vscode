@@ -12,7 +12,7 @@ import * as objects from 'vs/base/common/objects';
 import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
 import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
-import { IRawAdapter, IAdapterExecutable } from 'vs/workbench/parts/debug/common/debug';
+import { IRawAdapter, IAdapterExecutable, INTERNAL_CONSOLE_OPTIONS_SCHEMA } from 'vs/workbench/parts/debug/common/debug';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -183,6 +183,7 @@ export class Adapter {
 				enum: [this.type],
 				description: nls.localize('debugType', "Type of configuration."),
 				pattern: '^(?!node2)',
+				errorMessage: nls.localize('debugTypeNotRecognised', "The debug type is not recognized. Make sure that you have a corresponding debug extension installed and that it is enabled."),
 				patternErrorMessage: nls.localize('node2NotSupported', "\"node2\" is no longer supported, use \"node\" instead and set the \"protocol\" attribute to \"inspector\".")
 			};
 			properties['name'] = {
@@ -204,11 +205,7 @@ export class Adapter {
 				default: null,
 				description: nls.localize('debugPrelaunchTask', "Task to run before debug session starts.")
 			};
-			properties['internalConsoleOptions'] = {
-				enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart'],
-				default: 'openOnFirstSessionStart',
-				description: nls.localize('internalConsoleOptions', "Controls behavior of the internal debug console.")
-			};
+			properties['internalConsoleOptions'] = INTERNAL_CONSOLE_OPTIONS_SCHEMA;
 
 			const osProperties = objects.deepClone(properties);
 			properties['windows'] = {

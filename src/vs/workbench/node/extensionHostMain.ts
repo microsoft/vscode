@@ -8,14 +8,16 @@
 import nls = require('vs/nls');
 import pfs = require('vs/base/node/pfs');
 import { TPromise } from 'vs/base/common/winjs.base';
-import paths = require('vs/base/common/paths');
+import { join } from 'path';
 import { IRemoteCom } from 'vs/platform/extensions/common/ipcRemoteCom';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostThreadService } from 'vs/workbench/services/thread/common/extHostThreadService';
+import { QueryType, ISearchQuery } from 'vs/platform/search/common/search';
+import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
 import { RemoteTelemetryService } from 'vs/workbench/api/node/extHostTelemetry';
-import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IInitData, IEnvironment, MainContext } from 'vs/workbench/api/node/extHost.protocol';
 import * as errors from 'vs/base/common/errors';
+import { IWorkspace } from "vs/platform/workspace/common/workspace";
 
 const nativeExit = process.exit.bind(process);
 process.exit = function () {
@@ -33,17 +35,19 @@ interface ITestRunner {
 export class ExtensionHostMain {
 
 	private _isTerminating: boolean = false;
-	private _contextService: IWorkspaceContextService;
+	private _diskSearch: DiskSearch;
+	private _workspace: IWorkspace;
 	private _environment: IEnvironment;
 	private _extensionService: ExtHostExtensionService;
 
 	constructor(remoteCom: IRemoteCom, initData: IInitData) {
-		// services
 		this._environment = initData.environment;
-		this._contextService = new WorkspaceContextService(initData.contextService.workspace);
+		this._workspace = initData.workspace;
+
+		// services
 		const threadService = new ExtHostThreadService(remoteCom);
 		const telemetryService = new RemoteTelemetryService('pluginHostTelemetry', threadService);
-		this._extensionService = new ExtHostExtensionService(initData, threadService, telemetryService, this._contextService);
+		this._extensionService = new ExtHostExtensionService(initData, threadService, telemetryService);
 
 		// Error forwarding
 		const mainThreadErrors = threadService.get(MainContext.MainThreadErrors);
@@ -97,12 +101,11 @@ export class ExtensionHostMain {
 	}
 
 	private handleWorkspaceContainsEagerExtensions(): TPromise<void> {
-		let workspace = this._contextService.getWorkspace();
-		if (!workspace || !workspace.resource) {
+		if (!this._workspace || !this._workspace.resource) {
 			return TPromise.as(null);
 		}
 
-		const folderPath = workspace.resource.fsPath;
+		const folderPath = this._workspace.resource.fsPath;
 
 		const desiredFilesMap: {
 			[filename: string]: boolean;
@@ -122,13 +125,33 @@ export class ExtensionHostMain {
 			}
 		});
 
-		const fileNames = Object.keys(desiredFilesMap);
+		const matchingPatterns = Object.keys(desiredFilesMap).map(p => {
+			// TODO: This is a bit hacky -- maybe this should be implemented by using something like
+			// `workspaceGlob` or something along those lines?
+			if (p.indexOf('*') > -1 || p.indexOf('?') > -1) {
+				if (!this._diskSearch) {
+					// Shut down this search process after 1s
+					this._diskSearch = new DiskSearch(false, 1000);
+				}
 
-		return TPromise.join(fileNames.map(f => pfs.exists(paths.join(folderPath, f)))).then(exists => {
-			fileNames
-				.filter((f, i) => exists[i])
-				.forEach(fileName => {
-					const activationEvent = `workspaceContains:${fileName}`;
+				const query: ISearchQuery = {
+					folderResources: [this._workspace.resource],
+					type: QueryType.File,
+					maxResults: 1,
+					includePattern: { [p]: true }
+				};
+
+				return this._diskSearch.search(query).then(result => result.results.length ? p : undefined);
+			} else {
+				return pfs.exists(join(folderPath, p)).then(exists => exists ? p : undefined);
+			}
+		});
+
+		return TPromise.join(matchingPatterns).then(patterns => {
+			patterns
+				.filter(p => p !== undefined)
+				.forEach(p => {
+					const activationEvent = `workspaceContains:${p}`;
 
 					this._extensionService.activateByEvent(activationEvent)
 						.done(null, err => console.error(err));

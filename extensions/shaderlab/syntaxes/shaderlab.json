@@ -1,4 +1,9 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/tgjones/shaders-tmLanguage/blob/master/grammars/shaderlab.json",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
 	"scopeName": "source.shaderlab",
 	"name": "ShaderLab",
 	"fileTypes": [
@@ -95,6 +100,48 @@
 			},
 			"patterns": [
 				{
+					"include": "#hlsl-embedded"
+				}
+			]
+		},
+		{
+			"name": "meta.hlslblock",
+			"begin": "\\b(HLSLPROGRAM|HLSLINCLUDE)\\b",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.other"
+				}
+			},
+			"end": "\\b(ENDHLSL)\\b",
+			"endCaptures": {
+				"1": {
+					"name": "keyword.other"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#hlsl-embedded"
+				}
+			]
+		},
+		{
+			"name": "string.quoted.double.shaderlab",
+			"begin": "\"",
+			"end": "\""
+		}
+	],
+	"repository": {
+		"numbers": {
+			"patterns": [
+				{
+					"name": "constant.numeric.shaderlab",
+					"match": "\\b([0-9]+\\.?[0-9]*)\\b"
+				}
+			]
+		},
+		"hlsl-embedded": {
+			"patterns": [
+				{
 					"include": "source.hlsl"
 				},
 				{
@@ -154,22 +201,6 @@
 					"match": "\\b(SurfaceOutputStandardSpecular|SurfaceOutputStandard|SurfaceOutput|Input)\\b"
 				}
 			]
-		},
-		{
-			"name": "string.quoted.double.shaderlab",
-			"begin": "\"",
-			"end": "\""
 		}
-	],
-	"repository": {
-		"numbers": {
-			"patterns": [
-				{
-					"name": "constant.numeric.shaderlab",
-					"match": "\\b([0-9]+\\.?[0-9]*)\\b"
-				}
-			]
-		}
-	},
-	"version": "https://github.com/tgjones/shaders-tmLanguage/commit/cd1ef40f549f9ce2b9e6b73498688de114a85382"
+	}
 }

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IColorTheme, ITokenColorizationSetting } from 'vs/workbench/services/themes/common/themeService';
+import { IColorTheme, ITokenColorizationSetting } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
 export function findMatchingThemeRule(theme: IColorTheme, scopes: string[]): ThemeRule {
 	for (let i = scopes.length - 1; i >= 0; i--) {
@@ -71,14 +71,40 @@ export class ThemeRule {
 		return ThemeRule._matches(this.scope, this.parentScopes, scope, parentScopes);
 	}
 
+	private static _cmp(a: ThemeRule, b: ThemeRule): number {
+		if (a === null && b === null) {
+			return 0;
+		}
+		if (a === null) {
+			// b > a
+			return -1;
+		}
+		if (b === null) {
+			// a > b
+			return 1;
+		}
+		if (a.scope.length !== b.scope.length) {
+			// longer scope length > shorter scope length
+			return a.scope.length - b.scope.length;
+		}
+		const aParentScopesLen = a.parentScopes.length;
+		const bParentScopesLen = b.parentScopes.length;
+		if (aParentScopesLen !== bParentScopesLen) {
+			// more parents > less parents
+			return aParentScopesLen - bParentScopesLen;
+		}
+		for (let i = 0; i < aParentScopesLen; i++) {
+			var aLen = a.parentScopes[i].length;
+			var bLen = b.parentScopes[i].length;
+			if (aLen !== bLen) {
+				return aLen - bLen;
+			}
+		}
+		return 0;
+	}
+
 	public isMoreSpecific(other: ThemeRule): boolean {
-		if (other === null) {
-			return true;
-		}
-		if (other.scope.length === this.scope.length) {
-			return this.parentScopes.length > other.parentScopes.length;
-		}
-		return (this.scope.length > other.scope.length);
+		return (ThemeRule._cmp(this, other) > 0);
 	}
 
 	private static _matchesOne(selectorScope: string, scope: string): boolean {

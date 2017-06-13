@@ -12,23 +12,24 @@ import URI from 'vs/base/common/uri';
 import { EncodingMode, ConfirmResult, EditorInput, IFileEditorInput } from 'vs/workbench/common/editor';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
-import { IFileOperationResult, FileOperationResult, isEqual } from 'vs/platform/files/common/files';
+import { IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
 import { BINARY_FILE_EDITOR_ID, TEXT_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode, ModelState, TextFileModelChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
 import { Verbosity } from 'vs/platform/editor/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 /**
  * A file editor input is the input type for the file editor of file system resources.
  */
 export class FileEditorInput extends EditorInput implements IFileEditorInput {
-	private resource: URI;
-	private preferredEncoding: string;
 	private forceOpenAsBinary: boolean;
+
+	private textModelReference: TPromise<IReference<TextFileEditorModel>>;
 
 	private name: string;
 	private description: string;
@@ -43,21 +44,17 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	 * An editor input who's contents are retrieved from file services.
 	 */
 	constructor(
-		resource: URI,
-		preferredEncoding: string,
+		private resource: URI,
+		private preferredEncoding: string,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@ITextModelService private textModelResolverService: ITextModelService
 	) {
 		super();
 
 		this.toUnbind = [];
-
-		if (resource) {
-			this.setResource(resource);
-			this.preferredEncoding = preferredEncoding;
-		}
 
 		this.registerListeners();
 	}
@@ -73,26 +70,15 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	}
 
 	private onDirtyStateChange(e: TextFileModelChangeEvent): void {
-		if (isEqual(e.resource.fsPath, this.resource.fsPath)) {
+		if (e.resource.toString() === this.resource.toString()) {
 			this._onDidChangeDirty.fire();
 		}
 	}
 
 	private onModelOrphanedChanged(e: TextFileModelChangeEvent): void {
-		if (isEqual(e.resource.fsPath, this.resource.fsPath)) {
+		if (e.resource.toString() === this.resource.toString()) {
 			this._onDidChangeLabel.fire();
 		}
-	}
-
-	public setResource(resource: URI): void {
-		this.resource = resource;
-
-		// Reset resource dependent properties
-		this.name = null;
-		this.description = null;
-		this.shortTitle = null;
-		this.mediumTitle = null;
-		this.longTitle = null;
 	}
 
 	public getResource(): URI {
@@ -143,7 +129,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	public getDescription(): string {
 		if (!this.description) {
-			this.description = labels.getPathLabel(paths.dirname(this.resource.fsPath), this.contextService);
+			this.description = labels.getPathLabel(paths.dirname(this.resource.fsPath), this.contextService, this.environmentService);
 		}
 
 		return this.description;
@@ -156,10 +142,10 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 				title = this.shortTitle ? this.shortTitle : (this.shortTitle = this.getName());
 				break;
 			case Verbosity.MEDIUM:
-				title = this.mediumTitle ? this.mediumTitle : (this.mediumTitle = labels.getPathLabel(this.resource, this.contextService));
+				title = this.mediumTitle ? this.mediumTitle : (this.mediumTitle = labels.getPathLabel(this.resource, this.contextService, this.environmentService));
 				break;
 			case Verbosity.LONG:
-				title = this.longTitle ? this.longTitle : (this.longTitle = labels.tildify(labels.getPathLabel(this.resource), this.environmentService.userHome));
+				title = this.longTitle ? this.longTitle : (this.longTitle = labels.getPathLabel(this.resource, void 0, this.environmentService));
 				break;
 		}
 
@@ -208,24 +194,48 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return this.forceOpenAsBinary ? BINARY_FILE_EDITOR_ID : TEXT_FILE_EDITOR_ID;
 	}
 
-	public resolve(refresh?: boolean): TPromise<TextFileEditorModel> {
-		return this.textFileService.models.loadOrCreate(this.resource, this.preferredEncoding, refresh).then(null, error => {
+	public resolve(refresh?: boolean): TPromise<TextFileEditorModel | BinaryEditorModel> {
+
+		// Resolve as binary
+		if (this.forceOpenAsBinary) {
+			return this.resolveAsBinary();
+		}
+
+		// Resolve as text
+		return this.textFileService.models.loadOrCreate(this.resource, { encoding: this.preferredEncoding, reload: refresh }).then(model => {
+
+			// TODO@Ben this is a bit ugly, because we first resolve the model and then resolve a model reference. the reason being that binary
+			// or very large files do not resolve to a text file model but should be opened as binary files without text. First calling into
+			// loadOrCreate ensures we are not creating model references for these kind of resources.
+			// In addition we have a bit of payload to take into account (encoding, reload) that the text resolver does not handle yet.
+			if (!this.textModelReference) {
+				this.textModelReference = this.textModelResolverService.createModelReference(this.resource);
+			}
+
+			return this.textModelReference.then(ref => ref.object);
+		}, error => {
 
 			// In case of an error that indicates that the file is binary or too large, just return with the binary editor model
 			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
-				return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName()).load();
+				return this.resolveAsBinary();
 			}
 
 			// Bubble any other error up
-			return TPromise.wrapError(error);
+			return TPromise.wrapError<TextFileEditorModel>(error);
 		});
+	}
+
+	private resolveAsBinary(): TPromise<BinaryEditorModel> {
+		return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName())
+			.load()
+			.then(x => x as BinaryEditorModel);
 	}
 
 	public isResolved(): boolean {
 		return !!this.textFileService.models.get(this.resource);
 	}
 
-	public getTelemetryDescriptor(): { [key: string]: any; } {
+	public getTelemetryDescriptor(): object {
 		const descriptor = super.getTelemetryDescriptor();
 		descriptor['resource'] = telemetryURIDescriptor(this.getResource());
 
@@ -233,6 +243,12 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	}
 
 	public dispose(): void {
+
+		// Model reference
+		if (this.textModelReference) {
+			this.textModelReference.done(ref => ref.dispose());
+			this.textModelReference = null;
+		}
 
 		// Listeners
 		this.toUnbind = dispose(this.toUnbind);
@@ -246,7 +262,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		}
 
 		if (otherInput) {
-			return otherInput instanceof FileEditorInput && isEqual(otherInput.resource.fsPath, this.resource.fsPath);
+			return otherInput instanceof FileEditorInput && otherInput.resource.toString() === this.resource.toString();
 		}
 
 		return false;

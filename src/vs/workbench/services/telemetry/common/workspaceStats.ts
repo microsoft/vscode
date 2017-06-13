@@ -8,7 +8,6 @@
 import winjs = require('vs/base/common/winjs.base');
 import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
-import { ArraySet } from 'vs/base/common/set';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -60,12 +59,12 @@ function extractDomain(url: string): string {
 }
 
 export function getDomainsOfRemotes(text: string, whitelist: string[]): string[] {
-	let domains = new ArraySet<string>();
+	let domains = new Set<string>();
 	let match: RegExpExecArray;
 	while (match = RemoteMatcher.exec(text)) {
 		let domain = extractDomain(match[1]);
 		if (domain) {
-			domains.set(domain);
+			domains.add(domain);
 		}
 	}
 
@@ -74,7 +73,10 @@ export function getDomainsOfRemotes(text: string, whitelist: string[]): string[]
 		return map;
 	}, Object.create(null));
 
-	return domains.elements
+	const elements: string[] = [];
+	domains.forEach(e => elements.push(e));
+
+	return elements
 		.map(key => whitemap[key] ? key : key.replace(AnyButDot, 'a'));
 }
 
