@@ -82,6 +82,7 @@ export class DebugService implements debug.IDebugService {
 	private breakpointsToSendOnResourceSaved: Set<string>;
 	private callStackScheduler: RunOnceScheduler;
 	private launchJsonChanged: boolean;
+	private threadToFetch: debug.IThread;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -121,14 +122,13 @@ export class DebugService implements debug.IDebugService {
 		this.toDispose.push(this.model);
 		this.viewModel = new ViewModel(this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE, null));
 		this.callStackScheduler = new RunOnceScheduler(() => {
-			const focusedThread = this.viewModel.focusedThread;
-			if (focusedThread) {
-				const callStack = focusedThread.getCallStack();
+			if (this.threadToFetch) {
+				const callStack = this.threadToFetch.getCallStack();
 				// Some adapters might not respect the number levels in StackTraceRequest and might
 				// return more stackFrames than requested. For those do not send an additional stackTrace request.
 				if (callStack.length <= 1) {
-					this.model.fetchCallStack(focusedThread).done(() =>
-						this.tryToAutoFocusStackFrame(focusedThread), errors.onUnexpectedError);
+					this.model.fetchCallStack(this.threadToFetch).done(() =>
+						this.tryToAutoFocusStackFrame(this.threadToFetch), errors.onUnexpectedError);
 				}
 			}
 		}, 420);
@@ -330,6 +330,7 @@ export class DebugService implements debug.IDebugService {
 					// Call fetch call stack twice, the first only return the top stack frame.
 					// Second retrieves the rest of the call stack. For performance reasons #25605
 					this.model.fetchCallStack(thread).then(() => {
+						this.threadToFetch = thread;
 						this.callStackScheduler.schedule();
 						return this.tryToAutoFocusStackFrame(thread);
 					});
