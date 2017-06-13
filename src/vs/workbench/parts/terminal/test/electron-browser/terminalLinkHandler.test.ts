@@ -8,11 +8,12 @@
 import * as assert from 'assert';
 import { Platform } from 'vs/base/common/platform';
 import { TerminalLinkHandler, LineColumnInfo } from 'vs/workbench/parts/terminal/electron-browser/terminalLinkHandler';
-import { IWorkspace, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { WorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
 import URI from 'vs/base/common/uri';
 import * as strings from 'vs/base/common/strings';
 import * as path from 'path';
 import * as sinon from 'sinon';
+import { TestConfigurationService } from "vs/platform/configuration/test/common/testConfigurationService";
 
 class TestTerminalLinkHandler extends TerminalLinkHandler {
 	public get localLinkRegex(): RegExp {
@@ -44,10 +45,9 @@ interface LinkFormatInfo {
 	column?: string;
 }
 
-class TestWorkspace implements IWorkspace {
-	resource: URI;
-	constructor(basePath: string) {
-		this.resource = new TestURI(basePath);
+class TestWorkspace extends Workspace {
+	constructor(private basePath: string) {
+		super(new TestURI(basePath));
 	}
 }
 
@@ -176,7 +176,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 	suite('preprocessPath', () => {
 		test('Windows', () => {
 			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, null, null,
-				new WorkspaceContextService(new TestWorkspace('C:\\base')));
+				new WorkspaceContextService(new TestConfigurationService(), new TestWorkspace('C:\\base')));
 
 			let stub = sinon.stub(path, 'join', function (arg1, arg2) {
 				return arg1 + '\\' + arg2;
@@ -190,7 +190,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 
 		test('Linux', () => {
 			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, null, null,
-				new WorkspaceContextService(new TestWorkspace('/base')));
+				new WorkspaceContextService(new TestConfigurationService(), new TestWorkspace('/base')));
 
 			let stub = sinon.stub(path, 'join', function (arg1, arg2) {
 				return arg1 + '/' + arg2;
@@ -203,7 +203,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 		});
 
 		test('No Workspace', () => {
-			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, null, null, new WorkspaceContextService(null));
+			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, null, null, new WorkspaceContextService(new TestConfigurationService()));
 
 			assert.equal(linkHandler.preprocessPath('./src/file1'), null);
 			assert.equal(linkHandler.preprocessPath('src/file2'), null);

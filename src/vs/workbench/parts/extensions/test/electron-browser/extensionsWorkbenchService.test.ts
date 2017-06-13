@@ -32,6 +32,7 @@ import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/w
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { IChoiceService } from 'vs/platform/message/common/message';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from "vs/platform/configuration/test/common/testConfigurationService";
 
 suite('ExtensionsWorkbenchService Test', () => {
 
@@ -55,7 +56,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 
-		instantiationService.set(IWorkspaceContextService, new WorkspaceContextService(TestWorkspace));
+		instantiationService.set(IWorkspaceContextService, new WorkspaceContextService(new TestConfigurationService(), TestWorkspace));
 		instantiationService.stub(IConfigurationService, { onDidUpdateConfiguration: () => { }, getConfiguration: () => ({}) });
 
 		instantiationService.stub(IExtensionManagementService, ExtensionManagementService);

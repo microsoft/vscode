@@ -66,9 +66,20 @@ export class TestContextService implements IWorkspaceContextService {
 	private workspace: any;
 	private options: any;
 
+	private _onDidChangeFolders: Emitter<URI[]>;
+
 	constructor(workspace: any = TestWorkspace, options: any = null) {
 		this.workspace = workspace;
 		this.options = options || Object.create(null);
+		this._onDidChangeFolders = new Emitter<URI[]>();
+	}
+
+	public get onDidChangeFolders(): Event<URI[]> {
+		return this._onDidChangeFolders.event;
+	}
+
+	public getFolders(): URI[] {
+		return this.workspace ? [this.workspace.resource] : [];
 	}
 
 	public hasWorkspace(): boolean {

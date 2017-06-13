@@ -111,17 +111,26 @@ export default class CommandHandler implements vscode.Disposable {
 		}
 
 		let typeToAccept: interfaces.CommitType;
+		let tokenAfterCurrentBlock: vscode.Range = conflict.splitter;
+
+		if (conflict.commonAncestors.length > 0) {
+			tokenAfterCurrentBlock = conflict.commonAncestors[0].header;
+		}
 
 		// Figure out if the cursor is in current or incoming, we do this by seeing if
-		// the active position is before or after the range of the splitter. We can
-		// use this trick as the previous check in findConflictByActiveSelection will
-		// ensure it's within the conflict range, so we don't falsely identify "current"
-		// or "incoming" if outside of a conflict range.
-		if (editor.selection.active.isBefore(conflict.splitter.start)) {
+		// the active position is before or after the range of the splitter or common
+		// ancesors marker. We can use this trick as the previous check in
+		// findConflictByActiveSelection will ensure it's within the conflict range, so
+		// we don't falsely identify "current" or "incoming" if outside of a conflict range.
+		if (editor.selection.active.isBefore(tokenAfterCurrentBlock.start)) {
 			typeToAccept = interfaces.CommitType.Current;
 		}
 		else if (editor.selection.active.isAfter(conflict.splitter.end)) {
 			typeToAccept = interfaces.CommitType.Incoming;
+		}
+		else if (editor.selection.active.isBefore(conflict.splitter.start)) {
+			vscode.window.showWarningMessage(localize('cursorOnCommonAncestorsRange', 'Editor cursor is within the common ancestors block, please move it to either the "current" or "incoming" block'));
+			return;
 		}
 		else {
 			vscode.window.showWarningMessage(localize('cursorOnSplitterRange', 'Editor cursor is within the merge conflict splitter, please move it to either the "current" or "incoming" block'));

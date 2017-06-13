@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IEventEmitter } from 'vs/base/common/eventEmitter';
 import { TerminateResponse } from 'vs/base/common/processes';
-import { LinkedMap } from 'vs/base/common/linkedMap';
+import { LinkedMap } from 'vs/base/common/map';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Task, TaskSet } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskSummary, TaskEvent, TaskType } from 'vs/workbench/parts/tasks/common/taskSystem';

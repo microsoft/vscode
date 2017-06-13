@@ -19,9 +19,7 @@ if (process.argv.indexOf('--prof-startup') >= 0) {
 if (process.env.LC_ALL) {
 	process.env.LC_ALL = 'C';
 }
-if (process.env.LC_NUMERIC) {
-	process.env.LC_NUMERIC = 'C';
-}
+process.env.LC_NUMERIC = 'C';
 
 // Perf measurements
 global.perfStartTime = Date.now();
