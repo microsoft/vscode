@@ -293,6 +293,11 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private updateViewletSwitcher() {
+		if (!this.viewletSwitcherBar) {
+			// We have not been rendered yet so there is nothing to update.
+			return;
+		}
+
 		let viewletsToShow = this.getPinnedViewlets();
 
 		// Always show the active viewlet even if it is marked to be hidden
@@ -462,9 +467,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			const index = this.pinnedViewlets.indexOf(viewletId);
 			this.pinnedViewlets.splice(index, 1);
 
-			if (this.viewletSwitcherBar) {
-				this.updateViewletSwitcher();
-			}
+			this.updateViewletSwitcher();
 		});
 	}
 
