@@ -19,7 +19,7 @@ import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
-import { WorkspaceService } from 'vs/workbench/services/configuration/node/configuration';
+import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configuration';
 import { realpath, stat } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import path = require('path');
@@ -129,12 +129,12 @@ function getWorkspace(workspacePath: string): TPromise<Workspace> {
 
 function openWorkbench(configuration: IWindowConfiguration, workspace: Workspace, options: IOptions): TPromise<void> {
 	const environmentService = new EnvironmentService(configuration, configuration.execPath);
-	const workspaceService = new WorkspaceService(environmentService, workspace);
-	const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, !workspaceService.hasWorkspace());
+	const workspaceConfigurationService = new WorkspaceConfigurationService(environmentService, workspace);
+	const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, !workspaceConfigurationService.hasWorkspace());
 
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
 	// right before startup of the workbench shell to have its data ready for consumers
-	return workspaceService.initialize().then(() => {
+	return workspaceConfigurationService.initialize().then(() => {
 		timerService.beforeDOMContentLoaded = Date.now();
 
 		return domContentLoaded().then(() => {
@@ -143,8 +143,8 @@ function openWorkbench(configuration: IWindowConfiguration, workspace: Workspace
 			// Open Shell
 			timerService.beforeWorkbenchOpen = Date.now();
 			const shell = new WorkbenchShell(document.body, {
-				contextService: workspaceService,
-				configurationService: workspaceService,
+				contextService: workspaceConfigurationService,
+				configurationService: workspaceConfigurationService,
 				environmentService,
 				timerService
 			}, configuration, options);

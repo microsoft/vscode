@@ -21,7 +21,7 @@ import extfs = require('vs/base/node/extfs');
 import { TestTextFileService, TestEditorGroupService, TestLifecycleService, TestBackupFileService } from 'vs/workbench/test/workbenchTestServices';
 import uuid = require('vs/base/common/uuid');
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { WorkspaceService } from 'vs/workbench/services/workspace/node/workspace';
+import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configuration';
 import URI from 'vs/base/common/uri';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { ConfigurationEditingService } from 'vs/workbench/services/configuration/node/configurationEditingService';
@@ -116,7 +116,7 @@ suite('ConfigurationEditingService', () => {
 		const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
 		instantiationService.stub(IEnvironmentService, environmentService);
 		const workspace = noWorkspace ? null : new Workspace(URI.file(workspaceDir));
-		const workspaceService = new WorkspaceService(environmentService, workspace);
+		const workspaceService = new WorkspaceConfigurationService(environmentService, workspace);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 		instantiationService.stub(IConfigurationService, workspaceService);
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
@@ -150,7 +150,7 @@ suite('ConfigurationEditingService', () => {
 
 	function clearServices(): void {
 		if (instantiationService) {
-			const configuraitonService = <WorkspaceService>instantiationService.get(IConfigurationService);
+			const configuraitonService = <WorkspaceConfigurationService>instantiationService.get(IConfigurationService);
 			if (configuraitonService) {
 				configuraitonService.dispose();
 			}
