@@ -145,6 +145,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		this.listenersToRemove.push(editor.onDidChangeModel((e) => this.onModelChanged()));
 		this.listenersToRemove.push(editor.onDidChangeModelLanguage((e) => this.onModelModeChanged()));
 		this.listenersToRemove.push(LinkProviderRegistry.onDidChange((e) => this.onModelModeChanged()));
+		this.listenersToRemove.push(editor.onDidChangeConfiguration((e) => this.recompute()));
 
 		this.timeoutPromise = null;
 		this.computePromise = null;
@@ -184,7 +185,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 
 	private beginCompute(): void {
-		if (!this.editor.getModel()) {
+		if (!this.editor.getModel() || !this.editor.getConfiguration().urlClickable) {
 			return;
 		}
 
@@ -210,7 +211,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 			}
 
 			var newDecorations: editorCommon.IModelDeltaDecoration[] = [];
-			if (links) {
+			if (links && this.editor.getConfiguration().urlClickable) {
 				// Not sure why this is sometimes null
 				for (var i = 0; i < links.length; i++) {
 					newDecorations.push(LinkOccurence.decoration(links[i], useMetaKey));
@@ -228,6 +229,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		});
 	}
 
+	// shows up as blue when ctrl mouse over
 	private _onEditorMouseMove(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent): void {
 		const useMetaKey = (this.editor.getConfiguration().multiCursorModifier === 'altKey');
 		if (this.isEnabled(mouseEvent, withKey)) {
@@ -255,6 +257,17 @@ class LinkDetector implements editorCommon.IEditorContribution {
 			}
 
 			this.activeLinkDecorationId = null;
+		}
+	}
+
+	private recompute(): void {
+		if (!this.editor.getConfiguration().urlClickable) {
+			this.computePromise = getLinks(this.editor.getModel()).then(links => {
+				this.updateDecorations(links);
+				this.computePromise = null;
+			});
+		} else {
+			this.beginCompute();
 		}
 	}
 

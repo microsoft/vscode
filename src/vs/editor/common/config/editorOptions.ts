@@ -350,6 +350,11 @@ export interface IEditorOptions {
 	 * Enable quick suggestions (shadow suggestions)
 	 * Defaults to true.
 	 */
+	urlClickable?: boolean;
+	/**
+	 * Enable quick suggestions (shadow suggestions)
+	 * Defaults to true.
+	 */
 	quickSuggestions?: boolean | { other: boolean, comments: boolean, strings: boolean };
 	/**
 	 * Quick suggestions show delay (in ms)
@@ -801,6 +806,7 @@ export interface IValidatedEditorOptions {
 	readonly useTabStops: boolean;
 	readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 	readonly accessibilitySupport: 'auto' | 'off' | 'on';
+	readonly urlClickable: boolean;
 
 	readonly viewInfo: InternalEditorViewOptions;
 	readonly contribInfo: EditorContribOptions;
@@ -822,6 +828,7 @@ export class InternalEditorOptions {
 	 */
 	readonly accessibilitySupport: platform.AccessibilitySupport;
 	readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
+	readonly urlClickable: boolean;
 
 	// ---- cursor options
 	readonly wordSeparators: string;
@@ -860,6 +867,7 @@ export class InternalEditorOptions {
 		viewInfo: InternalEditorViewOptions;
 		wrappingInfo: EditorWrappingInfo;
 		contribInfo: EditorContribOptions;
+		urlClickable: boolean;
 	}) {
 		this.canUseTranslate3d = source.canUseTranslate3d;
 		this.pixelRatio = source.pixelRatio;
@@ -879,6 +887,7 @@ export class InternalEditorOptions {
 		this.viewInfo = source.viewInfo;
 		this.wrappingInfo = source.wrappingInfo;
 		this.contribInfo = source.contribInfo;
+		this.urlClickable = source.urlClickable;
 	}
 
 	/**
@@ -899,6 +908,7 @@ export class InternalEditorOptions {
 			&& this.tabFocusMode === other.tabFocusMode
 			&& this.dragAndDrop === other.dragAndDrop
 			&& this.emptySelectionClipboard === other.emptySelectionClipboard
+			&& this.urlClickable === other.urlClickable
 			&& InternalEditorOptions._equalsLayoutInfo(this.layoutInfo, other.layoutInfo)
 			&& this.fontInfo.equals(other.fontInfo)
 			&& InternalEditorOptions._equalsViewOptions(this.viewInfo, other.viewInfo)
@@ -930,6 +940,7 @@ export class InternalEditorOptions {
 			viewInfo: (!InternalEditorOptions._equalsViewOptions(this.viewInfo, newOpts.viewInfo)),
 			wrappingInfo: (!InternalEditorOptions._equalsWrappingInfo(this.wrappingInfo, newOpts.wrappingInfo)),
 			contribInfo: (!InternalEditorOptions._equalsContribOptions(this.contribInfo, newOpts.contribInfo)),
+			urlClickable: (this.urlClickable !== newOpts.urlClickable),
 		};
 	}
 
@@ -1269,6 +1280,7 @@ export interface IConfigurationChangedEvent {
 	readonly viewInfo: boolean;
 	readonly wrappingInfo: boolean;
 	readonly contribInfo: boolean;
+	readonly urlClickable: boolean;
 }
 
 /**
@@ -1443,6 +1455,7 @@ export class EditorOptionsValidator {
 			useTabStops: _boolean(opts.useTabStops, defaults.useTabStops),
 			multiCursorModifier: multiCursorModifier,
 			accessibilitySupport: _stringSet<'auto' | 'on' | 'off'>(opts.accessibilitySupport, defaults.accessibilitySupport, ['auto', 'on', 'off']),
+			urlClickable: _boolean(opts.urlClickable, defaults.urlClickable),
 			viewInfo: viewInfo,
 			contribInfo: contribInfo,
 		};
@@ -1667,6 +1680,7 @@ export class InternalEditorOptionsFactory {
 			useTabStops: opts.useTabStops,
 			multiCursorModifier: opts.multiCursorModifier,
 			accessibilitySupport: opts.accessibilitySupport,
+			urlClickable: opts.urlClickable,
 
 			viewInfo: {
 				extraEditorClassName: opts.viewInfo.extraEditorClassName,
@@ -1875,7 +1889,8 @@ export class InternalEditorOptionsFactory {
 			fontInfo: env.fontInfo,
 			viewInfo: opts.viewInfo,
 			wrappingInfo: wrappingInfo,
-			contribInfo: opts.contribInfo
+			contribInfo: opts.contribInfo,
+			urlClickable: opts.urlClickable
 		});
 	}
 }
@@ -2085,6 +2100,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	useTabStops: true,
 	multiCursorModifier: 'altKey',
 	accessibilitySupport: 'auto',
+	urlClickable: true,
 
 	viewInfo: {
 		extraEditorClassName: '',
