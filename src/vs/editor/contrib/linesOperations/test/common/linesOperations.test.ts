@@ -238,6 +238,10 @@ suite('Editor Contrib - Line Operations', () => {
 				transposeAction.run(null, editor);
 				assert.equal(model.getLineContent(8), 'hello world', '019');
 				assert.deepEqual(editor.getSelection().toString(), new Selection(8, 12, 8, 12).toString(), '020');
+
+				editor.setSelections([new Selection(3, 1, 3, 4), new Selection(4, 1, 4, 6)]);
+				transposeAction.run(null, editor);
+				assert.equal(model.getLineContent(3) + '\n' + model.getLineContent(4), 'oworll\nheld', '021');
 			}
 		);
 	});

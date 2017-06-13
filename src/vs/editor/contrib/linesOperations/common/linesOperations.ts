@@ -11,7 +11,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import { ICommand, ICommonCodeEditor, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
+import { ReplaceCommand, ReplaceCommandThatPreservesSelection, ReplaceCommandThatSelectsReplacement } from 'vs/editor/common/commands/replaceCommand';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { editorAction, ServicesAccessor, IActionOptions, EditorAction } from 'vs/editor/common/editorCommonExtensions';
@@ -690,16 +690,23 @@ export class TransposeAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+		for (let selection of editor.getSelections()) {
+			if (!selection.isEmpty()) {
+				// If at least one selection isn't empty
+				return this._runTransposeSelections(accessor, editor);
+			}
+		}
+		// Otherwise, if all selections are empty
+		return this._runTransposeCharacters(accessor, editor);
+	}
+
+	_runTransposeCharacters(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		let selections = editor.getSelections();
 		let model = editor.getModel();
 		let commands: ICommand[] = [];
 
 		for (let i = 0, len = selections.length; i < len; i++) {
 			let selection = selections[i];
-
-			if (!selection.isEmpty()) {
-				continue;
-			}
 
 			let cursor = selection.getStartPosition();
 			let maxColumn = model.getLineMaxColumn(cursor.lineNumber);
@@ -721,6 +728,23 @@ export class TransposeAction extends EditorAction {
 				commands.push(new ReplaceCommandThatPreservesSelection(deleteSelection, chars,
 					new Selection(cursor.lineNumber, cursor.column + 1, cursor.lineNumber, cursor.column + 1)));
 			}
+		}
+
+		editor.pushUndoStop();
+		editor.executeCommands(this.id, commands);
+		editor.pushUndoStop();
+	}
+
+	_runTransposeSelections(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+		let selections = editor.getSelections();
+		let model = editor.getModel();
+		let commands: ICommand[] = [];
+		let selectionText = selections.map(selection => model.getValueInRange(selection));
+
+		for (let i = 0, len = selections.length; i < len; i++) {
+			let selection = selections[i];
+			let replacementText = selectionText[(i - 1 + selectionText.length) % selectionText.length];
+			commands.push(new ReplaceCommandThatSelectsReplacement(selection, replacementText));
 		}
 
 		editor.pushUndoStop();

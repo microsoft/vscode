@@ -118,3 +118,31 @@ export class ReplaceCommandThatPreservesSelection implements editorCommon.IComma
 		return helper.getTrackedSelection(this._selectionId);
 	}
 }
+
+export class ReplaceCommandThatSelectsReplacement implements editorCommon.ICommand {
+
+	private readonly _range: Range;
+	private readonly _text: string;
+	public readonly insertsAutoWhitespace: boolean;
+
+	constructor(range: Range, text: string, insertsAutoWhitespace: boolean = false) {
+		this._range = range;
+		this._text = text;
+		this.insertsAutoWhitespace = insertsAutoWhitespace;
+	}
+
+	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
+		builder.addTrackedEditOperation(this._range, this._text);
+	}
+
+	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
+		let inverseEditOperations = helper.getInverseEditOperations();
+		let srcRange = inverseEditOperations[0].range;
+		return new Selection(
+			srcRange.startLineNumber,
+			srcRange.startColumn,
+			srcRange.endLineNumber,
+			srcRange.endColumn
+		);
+	}
+}
