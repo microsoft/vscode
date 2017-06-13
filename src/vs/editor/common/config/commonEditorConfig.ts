@@ -386,7 +386,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.parameterHints': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.parameterHints,
-			'description': nls.localize('parameterHints', "Enables parameter hints")
+			'description': nls.localize('parameterHints', "Enables pop-up that shows parameter documentation and type information as you type")
 		},
 		'editor.autoClosingBrackets': {
 			'type': 'boolean',
