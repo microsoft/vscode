@@ -108,11 +108,8 @@ function groupListener(group: EditorGroup): GroupEvents {
 
 let index = 0;
 class TestEditorInput extends EditorInput {
-	private dirty: boolean;
-
 	constructor(public id: string) {
 		super();
-		this.dirty = false;
 	}
 	public getTypeId() { return 'testEditorInput'; }
 	public resolve() { return null; }
@@ -122,16 +119,11 @@ class TestEditorInput extends EditorInput {
 	}
 
 	public setDirty(): void {
-		this.dirty = true;
 		this._onDidChangeDirty.fire();
 	}
 
 	public setLabel(): void {
 		this._onDidChangeLabel.fire();
-	}
-
-	public isDirty(): boolean {
-		return this.dirty;
 	}
 }
 
@@ -1975,33 +1967,5 @@ suite('Editor Stacks Model', () => {
 		assert.equal(found2_group2, group2);
 		assert.equal(notfound2, null);
 		assert.equal(notfound3, null);
-	});
-
-	test('Stack - Multiple Editors - Close Unmodified', function () {
-		const model = create();
-		const group = model.openGroup('group');
-
-		const input1 = input();
-		const input2 = input();
-		const input3 = input();
-		const input4 = input();
-		const input5 = input();
-
-		group.openEditor(input1, { active: true, pinned: true });
-		group.openEditor(input2, { active: true, pinned: true });
-		group.openEditor(input3, { active: true, pinned: true });
-		group.openEditor(input4, { active: true, pinned: true });
-		group.openEditor(input5, { active: true, pinned: true });
-
-		model.setActive(group);
-		group.setActive(input5);
-
-		(<TestEditorInput>input4).setDirty();
-		(<TestEditorInput>input5).setDirty();
-
-		// Close Others
-		group.closeUnmodifiedEditors();
-		//assert if only 2 out of 5 editors remain open
-		assert.equal(group.count, 2);
 	});
 });

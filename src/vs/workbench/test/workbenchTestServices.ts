@@ -530,10 +530,6 @@ export class TestEditorService implements IWorkbenchEditorService {
 		return TPromise.as(null);
 	}
 
-	public closeUnmodifiedEditors(): TPromise<void> {
-		return TPromise.as(null);
-	}
-
 	public isVisible(input: IEditorInput, includeDiff: boolean): boolean {
 		return false;
 	}

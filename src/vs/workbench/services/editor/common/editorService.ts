@@ -8,7 +8,6 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService, IEditor, IEditorInput, IEditorOptions, ITextEditorOptions, Position, Direction, IResourceInput, IResourceDiffInput, IResourceSideBySideInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
-import { IEditorGroup } from "vs/workbench/common/editor";
 
 export const IWorkbenchEditorService = createDecorator<IWorkbenchEditorService>('editorService');
 
@@ -87,11 +86,6 @@ export interface IWorkbenchEditorService extends IEditorService {
 	 * Closes all editors across all groups. The optional position allows to keep one group alive.
 	 */
 	closeAllEditors(except?: Position): TPromise<void>;
-
-	/**
-	 * Closes all unmodified editors in group.
-	 */
-	closeUnmodifiedEditors(group: IEditorGroup): TPromise<void>;
 
 	/**
 	 * Allows to resolve an untyped input to a workbench typed instanceof editor input

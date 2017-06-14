@@ -709,8 +709,10 @@ export class CloseUnmodifiedEditorsInGroupAction extends Action {
 		const activeGroup = this.editorGroupService.getStacksModel().activeGroup;
 		const groupId = context && context.group ? context.group.id : activeGroup ? activeGroup.id : null;
 		if (groupId !== null) {
-			const group = this.editorGroupService.getStacksModel().getGroup(groupId);
-			return this.editorService.closeUnmodifiedEditors(group);
+			const stacks = this.editorGroupService.getStacksModel();
+			const group = stacks.getGroup(groupId);
+			group.getEditors().filter(e => !e.isDirty()).forEach(e => this.editorService.closeEditor(stacks.positionOfGroup(group), e));
+			return TPromise.as(null);
 		}
 
 		return TPromise.as(false);
