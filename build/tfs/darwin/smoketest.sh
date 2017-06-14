@@ -25,3 +25,10 @@ step "Run unit tests" \
 
 step "Run integration tests" \
 	./scripts/test-integration.sh
+
+step "Run smoke test" \
+	pushd test/smoke
+	npm install
+	npm run compile
+	node src/main.js --latest "$AGENT_BUILDDIRECTORY/VSCode-darwin/Visual Studio Code - Insiders.app/Contents/MacOS/Electron"
+	popd
