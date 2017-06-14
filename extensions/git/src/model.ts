@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, Command, EventEmitter, Event, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace } from 'vscode';
-import { Git, Repository, Ref, Branch, Remote, PushOptions, Commit, GitErrorCodes } from './git';
+import { Git, Repository, Ref, Branch, Remote, Commit, GitErrorCodes } from './git';
 import { anyEvent, eventToPromise, filterEvent, EmptyDisposable, combinedDisposable, dispose } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import * as path from 'path';
@@ -479,12 +479,23 @@ export class Model implements Disposable {
 		}
 	}
 
-	async pull(rebase?: boolean): Promise<void> {
-		await this.run(Operation.Pull, () => this.repository.pull(rebase));
+	@throttle
+	async pull(): Promise<void> {
+		await this.run(Operation.Pull, () => this.repository.pull());
 	}
 
-	async push(remote?: string, name?: string, options?: PushOptions): Promise<void> {
-		await this.run(Operation.Push, () => this.repository.push(remote, name, options));
+	@throttle
+	async pullWithRebase(): Promise<void> {
+		await this.run(Operation.Pull, () => this.repository.pull(true));
+	}
+
+	@throttle
+	async push(): Promise<void> {
+		await this.run(Operation.Push, () => this.repository.push());
+	}
+
+	async pushTo(remote?: string, name?: string, setUpstream: boolean = false): Promise<void> {
+		await this.run(Operation.Push, () => this.repository.push(remote, name, setUpstream));
 	}
 
 	@throttle
