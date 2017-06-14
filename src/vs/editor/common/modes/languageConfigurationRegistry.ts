@@ -319,12 +319,18 @@ export class LanguageConfigurationRegistryImpl {
 		}
 
 		if (lineNumber <= 1) {
-			return null;
+			return {
+				indentation: '',
+				action: null
+			};
 		}
 
 		let precedingUnIgnoredLine = this.getPrecedingValidLine(model, lineNumber, indentRulesSupport);
 		if (precedingUnIgnoredLine < 1) {
-			return null;
+			return {
+				indentation: '',
+				action: null
+			};
 		}
 
 		let precedingUnIgnoredLineContent = model.getLineContent(precedingUnIgnoredLine);
