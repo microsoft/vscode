@@ -301,7 +301,7 @@ export class ExplorerView extends CollapsibleView {
 					lastActiveFileResource = URI.parse(this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE]);
 				}
 
-				if (lastActiveFileResource && this.isCreated && this.root.find(lastActiveFileResource)) {
+				if (lastActiveFileResource && this.isCreated && this.model.findFirst(lastActiveFileResource)) {
 					this.editorService.openEditor({ resource: lastActiveFileResource, options: { revealIfVisible: true } }).done(null, errors.onUnexpectedError);
 
 					return refreshPromise;
@@ -420,25 +420,24 @@ export class ExplorerView extends CollapsibleView {
 		}
 
 		let modelElement: FileStat;
-		let parent: FileStat;
+		let parents: FileStat[];
 		let parentResource: URI;
-		let parentElement: FileStat;
 
 		// Add
 		if (e.operation === FileOperation.CREATE || e.operation === FileOperation.IMPORT || e.operation === FileOperation.COPY) {
 			const addedElement = e.target;
 			parentResource = URI.file(paths.dirname(addedElement.resource.fsPath));
-			parentElement = this.root.find(parentResource);
+			parents = this.model.findAll(parentResource);
 
-			if (parentElement) {
+			if (parents.length) {
 
 				// Add the new file to its parent (Model)
 				const childElement = FileStat.create(addedElement);
-				parentElement.removeChild(childElement); // make sure to remove any previous version of the file if any
-				parentElement.addChild(childElement);
+				parents[0].removeChild(childElement); // make sure to remove any previous version of the file if any
+				parents[0].addChild(childElement);
 
 				// Refresh the Parent (View)
-				this.explorerViewer.refresh(parentElement).then(() => {
+				this.explorerViewer.refresh(parents).then(() => {
 					return this.reveal(childElement, 0.5).then(() => {
 
 						// Focus new element
@@ -465,16 +464,16 @@ export class ExplorerView extends CollapsibleView {
 
 			// Handle Rename
 			if (oldParentResource && newParentResource && oldParentResource.toString() === newParentResource.toString()) {
-				modelElement = this.root.find(oldResource);
+				modelElement = this.model.findFirst(oldResource);
 				if (modelElement) {
 
 					// Rename File (Model)
 					modelElement.rename(newElement);
 
 					// Update Parent (View)
-					parent = modelElement.parent;
-					if (parent) {
-						this.explorerViewer.refresh(parent).done(() => {
+					parents = this.model.findAll(modelElement.parent.resource);
+					if (parents.length) {
+						this.explorerViewer.refresh(parents).done(() => {
 
 							// Select in Viewer if set
 							if (restoreFocus) {
@@ -487,21 +486,21 @@ export class ExplorerView extends CollapsibleView {
 
 			// Handle Move
 			else if (oldParentResource && newParentResource) {
-				const oldParent = this.root.find(oldParentResource);
-				const newParent = this.root.find(newParentResource);
-				modelElement = this.root.find(oldResource);
+				const oldParents = this.model.findAll(oldParentResource);
+				const newParents = this.model.findAll(newParentResource);
+				modelElement = this.model.findFirst(oldResource);
 
-				if (oldParent && newParent && modelElement) {
+				if (oldParents.length && newParents.length && modelElement) {
 
 					// Move in Model
-					modelElement.move(newParent, (callback: () => void) => {
+					modelElement.move(newParents[0], (callback: () => void) => {
 
 						// Update old parent
-						this.explorerViewer.refresh(oldParent, true).done(callback, errors.onUnexpectedError);
+						this.explorerViewer.refresh(oldParents, true).done(callback, errors.onUnexpectedError);
 					}, () => {
 
 						// Update new parent
-						this.explorerViewer.refresh(newParent, true).done(() => this.explorerViewer.expand(newParent), errors.onUnexpectedError);
+						this.explorerViewer.refresh(newParents, true).done(() => this.explorerViewer.expand(newParents[0]), errors.onUnexpectedError);
 					});
 				}
 			}
@@ -509,16 +508,16 @@ export class ExplorerView extends CollapsibleView {
 
 		// Delete
 		else if (e.operation === FileOperation.DELETE) {
-			modelElement = this.root.find(e.resource);
+			modelElement = this.model.findFirst(e.resource);
 			if (modelElement && modelElement.parent) {
-				parent = modelElement.parent;
+				parents = this.model.findAll(modelElement.parent.resource);
 
 				// Remove Element from Parent (Model)
-				parent.removeChild(modelElement);
+				parents[0].removeChild(modelElement);
 
 				// Refresh Parent (View)
 				const restoreFocus = this.explorerViewer.isDOMFocused();
-				this.explorerViewer.refresh(parent).done(() => {
+				this.explorerViewer.refresh(parents).done(() => {
 
 					// Ensure viewer has keyboard focus if event originates from viewer
 					if (restoreFocus) {
@@ -592,8 +591,8 @@ export class ExplorerView extends CollapsibleView {
 				}
 
 				// Compute if parent is visible and added file not yet part of it
-				const parentStat = this.root.find(URI.file(parent));
-				if (parentStat && parentStat.isDirectoryResolved && !this.root.find(change.resource)) {
+				const parentStat = this.model.findFirst(URI.file(parent));
+				if (parentStat && parentStat.isDirectoryResolved && !this.model.findFirst(change.resource)) {
 					return true;
 				}
 
@@ -610,7 +609,7 @@ export class ExplorerView extends CollapsibleView {
 					continue; // out of workspace file
 				}
 
-				if (this.root.find(del.resource)) {
+				if (this.model.findFirst(del.resource)) {
 					return true;
 				}
 			}
