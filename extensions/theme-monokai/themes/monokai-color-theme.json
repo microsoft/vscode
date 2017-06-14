@@ -378,6 +378,13 @@
 			"settings": {
 				"foreground": "#b267e6"
 			}
+		},
+		{
+			"name": "this.self",
+			"scope": "variable.language",
+			"settings": {
+				"foreground": "#FD971F"
+			}
 		}
 	]
 }
