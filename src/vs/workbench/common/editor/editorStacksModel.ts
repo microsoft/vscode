@@ -344,7 +344,7 @@ export class EditorGroup implements IEditorGroup {
 		}));
 	}
 
-	public replaceEditor(toReplace: EditorInput, replaceWidth: EditorInput, replaceIndex:number, openNext = true): void {
+	public replaceEditor(toReplace: EditorInput, replaceWidth: EditorInput, replaceIndex: number, openNext = true): void {
 		const event = this.doCloseEditor(toReplace, openNext); // optimization to prevent multiple setActive() in one call
 
 		// We want to first add the new editor into our model before emitting the close event because
