@@ -342,6 +342,8 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public selectAll(): void {
+		// Focus here to ensure the terminal context key is set
+		this._xterm.focus();
 		this._xterm.selectAll();
 	}
 
