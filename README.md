@@ -1,19 +1,22 @@
-# Visual Studio Code - Open Source
+# Code - Open Source
 
 [![Build Status](https://travis-ci.org/Microsoft/vscode.svg?branch=master)](https://travis-ci.org/Microsoft/vscode)
 [![Build Status](https://ci.appveyor.com/api/projects/status/vuhlhg80tj3e2a0l/branch/master?svg=true)](https://ci.appveyor.com/project/VSCode/vscode)
 [![Coverage Status](https://img.shields.io/coveralls/Microsoft/vscode/master.svg)](https://coveralls.io/github/Microsoft/vscode?branch=master)
 [![Gitter](https://img.shields.io/badge/chat-on%20gitter-blue.svg)](https://gitter.im/Microsoft/vscode)
 
-[VS Code](https://code.visualstudio.com) is a new type of tool that combines the simplicity of
+Code is a new type of tool that combines the simplicity of
 a code editor with what developers need for their core edit-build-debug cycle. Code
 provides comprehensive editing and debugging support, an extensibility model, and lightweight integration with existing tools.
-
-VS Code is updated monthly with new features and bug fixes. You can download it for Windows, Mac and Linux on [VS Code's website](https://code.visualstudio.com/Download). To get the latest releases everyday, you can install the [Insiders version of VS Code](https://code.visualstudio.com/insiders). This builds from the master branch and is updated at least daily.
 
 <p align="center">
   <img alt="VS Code in action" src="https://cloud.githubusercontent.com/assets/11839736/16642200/6624dde0-43bd-11e6-8595-c81885ba0dc2.png">
 </p>
+
+Code is updated monthly with new features and bug fixes.
+You can download sources of released versions from [GitHub Releases](https://github.com/Microsoft/vscode/releases).
+Building binaries for Windows, OS X and Linux [instructions](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#build-and-run-from-source)
+are avaiable, but precompiled packages are not distributed here (see Related Products below).
 
 The [`vscode`](https://github.com/microsoft/vscode) repository is where we do development and there are many ways you can participate in the project, for example:
 
@@ -40,6 +43,20 @@ This project has adopted the [Microsoft Open Source Code of Conduct](https://ope
 * Vote for [popular feature requests](https://github.com/Microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc).
 * File a bug in [GitHub Issues](https://github.com/Microsoft/vscode/issues).
 * [Tweet](https://twitter.com/code) us with other feedback.
+
+## Related Products
+Microsoft is distributing its own build as Microsoft Visual Studio Code. 
+You can download packages for Windows, Mac and Linux on [VS Code's website](https://code.visualstudio.com/Download). 
+
+It's based on Code Open Source with some changes:
+* Microsoft branding
+* licensed under Microsoft [closed source custom product license](https://code.visualstudio.com/License) (EULA)
+* Extension Marketplace supported
+* crash reporting and telemetry enabled
+* user configuration and extensions stored in different directory then Code - Open Source
+* extension debugging supported 
+
+To get the latest releases everyday, you can install the [Insiders version of VS Code](https://code.visualstudio.com/insiders). This builds from the master branch and is updated at least daily.
 
 ## Related Projects
 Many of the core components and extensions to Code live in their own repositories on GitHub. For example, the [node debug adapter](https://github.com/microsoft/vscode-node-debug) and the [mono debug adapter](https://github.com/microsoft/vscode-mono-debug).
