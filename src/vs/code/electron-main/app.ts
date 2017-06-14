@@ -48,6 +48,7 @@ import { isUndefinedOrNull } from "vs/base/common/types";
 import { CodeWindow } from "vs/code/electron-main/window";
 import { isEqual, isParent } from "vs/platform/files/common/files";
 import { KeyboardLayoutMonitor } from "vs/code/electron-main/keyboard";
+import URI from 'vs/base/common/uri';
 
 export class CodeApplication {
 	private toDispose: IDisposable[];
@@ -117,6 +118,23 @@ export class CodeApplication {
 			if (!hasVisibleWindows && this.windowsMainService) {
 				this.windowsMainService.openNewWindow(OpenContext.DOCK);
 			}
+		});
+
+		const isValidWebviewSource = (source: string) =>
+			!source || (source.toLowerCase() as any).startsWith(URI.file(this.environmentService.appRoot.toLowerCase()).toString());
+
+		app.on('web-contents-created', (event, contents) => {
+			contents.on('will-attach-webview', (event, webPreferences, params) => {
+				delete webPreferences.preload;
+				webPreferences.nodeIntegration = false;
+
+				// Verify URLs being loaded
+				if (isValidWebviewSource(params.src) && isValidWebviewSource(webPreferences.preloadURL)) {
+					return;
+				}
+				// Otherwise prevent loading
+				event.preventDefault();
+			});
 		});
 
 		let macOpenFiles: string[] = [];

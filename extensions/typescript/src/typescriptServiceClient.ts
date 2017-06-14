@@ -240,6 +240,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private firstStart: number;
 	private lastStart: number;
 	private numberRestarts: number;
+	private isRestarting: boolean = false;
+
 	private cancellationPipeName: string | null = null;
 
 	private requestQueue: RequestQueue;
@@ -305,13 +307,14 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	public restartTsServer(): void {
 		const start = () => {
-			this.servicePromise = this.startService();
+			this.servicePromise = this.startService(true);
 			return this.servicePromise;
 		};
 
 		if (this.servicePromise) {
 			this.servicePromise = this.servicePromise.then(cp => {
 				if (cp) {
+					this.isRestarting = true;
 					cp.kill();
 				}
 			}).then(start);
@@ -352,7 +355,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		return this._onReady.promise;
 	}
 
-	public info(message: string, data?: any): void {
+	private info(message: string, data?: any): void {
 		this.logger.info(message, data);
 	}
 
@@ -360,7 +363,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.logger.warn(message, data);
 	}
 
-	public error(message: string, data?: any): void {
+	private error(message: string, data?: any): void {
 		this.logger.error(message, data);
 	}
 
@@ -567,7 +570,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							if (this.tsServerLogFile) {
 								this.info(`TSServer log file: ${this.tsServerLogFile}`);
 							}
-							this.serviceExited(true);
+							this.serviceExited(!this.isRestarting);
+							this.isRestarting = false;
 						});
 
 						this.reader = new Reader<Proto.Response>(

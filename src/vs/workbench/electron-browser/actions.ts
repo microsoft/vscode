@@ -6,6 +6,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
+import * as collections from 'vs/base/common/collections';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
@@ -832,21 +833,33 @@ Steps to Reproduce:
 	}
 
 	private generateExtensionTable(extensions: ILocalExtension[]): string {
+		const { nonThemes, themes } = collections.groupBy(extensions, ext => {
+			const manifestKeys = ext.manifest.contributes ? Object.keys(ext.manifest.contributes) : [];
+			const onlyTheme = !ext.manifest.activationEvents && manifestKeys.length === 1 && manifestKeys[0] === 'themes';
+			return onlyTheme ? 'themes' : 'nonThemes';
+		});
+
+		const themeExclusionStr = themes.length ? `\n(${themes.length} theme extensions excluded)` : '';
+		extensions = nonThemes;
+
 		if (!extensions.length) {
-			return 'none';
+			return 'none' + themeExclusionStr;
 		}
 
-		let tableHeader = `|Extension|Author|Version|
-|---|---|---|`;
+		let tableHeader = `Extension|Author (truncated)|Version
+---|---|---`;
 		const table = extensions.map(e => {
-			return `|${e.manifest.name}|${e.manifest.publisher}|${e.manifest.version}|`;
+			return `${e.manifest.name}|${e.manifest.publisher.substr(0, 3)}|${e.manifest.version}`;
 		}).join('\n');
 
 		const extensionTable = `
 
-${tableHeader}\n${table};
+${tableHeader}
+${table}
+${themeExclusionStr}
 
 `;
+
 		// 2000 chars is browsers de-facto limit for URLs, 400 chars are allowed for other string parts of the issue URL
 		// http://stackoverflow.com/questions/417142/what-is-the-maximum-length-of-a-url-in-different-browsers
 		if (encodeURIComponent(extensionTable).length > 1600) {

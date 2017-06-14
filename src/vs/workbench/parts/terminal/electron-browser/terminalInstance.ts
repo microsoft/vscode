@@ -342,6 +342,8 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public selectAll(): void {
+		// Focus here to ensure the terminal context key is set
+		this._xterm.focus();
 		this._xterm.selectAll();
 	}
 
@@ -794,6 +796,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public setTitle(title: string): void {
 		const didTitleChange = title !== this._title;
+		this._title = title;
 		if (didTitleChange) {
 			this._onTitleChanged.fire(title);
 		}

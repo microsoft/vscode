@@ -5,7 +5,6 @@
 
 'use strict';
 
-import * as fs from 'original-fs';
 import * as path from 'path';
 import * as arrays from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
@@ -13,6 +12,7 @@ import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
 import * as types from 'vs/base/common/types';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { realpathSync } from "vs/base/node/extfs";
 
 export function validatePaths(args: ParsedArgs): ParsedArgs {
 
@@ -43,7 +43,7 @@ function doValidatePaths(args: string[], gotoLineMode?: boolean): string[] {
 
 		let realPath: string;
 		try {
-			realPath = fs.realpathSync(pathCandidate);
+			realPath = realpathSync(pathCandidate);
 		} catch (error) {
 			// in case of an error, assume the user wants to create this file
 			// if the path is relative, we join it to the cwd
