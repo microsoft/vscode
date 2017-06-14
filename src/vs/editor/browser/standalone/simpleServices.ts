@@ -17,7 +17,7 @@ import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingReso
 import { IKeybindingEvent, KeybindingSource, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IMessageService } from 'vs/platform/message/common/message';
-import { IWorkspaceContextService, Workspace, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, Workspace, IWorkspace, IWorkspace2 } from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -495,8 +495,8 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 
 	public _serviceBrand: any;
 
-	private readonly _onDidChangeFolders: Emitter<URI[]> = new Emitter<URI[]>();
-	public readonly onDidChangeFolders: Event<URI[]> = this._onDidChangeFolders.event;
+	private readonly _onDidChangeWorkspaceRoots: Emitter<URI[]> = new Emitter<URI[]>();
+	public readonly onDidChangeWorkspaceRoots: Event<URI[]> = this._onDidChangeWorkspaceRoots.event;
 
 	private readonly folders: URI[];
 
@@ -510,6 +510,10 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 
 	public getWorkspace(): IWorkspace {
 		return this.workspace;
+	}
+
+	public getWorkspace2(): IWorkspace2 {
+		return this.workspace ? { id: `${this.workspace.uid}`, roots: [this.workspace.resource] } : void 0;
 	}
 
 	public hasWorkspace(): boolean {
