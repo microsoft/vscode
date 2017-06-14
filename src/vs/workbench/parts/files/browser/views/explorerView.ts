@@ -14,6 +14,7 @@ import labels = require('vs/base/common/labels');
 import paths = require('vs/base/common/paths');
 import { Action, IAction } from 'vs/base/common/actions';
 import { prepareActions } from 'vs/workbench/browser/actions';
+import { memoize } from 'vs/base/common/decorators';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocussedContext, ExplorerFocussedContext } from 'vs/workbench/parts/files/common/files';
@@ -26,7 +27,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import * as DOM from 'vs/base/browser/dom';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { CollapsibleView, IViewletViewOptions } from 'vs/workbench/parts/views/browser/views';
-import { FileStat } from 'vs/workbench/parts/files/common/explorerModel';
+import { FileStat, Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -300,7 +301,7 @@ export class ExplorerView extends CollapsibleView {
 					lastActiveFileResource = URI.parse(this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE]);
 				}
 
-				if (lastActiveFileResource && this.root && this.root.find(lastActiveFileResource)) {
+				if (lastActiveFileResource && this.isCreated && this.root.find(lastActiveFileResource)) {
 					this.editorService.openEditor({ resource: lastActiveFileResource, options: { revealIfVisible: true } }).done(null, errors.onUnexpectedError);
 
 					return refreshPromise;
@@ -336,6 +337,15 @@ export class ExplorerView extends CollapsibleView {
 
 	private get root(): FileStat {
 		return this.explorerViewer ? (<FileStat>this.explorerViewer.getInput()) : null;
+	}
+
+	private get isCreated(): boolean {
+		return this.explorerViewer && this.explorerViewer.getInput();
+	}
+
+	@memoize
+	private get model(): Model {
+		return this.instantiationService.createInstance(Model);
 	}
 
 	public createViewer(container: Builder): ITree {
@@ -405,7 +415,7 @@ export class ExplorerView extends CollapsibleView {
 	}
 
 	private onFileOperation(e: FileOperationEvent): void {
-		if (!this.root) {
+		if (!this.isCreated) {
 			return; // ignore if not yet created
 		}
 
@@ -561,7 +571,7 @@ export class ExplorerView extends CollapsibleView {
 			const added = e.getAdded();
 			const deleted = e.getDeleted();
 
-			if (!this.root) {
+			if (!this.isCreated) {
 				return false;
 			}
 
@@ -681,7 +691,7 @@ export class ExplorerView extends CollapsibleView {
 		}
 
 		// First time refresh: Receive target through active editor input or selection and also include settings from previous session
-		if (!this.root) {
+		if (!this.isCreated) {
 			const activeFile = this.getActiveFile();
 			if (activeFile) {
 				targetsToResolve.push(activeFile);
@@ -706,7 +716,7 @@ export class ExplorerView extends CollapsibleView {
 			const modelStat = FileStat.create(stat, options.resolveTo);
 
 			// First time refresh: The stat becomes the input of the viewer
-			if (!this.root) {
+			if (!this.isCreated) {
 				explorerPromise = this.explorerViewer.setInput(modelStat).then(() => {
 
 					// Make sure to expand all folders that where expanded in the previous session
@@ -778,7 +788,7 @@ export class ExplorerView extends CollapsibleView {
 		}
 
 		// First try to get the stat object from the input to avoid a roundtrip
-		if (!this.root) {
+		if (!this.isCreated) {
 			return TPromise.as(null);
 		}
 
@@ -849,7 +859,7 @@ export class ExplorerView extends CollapsibleView {
 	public shutdown(): void {
 
 		// Keep list of expanded folders to restore on next load
-		if (this.root) {
+		if (this.isCreated) {
 			const expanded = this.explorerViewer.getExpandedElements()
 				.filter((e: FileStat) => e.resource.toString() !== this.contextService.getWorkspace().resource.toString())
 				.map((e: FileStat) => e.resource.toString());
