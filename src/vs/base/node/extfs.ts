@@ -374,13 +374,13 @@ export function writeFileAndFlush(path: string, data: string | NodeBuffer, optio
 /**
  * Copied from: https://github.com/Microsoft/vscode-node-debug/blob/master/src/node/pathUtilities.ts#L83
  *
- * Given an absolute, normalized, and existing file path 'realpath' returns the exact path that the file has on disk.
+ * Given an absolute, normalized, and existing file path 'realcase' returns the exact path that the file has on disk.
  * On a case insensitive file system, the returned path might differ from the original path by character casing.
  * On a case sensitive file system, the returned path will always be identical to the original path.
  * In case of errors, null is returned. But you cannot use this function to verify that a path exists.
- * realpathSync does not handle '..' or '.' path segments and it does not take the locale into account.
+ * realcaseSync does not handle '..' or '.' path segments and it does not take the locale into account.
  */
-export function realpathSync(path: string): string {
+export function realcaseSync(path: string): string {
 	const dir = paths.dirname(path);
 	if (path === dir) {	// end recursion
 		return path;
@@ -392,7 +392,7 @@ export function realpathSync(path: string): string {
 		const found = entries.filter(e => e.toLowerCase() === name);	// use a case insensitive search
 		if (found.length === 1) {
 			// on a case sensitive filesystem we cannot determine here, whether the file exists or not, hence we need the 'file exists' precondition
-			const prefix = realpathSync(dir);   // recurse
+			const prefix = realcaseSync(dir);   // recurse
 			if (prefix) {
 				return paths.join(prefix, found[0]);
 			}
@@ -400,7 +400,7 @@ export function realpathSync(path: string): string {
 			// must be a case sensitive $filesystem
 			const ix = found.indexOf(name);
 			if (ix >= 0) {	// case sensitive
-				const prefix = realpathSync(dir);   // recurse
+				const prefix = realcaseSync(dir);   // recurse
 				if (prefix) {
 					return paths.join(prefix, found[ix]);
 				}
@@ -411,4 +411,44 @@ export function realpathSync(path: string): string {
 	}
 
 	return null;
+}
+
+export function realpathSync(path: string): string {
+	try {
+		return fs.realpathSync(path);
+	} catch (error) {
+
+		// We hit an error calling fs.realpathSync(). Since fs.realpathSync() is doing some path normalization
+		// we now do a similar normalization and then try again if we can access the path with read
+		// permissions at least. If that succeeds, we return that path.
+		// fs.realpath() is resolving symlinks and that can fail in certain cases. The workaround is
+		// to not resolve links but to simply see if the path is read accessible or not.
+		const normalizedPath = normalizePath(path);
+		fs.accessSync(normalizedPath, fs.constants.R_OK); // throws in case of an error
+
+		return normalizedPath;
+	}
+}
+
+export function realpath(path: string, callback: (error: Error, realpath: string) => void): void {
+	return fs.realpath(path, (error, realpath) => {
+		if (!error) {
+			return callback(null, realpath);
+		}
+
+		// We hit an error calling fs.realpath(). Since fs.realpath() is doing some path normalization
+		// we now do a similar normalization and then try again if we can access the path with read
+		// permissions at least. If that succeeds, we return that path.
+		// fs.realpath() is resolving symlinks and that can fail in certain cases. The workaround is
+		// to not resolve links but to simply see if the path is read accessible or not.
+		const normalizedPath = normalizePath(path);
+
+		return fs.access(normalizedPath, fs.constants.R_OK, error => {
+			return callback(error, normalizedPath);
+		});
+	});
+}
+
+function normalizePath(path: string): string {
+	return strings.rtrim(paths.normalize(path), paths.sep);
 }
