@@ -22,7 +22,6 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -57,10 +56,15 @@ export interface IEnvironment {
 	extensionTestsPath: string;
 }
 
+export interface IWorkspaceData {
+	id: string;
+	roots: URI[];
+}
+
 export interface IInitData {
 	parentPid: number;
 	environment: IEnvironment;
-	workspace: IWorkspace;
+	workspace: IWorkspaceData;
 	extensions: IExtensionDescription[];
 	configuration: IWorkspaceConfigurationValues;
 	telemetryInfo: ITelemetryInfo;
@@ -405,7 +409,7 @@ export abstract class ExtHostTreeViewsShape {
 }
 
 export abstract class ExtHostWorkspaceShape {
-	$acceptWorkspaceData(folders: URI[]): void { throw ni(); }
+	$acceptWorkspaceData(workspace: IWorkspaceData): void { throw ni(); }
 }
 
 export abstract class ExtHostExtensionServiceShape {

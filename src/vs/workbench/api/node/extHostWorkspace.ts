@@ -12,7 +12,7 @@ import { IThreadService } from 'vs/workbench/services/thread/common/threadServic
 import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { fromRange, EndOfLine } from 'vs/workbench/api/node/extHostTypeConverters';
-import { ExtHostWorkspaceShape, MainContext, MainThreadWorkspaceShape } from './extHost.protocol';
+import { IWorkspaceData, ExtHostWorkspaceShape, MainContext, MainThreadWorkspaceShape } from './extHost.protocol';
 import * as vscode from 'vscode';
 
 export class ExtHostWorkspace extends ExtHostWorkspaceShape {
@@ -20,18 +20,19 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 	private static _requestIdPool = 0;
 
 	private readonly _proxy: MainThreadWorkspaceShape;
-	private _workspaceFolders: URI[];
+	private _workspace: IWorkspaceData;
 
-	constructor(threadService: IThreadService, folders: URI[]) {
+	constructor(threadService: IThreadService, workspace: IWorkspaceData) {
 		super();
 		this._proxy = threadService.get(MainContext.MainThreadWorkspace);
-		this._workspaceFolders = folders;
+		this._workspace = workspace;
 	}
 
 	// --- workspace ---
 
 	getPath(): string {
-		return isFalsyOrEmpty(this._workspaceFolders) ? undefined : this._workspaceFolders[0].fsPath;
+		// TODO@Joh handle roots.length > 1 case
+		return this._workspace ? this._workspace.roots[0].fsPath : undefined;
 	}
 
 	getRelativePath(pathOrUri: string | vscode.Uri): string {
@@ -47,11 +48,11 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 			return path;
 		}
 
-		if (isFalsyOrEmpty(this._workspaceFolders)) {
+		if (!this._workspace || isFalsyOrEmpty(this._workspace.roots)) {
 			return normalize(path);
 		}
 
-		for (const { fsPath } of this._workspaceFolders) {
+		for (const { fsPath } of this._workspace.roots) {
 			let result = relative(fsPath, path);
 			if (!result || result.indexOf('..') === 0) {
 				continue;
@@ -62,9 +63,9 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 		return normalize(path);
 	}
 
-	$acceptWorkspaceData(workspaceFolders: URI[]): void {
+	$acceptWorkspaceData(workspace: IWorkspaceData): void {
 		//TODO@joh equality-check, emit event etc.
-		this._workspaceFolders = workspaceFolders;
+		this._workspace = workspace;
 	}
 
 	// --- search ---

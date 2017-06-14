@@ -14,7 +14,7 @@ suite('ExtHostWorkspace', function () {
 
 	test('asRelativePath', function () {
 
-		const ws = new ExtHostWorkspace(new TestThreadService(), [URI.file('/Coding/Applications/NewsWoWBot')]);
+		const ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', roots: [URI.file('/Coding/Applications/NewsWoWBot')] });
 
 		assert.equal(ws.getRelativePath('/Coding/Applications/NewsWoWBot/bernd/das/brot'), 'bernd/das/brot');
 		assert.equal(ws.getRelativePath('/Apps/DartPubCache/hosted/pub.dartlang.org/convert-2.0.1/lib/src/hex.dart'),
@@ -28,7 +28,7 @@ suite('ExtHostWorkspace', function () {
 	test('asRelativePath, same paths, #11402', function () {
 		const root = '/home/aeschli/workspaces/samples/docker';
 		const input = '/home/aeschli/workspaces/samples/docker';
-		const ws = new ExtHostWorkspace(new TestThreadService(), [URI.file(root)]);
+		const ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', roots: [URI.file(root)] });
 
 		assert.equal(ws.getRelativePath(input), input);
 
@@ -43,7 +43,7 @@ suite('ExtHostWorkspace', function () {
 	});
 
 	test('asRelativePath, multiple folders', function () {
-		const ws = new ExtHostWorkspace(new TestThreadService(), [URI.file('/Coding/One'), URI.file('/Coding/Two')]);
+		const ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', roots: [URI.file('/Coding/One'), URI.file('/Coding/Two')] });
 		assert.equal(ws.getRelativePath('/Coding/One/file.txt'), 'file.txt');
 		assert.equal(ws.getRelativePath('/Coding/Two/files/out.txt'), 'files/out.txt');
 		assert.equal(ws.getRelativePath('/Coding/Two2/files/out.txt'), '/Coding/Two2/files/out.txt');

@@ -46,17 +46,12 @@ type IWorkspaceFoldersConfiguration = { [rootFolder: string]: { folders: string[
 
 class Workspace implements IWorkspace2 {
 
-	constructor(readonly id: string, private _roots: URI[]) {
+	constructor(
+		public readonly id: string,
+		public roots: URI[]
+	) {
+		//
 	}
-
-	get roots(): URI[] {
-		return this._roots;
-	}
-
-	setRoots(roots: URI[]): void {
-		this._roots = roots;
-	}
-
 }
 
 export class WorkspaceConfigurationService extends Disposable implements IWorkspaceContextService, IWorkspaceConfigurationService {
@@ -130,7 +125,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		// Find changes
 		const changed = !equals(this.workspace.roots, configuredFolders, (r1, r2) => r1.toString() === r2.toString());
 
-		this.workspace.setRoots(configuredFolders);
+		this.workspace.roots = configuredFolders;
 
 		if (notify && changed) {
 			this._onDidChangeWorkspaceRoots.fire(configuredFolders);
