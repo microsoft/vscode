@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
+import * as arrays from 'vs/base/common/arrays';
+import * as types from 'vs/base/common/types';
+import * as objects from 'vs/base/common/objects';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 
@@ -101,18 +104,76 @@ export function getConfigurationValue<T>(config: any, settingPath: string, defau
 	return typeof result === 'undefined' ? defaultValue : result;
 }
 
-export interface IConfigModel<T> {
-	contents: T;
-	overrides: IOverrides<T>[];
-	keys: string[];
-	errors: any[];
-
-	merge(other: IConfigModel<T>, overwrite?: boolean): IConfigModel<T>;
-	getContentsFor<V>(section: string): V;
-	configWithOverrides<V>(identifier: string, section?: string): IConfigModel<V>;
+export function merge(base: any, add: any, overwrite: boolean): void {
+	Object.keys(add).forEach(key => {
+		if (key in base) {
+			if (types.isObject(base[key]) && types.isObject(add[key])) {
+				merge(base[key], add[key], overwrite);
+			} else if (overwrite) {
+				base[key] = add[key];
+			}
+		} else {
+			base[key] = add[key];
+		}
+	});
 }
 
 export interface IOverrides<T> {
 	contents: T;
 	identifiers: string[];
+}
+
+export class Configuration<T> {
+
+	protected _keys: string[] = [];
+
+	constructor(protected _contents: T = <T>{}, protected _overrides: IOverrides<T>[] = []) {
+	}
+
+	public get contents(): T {
+		return this._contents;
+	}
+
+	public get keys(): string[] {
+		return this._keys;
+	}
+
+	public getContentsFor<V>(section: string): V {
+		return objects.clone(this.contents[section]);
+	}
+
+	public override<V>(identifier: string): Configuration<V> {
+		const result = new Configuration<V>();
+		const contents = objects.clone<any>(this.contents);
+		if (this._overrides) {
+			for (const override of this._overrides) {
+				if (override.identifiers.indexOf(identifier) !== -1) {
+					merge(contents, override.contents, true);
+				}
+			}
+		}
+		result._contents = contents;
+		return result;
+	}
+
+	public merge(other: Configuration<T>, overwrite: boolean = true): Configuration<T> {
+		const mergedModel = new Configuration<T>();
+		this.doMerge(mergedModel, this, overwrite);
+		this.doMerge(mergedModel, other, overwrite);
+		return mergedModel;
+	}
+
+	protected doMerge(source: Configuration<T>, target: Configuration<T>, overwrite: boolean = true) {
+		merge(source.contents, objects.clone(target.contents), overwrite);
+		const overrides = objects.clone(source._overrides);
+		for (const override of target._overrides) {
+			const [sourceOverride] = overrides.filter(o => arrays.equals(o.identifiers, override.identifiers));
+			if (sourceOverride) {
+				merge(sourceOverride.contents, override.contents, overwrite);
+			} else {
+				overrides.push(override);
+			}
+		}
+		source._overrides = overrides;
+	}
 }
