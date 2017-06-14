@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 . ./scripts/env.sh
 . ./build/tfs/common/common.sh
@@ -32,7 +32,7 @@ VERSION=$(node -p "require(\"$PACKAGEJSON\").version")
 rm -rf $ROOT/code-*.tar.*
 (cd $ROOT && \
 	step "Create tar.gz archive" \
-	tar -czvf $TARBALL_PATH $BUILDNAME)
+	tar -czf $TARBALL_PATH $BUILDNAME)
 
 step "Publish tar.gz archive" \
 	node build/tfs/common/publish.js $VSCODE_QUALITY $PLATFORM_LINUX archive-unsigned $TARBALL_FILENAME $VERSION true $TARBALL_PATH
