@@ -34,7 +34,7 @@ export class Source {
 	}
 
 	public get available() {
-		return this.raw.name !== UNKNOWN_SOURCE_LABEL;
+		return this.raw.name !== UNKNOWN_SOURCE_LABEL && this.presentationHint !== 'deemphasize';
 	}
 
 	public get inMemory() {
