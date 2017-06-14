@@ -451,9 +451,21 @@ export class LanguageConfigurationRegistryImpl {
 	}
 
 	public getIndentForEnter(model: ITokenizedModel, range: Range, indentConverter: any): { beforeEnter: string, afterEnter: string } {
-		let scopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber, range.startColumn);
+		model.forceTokenization(range.startLineNumber);
+		let lineTokens = model.getLineTokens(range.startLineNumber);
+
+		let beforeEnterText;
+		let tokenIndexUnderCursor = lineTokens.findTokenIndexAtOffset(range.startColumn);
+		let tokenIndexAtBeginning = lineTokens.findTokenIndexAtOffset(0);
+		let scopedLineTokens = createScopedLineTokens(lineTokens, range.startColumn);
 		let scopedLineText = scopedLineTokens.getLineContent();
-		let beforeEnterText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+
+		if (lineTokens.getLanguageId(tokenIndexAtBeginning) === lineTokens.getLanguageId(tokenIndexUnderCursor)) {
+			beforeEnterText = lineTokens.getLineContent().substring(0, range.startColumn);
+		} else {
+			beforeEnterText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+		}
+
 		let afterEnterText;
 
 		if (range.isEmpty()) {
