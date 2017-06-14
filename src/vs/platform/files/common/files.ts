@@ -44,6 +44,11 @@ export interface IFileService {
 	resolveFile(resource: URI, options?: IResolveFileOptions): TPromise<IFileStat>;
 
 	/**
+	 * Same as resolveFile but supports resolving mulitple resources in parallel.
+	 */
+	resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): TPromise<IFileStat[]>;
+
+	/**
 	 *Finds out if a file identified by the resource exists.
 	 */
 	existsFile(resource: URI): TPromise<boolean>;
