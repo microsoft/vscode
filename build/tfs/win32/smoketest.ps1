@@ -47,7 +47,7 @@ step "Run unit tests" {
 step "Run smoke test" {
 	exec { & Push-Location test\smoke }
   exec { & npm install; npm run compile }
-	exec { & node src/main.js --latest "$AGENT_BUILDDIRECTORY\VSCode-win32-$arch\Code - Insiders.exe" }
+	exec { & node src/main.js --latest "$env:AGENT_BUILDDIRECTORY\VSCode-win32-$global:arch\Code - Insiders.exe" }
   exec { & Pop-Location }
 }
 
