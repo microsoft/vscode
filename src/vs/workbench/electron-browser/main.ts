@@ -28,6 +28,9 @@ import { IInitData } from 'vs/workbench/services/timer/common/timerService';
 import { TimerService } from 'vs/workbench/services/timer/node/timerService';
 import { KeyboardMapperFactory } from "vs/workbench/services/keybinding/electron-browser/keybindingService";
 import { IWindowConfiguration, IPath } from "vs/platform/windows/common/windows";
+import { IStorageService } from "vs/platform/storage/common/storage";
+import { IEnvironmentService } from "vs/platform/environment/common/environment";
+import { StorageService, inMemoryLocalStorageInstance, IWorkspaceStorageIdentifier } from "vs/platform/storage/common/storageService";
 
 import { webFrame } from 'electron';
 
@@ -62,12 +65,8 @@ export function startup(configuration: IWindowConfiguration): TPromise<void> {
 		filesToDiff
 	};
 
-	// Resolve workspace
-	return getWorkspace(configuration.workspacePath).then(workspace => {
-
-		// Open workbench
-		return openWorkbench(configuration, workspace, shellOptions);
-	});
+	// Open workbench
+	return openWorkbench(configuration, shellOptions);
 }
 
 function toInputs(paths: IPath[], isUntitledFile?: boolean): IResourceInput[] {
@@ -95,12 +94,53 @@ function toInputs(paths: IPath[], isUntitledFile?: boolean): IResourceInput[] {
 	});
 }
 
-function getWorkspace(workspacePath: string): TPromise<Workspace> {
-	if (!workspacePath) {
+function openWorkbench(configuration: IWindowConfiguration, options: IOptions): TPromise<void> {
+	return getWorkspace(configuration).then(workspace => {
+		const environmentService = new EnvironmentService(configuration, configuration.execPath);
+		const workspaceConfigurationService = new WorkspaceConfigurationService(environmentService, workspace);
+		const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, !workspaceConfigurationService.hasWorkspace());
+
+		return createStorageService(configuration, environmentService).then(storageService => {
+
+			// Since the configuration service is one of the core services that is used in so many places, we initialize it
+			// right before startup of the workbench shell to have its data ready for consumers
+			return workspaceConfigurationService.initialize().then(() => {
+				timerService.beforeDOMContentLoaded = Date.now();
+
+				return domContentLoaded().then(() => {
+					timerService.afterDOMContentLoaded = Date.now();
+
+					// Open Shell
+					timerService.beforeWorkbenchOpen = Date.now();
+					const shell = new WorkbenchShell(document.body, {
+						contextService: workspaceConfigurationService,
+						configurationService: workspaceConfigurationService,
+						environmentService,
+						timerService,
+						storageService
+					}, configuration, options);
+					shell.open();
+
+					// Inform user about loading issues from the loader
+					(<any>self).require.config({
+						onError: (err: any) => {
+							if (err.errorCode === 'load') {
+								shell.onUnexpectedError(loaderError(err));
+							}
+						}
+					});
+				});
+			});
+		});
+	});
+}
+
+function getWorkspace(configuration: IWindowConfiguration): TPromise<Workspace> {
+	if (!configuration.workspacePath) {
 		return TPromise.as(null);
 	}
 
-	return realpath(workspacePath).then(realWorkspacePath => {
+	return realpath(configuration.workspacePath).then(realWorkspacePath => {
 
 		// for some weird reason, node adds a trailing slash to UNC paths
 		// we never ever want trailing slashes as our workspace path unless
@@ -110,16 +150,13 @@ function getWorkspace(workspacePath: string): TPromise<Workspace> {
 			realWorkspacePath = strings.rtrim(realWorkspacePath, paths.nativeSep);
 		}
 
+		// update config
+		configuration.workspacePath = realWorkspacePath;
+
 		const workspaceResource = uri.file(realWorkspacePath);
 		const folderName = path.basename(realWorkspacePath) || realWorkspacePath;
 
-		return stat(realWorkspacePath).then(folderStat => {
-			return new Workspace(
-				workspaceResource,
-				platform.isLinux ? folderStat.ino : folderStat.birthtime.getTime(),
-				folderName // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
-			);
-		});
+		return new Workspace(workspaceResource, folderName);
 	}, error => {
 		errors.onUnexpectedError(error);
 
@@ -127,38 +164,30 @@ function getWorkspace(workspacePath: string): TPromise<Workspace> {
 	});
 }
 
-function openWorkbench(configuration: IWindowConfiguration, workspace: Workspace, options: IOptions): TPromise<void> {
-	const environmentService = new EnvironmentService(configuration, configuration.execPath);
-	const workspaceConfigurationService = new WorkspaceConfigurationService(environmentService, workspace);
-	const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, !workspaceConfigurationService.hasWorkspace());
+function createStorageService(configuration: IWindowConfiguration, environmentService: IEnvironmentService): TPromise<IStorageService> {
+	let workspaceStatPromise: TPromise<fs.Stats> = TPromise.as(null);
+	if (configuration.workspacePath) {
+		workspaceStatPromise = stat(configuration.workspacePath);
+	}
 
-	// Since the configuration service is one of the core services that is used in so many places, we initialize it
-	// right before startup of the workbench shell to have its data ready for consumers
-	return workspaceConfigurationService.initialize().then(() => {
-		timerService.beforeDOMContentLoaded = Date.now();
+	return workspaceStatPromise.then(stat => {
+		let id: IWorkspaceStorageIdentifier;
+		if (stat) {
+			id = { resource: uri.file(configuration.workspacePath), uid: platform.isLinux ? stat.ino : stat.birthtime.getTime() };
+		} else if (configuration.backupPath) {
+			// if we do not have a workspace open, we need to find another identifier for the window to store
+			// workspace UI state. if we have a backup path in the configuration we can use that because this
+			// will be a unique identifier per window that is stable between restarts as long as there are
+			// dirty files in the workspace.
+			// We use basename() to produce a short identifier, we do not need the full path. We use a custom
+			// scheme so that we can later distinguish these identifiers from the workspace one.
+			id = { resource: uri.from({ path: path.basename(configuration.backupPath), scheme: 'empty' }) };
+		}
 
-		return domContentLoaded().then(() => {
-			timerService.afterDOMContentLoaded = Date.now();
+		const disableStorage = !!environmentService.extensionTestsPath; // never keep any state when running extension tests!
+		const storage = disableStorage ? inMemoryLocalStorageInstance : window.localStorage;
 
-			// Open Shell
-			timerService.beforeWorkbenchOpen = Date.now();
-			const shell = new WorkbenchShell(document.body, {
-				contextService: workspaceConfigurationService,
-				configurationService: workspaceConfigurationService,
-				environmentService,
-				timerService
-			}, configuration, options);
-			shell.open();
-
-			// Inform user about loading issues from the loader
-			(<any>self).require.config({
-				onError: (err: any) => {
-					if (err.errorCode === 'load') {
-						shell.onUnexpectedError(loaderError(err));
-					}
-				}
-			});
-		});
+		return new StorageService(storage, storage, id);
 	});
 }
 

@@ -80,7 +80,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	constructor(private environmentService: IEnvironmentService, private singleRootWorkspace?: SingleRootWorkspace, private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME) {
 		super();
 
-		this.workspace = singleRootWorkspace ? new Workspace(`${singleRootWorkspace.uid}`, [singleRootWorkspace.resource]) : null;
+		this.workspace = singleRootWorkspace ? new Workspace(singleRootWorkspace.resource.toString(), [singleRootWorkspace.resource]) : null;
 
 		this.workspaceFilePathToConfiguration = Object.create(null);
 		this.cachedConfig = new ConfigModel<any>(null);
