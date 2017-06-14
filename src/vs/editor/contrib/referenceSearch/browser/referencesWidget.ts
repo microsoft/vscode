@@ -6,7 +6,6 @@
 
 import 'vs/css!./referencesWidget';
 import * as nls from 'vs/nls';
-import { alert } from 'vs/base/browser/ui/aria/aria';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { getPathLabel } from 'vs/base/common/labels';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -589,7 +588,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		private _instantiationService: IInstantiationService,
 		private _environmentService: IEnvironmentService
 	) {
-		super(editor, { showFrame: false, showArrow: true, isResizeable: true });
+		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true });
 
 		this._applyTheme(_themeService.getTheme());
 		this._callOnDispose.push(_themeService.onThemeChange(this._applyTheme.bind(this)));
@@ -690,8 +689,7 @@ export class ReferenceWidget extends PeekViewWidget {
 				dataSource: this._instantiationService.createInstance(DataSource),
 				renderer: this._instantiationService.createInstance(Renderer, this.editor),
 				controller: new Controller(),
-				// TODO@{Joh,Ben} make this work with the embedded tree
-				// accessibilityProvider: new AriaProvider()
+				accessibilityProvider: new AriaProvider()
 			};
 
 			var options = {
@@ -763,17 +761,6 @@ export class ReferenceWidget extends PeekViewWidget {
 		// listen on model changes
 		this._disposeOnNewModel.push(this._model.onDidChangeReferenceRange(reference => this._tree.refresh(reference)));
 
-		// listen on selection and focus
-		this._disposeOnNewModel.push(this._tree.addListener(Controller.Events.FOCUSED, (element) => {
-			if (element instanceof OneReference) {
-				this._revealReference(element);
-				this._onDidSelectReference.fire({ element, kind: 'show', source: 'tree' });
-			}
-			if (element instanceof OneReference || element instanceof FileReferences) {
-				const msg = element.getAriaMessage();
-				alert(msg);
-			}
-		}));
 		this._disposeOnNewModel.push(this._tree.addListener(Controller.Events.SELECTED, (element: any) => {
 			if (element instanceof OneReference) {
 				this._onDidSelectReference.fire({ element, kind: 'goto', source: 'tree' });
