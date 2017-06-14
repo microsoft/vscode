@@ -7,16 +7,57 @@
 
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import { IFileStat, isEqual, isParent, isEqualOrParent } from 'vs/platform/files/common/files';
-import { IEditorInput } from 'vs/platform/editor/common/editor';
-import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
 import { ResourceMap } from 'vs/base/common/map';
 import { isLinux } from 'vs/base/common/platform';
+import { IFileStat, isEqual, isParent, isEqualOrParent } from 'vs/platform/files/common/files';
+import { IEditorInput } from 'vs/platform/editor/common/editor';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
 
 export enum StatType {
 	FILE,
 	FOLDER,
 	ANY
+}
+
+export class Model {
+
+	private _roots: FileStat[];
+
+	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
+		const setRoots = () => this._roots = this.contextService.getWorkspace2().roots.map(uri => new FileStat(uri));
+		this.contextService.onDidChangeWorkspaceRoots(() => setRoots());
+		setRoots();
+	}
+
+	public get roots(): FileStat[] {
+		return this._roots;
+	}
+
+	/**
+	 * Returns a child stat from this stat that matches with the provided path.
+	 * Starts matching from the first root.
+	 * Will return "null" in case the child does not exist.
+	 */
+	public findAll(resource: URI): FileStat[] {
+		return this.roots.map(root => root.find(resource)).filter(stat => !!stat);
+	}
+
+	public findFirst(resource: URI): FileStat {
+		for (let root of this.roots) {
+			const result = root.find(resource);
+			if (result) {
+				return result;
+			}
+		}
+
+		return null;
+	}
+
+	public rootForResource(resource: URI): FileStat {
+		// TODO@Isidor temporary until we have a utility method for this
+		return this.roots[0];
+	}
 }
 
 export class FileStat implements IFileStat {
