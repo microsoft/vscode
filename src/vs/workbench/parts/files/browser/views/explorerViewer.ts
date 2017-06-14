@@ -31,7 +31,7 @@ import { DuplicateFileAction, ImportFileAction, IEditableData, IFileViewletState
 import { IDataSource, ITree, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDrop, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
 import { DesktopDragAndDropData, ExternalElementsDragAndDropData } from 'vs/base/parts/tree/browser/treeDnd';
 import { ClickBehavior, DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
-import { FileStat, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
+import { FileStat, NewStatPlaceholder, Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { DragMouseEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -51,6 +51,16 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
+// Multiple of the same folder in the explorer - id needs to get more complex, add index for the parent
+// check context menu actions
+// special context menu actions for root
+// more checks might be needed for drag n drop
+// step2: deleting one of the root folders
+// Resolve me all the expansion state in one go
+// revealing an element might be tricky if it is in two workspaces, in that case just reveal the first to not break. Not a common scenario
+
+// files.exclude, for each of the roots ask the configurations service for files.exclude
+
 export class FileDataSource implements IDataSource {
 	constructor(
 		@IProgressService private progressService: IProgressService,
@@ -61,14 +71,18 @@ export class FileDataSource implements IDataSource {
 	) { }
 
 	public getId(tree: ITree, stat: FileStat): string {
-		return stat.getId();
+		// TODO@Isidor take the id of the root into account
+		return `:${stat.getId()}`;
 	}
 
-	public hasChildren(tree: ITree, stat: FileStat): boolean {
-		return stat.isDirectory;
+	public hasChildren(tree: ITree, stat: FileStat | Model): boolean {
+		return stat instanceof Model || (stat instanceof FileStat && stat.isDirectory);
 	}
 
-	public getChildren(tree: ITree, stat: FileStat): TPromise<FileStat[]> {
+	public getChildren(tree: ITree, stat: FileStat | Model): TPromise<FileStat[]> {
+		if (stat instanceof Model) {
+			return TPromise.as(stat.roots);
+		}
 
 		// Return early if stat is already resolved
 		if (stat.isDirectoryResolved) {
@@ -110,8 +124,8 @@ export class FileDataSource implements IDataSource {
 		}
 
 		// Return if root reached
-		const workspace = this.contextService.getWorkspace();
-		if (workspace && stat.resource.toString() === workspace.resource.toString()) {
+		const workspace = this.contextService.getWorkspace2();
+		if (workspace && workspace.roots.filter(root => root.toString() === stat.resource.toString())) {
 			return TPromise.as(null);
 		}
 
@@ -558,6 +572,7 @@ export class FileFilter implements IFilter {
 		const excludesConfig = (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
 		const needsRefresh = !objects.equals(this.hiddenExpression, excludesConfig);
 
+		// This needs to be per folder
 		this.hiddenExpression = objects.clone(excludesConfig); // do not keep the config, as it gets mutated under our hoods
 
 		return needsRefresh;
