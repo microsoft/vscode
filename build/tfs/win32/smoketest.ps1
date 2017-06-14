@@ -36,14 +36,6 @@ step "Build minified" {
   exec { & npm run gulp -- --max_old_space_size=4096 "vscode-win32-$global:arch-min" }
 }
 
-step "Run unit tests" {
-  exec { & .\scripts\test.bat --build --reporter dot }
-}
-
-# step "Run integration tests" {
-#   exec { & .\scripts\test-integration.bat }
-# }
-
 step "Run smoke test" {
 	exec { & Push-Location test\smoke }
   exec { & npm install; npm run compile }

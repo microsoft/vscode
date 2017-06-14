@@ -20,12 +20,6 @@ step "Install distro dependencies" \
 step "Build minified & upload source maps" \
 	npm run gulp -- --max_old_space_size=4096 vscode-darwin-min
 
-step "Run unit tests" \
-	./scripts/test.sh --build --reporter dot
-
-step "Run integration tests" \
-	./scripts/test-integration.sh
-
 step "Run smoke test" \
 	pushd test/smoke
 	npm install
