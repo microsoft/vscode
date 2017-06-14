@@ -497,7 +497,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 
 						if (newIndent !== originalIndent) {
 							textEdits.push({
-								range: new Range(i, 1, i, originalIndent.length),
+								range: new Range(i, 1, i, originalIndent.length + 1),
 								text: newIndent
 							});
 						}
