@@ -9,7 +9,6 @@ import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
 import { TPromise, PPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import { ThrottledDelayer } from 'vs/base/common/async';
 import types = require('vs/base/common/types');
 import { isWindows } from 'vs/base/common/platform';
 import strings = require('vs/base/common/strings');
@@ -90,7 +89,6 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 	private openSymbolHandler: OpenSymbolHandler;
 	private openFileHandler: OpenFileHandler;
-	private searchDelayer: ThrottledDelayer<QuickOpenModel>;
 	private pendingSearch: PPromise<QuickOpenModel, QuickOpenModel>;
 	private isClosed: boolean;
 	private scorerCache: { [key: string]: number };
@@ -105,7 +103,6 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		super();
 
 		this.scorerCache = Object.create(null);
-		this.searchDelayer = new ThrottledDelayer<QuickOpenModel>(OpenAnythingHandler.FILE_SEARCH_DELAY);
 
 		this.openSymbolHandler = instantiationService.createInstance(OpenSymbolHandler);
 		this.openFileHandler = instantiationService.createInstance(OpenFileHandler);
@@ -170,7 +167,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			}
 
 			// Join and sort unified
-			const model = new QuickOpenModel();
+			let viewResults: QuickOpenEntry[] = [];
 			const handleEntries = (entries: QuickOpenEntry[]) => {
 				this.pendingSearch = null;
 
@@ -179,18 +176,17 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 					return new QuickOpenModel();
 				}
 
-				model.addEntries(entries);
-				const resultCount = model.entries.length;
+				const mergedEntries = viewResults.concat(entries);
 
 				// Sort
 				const unsortedResultTime = Date.now();
 				const normalizedSearchValue = strings.stripWildcards(searchValue).toLowerCase();
 				const compare = (elementA: QuickOpenEntry, elementB: QuickOpenEntry) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, normalizedSearchValue, this.scorerCache);
-				model.entries = arrays.top(model.entries, compare, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);
+				viewResults = arrays.top(mergedEntries, compare, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);
 				const sortedResultTime = Date.now();
 
 				// Apply range and highlights to file entries
-				model.entries.forEach(entry => {
+				viewResults.forEach(entry => {
 					if (entry instanceof FileEntry) {
 						entry.setRange(searchWithRange ? searchWithRange.range : null);
 
@@ -205,7 +201,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 						searchLength: searchValue.length,
 						unsortedResultTime,
 						sortedResultTime,
-						resultCount,
+						resultCount: mergedEntries.length,
 						symbols: { fromCache: false },
 						files: fileModel.stats,
 					});
@@ -213,10 +209,10 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 					this.telemetryService.publicLog('openAnything', objects.assign(data, { duration }));
 				});
 
-				return model;
+				return new QuickOpenModel(viewResults);
 			};
 
-			this.pendingSearch = new PPromise<QuickOpenModel, QuickOpenModel>((complete, error, progress) => {
+			return new PPromise<QuickOpenModel, QuickOpenModel>((complete, error, progress) => {
 				// When any of the result promises return, forward the result as progress.
 				const promises = resultPromises.map(resultPromise => {
 					return resultPromise.then(result => {
@@ -229,17 +225,22 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 				// Complete the promise when all promises have completed.
 				TPromise.join(promises).then(() => {
-					complete(model);
+					complete(new QuickOpenModel(viewResults));
 				}, error => {
 					this.pendingSearch = null;
 					this.messageService.show(Severity.Error, error);
 				});
 			}, () => resultPromises.forEach(p => p.cancel()));
-			return this.pendingSearch;
 		};
 
-		// Trigger through delayer to prevent accumulation while the user is typing (except when expecting results to come from cache)
-		return this.hasShortResponseTime() ? promiseFactory() : this.searchDelayer.trigger(promiseFactory, this.includeSymbols ? OpenAnythingHandler.SYMBOL_SEARCH_DELAY : OpenAnythingHandler.FILE_SEARCH_DELAY);
+		let promise: TPromise<void>;
+		this.pendingSearch = new PPromise<QuickOpenModel, QuickOpenModel>((complete, error, progress) => {
+			const delay = this.includeSymbols ? OpenAnythingHandler.SYMBOL_SEARCH_DELAY : OpenAnythingHandler.FILE_SEARCH_DELAY;
+			promise = TPromise.timeout(delay).then(() => promiseFactory().then(complete, error, progress));
+		}, () => {
+			promise.cancel();
+		});
+		return this.pendingSearch;
 	}
 
 	public hasShortResponseTime(): boolean {
