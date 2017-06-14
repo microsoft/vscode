@@ -8,10 +8,6 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 export interface ScrollableElementCreationOptions {
 	/**
-	 * Allow scrollbar rendering to use translate3d.
-	 */
-	canUseTranslate3d: boolean;
-	/**
 	 * The scrollable element should not do any DOM mutations until renderNow() is called.
 	 * Defaults to false.
 	 */
@@ -105,13 +101,11 @@ export interface ScrollableElementCreationOptions {
 }
 
 export interface ScrollableElementChangeOptions {
-	canUseTranslate3d: boolean;
 	handleMouseWheel?: boolean;
 	mouseWheelScrollSensitivity?: number;
 }
 
 export interface ScrollableElementResolvedOptions {
-	canUseTranslate3d: boolean;
 	lazyRender: boolean;
 	className: string;
 	useShadows: boolean;

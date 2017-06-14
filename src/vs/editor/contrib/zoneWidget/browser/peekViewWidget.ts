@@ -169,6 +169,7 @@ export abstract class PeekViewWidget extends ZoneWidget implements IPeekViewServ
 
 	public setTitle(primaryHeading: string, secondaryHeading?: string): void {
 		$(this._primaryHeading).safeInnerHtml(primaryHeading);
+		this._primaryHeading.setAttribute('aria-label', primaryHeading);
 		if (secondaryHeading) {
 			$(this._secondaryHeading).safeInnerHtml(secondaryHeading);
 		} else {

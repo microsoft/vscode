@@ -10,15 +10,15 @@ import { ConfigWatcher } from 'vs/base/node/config';
 import { Registry } from 'vs/platform/platform';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { ConfigurationSource, IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue, IConfigurationKeys, IConfigModel, IConfigurationOptions } from 'vs/platform/configuration/common/configuration';
-import { ConfigModel, DefaultConfigModel } from 'vs/platform/configuration/common/model';
+import { ConfigurationSource, IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue, IConfigurationKeys, Configuration, IConfigurationOptions } from 'vs/platform/configuration/common/configuration';
+import { CustomConfiguration, DefaultConfiguration } from 'vs/platform/configuration/common/model';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export interface ICache<T> {
-	defaults: IConfigModel<T>;
-	user: IConfigModel<T>;
-	consolidated: IConfigModel<any>;
+	defaults: Configuration<T>;
+	user: Configuration<T>;
+	consolidated: Configuration<any>;
 }
 
 export class ConfigurationService<T> extends Disposable implements IConfigurationService, IDisposable {
@@ -26,7 +26,7 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 	_serviceBrand: any;
 
 	private cache: ICache<T>;
-	private userConfigModelWatcher: ConfigWatcher<IConfigModel<T>>;
+	private userConfigModelWatcher: ConfigWatcher<Configuration<T>>;
 
 	private _onDidUpdateConfiguration: Emitter<IConfigurationServiceEvent> = this._register(new Emitter<IConfigurationServiceEvent>());
 	public readonly onDidUpdateConfiguration: Event<IConfigurationServiceEvent> = this._onDidUpdateConfiguration.event;
@@ -37,8 +37,8 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 		super();
 
 		this.userConfigModelWatcher = new ConfigWatcher(environmentService.appSettingsPath, {
-			changeBufferDelay: 300, defaultConfig: new ConfigModel<T>(null, environmentService.appSettingsPath), parse: (content: string, parseErrors: any[]) => {
-				const userConfigModel = new ConfigModel<T>(content, environmentService.appSettingsPath);
+			changeBufferDelay: 300, defaultConfig: new CustomConfiguration<T>(null, environmentService.appSettingsPath), parse: (content: string, parseErrors: any[]) => {
+				const userConfigModel = new CustomConfiguration<T>(content, environmentService.appSettingsPath);
 				parseErrors = [...userConfigModel.errors];
 				return userConfigModel;
 			}
@@ -77,7 +77,7 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 	public getConfiguration<C>(arg?: any): C {
 		const options = this.toOptions(arg);
 		const cache = this.getCache();
-		const configModel = options.overrideIdentifier ? cache.consolidated.configWithOverrides<C>(options.overrideIdentifier) : cache.consolidated;
+		const configModel = options.overrideIdentifier ? cache.consolidated.override<C>(options.overrideIdentifier) : cache.consolidated;
 		return options.section ? configModel.getContentsFor<C>(options.section) : configModel.contents;
 	}
 
@@ -86,9 +86,9 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 
 		// make sure to clone the configuration so that the receiver does not tamper with the values
 		return {
-			default: objects.clone(getConfigurationValue<C>(overrideIdentifier ? cache.defaults.configWithOverrides(overrideIdentifier).contents : cache.defaults.contents, key)),
-			user: objects.clone(getConfigurationValue<C>(overrideIdentifier ? cache.user.configWithOverrides(overrideIdentifier).contents : cache.user.contents, key)),
-			value: objects.clone(getConfigurationValue<C>(overrideIdentifier ? cache.consolidated.configWithOverrides(overrideIdentifier).contents : cache.consolidated.contents, key))
+			default: objects.clone(getConfigurationValue<C>(overrideIdentifier ? cache.defaults.override(overrideIdentifier).contents : cache.defaults.contents, key)),
+			user: objects.clone(getConfigurationValue<C>(overrideIdentifier ? cache.user.override(overrideIdentifier).contents : cache.user.contents, key)),
+			value: objects.clone(getConfigurationValue<C>(overrideIdentifier ? cache.consolidated.override(overrideIdentifier).contents : cache.consolidated.contents, key))
 		};
 	}
 
@@ -116,7 +116,7 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 	}
 
 	private consolidateConfigurations(): ICache<T> {
-		const defaults = new DefaultConfigModel<T>();
+		const defaults = new DefaultConfiguration<T>();
 		const user = this.userConfigModelWatcher.getConfig();
 		const consolidated = defaults.merge(user);
 		return { defaults, user, consolidated };

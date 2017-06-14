@@ -53,6 +53,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IThemeService, ITheme, DARK } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { isLinux } from 'vs/base/common/platform';
+import { generateUuid } from "vs/base/common/uuid";
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -64,12 +65,14 @@ export class TestContextService implements IWorkspaceContextService {
 	public _serviceBrand: any;
 
 	private workspace: any;
+	private id: string;
 	private options: any;
 
 	private _onDidChangeWorkspaceRoots: Emitter<URI[]>;
 
 	constructor(workspace: any = TestWorkspace, options: any = null) {
 		this.workspace = workspace;
+		this.id = generateUuid();
 		this.options = options || Object.create(null);
 		this._onDidChangeWorkspaceRoots = new Emitter<URI[]>();
 	}
@@ -91,7 +94,7 @@ export class TestContextService implements IWorkspaceContextService {
 	}
 
 	public getWorkspace2(): IWorkspace2 {
-		return this.workspace ? { id: `${this.workspace.uid}`, roots: [this.workspace.resource] } : void 0;
+		return this.workspace ? { id: this.id, roots: [this.workspace.resource] } : void 0;
 	}
 
 	public setWorkspace(workspace: any): void {

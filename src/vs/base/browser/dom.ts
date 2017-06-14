@@ -1041,8 +1041,3 @@ export function domContentLoaded(): TPromise<any> {
 		}
 	});
 }
-
-export function hintGPULayer(target: HTMLElement): void {
-	// This is to hint browsers that this dom node is suited to live in its own layer (e.g. sliders, etc.)
-	(<any>target.style).willChange = 'transform';
-}

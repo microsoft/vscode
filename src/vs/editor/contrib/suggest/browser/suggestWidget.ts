@@ -213,7 +213,7 @@ class SuggestionDetails {
 
 		this.body = $('.body');
 
-		this.scrollbar = new DomScrollableElement(this.body, { canUseTranslate3d: false });
+		this.scrollbar = new DomScrollableElement(this.body, {});
 		append(this.el, this.scrollbar.getDomNode());
 		this.disposables.push(this.scrollbar);
 

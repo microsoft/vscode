@@ -37,6 +37,7 @@ import { ResolvedKeybinding, Keybinding, createKeybinding, SimpleKeybinding } fr
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { OS } from 'vs/base/common/platform';
 import { IRange } from 'vs/editor/common/core/range';
+import { generateUuid } from "vs/base/common/uuid";
 
 export class SimpleEditor implements IEditor {
 
@@ -499,9 +500,11 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 	public readonly onDidChangeWorkspaceRoots: Event<URI[]> = this._onDidChangeWorkspaceRoots.event;
 
 	private readonly folders: URI[];
+	private readonly id: string;
 
 	constructor(private workspace?: Workspace) {
 		this.folders = workspace ? [workspace.resource] : [];
+		this.id = generateUuid();
 	}
 
 	public getFolders(): URI[] {
@@ -513,7 +516,7 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 	}
 
 	public getWorkspace2(): IWorkspace2 {
-		return this.workspace ? { id: `${this.workspace.uid}`, roots: [this.workspace.resource] } : void 0;
+		return this.workspace ? { id: `${this.id}`, roots: [this.workspace.resource] } : void 0;
 	}
 
 	public hasWorkspace(): boolean {

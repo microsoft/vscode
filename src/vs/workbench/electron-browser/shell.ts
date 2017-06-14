@@ -21,7 +21,6 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import pkg from 'vs/platform/node/package';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import { Workbench, IWorkbenchStartedInfo } from 'vs/workbench/electron-browser/workbench';
-import { StorageService, inMemoryLocalStorageInstance } from 'vs/platform/storage/common/storageService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService, configurationTelemetry, loadExperiments, lifecycleTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
@@ -89,8 +88,6 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
 import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { remote, ipcRenderer as ipc } from 'electron';
-import URI from "vs/base/common/uri";
-import { basename } from "path";
 import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
 import { MainProcessTextMateSyntax } from 'vs/editor/electron-browser/textMate/TMSyntax';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
@@ -110,6 +107,7 @@ export interface ICoreServices {
 	configurationService: IConfigurationService;
 	environmentService: IEnvironmentService;
 	timerService: ITimerService;
+	storageService: IStorageService;
 }
 
 const currentWindow = remote.getCurrentWindow();
@@ -155,6 +153,7 @@ export class WorkbenchShell {
 		this.configurationService = services.configurationService;
 		this.environmentService = services.environmentService;
 		this.timerService = services.timerService;
+		this.storageService = services.storageService;
 
 		this.toUnbind = [];
 		this.previousErrorTime = 0;
@@ -251,6 +250,7 @@ export class WorkbenchShell {
 		serviceCollection.set(IConfigurationService, this.configurationService);
 		serviceCollection.set(IEnvironmentService, this.environmentService);
 		serviceCollection.set(ITimerService, this.timerService);
+		serviceCollection.set(IStorageService, this.storageService);
 
 		const instantiationService: IInstantiationService = new InstantiationService(serviceCollection, true);
 
@@ -272,22 +272,6 @@ export class WorkbenchShell {
 
 		sharedProcess
 			.done(client => client.registerChannel('choice', instantiationService.createInstance(ChoiceChannel)));
-
-		// Storage Sevice
-		let workspaceIdentifier = this.contextService.getWorkspace();
-		if (!workspaceIdentifier && !!this.configuration.backupPath) {
-			// if we do not have a workspace open, we need to find another identifier for the window to store
-			// workspace UI state. if we have a backup path in the configuration we can use that because this
-			// will be a unique identifier per window that is stable between restarts as long as there are
-			// dirty files in the workspace.
-			// We use basename() to produce a short identifier, we do not need the full path. We use a custom
-			// scheme so that we can later distinguish these identifiers from the workspace one.
-			workspaceIdentifier = { resource: URI.from({ path: basename(this.configuration.backupPath), scheme: 'empty' }) };
-		}
-		const disableStorage = !!this.environmentService.extensionTestsPath; // never keep any state when running extension tests!
-		const storage = disableStorage ? inMemoryLocalStorageInstance : window.localStorage;
-		this.storageService = new StorageService(storage, storage, workspaceIdentifier);
-		serviceCollection.set(IStorageService, this.storageService);
 
 		// Warm up font cache information before building up too many dom elements
 		restoreFontInfo(this.storageService);

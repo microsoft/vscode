@@ -77,7 +77,9 @@ suite('Workbench StorageSevice', () => {
 
 	test('StorageSevice cleans up when workspace changes', () => {
 		let storageImpl = new InMemoryLocalStorage();
-		let s = new StorageService(storageImpl, null, contextService.getWorkspace());
+		let ws = contextService.getWorkspace();
+		ws.uid = new Date().getTime();
+		let s = new StorageService(storageImpl, null, ws);
 
 		s.store('key1', 'foobar');
 		s.store('key2', 'something');
@@ -93,7 +95,8 @@ suite('Workbench StorageSevice', () => {
 		assert.strictEqual(s.get('wkey1', StorageScope.WORKSPACE), 'foo');
 		assert.strictEqual(s.get('wkey2', StorageScope.WORKSPACE), 'foo2');
 
-		let ws: any = new Workspace(TestWorkspace.resource, new Date().getTime() + 100, TestWorkspace.name);
+		ws = new Workspace(TestWorkspace.resource, TestWorkspace.name);
+		ws.uid = new Date().getTime() + 100;
 		s = new StorageService(storageImpl, null, ws);
 
 		assert.strictEqual(s.get('key1', StorageScope.GLOBAL), 'foobar');

@@ -25,12 +25,9 @@ step "Install distro dependencies" \
 step "Build minified" \
 	npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-min"
 
-step "Run unit tests" \
-	./scripts/test.sh --xvfb --build --reporter dot
-
 step "Run smoke test" \
 	pushd test/smoke
 	npm install
 	npm run compile
-	node src/main.js --latest "$AGENT_BUILDDIRECTORY/VSCode-linux-ia32/code-insiders"
+	xvfb-run -a node src/main.js --latest "$AGENT_BUILDDIRECTORY/VSCode-linux-ia32/code-insiders"
 	popd
