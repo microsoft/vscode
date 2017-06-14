@@ -5,7 +5,8 @@ set -e
 . ./build/tfs/common/common.sh
 
 export ARCH="$1"
-VSO_PAT="$2"
+export VSCODE_MIXIN_PASSWORD="$2"
+VSO_PAT="$3"
 
 echo "machine monacotools.visualstudio.com password $VSO_PAT" > ~/.netrc
 
