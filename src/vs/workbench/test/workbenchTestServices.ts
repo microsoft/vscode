@@ -27,7 +27,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
-import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspace, IWorkspaceContextService, IWorkspace2 } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -66,16 +66,16 @@ export class TestContextService implements IWorkspaceContextService {
 	private workspace: any;
 	private options: any;
 
-	private _onDidChangeFolders: Emitter<URI[]>;
+	private _onDidChangeWorkspaceRoots: Emitter<URI[]>;
 
 	constructor(workspace: any = TestWorkspace, options: any = null) {
 		this.workspace = workspace;
 		this.options = options || Object.create(null);
-		this._onDidChangeFolders = new Emitter<URI[]>();
+		this._onDidChangeWorkspaceRoots = new Emitter<URI[]>();
 	}
 
-	public get onDidChangeFolders(): Event<URI[]> {
-		return this._onDidChangeFolders.event;
+	public get onDidChangeWorkspaceRoots(): Event<URI[]> {
+		return this._onDidChangeWorkspaceRoots.event;
 	}
 
 	public getFolders(): URI[] {
@@ -88,6 +88,10 @@ export class TestContextService implements IWorkspaceContextService {
 
 	public getWorkspace(): IWorkspace {
 		return this.workspace;
+	}
+
+	public getWorkspace2(): IWorkspace2 {
+		return this.workspace ? { id: `${this.workspace.uid}`, roots: [this.workspace.resource] } : void 0;
 	}
 
 	public setWorkspace(workspace: any): void {

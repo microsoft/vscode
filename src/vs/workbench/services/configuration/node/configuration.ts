@@ -17,7 +17,7 @@ import { Schemas } from "vs/base/common/network";
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { readFile } from 'vs/base/node/pfs';
 import * as extfs from 'vs/base/node/extfs';
-import { IWorkspaceContextService, Workspace, IWorkspace } from "vs/platform/workspace/common/workspace";
+import { IWorkspaceContextService, IWorkspace2, Workspace as SingleRootWorkspace, IWorkspace } from "vs/platform/workspace/common/workspace";
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileChangeType, FileChangesEvent, isEqual } from 'vs/platform/files/common/files';
 import { ConfigModel } from 'vs/platform/configuration/common/model';
@@ -44,14 +44,29 @@ interface IWorkspaceConfiguration<T> {
 
 type IWorkspaceFoldersConfiguration = { [rootFolder: string]: { folders: string[]; } };
 
+class Workspace implements IWorkspace2 {
+
+	constructor(readonly id: string, private _roots: URI[]) {
+	}
+
+	get roots(): URI[] {
+		return this._roots;
+	}
+
+	setRoots(roots: URI[]): void {
+		this._roots = roots;
+	}
+
+}
+
 export class WorkspaceConfigurationService extends Disposable implements IWorkspaceContextService, IWorkspaceConfigurationService {
 
 	private static RELOAD_CONFIGURATION_DELAY = 50;
 
 	public _serviceBrand: any;
 
-	private readonly _onDidChangeFolders: Emitter<URI[]> = this._register(new Emitter<URI[]>());
-	public readonly onDidChangeFolders: Event<URI[]> = this._onDidChangeFolders.event;
+	private readonly _onDidChangeWorkspaceRoots: Emitter<URI[]> = this._register(new Emitter<URI[]>());
+	public readonly onDidChangeWorkspaceRoots: Event<URI[]> = this._onDidChangeWorkspaceRoots.event;
 
 	private readonly _onDidUpdateConfiguration: Emitter<IConfigurationServiceEvent> = this._register(new Emitter<IConfigurationServiceEvent>());
 	public readonly onDidUpdateConfiguration: Event<IConfigurationServiceEvent> = this._onDidUpdateConfiguration.event;
@@ -65,12 +80,12 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	private workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: TPromise<IConfigModel<any>> };
 	private reloadConfigurationScheduler: RunOnceScheduler;
 
-	private folders: URI[];
+	private readonly workspace: Workspace;
 
-	constructor(private environmentService: IEnvironmentService, private workspace?: Workspace, private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME) {
+	constructor(private environmentService: IEnvironmentService, private singleRootWorkspace?: SingleRootWorkspace, private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME) {
 		super();
 
-		this.folders = workspace ? [workspace.resource] : [];
+		this.workspace = singleRootWorkspace ? new Workspace(`${singleRootWorkspace.uid}`, [singleRootWorkspace.resource]) : null;
 
 		this.workspaceFilePathToConfiguration = Object.create(null);
 		this.cachedConfig = new ConfigModel<any>(null);
@@ -95,10 +110,11 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		}
 
 		// Resovled configured folders for workspace
-		let configuredFolders: URI[] = [this.workspace.resource];
+		let [master] = this.workspace.roots;
+		let configuredFolders: URI[] = [master];
 		const config = this.getConfiguration<IWorkspaceFoldersConfiguration>('workspace');
 		if (config) {
-			const workspaceConfig = config[this.workspace.resource.toString()];
+			const workspaceConfig = config[master.toString()];
 			if (workspaceConfig) {
 				const additionalFolders = workspaceConfig.folders
 					.map(f => URI.parse(f))
@@ -112,20 +128,20 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		configuredFolders = distinct(configuredFolders, r => r.toString());
 
 		// Find changes
-		const changed = !equals(this.folders, configuredFolders, (r1, r2) => r1.toString() === r2.toString());
+		const changed = !equals(this.workspace.roots, configuredFolders, (r1, r2) => r1.toString() === r2.toString());
 
-		this.folders = configuredFolders;
+		this.workspace.setRoots(configuredFolders);
 
 		if (notify && changed) {
-			this._onDidChangeFolders.fire(configuredFolders);
+			this._onDidChangeWorkspaceRoots.fire(configuredFolders);
 		}
 	}
 
-	public getFolders(): URI[] {
-		return this.folders;
+	public getWorkspace(): IWorkspace {
+		return this.singleRootWorkspace;
 	}
 
-	public getWorkspace(): IWorkspace {
+	public getWorkspace2(): IWorkspace2 {
 		return this.workspace;
 	}
 
@@ -134,15 +150,15 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	}
 
 	public isInsideWorkspace(resource: URI): boolean {
-		return this.workspace ? this.workspace.isInsideWorkspace(resource) : false;
+		return this.workspace ? this.singleRootWorkspace.isInsideWorkspace(resource) : false;
 	}
 
 	public toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
-		return this.workspace ? this.workspace.toWorkspaceRelativePath(resource, toOSPath) : null;
+		return this.workspace ? this.singleRootWorkspace.toWorkspaceRelativePath(resource, toOSPath) : null;
 	}
 
 	public toResource(workspaceRelativePath: string): URI {
-		return this.workspace ? this.workspace.toResource(workspaceRelativePath) : null;
+		return this.workspace ? this.singleRootWorkspace.toResource(workspaceRelativePath) : null;
 	}
 
 	private onBaseConfigurationChanged(event: IConfigurationServiceEvent): void {
@@ -276,7 +292,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 
 		// once: when invoked for the first time we fetch json files that contribute settings
 		if (!this.bulkFetchFromWorkspacePromise) {
-			this.bulkFetchFromWorkspacePromise = resolveStat(this.workspace.toResource(this.workspaceSettingsRootFolder)).then(stat => {
+			this.bulkFetchFromWorkspacePromise = resolveStat(this.toResource(this.workspaceSettingsRootFolder)).then(stat => {
 				if (!stat.isDirectory) {
 					return TPromise.as([]);
 				}
@@ -287,11 +303,11 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 						return false; // only JSON files
 					}
 
-					return this.isWorkspaceConfigurationFile(this.workspace.toWorkspaceRelativePath(stat.resource)); // only workspace config files
+					return this.isWorkspaceConfigurationFile(this.toWorkspaceRelativePath(stat.resource)); // only workspace config files
 				}).map(stat => stat.resource));
 			}, err => [] /* never fail this call */)
 				.then((contents: IContent[]) => {
-					contents.forEach(content => this.workspaceFilePathToConfiguration[this.workspace.toWorkspaceRelativePath(content.resource)] = TPromise.as(this.createConfigModel(content)));
+					contents.forEach(content => this.workspaceFilePathToConfiguration[this.toWorkspaceRelativePath(content.resource)] = TPromise.as(this.createConfigModel(content)));
 				}, errors.onUnexpectedError);
 		}
 
@@ -317,7 +333,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 				continue; // only JSON files or the actual settings folder
 			}
 
-			const workspacePath = this.workspace.toWorkspaceRelativePath(resource);
+			const workspacePath = this.toWorkspaceRelativePath(resource);
 			if (!workspacePath) {
 				continue; // event is not inside workspace
 			}
@@ -353,7 +369,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	}
 
 	private createConfigModel<T>(content: IContent): IConfigModel<T> {
-		const path = this.workspace.toWorkspaceRelativePath(content.resource);
+		const path = this.toWorkspaceRelativePath(content.resource);
 		if (path === WORKSPACE_CONFIG_DEFAULT_PATH) {
 			return new WorkspaceSettingsConfigModel<T>(content.value, content.resource.toString());
 		} else {

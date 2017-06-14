@@ -170,6 +170,7 @@ export abstract class AbstractScrollbar extends Widget {
 			this.domNode.setTransform('translate3d(0px, 0px, 0px)');
 		} else {
 			this.domNode.setTransform('');
+			DomUtils.hintGPULayer(this.domNode.domNode);
 		}
 
 		this._renderDomNode(this._scrollbarState.getRectangleLargeSize(), this._scrollbarState.getRectangleSmallSize());

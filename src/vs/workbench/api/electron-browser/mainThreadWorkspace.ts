@@ -37,7 +37,7 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 	) {
 		super();
 		this._proxy = threadService.get(ExtHostContext.ExtHostWorkspace);
-		this._contextService.onDidChangeFolders(this._onDidChangeWorkspace, this, this._toDispose);
+		this._contextService.onDidChangeWorkspaceRoots(this._onDidChangeWorkspace, this, this._toDispose);
 	}
 
 	// --- workspace ---
