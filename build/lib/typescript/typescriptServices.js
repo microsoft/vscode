@@ -485,7 +485,7 @@ var ts;
         SymbolFlags[SymbolFlags["PropertyOrAccessor"] = 98308] = "PropertyOrAccessor";
         SymbolFlags[SymbolFlags["Export"] = 7340032] = "Export";
         /* @internal */
-        // The set of things we consider semantically classifiable.  Used to speed up the LS during
+        // The set of things we consider semantically classifiable.  Used to speed up the LS during 
         // classification.
         SymbolFlags[SymbolFlags["Classifiable"] = 788448] = "Classifiable";
     })(ts.SymbolFlags || (ts.SymbolFlags = {}));
@@ -1274,19 +1274,19 @@ var ts;
     ts.getNormalizedPathFromPathComponents = getNormalizedPathFromPathComponents;
     function getNormalizedPathComponentsOfUrl(url) {
         // Get root length of http://www.website.com/folder1/foler2/
-        // In this example the root is:  http://www.website.com/
+        // In this example the root is:  http://www.website.com/ 
         // normalized path components should be ["http://www.website.com/", "folder1", "folder2"]
         var urlLength = url.length;
         // Initial root length is http:// part
         var rootLength = url.indexOf("://") + "://".length;
         while (rootLength < urlLength) {
-            // Consume all immediate slashes in the protocol
+            // Consume all immediate slashes in the protocol 
             // eg.initial rootlength is just file:// but it needs to consume another "/" in file:///
             if (url.charCodeAt(rootLength) === 47 /* slash */) {
                 rootLength++;
             }
             else {
-                // non slash character means we continue proceeding to next component of root search
+                // non slash character means we continue proceeding to next component of root search 
                 break;
             }
         }
@@ -1297,15 +1297,15 @@ var ts;
         // Find the index of "/" after website.com so the root can be http://www.website.com/ (from existing http://)
         var indexOfNextSlash = url.indexOf(ts.directorySeparator, rootLength);
         if (indexOfNextSlash !== -1) {
-            // Found the "/" after the website.com so the root is length of http://www.website.com/
+            // Found the "/" after the website.com so the root is length of http://www.website.com/ 
             // and get components afetr the root normally like any other folder components
             rootLength = indexOfNextSlash + 1;
             return normalizedPathComponents(url, rootLength);
         }
         else {
-            // Can't find the host assume the rest of the string as component
+            // Can't find the host assume the rest of the string as component 
             // but make sure we append "/"  to it as root is not joined using "/"
-            // eg. if url passed in was http://website.com we want to use root as [http://website.com/]
+            // eg. if url passed in was http://website.com we want to use root as [http://website.com/] 
             // so that other path manipulations will be correct and it can be merged with relative paths correctly
             return [url + ts.directorySeparator];
         }
@@ -2580,7 +2580,7 @@ var ts;
     function computeLineAndCharacterOfPosition(lineStarts, position) {
         var lineNumber = ts.binarySearch(lineStarts, position);
         if (lineNumber < 0) {
-            // If the actual position was not found,
+            // If the actual position was not found, 
             // the binary search returns the negative value of the next line start
             // e.g. if the line starts at [5, 10, 23, 80] and the position requested was 20
             // then the search will return -2
@@ -2623,8 +2623,8 @@ var ts;
         //     \u000D              Carriage Return         <CR>
         //     \u2028              Line separator          <LS>
         //     \u2029              Paragraph separator     <PS>
-        // Only the characters in Table 3 are treated as line terminators. Other new line or line
-        // breaking characters are treated as white space but not as line terminators.
+        // Only the characters in Table 3 are treated as line terminators. Other new line or line 
+        // breaking characters are treated as white space but not as line terminators. 
         return ch === 10 /* lineFeed */ ||
             ch === 13 /* carriageReturn */ ||
             ch === 8232 /* lineSeparator */ ||
@@ -2702,7 +2702,7 @@ var ts;
         }
     }
     ts.skipTrivia = skipTrivia;
-    // All conflict markers consist of the same character repeated seven times.  If it is
+    // All conflict markers consist of the same character repeated seven times.  If it is 
     // a <<<<<<< or >>>>>>> marker then it is also followd by a space.
     var mergeConflictMarkerLength = "<<<<<<<".length;
     function isConflictMarkerTrivia(text, pos) {
@@ -2747,12 +2747,12 @@ var ts;
         }
         return pos;
     }
-    // Extract comments from the given source text starting at the given position. If trailing is
-    // false, whitespace is skipped until the first line break and comments between that location
-    // and the next token are returned.If trailing is true, comments occurring between the given
-    // position and the next line break are returned.The return value is an array containing a
-    // TextRange for each comment. Single-line comment ranges include the beginning '//' characters
-    // but not the ending line break. Multi - line comment ranges include the beginning '/* and
+    // Extract comments from the given source text starting at the given position. If trailing is 
+    // false, whitespace is skipped until the first line break and comments between that location 
+    // and the next token are returned.If trailing is true, comments occurring between the given 
+    // position and the next line break are returned.The return value is an array containing a 
+    // TextRange for each comment. Single-line comment ranges include the beginning '//' characters 
+    // but not the ending line break. Multi - line comment ranges include the beginning '/* and 
     // ending '*/' characters.The return value is undefined if no comments were found.
     function getCommentRanges(text, pos, trailing) {
         var result;
@@ -3699,7 +3699,7 @@ var ts;
     })(ts.ModuleInstanceState || (ts.ModuleInstanceState = {}));
     var ModuleInstanceState = ts.ModuleInstanceState;
     function getModuleInstanceState(node) {
-        // A module is uninstantiated if it contains only
+        // A module is uninstantiated if it contains only 
         // 1. interface declarations, type alias declarations
         if (node.kind === 205 /* InterfaceDeclaration */ || node.kind === 206 /* TypeAliasDeclaration */) {
             return 0 /* NonInstantiated */;
@@ -3739,7 +3739,7 @@ var ts;
     ts.getModuleInstanceState = getModuleInstanceState;
     var ContainerFlags;
     (function (ContainerFlags) {
-        // The current node is not a container, and no container manipulation should happen before
+        // The current node is not a container, and no container manipulation should happen before 
         // recursing into it.
         ContainerFlags[ContainerFlags["None"] = 0] = "None";
         // The current node is a container.  It should be set as the current container (and block-
@@ -3844,13 +3844,13 @@ var ts;
             if (name !== undefined) {
                 // Check and see if the symbol table already has a symbol with this name.  If not,
                 // create a new symbol with this name and add it to the table.  Note that we don't
-                // give the new symbol any flags *yet*.  This ensures that it will not conflict
+                // give the new symbol any flags *yet*.  This ensures that it will not conflict 
                 // witht he 'excludes' flags we pass in.
                 //
                 // If we do get an existing symbol, see if it conflicts with the new symbol we're
                 // creating.  For example, a 'var' symbol and a 'class' symbol will conflict within
-                // the same symbol table.  If we have a conflict, report the issue on each
-                // declaration we have for this symbol, and then create a new symbol for this
+                // the same symbol table.  If we have a conflict, report the issue on each 
+                // declaration we have for this symbol, and then create a new symbol for this 
                 // declaration.
                 //
                 // If we created a new symbol, either because we didn't have a symbol with this name
@@ -3904,7 +3904,7 @@ var ts;
                 // ExportType, or ExportContainer flag, and an associated export symbol with all the correct flags set
                 // on it. There are 2 main reasons:
                 //
-                //   1. We treat locals and exports of the same name as mutually exclusive within a container.
+                //   1. We treat locals and exports of the same name as mutually exclusive within a container. 
                 //      That means the binder will issue a Duplicate Identifier error if you mix locals and exports
                 //      with the same name in the same container.
                 //      TODO: Make this a more specific error and decouple it from the exclusion logic.
@@ -3925,11 +3925,11 @@ var ts;
                 }
             }
         }
-        // All container nodes are kept on a linked list in declaration order. This list is used by
-        // the getLocalNameOfContainer function in the type checker to validate that the local name
+        // All container nodes are kept on a linked list in declaration order. This list is used by 
+        // the getLocalNameOfContainer function in the type checker to validate that the local name 
         // used for a container is unique.
         function bindChildren(node) {
-            // Before we recurse into a node's chilren, we first save the existing parent, container
+            // Before we recurse into a node's chilren, we first save the existing parent, container 
             // and block-container.  Then after we pop out of processing the children, we restore
             // these saved values.
             var saveParent = parent;
@@ -3943,9 +3943,9 @@ var ts;
             // may contain locals, we proactively initialize the .locals field. We do this because
             // it's highly likely that the .locals will be needed to place some child in (for example,
             // a parameter, or variable declaration).
-            //
+            // 
             // However, we do not proactively create the .locals for block-containers because it's
-            // totally normal and common for block-containers to never actually have a block-scoped
+            // totally normal and common for block-containers to never actually have a block-scoped 
             // variable in them.  We don't want to end up allocating an object for every 'block' we
             // run into when most of them won't be necessary.
             //
@@ -4005,7 +4005,7 @@ var ts;
                     return 2 /* IsBlockScopedContainer */;
                 case 182 /* Block */:
                     // do not treat blocks directly inside a function as a block-scoped-container.
-                    // Locals that reside in this block should go to the function locals. Othewise 'x'
+                    // Locals that reside in this block should go to the function locals. Othewise 'x' 
                     // would not appear to be a redeclaration of a block scoped local in the following
                     // example:
                     //
@@ -4018,7 +4018,7 @@ var ts;
                     // the block, then there would be no collision.
                     //
                     // By not creating a new block-scoped-container here, we ensure that both 'var x'
-                    // and 'let x' go into the Function-container's locals, and we do get a collision
+                    // and 'let x' go into the Function-container's locals, and we do get a collision 
                     // conflict.
                     return ts.isFunctionLike(node.parent) ? 0 /* None */ : 2 /* IsBlockScopedContainer */;
             }
@@ -4150,8 +4150,8 @@ var ts;
             // For a given function symbol "<...>(...) => T" we want to generate a symbol identical
             // to the one we would get for: { <...>(...): T }
             //
-            // We do that by making an anonymous type literal symbol, and then setting the function
-            // symbol as its sole member. To the rest of the system, this symbol will be  indistinguishable
+            // We do that by making an anonymous type literal symbol, and then setting the function 
+            // symbol as its sole member. To the rest of the system, this symbol will be  indistinguishable 
             // from an actual type literal symbol you would have gotten had you used the long form.
             var symbol = createSymbol(131072 /* Signature */, getDeclarationName(node));
             addDeclarationToSymbol(symbol, node, 131072 /* Signature */);
@@ -4192,17 +4192,17 @@ var ts;
         function bind(node) {
             node.parent = parent;
             // First we bind declaration nodes to a symbol if possible.  We'll both create a symbol
-            // and then potentially add the symbol to an appropriate symbol table. Possible
+            // and then potentially add the symbol to an appropriate symbol table. Possible 
             // destination symbol tables are:
-            //
+            // 
             //  1) The 'exports' table of the current container's symbol.
             //  2) The 'members' table of the current container's symbol.
             //  3) The 'locals' table of the current container.
             //
-            // However, not all symbols will end up in any of these tables.  'Anonymous' symbols
+            // However, not all symbols will end up in any of these tables.  'Anonymous' symbols 
             // (like TypeLiterals for example) will not be put in any table.
             bindWorker(node);
-            // Then we recurse into the children of the node to bind them as well.  For certain
+            // Then we recurse into the children of the node to bind them as well.  For certain 
             // symbols we do specialized work when we recurse.  For example, we'll keep track of
             // the current 'container' node when it changes.  This helps us know which symbol table
             // a local should go into for example.
@@ -4324,9 +4324,9 @@ var ts;
             }
             var symbol = node.symbol;
             // TypeScript 1.0 spec (April 2014): 8.4
-            // Every class automatically contains a static property member named 'prototype', the
+            // Every class automatically contains a static property member named 'prototype', the 
             // type of which is an instantiation of the class type with type Any supplied as a type
-            // argument for each type parameter. It is an error to explicitly declare a static
+            // argument for each type parameter. It is an error to explicitly declare a static 
             // property member with the name 'prototype'.
             //
             // Note: we check for this here because this class may be merging into a module.  The
@@ -4376,7 +4376,7 @@ var ts;
             else {
                 declareSymbolAndAddToSymbolTable(node, 1 /* FunctionScopedVariable */, 107455 /* ParameterExcludes */);
             }
-            // If this is a property-parameter, then also declare the property symbol into the
+            // If this is a property-parameter, then also declare the property symbol into the 
             // containing class.
             if (node.flags & 112 /* AccessibilityModifier */ &&
                 node.parent.kind === 137 /* Constructor */ &&
@@ -4456,7 +4456,7 @@ var ts;
             //  b) any of it's children reported that it had an error.
             var thisNodeOrAnySubNodesHasError = ((node.parserContextFlags & 32 /* ThisNodeHasError */) !== 0) ||
                 ts.forEachChild(node, containsParseError);
-            // If so, mark ourselves accordingly.
+            // If so, mark ourselves accordingly. 
             if (thisNodeOrAnySubNodesHasError) {
                 node.parserContextFlags |= 128 /* ThisNodeOrAnySubNodesHasError */;
             }
@@ -4491,13 +4491,13 @@ var ts;
     ts.getStartPosOfNode = getStartPosOfNode;
     // Returns true if this node is missing from the actual source code.  'missing' is different
     // from 'undefined/defined'.  When a node is undefined (which can happen for optional nodes
-    // in the tree), it is definitel missing.  HOwever, a node may be defined, but still be
+    // in the tree), it is definitel missing.  HOwever, a node may be defined, but still be 
     // missing.  This happens whenever the parser knows it needs to parse something, but can't
     // get anything in the source code that it expects at that location.  For example:
     //
     //          let a: ;
     //
-    // Here, the Type in the Type-Annotation is not-optional (as there is a colon in the source
+    // Here, the Type in the Type-Annotation is not-optional (as there is a colon in the source 
     // code).  So the parser will attempt to parse out a type, and will create an actual node.
     // However, this node will be 'missing' in the sense that no actual source-code/tokens are
     // contained within it.
@@ -4568,7 +4568,7 @@ var ts;
             isCatchClauseVariableDeclaration(declaration);
     }
     ts.isBlockOrCatchScoped = isBlockOrCatchScoped;
-    // Gets the nearest enclosing block scope container that has the provided node
+    // Gets the nearest enclosing block scope container that has the provided node 
     // as a descendant, that is not the provided node.
     function getEnclosingBlockScopeContainer(node) {
         var current = node.parent;
@@ -4662,7 +4662,7 @@ var ts;
                 break;
         }
         if (errorNode === undefined) {
-            // If we don't have a better node, then just set the error on the first token of
+            // If we don't have a better node, then just set the error on the first token of 
             // construct.
             return getSpanOfTokenAtPosition(sourceFile, node.pos);
         }
@@ -4690,10 +4690,10 @@ var ts;
         }
         return node;
     }
-    // Returns the node flags for this node and all relevant parent nodes.  This is done so that
+    // Returns the node flags for this node and all relevant parent nodes.  This is done so that 
     // nodes like variable declarations and binding elements can returned a view of their flags
     // that includes the modifiers from their container.  i.e. flags like export/declare aren't
-    // stored on the variable declaration directly, but on the containing variable statement
+    // stored on the variable declaration directly, but on the containing variable statement 
     // (if it has one).  Similarly, flags for let/const are store on the variable declaration
     // list.  By calling this function, all those flags are combined so that the client can treat
     // the node as if it actually had those flags.
@@ -4994,7 +4994,7 @@ var ts;
                     node = node.parent;
                     break;
                 case 132 /* Decorator */:
-                    // Decorators are always applied outside of the body of a class or method.
+                    // Decorators are always applied outside of the body of a class or method. 
                     if (node.parent.kind === 131 /* Parameter */ && isClassElement(node.parent.parent)) {
                         // If the decorator's parent is a Parameter, we resolve the this container from
                         // the grandparent class declaration.
@@ -5050,7 +5050,7 @@ var ts;
                     node = node.parent;
                     break;
                 case 132 /* Decorator */:
-                    // Decorators are always applied outside of the body of a class or method.
+                    // Decorators are always applied outside of the body of a class or method. 
                     if (node.parent.kind === 131 /* Parameter */ && isClassElement(node.parent.parent)) {
                         // If the decorator's parent is a Parameter, we resolve the this container from
                         // the grandparent class declaration.
@@ -5326,7 +5326,7 @@ var ts;
     ts.getJSDocTemplateTag = getJSDocTemplateTag;
     function getCorrespondingJSDocParameterTag(parameter) {
         if (parameter.name && parameter.name.kind === 65 /* Identifier */) {
-            // If it's a parameter, see if the parent has a jsdoc comment with an @param
+            // If it's a parameter, see if the parent has a jsdoc comment with an @param 
             // annotation.
             var parameterName = parameter.name.text;
             var docComment = parameter.parent.jsDocComment;
@@ -6361,17 +6361,17 @@ var ts;
             //
             //      0         10        20        30        40        50        60        70        80        90        100
             //      -------------------------------------------------------------------------------------------------------
-            //                |                                                 /
-            //                |                                            /----
-            //  T1            |                                       /----
-            //                |                                  /----
-            //                |                             /----
+            //                |                                                 /                                          
+            //                |                                            /----                                           
+            //  T1            |                                       /----                                                
+            //                |                                  /----                                                     
+            //                |                             /----                                                          
             //      -------------------------------------------------------------------------------------------------------
-            //                                     |                            \
-            //                                     |                               \
-            //   T2                                |                                 \
-            //                                     |                                   \
-            //                                     |                                      \
+            //                                     |                            \                                          
+            //                                     |                               \                                       
+            //   T2                                |                                 \                                     
+            //                                     |                                   \                                   
+            //                                     |                                      \                                
             //      -------------------------------------------------------------------------------------------------------
             //
             // Merging these turns out to not be too difficult.  First, determining the new start of the change is trivial
@@ -6379,17 +6379,17 @@ var ts;
             //
             //      0         10        20        30        40        50        60        70        80        90        100
             //      ------------------------------------------------------------*------------------------------------------
-            //                |                                                 /
-            //                |                                            /----
-            //  T1            |                                       /----
-            //                |                                  /----
-            //                |                             /----
+            //                |                                                 /                                          
+            //                |                                            /----                                           
+            //  T1            |                                       /----                                                
+            //                |                                  /----                                                     
+            //                |                             /----                                                          
             //      ----------------------------------------$-------------------$------------------------------------------
-            //                .                    |                            \
-            //                .                    |                               \
-            //   T2           .                    |                                 \
-            //                .                    |                                   \
-            //                .                    |                                      \
+            //                .                    |                            \                                          
+            //                .                    |                               \                                       
+            //   T2           .                    |                                 \                                     
+            //                .                    |                                   \                                   
+            //                .                    |                                      \                                
             //      ----------------------------------------------------------------------*--------------------------------
             //
             // (Note the dots represent the newly inferrred start.
@@ -6400,22 +6400,22 @@ var ts;
             //
             //      0         10        20        30        40        50        60        70        80        90        100
             //      --------------------------------------------------------------------------------*----------------------
-            //                |                                                                     /
-            //                |                                                                /----
-            //  T1            |                                                           /----
-            //                |                                                      /----
-            //                |                                                 /----
+            //                |                                                                     /                      
+            //                |                                                                /----                       
+            //  T1            |                                                           /----                            
+            //                |                                                      /----                                 
+            //                |                                                 /----                                      
             //      ------------------------------------------------------------$------------------------------------------
-            //                .                    |                            \
-            //                .                    |                               \
-            //   T2           .                    |                                 \
-            //                .                    |                                   \
-            //                .                    |                                      \
+            //                .                    |                            \                                          
+            //                .                    |                               \                                       
+            //   T2           .                    |                                 \                                     
+            //                .                    |                                   \                                   
+            //                .                    |                                      \                                
             //      ----------------------------------------------------------------------*--------------------------------
             //
             // In other words (in this case), we're recognizing that the second edit happened after where the first edit
             // ended with a delta of 20 characters (60 - 40).  Thus, if we go back in time to where the first edit started
-            // that's the same as if we started at char 80 instead of 60.
+            // that's the same as if we started at char 80 instead of 60.  
             //
             // As it so happens, the same logic applies if the second edit precedes the first edit.  In that case rahter
             // than pusing the first edit forward to match the second, we'll push the second edit forward to match the
@@ -6425,7 +6425,7 @@ var ts;
             // semantics: { { start: 10, length: 70 }, newLength: 60 }
             //
             // The math then works out as follows.
-            // If we have { oldStart1, oldEnd1, newEnd1 } and { oldStart2, oldEnd2, newEnd2 } then we can compute the
+            // If we have { oldStart1, oldEnd1, newEnd1 } and { oldStart2, oldEnd2, newEnd2 } then we can compute the 
             // final result like so:
             //
             // {
@@ -6995,7 +6995,7 @@ var ts;
             if (setParentNodes) {
                 fixupParentReferences(sourceFile);
             }
-            // If this is a javascript file, proactively see if we can get JSDoc comments for
+            // If this is a javascript file, proactively see if we can get JSDoc comments for 
             // relevant nodes in the file.  We'll use these to provide typing informaion if they're
             // available.
             if (ts.isJavaScript(fileName)) {
@@ -7537,7 +7537,7 @@ var ts;
                 // if we see  "extends {}" then only treat the {} as what we're extending (and not
                 // the class body) if we have:
                 //
-                //      extends {} {
+                //      extends {} { 
                 //      extends {},
                 //      extends {} extends
                 //      extends {} implements
@@ -9280,7 +9280,7 @@ var ts;
                     expression = finishNode(propertyAccess);
                     continue;
                 }
-                // when in the [Decorator] context, we do not parse ElementAccess as it could be part of a ComputedPropertyName
+                // when in the [Decorator] context, we do not parse ElementAccess as it could be part of a ComputedPropertyName                
                 if (!inDecoratorContext() && parseOptional(18 /* OpenBracketToken */)) {
                     var indexedAccess = createNode(159 /* ElementAccessExpression */, expression.pos);
                     indexedAccess.expression = expression;
@@ -9388,7 +9388,7 @@ var ts;
                 case 23 /* CommaToken */: // foo<x>,
                 case 14 /* OpenBraceToken */: // foo<x> {
                 // We don't want to treat these as type arguments.  Otherwise we'll parse this
-                // as an invocation expression.  Instead, we want to parse out the expression
+                // as an invocation expression.  Instead, we want to parse out the expression 
                 // in isolation from the type arguments.
                 default:
                     // Anything else treat as an expression.
@@ -9560,7 +9560,7 @@ var ts;
         function parseFunctionBlock(allowYield, ignoreMissingOpenBrace, diagnosticMessage) {
             var savedYieldContext = inYieldContext();
             setYieldContext(allowYield);
-            // We may be in a [Decorator] context when parsing a function expression or
+            // We may be in a [Decorator] context when parsing a function expression or 
             // arrow function. The body of the function is not in [Decorator] context.
             var saveDecoratorContext = inDecoratorContext();
             if (saveDecoratorContext) {
@@ -10011,7 +10011,7 @@ var ts;
                 default:
                     if (decorators) {
                         // We reached this point because we encountered decorators and/or modifiers and assumed a declaration
-                        // would follow. For recovery and error reporting purposes, return an incomplete declaration.
+                        // would follow. For recovery and error reporting purposes, return an incomplete declaration.                        
                         var node = createMissingNode(221 /* MissingDeclaration */, true, ts.Diagnostics.Declaration_expected);
                         node.pos = fullStart;
                         node.decorators = decorators;
@@ -10366,8 +10366,8 @@ var ts;
         }
         function parseClassExpression() {
             return parseClassDeclarationOrExpression(
-            /*fullStart*/ scanner.getStartPos(),
-            /*decorators*/ undefined,
+            /*fullStart*/ scanner.getStartPos(), 
+            /*decorators*/ undefined, 
             /*modifiers*/ undefined, 177 /* ClassExpression */);
         }
         function parseClassDeclaration(fullStart, decorators, modifiers) {
@@ -11125,8 +11125,8 @@ var ts;
                 ts.Debug.assert(end <= content.length);
                 var tags;
                 var pos;
-                // NOTE(cyrusn): This is essentially a handwritten scanner for JSDocComments. I
-                // considered using an actual Scanner, but this would complicate things.  The
+                // NOTE(cyrusn): This is essentially a handwritten scanner for JSDocComments. I 
+                // considered using an actual Scanner, but this would complicate things.  The 
                 // scanner would need to know it was in a Doc Comment.  Otherwise, it would then
                 // produce comments *inside* the doc comment.  In the end it was just easier to
                 // write a simple scanner rather than go that route.
@@ -12274,7 +12274,7 @@ var ts;
                         }
                         break;
                     case 132 /* Decorator */:
-                        // Decorators are resolved at the class declaration. Resolving at the parameter
+                        // Decorators are resolved at the class declaration. Resolving at the parameter 
                         // or member would result in looking up locals in the method.
                         //
                         //   function y() {}
@@ -13690,7 +13690,7 @@ var ts;
                     case 151 /* UnionType */:
                     case 152 /* ParenthesizedType */:
                         return isDeclarationVisible(node.parent);
-                    // Default binding, import specifier and namespace import is visible
+                    // Default binding, import specifier and namespace import is visible 
                     // only on demand so by default it is not visible
                     case 213 /* ImportClause */:
                     case 214 /* NamespaceImport */:
@@ -17000,7 +17000,7 @@ var ts;
                 if (assumeTrue) {
                     // Assumed result is true. If check was not for a primitive type, remove all primitive types
                     if (!typeInfo) {
-                        return removeTypesFromUnionType(type, 258 /* StringLike */ | 132 /* NumberLike */ | 8 /* Boolean */ | 2097152 /* ESSymbol */,
+                        return removeTypesFromUnionType(type, 258 /* StringLike */ | 132 /* NumberLike */ | 8 /* Boolean */ | 2097152 /* ESSymbol */, 
                         /*isOfTypeKind*/ true, false);
                     }
                     // Check was for a primitive type, return that primitive type if it is a subtype
@@ -17737,7 +17737,7 @@ var ts;
                     // c is represented in the tree as a spread element in an array literal.
                     // But c really functions as a rest element, and its purpose is to provide
                     // a contextual type for the right hand side of the assignment. Therefore,
-                    // instead of calling checkExpression on "...c", which will give an error
+                    // instead of calling checkExpression on "...c", which will give an error 
                     // if c is not iterable/array-like, we need to act as if we are trying to
                     // get the contextual element type from it. So we do something similar to
                     // getContextualTypeForElementExpression, which will crucially not error
@@ -18641,7 +18641,7 @@ var ts;
             // We exclude union types because we may have a union of function types that happen to have
             // no common signatures.
             if (isTypeAny(funcType) || (!callSignatures.length && !constructSignatures.length && !(funcType.flags & 16384 /* Union */) && isTypeAssignableTo(funcType, globalFunctionType))) {
-                // The unknownType indicates that an error already occurred (and was reported).  No
+                // The unknownType indicates that an error already occured (and was reported).  No
                 // need to report another error in this case.
                 if (funcType !== unknownType && node.typeArguments) {
                     error(node, ts.Diagnostics.Untyped_function_calls_may_not_accept_type_arguments);
@@ -20415,7 +20415,7 @@ var ts;
         /** Checks a type reference node as an expression. */
         function checkTypeNodeAsExpression(node) {
             // When we are emitting type metadata for decorators, we need to try to check the type
-            // as if it were an expression so that we can emit the type in a value position when we
+            // as if it were an expression so that we can emit the type in a value position when we 
             // serialize the type metadata.
             if (node && node.kind === 144 /* TypeReference */) {
                 var type = getTypeFromTypeNode(node);
@@ -20911,7 +20911,7 @@ var ts;
                 }
                 else {
                     var leftType = checkExpression(varExpr);
-                    checkReferenceExpression(varExpr, ts.Diagnostics.Invalid_left_hand_side_in_for_of_statement,
+                    checkReferenceExpression(varExpr, ts.Diagnostics.Invalid_left_hand_side_in_for_of_statement, 
                     /*constantVariableMessage*/ ts.Diagnostics.The_left_hand_side_of_a_for_of_statement_cannot_be_a_previously_defined_constant);
                     // iteratedType will be undefined if the rightType was missing properties/signatures
                     // required to get its iteratedType (like [Symbol.iterator] or next). This may be
@@ -21945,7 +21945,7 @@ var ts;
                             error(node.name, ts.Diagnostics.A_namespace_declaration_cannot_be_located_prior_to_a_class_or_function_with_which_it_is_merged);
                         }
                     }
-                    // if the module merges with a class declaration in the same lexical scope,
+                    // if the module merges with a class declaration in the same lexical scope, 
                     // we need to track this to ensure the correct emit.
                     var mergedClass = ts.getDeclarationOfKind(symbol, 204 /* ClassDeclaration */);
                     if (mergedClass &&
@@ -22605,7 +22605,7 @@ var ts;
                 return getSymbolOfNode(entityName.parent);
             }
             if (entityName.parent.kind === 217 /* ExportAssignment */) {
-                return resolveEntityName(entityName,
+                return resolveEntityName(entityName, 
                 /*all meanings*/ 107455 /* Value */ | 793056 /* Type */ | 1536 /* Namespace */ | 8388608 /* Alias */);
             }
             if (entityName.kind !== 158 /* PropertyAccessExpression */) {
@@ -23074,7 +23074,7 @@ var ts;
             // * The serialized type of an AccessorDeclaration is the serialized type of the return type annotation of its getter or parameter type annotation of its setter.
             // * The serialized type of any other FunctionLikeDeclaration is "Function".
             // * The serialized type of any other node is "void 0".
-            //
+            // 
             // For rules on serializing type annotations, see `serializeTypeNode`.
             switch (node.kind) {
                 case 204 /* ClassDeclaration */: return "Function";
@@ -23094,7 +23094,7 @@ var ts;
             //
             // * If the declaration is a class, the parameters of the first constructor with a body are used.
             // * If the declaration is function-like and has a body, the parameters of the function are used.
-            //
+            // 
             // For the rules on serializing the type of each parameter declaration, see `serializeTypeOfDeclaration`.
             if (node) {
                 var valueDeclaration;
@@ -23162,7 +23162,7 @@ var ts;
         }
         function getReferencedValueSymbol(reference) {
             return getNodeLinks(reference).resolvedSymbol ||
-                resolveName(reference, reference.text, 107455 /* Value */ | 1048576 /* ExportValue */ | 8388608 /* Alias */,
+                resolveName(reference, reference.text, 107455 /* Value */ | 1048576 /* ExportValue */ | 8388608 /* Alias */, 
                 /*nodeNotFoundMessage*/ undefined, undefined);
         }
         function getReferencedValueDeclaration(reference) {
@@ -24494,7 +24494,7 @@ var ts;
                 // we would write alias foo declaration when we visit it since it would now be marked as visible
                 if (moduleElementEmitInfo) {
                     if (moduleElementEmitInfo.node.kind === 212 /* ImportDeclaration */) {
-                        // we have to create asynchronous output only after we have collected complete information
+                        // we have to create asynchronous output only after we have collected complete information 
                         // because it is possible to enable multiple bindings as asynchronously visible
                         moduleElementEmitInfo.isVisible = true;
                     }
@@ -24633,7 +24633,7 @@ var ts;
                     return emitEntityName(type);
             }
             function emitEntityName(entityName) {
-                var visibilityResult = resolver.isEntityNameVisible(entityName,
+                var visibilityResult = resolver.isEntityNameVisible(entityName, 
                 // Aliases can be written asynchronously so use correct enclosing declaration
                 entityName.parent.kind === 211 /* ImportEqualsDeclaration */ ? entityName.parent : enclosingDeclaration);
                 handleSymbolAccessibilityError(visibilityResult);
@@ -24845,7 +24845,7 @@ var ts;
             }
         }
         function writeImportEqualsDeclaration(node) {
-            // note usage of writer. methods instead of aliases created, just to make sure we are using
+            // note usage of writer. methods instead of aliases created, just to make sure we are using 
             // correct writer especially to handle asynchronous alias writing
             emitJsDocComments(node);
             if (node.flags & 1 /* Export */) {
@@ -24884,7 +24884,7 @@ var ts;
         }
         function writeImportDeclaration(node) {
             if (!node.importClause && !(node.flags & 1 /* Export */)) {
-                // do not write non-exported import declarations that don't have import clauses
+                // do not write non-exported import declarations that don't have import clauses 
                 return;
             }
             emitJsDocComments(node);
@@ -25723,7 +25723,7 @@ var ts;
                 : ts.shouldEmitToOwnFile(referencedFile, compilerOptions)
                     ? ts.getOwnEmitOutputFilePath(referencedFile, host, ".d.ts") // Own output file so get the .d.ts file
                     : ts.removeFileExtension(compilerOptions.out) + ".d.ts"; // Global out file
-            declFileName = ts.getRelativePathToDirectoryOrUrl(ts.getDirectoryPath(ts.normalizeSlashes(jsFilePath)), declFileName, host.getCurrentDirectory(), host.getCanonicalFileName,
+            declFileName = ts.getRelativePathToDirectoryOrUrl(ts.getDirectoryPath(ts.normalizeSlashes(jsFilePath)), declFileName, host.getCurrentDirectory(), host.getCanonicalFileName, 
             /*isAbsolutePathAnUrl*/ false);
             referencePathsOutput += "/// <reference path=\"" + declFileName + "\" />" + newLine;
         }
@@ -26191,7 +26191,7 @@ var ts;
                     // If sourceroot option: Use the relative path corresponding to the common directory path
                     // otherwise source locations relative to map file location
                     var sourcesDirectoryPath = compilerOptions.sourceRoot ? host.getCommonSourceDirectory() : sourceMapDir;
-                    sourceMapData.sourceMapSources.push(ts.getRelativePathToDirectoryOrUrl(sourcesDirectoryPath, node.fileName, host.getCurrentDirectory(), host.getCanonicalFileName,
+                    sourceMapData.sourceMapSources.push(ts.getRelativePathToDirectoryOrUrl(sourcesDirectoryPath, node.fileName, host.getCurrentDirectory(), host.getCanonicalFileName, 
                     /*isAbsolutePathAnUrl*/ true));
                     sourceMapSourceIndex = sourceMapData.sourceMapSources.length - 1;
                     // The one that can be used from program to get the actual source file
@@ -26342,7 +26342,7 @@ var ts;
                     if (!ts.isRootedDiskPath(sourceMapDir) && !ts.isUrl(sourceMapDir)) {
                         // The relative paths are relative to the common directory
                         sourceMapDir = ts.combinePaths(host.getCommonSourceDirectory(), sourceMapDir);
-                        sourceMapData.jsSourceMappingURL = ts.getRelativePathToDirectoryOrUrl(ts.getDirectoryPath(ts.normalizePath(jsFilePath)), ts.combinePaths(sourceMapDir, sourceMapData.jsSourceMappingURL), host.getCurrentDirectory(), host.getCanonicalFileName,
+                        sourceMapData.jsSourceMappingURL = ts.getRelativePathToDirectoryOrUrl(ts.getDirectoryPath(ts.normalizePath(jsFilePath)), ts.combinePaths(sourceMapDir, sourceMapData.jsSourceMappingURL), host.getCurrentDirectory(), host.getCanonicalFileName, 
                         /*isAbsolutePathAnUrl*/ true);
                     }
                     else {
@@ -26759,7 +26759,7 @@ var ts;
                 }
                 else if (node.kind === 129 /* ComputedPropertyName */) {
                     // if this is a decorated computed property, we will need to capture the result
-                    // of the property expression so that we can apply decorators later. This is to ensure
+                    // of the property expression so that we can apply decorators later. This is to ensure 
                     // we don't introduce unintended side effects:
                     //
                     //   class C {
@@ -27059,7 +27059,7 @@ var ts;
                     write("]");
                 }
                 else {
-                    emitListWithSpread(elements, true, (node.flags & 512 /* MultiLine */) !== 0,
+                    emitListWithSpread(elements, true, (node.flags & 512 /* MultiLine */) !== 0, 
                     /*trailingComma*/ elements.hasTrailingComma, true);
                 }
             }
@@ -27326,8 +27326,8 @@ var ts;
                 }
                 return false;
             }
-            // Returns 'true' if the code was actually indented, false otherwise.
-            // If the code is not indented, an optional valueToWriteWhenNotIndenting will be
+            // Returns 'true' if the code was actually indented, false otherwise. 
+            // If the code is not indented, an optional valueToWriteWhenNotIndenting will be 
             // emitted instead.
             function indentIfOnDifferentLines(parent, node1, node2, valueToWriteWhenNotIndenting) {
                 var realNodesAreOnDifferentLines = !ts.nodeIsSynthesized(parent) && !nodeEndIsOnSameLineAsNodeStart(node1, node2);
@@ -27706,7 +27706,7 @@ var ts;
                 emit(node.whenFalse);
                 decreaseIndentIf(indentedBeforeColon, indentedAfterColon);
             }
-            // Helper function to decrease the indent if we previously indented.  Allows multiple
+            // Helper function to decrease the indent if we previously indented.  Allows multiple 
             // previous indent values to be considered at a time.  This also allows caller to just
             // call this once, passing in all their appropriate indent values, instead of needing
             // to call this helper function multiple times.
@@ -28748,7 +28748,7 @@ var ts;
                     emitSignatureParameters(node);
                 }
                 if (!node.body) {
-                    // There can be no body when there are parse errors.  Just emit an empty block
+                    // There can be no body when there are parse errors.  Just emit an empty block 
                     // in that case.
                     write(" { }");
                 }
@@ -28776,7 +28776,7 @@ var ts;
                     emitDownLevelExpressionFunctionBody(node, body);
                     return;
                 }
-                // For es6 and higher we can emit the expression as is.  However, in the case
+                // For es6 and higher we can emit the expression as is.  However, in the case 
                 // where the expression might end up looking like a block when emitted, we'll
                 // also wrap it in parentheses first.  For example if you have: a => <foo>{}
                 // then we need to generate: a => ({})
@@ -29253,9 +29253,9 @@ var ts;
                     }
                 }
                 // If the class has static properties, and it's a class expression, then we'll need
-                // to specialize the emit a bit.  for a class expression of the form:
+                // to specialize the emit a bit.  for a class expression of the form: 
                 //
-                //      class C { static a = 1; static b = 2; ... }
+                //      class C { static a = 1; static b = 2; ... } 
                 //
                 // We'll emit:
                 //
@@ -29517,7 +29517,7 @@ var ts;
                     //
                     // The emit for a method is:
                     //
-                    //   Object.defineProperty(C.prototype, "method",
+                    //   Object.defineProperty(C.prototype, "method", 
                     //       __decorate([
                     //           dec,
                     //           __param(0, dec2),
@@ -29525,10 +29525,10 @@ var ts;
                     //           __metadata("design:paramtypes", [Object]),
                     //           __metadata("design:returntype", void 0)
                     //       ], C.prototype, "method", Object.getOwnPropertyDescriptor(C.prototype, "method")));
-                    //
+                    // 
                     // The emit for an accessor is:
                     //
-                    //   Object.defineProperty(C.prototype, "accessor",
+                    //   Object.defineProperty(C.prototype, "accessor", 
                     //       __decorate([
                     //           dec
                     //       ], C.prototype, "accessor", Object.getOwnPropertyDescriptor(C.prototype, "accessor")));
@@ -29610,7 +29610,7 @@ var ts;
             }
             function shouldEmitTypeMetadata(node) {
                 // This method determines whether to emit the "design:type" metadata based on the node's kind.
-                // The caller should have already tested whether the node has decorators and whether the emitDecoratorMetadata
+                // The caller should have already tested whether the node has decorators and whether the emitDecoratorMetadata 
                 // compiler option is set.
                 switch (node.kind) {
                     case 136 /* MethodDeclaration */:
@@ -29623,7 +29623,7 @@ var ts;
             }
             function shouldEmitReturnTypeMetadata(node) {
                 // This method determines whether to emit the "design:returntype" metadata based on the node's kind.
-                // The caller should have already tested whether the node has decorators and whether the emitDecoratorMetadata
+                // The caller should have already tested whether the node has decorators and whether the emitDecoratorMetadata 
                 // compiler option is set.
                 switch (node.kind) {
                     case 136 /* MethodDeclaration */:
@@ -29633,7 +29633,7 @@ var ts;
             }
             function shouldEmitParamTypesMetadata(node) {
                 // This method determines whether to emit the "design:paramtypes" metadata based on the node's kind.
-                // The caller should have already tested whether the node has decorators and whether the emitDecoratorMetadata
+                // The caller should have already tested whether the node has decorators and whether the emitDecoratorMetadata 
                 // compiler option is set.
                 switch (node.kind) {
                     case 204 /* ClassDeclaration */:
@@ -30386,7 +30386,7 @@ var ts;
                 }
                 function writeExportedName(node) {
                     // do not record default exports
-                    // they are local to module and never overwritten (explicitly skipped) by star export
+                    // they are local to module and never overwritten (explicitly skipped) by star export 
                     if (node.kind !== 65 /* Identifier */ && node.flags & 256 /* Default */) {
                         return;
                     }
@@ -30408,7 +30408,7 @@ var ts;
                 }
             }
             function processTopLevelVariableAndFunctionDeclarations(node) {
-                // per ES6 spec:
+                // per ES6 spec: 
                 // 15.2.1.16.4 ModuleDeclarationInstantiation() Concrete Method
                 // - var declarations are initialized to undefined - 14.a.ii
                 // - function/generator declarations are instantiated - 16.a.iv
@@ -30540,7 +30540,7 @@ var ts;
                 // hoist variable if
                 // - it is not block scoped
                 // - it is top level block scoped
-                // if block scoped variables are nested in some another block then
+                // if block scoped variables are nested in some another block then 
                 // no other functions can use them except ones that are defined at least in the same block
                 return (ts.getCombinedNodeFlags(node) & 12288 /* BlockScoped */) === 0 ||
                     ts.getEnclosingBlockScopeContainer(node).kind === 230 /* SourceFile */;
@@ -30724,10 +30724,10 @@ var ts;
                 // System modules has the following shape
                 // System.register(['dep-1', ... 'dep-n'], function(exports) {/* module body function */})
                 // 'exports' here is a function 'exports<T>(name: string, value: T): T' that is used to publish exported values.
-                // 'exports' returns its 'value' argument so in most cases expressions
+                // 'exports' returns its 'value' argument so in most cases expressions 
                 // that mutate exported values can be rewritten as:
-                // expr -> exports('name', expr).
-                // The only exception in this rule is postfix unary operators,
+                // expr -> exports('name', expr). 
+                // The only exception in this rule is postfix unary operators, 
                 // see comment to 'emitPostfixUnaryExpression' for more details
                 ts.Debug.assert(!exportFunctionForFile);
                 // make sure that  name of 'exports' function does not conflict with existing identifiers
@@ -30769,8 +30769,8 @@ var ts;
                 // factory function.
                 var unaliasedModuleNames = []; // names of modules with no corresponding parameters in
                 // factory function.
-                var importAliasNames = []; // names of the parameters in the factory function; these
-                // parameters need to match the indexes of the corresponding
+                var importAliasNames = []; // names of the parameters in the factory function; these 
+                // parameters need to match the indexes of the corresponding 
                 // module names in aliasedModuleNames.
                 // Fill in amd-dependency tags
                 for (var _a = 0, _b = node.amdDependencies; _a < _b.length; _a++) {
@@ -30863,7 +30863,7 @@ var ts;
                 emitCaptureThisForNodeIfNecessary(node);
                 emitLinesStartingAt(node.statements, startIndex);
                 emitTempDeclarations(true);
-                // Emit exportDefault if it exists will happen as part
+                // Emit exportDefault if it exists will happen as part 
                 // or normal statement emit.
             }
             function emitExportEquals(emitAsReturn) {
@@ -30993,7 +30993,7 @@ var ts;
                         // emitting the module as well.
                         return shouldEmitEnumDeclaration(node);
                 }
-                // If this is the expression body of an arrow function that we're down-leveling,
+                // If this is the expression body of an arrow function that we're down-leveling, 
                 // then we don't want to emit comments when we emit the body.  It will have already
                 // been taken care of when we emitted the 'return' statement for the function
                 // expression body.
@@ -31719,7 +31719,7 @@ var ts;
                 }
                 else if (node.kind === 208 /* ModuleDeclaration */ && node.name.kind === 8 /* StringLiteral */ && (node.flags & 2 /* Ambient */ || ts.isDeclarationFile(file))) {
                     // TypeScript 1.0 spec (April 2014): 12.1.6
-                    // An AmbientExternalModuleDeclaration declares an external module.
+                    // An AmbientExternalModuleDeclaration declares an external module. 
                     // This type of declaration is permitted only in the global module.
                     // The StringLiteral must specify a top - level external module name.
                     // Relative external module names are not permitted
@@ -31730,7 +31730,7 @@ var ts;
                             var moduleName = nameLiteral.text;
                             if (moduleName) {
                                 // TypeScript 1.0 spec (April 2014): 12.1.6
-                                // An ExternalImportDeclaration in anAmbientExternalModuleDeclaration may reference other external modules
+                                // An ExternalImportDeclaration in anAmbientExternalModuleDeclaration may reference other external modules 
                                 // only through top - level external module names. Relative external module names are not permitted.
                                 var searchName = ts.normalizePath(ts.combinePaths(basePath, moduleName));
                                 ts.forEach(ts.supportedExtensions, function (extension) { return findModuleSourceFile(searchName + extension, nameLiteral); });
@@ -31848,7 +31848,7 @@ var ts;
                 }
             }
             else if (firstExternalModuleSourceFile && languageVersion < 2 /* ES6 */ && !options.module) {
-                // We cannot use createDiagnosticFromNode because nodes do not have parents yet
+                // We cannot use createDiagnosticFromNode because nodes do not have parents yet 
                 var span = ts.getErrorSpanForNode(firstExternalModuleSourceFile, firstExternalModuleSourceFile.externalModuleIndicator);
                 diagnostics.add(ts.createFileDiagnostic(firstExternalModuleSourceFile, span.start, span.length, ts.Diagnostics.Cannot_compile_modules_unless_the_module_flag_is_provided));
             }
@@ -31871,7 +31871,7 @@ var ts;
                     commonSourceDirectory = computeCommonSourceDirectory(files);
                 }
                 if (commonSourceDirectory && commonSourceDirectory[commonSourceDirectory.length - 1] !== ts.directorySeparator) {
-                    // Make sure directory path ends with directory separator so this string can directly
+                    // Make sure directory path ends with directory separator so this string can directly 
                     // used to replace with "" to get the relative path of the source file and the relative path doesn't
                     // start with / making it rooted path
                     commonSourceDirectory += ts.directorySeparator;
@@ -32477,14 +32477,14 @@ var ts;
         function getNavigateToItems(program, cancellationToken, searchValue, maxResultCount) {
             var patternMatcher = ts.createPatternMatcher(searchValue);
             var rawItems = [];
-            // Search the declarations in all files and output matched NavigateToItem into array of NavigateToItem[]
+            // Search the declarations in all files and output matched NavigateToItem into array of NavigateToItem[] 
             ts.forEach(program.getSourceFiles(), function (sourceFile) {
                 cancellationToken.throwIfCancellationRequested();
                 var nameToDeclarations = sourceFile.getNamedDeclarations();
                 for (var name_27 in nameToDeclarations) {
                     var declarations = ts.getProperty(nameToDeclarations, name_27);
                     if (declarations) {
-                        // First do a quick check to see if the name of the declaration matches the
+                        // First do a quick check to see if the name of the declaration matches the 
                         // last portion of the (possibly) dotted name they're searching for.
                         var matches = patternMatcher.getMatchesForLastSegmentOfPattern(name_27);
                         if (!matches) {
@@ -32492,7 +32492,7 @@ var ts;
                         }
                         for (var _i = 0; _i < declarations.length; _i++) {
                             var declaration = declarations[_i];
-                            // It was a match!  If the pattern has dots in it, then also see if the
+                            // It was a match!  If the pattern has dots in it, then also see if the 
                             // declaration container matches as well.
                             if (patternMatcher.patternContainsDots) {
                                 var containers = getContainers(declaration);
@@ -32794,8 +32794,8 @@ var ts;
             }
             function isTopLevelFunctionDeclaration(functionDeclaration) {
                 if (functionDeclaration.kind === 203 /* FunctionDeclaration */) {
-                    // A function declaration is 'top level' if it contains any function declarations
-                    // within it.
+                    // A function declaration is 'top level' if it contains any function declarations 
+                    // within it. 
                     if (functionDeclaration.body && functionDeclaration.body.kind === 182 /* Block */) {
                         // Proper function declarations can only have identifier names
                         if (ts.forEach(functionDeclaration.body.statements, function (s) { return s.kind === 203 /* FunctionDeclaration */ && !isEmpty(s.name.text); })) {
@@ -33076,8 +33076,8 @@ var ts;
     }
     function createPatternMatcher(pattern) {
         // We'll often see the same candidate string many times when searching (For example, when
-        // we see the name of a module that is used everywhere, or the name of an overload).  As
-        // such, we cache the information we compute about the candidate for the life of this
+        // we see the name of a module that is used everywhere, or the name of an overload).  As 
+        // such, we cache the information we compute about the candidate for the life of this 
         // pattern matcher so we don't have to compute it multiple times.
         var stringToWordSpans = {};
         pattern = pattern.trim();
@@ -33160,7 +33160,7 @@ var ts;
                 if (index > 0) {
                     // c) If the part is entirely lowercase, then check if it is contained anywhere in the
                     //    candidate in a case insensitive manner.  If so, return that there was a substring
-                    //    match.
+                    //    match. 
                     //
                     //    Note: We only have a substring match if the lowercase part is prefix match of some
                     //    word part. That way we don't match something like 'Class' when the user types 'a'.
@@ -33169,7 +33169,7 @@ var ts;
                     for (var _i = 0; _i < wordSpans.length; _i++) {
                         var span = wordSpans[_i];
                         if (partStartsWith(candidate, span, chunk.text, true)) {
-                            return createPatternMatch(PatternMatchKind.substring, punctuationStripped,
+                            return createPatternMatch(PatternMatchKind.substring, punctuationStripped, 
                             /*isCaseSensitive:*/ partStartsWith(candidate, span, chunk.text, false));
                         }
                     }
@@ -33200,8 +33200,8 @@ var ts;
             if (isLowercase) {
                 // f) Is the pattern a substring of the candidate starting on one of the candidate's word boundaries?
                 // We could check every character boundary start of the candidate for the pattern. However, that's
-                // an m * n operation in the wost case. Instead, find the first instance of the pattern
-                // substring, and see if it starts on a capital letter. It seems unlikely that the user will try to
+                // an m * n operation in the wost case. Instead, find the first instance of the pattern 
+                // substring, and see if it starts on a capital letter. It seems unlikely that the user will try to 
                 // filter the list based on a substring that starts on a capital letter and also with a lowercase one.
                 // (Pattern: fogbar, Candidate: quuxfogbarFogBar).
                 if (chunk.text.length < candidate.length) {
@@ -33253,7 +33253,7 @@ var ts;
             //
             //   c) If the word is entirely lowercase, then check if it is contained anywhere in the
             //      candidate in a case insensitive manner.  If so, return that there was a substring
-            //      match.
+            //      match. 
             //
             //      Note: We only have a substring match if the lowercase part is prefix match of
             //      some word part. That way we don't match something like 'Class' when the user
@@ -33267,7 +33267,7 @@ var ts;
             //   e) If the word was not entirely lowercase, then attempt a camel cased match as
             //      well.
             //
-            //   f) The word is all lower case. Is it a case insensitive substring of the candidate starting
+            //   f) The word is all lower case. Is it a case insensitive substring of the candidate starting 
             //      on a part boundary of the candidate?
             //
             // Only if all words have some sort of match is the pattern considered matched.
@@ -33317,7 +33317,7 @@ var ts;
             // Note: we may have more pattern parts than candidate parts.  This is because multiple
             // pattern parts may match a candidate part.  For example "SiUI" against "SimpleUI".
             // We'll have 3 pattern parts Si/U/I against two candidate parts Simple/UI.  However, U
-            // and I will both match in UI.
+            // and I will both match in UI. 
             var currentCandidate = 0;
             var currentChunkSpan = 0;
             var firstMatch = undefined;
@@ -33346,13 +33346,13 @@ var ts;
                 // Consider the case of matching SiUI against SimpleUIElement. The candidate parts
                 // will be Simple/UI/Element, and the pattern parts will be Si/U/I.  We'll match 'Si'
                 // against 'Simple' first.  Then we'll match 'U' against 'UI'. However, we want to
-                // still keep matching pattern parts against that candidate part.
+                // still keep matching pattern parts against that candidate part. 
                 for (; currentChunkSpan < chunkCharacterSpans.length; currentChunkSpan++) {
                     var chunkCharacterSpan = chunkCharacterSpans[currentChunkSpan];
                     if (gotOneMatchThisCandidate) {
                         // We've already gotten one pattern part match in this candidate.  We will
                         // only continue trying to consumer pattern parts if the last part and this
-                        // part are both upper case.
+                        // part are both upper case.  
                         if (!isUpperCaseLetter(chunk.text.charCodeAt(chunkCharacterSpans[currentChunkSpan - 1].start)) ||
                             !isUpperCaseLetter(chunk.text.charCodeAt(chunkCharacterSpans[currentChunkSpan].start))) {
                             break;
@@ -33384,9 +33384,9 @@ var ts;
     ts.createPatternMatcher = createPatternMatcher;
     // Helper function to compare two matches to determine which is better.  Matches are first
     // ordered by kind (so all prefix matches always beat all substring matches).  Then, if the
-    // match is a camel case match, the relative weights of the match are used to determine
-    // which is better (with a greater weight being better).  Then if the match is of the same
-    // type, then a case sensitive match is considered better than an insensitive one.
+    // match is a camel case match, the relative weights of the match are used to determine 
+    // which is better (with a greater weight being better).  Then if the match is of the same 
+    // type, then a case sensitive match is considered better than an insensitive one. 
     function patternMatchCompareTo(match1, match2) {
         return compareType(match1, match2) ||
             compareCamelCase(match1, match2) ||
@@ -33436,7 +33436,7 @@ var ts;
         if (ch < 127 /* maxAsciiCharacter */ || !ts.isUnicodeIdentifierStart(ch, 2 /* Latest */)) {
             return false;
         }
-        // TODO: find a way to determine this for any unicode characters in a
+        // TODO: find a way to determine this for any unicode characters in a 
         // non-allocating manner.
         var str = String.fromCharCode(ch);
         return str === str.toUpperCase();
@@ -33449,7 +33449,7 @@ var ts;
         if (ch < 127 /* maxAsciiCharacter */ || !ts.isUnicodeIdentifierStart(ch, 2 /* Latest */)) {
             return false;
         }
-        // TODO: find a way to determine this for any unicode characters in a
+        // TODO: find a way to determine this for any unicode characters in a 
         // non-allocating manner.
         var str = String.fromCharCode(ch);
         return str === str.toLowerCase();
@@ -33498,7 +33498,7 @@ var ts;
         if (ch < 127 /* maxAsciiCharacter */) {
             return ch;
         }
-        // TODO: find a way to compute this for any unicode characters in a
+        // TODO: find a way to compute this for any unicode characters in a 
         // non-allocating manner.
         return String.fromCharCode(ch).toLowerCase().charCodeAt(0);
     }
@@ -33649,7 +33649,7 @@ var ts;
         var currentIsUpper = isUpperCaseLetter(identifier.charCodeAt(index));
         // See if the casing indicates we're starting a new word. Note: if we're breaking on
         // words, then just seeing an upper case character isn't enough.  Instead, it has to
-        // be uppercase and the previous character can't be uppercase.
+        // be uppercase and the previous character can't be uppercase. 
         //
         // For example, breaking "AddMetadata" on words would make: Add Metadata
         //
@@ -33673,9 +33673,9 @@ var ts;
     var SignatureHelp;
     (function (SignatureHelp) {
         // A partially written generic type expression is not guaranteed to have the correct syntax tree. the expression could be parsed as less than/greater than expression or a comma expression
-        // or some other combination depending on what the user has typed so far. For the purposes of signature help we need to consider any location after "<" as a possible generic type reference.
-        // To do this, the method will back parse the expression starting at the position required. it will try to parse the current expression as a generic type expression, if it did succeed it
-        // will return the generic identifier that started the expression (e.g. "foo" in "foo<any, |"). It is then up to the caller to ensure that this is a valid generic expression through
+        // or some other combination depending on what the user has typed so far. For the purposes of signature help we need to consider any location after "<" as a possible generic type reference. 
+        // To do this, the method will back parse the expression starting at the position required. it will try to parse the current expression as a generic type expression, if it did succeed it 
+        // will return the generic identifier that started the expression (e.g. "foo" in "foo<any, |"). It is then up to the caller to ensure that this is a valid generic expression through 
         // looking up the type. The method will also keep track of the parameter index inside the expression.
         //public static isInPartiallyWrittenTypeArgumentList(syntaxTree: TypeScript.SyntaxTree, position: number): any {
         //    let token = Syntax.findTokenOnLeft(syntaxTree.sourceUnit(), position, /*includeSkippedTokens*/ true);
@@ -33830,7 +33830,7 @@ var ts;
             var resolvedSignature = typeChecker.getResolvedSignature(call, candidates);
             cancellationToken.throwIfCancellationRequested();
             if (!candidates.length) {
-                // We didn't have any sig help items produced by the TS compiler.  If this is a JS
+                // We didn't have any sig help items produced by the TS compiler.  If this is a JS 
                 // file, then see if we can figure out anything better.
                 if (ts.isJavaScript(sourceFile.fileName)) {
                     return createJavaScriptSignatureHelpItems(argumentInfo);
@@ -33963,8 +33963,8 @@ var ts;
                 return undefined;
             }
             function getArgumentIndex(argumentsList, node) {
-                // The list we got back can include commas.  In the presence of errors it may
-                // also just have nodes without commas.  For example "Foo(a b c)" will have 3
+                // The list we got back can include commas.  In the presence of errors it may 
+                // also just have nodes without commas.  For example "Foo(a b c)" will have 3 
                 // args without commas.   We want to find what index we're at.  So we count
                 // forward until we hit ourselves, only incrementing the index if it isn't a
                 // comma.
@@ -33995,8 +33995,8 @@ var ts;
                 // 'a' '<comma>'.  So, in the case where the last child is a comma, we increase the
                 // arg count by one to compensate.
                 //
-                // Note: this subtlety only applies to the last comma.  If you had "Foo(a,,"  then
-                // we'll have:  'a' '<comma>' '<missing>'
+                // Note: this subtlety only applies to the last comma.  If you had "Foo(a,,"  then 
+                // we'll have:  'a' '<comma>' '<missing>' 
                 // That will give us 2 non-commas.  We then add one for the last comma, givin us an
                 // arg count of 3.
                 var listChildren = argumentsList.getChildren();
@@ -34524,7 +34524,7 @@ var ts;
             var children = n.getChildren();
             for (var _i = 0; _i < children.length; _i++) {
                 var child = children[_i];
-                var shouldDiveInChildNode =
+                var shouldDiveInChildNode = 
                 // previous token is enclosed somewhere in the child
                 (child.pos <= previousToken.pos && child.end > previousToken.end) ||
                     // previous token ends exactly at the beginning of child
@@ -34569,7 +34569,7 @@ var ts;
                 }
             }
             ts.Debug.assert(startNode !== undefined || n.kind === 230 /* SourceFile */);
-            // Here we know that none of child token nodes embrace the position,
+            // Here we know that none of child token nodes embrace the position, 
             // the only known case is when position is at the end of the file.
             // Try to find the rightmost token in the file without filtering.
             // Namely we are skipping the check: 'position < node.end'
@@ -35031,9 +35031,9 @@ var ts;
                 var startPos = (lastTokenInfo && lastTokenInfo.token.pos) || scanner.getStartPos();
                 return startPos < endPos && current !== 1 /* EndOfFileToken */ && !ts.isTrivia(current);
             }
-            // when containing node in the tree is token
+            // when containing node in the tree is token 
             // but its kind differs from the kind that was returned by the scanner,
-            // then kind needs to be fixed. This might happen in cases
+            // then kind needs to be fixed. This might happen in cases 
             // when parser interprets token differently, i.e keyword treated as identifier
             function fixTokenKind(tokenInfo, container) {
                 if (ts.isToken(container) && tokenInfo.token.kind !== container.kind) {
@@ -35555,17 +35555,17 @@ var ts;
             Rules.IsSameLineTokenOrBeforeMultilineBlockContext = function (context) {
                 //// This check is mainly used inside SpaceBeforeOpenBraceInControl and SpaceBeforeOpenBraceInFunction.
                 ////
-                //// Ex:
+                //// Ex: 
                 //// if (1)     { ....
                 ////      * ) and { are on the same line so apply the rule. Here we don't care whether it's same or multi block context
                 ////
-                //// Ex:
+                //// Ex: 
                 //// if (1)
                 //// { ... }
                 ////      * ) and { are on differnet lines. We only need to format if the block is multiline context. So in this case we don't format.
                 ////
                 //// Ex:
-                //// if (1)
+                //// if (1) 
                 //// { ...
                 //// }
                 ////      * ) and { are on differnet lines. We only need to format if the block is multiline context. So in this case we format.
@@ -35841,9 +35841,9 @@ var ts;
                 ////    4- Context rules with any token combination
                 ////    5- Non-context rules with specific token combination
                 ////    6- Non-context rules with any token combination
-                ////
+                //// 
                 //// The member rulesInsertionIndexBitmap is used to describe the number of rules
-                //// in each sub-bucket (above) hence can be used to know the index of where to insert
+                //// in each sub-bucket (above) hence can be used to know the index of where to insert 
                 //// the next rule. It's a bitmap which contains 6 different sections each is given 5 bits.
                 ////
                 //// Example:
@@ -36037,7 +36037,7 @@ var ts;
 ///<reference path='ruleOperationContext.ts' />
 ///<reference path='rules.ts' />
 ///<reference path='rulesMap.ts' />
-///<reference path='tokenRange.ts' />
+///<reference path='tokenRange.ts' /> 
 /// <reference path="references.ts"/>
 /* @internal */
 var ts;
@@ -36191,9 +36191,9 @@ var ts;
         }
         function findOutermostParent(position, expectedTokenKind, sourceFile) {
             var precedingToken = ts.findPrecedingToken(position, sourceFile);
-            // when it is claimed that trigger character was typed at given position
+            // when it is claimed that trigger character was typed at given position 
             // we verify that there is a token with a matching kind whose end is equal to position (because the character was just typed).
-            // If this condition is not hold - then trigger character was typed in some other context,
+            // If this condition is not hold - then trigger character was typed in some other context, 
             // i.e.in comment and thus should not trigger autoformatting
             if (!precedingToken ||
                 precedingToken.kind !== expectedTokenKind ||
@@ -36202,12 +36202,12 @@ var ts;
             }
             // walk up and search for the parent node that ends at the same position with precedingToken.
             // for cases like this
-            //
+            // 
             // let x = 1;
             // while (true) {
-            // }
+            // } 
             // after typing close curly in while statement we want to reformat just the while statement.
-            // However if we just walk upwards searching for the parent that has the same end value -
+            // However if we just walk upwards searching for the parent that has the same end value - 
             // we'll end up with the whole source file. isListElement allows to stop on the list element level
             var current = precedingToken;
             while (current &&
@@ -36272,7 +36272,7 @@ var ts;
                 // 'index' tracks the index of the most recent error that was checked.
                 while (true) {
                     if (index >= sorted.length) {
-                        // all errors in the range were already checked -> no error in specified range
+                        // all errors in the range were already checked -> no error in specified range 
                         return false;
                     }
                     var error = sorted[index];
@@ -36400,9 +36400,9 @@ var ts;
                 var indentation = inheritedIndentation;
                 if (indentation === -1 /* Unknown */) {
                     if (isSomeBlock(node.kind)) {
-                        // blocks should be indented in
+                        // blocks should be indented in 
                         // - other blocks
-                        // - source file
+                        // - source file 
                         // - switch\default clauses
                         if (isSomeBlock(parent.kind) ||
                             parent.kind === 230 /* SourceFile */ ||
@@ -36523,12 +36523,12 @@ var ts;
                 // a useful observations when tracking context node
                 //        /
                 //      [a]
-                //   /   |   \
+                //   /   |   \ 
                 //  [b] [c] [d]
-                // node 'a' is a context node for nodes 'b', 'c', 'd'
+                // node 'a' is a context node for nodes 'b', 'c', 'd' 
                 // except for the leftmost leaf token in [b] - in this case context node ('e') is located somewhere above 'a'
                 // this rule can be applied recursively to child nodes of 'a'.
-                //
+                // 
                 // context node is set to parent node value after processing every child node
                 // context node is set to parent of the token after processing every token
                 var childContextNode = contextNode;
@@ -36630,7 +36630,7 @@ var ts;
                             var tokenInfo = formattingScanner.readTokenInfo(parent);
                             // consume the list end token only if it is still belong to the parent
                             // there might be the case when current token matches end token but does not considered as one
-                            // function (x: function) <--
+                            // function (x: function) <-- 
                             // without this check close paren will be interpreted as list end token for function expression which is wrong
                             if (tokenInfo.token.kind === listEndToken && ts.rangeContainsRange(parent, tokenInfo.token)) {
                                 // consume list end token
@@ -36747,7 +36747,7 @@ var ts;
                     applyRuleEdits(rule, previousItem, previousStartLine, currentItem, currentStartLine);
                     if (rule.Operation.Action & (2 /* Space */ | 8 /* Delete */) && currentStartLine !== previousStartLine) {
                         lineAdded = false;
-                        // Handle the case where the next line is moved to be the end of this line.
+                        // Handle the case where the next line is moved to be the end of this line. 
                         // In this case we don't indent the next line in the next pass.
                         if (currentParent.getStart(sourceFile) === currentItem.pos) {
                             dynamicIndentation.recomputeIndentation(false);
@@ -36755,7 +36755,7 @@ var ts;
                     }
                     else if (rule.Operation.Action & 4 /* NewLine */ && currentStartLine === previousStartLine) {
                         lineAdded = true;
-                        // Handle the case where token2 is moved to the new line.
+                        // Handle the case where token2 is moved to the new line. 
                         // In this case we indent token2 in the next pass but we set
                         // sameLineIndent flag to notify the indenter that the indentation is within the line.
                         if (currentParent.getStart(sourceFile) === currentItem.pos) {
@@ -37573,10 +37573,10 @@ var ts;
             var jsDocCommentParts = [];
             ts.forEach(declarations, function (declaration, indexOfDeclaration) {
                 // Make sure we are collecting doc comment from declaration once,
-                // In case of union property there might be same declaration multiple times
+                // In case of union property there might be same declaration multiple times 
                 // which only varies in type parameter
                 // Eg. let a: Array<string> | Array<number>; a.length
-                // The property length will have two declarations of property length coming
+                // The property length will have two declarations of property length coming 
                 // from Array<T> - Array<string> and Array<number>
                 if (ts.indexOf(declarations, declaration) === indexOfDeclaration) {
                     var sourceFileOfDeclaration = ts.getSourceFileOfNode(declaration);
@@ -37611,7 +37611,7 @@ var ts;
                 return ts.map(ts.getJsDocComments(node, sourceFile), function (jsDocComment) {
                     return {
                         pos: jsDocComment.pos + "/*".length,
-                        end: jsDocComment.end - "*/".length // Trim off comment end indicator
+                        end: jsDocComment.end - "*/".length // Trim off comment end indicator 
                     };
                 });
             }
@@ -37713,7 +37713,7 @@ var ts;
                     if (isParamTag(pos, end, sourceFile)) {
                         var blankLineCount = 0;
                         var recordedParamTag = false;
-                        // Consume leading spaces
+                        // Consume leading spaces 
                         pos = consumeWhiteSpaces(pos + paramTag.length);
                         if (pos >= end) {
                             break;
@@ -37763,7 +37763,7 @@ var ts;
                             var firstLineParamHelpStringPos = pos;
                             while (pos < end) {
                                 var ch = sourceFile.text.charCodeAt(pos);
-                                // at line break, set this comment line text and go to next line
+                                // at line break, set this comment line text and go to next line 
                                 if (ts.isLineBreak(ch)) {
                                     if (paramHelpString) {
                                         pushDocCommentLineText(paramDocComments, paramHelpString, blankLineCount);
@@ -37816,7 +37816,7 @@ var ts;
                     if (paramHelpStringMargin === undefined) {
                         paramHelpStringMargin = sourceFile.getLineAndCharacterOfPosition(firstLineParamHelpStringPos).character;
                     }
-                    // Now consume white spaces max
+                    // Now consume white spaces max 
                     var startOfLinePos = pos;
                     pos = consumeWhiteSpacesOnTheLine(pos, end, sourceFile, paramHelpStringMargin);
                     if (pos >= end) {
@@ -37886,8 +37886,8 @@ var ts;
         };
         SignatureObject.prototype.getDocumentationComment = function () {
             if (this.documentationComment === undefined) {
-                this.documentationComment = this.declaration ? getJsDocCommentsFromDeclarations([this.declaration],
-                /*name*/ undefined,
+                this.documentationComment = this.declaration ? getJsDocCommentsFromDeclarations([this.declaration], 
+                /*name*/ undefined, 
                 /*canUseParsedParamTagComments*/ false) : [];
             }
             return this.documentationComment;
@@ -38294,8 +38294,8 @@ var ts;
         return CancellationTokenObject;
     })();
     ts.CancellationTokenObject = CancellationTokenObject;
-    // Cache host information about scrip Should be refreshed
-    // at each language service public entry point, since we don't know when
+    // Cache host information about scrip Should be refreshed 
+    // at each language service public entry point, since we don't know when 
     // set of scripts handled by the host changes.
     var HostCache = (function () {
         function HostCache(host, getCanonicalFileName) {
@@ -38408,7 +38408,7 @@ var ts;
         options.isolatedModules = true;
         // Filename can be non-ts file.
         options.allowNonTsExtensions = true;
-        // We are not returning a sourceFile for lib file when asked by the program,
+        // We are not returning a sourceFile for lib file when asked by the program, 
         // so pass --noLib to avoid reporting a file not found error.
         options.noLib = true;
         // We are not doing a full typecheck, we are not resolving the whole context,
@@ -38461,7 +38461,7 @@ var ts;
     ts.createLanguageServiceSourceFile = createLanguageServiceSourceFile;
     ts.disableIncrementalParsing = false;
     function updateLanguageServiceSourceFile(sourceFile, scriptSnapshot, version, textChangeRange, aggressiveChecks) {
-        // If we were given a text change range, and our version or open-ness changed, then
+        // If we were given a text change range, and our version or open-ness changed, then 
         // incrementally parse this file.
         if (textChangeRange) {
             if (version !== sourceFile.version) {
@@ -38565,7 +38565,7 @@ var ts;
                 bucket.set(fileName, entry);
             }
             else {
-                // We have an entry for this file.  However, it may be for a different version of
+                // We have an entry for this file.  However, it may be for a different version of 
                 // the script snapshot.  If so, update it appropriately.  Otherwise, we can just
                 // return it as is.
                 if (entry.sourceFile.version !== version) {
@@ -39020,10 +39020,10 @@ var ts;
             if (programUpToDate()) {
                 return;
             }
-            // IMPORTANT - It is critical from this moment onward that we do not check
+            // IMPORTANT - It is critical from this moment onward that we do not check 
             // cancellation tokens.  We are about to mutate source files from a previous program
             // instance.  If we cancel midway through, we may end up in an inconsistent state where
-            // the program points to old source files that have been invalidated because of
+            // the program points to old source files that have been invalidated because of 
             // incremental parsing.
             var oldSettings = program && program.getCompilerOptions();
             var newSettings = hostCache.compilationSettings();
@@ -39039,7 +39039,7 @@ var ts;
                 writeFile: function (fileName, data, writeByteOrderMark) { },
                 getCurrentDirectory: function () { return host.getCurrentDirectory(); }
             });
-            // Release any files we have acquired in the old program but are
+            // Release any files we have acquired in the old program but are 
             // not part of the new program.
             if (program) {
                 var oldSourceFiles = program.getSourceFiles();
@@ -39055,7 +39055,7 @@ var ts;
             // It needs to be cleared to allow all collected snapshots to be released
             hostCache = undefined;
             program = newProgram;
-            // Make sure all the nodes in the program are both bound, and have their parent
+            // Make sure all the nodes in the program are both bound, and have their parent 
             // pointers set property.
             program.getTypeChecker();
             return;
@@ -39075,7 +39075,7 @@ var ts;
                     // Check if the old program had this file already
                     var oldSourceFile = program && program.getSourceFile(fileName);
                     if (oldSourceFile) {
-                        // We already had a source file for this file name.  Go to the registry to
+                        // We already had a source file for this file name.  Go to the registry to 
                         // ensure that we get the right up to date version of it.  We need this to
                         // address the following 'race'.  Specifically, say we have the following:
                         //
@@ -39086,15 +39086,15 @@ var ts;
                         //      LS2
                         //
                         // Each LS has a reference to file 'foo.ts' at version 1.  LS2 then updates
-                        // it's version of 'foo.ts' to version 2.  This will cause LS2 and the
-                        // DocumentRegistry to have version 2 of the document.  HOwever, LS1 will
+                        // it's version of 'foo.ts' to version 2.  This will cause LS2 and the 
+                        // DocumentRegistry to have version 2 of the document.  HOwever, LS1 will 
                         // have version 1.  And *importantly* this source file will be *corrupt*.
                         // The act of creating version 2 of the file irrevocably damages the version
                         // 1 file.
                         //
                         // So, later when we call into LS1, we need to make sure that it doesn't use
                         // it's source file any more, and instead defers to DocumentRegistry to get
-                        // either version 1, version 2 (or some other version) depending on what the
+                        // either version 1, version 2 (or some other version) depending on what the 
                         // host says should be used.
                         return documentRegistry.updateDocument(fileName, newSettings, hostFileInformation.scriptSnapshot, hostFileInformation.version);
                     }
@@ -39153,7 +39153,7 @@ var ts;
             synchronizeHostData();
             var targetSourceFile = getValidSourceFile(fileName);
             // For JavaScript files, we don't want to report the normal typescript semantic errors.
-            // Instead, we just report errors for using TypeScript-only constructs from within a
+            // Instead, we just report errors for using TypeScript-only constructs from within a 
             // JavaScript file.
             if (ts.isJavaScript(fileName)) {
                 return getJavaScriptSemanticDiagnostics(targetSourceFile);
@@ -39398,8 +39398,8 @@ var ts;
                 log("Returning an empty list because completion was requested in an invalid position.");
                 return undefined;
             }
-            // Find the node where completion is requested on, in the case of a completion after
-            // a dot, it is the member access expression other wise, it is a request for all
+            // Find the node where completion is requested on, in the case of a completion after 
+            // a dot, it is the member access expression other wise, it is a request for all 
             // visible symbols in the scope, and the node is the current location.
             var node = currentToken;
             var isRightOfDot = false;
@@ -39463,7 +39463,7 @@ var ts;
                         }
                     }
                     if (isJavaScriptFile && type.flags & 16384 /* Union */) {
-                        // In javascript files, for union types, we don't just get the members that
+                        // In javascript files, for union types, we don't just get the members that 
                         // the individual types have in common, we also include all the members that
                         // each individual type has.  This is because we're going to add all identifiers
                         // anyways.  So we might as well elevate the members that were at least part
@@ -39522,10 +39522,10 @@ var ts;
                     // aggregating completion candidates. This is achieved in 'getScopeNode'
                     // by finding the first node that encompasses a position, accounting for whether a node
                     // is "complete" to decide whether a position belongs to the node.
-                    //
+                    // 
                     // However, at the end of an identifier, we are interested in the scope of the identifier
                     // itself, but fall outside of the identifier. For instance:
-                    //
+                    // 
                     //      xyz => x$
                     //
                     // the cursor is outside of both the 'x' and the arrow function 'xyz => x',
@@ -39574,7 +39574,7 @@ var ts;
             }
             function showCompletionsInImportsClause(node) {
                 if (node) {
-                    // import {|
+                    // import {| 
                     // import {a,|
                     if (node.kind === 14 /* OpenBraceToken */ || node.kind === 23 /* CommaToken */) {
                         return node.parent.kind === 215 /* NamedImports */;
@@ -39860,17 +39860,17 @@ var ts;
                 return entries;
             }
             function createCompletionEntry(symbol, location) {
-                // Try to get a valid display name for this symbol, if we could not find one, then ignore it.
+                // Try to get a valid display name for this symbol, if we could not find one, then ignore it. 
                 // We would like to only show things that can be added after a dot, so for instance numeric properties can
                 // not be accessed with a dot (a.1 <- invalid)
                 var displayName = getCompletionEntryDisplayNameForSymbol(symbol, program.getCompilerOptions().target, true);
                 if (!displayName) {
                     return undefined;
                 }
-                // TODO(drosen): Right now we just permit *all* semantic meanings when calling
-                // 'getSymbolKind' which is permissible given that it is backwards compatible; but
+                // TODO(drosen): Right now we just permit *all* semantic meanings when calling 
+                // 'getSymbolKind' which is permissible given that it is backwards compatible; but 
                 // really we should consider passing the meaning for the node so that we don't report
-                // that a suggestion for a value is an interface.  We COULD also just do what
+                // that a suggestion for a value is an interface.  We COULD also just do what 
                 // 'getSymbolModifiers' does, which is to use the first declaration.
                 // Use a 'sortText' of 0' so that all symbol completion entries come before any other
                 // entries (like JavaScript identifier entries).
@@ -39910,8 +39910,8 @@ var ts;
                 var symbols = completionData.symbols, location_2 = completionData.location;
                 // Find the symbol with the matching entry name.
                 var target = program.getCompilerOptions().target;
-                // We don't need to perform character checks here because we're only comparing the
-                // name against 'entryName' (which is known to be good), not building a new
+                // We don't need to perform character checks here because we're only comparing the 
+                // name against 'entryName' (which is known to be good), not building a new 
                 // completion entry.
                 var symbol = ts.forEach(symbols, function (s) { return getCompletionEntryDisplayNameForSymbol(s, target, false) === entryName ? s : undefined; });
                 if (symbol) {
@@ -40005,7 +40005,7 @@ var ts;
                         ts.Debug.assert(!!(rootSymbolFlags & 8192 /* Method */));
                     });
                     if (!unionPropertyKind) {
-                        // If this was union of all methods,
+                        // If this was union of all methods, 
                         //make sure it has call signatures before we can label it as method
                         var typeOfUnionProperty = typeChecker.getTypeOfSymbolAtLocation(symbol, location);
                         if (typeOfUnionProperty.getCallSignatures().length) {
@@ -40068,7 +40068,7 @@ var ts;
                         var useConstructSignatures = callExpression.kind === 161 /* NewExpression */ || callExpression.expression.kind === 91 /* SuperKeyword */;
                         var allSignatures = useConstructSignatures ? type.getConstructSignatures() : type.getCallSignatures();
                         if (!ts.contains(allSignatures, signature.target || signature)) {
-                            // Get the first signature if there
+                            // Get the first signature if there 
                             signature = allSignatures.length ? allSignatures[0] : undefined;
                         }
                         if (signature) {
@@ -40411,7 +40411,7 @@ var ts;
             var containerName = containerSymbol ? typeChecker.symbolToString(containerSymbol, node) : "";
             if (!tryAddConstructSignature(symbol, node, symbolKind, symbolName, containerName, result) &&
                 !tryAddCallSignature(symbol, node, symbolKind, symbolName, containerName, result)) {
-                // Just add all the declarations.
+                // Just add all the declarations. 
                 ts.forEach(declarations, function (declaration) {
                     result.push(createDefinitionInfo(declaration, symbolKind, symbolName, containerName));
                 });
@@ -40506,7 +40506,7 @@ var ts;
             }
             // Because name in short-hand property assignment has two different meanings: property name and property value,
             // using go-to-definition at such position should go to the variable declaration of the property value rather than
-            // go to the declaration of the property name (in this case stay at the same position). However, if go-to-definition
+            // go to the declaration of the property name (in this case stay at the same position). However, if go-to-definition 
             // is performed at the location of property access, we would like to go to definition of the property in the short-hand
             // assignment. This case and others are handled by the following code.
             if (node.parent.kind === 228 /* ShorthandPropertyAssignment */) {
@@ -40557,7 +40557,7 @@ var ts;
             var results = getOccurrencesAtPositionCore(fileName, position);
             if (results) {
                 var sourceFile = getCanonicalFileName(ts.normalizeSlashes(fileName));
-                // Get occurrences only supports reporting occurrences for the file queried.  So
+                // Get occurrences only supports reporting occurrences for the file queried.  So 
                 // filter down to that list.
                 results = ts.filter(results, function (r) { return getCanonicalFileName(ts.normalizeSlashes(r.fileName)) === sourceFile; });
             }
@@ -40677,7 +40677,7 @@ var ts;
                             case 66 /* BreakKeyword */:
                             case 71 /* ContinueKeyword */:
                                 if (hasKind(node.parent, 193 /* BreakStatement */) || hasKind(node.parent, 192 /* ContinueStatement */)) {
-                                    return getBreakOrContinueStatementOccurrences(node.parent);
+                                    return getBreakOrContinueStatementOccurences(node.parent);
                                 }
                                 break;
                             case 82 /* ForKeyword */:
@@ -40942,7 +40942,7 @@ var ts;
                     });
                     return ts.map(keywords, getHighlightSpanForNode);
                 }
-                function getBreakOrContinueStatementOccurrences(breakOrContinueStatement) {
+                function getBreakOrContinueStatementOccurences(breakOrContinueStatement) {
                     var owner = getBreakOrContinueOwner(breakOrContinueStatement);
                     if (owner) {
                         switch (owner.kind) {
@@ -41329,12 +41329,12 @@ var ts;
                     // If we are past the end, stop looking
                     if (position > end)
                         break;
-                    // We found a match.  Make sure it's not part of a larger word (i.e. the char
+                    // We found a match.  Make sure it's not part of a larger word (i.e. the char 
                     // before and after it have to be a non-identifier char).
                     var endPosition = position + symbolNameLength;
                     if ((position === 0 || !ts.isIdentifierPart(text.charCodeAt(position - 1), 2 /* Latest */)) &&
                         (endPosition === sourceLength || !ts.isIdentifierPart(text.charCodeAt(endPosition), 2 /* Latest */))) {
-                        // Found a real match.  Keep searching.
+                        // Found a real match.  Keep searching.  
                         positions.push(position);
                     }
                     position = text.indexOf(symbolName, position + symbolNameLength + 1);
@@ -41405,7 +41405,7 @@ var ts;
                         cancellationToken.throwIfCancellationRequested();
                         var referenceLocation = ts.getTouchingPropertyName(sourceFile, position);
                         if (!isValidReferencePosition(referenceLocation, searchText)) {
-                            // This wasn't the start of a token.  Check to see if it might be a
+                            // This wasn't the start of a token.  Check to see if it might be a 
                             // match in a comment or string if that's what the caller is asking
                             // for.
                             if ((findInStrings && isInString(position)) ||
@@ -41697,7 +41697,7 @@ var ts;
                         return aliasedSymbol;
                     }
                 }
-                // If the reference location is in an object literal, try to get the contextual type for the
+                // If the reference location is in an object literal, try to get the contextual type for the 
                 // object literal, lookup the property symbol in the contextual type, and use this symbol to
                 // compare to our searchSymbol
                 if (isNameOfPropertyAssignment(referenceLocation)) {
@@ -41712,7 +41712,7 @@ var ts;
                     if (searchSymbols.indexOf(rootSymbol) >= 0) {
                         return rootSymbol;
                     }
-                    // Finally, try all properties with the same name in any type the containing type extended or implemented, and
+                    // Finally, try all properties with the same name in any type the containing type extended or implemented, and 
                     // see if any is in the list
                     if (rootSymbol.parent && rootSymbol.parent.flags & (32 /* Class */ | 64 /* Interface */)) {
                         var result_3 = [];
@@ -42009,7 +42009,7 @@ var ts;
                 }
                 else if (isNameOfModuleDeclaration(nodeForStartPos)) {
                     // If this is name of a module declarations, check if this is right side of dotted module name
-                    // If parent of the module declaration which is parent of this node is module declaration and its body is the module declaration that this node is name of
+                    // If parent of the module declaration which is parent of this node is module declaration and its body is the module declaration that this node is name of 
                     // Then this name is name from dotted module
                     if (nodeForStartPos.parent.parent.kind === 208 /* ModuleDeclaration */ &&
                         nodeForStartPos.parent.parent.body === nodeForStartPos.parent) {
@@ -42227,7 +42227,7 @@ var ts;
                 for (var _i = 0, _a = docComment.tags; _i < _a.length; _i++) {
                     var tag = _a[_i];
                     // As we walk through each tag, classify the portion of text from the end of
-                    // the last tag (or the start of the entire doc comment) as 'comment'.
+                    // the last tag (or the start of the entire doc comment) as 'comment'.  
                     if (tag.pos !== pos) {
                         pushCommentRange(pos, tag.pos - pos);
                     }
@@ -42279,7 +42279,7 @@ var ts;
                 }
             }
             function classifyDisabledMergeCode(text, start, end) {
-                // Classify the line that the ======= marker is on as a comment.  Then just lex
+                // Classify the line that the ======= marker is on as a comment.  Then just lex 
                 // all further tokens and add them to the result.
                 for (var i = start; i < end; i++) {
                     if (ts.isLineBreak(text.charCodeAt(i))) {
@@ -42310,7 +42310,7 @@ var ts;
                     }
                 }
             }
-            // for accurate classification, the actual token should be passed in.  however, for
+            // for accurate classification, the actual token should be passed in.  however, for 
             // cases like 'disabled merge code' classification, we just get the token kind and
             // classify based on that instead.
             function classifyTokenType(tokenKind, token) {
@@ -42495,11 +42495,11 @@ var ts;
             return [];
         }
         function getTodoComments(fileName, descriptors) {
-            // Note: while getting todo comments seems like a syntactic operation, we actually
+            // Note: while getting todo comments seems like a syntactic operation, we actually 
             // treat it as a semantic operation here.  This is because we expect our host to call
             // this on every single file.  If we treat this syntactically, then that will cause
             // us to populate and throw away the tree in our syntax tree cache for each file.  By
-            // treating this as a semantic operation, we can access any tree without throwing
+            // treating this as a semantic operation, we can access any tree without throwing 
             // anything away.
             synchronizeHostData();
             var sourceFile = getValidSourceFile(fileName);
@@ -42523,7 +42523,7 @@ var ts;
                     //  0) The full match for the entire regexp.
                     //  1) The preamble to the message portion.
                     //  2) The message portion.
-                    //  3...N) The descriptor that was matched - by index.  'undefined' for each
+                    //  3...N) The descriptor that was matched - by index.  'undefined' for each 
                     //         descriptor that didn't match.  an actual value if it did match.
                     //
                     //  i.e. 'undefined' in position 3 above means TODO(jason) didn't match.
@@ -42545,7 +42545,7 @@ var ts;
                         }
                     }
                     ts.Debug.assert(descriptor !== undefined);
-                    // We don't want to match something like 'TODOBY', so we make sure a non
+                    // We don't want to match something like 'TODOBY', so we make sure a non 
                     // letter/digit follows the match.
                     if (isLetterOrDigit(fileContents.charCodeAt(matchPosition + descriptor.text.length))) {
                         continue;
@@ -42590,10 +42590,10 @@ var ts;
                 //      (?:(TODO\(jason\))|(HACK))
                 //
                 // Note that the outermost group is *not* a capture group, but the innermost groups
-                // *are* capture groups.  By capturing the inner literals we can determine after
+                // *are* capture groups.  By capturing the inner literals we can determine after 
                 // matching which descriptor we are dealing with.
                 var literals = "(?:" + ts.map(descriptors, function (d) { return "(" + escapeRegExp(d.text) + ")"; }).join("|") + ")";
-                // After matching a descriptor literal, the following regexp matches the rest of the
+                // After matching a descriptor literal, the following regexp matches the rest of the 
                 // text up to the end of the line (or */).
                 var endOfLineOrEndOfComment = /(?:$|\*\/)/.source;
                 var messageRemainder = /(?:.*?)/.source;
@@ -42753,7 +42753,7 @@ var ts;
         var scanner = ts.createScanner(2 /* Latest */, false);
         /// We do not have a full parser support to know when we should parse a regex or not
         /// If we consider every slash token to be a regex, we could be missing cases like "1/2/3", where
-        /// we have a series of divide operator. this list allows us to be more accurate by ruling out
+        /// we have a series of divide operator. this list allows us to be more accurate by ruling out 
         /// locations where a regexp cannot exist.
         var noRegexTable = [];
         noRegexTable[65 /* Identifier */] = true;
@@ -42796,7 +42796,7 @@ var ts;
                     keyword2 === 122 /* SetKeyword */ ||
                     keyword2 === 114 /* ConstructorKeyword */ ||
                     keyword2 === 109 /* StaticKeyword */) {
-                    // Allow things like "public get", "public constructor" and "public static".
+                    // Allow things like "public get", "public constructor" and "public static".  
                     // These are all legal.
                     return true;
                 }
@@ -42913,12 +42913,12 @@ var ts;
             // token.  So the classification will go back to being an identifier.  The moment the user
             // types again, number will become a keyword, then an identifier, etc. etc.
             //
-            // To try to avoid this problem, we avoid classifying contextual keywords as keywords
+            // To try to avoid this problem, we avoid classifying contextual keywords as keywords 
             // when the user is potentially typing something generic.  We just can't do a good enough
             // job at the lexical level, and so well leave it up to the syntactic classifier to make
             // the determination.
             //
-            // In order to determine if the user is potentially typing something generic, we use a
+            // In order to determine if the user is potentially typing something generic, we use a 
             // weak heuristic where we track < and > tokens.  It's a weak heuristic, but should
             // work well enough in practice.
             var angleBracketStack = 0;
@@ -42934,7 +42934,7 @@ var ts;
                         token = 65 /* Identifier */;
                     }
                     else if (isKeyword(lastNonTriviaToken) && isKeyword(token) && !canFollow(lastNonTriviaToken, token)) {
-                        // We have two keywords in a row.  Only treat the second as a keyword if
+                        // We have two keywords in a row.  Only treat the second as a keyword if 
                         // it's a sequence that could legally occur in the language.  Otherwise
                         // treat it as an identifier.  This way, if someone writes "private var"
                         // we recognize that 'var' is actually an identifier here.
@@ -42942,7 +42942,7 @@ var ts;
                     }
                     else if (lastNonTriviaToken === 65 /* Identifier */ &&
                         token === 24 /* LessThanToken */) {
-                        // Could be the start of something generic.  Keep track of that by bumping
+                        // Could be the start of something generic.  Keep track of that by bumping 
                         // up the current count of generic contexts we may be in.
                         angleBracketStack++;
                     }
@@ -42957,7 +42957,7 @@ var ts;
                         token === 113 /* BooleanKeyword */ ||
                         token === 124 /* SymbolKeyword */) {
                         if (angleBracketStack > 0 && !syntacticClassifierAbsent) {
-                            // If it looks like we're could be in something generic, don't classify this
+                            // If it looks like we're could be in something generic, don't classify this 
                             // as a keyword.  We may just get overwritten by the syntactic classifier,
                             // causing a noisy experience for the user.
                             token = 65 /* Identifier */;
@@ -43052,8 +43052,8 @@ var ts;
                     return;
                 }
                 if (start === 0 && offset > 0) {
-                    // We're classifying the first token, and this was a case where we prepended
-                    // text.  We should consider the start of this token to be at the start of
+                    // We're classifying the first token, and this was a case where we prepended 
+                    // text.  We should consider the start of this token to be at the start of 
                     // the original text.
                     start += offset;
                 }
@@ -43200,7 +43200,7 @@ var ts;
     }
     initializeServices();
 })(ts || (ts = {}));
-// Copyright (c) Microsoft. All rights reserved. Licensed under the Apache License, Version 2.0.
+// Copyright (c) Microsoft. All rights reserved. Licensed under the Apache License, Version 2.0. 
 // See LICENSE.txt in the project root for complete license information.
 /// <reference path='services.ts' />
 /* @internal */
@@ -43221,8 +43221,8 @@ var ts;
             if (sourceFile.getLineAndCharacterOfPosition(tokenAtLocation.getStart()).line > lineOfPosition) {
                 // Get previous token if the token is returned starts on new line
                 // eg: let x =10; |--- cursor is here
-                //     let y = 10;
-                // token at position will return let keyword on second line as the token but we would like to use
+                //     let y = 10; 
+                // token at position will return let keyword on second line as the token but we would like to use 
                 // token on same line if trailing trivia (comments or white spaces on same line) part of the last token on that line
                 tokenAtLocation = ts.findPrecedingToken(tokenAtLocation.pos, sourceFile);
                 // Its a blank line
