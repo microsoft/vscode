@@ -413,6 +413,7 @@ export class Minimap extends ViewPart {
 		this._slider = createFastDomNode(document.createElement('div'));
 		this._slider.setPosition('absolute');
 		this._slider.setClassName('minimap-slider');
+		dom.hintGPULayer(this._slider.domNode);
 		this._domNode.appendChild(this._slider);
 
 		this._tokensColorTracker = MinimapTokensColorTracker.getInstance();
