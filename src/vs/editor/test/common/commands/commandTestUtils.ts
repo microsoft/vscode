@@ -5,14 +5,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Cursor } from 'vs/editor/common/controller/cursor';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
-import { viewModelHelper } from 'vs/editor/test/common/editorTestUtils';
+import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 
 export function testCommand(
 	lines: string[],
@@ -22,22 +20,19 @@ export function testCommand(
 	expectedLines: string[],
 	expectedSelection: Selection
 ): void {
-
 	let model = Model.createFromString(lines.join('\n'), undefined, languageIdentifier);
-	let config = new TestConfiguration(null);
-	let cursor = new Cursor(config, model, viewModelHelper(model), false);
+	withMockCodeEditor(null, { model: model }, (editor, cursor) => {
 
-	cursor.setSelections('tests', [selection]);
+		cursor.setSelections('tests', [selection]);
 
-	cursor.trigger('tests', editorCommon.Handler.ExecuteCommand, commandFactory(cursor.getSelection()));
+		cursor.trigger('tests', editorCommon.Handler.ExecuteCommand, commandFactory(cursor.getSelection()));
 
-	assert.deepEqual(model.getLinesContent(), expectedLines);
+		assert.deepEqual(model.getLinesContent(), expectedLines);
 
-	let actualSelection = cursor.getSelection();
-	assert.deepEqual(actualSelection.toString(), expectedSelection.toString());
+		let actualSelection = cursor.getSelection();
+		assert.deepEqual(actualSelection.toString(), expectedSelection.toString());
 
-	cursor.dispose();
-	config.dispose();
+	});
 	model.dispose();
 }
 

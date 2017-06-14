@@ -20,6 +20,7 @@ import { Extensions, IColorRegistry, ColorIdentifier, editorBackground, editorFo
 import { ThemeType } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/platform';
 import { WorkbenchThemeService, IColorCustomizations } from "vs/workbench/services/themes/electron-browser/workbenchThemeService";
+import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 
 let colorRegistry = <IColorRegistry>Registry.as(Extensions.ColorContribution);
 
@@ -32,7 +33,6 @@ export class ColorThemeData implements IColorTheme {
 	label: string;
 	settingsId: string;
 	description?: string;
-	selector: string;
 	tokenColors?: ITokenColorizationRule[];
 	isLoaded: boolean;
 	path?: string;
@@ -56,13 +56,8 @@ export class ColorThemeData implements IColorTheme {
 		return colorRegistry.resolveDefaultColor(colorId, this);
 	}
 
-	public isDefault(colorId: ColorIdentifier): boolean {
-		let color = this.colorMap[colorId];
-		if (types.isUndefined(color)) {
-			return true;
-		}
-		let defaultValue = this.getDefault(colorId);
-		return color === null ? defaultValue === null : color.equals(defaultValue);
+	public defines(colorId: ColorIdentifier): boolean {
+		return this.customColorMap.hasOwnProperty(colorId) || this.colorMap.hasOwnProperty(colorId);
 	}
 
 	public setCustomColors(colors: IColorCustomizations) {
@@ -115,7 +110,7 @@ export class ColorThemeData implements IColorTheme {
 			id: this.id,
 			label: this.label,
 			settingsId: this.settingsId,
-			selector: this.selector,
+			selector: this.id.split(' ').join('.'), // to not break old clients
 			tokenColors: this.tokenColors,
 			extensionData: this.extensionData,
 			colorMap: colorMapData
@@ -134,6 +129,16 @@ export class ColorThemeData implements IColorTheme {
 			default: return 'dark';
 		}
 	}
+}
+
+export function createUnloadedTheme(id: string): ColorThemeData {
+	let themeData = new ColorThemeData();
+	themeData.id = id;
+	themeData.label = '';
+	themeData.settingsId = null;
+	themeData.isLoaded = false;
+	themeData.tokenColors = [{ settings: {} }];
+	return themeData;
 }
 
 export function fromStorageData(input: string): ColorThemeData {
@@ -164,7 +169,6 @@ export function fromExtensionTheme(theme: IThemeExtensionPoint, normalizedAbsolu
 	themeData.id = `${baseTheme} ${themeSelector}`;
 	themeData.label = theme.label || Paths.basename(theme.path);
 	themeData.settingsId = theme.id || themeData.label;
-	themeData.selector = `${baseTheme}.${themeSelector}`;
 	themeData.description = theme.description;
 	themeData.path = normalizedAbsolutePath;
 	themeData.extensionData = extensionData;
@@ -186,7 +190,7 @@ function _loadColorThemeFromFile(themePath: string, resultRules: ITokenColorizat
 			let errors: Json.ParseError[] = [];
 			let contentValue = Json.parse(content.toString(), errors);
 			if (errors.length > 0) {
-				return TPromise.wrapError(new Error(nls.localize('error.cannotparsejson', "Problems parsing JSON theme file: {0}", errors.map(e => Json.getParseErrorMessage(e.error)).join(', '))));
+				return TPromise.wrapError(new Error(nls.localize('error.cannotparsejson', "Problems parsing JSON theme file: {0}", errors.map(e => getParseErrorMessage(e.error)).join(', '))));
 			}
 			let includeCompletes = TPromise.as(null);
 			if (contentValue.include) {

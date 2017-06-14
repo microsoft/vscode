@@ -11,7 +11,5 @@
 	"paste": "Einfügen",
 	"selectAll": "Alles auswählen",
 	"confirmOpen": "Möchten Sie \"{0}\" Ordner wirklich öffnen?",
-	"confirmOpenButton": "&&Öffnen",
-	"developer": "Entwickler",
-	"file": "Datei"
+	"confirmOpenButton": "&&Öffnen"
 }

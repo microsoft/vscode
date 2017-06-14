@@ -57,6 +57,7 @@ const schema: IJSONSchema = {
 		shellConfiguration: {
 			type: 'object',
 			additionalProperties: false,
+			description: nls.localize('JsonSchema.shellConfiguration', 'Configures the shell to be used.'),
 			properties: {
 				executable: {
 					type: 'string',

@@ -10,5 +10,15 @@
 	"caret": "編輯器游標的色彩。",
 	"editorWhitespaces": "編輯器中空白字元的色彩。",
 	"editorIndentGuides": "編輯器縮排輔助線的色彩。",
-	"editorLineNumbers": "編輯器行號的色彩。"
+	"editorLineNumbers": "編輯器行號的色彩。",
+	"editorRuler": "編輯器尺規的色彩",
+	"editorCodeLensForeground": "編輯器程式碼濾鏡的前景色彩",
+	"editorBracketMatchBackground": "成對括號背景色彩",
+	"editorBracketMatchBorder": "成對括號邊框色彩",
+	"editorOverviewRulerBorder": "預覽檢視編輯器尺規的邊框色彩.",
+	"editorGutter": "編輯器邊框的背景顏色,包含行號與字形圖示的邊框.",
+	"errorForeground": "編輯器內錯誤提示線的前景色彩.",
+	"errorBorder": "編輯器內錯誤提示線的邊框色彩.",
+	"warningForeground": "編輯器內警告提示線的前景色彩.",
+	"warningBorder": "編輯器內警告提示線的邊框色彩."
 }

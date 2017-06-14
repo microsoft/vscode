@@ -10,7 +10,6 @@ import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import * as editorColorRegistry from 'vs/editor/common/view/editorColorRegistry';
 import * as wordHighlighter from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import { ansiColorIdentifiers } from 'vs/workbench/parts/terminal/electron-browser/terminalColorRegistry';
-import { editorHoverHighlight } from 'vs/editor/contrib/hover/browser/hover';
 import { peekViewEditorMatchHighlight, peekViewResultsMatchHighlight } from 'vs/editor/contrib/referenceSearch/browser/referencesWidget';
 
 const settingToColorIdMapping: { [settingId: string]: string[] } = {};
@@ -56,7 +55,7 @@ addSettingMapping('inactiveSelection', colorRegistry.editorInactiveSelection);
 addSettingMapping('selectionHighlightColor', colorRegistry.editorSelectionHighlight);
 addSettingMapping('findMatchHighlight', colorRegistry.editorFindMatchHighlight);
 addSettingMapping('currentFindMatchHighlight', colorRegistry.editorFindMatch);
-addSettingMapping('hoverHighlight', editorHoverHighlight);
+addSettingMapping('hoverHighlight', colorRegistry.editorHoverHighlight);
 addSettingMapping('wordHighlight', wordHighlighter.editorWordHighlight);
 addSettingMapping('wordHighlightStrong', wordHighlighter.editorWordHighlightStrong);
 addSettingMapping('findRangeHighlight', colorRegistry.editorFindRangeHighlight);

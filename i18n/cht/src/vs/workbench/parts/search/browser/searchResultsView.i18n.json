@@ -6,7 +6,5 @@
 {
 	"searchMatches": "找到 {0} 個相符",
 	"searchMatch": "找到 {0} 個相符",
-	"fileMatchAriaLabel": "資料夾 {2} 的檔案 {1} 中有 {0} 個相符，搜尋結果",
-	"replacePreviewResultAria": "取代預覽結果，{0}",
-	"searchResultAria": "{0}，搜尋結果"
+	"fileMatchAriaLabel": "資料夾 {2} 的檔案 {1} 中有 {0} 個相符，搜尋結果"
 }

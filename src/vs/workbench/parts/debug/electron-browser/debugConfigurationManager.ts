@@ -272,7 +272,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 	}
 
 	public getCompound(name: string): debug.ICompound {
-		if (!this.contextService.getWorkspace()) {
+		if (!this.contextService.hasWorkspace()) {
 			return null;
 		}
 
@@ -302,7 +302,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 	}
 
 	public getConfiguration(name: string): debug.IConfig {
-		if (!this.contextService.getWorkspace()) {
+		if (!this.contextService.hasWorkspace()) {
 			return null;
 		}
 
@@ -311,11 +311,11 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 			return null;
 		}
 
-		return config.configurations.filter(config => config && config.name === name).pop();
+		return config.configurations.filter(config => config && config.name === name).shift();
 	}
 
 	public resloveConfiguration(config: debug.IConfig): TPromise<debug.IConfig> {
-		if (!this.contextService.getWorkspace()) {
+		if (!this.contextService.hasWorkspace()) {
 			return TPromise.as(config);
 		}
 
@@ -409,7 +409,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 			}
 		}
 
-		return this.quickOpenService.pick([...this.adapters.filter(a => a.hasInitialConfiguration()), { label: 'More...' }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
+		return this.quickOpenService.pick([...this.adapters.filter(a => a.hasInitialConfiguration()), { label: 'More...', separator: { border: true } }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
 			.then(picked => {
 				if (picked instanceof Adapter) {
 					return picked;

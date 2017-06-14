@@ -1,0 +1,127 @@
+{
+  "name": "merge-conflict",
+  "publisher": "vscode",
+  "displayName": "merge-conflict",
+  "description": "Merge Conflict",
+  "version": "0.7.0",
+  "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
+  "engines": {
+    "vscode": "^1.5.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "*"
+  ],
+  "main": "./out/extension",
+  "scripts": {
+    "compile": "gulp compile-extension:merge-conflict",
+    "watch": "gulp watch-extension:merge-conflict"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "category": "%command.category%",
+        "title": "%command.accept.all-incoming%",
+        "command": "merge-conflict.accept.all-incoming"
+      },
+      {
+        "category": "%command.category%",
+        "title": "%command.accept.all-both%",
+        "command": "merge-conflict.accept.all-both"
+      },
+      {
+        "category": "%command.category%",
+        "title": "%command.accept.current%",
+        "command": "merge-conflict.accept.current"
+      },
+      {
+        "category": "%command.category%",
+        "title": "%command.accept.incoming%",
+        "command": "merge-conflict.accept.incoming"
+      },
+      {
+        "category": "%command.category%",
+        "title": "Accept selection",
+        "command": "merge-conflict.accept.selection"
+      },
+      {
+        "category": "%command.category%",
+        "title": "%command.accept.both%",
+        "command": "merge-conflict.accept.both"
+      },
+      {
+        "category": "%command.category%",
+        "title": "%command.next%",
+        "command": "merge-conflict.next"
+      },
+      {
+        "category": "%command.category%",
+        "title": "%command.previous%",
+        "command": "merge-conflict.previous"
+      },
+      {
+        "category": "%command.category%",
+        "title": "%command.compare%",
+        "command": "merge-conflict.compare"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "merge-conflict.next",
+        "when": "editorTextFocus",
+        "key": "alt+m down"
+      },
+      {
+        "command": "merge-conflict.previous",
+        "when": "editorTextFocus",
+        "key": "alt+m up"
+      },
+      {
+        "command": "merge-conflict.accept.selection",
+        "when": "editorTextFocus",
+        "key": "alt+m enter"
+      },
+      {
+        "command": "merge-conflict.accept.current",
+        "when": "editorTextFocus",
+        "key": "alt+m 1"
+      },
+      {
+        "command": "merge-conflict.accept.incoming",
+        "when": "editorTextFocus",
+        "key": "alt+m 2"
+      },
+      {
+        "command": "merge-conflict.accept.both",
+        "when": "editorTextFocus",
+        "key": "alt+m 3"
+      }
+    ],
+    "configuration": {
+      "title": "%config.title%",
+      "properties": {
+        "merge-conflict.codeLens.enabled": {
+          "type": "boolean",
+          "description": "%config.codeLensEnabled%",
+          "default": true
+        },
+        "merge-conflict.decorators.enabled": {
+          "type": "boolean",
+          "description": "%config.decoratorsEnabled%",
+          "default": true
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "vscode-extension-telemetry": "^0.0.7",
+    "vscode-nls": "^2.0.2"
+  },
+  "devDependencies": {
+    "@types/mocha": "^2.2.41",
+    "@types/node": "^7.0.4",
+    "mocha": "^3.2.0"
+  }
+}

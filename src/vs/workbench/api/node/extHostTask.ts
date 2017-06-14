@@ -4,17 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as UUID from 'vs/base/common/uuid';
 import { asWinJsPromise } from 'vs/base/common/async';
 
-import * as Problems from 'vs/platform/markers/common/problemMatcher';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as TaskSystem from 'vs/workbench/parts/tasks/common/tasks';
 
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { MainContext, MainThreadTaskShape, ExtHostTaskShape } from 'vs/workbench/api/node/extHost.protocol';
-import { fromDiagnosticSeverity } from 'vs/workbench/api/node/extHostTypeConverters';
 
 import * as types from 'vs/workbench/api/node/extHostTypes';
 import * as vscode from 'vscode';
@@ -23,6 +22,7 @@ interface StringMap<V> {
 	[key: string]: V;
 }
 
+/*
 namespace ProblemPattern {
 	export function from(value: vscode.ProblemPattern | vscode.MultiLineProblemPattern): Problems.ProblemPattern | Problems.MultiLineProblemPattern {
 		if (value === void 0 || value === null) {
@@ -144,7 +144,7 @@ namespace WatchingPattern {
 	}
 }
 
-namespace WathingMatcher {
+namespace BackgroundMonitor {
 	export function from(value: vscode.BackgroundMonitor): Problems.WatchingMatcher {
 		if (value === void 0 || value === null) {
 			return undefined;
@@ -159,13 +159,13 @@ namespace WathingMatcher {
 }
 
 namespace ProblemMatcher {
-	export function from(values: vscode.ProblemMatcher[]): Problems.ProblemMatcher[] {
+	export function from(values: (string | vscode.ProblemMatcher)[]): (string | Problems.ProblemMatcher)[] {
 		if (values === void 0 || values === null) {
 			return undefined;
 		}
-		let result: Problems.ProblemMatcher[];
+		let result: (string | Problems.ProblemMatcher)[] = [];
 		for (let value of values) {
-			let converted = fromSingle(value);
+			let converted = typeof value === 'string' ? value : fromSingle(value);
 			if (converted) {
 				result.push(converted);
 			}
@@ -186,33 +186,33 @@ namespace ProblemMatcher {
 			filePrefix: location.prefix,
 			pattern: ProblemPattern.from(problemMatcher.pattern),
 			severity: fromDiagnosticSeverity(problemMatcher.severity),
-
 		};
 		return result;
 	}
 }
+*/
 
-namespace RevealKind {
-	export function from(value: vscode.RevealKind): TaskSystem.ShowOutput {
+namespace TaskRevealKind {
+	export function from(value: vscode.TaskRevealKind): TaskSystem.RevealKind {
 		if (value === void 0 || value === null) {
-			return TaskSystem.ShowOutput.Always;
+			return TaskSystem.RevealKind.Always;
 		}
 		switch (value) {
-			case types.RevealKind.Silent:
-				return TaskSystem.ShowOutput.Silent;
-			case types.RevealKind.Never:
-				return TaskSystem.ShowOutput.Never;
+			case types.TaskRevealKind.Silent:
+				return TaskSystem.RevealKind.Silent;
+			case types.TaskRevealKind.Never:
+				return TaskSystem.RevealKind.Never;
 		}
-		return TaskSystem.ShowOutput.Always;
+		return TaskSystem.RevealKind.Always;
 	}
 }
 
 namespace TerminalBehaviour {
-	export function from(value: vscode.TerminalBehaviour): { showOutput: TaskSystem.ShowOutput, echo: boolean } {
+	export function from(value: vscode.TaskTerminalBehavior): TaskSystem.TerminalBehavior {
 		if (value === void 0 || value === null) {
-			return { showOutput: TaskSystem.ShowOutput.Always, echo: false };
+			return { reveal: TaskSystem.RevealKind.Always, echo: false };
 		}
-		return { showOutput: RevealKind.from(value.reveal), echo: !!value.echo };
+		return { reveal: TaskRevealKind.from(value.reveal), echo: !!value.echo };
 	}
 }
 
@@ -231,7 +231,10 @@ namespace Strings {
 }
 
 namespace CommandOptions {
-	export function from(value: { cwd?: string; env?: { [key: string]: string; } }): TaskSystem.CommandOptions {
+	function isShellOptions(value: any): value is vscode.ShellTaskOptions {
+		return value && typeof value.executable === 'string';
+	}
+	export function from(value: vscode.ShellTaskOptions | vscode.ProcessTaskOptions): TaskSystem.CommandOptions {
 		if (value === void 0 || value === null) {
 			return undefined;
 		}
@@ -249,14 +252,17 @@ namespace CommandOptions {
 				}
 			});
 		}
+		if (isShellOptions(value)) {
+			result.shell = ShellConfiguration.from(value);
+		}
 		return result;
 	}
 }
 
 namespace ShellConfiguration {
-	export function from(value: { executable?: string, args?: string[] }): boolean | TaskSystem.ShellConfiguration {
-		if (value === void 0 || value === null || typeof value.executable !== 'string') {
-			return true;
+	export function from(value: { executable?: string, args?: string[] }): TaskSystem.ShellConfiguration {
+		if (value === void 0 || value === null || !value.executable) {
+			return undefined;
 		}
 
 		let result: TaskSystem.ShellConfiguration = {
@@ -269,7 +275,7 @@ namespace ShellConfiguration {
 
 namespace Tasks {
 
-	export function from(tasks: vscode.Task[], uuidMap: UUIDMap): TaskSystem.Task[] {
+	export function from(tasks: vscode.Task[], extension: IExtensionDescription, uuidMap: UUIDMap): TaskSystem.Task[] {
 		if (tasks === void 0 || tasks === null) {
 			return [];
 		}
@@ -277,7 +283,7 @@ namespace Tasks {
 		try {
 			uuidMap.start();
 			for (let task of tasks) {
-				let converted = fromSingle(task, uuidMap);
+				let converted = fromSingle(task, extension, uuidMap);
 				if (converted) {
 					result.push(converted);
 				}
@@ -288,8 +294,8 @@ namespace Tasks {
 		return result;
 	}
 
-	function fromSingle(task: vscode.Task, uuidMap: UUIDMap): TaskSystem.Task {
-		if (typeof task.name !== 'string' || typeof task.identifier !== 'string') {
+	function fromSingle(task: vscode.Task, extension: IExtensionDescription, uuidMap: UUIDMap): TaskSystem.Task {
+		if (typeof task.name !== 'string') {
 			return undefined;
 		}
 		let command: TaskSystem.CommandConfiguration;
@@ -303,18 +309,22 @@ namespace Tasks {
 		if (command === void 0) {
 			return undefined;
 		}
-		let behaviour = TerminalBehaviour.from(task.terminal);
-		command.echo = behaviour.echo;
+		let source = {
+			kind: TaskSystem.TaskSourceKind.Extension,
+			label: typeof task.source === 'string' ? task.source : extension.name,
+			detail: extension.id
+		};
+		let label = nls.localize('task.label', '{0}: {1}', source.label, task.name);
 		let result: TaskSystem.Task = {
 			_id: uuidMap.getUUID(task.identifier),
+			_source: source,
+			_label: label,
 			name: task.name,
-			identifier: task.identifier,
+			identifier: task.identifier ? task.identifier : `${extension.id}.${task.name}`,
 			group: types.TaskGroup.is(task.group) ? task.group : undefined,
 			command: command,
-			showOutput: behaviour.showOutput,
 			isBackground: !!task.isBackground,
-			suppressTaskName: true,
-			problemMatchers: ProblemMatcher.from(task.problemMatchers)
+			problemMatchers: task.problemMatchers.slice()
 		};
 		return result;
 	}
@@ -326,8 +336,9 @@ namespace Tasks {
 		let result: TaskSystem.CommandConfiguration = {
 			name: value.process,
 			args: Strings.from(value.args),
-			isShellCommand: false,
-			echo: false,
+			type: TaskSystem.CommandType.Process,
+			suppressTaskName: true,
+			terminalBehavior: TerminalBehaviour.from(value.terminalBehavior)
 		};
 		if (value.options) {
 			result.options = CommandOptions.from(value.options);
@@ -341,8 +352,8 @@ namespace Tasks {
 		}
 		let result: TaskSystem.CommandConfiguration = {
 			name: value.commandLine,
-			isShellCommand: ShellConfiguration.from(value.options),
-			echo: false
+			type: TaskSystem.CommandType.Shell,
+			terminalBehavior: TerminalBehaviour.from(value.terminalBehavior)
 		};
 		if (value.options) {
 			result.options = CommandOptions.from(value.options);
@@ -422,7 +433,7 @@ export class ExtHostTask extends ExtHostTaskShape {
 		}
 		return asWinJsPromise(token => handler.provider.provideTasks(token)).then(value => {
 			return {
-				tasks: Tasks.from(value, this.getUUIDMap(handler.extension.id)),
+				tasks: Tasks.from(value, handler.extension, this.getUUIDMap(handler.extension.id)),
 				extension: handler.extension
 			};
 		});

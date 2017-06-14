@@ -29,7 +29,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { NULL_STATE, nullTokenize } from 'vs/editor/common/modes/nullMode';
 import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/common/services/standaloneThemeService';
 import { Token } from 'vs/editor/common/core/token';
@@ -55,9 +55,9 @@ function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: H
 	}
 
 	let simpleEditorModelResolverService: SimpleEditorModelResolverService = null;
-	if (!services.has(ITextModelResolverService)) {
+	if (!services.has(ITextModelService)) {
 		simpleEditorModelResolverService = new SimpleEditorModelResolverService();
-		services.set(ITextModelResolverService, simpleEditorModelResolverService);
+		services.set(ITextModelService, simpleEditorModelResolverService);
 	}
 
 	if (!services.has(IOpenerService)) {
@@ -125,7 +125,6 @@ export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorC
 			services.get(IContextKeyService),
 			services.get(IKeybindingService),
 			services.get(IContextViewService),
-			services.get(IStandaloneThemeService),
 			services.get(IEditorWorkerService),
 			services.get(ICodeEditorService),
 			services.get(IStandaloneThemeService)
@@ -310,6 +309,13 @@ export function defineTheme(themeName: string, themeData: IStandaloneThemeData):
 }
 
 /**
+ * Switches to a theme.
+ */
+export function setTheme(themeName: string): void {
+	StaticServices.standaloneThemeService.get().setTheme(themeName);
+}
+
+/**
  * @internal
  */
 export function createMonacoEditorAPI(): typeof monaco.editor {
@@ -336,6 +342,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		colorizeModelLine: colorizeModelLine,
 		tokenize: tokenize,
 		defineTheme: defineTheme,
+		setTheme: setTheme,
 
 		// enums
 		ScrollbarVisibility: ScrollbarVisibility,
@@ -354,14 +361,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		RenderMinimap: editorOptions.RenderMinimap,
 
 		// classes
-		InternalEditorScrollbarOptions: <any>editorOptions.InternalEditorScrollbarOptions,
-		InternalEditorMinimapOptions: <any>editorOptions.InternalEditorMinimapOptions,
-		EditorWrappingInfo: <any>editorOptions.EditorWrappingInfo,
-		InternalEditorViewOptions: <any>editorOptions.InternalEditorViewOptions,
-		EditorContribOptions: <any>editorOptions.EditorContribOptions,
 		InternalEditorOptions: <any>editorOptions.InternalEditorOptions,
-		OverviewRulerPosition: <any>editorOptions.OverviewRulerPosition,
-		EditorLayoutInfo: <any>editorOptions.EditorLayoutInfo,
 		BareFontInfo: <any>BareFontInfo,
 		FontInfo: <any>FontInfo,
 		TextModelResolvedOptions: <any>editorCommon.TextModelResolvedOptions,

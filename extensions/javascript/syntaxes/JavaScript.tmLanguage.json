@@ -1,9 +1,17 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/Microsoft/TypeScript-TmLanguage/blob/master/TypeScriptReact.tmLanguage",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/3a70fab1b03520774fa236f1f7e7a0939463739f",
 	"name": "JavaScript (with React support)",
 	"scopeName": "source.js",
 	"fileTypes": [
 		".js",
-		".jsx"
+		".jsx",
+		".es6",
+		".mjs"
 	],
 	"uuid": "805375ec-d614-41f5-8993-5843fe63ea82",
 	"patterns": [
@@ -72,7 +80,7 @@
 					"name": "storage.type.js"
 				}
 			},
-			"end": "(?=$|;|}|(\\s+(of|in)\\s+))",
+			"end": "(?=$|^|;|}|(\\s+(of|in)\\s+))",
 			"patterns": [
 				{
 					"include": "#destructuring-variable"
@@ -101,7 +109,7 @@
 							"name": "meta.definition.variable.js entity.name.function.js"
 						}
 					},
-					"end": "(?=$|[;,=}]|(\\s+(of|in)\\s+))",
+					"end": "(?=$|^|[;,=}]|(\\s+(of|in)\\s+))",
 					"patterns": [
 						{
 							"include": "#var-single-variable-type-annotation"
@@ -116,7 +124,7 @@
 							"name": "meta.definition.variable.js variable.other.constant.js"
 						}
 					},
-					"end": "(?=$|[;,=}]|(\\s+(of|in)\\s+))",
+					"end": "(?=$|^|[;,=}]|(\\s+(of|in)\\s+))",
 					"patterns": [
 						{
 							"include": "#var-single-variable-type-annotation"
@@ -131,7 +139,7 @@
 							"name": "meta.definition.variable.js variable.other.readwrite.js"
 						}
 					},
-					"end": "(?=$|[;,=}]|(\\s+(of|in)\\s+))",
+					"end": "(?=$|^|[;,=}]|(\\s+(of|in)\\s+))",
 					"patterns": [
 						{
 							"include": "#var-single-variable-type-annotation"
@@ -158,7 +166,7 @@
 				{
 					"name": "meta.object-binding-pattern-variable.js",
 					"begin": "(?<!=|:|of|in)\\s*(?=\\{)",
-					"end": "(?=$|[;,=}]|(\\s+(of|in)\\s+))",
+					"end": "(?=$|^|[;,=}]|(\\s+(of|in)\\s+))",
 					"patterns": [
 						{
 							"include": "#object-binding-pattern"
@@ -174,7 +182,7 @@
 				{
 					"name": "meta.array-binding-pattern-variable.js",
 					"begin": "(?<!=|:|of|in)\\s*(?=\\[)",
-					"end": "(?=$|[;,=}]|(\\s+(of|in)\\s+))",
+					"end": "(?=$|^|[;,=}]|(\\s+(of|in)\\s+))",
 					"patterns": [
 						{
 							"include": "#array-binding-pattern"
@@ -1139,14 +1147,14 @@
 					"name": "storage.modifier.js"
 				}
 			},
-			"end": "(?=\\}|;|,|$)|(?<=\\})",
+			"end": "(?=\\}|;|,|$|(^(?!(([_$[:alpha:]][_$[:alnum:]]*)|(\\'[^']*\\')|(\\\"[^\"]*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\?\\s*)?(=|:))))|(?<=\\})",
 			"patterns": [
 				{
 					"include": "#variable-initializer"
 				},
 				{
 					"begin": "(?=((?:[_$[:alpha:]][_$[:alnum:]]*)|(?:\\'[^']*\\')|(?:\\\"[^\"]*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\?\\s*)?(=|:))",
-					"end": "(?=[};,=]|$)|(?<=\\})",
+					"end": "(?=[};,=]|$|(^(?!(([_$[:alpha:]][_$[:alnum:]]*)|(\\'[^']*\\')|(\\\"[^\"]*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\?\\s*)?(=|:))))|(?<=\\})",
 					"patterns": [
 						{
 							"include": "#type-annotation"
@@ -1177,50 +1185,93 @@
 			]
 		},
 		"method-declaration": {
-			"name": "meta.method.declaration.js",
-			"begin": "(?<!\\.|\\$)(?:\\b(public|private|protected)\\s+)?(?:\\b(abstract)\\s+)?(?:\\b(async)\\s+)?(?:\\b(get|set)\\s+)?(?:(?:\\b(?:(new)|(constructor))\\b(?!\\$|\\.|:))|(?:(\\*)\\s*)?(?=((([_$[:alpha:]][_$[:alnum:]]*)|(\\'[^']*\\')|(\\\"[^\"]*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\??))?\\s*[\\(\\<]))",
-			"beginCaptures": {
-				"1": {
-					"name": "storage.modifier.js"
-				},
-				"2": {
-					"name": "storage.modifier.js"
-				},
-				"3": {
-					"name": "storage.modifier.async.js"
-				},
-				"4": {
-					"name": "storage.type.property.js"
-				},
-				"5": {
-					"name": "keyword.operator.new.js"
-				},
-				"6": {
-					"name": "storage.type.js"
-				},
-				"7": {
-					"name": "keyword.generator.asterisk.js"
-				}
-			},
-			"end": "(?=\\}|;|,|$)|(?<=\\})",
 			"patterns": [
 				{
-					"include": "#method-declaration-name"
+					"name": "meta.method.declaration.js",
+					"begin": "(?<!\\.|\\$)(?:\\b(public|private|protected)\\s+)?(?:\\b(abstract)\\s+)?(?:\\b(async)\\s+)?(?:\\b(get|set)\\s+)(?:(\\*)\\s*)?(?=((([_$[:alpha:]][_$[:alnum:]]*)|(\\'[^']*\\')|(\\\"[^\"]*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\??))\\s*[\\(\\<])",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.modifier.js"
+						},
+						"2": {
+							"name": "storage.modifier.js"
+						},
+						"3": {
+							"name": "storage.modifier.async.js"
+						},
+						"4": {
+							"name": "storage.type.property.js"
+						},
+						"5": {
+							"name": "keyword.generator.asterisk.js"
+						}
+					},
+					"end": "(?=\\}|;|,|$)|(?<=\\})",
+					"patterns": [
+						{
+							"include": "#method-declaration-name"
+						},
+						{
+							"include": "#comment"
+						},
+						{
+							"include": "#type-parameters"
+						},
+						{
+							"include": "#function-parameters"
+						},
+						{
+							"include": "#return-type"
+						},
+						{
+							"include": "#decl-block"
+						}
+					]
 				},
 				{
-					"include": "#comment"
-				},
-				{
-					"include": "#type-parameters"
-				},
-				{
-					"include": "#function-parameters"
-				},
-				{
-					"include": "#return-type"
-				},
-				{
-					"include": "#decl-block"
+					"name": "meta.method.declaration.js",
+					"begin": "(?<!\\.|\\$)(?:\\b(public|private|protected)\\s+)?(?:\\b(abstract)\\s+)?(?:\\b(async)\\s+)?(?:(?:\\b(?:(new)|(constructor))\\b(?!\\$|\\.|:))|(?:(\\*)\\s*)?(?=((([_$[:alpha:]][_$[:alnum:]]*)|(\\'[^']*\\')|(\\\"[^\"]*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\??))?\\s*[\\(\\<]))",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.modifier.js"
+						},
+						"2": {
+							"name": "storage.modifier.js"
+						},
+						"3": {
+							"name": "storage.modifier.async.js"
+						},
+						"4": {
+							"name": "keyword.operator.new.js"
+						},
+						"5": {
+							"name": "storage.type.js"
+						},
+						"6": {
+							"name": "keyword.generator.asterisk.js"
+						}
+					},
+					"end": "(?=\\}|;|,|$)|(?<=\\})",
+					"patterns": [
+						{
+							"include": "#method-declaration-name"
+						},
+						{
+							"include": "#comment"
+						},
+						{
+							"include": "#type-parameters"
+						},
+						{
+							"include": "#function-parameters"
+						},
+						{
+							"include": "#return-type"
+						},
+						{
+							"include": "#decl-block"
+						}
+					]
 				}
 			]
 		},
@@ -1246,7 +1297,7 @@
 		},
 		"object-literal-method-declaration": {
 			"name": "meta.method.declaration.js",
-			"begin": "(?<!\\.|\\$)(?:\\b(async)\\s+)?(?:\\b(get|set)\\s+)?(?:(\\*)\\s*)?(?=((([_$[:alpha:]][_$[:alnum:]]*)|(\\'[^']*\\')|(\\\"[^\"]*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\??))?\\s*[\\(\\<])",
+			"begin": "(?<!\\.|\\$)(?:\\b(async)\\s+)?(?:\\b(get|set)\\s+)?(?:(\\*)\\s*)?(?=((([_$[:alpha:]][_$[:alnum:]]*)|(\\'[^']*\\')|(\\\"[^\"]*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\??))\\s*[\\(\\<])",
 			"beginCaptures": {
 				"1": {
 					"name": "storage.modifier.async.js"
@@ -1284,7 +1335,7 @@
 			]
 		},
 		"object-literal-method-overload-declaration": {
-			"begin": "(?<!\\.|\\$)(?:\\b(async)\\s+)?(?:\\b(get|set)\\s+)?(?:(\\*)\\s*)?(?=((([_$[:alpha:]][_$[:alnum:]]*)|(\\'[^']*\\')|(\\\"[^\"]*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\??))?\\s*[\\(\\<])",
+			"begin": "(?<!\\.|\\$)(?:\\b(async)\\s+)?(?:\\b(get|set)\\s+)?(?:(\\*)\\s*)?(?=((([_$[:alpha:]][_$[:alnum:]]*)|(\\'[^']*\\')|(\\\"[^\"]*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\??))\\s*[\\(\\<])",
 			"beginCaptures": {
 				"1": {
 					"name": "storage.modifier.async.js"
@@ -1384,7 +1435,7 @@
 					"name": "meta.definition.function.js entity.name.function.js"
 				}
 			},
-			"end": "(?=$|;)|(?<=\\})",
+			"end": "(?=$|^|;)|(?<=\\})",
 			"patterns": [
 				{
 					"include": "#comment"
@@ -1510,7 +1561,7 @@
 					}
 				},
 				{
-					"match": "(?x)(?:\\s*\\b(public|private|protected|readonly)\\s+)?(\\.\\.\\.)?\\s*(?<!=|:)([_$[:alpha:]][_$[:alnum:]]*)\\s*(\\??)(?=\\s*\n  (=\\s*(\n    ((async\\s+)?(\n      (function\\s*[(<]) |\n      (function\\s+) |\n      ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)\n    )) |\n    ((async\\s*)?(\n      ([(]\\s*(([)]\\s*:)|([_$[:alpha:]][_$[:alnum:]]*\\s*:)|(\\.\\.\\.) )) |\n      ([<]\\s*[_$[:alpha:]][_$[:alnum:]]*((\\s+extends\\s*[^=>])|(\\s*[,]))) |\n      ((<([^<>=]|=[^<]|\\<([^=<>]|=[^<])+\\>)+>\\s*)?\\(([^()]|\\([^()]*\\))*\\)(\\s*:\\s*(.)*)?\\s*=>)\n    ))\n  )) |\n  (:\\s*(\n    (<) |\n    ([(]\\s*(\n      ([)]) |\n      (\\.\\.\\.) |\n      ([_$[:alnum:]]+\\s*(\n        ([:,?=])|\n        ([)]\\s*=>)\n      ))\n    ))\n  ))\n)",
+					"match": "(?x)(?:\\s*\\b(public|private|protected|readonly)\\s+)?(\\.\\.\\.)?\\s*(?<!=|:)(?:(this)|([_$[:alpha:]][_$[:alnum:]]*))\\s*(\\??)(?=\\s*\n  (=\\s*(\n    ((async\\s+)?(\n      (function\\s*[(<]) |\n      (function\\s+) |\n      ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)\n    )) |\n    ((async\\s*)?(\n      ([(]\\s*(([)]\\s*:)|([_$[:alpha:]][_$[:alnum:]]*\\s*:)|(\\.\\.\\.) )) |\n      ([<]\\s*[_$[:alpha:]][_$[:alnum:]]*((\\s+extends\\s*[^=>])|(\\s*[,]))) |\n      ((<([^<>=]|=[^<]|\\<([^=<>]|=[^<])+\\>)+>\\s*)?\\(([^()]|\\([^()]*\\))*\\)(\\s*:\\s*(.)*)?\\s*=>)\n    ))\n  )) |\n  (:\\s*(\n    (<) |\n    ([(]\\s*(\n      ([)]) |\n      (\\.\\.\\.) |\n      ([_$[:alnum:]]+\\s*(\n        ([:,?=])|\n        ([)]\\s*=>)\n      ))\n    ))\n  ))\n)",
 					"captures": {
 						"1": {
 							"name": "storage.modifier.js"
@@ -1519,15 +1570,18 @@
 							"name": "keyword.operator.rest.js"
 						},
 						"3": {
-							"name": "entity.name.function.js"
+							"name": "entity.name.function.js variable.language.this.js"
 						},
 						"4": {
+							"name": "entity.name.function.js"
+						},
+						"5": {
 							"name": "keyword.operator.optional.js"
 						}
 					}
 				},
 				{
-					"match": "(?:\\s*\\b(public|private|protected|readonly)\\s+)?(\\.\\.\\.)?\\s*(?<!=|:)([_$[:alpha:]][_$[:alnum:]]*)\\s*(\\??)",
+					"match": "(?:\\s*\\b(public|private|protected|readonly)\\s+)?(\\.\\.\\.)?\\s*(?<!=|:)(?:((?<!\\.|\\$)\\bthis\\b(?!\\.|\\$))|([_$[:alpha:]][_$[:alnum:]]*))\\s*(\\??)",
 					"captures": {
 						"1": {
 							"name": "storage.modifier.js"
@@ -1536,9 +1590,12 @@
 							"name": "keyword.operator.rest.js"
 						},
 						"3": {
-							"name": "variable.parameter.js"
+							"name": "variable.parameter.js variable.language.this.js"
 						},
 						"4": {
+							"name": "variable.parameter.js"
+						},
+						"5": {
 							"name": "keyword.operator.optional.js"
 						}
 					}
@@ -1708,7 +1765,7 @@
 					"name": "keyword.operator.type.annotation.js"
 				}
 			},
-			"end": "(?<![:|&])((?=$)|(?=[{};,]|//))",
+			"end": "(?<![:|&])(?=$|^|[{};,]|//)",
 			"patterns": [
 				{
 					"include": "#comment"
@@ -1742,7 +1799,7 @@
 					"name": "keyword.operator.type.annotation.js"
 				}
 			},
-			"end": "(?=$|[,);\\}\\]]|//)|(?==[^>])|(?<=[\\}>\\]\\)]|[_$[:alpha:]])\\s*(?=\\{)",
+			"end": "(?=$|^|[,);\\}\\]]|//)|(?==[^>])|(?<=[\\}>\\]\\)]|[_$[:alpha:]])\\s*(?=\\{)",
 			"patterns": [
 				{
 					"include": "#comment"
@@ -2017,7 +2074,7 @@
 					"name": "punctuation.definition.typeparameters.begin.js"
 				}
 			},
-			"end": "(?=$)|(>)",
+			"end": "(>)",
 			"endCaptures": {
 				"1": {
 					"name": "punctuation.definition.typeparameters.end.js"
@@ -2052,7 +2109,7 @@
 							"name": "keyword.operator.assignment.js"
 						}
 					},
-					"end": "(?=$|[,);}\\]])",
+					"end": "(?=$|^|[,);}\\]])",
 					"patterns": [
 						{
 							"include": "#expression"
@@ -2066,7 +2123,7 @@
 							"name": "keyword.operator.assignment.js"
 						}
 					},
-					"end": "(?=[,);}\\]])|(?=^\\s*$)",
+					"end": "(?=[,);}\\]])|(?=^\\s*$)|(?<=\\S)(?<!=)",
 					"patterns": [
 						{
 							"include": "#expression"
@@ -2691,7 +2748,7 @@
 							"name": "keyword.control.as.js"
 						}
 					},
-					"end": "(?=$|[;,:})\\]])",
+					"end": "(?=$|^|[;,:})\\]])",
 					"patterns": [
 						{
 							"include": "#type"
@@ -2776,7 +2833,7 @@
 				},
 				{
 					"name": "meta.arrow.js",
-					"begin": "(?x) (?:\n  (?<!\\.|\\$)(\\basync)\n)? ((?<![})\\]])\\s*\n  (?=\n    # sure shot arrow functions even if => is on new line\n    (\n      [(]\\s*\n      (\n        ([)]\\s*:) |                                   # ():\n        ((\\.\\.\\.\\s*)?[_$[:alpha:]][_$[:alnum:]]*\\s*:) # [(]param: | [(]...param:\n      )\n    ) |\n    (\n      [<]\\s*[_$[:alpha:]][_$[:alnum:]]*\\s+extends\\s*[^=>] # < typeparam extends \n    ) |\n    # arrow function possible to detect only with => on same line\n    (\n      (<([^<>=]|=[^<]|\\<([^=<>]|=[^<])+\\>)+>\\s*)?                 # typeparameters\n      \\(([^()]|\\([^()]*\\))*\\)                     # parameteres\n      (\\s*:\\s*(.)*)?                              # return type\n      \\s*=>                                       # arrow operator\n    )\n  )\n)",
+					"begin": "(?x) (?:\n  (?<!\\.|\\$)(\\basync)\n)? ((?<![})!\\]])\\s*\n  (?=\n    # sure shot arrow functions even if => is on new line\n    (\n      [(]\\s*\n      (\n        ([)]\\s*:) |                                   # ():\n        ((\\.\\.\\.\\s*)?[_$[:alpha:]][_$[:alnum:]]*\\s*:) # [(]param: | [(]...param:\n      )\n    ) |\n    (\n      [<]\\s*[_$[:alpha:]][_$[:alnum:]]*\\s+extends\\s*[^=>] # < typeparam extends \n    ) |\n    # arrow function possible to detect only with => on same line\n    (\n      (<([^<>=]|=[^<]|\\<([^=<>]|=[^<])+\\>)+>\\s*)?                 # typeparameters\n      \\(([^()]|\\([^()]*\\))*\\)                     # parameteres\n      (\\s*:\\s*(.)*)?                              # return type\n      \\s*=>                                       # arrow operator\n    )\n  )\n)",
 					"beginCaptures": {
 						"1": {
 							"name": "storage.modifier.async.js"
@@ -2806,7 +2863,7 @@
 							"name": "storage.type.function.arrow.js"
 						}
 					},
-					"end": "(?<=\\})|((?!\\{)(?=\\S))",
+					"end": "(?<=\\}|\\S)(?<!=>)|((?!\\{)(?=\\S))",
 					"patterns": [
 						{
 							"include": "#decl-block"
@@ -3356,25 +3413,17 @@
 					}
 				},
 				{
-					"begin": "(^[ \\t]+)?(?=//)",
+					"begin": "(^[ \\t]+)?(//)",
 					"beginCaptures": {
 						"1": {
 							"name": "punctuation.whitespace.comment.leading.js"
+						},
+						"2": {
+							"name": "comment.line.double-slash.js punctuation.definition.comment.js"
 						}
 					},
-					"end": "(?=$)",
-					"patterns": [
-						{
-							"name": "comment.line.double-slash.js",
-							"begin": "//",
-							"beginCaptures": {
-								"0": {
-									"name": "punctuation.definition.comment.js"
-								}
-							},
-							"end": "(?=$)"
-						}
-					]
+					"end": "(?=^)",
+					"contentName": "comment.line.double-slash.tsx"
 				}
 			]
 		},
@@ -3386,7 +3435,7 @@
 					"name": "punctuation.definition.comment.js"
 				}
 			},
-			"end": "(?=$)",
+			"end": "(?=^)",
 			"patterns": [
 				{
 					"name": "meta.tag.js",
@@ -4006,8 +4055,8 @@
 		},
 		"jsx-tag-without-attributes": {
 			"name": "meta.tag.without-attributes.js",
-			"begin": "(<)\\s*([_$a-zA-Z][-$\\w.]*(?<!\\.|-))\\s*(>)",
-			"end": "(</)\\s*([_$a-zA-Z][-$\\w.]*(?<!\\.|-))\\s*(>)",
+			"begin": "(<)\\s*((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))\\s*(>)",
+			"end": "(</)\\s*((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))\\s*(>)",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.definition.tag.begin.js"
@@ -4016,6 +4065,9 @@
 					"name": "entity.name.tag.js"
 				},
 				"3": {
+					"name": "support.class.component.js"
+				},
+				"4": {
 					"name": "punctuation.definition.tag.end.js"
 				}
 			},
@@ -4027,6 +4079,9 @@
 					"name": "entity.name.tag.js"
 				},
 				"3": {
+					"name": "support.class.component.js"
+				},
+				"4": {
 					"name": "punctuation.definition.tag.end.js"
 				}
 			},
@@ -4039,7 +4094,7 @@
 		},
 		"jsx-tag-in-expression": {
 			"begin": "(?x)\n  (?<=[({\\[,?=>:*]|&&|\\|\\||\\?|\\Wreturn|^return|\\Wdefault|^)\\s*\n  (?!(<)\\s*([_$a-zA-Z][-$\\w.]*(?<!\\.|-))\\s*(>)) #look ahead is not start of tag without attributes\n  (?!<\\s*[_$[:alpha:]][_$[:alnum:]]*((\\s+extends\\s+[^=>])|,)) # look ahead is not type parameter of arrow\n  (?=(<)\\s*\n  ([_$a-zA-Z][-$\\w.]*(?<!\\.|-))\n  (?=\\s+(?!\\?)|/?>))",
-			"end": "(/>)|(?:(</)\\s*([_$a-zA-Z][-$\\w.]*(?<!\\.|-))\\s*(>))",
+			"end": "(/>)|(?:(</)\\s*((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))\\s*(>))",
 			"endCaptures": {
 				"0": {
 					"name": "meta.tag.js"
@@ -4054,6 +4109,9 @@
 					"name": "entity.name.tag.js"
 				},
 				"4": {
+					"name": "support.class.component.js"
+				},
+				"5": {
 					"name": "punctuation.definition.tag.end.js"
 				}
 			},
@@ -4065,7 +4123,7 @@
 		},
 		"jsx-child-tag": {
 			"begin": "(?x)\n  (?=(<)\\s*\n  ([_$a-zA-Z][-$\\w.]*(?<!\\.|-))\n  (?=\\s+(?!\\?)|/?>))",
-			"end": "(/>)|(?:(</)\\s*([_$a-zA-Z][-$\\w.]*(?<!\\.|-))\\s*(>))",
+			"end": "(/>)|(?:(</)\\s*((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))\\s*(>))",
 			"endCaptures": {
 				"0": {
 					"name": "meta.tag.js"
@@ -4080,6 +4138,9 @@
 					"name": "entity.name.tag.js"
 				},
 				"4": {
+					"name": "support.class.component.js"
+				},
+				"5": {
 					"name": "punctuation.definition.tag.end.js"
 				}
 			},
@@ -4095,13 +4156,16 @@
 			"end": "(?=(/>)|(?:(</)\\s*([_$a-zA-Z][-$\\w.]*(?<!\\.|-))\\s*(>)))",
 			"patterns": [
 				{
-					"begin": "(?x)\n  (<)\\s*\n  ([_$a-zA-Z][-$\\w.]*(?<!\\.|-))\n  (?=\\s+(?!\\?)|/?>)",
+					"begin": "(?x)\n  (<)\\s*\n  ((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))\n  (?=\\s+(?!\\?)|/?>)",
 					"beginCaptures": {
 						"1": {
 							"name": "punctuation.definition.tag.begin.js"
 						},
 						"2": {
 							"name": "entity.name.tag.js"
+						},
+						"3": {
+							"name": "support.class.component.js"
 						}
 					},
 					"end": "(?=[/]?>)",
@@ -4170,6 +4234,5 @@
 				}
 			]
 		}
-	},
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/9f6676aa2ddb75cb5a9dbe1f59024069e839d986"
+	}
 }

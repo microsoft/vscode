@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { USER_SETTINGS, Keybinding, SimpleKeybinding, ChordKeybinding } from 'vs/base/common/keyCodes';
+import { Keybinding, SimpleKeybinding, ChordKeybinding, KeyCodeUtils } from 'vs/base/common/keyCodes';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -119,7 +119,7 @@ export class KeybindingIO {
 
 	private static _readSimpleKeybinding(input: string): [SimpleKeybinding, string] {
 		const mods = this._readModifiers(input);
-		const keyCode = USER_SETTINGS.toKeyCode(mods.key);
+		const keyCode = KeyCodeUtils.fromUserSettings(mods.key);
 		return [new SimpleKeybinding(mods.ctrl, mods.shift, mods.alt, mods.meta, keyCode), mods.remains];
 	}
 
@@ -148,7 +148,7 @@ export class KeybindingIO {
 			const scanCode = ScanCodeUtils.lowerCaseToEnum(strScanCode);
 			return [new ScanCodeBinding(mods.ctrl, mods.shift, mods.alt, mods.meta, scanCode), mods.remains];
 		}
-		const keyCode = USER_SETTINGS.toKeyCode(mods.key);
+		const keyCode = KeyCodeUtils.fromUserSettings(mods.key);
 		return [new SimpleKeybinding(mods.ctrl, mods.shift, mods.alt, mods.meta, keyCode), mods.remains];
 	}
 

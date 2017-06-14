@@ -49,7 +49,7 @@ function addDecoration(model: Model, startLineNumber: number, startColumn: numbe
 	});
 }
 
-function lineHasDecorations(model, lineNumber, decorations) {
+function lineHasDecorations(model: Model, lineNumber: number, decorations: { start: number; end: number; className: string; }[]) {
 	var lineDecorations = [];
 	var decs = model.getLineDecorations(lineNumber);
 	for (var i = 0, len = decs.length; i < len; i++) {
@@ -62,11 +62,11 @@ function lineHasDecorations(model, lineNumber, decorations) {
 	assert.deepEqual(lineDecorations, decorations, 'Line decorations');
 }
 
-function lineHasNoDecorations(model, lineNumber) {
+function lineHasNoDecorations(model: Model, lineNumber: number) {
 	lineHasDecorations(model, lineNumber, []);
 }
 
-function lineHasDecoration(model, lineNumber, start, end, className) {
+function lineHasDecoration(model: Model, lineNumber: number, start: number, end: number, className: string) {
 	lineHasDecorations(model, lineNumber, [{
 		start: start,
 		end: end,
@@ -542,7 +542,7 @@ suite('deltaDecorations', () => {
 				endColumn: 1
 			},
 			options: {
-				hoverMessage: ['hello1']
+				hoverMessage: 'hello1'
 			}
 		}]);
 
@@ -554,13 +554,13 @@ suite('deltaDecorations', () => {
 				endColumn: 1
 			},
 			options: {
-				hoverMessage: ['hello2']
+				hoverMessage: 'hello2'
 			}
 		}]);
 
 		let actualDecoration = model.getDecorationOptions(ids[0]);
 
-		assert.equal(actualDecoration.hoverMessage[0], 'hello2');
+		assert.equal(actualDecoration.hoverMessage, 'hello2');
 
 		model.dispose();
 	});

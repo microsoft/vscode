@@ -1,8 +1,8 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-"use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var path = require("path");
 var fs = require("fs");
@@ -207,17 +207,6 @@ XLF.parse = function (xlfString) {
     });
 };
 exports.XLF = XLF;
-var vscodeLanguages = [
-    'chs',
-    'cht',
-    'jpn',
-    'kor',
-    'deu',
-    'fra',
-    'esn',
-    'rus',
-    'ita'
-];
 var iso639_3_to_2 = {
     'chs': 'zh-cn',
     'cht': 'zh-tw',
@@ -347,7 +336,7 @@ function escapeCharacters(value) {
     }
     return result.join('');
 }
-function processCoreBundleFormat(fileHeader, json, emitter) {
+function processCoreBundleFormat(fileHeader, languages, json, emitter) {
     var keysSection = json.keys;
     var messageSection = json.messages;
     var bundleSection = json.bundles;
@@ -375,8 +364,14 @@ function processCoreBundleFormat(fileHeader, json, emitter) {
         });
     });
     var languageDirectory = path.join(__dirname, '..', '..', 'i18n');
-    var languages = sortLanguages(fs.readdirSync(languageDirectory).filter(function (item) { return fs.statSync(path.join(languageDirectory, item)).isDirectory(); }));
-    languages.forEach(function (language) {
+    var languageDirs;
+    if (languages) {
+        languageDirs = sortLanguages(languages);
+    }
+    else {
+        languageDirs = sortLanguages(fs.readdirSync(languageDirectory).filter(function (item) { return fs.statSync(path.join(languageDirectory, item)).isDirectory(); }));
+    }
+    languageDirs.forEach(function (language) {
         if (!language.iso639_2) {
             return;
         }
@@ -448,7 +443,8 @@ function processCoreBundleFormat(fileHeader, json, emitter) {
         var value = statistics[key];
         log(key + " has " + value + " untranslated strings.");
     });
-    vscodeLanguages.forEach(function (language) {
+    languageDirs.forEach(function (dir) {
+        var language = dir.name;
         var iso639_2 = iso639_3_to_2[language];
         if (!iso639_2) {
             log("\tCouldn't find iso639 2 mapping for language " + language + ". Using default language instead.");
@@ -473,7 +469,7 @@ function processNlsFiles(opts) {
                 this.emit('error', "Failed to read component file: " + file.relative);
             }
             if (BundledFormat.is(json)) {
-                processCoreBundleFormat(opts.fileHeader, json, this);
+                processCoreBundleFormat(opts.fileHeader, opts.languages, json, this);
             }
         }
         this.emit('data', file);
@@ -505,82 +501,32 @@ function prepareXlfFiles(projectName, extensionName) {
 }
 exports.prepareXlfFiles = prepareXlfFiles;
 var editorProject = 'vscode-editor', workbenchProject = 'vscode-workbench', extensionsProject = 'vscode-extensions', setupProject = 'vscode-setup';
-/**
- * Ensure to update those arrays when new resources are pushed to Transifex.
- * Used because Transifex does not have API method to pull all project resources.
- */
-var editorResources = [
-    { name: 'vs/platform', project: editorProject },
-    { name: 'vs/editor/contrib', project: editorProject },
-    { name: 'vs/editor', project: editorProject },
-    { name: 'vs/base', project: editorProject }
-];
-var workbenchResources = [
-    { name: 'vs/code', project: workbenchProject },
-    { name: 'vs/workbench', project: workbenchProject },
-    { name: 'vs/workbench/parts/cli', project: workbenchProject },
-    { name: 'vs/workbench/parts/codeEditor', project: workbenchProject },
-    { name: 'vs/workbench/parts/debug', project: workbenchProject },
-    { name: 'vs/workbench/parts/emmet', project: workbenchProject },
-    { name: 'vs/workbench/parts/execution', project: workbenchProject },
-    { name: 'vs/workbench/parts/explorers', project: workbenchProject },
-    { name: 'vs/workbench/parts/extensions', project: workbenchProject },
-    { name: 'vs/workbench/parts/feedback', project: workbenchProject },
-    { name: 'vs/workbench/parts/files', project: workbenchProject },
-    { name: 'vs/workbench/parts/git', project: workbenchProject },
-    { name: 'vs/workbench/parts/html', project: workbenchProject },
-    { name: 'vs/workbench/parts/markers', project: workbenchProject },
-    { name: 'vs/workbench/parts/nps', project: workbenchProject },
-    { name: 'vs/workbench/parts/output', project: workbenchProject },
-    { name: 'vs/workbench/parts/performance', project: workbenchProject },
-    { name: 'vs/workbench/parts/preferences', project: workbenchProject },
-    { name: 'vs/workbench/parts/quickopen', project: workbenchProject },
-    { name: 'vs/workbench/parts/scm', project: workbenchProject },
-    { name: 'vs/workbench/parts/search', project: workbenchProject },
-    { name: 'vs/workbench/parts/snippets', project: workbenchProject },
-    { name: 'vs/workbench/parts/tasks', project: workbenchProject },
-    { name: 'vs/workbench/parts/terminal', project: workbenchProject },
-    { name: 'vs/workbench/parts/themes', project: workbenchProject },
-    { name: 'vs/workbench/parts/trust', project: workbenchProject },
-    { name: 'vs/workbench/parts/update', project: workbenchProject },
-    { name: 'vs/workbench/parts/watermark', project: workbenchProject },
-    { name: 'vs/workbench/parts/welcome', project: workbenchProject },
-    { name: 'vs/workbench/services/configuration', project: workbenchProject },
-    { name: 'vs/workbench/services/editor', project: workbenchProject },
-    { name: 'vs/workbench/services/files', project: workbenchProject },
-    { name: 'vs/workbench/services/keybinding', project: workbenchProject },
-    { name: 'vs/workbench/services/message', project: workbenchProject },
-    { name: 'vs/workbench/services/mode', project: workbenchProject },
-    { name: 'vs/workbench/services/textfile', project: workbenchProject },
-    { name: 'vs/workbench/services/themes', project: workbenchProject },
-    { name: 'setup_messages', project: workbenchProject }
-];
 function getResource(sourceFile) {
     var resource;
-    if (sourceFile.startsWith('vs/platform')) {
+    if (/^vs\/platform/.test(sourceFile)) {
         return { name: 'vs/platform', project: editorProject };
     }
-    else if (sourceFile.startsWith('vs/editor/contrib')) {
+    else if (/^vs\/editor\/contrib/.test(sourceFile)) {
         return { name: 'vs/editor/contrib', project: editorProject };
     }
-    else if (sourceFile.startsWith('vs/editor')) {
+    else if (/^vs\/editor/.test(sourceFile)) {
         return { name: 'vs/editor', project: editorProject };
     }
-    else if (sourceFile.startsWith('vs/base')) {
+    else if (/^vs\/base/.test(sourceFile)) {
         return { name: 'vs/base', project: editorProject };
     }
-    else if (sourceFile.startsWith('vs/code')) {
+    else if (/^vs\/code/.test(sourceFile)) {
         return { name: 'vs/code', project: workbenchProject };
     }
-    else if (sourceFile.startsWith('vs/workbench/parts')) {
+    else if (/^vs\/workbench\/parts/.test(sourceFile)) {
         resource = sourceFile.split('/', 4).join('/');
         return { name: resource, project: workbenchProject };
     }
-    else if (sourceFile.startsWith('vs/workbench/services')) {
+    else if (/^vs\/workbench\/services/.test(sourceFile)) {
         resource = sourceFile.split('/', 4).join('/');
         return { name: resource, project: workbenchProject };
     }
-    else if (sourceFile.startsWith('vs/workbench')) {
+    else if (/^vs\/workbench/.test(sourceFile)) {
         return { name: 'vs/workbench', project: workbenchProject };
     }
     throw new Error("Could not identify the XLF bundle for " + sourceFile);
@@ -825,10 +771,12 @@ function updateResource(project, slug, xlfFile, apiHostname, credentials) {
 function obtainProjectResources(projectName) {
     var resources = [];
     if (projectName === editorProject) {
-        resources = editorResources;
+        var json = fs.readFileSync('./build/lib/i18n.resources.json', 'utf8');
+        resources = JSON.parse(json).editor;
     }
     else if (projectName === workbenchProject) {
-        resources = workbenchResources;
+        var json = fs.readFileSync('./build/lib/i18n.resources.json', 'utf8');
+        resources = JSON.parse(json).workbench;
     }
     else if (projectName === extensionsProject) {
         var extensionsToLocalize = glob.sync('./extensions/**/*.nls.json').map(function (extension) { return extension.split('/')[2]; });
@@ -914,7 +862,7 @@ function prepareJsonFiles() {
             resolvedFiles.forEach(function (file) {
                 var messages = file.messages, translatedFile;
                 // ISL file path always starts with 'build/'
-                if (file.originalFilePath.startsWith('build/')) {
+                if (/^build\//.test(file.originalFilePath)) {
                     var defaultLanguages = { 'zh-hans': true, 'zh-hant': true, 'ko': true };
                     if (path.basename(file.originalFilePath) === 'Default' && !defaultLanguages[file.language]) {
                         return;
@@ -969,7 +917,10 @@ var encodings = {
     'fra': 'CP1252',
     'esn': 'CP1252',
     'rus': 'CP1251',
-    'ita': 'CP1252'
+    'ita': 'CP1252',
+    'ptb': 'CP1252',
+    'hun': 'CP1250',
+    'trk': 'CP1254'
 };
 function createIslFile(base, originalFilePath, messages, language) {
     var content = [];

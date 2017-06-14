@@ -6,8 +6,7 @@
 {
 	"imgMeta": "{0}x{1} {2}",
 	"largeImageError": "图像太大，无法在编辑器中显示。 ",
-	"resourceOpenExternalButton": "打开图像",
-	"resourceOpenExternalText": " 是否使用外部程序?",
+	"resourceOpenExternalButton": "使用外部程序打开图片？",
 	"nativeBinaryError": "文件将不在编辑器中显示，因为它是二进制文件、非常大或使用不支持的文本编码。",
 	"sizeB": "{0} B",
 	"sizeKB": "{0} KB",

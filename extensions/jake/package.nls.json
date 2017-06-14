@@ -1,0 +1,3 @@
+{
+	"config.jake.autoDetect": "Controls whether auto detection of Jake tasks is on or off. Default is on."
+}

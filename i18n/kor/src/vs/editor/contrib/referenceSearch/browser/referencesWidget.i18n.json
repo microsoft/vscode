@@ -16,8 +16,6 @@
 	"peekViewTitleInfoForeground": "Peek 뷰 제목 정보 색입니다.",
 	"peekViewBorder": "Peek 뷰 테두리 및 화살표 색입니다.",
 	"peekViewResultsBackground": "Peek 뷰 결과 목록의 배경색입니다.",
-	"peekViewResultsMatchForeground": "Peek 뷰 결과 목록의 일치 항목 전경입니다.",
-	"peekViewResultsFileForeground": "Peek 뷰 결과 목록의 파일 항목 전경입니다.",
 	"peekViewResultsSelectionBackground": "Peek 뷰 결과 목록에서 선택된 항목의 배경색입니다.",
 	"peekViewResultsSelectionForeground": "Peek 뷰 결과 목록에서 선택된 항목의 전경색입니다.",
 	"peekViewEditorBackground": "Peek 뷰 편집기의 배경색입니다.",

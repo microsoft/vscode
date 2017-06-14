@@ -28,6 +28,8 @@ interface IActivatingExtensionMap {
 	[extensionId: string]: TPromise<void>;
 }
 
+const NO_OP_VOID_PROMISE = TPromise.as<void>(void 0);
+
 export abstract class AbstractExtensionService<T extends ActivatedExtension> implements IExtensionService {
 	public _serviceBrand: any;
 
@@ -37,6 +39,11 @@ export abstract class AbstractExtensionService<T extends ActivatedExtension> imp
 	private _onReadyC: (v: boolean) => void;
 	private _isReady: boolean;
 	protected _registry: ExtensionDescriptionRegistry;
+
+	/**
+	 * A map of already activated events to speed things up if the same activation event is triggered multiple times.
+	 */
+	private _alreadyActivatedEvents: { [activationEvent: string]: boolean; };
 
 	constructor(isReadyByDefault: boolean) {
 		if (isReadyByDefault) {
@@ -54,6 +61,7 @@ export abstract class AbstractExtensionService<T extends ActivatedExtension> imp
 		this._activatingExtensions = {};
 		this._activatedExtensions = {};
 		this._registry = new ExtensionDescriptionRegistry();
+		this._alreadyActivatedEvents = Object.create(null);
 	}
 
 	protected _triggerOnReady(): void {
@@ -97,6 +105,9 @@ export abstract class AbstractExtensionService<T extends ActivatedExtension> imp
 	}
 
 	public activateByEvent(activationEvent: string): TPromise<void> {
+		if (this._alreadyActivatedEvents[activationEvent]) {
+			return NO_OP_VOID_PROMISE;
+		}
 		if (this._isReady) {
 			return this._activateByEvent(activationEvent);
 		} else {
@@ -106,7 +117,9 @@ export abstract class AbstractExtensionService<T extends ActivatedExtension> imp
 
 	private _activateByEvent(activationEvent: string): TPromise<void> {
 		let activateExtensions = this._registry.getExtensionDescriptionsForActivationEvent(activationEvent);
-		return this._activateExtensions(activateExtensions, 0);
+		return this._activateExtensions(activateExtensions, 0).then(() => {
+			this._alreadyActivatedEvents[activationEvent] = true;
+		});
 	}
 
 	public activateById(extensionId: string): TPromise<void> {

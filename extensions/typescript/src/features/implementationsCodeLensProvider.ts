@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { CodeLens, CancellationToken, TextDocument, Range, Location } from 'vscode';
+import { CodeLens, CancellationToken, TextDocument, Range, Location, ProviderResult, workspace } from 'vscode';
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 
@@ -17,14 +15,20 @@ const localize = nls.loadMessageBundle();
 
 export default class TypeScriptImplementationsCodeLensProvider extends TypeScriptBaseCodeLensProvider {
 	public constructor(
-		client: ITypescriptServiceClient
+		client: ITypescriptServiceClient,
+		private readonly language: string
 	) {
-		super(client, 'implementationsCodeLens.enabled');
+		super(client);
 	}
 
-	provideCodeLenses(document: TextDocument, token: CancellationToken): Promise<CodeLens[]> {
+	public updateConfiguration(): void {
+		const config = workspace.getConfiguration(this.language);
+		this.setEnabled(config.get('implementationsCodeLens.enabled', false));
+	}
+
+	provideCodeLenses(document: TextDocument, token: CancellationToken): ProviderResult<CodeLens[]> {
 		if (!this.client.apiVersion.has220Features()) {
-			return Promise.resolve([]);
+			return [];
 		}
 		return super.provideCodeLenses(document, token);
 	}

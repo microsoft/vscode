@@ -34,6 +34,7 @@
 	"editConditionalBreakpoint": "중단점 편집...",
 	"setValue": "값 설정",
 	"addWatchExpression": "식 추가",
+	"editWatchExpression": "식 편집",
 	"addToWatchExpressions": "조사식에 추가",
 	"removeWatchExpression": "식 제거",
 	"removeAllWatchExpressions": "모든 식 제거",

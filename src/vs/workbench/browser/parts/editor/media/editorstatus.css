@@ -12,14 +12,13 @@
 .monaco-workbench .editor-statusbar-item > .editor-status-eol,
 .monaco-workbench .editor-statusbar-item > .editor-status-selection,
 .monaco-workbench .editor-statusbar-item > .editor-status-indentation,
-.monaco-workbench .editor-statusbar-item > .editor-status-metadata {
+.monaco-workbench .editor-statusbar-item > .editor-status-metadata,
+.monaco-workbench .editor-statusbar-item > .editor-status-tabfocusmode,
+.monaco-workbench .editor-statusbar-item > .editor-status-screenreadermode {
 	padding: 0 5px 0 5px;
 }
 
-.monaco-workbench .editor-statusbar-item > .editor-status-metadata {
-	cursor: default;
-}
-
-.monaco-workbench .editor-statusbar-item > .editor-status-tabfocusmode {
-	padding: 0 5px 0 5px;
+.monaco-workbench .editor-statusbar-item > .editor-status-metadata,
+.monaco-workbench > .part.statusbar > .statusbar-item > .editor-statusbar-item > a.editor-status-screenreadermode {
+	cursor: default !important;
 }

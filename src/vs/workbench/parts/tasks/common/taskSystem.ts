@@ -37,6 +37,8 @@ export interface TelemetryEvent {
 	// How the task got trigger. Is either shortcut or command
 	trigger: string;
 
+	runner: 'terminal' | 'output';
+
 	// The command triggered
 	command: string;
 
@@ -98,6 +100,7 @@ export interface ITaskResolver {
 
 export interface ITaskSystem extends IEventEmitter {
 	run(task: Task, resolver: ITaskResolver): ITaskExecuteResult;
+	show(task: Task, forceFocus?: boolean): void;
 	isActive(): TPromise<boolean>;
 	isActiveSync(): boolean;
 	getActiveTasks(): Task[];

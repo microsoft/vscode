@@ -44,6 +44,8 @@
 	"openPreviousRecentlyUsedEditorInGroup": "Открыть предыдущий недавно использованный редактор в группе",
 	"openNextRecentlyUsedEditorInGroup": "Открыть следующий недавно использованный редактор в группе",
 	"navigateEditorHistoryByInput": "Открыть предыдущий редактор из журнала",
+	"openNextRecentlyUsedEditor": "Открыть следующий недавно использованный редактор",
+	"openPreviousRecentlyUsedEditor": "Открыть предыдущий недавно использованный редактор",
 	"clearEditorHistory": "Очистить журнал редактора",
 	"focusLastEditorInStack": "Открыть последний редактор в группе",
 	"moveEditorLeft": "Переместить редактор влево",

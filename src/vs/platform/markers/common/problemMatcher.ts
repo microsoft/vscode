@@ -126,12 +126,6 @@ export function isNamedProblemMatcher(value: ProblemMatcher): value is NamedProb
 	return value && Types.isString((<NamedProblemMatcher>value).name) ? true : false;
 }
 
-let valueMap: { [key: string]: string; } = {
-	E: 'error',
-	W: 'warning',
-	I: 'info',
-};
-
 interface Location {
 	startLineNumber: number;
 	startCharacter: number;
@@ -192,7 +186,7 @@ export function createLineMatcher(matcher: ProblemMatcher): ILineMatcher {
 	}
 }
 
-class AbstractLineMatcher implements ILineMatcher {
+abstract class AbstractLineMatcher implements ILineMatcher {
 	private matcher: ProblemMatcher;
 
 	constructor(matcher: ProblemMatcher) {
@@ -207,9 +201,7 @@ class AbstractLineMatcher implements ILineMatcher {
 		return null;
 	}
 
-	public get matchLength(): number {
-		throw new Error('Subclass reponsibility');
-	}
+	public abstract get matchLength(): number;
 
 	protected fillProblemData(data: ProblemData, pattern: ProblemPattern, matches: RegExpExecArray): void {
 		this.fillProperty(data, 'file', pattern, matches, true);
@@ -302,11 +294,21 @@ class AbstractLineMatcher implements ILineMatcher {
 		let result: Severity = null;
 		if (data.severity) {
 			let value = data.severity;
-			if (value && value.length > 0) {
-				if (value.length === 1 && valueMap[value[0]]) {
-					value = valueMap[value[0]];
-				}
+			if (value) {
 				result = Severity.fromValue(value);
+				if (result === Severity.Ignore) {
+					if (value === 'E') {
+						result = Severity.Error;
+					} else if (value === 'W') {
+						result = Severity.Warning;
+					} else if (value === 'I') {
+						result = Severity.Info;
+					} else if (Strings.equalsIgnoreCase(value, 'hint')) {
+						result = Severity.Info;
+					} else if (Strings.equalsIgnoreCase(value, 'note')) {
+						result = Severity.Info;
+					}
+				}
 			}
 		}
 		if (result === null || result === Severity.Ignore) {
@@ -550,7 +552,7 @@ export namespace Config {
 	/**
 	* A description to track the start and end of a watching task.
 	*/
-	export interface WatchingMatcher {
+	export interface BackgroundMonitor {
 
 		/**
 		* If set to true the watcher is in active mode when the task
@@ -646,7 +648,11 @@ export namespace Config {
 		*/
 		watchedTaskEndsRegExp?: string;
 
-		watching?: WatchingMatcher;
+		/**
+		 * @deprecated Use background instead.
+		 */
+		watching?: BackgroundMonitor;
+		background?: BackgroundMonitor;
 	}
 
 	export type ProblemMatcherType = string | ProblemMatcher | (string | ProblemMatcher)[];
@@ -1262,15 +1268,15 @@ export class ProblemMatcherParser extends Parser {
 			};
 			return;
 		}
-		if (Types.isUndefinedOrNull(external.watching)) {
+		let backgroundMonitor = external.background || external.watching;
+		if (Types.isUndefinedOrNull(backgroundMonitor)) {
 			return;
 		}
-		let watching = external.watching;
-		let begins: WatchingPattern = this.createWatchingPattern(watching.beginsPattern);
-		let ends: WatchingPattern = this.createWatchingPattern(watching.endsPattern);
+		let begins: WatchingPattern = this.createWatchingPattern(backgroundMonitor.beginsPattern);
+		let ends: WatchingPattern = this.createWatchingPattern(backgroundMonitor.endsPattern);
 		if (begins && ends) {
 			internal.watching = {
-				activeOnStart: Types.isBoolean(watching.activeOnStart) ? watching.activeOnStart : false,
+				activeOnStart: Types.isBoolean(backgroundMonitor.activeOnStart) ? backgroundMonitor.activeOnStart : false,
 				beginsPattern: begins,
 				endsPattern: ends
 			};
@@ -1323,7 +1329,7 @@ export namespace Schemas {
 		properties: {
 			regexp: {
 				type: 'string',
-				description: localize('WatchingPatternSchema.regexp', 'The regular expression to detect the begin or end of a watching task.')
+				description: localize('WatchingPatternSchema.regexp', 'The regular expression to detect the begin or end of a background task.')
 			},
 			file: {
 				type: 'integer',
@@ -1383,9 +1389,40 @@ export namespace Schemas {
 				],
 				description: localize('ProblemMatcherSchema.fileLocation', 'Defines how file names reported in a problem pattern should be interpreted.')
 			},
+			background: {
+				type: 'object',
+				additionalProperties: false,
+				description: localize('ProblemMatcherSchema.background', 'Patterns to track the begin and end of a matcher active on a background task.'),
+				properties: {
+					activeOnStart: {
+						type: 'boolean',
+						description: localize('ProblemMatcherSchema.background.activeOnStart', 'If set to true the background monitor is in active mode when the task starts. This is equals of issuing a line that matches the beginPattern')
+					},
+					beginsPattern: {
+						oneOf: [
+							{
+								type: 'string'
+							},
+							Schemas.WatchingPattern
+						],
+						description: localize('ProblemMatcherSchema.background.beginsPattern', 'If matched in the output the start of a background task is signaled.')
+					},
+					endsPattern: {
+						oneOf: [
+							{
+								type: 'string'
+							},
+							Schemas.WatchingPattern
+						],
+						description: localize('ProblemMatcherSchema.background.endsPattern', 'If matched in the output the end of a background task is signaled.')
+					}
+				}
+			},
 			watching: {
 				type: 'object',
 				additionalProperties: false,
+				deprecationMessage: localize('ProblemMatcherSchema.watching.deprecated', 'The watching property is deprecated. Use background instead.'),
+				description: localize('ProblemMatcherSchema.watching', 'Patterns to track the begin and end of a watching matcher.'),
 				properties: {
 					activeOnStart: {
 						type: 'boolean',
@@ -1409,8 +1446,7 @@ export namespace Schemas {
 						],
 						description: localize('ProblemMatcherSchema.watching.endsPattern', 'If matched in the output the end of a watching task is signaled.')
 					}
-				},
-				description: localize('ProblemMatcherSchema.watching', 'Patterns to track the begin and end of a watching pattern.')
+				}
 			}
 		}
 	};
@@ -1446,6 +1482,8 @@ export interface IProblemMatcherRegistry {
 	onReady(): TPromise<void>;
 	exists(name: string): boolean;
 	get(name: string): ProblemMatcher;
+	values(): ProblemMatcher[];
+	keys(): string[];
 }
 
 class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
@@ -1498,6 +1536,14 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 
 	public remove(name: string): void {
 		delete this.matchers[name];
+	}
+
+	public keys(): string[] {
+		return Object.keys(this.matchers);
+	}
+
+	public values(): ProblemMatcher[] {
+		return Object.keys(this.matchers).map(key => this.matchers[key]);
 	}
 
 	private fillDefaults(): void {

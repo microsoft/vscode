@@ -8,6 +8,7 @@ import * as nls from 'vs/nls';
 import { Delayer } from 'vs/base/common/async';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { flatten, distinct } from 'vs/base/common/arrays';
+import { values } from 'vs/base/common/map';
 import { ArrayNavigator, INavigator } from 'vs/base/common/iterator';
 import { IAction } from 'vs/base/common/actions';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -24,7 +25,7 @@ import { IContextMenuService, ContextSubMenu } from 'vs/platform/contextview/bro
 import { SettingsGroupTitleWidget, EditPreferenceWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
-import { IConfigurationEditingService } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IConfigurationEditingService, IConfigurationEditingError, ConfigurationEditingErrorCode, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { overrideIdentifierFromKey } from 'vs/platform/configuration/common/model';
 import { IMarkerService, IMarkerData } from 'vs/platform/markers/common/markers';
@@ -32,6 +33,7 @@ import { IWorkspaceConfigurationService } from 'vs/workbench/services/configurat
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	preferencesModel: IPreferencesEditorModel<T>;
@@ -100,8 +102,19 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	public updatePreference(key: string, value: any, source: ISetting): void {
 		this.telemetryService.publicLog('defaultSettingsActions.copySetting', { userConfigurationKeys: [key] });
 		const overrideIdentifier = source.overrideOf ? overrideIdentifierFromKey(source.overrideOf.key) : null;
-		this.configurationEditingService.writeConfiguration(this.preferencesModel.configurationTarget, { key, value, overrideIdentifier }, !this.textFileService.isDirty(this.preferencesModel.uri))
-			.then(() => this.onSettingUpdated(source), error => this.messageService.show(Severity.Error, error));
+		this.configurationEditingService.writeConfiguration(this.preferencesModel.configurationTarget, { key, value, overrideIdentifier }, { donotSave: this.textFileService.isDirty(this.preferencesModel.uri), donotNotifyError: true })
+			.then(() => this.onSettingUpdated(source), error => {
+				this.messageService.show(Severity.Error, this.toErrorMessage(error, this.preferencesModel.configurationTarget));
+			});
+	}
+
+	private toErrorMessage(error: IConfigurationEditingError, target: ConfigurationTarget): string {
+		switch (error.code) {
+			case ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION: {
+				return nls.localize('errorInvalidConfiguration', "Unable to write into settings. Correct errors/warnings in the file and try again.");
+			};
+		}
+		return error.message;
 	}
 
 	private onModelChanged(): void {
@@ -453,7 +466,7 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 		if (result) {
 			this.hiddenAreas = this.computeHiddenRanges(result.filteredGroups, result.allGroups, model);
 			this.editor.changeDecorations(changeAccessor => {
-				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, flatten(result.matches.values()).map(match => this.createDecoration(match, model)));
+				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, flatten(values(result.matches)).map(match => this.createDecoration(match, model)));
 			});
 		}
 	}
@@ -557,13 +570,15 @@ export class HighlightPreferencesRenderer extends Disposable {
 		}
 	}
 
+	private static _FIND_MATCH = ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		className: 'findMatch'
+	});
+
 	private createDecoration(range: IRange, model: editorCommon.IModel): editorCommon.IModelDeltaDecoration {
 		return {
 			range,
-			options: {
-				stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-				className: 'findMatch'
-			}
+			options: HighlightPreferencesRenderer._FIND_MATCH
 		};
 	}
 
@@ -670,7 +685,7 @@ class EditSettingRenderer extends Disposable {
 	}
 
 	private onConfigurationChanged(): void {
-		if (!this.editor.getRawConfiguration().glyphMargin) {
+		if (!this.editor.getConfiguration().viewInfo.glyphMargin) {
 			this.editPreferenceWidgetForCusorPosition.hide();
 			this.editPreferenceWidgetForMouseMove.hide();
 		}
@@ -720,7 +735,7 @@ class EditSettingRenderer extends Disposable {
 
 	private showEditPreferencesWidget(editPreferencesWidget: EditPreferenceWidget<ISetting>, settings: ISetting[]) {
 		const line = settings[0].valueRange.startLineNumber;
-		if (this.editor.getRawConfiguration().glyphMargin && this.marginFreeFromOtherDecorations(line)) {
+		if (this.editor.getConfiguration().viewInfo.glyphMargin && this.marginFreeFromOtherDecorations(line)) {
 			editPreferencesWidget.show(line, nls.localize('editTtile', "Edit"), settings);
 			const editPreferenceWidgetToHide = editPreferencesWidget === this.editPreferenceWidgetForCusorPosition ? this.editPreferenceWidgetForMouseMove : this.editPreferenceWidgetForCusorPosition;
 			editPreferenceWidgetToHide.hide();

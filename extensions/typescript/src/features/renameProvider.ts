@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { RenameProvider, WorkspaceEdit, TextDocument, Position, Range, CancellationToken } from 'vscode';
 
 import * as Proto from '../protocol';
@@ -51,8 +49,7 @@ export default class TypeScriptRenameProvider implements RenameProvider {
 				});
 			});
 			return result;
-		}, (err) => {
-			this.client.error(`'rename' request failed with error.`, err);
+		}, () => {
 			return null;
 		});
 	}

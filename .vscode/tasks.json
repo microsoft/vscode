@@ -30,7 +30,7 @@
 					"location": 2,
 					"message": 3
 				},
-				"watching": {
+				"background": {
 					"beginsPattern": "Starting compilation",
 					"endsPattern": "Finished compilation"
 				}

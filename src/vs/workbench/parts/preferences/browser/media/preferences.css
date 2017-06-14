@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 .preferences-editor > .preferences-header {
-	border-bottom: 1px solid #efeff2;
 	display: flex;
 	flex-wrap: wrap;
 	padding-left: 27px;
@@ -19,8 +18,8 @@
 	padding-bottom: 5px;
 }
 
-.vs-dark .preferences-editor > .preferences-header {
-	border-bottom: 1px solid #2d2d2d;
+.preferences-editor > .preferences-editors-container.side-by-side-preferences-editor {
+	position: relative;
 }
 
 .settings-tabs-widget {
@@ -108,25 +107,10 @@
 	position: absolute;
 	right: 10px;
 	border-radius: 2px;
-	background-color: #EFEFF2;
 }
 
 .settings-header-widget > .settings-count-widget.hide {
 	display: none;
-}
-
-.hc-black .settings-header-widget > .settings-count-widget,
-.vs-dark .settings-header-widget > .settings-count-widget {
-	background-color: #2D2D30;
-}
-
-.settings-header-widget > .settings-count-widget.no-results {
-	color: #A1260D;
-}
-
-.hc-black .settings-header-widget > .settings-count-widget.no-results,
-.vs-dark .settings-header-widget > .settings-count-widget.no-results {
-	color: #F48771
 }
 
 .settings-header-widget > .settings-search-container {
@@ -148,14 +132,6 @@
 .settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox .input {
 	font-size: 14px;
 	padding-left:10px;
-}
-
-.vs-dark .preferences-editor .side-by-side-preferences-editor > .editable-preferences-editor-container {
-	box-shadow: -6px 0 5px -5px black;
-}
-
-.preferences-editor .side-by-side-preferences-editor > .editable-preferences-editor-container {
-	box-shadow: -6px 0 5px -5px #DDD;
 }
 
 .monaco-editor .settings-group-title-widget {
@@ -238,8 +214,6 @@
 }
 
 .monaco-editor .floating-click-widget {
-	background: #007ACC;
-	color: white;
 	padding: 10px;
 	border-radius: 5px;
 	cursor: pointer;

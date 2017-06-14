@@ -30,6 +30,10 @@
 	display: flex;
 }
 
+.monaco-split-view > .split-view-view > .header.hide {
+	display: none;
+}
+
 /* Bold font style does not go well with CJK fonts */
 .monaco-split-view:lang(zh-Hans) > .split-view-view > .header,
 .monaco-split-view:lang(zh-Hant) > .split-view-view > .header,

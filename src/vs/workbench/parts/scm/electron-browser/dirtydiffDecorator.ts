@@ -15,17 +15,22 @@ import * as widget from 'vs/editor/browser/codeEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import URI from 'vs/base/common/uri';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ISCMService } from 'vs/workbench/services/scm/common/scm';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { localize } from 'vs/nls';
+import { Color } from 'vs/base/common/color';
 
 class DirtyDiffModelDecorator {
 
-	static MODIFIED_DECORATION_OPTIONS: common.IModelDecorationOptions = {
+	static MODIFIED_DECORATION_OPTIONS = ModelDecorationOptions.register({
 		linesDecorationsClassName: 'dirty-diff-modified-glyph',
 		isWholeLine: true,
 		overviewRuler: {
@@ -33,9 +38,9 @@ class DirtyDiffModelDecorator {
 			darkColor: 'rgba(0, 122, 204, 0.6)',
 			position: common.OverviewRulerLane.Left
 		}
-	};
+	});
 
-	static ADDED_DECORATION_OPTIONS: common.IModelDecorationOptions = {
+	static ADDED_DECORATION_OPTIONS = ModelDecorationOptions.register({
 		linesDecorationsClassName: 'dirty-diff-added-glyph',
 		isWholeLine: true,
 		overviewRuler: {
@@ -43,9 +48,9 @@ class DirtyDiffModelDecorator {
 			darkColor: 'rgba(0, 122, 204, 0.6)',
 			position: common.OverviewRulerLane.Left
 		}
-	};
+	});
 
-	static DELETED_DECORATION_OPTIONS: common.IModelDecorationOptions = {
+	static DELETED_DECORATION_OPTIONS = ModelDecorationOptions.register({
 		linesDecorationsClassName: 'dirty-diff-deleted-glyph',
 		isWholeLine: true,
 		overviewRuler: {
@@ -53,7 +58,7 @@ class DirtyDiffModelDecorator {
 			darkColor: 'rgba(0, 122, 204, 0.6)',
 			position: common.OverviewRulerLane.Left
 		}
-	};
+	});
 
 	private decorations: string[];
 	private baselineModel: common.IModel;
@@ -69,7 +74,7 @@ class DirtyDiffModelDecorator {
 		@IEditorWorkerService private editorWorkerService: IEditorWorkerService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService
+		@ITextModelService private textModelResolverService: ITextModelService
 	) {
 		this.decorations = [];
 		this.diffDelayer = new ThrottledDelayer<common.IChange[]>(200);
@@ -265,3 +270,44 @@ export class DirtyDiffDecorator implements ext.IWorkbenchContribution {
 		this.decorators = null;
 	}
 }
+
+export const editorGutterModifiedBackground = registerColor('editorGutter.modifiedBackground', {
+	dark: Color.fromHex('#00bcf2').transparent(0.6),
+	light: Color.fromHex('#007acc').transparent(0.6),
+	hc: Color.fromHex('#007acc').transparent(0.6)
+}, localize('editorGutterModifiedBackground', "Editor gutter background color for lines that are modified."));
+
+export const editorGutterAddedBackground = registerColor('editorGutter.addedBackground', {
+	dark: Color.fromHex('#7fba00').transparent(0.6),
+	light: Color.fromHex('#2d883e').transparent(0.6),
+	hc: Color.fromHex('#2d883e').transparent(0.6)
+}, localize('editorGutterAddedBackground', "Editor gutter background color for lines that are added."));
+
+export const editorGutteDeletedBackground = registerColor('editorGutter.deletedBackground', {
+	dark: Color.fromHex('#b9131a').transparent(0.76),
+	light: Color.fromHex('#b9131a').transparent(0.76),
+	hc: Color.fromHex('#b9131a').transparent(0.76)
+}, localize('editorGutterDeletedBackground', "Editor gutter background color for lines that are deleted."));
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	const editorGutterModifiedBackgroundColor = theme.getColor(editorGutterModifiedBackground);
+	if (editorGutterModifiedBackgroundColor) {
+		collector.addRule(`.monaco-editor .dirty-diff-modified-glyph { border-left: 3px solid ${editorGutterModifiedBackgroundColor}; }`);
+	}
+
+	const editorGutterAddedBackgroundColor = theme.getColor(editorGutterAddedBackground);
+	if (editorGutterAddedBackgroundColor) {
+		collector.addRule(`.monaco-editor .dirty-diff-added-glyph { border-left: 3px solid ${editorGutterAddedBackgroundColor}; }`);
+	}
+
+	const editorGutteDeletedBackgroundColor = theme.getColor(editorGutteDeletedBackground);
+	if (editorGutteDeletedBackgroundColor) {
+		collector.addRule(`
+			.monaco-editor .dirty-diff-deleted-glyph:after {
+				border-top: 4px solid transparent;
+				border-bottom: 4px solid transparent;
+				border-left: 4px solid ${editorGutteDeletedBackgroundColor};
+			}
+		`);
+	}
+});

@@ -145,7 +145,7 @@
 	var marker = new ActiveLineMarker();
 	const settings = JSON.parse(document.getElementById('vscode-markdown-preview-data').getAttribute('data-settings'));
 
-	window.addEventListener('load', () => {
+	function onLoad() {
 		if (settings.scrollPreviewWithEditorSelection) {
 			const initialLine = +settings.line;
 			if (!isNaN(initialLine)) {
@@ -155,7 +155,14 @@
 				}, 0);
 			}
 		}
-	});
+	}
+
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', onLoad);
+	} else {
+		onLoad();
+	}
+
 
 	window.addEventListener('resize', () => {
 		scrollDisabled = true;

@@ -357,11 +357,13 @@ declare module monaco {
 		 * Cover all key codes when IME is processing input.
 		 */
 		KEY_IN_COMPOSITION = 109,
+		ABNT_C1 = 110,
+		ABNT_C2 = 111,
 		/**
 		 * Placed last to cover the length of the enum.
 		 * Please do not depend on this value!
 		 */
-		MAX_VALUE = 110,
+		MAX_VALUE = 112,
 	}
 
 	export class KeyMod {
@@ -624,6 +626,7 @@ declare module monaco {
 		 * Create a new empty range using this range's start position.
 		 */
 		static collapseToStart(range: IRange): Range;
+		static fromPositions(start: IPosition, end?: IPosition): Range;
 		/**
 		 * Create a `Range` from an `IRange`.
 		 */
@@ -722,9 +725,17 @@ declare module monaco {
 		 */
 		setEndPosition(endLineNumber: number, endColumn: number): Selection;
 		/**
+		 * Get the position at `positionLineNumber` and `positionColumn`.
+		 */
+		getPosition(): Position;
+		/**
 		 * Create a new selection with a different `selectionStartLineNumber` and `selectionStartColumn`.
 		 */
 		setStartPosition(startLineNumber: number, startColumn: number): Selection;
+		/**
+		 * Create a `Selection` from one or two positions
+		 */
+		static fromPositions(start: IPosition, end?: IPosition): Selection;
 		/**
 		 * Create a `Selection` from an `ISelection`.
 		 */
@@ -885,6 +896,11 @@ declare module monaco.editor {
 	 */
 	export function defineTheme(themeName: string, themeData: IStandaloneThemeData): void;
 
+	/**
+	 * Switches to a theme.
+	 */
+	export function setTheme(themeName: string): void;
+
 	export type BuiltinTheme = 'vs' | 'vs-dark' | 'hc-black';
 
 	export interface IStandaloneThemeData {
@@ -958,12 +974,26 @@ declare module monaco.editor {
 		 * To not create automatically a model, use `model: null`.
 		 */
 		language?: string;
+		/**
+		 * Initial theme to be used for rendering.
+		 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+		 * You can create custom themes via `monaco.editor.defineTheme`.
+		 * To switch a theme, use `monaco.editor.setTheme`
+		 */
+		theme?: string;
 	}
 
 	/**
 	 * The options to create a diff editor.
 	 */
 	export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
+		/**
+		 * Initial theme to be used for rendering.
+		 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+		 * You can create custom themes via `monaco.editor.defineTheme`.
+		 * To switch a theme, use `monaco.editor.setTheme`
+		 */
+		theme?: string;
 	}
 
 	export interface IStandaloneCodeEditor extends ICodeEditor {
@@ -1038,19 +1068,19 @@ declare module monaco.editor {
 	export interface IModelDecorationOverviewRulerOptions {
 		/**
 		 * CSS color to render in the overview ruler.
-		 * e.g.: rgba(100, 100, 100, 0.5)
+		 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 		 */
-		color: string;
+		color: string | ThemeColor;
 		/**
 		 * CSS color to render in the overview ruler.
-		 * e.g.: rgba(100, 100, 100, 0.5)
+		 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 		 */
-		darkColor: string;
+		darkColor: string | ThemeColor;
 		/**
 		 * CSS color to render in the overview ruler.
-		 * e.g.: rgba(100, 100, 100, 0.5)
+		 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 		 */
-		hcColor?: string;
+		hcColor?: string | ThemeColor;
 		/**
 		 * The position in the overview ruler.
 		 */
@@ -1062,7 +1092,7 @@ declare module monaco.editor {
 	 */
 	export interface IModelDecorationOptions {
 		/**
-		 * Customize the growing behaviour of the decoration when typing at the edges of the decoration.
+		 * Customize the growing behavior of the decoration when typing at the edges of the decoration.
 		 * Defaults to TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
 		 */
 		stickiness?: TrackedRangeStickiness;
@@ -1082,10 +1112,6 @@ declare module monaco.editor {
 		 * Should the decoration expand to encompass a whole line.
 		 */
 		isWholeLine?: boolean;
-		/**
-		 * @deprecated : Use `overviewRuler` instead
-		 */
-		showInOverviewRuler?: string;
 		/**
 		 * If set, render this decoration in the overview ruler.
 		 */
@@ -1508,46 +1534,46 @@ declare module monaco.editor {
 		 * @param searchOnlyEditableRange Limit the searching to only search inside the editable range of the model.
 		 * @param isRegex Used to indicate that `searchString` is a regular expression.
 		 * @param matchCase Force the matching to match lower/upper case exactly.
-		 * @param wholeWord Force the matching to match entire words only.
+		 * @param wordSeparators Force the matching to match entire words only. Pass null otherwise.
 		 * @param captureMatches The result will contain the captured groups.
 		 * @param limitResultCount Limit the number of results
 		 * @return The ranges where the matches are. It is empty if not matches have been found.
 		 */
-		findMatches(searchString: string, searchOnlyEditableRange: boolean, isRegex: boolean, matchCase: boolean, wholeWord: boolean, captureMatches: boolean, limitResultCount?: number): FindMatch[];
+		findMatches(searchString: string, searchOnlyEditableRange: boolean, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean, limitResultCount?: number): FindMatch[];
 		/**
 		 * Search the model.
 		 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
 		 * @param searchScope Limit the searching to only search inside this range.
 		 * @param isRegex Used to indicate that `searchString` is a regular expression.
 		 * @param matchCase Force the matching to match lower/upper case exactly.
-		 * @param wholeWord Force the matching to match entire words only.
+		 * @param wordSeparators Force the matching to match entire words only. Pass null otherwise.
 		 * @param captureMatches The result will contain the captured groups.
 		 * @param limitResultCount Limit the number of results
 		 * @return The ranges where the matches are. It is empty if no matches have been found.
 		 */
-		findMatches(searchString: string, searchScope: IRange, isRegex: boolean, matchCase: boolean, wholeWord: boolean, captureMatches: boolean, limitResultCount?: number): FindMatch[];
+		findMatches(searchString: string, searchScope: IRange, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean, limitResultCount?: number): FindMatch[];
 		/**
 		 * Search the model for the next match. Loops to the beginning of the model if needed.
 		 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
 		 * @param searchStart Start the searching at the specified position.
 		 * @param isRegex Used to indicate that `searchString` is a regular expression.
 		 * @param matchCase Force the matching to match lower/upper case exactly.
-		 * @param wholeWord Force the matching to match entire words only.
+		 * @param wordSeparators Force the matching to match entire words only. Pass null otherwise.
 		 * @param captureMatches The result will contain the captured groups.
 		 * @return The range where the next match is. It is null if no next match has been found.
 		 */
-		findNextMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean, captureMatches: boolean): FindMatch;
+		findNextMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean): FindMatch;
 		/**
 		 * Search the model for the previous match. Loops to the end of the model if needed.
 		 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
 		 * @param searchStart Start the searching at the specified position.
 		 * @param isRegex Used to indicate that `searchString` is a regular expression.
 		 * @param matchCase Force the matching to match lower/upper case exactly.
-		 * @param wholeWord Force the matching to match entire words only.
+		 * @param wordSeparators Force the matching to match entire words only. Pass null otherwise.
 		 * @param captureMatches The result will contain the captured groups.
 		 * @return The range where the previous match is. It is null if no previous match has been found.
 		 */
-		findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean, captureMatches: boolean): FindMatch;
+		findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean): FindMatch;
 	}
 
 	export class FindMatch {
@@ -1612,7 +1638,8 @@ declare module monaco.editor {
 	}
 
 	/**
-	 * Describes the behaviour of decorations when typing/editing near their edges.
+	 * Describes the behavior of decorations when typing/editing near their edges.
+	 * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehavior`
 	 */
 	export enum TrackedRangeStickiness {
 		AlwaysGrowsWhenTypingAtEdges = 0,
@@ -2132,6 +2159,10 @@ declare module monaco.editor {
 		restoreViewState?(state: any): void;
 	}
 
+	export interface ThemeColor {
+		id: string;
+	}
+
 	export interface ICommonCodeEditor extends IEditor {
 		/**
 		 * An event emitted when the content of the current model has changed.
@@ -2268,6 +2299,7 @@ declare module monaco.editor {
 		getAction(id: string): IEditorAction;
 		/**
 		 * Execute a command on the editor.
+		 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
 		 * @param source The source of the call.
 		 * @param command The command to execute
 		 */
@@ -2278,6 +2310,7 @@ declare module monaco.editor {
 		pushUndoStop(): boolean;
 		/**
 		 * Execute edits on the editor.
+		 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
 		 * @param source The source of the call.
 		 * @param edits The edits to execute.
 		 * @param endCursoState Cursor state after the edits were applied.
@@ -2501,17 +2534,9 @@ declare module monaco.editor {
 		 */
 		readonly position: Position;
 		/**
-		 * Primary cursor's view position
-		 */
-		readonly viewPosition: Position;
-		/**
 		 * Secondary cursors' position.
 		 */
 		readonly secondaryPositions: Position[];
-		/**
-		 * Secondary cursors' view position.
-		 */
-		readonly secondaryViewPositions: Position[];
 		/**
 		 * Reason.
 		 */
@@ -2520,10 +2545,6 @@ declare module monaco.editor {
 		 * Source of the call that caused the event.
 		 */
 		readonly source: string;
-		/**
-		 * Is the primary cursor in the editable range?
-		 */
-		readonly isInEditableRange: boolean;
 	}
 
 	/**
@@ -2535,17 +2556,9 @@ declare module monaco.editor {
 		 */
 		readonly selection: Selection;
 		/**
-		 * The primary selection in view coordinates.
-		 */
-		readonly viewSelection: Selection;
-		/**
 		 * The secondary selections.
 		 */
 		readonly secondarySelections: Selection[];
-		/**
-		 * The secondary selections in view coordinates.
-		 */
-		readonly secondaryViewSelections: Selection[];
 		/**
 		 * Source of the call that caused the event.
 		 */
@@ -2620,6 +2633,20 @@ declare module monaco.editor {
 	}
 
 	/**
+	 * Configuration options for editor find widget
+	 */
+	export interface IEditorFindOptions {
+		/**
+		 * Controls if we seed search string in the Find Widget with editor selection.
+		 */
+		seedSearchStringFromSelection?: boolean;
+		/**
+		 * Controls if Find in Selection flag is turned on when multiple lines of text are selected in the editor.
+		 */
+		autoFindInSelection: boolean;
+	}
+
+	/**
 	 * Configuration options for editor minimap
 	 */
 	export interface IEditorMinimapOptions {
@@ -2628,6 +2655,11 @@ declare module monaco.editor {
 		 * Defaults to false.
 		 */
 		enabled?: boolean;
+		/**
+		 * Control the rendering of the minimap slider.
+		 * Defaults to 'mouseover'.
+		 */
+		showSlider?: 'always' | 'mouseover';
 		/**
 		 * Render the actual text on a line (as opposed to color blocks).
 		 * Defaults to true.
@@ -2640,17 +2672,10 @@ declare module monaco.editor {
 		maxColumn?: number;
 	}
 
-	export type LineNumbersOption = 'on' | 'off' | 'relative' | ((lineNumber: number) => string);
-
 	/**
 	 * Configuration options for the editor.
 	 */
 	export interface IEditorOptions {
-		/**
-		 * Enable experimental screen reader support.
-		 * Defaults to `true`.
-		 */
-		experimentalScreenReader?: boolean;
 		/**
 		 * The aria label for the editor's textarea (when it is focused).
 		 */
@@ -2677,7 +2702,7 @@ declare module monaco.editor {
 		 * Otherwise, line numbers will not be rendered.
 		 * Defaults to true.
 		 */
-		lineNumbers?: LineNumbersOption;
+		lineNumbers?: 'on' | 'off' | 'relative' | ((lineNumber: number) => string);
 		/**
 		 * Should the corresponding line be selected when clicking on the line number?
 		 * Defaults to true.
@@ -2712,11 +2737,9 @@ declare module monaco.editor {
 		 */
 		roundedSelection?: boolean;
 		/**
-		 * Theme to be used for rendering.
-		 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
-		 * You can create custom themes via `monaco.editor.defineTheme`.
+		 * Class name to be added to the editor.
 		 */
-		theme?: string;
+		extraEditorClassName?: string;
 		/**
 		 * Should the editor be read only.
 		 * Defaults to false.
@@ -2730,6 +2753,10 @@ declare module monaco.editor {
 		 * Control the behavior and rendering of the minimap.
 		 */
 		minimap?: IEditorMinimapOptions;
+		/**
+		 * Control the behavior of the find widget.
+		 */
+		find?: IEditorFindOptions;
 		/**
 		 * Display overflow widgets as `fixed`.
 		 * Defaults to `false`.
@@ -2846,6 +2873,11 @@ declare module monaco.editor {
 		 */
 		hover?: boolean;
 		/**
+		 * Enable detecting links and making them clickable.
+		 * Defaults to true.
+		 */
+		links?: boolean;
+		/**
 		 * Enable custom contextmenu.
 		 * Defaults to true.
 		 */
@@ -2855,6 +2887,16 @@ declare module monaco.editor {
 		 * Defaults to 1.
 		 */
 		mouseWheelScrollSensitivity?: number;
+		/**
+		 * The modifier to be used to add multiple cursors with the mouse.
+		 * Defaults to 'alt'
+		 */
+		multiCursorModifier?: 'ctrlCmd' | 'alt';
+		/**
+		 * Configure the editor's accessibility support.
+		 * Defaults to 'auto'. It is best to leave this to 'auto'.
+		 */
+		accessibilitySupport?: 'auto' | 'off' | 'on';
 		/**
 		 * Enable quick suggestions (shadow suggestions)
 		 * Defaults to true.
@@ -2905,9 +2947,9 @@ declare module monaco.editor {
 		suggestOnTriggerCharacters?: boolean;
 		/**
 		 * Accept suggestions on ENTER.
-		 * Defaults to true.
+		 * Defaults to 'on'.
 		 */
-		acceptSuggestionOnEnter?: boolean;
+		acceptSuggestionOnEnter?: 'on' | 'smart' | 'off';
 		/**
 		 * Accept suggestions on provider defined characters.
 		 * Defaults to true.
@@ -2956,6 +2998,11 @@ declare module monaco.editor {
 		 */
 		folding?: boolean;
 		/**
+		 * Controls whether the fold actions in the gutter stay always visible or hide unless the mouse is over the gutter.
+		 * Defaults to 'mouseover'.
+		 */
+		showFoldingControls?: 'always' | 'mouseover';
+		/**
 		 * Enable highlighting of matching brackets.
 		 * Defaults to true.
 		 */
@@ -3000,6 +3047,10 @@ declare module monaco.editor {
 		 * The line height
 		 */
 		lineHeight?: number;
+		/**
+		 * The letter spacing
+		 */
+		letterSpacing?: number;
 	}
 
 	/**
@@ -3119,8 +3170,7 @@ declare module monaco.editor {
 		UnderlineThin = 6,
 	}
 
-	export class InternalEditorScrollbarOptions {
-		readonly _internalEditorScrollbarOptionsBrand: void;
+	export interface InternalEditorScrollbarOptions {
 		readonly arrowSize: number;
 		readonly vertical: ScrollbarVisibility;
 		readonly horizontal: ScrollbarVisibility;
@@ -3135,15 +3185,19 @@ declare module monaco.editor {
 		readonly mouseWheelScrollSensitivity: number;
 	}
 
-	export class InternalEditorMinimapOptions {
-		readonly _internalEditorMinimapOptionsBrand: void;
+	export interface InternalEditorMinimapOptions {
 		readonly enabled: boolean;
+		readonly showSlider: 'always' | 'mouseover';
 		readonly renderCharacters: boolean;
 		readonly maxColumn: number;
 	}
 
-	export class EditorWrappingInfo {
-		readonly _editorWrappingInfoBrand: void;
+	export interface InternalEditorFindOptions {
+		readonly seedSearchStringFromSelection: boolean;
+		readonly autoFindInSelection: boolean;
+	}
+
+	export interface EditorWrappingInfo {
 		readonly inDiffEditor: boolean;
 		readonly isDominatedByLongLines: boolean;
 		readonly isWordWrapMinified: boolean;
@@ -3155,12 +3209,9 @@ declare module monaco.editor {
 		readonly wordWrapBreakObtrusiveCharacters: string;
 	}
 
-	export class InternalEditorViewOptions {
-		readonly _internalEditorViewOptionsBrand: void;
-		readonly theme: string;
-		readonly canUseTranslate3d: boolean;
+	export interface InternalEditorViewOptions {
+		readonly extraEditorClassName: string;
 		readonly disableMonospaceOptimizations: boolean;
-		readonly experimentalScreenReader: boolean;
 		readonly rulers: number[];
 		readonly ariaLabel: string;
 		readonly renderLineNumbers: boolean;
@@ -3177,7 +3228,6 @@ declare module monaco.editor {
 		readonly cursorStyle: TextEditorCursorStyle;
 		readonly hideCursorInOverviewRuler: boolean;
 		readonly scrollBeyondLastLine: boolean;
-		readonly editorClassName: string;
 		readonly stopRenderingLineAfter: number;
 		readonly renderWhitespace: 'none' | 'boundary' | 'all';
 		readonly renderControlCharacters: boolean;
@@ -3189,9 +3239,10 @@ declare module monaco.editor {
 		readonly fixedOverflowWidgets: boolean;
 	}
 
-	export class EditorContribOptions {
+	export interface EditorContribOptions {
 		readonly selectionClipboard: boolean;
 		readonly hover: boolean;
+		readonly links: boolean;
 		readonly contextmenu: boolean;
 		readonly quickSuggestions: boolean | {
 			other: boolean;
@@ -3204,10 +3255,9 @@ declare module monaco.editor {
 		readonly formatOnType: boolean;
 		readonly formatOnPaste: boolean;
 		readonly suggestOnTriggerCharacters: boolean;
-		readonly acceptSuggestionOnEnter: boolean;
+		readonly acceptSuggestionOnEnter: 'on' | 'smart' | 'off';
 		readonly acceptSuggestionOnCommitCharacter: boolean;
 		readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
-		readonly emptySelectionClipboard: boolean;
 		readonly wordBasedSuggestions: boolean;
 		readonly suggestFontSize: number;
 		readonly suggestLineHeight: number;
@@ -3215,7 +3265,9 @@ declare module monaco.editor {
 		readonly occurrencesHighlight: boolean;
 		readonly codeLens: boolean;
 		readonly folding: boolean;
+		readonly showFoldingControls: 'always' | 'mouseover';
 		readonly matchBrackets: boolean;
+		readonly find: InternalEditorFindOptions;
 	}
 
 	/**
@@ -3223,13 +3275,18 @@ declare module monaco.editor {
 	 */
 	export class InternalEditorOptions {
 		readonly _internalEditorOptionsBrand: void;
+		readonly canUseTranslate3d: boolean;
+		readonly pixelRatio: number;
+		readonly editorClassName: string;
 		readonly lineHeight: number;
 		readonly readOnly: boolean;
+		readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 		readonly wordSeparators: string;
 		readonly autoClosingBrackets: boolean;
 		readonly useTabStops: boolean;
 		readonly tabFocusMode: boolean;
 		readonly dragAndDrop: boolean;
+		readonly emptySelectionClipboard: boolean;
 		readonly layoutInfo: EditorLayoutInfo;
 		readonly fontInfo: FontInfo;
 		readonly viewInfo: InternalEditorViewOptions;
@@ -3240,8 +3297,7 @@ declare module monaco.editor {
 	/**
 	 * A description for the overview ruler position.
 	 */
-	export class OverviewRulerPosition {
-		readonly _overviewRulerPositionBrand: void;
+	export interface OverviewRulerPosition {
 		/**
 		 * Width of the overview ruler
 		 */
@@ -3263,8 +3319,7 @@ declare module monaco.editor {
 	/**
 	 * The internal layout details of the editor.
 	 */
-	export class EditorLayoutInfo {
-		readonly _editorLayoutInfoBrand: void;
+	export interface EditorLayoutInfo {
 		/**
 		 * Full editor width.
 		 */
@@ -3347,53 +3402,26 @@ declare module monaco.editor {
 		readonly overviewRuler: OverviewRulerPosition;
 	}
 
-	export interface IViewConfigurationChangedEvent {
-		readonly theme: boolean;
-		readonly canUseTranslate3d: boolean;
-		readonly disableMonospaceOptimizations: boolean;
-		readonly experimentalScreenReader: boolean;
-		readonly rulers: boolean;
-		readonly ariaLabel: boolean;
-		readonly renderLineNumbers: boolean;
-		readonly renderCustomLineNumbers: boolean;
-		readonly renderRelativeLineNumbers: boolean;
-		readonly selectOnLineNumbers: boolean;
-		readonly glyphMargin: boolean;
-		readonly revealHorizontalRightPadding: boolean;
-		readonly roundedSelection: boolean;
-		readonly overviewRulerLanes: boolean;
-		readonly overviewRulerBorder: boolean;
-		readonly cursorBlinking: boolean;
-		readonly mouseWheelZoom: boolean;
-		readonly cursorStyle: boolean;
-		readonly hideCursorInOverviewRuler: boolean;
-		readonly scrollBeyondLastLine: boolean;
-		readonly editorClassName: boolean;
-		readonly stopRenderingLineAfter: boolean;
-		readonly renderWhitespace: boolean;
-		readonly renderControlCharacters: boolean;
-		readonly fontLigatures: boolean;
-		readonly renderIndentGuides: boolean;
-		readonly renderLineHighlight: boolean;
-		readonly scrollbar: boolean;
-		readonly minimap: boolean;
-		readonly fixedOverflowWidgets: boolean;
-	}
-
 	/**
 	 * An event describing that the configuration of the editor has changed.
 	 */
 	export interface IConfigurationChangedEvent {
+		readonly canUseTranslate3d: boolean;
+		readonly pixelRatio: boolean;
+		readonly editorClassName: boolean;
 		readonly lineHeight: boolean;
 		readonly readOnly: boolean;
+		readonly accessibilitySupport: boolean;
+		readonly multiCursorModifier: boolean;
 		readonly wordSeparators: boolean;
 		readonly autoClosingBrackets: boolean;
 		readonly useTabStops: boolean;
 		readonly tabFocusMode: boolean;
 		readonly dragAndDrop: boolean;
+		readonly emptySelectionClipboard: boolean;
 		readonly layoutInfo: boolean;
 		readonly fontInfo: boolean;
-		readonly viewInfo: IViewConfigurationChangedEvent;
+		readonly viewInfo: boolean;
 		readonly wrappingInfo: boolean;
 		readonly contribInfo: boolean;
 	}
@@ -3831,6 +3859,7 @@ declare module monaco.editor {
 		readonly fontWeight: string;
 		readonly fontSize: number;
 		readonly lineHeight: number;
+		readonly letterSpacing: number;
 	}
 }
 

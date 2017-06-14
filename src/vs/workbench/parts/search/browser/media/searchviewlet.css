@@ -203,28 +203,6 @@
 	font-style: italic;
 }
 
-.search-viewlet .checkbox {
-	display: inline-block;
-	visibility: hidden;
-	border: 1px solid rgba(128, 128, 128, 0.5);
-	width: 0;
-	height: 12px;
-	margin-right: 0;
-	position: relative;
-	top: 2px;
-	transition:			width 150ms, margin-right 150ms ease-in;
-}
-
-.search-viewlet .linematch .checkbox.checked {
-	background-position: -66px -150px;
-}
-
-.search-viewlet .select .linematch .checkbox {
-	visibility: visible;
-	width: 12px;
-	margin-right: 4px;
-}
-
 .search-viewlet .query-clear {
 	background: url("action-query-clear.svg") center center no-repeat;
 }
@@ -354,16 +332,8 @@
 	background: url('excludeSettings-dark.svg') center center no-repeat;
 }
 
-.search-viewlet .findInFileMatch,
-.monaco-editor .findInFileMatch {
-	background-color: rgba(234, 92, 0, 0.3);
-	animation-duration: 0;
-	animation-name: inherit !important;
-}
-
 .search-viewlet .replace.findInFileMatch {
 	text-decoration: line-through;
-	background-color: rgba(255, 0, 0, 0.2);
 }
 
 .search-viewlet .findInFileMatch,
@@ -371,24 +341,10 @@
 	white-space: pre;
 }
 
-.search-viewlet .replaceMatch {
-	background-color: rgba(155, 185, 85, 0.5);
-}
-
 .hc-black .monaco-workbench .search-viewlet .replaceMatch,
-.hc-black .monaco-workbench .search-viewlet .findInFileMatch,
-.monaco-editor.hc-black .findInFileMatch {
+.hc-black .monaco-workbench .search-viewlet .findInFileMatch {
 	background: none !important;
-	border: 1px dotted #f38518;
 	box-sizing: border-box;
-}
-
-.hc-black .monaco-workbench .search-viewlet .replace.findInFileMatch {
-	border: 1px dashed #FF008F;
-}
-
-.hc-black .monaco-workbench .search-viewlet .replaceMatch {
-	border: 1px dashed rgb(51, 255, 46);
 }
 
 .monaco-workbench .search-viewlet a.prominent {
@@ -396,19 +352,6 @@
 }
 
 /* Theming */
-
-.search-viewlet .highlight {
-	color: black;
-	background-color: rgba(234, 92, 0, 0.3);
-}
-
-.vs .search-viewlet .filematch .name {
-	color: #1E1E1E;
-}
-
-.vs .search-viewlet .monaco-tree.focused .monaco-tree-row.selected .filematch .name {
-	color: #FFF;
-}
 
 .vs .search-viewlet .search-widget .toggle-replace-button:hover {
 	background-color: rgba(0, 0, 0, 0.1) !important;
@@ -426,10 +369,6 @@
 	background-image: url('expando-expanded.svg');
 }
 
-.vs-dark .search-viewlet .monaco-tree .filematch .name {
-	color: #FFF;
-}
-
 .vs-dark .search-viewlet .query-clear {
 	background: url("action-query-clear-dark.svg") center center no-repeat;
 }
@@ -440,7 +379,6 @@
 }
 
 .vs-dark .search-viewlet .message {
-	color: #FFF;
 	opacity: .5;
 }
 

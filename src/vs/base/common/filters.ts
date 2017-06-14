@@ -5,7 +5,7 @@
 'use strict';
 
 import strings = require('vs/base/common/strings');
-import { BoundedLinkedMap } from 'vs/base/common/map';
+import { BoundedMap } from 'vs/base/common/map';
 import { CharCode } from 'vs/base/common/charCode';
 
 export interface IFilter {
@@ -334,7 +334,7 @@ export enum SubstringMatching {
 
 export const fuzzyContiguousFilter = or(matchesPrefix, matchesCamelCase, matchesContiguousSubString);
 const fuzzySeparateFilter = or(matchesPrefix, matchesCamelCase, matchesSubString);
-const fuzzyRegExpCache = new BoundedLinkedMap<RegExp>(10000); // bounded to 10000 elements
+const fuzzyRegExpCache = new BoundedMap<RegExp>(10000); // bounded to 10000 elements
 
 export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSeparateSubstringMatching = false): IMatch[] {
 	if (typeof word !== 'string' || typeof wordToMatchAgainst !== 'string') {
@@ -356,29 +356,6 @@ export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSep
 
 	// Default Filter
 	return enableSeparateSubstringMatching ? fuzzySeparateFilter(word, wordToMatchAgainst) : fuzzyContiguousFilter(word, wordToMatchAgainst);
-}
-
-export function matchesFuzzy2(pattern: string, word: string): number[] {
-
-	pattern = pattern.toLowerCase();
-	word = word.toLowerCase();
-
-	let matches: number[] = [];
-	let patternPos = 0;
-	let wordPos = 0;
-	while (patternPos < pattern.length && wordPos < word.length) {
-		if (pattern[patternPos] === word[wordPos]) {
-			patternPos += 1;
-			matches.push(wordPos);
-		}
-		wordPos += 1;
-	}
-
-	if (patternPos !== pattern.length) {
-		return undefined;
-	}
-
-	return matches;
 }
 
 export function createMatches(position: number[]): IMatch[] {
@@ -446,6 +423,11 @@ _seps['/'] = true;
 _seps['\\'] = true;
 _seps['\''] = true;
 _seps['"'] = true;
+_seps[':'] = true;
+
+const _ws: { [ch: string]: boolean } = Object.create(null);
+_ws[' '] = true;
+_ws['\t'] = true;
 
 const enum Arrow { Top = 0b1, Diag = 0b10, Left = 0b100 }
 
@@ -454,8 +436,21 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 	const patternLen = pattern.length > 100 ? 100 : pattern.length;
 	const wordLen = word.length > 100 ? 100 : word.length;
 
-	if (patternLen === 0) {
-		return [-1, []];
+	// Check for leading whitespace in the pattern and
+	// start matching just after that position. This is
+	// like `pattern = pattern.rtrim()` but doesn't create
+	// a new string
+	let patternStartPos = 0;
+	for (const ch of pattern) {
+		if (_ws[ch]) {
+			patternStartPos += 1;
+		} else {
+			break;
+		}
+	}
+
+	if (patternLen === patternStartPos) {
+		return [-100, []];
 	}
 
 	if (patternLen > wordLen) {
@@ -464,38 +459,39 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 
 	const lowPattern = pattern.toLowerCase();
 	const lowWord = word.toLowerCase();
-	let i = 0;
-	let j = 0;
 
-	while (i < patternLen && j < wordLen) {
-		if (lowPattern[i] === lowWord[j]) {
-			i += 1;
+	let patternPos = patternStartPos;
+	let wordPos = 0;
+
+	while (patternPos < patternLen && wordPos < wordLen) {
+		if (lowPattern[patternPos] === lowWord[wordPos]) {
+			patternPos += 1;
 		}
-		j += 1;
+		wordPos += 1;
 	}
-	if (i !== patternLen) {
+	if (patternPos !== patternLen) {
 		// no simple matches found -> return early
 		return undefined;
 	}
 
-	for (i = 1; i <= patternLen; i++) {
+	for (patternPos = patternStartPos + 1; patternPos <= patternLen; patternPos++) {
 
 		let lastLowWordChar = '';
 
-		for (j = 1; j <= wordLen; j++) {
+		for (wordPos = 1; wordPos <= wordLen; wordPos++) {
 
 			let score = -1;
-			let lowWordChar = lowWord[j - 1];
-			if (lowPattern[i - 1] === lowWordChar) {
+			let lowWordChar = lowWord[wordPos - 1];
+			if (lowPattern[patternPos - 1] === lowWordChar) {
 
-				if (j === 1) {
-					if (pattern[i - 1] === word[j - 1]) {
+				if (wordPos === 1) {
+					if (pattern[patternPos - 1] === word[wordPos - 1]) {
 						score = 7;
 					} else {
 						score = 5;
 					}
-				} else if (lowWordChar !== word[j - 1]) {
-					if (pattern[i - 1] === word[j - 1]) {
+				} else if (lowWordChar !== word[wordPos - 1]) {
+					if (pattern[patternPos - 1] === word[wordPos - 1]) {
 						score = 7;
 					} else {
 						score = 5;
@@ -508,35 +504,35 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 				}
 			}
 
-			_scores[i][j] = score;
+			_scores[patternPos][wordPos] = score;
 
-			let diag = _table[i - 1][j - 1] + (score > 1 ? 1 : score);
-			let top = _table[i - 1][j] + -1;
-			let left = _table[i][j - 1] + -1;
+			let diag = _table[patternPos - 1][wordPos - 1] + (score > 1 ? 1 : score);
+			let top = _table[patternPos - 1][wordPos] + -1;
+			let left = _table[patternPos][wordPos - 1] + -1;
 
 			if (left >= top) {
 				// left or diag
 				if (left > diag) {
-					_table[i][j] = left;
-					_arrows[i][j] = Arrow.Left;
+					_table[patternPos][wordPos] = left;
+					_arrows[patternPos][wordPos] = Arrow.Left;
 				} else if (left === diag) {
-					_table[i][j] = left;
-					_arrows[i][j] = Arrow.Left | Arrow.Diag;
+					_table[patternPos][wordPos] = left;
+					_arrows[patternPos][wordPos] = Arrow.Left | Arrow.Diag;
 				} else {
-					_table[i][j] = diag;
-					_arrows[i][j] = Arrow.Diag;
+					_table[patternPos][wordPos] = diag;
+					_arrows[patternPos][wordPos] = Arrow.Diag;
 				}
 			} else {
 				// top or diag
 				if (top > diag) {
-					_table[i][j] = top;
-					_arrows[i][j] = Arrow.Top;
+					_table[patternPos][wordPos] = top;
+					_arrows[patternPos][wordPos] = Arrow.Top;
 				} else if (top === diag) {
-					_table[i][j] = top;
-					_arrows[i][j] = Arrow.Top | Arrow.Diag;
+					_table[patternPos][wordPos] = top;
+					_arrows[patternPos][wordPos] = Arrow.Top | Arrow.Diag;
 				} else {
-					_table[i][j] = diag;
-					_arrows[i][j] = Arrow.Diag;
+					_table[patternPos][wordPos] = diag;
+					_arrows[patternPos][wordPos] = Arrow.Diag;
 				}
 			}
 
@@ -550,15 +546,16 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 		console.log(printTable(_scores, pattern, patternLen, word, wordLen));
 	}
 
-	let bucket: [number, number[]][] = [];
-	findAllMatches(patternLen, patternLen, wordLen, 0, [], bucket, false);
+	_bucket.length = 0;
+	_patternStartPos = patternStartPos;
+	_findAllMatches(patternLen, wordLen, 0, [], false);
 
-	if (bucket.length === 0) {
+	if (_bucket.length === 0) {
 		return undefined;
 	}
 
-	let topMatch = bucket.shift();
-	for (const match of bucket) {
+	let topMatch = _bucket.shift();
+	for (const match of _bucket) {
 		if (!topMatch || topMatch[0] < match[0]) {
 			topMatch = match;
 		}
@@ -569,15 +566,20 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 	return topMatch;
 }
 
-function findAllMatches(patternLen: number, patternPos: number, wordPos: number, total: number, matches: number[], bucket: [number, number[]][], lastMatched: boolean): void {
+let _bucket: [number, number[]][] = [];
+let _patternStartPos: number = 0;
 
-	if (bucket.length >= 10) {
+function _findAllMatches(patternPos: number, wordPos: number, total: number, matches: number[], lastMatched: boolean): void {
+
+	if (_bucket.length >= 10 || total < -25) {
+		// stop when having already 10 results, or
+		// when a potential alignment as already 5 gaps
 		return;
 	}
 
 	let simpleMatchCount = 0;
 
-	while (patternPos > 0 && wordPos > 0) {
+	while (patternPos > _patternStartPos && wordPos > 0) {
 
 		let score = _scores[patternPos][wordPos];
 		let arrow = _arrows[patternPos][wordPos];
@@ -597,11 +599,12 @@ function findAllMatches(patternLen: number, patternPos: number, wordPos: number,
 
 			if (arrow & Arrow.Left) {
 				// left
-				findAllMatches(
-					patternLen, patternPos,
+				_findAllMatches(
+					patternPos,
 					wordPos - 1,
 					matches.length !== 0 ? total - 1 : total,
-					matches.slice(0), bucket, lastMatched
+					matches.slice(0),
+					lastMatched
 				);
 			}
 
@@ -624,11 +627,6 @@ function findAllMatches(patternLen: number, patternPos: number, wordPos: number,
 		}
 	}
 
-	if (matches.length !== patternLen) {
-		// doesn't cover whole pattern
-		return undefined;
-	}
-
 	if (_scores[1][matches[0] + 1] === 1) {
 		// first match is weak
 		return undefined;
@@ -636,7 +634,7 @@ function findAllMatches(patternLen: number, patternPos: number, wordPos: number,
 
 	total -= wordPos >= 3 ? 9 : wordPos * 3; // late start penalty
 
-	bucket.push([total, matches]);
+	_bucket.push([total, matches]);
 }
 
 

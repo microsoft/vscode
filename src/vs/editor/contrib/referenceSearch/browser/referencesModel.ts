@@ -15,7 +15,7 @@ import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Location } from 'vs/editor/common/modes';
-import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { Position } from 'vs/editor/common/core/position';
 
 export class OneReference {
@@ -66,7 +66,7 @@ export class OneReference {
 	public getAriaMessage(): string {
 		return localize(
 			'aria.oneReference', "symbol in {0} on line {1} at column {2}",
-			this.uri.fsPath, this.range.startLineNumber, this.range.startColumn
+			basename(this.uri.fsPath), this.range.startLineNumber, this.range.startColumn
 		);
 	}
 }
@@ -154,13 +154,13 @@ export class FileReferences implements IDisposable {
 	getAriaMessage(): string {
 		const len = this.children.length;
 		if (len === 1) {
-			return localize('aria.fileReferences.1', "1 symbol in {0}", this.uri.fsPath);
+			return localize('aria.fileReferences.1', "1 symbol in {0}, full path {1}", basename(this.uri.fsPath), this.uri.fsPath);
 		} else {
-			return localize('aria.fileReferences.N', "{0} symbols in {1}", len, this.uri.fsPath);
+			return localize('aria.fileReferences.N', "{0} symbols in {1}, full path {2}", len, basename(this.uri.fsPath), this.uri.fsPath);
 		}
 	}
 
-	public resolve(textModelResolverService: ITextModelResolverService): TPromise<FileReferences> {
+	public resolve(textModelResolverService: ITextModelService): TPromise<FileReferences> {
 
 		if (this._resolved) {
 			return TPromise.as(this);

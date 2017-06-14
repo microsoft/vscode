@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { Position, Range, CompletionItemProvider, CompletionItemKind, TextDocument, CancellationToken, CompletionItem, window, Uri, ProviderResult, TextEditor, SnippetString, workspace } from 'vscode';
 
 import { ITypescriptServiceClient } from '../typescriptService';
@@ -26,7 +24,7 @@ namespace Configuration {
 
 class JsDocCompletionItem extends CompletionItem {
 	constructor(
-		file: Uri,
+		document: TextDocument,
 		position: Position,
 		shouldGetJSDocFromTSServer: boolean,
 	) {
@@ -34,10 +32,19 @@ class JsDocCompletionItem extends CompletionItem {
 		this.detail = localize('typescript.jsDocCompletionItem.documentation', 'JSDoc comment');
 		this.insertText = '';
 		this.sortText = '\0';
+
+		const line = document.lineAt(position.line).text;
+		const prefix = line.slice(0, position.character).match(/\/\**\s*$/);
+		const suffix = line.slice(position.character).match(/^\s*\**\//);
+		const start = position.translate(0, prefix ? -prefix[0].length : 0);
+		this.range = new Range(
+			start,
+			position.translate(0, suffix ? suffix[0].length : 0));
+
 		this.command = {
 			title: 'Try Complete JSDoc',
 			command: TryCompleteJsDocCommand.COMMAND_NAME,
-			arguments: [file, position, shouldGetJSDocFromTSServer]
+			arguments: [document.uri, start, shouldGetJSDocFromTSServer]
 		};
 	}
 }
@@ -67,7 +74,7 @@ export class JsDocCompletionProvider implements CompletionItemProvider {
 		const line = document.lineAt(position.line).text;
 		const prefix = line.slice(0, position.character);
 		if (prefix.match(/^\s*$|\/\*\*\s*$|^\s*\/\*\*+\s*$/)) {
-			return [new JsDocCompletionItem(document.uri, position, this.config.enabled)];
+			return [new JsDocCompletionItem(document, position, this.config.enabled)];
 		}
 		return [];
 	}
@@ -80,16 +87,16 @@ export class JsDocCompletionProvider implements CompletionItemProvider {
 export class TryCompleteJsDocCommand {
 	static COMMAND_NAME = '_typeScript.tryCompleteJsDoc';
 
-	constructor(private client: ITypescriptServiceClient) {
-
-	}
+	constructor(
+		private lazyClient: () => ITypescriptServiceClient
+	) { }
 
 	/**
 	 * Try to insert a jsdoc comment, using a template provide by typescript
 	 * if possible, otherwise falling back to a default comment format.
 	 */
-	public tryCompleteJsDoc(resource: Uri, position: Position, shouldGetJSDocFromTSServer: boolean): Thenable<boolean> {
-		const file = this.client.normalizePath(resource);
+	public tryCompleteJsDoc(resource: Uri, start: Position, shouldGetJSDocFromTSServer: boolean): Thenable<boolean> {
+		const file = this.lazyClient().normalizePath(resource);
 		if (!file) {
 			return Promise.resolve(false);
 		}
@@ -99,44 +106,17 @@ export class TryCompleteJsDocCommand {
 			return Promise.resolve(false);
 		}
 
-		return this.prepForDocCompletion(editor, position)
-			.then((start: Position) => {
-				if (!shouldGetJSDocFromTSServer) {
-					return this.tryInsertDefaultDoc(editor, start);
-				}
-
-				return this.tryInsertJsDocFromTemplate(editor, file, start)
-					.then((didInsertFromTemplate: boolean) => {
-						if (didInsertFromTemplate) {
-							return true;
-						}
-						return this.tryInsertDefaultDoc(editor, start);
-					});
-			});
-	}
-
-	/**
-	 * Prepare the area around the position for insertion of the jsdoc.
-	 *
-	 * Removes any the prefix and suffix of a possible jsdoc
-	 */
-	private prepForDocCompletion(editor: TextEditor, position: Position): Thenable<Position> {
-		const line = editor.document.lineAt(position.line).text;
-		const prefix = line.slice(0, position.character).match(/\/\**\s*$/);
-		const suffix = line.slice(position.character).match(/^\s*\**\//);
-		if (!prefix && !suffix) {
-			// Nothing to remove
-			return Promise.resolve(position);
+		if (!shouldGetJSDocFromTSServer) {
+			return this.tryInsertDefaultDoc(editor, start);
 		}
 
-		const start = position.translate(0, prefix ? -prefix[0].length : 0);
-		return editor.edit(
-			edits => {
-				edits.delete(new Range(start, position.translate(0, suffix ? suffix[0].length : 0)));
-			}, {
-				undoStopBefore: true,
-				undoStopAfter: false
-			}).then(() => start);
+		return this.tryInsertJsDocFromTemplate(editor, file, start)
+			.then((didInsertFromTemplate: boolean) => {
+				if (didInsertFromTemplate) {
+					return true;
+				}
+				return this.tryInsertDefaultDoc(editor, start);
+			});
 	}
 
 	private tryInsertJsDocFromTemplate(editor: TextEditor, file: string, position: Position): Promise<boolean> {
@@ -146,7 +126,7 @@ export class TryCompleteJsDocCommand {
 			offset: position.character + 1
 		};
 		return Promise.race([
-			this.client.execute('docCommentTemplate', args),
+			this.lazyClient().execute('docCommentTemplate', args),
 			new Promise((_, reject) => setTimeout(reject, 250))
 		]).then((res: DocCommandTemplateResponse) => {
 			if (!res || !res.body) {

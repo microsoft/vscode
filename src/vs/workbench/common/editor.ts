@@ -10,14 +10,11 @@ import * as objects from 'vs/base/common/objects';
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { IEditor, ICommonCodeEditor, IEditorViewState, IModel } from 'vs/editor/common/editorCommon';
+import { IEditor, IEditorViewState, IModel } from 'vs/editor/common/editorCommon';
 import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position, Verbosity } from 'vs/platform/editor/common/editor';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import * as editorOptions from 'vs/editor/common/config/editorOptions';
 
 export const TextCompareEditorVisible = new RawContextKey<boolean>('textCompareEditorVisible', false);
 
@@ -588,7 +585,6 @@ export class TextEditorOptions extends EditorOptions {
 
 	private revealInCenterIfOutsideViewport: boolean;
 	private editorViewState: IEditorViewState;
-	private editorOptions: editorOptions.IEditorOptions;
 
 	public static from(input: IBaseResourceInput): TextEditorOptions {
 		let options: TextEditorOptions = null;
@@ -645,7 +641,7 @@ export class TextEditorOptions extends EditorOptions {
 	/**
 	 * Helper to create TextEditorOptions inline.
 	 */
-	public static create(settings: ITextEditorOptions): TextEditorOptions {
+	public static create(settings: ITextEditorOptions = Object.create(null)): TextEditorOptions {
 		const options = new TextEditorOptions();
 		options.preserveFocus = settings.preserveFocus;
 		options.forceOpen = settings.forceOpen;
@@ -685,24 +681,15 @@ export class TextEditorOptions extends EditorOptions {
 	}
 
 	/**
-	 * Sets the view state to be used when the editor is opening.
+	 * Create a TextEditorOptions inline to be used when the editor is opening.
 	 */
-	public fromEditor(editor: IEditor): void {
+	public static fromEditor(editor: IEditor, settings?: IEditorOptions): TextEditorOptions {
+		const options = TextEditorOptions.create(settings);
 
 		// View state
-		this.editorViewState = editor.saveViewState();
+		options.editorViewState = editor.saveViewState();
 
-		// Selected editor options
-		const codeEditor = <ICommonCodeEditor>editor;
-		if (typeof codeEditor.getConfiguration === 'function') {
-			const config = codeEditor.getConfiguration();
-			if (config && config.viewInfo && config.wrappingInfo) {
-				this.editorOptions = Object.create(null);
-				this.editorOptions.renderWhitespace = config.viewInfo.renderWhitespace;
-				this.editorOptions.renderControlCharacters = config.viewInfo.renderControlCharacters;
-				this.editorOptions.wordWrap = config.wrappingInfo.isViewportWrapping ? 'on' : 'off';
-			}
-		}
+		return options;
 	}
 
 	/**
@@ -711,11 +698,6 @@ export class TextEditorOptions extends EditorOptions {
 	 * @return if something was applied
 	 */
 	public apply(editor: IEditor): boolean {
-
-		// Editor options
-		if (this.editorOptions) {
-			editor.updateOptions(this.editorOptions);
-		}
 
 		// View state
 		return this.applyViewState(editor);
@@ -816,25 +798,6 @@ export class TextDiffEditorOptions extends TextEditorOptions {
 	public autoRevealFirstChange: boolean;
 }
 
-/**
- * Helper to return all opened editors with resources not belonging to the currently opened workspace.
- */
-export function getOutOfWorkspaceEditorResources(editorGroupService: IEditorGroupService, contextService: IWorkspaceContextService): URI[] {
-	const resources: URI[] = [];
-
-	editorGroupService.getStacksModel().groups.forEach(group => {
-		const editors = group.getEditors();
-		editors.forEach(editor => {
-			const fileResource = toResource(editor, { supportSideBySide: true, filter: 'file' });
-			if (fileResource && !contextService.isInsideWorkspace(fileResource)) {
-				resources.push(fileResource);
-			}
-		});
-	});
-
-	return resources;
-}
-
 export interface IStacksModelChangeEvent {
 	group: IEditorGroup;
 	editor?: IEditorInput;
@@ -844,7 +807,9 @@ export interface IStacksModelChangeEvent {
 export interface IEditorStacksModel {
 
 	onModelChanged: Event<IStacksModelChangeEvent>;
-	onEditorClosed: Event<IGroupEvent>;
+
+	onWillCloseEditor: Event<IEditorCloseEvent>;
+	onEditorClosed: Event<IEditorCloseEvent>;
 
 	groups: IEditorGroup[];
 	activeGroup: IEditorGroup;
@@ -893,8 +858,7 @@ export interface IEditorContext extends IEditorIdentifier {
 	event?: any;
 }
 
-export interface IGroupEvent {
-	editor: IEditorInput;
+export interface IEditorCloseEvent extends IEditorIdentifier {
 	pinned: boolean;
 	index: number;
 }

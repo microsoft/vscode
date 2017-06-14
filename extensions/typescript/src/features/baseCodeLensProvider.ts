@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { CodeLensProvider, CodeLens, CancellationToken, TextDocument, Range, Uri, Position, Event, EventEmitter, workspace, } from 'vscode';
+import { CodeLensProvider, CodeLens, CancellationToken, TextDocument, Range, Uri, Position, Event, EventEmitter, ProviderResult, } from 'vscode';
 import * as Proto from '../protocol';
 
 import { ITypescriptServiceClient } from '../typescriptService';
@@ -21,35 +19,32 @@ export class ReferencesCodeLens extends CodeLens {
 }
 
 export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider {
-	private enabled: boolean = false;
+	private enabled: boolean = true;
 	private onDidChangeCodeLensesEmitter = new EventEmitter<void>();
 
 	public constructor(
-		protected client: ITypescriptServiceClient,
-		private toggleSettingName: string
+		protected client: ITypescriptServiceClient
 	) { }
 
 	public get onDidChangeCodeLenses(): Event<void> {
 		return this.onDidChangeCodeLensesEmitter.event;
 	}
 
-	public updateConfiguration(): void {
-		const typeScriptConfig = workspace.getConfiguration('typescript');
-		const wasEnabled = this.enabled;
-		this.enabled = typeScriptConfig.get(this.toggleSettingName, false);
-		if (wasEnabled !== this.enabled) {
+	protected setEnabled(enabled: false): void {
+		if (this.enabled !== enabled) {
+			this.enabled = enabled;
 			this.onDidChangeCodeLensesEmitter.fire();
 		}
 	}
 
-	provideCodeLenses(document: TextDocument, token: CancellationToken): Promise<CodeLens[]> {
+	provideCodeLenses(document: TextDocument, token: CancellationToken): ProviderResult<CodeLens[]> {
 		if (!this.enabled) {
-			return Promise.resolve([]);
+			return [];
 		}
 
 		const filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
-			return Promise.resolve([]);
+			return [];
 		}
 		return this.client.execute('navtree', { file: filepath }, token).then(response => {
 			if (!response) {
@@ -61,6 +56,8 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 				tree.childItems.forEach(item => this.walkNavTree(document, item, null, referenceableSpans));
 			}
 			return referenceableSpans.map(span => new ReferencesCodeLens(document.uri, filepath, span));
+		}, () => {
+			return [];
 		});
 	}
 
@@ -108,7 +105,7 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 
 		const text = document.getText(range);
 
-		const identifierMatch = new RegExp(`^(.*?(\\b|\\W))${(item.text || '').replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')}\\b`, 'gm');
+		const identifierMatch = new RegExp(`^(.*?(\\b|\\W))${(item.text || '').replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')}(\\b|\\W)`, 'gm');
 		const match = identifierMatch.exec(text);
 		const prefixLength = match ? match.index + match[1].length : 0;
 		const startOffset = document.offsetAt(new Position(range.start.line, range.start.character)) + prefixLength;

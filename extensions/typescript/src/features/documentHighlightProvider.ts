@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { DocumentHighlightProvider, DocumentHighlight, DocumentHighlightKind, TextDocument, Position, Range, CancellationToken } from 'vscode';
 
 import * as Proto from '../protocol';
@@ -45,8 +43,7 @@ export default class TypeScriptDocumentHighlightProvider implements DocumentHigh
 				});
 			}
 			return [];
-		}, (err) => {
-			this.client.error(`'occurrences' request failed with error.`, err);
+		}, () => {
 			return [];
 		});
 	}

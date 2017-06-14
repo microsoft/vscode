@@ -5,8 +5,6 @@
 
 .monaco-editor .parameter-hints-widget {
 	z-index: 10;
-	background-color: #F3F3F3;
-	border: 1px solid rgb(200, 200, 200);
 	display: flex;
 	flex-direction: column;
 	line-height: 1.5em;
@@ -41,20 +39,13 @@
 	flex-direction: column;
 }
 
-.monaco-editor .parameter-hints-widget.multiple .body {
-	border-left: 1px solid rgba(204, 204, 204, 0.5);
-}
-
 .monaco-editor .parameter-hints-widget .signature {
 	padding: 4px 5px;
 }
 
-.monaco-editor .parameter-hints-widget .signature.has-docs {
-	border-bottom: 1px solid rgba(204, 204, 204, 0.5);
-}
-
 .monaco-editor .parameter-hints-widget .docs {
 	padding: 0 10px 0 5px;
+	white-space: pre-wrap;
 }
 
 .monaco-editor .parameter-hints-widget .buttons {
@@ -117,19 +108,7 @@
 	margin-right: 0.5em;
 }
 
-/*** VS Dark */
-
-.monaco-editor.vs-dark .parameter-hints-widget {
-	background-color: #2D2D30;
-	border-color: rgba(85,85,85,0.5);
-}
-
-.monaco-editor.hc-black .parameter-hints-widget .body,
-.monaco-editor.vs-dark .parameter-hints-widget .body,
-.monaco-editor.hc-black .parameter-hints-widget .signature,
-.monaco-editor.vs-dark .parameter-hints-widget .signature {
-	border-color: rgba(85,85,85,0.5);
-}
+/*** VS Dark & High Contrast*/
 
 .monaco-editor.hc-black .parameter-hints-widget .button.previous,
 .monaco-editor.vs-dark .parameter-hints-widget .button.previous {
@@ -139,11 +118,4 @@
 .monaco-editor.hc-black .parameter-hints-widget .button.next,
 .monaco-editor.vs-dark .parameter-hints-widget .button.next {
 	background-image: url('arrow-down-dark.svg');
-}
-
-/*** High Contrast */
-
-.monaco-editor.hc-black .parameter-hints-widget {
-	background-color: #0C141F;
-	border: 2px solid #6FC3DF;
 }

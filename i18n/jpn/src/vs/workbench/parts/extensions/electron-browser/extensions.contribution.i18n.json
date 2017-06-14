@@ -10,5 +10,6 @@
 	"extensions": "拡張機能",
 	"view": "表示",
 	"extensionsConfigurationTitle": "拡張機能",
-	"extensionsAutoUpdate": "拡張機能を自動的に更新します"
+	"extensionsAutoUpdate": "拡張機能を自動的に更新します",
+	"extensionsIgnoreRecommendations": "拡張機能の推奨事項を無視する"
 }

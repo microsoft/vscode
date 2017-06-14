@@ -25,6 +25,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceSymbolProvider, getWorkspaceSymbols } from 'vs/workbench/parts/search/common/search';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { basename } from 'vs/base/common/paths';
 
 class SymbolEntry extends EditorQuickOpenEntry {
 
@@ -50,11 +51,15 @@ class SymbolEntry extends EditorQuickOpenEntry {
 	}
 
 	public getDescription(): string {
-		let result = this._bearing.containerName;
-		if (!result && this._bearing.location.uri) {
-			result = labels.getPathLabel(this._bearing.location.uri, this._contextService, this._environmentService);
+		const containerName = this._bearing.containerName;
+		if (this._bearing.location.uri) {
+			if (containerName) {
+				return `${containerName} — ${basename(this._bearing.location.uri.fsPath)}`;
+			} else {
+				return labels.getPathLabel(this._bearing.location.uri, this._contextService, this._environmentService);
+			}
 		}
-		return result;
+		return containerName;
 	}
 
 	public getIcon(): string {

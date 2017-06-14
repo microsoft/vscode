@@ -11,14 +11,13 @@ import { ICommonCodeEditor, IEditorContribution, IModel } from 'vs/editor/common
 import { editorAction, ServicesAccessor, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
-import { InternalEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { InternalEditorOptions, EDITOR_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 
 const transientWordWrapState = 'transientWordWrapState';
 const isWordWrapMinifiedKey = 'isWordWrapMinified';
@@ -67,7 +66,7 @@ function readWordWrapState(model: IModel, configurationService: IConfigurationSe
 	const _transientState = readTransientState(model, codeEditorService);
 	return {
 		configuredWordWrap: _configuredWordWrap,
-		configuredWordWrapMinified: (typeof _configuredWordWrapMinified.value === 'undefined' ? DefaultConfig.editor.wordWrapMinified : _configuredWordWrapMinified.value),
+		configuredWordWrapMinified: (typeof _configuredWordWrapMinified.value === 'undefined' ? EDITOR_DEFAULTS.wordWrapMinified : _configuredWordWrapMinified.value),
 		transientState: _transientState
 	};
 }

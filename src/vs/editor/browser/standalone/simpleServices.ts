@@ -17,6 +17,7 @@ import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingReso
 import { IKeybindingEvent, KeybindingSource, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IMessageService } from 'vs/platform/message/common/message';
+import { IWorkspaceContextService, Workspace, IWorkspace, IWorkspace2 } from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -24,7 +25,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { getDefaultValues as getDefaultConfiguration } from 'vs/platform/configuration/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
-import { ITextModelResolverService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IDisposable, IReference, ImmortalReference, combinedDisposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -172,7 +173,7 @@ export class SimpleEditorService implements IEditorService {
 	}
 }
 
-export class SimpleEditorModelResolverService implements ITextModelResolverService {
+export class SimpleEditorModelResolverService implements ITextModelService {
 	public _serviceBrand: any;
 
 	private editor: SimpleEditor;
@@ -487,5 +488,47 @@ export class StandaloneTelemetryService implements ITelemetryService {
 
 	public getExperiments(): ITelemetryExperiments {
 		return null;
+	}
+}
+
+export class SimpleWorkspaceContextService implements IWorkspaceContextService {
+
+	public _serviceBrand: any;
+
+	private readonly _onDidChangeWorkspaceRoots: Emitter<URI[]> = new Emitter<URI[]>();
+	public readonly onDidChangeWorkspaceRoots: Event<URI[]> = this._onDidChangeWorkspaceRoots.event;
+
+	private readonly folders: URI[];
+
+	constructor(private workspace?: Workspace) {
+		this.folders = workspace ? [workspace.resource] : [];
+	}
+
+	public getFolders(): URI[] {
+		return this.folders;
+	}
+
+	public getWorkspace(): IWorkspace {
+		return this.workspace;
+	}
+
+	public getWorkspace2(): IWorkspace2 {
+		return this.workspace ? { id: `${this.workspace.uid}`, roots: [this.workspace.resource] } : void 0;
+	}
+
+	public hasWorkspace(): boolean {
+		return !!this.workspace;
+	}
+
+	public isInsideWorkspace(resource: URI): boolean {
+		return this.workspace ? this.workspace.isInsideWorkspace(resource) : false;
+	}
+
+	public toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
+		return this.workspace ? this.workspace.toWorkspaceRelativePath(resource, toOSPath) : null;
+	}
+
+	public toResource(workspaceRelativePath: string): URI {
+		return this.workspace ? this.workspace.toResource(workspaceRelativePath) : null;
 	}
 }

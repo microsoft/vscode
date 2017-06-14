@@ -8,7 +8,6 @@
 import * as sinon from 'sinon';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as types from 'vs/base/common/types';
-import { LinkedMap } from 'vs/base/common/map';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
@@ -20,12 +19,12 @@ interface IServiceMock<T> {
 
 export class TestInstantiationService extends InstantiationService {
 
-	private _servciesMap: LinkedMap<ServiceIdentifier<any>, any>;
+	private _servciesMap: Map<ServiceIdentifier<any>, any>;
 
 	constructor(private _serviceCollection: ServiceCollection = new ServiceCollection()) {
 		super(_serviceCollection);
 
-		this._servciesMap = new LinkedMap<ServiceIdentifier<any>, any>();
+		this._servciesMap = new Map<ServiceIdentifier<any>, any>();
 	}
 
 	public get<T>(service: ServiceIdentifier<T>): T {

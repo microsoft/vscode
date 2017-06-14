@@ -17,7 +17,7 @@ import {
 	DeleteWordLeft, DeleteWordStartLeft, DeleteWordEndLeft,
 	DeleteWordRight, DeleteWordStartRight, DeleteWordEndRight
 } from 'vs/editor/contrib/wordOperations/common/wordOperations';
-import { EditorCommand } from 'vs/editor/common/config/config';
+import { EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 
 suite('WordOperations', () => {
 

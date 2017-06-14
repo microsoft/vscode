@@ -15,7 +15,7 @@
 
 /* Font Families (with CJK support) */
 
-.monaco-shell { font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif; }
+.monaco-shell { font-family: system-ui, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif; }
 .monaco-shell:lang(zh-Hans) { font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Noto Sans", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
 .monaco-shell:lang(zh-Hant) { font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Noto Sans", "Microsoft Jhenghei", "PingFang TC", "Source Han Sans TC", "Source Han Sans", "Source Han Sans TW", sans-serif; }
 .monaco-shell:lang(ja) { font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Noto Sans", "Meiryo", "Hiragino Kaku Gothic Pro", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", "Sazanami Gothic", "IPA Gothic", sans-serif; }
@@ -96,6 +96,10 @@
 	outline-style: solid;
 	outline-offset: -1px;
 	opacity: 1 !important;
+}
+
+.monaco-shell .mac select:focus {
+	border: none; /* outline is a square, but border has a radius, so we avoid this glitch when focussed (https://github.com/Microsoft/vscode/issues/26045) */
 }
 
 .monaco-shell.hc-black [tabindex="0"]:focus,

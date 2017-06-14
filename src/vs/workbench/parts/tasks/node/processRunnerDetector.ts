@@ -155,8 +155,7 @@ export class ProcessRunnerDetector {
 		this.taskConfiguration = config;
 		this._stderr = [];
 		this._stdout = [];
-		const workspace = this.contextService.getWorkspace();
-		this._cwd = workspace ? Paths.normalize(workspace.resource.fsPath, true) : '';
+		this._cwd = this.contextService.hasWorkspace() ? Paths.normalize(this.contextService.getWorkspace().resource.fsPath, true) : '';
 	}
 
 	public get stderr(): string[] {

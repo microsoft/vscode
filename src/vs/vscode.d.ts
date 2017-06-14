@@ -201,7 +201,9 @@ declare module 'vscode' {
 		 * Get a word-range at the given position. By default words are defined by
 		 * common separators, like space, -, _, etc. In addition, per languge custom
 		 * [word definitions](#LanguageConfiguration.wordPattern) can be defined. It
-		 * is also possible to provide a custom regular expression.
+		 * is also possible to provide a custom regular expression. *Note* that a
+		 * custom regular expression must not match the empty string and that it will
+		 * be ignored if it does.
 		 *
 		 * The position will be [adjusted](#TextDocument.validatePosition).
 		 *
@@ -699,6 +701,28 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Describes the behavior of decorations when typing/editing at their edges.
+	 */
+	export enum DecorationRangeBehavior {
+		/**
+		 * The decoration's range will widen when edits occur at the start or end.
+		 */
+		OpenOpen = 0,
+		/**
+		 * The decoration's range will not widen when edits occur at the start of end.
+		 */
+		ClosedClosed = 1,
+		/**
+		 * The decoration's range will widen when edits occur at the start, but not at the end.
+		 */
+		OpenClosed = 2,
+		/**
+		 * The decoration's range will widen when edits occur at the end, but not at the start.
+		 */
+		ClosedOpen = 3
+	}
+
+	/**
 	 * Represents options to configure the behavior of showing a [document](#TextDocument) in an [editor](#TextEditor).
 	 */
 	export interface TextDocumentShowOptions {
@@ -722,13 +746,27 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A reference to one of the workbench colors as defined in https://code.visualstudio.com/docs/getstarted/theme-color-reference.
+	 * Using a theme color is preferred over a custom color as it gives theme authors and users the possibility to change the color.
+	 */
+	export class ThemeColor {
+
+		/**
+		 * Creates a reference to a theme color.
+		 * @param id of the color. The available colors are listed in https://code.visualstudio.com/docs/getstarted/theme-color-reference.
+		 */
+		constructor(id: string);
+	}
+
+	/**
 	 * Represents theme specific rendering styles for a [text editor decoration](#TextEditorDecorationType).
 	 */
 	export interface ThemableDecorationRenderOptions {
 		/**
 		 * Background color of the decoration. Use rgba() and define transparent background colors to play well with other decorations.
+		 * Alternativly a color from the color registry an be [referenced](#ColorIdentifier).
 		 */
-		backgroundColor?: string;
+		backgroundColor?: string | ThemeColor;
 
 		/**
 		 * CSS styling property that will be applied to text enclosed by a decoration.
@@ -739,7 +777,7 @@ declare module 'vscode' {
 		 * CSS styling property that will be applied to text enclosed by a decoration.
 		 * Better use 'outline' for setting one or more of the individual outline properties.
 		 */
-		outlineColor?: string;
+		outlineColor?: string | ThemeColor;
 
 		/**
 		 * CSS styling property that will be applied to text enclosed by a decoration.
@@ -762,7 +800,7 @@ declare module 'vscode' {
 		 * CSS styling property that will be applied to text enclosed by a decoration.
 		 * Better use 'border' for setting one or more of the individual border properties.
 		 */
-		borderColor?: string;
+		borderColor?: string | ThemeColor;
 
 		/**
 		 * CSS styling property that will be applied to text enclosed by a decoration.
@@ -801,7 +839,7 @@ declare module 'vscode' {
 		/**
 		 * CSS styling property that will be applied to text enclosed by a decoration.
 		 */
-		color?: string;
+		color?: string | ThemeColor;
 
 		/**
 		 * CSS styling property that will be applied to text enclosed by a decoration.
@@ -823,7 +861,7 @@ declare module 'vscode' {
 		/**
 		 * The color of the decoration in the overview ruler. Use rgba() and define transparent colors to play well with other decorations.
 		 */
-		overviewRulerColor?: string;
+		overviewRulerColor?: string | ThemeColor;
 
 		/**
 		 * Defines the rendering options of the attachment that is inserted before the decorated text
@@ -851,17 +889,21 @@ declare module 'vscode' {
 		 */
 		border?: string;
 		/**
+		 * CSS styling property that will be applied to text enclosed by a decoration.
+		 */
+		borderColor?: string | ThemeColor;
+		/**
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */
 		textDecoration?: string;
 		/**
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */
-		color?: string;
+		color?: string | ThemeColor;
 		/**
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */
-		backgroundColor?: string;
+		backgroundColor?: string | ThemeColor;
 		/**
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */
@@ -885,6 +927,12 @@ declare module 'vscode' {
 		 * Defaults to `false`.
 		 */
 		isWholeLine?: boolean;
+
+		/**
+		 * Customize the growing behavior of the decoration when edits occur at the edges of the decoration's range.
+		 * Defaults to `DecorationRangeBehavior.OpenOpen`.
+		 */
+		rangeBehavior?: DecorationRangeBehavior;
 
 		/**
 		 * The position in the overview ruler where the decoration should be rendered.
@@ -987,7 +1035,7 @@ declare module 'vscode' {
 		 * callback executes.
 		 *
 		 * @param callback A function which can create edits using an [edit-builder](#TextEditorEdit).
-		 * @param options The undo/redo behaviour around this edit. By default, undo stops will be created before and after this edit.
+		 * @param options The undo/redo behavior around this edit. By default, undo stops will be created before and after this edit.
 		 * @return A promise that resolves with a value indicating if the edits could be applied.
 		 */
 		edit(callback: (editBuilder: TextEditorEdit) => void, options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
@@ -999,7 +1047,7 @@ declare module 'vscode' {
 		 *
 		 * @param snippet The snippet to insert in this edit.
 		 * @param location Position or range at which to insert the snippet, defaults to the current editor selection or selections.
-		 * @param options The undo/redo behaviour around this edit. By default, undo stops will be created before and after this edit.
+		 * @param options The undo/redo behavior around this edit. By default, undo stops will be created before and after this edit.
 		 * @return A promise that resolves with a value indicating if the snippet could be inserted. Note that the promise does not signal
 		 * that the snippet is completely filled-in or accepted.
 		 */
@@ -1379,7 +1427,7 @@ declare module 'vscode' {
 		 * Provide textual content for a given uri.
 		 *
 		 * The editor will use the returned string-content to create a readonly
-		 * [document](TextDocument). Resources allocated should be released when
+		 * [document](#TextDocument). Resources allocated should be released when
 		 * the corresponding document has been [closed](#workspace.onDidCloseTextDocument).
 		 *
 		 * @param uri An uri which scheme matches the scheme this provider was [registered](#workspace.registerTextDocumentContentProvider) for.
@@ -3161,7 +3209,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Denotes a column in the VS Code window. Columns are
+	 * Denotes a column in the editor window. Columns are
 	 * used to show editors side by side.
 	 */
 	export enum ViewColumn {
@@ -3283,7 +3331,7 @@ declare module 'vscode' {
 		/**
 		 * The foreground color for this entry.
 		 */
-		color: string | undefined;
+		color: string | ThemeColor | undefined;
 
 		/**
 		 * The identifier of a command to run on click. The command must be
@@ -3959,6 +4007,106 @@ declare module 'vscode' {
 		 * @return A new Terminal.
 		 */
 		export function createTerminal(options: TerminalOptions): Terminal;
+
+		/**
+		 * Register a [TreeDataProvider](#TreeDataProvider) for the view contributed using the extension point `views`.
+		 * @param viewId Id of the view contributed using the extension point `views`.
+		 * @param treeDataProvider A [TreeDataProvider](#TreeDataProvider) that provides tree data for the view
+		 */
+		export function registerTreeDataProvider<T>(viewId: string, treeDataProvider: TreeDataProvider<T>): Disposable;
+	}
+
+	/**
+	 * A data provider that provides tree data
+	 */
+	export interface TreeDataProvider<T> {
+		/**
+		 * An optional event to signal that an element or root has changed.
+		 * To signal that root has changed, do not pass any argument or pass `undefined` or `null`.
+		 */
+		onDidChangeTreeData?: Event<T | undefined | null>;
+
+		/**
+		 * Get [TreeItem](#TreeItem) representation of the `element`
+		 *
+		 * @param element The element for which [TreeItem](#TreeItem) representation is asked for.
+		 * @return [TreeItem](#TreeItem) representation of the element
+		 */
+		getTreeItem(element: T): TreeItem | Thenable<TreeItem>;
+
+		/**
+		 * Get the children of `element` or root if no element is passed.
+		 *
+		 * @param element The element from which the provider gets children. Can be `undefined`.
+		 * @return Children of `element` or root if no element is passed.
+		 */
+		getChildren(element?: T): ProviderResult<T[]>;
+	}
+
+	export class TreeItem {
+		/**
+		 * A human-readable string describing this item
+		 */
+		label: string;
+
+		/**
+		 * The icon path for the tree item
+		 */
+		iconPath?: string | Uri | { light: string | Uri; dark: string | Uri };
+
+		/**
+		 * The [command](#Command) which should be run when the tree item is selected.
+		 */
+		command?: Command;
+
+		/**
+		 * [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item.
+		 */
+		collapsibleState?: TreeItemCollapsibleState;
+
+		/**
+		 * Context value of the tree item. This can be used to contribute item specific actions in the tree.
+		 * For example, a tree item is given a context value as `folder`. When contributing actions to `view/item/context`
+		 * using `menus` extension point, you can specify context value for key `viewItem` in `when` expression like `viewItem == folder`.
+		 * ```
+		 *	"contributes": {
+		 *		"menus": {
+		 *			"view/item/context": [
+		 *				{
+		 *					"command": "extension.deleteFolder",
+		 *					"when": "viewItem == folder"
+		 *				}
+		 *			]
+		 *		}
+		 *	}
+		 * ```
+		 * This will show action `extension.deleteFolder` only for items with `contextValue` is `folder`.
+		 */
+		contextValue?: string;
+
+		/**
+		 * @param label A human-readable string describing this item
+		 * @param collapsibleState [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item. Default is [TreeItemCollapsibleState.None](#TreeItemCollapsibleState.None)
+		 */
+		constructor(label: string, collapsibleState?: TreeItemCollapsibleState);
+	}
+
+	/**
+	 * Collapsible state of the tree item
+	 */
+	export enum TreeItemCollapsibleState {
+		/**
+		 * Determines an item can be neither collapsed nor expanded. Implies it has no children.
+		 */
+		None = 0,
+		/**
+		 * Determines an item is collapsed
+		 */
+		Collapsed = 1,
+		/**
+		 * Determines an item is expanded
+		 */
+		Expanded = 2
 	}
 
 	/**
@@ -4140,6 +4288,8 @@ declare module 'vscode' {
 		 * A glob pattern that filters the file events must be provided. Optionally, flags to ignore certain
 		 * kinds of events can be provided. To stop listening to events the watcher must be disposed.
 		 *
+		 * *Note* that only files within the current [workspace](#workspace.rootPath) can be watched.
+		 *
 		 * @param globPattern A glob pattern that is applied to the names of created, changed, and deleted files.
 		 * @param ignoreCreateEvents Ignore when files have been created.
 		 * @param ignoreChangeEvents Ignore when files have been changed.
@@ -4149,7 +4299,7 @@ declare module 'vscode' {
 		export function createFileSystemWatcher(globPattern: string, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): FileSystemWatcher;
 
 		/**
-		 * The folder that is open in VS Code. `undefined` when no folder
+		 * The folder that is open in the editor. `undefined` when no folder
 		 * has been opened.
 		 *
 		 * @readonly
@@ -4267,7 +4417,9 @@ declare module 'vscode' {
 		export const onDidCloseTextDocument: Event<TextDocument>;
 
 		/**
-		 * An event that is emitted when a [text document](#TextDocument) is changed.
+		 * An event that is emitted when a [text document](#TextDocument) is changed. This usually happens
+		 * when the [contents](#TextDocument.getText) changes but also when other things like the
+		 * [dirty](TextDocument#isDirty)-state changes.
 		 */
 		export const onDidChangeTextDocument: Event<TextDocumentChangeEvent>;
 
@@ -4735,7 +4887,7 @@ declare module 'vscode' {
 		/**
 		 * The label of this source control resource group.
 		 */
-		readonly label: string;
+		label: string;
 
 		/**
 		 * Whether this source control resource group is hidden when it contains
@@ -4897,7 +5049,7 @@ declare module 'vscode' {
  * Thenable is a common denominator between ES6 promises, Q, jquery.Deferred, WinJS.Promise,
  * and others. This API makes no assumption about what promise libary is being used which
  * enables reusing existing code without migrating to a specific promise implementation. Still,
- * we recommend the use of native promises which are available in VS Code.
+ * we recommend the use of native promises which are available in this editor.
  */
 interface Thenable<T> {
 	/**

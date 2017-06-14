@@ -259,20 +259,16 @@ gulp.task('clean-vscode-linux-ia32-rpm', util.rimraf('.build/linux/rpm/i386'));
 gulp.task('clean-vscode-linux-x64-rpm', util.rimraf('.build/linux/rpm/x86_64'));
 gulp.task('clean-vscode-linux-arm-rpm', util.rimraf('.build/linux/rpm/armhf'));
 
-// TODO@joao TODO@daniel
-// commented out the dependencies to the actual building of VS Code
-// we gotta make sure those targets run before these run, in our TFS builds
-
-gulp.task('vscode-linux-ia32-prepare-deb', ['clean-vscode-linux-ia32-deb'/*, 'vscode-linux-ia32-min'*/], prepareDebPackage('ia32'));
-gulp.task('vscode-linux-x64-prepare-deb', ['clean-vscode-linux-x64-deb'/*, 'vscode-linux-x64-min'*/], prepareDebPackage('x64'));
-gulp.task('vscode-linux-arm-prepare-deb', ['clean-vscode-linux-arm-deb'/*, 'vscode-linux-arm-min'*/], prepareDebPackage('arm'));
+gulp.task('vscode-linux-ia32-prepare-deb', ['clean-vscode-linux-ia32-deb'], prepareDebPackage('ia32'));
+gulp.task('vscode-linux-x64-prepare-deb', ['clean-vscode-linux-x64-deb'], prepareDebPackage('x64'));
+gulp.task('vscode-linux-arm-prepare-deb', ['clean-vscode-linux-arm-deb'], prepareDebPackage('arm'));
 gulp.task('vscode-linux-ia32-build-deb', ['vscode-linux-ia32-prepare-deb'], buildDebPackage('ia32'));
 gulp.task('vscode-linux-x64-build-deb', ['vscode-linux-x64-prepare-deb'], buildDebPackage('x64'));
 gulp.task('vscode-linux-arm-build-deb', ['vscode-linux-arm-prepare-deb'], buildDebPackage('arm'));
 
-gulp.task('vscode-linux-ia32-prepare-rpm', ['clean-vscode-linux-ia32-rpm'/*, 'vscode-linux-ia32-min'*/], prepareRpmPackage('ia32'));
-gulp.task('vscode-linux-x64-prepare-rpm', ['clean-vscode-linux-x64-rpm'/*, 'vscode-linux-x64-min'*/], prepareRpmPackage('x64'));
-gulp.task('vscode-linux-arm-prepare-rpm', ['clean-vscode-linux-arm-rpm'/*, 'vscode-linux-arm-min'*/], prepareRpmPackage('arm'));
+gulp.task('vscode-linux-ia32-prepare-rpm', ['clean-vscode-linux-ia32-rpm'], prepareRpmPackage('ia32'));
+gulp.task('vscode-linux-x64-prepare-rpm', ['clean-vscode-linux-x64-rpm'], prepareRpmPackage('x64'));
+gulp.task('vscode-linux-arm-prepare-rpm', ['clean-vscode-linux-arm-rpm'], prepareRpmPackage('arm'));
 gulp.task('vscode-linux-ia32-build-rpm', ['vscode-linux-ia32-prepare-rpm'], buildRpmPackage('ia32'));
 gulp.task('vscode-linux-x64-build-rpm', ['vscode-linux-x64-prepare-rpm'], buildRpmPackage('x64'));
 gulp.task('vscode-linux-arm-build-rpm', ['vscode-linux-arm-prepare-rpm'], buildRpmPackage('arm'));
@@ -281,9 +277,9 @@ gulp.task('clean-vscode-linux-ia32-flatpak', util.rimraf('.build/linux/flatpak/i
 gulp.task('clean-vscode-linux-x64-flatpak', util.rimraf('.build/linux/flatpak/x86_64'));
 gulp.task('clean-vscode-linux-arm-flatpak', util.rimraf('.build/linux/flatpak/arm'));
 
-gulp.task('vscode-linux-ia32-prepare-flatpak', ['clean-vscode-linux-ia32-flatpak'/*, 'vscode-linux-ia32-min'*/], prepareFlatpak('ia32'));
-gulp.task('vscode-linux-x64-prepare-flatpak', ['clean-vscode-linux-x64-flatpak'/*, 'vscode-linux-x64-min'*/], prepareFlatpak('x64'));
-gulp.task('vscode-linux-arm-prepare-flatpak', ['clean-vscode-linux-arm-flatpak'/*, 'vscode-linux-arm-min'*/], prepareFlatpak('arm'));
+gulp.task('vscode-linux-ia32-prepare-flatpak', ['clean-vscode-linux-ia32-flatpak'], prepareFlatpak('ia32'));
+gulp.task('vscode-linux-x64-prepare-flatpak', ['clean-vscode-linux-x64-flatpak'], prepareFlatpak('x64'));
+gulp.task('vscode-linux-arm-prepare-flatpak', ['clean-vscode-linux-arm-flatpak'], prepareFlatpak('arm'));
 
 gulp.task('vscode-linux-ia32-flatpak', ['vscode-linux-ia32-prepare-flatpak'], buildFlatpak('ia32'));
 gulp.task('vscode-linux-x64-flatpak', ['vscode-linux-x64-prepare-flatpak'], buildFlatpak('x64'));

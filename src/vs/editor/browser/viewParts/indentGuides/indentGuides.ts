@@ -48,7 +48,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		if (e.fontInfo) {
 			this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
 		}
-		if (e.viewInfo.renderIndentGuides) {
+		if (e.viewInfo) {
 			this._enabled = this._context.configuration.editor.viewInfo.renderIndentGuides;
 		}
 		return true;
@@ -118,6 +118,6 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 registerThemingParticipant((theme, collector) => {
 	let editorGuideColor = theme.getColor(editorIndentGuides);
 	if (editorGuideColor) {
-		collector.addRule(`.monaco-editor.${theme.selector} .lines-content .cigr { background-color: ${editorGuideColor}; }`);
+		collector.addRule(`.monaco-editor .lines-content .cigr { background-color: ${editorGuideColor}; }`);
 	}
 });

@@ -17,6 +17,8 @@ import { commonEditorContribution, CommonEditorRegistry, EditorCommand } from 'v
 import { ICodeEditor, IContentWidget, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IPosition } from 'vs/editor/common/core/position';
+import { registerThemingParticipant, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
+import { inputValidationInfoBorder, inputValidationInfoBackground } from 'vs/platform/theme/common/colorRegistry';
 
 @commonEditorContribution
 export class MessageController {
@@ -170,3 +172,16 @@ class MessageWidget implements IContentWidget {
 		return { position: this._position, preference: [ContentWidgetPositionPreference.ABOVE] };
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let border = theme.getColor(inputValidationInfoBorder);
+	if (border) {
+		let borderWidth = theme.type === HIGH_CONTRAST ? 2 : 1;
+		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .anchor { border-top-color: ${border}; }`);
+		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .message { border: ${borderWidth}px solid ${border}; }`);
+	}
+	let background = theme.getColor(inputValidationInfoBackground);
+	if (background) {
+		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .message { background-color: ${background}; }`);
+	}
+});

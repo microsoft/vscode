@@ -14,10 +14,10 @@ let ariaContainer: Builder;
 let alertContainer: Builder;
 let statusContainer: Builder;
 export function setARIAContainer(parent: HTMLElement) {
-	ariaContainer = $('.aria-container').appendTo(parent);
+	ariaContainer = $('.monaco-aria-container').appendTo(parent);
 
-	alertContainer = $('.alert').appendTo(ariaContainer).attr({ 'role': 'alert', 'aria-atomic': 'true' });
-	statusContainer = $('.status').appendTo(ariaContainer).attr({ 'role': 'status', 'aria-atomic': 'true' });
+	alertContainer = $('.monaco-alert').appendTo(ariaContainer).attr({ 'role': 'alert', 'aria-atomic': 'true' });
+	statusContainer = $('.monaco-status').appendTo(ariaContainer).attr({ 'role': 'status', 'aria-atomic': 'true' });
 }
 
 /**

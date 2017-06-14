@@ -41,7 +41,7 @@ export class TreeContext implements _.ITreeContext {
 		}
 
 		this.dataSource = configuration.dataSource;
-		this.renderer = configuration.renderer || new TreeDefaults.LegacyRenderer();
+		this.renderer = configuration.renderer;
 		this.controller = configuration.controller || new TreeDefaults.DefaultController({ clickBehavior: TreeDefaults.ClickBehavior.ON_MOUSE_UP, keyboardSupport: typeof options.keyboardSupport !== 'boolean' || options.keyboardSupport });
 		this.dnd = configuration.dnd || new TreeDefaults.DefaultDragAndDrop();
 		this.filter = configuration.filter || new TreeDefaults.DefaultFilter();
@@ -327,16 +327,16 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		this.model.focusFirstChild(eventPayload);
 	}
 
-	public focusFirst(eventPayload?: any): void {
-		this.model.focusFirst(eventPayload);
+	public focusFirst(eventPayload?: any, from?: any): void {
+		this.model.focusFirst(eventPayload, from);
 	}
 
 	public focusNth(index: number, eventPayload?: any): void {
 		this.model.focusNth(index, eventPayload);
 	}
 
-	public focusLast(eventPayload?: any): void {
-		this.model.focusLast(eventPayload);
+	public focusLast(eventPayload?: any, from?: any): void {
+		this.model.focusLast(eventPayload, from);
 	}
 
 	public focusNextPage(eventPayload?: any): void {

@@ -178,7 +178,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 				}
 				return this._validateShellPaths(label, potentialPaths);
 			}
-			return [label, current];
+			return [label, current] as [string, string];
 		});
 	}
 

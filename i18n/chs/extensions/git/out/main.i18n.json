@@ -7,5 +7,5 @@
 	"using git": "使用 {1} 中的 GIT {0}",
 	"updateGit": "更新 GIT",
 	"neverShowAgain": "不再显示",
-	"git20": "似乎已安装 GIT {0}。Code 非常适合 GIT >= 2"
+	"git20": "你似乎已安装 Git {0}。Code 和 Git 版本 >=2 一起工作最佳"
 }

@@ -1,4 +1,10 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/Microsoft/TypeScript-TmLanguage/blob/master/TypeScriptReact.tmLanguage",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/3a70fab1b03520774fa236f1f7e7a0939463739f",
 	"name": "TypeScriptReact",
 	"scopeName": "source.tsx",
 	"fileTypes": [
@@ -71,7 +77,7 @@
 					"name": "storage.type.tsx"
 				}
 			},
-			"end": "(?=$|;|}|(\\s+(of|in)\\s+))",
+			"end": "(?=$|^|;|}|(\\s+(of|in)\\s+))",
 			"patterns": [
 				{
 					"include": "#destructuring-variable"
@@ -100,7 +106,7 @@
 							"name": "meta.definition.variable.tsx entity.name.function.tsx"
 						}
 					},
-					"end": "(?=$|[;,=}]|(\\s+(of|in)\\s+))",
+					"end": "(?=$|^|[;,=}]|(\\s+(of|in)\\s+))",
 					"patterns": [
 						{
 							"include": "#var-single-variable-type-annotation"
@@ -115,7 +121,7 @@
 							"name": "meta.definition.variable.tsx variable.other.constant.tsx"
 						}
 					},
-					"end": "(?=$|[;,=}]|(\\s+(of|in)\\s+))",
+					"end": "(?=$|^|[;,=}]|(\\s+(of|in)\\s+))",
 					"patterns": [
 						{
 							"include": "#var-single-variable-type-annotation"
@@ -130,7 +136,7 @@
 							"name": "meta.definition.variable.tsx variable.other.readwrite.tsx"
 						}
 					},
-					"end": "(?=$|[;,=}]|(\\s+(of|in)\\s+))",
+					"end": "(?=$|^|[;,=}]|(\\s+(of|in)\\s+))",
 					"patterns": [
 						{
 							"include": "#var-single-variable-type-annotation"
@@ -157,7 +163,7 @@
 				{
 					"name": "meta.object-binding-pattern-variable.tsx",
 					"begin": "(?<!=|:|of|in)\\s*(?=\\{)",
-					"end": "(?=$|[;,=}]|(\\s+(of|in)\\s+))",
+					"end": "(?=$|^|[;,=}]|(\\s+(of|in)\\s+))",
 					"patterns": [
 						{
 							"include": "#object-binding-pattern"
@@ -173,7 +179,7 @@
 				{
 					"name": "meta.array-binding-pattern-variable.tsx",
 					"begin": "(?<!=|:|of|in)\\s*(?=\\[)",
-					"end": "(?=$|[;,=}]|(\\s+(of|in)\\s+))",
+					"end": "(?=$|^|[;,=}]|(\\s+(of|in)\\s+))",
 					"patterns": [
 						{
 							"include": "#array-binding-pattern"
@@ -1138,14 +1144,14 @@
 					"name": "storage.modifier.tsx"
 				}
 			},
-			"end": "(?=\\}|;|,|$)|(?<=\\})",
+			"end": "(?=\\}|;|,|$|(^(?!(([_$[:alpha:]][_$[:alnum:]]*)|(\\'[^']*\\')|(\\\"[^\"]*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\?\\s*)?(=|:))))|(?<=\\})",
 			"patterns": [
 				{
 					"include": "#variable-initializer"
 				},
 				{
 					"begin": "(?=((?:[_$[:alpha:]][_$[:alnum:]]*)|(?:\\'[^']*\\')|(?:\\\"[^\"]*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\?\\s*)?(=|:))",
-					"end": "(?=[};,=]|$)|(?<=\\})",
+					"end": "(?=[};,=]|$|(^(?!(([_$[:alpha:]][_$[:alnum:]]*)|(\\'[^']*\\')|(\\\"[^\"]*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\?\\s*)?(=|:))))|(?<=\\})",
 					"patterns": [
 						{
 							"include": "#type-annotation"
@@ -1176,50 +1182,93 @@
 			]
 		},
 		"method-declaration": {
-			"name": "meta.method.declaration.tsx",
-			"begin": "(?<!\\.|\\$)(?:\\b(public|private|protected)\\s+)?(?:\\b(abstract)\\s+)?(?:\\b(async)\\s+)?(?:\\b(get|set)\\s+)?(?:(?:\\b(?:(new)|(constructor))\\b(?!\\$|\\.|:))|(?:(\\*)\\s*)?(?=((([_$[:alpha:]][_$[:alnum:]]*)|(\\'[^']*\\')|(\\\"[^\"]*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\??))?\\s*[\\(\\<]))",
-			"beginCaptures": {
-				"1": {
-					"name": "storage.modifier.tsx"
-				},
-				"2": {
-					"name": "storage.modifier.tsx"
-				},
-				"3": {
-					"name": "storage.modifier.async.tsx"
-				},
-				"4": {
-					"name": "storage.type.property.tsx"
-				},
-				"5": {
-					"name": "keyword.operator.new.tsx"
-				},
-				"6": {
-					"name": "storage.type.tsx"
-				},
-				"7": {
-					"name": "keyword.generator.asterisk.tsx"
-				}
-			},
-			"end": "(?=\\}|;|,|$)|(?<=\\})",
 			"patterns": [
 				{
-					"include": "#method-declaration-name"
+					"name": "meta.method.declaration.tsx",
+					"begin": "(?<!\\.|\\$)(?:\\b(public|private|protected)\\s+)?(?:\\b(abstract)\\s+)?(?:\\b(async)\\s+)?(?:\\b(get|set)\\s+)(?:(\\*)\\s*)?(?=((([_$[:alpha:]][_$[:alnum:]]*)|(\\'[^']*\\')|(\\\"[^\"]*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\??))\\s*[\\(\\<])",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.modifier.tsx"
+						},
+						"2": {
+							"name": "storage.modifier.tsx"
+						},
+						"3": {
+							"name": "storage.modifier.async.tsx"
+						},
+						"4": {
+							"name": "storage.type.property.tsx"
+						},
+						"5": {
+							"name": "keyword.generator.asterisk.tsx"
+						}
+					},
+					"end": "(?=\\}|;|,|$)|(?<=\\})",
+					"patterns": [
+						{
+							"include": "#method-declaration-name"
+						},
+						{
+							"include": "#comment"
+						},
+						{
+							"include": "#type-parameters"
+						},
+						{
+							"include": "#function-parameters"
+						},
+						{
+							"include": "#return-type"
+						},
+						{
+							"include": "#decl-block"
+						}
+					]
 				},
 				{
-					"include": "#comment"
-				},
-				{
-					"include": "#type-parameters"
-				},
-				{
-					"include": "#function-parameters"
-				},
-				{
-					"include": "#return-type"
-				},
-				{
-					"include": "#decl-block"
+					"name": "meta.method.declaration.tsx",
+					"begin": "(?<!\\.|\\$)(?:\\b(public|private|protected)\\s+)?(?:\\b(abstract)\\s+)?(?:\\b(async)\\s+)?(?:(?:\\b(?:(new)|(constructor))\\b(?!\\$|\\.|:))|(?:(\\*)\\s*)?(?=((([_$[:alpha:]][_$[:alnum:]]*)|(\\'[^']*\\')|(\\\"[^\"]*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\??))?\\s*[\\(\\<]))",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.modifier.tsx"
+						},
+						"2": {
+							"name": "storage.modifier.tsx"
+						},
+						"3": {
+							"name": "storage.modifier.async.tsx"
+						},
+						"4": {
+							"name": "keyword.operator.new.tsx"
+						},
+						"5": {
+							"name": "storage.type.tsx"
+						},
+						"6": {
+							"name": "keyword.generator.asterisk.tsx"
+						}
+					},
+					"end": "(?=\\}|;|,|$)|(?<=\\})",
+					"patterns": [
+						{
+							"include": "#method-declaration-name"
+						},
+						{
+							"include": "#comment"
+						},
+						{
+							"include": "#type-parameters"
+						},
+						{
+							"include": "#function-parameters"
+						},
+						{
+							"include": "#return-type"
+						},
+						{
+							"include": "#decl-block"
+						}
+					]
 				}
 			]
 		},
@@ -1245,7 +1294,7 @@
 		},
 		"object-literal-method-declaration": {
 			"name": "meta.method.declaration.tsx",
-			"begin": "(?<!\\.|\\$)(?:\\b(async)\\s+)?(?:\\b(get|set)\\s+)?(?:(\\*)\\s*)?(?=((([_$[:alpha:]][_$[:alnum:]]*)|(\\'[^']*\\')|(\\\"[^\"]*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\??))?\\s*[\\(\\<])",
+			"begin": "(?<!\\.|\\$)(?:\\b(async)\\s+)?(?:\\b(get|set)\\s+)?(?:(\\*)\\s*)?(?=((([_$[:alpha:]][_$[:alnum:]]*)|(\\'[^']*\\')|(\\\"[^\"]*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\??))\\s*[\\(\\<])",
 			"beginCaptures": {
 				"1": {
 					"name": "storage.modifier.async.tsx"
@@ -1283,7 +1332,7 @@
 			]
 		},
 		"object-literal-method-overload-declaration": {
-			"begin": "(?<!\\.|\\$)(?:\\b(async)\\s+)?(?:\\b(get|set)\\s+)?(?:(\\*)\\s*)?(?=((([_$[:alpha:]][_$[:alnum:]]*)|(\\'[^']*\\')|(\\\"[^\"]*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\??))?\\s*[\\(\\<])",
+			"begin": "(?<!\\.|\\$)(?:\\b(async)\\s+)?(?:\\b(get|set)\\s+)?(?:(\\*)\\s*)?(?=((([_$[:alpha:]][_$[:alnum:]]*)|(\\'[^']*\\')|(\\\"[^\"]*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\??))\\s*[\\(\\<])",
 			"beginCaptures": {
 				"1": {
 					"name": "storage.modifier.async.tsx"
@@ -1383,7 +1432,7 @@
 					"name": "meta.definition.function.tsx entity.name.function.tsx"
 				}
 			},
-			"end": "(?=$|;)|(?<=\\})",
+			"end": "(?=$|^|;)|(?<=\\})",
 			"patterns": [
 				{
 					"include": "#comment"
@@ -1509,7 +1558,7 @@
 					}
 				},
 				{
-					"match": "(?x)(?:\\s*\\b(public|private|protected|readonly)\\s+)?(\\.\\.\\.)?\\s*(?<!=|:)([_$[:alpha:]][_$[:alnum:]]*)\\s*(\\??)(?=\\s*\n  (=\\s*(\n    ((async\\s+)?(\n      (function\\s*[(<]) |\n      (function\\s+) |\n      ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)\n    )) |\n    ((async\\s*)?(\n      ([(]\\s*(([)]\\s*:)|([_$[:alpha:]][_$[:alnum:]]*\\s*:)|(\\.\\.\\.) )) |\n      ([<]\\s*[_$[:alpha:]][_$[:alnum:]]*((\\s+extends\\s*[^=>])|(\\s*[,]))) |\n      ((<([^<>=]|=[^<]|\\<([^=<>]|=[^<])+\\>)+>\\s*)?\\(([^()]|\\([^()]*\\))*\\)(\\s*:\\s*(.)*)?\\s*=>)\n    ))\n  )) |\n  (:\\s*(\n    (<) |\n    ([(]\\s*(\n      ([)]) |\n      (\\.\\.\\.) |\n      ([_$[:alnum:]]+\\s*(\n        ([:,?=])|\n        ([)]\\s*=>)\n      ))\n    ))\n  ))\n)",
+					"match": "(?x)(?:\\s*\\b(public|private|protected|readonly)\\s+)?(\\.\\.\\.)?\\s*(?<!=|:)(?:(this)|([_$[:alpha:]][_$[:alnum:]]*))\\s*(\\??)(?=\\s*\n  (=\\s*(\n    ((async\\s+)?(\n      (function\\s*[(<]) |\n      (function\\s+) |\n      ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)\n    )) |\n    ((async\\s*)?(\n      ([(]\\s*(([)]\\s*:)|([_$[:alpha:]][_$[:alnum:]]*\\s*:)|(\\.\\.\\.) )) |\n      ([<]\\s*[_$[:alpha:]][_$[:alnum:]]*((\\s+extends\\s*[^=>])|(\\s*[,]))) |\n      ((<([^<>=]|=[^<]|\\<([^=<>]|=[^<])+\\>)+>\\s*)?\\(([^()]|\\([^()]*\\))*\\)(\\s*:\\s*(.)*)?\\s*=>)\n    ))\n  )) |\n  (:\\s*(\n    (<) |\n    ([(]\\s*(\n      ([)]) |\n      (\\.\\.\\.) |\n      ([_$[:alnum:]]+\\s*(\n        ([:,?=])|\n        ([)]\\s*=>)\n      ))\n    ))\n  ))\n)",
 					"captures": {
 						"1": {
 							"name": "storage.modifier.tsx"
@@ -1518,15 +1567,18 @@
 							"name": "keyword.operator.rest.tsx"
 						},
 						"3": {
-							"name": "entity.name.function.tsx"
+							"name": "entity.name.function.tsx variable.language.this.tsx"
 						},
 						"4": {
+							"name": "entity.name.function.tsx"
+						},
+						"5": {
 							"name": "keyword.operator.optional.tsx"
 						}
 					}
 				},
 				{
-					"match": "(?:\\s*\\b(public|private|protected|readonly)\\s+)?(\\.\\.\\.)?\\s*(?<!=|:)([_$[:alpha:]][_$[:alnum:]]*)\\s*(\\??)",
+					"match": "(?:\\s*\\b(public|private|protected|readonly)\\s+)?(\\.\\.\\.)?\\s*(?<!=|:)(?:((?<!\\.|\\$)\\bthis\\b(?!\\.|\\$))|([_$[:alpha:]][_$[:alnum:]]*))\\s*(\\??)",
 					"captures": {
 						"1": {
 							"name": "storage.modifier.tsx"
@@ -1535,9 +1587,12 @@
 							"name": "keyword.operator.rest.tsx"
 						},
 						"3": {
-							"name": "variable.parameter.tsx"
+							"name": "variable.parameter.tsx variable.language.this.tsx"
 						},
 						"4": {
+							"name": "variable.parameter.tsx"
+						},
+						"5": {
 							"name": "keyword.operator.optional.tsx"
 						}
 					}
@@ -1707,7 +1762,7 @@
 					"name": "keyword.operator.type.annotation.tsx"
 				}
 			},
-			"end": "(?<![:|&])((?=$)|(?=[{};,]|//))",
+			"end": "(?<![:|&])(?=$|^|[{};,]|//)",
 			"patterns": [
 				{
 					"include": "#comment"
@@ -1741,7 +1796,7 @@
 					"name": "keyword.operator.type.annotation.tsx"
 				}
 			},
-			"end": "(?=$|[,);\\}\\]]|//)|(?==[^>])|(?<=[\\}>\\]\\)]|[_$[:alpha:]])\\s*(?=\\{)",
+			"end": "(?=$|^|[,);\\}\\]]|//)|(?==[^>])|(?<=[\\}>\\]\\)]|[_$[:alpha:]])\\s*(?=\\{)",
 			"patterns": [
 				{
 					"include": "#comment"
@@ -2016,7 +2071,7 @@
 					"name": "punctuation.definition.typeparameters.begin.tsx"
 				}
 			},
-			"end": "(?=$)|(>)",
+			"end": "(>)",
 			"endCaptures": {
 				"1": {
 					"name": "punctuation.definition.typeparameters.end.tsx"
@@ -2051,7 +2106,7 @@
 							"name": "keyword.operator.assignment.tsx"
 						}
 					},
-					"end": "(?=$|[,);}\\]])",
+					"end": "(?=$|^|[,);}\\]])",
 					"patterns": [
 						{
 							"include": "#expression"
@@ -2065,7 +2120,7 @@
 							"name": "keyword.operator.assignment.tsx"
 						}
 					},
-					"end": "(?=[,);}\\]])|(?=^\\s*$)",
+					"end": "(?=[,);}\\]])|(?=^\\s*$)|(?<=\\S)(?<!=)",
 					"patterns": [
 						{
 							"include": "#expression"
@@ -2690,7 +2745,7 @@
 							"name": "keyword.control.as.tsx"
 						}
 					},
-					"end": "(?=$|[;,:})\\]])",
+					"end": "(?=$|^|[;,:})\\]])",
 					"patterns": [
 						{
 							"include": "#type"
@@ -2775,7 +2830,7 @@
 				},
 				{
 					"name": "meta.arrow.tsx",
-					"begin": "(?x) (?:\n  (?<!\\.|\\$)(\\basync)\n)? ((?<![})\\]])\\s*\n  (?=\n    # sure shot arrow functions even if => is on new line\n    (\n      [(]\\s*\n      (\n        ([)]\\s*:) |                                   # ():\n        ((\\.\\.\\.\\s*)?[_$[:alpha:]][_$[:alnum:]]*\\s*:) # [(]param: | [(]...param:\n      )\n    ) |\n    (\n      [<]\\s*[_$[:alpha:]][_$[:alnum:]]*\\s+extends\\s*[^=>] # < typeparam extends \n    ) |\n    # arrow function possible to detect only with => on same line\n    (\n      (<([^<>=]|=[^<]|\\<([^=<>]|=[^<])+\\>)+>\\s*)?                 # typeparameters\n      \\(([^()]|\\([^()]*\\))*\\)                     # parameteres\n      (\\s*:\\s*(.)*)?                              # return type\n      \\s*=>                                       # arrow operator\n    )\n  )\n)",
+					"begin": "(?x) (?:\n  (?<!\\.|\\$)(\\basync)\n)? ((?<![})!\\]])\\s*\n  (?=\n    # sure shot arrow functions even if => is on new line\n    (\n      [(]\\s*\n      (\n        ([)]\\s*:) |                                   # ():\n        ((\\.\\.\\.\\s*)?[_$[:alpha:]][_$[:alnum:]]*\\s*:) # [(]param: | [(]...param:\n      )\n    ) |\n    (\n      [<]\\s*[_$[:alpha:]][_$[:alnum:]]*\\s+extends\\s*[^=>] # < typeparam extends \n    ) |\n    # arrow function possible to detect only with => on same line\n    (\n      (<([^<>=]|=[^<]|\\<([^=<>]|=[^<])+\\>)+>\\s*)?                 # typeparameters\n      \\(([^()]|\\([^()]*\\))*\\)                     # parameteres\n      (\\s*:\\s*(.)*)?                              # return type\n      \\s*=>                                       # arrow operator\n    )\n  )\n)",
 					"beginCaptures": {
 						"1": {
 							"name": "storage.modifier.async.tsx"
@@ -2805,7 +2860,7 @@
 							"name": "storage.type.function.arrow.tsx"
 						}
 					},
-					"end": "(?<=\\})|((?!\\{)(?=\\S))",
+					"end": "(?<=\\}|\\S)(?<!=>)|((?!\\{)(?=\\S))",
 					"patterns": [
 						{
 							"include": "#decl-block"
@@ -3355,25 +3410,17 @@
 					}
 				},
 				{
-					"begin": "(^[ \\t]+)?(?=//)",
+					"begin": "(^[ \\t]+)?(//)",
 					"beginCaptures": {
 						"1": {
 							"name": "punctuation.whitespace.comment.leading.tsx"
+						},
+						"2": {
+							"name": "comment.line.double-slash.tsx punctuation.definition.comment.tsx"
 						}
 					},
-					"end": "(?=$)",
-					"patterns": [
-						{
-							"name": "comment.line.double-slash.tsx",
-							"begin": "//",
-							"beginCaptures": {
-								"0": {
-									"name": "punctuation.definition.comment.tsx"
-								}
-							},
-							"end": "(?=$)"
-						}
-					]
+					"end": "(?=^)",
+					"contentName": "comment.line.double-slash.tsx"
 				}
 			]
 		},
@@ -3385,7 +3432,7 @@
 					"name": "punctuation.definition.comment.tsx"
 				}
 			},
-			"end": "(?=$)",
+			"end": "(?=^)",
 			"patterns": [
 				{
 					"name": "meta.tag.tsx",
@@ -4005,8 +4052,8 @@
 		},
 		"jsx-tag-without-attributes": {
 			"name": "meta.tag.without-attributes.tsx",
-			"begin": "(<)\\s*([_$a-zA-Z][-$\\w.]*(?<!\\.|-))\\s*(>)",
-			"end": "(</)\\s*([_$a-zA-Z][-$\\w.]*(?<!\\.|-))\\s*(>)",
+			"begin": "(<)\\s*((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))\\s*(>)",
+			"end": "(</)\\s*((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))\\s*(>)",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.definition.tag.begin.tsx"
@@ -4015,6 +4062,9 @@
 					"name": "entity.name.tag.tsx"
 				},
 				"3": {
+					"name": "support.class.component.tsx"
+				},
+				"4": {
 					"name": "punctuation.definition.tag.end.tsx"
 				}
 			},
@@ -4026,6 +4076,9 @@
 					"name": "entity.name.tag.tsx"
 				},
 				"3": {
+					"name": "support.class.component.tsx"
+				},
+				"4": {
 					"name": "punctuation.definition.tag.end.tsx"
 				}
 			},
@@ -4038,7 +4091,7 @@
 		},
 		"jsx-tag-in-expression": {
 			"begin": "(?x)\n  (?<=[({\\[,?=>:*]|&&|\\|\\||\\?|\\Wreturn|^return|\\Wdefault|^)\\s*\n  (?!(<)\\s*([_$a-zA-Z][-$\\w.]*(?<!\\.|-))\\s*(>)) #look ahead is not start of tag without attributes\n  (?!<\\s*[_$[:alpha:]][_$[:alnum:]]*((\\s+extends\\s+[^=>])|,)) # look ahead is not type parameter of arrow\n  (?=(<)\\s*\n  ([_$a-zA-Z][-$\\w.]*(?<!\\.|-))\n  (?=\\s+(?!\\?)|/?>))",
-			"end": "(/>)|(?:(</)\\s*([_$a-zA-Z][-$\\w.]*(?<!\\.|-))\\s*(>))",
+			"end": "(/>)|(?:(</)\\s*((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))\\s*(>))",
 			"endCaptures": {
 				"0": {
 					"name": "meta.tag.tsx"
@@ -4053,6 +4106,9 @@
 					"name": "entity.name.tag.tsx"
 				},
 				"4": {
+					"name": "support.class.component.tsx"
+				},
+				"5": {
 					"name": "punctuation.definition.tag.end.tsx"
 				}
 			},
@@ -4064,7 +4120,7 @@
 		},
 		"jsx-child-tag": {
 			"begin": "(?x)\n  (?=(<)\\s*\n  ([_$a-zA-Z][-$\\w.]*(?<!\\.|-))\n  (?=\\s+(?!\\?)|/?>))",
-			"end": "(/>)|(?:(</)\\s*([_$a-zA-Z][-$\\w.]*(?<!\\.|-))\\s*(>))",
+			"end": "(/>)|(?:(</)\\s*((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))\\s*(>))",
 			"endCaptures": {
 				"0": {
 					"name": "meta.tag.tsx"
@@ -4079,6 +4135,9 @@
 					"name": "entity.name.tag.tsx"
 				},
 				"4": {
+					"name": "support.class.component.tsx"
+				},
+				"5": {
 					"name": "punctuation.definition.tag.end.tsx"
 				}
 			},
@@ -4094,13 +4153,16 @@
 			"end": "(?=(/>)|(?:(</)\\s*([_$a-zA-Z][-$\\w.]*(?<!\\.|-))\\s*(>)))",
 			"patterns": [
 				{
-					"begin": "(?x)\n  (<)\\s*\n  ([_$a-zA-Z][-$\\w.]*(?<!\\.|-))\n  (?=\\s+(?!\\?)|/?>)",
+					"begin": "(?x)\n  (<)\\s*\n  ((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))\n  (?=\\s+(?!\\?)|/?>)",
 					"beginCaptures": {
 						"1": {
 							"name": "punctuation.definition.tag.begin.tsx"
 						},
 						"2": {
 							"name": "entity.name.tag.tsx"
+						},
+						"3": {
+							"name": "support.class.component.tsx"
 						}
 					},
 					"end": "(?=[/]?>)",
@@ -4169,6 +4231,5 @@
 				}
 			]
 		}
-	},
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/9f6676aa2ddb75cb5a9dbe1f59024069e839d986"
+	}
 }

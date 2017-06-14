@@ -16,6 +16,8 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { ContextSubMenu } from 'vs/platform/contextview/browser/contextView';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
 import { ISCMService, ISCMProvider, ISCMResource, ISCMResourceGroup } from 'vs/workbench/services/scm/common/scm';
 import { getSCMResourceContextKey } from './scmUtil';
 
@@ -38,6 +40,21 @@ class SwitchProviderAction extends Action {
 	}
 }
 
+class InstallAdditionalSCMProviders extends Action {
+
+	constructor(private viewletService: IViewletService) {
+		super('scm.installAdditionalSCMProviders', localize('installAdditionalSCMProviders', "Install Additional SCM Providers..."), '', true);
+	}
+
+	run(): TPromise<void> {
+		return this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true).then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search('category:"SCM Providers" @sort:installs');
+				viewlet.focus();
+			});
+	}
+}
+
 export class SCMMenus implements IDisposable {
 
 	private disposables: IDisposable[] = [];
@@ -52,7 +69,8 @@ export class SCMMenus implements IDisposable {
 	constructor(
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@ISCMService private scmService: ISCMService,
-		@IMenuService private menuService: IMenuService
+		@IMenuService private menuService: IMenuService,
+		@IViewletService private viewletService: IViewletService
 	) {
 		this.setActiveProvider(this.scmService.activeProvider);
 		this.scmService.onDidChangeProvider(this.setActiveProvider, this, this.disposables);
@@ -92,7 +110,7 @@ export class SCMMenus implements IDisposable {
 	}
 
 	getTitleSecondaryActions(): IAction[] {
-		const providerSwitchActions = this.scmService.providers
+		const providerSwitchActions: IAction[] = this.scmService.providers
 			.map(p => new SwitchProviderAction(p, this.scmService));
 
 		let result = [];
@@ -100,14 +118,16 @@ export class SCMMenus implements IDisposable {
 		if (this.titleSecondaryActions.length > 0) {
 			result = result.concat(this.titleSecondaryActions);
 		}
+		if (providerSwitchActions.length > 0) {
+			providerSwitchActions.push(new Separator());
+		}
+		providerSwitchActions.push(new InstallAdditionalSCMProviders(this.viewletService));
 
-		if (result.length > 0 && providerSwitchActions.length > 0) {
+		if (result.length > 0) {
 			result.push(new Separator());
 		}
 
-		if (providerSwitchActions.length > 0) {
-			result.push(new ContextSubMenu(localize('switch provider', "Switch SCM Provider..."), providerSwitchActions));
-		}
+		result.push(new ContextSubMenu(localize('switch provider', "Switch SCM Provider..."), providerSwitchActions));
 
 		return result;
 	}

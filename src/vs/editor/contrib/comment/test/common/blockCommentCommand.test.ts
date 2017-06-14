@@ -28,13 +28,13 @@ suite('Editor Contrib - Block Comment Command', () => {
 			],
 			new Selection(1, 3, 1, 3),
 			[
-				'fi<00>rst',
+				'fi<0  0>rst',
 				'\tsecond line',
 				'third line',
 				'fourth line',
 				'fifth'
 			],
-			new Selection(1, 5, 1, 5)
+			new Selection(1, 6, 1, 6)
 		);
 	});
 
@@ -49,13 +49,13 @@ suite('Editor Contrib - Block Comment Command', () => {
 			],
 			new Selection(2, 1, 1, 1),
 			[
-				'<0first',
-				'0>\tsecond line',
+				'<0 first',
+				' 0>\tsecond line',
 				'third line',
 				'fourth line',
 				'fifth'
 			],
-			new Selection(1, 3, 2, 1)
+			new Selection(1, 4, 2, 1)
 		);
 	});
 
@@ -70,13 +70,13 @@ suite('Editor Contrib - Block Comment Command', () => {
 			],
 			new Selection(1, 6, 1, 1),
 			[
-				'<0first0>',
+				'<0 first 0>',
 				'\tsecond line',
 				'third line',
 				'fourth line',
 				'fifth'
 			],
-			new Selection(1, 3, 1, 8)
+			new Selection(1, 4, 1, 9)
 		);
 
 		testBlockCommentCommand(
@@ -110,13 +110,13 @@ suite('Editor Contrib - Block Comment Command', () => {
 			],
 			new Selection(1, 6, 1, 3),
 			[
-				'fi<0rst0>',
+				'fi<0 rst 0>',
 				'\tsecond line',
 				'third line',
 				'fourth line',
 				'fifth'
 			],
-			new Selection(1, 5, 1, 8)
+			new Selection(1, 6, 1, 9)
 		);
 	});
 
@@ -131,13 +131,13 @@ suite('Editor Contrib - Block Comment Command', () => {
 			],
 			new Selection(1, 6, 1, 3),
 			[
-				'fi<0rst0>',
+				'fi<0 rst 0>',
 				'\tsecond line',
 				'third line',
 				'fourth line',
 				'fifth'
 			],
-			new Selection(1, 5, 1, 8)
+			new Selection(1, 6, 1, 9)
 		);
 
 		testBlockCommentCommand(
@@ -171,13 +171,13 @@ suite('Editor Contrib - Block Comment Command', () => {
 			],
 			new Selection(2, 4, 1, 1),
 			[
-				'<0first',
-				'\tse0>cond line',
+				'<0 first',
+				'\tse 0>cond line',
 				'third line',
 				'fourth line',
 				'fifth'
 			],
-			new Selection(1, 3, 2, 4)
+			new Selection(1, 4, 2, 4)
 		);
 	});
 
@@ -192,13 +192,13 @@ suite('Editor Contrib - Block Comment Command', () => {
 			],
 			new Selection(2, 4, 1, 1),
 			[
-				'<0first',
-				'\tse0>cond line',
+				'<0 first',
+				'\tse 0>cond line',
 				'third line',
 				'fourth line',
 				'fifth'
 			],
-			new Selection(1, 3, 2, 4)
+			new Selection(1, 4, 2, 4)
 		);
 
 		testBlockCommentCommand(

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { BoundedLinkedMap } from 'vs/base/common/map';
+import { BoundedMap } from 'vs/base/common/map';
 import { CharCode } from 'vs/base/common/charCode';
 
 /**
@@ -202,7 +202,7 @@ export interface RegExpOptions {
 }
 
 export function createRegExp(searchString: string, isRegex: boolean, options: RegExpOptions = {}): RegExp {
-	if (searchString === '') {
+	if (!searchString) {
 		throw new Error('Cannot create regex from empty string');
 	}
 	if (!isRegex) {
@@ -251,7 +251,7 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
  */
 export let canNormalize = typeof ((<any>'').normalize) === 'function';
 const nonAsciiCharactersPattern = /[^\u0000-\u0080]/;
-const normalizedCache = new BoundedLinkedMap<string>(10000); // bounded to 10000 elements
+const normalizedCache = new BoundedMap<string>(10000); // bounded to 10000 elements
 export function normalizeNFC(str: string): string {
 	if (!canNormalize || !str) {
 		return str;
@@ -293,14 +293,14 @@ export function firstNonWhitespaceIndex(str: string): number {
  * Returns the leading whitespace of the string.
  * If the string contains only whitespaces, returns entire string
  */
-export function getLeadingWhitespace(str: string): string {
-	for (let i = 0, len = str.length; i < len; i++) {
+export function getLeadingWhitespace(str: string, start: number = 0, end: number = str.length): string {
+	for (let i = start; i < end; i++) {
 		let chCode = str.charCodeAt(i);
 		if (chCode !== CharCode.Space && chCode !== CharCode.Tab) {
-			return str.substring(0, i);
+			return str.substring(start, i);
 		}
 	}
-	return str;
+	return str.substring(start, end);
 }
 
 /**
@@ -468,6 +468,43 @@ export function commonSuffixLength(a: string, b: string): number {
 	return len;
 }
 
+function substrEquals(a: string, aStart: number, aEnd: number, b: string, bStart: number, bEnd: number): boolean {
+	while (aStart < aEnd && bStart < bEnd) {
+		if (a[aStart] !== b[bStart]) {
+			return false;
+		}
+		aStart += 1;
+		bStart += 1;
+	}
+	return true;
+}
+
+/**
+ * Return the overlap between the suffix of `a` and the prefix of `b`.
+ * For instance `overlap("foobar", "arr, I'm a pirate") === 2`.
+ */
+export function overlap(a: string, b: string): number {
+	let aEnd = a.length;
+	let bEnd = b.length;
+	let aStart = aEnd - bEnd;
+
+	if (aStart === 0) {
+		return a === b ? aEnd : 0;
+	} else if (aStart < 0) {
+		bEnd += aStart;
+		aStart = 0;
+	}
+
+	while (aStart < aEnd && bEnd > 0) {
+		if (substrEquals(a, aStart, aEnd, b, 0, bEnd)) {
+			return bEnd;
+		}
+		bEnd -= 1;
+		aStart += 1;
+	}
+	return 0;
+}
+
 // --- unicode
 // http://en.wikipedia.org/wiki/Surrogate_pair
 // Returns the code point starting at a specified index in a string
@@ -503,12 +540,30 @@ export function containsRTL(str: string): boolean {
 	return CONTAINS_RTL.test(str);
 }
 
+/**
+ * Generated using https://github.com/alexandrudima/unicode-utils/blob/master/generate-emoji-test.js
+ */
+const CONTAINS_EMOJI = /(?:[\u231A\u231B\u23F0\u23F3\u2600-\u27BF\u2B50\u2B55]|\uD83C[\uDDE6-\uDDFF\uDF00-\uDFFF]|\uD83D[\uDC00-\uDE4F\uDE80-\uDEF8]|\uD83E[\uDD00-\uDDE6])/;
+
+export function containsEmoji(str: string): boolean {
+	return CONTAINS_EMOJI.test(str);
+}
+
 const IS_BASIC_ASCII = /^[\t\n\r\x20-\x7E]*$/;
 /**
  * Returns true if `str` contains only basic ASCII characters in the range 32 - 126 (including 32 and 126) or \n, \r, \t
  */
 export function isBasicASCII(str: string): boolean {
 	return IS_BASIC_ASCII.test(str);
+}
+
+export function containsFullWidthCharacter(str: string): boolean {
+	for (let i = 0, len = str.length; i < len; i++) {
+		if (isFullWidthCharacter(str.charCodeAt(i))) {
+			return true;
+		}
+	}
+	return false;
 }
 
 export function isFullWidthCharacter(charCode: number): boolean {

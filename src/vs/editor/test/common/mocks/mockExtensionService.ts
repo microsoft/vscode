@@ -32,7 +32,7 @@ export class MockExtensionService extends AbstractExtensionService<ActivatedExte
 		throw new Error('not implemented');
 	}
 
-	protected _actualActivateExtension(extensionDescription): any {
+	protected _actualActivateExtension(): any {
 		throw new Error('not implemented');
 	}
 }

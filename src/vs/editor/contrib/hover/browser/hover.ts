@@ -21,7 +21,7 @@ import { ModesContentHoverWidget } from './modesContentHover';
 import { ModesGlyphHoverWidget } from './modesGlyphHover';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { editorHoverHighlight, editorHoverBackground, editorHoverBorder, textLinkForeground, textCodeBlockBackground } from 'vs/platform/theme/common/colorRegistry';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 @editorContribution
@@ -112,8 +112,7 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 	}
 
 	private _onKeyDown(e: IKeyboardEvent): void {
-		var stopKey = platform.isMacintosh ? KeyCode.Meta : KeyCode.Ctrl;
-		if (e.keyCode !== stopKey) {
+		if (e.keyCode !== KeyCode.Ctrl && e.keyCode !== KeyCode.Alt && e.keyCode !== KeyCode.Meta) {
 			// Do not hide hover when Ctrl/Meta is pressed
 			this._hideWidgets();
 		}
@@ -173,23 +172,27 @@ class ShowHoverAction extends EditorAction {
 }
 
 // theming
-
-export const editorHoverHighlight = registerColor('editor.hoverHighlightBackground', { light: '#ADD6FF26', dark: '#264f7840', hc: '#ADD6FF26' }, nls.localize('hoverHighlight', 'Highlight below the word for which a hover is shown.'));
-export const editorHoverBackground = registerColor('editorHoverWidget.background', { light: '#F3F3F3', dark: '#2D2D30', hc: '#0C141F' }, nls.localize('hoverBackground', 'Background color of the editor hover.'));
-export const editorHoverBorder = registerColor('editorHoverWidget.border', { light: '#CCCCCC', dark: '#555555', hc: '#CCCCCC' }, nls.localize('hoverBorder', 'Border color of the editor hover.'));
-
 registerThemingParticipant((theme, collector) => {
 	let editorHoverHighlightColor = theme.getColor(editorHoverHighlight);
 	if (editorHoverHighlightColor) {
-		collector.addRule(`.monaco-editor.${theme.selector} .hoverHighlight { background-color: ${editorHoverHighlightColor}; }`);
+		collector.addRule(`.monaco-editor .hoverHighlight { background-color: ${editorHoverHighlightColor}; }`);
 	}
 	let hoverBackground = theme.getColor(editorHoverBackground);
 	if (hoverBackground) {
-		collector.addRule(`.monaco-editor.${theme.selector} .monaco-editor-hover { background-color: ${hoverBackground}; }`);
+		collector.addRule(`.monaco-editor .monaco-editor-hover { background-color: ${hoverBackground}; }`);
 	}
 	let hoverBorder = theme.getColor(editorHoverBorder);
 	if (hoverBorder) {
-		collector.addRule(`.monaco-editor.${theme.selector} .monaco-editor-hover { border: 1px solid ${hoverBorder}; }`);
-		collector.addRule(`.monaco-editor.${theme.selector} .monaco-editor-hover .hover-row:not(:first-child):not(:empty) { border-top: 1px solid ${hoverBorder.transparent(0.5)}; }`);
+		collector.addRule(`.monaco-editor .monaco-editor-hover { border: 1px solid ${hoverBorder}; }`);
+		collector.addRule(`.monaco-editor .monaco-editor-hover .hover-row:not(:first-child):not(:empty) { border-top: 1px solid ${hoverBorder.transparent(0.5)}; }`);
 	}
+	let link = theme.getColor(textLinkForeground);
+	if (link) {
+		collector.addRule(`.monaco-editor .monaco-editor-hover a { color: ${link}; }`);
+	}
+	let codeBackground = theme.getColor(textCodeBlockBackground);
+	if (codeBackground) {
+		collector.addRule(`.monaco-editor .monaco-editor-hover code { background-color: ${codeBackground}; }`);
+	}
+
 });

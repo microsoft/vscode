@@ -11,8 +11,9 @@ import { FeedbackDropdown, IFeedback, IFeedbackService } from './feedback';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import product from 'vs/platform/node/product';
-import { Themable, STATUS_BAR_FOREGROUND } from 'vs/workbench/common/theme';
+import { Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 class TwitterFeedbackService implements IFeedbackService {
 
@@ -53,6 +54,7 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextViewService private contextViewService: IContextViewService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IThemeService themeService: IThemeService
 	) {
 		super(themeService);
@@ -62,7 +64,7 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 		super.updateStyles();
 
 		if (this.dropdown) {
-			this.dropdown.label.style('background-color', this.getColor(STATUS_BAR_FOREGROUND));
+			this.dropdown.label.style('background-color', this.getColor(this.contextService.hasWorkspace() ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND));
 		}
 	}
 

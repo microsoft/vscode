@@ -6,5 +6,6 @@
 {
 	"schema.colors": "Couleurs de la coloration syntaxique",
 	"schema.properties.name": "Description de la règle",
-	"schema.fontStyle": "Style de police de la règle : 'italique', 'gras' ou 'souligné', ou une combinaison de ces styles"
+	"schema.fontStyle": "Style de police de la règle : 'italique', 'gras' ou 'souligné', ou une combinaison de ces styles",
+	"schema.tokenColors.path": "Chemin d'un fichier tmTheme (relatif au fichier actuel)"
 }

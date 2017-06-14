@@ -6,10 +6,9 @@
 'use strict';
 
 import { Uri, Command, EventEmitter, Event, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace } from 'vscode';
-import { Git, Repository, Ref, Branch, Remote, PushOptions, Commit, GitErrorCodes } from './git';
-import { anyEvent, eventToPromise, filterEvent, mapEvent, EmptyDisposable, combinedDisposable, dispose } from './util';
+import { Git, Repository, Ref, Branch, Remote, Commit, GitErrorCodes } from './git';
+import { anyEvent, eventToPromise, filterEvent, EmptyDisposable, combinedDisposable, dispose } from './util';
 import { memoize, throttle, debounce } from './decorators';
-import { watch } from './watch';
 import * as path from 'path';
 import * as nls from 'vscode-nls';
 
@@ -211,7 +210,8 @@ export enum Operation {
 	Init = 1 << 12,
 	Show = 1 << 13,
 	Stage = 1 << 14,
-	GetCommitTemplate = 1 << 15
+	GetCommitTemplate = 1 << 15,
+	DeleteBranch = 1 << 16
 }
 
 // function getOperationName(operation: Operation): string {
@@ -454,6 +454,10 @@ export class Model implements Disposable {
 		await this.run(Operation.Branch, () => this.repository.branch(name, true));
 	}
 
+	async deleteBranch(name: string, force?: boolean): Promise<void> {
+		await this.run(Operation.DeleteBranch, () => this.repository.deleteBranch(name, force));
+	}
+
 	async checkout(treeish: string): Promise<void> {
 		await this.run(Operation.Checkout, () => this.repository.checkout(treeish, []));
 	}
@@ -475,12 +479,23 @@ export class Model implements Disposable {
 		}
 	}
 
-	async pull(rebase?: boolean): Promise<void> {
-		await this.run(Operation.Pull, () => this.repository.pull(rebase));
+	@throttle
+	async pull(): Promise<void> {
+		await this.run(Operation.Pull, () => this.repository.pull());
 	}
 
-	async push(remote?: string, name?: string, options?: PushOptions): Promise<void> {
-		await this.run(Operation.Push, () => this.repository.push(remote, name, options));
+	@throttle
+	async pullWithRebase(): Promise<void> {
+		await this.run(Operation.Pull, () => this.repository.pull(true));
+	}
+
+	@throttle
+	async push(): Promise<void> {
+		await this.run(Operation.Push, () => this.repository.push());
+	}
+
+	async pushTo(remote?: string, name?: string, setUpstream: boolean = false): Promise<void> {
+		await this.run(Operation.Push, () => this.repository.push(remote, name, setUpstream));
 	}
 
 	@throttle
@@ -582,11 +597,7 @@ export class Model implements Disposable {
 		const repositoryRoot = await this._git.getRepositoryRoot(this.workspaceRoot.fsPath);
 		this.repository = this._git.open(repositoryRoot);
 
-		const dotGitPath = path.join(repositoryRoot, '.git');
-		const { event: onRawGitChange, disposable: watcher } = watch(dotGitPath);
-		disposables.push(watcher);
-
-		const onGitChange = mapEvent(onRawGitChange, ({ filename }) => Uri.file(path.join(dotGitPath, filename)));
+		const onGitChange = filterEvent(this.onWorkspaceChange, uri => /\/\.git\//.test(uri.fsPath));
 		const onRelevantGitChange = filterEvent(onGitChange, uri => !/\/\.git\/index\.lock$/.test(uri.fsPath));
 		onRelevantGitChange(this.onFSChange, this, disposables);
 		onRelevantGitChange(this._onDidChangeRepository.fire, this._onDidChangeRepository, disposables);

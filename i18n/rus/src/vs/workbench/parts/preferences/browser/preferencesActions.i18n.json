@@ -6,6 +6,7 @@
 {
 	"openGlobalSettings": "Открыть пользовательские параметры",
 	"openGlobalKeybindings": "Открыть сочетания клавиш",
+	"openGlobalKeybindingsFile": "Открыть файл сочетаний клавиш",
 	"openWorkspaceSettings": "Открыть параметры рабочей области",
 	"configureLanguageBasedSettings": "Настроить параметры языка...",
 	"languageDescriptionConfigured": "({0})",

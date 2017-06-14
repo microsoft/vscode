@@ -17,7 +17,7 @@ suite('Debug - Source', () => {
 		};
 		const source = new Source(rawSource, 'label');
 
-		assert.equal(source.presenationHint, 'label');
+		assert.equal(source.presentationHint, 'label');
 		assert.equal(source.name, rawSource.name);
 		assert.equal(source.inMemory, false);
 		assert.equal(source.reference, rawSource.sourceReference);
@@ -31,7 +31,7 @@ suite('Debug - Source', () => {
 		};
 		const source = new Source(rawSource, 'deemphasize');
 
-		assert.equal(source.presenationHint, 'deemphasize');
+		assert.equal(source.presentationHint, 'deemphasize');
 		assert.equal(source.name, rawSource.name);
 		assert.equal(source.inMemory, true);
 		assert.equal(source.reference, rawSource.sourceReference);

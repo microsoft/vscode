@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./zoneWidget';
-import { Disposables } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Widget } from 'vs/base/browser/ui/widget';
 import * as objects from 'vs/base/common/objects';
 import * as dom from 'vs/base/browser/dom';
@@ -16,6 +16,7 @@ import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZo
 import { Color, RGBA } from 'vs/base/common/color';
 import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
 import { Position, IPosition } from 'vs/editor/common/core/position';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 export interface IOptions {
 	showFrame?: boolean;
@@ -108,7 +109,7 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 	private _positionMarkerId: string[] = [];
 
 	protected _viewZone: ViewZoneDelegate = null;
-	protected _disposables = new Disposables();
+	protected _disposables: IDisposable[] = [];
 
 	public container: HTMLElement = null;
 	public domNode: HTMLElement;
@@ -127,7 +128,7 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 			this.domNode.setAttribute('role', 'presentation');
 		}
 
-		this._disposables.add(this.editor.onDidLayoutChange((info: EditorLayoutInfo) => {
+		this._disposables.push(this.editor.onDidLayoutChange((info: EditorLayoutInfo) => {
 			const width = this._getWidth(info);
 			this.domNode.style.width = width + 'px';
 			this._onWidth(width);
@@ -136,7 +137,7 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 
 	public dispose(): void {
 
-		this._disposables.dispose();
+		dispose(this._disposables);
 
 		if (this._overlayWidget) {
 			this.editor.removeOverlayWidget(this._overlayWidget);
@@ -228,7 +229,7 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 		this._isShowing = true;
 		this._showImpl(range, heightInLines);
 		this._isShowing = false;
-		this._positionMarkerId = this.editor.deltaDecorations(this._positionMarkerId, [{ range, options: {} }]);
+		this._positionMarkerId = this.editor.deltaDecorations(this._positionMarkerId, [{ range, options: ModelDecorationOptions.EMPTY }]);
 	}
 
 	public hide(): void {
@@ -275,6 +276,7 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 
 		// Render the widget as zone (rendering) and widget (lifecycle)
 		const viewZoneDomNode = document.createElement('div');
+		viewZoneDomNode.style.overflow = 'hidden';
 		const lineHeight = this.editor.getConfiguration().lineHeight;
 
 		// adjust heightInLines to viewport
@@ -390,7 +392,7 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 		}
 
 		let data: { startY: number; heightInLines: number; };
-		this._disposables.add(this._resizeSash.addListener('start', (e: ISashEvent) => {
+		this._disposables.push(this._resizeSash.addListener('start', (e: ISashEvent) => {
 			if (this._viewZone) {
 				data = {
 					startY: e.startY,
@@ -399,11 +401,11 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 			}
 		}));
 
-		this._disposables.add(this._resizeSash.addListener('end', () => {
+		this._disposables.push(this._resizeSash.addListener('end', () => {
 			data = undefined;
 		}));
 
-		this._disposables.add(this._resizeSash.addListener('change', (evt: ISashEvent) => {
+		this._disposables.push(this._resizeSash.addListener('change', (evt: ISashEvent) => {
 			if (data) {
 				let lineDelta = (evt.currentY - data.startY) / this.editor.getConfiguration().lineHeight;
 				let roundedLineDelta = lineDelta < 0 ? Math.ceil(lineDelta) : Math.floor(lineDelta);

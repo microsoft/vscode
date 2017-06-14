@@ -28,28 +28,6 @@
 	right: 2px;
 }
 
-.monaco-findInput > .controls > .matchCount {
-	margin-left: 2px;
-	float: left;
-	overflow: hidden;
-	max-width: 30px;
-	min-width: 20px;
-	text-align: center;
-
-	border-radius: 5px;
-	padding: 0 4px;
-
-	-webkit-box-sizing:	border-box;
-	-o-box-sizing:		border-box;
-	-moz-box-sizing:	border-box;
-	-ms-box-sizing:		border-box;
-	box-sizing:			border-box;
-}
-
-.vs .monaco-findInput > .controls > .matchCount {
-	background: #ddd;
-}
-
 .vs .monaco-findInput.disabled {
 	background-color: #E1E1E1;
 }
@@ -57,10 +35,6 @@
 /* Theming */
 .vs-dark .monaco-findInput.disabled {
 	background-color: #333;
-}
-
-.vs-dark .monaco-findInput > .controls > .matchCount {
-	background: #555;
 }
 
 /* Highlighting */

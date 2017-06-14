@@ -17,7 +17,6 @@ import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
 
-// TODO@Isidor remove support for env, config. and command. in march
 export class ConfigurationResolverService implements IConfigurationResolverService {
 	_serviceBrand: any;
 	private _workspaceRoot: string;
@@ -34,7 +33,6 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		this._workspaceRoot = paths.normalize(workspaceRoot ? workspaceRoot.fsPath : '', true);
 		this._execPath = environmentService.execPath;
 		Object.keys(envVariables).forEach(key => {
-			this[`env.${key}`] = envVariables[key];
 			this[`env:${key}`] = envVariables[key];
 		});
 	}
@@ -141,7 +139,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 			if (types.isString(newValue)) {
 				return newValue;
 			} else {
-				return match && (match.indexOf('env.') > 0 || match.indexOf('env:') > 0) ? '' : match;
+				return match && match.indexOf('env:') > 0 ? '' : match;
 			}
 		});
 
@@ -176,7 +174,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 			}
 		};
 
-		return value.replace(/\$\{config\.(.+?)\}/g, replacer).replace(/\$\{config:(.+?)\}/g, replacer);
+		return value.replace(/\$\{config:(.+?)\}/g, replacer);
 	}
 
 	private resolveLiteral(values: IStringDictionary<string | IStringDictionary<string> | string[]>): IStringDictionary<string | IStringDictionary<string> | string[]> {
@@ -223,7 +221,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 				if (object[key] && typeof object[key] === 'object') {
 					findInteractiveVariables(object[key]);
 				} else if (typeof object[key] === 'string') {
-					const matches = /\${command[:\.](.+)}/.exec(object[key]);
+					const matches = /\${command:(.+)}/.exec(object[key]);
 					if (matches && matches.length === 2) {
 						const interactiveVariable = matches[1];
 						if (!interactiveVariablesToSubstitutes[interactiveVariable]) {
@@ -251,8 +249,6 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 						interactiveVariablesToSubstitutes[interactiveVariable].forEach(substitute => {
 							if (substitute.object[substitute.key].indexOf(`\${command:${interactiveVariable}}`) >= 0) {
 								substitute.object[substitute.key] = substitute.object[substitute.key].replace(`\${command:${interactiveVariable}}`, result);
-							} else if (substitute.object[substitute.key].indexOf(`\${command.${interactiveVariable}}`) >= 0) {
-								substitute.object[substitute.key] = substitute.object[substitute.key].replace(`\${command.${interactiveVariable}}`, result);
 							}
 						});
 					} else {

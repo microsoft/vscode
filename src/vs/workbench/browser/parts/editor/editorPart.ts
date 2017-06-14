@@ -35,7 +35,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IMessageService, IMessageWithAction, Severity } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { EditorStacksModel, EditorGroup, EditorIdentifier, GroupEvent } from 'vs/workbench/common/editor/editorStacksModel';
+import { EditorStacksModel, EditorGroup, EditorIdentifier, EditorCloseEvent } from 'vs/workbench/common/editor/editorStacksModel';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -234,7 +234,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.telemetryService.publicLog('editorOpened', identifier.editor.getTelemetryDescriptor());
 	}
 
-	private onEditorClosed(event: GroupEvent): void {
+	private onEditorClosed(event: EditorCloseEvent): void {
 		this.telemetryService.publicLog('editorClosed', event.editor.getTelemetryDescriptor());
 	}
 
@@ -441,22 +441,18 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		const editorInstantiationService = this.editorGroupsControl.getInstantiationService(position).createChild(new ServiceCollection([IProgressService, progressService]));
 		let loaded = false;
 
-		const onInstantiate = (arg: BaseEditor | Error): TPromise<BaseEditor | Error> => {
+		const onInstantiate = (arg: BaseEditor): TPromise<BaseEditor> => {
 			const position = this.stacks.positionOfGroup(group); // might have changed due to a rochade meanwhile
 
 			loaded = true;
 			delete this.mapEditorInstantiationPromiseToEditor[position][descriptor.getId()];
 
-			if (arg instanceof BaseEditor) {
-				this.instantiatedEditors[position].push(arg);
+			this.instantiatedEditors[position].push(arg);
 
-				return TPromise.as(arg);
-			}
-
-			return TPromise.wrapError<BaseEditor | Error>(arg);
+			return TPromise.as(arg);
 		};
 
-		const instantiateEditorPromise = editorInstantiationService.createInstance(<EditorDescriptor>descriptor).then(onInstantiate, onInstantiate);
+		const instantiateEditorPromise = editorInstantiationService.createInstance(<EditorDescriptor>descriptor).then(onInstantiate);
 
 		if (!loaded) {
 			this.mapEditorInstantiationPromiseToEditor[position][descriptor.getId()] = instantiateEditorPromise;
@@ -464,6 +460,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		return instantiateEditorPromise.then(result => {
 			progressService.dispose();
+
 			return result;
 		});
 	}
@@ -898,8 +895,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		const activeEditor = this.getActiveEditor();
 		const codeEditor = getCodeEditor(activeEditor);
 		if (codeEditor && activeEditor.position === this.stacks.positionOfGroup(fromGroup) && input.matches(activeEditor.input)) {
-			options = TextEditorOptions.create({ pinned: true, index, inactive, preserveFocus });
-			(<TextEditorOptions>options).fromEditor(codeEditor);
+			options = TextEditorOptions.fromEditor(codeEditor, { pinned: true, index, inactive, preserveFocus });
 		}
 
 		// A move to another group is an open first...
@@ -1050,6 +1046,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		const ratio = this.editorGroupsControl.getRatio();
 
 		return this.doOpenEditors(editors, activePosition, ratio);
+	}
+
+	public hasEditorsToRestore(): boolean {
+		return this.stacks.groups.some(g => g.count > 0);
 	}
 
 	public restoreEditors(): TPromise<BaseEditor[]> {
@@ -1270,7 +1270,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Persist UI State
 		const editorState: IEditorPartUIState = { ratio: this.editorGroupsControl.getRatio(), groupOrientation: this.editorGroupsControl.getGroupOrientation() };
-		this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY] = editorState;
+		if (editorState.ratio.length || editorState.groupOrientation !== 'vertical') {
+			this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY] = editorState;
+		} else {
+			delete this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
+		}
 
 		// Unload all Instantiated Editors
 		for (let i = 0; i < this.instantiatedEditors.length; i++) {

@@ -11,7 +11,7 @@ import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { Position } from 'vs/editor/common/core/position';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { IViewLayout, IViewWhitespaceViewportData } from 'vs/editor/common/viewModel/viewModel';
+import { IViewWhitespaceViewportData } from 'vs/editor/common/viewModel/viewModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export interface IMyViewZone {
@@ -33,7 +33,6 @@ interface IComputedViewZoneProps {
 
 export class ViewZones extends ViewPart {
 
-	private _viewLayout: IViewLayout;
 	private _zones: { [id: string]: IMyViewZone; };
 	private _lineHeight: number;
 	private _contentWidth: number;
@@ -43,12 +42,11 @@ export class ViewZones extends ViewPart {
 
 	public marginDomNode: FastDomNode<HTMLElement>;
 
-	constructor(context: ViewContext, viewLayout: IViewLayout) {
+	constructor(context: ViewContext) {
 		super(context);
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
 		this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
-		this._viewLayout = viewLayout;
 
 		this.domNode = createFastDomNode(document.createElement('div'));
 		this.domNode.setClassName('view-zones');
@@ -67,7 +65,6 @@ export class ViewZones extends ViewPart {
 
 	public dispose(): void {
 		super.dispose();
-		this._viewLayout = null;
 		this._zones = {};
 	}
 
@@ -81,7 +78,7 @@ export class ViewZones extends ViewPart {
 			let id = keys[i];
 			let zone = this._zones[id];
 			let props = this._computeWhitespaceProps(zone.delegate);
-			if (this._viewLayout.changeWhitespace(parseInt(id, 10), props.afterViewLineNumber, props.heightInPx)) {
+			if (this._context.viewLayout.changeWhitespace(parseInt(id, 10), props.afterViewLineNumber, props.heightInPx)) {
 				this._safeCallOnComputedHeight(zone.delegate, props.heightInPx);
 				hadAChange = true;
 			}
@@ -186,7 +183,7 @@ export class ViewZones extends ViewPart {
 
 	public addZone(zone: IViewZone): number {
 		let props = this._computeWhitespaceProps(zone);
-		let whitespaceId = this._viewLayout.addWhitespace(props.afterViewLineNumber, this._getZoneOrdinal(zone), props.heightInPx);
+		let whitespaceId = this._context.viewLayout.addWhitespace(props.afterViewLineNumber, this._getZoneOrdinal(zone), props.heightInPx);
 
 		let myZone: IMyViewZone = {
 			whitespaceId: whitespaceId,
@@ -224,7 +221,7 @@ export class ViewZones extends ViewPart {
 		if (this._zones.hasOwnProperty(id.toString())) {
 			let zone = this._zones[id.toString()];
 			delete this._zones[id.toString()];
-			this._viewLayout.removeWhitespace(zone.whitespaceId);
+			this._context.viewLayout.removeWhitespace(zone.whitespaceId);
 
 			zone.domNode.removeAttribute('monaco-visible-view-zone');
 			zone.domNode.removeAttribute('monaco-view-zone');
@@ -249,7 +246,7 @@ export class ViewZones extends ViewPart {
 			let zone = this._zones[id.toString()];
 			let props = this._computeWhitespaceProps(zone.delegate);
 			// let newOrdinal = this._getZoneOrdinal(zone.delegate);
-			changed = this._viewLayout.changeWhitespace(zone.whitespaceId, props.afterViewLineNumber, props.heightInPx) || changed;
+			changed = this._context.viewLayout.changeWhitespace(zone.whitespaceId, props.afterViewLineNumber, props.heightInPx) || changed;
 			// TODO@Alex: change `newOrdinal` too
 
 			if (changed) {
@@ -303,7 +300,7 @@ export class ViewZones extends ViewPart {
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
-		let visibleWhitespaces = this._viewLayout.getWhitespaceViewportData();
+		const visibleWhitespaces = ctx.viewportData.whitespaceViewportData;
 		let visibleZones: { [id: string]: IViewWhitespaceViewportData; } = {};
 
 		let hasVisibleZone = false;

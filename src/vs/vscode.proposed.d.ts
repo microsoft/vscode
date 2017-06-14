@@ -8,216 +8,9 @@
 declare module 'vscode' {
 
 	/**
-	 * Defines a problem pattern
-	 */
-	export interface ProblemPattern {
-
-		/**
-		 * The regular expression to find a problem in the console output of an
-		 * executed task.
-		 */
-		regexp: RegExp;
-
-		/**
-		 * The match group index of the filename.
-		 *
-		 * Defaults to 1 if omitted.
-		 */
-		file?: number;
-
-		/**
-		 * The match group index of the problems's location. Valid location
-		 * patterns are: (line), (line,column) and (startLine,startColumn,endLine,endColumn).
-		 * If omitted the line and colum properties are used.
-		 */
-		location?: number;
-
-		/**
-		 * The match group index of the problem's line in the source file.
-		 *
-		 * Defaults to 2 if omitted.
-		 */
-		line?: number;
-
-		/**
-		 * The match group index of the problem's character in the source file.
-		 *
-		 * Defaults to 3 if omitted.
-		 */
-		character?: number;
-
-		/**
-		 * The match group index of the problem's end line in the source file.
-		 *
-		 * Defaults to undefined. No end line is captured.
-		 */
-		endLine?: number;
-
-		/**
-		 * The match group index of the problem's end character in the source file.
-		 *
-		 * Defaults to undefined. No end column is captured.
-		 */
-		endCharacter?: number;
-
-		/**
-		 * The match group index of the problem's severity.
-		 *
-		 * Defaults to undefined. In this case the problem matcher's severity
-		 * is used.
-		*/
-		severity?: number;
-
-		/**
-		 * The match group index of the problems's code.
-		 *
-		 * Defaults to undefined. No code is captured.
-		 */
-		code?: number;
-
-		/**
-		 * The match group index of the message. If omitted it defaults
-		 * to 4 if location is specified. Otherwise it defaults to 5.
-		 */
-		message?: number;
-
-		/**
-		 * Specifies if the last pattern in a multi line problem matcher should
-		 * loop as long as it does match a line consequently. Only valid on the
-		 * last problem pattern in a multi line problem matcher.
-		 */
-		loop?: boolean;
-	}
-
-	/**
-	 * A multi line problem pattern.
-	 */
-	export type MultiLineProblemPattern = ProblemPattern[];
-
-	/**
-	 * The way how the file location is interpreted
-	 */
-	export enum FileLocationKind {
-		/**
-		 * VS Code should decide based on whether the file path found in the
-		 * output is absolute or relative. A relative file path will be treated
-		 * relative to the workspace root.
-		 */
-		Auto = 1,
-
-		/**
-		 * Always treat the file path relative.
-		 */
-		Relative = 2,
-
-		/**
-		 * Always treat the file path absolute.
-		 */
-		Absolute = 3
-	}
-
-	/**
-	 * Controls to which kind of documents problems are applied.
-	 */
-	export enum ApplyToKind {
-		/**
-		 * Problems are applied to all documents.
-		 */
-		AllDocuments = 1,
-		/**
-		 * Problems are applied to open documents only.
-		 */
-		OpenDocuments = 2,
-
-		/**
-		 * Problems are applied to closed documents only.
-		 */
-		ClosedDocuments = 3
-	}
-
-
-	/**
-	 * A background monitor pattern
-	 */
-	export interface BackgroundPattern {
-		/**
-		 * The actual regular expression
-		 */
-		regexp: RegExp;
-
-		/**
-		 * The match group index of the filename. If provided the expression
-		 * is matched for that file only.
-		 */
-		file?: number;
-	}
-
-	/**
-	 * A description to control the activity of a problem matcher
-	 * watching a background task.
-	 */
-	export interface BackgroundMonitor {
-		/**
-		 * If set to true the monitor is in active mode when the task
-		 * starts. This is equals of issuing a line that matches the
-		 * beginPattern.
-		 */
-		activeOnStart?: boolean;
-
-		/**
-		 * If matched in the output the start of a background activity is signaled.
-		 */
-		beginsPattern: RegExp | BackgroundPattern;
-
-		/**
-		 * If matched in the output the end of a background activity is signaled.
-		 */
-		endsPattern: RegExp | BackgroundPattern;
-	}
-
-	/**
-	 * Defines a problem matcher
-	 */
-	export interface ProblemMatcher {
-		/**
-		 * The owner of a problem. Defaults to a generated id
-		 * if omitted.
-		 */
-		owner?: string;
-
-		/**
-		 * The type of documents problems detected by this matcher
-		 * apply to. Default to `ApplyToKind.AllDocuments` if omitted.
-		 */
-		applyTo?: ApplyToKind;
-
-		/**
-		 * How a file location recognize by a matcher should be interpreted. If omitted the file location
-		 * if `FileLocationKind.Auto`.
-		 */
-		fileLocation?: FileLocationKind | string;
-
-		/**
-		 * The actual pattern used by the problem matcher.
-		 */
-		pattern: ProblemPattern | MultiLineProblemPattern;
-
-		/**
-		 * The default severity of a detected problem in the output. Used
-		 * if the `ProblemPattern` doesn't define a severity match group.
-		 */
-		severity?: DiagnosticSeverity;
-
-		/**
-		 * A background monitor for tasks that are running in the background.
-		 */
-		backgound?: BackgroundMonitor;
-	}
-
-	/**
 	 * Controls the behaviour of the terminal's visibility.
 	 */
-	export enum RevealKind {
+	export enum TaskRevealKind {
 		/**
 		 * Always brings the terminal to front if the task is executed.
 		 */
@@ -236,14 +29,14 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Controls terminal specific behaviour.
+	 * Controls terminal specific behavior.
 	 */
-	export interface TerminalBehaviour {
+	export interface TaskTerminalBehavior {
 		/**
 		 * Controls whether the terminal executing a task is brought to front or not.
 		 * Defaults to `RevealKind.Always`.
 		 */
-		reveal?: RevealKind;
+		reveal?: TaskRevealKind;
 
 		/**
 		 * Controls whether the command is echoed in the terminal or not.
@@ -251,11 +44,10 @@ declare module 'vscode' {
 		echo?: boolean;
 	}
 
-
-	export interface ProcessOptions {
+	export interface ProcessTaskOptions {
 		/**
 		 * The current working directory of the executed program or shell.
-		 * If omitted VSCode's current workspace root is used.
+		 * If omitted the tools current workspace root is used.
 		 */
 		cwd?: string;
 
@@ -273,7 +65,8 @@ declare module 'vscode' {
 		 */
 		export const Clean: 'clean';
 		/**
-		 * The build task group
+		 * The build task group. If a task is part of the build task group
+		 * it can be executed via the run build short cut.
 		 */
 		export const Build: 'build';
 		/**
@@ -281,15 +74,11 @@ declare module 'vscode' {
 		 */
 		export const RebuildAll: 'rebuildAll';
 		/**
-		 * The test task group
+		 * The test task group. If a task is part of the test task group
+		 * it can be executed via the run test short cut.
 		 */
 		export const Test: 'test';
 	}
-
-	/**
-	 * The supported task groups.
-	 */
-	export type TaskGroup = 'clean' | 'build' | 'rebuildAll' | 'test';
 
 	/**
 	 * A task that starts an external process.
@@ -301,9 +90,11 @@ declare module 'vscode' {
 		 *
 		 * @param name the task's name. Is presented in the user interface.
 		 * @param process the process to start.
-		 * @param problemMatchers the problem matchers to use.
+		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
+		 *  or '$eslint'. Problem matchers can be contributed by an extension using
+		 *  the `problemMatchers` extension point.
 		 */
-		constructor(name: string, process: string, ...problemMatchers: ProblemMatcher[]);
+		constructor(name: string, process: string, problemMatchers?: string | string[]);
 
 		/**
 		 * Creates a process task.
@@ -311,9 +102,11 @@ declare module 'vscode' {
 		 * @param name the task's name. Is presented in the user interface.
 		 * @param process the process to start.
 		 * @param args arguments to be passed to the process.
-		 * @param problemMatchers the problem matchers to use.
+		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
+		 *  or '$eslint'. Problem matchers can be contributed by an extension using
+		 *  the `problemMatchers` extension point.
 		 */
-		constructor(name: string, process: string, args: string[], ...problemMatchers: ProblemMatcher[]);
+		constructor(name: string, process: string, args: string[], problemMatchers?: string | string[]);
 
 		/**
 		 * Creates a process task.
@@ -322,9 +115,11 @@ declare module 'vscode' {
 		 * @param process the process to start.
 		 * @param args arguments to be passed to the process.
 		 * @param options additional options for the started process.
-		 * @param problemMatchers the problem matchers to use.
+		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
+		 *  or '$eslint'. Problem matchers can be contributed by an extension using
+		 *  the `problemMatchers` extension point.
 		 */
-		constructor(name: string, process: string, args: string[], options: ProcessOptions, ...problemMatchers: ProblemMatcher[]);
+		constructor(name: string, process: string, args: string[], options: ProcessTaskOptions, problemMatchers?: string | string[]);
 
 		/**
 		 * The task's name
@@ -332,10 +127,10 @@ declare module 'vscode' {
 		readonly name: string;
 
 		/**
-		 * The task's identifier. If omitted the name is
-		 * used as an identifier.
+		 * The task's identifier. If omitted the internal identifier will
+		 * be `${extensionName}:${name}`
 		 */
-		identifier: string;
+		identifier: string | undefined;
 
 		/**
 		 * Whether the task is a background task or not.
@@ -353,30 +148,38 @@ declare module 'vscode' {
 		args: string[];
 
 		/**
-		 * The task group this tasks belongs to. Defaults to undefined meaning
-		 * that the task doesn't belong to any special group.
+		 * A human-readable string describing the source of this
+		 * shell task, e.g. 'gulp' or 'npm'.
 		 */
-		group?: TaskGroup;
+		source: string | undefined;
+
+		/**
+		 * The task group this tasks belongs to. See TaskGroup
+		 * for a predefined set of available groups.
+		 * Defaults to undefined meaning that the task doesn't
+		 * belong to any special group.
+		 */
+		group: string | undefined;
 
 		/**
 		 * The process options used when the process is executed.
 		 * Defaults to an empty object literal.
 		 */
-		options: ProcessOptions;
+		options: ProcessTaskOptions;
 
 		/**
-		 * The terminal options. Defaults to an empty object literal.
+		 * The terminal behavior. Defaults to an empty object literal.
 		 */
-		terminal: TerminalBehaviour;
+		terminalBehavior: TaskTerminalBehavior;
 
 		/**
 		 * The problem matchers attached to the task. Defaults to an empty
 		 * array.
 		 */
-		problemMatchers: ProblemMatcher[];
+		problemMatchers: string[];
 	}
 
-	export type ShellOptions = {
+	export type ShellTaskOptions = {
 		/**
 		 * The shell executable.
 		 */
@@ -389,7 +192,7 @@ declare module 'vscode' {
 
 		/**
 		 * The current working directory of the executed shell.
-		 * If omitted VSCode's current workspace root is used.
+		 * If omitted the tools current workspace root is used.
 		 */
 		cwd?: string;
 
@@ -402,7 +205,7 @@ declare module 'vscode' {
 	} | {
 			/**
 			 * The current working directory of the executed shell.
-			 * If omitted VSCode's current workspace root is used.
+			 * If omitted the tools current workspace root is used.
 			 */
 			cwd: string;
 
@@ -415,7 +218,7 @@ declare module 'vscode' {
 		} | {
 			/**
 			 * The current working directory of the executed shell.
-			 * If omitted VSCode's current workspace root is used.
+			 * If omitted the tools current workspace root is used.
 			 */
 			cwd?: string;
 
@@ -437,9 +240,11 @@ declare module 'vscode' {
 		 *
 		 * @param name the task's name. Is presented in the user interface.
 		 * @param commandLine the command line to execute.
-		 * @param problemMatchers the problem matchers to use.
+		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
+		 *  or '$eslint'. Problem matchers can be contributed by an extension using
+		 *  the `problemMatchers` extension point.
 		 */
-		constructor(name: string, commandLine: string, ...problemMatchers: ProblemMatcher[]);
+		constructor(name: string, commandLine: string, problemMatchers?: string | string[]);
 
 		/**
 		 * Creates a shell task.
@@ -447,9 +252,11 @@ declare module 'vscode' {
 		 * @param name the task's name. Is presented in the user interface.
 		 * @param commandLine the command line to execute.
 		 * @param options additional options used when creating the shell.
-		 * @param problemMatchers the problem matchers to use.
+		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
+		 *  or '$eslint'. Problem matchers can be contributed by an extension using
+		 *  the `problemMatchers` extension point.
 		 */
-		constructor(name: string, commandLine: string, options: ShellOptions, ...problemMatchers: ProblemMatcher[]);
+		constructor(name: string, commandLine: string, options: ShellTaskOptions, problemMatchers?: string | string[]);
 
 		/**
 		 * The task's name
@@ -457,10 +264,10 @@ declare module 'vscode' {
 		readonly name: string;
 
 		/**
-		 * The task's identifier. If omitted the name is
-		 * used as an identifier.
+		 * The task's identifier. If omitted the internal identifier will
+		 * be `${extensionName}:${name}`
 		 */
-		identifier: string;
+		identifier: string | undefined;
 
 		/**
 		 * Whether the task is a background task or not.
@@ -473,27 +280,35 @@ declare module 'vscode' {
 		readonly commandLine: string;
 
 		/**
-		 * The task group this tasks belongs to. Defaults to undefined meaning
-		 * that the task doesn't belong to any special group.
+		 * A human-readable string describing the source of this
+		 * shell task, e.g. 'gulp' or 'npm'.
 		 */
-		group?: TaskGroup;
+		source: string | undefined;
+
+		/**
+		 * The task group this tasks belongs to. See TaskGroup
+		 * for a predefined set of available groups.
+		 * Defaults to undefined meaning that the task doesn't
+		 * belong to any special group.
+		 */
+		group: string | undefined;
 
 		/**
 		 * The shell options used when the shell is executed. Defaults to an
 		 * empty object literal.
 		 */
-		options: ShellOptions;
+		options: ShellTaskOptions;
 
 		/**
-		 * The terminal options. Defaults to an empty object literal.
+		 * The terminal behavior. Defaults to an empty object literal.
 		 */
-		terminal: TerminalBehaviour;
+		terminalBehavior: TaskTerminalBehavior;
 
 		/**
 		 * The problem matchers attached to the task. Defaults to an empty
 		 * array.
 		 */
-		problemMatchers: ProblemMatcher[];
+		problemMatchers: string[];
 	}
 
 	export type Task = ProcessTask | ShellTask;
@@ -519,99 +334,11 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerTaskProvider(provider: TaskProvider): Disposable;
-
 	}
 
 	export namespace window {
 
 		export function sampleFunction(): Thenable<any>;
-	}
-
-	export namespace window {
-
-		/**
-		 * Create a new [TreeView](#TreeView) instance.
-		 *
-		 * @param viewId A unique id that identifies the view.
-		 * @param provider A [TreeDataProvider](#TreeDataProvider).
-		 * @return An instance of [TreeView](#TreeView).
-		 */
-		export function createTreeView<T>(viewId: string, provider: TreeDataProvider<T>): TreeView<T>;
-	}
-
-	/**
-	 * An source control is able to provide [resource states](#SourceControlResourceState)
-	 * to the editor and interact with the editor in several source control related ways.
-	 */
-	export interface TreeView<T> {
-
-		/**
-		 * Refresh the given nodes
-		 */
-		refresh(...nodes: T[]): void;
-
-		/**
-		 * Dispose this view
-		 */
-		dispose(): void;
-	}
-
-	/**
-	 * A data provider for a tree view contribution.
-	 *
-	 * The contributed tree view will ask the corresponding provider to provide the root
-	 * node and resolve children for each node. In addition, the provider could **optionally**
-	 * provide the following information for each node:
-	 * - label: A human-readable label used for rendering the node.
-	 * - hasChildren: Whether the node has children and is expandable.
-	 * - clickCommand: A command to execute when the node is clicked.
-	 */
-	export interface TreeDataProvider<T> {
-
-		/**
-		 * Provide the root node. This function will be called when the tree explorer is activated
-		 * for the first time. The root node is hidden and its direct children will be displayed on the first level of
-		 * the tree explorer.
-		 *
-		 * @return The root node.
-		 */
-		provideRootNode(): T | Thenable<T>;
-
-		/**
-		 * Resolve the children of `node`.
-		 *
-		 * @param node The node from which the provider resolves children.
-		 * @return Children of `node`.
-		 */
-		resolveChildren?(node: T): T[] | Thenable<T[]>;
-
-		/**
-		 * Provide a human-readable string that will be used for rendering the node. Default to use
-		 * `node.toString()` if not provided.
-		 *
-		 * @param node The node from which the provider computes label.
-		 * @return A human-readable label.
-		 */
-		getLabel?(node: T): string;
-
-		/**
-		 * Determine if `node` has children and is expandable. Default to `true` if not provided.
-		 *
-		 * @param node The node to determine if it has children and is expandable.
-		 * @return A boolean that determines if `node` has children and is expandable.
-		 */
-		getHasChildren?(node: T): boolean;
-
-		/**
-		 * Get the command to execute when `node` is clicked.
-		 *
-		 * Commands can be registered through [registerCommand](#commands.registerCommand). `node` will be provided
-		 * as the first argument to the command's callback function.
-		 *
-		 * @param node The node that the command is associated with.
-		 * @return The command to execute when `node` is clicked.
-		 */
-		getClickCommand?(node: T): Command;
 	}
 
 	/**

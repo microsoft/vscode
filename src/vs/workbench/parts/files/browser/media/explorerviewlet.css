@@ -183,13 +183,3 @@
 .hc-black .monaco-workbench .explorer-viewlet .editor-group {
 	line-height: 20px;
 }
-
-/* TODO@Theme */
-
-.vs .monaco-workbench .explorer-viewlet .header .monaco-count-badge {
-	background-color: rgba(190, 190, 190, 0.7);
-}
-
-.vs-dark .monaco-workbench .explorer-viewlet .header .monaco-count-badge {
-	background-color: rgba(100, 100, 100, 0.5);
-}

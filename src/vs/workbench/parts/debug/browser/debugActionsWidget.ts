@@ -114,7 +114,9 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 			const mouseClickEvent = new StandardMouseEvent(event);
 			if (mouseClickEvent.detail === 2) {
 				// double click on debug bar centers it again #8250
-				this.setXCoordinate(0.5 * window.innerWidth);
+				const widgetWidth = this.$el.getHTMLElement().clientWidth;
+				this.setXCoordinate(0.5 * window.innerWidth - 0.5 * widgetWidth);
+				this.storePosition();
 			}
 		});
 
@@ -129,8 +131,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 				// Reduce x by width of drag handle to reduce jarring #16604
 				this.setXCoordinate(mouseMoveEvent.posx - 14);
 			}).once('mouseup', (e: MouseEvent) => {
-				const mouseMoveEvent = new StandardMouseEvent(e);
-				this.storageService.store(DEBUG_ACTIONS_WIDGET_POSITION_KEY, mouseMoveEvent.posx / window.innerWidth, StorageScope.WORKSPACE);
+				this.storePosition();
 				this.dragArea.removeClass('dragged');
 				$window.off('mousemove');
 			});
@@ -138,6 +139,12 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 
 		this.toDispose.push(this.partService.onTitleBarVisibilityChange(() => this.positionDebugWidget()));
 		this.toDispose.push(browser.onDidChangeZoomLevel(() => this.positionDebugWidget()));
+	}
+
+	private storePosition(): void {
+		const position = parseFloat(this.$el.getComputedStyle().left) / window.innerWidth;
+		this.storageService.store(DEBUG_ACTIONS_WIDGET_POSITION_KEY, position, StorageScope.WORKSPACE);
+		this.telemetryService.publicLog(DEBUG_ACTIONS_WIDGET_POSITION_KEY, { position });
 	}
 
 	protected updateStyles(): void {
@@ -149,10 +156,10 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 			const widgetShadowColor = this.getColor(widgetShadow);
 			this.$el.style('box-shadow', widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : null);
 
-			const hcBorder = this.getColor(contrastBorder);
-			this.$el.style('border-style', hcBorder ? 'solid' : null);
-			this.$el.style('border-width', hcBorder ? '1px' : null);
-			this.$el.style('border-color', hcBorder);
+			const contrastBorderColor = this.getColor(contrastBorder);
+			this.$el.style('border-style', contrastBorderColor ? 'solid' : null);
+			this.$el.style('border-width', contrastBorderColor ? '1px' : null);
+			this.$el.style('border-color', contrastBorderColor);
 		}
 	}
 
@@ -166,11 +173,12 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		if (!this.isVisible) {
 			return;
 		}
+		const widgetWidth = this.$el.getHTMLElement().clientWidth;
 		if (x === undefined) {
-			x = parseFloat(this.storageService.get(DEBUG_ACTIONS_WIDGET_POSITION_KEY, StorageScope.WORKSPACE, '0.5')) * window.innerWidth;
+			const positionPercentage = this.storageService.get(DEBUG_ACTIONS_WIDGET_POSITION_KEY, StorageScope.WORKSPACE);
+			x = positionPercentage !== undefined ? parseFloat(positionPercentage) * window.innerWidth : (0.5 * window.innerWidth - 0.5 * widgetWidth);
 		}
 
-		const widgetWidth = this.$el.getHTMLElement().clientWidth;
 		x = Math.max(0, Math.min(x, window.innerWidth - widgetWidth)); // do not allow the widget to overflow on the right
 		this.$el.style('left', `${x}px`);
 	}

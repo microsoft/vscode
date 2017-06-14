@@ -1,8 +1,8 @@
 {
   "name": "code-oss-dev",
-  "version": "1.13.0",
+  "version": "1.14.0",
   "electronVersion": "1.6.6",
-  "distro": "c1989b3e8a8516b92a46c359eba624fb9f812201",
+  "distro": "cb257c519d1ee526acfd00c0a7adc6b0fa4c18d2",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -16,7 +16,10 @@
     "watch": "gulp watch --max_old_space_size=4096",
     "monaco-editor-setup": "node scripts/monaco-editor-setup.js",
     "monaco-editor-test": "mocha --only-monaco-editor",
-    "precommit": "node build/gulpfile.hygiene.js"
+    "precommit": "node build/gulpfile.hygiene.js",
+    "gulp": "gulp --max_old_space_size=4096",
+    "7z": "7z",
+    "update-grammars": "node build/npm/update-all-grammars.js"
   },
   "dependencies": {
     "applicationinsights": "0.17.1",
@@ -31,18 +34,19 @@
     "iconv-lite": "0.4.15",
     "jschardet": "^1.4.2",
     "minimist": "1.2.0",
-    "native-keymap": "1.2.3",
-    "node-pty": "0.6.4",
+    "native-keymap": "1.2.4",
+    "node-pty": "0.6.8",
     "semver": "4.3.6",
     "v8-profiler": "jrieken/v8-profiler#vscode",
-    "vscode-debugprotocol": "1.19.0",
+    "vscode-debugprotocol": "1.20.0",
     "vscode-ripgrep": "0.0.12",
-    "vscode-textmate": "^3.1.4",
+    "vscode-textmate": "^3.1.5",
     "winreg": "1.2.0",
-    "xterm": "Tyriar/xterm.js#vscode-release/1.12",
+    "xterm": "Tyriar/xterm.js#vscode-release/1.14",
     "yauzl": "2.3.1"
   },
   "devDependencies": {
+    "7zip": "0.0.6",
     "@types/minimist": "^1.2.0",
     "@types/mocha": "^2.2.39",
     "@types/semver": "^5.3.30",
@@ -60,7 +64,7 @@
     "flatpak-bundler": "^0.1.1",
     "glob": "^5.0.13",
     "gulp": "^3.8.9",
-    "gulp-atom-electron": "^1.9.0",
+    "gulp-atom-electron": "^1.11.0",
     "gulp-azure-storage": "^0.7.0",
     "gulp-bom": "^1.0.0",
     "gulp-buffer": "0.0.2",
@@ -100,7 +104,7 @@
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
     "tslint": "^4.3.1",
-    "typescript": "2.2.2",
+    "typescript": "2.3.3",
     "typescript-formatter": "4.0.1",
     "uglify-js": "2.4.8",
     "underscore": "^1.8.2",

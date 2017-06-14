@@ -16,11 +16,12 @@
 	"peekViewTitleInfoForeground": "預覽檢視標題資訊的色彩。",
 	"peekViewBorder": "預覽檢視之框線與箭頭的色彩。",
 	"peekViewResultsBackground": "預覽檢視中結果清單的背景色彩。",
-	"peekViewResultsMatchForeground": "在預覽檢視之結果清單中比對輸入時的前景。",
-	"peekViewResultsFileForeground": "在預覽檢視之結果清單中輸入檔案時的前景。",
+	"peekViewResultsMatchForeground": "預覽檢視結果列表中行節點的前景色彩",
+	"peekViewResultsFileForeground": "預覽檢視結果列表中檔案節點的前景色彩",
 	"peekViewResultsSelectionBackground": "在預覽檢視之結果清單中選取項目時的背景色彩。",
 	"peekViewResultsSelectionForeground": "在預覽檢視之結果清單中選取項目時的前景色彩。",
 	"peekViewEditorBackground": "預覽檢視編輯器的背景色彩。",
+	"peekViewEditorGutterBackground": "預覽檢視編輯器邊框(含行號或字形圖示)的背景色彩。",
 	"peekViewResultsMatchHighlight": "在預覽檢視編輯器中比對時的反白顯示色彩。",
 	"peekViewEditorMatchHighlight": "預覽檢視編輯器中比對時的反白顯示色彩。"
 }

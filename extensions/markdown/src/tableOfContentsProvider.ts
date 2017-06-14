@@ -66,7 +66,7 @@ export class TableOfContentsProvider {
 	}
 
 	private static getHeaderText(header: string): string {
-		return header.replace(/^\s*(#)+\s*(.*?)\s*\1*$/, '$2').trim();
+		return header.replace(/^\s*(#+)\s*(.*?)\s*\1*$/, (_, level, word) => `${level} ${word.trim()}`);
 	}
 
 	public static slugify(header: string): string {

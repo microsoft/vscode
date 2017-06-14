@@ -8,7 +8,6 @@
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import { IFileStat, isEqual, isParent, isEqualOrParent } from 'vs/platform/files/common/files';
-import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
 import { ResourceMap } from 'vs/base/common/map';
@@ -361,7 +360,7 @@ export class OpenEditor {
 	}
 
 	public isUntitled(): boolean {
-		return this.editor instanceof UntitledEditorInput;
+		return !!toResource(this.editor, { supportSideBySide: true, filter: 'untitled' });
 	}
 
 	public isDirty(): boolean {

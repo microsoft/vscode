@@ -12,8 +12,8 @@
     "Other"
   ],
   "scripts": {
-    "compile": "gulp compile-extension:gulp",
-    "watch": "gulp watch-extension:gulp"
+    "compile": "gulp compile-extension:grunt",
+    "watch": "gulp watch-extension:grunt"
   },
   "dependencies": {
     "vscode-nls": "^2.0.2"
@@ -23,9 +23,7 @@
   },
   "main": "./out/main",
   "activationEvents": [
-    "onCommand:workbench.action.tasks.runTask",
-    "onCommand:workbench.action.tasks.build",
-    "onCommand:workbench.action.tasks.test"
+    "onCommand:workbench.action.tasks.runTask"
   ],
   "contributes": {
     "configuration": {

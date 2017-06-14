@@ -39,7 +39,7 @@ namespace schema {
 			case 'scm/resourceGroup/context': return MenuId.SCMResourceGroupContext;
 			case 'scm/resourceState/context': return MenuId.SCMResourceContext;
 			case 'view/title': return MenuId.ViewTitle;
-			case 'view/resource': return MenuId.ViewResource;
+			case 'view/item/context': return MenuId.ViewItemContext;
 		}
 
 		return void 0;
@@ -141,6 +141,16 @@ namespace schema {
 			},
 			'scm/resourceState/context': {
 				description: localize('menus.resourceStateContext', "The Source Control resource state context menu"),
+				type: 'array',
+				items: menuItem
+			},
+			'view/title': {
+				description: localize('view.viewTitle', "The contributed view title menu"),
+				type: 'array',
+				items: menuItem
+			},
+			'view/item/context': {
+				description: localize('view.itemContext', "The contributed view item context menu"),
 				type: 'array',
 				items: menuItem
 			}

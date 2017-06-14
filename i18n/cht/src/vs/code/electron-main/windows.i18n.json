@@ -7,7 +7,6 @@
 	"ok": "確定",
 	"pathNotExistTitle": "路徑不存在",
 	"pathNotExistDetail": "磁碟上似乎已沒有路徑 '{0}'。",
-	"accessibilityOptionsWindowTitle": "協助工具選項",
 	"reopen": "重新開啟",
 	"wait": "繼續等候",
 	"close": "關閉",

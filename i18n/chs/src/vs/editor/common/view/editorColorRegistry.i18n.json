@@ -10,5 +10,15 @@
 	"caret": "编辑器光标颜色。",
 	"editorWhitespaces": "编辑器中空白字符颜色。",
 	"editorIndentGuides": "编辑器缩进参考线颜色。",
-	"editorLineNumbers": "编辑器行号颜色。"
+	"editorLineNumbers": "编辑器行号颜色。",
+	"editorRuler": "编辑器标尺的颜色。",
+	"editorCodeLensForeground": "编辑器 CodeLens 的前景色",
+	"editorBracketMatchBackground": "匹配括号的背景色",
+	"editorBracketMatchBorder": "匹配括号外框颜色",
+	"editorOverviewRulerBorder": "概览标尺边框的颜色。",
+	"editorGutter": "编辑器导航线的背景色。导航线包括边缘符号和行号。",
+	"errorForeground": "编辑器中错误波浪线的前景色。",
+	"errorBorder": "编辑器中错误波浪线的边框颜色。",
+	"warningForeground": "编辑器中警告波浪线的前景色。",
+	"warningBorder": "编辑器中警告波浪线的边框颜色。"
 }

@@ -41,7 +41,7 @@ function log() {
         .filter(function (match) { return !!match; })
         .map(function (_a) {
         var path = _a[1], line = _a[2], column = _a[3], message = _a[4];
-        return ({ path: path, line: Number.parseInt(line), column: Number.parseInt(column), message: message });
+        return ({ path: path, line: parseInt(line), column: parseInt(column), message: message });
     });
     try {
         fs.writeFileSync(buildLogPath, JSON.stringify(messages));

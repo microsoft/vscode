@@ -8,24 +8,28 @@
 import nls = require('vs/nls');
 import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Action } from 'vs/base/common/actions';
+import { IAction, Action } from 'vs/base/common/actions';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMessageService, CloseAction, Severity } from 'vs/platform/message/common/message';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
 import URI from 'vs/base/common/uri';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IActivityBarService, NumberBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ReleaseNotesInput } from 'vs/workbench/parts/update/electron-browser/releaseNotesInput';
+import { IGlobalActivity } from 'vs/workbench/browser/activity';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { asText } from 'vs/base/node/request';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IUpdateService } from 'vs/platform/update/common/update';
+import { IUpdateService, State as UpdateState } from 'vs/platform/update/common/update';
 import * as semver from 'semver';
-import { OS } from 'vs/base/common/platform';
+import { OS, isLinux, isWindows } from 'vs/base/common/platform';
 
 class ApplyUpdateAction extends Action {
 	constructor( @IUpdateService private updateService: IUpdateService) {
@@ -189,24 +193,22 @@ const LinkAction = (id: string, message: string, licenseUrl: string) => new Acti
 	() => { window.open(licenseUrl); return TPromise.as(null); }
 );
 
-export class UpdateContribution implements IWorkbenchContribution {
+export class ProductContribution implements IWorkbenchContribution {
 
 	private static KEY = 'releaseNotes/lastVersion';
-	getId() { return 'vs.update'; }
+	getId() { return 'vs.product'; }
 
 	constructor(
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMessageService messageService: IMessageService,
-		@IUpdateService updateService: IUpdateService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService
 	) {
-		const lastVersion = storageService.get(UpdateContribution.KEY, StorageScope.GLOBAL, '');
+		const lastVersion = storageService.get(ProductContribution.KEY, StorageScope.GLOBAL, '');
 
-		// was there an update?
+		// was there an update? if so, open release notes
 		if (product.releaseNotesUrl && lastVersion && pkg.version !== lastVersion) {
-			instantiationService.invokeFunction(loadReleaseNotes, pkg.version)
-				.then(
+			instantiationService.invokeFunction(loadReleaseNotes, pkg.version).then(
 				text => editorService.openEditor(instantiationService.createInstance(ReleaseNotesInput, pkg.version, text), { pinned: true }),
 				() => {
 					messageService.show(Severity.Info, {
@@ -230,8 +232,19 @@ export class UpdateContribution implements IWorkbenchContribution {
 			});
 		}
 
-		storageService.store(UpdateContribution.KEY, pkg.version, StorageScope.GLOBAL);
+		storageService.store(ProductContribution.KEY, pkg.version, StorageScope.GLOBAL);
+	}
+}
 
+export class UpdateContribution implements IWorkbenchContribution {
+
+	getId() { return 'vs.update'; }
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IMessageService messageService: IMessageService,
+		@IUpdateService updateService: IUpdateService
+	) {
 		updateService.onUpdateReady(update => {
 			const applyUpdateAction = instantiationService.createInstance(ApplyUpdateAction);
 			const releaseNotesAction = instantiationService.createInstance(ShowReleaseNotesAction, false, update.version);
@@ -261,5 +274,92 @@ export class UpdateContribution implements IWorkbenchContribution {
 		});
 
 		updateService.onError(err => messageService.show(severity.Error, err));
+	}
+}
+
+export class LightUpdateContribution implements IGlobalActivity {
+
+	private static readonly showCommandsId = 'workbench.action.showCommands';
+	private static readonly openSettingsId = 'workbench.action.openGlobalSettings';
+	private static readonly openKeybindingsId = 'workbench.action.openGlobalKeybindings';
+	private static readonly selectColorThemeId = 'workbench.action.selectTheme';
+	private static readonly selectIconThemeId = 'workbench.action.selectIconTheme';
+
+	get id() { return 'vs.update'; }
+	get name() { return ''; }
+	get cssClass() { return 'update-activity'; }
+
+	constructor(
+		@IStorageService storageService: IStorageService,
+		@ICommandService private commandService: ICommandService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IMessageService messageService: IMessageService,
+		@IUpdateService private updateService: IUpdateService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IActivityBarService activityBarService: IActivityBarService
+	) {
+		const addBadge = () => {
+			const badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New update available."));
+			activityBarService.showGlobalActivity(this.id, badge);
+		};
+		if (isLinux) {
+			this.updateService.onUpdateAvailable(() => addBadge());
+		} else {
+			this.updateService.onUpdateReady(() => addBadge());
+		}
+
+		this.updateService.onError(err => messageService.show(severity.Error, err));
+
+		this.updateService.onUpdateNotAvailable(explicit => {
+			if (!explicit) {
+				return;
+			}
+
+			messageService.show(severity.Info, nls.localize('noUpdatesAvailable', "There are no updates currently available."));
+		});
+	}
+
+	getActions(): IAction[] {
+		return [
+			new Action(LightUpdateContribution.showCommandsId, nls.localize('commandPalette', "Command Palette..."), undefined, true, () => this.commandService.executeCommand(LightUpdateContribution.showCommandsId)),
+			new Separator(),
+			new Action(LightUpdateContribution.openSettingsId, nls.localize('settings', "Settings"), null, true, () => this.commandService.executeCommand(LightUpdateContribution.openSettingsId)),
+			new Action(LightUpdateContribution.openKeybindingsId, nls.localize('keyboardShortcuts', "Keyboard Shortcuts"), null, true, () => this.commandService.executeCommand(LightUpdateContribution.openKeybindingsId)),
+			new Separator(),
+			new Action(LightUpdateContribution.selectColorThemeId, nls.localize('selectTheme.label', "Color Theme"), null, true, () => this.commandService.executeCommand(LightUpdateContribution.selectColorThemeId)),
+			new Action(LightUpdateContribution.selectIconThemeId, nls.localize('themes.selectIconTheme.label', "File Icon Theme"), null, true, () => this.commandService.executeCommand(LightUpdateContribution.selectIconThemeId)),
+			new Separator(),
+			this.getUpdateAction()
+		];
+	}
+
+	private getUpdateAction(): IAction {
+		switch (this.updateService.state) {
+			case UpdateState.Uninitialized:
+				return new Action('update.notavailable', nls.localize('not available', "Updates Not Available"), undefined, false);
+
+			case UpdateState.CheckingForUpdate:
+				return new Action('update.checking', nls.localize('checkingForUpdates', "Checking For Updates..."), undefined, false);
+
+			case UpdateState.UpdateAvailable:
+				if (isLinux) {
+					return new Action('update.linux.available', nls.localize('DownloadUpdate', "Download Available Update"), undefined, true, () =>
+						this.updateService.quitAndInstall());
+				}
+
+				const updateAvailableLabel = isWindows
+					? nls.localize('DownloadingUpdate', "Downloading Update...")
+					: nls.localize('InstallingUpdate', "Installing Update...");
+
+				return new Action('update.available', updateAvailableLabel, undefined, false);
+
+			case UpdateState.UpdateDownloaded:
+				return new Action('update.restart', nls.localize('restartToUpdate', "Restart To Update..."), undefined, true, () =>
+					this.updateService.quitAndInstall());
+
+			default:
+				return new Action('update.check', nls.localize('checkForUpdates', "Check for Updates..."), undefined, this.updateService.state === UpdateState.Idle, () =>
+					this.updateService.checkForUpdates(true));
+		}
 	}
 }

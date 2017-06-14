@@ -21,8 +21,7 @@ import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { OutputEditors, OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT } from 'vs/workbench/parts/output/common/output';
 import { SwitchOutputAction, SwitchOutputActionItem, ClearOutputAction, ToggleOutputScrollLockAction } from 'vs/workbench/parts/output/browser/outputActions';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -37,15 +36,14 @@ export class OutputPanel extends TextResourceEditor {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
+		@IThemeService themeService: IThemeService,
 		@IOutputService private outputService: IOutputService,
-		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IModeService modeService: IModeService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super(telemetryService, instantiationService, storageService, configurationService, themeService, untitledEditorService, editorGroupService, modeService, textFileService);
+		super(telemetryService, instantiationService, storageService, configurationService, themeService, editorGroupService, modeService, textFileService);
 
 		this.scopedInstantiationService = instantiationService;
 		this.toDispose = [];
@@ -89,6 +87,12 @@ export class OutputPanel extends TextResourceEditor {
 		options.folding = false;
 		options.scrollBeyondLastLine = false;
 		options.renderLineHighlight = 'none';
+		options.minimap = { enabled: false };
+
+		const outputConfig = this.configurationService.getConfiguration('[Log]');
+		if (outputConfig && outputConfig['editor.minimap.enabled']) {
+			options.minimap = { enabled: true };
+		}
 
 		return options;
 	}

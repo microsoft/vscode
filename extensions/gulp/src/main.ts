@@ -73,6 +73,14 @@ function exec(command: string, options: cp.ExecOptions): Promise<{ stdout: strin
 	});
 }
 
+let _channel: vscode.OutputChannel;
+function getOutputChannel(): vscode.OutputChannel {
+	if (!_channel) {
+		_channel = vscode.window.createOutputChannel('Gulp Auto Detection');
+	}
+	return _channel;
+}
+
 async function getGulpTasks(): Promise<vscode.Task[]> {
 	let workspaceRoot = vscode.workspace.rootPath;
 	let emptyTasks: vscode.Task[] = [];
@@ -98,11 +106,11 @@ async function getGulpTasks(): Promise<vscode.Task[]> {
 	}
 
 	let commandLine = `${gulpCommand} --tasks-simple --no-color`;
-	let channel = vscode.window.createOutputChannel('tasks');
 	try {
 		let { stdout, stderr } = await exec(commandLine, { cwd: workspaceRoot });
-		if (stderr) {
-			channel.appendLine(stderr);
+		if (stderr && stderr.length > 0) {
+			getOutputChannel().appendLine(stderr);
+			getOutputChannel().show(true);
 		}
 		let result: vscode.Task[] = [];
 		if (stdout) {
@@ -113,7 +121,7 @@ async function getGulpTasks(): Promise<vscode.Task[]> {
 				if (line.length === 0) {
 					continue;
 				}
-				let task = new vscode.ShellTask(`gulp: ${line}`, `${gulpCommand} ${line}`);
+				let task = new vscode.ShellTask(line, `${gulpCommand} ${line}`);
 				task.identifier = `gulp.${line}`;
 				result.push(task);
 				let lowerCaseLine = line.toLowerCase();
@@ -136,10 +144,15 @@ async function getGulpTasks(): Promise<vscode.Task[]> {
 		}
 		return result;
 	} catch (err) {
+		let channel = getOutputChannel();
 		if (err.stderr) {
 			channel.appendLine(err.stderr);
 		}
+		if (err.stdout) {
+			channel.appendLine(err.stdout);
+		}
 		channel.appendLine(localize('execFailed', 'Auto detecting gulp failed with error: {0}', err.error ? err.error.toString() : 'unknown'));
+		channel.show(true);
 		return emptyTasks;
 	}
 }

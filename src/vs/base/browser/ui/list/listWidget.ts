@@ -321,6 +321,7 @@ class MouseController<T> implements IDisposable {
 		this.disposables = [];
 		this.disposables.push(view.addListener('mousedown', e => this.onMouseDown(e)));
 		this.disposables.push(view.addListener('click', e => this.onPointer(e)));
+		this.disposables.push(view.addListener('dblclick', e => this.onDoubleClick(e)));
 		this.disposables.push(view.addListener(TouchEventType.Tap, e => this.onPointer(e)));
 	}
 
@@ -360,6 +361,19 @@ class MouseController<T> implements IDisposable {
 		const focus = this.list.getFocus();
 		this.list.setSelection(focus);
 		this.list.open(focus);
+	}
+
+	private onDoubleClick(e: IListMouseEvent<T>): void {
+		e.preventDefault();
+		e.stopPropagation();
+
+		if (isSelectionChangeEvent(e)) {
+			return;
+		}
+
+		const focus = this.list.getFocus();
+		this.list.setSelection(focus);
+		this.list.pin(focus);
 	}
 
 	private changeSelection(e: IListMouseEvent<T>, reference: number | undefined): void {
@@ -405,13 +419,16 @@ export interface IListOptions<T> extends IListViewOptions, IMouseControllerOptio
 
 export interface IListStyles {
 	listFocusBackground?: Color;
+	listFocusForeground?: Color;
 	listActiveSelectionBackground?: Color;
 	listActiveSelectionForeground?: Color;
 	listFocusAndSelectionBackground?: Color;
 	listFocusAndSelectionForeground?: Color;
 	listInactiveSelectionBackground?: Color;
+	listInactiveSelectionForeground?: Color;
 	listInactiveFocusBackground?: Color;
 	listHoverBackground?: Color;
+	listHoverForeground?: Color;
 	listDropBackground?: Color;
 	listFocusOutline?: Color;
 	listInactiveFocusOutline?: Color;
@@ -569,6 +586,11 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	private _onOpen = new Emitter<number[]>();
 	@memoize get onOpen(): Event<IListEvent<T>> {
 		return mapEvent(this._onOpen.event, indexes => this.toListEvent({ indexes }));
+	}
+
+	private _onPin = new Emitter<number[]>();
+	@memoize get onPin(): Event<IListEvent<T>> {
+		return mapEvent(this._onPin.event, indexes => this.toListEvent({ indexes }));
 	}
 
 	private _onDOMFocus = new Emitter<void>();
@@ -810,15 +832,24 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this._onOpen.fire(indexes);
 	}
 
+	pin(indexes: number[]): void {
+		this._onPin.fire(indexes);
+	}
+
 	style(styles: IListStyles): void {
-		let content: string[] = [];
+		const content: string[] = [];
 
 		if (styles.listFocusBackground) {
 			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.focused { background-color: ${styles.listFocusBackground}; }`);
 		}
 
+		if (styles.listFocusForeground) {
+			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.focused { color: ${styles.listFocusForeground}; }`);
+		}
+
 		if (styles.listActiveSelectionBackground) {
 			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected { background-color: ${styles.listActiveSelectionBackground}; }`);
+			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected:hover { background-color: ${styles.listActiveSelectionBackground}; }`); // overwrite :hover style in this case!
 		}
 
 		if (styles.listActiveSelectionForeground) {
@@ -843,12 +874,20 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row.selected:hover { background-color:  ${styles.listInactiveSelectionBackground}; }`); // overwrite :hover style in this case!
 		}
 
+		if (styles.listInactiveSelectionForeground) {
+			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row.selected { color: ${styles.listInactiveSelectionForeground}; }`);
+		}
+
 		if (styles.listHoverBackground) {
 			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row:hover { background-color:  ${styles.listHoverBackground}; }`);
 		}
 
+		if (styles.listHoverForeground) {
+			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row:hover { color:  ${styles.listHoverForeground}; }`);
+		}
+
 		if (styles.listSelectionOutline) {
-			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row.selected { outline: 1px dotted ${styles.listSelectionOutline}; }`);
+			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row.selected { outline: 1px dotted ${styles.listSelectionOutline}; outline-offset: -1px; }`);
 		}
 
 		if (styles.listFocusOutline) {

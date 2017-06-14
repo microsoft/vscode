@@ -22,7 +22,6 @@ const options: minimist.Opts = {
 		'debugBrkPluginHost',
 		'debugPluginHost',
 		'open-url',
-		'prof-startup-timers',
 		'enable-proposed-api'
 	],
 	boolean: [
@@ -41,7 +40,8 @@ const options: minimist.Opts = {
 		'disable-extensions',
 		'list-extensions',
 		'show-versions',
-		'nolazy'
+		'nolazy',
+		'skip-getting-started'
 	],
 	alias: {
 		help: 'h',

@@ -15,7 +15,7 @@
 	"changelog": "ChangeLog",
 	"dependencies": "Abhängigkeiten",
 	"noReadme": "Keine INFODATEI verfügbar.",
-	"noChangelog": "Es ist kein Änderungsprotokoll verfügbar.",
+	"noChangelog": "Es ist kein ChangeLog verfügbar.",
 	"noContributions": "Keine Beiträge",
 	"noDependencies": "Keine Abhängigkeiten",
 	"settings": "Einstellungen ({0})",

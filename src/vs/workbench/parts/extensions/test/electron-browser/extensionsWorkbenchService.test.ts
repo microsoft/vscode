@@ -28,9 +28,10 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { IChoiceService } from 'vs/platform/message/common/message';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 suite('ExtensionsWorkbenchService Test', () => {
 
@@ -54,7 +55,8 @@ suite('ExtensionsWorkbenchService Test', () => {
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 
-		instantiationService.set(IWorkspaceContextService, new WorkspaceContextService(TestWorkspace));
+		instantiationService.stub(IWorkspaceContextService, new TestContextService());
+		instantiationService.stub(IConfigurationService, { onDidUpdateConfiguration: () => { }, getConfiguration: () => ({}) });
 
 		instantiationService.stub(IExtensionManagementService, ExtensionManagementService);
 		instantiationService.stub(IExtensionManagementService, 'onInstallExtension', installEvent.event);

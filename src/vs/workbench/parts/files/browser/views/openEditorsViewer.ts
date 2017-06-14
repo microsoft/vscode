@@ -23,7 +23,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorGroup, IEditorStacksModel } from 'vs/workbench/common/editor';
 import { OpenEditor } from 'vs/workbench/parts/files/common/explorerViewModel';
-import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
+import { ContributableActionProvider } from 'vs/workbench/browser/actions';
 import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -170,8 +170,7 @@ export class Controller extends DefaultController {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN, keyboardSupport: false });
 	}
@@ -261,7 +260,6 @@ export class Controller extends DefaultController {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => this.actionProvider.getSecondaryActions(tree, element),
-			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id),
 			onHide: (wasCancelled?: boolean) => {
 				if (wasCancelled) {
 					tree.DOMFocus();
