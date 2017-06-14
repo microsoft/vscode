@@ -10,7 +10,6 @@ import { OverviewZoneManager, ColorZone, OverviewRulerZone } from 'vs/editor/com
 import { Color } from 'vs/base/common/color';
 import { OverviewRulerPosition } from 'vs/editor/common/config/editorOptions';
 import { ThemeType, LIGHT } from 'vs/platform/theme/common/themeService';
-import * as dom from 'vs/base/browser/dom';
 
 export class OverviewRulerImpl {
 
@@ -31,7 +30,7 @@ export class OverviewRulerImpl {
 
 		this._domNode.setClassName(cssClassName);
 		this._domNode.setPosition('absolute');
-		dom.hintGPULayer(this._domNode.domNode);
+		this._domNode.setLayerHinting(true);
 
 		this._lanesCount = 3;
 

@@ -2793,10 +2793,11 @@ declare module monaco.editor {
 		 */
 		fontLigatures?: boolean;
 		/**
-		 * Disable the use of `translate3d`.
+		 * Disable the use of `will-change` for the editor margin and lines layers.
+		 * The usage of `will-change` acts as a hint for browsers to create an extra layer.
 		 * Defaults to false.
 		 */
-		disableTranslate3d?: boolean;
+		disableLayerHinting?: boolean;
 		/**
 		 * Disable the optimizations for monospace fonts.
 		 * Defaults to false.
@@ -3275,7 +3276,7 @@ declare module monaco.editor {
 	 */
 	export class InternalEditorOptions {
 		readonly _internalEditorOptionsBrand: void;
-		readonly canUseTranslate3d: boolean;
+		readonly canUseLayerHinting: boolean;
 		readonly pixelRatio: number;
 		readonly editorClassName: string;
 		readonly lineHeight: number;
@@ -3406,7 +3407,7 @@ declare module monaco.editor {
 	 * An event describing that the configuration of the editor has changed.
 	 */
 	export interface IConfigurationChangedEvent {
-		readonly canUseTranslate3d: boolean;
+		readonly canUseLayerHinting: boolean;
 		readonly pixelRatio: boolean;
 		readonly editorClassName: boolean;
 		readonly lineHeight: boolean;

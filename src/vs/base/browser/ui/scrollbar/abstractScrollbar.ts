@@ -95,7 +95,7 @@ export abstract class AbstractScrollbar extends Widget {
 		this.slider.setLeft(left);
 		this.slider.setWidth(width);
 		this.slider.setHeight(height);
-		DomUtils.hintGPULayer(this.slider.domNode);
+		this.slider.setLayerHinting(true);
 
 		this.domNode.domNode.appendChild(this.slider.domNode);
 
