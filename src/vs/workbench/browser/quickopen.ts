@@ -44,6 +44,10 @@ export class QuickOpenHandler {
 	 *
 	 * As such, returning the same model instance across multiple searches will yield best
 	 * results in terms of performance when many items are shown.
+	 *
+	 * The handler may provide intermediate models as progress.
+	 * Only the most recent model is used, so each progress model (and the final resolved model)
+	 * must include all results that should be displayed at that point in time.
 	 */
 	public getResults(searchValue: string): PPromise<IModel<any>, IModel<any>> {
 		return TPromise.as(null);
