@@ -62,7 +62,7 @@ export class DebugHoverWidget implements IContentWidget {
 		this.valueContainer = $('.value');
 		this.valueContainer.tabIndex = 0;
 		this.valueContainer.setAttribute('role', 'tooltip');
-		this.scrollbar = new DomScrollableElement(this.valueContainer, { canUseTranslate3d: false });
+		this.scrollbar = new DomScrollableElement(this.valueContainer, {});
 		this.domNode.appendChild(this.scrollbar.getDomNode());
 		this.toDispose.push(this.scrollbar);
 
