@@ -6,7 +6,6 @@
 
 import 'vs/css!./media/scrollbars';
 
-import * as Browser from 'vs/base/browser/browser';
 import * as DomUtils from 'vs/base/browser/dom';
 import * as Platform from 'vs/base/common/platform';
 import { StandardMouseWheelEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -187,9 +186,6 @@ export class ScrollableElement extends Widget {
 		this._options.handleMouseWheel = massagedOptions.handleMouseWheel;
 		this._options.mouseWheelScrollSensitivity = massagedOptions.mouseWheelScrollSensitivity;
 		this._setListeningToMouseWheel(this._options.handleMouseWheel);
-
-		this._shouldRender = this._horizontalScrollbar.setCanUseTranslate3d(massagedOptions.canUseTranslate3d) || this._shouldRender;
-		this._shouldRender = this._verticalScrollbar.setCanUseTranslate3d(massagedOptions.canUseTranslate3d) || this._shouldRender;
 
 		if (!this._options.lazyRender) {
 			this._render();
@@ -409,7 +405,6 @@ export class DomScrollableElement extends ScrollableElement {
 
 function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableElementResolvedOptions {
 	let result: ScrollableElementResolvedOptions = {
-		canUseTranslate3d: opts.canUseTranslate3d && Browser.supportsTranslate3d,
 		lazyRender: (typeof opts.lazyRender !== 'undefined' ? opts.lazyRender : false),
 		className: (typeof opts.className !== 'undefined' ? opts.className : ''),
 		useShadows: (typeof opts.useShadows !== 'undefined' ? opts.useShadows : true),
