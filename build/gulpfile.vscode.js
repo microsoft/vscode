@@ -123,6 +123,8 @@ const config = {
 	darwinIcon: 'resources/darwin/code.icns',
 	darwinBundleIdentifier: product.darwinBundleIdentifier,
 	darwinApplicationCategoryType: 'public.app-category.developer-tools',
+	darwinHelpBookFolder: 'VS Code HelpBook',
+	darwinHelpBookName: 'VS Code HelpBook',
 	darwinBundleDocumentTypes: [{
 		name: product.nameLong + ' document',
 		role: 'Editor',
