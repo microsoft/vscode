@@ -133,6 +133,10 @@ export class MoveLinesCommand implements ICommand {
 						}
 					}
 
+					// add edit operations for moving line first to make sure it's executed after we make indentation change
+					// to s.startLineNumber
+					builder.addEditOperation(new Range(s.startLineNumber, 1, s.startLineNumber, 1), insertingText + '\n');
+
 					virtualModel.getLineContent = (lineNumber) => {
 						if (lineNumber === s.startLineNumber) {
 							return insertingText;
@@ -166,8 +170,9 @@ export class MoveLinesCommand implements ICommand {
 							}
 						}
 					}
+				} else {
+					builder.addEditOperation(new Range(s.startLineNumber, 1, s.startLineNumber, 1), insertingText + '\n');
 				}
-				builder.addEditOperation(new Range(s.startLineNumber, 1, s.startLineNumber, 1), insertingText + '\n');
 			} else {
 				movingLineNumber = s.startLineNumber - 1;
 				movingLineText = model.getLineContent(movingLineNumber);
@@ -186,6 +191,7 @@ export class MoveLinesCommand implements ICommand {
 							return model.getLineContent(lineNumber);
 						}
 					};
+
 					let newIndentation = LanguageConfigurationRegistry.getGoodIndentForLine(virtualModel, model.getLanguageIdAtPosition(s.startLineNumber, 1), movingLineNumber, indentConverter);
 					if (newIndentation !== null) {
 						// adjust the indentation of the moving block
