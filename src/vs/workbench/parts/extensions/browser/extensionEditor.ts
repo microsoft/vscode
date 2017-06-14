@@ -358,7 +358,7 @@ export class ExtensionEditor extends BaseEditor {
 		return this.loadContents(() => this.extensionManifest.get()
 			.then(manifest => {
 				const content = $('div', { class: 'subcontent' });
-				const scrollableContent = new DomScrollableElement(content, { canUseTranslate3d: false });
+				const scrollableContent = new DomScrollableElement(content, {});
 
 				const layout = () => scrollableContent.scanDomNode();
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
@@ -396,7 +396,7 @@ export class ExtensionEditor extends BaseEditor {
 		return this.loadContents(() => {
 			return this.extensionDependencies.get().then(extensionDependencies => {
 				const content = $('div', { class: 'subcontent' });
-				const scrollableContent = new DomScrollableElement(content, { canUseTranslate3d: false });
+				const scrollableContent = new DomScrollableElement(content, {});
 				append(this.content, scrollableContent.getDomNode());
 				this.contentDisposables.push(scrollableContent);
 
