@@ -1136,6 +1136,13 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		}
 	}
 
+	public getId(): string {
+		return [
+			'EditorHistoryEntry',
+			this.resource.toString()
+		].join(':');
+	}
+
 	public getIcon(): string {
 		return this.dirty ? 'dirty' : '';
 	}

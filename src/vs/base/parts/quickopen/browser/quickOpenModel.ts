@@ -296,7 +296,7 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 
 	public getId(): string {
 		return [
-			'group',
+			'QuickOpenEntryGroup',
 			this.entry.getId(),
 			this.groupLabel,
 			this.withBorder,

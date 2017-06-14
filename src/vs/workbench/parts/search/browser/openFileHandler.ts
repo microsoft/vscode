@@ -58,7 +58,10 @@ export class FileEntry extends EditorQuickOpenEntry {
 	}
 
 	public getId(): string {
-		return this.resource.toString();
+		return [
+			'FileEntry',
+			this.resource.toString(),
+		].join(':');
 	}
 
 	public getLabel(): string {
