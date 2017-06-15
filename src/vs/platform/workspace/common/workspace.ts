@@ -79,6 +79,11 @@ export interface IWorkspace2 {
 	readonly id: string;
 
 	/**
+	 * the name of the workspace.
+	 */
+	readonly name: string;
+
+	/**
 	 * Mutliple roots in this workspace. First entry is master and never changes.
 	 */
 	readonly roots: URI[];

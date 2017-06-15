@@ -94,7 +94,7 @@ export class TestContextService implements IWorkspaceContextService {
 	}
 
 	public getWorkspace2(): IWorkspace2 {
-		return this.workspace ? { id: this.id, roots: [this.workspace.resource] } : void 0;
+		return this.workspace ? { id: this.id, roots: [this.workspace.resource], name: this.workspace.resource.fsPath } : void 0;
 	}
 
 	public setWorkspace(workspace: any): void {

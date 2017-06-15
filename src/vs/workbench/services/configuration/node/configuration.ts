@@ -24,6 +24,8 @@ import { ScopedConfigModel, WorkspaceConfigModel, WorkspaceSettingsConfigModel }
 import { IConfigurationServiceEvent, ConfigurationSource, getConfigurationValue, IConfigurationOptions, Configuration } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceConfigurationValues, IWorkspaceConfigurationService, IWorkspaceConfigurationValue, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME, WORKSPACE_STANDALONE_CONFIGURATIONS, WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
 import { ConfigurationService as GlobalConfigurationService } from 'vs/platform/configuration/node/configurationService';
+import { createHash } from "crypto";
+import { basename } from "path";
 
 interface IStat {
 	resource: URI;
@@ -44,12 +46,30 @@ interface IWorkspaceConfiguration<T> {
 type IWorkspaceFoldersConfiguration = { [rootFolder: string]: { folders: string[]; } };
 
 class Workspace implements IWorkspace2 {
+	private _name: string;
 
 	constructor(
 		public readonly id: string,
-		public roots: URI[]
+		private _roots: URI[]
 	) {
 		//
+	}
+
+	public set roots(roots: URI[]) {
+		this._roots = roots;
+		this._name = null; // will be recomputed based on roots next time accessed
+	}
+
+	public get roots(): URI[] {
+		return this._roots;
+	}
+
+	public get name(): string {
+		if (!this._name) {
+			this._name = this.roots.map(root => basename(root.fsPath)).join(', ');
+		}
+
+		return this._name;
 	}
 }
 
@@ -79,7 +99,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	constructor(private environmentService: IEnvironmentService, private singleRootWorkspace?: SingleRootWorkspace, private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME) {
 		super();
 
-		this.workspace = singleRootWorkspace ? new Workspace(singleRootWorkspace.resource.toString(), [singleRootWorkspace.resource]) : null;
+		this.workspace = singleRootWorkspace ? new Workspace(createHash('md5').update(singleRootWorkspace.resource.toString()).digest('hex'), [singleRootWorkspace.resource]) : null; // TODO@Ben for now use the first root folder as id, but revisit this later
 
 		this.workspaceFilePathToConfiguration = Object.create(null);
 		this.cachedConfig = new Configuration<any>();
