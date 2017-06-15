@@ -567,6 +567,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.accessibilitySupport,
 			'description': nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers.")
 		},
+		'editor.showChangesInGutter': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.showChangesInGutter,
+			'description': nls.localize('showChangesInGutter', "Controls whether changes are visible in the gutter.")
+		},
 		'diffEditor.renderSideBySide': {
 			'type': 'boolean',
 			'default': true,
