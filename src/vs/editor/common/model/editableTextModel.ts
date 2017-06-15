@@ -10,6 +10,7 @@ import { EditStack } from 'vs/editor/common/model/editStack';
 import { ILineEdit, LineMarker, ModelLine, MarkersTracker } from 'vs/editor/common/model/modelLine';
 import { TextModelWithDecorations, ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import * as strings from 'vs/base/common/strings';
+import * as arrays from 'vs/base/common/arrays';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -645,14 +646,16 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				this._invalidateLine(spliceLineNumber - 1);
 
 				// Lines in the middle
+				let newLines: ModelLine[] = [];
 				let newLinesContent: string[] = [];
 				let newLinesLengths = new Uint32Array(insertingLinesCnt - editingLinesCnt);
 				for (let j = editingLinesCnt + 1; j <= insertingLinesCnt; j++) {
 					let newLineNumber = startLineNumber + j;
-					this._lines.splice(newLineNumber - 1, 0, new ModelLine(newLineNumber, op.lines[j], tabSize));
+					newLines.push(new ModelLine(newLineNumber, op.lines[j], tabSize));
 					newLinesContent.push(op.lines[j]);
 					newLinesLengths[j - editingLinesCnt - 1] = op.lines[j].length + this._EOL.length;
 				}
+				this._lines = arrays.arrayInsert(this._lines, startLineNumber + editingLinesCnt, newLines);
 				newLinesContent[newLinesContent.length - 1] += leftoverLine.text;
 				if (this._lineStarts) {
 					// update prefix sum
