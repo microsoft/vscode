@@ -70,9 +70,12 @@ export class FileDataSource implements IDataSource {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) { }
 
-	public getId(tree: ITree, stat: FileStat): string {
-		// TODO@Isidor take the id of the root into account
-		return `:${stat.getId()}`;
+	public getId(tree: ITree, stat: FileStat | Model): string {
+		if (stat instanceof Model) {
+			return 'model';
+		}
+
+		return `${this.contextService.getRoot(stat.resource).toString()}:${stat.getId()}`;
 	}
 
 	public hasChildren(tree: ITree, stat: FileStat | Model): boolean {
@@ -418,7 +421,7 @@ export class FileController extends DefaultController {
 		this.state = state;
 	}
 
-	public onLeftClick(tree: ITree, stat: FileStat, event: IMouseEvent, origin: string = 'mouse'): boolean {
+	public onLeftClick(tree: ITree, stat: FileStat | Model, event: IMouseEvent, origin: string = 'mouse'): boolean {
 		const payload = { origin: origin };
 		const isDoubleClick = (origin === 'mouse' && event.detail === 2);
 
@@ -435,8 +438,7 @@ export class FileController extends DefaultController {
 		}
 
 		// Handle root
-		const workspace = this.contextService.getWorkspace();
-		if (workspace && stat.resource.toString() === workspace.resource.toString()) {
+		if (stat instanceof Model) {
 			tree.clearFocus(payload);
 			tree.clearSelection(payload);
 
