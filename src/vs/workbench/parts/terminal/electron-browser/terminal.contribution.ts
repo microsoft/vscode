@@ -280,7 +280,7 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(RenameTerminalAc
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalFindWidgetAction, FocusTerminalFindWidgetAction.ID, FocusTerminalFindWidgetAction.LABEL, {
 	primary: KeyMod.WinCtrl | KeyCode.Shift | KeyCode.KEY_F,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_F }
-}), 'Terminal: Focus Find Widget', nls.localize('Terminal: Focus Find Widget', category));
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Focus Find Widget', nls.localize('Terminal: Focus Find Widget', category));
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(HideTerminalFindWidgetAction, HideTerminalFindWidgetAction.ID, HideTerminalFindWidgetAction.LABEL, {
 	primary: KeyCode.Escape
 }, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE), 'Terminal: Focus Find Widget', nls.localize('Terminal: Focus Find Widget', category));
