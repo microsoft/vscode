@@ -31,6 +31,7 @@ import 'vs/workbench/parts/preferences/browser/preferences.contribution';
 import 'vs/workbench/parts/preferences/browser/keybindingsEditorContribution';
 import 'vs/workbench/browser/actions/configureLocale';
 
+import 'vs/workbench/browser/parts/quickopen/quickopen.contribution';
 import 'vs/workbench/parts/quickopen/browser/quickopen.contribution';
 import 'vs/workbench/browser/parts/editor/editorPicker';
 

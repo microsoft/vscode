@@ -1514,12 +1514,14 @@ registerSingleton(ITaskService, TaskService);
 
 // Register Quick Open
 const quickOpenRegistry = (<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen));
+const tasksPickerContextKey = 'inTasksPicker';
 
 quickOpenRegistry.registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
 		'vs/workbench/parts/tasks/browser/taskQuickOpen',
 		'QuickOpenHandler',
 		'task ',
+		tasksPickerContextKey,
 		nls.localize('quickOpen.task', "Run Task")
 	)
 );
@@ -1529,6 +1531,7 @@ quickOpenRegistry.registerQuickOpenHandler(
 		'vs/workbench/parts/tasks/browser/terminateQuickOpen',
 		'QuickOpenHandler',
 		'terminate task ',
+		tasksPickerContextKey,
 		nls.localize('quickOpen.terminateTask', "Terminate Task")
 	)
 );
@@ -1538,6 +1541,7 @@ quickOpenRegistry.registerQuickOpenHandler(
 		'vs/workbench/parts/tasks/browser/restartQuickOpen',
 		'QuickOpenHandler',
 		'restart task ',
+		tasksPickerContextKey,
 		nls.localize('quickOpen.restartTask', "Restart Task")
 	)
 );
@@ -1547,6 +1551,7 @@ quickOpenRegistry.registerQuickOpenHandler(
 		'vs/workbench/parts/tasks/browser/buildQuickOpen',
 		'QuickOpenHandler',
 		'build task ',
+		tasksPickerContextKey,
 		nls.localize('quickOpen.buildTask', "Build Task")
 	)
 );
@@ -1556,6 +1561,7 @@ quickOpenRegistry.registerQuickOpenHandler(
 		'vs/workbench/parts/tasks/browser/testQuickOpen',
 		'QuickOpenHandler',
 		'test task ',
+		tasksPickerContextKey,
 		nls.localize('quickOpen.testTask', "Test Task")
 	)
 );

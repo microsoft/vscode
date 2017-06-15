@@ -35,8 +35,8 @@ import { ISearchWorkbenchService, SearchWorkbenchService } from 'vs/workbench/pa
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
 import { ListFocusContext } from 'vs/platform/list/browser/listService';
-
 import { IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/parts/output/common/output';
+import { defaultQuickOpenContextKey } from "vs/workbench/browser/parts/quickopen/quickopen";
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService);
 replaceContributions();
@@ -274,6 +274,7 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerDefaultQu
 		'vs/workbench/parts/search/browser/openAnythingHandler',
 		'OpenAnythingHandler',
 		'',
+		defaultQuickOpenContextKey,
 		nls.localize('openAnythingHandlerDescription', "Go to File")
 	)
 );
@@ -283,6 +284,7 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 		'vs/workbench/parts/search/browser/openAnythingHandler',
 		'OpenSymbolHandler',
 		ALL_SYMBOLS_PREFIX,
+		'inWorkspaceSymbolsPicker',
 		[
 			{
 				prefix: ALL_SYMBOLS_PREFIX,

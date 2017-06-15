@@ -56,6 +56,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 const HELP_PREFIX = '?';
 
 interface IInternalPickOptions {
+	contextKey?: string;
 	value?: string;
 	valueSelection?: [number, number];
 	placeHolder?: string;
@@ -84,6 +85,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	private pickOpenWidget: QuickOpenWidget;
 	private layoutDimensions: Dimension;
 	private mapResolvedHandlersToPrefix: { [prefix: string]: TPromise<QuickOpenHandler>; };
+	private mapContextKeyToContext: { [id: string]: IContextKey<boolean>; };
 	private handlerOnOpenCalled: { [prefix: string]: boolean; };
 	private currentResultToken: string;
 	private currentPickerToken: string;
@@ -100,7 +102,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IHistoryService private historyService: IHistoryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -112,6 +114,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 		this.mapResolvedHandlersToPrefix = {};
 		this.handlerOnOpenCalled = {};
+		this.mapContextKeyToContext = {};
 
 		this.promisesToCompleteOnHide = [];
 
@@ -267,6 +270,9 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		// Use a generated token to avoid race conditions from long running promises
 		const currentPickerToken = defaultGenerator.nextId();
 		this.currentPickerToken = currentPickerToken;
+
+		// Update context
+		this.setQuickOpenContextKey(options.contextKey);
 
 		// Create upon first open
 		if (!this.pickOpenWidget) {
@@ -578,6 +584,10 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 					autoFocus = { autoFocusFirstEntry: visibleEditorCount === 0, autoFocusSecondEntry: visibleEditorCount !== 0 };
 				}
 
+				// Update context
+				const registry = Registry.as<IQuickOpenRegistry>(Extensions.Quickopen);
+				this.setQuickOpenContextKey(registry.getDefaultQuickOpenHandler().contextKey);
+
 				this.quickOpenWidget.show(editorHistory, { quickNavigateConfiguration, autoFocus, inputSelection });
 			}
 		}
@@ -625,8 +635,8 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 					const promise = this.mapResolvedHandlersToPrefix[prefix];
 					promise.then(handler => {
 						this.handlerOnOpenCalled[prefix] = false;
-						// Don't check if onOpen was called to preserve old behaviour for now
-						handler.onClose(reason === HideReason.CANCELED);
+
+						handler.onClose(reason === HideReason.CANCELED); // Don't check if onOpen was called to preserve old behaviour for now
 					});
 				}
 			}
@@ -641,8 +651,37 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			this.restoreFocus(); // focus back to editor unless user clicked somewhere else
 		}
 
+		// Reset context keys
 		this.inQuickOpenMode.reset();
+		this.resetQuickOpenContextKeys();
+
+		// Events
 		this.emitQuickOpenVisibilityChange(false);
+	}
+
+	private resetQuickOpenContextKeys(): void {
+		Object.keys(this.mapContextKeyToContext).forEach(k => this.mapContextKeyToContext[k].reset());
+	}
+
+	private setQuickOpenContextKey(id?: string): void {
+		let key: IContextKey<boolean>;
+		if (id) {
+			key = this.mapContextKeyToContext[id];
+			if (!key) {
+				key = new RawContextKey<boolean>(id, false).bindTo(this.contextKeyService);
+				this.mapContextKeyToContext[id] = key;
+			}
+		}
+
+		if (key && key.get()) {
+			return; // already active context
+		}
+
+		this.resetQuickOpenContextKeys();
+
+		if (key) {
+			key.set(true);
+		}
 	}
 
 	private hasHandler(prefix: string): boolean {
@@ -677,6 +716,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		const handlerDescriptor = registry.getQuickOpenHandler(value);
 		const defaultHandlerDescriptor = registry.getDefaultQuickOpenHandler();
 		const instantProgress = handlerDescriptor && handlerDescriptor.instantProgress;
+		const contextKey = handlerDescriptor ? handlerDescriptor.contextKey : defaultHandlerDescriptor.contextKey;
 
 		// Use a generated token to avoid race conditions from long running promises
 		const currentResultToken = defaultGenerator.nextId();
@@ -690,6 +730,9 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		// Reset Extra Class
 		this.quickOpenWidget.setExtraClass(null);
 
+		// Update context
+		this.setQuickOpenContextKey(contextKey);
+
 		// Remove leading and trailing whitespace
 		const trimmedValue = strings.trim(value);
 
@@ -701,6 +744,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				.done(null, errors.onUnexpectedError);
 
 			this.quickOpenWidget.setInput(this.getEditorHistoryWithGroupLabel(), { autoFocusFirstEntry: true });
+
 			return;
 		}
 

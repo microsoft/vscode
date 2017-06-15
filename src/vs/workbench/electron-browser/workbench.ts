@@ -92,9 +92,11 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
-import { OpenRecentAction, ToggleDevToolsAction, ReloadWindowAction } from "vs/workbench/electron-browser/actions";
+import { OpenRecentAction, ToggleDevToolsAction, ReloadWindowAction, inRecentFilesPickerContextKey } from "vs/workbench/electron-browser/actions";
 import { KeyMod } from 'vs/base/common/keyCodes';
 import { KeyCode } from 'vs/editor/common/standalone/standaloneBase';
+import { KeybindingsRegistry } from "vs/platform/keybinding/common/keybindingsRegistry";
+import { getQuickNavigateHandler, inQuickOpenContext } from "vs/workbench/browser/parts/quickopen/quickopen";
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -393,6 +395,28 @@ export class Workbench implements IPartService {
 		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL, isDeveloping ? { primary: KeyMod.CtrlCmd | KeyCode.KEY_R } : void 0), 'Reload Window');
 		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleDevToolsAction, ToggleDevToolsAction.ID, ToggleDevToolsAction.LABEL, isDeveloping ? { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_I } } : void 0), 'Developer: Toggle Developer Tools', localize('developer', "Developer"));
 		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenRecentAction, OpenRecentAction.ID, OpenRecentAction.LABEL, { primary: isDeveloping ? null : KeyMod.CtrlCmd | KeyCode.KEY_R, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_R } }), 'File: Open Recent...', localize('file', "File"));
+
+		const recentFilesPickerContext = ContextKeyExpr.and(inQuickOpenContext, ContextKeyExpr.has(inRecentFilesPickerContextKey));
+
+		const quickOpenNavigateNextInRecentFilesPickerId = 'workbench.action.quickOpenNavigateNextInRecentFilesPicker';
+		KeybindingsRegistry.registerCommandAndKeybindingRule({
+			id: quickOpenNavigateNextInRecentFilesPickerId,
+			weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+			handler: getQuickNavigateHandler(quickOpenNavigateNextInRecentFilesPickerId, true),
+			when: recentFilesPickerContext,
+			primary: KeyMod.CtrlCmd | KeyCode.KEY_R,
+			mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_R }
+		});
+
+		const quickOpenNavigatePreviousInRecentFilesPicker = 'workbench.action.quickOpenNavigatePreviousInRecentFilesPicker';
+		KeybindingsRegistry.registerCommandAndKeybindingRule({
+			id: quickOpenNavigatePreviousInRecentFilesPicker,
+			weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+			handler: getQuickNavigateHandler(quickOpenNavigatePreviousInRecentFilesPicker, false),
+			when: recentFilesPickerContext,
+			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R,
+			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_R }
+		});
 	}
 
 	private resolveEditorsToOpen(): TPromise<IResourceInputType[]> {
