@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { isStyleSheet, getNode } from './util';
 import parse from '@emmetio/html-matcher';
 import Node from '@emmetio/node';
+import { DocumentStreamReader } from './bufferStream';
 
 export function mergeLines() {
 	let editor = vscode.window.activeTextEditor;
@@ -18,7 +19,7 @@ export function mergeLines() {
 		return;
 	}
 
-	let rootNode: Node = parse(editor.document.getText());
+	let rootNode: Node = parse(new DocumentStreamReader(editor.document));
 
 	editor.edit(editBuilder => {
 		editor.selections.reverse().forEach(selection => {
@@ -33,13 +34,13 @@ function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Sel
 	let endNodeToUpdate: Node;
 
 	if (selection.isEmpty) {
-		startNodeToUpdate = endNodeToUpdate = getNode(rootNode, document.offsetAt(selection.start));
+		startNodeToUpdate = endNodeToUpdate = getNode(rootNode, selection.start);
 	} else {
-		startNodeToUpdate = getNode(rootNode, document.offsetAt(selection.start), true);
-		endNodeToUpdate = getNode(rootNode, document.offsetAt(selection.end), true);
+		startNodeToUpdate = getNode(rootNode, selection.start, true);
+		endNodeToUpdate = getNode(rootNode, selection.end, true);
 	}
 
-	let rangeToReplace = new vscode.Range(document.positionAt(startNodeToUpdate.start), document.positionAt(endNodeToUpdate.end));
+	let rangeToReplace = new vscode.Range(startNodeToUpdate.start, endNodeToUpdate.end);
 	let textToReplaceWith = document.getText(rangeToReplace).replace(/\r\n|\n/g, '').replace(/>\s*</g, '><');
 
 	return [rangeToReplace, textToReplaceWith];
