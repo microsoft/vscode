@@ -6,11 +6,10 @@
 
 import 'vs/css!./referencesWidget';
 import * as nls from 'vs/nls';
-import { alert } from 'vs/base/browser/ui/aria/aria';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { getPathLabel } from 'vs/base/common/labels';
 import Event, { Emitter } from 'vs/base/common/event';
-import { IDisposable, dispose, Disposables, IReference } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -36,7 +35,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { PeekViewWidget, IPeekViewService } from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
-import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { registerColor, activeContrastBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/styler';
@@ -167,7 +166,7 @@ class DecorationsManager implements IDisposable {
 class DataSource implements tree.IDataSource {
 
 	constructor(
-		@ITextModelResolverService private _textModelResolverService: ITextModelResolverService
+		@ITextModelService private _textModelResolverService: ITextModelService
 	) {
 		//
 	}
@@ -485,7 +484,7 @@ class AriaProvider implements tree.IAccessibilityProvider {
 
 class VSash {
 
-	private _disposables = new Disposables();
+	private _disposables: IDisposable[] = [];
 	private _sash: Sash;
 	private _ratio: number;
 	private _height: number;
@@ -502,11 +501,11 @@ class VSash {
 		// compute the current widget clientX postion since
 		// the sash works with clientX when dragging
 		let clientX: number;
-		this._disposables.add(this._sash.addListener('start', (e: ISashEvent) => {
+		this._disposables.push(this._sash.addListener('start', (e: ISashEvent) => {
 			clientX = e.startX - (this._width * this.ratio);
 		}));
 
-		this._disposables.add(this._sash.addListener('change', (e: ISashEvent) => {
+		this._disposables.push(this._sash.addListener('change', (e: ISashEvent) => {
 			// compute the new position of the sash and from that
 			// compute the new ratio that we are using
 			let newLeft = e.currentX - clientX;
@@ -521,7 +520,7 @@ class VSash {
 	dispose() {
 		this._sash.dispose();
 		this._onDidChangePercentages.dispose();
-		this._disposables.dispose();
+		dispose(this._disposables);
 	}
 
 	get onDidChangePercentages() {
@@ -585,13 +584,13 @@ export class ReferenceWidget extends PeekViewWidget {
 	constructor(
 		editor: ICodeEditor,
 		public layoutData: LayoutData,
-		private _textModelResolverService: ITextModelResolverService,
+		private _textModelResolverService: ITextModelService,
 		private _contextService: IWorkspaceContextService,
 		private _themeService: IThemeService,
 		private _instantiationService: IInstantiationService,
 		private _environmentService: IEnvironmentService
 	) {
-		super(editor, { showFrame: false, showArrow: true, isResizeable: true });
+		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true });
 
 		this._applyTheme(_themeService.getTheme());
 		this._callOnDispose.push(_themeService.onThemeChange(this._applyTheme.bind(this)));
@@ -706,8 +705,7 @@ export class ReferenceWidget extends PeekViewWidget {
 				dataSource: this._instantiationService.createInstance(DataSource),
 				renderer: this._instantiationService.createInstance(Renderer, this.editor),
 				controller: new Controller(),
-				// TODO@{Joh,Ben} make this work with the embedded tree
-				// accessibilityProvider: new AriaProvider()
+				accessibilityProvider: new AriaProvider()
 			};
 
 			var options = {
@@ -786,11 +784,8 @@ export class ReferenceWidget extends PeekViewWidget {
 				this._revealReference(element);
 				this._onDidSelectReference.fire({ element, kind: 'show', source: 'tree' });
 			}
-			if (element instanceof OneReference || element instanceof FileReferences) {
-				const msg = element.getAriaMessage();
-				alert(msg);
-			}
 		}));
+
 		this._disposeOnNewModel.push(this._tree.addListener(Controller.Events.SELECTED, (element: any) => {
 			if (element instanceof OneReference) {
 				this._onDidSelectReference.fire({ element, kind: 'goto', source: 'tree' });

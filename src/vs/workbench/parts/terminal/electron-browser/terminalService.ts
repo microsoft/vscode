@@ -16,7 +16,7 @@ import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IQuickOpenService, IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
-import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfigHelper, NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfigHelper, NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { TerminalService as AbstractTerminalService } from 'vs/workbench/parts/terminal/common/terminalService';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
@@ -25,10 +25,10 @@ import { IChoiceService } from 'vs/platform/message/common/message';
 import { Severity } from 'vs/editor/common/standalone/standaloneBase';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { TERMINAL_DEFAULT_SHELL_WINDOWS } from "vs/workbench/parts/terminal/electron-browser/terminal";
+import { TerminalPanel } from "vs/workbench/parts/terminal/electron-browser/terminalPanel";
 
 export class TerminalService extends AbstractTerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
-
 	public get configHelper(): ITerminalConfigHelper { return this._configHelper; };
 
 	constructor(
@@ -67,6 +67,23 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		this._onInstancesChanged.fire();
 		this._suggestShellChange(wasNewTerminalAction);
 		return terminalInstance;
+	}
+
+	public focusFindWidget(): TPromise<void> {
+		return this.showPanel(false).then(() => {
+			let panel = this._panelService.getActivePanel() as TerminalPanel;
+			panel.focusFindWidget();
+			this._findWidgetVisible.set(true);
+		});
+	}
+
+	public hideFindWidget(): void {
+		const panel = this._panelService.getActivePanel() as TerminalPanel;
+		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
+			panel.hideFindWidget();
+			this._findWidgetVisible.reset();
+			panel.focus();
+		}
 	}
 
 	private _suggestShellChange(wasNewTerminalAction?: boolean): void {

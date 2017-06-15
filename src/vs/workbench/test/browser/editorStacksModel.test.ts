@@ -1764,6 +1764,24 @@ suite('Editor Stacks Model', () => {
 		assert.equal(input1.isDisposed(), false);
 	});
 
+	test('Stack - Multiple Editors - Editor Not Disposed after Closing when opening Modified side (Diff Editor)', function () {
+		const model = create();
+
+		const group1 = model.openGroup('group1');
+
+		const input1 = input();
+		const input2 = input();
+
+		const diffInput = new DiffEditorInput('name', 'description', input1, input2);
+
+		group1.openEditor(diffInput, { pinned: false, active: true });
+		group1.openEditor(input1, { pinned: false, active: true });
+
+		assert.equal(diffInput.isDisposed(), true);
+		assert.equal(input2.isDisposed(), true);
+		assert.equal(input1.isDisposed(), false);
+	});
+
 	test('Stack - Multiple Editors - Editor Disposed on Close (same input, files)', function () {
 		const model = create();
 

@@ -42,6 +42,7 @@ if (parseInt(process.version.substr(1)) < 6) {
 }
 
 // Setting up environment variables
+process.env.SMOKE_TEST = 'true';
 process.env.VSCODE_LATEST_PATH = program.latest;
 if (program.stable) process.env.VSCODE_STABLE_PATH = program.stable;
 process.env.SMOKETEST_REPO = testRepoLocalDir;
@@ -71,7 +72,7 @@ function runTests() {
 	console.log('Running tests...')
 	const spawn = require('child_process').spawn;
 	var proc = spawn(process.execPath, [
-		'src/mocha-runner.js'
+		'out/mocha-runner.js'
 	]);
 	proc.stdout.on('data', data => {
 		console.log(data.toString());

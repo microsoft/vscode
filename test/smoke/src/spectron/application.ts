@@ -52,7 +52,8 @@ export class SpectronApplication {
 		this.spectron = new Application({
 			path: electronPath,
 			args: args,
-			chromeDriverArgs: chromeDriverArgs
+			chromeDriverArgs: chromeDriverArgs,
+			requireName: 'electronRequire'
 		});
 		this.screenshot = new Screenshot(this, testName);
 		this.client = new SpectronClient(this.spectron, this.screenshot);
@@ -152,6 +153,10 @@ export class SpectronApplication {
 	 */
 	public command(command: string, capture?: boolean): Promise<any> {
 		const binding = this.keybindings.find(x => x['command'] === command);
+		if (!binding) {
+			throw new Error(`Key binding for ${command} was not found`);
+		}
+
 		const keys: string = binding.key;
 		let keysToPress: string[] = [];
 

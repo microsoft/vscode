@@ -84,7 +84,6 @@ export class ReferenceAction extends EditorAction {
 		}
 		let range = editor.getSelection();
 		let model = editor.getModel();
-
 		const references = provideReferences(model, range.getStartPosition());
 		controller.toggleWidget(range, references, defaultReferenceSearchOptions);
 	}

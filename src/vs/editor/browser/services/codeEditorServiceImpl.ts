@@ -344,9 +344,7 @@ class DecorationCSSRules {
 		}
 		let cssTextArr: string[] = [];
 		this.collectCSSText(opts, ['backgroundColor'], cssTextArr);
-		if (this.collectCSSText(opts, ['outline', 'outlineColor'], cssTextArr)) {
-			this.collectCSSText(opts, ['outlineStyle', 'outlineWidth'], cssTextArr);
-		}
+		this.collectCSSText(opts, ['outline', 'outlineColor', 'outlineStyle', 'outlineWidth'], cssTextArr);
 		this.collectBorderSettingsCSSText(opts, cssTextArr);
 		return cssTextArr.join('');
 	}
@@ -418,8 +416,7 @@ class DecorationCSSRules {
 	}
 
 	private collectBorderSettingsCSSText(opts: any, cssTextArr: string[]): boolean {
-		if (this.collectCSSText(opts, ['border', 'borderColor'], cssTextArr)) {
-			this.collectCSSText(opts, ['borderRadius', 'borderSpacing', 'borderStyle', 'borderWidth'], cssTextArr);
+		if (this.collectCSSText(opts, ['border', 'borderColor', 'borderRadius', 'borderSpacing', 'borderStyle', 'borderWidth'], cssTextArr)) {
 			cssTextArr.push(strings.format('box-sizing: border-box;'));
 			return true;
 		}
@@ -444,7 +441,7 @@ class DecorationCSSRules {
 			if (color) {
 				return color.toString();
 			}
-			return void 0;
+			return 'transparent';
 		}
 		return value;
 	}

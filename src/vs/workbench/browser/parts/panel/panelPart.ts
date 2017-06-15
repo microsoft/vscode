@@ -61,6 +61,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			themeService,
 			Registry.as<PanelRegistry>(PanelExtensions.Panels),
 			PanelPart.activePanelSettingsKey,
+			Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId(),
 			'panel',
 			'panel',
 			Scope.PANEL,

@@ -67,7 +67,8 @@ suite('Workbench QuickOpen', () => {
 			'test',
 			'TestHandler',
 			',',
-			'Handler'
+			'Handler',
+			null
 		);
 
 		registry.registerQuickOpenHandler(handler);

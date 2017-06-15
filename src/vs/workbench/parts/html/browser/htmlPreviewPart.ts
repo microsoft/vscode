@@ -19,7 +19,7 @@ import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel'
 import { HtmlInput } from 'vs/workbench/parts/html/common/htmlInput';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
 
 import Webview from './webview';
@@ -48,7 +48,7 @@ export class HtmlPreviewPart extends WebviewEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
+		@ITextModelService private textModelResolverService: ITextModelService,
 		@IThemeService themeService: IThemeService,
 		@IOpenerService private openerService: IOpenerService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,

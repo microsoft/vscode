@@ -165,7 +165,7 @@ function detectSystemErrorMessage(exception: any): string {
 
 	// See https://nodejs.org/api/errors.html#errors_class_system_error
 	if (typeof exception.code === 'string' && typeof exception.errno === 'number' && typeof exception.syscall === 'string') {
-		return nls.localize('nodeExceptionMessage', "A system error occured ({0})", exception.message);
+		return nls.localize('nodeExceptionMessage', "A system error occurred ({0})", exception.message);
 	}
 
 	return exception.message;

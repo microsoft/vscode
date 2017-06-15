@@ -52,7 +52,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 	private _typicalHalfwidthCharacterWidth: number;
 	private _isViewportWrapping: boolean;
 	private _revealHorizontalRightPadding: number;
-	private _canUseTranslate3d: boolean;
+	private _canUseLayerHinting: boolean;
 	private _viewLineOptions: ViewLineOptions;
 
 	// --- width
@@ -75,7 +75,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this._typicalHalfwidthCharacterWidth = conf.editor.fontInfo.typicalHalfwidthCharacterWidth;
 		this._isViewportWrapping = conf.editor.wrappingInfo.isViewportWrapping;
 		this._revealHorizontalRightPadding = conf.editor.viewInfo.revealHorizontalRightPadding;
-		this._canUseTranslate3d = conf.editor.canUseTranslate3d;
+		this._canUseLayerHinting = conf.editor.canUseLayerHinting;
 		this._viewLineOptions = new ViewLineOptions(conf);
 
 		PartFingerprints.write(this.domNode, PartFingerprint.ViewLines);
@@ -132,8 +132,8 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		if (e.viewInfo) {
 			this._revealHorizontalRightPadding = conf.editor.viewInfo.revealHorizontalRightPadding;
 		}
-		if (e.canUseTranslate3d) {
-			this._canUseTranslate3d = conf.editor.canUseTranslate3d;
+		if (e.canUseLayerHinting) {
+			this._canUseLayerHinting = conf.editor.canUseLayerHinting;
 		}
 		if (e.fontInfo) {
 			Configuration.applyFontInfo(this.domNode, conf.editor.fontInfo);
@@ -443,17 +443,10 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		}
 
 		// (3) handle scrolling
+		this._linesContent.setLayerHinting(this._canUseLayerHinting);
 		const adjustedScrollTop = this._context.viewLayout.getScrollTop() - viewportData.bigNumbersDelta;
-		if (this._canUseTranslate3d) {
-			let transform = 'translate3d(' + -this._context.viewLayout.getScrollLeft() + 'px, ' + -adjustedScrollTop + 'px, 0px)';
-			this._linesContent.setTransform(transform);
-			this._linesContent.setTop(0);
-			this._linesContent.setLeft(0);
-		} else {
-			this._linesContent.setTransform('');
-			this._linesContent.setTop(-adjustedScrollTop);
-			this._linesContent.setLeft(-this._context.viewLayout.getScrollLeft());
-		}
+		this._linesContent.setTop(-adjustedScrollTop);
+		this._linesContent.setLeft(-this._context.viewLayout.getScrollLeft());
 
 		// Update max line width (not so important, it is just so the horizontal scrollbar doesn't get too small)
 		this._asyncUpdateLineWidths.schedule();

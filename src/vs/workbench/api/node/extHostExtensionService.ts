@@ -15,9 +15,7 @@ import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { createApiFactory, initializeExtensionApi } from 'vs/workbench/api/node/extHost.api.impl';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { MainContext, MainProcessExtensionServiceShape, IEnvironment, IInitData } from './extHost.protocol';
-import { createHash } from 'crypto';
+import { MainContext, MainProcessExtensionServiceShape, IWorkspaceData, IEnvironment, IInitData } from './extHost.protocol';
 
 const hasOwnProperty = Object.hasOwnProperty;
 
@@ -103,13 +101,13 @@ class ExtensionMemento implements IExtensionMemento {
 
 class ExtensionStoragePath {
 
-	private readonly _workspace: IWorkspace;
+	private readonly _workspace: IWorkspaceData;
 	private readonly _environment: IEnvironment;
 
 	private readonly _ready: TPromise<string>;
 	private _value: string;
 
-	constructor(workspace: IWorkspace, environment: IEnvironment) {
+	constructor(workspace: IWorkspaceData, environment: IEnvironment) {
 		this._workspace = workspace;
 		this._environment = environment;
 		this._ready = this._getOrCreateWorkspaceStoragePath().then(value => this._value = value);
@@ -130,12 +128,8 @@ class ExtensionStoragePath {
 		if (!this._workspace) {
 			return TPromise.as(undefined);
 		}
-
-		const storageName = createHash('md5')
-			.update(this._workspace.resource.fsPath)
-			.update(this._workspace.uid ? this._workspace.uid.toString() : '')
-			.digest('hex');
-
+		// TODO@joh what to do with multiple roots?
+		const storageName = this._workspace.id;
 		const storagePath = join(this._environment.appSettingsHome, 'workspaceStorage', storageName);
 
 		return dirExists(storagePath).then(exists => {

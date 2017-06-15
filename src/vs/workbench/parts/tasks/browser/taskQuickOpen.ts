@@ -18,15 +18,20 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import * as base from './quickOpen';
 
 class TaskEntry extends base.TaskEntry {
-	constructor(taskService: ITaskService, task: Task, highlights: Model.IHighlight[] = []) {
-		super(taskService, task, highlights);
+	constructor(taskService: ITaskService, quickOpenService: IQuickOpenService, task: Task, highlights: Model.IHighlight[] = []) {
+		super(taskService, quickOpenService, task, highlights);
 	}
 
 	public run(mode: QuickOpen.Mode, context: Model.IContext): boolean {
 		if (mode === QuickOpen.Mode.PREVIEW) {
 			return false;
 		}
-		this.taskService.run(this._task);
+		let task = this._task;
+		this.taskService.run(task);
+		if (task.command.terminalBehavior.focus) {
+			this.quickOpenService.close();
+			return false;
+		}
 		return true;
 	}
 }
@@ -53,8 +58,8 @@ export class QuickOpenHandler extends base.QuickOpenHandler {
 		});
 	}
 
-	protected createEntry(taskService: ITaskService, task: Task, highlights: Model.IHighlight[]): base.TaskEntry {
-		return new TaskEntry(taskService, task, highlights);
+	protected createEntry(task: Task, highlights: Model.IHighlight[]): base.TaskEntry {
+		return new TaskEntry(this.taskService, this.quickOpenService, task, highlights);
 	}
 
 	public getEmptyLabel(searchString: string): string {

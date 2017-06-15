@@ -55,7 +55,6 @@ export interface IEnvConfiguration {
 	extraEditorClassName: string;
 	outerWidth: number;
 	outerHeight: number;
-	canUseTranslate3d: boolean;
 	emptySelectionClipboard: boolean;
 	pixelRatio: number;
 	zoomLevel: number;
@@ -125,7 +124,6 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			extraEditorClassName: partialEnv.extraEditorClassName,
 			isDominatedByLongLines: this._isDominatedByLongLines,
 			lineNumbersDigitCount: this._lineNumbersDigitCount,
-			canUseTranslate3d: partialEnv.canUseTranslate3d,
 			emptySelectionClipboard: partialEnv.emptySelectionClipboard,
 			pixelRatio: partialEnv.pixelRatio,
 			tabFocusMode: TabFocus.getTabFocusMode(),
@@ -386,7 +384,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.parameterHints': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.parameterHints,
-			'description': nls.localize('parameterHints', "Enables parameter hints")
+			'description': nls.localize('parameterHints', "Enables pop-up that shows parameter documentation and type information as you type")
 		},
 		'editor.autoClosingBrackets': {
 			'type': 'boolean',
@@ -572,6 +570,11 @@ const editorConfiguration: IConfigurationNode = {
 			],
 			'default': EDITOR_DEFAULTS.accessibilitySupport,
 			'description': nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers.")
+		},
+		'editor.links': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.contribInfo.links,
+			'description': nls.localize('links', "Controls whether the editor should detect links and make them clickable")
 		},
 		'diffEditor.renderSideBySide': {
 			'type': 'boolean',

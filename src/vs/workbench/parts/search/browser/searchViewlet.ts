@@ -334,7 +334,13 @@ export class SearchViewlet extends Viewlet {
 
 	private onReplaceToggled(): void {
 		this.layout(this.size);
-		this.storageService.store(SearchViewlet.SHOW_REPLACE_STORAGE_KEY, this.searchAndReplaceWidget.isReplaceShown(), StorageScope.WORKSPACE);
+
+		const isReplaceShown = this.searchAndReplaceWidget.isReplaceShown();
+		if (!isReplaceShown) {
+			this.storageService.store(SearchViewlet.SHOW_REPLACE_STORAGE_KEY, false, StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(SearchViewlet.SHOW_REPLACE_STORAGE_KEY);
+		}
 	}
 
 	private onSearchResultsChanged(event?: IChangeEvent): TPromise<any> {

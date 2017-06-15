@@ -317,3 +317,13 @@ export function insert<T>(array: T[], element: T): () => void {
 		}
 	};
 }
+
+/**
+ * Insert `insertArr` inside `taget` at `insertIndex`.
+ * Please don't touch unless you understand https://jsperf.com/inserting-an-array-within-an-array
+ */
+export function arrayInsert<T>(target: T[], insertIndex: number, insertArr: T[]): T[] {
+	const before = target.slice(0, insertIndex);
+	const after = target.slice(insertIndex);
+	return before.concat(insertArr, after);
+}

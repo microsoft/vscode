@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as paths from 'vs/base/common/paths';
-import { RunOnceScheduler } from 'vs/base/common/async';
 import * as strings from 'vs/base/common/strings';
 import { generateUuid } from 'vs/base/common/uuid';
 import uri from 'vs/base/common/uri';
@@ -80,7 +79,6 @@ export class DebugService implements debug.IDebugService {
 	private debugType: IContextKey<string>;
 	private debugState: IContextKey<string>;
 	private breakpointsToSendOnResourceSaved: Set<string>;
-	private callStackScheduler: RunOnceScheduler;
 	private launchJsonChanged: boolean;
 
 	constructor(
@@ -120,18 +118,6 @@ export class DebugService implements debug.IDebugService {
 			this.loadExceptionBreakpoints(), this.loadWatchExpressions());
 		this.toDispose.push(this.model);
 		this.viewModel = new ViewModel(this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE, null));
-		this.callStackScheduler = new RunOnceScheduler(() => {
-			const focusedThread = this.viewModel.focusedThread;
-			if (focusedThread) {
-				const callStack = focusedThread.getCallStack();
-				// Some adapters might not respect the number levels in StackTraceRequest and might
-				// return more stackFrames than requested. For those do not send an additional stackTrace request.
-				if (callStack.length <= 1) {
-					this.model.fetchCallStack(focusedThread).done(() =>
-						this.tryToAutoFocusStackFrame(focusedThread), errors.onUnexpectedError);
-				}
-			}
-		}, 420);
 
 		this.registerListeners(lifecycleService);
 	}
@@ -330,7 +316,6 @@ export class DebugService implements debug.IDebugService {
 					// Call fetch call stack twice, the first only return the top stack frame.
 					// Second retrieves the rest of the call stack. For performance reasons #25605
 					this.model.fetchCallStack(thread).then(() => {
-						this.callStackScheduler.schedule();
 						return this.tryToAutoFocusStackFrame(thread);
 					});
 				}
@@ -927,14 +912,12 @@ export class DebugService implements debug.IDebugService {
 					let config = process.configuration;
 					if (this.launchJsonChanged) {
 						this.launchJsonChanged = false;
-						config = this.configurationManager.getConfiguration(process.configuration.name) || process.configuration;
-						if (config) {
-							// Take the type from the process since the debug extension might overwrite it #21316
-							config.type = process.configuration.type;
-							config.noDebug = process.configuration.noDebug;
-							config.__restart = restartData;
-						}
+						config = this.configurationManager.getConfiguration(process.configuration.name) || config;
+						// Take the type from the process since the debug extension might overwrite it #21316
+						config.type = process.configuration.type;
+						config.noDebug = process.configuration.noDebug;
 					}
+					config.__restart = restartData;
 					this.createProcess(config).then(() => c(null), err => e(err));
 				}, 300);
 			})
@@ -1128,12 +1111,41 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	private store(): void {
-		this.storageService.store(DEBUG_BREAKPOINTS_KEY, JSON.stringify(this.model.getBreakpoints()), StorageScope.WORKSPACE);
-		this.storageService.store(DEBUG_BREAKPOINTS_ACTIVATED_KEY, this.model.areBreakpointsActivated() ? 'true' : 'false', StorageScope.WORKSPACE);
-		this.storageService.store(DEBUG_FUNCTION_BREAKPOINTS_KEY, JSON.stringify(this.model.getFunctionBreakpoints()), StorageScope.WORKSPACE);
-		this.storageService.store(DEBUG_EXCEPTION_BREAKPOINTS_KEY, JSON.stringify(this.model.getExceptionBreakpoints()), StorageScope.WORKSPACE);
+		const breakpoints = this.model.getBreakpoints();
+		if (breakpoints.length) {
+			this.storageService.store(DEBUG_BREAKPOINTS_KEY, JSON.stringify(breakpoints), StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE);
+		}
+
+		if (!this.model.areBreakpointsActivated()) {
+			this.storageService.store(DEBUG_BREAKPOINTS_ACTIVATED_KEY, 'false', StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE);
+		}
+
+		const functionBreakpoints = this.model.getFunctionBreakpoints();
+		if (functionBreakpoints.length) {
+			this.storageService.store(DEBUG_FUNCTION_BREAKPOINTS_KEY, JSON.stringify(functionBreakpoints), StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(DEBUG_FUNCTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE);
+		}
+
+		const exceptionBreakpoints = this.model.getExceptionBreakpoints();
+		if (exceptionBreakpoints.length) {
+			this.storageService.store(DEBUG_EXCEPTION_BREAKPOINTS_KEY, JSON.stringify(exceptionBreakpoints), StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(DEBUG_EXCEPTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE);
+		}
+
 		this.storageService.store(DEBUG_SELECTED_CONFIG_NAME_KEY, this.viewModel.selectedConfigurationName, StorageScope.WORKSPACE);
-		this.storageService.store(DEBUG_WATCH_EXPRESSIONS_KEY, JSON.stringify(this.model.getWatchExpressions().map(we => ({ name: we.name, id: we.getId() }))), StorageScope.WORKSPACE);
+
+		const watchExpressions = this.model.getWatchExpressions();
+		if (watchExpressions.length) {
+			this.storageService.store(DEBUG_WATCH_EXPRESSIONS_KEY, JSON.stringify(watchExpressions.map(we => ({ name: we.name, id: we.getId() }))), StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(DEBUG_WATCH_EXPRESSIONS_KEY, StorageScope.WORKSPACE);
+		}
 	}
 
 	public dispose(): void {

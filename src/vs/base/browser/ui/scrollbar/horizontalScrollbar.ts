@@ -16,7 +16,6 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 
 	constructor(scrollable: Scrollable, options: ScrollableElementResolvedOptions, host: ScrollbarHost) {
 		super({
-			canUseTranslate3d: options.canUseTranslate3d,
 			lazyRender: options.lazyRender,
 			host: host,
 			scrollbarState: new ScrollbarState(
@@ -61,13 +60,7 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 
 	protected _updateSlider(sliderSize: number, sliderPosition: number): void {
 		this.slider.setWidth(sliderSize);
-		if (this._canUseTranslate3d) {
-			this.slider.setTransform('translate3d(' + sliderPosition + 'px, 0px, 0px)');
-			this.slider.setLeft(0);
-		} else {
-			this.slider.setTransform('');
-			this.slider.setLeft(sliderPosition);
-		}
+		this.slider.setLeft(sliderPosition);
 	}
 
 	protected _renderDomNode(largeSize: number, smallSize: number): void {

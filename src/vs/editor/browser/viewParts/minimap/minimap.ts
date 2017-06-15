@@ -413,6 +413,7 @@ export class Minimap extends ViewPart {
 		this._slider = createFastDomNode(document.createElement('div'));
 		this._slider.setPosition('absolute');
 		this._slider.setClassName('minimap-slider');
+		this._slider.setLayerHinting(true);
 		this._domNode.appendChild(this._slider);
 
 		this._tokensColorTracker = MinimapTokensColorTracker.getInstance();
@@ -614,9 +615,40 @@ export class Minimap extends ViewPart {
 		this._slider.setTop(layout.sliderTop);
 		this._slider.setHeight(layout.sliderHeight);
 
+		this._lastRenderData = this.renderLines(layout);
+	}
+
+	private renderLines(layout: MinimapLayout): RenderData {
+		const renderMinimap = this._options.renderMinimap;
 		const startLineNumber = layout.startLineNumber;
 		const endLineNumber = layout.endLineNumber;
 		const minimapLineHeight = getMinimapLineHeight(renderMinimap);
+
+		// Check if nothing changed w.r.t. lines from last frame
+		if (this._lastRenderData) {
+			const _lastData = this._lastRenderData._get();
+			const lastStartLineNumber = _lastData.rendLineNumberStart;
+			const lastLines = _lastData.lines;
+			const lastLinesLength = lastLines.length;
+
+			let linesNeedPainting = false;
+			for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
+				const lastLineIndex = lineNumber - lastStartLineNumber;
+				const source_dy = (lastLineIndex >= 0 && lastLineIndex < lastLinesLength ? lastLines[lastLineIndex].dy : -1);
+
+				if (source_dy === -1) {
+					linesNeedPainting = true;
+					break;
+				}
+			}
+
+			if (!linesNeedPainting) {
+				// Nice!! Nothing changed from last frame
+				return new RenderData(layout, _lastData.imageData, _lastData.lines);
+			}
+		}
+
+		// Oh well!! We need to repaint some lines...
 
 		const imageData = this._getBuffer();
 
@@ -656,16 +688,16 @@ export class Minimap extends ViewPart {
 			dy += minimapLineHeight;
 		}
 
+		// Finally, paint to the canvas
+		const ctx = this._canvas.domNode.getContext('2d');
+		ctx.putImageData(imageData, 0, 0);
+
 		// Save rendered data for reuse on next frame if possible
-		this._lastRenderData = new RenderData(
+		return new RenderData(
 			layout,
 			imageData,
 			renderedLines
 		);
-
-		// Finally, paint to the canvas
-		const ctx = this._canvas.domNode.getContext('2d');
-		ctx.putImageData(imageData, 0, 0);
 	}
 
 	private static _renderUntouchedLines(

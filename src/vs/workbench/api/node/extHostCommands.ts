@@ -218,7 +218,7 @@ export class CommandsConverter {
 		}
 	}
 
-	private _executeConvertedCommand(...args: any[]) {
+	private _executeConvertedCommand<R>(...args: any[]): Thenable<R> {
 		const actualCmd = this._heap.get<vscode.Command>(args[0]);
 		return this._commands.executeCommand(actualCmd.command, ...actualCmd.arguments);
 	}

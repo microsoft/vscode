@@ -27,8 +27,6 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/node/storage';
-import { IBackupMainService } from 'vs/platform/backup/common/backup';
-import { BackupChannel } from 'vs/platform/backup/common/backupIpc';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IURLService } from 'vs/platform/url/common/url';
@@ -50,6 +48,7 @@ import { isUndefinedOrNull } from "vs/base/common/types";
 import { CodeWindow } from "vs/code/electron-main/window";
 import { isEqual, isParent } from "vs/platform/files/common/files";
 import { KeyboardLayoutMonitor } from "vs/code/electron-main/keyboard";
+import URI from 'vs/base/common/uri';
 
 export class CodeApplication {
 	private toDispose: IDisposable[];
@@ -119,6 +118,23 @@ export class CodeApplication {
 			if (!hasVisibleWindows && this.windowsMainService) {
 				this.windowsMainService.openNewWindow(OpenContext.DOCK);
 			}
+		});
+
+		const isValidWebviewSource = (source: string) =>
+			!source || (URI.parse(source.toLowerCase()).toString() as any).startsWith(URI.file(this.environmentService.appRoot.toLowerCase()).toString());
+
+		app.on('web-contents-created', (event, contents) => {
+			contents.on('will-attach-webview', (event, webPreferences, params) => {
+				delete webPreferences.preload;
+				webPreferences.nodeIntegration = false;
+
+				// Verify URLs being loaded
+				if (isValidWebviewSource(params.src) && isValidWebviewSource(webPreferences.preloadURL)) {
+					return;
+				}
+				// Otherwise prevent loading
+				event.preventDefault();
+			});
 		});
 
 		let macOpenFiles: string[] = [];
@@ -303,10 +319,6 @@ export class CodeApplication {
 		const urlService = accessor.get(IURLService);
 		const urlChannel = appInstantiationService.createInstance(URLChannel, urlService);
 		this.electronIpcServer.registerChannel('url', urlChannel);
-
-		const backupService = accessor.get(IBackupMainService);
-		const backupChannel = appInstantiationService.createInstance(BackupChannel, backupService);
-		this.electronIpcServer.registerChannel('backup', backupChannel);
 
 		const windowsService = accessor.get(IWindowsService);
 		const windowsChannel = new WindowsChannel(windowsService);

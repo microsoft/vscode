@@ -22,6 +22,12 @@ export function values<K, V>(map: Map<K, V>): V[] {
 	return result;
 }
 
+export function keys<K, V>(map: Map<K, V>): K[] {
+	const result: K[] = [];
+	map.forEach((value, key) => result.push(key));
+	return result;
+}
+
 export function getOrSet<K, V>(map: Map<K, V>, key: K, value: V): V {
 	let result = map.get(key);
 	if (result === void 0) {
@@ -331,7 +337,8 @@ export class TrieMap<E> {
 }
 
 export class ResourceMap<T> {
-	private map: Map<string, T>;
+
+	protected map: Map<string, T>;
 
 	constructor(private ignoreCase?: boolean) {
 		this.map = new Map<string, T>();
@@ -377,6 +384,18 @@ export class ResourceMap<T> {
 
 		return key;
 	}
+}
+
+export class StrictResourceMap<T> extends ResourceMap<T> {
+
+	constructor() {
+		super();
+	}
+
+	public keys(): URI[] {
+		return keys(this.map).map(key => URI.parse(key));
+	}
+
 }
 
 // We should fold BoundedMap and LinkedMap. See https://github.com/Microsoft/vscode/issues/28496

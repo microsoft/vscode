@@ -21,7 +21,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { BulkEdit, createBulkEdit } from 'vs/editor/common/services/bulkEdit';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import RenameInputField from './renameInputField';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { sequence, asWinJsPromise } from 'vs/base/common/async';
@@ -99,7 +99,7 @@ class RenameController implements IEditorContribution {
 	constructor(
 		private editor: ICodeEditor,
 		@IMessageService private _messageService: IMessageService,
-		@ITextModelResolverService private _textModelResolverService: ITextModelResolverService,
+		@ITextModelService private _textModelResolverService: ITextModelService,
 		@IProgressService private _progressService: IProgressService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,

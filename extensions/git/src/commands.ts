@@ -774,7 +774,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await this.model.pull(true);
+		await this.model.pullWithRebase();
 	}
 
 	@command('git.push')
@@ -812,7 +812,7 @@ export class CommandCenter {
 			return;
 		}
 
-		this.model.push(pick.label, branchName);
+		this.model.pushTo(pick.label, branchName);
 	}
 
 	@command('git.sync')
@@ -860,7 +860,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await this.model.push(choice, branchName, { setUpstream: true });
+		await this.model.pushTo(choice, branchName, true);
 	}
 
 	@command('git.showOutput')

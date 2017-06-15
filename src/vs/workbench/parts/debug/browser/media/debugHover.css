@@ -26,7 +26,7 @@
 	word-break: normal;
 	text-overflow: ellipsis;
 	height: 18px;
-	overflow: hidden;
+	overflow: auto;
 	border-bottom: 1px solid rgba(128, 128, 128, 0.35);
 }
 
@@ -64,6 +64,8 @@
 .monaco-editor .debug-hover-widget .value {
 	white-space: pre-wrap;
 	color: rgba(108, 108, 108, 0.8);
+	overflow: auto;
+	max-height: 500px;
 }
 
 .monaco-editor .debug-hover-widget .error {

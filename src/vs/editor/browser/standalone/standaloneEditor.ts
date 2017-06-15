@@ -29,7 +29,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { NULL_STATE, nullTokenize } from 'vs/editor/common/modes/nullMode';
 import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/common/services/standaloneThemeService';
 import { Token } from 'vs/editor/common/core/token';
@@ -55,9 +55,9 @@ function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: H
 	}
 
 	let simpleEditorModelResolverService: SimpleEditorModelResolverService = null;
-	if (!services.has(ITextModelResolverService)) {
+	if (!services.has(ITextModelService)) {
 		simpleEditorModelResolverService = new SimpleEditorModelResolverService();
-		services.set(ITextModelResolverService, simpleEditorModelResolverService);
+		services.set(ITextModelService, simpleEditorModelResolverService);
 	}
 
 	if (!services.has(IOpenerService)) {

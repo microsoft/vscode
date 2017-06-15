@@ -92,7 +92,7 @@
 }
 
 .quick-open-widget .quick-open-tree .quick-open-entry-keybinding .monaco-kbkey {
-	vertical-align: inherit;
+	vertical-align: text-bottom;
 }
 
 .quick-open-widget .quick-open-tree .results-group {

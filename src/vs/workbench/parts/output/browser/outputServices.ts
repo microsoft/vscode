@@ -20,7 +20,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { OutputLinkProvider } from 'vs/workbench/parts/output/common/outputLinkProvider';
-import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -101,7 +101,7 @@ export class OutputService implements IOutputService {
 		@IPanelService private panelService: IPanelService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IModelService modelService: IModelService,
-		@ITextModelResolverService textModelResolverService: ITextModelResolverService
+		@ITextModelService textModelResolverService: ITextModelService
 	) {
 		this._onOutput = new Emitter<IOutputEvent>();
 		this._onOutputChannel = new Emitter<string>();

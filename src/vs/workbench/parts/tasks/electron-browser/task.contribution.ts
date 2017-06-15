@@ -927,15 +927,19 @@ class TaskService extends EventEmitter implements ITaskService {
 		return ProblemMatcherRegistry.onReady().then(() => {
 			return this.textFileService.saveAll().then((value) => { // make sure all dirty files are saved
 				let executeResult = this.getTaskSystem().run(task, resolver);
+				this.getRecentlyUsedTasks().set(task.identifier, task.identifier, Touch.First);
 				if (executeResult.kind === TaskExecuteKind.Active) {
 					let active = executeResult.active;
-					if (active.same && active.background) {
-						this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame', 'The task is already active and in watch mode. To terminate the task use `F1 > terminate task`'));
+					if (active.same) {
+						if (active.background) {
+							this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame.background', 'The task is already active and in background mode. To terminate the task use `F1 > terminate task`'));
+						} else {
+							this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame.noBackground', 'The task is already active. To terminate the task use `F1 > terminate task`'));
+						}
 					} else {
 						throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is already a task running. Terminate it first before executing another task.'), TaskErrors.RunningTask);
 					}
 				}
-				this.getRecentlyUsedTasks().set(task.identifier, task.identifier, Touch.First);
 				return executeResult.promise;
 			});
 		});
@@ -1506,12 +1510,14 @@ registerSingleton(ITaskService, TaskService);
 
 // Register Quick Open
 const quickOpenRegistry = (<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen));
+const tasksPickerContextKey = 'inTasksPicker';
 
 quickOpenRegistry.registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
 		'vs/workbench/parts/tasks/browser/taskQuickOpen',
 		'QuickOpenHandler',
 		'task ',
+		tasksPickerContextKey,
 		nls.localize('quickOpen.task', "Run Task")
 	)
 );
@@ -1521,6 +1527,7 @@ quickOpenRegistry.registerQuickOpenHandler(
 		'vs/workbench/parts/tasks/browser/terminateQuickOpen',
 		'QuickOpenHandler',
 		'terminate task ',
+		tasksPickerContextKey,
 		nls.localize('quickOpen.terminateTask', "Terminate Task")
 	)
 );
@@ -1530,6 +1537,7 @@ quickOpenRegistry.registerQuickOpenHandler(
 		'vs/workbench/parts/tasks/browser/restartQuickOpen',
 		'QuickOpenHandler',
 		'restart task ',
+		tasksPickerContextKey,
 		nls.localize('quickOpen.restartTask', "Restart Task")
 	)
 );
@@ -1539,6 +1547,7 @@ quickOpenRegistry.registerQuickOpenHandler(
 		'vs/workbench/parts/tasks/browser/buildQuickOpen',
 		'QuickOpenHandler',
 		'build task ',
+		tasksPickerContextKey,
 		nls.localize('quickOpen.buildTask', "Build Task")
 	)
 );
@@ -1548,6 +1557,7 @@ quickOpenRegistry.registerQuickOpenHandler(
 		'vs/workbench/parts/tasks/browser/testQuickOpen',
 		'QuickOpenHandler',
 		'test task ',
+		tasksPickerContextKey,
 		nls.localize('quickOpen.testTask', "Test Task")
 	)
 );

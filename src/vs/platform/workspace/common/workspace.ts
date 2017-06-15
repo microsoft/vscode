@@ -9,11 +9,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import paths = require('vs/base/common/paths');
 import { isEqualOrParent } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
-import Event, { Emitter } from 'vs/base/common/event';
-import { IConfigurationService } from "vs/platform/configuration/common/configuration";
-import { IDisposable, dispose } from "vs/base/common/lifecycle";
-import { distinct, equals } from "vs/base/common/arrays";
-import { Schemas } from "vs/base/common/network";
+import Event from 'vs/base/common/event';
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
@@ -32,6 +28,23 @@ export interface IWorkspaceContextService {
 	getWorkspace(): IWorkspace;
 
 	/**
+	 * Provides access to the workspace object the platform is running with. This may be null if the workbench was opened
+	 * without workspace (empty);
+	 */
+	getWorkspace2(): IWorkspace2;
+
+	/**
+	 * An event which fires on workspace roots change.
+	 */
+	onDidChangeWorkspaceRoots: Event<URI[]>;
+
+	/**
+	 * Returns the root for the given resource from the workspace.
+	 * Can be null if there is no workspace or the resource is not inside the workspace.
+	 */
+	getRoot(resource: URI): URI;
+
+	/**
 	 * Returns iff the provided resource is inside the workspace or not.
 	 */
 	isInsideWorkspace(resource: URI): boolean;
@@ -47,12 +60,6 @@ export interface IWorkspaceContextService {
 	 * Given a workspace relative path, returns the resource with the absolute path.
 	 */
 	toResource: (workspaceRelativePath: string) => URI;
-
-	/**
-	 * TODO@Ben multiroot
-	 */
-	getFolders(): URI[];
-	onDidChangeFolders: Event<URI[]>;
 }
 
 export interface IWorkspace {
@@ -64,11 +71,9 @@ export interface IWorkspace {
 	resource: URI;
 
 	/**
-	 * the unique identifier of the workspace. if the workspace is deleted and recreated
-	 * the identifier also changes. this makes the uid more unique compared to the id which
-	 * is just derived from the workspace name.
+	 * the creation date of the workspace if known.
 	 */
-	uid?: number;
+	ctime: number;
 
 	/**
 	 * the name of the workspace
@@ -76,24 +81,52 @@ export interface IWorkspace {
 	name?: string;
 }
 
-export class Workspace implements IWorkspace {
+export interface IWorkspace2 {
 
-	constructor(private _resource: URI, private _uid?: number, private _name?: string) {
+	/**
+	 * the unique identifier of the workspace.
+	 */
+	readonly id: string;
+
+	/**
+	 * the name of the workspace.
+	 */
+	readonly name: string;
+
+	/**
+	 * Mutliple roots in this workspace. First entry is master and never changes.
+	 */
+	readonly roots: URI[];
+}
+
+export class Workspace implements IWorkspace {
+	private _name: string;
+
+	constructor(private _resource: URI, private _ctime?: number) {
+		this._name = paths.basename(this._resource.fsPath) || this._resource.fsPath;
 	}
 
 	public get resource(): URI {
 		return this._resource;
 	}
 
-	public get uid(): number {
-		return this._uid;
-	}
-
 	public get name(): string {
 		return this._name;
 	}
 
-	public isInsideWorkspace(resource: URI): boolean {
+	public get ctime(): number {
+		return this._ctime;
+	}
+
+	public toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
+		if (this.contains(resource)) {
+			return paths.normalize(paths.relative(this._resource.fsPath, resource.fsPath), toOSPath);
+		}
+
+		return null;
+	}
+
+	private contains(resource: URI): boolean {
 		if (resource) {
 			return isEqualOrParent(resource.fsPath, this._resource.fsPath, !isLinux /* ignorecase */);
 		}
@@ -101,116 +134,11 @@ export class Workspace implements IWorkspace {
 		return false;
 	}
 
-	public toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
-		if (this.isInsideWorkspace(resource)) {
-			return paths.normalize(paths.relative(this._resource.fsPath, resource.fsPath), toOSPath);
-		}
-
-		return null;
-	}
-
-	public toResource(workspaceRelativePath: string): URI {
+	public toResource(workspaceRelativePath: string, root?: URI): URI {
 		if (typeof workspaceRelativePath === 'string') {
-			return URI.file(paths.join(this._resource.fsPath, workspaceRelativePath));
+			return URI.file(paths.join(root ? root.fsPath : this._resource.fsPath, workspaceRelativePath));
 		}
 
 		return null;
-	}
-
-	public toJSON() {
-		return { resource: this._resource, uid: this._uid, name: this._name };
-	}
-}
-
-type IWorkspaceConfiguration = { [rootFolder: string]: { folders: string[]; } };
-
-export class WorkspaceContextService implements IWorkspaceContextService {
-
-	public _serviceBrand: any;
-
-	private readonly _onDidChangeFolders: Emitter<URI[]> = new Emitter<URI[]>();
-	public readonly onDidChangeFolders: Event<URI[]> = this._onDidChangeFolders.event;
-
-	private folders: URI[];
-	private toDispose: IDisposable[];
-
-	constructor(private configurationService: IConfigurationService, private workspace?: Workspace) {
-		this.toDispose = [];
-
-		this.toDispose.push(this._onDidChangeFolders);
-
-		this.folders = workspace ? [workspace.resource] : [];
-
-		this.resolveAdditionalFolders();
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onDidUpdateConfiguration()));
-	}
-
-	private onDidUpdateConfiguration(): void {
-		this.resolveAdditionalFolders(true);
-	}
-
-	private resolveAdditionalFolders(notify?: boolean): void {
-		if (!this.workspace) {
-			return; // no additional folders for empty workspaces
-		}
-
-		// Resovled configured folders for workspace
-		let configuredFolders: URI[] = [this.workspace.resource];
-		const config = this.configurationService.getConfiguration<IWorkspaceConfiguration>('workspace');
-		if (config) {
-			const workspaceConfig = config[this.workspace.resource.toString()];
-			if (workspaceConfig) {
-				const additionalFolders = workspaceConfig.folders
-					.map(f => URI.parse(f))
-					.filter(r => r.scheme === Schemas.file); // only support files for now
-
-				configuredFolders.push(...additionalFolders);
-			}
-		}
-
-		// Remove duplicates
-		configuredFolders = distinct(configuredFolders, r => r.toString());
-
-		// Find changes
-		const changed = !equals(this.folders, configuredFolders, (r1, r2) => r1.toString() === r2.toString());
-
-		this.folders = configuredFolders;
-
-		if (notify && changed) {
-			this._onDidChangeFolders.fire(configuredFolders);
-		}
-	}
-
-	public getFolders(): URI[] {
-		return this.folders;
-	}
-
-	public getWorkspace(): IWorkspace {
-		return this.workspace;
-	}
-
-	public hasWorkspace(): boolean {
-		return !!this.workspace;
-	}
-
-	public isInsideWorkspace(resource: URI): boolean {
-		return this.workspace ? this.workspace.isInsideWorkspace(resource) : false;
-	}
-
-	public toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
-		return this.workspace ? this.workspace.toWorkspaceRelativePath(resource, toOSPath) : null;
-	}
-
-	public toResource(workspaceRelativePath: string): URI {
-		return this.workspace ? this.workspace.toResource(workspaceRelativePath) : null;
-	}
-
-	public dispose(): void {
-		dispose(this.toDispose);
 	}
 }

@@ -135,8 +135,10 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		let terminalData = this.activeTasks[task._id];
 		if (terminalData && terminalData.promise) {
 			let reveal = task.command.terminalBehavior.reveal;
-			if (reveal === RevealKind.Always) {
-				terminalData.terminal.setVisible(true);
+			let focus = task.command.terminalBehavior.focus;
+			if (reveal === RevealKind.Always || focus) {
+				this.terminalService.setActiveInstance(terminalData.terminal);
+				this.terminalService.showPanel(focus);
 			}
 			return { kind: TaskExecuteKind.Active, active: { same: true, background: task.isBackground }, promise: terminalData.promise };
 		}
@@ -333,7 +335,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		}
 		this.terminalService.setActiveInstance(terminal);
 		if (task.command.terminalBehavior.reveal === RevealKind.Always || (task.command.terminalBehavior.reveal === RevealKind.Silent && task.problemMatchers.length === 0)) {
-			this.terminalService.showPanel(false);
+			this.terminalService.showPanel(task.command.terminalBehavior.focus);
 		}
 		this.activeTasks[task._id] = { terminal, task, promise };
 		return promise.then((summary) => {
@@ -423,7 +425,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			shellArgs.push(commandLine);
 			shellLaunchConfig.args = Platform.isWindows ? shellArgs.join(' ') : shellArgs;
 			if (task.command.terminalBehavior.echo) {
-				shellLaunchConfig.initialText = `\x1b[1m>Executing task: ${commandLine}<\x1b[0m\n`;
+				shellLaunchConfig.initialText = `\x1b[1m> Executing task: ${commandLine} <\x1b[0m\n`;
 			}
 		} else {
 			let cwd = options && options.cwd ? options.cwd : process.cwd();
@@ -446,7 +448,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					}
 					return args.join(' ');
 				};
-				shellLaunchConfig.initialText = `\x1b[1m>Executing task: ${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}<\x1b[0m\n`;
+				shellLaunchConfig.initialText = `\x1b[1m> Executing task: ${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)} <\x1b[0m\n`;
 			}
 		}
 		if (options.cwd) {
