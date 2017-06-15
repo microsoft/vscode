@@ -241,8 +241,8 @@ export class Configuration<T> {
 		}
 	}
 
-	getValue<C>(section: string = '', options: IConfigurationOverrides = {}): C {
-		const configModel = this.getConfigurationModel(options);
+	getValue<C>(section: string = '', overrides: IConfigurationOverrides = {}): C {
+		const configModel = this.getConfigurationModel(overrides);
 		return section ? configModel.getContentsFor<C>(section) : configModel.contents;
 	}
 
@@ -296,9 +296,9 @@ export class Configuration<T> {
 		return result;
 	}
 
-	private getConfigurationModel<C>(options: IConfigurationOverrides): ConfigurationModel<any> {
-		let configurationModel = (options.resource ? this._foldersConsolidated.get(options.resource) : this._workspace) || new ConfigurationModel();
-		return options.language ? configurationModel.override<T>(options.language) : configurationModel;
+	private getConfigurationModel<C>(overrides: IConfigurationOverrides): ConfigurationModel<any> {
+		let configurationModel = overrides.resource ? this._foldersConsolidated.get(overrides.resource) || this._workspace : this._workspace;
+		return overrides.language ? configurationModel.override<T>(overrides.language) : configurationModel;
 	}
 
 	public toData(): IConfigurationData<any> {
