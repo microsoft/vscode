@@ -96,8 +96,8 @@ export function getNode(root: Node, offset: number, includeNodeBoundary: boolean
 	let foundNode: Node = null;
 
 	while (currentNode) {
-		if ((currentNode.start < offset && currentNode.end > offset)
-			|| (includeNodeBoundary && (currentNode.start <= offset && currentNode.end >= offset))) {
+		if (currentNode.start < offset && currentNode.end > offset
+			|| includeNodeBoundary && currentNode.start <= offset && currentNode.end >= offset) {
 
 			foundNode = currentNode;
 			// Dig deeper
