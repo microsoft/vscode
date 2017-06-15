@@ -615,11 +615,12 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 			} else if (action.group) {
 				result = action.group;
 			} else if (action.token !== null && action.token !== undefined) {
-				result = action.token;
 
 				// do $n replacements?
 				if (action.tokenSubst) {
-					result = monarchCommon.substituteMatches(this._lexer, result, matched, matches, state);
+					result = monarchCommon.substituteMatches(this._lexer, action.token, matched, matches, state);
+				} else {
+					result = action.token;
 				}
 
 				// enter embedded mode?
