@@ -70,10 +70,10 @@ var NoUnexternalizedStringsRuleWalker = (function (_super) {
         var _this = this;
         _super.prototype.visitSourceFile.call(this, node);
         Object.keys(this.usedKeys).forEach(function (key) {
-            var occurences = _this.usedKeys[key];
-            if (occurences.length > 1) {
-                occurences.forEach(function (occurence) {
-                    _this.addFailure((_this.createFailure(occurence.key.getStart(), occurence.key.getWidth(), "Duplicate key " + occurence.key.getText() + " with different message value.")));
+            var occurrences = _this.usedKeys[key];
+            if (occurrences.length > 1) {
+                occurrences.forEach(function (occurrence) {
+                    _this.addFailure((_this.createFailure(occurrence.key.getStart(), occurrence.key.getWidth(), "Duplicate key " + occurrence.key.getText() + " with different message value.")));
                 });
             }
         });
@@ -140,17 +140,17 @@ var NoUnexternalizedStringsRuleWalker = (function (_super) {
     };
     NoUnexternalizedStringsRuleWalker.prototype.recordKey = function (keyNode, messageNode) {
         var text = keyNode.getText();
-        var occurences = this.usedKeys[text];
-        if (!occurences) {
-            occurences = [];
-            this.usedKeys[text] = occurences;
+        var occurrences = this.usedKeys[text];
+        if (!occurrences) {
+            occurrences = [];
+            this.usedKeys[text] = occurrences;
         }
         if (messageNode) {
-            if (occurences.some(function (pair) { return pair.message ? pair.message.getText() === messageNode.getText() : false; })) {
+            if (occurrences.some(function (pair) { return pair.message ? pair.message.getText() === messageNode.getText() : false; })) {
                 return;
             }
         }
-        occurences.push({ key: keyNode, message: messageNode });
+        occurrences.push({ key: keyNode, message: messageNode });
     };
     NoUnexternalizedStringsRuleWalker.prototype.findDescribingParent = function (node) {
         var parent;
