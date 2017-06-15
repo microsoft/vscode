@@ -24,7 +24,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { CustomConfigurationModel } from 'vs/platform/configuration/common/model';
 import { ScopedConfigurationModel, FolderConfigurationModel, FolderSettingsModel } from 'vs/workbench/services/configuration/common/configurationModels';
-import { IConfigurationServiceEvent, ConfigurationSource, IConfigurationKeys, IConfigurationValue, ConfigurationModel, IConfigurationOptions, ConfigurationData, IConfigurationValues } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationServiceEvent, ConfigurationSource, IConfigurationKeys, IConfigurationValue, ConfigurationModel, IConfigurationOptions, Configuration as BaseConfiguration, IConfigurationValues, IConfigurationData } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceConfigurationService, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME, WORKSPACE_STANDALONE_CONFIGURATIONS, WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
 import { ConfigurationService as GlobalConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { createHash } from "crypto";
@@ -193,7 +193,11 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		return this.workspace ? this.legacyWorkspace.toResource(workspaceRelativePath) : null;
 	}
 
-	public getConfigurationData<T>(): ConfigurationData<T> {
+	public getConfigurationData<T>(): IConfigurationData<T> {
+		return this._configuration.toData();
+	}
+
+	public get configuration(): BaseConfiguration<any> {
 		return this._configuration;
 	}
 
@@ -275,7 +279,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 
 	private initCaches(): void {
 		this.cachedFolderConfigs = new StrictResourceMap<FolderConfiguration<any>>();
-		this._configuration = new Configuration(this.baseConfigurationService.getConfigurationData(), new StrictResourceMap<FolderConfigurationModel<any>>(), this.workspaceUri);
+		this._configuration = new Configuration(<any>this.baseConfigurationService.configuration, new StrictResourceMap<FolderConfigurationModel<any>>(), this.workspaceUri);
 		this.initCachesForFolders(this.workspace ? this.workspace.roots : []);
 	}
 
@@ -298,7 +302,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 			}
 		}
 
-		if (this._configuration.updateBaseConfiguration(this.baseConfigurationService.getConfigurationData())) {
+		if (this._configuration.updateBaseConfiguration(<any>this.baseConfigurationService.configuration)) {
 			this.trigger(event.source, event.sourceConfig);
 		}
 	}
@@ -517,13 +521,13 @@ function resolveStat(resource: URI): TPromise<IStat> {
 	});
 }
 
-class Configuration<T> extends ConfigurationData<T> {
+class Configuration<T> extends BaseConfiguration<T> {
 
-	constructor(private _baseConfiguration: ConfigurationData<T>, protected folders: StrictResourceMap<FolderConfigurationModel<T>>, workspaceUri: URI) {
+	constructor(private _baseConfiguration: Configuration<T>, protected folders: StrictResourceMap<FolderConfigurationModel<T>>, workspaceUri: URI) {
 		super(_baseConfiguration.defaults, _baseConfiguration.user, folders, workspaceUri);
 	}
 
-	updateBaseConfiguration(baseConfiguration: ConfigurationData<T>): boolean {
+	updateBaseConfiguration(baseConfiguration: Configuration<T>): boolean {
 		const current = new Configuration(this._baseConfiguration, this.folders, this.workspaceUri);
 
 		this._defaults = baseConfiguration.defaults;

@@ -8,7 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { getConfigurationKeys } from 'vs/platform/configuration/common/model';
-import { IConfigurationService, getConfigurationValue, IConfigurationValue, IConfigurationKeys, IConfigurationValues, ConfigurationData, ConfigurationModel } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, getConfigurationValue, IConfigurationValue, IConfigurationKeys, IConfigurationValues, IConfigurationData, Configuration, ConfigurationModel } from 'vs/platform/configuration/common/configuration';
 
 export class TestConfigurationService extends EventEmitter implements IConfigurationService {
 	public _serviceBrand: any;
@@ -23,8 +23,8 @@ export class TestConfigurationService extends EventEmitter implements IConfigura
 		return this.configuration;
 	}
 
-	public getConfigurationData(): ConfigurationData<any> {
-		return new ConfigurationData(new ConfigurationModel(), new ConfigurationModel(this.configuration));
+	public getConfigurationData(): IConfigurationData<any> {
+		return new Configuration(new ConfigurationModel(), new ConfigurationModel(this.configuration)).toData();
 	}
 
 	public setUserConfiguration(key: any, value: any): Thenable<void> {

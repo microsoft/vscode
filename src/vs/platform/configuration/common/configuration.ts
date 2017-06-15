@@ -25,7 +25,7 @@ export type IConfigurationValues = { [key: string]: IConfigurationValue<any> };
 export interface IConfigurationService {
 	_serviceBrand: any;
 
-	getConfigurationData<T>(): ConfigurationData<T>;
+	getConfigurationData<T>(): IConfigurationData<T>;
 
 	/**
 	 * Fetches the appropriate section of the configuration JSON file.
@@ -204,7 +204,7 @@ export interface IConfigurationData<T> {
 	workspaceUri: string;
 }
 
-export class ConfigurationData<T> {
+export class Configuration<T> {
 
 	private _global: ConfigurationModel<T>;
 	private _workspace: ConfigurationModel<T>;
@@ -303,7 +303,7 @@ export class ConfigurationData<T> {
 		return options.overrideIdentifier ? configurationModel.override<T>(options.overrideIdentifier) : configurationModel;
 	}
 
-	public toJSON(): IConfigurationData<any> {
+	public toData(): IConfigurationData<any> {
 		return {
 			defaults: {
 				contents: this._defaults.contents,
@@ -318,19 +318,19 @@ export class ConfigurationData<T> {
 				result[folder.toString()] = { contents, overrides };
 				return result;
 			}, Object.create({})),
-			workspaceUri: this.workspaceUri.toString()
+			workspaceUri: this.workspaceUri ? this.workspaceUri.toString() : void 0
 		};
 	}
 
-	public static parse(data: IConfigurationData<any>): ConfigurationData<any> {
-		const defaults = ConfigurationData.parseConfigurationModel(data.defaults);
-		const user = ConfigurationData.parseConfigurationModel(data.user);
+	public static parse(data: IConfigurationData<any>): Configuration<any> {
+		const defaults = Configuration.parseConfigurationModel(data.defaults);
+		const user = Configuration.parseConfigurationModel(data.user);
 		const folders: StrictResourceMap<ConfigurationModel<any>> = Object.keys(data.folders).reduce((result, key) => {
-			result.set(URI.parse(key), ConfigurationData.parseConfigurationModel(data.folders[key]));
+			result.set(URI.parse(key), Configuration.parseConfigurationModel(data.folders[key]));
 			return result;
 		}, new StrictResourceMap<ConfigurationModel<any>>());
 		const workspaceUri = data.workspaceUri ? URI.parse(data.workspaceUri) : void 0;
-		return new ConfigurationData<any>(defaults, user, folders, workspaceUri);
+		return new Configuration<any>(defaults, user, folders, workspaceUri);
 	}
 
 	private static parseConfigurationModel(model: IConfiguraionModel<any>): ConfigurationModel<any> {
