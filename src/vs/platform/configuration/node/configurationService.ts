@@ -43,14 +43,14 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(() => this.onConfigurationChange(ConfigurationSource.Default)));
 	}
 
-	public get configuration(): Configuration<any> {
+	public configuration(): Configuration<any> {
 		return this._configuration || (this._configuration = this.consolidateConfigurations());
 	}
 
 	private onConfigurationChange(source: ConfigurationSource): void {
 		this.reset(); // reset our caches
 
-		const cache = this.configuration;
+		const cache = this.configuration();
 
 		this._onDidUpdateConfiguration.fire({
 			source,
@@ -70,15 +70,15 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 	public getConfiguration<C>(section?: string): C
 	public getConfiguration<C>(options?: IConfigurationOptions): C
 	public getConfiguration<C>(arg?: any): C {
-		return this.configuration.getValue<C>(this.toOptions(arg));
+		return this.configuration().getValue<C>(this.toOptions(arg));
 	}
 
 	public lookup<C>(key: string, overrideIdentifier?: string): IConfigurationValue<C> {
-		return this.configuration.lookup<C>(key, overrideIdentifier);
+		return this.configuration().lookup<C>(key, overrideIdentifier);
 	}
 
 	public keys(): IConfigurationKeys {
-		return this.configuration.keys();
+		return this.configuration().keys();
 	}
 
 	public values<V>(): IConfigurationValues {
@@ -86,7 +86,7 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 	}
 
 	public getConfigurationData(): IConfigurationData<T> {
-		return this.configuration.toData();
+		return this.configuration().toData();
 	}
 
 	private reset(): void {

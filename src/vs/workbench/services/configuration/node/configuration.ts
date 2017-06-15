@@ -279,7 +279,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 
 	private initCaches(): void {
 		this.cachedFolderConfigs = new StrictResourceMap<FolderConfiguration<any>>();
-		this._configuration = new Configuration(<any>this.baseConfigurationService.configuration, new StrictResourceMap<FolderConfigurationModel<any>>(), this.workspaceUri);
+		this._configuration = new Configuration(<any>this.baseConfigurationService.configuration(), new StrictResourceMap<FolderConfigurationModel<any>>(), this.workspaceUri);
 		this.initCachesForFolders(this.workspace ? this.workspace.roots : []);
 	}
 
@@ -302,7 +302,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 			}
 		}
 
-		if (this._configuration.updateBaseConfiguration(<any>this.baseConfigurationService.configuration)) {
+		if (this._configuration.updateBaseConfiguration(<any>this.baseConfigurationService.configuration())) {
 			this.trigger(event.source, event.sourceConfig);
 		}
 	}
