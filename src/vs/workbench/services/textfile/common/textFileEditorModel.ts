@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as path from 'vs/base/common/paths';
 import nls = require('vs/nls');
 import Event, { Emitter } from 'vs/base/common/event';
 import { TPromise, TValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
@@ -26,14 +27,16 @@ import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel'
 import { IBackupFileService, BACKUP_FILE_RESOLVE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
 import { IFileService, IFileStat, IFileOperationResult, FileOperationResult, IContent, CONTENT_CHANGE_EVENT_BUFFER_DELAY, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { IMessageService, Severity, IChoiceService } from 'vs/platform/message/common/message';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { anonymize } from 'vs/platform/telemetry/common/telemetryUtils';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IRawTextSource } from 'vs/editor/common/model/textSource';
-
+import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
+import { localize } from 'vs/nls';
+import { ShowTasksAction } from 'vs/workbench/parts/quickopen/common/quickopenActions';
 /**
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
  */
@@ -85,7 +88,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@ITextFileService private textFileService: ITextFileService,
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IChoiceService private choiceService: IChoiceService,
+		@IStorageService private storageService: IStorageService
 	) {
 		super(modelService, modeService);
 
@@ -314,6 +319,29 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			etag = void 0; // bypass cache if force loading is true
 		} else if (this.lastResolvedDiskStat) {
 			etag = this.lastResolvedDiskStat.etag; // otherwise respect etag to support caching
+		}
+
+		const storageKey = 'workbench.tasks.ranTaskBefore';
+		const fileName = path.relative(this.fileService['raw'].basePath, this.resource.path);
+
+		if (this.storageService.get(storageKey)
+			&& (fileName.match(/^gruntfile\.js$/i) || fileName.match(/^gulpfile\.js$/i) || fileName.match(/^tsconfig\.json$/i))) {
+			const message = localize('taskFileOpened', "Visual Studio Code has support for this type of file");
+			const action = this.instantiationService.createInstance(ShowTasksAction, ShowTasksAction.ID, localize('showTasks', "Show Tasks"));
+
+			const options = [
+				action.label,
+				localize('neverShowAgain', "Don't show again"),
+				localize('close', "Close"),
+			];
+
+			this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
+				switch (choice) {
+					case 0: return action.run();
+					case 1: return this.storageService.store(storageKey, true, StorageScope.GLOBAL);
+					case 2: return;
+				}
+			});
 		}
 
 		// Resolve Content
