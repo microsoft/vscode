@@ -554,9 +554,10 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 		return undefined;
 	}
 
-	let topMatch = _bucket.shift();
-	for (const match of _bucket) {
-		if (!topMatch || topMatch[0] < match[0]) {
+	let topMatch = _bucket[0];
+	for (let i = 1; i < _bucket.length; i++) {
+		let match = _bucket[i];
+		if (topMatch[0] < match[0]) {
 			topMatch = match;
 		}
 	}
