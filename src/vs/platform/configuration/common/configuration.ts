@@ -54,6 +54,11 @@ export interface IConfigurationService {
 	 * Event that fires when the configuration changes.
 	 */
 	onDidUpdateConfiguration: Event<IConfigurationServiceEvent>;
+
+	/**
+	 * Returns the defined values of configurations in the different scopes.
+	 */
+	values(): IConfigurationValues;
 }
 
 export enum ConfigurationSource {

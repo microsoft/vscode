@@ -9,7 +9,7 @@ import { ConfigWatcher } from 'vs/base/node/config';
 import { Registry } from 'vs/platform/platform';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { ConfigurationSource, IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, IConfigurationKeys, ConfigurationModel, IConfigurationOptions, Configuration } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationSource, IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, IConfigurationKeys, ConfigurationModel, IConfigurationOptions, Configuration, IConfigurationValues } from 'vs/platform/configuration/common/configuration';
 import { CustomConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/model';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -75,6 +75,10 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 
 	public keys(): IConfigurationKeys {
 		return this.getConfiguration2().keys();
+	}
+
+	public values<V>(): IConfigurationValues {
+		return this._configuration.values();
 	}
 
 	public getConfiguration2(): Configuration<T> {

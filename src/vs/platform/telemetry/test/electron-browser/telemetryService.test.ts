@@ -693,6 +693,7 @@ suite('TelemetryService', () => {
 					};
 				},
 				keys() { return { default: [], user: [], workspace: [] }; },
+				values() { return {}; },
 				onDidUpdateConfiguration: emitter.event
 			});
 

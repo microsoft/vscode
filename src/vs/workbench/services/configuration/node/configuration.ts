@@ -24,8 +24,8 @@ import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { CustomConfigurationModel } from 'vs/platform/configuration/common/model';
 import { ScopedConfigurationModel, FolderConfigurationModel, FolderSettingsModel } from 'vs/workbench/services/configuration/common/configurationModels';
-import { IConfigurationServiceEvent, ConfigurationSource, IConfigurationKeys, IConfigurationValue, ConfigurationModel, IConfigurationOptions, Configuration as BaseConfiguration } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceConfigurationService, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME, WORKSPACE_STANDALONE_CONFIGURATIONS, WORKSPACE_CONFIG_DEFAULT_PATH, IWorkspaceConfigurationValues } from 'vs/workbench/services/configuration/common/configuration';
+import { IConfigurationServiceEvent, ConfigurationSource, IConfigurationKeys, IConfigurationValue, ConfigurationModel, IConfigurationOptions, Configuration as BaseConfiguration, IConfigurationValues } from 'vs/platform/configuration/common/configuration';
+import { IWorkspaceConfigurationService, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME, WORKSPACE_STANDALONE_CONFIGURATIONS, WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
 import { ConfigurationService as GlobalConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { createHash } from "crypto";
 import { basename } from "path";
@@ -211,7 +211,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		return this._configuration.keys();
 	}
 
-	public values<V>(): IWorkspaceConfigurationValues {
+	public values<V>(): IConfigurationValues {
 		return this._configuration.values();
 	}
 
