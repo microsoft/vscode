@@ -11,11 +11,12 @@ import { stringify } from 'vs/base/common/marshalling';
 import * as objects from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { Action } from 'vs/base/common/actions';
 import { isWindows } from 'vs/base/common/platform';
 import { findFreePort } from 'vs/base/node/ports';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ILifecycleService, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
@@ -28,7 +29,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { generateRandomPipeName, Protocol } from 'vs/base/parts/ipc/node/ipc.net';
 import { createServer, Server } from 'net';
-import Event, { Emitter } from 'vs/base/common/event';
+import Event, { Emitter, debounceEvent, mapEvent, any } from 'vs/base/common/event';
+import { fromEventEmitter } from 'vs/base/node/event';
 import { IInitData, IWorkspaceData } from 'vs/workbench/api/node/extHost.protocol';
 import { MainProcessExtensionService } from 'vs/workbench/api/electron-browser/mainThreadExtensionService';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
@@ -88,7 +90,8 @@ export class ExtensionHostProcessWorker {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IMessageService private messageService: IMessageService,
 		@IWindowsService private windowsService: IWindowsService,
-		@IWindowIPCService private windowService: IWindowIPCService,
+		@IWindowService private windowService: IWindowService,
+		@IWindowIPCService private windowIpcService: IWindowIPCService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -119,7 +122,7 @@ export class ExtensionHostProcessWorker {
 					AMD_ENTRYPOINT: 'vs/workbench/node/extensionHostProcess',
 					PIPE_LOGGING: 'true',
 					VERBOSE_LOGGING: true,
-					VSCODE_WINDOW_ID: String(this.windowService.getWindowId()),
+					VSCODE_WINDOW_ID: String(this.windowIpcService.getWindowId()),
 					VSCODE_IPC_HOOK_EXTHOST: hook,
 					ELECTRON_NO_ASAR: '1'
 				}),
@@ -130,7 +133,8 @@ export class ExtensionHostProcessWorker {
 				detached: !!isWindows,
 				execArgv: port
 					? ['--nolazy', (this.isExtensionDevelopmentDebugBrk ? '--debug-brk=' : '--debug=') + port]
-					: undefined
+					: undefined,
+				silent: true
 			};
 
 			const crashReporterOptions = this.crashReporterService.getChildProcessStartOptions('extensionHost');
@@ -140,6 +144,31 @@ export class ExtensionHostProcessWorker {
 
 			// Run Extension Host as fork of current process
 			this.extensionHostProcess = fork(URI.parse(require.toUrl('bootstrap')).fsPath, ['--type=extensionHost'], opts);
+
+			// Catch all output coming from the extension host process
+			type Output = { data: string, format: string[] };
+			this.extensionHostProcess.stdout.setEncoding('utf8');
+			this.extensionHostProcess.stderr.setEncoding('utf8');
+			const onStdout = fromEventEmitter<string>(this.extensionHostProcess.stdout, 'data');
+			const onStderr = fromEventEmitter<string>(this.extensionHostProcess.stderr, 'data');
+			const onOutput = any(
+				mapEvent(onStdout, o => ({ data: `%c${o}`, format: [''] })),
+				mapEvent(onStderr, o => ({ data: `%c${o}`, format: ['color: red'] }))
+			);
+
+			// Debounce all output, so we can render it in the Chrome console as a group
+			const onDebouncedOutput = debounceEvent<Output>(onOutput, (r, o) => {
+				return r
+					? { data: r.data + o.data, format: [...r.format, ...o.format] }
+					: { data: o.data, format: o.format };
+			}, 100);
+
+			// Print out extension host output
+			onDebouncedOutput(data => {
+				console.group('Extension Host');
+				console.log(data.data, ...data.format);
+				console.groupEnd();
+			});
 
 			// Support logging from extension host
 			this.extensionHostProcess.on('message', msg => {
@@ -156,7 +185,7 @@ export class ExtensionHostProcessWorker {
 
 			// Notify debugger that we are ready to attach to the process if we run a development extension
 			if (this.isExtensionDevelopmentHost && port) {
-				this.windowService.broadcast({
+				this.windowIpcService.broadcast({
 					channel: EXTENSION_ATTACH_BROADCAST_CHANNEL,
 					payload: { port }
 				}, this.environmentService.extensionDevelopmentPath /* target */);
@@ -298,7 +327,7 @@ export class ExtensionHostProcessWorker {
 
 		// Broadcast to other windows if we are in development mode
 		else if (!this.environmentService.isBuilt || this.isExtensionDevelopmentHost) {
-			this.windowService.broadcast({
+			this.windowIpcService.broadcast({
 				channel: EXTENSION_LOG_BROADCAST_CHANNEL,
 				payload: logEntry
 			}, this.environmentService.extensionDevelopmentPath /* target */);
@@ -323,16 +352,25 @@ export class ExtensionHostProcessWorker {
 
 			// Unexpected termination
 			if (!this.isExtensionDevelopmentHost) {
+				const openDevTools = new Action('openDevTools', nls.localize('devTools', "Developer Tools"), '', true, async (): TPromise<boolean> => {
+					await this.windowService.openDevTools();
+					return false;
+				});
+
 				this.messageService.show(Severity.Error, {
 					message: nls.localize('extensionHostProcess.crash', "Extension host terminated unexpectedly. Please reload the window to recover."),
-					actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL)]
+					actions: [
+						openDevTools,
+						this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL)
+					]
 				});
+
 				console.error('Extension host terminated unexpectedly. Code: ', code, ' Signal: ', signal);
 			}
 
 			// Expected development extension termination: When the extension host goes down we also shutdown the window
 			else if (!this.isExtensionDevelopmentTestFromCli) {
-				this.windowService.getWindow().close();
+				this.windowIpcService.getWindow().close();
 			}
 
 			// When CLI testing make sure to exit with proper exit code
@@ -356,7 +394,7 @@ export class ExtensionHostProcessWorker {
 		// If the extension development host was started without debugger attached we need
 		// to communicate this back to the main side to terminate the debug session
 		if (this.isExtensionDevelopmentHost && !this.isExtensionDevelopmentTestFromCli && !this.isExtensionDevelopmentDebug) {
-			this.windowService.broadcast({
+			this.windowIpcService.broadcast({
 				channel: EXTENSION_TERMINATE_BROADCAST_CHANNEL,
 				payload: true
 			}, this.environmentService.extensionDevelopmentPath /* target */);
