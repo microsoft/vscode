@@ -32,13 +32,15 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { CloseEditorsInGroupAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { CloseEditorsInGroupAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction, OpenToSideContextAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IMenuService, MenuId, IMenu, ExecuteCommandAction } from 'vs/platform/actions/common/actions';
 import { ResourceContextKey } from 'vs/workbench/common/resourceContextKey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Themable } from 'vs/workbench/common/theme';
+import { Position } from 'vs/platform/editor/common/editor';
+
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -68,6 +70,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 	protected dragged: boolean;
 
 	protected closeEditorAction: CloseEditorAction;
+	protected openToSideContextAction: OpenToSideContextAction;
 	protected pinEditorAction: KeepEditorAction;
 	protected closeOtherEditorsAction: CloseOtherEditorsInGroupAction;
 	protected closeRightEditorsAction: CloseRightEditorsInGroupAction;
@@ -227,6 +230,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		this.closeEditorAction = services.createInstance(CloseEditorAction, CloseEditorAction.ID, nls.localize('close', "Close"));
 		this.closeOtherEditorsAction = services.createInstance(CloseOtherEditorsInGroupAction, CloseOtherEditorsInGroupAction.ID, nls.localize('closeOthers', "Close Others"));
 		this.closeRightEditorsAction = services.createInstance(CloseRightEditorsInGroupAction, CloseRightEditorsInGroupAction.ID, nls.localize('closeRight', "Close to the Right"));
+		this.openToSideContextAction = services.createInstance(OpenToSideContextAction, OpenToSideContextAction.ID, OpenToSideContextAction.LABEL);
 		this.closeEditorsInGroupAction = services.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All"));
 		this.pinEditorAction = services.createInstance(KeepEditorAction, KeepEditorAction.ID, nls.localize('keepOpen', "Keep Open"));
 		this.showEditorsInGroupAction = services.createInstance(ShowEditorsInGroupAction, ShowEditorsInGroupAction.ID, nls.localize('showOpenedEditors', "Show Opened Editors"));
@@ -423,11 +427,13 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 
 	protected getContextMenuActions(identifier: IEditorIdentifier): IAction[] {
 		const { editor, group } = identifier;
+		const activeEditor = this.editorService.getActiveEditor();
 
 		// Enablement
 		this.closeOtherEditorsAction.enabled = group.count > 1;
 		this.pinEditorAction.enabled = !group.isPinned(editor);
 		this.closeRightEditorsAction.enabled = group.indexOf(editor) !== group.count - 1;
+		this.openToSideContextAction.enabled = (!activeEditor || activeEditor.position !== Position.THREE);
 
 		// Actions: For all editors
 		const actions: IAction[] = [
@@ -448,6 +454,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 
 		// Fill in contributed actions
 		fillInActions(this.contextMenu, { arg: this.resourceContext.get() }, actions);
+		actions.push(this.openToSideContextAction);
 
 		return actions;
 	}
@@ -457,6 +464,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 
 		// Actions
 		[
+			this.openToSideContextAction,
 			this.splitEditorAction,
 			this.showEditorsInGroupAction,
 			this.closeEditorAction,
