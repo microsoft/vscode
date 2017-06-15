@@ -475,7 +475,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		let contentChanges: textModelEvents.IModelContentChange[] = [];
 		let lineEditsQueue: IIdentifiedLineEdit[] = [];
 
-		let queueLineEdit = (lineEdit: IIdentifiedLineEdit) => {
+		const queueLineEdit = (lineEdit: IIdentifiedLineEdit) => {
 			if (lineEdit.startColumn === lineEdit.endColumn && lineEdit.text.length === 0) {
 				// empty edit => ignore it
 				return;
@@ -483,7 +483,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			lineEditsQueue.push(lineEdit);
 		};
 
-		let flushLineEdits = () => {
+		const flushLineEdits = () => {
 			if (lineEditsQueue.length === 0) {
 				return;
 			}
@@ -495,7 +495,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			let currentLineNumberStart = 0;
 
 			for (let i = 1, len = lineEditsQueue.length; i < len; i++) {
-				let lineNumber = lineEditsQueue[i].lineNumber;
+				const lineNumber = lineEditsQueue[i].lineNumber;
 
 				if (lineNumber === currentLineNumber) {
 					continue;
@@ -533,7 +533,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		let totalLinesCountDelta = 0;
 
 		for (let i = 0, len = operations.length; i < len; i++) {
-			let op = operations[i];
+			const op = operations[i];
 
 			// console.log();
 			// console.log('-------------------');
@@ -541,26 +541,26 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			// console.log('op: ', op);
 			// console.log('<<<\n' + this._lines.map(l => l.text).join('\n') + '\n>>>');
 
-			let startLineNumber = op.range.startLineNumber;
-			let startColumn = op.range.startColumn;
-			let endLineNumber = op.range.endLineNumber;
-			let endColumn = op.range.endColumn;
+			const startLineNumber = op.range.startLineNumber;
+			const startColumn = op.range.startColumn;
+			const endLineNumber = op.range.endLineNumber;
+			const endColumn = op.range.endColumn;
 
 			if (startLineNumber === endLineNumber && startColumn === endColumn && (!op.lines || op.lines.length === 0)) {
 				// no-op
 				continue;
 			}
 
-			let deletingLinesCnt = endLineNumber - startLineNumber;
-			let insertingLinesCnt = (op.lines ? op.lines.length - 1 : 0);
-			let editingLinesCnt = Math.min(deletingLinesCnt, insertingLinesCnt);
+			const deletingLinesCnt = endLineNumber - startLineNumber;
+			const insertingLinesCnt = (op.lines ? op.lines.length - 1 : 0);
+			const editingLinesCnt = Math.min(deletingLinesCnt, insertingLinesCnt);
 
 			totalLinesCountDelta += (insertingLinesCnt - deletingLinesCnt);
 
 			// Iterating descending to overlap with previous op
 			// in case there are common lines being edited in both
 			for (let j = editingLinesCnt; j >= 0; j--) {
-				let editLineNumber = startLineNumber + j;
+				const editLineNumber = startLineNumber + j;
 
 				queueLineEdit({
 					lineNumber: editLineNumber,
@@ -577,18 +577,18 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				// Flush any pending line edits
 				flushLineEdits();
 
-				let spliceStartLineNumber = startLineNumber + editingLinesCnt;
-				let spliceStartColumn = this.getLineMaxColumn(spliceStartLineNumber);
+				const spliceStartLineNumber = startLineNumber + editingLinesCnt;
+				const spliceStartColumn = this.getLineMaxColumn(spliceStartLineNumber);
 
 				let endLineRemains = this._lines[endLineNumber - 1].split(markersTracker, endColumn, false, tabSize);
 				this._invalidateLine(spliceStartLineNumber - 1);
 
-				let spliceCnt = endLineNumber - spliceStartLineNumber;
+				const spliceCnt = endLineNumber - spliceStartLineNumber;
 
 				// Collect all these markers
 				let markersOnDeletedLines: LineMarker[] = [];
 				for (let j = 0; j < spliceCnt; j++) {
-					let deleteLineIndex = spliceStartLineNumber + j;
+					const deleteLineIndex = spliceStartLineNumber + j;
 					markersOnDeletedLines = markersOnDeletedLines.concat(this._lines[deleteLineIndex].deleteLine());
 				}
 
@@ -606,7 +606,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				}
 
 				// Update deleted markers
-				let deletedMarkersPosition = new Position(spliceStartLineNumber, spliceStartColumn);
+				const deletedMarkersPosition = new Position(spliceStartLineNumber, spliceStartColumn);
 				for (let j = 0, lenJ = markersOnDeletedLines.length; j < lenJ; j++) {
 					markersOnDeletedLines[j].updatePosition(markersTracker, deletedMarkersPosition);
 				}
@@ -627,7 +627,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				// Flush any pending line edits
 				flushLineEdits();
 
-				let spliceLineNumber = startLineNumber + editingLinesCnt;
+				const spliceLineNumber = startLineNumber + editingLinesCnt;
 				let spliceColumn = (spliceLineNumber === startLineNumber ? startColumn : 1);
 				if (op.lines) {
 					spliceColumn += op.lines[editingLinesCnt].length;
