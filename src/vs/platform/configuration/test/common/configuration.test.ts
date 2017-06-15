@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Configuration, merge } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationModel, merge } from 'vs/platform/configuration/common/configuration';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/platform';
 
@@ -44,35 +44,35 @@ suite('Configuration', () => {
 	});
 
 	test('simple merge using configuration', () => {
-		let base = new Configuration<any>({ 'a': 1, 'b': 2 });
-		let add = new Configuration<any>({ 'a': 3, 'c': 4 });
+		let base = new ConfigurationModel<any>({ 'a': 1, 'b': 2 });
+		let add = new ConfigurationModel<any>({ 'a': 3, 'c': 4 });
 		let result = base.merge(add);
 		assert.deepEqual(result.contents, { 'a': 3, 'b': 2, 'c': 4 });
 	});
 
 	test('Recursive merge using config models', () => {
-		let base = new Configuration({ 'a': { 'b': 1 } });
-		let add = new Configuration({ 'a': { 'b': 2 } });
+		let base = new ConfigurationModel({ 'a': { 'b': 1 } });
+		let add = new ConfigurationModel({ 'a': { 'b': 2 } });
 		let result = base.merge(add);
 		assert.deepEqual(result.contents, { 'a': { 'b': 2 } });
 	});
 
 	test('Test contents while getting an existing property', () => {
-		let testObject = new Configuration({ 'a': 1 });
+		let testObject = new ConfigurationModel({ 'a': 1 });
 		assert.deepEqual(testObject.getContentsFor('a'), 1);
 
-		testObject = new Configuration<any>({ 'a': { 'b': 1 } });
+		testObject = new ConfigurationModel<any>({ 'a': { 'b': 1 } });
 		assert.deepEqual(testObject.getContentsFor('a'), { 'b': 1 });
 	});
 
 	test('Test contents are undefined for non existing properties', () => {
-		const testObject = new Configuration({ awesome: true });
+		const testObject = new ConfigurationModel({ awesome: true });
 
 		assert.deepEqual(testObject.getContentsFor('unknownproperty'), undefined);
 	});
 
 	test('Test override gives all content merged with overrides', () => {
-		const testObject = new Configuration<any>({ 'a': 1, 'c': 1 }, [{ identifiers: ['b'], contents: { 'a': 2 } }]);
+		const testObject = new ConfigurationModel<any>({ 'a': 1, 'c': 1 }, [{ identifiers: ['b'], contents: { 'a': 2 } }]);
 
 		assert.deepEqual(testObject.override('b').contents, { 'a': 2, 'c': 1 });
 	});

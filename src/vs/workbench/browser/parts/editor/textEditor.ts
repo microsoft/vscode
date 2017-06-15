@@ -7,6 +7,7 @@
 
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
+import URI from 'vs/base/common/uri';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import objects = require('vs/base/common/objects');
 import types = require('vs/base/common/types');
@@ -116,9 +117,9 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 	protected getConfigurationOverrides(): IEditorOptions {
 		const overrides = {};
-		const language = this.getLanguage();
-		if (language) {
-			objects.assign(overrides, this.configurationService.getConfiguration<IEditorConfiguration>({ overrideIdentifier: language, section: 'editor' }));
+		const resource = this.getResource();
+		if (resource) {
+			objects.assign(overrides, this.configurationService.getConfiguration<IEditorConfiguration>({ /*resource: this.getResource(), */overrideIdentifier: this.getLanguage(), section: 'editor' }));
 		}
 
 		objects.assign(overrides, {
@@ -321,6 +322,22 @@ export abstract class BaseTextEditor extends BaseEditor {
 			if (resource) {
 				return this.modeService.getModeIdByFilenameOrFirstLine(resource.fsPath);
 			}
+		}
+
+		return null;
+	}
+
+	protected getResource(): URI {
+		const codeEditor = getCodeEditor(this);
+		if (codeEditor) {
+			const model = codeEditor.getModel();
+			if (model) {
+				return model.uri;
+			}
+		}
+
+		if (this.input) {
+			return toResource(this.input);
 		}
 
 		return null;

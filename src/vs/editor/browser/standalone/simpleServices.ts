@@ -450,12 +450,13 @@ export class SimpleConfigurationService implements IConfigurationService {
 		return {
 			value: getConfigurationValue<C>(this.getConfiguration(), key),
 			default: getConfigurationValue<C>(this.getConfiguration(), key),
-			user: getConfigurationValue<C>(this.getConfiguration(), key)
+			user: getConfigurationValue<C>(this.getConfiguration(), key),
+			workspace: void 0
 		};
 	}
 
 	public keys(): IConfigurationKeys {
-		return { default: [], user: [] };
+		return { default: [], user: [], workspace: [] };
 	}
 }
 
@@ -517,6 +518,10 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 
 	public getWorkspace2(): IWorkspace2 {
 		return this.workspace ? { id: `${this.id}`, roots: [this.workspace.resource], name: this.workspace.resource.fsPath } : void 0;
+	}
+
+	public getRoot(resource: URI): URI {
+		return this.isInsideWorkspace(resource) ? this.workspace.resource : null;
 	}
 
 	public hasWorkspace(): boolean {
