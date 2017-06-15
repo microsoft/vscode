@@ -10,24 +10,9 @@ import { renderHtml } from 'vs/base/browser/htmlContentRenderer';
 
 suite('HtmlContent', () => {
 	test('render text', () => {
-		var result = renderHtml({
-			text: 'testing',
-			isText: true
-		});
+		var result = renderHtml('testing');
 		assert.strictEqual(result.nodeType, document.TEXT_NODE);
 	});
-
-	test('cannot render script tag', function () {
-		var host = document.createElement('div');
-		document.body.appendChild(host);
-		host.appendChild(renderHtml({
-			tagName: 'script',
-			text: 'alert(\'owned -- injected script tag via htmlContent!\')'
-		}));
-		assert(true);
-		document.body.removeChild(host);
-	});
-
 
 	test('render simple element', () => {
 		var result: HTMLElement = <any>renderHtml({
@@ -45,24 +30,6 @@ suite('HtmlContent', () => {
 		});
 		assert.strictEqual(result.nodeType, document.ELEMENT_NODE);
 		assert.strictEqual(result.className, 'testClass');
-	});
-
-	test('render element with style', () => {
-		var result: HTMLElement = <any>renderHtml({
-			text: 'testing',
-			style: 'width: 100px;'
-		});
-		assert.strictEqual(result.getAttribute('style'), 'width: 100px;');
-	});
-
-	test('render element with custom style', () => {
-		var result: HTMLElement = <any>renderHtml({
-			text: 'testing',
-			customStyle: {
-				'width': '100px'
-			}
-		});
-		assert.strictEqual(result.style.width, '100px');
 	});
 
 	test('render element with children', () => {

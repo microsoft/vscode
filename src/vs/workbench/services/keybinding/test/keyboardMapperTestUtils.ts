@@ -56,16 +56,16 @@ function _htmlPieces(pieces: string[], OS: OperatingSystem): IHTMLContentElement
 	let children: IHTMLContentElement[] = [];
 	for (let i = 0, len = pieces.length; i < len; i++) {
 		if (i !== 0 && OS !== OperatingSystem.Macintosh) {
-			children.push({ tagName: 'span', text: '+' });
+			children.push({ inline: true, text: '+' });
 		}
-		children.push({ tagName: 'span', className: 'monaco-kbkey', text: pieces[i] });
+		children.push({ inline: true, className: 'monaco-kbkey', text: pieces[i] });
 	}
 	return children;
 }
 
 export function simpleHTMLLabel(pieces: string[], OS: OperatingSystem): IHTMLContentElement {
 	return {
-		tagName: 'span',
+		inline: true,
 		className: 'monaco-kb',
 		children: _htmlPieces(pieces, OS)
 	};
@@ -73,7 +73,7 @@ export function simpleHTMLLabel(pieces: string[], OS: OperatingSystem): IHTMLCon
 
 export function chordHTMLLabel(firstPart: string[], chordPart: string[], OS: OperatingSystem): IHTMLContentElement {
 	return {
-		tagName: 'span',
+		inline: true,
 		className: 'monaco-kb',
 		children: [].concat(
 			_htmlPieces(firstPart, OS),

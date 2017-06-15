@@ -335,7 +335,7 @@ export class MessageList {
 
 				// Error message
 				const messageContentElement = htmlRenderer.renderHtml({
-					tagName: 'span',
+					inline: true,
 					className: 'message-left-side',
 					formattedText: text
 				});
