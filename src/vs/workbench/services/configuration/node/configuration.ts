@@ -71,6 +71,10 @@ class Workspace implements IWorkspace2 {
 
 		return this._name;
 	}
+
+	public toJSON(): IWorkspace2 {
+		return { id: this.id, roots: this.roots, name: this.name };
+	}
 }
 
 export class WorkspaceConfigurationService extends Disposable implements IWorkspaceContextService, IWorkspaceConfigurationService {
