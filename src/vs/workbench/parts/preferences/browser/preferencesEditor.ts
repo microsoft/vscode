@@ -38,7 +38,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { VSash } from 'vs/base/browser/ui/sash/sash';
@@ -71,7 +71,7 @@ export class PreferencesEditorInput extends SideBySideEditorInput {
 export class DefaultPreferencesEditorInput extends ResourceEditorInput {
 	public static ID = 'workbench.editorinputs.defaultpreferences';
 	constructor(defaultSettingsResource: URI,
-		@ITextModelResolverService textModelResolverService: ITextModelResolverService
+		@ITextModelService textModelResolverService: ITextModelService
 	) {
 		super(nls.localize('settingsEditorName', "Default Settings"), '', defaultSettingsResource, textModelResolverService);
 	}

@@ -5,7 +5,6 @@
 'use strict';
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -22,7 +21,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IStorageService, NullStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
@@ -34,7 +33,7 @@ import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServ
 import {
 	SimpleConfigurationService, SimpleMenuService, SimpleMessageService,
 	SimpleProgressService, StandaloneCommandService, StandaloneKeybindingService,
-	StandaloneTelemetryService
+	StandaloneTelemetryService, SimpleWorkspaceContextService
 } from 'vs/editor/browser/standalone/simpleServices';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IMenuService } from 'vs/platform/actions/common/actions';
@@ -115,13 +114,12 @@ export module StaticServices {
 
 	export const instantiationService = define<IInstantiationService>(IInstantiationService, () => new InstantiationService(_serviceCollection, true));
 
-	export const contextService = define(IWorkspaceContextService, () => new WorkspaceContextService({
-		resource: URI.from({ scheme: 'inmemory', authority: 'model', path: '/' })
-	}));
+	const configurationServiceImpl = new SimpleConfigurationService();
+	export const configurationService = define(IConfigurationService, () => configurationServiceImpl);
+
+	export const contextService = define(IWorkspaceContextService, () => new SimpleWorkspaceContextService());
 
 	export const telemetryService = define(ITelemetryService, () => new StandaloneTelemetryService());
-
-	export const configurationService = define(IConfigurationService, () => new SimpleConfigurationService());
 
 	export const messageService = define(IMessageService, () => new SimpleMessageService());
 

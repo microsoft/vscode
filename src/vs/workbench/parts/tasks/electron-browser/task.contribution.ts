@@ -9,6 +9,8 @@ import 'vs/css!./media/task.contribution';
 import 'vs/workbench/parts/tasks/browser/taskQuickOpen';
 import 'vs/workbench/parts/tasks/browser/terminateQuickOpen';
 import 'vs/workbench/parts/tasks/browser/restartQuickOpen';
+import 'vs/workbench/parts/tasks/browser/buildQuickOpen';
+import 'vs/workbench/parts/tasks/browser/testQuickOpen';
 
 import * as nls from 'vs/nls';
 
@@ -27,6 +29,7 @@ import { TerminateResponse, TerminateResponseCode } from 'vs/base/common/process
 import * as strings from 'vs/base/common/strings';
 import { ValidationStatus, ValidationState } from 'vs/base/common/parsers';
 import * as UUID from 'vs/base/common/uuid';
+import { LinkedMap, Touch } from 'vs/base/common/map';
 
 import { Registry } from 'vs/platform/platform';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -43,7 +46,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ProblemMatcherRegistry } from 'vs/platform/markers/common/problemMatcher';
-
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -514,6 +517,8 @@ interface WorkspaceConfigurationResult {
 class TaskService extends EventEmitter implements ITaskService {
 
 	// private static autoDetectTelemetryName: string = 'taskServer.autoDetect';
+	private static RecentlyUsedTasks_Key = 'workbench.tasks.recentlyUsedTasks';
+	private static RanTaskBefore_Key = 'workbench.tasks.ranTaskBefore';
 
 	public _serviceBrand: any;
 	public static SERVICE_ID: string = 'taskService';
@@ -542,6 +547,7 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	private _taskSystem: ITaskSystem;
 	private _taskSystemListeners: IDisposable[];
+	private _recentlyUsedTasks: LinkedMap<string, string>;
 
 	private _outputChannel: IOutputChannel;
 
@@ -557,7 +563,8 @@ class TaskService extends EventEmitter implements ITaskService {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
 		@ITerminalService private terminalService: ITerminalService,
-		@IWorkbenchEditorService private workbenchEditorService: IWorkbenchEditorService
+		@IWorkbenchEditorService private workbenchEditorService: IWorkbenchEditorService,
+		@IStorageService private storageService: IStorageService
 	) {
 
 		super();
@@ -626,7 +633,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (!this.canRunCommand()) {
 				return;
 			}
-			this.build();
+			this.runBuildCommand();
 		});
 
 		KeybindingsRegistry.registerKeybindingRule({
@@ -640,7 +647,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (!this.canRunCommand()) {
 				return;
 			}
-			this.runTest();
+			this.runTestCommand();
 		});
 	}
 
@@ -687,6 +694,37 @@ class TaskService extends EventEmitter implements ITaskService {
 		return TPromise.as(this._taskSystem.getActiveTasks());
 	}
 
+	public getRecentlyUsedTasks(): LinkedMap<string, string> {
+		if (this._recentlyUsedTasks) {
+			return this._recentlyUsedTasks;
+		}
+		this._recentlyUsedTasks = new LinkedMap<string, string>();
+		let storageValue = this.storageService.get(TaskService.RecentlyUsedTasks_Key, StorageScope.WORKSPACE);
+		if (storageValue) {
+			try {
+				let values: string[] = JSON.parse(storageValue);
+				if (Array.isArray(values)) {
+					for (let value of values) {
+						this._recentlyUsedTasks.set(value, value);
+					}
+				}
+			} catch (error) {
+				// Ignore. We use the empty result
+			}
+		}
+		return this._recentlyUsedTasks;
+	}
+
+	private saveRecentlyUsedTasks(): void {
+		if (!this._recentlyUsedTasks) {
+			return;
+		}
+		let values = this._recentlyUsedTasks.values();
+		if (values.length > 30) {
+			values = values.slice(0, 30);
+		}
+		this.storageService.store(TaskService.RecentlyUsedTasks_Key, JSON.stringify(values), StorageScope.WORKSPACE);
+	}
 
 	public build(): TPromise<ITaskSummary> {
 		return this.getTaskSets().then((values) => {
@@ -745,6 +783,33 @@ class TaskService extends EventEmitter implements ITaskService {
 		});
 	}
 
+	public getTasksForGroup(group: string): TPromise<Task[]> {
+		return this.getTaskSets().then((values) => {
+			let result: Task[] = [];
+			for (let value of values) {
+				for (let task of value.tasks) {
+					if (task.group === group) {
+						result.push(task);
+					}
+				}
+			}
+			return result;
+		});
+	}
+
+	private splitTasks(tasks: Task[]): { configured: Task[], detected: Task[] } {
+		let configured: Task[] = [];
+		let detected: Task[] = [];
+		for (let task of tasks) {
+			if (task._source.kind === TaskSourceKind.Workspace) {
+				configured.push(task);
+			} else {
+				detected.push(task);
+			}
+		}
+		return { configured, detected };
+	}
+
 	public customize(task: Task, openConfig: boolean = false): TPromise<void> {
 		if (task._source.kind !== TaskSourceKind.Extension) {
 			return TPromise.as<void>(undefined);
@@ -755,7 +820,10 @@ class TaskService extends EventEmitter implements ITaskService {
 			return TPromise.as<void>(undefined);
 		}
 		let fileConfig = configuration.config;
-		let customize = { customize: task.identifier, taskName: task._label, problemMatcher: [] };
+		let customize: TaskConfig.TaskDescription = { customize: task.identifier, taskName: task._label };
+		if (task.problemMatchers === void 0) {
+			customize.problemMatcher = [];
+		}
 		if (!fileConfig) {
 			fileConfig = {
 				version: '2.0.0',
@@ -853,13 +921,21 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	private executeTask(task: Task, resolver: ITaskResolver): TPromise<ITaskSummary> {
+		if (!this.storageService.get(TaskService.RanTaskBefore_Key, StorageScope.GLOBAL)) {
+			this.storageService.store(TaskService.RanTaskBefore_Key, true, StorageScope.GLOBAL);
+		}
 		return ProblemMatcherRegistry.onReady().then(() => {
 			return this.textFileService.saveAll().then((value) => { // make sure all dirty files are saved
 				let executeResult = this.getTaskSystem().run(task, resolver);
+				this.getRecentlyUsedTasks().set(task.identifier, task.identifier, Touch.First);
 				if (executeResult.kind === TaskExecuteKind.Active) {
 					let active = executeResult.active;
-					if (active.same && active.background) {
-						this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame', 'The task is already active and in watch mode. To terminate the task use `F1 > terminate task`'));
+					if (active.same) {
+						if (active.background) {
+							this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame.background', 'The task is already active and in background mode. To terminate the task use `F1 > terminate task`'));
+						} else {
+							this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame.noBackground', 'The task is already active. To terminate the task use `F1 > terminate task`'));
+						}
 					} else {
 						throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is already a task running. Terminate it first before executing another task.'), TaskErrors.RunningTask);
 					}
@@ -1188,7 +1264,10 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	public inTerminal(): boolean {
-		return this._taskSystem instanceof TerminalTaskSystem;
+		if (this._taskSystem) {
+			return this._taskSystem instanceof TerminalTaskSystem;
+		}
+		return this.getExecutionEngine() === ExecutionEngine.Terminal;
 	}
 
 	private hasDetectorSupport(config: TaskConfig.ExternalTaskRunnerConfiguration): boolean {
@@ -1213,10 +1292,12 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	public beforeShutdown(): boolean | TPromise<boolean> {
+		this.saveRecentlyUsedTasks();
 		if (this._taskSystem && this._taskSystem.isActiveSync()) {
 			if (this._taskSystem.canAutoTerminate() || this.messageService.confirm({
 				message: nls.localize('TaskSystem.runningTask', 'There is a task running. Do you want to terminate it?'),
-				primaryButton: nls.localize({ key: 'TaskSystem.terminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task")
+				primaryButton: nls.localize({ key: 'TaskSystem.terminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task"),
+				type: 'question'
 			})) {
 				return this._taskSystem.terminateAll().then((response) => {
 					if (response.success) {
@@ -1227,7 +1308,8 @@ class TaskService extends EventEmitter implements ITaskService {
 					} else if (response.code && response.code === TerminateResponseCode.ProcessNotFound) {
 						return !this.messageService.confirm({
 							message: nls.localize('TaskSystem.noProcess', 'The launched task doesn\'t exist anymore. If the task spawned background processes exiting VS Code might result in orphaned processes. To avoid this start the last background process with a wait flag.'),
-							primaryButton: nls.localize({ key: 'TaskSystem.exitAnyways', comment: ['&& denotes a mnemonic'] }, "&&Exit Anyways")
+							primaryButton: nls.localize({ key: 'TaskSystem.exitAnyways', comment: ['&& denotes a mnemonic'] }, "&&Exit Anyways"),
+							type: 'info'
 						});
 					}
 					return true; // veto
@@ -1304,6 +1386,50 @@ class TaskService extends EventEmitter implements ITaskService {
 		} else {
 			this.quickOpenService.show('task ');
 		}
+	}
+
+	private runBuildCommand(): void {
+		if (!this.canRunCommand()) {
+			return;
+		}
+		if (!this.inTerminal()) {
+			this.build();
+			return;
+		}
+		this.getTasksForGroup(TaskGroup.Build).then((tasks) => {
+			let { configured, detected } = this.splitTasks(tasks);
+			let total = configured.length + detected.length;
+			if (total === 0) {
+				return;
+			}
+			if (total === 1) {
+				this.run(configured[0] || detected[0]);
+			} else {
+				this.quickOpenService.show('build task ');
+			}
+		});
+	}
+
+	private runTestCommand(): void {
+		if (!this.canRunCommand()) {
+			return;
+		}
+		if (!this.inTerminal()) {
+			this.build();
+			return;
+		}
+		this.getTasksForGroup(TaskGroup.Test).then((tasks) => {
+			let { configured, detected } = this.splitTasks(tasks);
+			let total = configured.length + detected.length;
+			if (total === 0) {
+				return;
+			}
+			if (total === 1) {
+				this.run(configured[0] || detected[0]);
+			} else {
+				this.quickOpenService.show('test task ');
+			}
+		});
 	}
 
 	private runTerminateCommand(): void {
@@ -1384,12 +1510,14 @@ registerSingleton(ITaskService, TaskService);
 
 // Register Quick Open
 const quickOpenRegistry = (<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen));
+const tasksPickerContextKey = 'inTasksPicker';
 
 quickOpenRegistry.registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
 		'vs/workbench/parts/tasks/browser/taskQuickOpen',
 		'QuickOpenHandler',
 		'task ',
+		tasksPickerContextKey,
 		nls.localize('quickOpen.task', "Run Task")
 	)
 );
@@ -1399,6 +1527,7 @@ quickOpenRegistry.registerQuickOpenHandler(
 		'vs/workbench/parts/tasks/browser/terminateQuickOpen',
 		'QuickOpenHandler',
 		'terminate task ',
+		tasksPickerContextKey,
 		nls.localize('quickOpen.terminateTask', "Terminate Task")
 	)
 );
@@ -1408,7 +1537,28 @@ quickOpenRegistry.registerQuickOpenHandler(
 		'vs/workbench/parts/tasks/browser/restartQuickOpen',
 		'QuickOpenHandler',
 		'restart task ',
+		tasksPickerContextKey,
 		nls.localize('quickOpen.restartTask', "Restart Task")
+	)
+);
+
+quickOpenRegistry.registerQuickOpenHandler(
+	new QuickOpenHandlerDescriptor(
+		'vs/workbench/parts/tasks/browser/buildQuickOpen',
+		'QuickOpenHandler',
+		'build task ',
+		tasksPickerContextKey,
+		nls.localize('quickOpen.buildTask', "Build Task")
+	)
+);
+
+quickOpenRegistry.registerQuickOpenHandler(
+	new QuickOpenHandlerDescriptor(
+		'vs/workbench/parts/tasks/browser/testQuickOpen',
+		'QuickOpenHandler',
+		'test task ',
+		tasksPickerContextKey,
+		nls.localize('quickOpen.testTask', "Test Task")
 	)
 );
 

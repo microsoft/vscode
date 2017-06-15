@@ -31,8 +31,7 @@ export function removeTag() {
 }
 
 function getRangeToRemove(editor: vscode.TextEditor, selection: vscode.Selection, indentInSpaces: string): vscode.Range[] {
-	let offset = editor.document.offsetAt(selection.start);
-	let [openRange, closeRange] = getOpenCloseRange(editor.document, offset);
+	let [openRange, closeRange] = getOpenCloseRange(editor.document, selection.start);
 	if (!openRange.contains(selection.start) && !closeRange.contains(selection.start)) {
 		return [];
 	}

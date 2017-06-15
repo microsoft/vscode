@@ -3,13 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-left-right-widget > .left {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	display: block;
-}
+const MochaTest = require('mocha');
+const path = require('path');
 
-.monaco-left-right-widget > .right {
-	float: right;
-}
+const mochaTest = new MochaTest({
+	timeout: 360000,
+	retries: 2,
+	slow: 50000,
+	useColors: true
+});
+
+mochaTest.addFile(path.join(process.cwd(), 'out/test.js'));
+mochaTest.run((failures) => {
+	process.exit(failures);
+});

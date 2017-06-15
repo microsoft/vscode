@@ -8,8 +8,8 @@ import { mixin } from 'vs/base/common/objects';
 import Event, { Emitter } from 'vs/base/common/event';
 import { WorkspaceConfiguration } from 'vscode';
 import { ExtHostConfigurationShape, MainThreadConfigurationShape } from './extHost.protocol';
+import { IConfigurationValues } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IWorkspaceConfigurationValues } from 'vs/workbench/services/configuration/common/configuration';
 import { toValuesTree } from 'vs/platform/configuration/common/model';
 
 function lookUp(tree: any, key: string) {
@@ -24,11 +24,11 @@ function lookUp(tree: any, key: string) {
 }
 
 interface UsefulConfiguration {
-	data: IWorkspaceConfigurationValues;
+	data: IConfigurationValues;
 	valueTree: any;
 }
 
-function createUsefulConfiguration(data: IWorkspaceConfigurationValues): { data: IWorkspaceConfigurationValues, valueTree: any } {
+function createUsefulConfiguration(data: IConfigurationValues): { data: IConfigurationValues, valueTree: any } {
 	const valueMap: { [key: string]: any } = Object.create(null);
 	for (let key in data) {
 		if (Object.prototype.hasOwnProperty.call(data, key)) {
@@ -48,7 +48,7 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 	private _proxy: MainThreadConfigurationShape;
 	private _configuration: UsefulConfiguration;
 
-	constructor(proxy: MainThreadConfigurationShape, data: IWorkspaceConfigurationValues) {
+	constructor(proxy: MainThreadConfigurationShape, data: IConfigurationValues) {
 		super();
 		this._proxy = proxy;
 		this._configuration = createUsefulConfiguration(data);
@@ -58,7 +58,7 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 		return this._onDidChangeConfiguration && this._onDidChangeConfiguration.event;
 	}
 
-	public $acceptConfigurationChanged(data: IWorkspaceConfigurationValues) {
+	public $acceptConfigurationChanged(data: IConfigurationValues) {
 		this._configuration = createUsefulConfiguration(data);
 		this._onDidChangeConfiguration.fire(undefined);
 	}

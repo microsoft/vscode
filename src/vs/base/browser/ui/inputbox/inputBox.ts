@@ -382,7 +382,7 @@ export class InputBox extends Widget {
 				layout();
 
 				let renderOptions: IHTMLContentElement = {
-					tagName: 'span',
+					inline: true,
 					className: 'monaco-inputbox-message',
 				};
 

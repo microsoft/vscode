@@ -30,7 +30,7 @@ export interface IEditorPart {
 	openEditors(editors: { input: IEditorInput, position: Position, options?: IEditorOptions | ITextEditorOptions }[]): TPromise<BaseEditor[]>;
 	replaceEditors(editors: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: IEditorOptions | ITextEditorOptions }[], position?: Position): TPromise<BaseEditor[]>;
 	closeEditor(position: Position, input: IEditorInput): TPromise<void>;
-	closeEditors(position: Position, except?: IEditorInput, direction?: Direction): TPromise<void>;
+	closeEditors(position: Position, filter?: { except?: IEditorInput, direction?: Direction, unmodifiedOnly?: boolean }): TPromise<void>;
 	closeAllEditors(except?: Position): TPromise<void>;
 	getActiveEditor(): BaseEditor;
 	getVisibleEditors(): IEditor[];
@@ -168,9 +168,9 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return this.editorPart.openEditors(typedInputs);
 	}
 
-	public replaceEditors(editors: { toReplace: IResourceInputType, replaceWith: IResourceInputType }[], position?: Position): TPromise<BaseEditor[]>;
-	public replaceEditors(editors: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: IEditorOptions }[], position?: Position): TPromise<BaseEditor[]>;
-	public replaceEditors(editors: any[], position?: Position): TPromise<BaseEditor[]> {
+	public replaceEditors(editors: { toReplace: IResourceInputType, replaceWith: IResourceInputType }[], position?: Position): TPromise<IEditor[]>;
+	public replaceEditors(editors: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: IEditorOptions }[], position?: Position): TPromise<IEditor[]>;
+	public replaceEditors(editors: any[], position?: Position): TPromise<IEditor[]> {
 		const toReplaceInputs = editors.map(editor => this.createInput(editor.toReplace));
 		const replaceWithInputs = editors.map(editor => this.createInput(editor.replaceWith));
 		const typedReplacements: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: EditorOptions }[] = editors.map((editor, index) => {
@@ -194,8 +194,8 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return this.editorPart.closeEditor(position, input);
 	}
 
-	public closeEditors(position: Position, except?: IEditorInput, direction?: Direction): TPromise<void> {
-		return this.editorPart.closeEditors(position, except, direction);
+	public closeEditors(position: Position, filter?: { except?: IEditorInput, direction?: Direction, unmodifiedOnly?: boolean }): TPromise<void> {
+		return this.editorPart.closeEditors(position, filter);
 	}
 
 	public closeAllEditors(except?: Position): TPromise<void> {
@@ -233,7 +233,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		// Untitled file support
 		const untitledInput = <IUntitledResourceInput>input;
 		if (!untitledInput.resource || typeof untitledInput.filePath === 'string' || (untitledInput.resource instanceof URI && untitledInput.resource.scheme === UNTITLED_SCHEMA)) {
-			return this.untitledEditorService.createOrGet(untitledInput.filePath ? URI.file(untitledInput.filePath) : untitledInput.resource, untitledInput.language, untitledInput.contents);
+			return this.untitledEditorService.createOrGet(untitledInput.filePath ? URI.file(untitledInput.filePath) : untitledInput.resource, untitledInput.language, untitledInput.contents, untitledInput.encoding);
 		}
 
 		const resourceInput = <IResourceInput>input;

@@ -8,7 +8,7 @@ import * as network from 'vs/base/common/network';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
-import { LinkedMap as Map } from 'vs/base/common/map';
+import { ResourceMap } from 'vs/base/common/map';
 import * as labels from 'vs/base/common/labels';
 import * as strings from 'vs/base/common/strings';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -31,7 +31,7 @@ import { SettingsEditorModel, DefaultSettingsEditorModel, DefaultKeybindingsEdit
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DefaultPreferencesEditorInput, PreferencesEditorInput } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { KeybindingsEditorInput } from 'vs/workbench/parts/preferences/browser/keybindingsEditor';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position, IPosition } from 'vs/editor/common/core/position';
@@ -52,7 +52,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	_serviceBrand: any;
 
 	// TODO:@sandy merge these models into editor inputs by extending resource editor model
-	private defaultPreferencesEditorModels: Map<URI, TPromise<IPreferencesEditorModel<any>>>;
+	private defaultPreferencesEditorModels: ResourceMap<TPromise<IPreferencesEditorModel<any>>>;
 	private lastOpenedSettingsInput: PreferencesEditorInput = null;
 
 	constructor(
@@ -67,14 +67,14 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@IStorageService private storageService: IStorageService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
+		@ITextModelService private textModelResolverService: ITextModelService,
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService private modelService: IModelService
 	) {
 		super();
-		this.defaultPreferencesEditorModels = new Map<URI, TPromise<IPreferencesEditorModel<any>>>();
+		this.defaultPreferencesEditorModels = new ResourceMap<TPromise<IPreferencesEditorModel<any>>>();
 		this.editorGroupService.onEditorsChanged(() => {
 			const activeEditorInput = this.editorService.getActiveEditorInput();
 			if (activeEditorInput instanceof PreferencesEditorInput) {
@@ -229,7 +229,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		const resource = this.getEditableSettingsURI(configurationTarget);
 		const editableSettingsEmptyContent = this.getEmptyEditableSettingsContent(configurationTarget);
 		return this.createIfNotExists(resource, editableSettingsEmptyContent)
-			.then(() => this.editorService.createInput({ resource }));
+			.then(() => <EditorInput>this.editorService.createInput({ resource }));
 	}
 
 	private createEditableSettingsEditorModel(configurationTarget: ConfigurationTarget): TPromise<SettingsEditorModel> {

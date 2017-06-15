@@ -191,7 +191,7 @@ export enum FileChangeType {
 export interface IFileChange {
 
 	/**
-	 * The type of change that occured to the file.
+	 * The type of change that occurred to the file.
 	 */
 	type: FileChangeType;
 

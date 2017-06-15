@@ -249,7 +249,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 		this._overviewDomElement.appendChild(this._overviewViewportDomElement.domNode);
 
-		this._register(dom.addDisposableListener(this._overviewDomElement, 'mousedown', (e: MouseEvent) => {
+		this._register(dom.addStandardDisposableListener(this._overviewDomElement, 'mousedown', (e) => {
 			this.modifiedEditor.delegateVerticalScrollbarMouseDown(e);
 		}));
 		this._containerDomElement.appendChild(this._overviewDomElement);

@@ -5,29 +5,40 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
+import Event, { Emitter } from 'vs/base/common/event';
 import { normalize } from 'vs/base/common/paths';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { relative } from 'path';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { fromRange, EndOfLine } from 'vs/workbench/api/node/extHostTypeConverters';
-import { MainContext, MainThreadWorkspaceShape } from './extHost.protocol';
+import { IWorkspaceData, ExtHostWorkspaceShape, MainContext, MainThreadWorkspaceShape } from './extHost.protocol';
 import * as vscode from 'vscode';
 
-export class ExtHostWorkspace {
+export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 
 	private static _requestIdPool = 0;
 
-	private _proxy: MainThreadWorkspaceShape;
-	private _workspacePath: string;
+	private readonly _onDidChangeWorkspace = new Emitter<this>();
+	private readonly _proxy: MainThreadWorkspaceShape;
+	private _workspace: IWorkspaceData;
 
-	constructor(threadService: IThreadService, workspacePath: string) {
+	readonly onDidChangeWorkspace: Event<this> = this._onDidChangeWorkspace.event;
+
+	constructor(threadService: IThreadService, workspace: IWorkspaceData) {
+		super();
 		this._proxy = threadService.get(MainContext.MainThreadWorkspace);
-		this._workspacePath = workspacePath;
+		this._workspace = workspace;
 	}
 
+	// --- workspace ---
+
 	getPath(): string {
-		return this._workspacePath;
+		// this is legacy from the days before having
+		// multi-root and we keep it only alive if there
+		// is just one workspace folder.
+		return this._workspace ? this._workspace.roots[0].fsPath : undefined;
 	}
 
 	getRelativePath(pathOrUri: string | vscode.Uri): string {
@@ -43,17 +54,27 @@ export class ExtHostWorkspace {
 			return path;
 		}
 
-		if (!this._workspacePath) {
+		if (!this._workspace || isFalsyOrEmpty(this._workspace.roots)) {
 			return normalize(path);
 		}
 
-		let result = relative(this._workspacePath, path);
-		if (!result || result.indexOf('..') === 0) {
-			return normalize(path);
+		for (const { fsPath } of this._workspace.roots) {
+			let result = relative(fsPath, path);
+			if (!result || result.indexOf('..') === 0) {
+				continue;
+			}
+			return normalize(result);
 		}
 
-		return normalize(result);
+		return normalize(path);
 	}
+
+	$acceptWorkspaceData(workspace: IWorkspaceData): void {
+		this._workspace = workspace;
+		this._onDidChangeWorkspace.fire(this);
+	}
+
+	// --- search ---
 
 	findFiles(include: string, exclude: string, maxResults?: number, token?: vscode.CancellationToken): Thenable<vscode.Uri[]> {
 		const requestId = ExtHostWorkspace._requestIdPool++;

@@ -12,6 +12,7 @@
 	"typescript.format.enable": "Enable/disable default TypeScript formatter.",
 	"javascript.format.enable": "Enable/disable default JavaScript formatter.",
 	"format.insertSpaceAfterCommaDelimiter": "Defines space handling after a comma delimiter.",
+	"format.insertSpaceAfterConstructor": "Defines space handling after the constructor keyword. Requires TypeScript >= 2.3.0.",
 	"format.insertSpaceAfterSemicolonInForStatements": " Defines space handling after a semicolon in a for statement.",
 	"format.insertSpaceBeforeAndAfterBinaryOperators": "Defines space handling after a binary operator.",
 	"format.insertSpaceAfterKeywordsInControlFlowStatements": "Defines space handling after keywords in a control flow statement.",

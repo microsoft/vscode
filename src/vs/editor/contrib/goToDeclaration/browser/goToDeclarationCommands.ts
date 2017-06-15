@@ -149,7 +149,7 @@ export class DefinitionAction extends EditorAction {
 				revealIfVisible: !sideBySide
 			}
 		}, sideBySide).then(editor => {
-			return editor && <editorCommon.IEditor>editor.getControl();
+			return editor && <editorCommon.ICommonCodeEditor>editor.getControl();
 		});
 	}
 

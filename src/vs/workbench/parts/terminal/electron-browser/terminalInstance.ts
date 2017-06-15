@@ -31,7 +31,8 @@ import { TerminalLinkHandler } from 'vs/workbench/parts/terminal/electron-browse
 import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground } from 'vs/platform/theme/common/colorRegistry';
-import { TPromise } from "vs/base/common/winjs.base";
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -75,6 +76,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _terminalHasTextContextKey: IContextKey<boolean>;
 	private _cols: number;
 	private _rows: number;
+	private _messageTitleListener: (message: { type: string, content: string }) => void;
 
 	private _widgetManager: TerminalWidgetManager;
 	private _linkHandler: TerminalLinkHandler;
@@ -99,7 +101,8 @@ export class TerminalInstance implements ITerminalInstance {
 		@IPanelService private _panelService: IPanelService,
 		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
 		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
-		@IInstantiationService private _instantiationService: IInstantiationService
+		@IInstantiationService private _instantiationService: IInstantiationService,
+		@IClipboardService private _clipboardService: IClipboardService
 	) {
 		this._instanceDisposables = [];
 		this._processDisposables = [];
@@ -323,19 +326,33 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public hasSelection(): boolean {
-		return !document.getSelection().isCollapsed;
+		return this._xterm.hasSelection();
 	}
 
 	public copySelection(): void {
-		if (document.activeElement.classList.contains('xterm')) {
-			document.execCommand('copy');
+		if (this.hasSelection()) {
+			this._clipboardService.writeText(this._xterm.getSelection());
 		} else {
-			this._messageService.show(Severity.Warning, nls.localize('terminal.integrated.copySelection.noSelection', 'Cannot copy terminal selection when terminal does not have focus'));
+			this._messageService.show(Severity.Warning, nls.localize('terminal.integrated.copySelection.noSelection', 'The terminal has no selection to copy'));
 		}
 	}
 
 	public clearSelection(): void {
-		window.getSelection().empty();
+		this._xterm.clearSelection();
+	}
+
+	public selectAll(): void {
+		// Focus here to ensure the terminal context key is set
+		this._xterm.focus();
+		this._xterm.selectAll();
+	}
+
+	public findNext(term: string): boolean {
+		return this._xterm.findNext(term);
+	}
+
+	public findPrevious(term: string): boolean {
+		return this._xterm.findPrevious(term);
 	}
 
 	public dispose(): void {
@@ -439,8 +456,8 @@ export class TerminalInstance implements ITerminalInstance {
 
 	private _refreshSelectionContextKey() {
 		const activePanel = this._panelService.getActivePanel();
-		const isFocused = activePanel && activePanel.getId() === TERMINAL_PANEL_ID;
-		this._terminalHasTextContextKey.set(isFocused && !window.getSelection().isCollapsed);
+		const isActive = activePanel && activePanel.getId() === TERMINAL_PANEL_ID;
+		this._terminalHasTextContextKey.set(isActive && this.hasSelection());
 	}
 
 	private _sanitizeInput(data: any) {
@@ -488,12 +505,13 @@ export class TerminalInstance implements ITerminalInstance {
 		});
 		if (!shell.name) {
 			// Only listen for process title changes when a name is not provided
-			this._process.on('message', (message) => {
+			this._messageTitleListener = (message) => {
 				if (message.type === 'title') {
 					this._title = message.content ? message.content : '';
 					this._onTitleChanged.fire(this._title);
 				}
-			});
+			};
+			this._process.on('message', this._messageTitleListener);
 		}
 		this._process.on('message', (message) => {
 			if (message.type === 'pid') {
@@ -525,6 +543,7 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 
 		this._isExiting = true;
+		this._process = null;
 		let exitCodeMessage: string;
 		if (exitCode) {
 			exitCodeMessage = nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode);
@@ -755,13 +774,23 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xterm.resize(this._cols, this._rows);
 			this._xterm.element.style.width = terminalWidth + 'px';
 		}
-		if (this._process.connected) {
-			this._process.send({
-				event: 'resize',
-				cols: this._cols,
-				rows: this._rows
-			});
-		}
+		this._processReady.then(() => {
+			if (this._process) {
+				// The child process could aready be terminated
+				try {
+					this._process.send({
+						event: 'resize',
+						cols: this._cols,
+						rows: this._rows
+					});
+				} catch (error) {
+					// We tried to write to a closed pipe / channel.
+					if (error.code !== 'EPIPE' && error.code !== 'ERR_IPC_CHANNEL_CLOSED') {
+						throw (error);
+					}
+				}
+			}
+		});
 	}
 
 	public enableApiOnData(): void {
@@ -771,6 +800,21 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public static setTerminalProcessFactory(factory: ITerminalProcessFactory): void {
 		this._terminalProcessFactory = factory;
+	}
+
+	public setTitle(title: string): void {
+		const didTitleChange = title !== this._title;
+		this._title = title;
+		if (didTitleChange) {
+			this._onTitleChanged.fire(title);
+		}
+
+		// If the title was not set by the API, unregister the handler that
+		// automatically updates the terminal name
+		if (this._process && this._messageTitleListener) {
+			this._process.removeListener('message', this._messageTitleListener);
+			this._messageTitleListener = null;
+		}
 	}
 }
 

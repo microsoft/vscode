@@ -13,13 +13,13 @@ import * as sinon from 'sinon';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/platform';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import { WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { Workspace } from 'vs/platform/workspace/common/workspace';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import extfs = require('vs/base/node/extfs');
 import uuid = require('vs/base/common/uuid');
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
+import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configuration';
 import URI from 'vs/base/common/uri';
 import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 
@@ -47,9 +47,9 @@ suite('WorkspaceConfigurationService - Node', () => {
 	}
 
 	function createService(workspaceDir: string, globalSettingsFile: string): TPromise<WorkspaceConfigurationService> {
-		const workspaceContextService = new WorkspaceContextService({ resource: URI.file(workspaceDir) });
+		const workspace = new Workspace(URI.file(workspaceDir));
 		const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
-		const service = new WorkspaceConfigurationService(workspaceContextService, environmentService);
+		const service = new WorkspaceConfigurationService(environmentService, workspace);
 
 		return service.initialize().then(() => service);
 	}
@@ -204,15 +204,15 @@ suite('WorkspaceConfigurationService - Node', () => {
 
 	test('workspace change triggers event', (done: () => void) => {
 		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
-			const workspaceContextService = new WorkspaceContextService({ resource: URI.file(workspaceDir) });
+			const workspace = new Workspace(URI.file(workspaceDir));
 			const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
-			const service = new WorkspaceConfigurationService(workspaceContextService, environmentService);
+			const service = new WorkspaceConfigurationService(environmentService, workspace);
 
 			return service.initialize().then(() => {
 				service.onDidUpdateConfiguration(event => {
 					const config = service.getConfiguration<{ testworkbench: { editor: { icons: boolean } } }>();
 					assert.equal(config.testworkbench.editor.icons, true);
-					assert.equal(event.config.testworkbench.editor.icons, true);
+					assert.equal(service.getConfiguration<any>().testworkbench.editor.icons, true);
 
 					service.dispose();
 
@@ -230,9 +230,9 @@ suite('WorkspaceConfigurationService - Node', () => {
 
 	test('workspace reload should triggers event if content changed', (done: () => void) => {
 		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
-			const workspaceContextService = new WorkspaceContextService({ resource: URI.file(workspaceDir) });
+			const workspace = new Workspace(URI.file(workspaceDir));
 			const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
-			const service = new WorkspaceConfigurationService(workspaceContextService, environmentService);
+			const service = new WorkspaceConfigurationService(environmentService, workspace);
 
 			return service.initialize().then(() => {
 				const settingsFile = path.join(workspaceDir, '.vscode', 'settings.json');
@@ -255,9 +255,9 @@ suite('WorkspaceConfigurationService - Node', () => {
 
 	test('workspace reload should not trigger event if nothing changed', (done: () => void) => {
 		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
-			const workspaceContextService = new WorkspaceContextService({ resource: URI.file(workspaceDir) });
+			const workspace = new Workspace(URI.file(workspaceDir));
 			const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
-			const service = new WorkspaceConfigurationService(workspaceContextService, environmentService);
+			const service = new WorkspaceConfigurationService(environmentService, workspace);
 
 			return service.initialize().then(() => {
 				const settingsFile = path.join(workspaceDir, '.vscode', 'settings.json');
@@ -280,9 +280,9 @@ suite('WorkspaceConfigurationService - Node', () => {
 
 	test('workspace reload should not trigger event if there is no model', (done: () => void) => {
 		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
-			const workspaceContextService = new WorkspaceContextService({ resource: URI.file(workspaceDir) });
+			const workspace = new Workspace(URI.file(workspaceDir));
 			const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
-			const service = new WorkspaceConfigurationService(workspaceContextService, environmentService);
+			const service = new WorkspaceConfigurationService(environmentService, workspace);
 
 			return service.initialize().then(() => {
 				const target = sinon.stub();

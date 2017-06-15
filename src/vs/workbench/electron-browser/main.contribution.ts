@@ -14,12 +14,10 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { CloseEditorAction, KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, ReportIssueAction, ReportPerformanceIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseFolderAction, CloseWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction, NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction, IncreaseViewSizeAction, DecreaseViewSizeAction, ShowStartupPerformance, ToggleSharedProcessAction } from 'vs/workbench/electron-browser/actions';
+import { CloseEditorAction, KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, ReportIssueAction, ReportPerformanceIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseFolderAction, CloseWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction, NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction, IncreaseViewSizeAction, DecreaseViewSizeAction, ShowStartupPerformance, ToggleSharedProcessAction, QuickSwitchWindow, QuickOpenRecentAction } from 'vs/workbench/electron-browser/actions';
 import { MessagesVisibleContext } from 'vs/workbench/electron-browser/workbench';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { registerCommands } from 'vs/workbench/electron-browser/commands';
-import { IQuickOpenRegistry, QuickOpenHandlerDescriptor, Extensions as QuickOpenExtensions } from "vs/workbench/browser/quickopen";
-import { SWITCH_WINDOWS_PREFIX } from "vs/workbench/electron-browser/windowPicker";
 
 // Contribute Commands
 registerCommands();
@@ -31,7 +29,9 @@ const fileCategory = nls.localize('file', "File");
 const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NewWindowAction, NewWindowAction.ID, NewWindowAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_N }), 'New Window');
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseWindowAction, CloseWindowAction.ID, CloseWindowAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W }), 'Close Window');
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SwitchWindow, SwitchWindow.ID, SwitchWindow.LABEL), 'Switch Window');
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SwitchWindow, SwitchWindow.ID, SwitchWindow.LABEL, { primary: null, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_W } }), 'Switch Window...');
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(QuickSwitchWindow, QuickSwitchWindow.ID, QuickSwitchWindow.LABEL), 'Quick Switch Window...');
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenRecentAction, QuickOpenRecentAction.ID, QuickOpenRecentAction.LABEL), 'File: Quick Open Recent...', fileCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseFolderAction, CloseFolderAction.ID, CloseFolderAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_F) }), 'File: Close Folder', fileCategory);
 if (!!product.reportIssueUrl) {
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReportIssueAction, ReportIssueAction.ID, ReportIssueAction.LABEL), 'Help: Report Issues', helpCategory);
@@ -82,22 +82,6 @@ const developerCategory = nls.localize('developer', "Developer");
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowStartupPerformance, ShowStartupPerformance.ID, ShowStartupPerformance.LABEL), 'Developer: Startup Performance', developerCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSharedProcessAction, ToggleSharedProcessAction.ID, ToggleSharedProcessAction.LABEL), 'Developer: Toggle Shared Process', developerCategory);
 
-// Window switcher
-Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
-		'vs/workbench/electron-browser/windowPicker',
-		'WindowPicker',
-		SWITCH_WINDOWS_PREFIX,
-		[
-			{
-				prefix: SWITCH_WINDOWS_PREFIX,
-				needsEditor: false,
-				description: nls.localize('switchBetweenWindows', "Switch between Windows")
-			}
-		]
-	)
-);
-
 // Configuration: Workbench
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -137,6 +121,16 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 	'workbench.editor.revealIfOpen': {
 		'type': 'boolean',
 		'description': nls.localize('revealIfOpen', "Controls if an editor is revealed in any of the visible groups if opened. If disabled, an editor will prefer to open in the currently active editor group. If enabled, an already opened editor will be revealed instead of opened again in the currently active editor group. Note that there are some cases where this setting is ignored, e.g. when forcing an editor to open in a specific group or to the side of the currently active group."),
+		'default': false
+	},
+	'workbench.commandPalette.history': {
+		'type': 'number',
+		'description': nls.localize('commandHistory', "Controls if the number of recently used commands to keep in history for the command palette. Set to 0 to disable command history."),
+		'default': 50
+	},
+	'workbench.commandPalette.preserveInput': {
+		'type': 'boolean',
+		'description': nls.localize('preserveInput', "Controls if the last typed input to the command palette should be restored when opening it the next time."),
 		'default': false
 	},
 	'workbench.quickOpen.closeOnFocusLost': {
@@ -227,16 +221,17 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 Note that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).`
 		)
 	},
-	'window.reopenFolders': {
+	'window.restoreWindows': {
 		'type': 'string',
-		'enum': ['none', 'one', 'all'],
+		'enum': ['all', 'folders', 'one', 'none'],
 		'enumDescriptions': [
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.reopenFolders.none' }, "Never reopen a folder."),
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.reopenFolders.one' }, "Reopen the last active folder."),
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.reopenFolders.all' }, "Reopen all folders of the last session."),
+			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.reopenFolders.all' }, "Reopen all windows."),
+			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.reopenFolders.folders' }, "Reopen all folders. Empty windows will not be restored."),
+			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.reopenFolders.one' }, "Reopen the last active window."),
+			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.reopenFolders.none' }, "Never reopen a window. Always start with an empty one.")
 		],
 		'default': 'one',
-		'description': nls.localize('reopenFolders', "Controls how folders are being reopened after a restart. Select 'none' to never reopen a folder, 'one' to reopen the last folder you worked on or 'all' to reopen all folders of your last session.")
+		'description': nls.localize('restoreWindows', "Controls how windows are being reopened after a restart. Select 'none' to always start with an empty window, 'one' to reopen the last window you worked on, 'folders' to reopen all folders you had opened or 'all' to reopen all windows of your last session.")
 	},
 	'window.restoreFullscreen': {
 		'type': 'boolean',
@@ -361,6 +356,35 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('zenMode.restore', "Controls if a window should restore to zen mode if it was exited in zen mode.")
+		}
+	}
+});
+
+// Configuration: Workspace
+configurationRegistry.registerConfiguration({
+	'id': 'workspace',
+	'order': 10000,
+	'title': nls.localize('workspaceConfigurationTitle', "Workspace"),
+	'type': 'object',
+	'properties': {
+		'workspace': {
+			'type': 'object',
+			'description': nls.localize('workspaces.title', "Folder configuration of the workspace"),
+			'additionalProperties': {
+				'anyOf': [{
+					'type': 'object',
+					'description': nls.localize('files.exclude.boolean', "The glob pattern to match file paths against. Set to true or false to enable or disable the pattern."),
+					'properties': {
+						'folders': {
+							'description': nls.localize('workspaces.additionalFolders', "Folders of this workspace"),
+							'type': 'array',
+							'items': {
+								'type': 'string'
+							}
+						}
+					}
+				}]
+			}
 		}
 	}
 });

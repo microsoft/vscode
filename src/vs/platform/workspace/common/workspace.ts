@@ -9,6 +9,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import paths = require('vs/base/common/paths');
 import { isEqualOrParent } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
+import Event from 'vs/base/common/event';
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
@@ -25,6 +26,23 @@ export interface IWorkspaceContextService {
 	 * without workspace (empty);
 	 */
 	getWorkspace(): IWorkspace;
+
+	/**
+	 * Provides access to the workspace object the platform is running with. This may be null if the workbench was opened
+	 * without workspace (empty);
+	 */
+	getWorkspace2(): IWorkspace2;
+
+	/**
+	 * An event which fires on workspace roots change.
+	 */
+	onDidChangeWorkspaceRoots: Event<URI[]>;
+
+	/**
+	 * Returns the root for the given resource from the workspace.
+	 * Can be null if there is no workspace or the resource is not inside the workspace.
+	 */
+	getRoot(resource: URI): URI;
 
 	/**
 	 * Returns iff the provided resource is inside the workspace or not.
@@ -53,11 +71,9 @@ export interface IWorkspace {
 	resource: URI;
 
 	/**
-	 * the unique identifier of the workspace. if the workspace is deleted and recreated
-	 * the identifier also changes. this makes the uid more unique compared to the id which
-	 * is just derived from the workspace name.
+	 * the creation date of the workspace if known.
 	 */
-	uid?: number;
+	ctime: number;
 
 	/**
 	 * the name of the workspace
@@ -65,43 +81,62 @@ export interface IWorkspace {
 	name?: string;
 }
 
-export class WorkspaceContextService implements IWorkspaceContextService {
+export interface IWorkspace2 {
 
-	public _serviceBrand: any;
+	/**
+	 * the unique identifier of the workspace.
+	 */
+	readonly id: string;
 
-	private workspace: IWorkspace;
+	/**
+	 * the name of the workspace.
+	 */
+	readonly name: string;
 
-	constructor(workspace: IWorkspace) {
-		this.workspace = workspace;
+	/**
+	 * Mutliple roots in this workspace. First entry is master and never changes.
+	 */
+	readonly roots: URI[];
+}
+
+export class Workspace implements IWorkspace {
+	private _name: string;
+
+	constructor(private _resource: URI, private _ctime?: number) {
+		this._name = paths.basename(this._resource.fsPath) || this._resource.fsPath;
 	}
 
-	public getWorkspace(): IWorkspace {
-		return this.workspace;
+	public get resource(): URI {
+		return this._resource;
 	}
 
-	public hasWorkspace(): boolean {
-		return !!this.workspace;
+	public get name(): string {
+		return this._name;
 	}
 
-	public isInsideWorkspace(resource: URI): boolean {
-		if (resource && this.workspace) {
-			return isEqualOrParent(resource.fsPath, this.workspace.resource.fsPath, !isLinux /* ignorecase */);
-		}
-
-		return false;
+	public get ctime(): number {
+		return this._ctime;
 	}
 
 	public toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
-		if (this.isInsideWorkspace(resource)) {
-			return paths.normalize(paths.relative(this.workspace.resource.fsPath, resource.fsPath), toOSPath);
+		if (this.contains(resource)) {
+			return paths.normalize(paths.relative(this._resource.fsPath, resource.fsPath), toOSPath);
 		}
 
 		return null;
 	}
 
-	public toResource(workspaceRelativePath: string): URI {
-		if (typeof workspaceRelativePath === 'string' && this.workspace) {
-			return URI.file(paths.join(this.workspace.resource.fsPath, workspaceRelativePath));
+	private contains(resource: URI): boolean {
+		if (resource) {
+			return isEqualOrParent(resource.fsPath, this._resource.fsPath, !isLinux /* ignorecase */);
+		}
+
+		return false;
+	}
+
+	public toResource(workspaceRelativePath: string, root?: URI): URI {
+		if (typeof workspaceRelativePath === 'string') {
+			return URI.file(paths.join(root ? root.fsPath : this._resource.fsPath, workspaceRelativePath));
 		}
 
 		return null;

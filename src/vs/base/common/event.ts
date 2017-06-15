@@ -409,11 +409,11 @@ class ChainableEvent<T> implements IChainableEvent<T> {
 
 	constructor(private _event: Event<T>) { }
 
-	map(fn) {
+	map<O>(fn: (i: T) => O): IChainableEvent<O> {
 		return new ChainableEvent(mapEvent(this._event, fn));
 	}
 
-	filter(fn) {
+	filter(fn: (e: T) => boolean): IChainableEvent<T> {
 		return new ChainableEvent(filterEvent(this._event, fn));
 	}
 

@@ -120,7 +120,7 @@ export class SearchService implements ISearchService {
 
 				// Support untitled files
 				if (resource.scheme === 'untitled') {
-					if (!this.untitledEditorService.get(resource)) {
+					if (!this.untitledEditorService.exists(resource)) {
 						return;
 					}
 				}

@@ -67,7 +67,7 @@ suite('Decoration Render Options', () => {
 		var s = new CodeEditorServiceImpl(themeService, styleSheet);
 		s.registerDecorationType('example', options);
 		var sheet = readStyleSheet(styleSheet);
-		assert.equal(sheet, '.monaco-editor .ced-example-0 { background-color: rgb(255, 0, 0); }');
+		assert.equal(sheet, '.monaco-editor .ced-example-0 { background-color: rgb(255, 0, 0); border-color: transparent; box-sizing: border-box; }');
 
 		colors = {
 			editorBackground: '#EE0000',

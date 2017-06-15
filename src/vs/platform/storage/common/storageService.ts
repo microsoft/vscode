@@ -8,7 +8,7 @@ import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import URI from "vs/base/common/uri";
 
 // Browser localStorage interface
 export interface IStorage {
@@ -20,13 +20,18 @@ export interface IStorage {
 	removeItem(key: string): void;
 }
 
+export interface IWorkspaceStorageIdentifier {
+	resource: URI;
+	uid?: number;
+}
+
 export class StorageService implements IStorageService {
 
 	public _serviceBrand: any;
 
 	private static COMMON_PREFIX = 'storage://';
-	/*private*/ static GLOBAL_PREFIX = StorageService.COMMON_PREFIX + 'global/';
-	private static WORKSPACE_PREFIX = StorageService.COMMON_PREFIX + 'workspace/';
+	private static GLOBAL_PREFIX = `${StorageService.COMMON_PREFIX}global/`;
+	private static WORKSPACE_PREFIX = `${StorageService.COMMON_PREFIX}workspace/`;
 	private static WORKSPACE_IDENTIFIER = 'workspaceIdentifier';
 	private static NO_WORKSPACE_IDENTIFIER = '__$noWorkspace__';
 
@@ -38,49 +43,45 @@ export class StorageService implements IStorageService {
 	constructor(
 		globalStorage: IStorage,
 		workspaceStorage: IStorage,
-		@IWorkspaceContextService contextService: IWorkspaceContextService
+		workspaceIdentifier?: IWorkspaceStorageIdentifier
 	) {
-		const workspace = contextService.getWorkspace();
-
 		this.globalStorage = globalStorage;
 		this.workspaceStorage = workspaceStorage || globalStorage;
 
 		// Calculate workspace storage key
-		this.workspaceKey = this.getWorkspaceKey(workspace);
+		this.workspaceKey = this.getWorkspaceKey(workspaceIdentifier ? workspaceIdentifier.resource : void 0);
 
 		// Make sure to delete all workspace storage if the workspace has been recreated meanwhile
-		const workspaceUniqueId: number = workspace ? workspace.uid : void 0;
-		if (types.isNumber(workspaceUniqueId)) {
-			this.cleanupWorkspaceScope(workspaceUniqueId, workspace.name);
+		// which is only possible if a UID property is provided that we can check on
+		if (workspaceIdentifier && types.isNumber(workspaceIdentifier.uid)) {
+			this.cleanupWorkspaceScope(workspaceIdentifier.uid);
 		}
 	}
 
-	private getWorkspaceKey(workspace?: IWorkspace): string {
-		let workspaceUri: string = null;
-		if (workspace && workspace.resource) {
-			workspaceUri = workspace.resource.toString();
+	private getWorkspaceKey(workspaceId?: URI): string {
+		if (!workspaceId) {
+			return StorageService.NO_WORKSPACE_IDENTIFIER;
 		}
 
-		return workspaceUri ? this.calculateWorkspaceKey(workspaceUri) : StorageService.NO_WORKSPACE_IDENTIFIER;
-	}
+		let workspaceIdStr = workspaceId.toString();
 
-	private calculateWorkspaceKey(workspaceUrl: string): string {
-		const root = 'file:///';
-		const index = workspaceUrl.indexOf(root);
-		if (index === 0) {
-			return strings.rtrim(workspaceUrl.substr(root.length), '/') + '/';
+		// Special case file:// URIs: strip protocol from key to produce shorter key
+		const fileProtocol = 'file:///';
+		if (workspaceIdStr.indexOf(fileProtocol) === 0) {
+			workspaceIdStr = workspaceIdStr.substr(fileProtocol.length);
 		}
 
-		return workspaceUrl;
+		// Always end with "/"
+		return `${strings.rtrim(workspaceIdStr, '/')}/`;
 	}
 
-	private cleanupWorkspaceScope(workspaceId: number, workspaceName: string): void {
+	private cleanupWorkspaceScope(workspaceUid: number): void {
 
 		// Get stored identifier from storage
 		const id = this.getInteger(StorageService.WORKSPACE_IDENTIFIER, StorageScope.WORKSPACE);
 
 		// If identifier differs, assume the workspace got recreated and thus clean all storage for this workspace
-		if (types.isNumber(id) && workspaceId !== id) {
+		if (types.isNumber(id) && workspaceUid !== id) {
 			const keyPrefix = this.toStorageKey('', StorageScope.WORKSPACE);
 			const toDelete: string[] = [];
 			const length = this.workspaceStorage.length;
@@ -97,10 +98,6 @@ export class StorageService implements IStorageService {
 				}
 			}
 
-			if (toDelete.length > 0) {
-				console.warn('Clearing previous version of local storage for workspace ', workspaceName);
-			}
-
 			// Run the delete
 			toDelete.forEach((keyToDelete) => {
 				this.workspaceStorage.removeItem(keyToDelete);
@@ -108,8 +105,8 @@ export class StorageService implements IStorageService {
 		}
 
 		// Store workspace identifier now
-		if (workspaceId !== id) {
-			this.store(StorageService.WORKSPACE_IDENTIFIER, workspaceId, StorageScope.WORKSPACE);
+		if (workspaceUid !== id) {
+			this.store(StorageService.WORKSPACE_IDENTIFIER, workspaceUid, StorageScope.WORKSPACE);
 		}
 	}
 
@@ -199,7 +196,6 @@ export class StorageService implements IStorageService {
 	}
 }
 
-// In-Memory Local Storage Implementation
 export class InMemoryLocalStorage implements IStorage {
 	private store: { [key: string]: string; };
 

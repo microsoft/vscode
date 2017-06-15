@@ -28,8 +28,8 @@ import { IPager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 suite('ExtensionsActions Test', () => {
@@ -52,7 +52,7 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.stub(IURLService, { onOpenURL: new Emitter().event });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 
-		instantiationService.set(IWorkspaceContextService, new WorkspaceContextService(TestWorkspace));
+		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IConfigurationService, { onDidUpdateConfiguration: () => { }, getConfiguration: () => ({}) });
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);

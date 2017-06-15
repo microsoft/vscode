@@ -36,7 +36,7 @@ import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecyc
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { extractResources } from 'vs/base/browser/dnd';
-import { LinkedMap } from 'vs/base/common/map';
+import { getOrSet } from 'vs/base/common/map';
 import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
@@ -152,7 +152,6 @@ export class TabsTitleControl extends TitleControl {
 			vertical: ScrollbarVisibility.Hidden,
 			scrollYToX: true,
 			useShadows: false,
-			canUseTranslate3d: false,
 			horizontalScrollbarSize: 3
 		});
 
@@ -320,8 +319,8 @@ export class TabsTitleControl extends TitleControl {
 	private getUniqueTabLabels(editors: IEditorInput[]): IEditorInputLabel[] {
 		const labels: IEditorInputLabel[] = [];
 
-		const mapLabelToDuplicates = new LinkedMap<string, IEditorInputLabel[]>();
-		const mapLabelAndDescriptionToDuplicates = new LinkedMap<string, IEditorInputLabel[]>();
+		const mapLabelToDuplicates = new Map<string, IEditorInputLabel[]>();
+		const mapLabelAndDescriptionToDuplicates = new Map<string, IEditorInputLabel[]>();
 
 		// Build labels and descriptions for each editor
 		editors.forEach(editor => {
@@ -334,16 +333,15 @@ export class TabsTitleControl extends TitleControl {
 			};
 			labels.push(item);
 
-			mapLabelToDuplicates.getOrSet(item.name, []).push(item);
+			getOrSet(mapLabelToDuplicates, item.name, []).push(item);
 
 			if (typeof description === 'string') {
-				mapLabelAndDescriptionToDuplicates.getOrSet(`${item.name}${item.description}`, []).push(item);
+				getOrSet(mapLabelAndDescriptionToDuplicates, `${item.name}${item.description}`, []).push(item);
 			}
 		});
 
 		// Mark duplicates and shorten their descriptions
-		const labelDuplicates = mapLabelToDuplicates.values();
-		labelDuplicates.forEach(duplicates => {
+		mapLabelToDuplicates.forEach(duplicates => {
 			if (duplicates.length > 1) {
 				duplicates = duplicates.filter(d => {
 					// we could have items with equal label and description. in that case it does not make much

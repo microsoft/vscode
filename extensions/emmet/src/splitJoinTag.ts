@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { isStyleSheet, getNode } from './util';
 import parse from '@emmetio/html-matcher';
 import Node from '@emmetio/node';
+import { DocumentStreamReader } from './bufferStream';
 
 export function splitJoinTag() {
 	let editor = vscode.window.activeTextEditor;
@@ -18,7 +19,7 @@ export function splitJoinTag() {
 		return;
 	}
 
-	let rootNode: Node = parse(editor.document.getText());
+	let rootNode: Node = parse(new DocumentStreamReader(editor.document));
 
 	editor.edit(editBuilder => {
 		editor.selections.reverse().forEach(selection => {
@@ -29,23 +30,24 @@ export function splitJoinTag() {
 }
 
 function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Node): [vscode.Range, string] {
-	let offset = document.offsetAt(selection.start);
-	let nodeToUpdate: Node = getNode(rootNode, offset);
+	let nodeToUpdate: Node = getNode(rootNode, selection.start);
 	let rangeToReplace: vscode.Range;
 	let textToReplaceWith: string;
 
 	if (!nodeToUpdate.close) {
 		// Split Tag
-		let nodeText = document.getText(new vscode.Range(document.positionAt(nodeToUpdate.start), document.positionAt(nodeToUpdate.end)));
+		let nodeText = document.getText(new vscode.Range(nodeToUpdate.start, nodeToUpdate.end));
 		let m = nodeText.match(/(\s*\/)?>$/);
-		let end = nodeToUpdate.open.end;
-		let start = m ? end - m[0].length : end;
+		let end = <vscode.Position>nodeToUpdate.end;
+		let start = m ? end.translate(0, -m[0].length) : end;
 
-		rangeToReplace = new vscode.Range(document.positionAt(start), document.positionAt(end));
+		rangeToReplace = new vscode.Range(start, end);
 		textToReplaceWith = `></${nodeToUpdate.name}>`;
 	} else {
 		// Join Tag
-		rangeToReplace = new vscode.Range(document.positionAt(nodeToUpdate.open.end - 1), document.positionAt(nodeToUpdate.close.end));
+		let start = (<vscode.Position>nodeToUpdate.open.end).translate(0, -1);
+		let end = <vscode.Position>nodeToUpdate.end;
+		rangeToReplace = new vscode.Range(start, end);
 		textToReplaceWith = '/>';
 	}
 

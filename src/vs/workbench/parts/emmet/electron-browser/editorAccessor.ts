@@ -120,7 +120,7 @@ export class EditorAccessor implements emmet.Editor {
 		// find highest placeholder index
 		walk(marker, candidate => {
 			if (candidate instanceof Placeholder) {
-				let index = Number(candidate.index);
+				let index = candidate.index;
 				if (index > maxIndex) {
 					maxIndex = index;
 				}
@@ -132,7 +132,7 @@ export class EditorAccessor implements emmet.Editor {
 		walk(marker, candidate => {
 			if (candidate instanceof Placeholder) {
 				if (candidate.isFinalTabstop) {
-					candidate.index = String(++maxIndex);
+					candidate.index = ++maxIndex;
 				}
 			}
 			return true;

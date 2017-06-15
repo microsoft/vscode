@@ -129,7 +129,7 @@ export class ProgressService2 implements IProgressService2 {
 		}
 	}
 
-	private _withViewletProgress(viewletId: string, task: (progress: IProgress<number>) => TPromise<any>): void {
+	private _withViewletProgress(viewletId: string, task: (progress: IProgress<{ message?: string, percentage?: number }>) => TPromise<any>): void {
 
 		const promise = task(emptyProgress);
 

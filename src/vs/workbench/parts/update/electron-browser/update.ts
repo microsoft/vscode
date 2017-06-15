@@ -282,6 +282,8 @@ export class LightUpdateContribution implements IGlobalActivity {
 	private static readonly showCommandsId = 'workbench.action.showCommands';
 	private static readonly openSettingsId = 'workbench.action.openGlobalSettings';
 	private static readonly openKeybindingsId = 'workbench.action.openGlobalKeybindings';
+	private static readonly selectColorThemeId = 'workbench.action.selectTheme';
+	private static readonly selectIconThemeId = 'workbench.action.selectIconTheme';
 
 	get id() { return 'vs.update'; }
 	get name() { return ''; }
@@ -323,6 +325,9 @@ export class LightUpdateContribution implements IGlobalActivity {
 			new Separator(),
 			new Action(LightUpdateContribution.openSettingsId, nls.localize('settings', "Settings"), null, true, () => this.commandService.executeCommand(LightUpdateContribution.openSettingsId)),
 			new Action(LightUpdateContribution.openKeybindingsId, nls.localize('keyboardShortcuts', "Keyboard Shortcuts"), null, true, () => this.commandService.executeCommand(LightUpdateContribution.openKeybindingsId)),
+			new Separator(),
+			new Action(LightUpdateContribution.selectColorThemeId, nls.localize('selectTheme.label', "Color Theme"), null, true, () => this.commandService.executeCommand(LightUpdateContribution.selectColorThemeId)),
+			new Action(LightUpdateContribution.selectIconThemeId, nls.localize('themes.selectIconTheme.label', "File Icon Theme"), null, true, () => this.commandService.executeCommand(LightUpdateContribution.selectIconThemeId)),
 			new Separator(),
 			this.getUpdateAction()
 		];

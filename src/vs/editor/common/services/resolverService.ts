@@ -11,9 +11,9 @@ import { IModel } from 'vs/editor/common/editorCommon';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { IDisposable, IReference } from 'vs/base/common/lifecycle';
 
-export const ITextModelResolverService = createDecorator<ITextModelResolverService>('textModelResolverService');
+export const ITextModelService = createDecorator<ITextModelService>('textModelService');
 
-export interface ITextModelResolverService {
+export interface ITextModelService {
 	_serviceBrand: any;
 
 	/**

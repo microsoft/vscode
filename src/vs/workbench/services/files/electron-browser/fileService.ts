@@ -134,7 +134,7 @@ export class FileService implements IFileService {
 		this.toUnbind.push(this.raw.onAfterOperation(e => this._onAfterOperation.fire(e)));
 
 		// Config changes
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(this.configurationService.getConfiguration<IFilesConfiguration>())));
 
 		// Editor changing
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));

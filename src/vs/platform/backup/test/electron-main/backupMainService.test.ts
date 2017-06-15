@@ -336,33 +336,6 @@ suite('BackupMainService', () => {
 		});
 	});
 
-	suite('getBackupPath', () => {
-		test('should return the window\'s correct path', done => {
-			service.registerWindowForBackupsSync(1, false, null, fooFile.fsPath);
-			service.registerWindowForBackupsSync(2, true, 'test');
-			service.getBackupPath(1).then(window1Path => {
-				assert.equal(window1Path, service.toBackupPath(fooFile.fsPath));
-				service.getBackupPath(2).then(window2Path => {
-					assert.equal(window2Path, path.join(backupHome, 'test'));
-					done();
-				});
-			});
-		});
-
-		test('should override stale window paths with new paths', done => {
-			service.registerWindowForBackupsSync(1, false, null, fooFile.fsPath);
-			service.registerWindowForBackupsSync(1, false, null, barFile.fsPath);
-			service.getBackupPath(1).then(windowPath => {
-				assert.equal(windowPath, service.toBackupPath(barFile.fsPath));
-				done();
-			});
-		});
-
-		test('should throw when the window is not registered', () => {
-			assert.throws(() => service.getBackupPath(1));
-		});
-	});
-
 	suite('mixed path casing', () => {
 		test('should handle case insensitive paths properly (registerWindowForBackupsSync)', done => {
 			service.registerWindowForBackupsSync(1, false, null, fooFile.fsPath);

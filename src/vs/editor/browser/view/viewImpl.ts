@@ -49,6 +49,7 @@ import { Minimap } from 'vs/editor/browser/viewParts/minimap/minimap';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IThemeService, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 import { Cursor } from 'vs/editor/common/controller/cursor';
+import { IMouseEvent } from "vs/base/browser/mouseEvent";
 
 export interface IContentWidgetData {
 	widget: editorBrowser.IContentWidget;
@@ -409,7 +410,7 @@ export class View extends ViewEventHandler {
 		const partialViewportData = this._context.viewLayout.getLinesViewportData();
 		this._context.model.setViewport(partialViewportData.startLineNumber, partialViewportData.endLineNumber, partialViewportData.centeredLineNumber);
 
-		let viewportData = new ViewportData(partialViewportData, this._context.model);
+		let viewportData = new ViewportData(partialViewportData, this._context.viewLayout.getWhitespaceViewportData(), this._context.model);
 
 		if (this.viewLines.shouldRender()) {
 			this.viewLines.renderText(viewportData);
@@ -436,7 +437,7 @@ export class View extends ViewEventHandler {
 
 	// --- BEGIN CodeEditor helpers
 
-	public delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void {
+	public delegateVerticalScrollbarMouseDown(browserEvent: IMouseEvent): void {
 		this._scrollbar.delegateVerticalScrollbarMouseDown(browserEvent);
 	}
 

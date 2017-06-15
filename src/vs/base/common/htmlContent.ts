@@ -85,12 +85,8 @@ export interface IHTMLContentElement {
 	formattedText?: string;
 	text?: string;
 	className?: string;
-	style?: string;
-	customStyle?: any;
-	tagName?: string;
+	inline?: boolean;
 	children?: IHTMLContentElement[];
-	isText?: boolean;
-	role?: string;
 	markdown?: string;
 	code?: IHTMLContentElementCode;
 }
@@ -113,11 +109,7 @@ function htmlContentElementEqual(a: IHTMLContentElement, b: IHTMLContentElement)
 		a.formattedText === b.formattedText
 		&& a.text === b.text
 		&& a.className === b.className
-		&& a.style === b.style
-		&& a.customStyle === b.customStyle
-		&& a.tagName === b.tagName
-		&& a.isText === b.isText
-		&& a.role === b.role
+		&& a.inline === b.inline
 		&& a.markdown === b.markdown
 		&& htmlContentElementCodeEqual(a.code, b.code)
 		&& htmlContentElementArrEquals(a.children, b.children)

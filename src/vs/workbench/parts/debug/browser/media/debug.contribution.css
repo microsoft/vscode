@@ -246,6 +246,10 @@
 
 /* High Contrast Theming */
 
+.monaco-editor.hc-black .debug-focused-stack-frame-line {
+	background: rgba(206, 231, 206, 1);
+}
+
 .hc-black .monaco-workbench .monaco-tree-row:not(.selected) .expression .name {
 	color: inherit;
 }

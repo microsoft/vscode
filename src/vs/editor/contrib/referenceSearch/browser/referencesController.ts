@@ -25,7 +25,7 @@ import { IPeekViewService } from 'vs/editor/contrib/zoneWidget/browser/peekViewW
 import { ReferencesModel, OneReference } from './referencesModel';
 import { ReferenceWidget, LayoutData } from './referencesWidget';
 import { Range } from 'vs/editor/common/core/range';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
 import { IEnvironmentService } from "vs/platform/environment/common/environment";
@@ -59,7 +59,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorService private _editorService: IEditorService,
-		@ITextModelResolverService private _textModelResolverService: ITextModelResolverService,
+		@ITextModelService private _textModelResolverService: ITextModelService,
 		@ITelemetryService private _telemetryService: ITelemetryService,
 		@IMessageService private _messageService: IMessageService,
 		@IInstantiationService private _instantiationService: IInstantiationService,

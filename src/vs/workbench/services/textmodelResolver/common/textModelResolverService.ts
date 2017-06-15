@@ -14,7 +14,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import network = require('vs/base/common/network');
-import { ITextModelResolverService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IUntitledEditorService, UNTITLED_SCHEMA } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 
@@ -92,7 +92,7 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 	}
 }
 
-export class TextModelResolverService implements ITextModelResolverService {
+export class TextModelResolverService implements ITextModelService {
 
 	_serviceBrand: any;
 
@@ -116,8 +116,7 @@ export class TextModelResolverService implements ITextModelResolverService {
 		// Untitled Schema: go through cached input
 		// TODO ImmortalReference is a hack
 		if (resource.scheme === UNTITLED_SCHEMA) {
-			return this.untitledEditorService.createOrGet(resource).resolve()
-				.then(model => new ImmortalReference(model));
+			return this.untitledEditorService.loadOrCreate({ resource }).then(model => new ImmortalReference(model));
 		}
 
 		// InMemory Schema: go through model service cache

@@ -755,7 +755,7 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 				tokensCollector.emit(pos0 + offsetDelta, tokenType);
 			}
 
-			if (enteringEmbeddedMode) {
+			if (enteringEmbeddedMode !== null) {
 				// substitute language alias to known modes to support syntax highlighting
 				let enteringEmbeddedModeId = this._modeService.getModeIdForLanguageName(enteringEmbeddedMode);
 				if (enteringEmbeddedModeId) {

@@ -38,7 +38,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService } from 'vs/platform/message/common/message';
+import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -56,7 +56,7 @@ import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService, ITheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorFindMatchHighlight, diffInserted, diffRemoved, diffInsertedOutline, diffRemovedOutline, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import FileResultsNavigation from 'vs/workbench/browser/fileResultsNavigation';
+import FileResultsNavigation from 'vs/workbench/parts/files/browser/fileResultsNavigation';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { Color } from 'vs/base/common/color';
@@ -139,7 +139,7 @@ export class SearchViewlet extends Viewlet {
 
 		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
 		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration())));
 
 		this.selectCurrentMatchEmitter = new Emitter<string>();
 		debounceEvent(this.selectCurrentMatchEmitter.event, (l, e) => e, 100, /*leading=*/true)
@@ -334,7 +334,13 @@ export class SearchViewlet extends Viewlet {
 
 	private onReplaceToggled(): void {
 		this.layout(this.size);
-		this.storageService.store(SearchViewlet.SHOW_REPLACE_STORAGE_KEY, this.searchAndReplaceWidget.isReplaceShown(), StorageScope.WORKSPACE);
+
+		const isReplaceShown = this.searchAndReplaceWidget.isReplaceShown();
+		if (!isReplaceShown) {
+			this.storageService.store(SearchViewlet.SHOW_REPLACE_STORAGE_KEY, false, StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(SearchViewlet.SHOW_REPLACE_STORAGE_KEY);
+		}
 	}
 
 	private onSearchResultsChanged(event?: IChangeEvent): TPromise<any> {
@@ -368,10 +374,11 @@ export class SearchViewlet extends Viewlet {
 		let replaceValue = this.searchWidget.getReplaceValue() || '';
 		let afterReplaceAllMessage = this.buildAfterReplaceAllMessage(occurrences, fileCount, replaceValue);
 
-		let confirmation = {
+		let confirmation: IConfirmation = {
 			title: nls.localize('replaceAll.confirmation.title', "Replace All"),
 			message: this.buildReplaceAllConfirmationMessage(occurrences, fileCount, replaceValue),
-			primaryButton: nls.localize('replaceAll.confirm.button', "Replace")
+			primaryButton: nls.localize('replaceAll.confirm.button', "Replace"),
+			type: 'question'
 		};
 
 		if (this.messageService.confirm(confirmation)) {

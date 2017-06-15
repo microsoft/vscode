@@ -135,8 +135,10 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		let terminalData = this.activeTasks[task._id];
 		if (terminalData && terminalData.promise) {
 			let reveal = task.command.terminalBehavior.reveal;
-			if (reveal === RevealKind.Always) {
-				terminalData.terminal.setVisible(true);
+			let focus = task.command.terminalBehavior.focus;
+			if (reveal === RevealKind.Always || focus) {
+				this.terminalService.setActiveInstance(terminalData.terminal);
+				this.terminalService.showPanel(focus);
 			}
 			return { kind: TaskExecuteKind.Active, active: { same: true, background: task.isBackground }, promise: terminalData.promise };
 		}
@@ -213,7 +215,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		}
 
 		if (task.command) {
-			return TPromise.join(promises).then((summaries): ITaskSummary => {
+			return TPromise.join(promises).then((summaries): TPromise<ITaskSummary> | ITaskSummary => {
 				for (let summary of summaries) {
 					if (summary.exitCode !== 0) {
 						return { exitCode: summary.exitCode };
@@ -332,8 +334,8 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			});
 		}
 		this.terminalService.setActiveInstance(terminal);
-		if (task.command.terminalBehavior.reveal === RevealKind.Always) {
-			this.terminalService.showPanel(false);
+		if (task.command.terminalBehavior.reveal === RevealKind.Always || (task.command.terminalBehavior.reveal === RevealKind.Silent && task.problemMatchers.length === 0)) {
+			this.terminalService.showPanel(task.command.terminalBehavior.focus);
 		}
 		this.activeTasks[task._id] = { terminal, task, promise };
 		return promise.then((summary) => {
@@ -423,7 +425,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			shellArgs.push(commandLine);
 			shellLaunchConfig.args = Platform.isWindows ? shellArgs.join(' ') : shellArgs;
 			if (task.command.terminalBehavior.echo) {
-				shellLaunchConfig.initialText = `> ${commandLine}`;
+				shellLaunchConfig.initialText = `\x1b[1m> Executing task: ${commandLine} <\x1b[0m\n`;
 			}
 		} else {
 			let cwd = options && options.cwd ? options.cwd : process.cwd();
@@ -446,7 +448,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					}
 					return args.join(' ');
 				};
-				shellLaunchConfig.initialText = `> ${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}`;
+				shellLaunchConfig.initialText = `\x1b[1m> Executing task: ${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)} <\x1b[0m\n`;
 			}
 		}
 		if (options.cwd) {
@@ -559,7 +561,11 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		values.forEach((value) => {
 			let matcher: ProblemMatcher;
 			if (Types.isString(value)) {
-				matcher = ProblemMatcherRegistry.get(value);
+				if (value[0] === '$') {
+					matcher = ProblemMatcherRegistry.get(value.substring(1));
+				} else {
+					matcher = ProblemMatcherRegistry.get(value);
+				}
 			} else {
 				matcher = value;
 			}
