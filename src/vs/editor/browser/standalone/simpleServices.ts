@@ -17,7 +17,7 @@ import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingReso
 import { IKeybindingEvent, KeybindingSource, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IMessageService } from 'vs/platform/message/common/message';
-import { IWorkspaceContextService, Workspace, IWorkspace, IWorkspace2 } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspace as ILegacyWorkspace, IWorkspace2 } from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -497,46 +497,44 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 
 	public _serviceBrand: any;
 
+	private static SCHEME: 'inmemory';
+
 	private readonly _onDidChangeWorkspaceRoots: Emitter<URI[]> = new Emitter<URI[]>();
 	public readonly onDidChangeWorkspaceRoots: Event<URI[]> = this._onDidChangeWorkspaceRoots.event;
 
-	private readonly folders: URI[];
-	private readonly id: string;
+	private readonly legacyWorkspace: ILegacyWorkspace;
+	private readonly workspace: IWorkspace2;
 
-	constructor(private workspace?: Workspace) {
-		this.folders = workspace ? [workspace.resource] : [];
-		this.id = generateUuid();
+	constructor() {
+		this.legacyWorkspace = { resource: URI.from({ scheme: SimpleWorkspaceContextService.SCHEME, authority: 'model', path: '/' }), ctime: Date.now() };
+		this.workspace = { id: generateUuid(), roots: [this.legacyWorkspace.resource], name: this.legacyWorkspace.resource.fsPath };
 	}
 
-	public getFolders(): URI[] {
-		return this.folders;
-	}
-
-	public getWorkspace(): IWorkspace {
-		return this.workspace;
+	public getWorkspace(): ILegacyWorkspace {
+		return this.legacyWorkspace;
 	}
 
 	public getWorkspace2(): IWorkspace2 {
-		return this.workspace ? { id: `${this.id}`, roots: [this.workspace.resource], name: this.workspace.resource.fsPath } : void 0;
+		return this.workspace;
 	}
 
 	public getRoot(resource: URI): URI {
-		return this.isInsideWorkspace(resource) ? this.workspace.resource : null;
+		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME ? this.workspace.roots[0] : void 0;
 	}
 
 	public hasWorkspace(): boolean {
-		return !!this.workspace;
+		return true;
 	}
 
 	public isInsideWorkspace(resource: URI): boolean {
-		return this.workspace ? this.workspace.isInsideWorkspace(resource) : false;
+		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME;
 	}
 
 	public toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
-		return this.workspace ? this.workspace.toWorkspaceRelativePath(resource, toOSPath) : null;
+		return resource.fsPath;
 	}
 
 	public toResource(workspaceRelativePath: string): URI {
-		return this.workspace ? this.workspace.toResource(workspaceRelativePath) : null;
+		return URI.file(workspaceRelativePath);
 	}
 }

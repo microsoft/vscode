@@ -98,7 +98,7 @@ function openWorkbench(configuration: IWindowConfiguration, options: IOptions): 
 	return resolveLegacyWorkspace(configuration).then(legacyWorkspace => {
 		const environmentService = new EnvironmentService(configuration, configuration.execPath);
 		const workspaceConfigurationService = new WorkspaceConfigurationService(environmentService, legacyWorkspace);
-		const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, !workspaceConfigurationService.hasWorkspace());
+		const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, !!legacyWorkspace);
 		const storageService = createStorageService(legacyWorkspace, configuration, environmentService);
 
 		// Since the configuration service is one of the core services that is used in so many places, we initialize it

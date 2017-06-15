@@ -118,20 +118,20 @@ export class Workspace implements IWorkspace {
 		return this._ctime;
 	}
 
-	public isInsideWorkspace(resource: URI): boolean {
+	public toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
+		if (this.contains(resource)) {
+			return paths.normalize(paths.relative(this._resource.fsPath, resource.fsPath), toOSPath);
+		}
+
+		return null;
+	}
+
+	private contains(resource: URI): boolean {
 		if (resource) {
 			return isEqualOrParent(resource.fsPath, this._resource.fsPath, !isLinux /* ignorecase */);
 		}
 
 		return false;
-	}
-
-	public toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
-		if (this.isInsideWorkspace(resource)) {
-			return paths.normalize(paths.relative(this._resource.fsPath, resource.fsPath), toOSPath);
-		}
-
-		return null;
 	}
 
 	public toResource(workspaceRelativePath: string, root?: URI): URI {

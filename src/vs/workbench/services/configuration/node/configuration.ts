@@ -182,7 +182,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	}
 
 	public isInsideWorkspace(resource: URI): boolean {
-		return this.workspace ? this.legacyWorkspace.isInsideWorkspace(resource) : false;
+		return !!this.getRoot(resource);
 	}
 
 	public toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
@@ -468,20 +468,20 @@ class FolderConfiguration<T> extends Disposable {
 		return null;
 	}
 
-	private isInsideWorkspace(resource: URI): boolean {
+	private toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
+		if (this.contains(resource)) {
+			return paths.normalize(paths.relative(this.folder.fsPath, resource.fsPath), toOSPath);
+		}
+
+		return null;
+	}
+
+	private contains(resource: URI): boolean {
 		if (resource) {
 			return isEqualOrParent(resource.fsPath, this.folder.fsPath, !isLinux /* ignorecase */);
 		}
 
 		return false;
-	}
-
-	private toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
-		if (this.isInsideWorkspace(resource)) {
-			return paths.normalize(paths.relative(this.folder.fsPath, resource.fsPath), toOSPath);
-		}
-
-		return null;
 	}
 }
 
