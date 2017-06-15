@@ -129,7 +129,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.updateConfiguration(e.config)));
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.updateConfiguration(this.configurationService.getConfiguration<IWorkbenchQuickOpenConfiguration>())));
 		this.toUnbind.push(this.partService.onTitleBarVisibilityChange(() => this.positionQuickOpenWidget()));
 		this.toUnbind.push(browser.onDidChangeZoomLevel(() => this.positionQuickOpenWidget()));
 	}

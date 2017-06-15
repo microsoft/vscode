@@ -116,7 +116,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	}
 
 	private registerListeners(): void {
-		this.configurationService.onDidUpdateConfiguration(e => this.updateHandlers(e.config));
+		this.configurationService.onDidUpdateConfiguration(e => this.updateHandlers(this.configurationService.getConfiguration<IWorkbenchSearchConfiguration>()));
 	}
 
 	private updateHandlers(configuration: IWorkbenchSearchConfiguration): void {

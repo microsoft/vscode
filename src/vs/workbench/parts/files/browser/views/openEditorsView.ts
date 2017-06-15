@@ -186,7 +186,7 @@ export class OpenEditorsView extends CollapsibleView {
 		this.toDispose.push(this.model.onModelChanged(e => this.onEditorStacksModelChanged(e)));
 
 		// Also handle configuration updates
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>())));
 
 		// Handle dirty counter
 		this.toDispose.push(this.untitledEditorService.onDidChangeDirty(e => this.updateDirtyIndicator()));

@@ -62,7 +62,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		this.lifecycleService.onShutdown(this.dispose, this);
 
 		// Configuration
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>())));
 	}
 
 	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {

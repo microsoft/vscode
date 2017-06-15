@@ -173,7 +173,7 @@ export class ExplorerView extends CollapsibleView {
 			this.toDispose.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 
 			// Also handle configuration updates
-			this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config, true)));
+			this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>(), true)));
 		});
 	}
 

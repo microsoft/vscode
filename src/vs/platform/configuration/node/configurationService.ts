@@ -49,7 +49,6 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 		const cache = this.getConfiguration2();
 
 		this._onDidUpdateConfiguration.fire({
-			config: this.getConfiguration(),
 			source,
 			sourceConfig: source === ConfigurationSource.Default ? cache.defaults.contents : cache.user.contents
 		});

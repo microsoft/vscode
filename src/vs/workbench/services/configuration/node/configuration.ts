@@ -225,7 +225,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		return this.baseConfigurationService.reloadConfiguration()
 			.then(() => this.initialize()) // Reinitialize to ensure we are hitting the disk
 			.then(() => !this._configuration.equals(current)) // Check if the configuration is changed
-			.then(changed => changed ? this.trigger() : void 0) // Trigger event if changed
+			.then(changed => changed ? this.trigger(ConfigurationSource.Workspace, ) : void 0) // Trigger event if changed
 			.then(() => this.getConfiguration(section));
 	}
 
@@ -237,7 +237,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 						.filter(folderConfiguration => !!folderConfiguration.configuration) // Filter folders which are not impacted by events
 						.map(folderConfiguration => this._configuration.updateFolderConfiguration(folderConfiguration.folder, folderConfiguration.configuration)) // Update the configuration of impacted folders
 						.reduce((result, value) => result || value, false)) // Check if the effective configuration of folder is changed
-				.then(changed => changed ? this.trigger() : void 0); // Trigger event if changed
+				.then(changed => changed ? this.trigger(ConfigurationSource.Workspace) : void 0); // Trigger event if changed
 		}
 	}
 
@@ -269,7 +269,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 			this.initCachesForFolders(toInitialize);
 			this.doInitialize(toInitialize)
 				.then(changed => configurationChanged || changed)
-				.then(changed => changed ? this.trigger() : void 0);
+				.then(changed => changed ? this.trigger(ConfigurationSource.Workspace) : void 0);
 		}
 	}
 
@@ -299,16 +299,12 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		}
 
 		if (this._configuration.updateBaseConfiguration(this.baseConfigurationService.getConfiguration2())) {
-			this.trigger(event);
+			this.trigger(event.source, event.sourceConfig);
 		}
 	}
 
-	private trigger(baseEvent?: IConfigurationServiceEvent): void {
-		this._onDidUpdateConfiguration.fire({
-			config: this.getConfiguration(),
-			source: baseEvent ? baseEvent.source : ConfigurationSource.Workspace,
-			sourceConfig: baseEvent ? baseEvent.sourceConfig : this._configuration.getFolderConfigurationModel(this.workspace.roots[0]).contents
-		});
+	private trigger(source: ConfigurationSource, sourceConfig: any = this._configuration.getFolderConfigurationModel(this.workspace.roots[0]).contents): void {
+		this._onDidUpdateConfiguration.fire({ source, sourceConfig });
 	}
 
 	private toOptions(arg: any): IConfigurationOptions {

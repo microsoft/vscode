@@ -64,16 +64,10 @@ export enum ConfigurationSource {
 
 export interface IConfigurationServiceEvent {
 	/**
-	 * TODO: Remove this
-	 * The full configuration.
-	 */
-	config: any;
-	/**
 	 * The type of source that triggered this event.
 	 */
 	source: ConfigurationSource;
 	/**
-	 * TODO: Remove this
 	 * The part of the configuration contributed by the source of this event.
 	 */
 	sourceConfig: any;
