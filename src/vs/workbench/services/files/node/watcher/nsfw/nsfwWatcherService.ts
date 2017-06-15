@@ -28,7 +28,16 @@ export class NsfwWatcherService implements IWatcherService {
 					events.forEach(e => console.log(e));
 					console.log('raw events end');
 				}
-				const convertedEvents = events.map(e => this._mapNsfwEventToRawFileChange(e)).filter(e => !!e);
+				const convertedEvents: watcher.IRawFileChange[] = [];
+				events.forEach(e => {
+					const c = this._mapNsfwEventToRawFileChanges(e);
+					if (c && c.length) {
+						c.forEach(c1 => convertedEvents.push(c1));
+					}
+				});
+				if (request.verboseLogging) {
+					console.log('converted events', convertedEvents);
+				}
 				// TODO: Utilize fileEventDelayer and watcher.normalize
 				p(convertedEvents);
 			}).then(watcher => {
@@ -37,18 +46,29 @@ export class NsfwWatcherService implements IWatcherService {
 		});
 	}
 
-	private _mapNsfwEventToRawFileChange(nsfwEvent: any): watcher.IRawFileChange {
+	private _mapNsfwEventToRawFileChanges(nsfwEvent: any): watcher.IRawFileChange[] {
 		// TODO: Handle other event types (directory change?)
-		if (!nsfwEvent.directory || !nsfwEvent.file) {
-			return null;
+
+
+		// Convert a rename event to a delete and a create
+		if (nsfwEvent.action === 3) {
+			console.log('rename', nsfwEvent);
+			return [
+				{ type: 2, path: path.join(nsfwEvent.directory, nsfwEvent.oldFile) }, // Delete
+				{ type: 1, path: path.join(nsfwEvent.directory, nsfwEvent.newFile) } // Create
+			];
 		}
+
+		if (!nsfwEvent.directory || !nsfwEvent.file) {
+			throw new Error('unhandled case');
+			// return null;
+		}
+		const p = path.join(nsfwEvent.directory, nsfwEvent.file);
+
 		const event: watcher.IRawFileChange = {
 			type: nsfwEventActionToRawChangeType[nsfwEvent.action],
-			path: path.join(nsfwEvent.directory, nsfwEvent.file)
+			path: p
 		};
-		if (!event.type) {
-			return null;
-		}
-		return event;
+		return [event];
 	}
 }
