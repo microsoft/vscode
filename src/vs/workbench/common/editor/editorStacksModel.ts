@@ -110,7 +110,7 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>())));
 	}
 
 	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration): void {

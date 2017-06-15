@@ -12,10 +12,6 @@ if (window.location.search.indexOf('prof-startup') >= 0) {
 	profiler.startProfiling('renderer', true);
 }
 
-if (process.env.SMOKE_TEST) {
-	window.electronRequire = require; // if smoke test, expose require to Spectron to access the core Electron APIs
-}
-
 /*global window,document,define*/
 
 const startTimer = require('../../../base/node/startupTimers').startTimer;

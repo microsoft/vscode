@@ -5,6 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
+import Event, { Emitter } from 'vs/base/common/event';
 import { normalize } from 'vs/base/common/paths';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { relative } from 'path';
@@ -19,8 +20,11 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 
 	private static _requestIdPool = 0;
 
+	private readonly _onDidChangeWorkspace = new Emitter<this>();
 	private readonly _proxy: MainThreadWorkspaceShape;
 	private _workspace: IWorkspaceData;
+
+	readonly onDidChangeWorkspace: Event<this> = this._onDidChangeWorkspace.event;
 
 	constructor(threadService: IThreadService, workspace: IWorkspaceData) {
 		super();
@@ -31,7 +35,9 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 	// --- workspace ---
 
 	getPath(): string {
-		// TODO@Joh handle roots.length > 1 case
+		// this is legacy from the days before having
+		// multi-root and we keep it only alive if there
+		// is just one workspace folder.
 		return this._workspace ? this._workspace.roots[0].fsPath : undefined;
 	}
 
@@ -64,8 +70,8 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 	}
 
 	$acceptWorkspaceData(workspace: IWorkspaceData): void {
-		//TODO@joh equality-check, emit event etc.
 		this._workspace = workspace;
+		this._onDidChangeWorkspace.fire(this);
 	}
 
 	// --- search ---

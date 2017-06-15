@@ -122,7 +122,7 @@ class FileEditorInputFactory implements IEditorInputFactory {
 	}
 
 	private registerListeners(): void {
-		this.configurationService.onDidUpdateConfiguration(e => this.onConfiguration(e.config));
+		this.configurationService.onDidUpdateConfiguration(e => this.onConfiguration(this.configurationService.getConfiguration<IFilesConfiguration>()));
 	}
 
 	private onConfiguration(config: IFilesConfiguration): void {

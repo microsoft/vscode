@@ -302,7 +302,7 @@ export class ElectronWindow extends Themable {
 		// Configuration changes
 		let previousConfiguredZoomLevel: number;
 		this.configurationService.onDidUpdateConfiguration(e => {
-			const windowConfig: IWindowConfiguration = e.config;
+			const windowConfig: IWindowConfiguration = this.configurationService.getConfiguration<IWindowConfiguration>();
 
 			let newZoomLevel = 0;
 			if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {

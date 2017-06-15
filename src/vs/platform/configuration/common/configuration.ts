@@ -25,6 +25,8 @@ export type IConfigurationValues = { [key: string]: IConfigurationValue<any> };
 export interface IConfigurationService {
 	_serviceBrand: any;
 
+	getConfigurationData<T>(): IConfigurationData<T>;
+
 	/**
 	 * Fetches the appropriate section of the configuration JSON file.
 	 * This will be an object keyed off the section name.
@@ -54,6 +56,11 @@ export interface IConfigurationService {
 	 * Event that fires when the configuration changes.
 	 */
 	onDidUpdateConfiguration: Event<IConfigurationServiceEvent>;
+
+	/**
+	 * Returns the defined values of configurations in the different scopes.
+	 */
+	values(): IConfigurationValues;
 }
 
 export enum ConfigurationSource {
@@ -64,16 +71,10 @@ export enum ConfigurationSource {
 
 export interface IConfigurationServiceEvent {
 	/**
-	 * TODO: Remove this
-	 * The full configuration.
-	 */
-	config: any;
-	/**
 	 * The type of source that triggered this event.
 	 */
 	source: ConfigurationSource;
 	/**
-	 * TODO: Remove this
 	 * The part of the configuration contributed by the source of this event.
 	 */
 	sourceConfig: any;
@@ -127,12 +128,17 @@ export function merge(base: any, add: any, overwrite: boolean): void {
 	});
 }
 
+export interface IConfiguraionModel<T> {
+	contents: T;
+	overrides: IOverrides<T>[];
+}
+
 export interface IOverrides<T> {
 	contents: T;
 	identifiers: string[];
 }
 
-export class ConfigurationModel<T> {
+export class ConfigurationModel<T> implements IConfiguraionModel<T> {
 
 	protected _keys: string[] = [];
 
@@ -141,6 +147,10 @@ export class ConfigurationModel<T> {
 
 	public get contents(): T {
 		return this._contents;
+	}
+
+	public get overrides(): IOverrides<T>[] {
+		return this._overrides;
 	}
 
 	public get keys(): string[] {
@@ -185,6 +195,13 @@ export class ConfigurationModel<T> {
 		}
 		source._overrides = overrides;
 	}
+}
+
+export interface IConfigurationData<T> {
+	defaults: IConfiguraionModel<T>;
+	user: IConfiguraionModel<T>;
+	folders: { [folder: string]: IConfiguraionModel<T> };
+	workspaceUri: string;
 }
 
 export class Configuration<T> {
@@ -284,5 +301,39 @@ export class Configuration<T> {
 	private getConfigurationModel<C>(options: IConfigurationOptions): ConfigurationModel<any> {
 		let configurationModel = (options.resource ? this._foldersConsolidated.get(options.resource) : this._workspace) || new ConfigurationModel();
 		return options.overrideIdentifier ? configurationModel.override<T>(options.overrideIdentifier) : configurationModel;
+	}
+
+	public toData(): IConfigurationData<any> {
+		return {
+			defaults: {
+				contents: this._defaults.contents,
+				overrides: this._defaults.overrides
+			},
+			user: {
+				contents: this._user.contents,
+				overrides: this._user.overrides
+			},
+			folders: this.folders.keys().reduce((result, folder) => {
+				const { contents, overrides } = this.folders.get(folder);
+				result[folder.toString()] = { contents, overrides };
+				return result;
+			}, Object.create({})),
+			workspaceUri: this.workspaceUri ? this.workspaceUri.toString() : void 0
+		};
+	}
+
+	public static parse(data: IConfigurationData<any>): Configuration<any> {
+		const defaults = Configuration.parseConfigurationModel(data.defaults);
+		const user = Configuration.parseConfigurationModel(data.user);
+		const folders: StrictResourceMap<ConfigurationModel<any>> = Object.keys(data.folders).reduce((result, key) => {
+			result.set(URI.parse(key), Configuration.parseConfigurationModel(data.folders[key]));
+			return result;
+		}, new StrictResourceMap<ConfigurationModel<any>>());
+		const workspaceUri = data.workspaceUri ? URI.parse(data.workspaceUri) : void 0;
+		return new Configuration<any>(defaults, user, folders, workspaceUri);
+	}
+
+	private static parseConfigurationModel(model: IConfiguraionModel<any>): ConfigurationModel<any> {
+		return new ConfigurationModel(model.contents, model.overrides);
 	}
 }

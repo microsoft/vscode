@@ -24,8 +24,8 @@ import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { CustomConfigurationModel } from 'vs/platform/configuration/common/model';
 import { ScopedConfigurationModel, FolderConfigurationModel, FolderSettingsModel } from 'vs/workbench/services/configuration/common/configurationModels';
-import { IConfigurationServiceEvent, ConfigurationSource, IConfigurationKeys, IConfigurationValue, ConfigurationModel, IConfigurationOptions, Configuration as BaseConfiguration } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceConfigurationService, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME, WORKSPACE_STANDALONE_CONFIGURATIONS, WORKSPACE_CONFIG_DEFAULT_PATH, IWorkspaceConfigurationValues } from 'vs/workbench/services/configuration/common/configuration';
+import { IConfigurationServiceEvent, ConfigurationSource, IConfigurationKeys, IConfigurationValue, ConfigurationModel, IConfigurationOptions, Configuration as BaseConfiguration, IConfigurationValues, IConfigurationData } from 'vs/platform/configuration/common/configuration';
+import { IWorkspaceConfigurationService, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME, WORKSPACE_STANDALONE_CONFIGURATIONS, WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
 import { ConfigurationService as GlobalConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { createHash } from "crypto";
 import { basename } from "path";
@@ -193,6 +193,10 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		return this.workspace ? this.legacyWorkspace.toResource(workspaceRelativePath) : null;
 	}
 
+	public getConfigurationData<T>(): IConfigurationData<T> {
+		return this._configuration.toData();
+	}
+
 	public get configuration(): BaseConfiguration<any> {
 		return this._configuration;
 	}
@@ -211,7 +215,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		return this._configuration.keys();
 	}
 
-	public values<V>(): IWorkspaceConfigurationValues {
+	public values<V>(): IConfigurationValues {
 		return this._configuration.values();
 	}
 
@@ -225,7 +229,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		return this.baseConfigurationService.reloadConfiguration()
 			.then(() => this.initialize()) // Reinitialize to ensure we are hitting the disk
 			.then(() => !this._configuration.equals(current)) // Check if the configuration is changed
-			.then(changed => changed ? this.trigger() : void 0) // Trigger event if changed
+			.then(changed => changed ? this.trigger(ConfigurationSource.Workspace, ) : void 0) // Trigger event if changed
 			.then(() => this.getConfiguration(section));
 	}
 
@@ -237,7 +241,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 						.filter(folderConfiguration => !!folderConfiguration.configuration) // Filter folders which are not impacted by events
 						.map(folderConfiguration => this._configuration.updateFolderConfiguration(folderConfiguration.folder, folderConfiguration.configuration)) // Update the configuration of impacted folders
 						.reduce((result, value) => result || value, false)) // Check if the effective configuration of folder is changed
-				.then(changed => changed ? this.trigger() : void 0); // Trigger event if changed
+				.then(changed => changed ? this.trigger(ConfigurationSource.Workspace) : void 0); // Trigger event if changed
 		}
 	}
 
@@ -269,13 +273,13 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 			this.initCachesForFolders(toInitialize);
 			this.doInitialize(toInitialize)
 				.then(changed => configurationChanged || changed)
-				.then(changed => changed ? this.trigger() : void 0);
+				.then(changed => changed ? this.trigger(ConfigurationSource.Workspace) : void 0);
 		}
 	}
 
 	private initCaches(): void {
 		this.cachedFolderConfigs = new StrictResourceMap<FolderConfiguration<any>>();
-		this._configuration = new Configuration(this.baseConfigurationService.getConfiguration2(), new StrictResourceMap<FolderConfigurationModel<any>>(), this.workspaceUri);
+		this._configuration = new Configuration(<any>this.baseConfigurationService.configuration(), new StrictResourceMap<FolderConfigurationModel<any>>(), this.workspaceUri);
 		this.initCachesForFolders(this.workspace ? this.workspace.roots : []);
 	}
 
@@ -298,17 +302,13 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 			}
 		}
 
-		if (this._configuration.updateBaseConfiguration(this.baseConfigurationService.getConfiguration2())) {
-			this.trigger(event);
+		if (this._configuration.updateBaseConfiguration(<any>this.baseConfigurationService.configuration())) {
+			this.trigger(event.source, event.sourceConfig);
 		}
 	}
 
-	private trigger(baseEvent?: IConfigurationServiceEvent): void {
-		this._onDidUpdateConfiguration.fire({
-			config: this.getConfiguration(),
-			source: baseEvent ? baseEvent.source : ConfigurationSource.Workspace,
-			sourceConfig: baseEvent ? baseEvent.sourceConfig : this._configuration.getFolderConfigurationModel(this.workspace.roots[0]).contents
-		});
+	private trigger(source: ConfigurationSource, sourceConfig: any = this._configuration.getFolderConfigurationModel(this.workspace.roots[0]).contents): void {
+		this._onDidUpdateConfiguration.fire({ source, sourceConfig });
 	}
 
 	private toOptions(arg: any): IConfigurationOptions {
@@ -367,11 +367,11 @@ class FolderConfiguration<T> extends Disposable {
 						return false; // only JSON files
 					}
 
-					return this.isWorkspaceConfigurationFile(this.toWorkspaceRelativePath(stat.resource)); // only workspace config files
+					return this.isWorkspaceConfigurationFile(this.toFolderRelativePath(stat.resource)); // only workspace config files
 				}).map(stat => stat.resource));
 			}, err => [] /* never fail this call */)
 				.then((contents: IContent[]) => {
-					contents.forEach(content => this.workspaceFilePathToConfiguration[this.toWorkspaceRelativePath(content.resource)] = TPromise.as(this.createConfigModel(content)));
+					contents.forEach(content => this.workspaceFilePathToConfiguration[this.toFolderRelativePath(content.resource)] = TPromise.as(this.createConfigModel(content)));
 				}, errors.onUnexpectedError);
 		}
 
@@ -397,7 +397,7 @@ class FolderConfiguration<T> extends Disposable {
 				continue; // only JSON files or the actual settings folder
 			}
 
-			const workspacePath = this.toWorkspaceRelativePath(resource);
+			const workspacePath = this.toFolderRelativePath(resource);
 			if (!workspacePath) {
 				continue; // event is not inside workspace
 			}
@@ -443,7 +443,7 @@ class FolderConfiguration<T> extends Disposable {
 	}
 
 	private createConfigModel<T>(content: IContent): ConfigurationModel<T> {
-		const path = this.toWorkspaceRelativePath(content.resource);
+		const path = this.toFolderRelativePath(content.resource);
 		if (path === WORKSPACE_CONFIG_DEFAULT_PATH) {
 			return new FolderSettingsModel<T>(content.value, content.resource.toString());
 		} else {
@@ -456,19 +456,19 @@ class FolderConfiguration<T> extends Disposable {
 		return new CustomConfigurationModel<T>(null);
 	}
 
-	private isWorkspaceConfigurationFile(workspaceRelativePath: string): boolean {
-		return [WORKSPACE_CONFIG_DEFAULT_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS.launch, WORKSPACE_STANDALONE_CONFIGURATIONS.tasks].some(p => p === workspaceRelativePath);
+	private isWorkspaceConfigurationFile(folderRelativePath: string): boolean {
+		return [WORKSPACE_CONFIG_DEFAULT_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS.launch, WORKSPACE_STANDALONE_CONFIGURATIONS.tasks].some(p => p === folderRelativePath);
 	}
 
-	private toResource(workspaceRelativePath: string): URI {
-		if (typeof workspaceRelativePath === 'string') {
-			return URI.file(paths.join(this.folder.fsPath, workspaceRelativePath));
+	private toResource(folderRelativePath: string): URI {
+		if (typeof folderRelativePath === 'string') {
+			return URI.file(paths.join(this.folder.fsPath, folderRelativePath));
 		}
 
 		return null;
 	}
 
-	private toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
+	private toFolderRelativePath(resource: URI, toOSPath?: boolean): string {
 		if (this.contains(resource)) {
 			return paths.normalize(paths.relative(this.folder.fsPath, resource.fsPath), toOSPath);
 		}
@@ -523,11 +523,11 @@ function resolveStat(resource: URI): TPromise<IStat> {
 
 class Configuration<T> extends BaseConfiguration<T> {
 
-	constructor(private _baseConfiguration: BaseConfiguration<T>, protected folders: StrictResourceMap<FolderConfigurationModel<T>>, workspaceUri: URI) {
+	constructor(private _baseConfiguration: Configuration<T>, protected folders: StrictResourceMap<FolderConfigurationModel<T>>, workspaceUri: URI) {
 		super(_baseConfiguration.defaults, _baseConfiguration.user, folders, workspaceUri);
 	}
 
-	updateBaseConfiguration(baseConfiguration: BaseConfiguration<T>): boolean {
+	updateBaseConfiguration(baseConfiguration: Configuration<T>): boolean {
 		const current = new Configuration(this._baseConfiguration, this.folders, this.workspaceUri);
 
 		this._defaults = baseConfiguration.defaults;

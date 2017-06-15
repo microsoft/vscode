@@ -8,7 +8,7 @@ import { Schemas } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue, IConfigurationKeys } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue, IConfigurationKeys, IConfigurationValues, Configuration, IConfigurationData, ConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { ICommandService, ICommand, ICommandEvent, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
@@ -442,6 +442,10 @@ export class SimpleConfigurationService implements IConfigurationService {
 		return this._config;
 	}
 
+	public getConfigurationData(): IConfigurationData<any> {
+		return new Configuration(new ConfigurationModel(this._config), new ConfigurationModel()).toData();
+	}
+
 	public reloadConfiguration<T>(section?: string): TPromise<T> {
 		return TPromise.as<T>(this.getConfiguration<T>(section));
 	}
@@ -457,6 +461,10 @@ export class SimpleConfigurationService implements IConfigurationService {
 
 	public keys(): IConfigurationKeys {
 		return { default: [], user: [], workspace: [] };
+	}
+
+	public values(): IConfigurationValues {
+		return {};
 	}
 }
 

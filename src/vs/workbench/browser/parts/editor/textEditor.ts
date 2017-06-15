@@ -66,7 +66,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 	) {
 		super(id, telemetryService, themeService);
 
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.handleConfigurationChangeEvent(e.config)));
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.handleConfigurationChangeEvent(this.configurationService.getConfiguration<IEditorConfiguration>())));
 	}
 
 	protected get instantiationService(): IInstantiationService {

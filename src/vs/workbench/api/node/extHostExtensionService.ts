@@ -128,7 +128,6 @@ class ExtensionStoragePath {
 		if (!this._workspace) {
 			return TPromise.as(undefined);
 		}
-		// TODO@joh what to do with multiple roots?
 		const storageName = this._workspace.id;
 		const storagePath = join(this._environment.appSettingsHome, 'workspaceStorage', storageName);
 

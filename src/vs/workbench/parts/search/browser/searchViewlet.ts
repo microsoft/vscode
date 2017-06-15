@@ -139,7 +139,7 @@ export class SearchViewlet extends Viewlet {
 
 		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
 		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration())));
 
 		this.selectCurrentMatchEmitter = new Emitter<string>();
 		debounceEvent(this.selectCurrentMatchEmitter.event, (l, e) => e, 100, /*leading=*/true)
