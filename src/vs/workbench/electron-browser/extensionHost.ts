@@ -28,7 +28,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { generateRandomPipeName, Protocol } from 'vs/base/parts/ipc/node/ipc.net';
 import { createServer, Server } from 'net';
-import Event, { Emitter } from 'vs/base/common/event';
+import Event, { Emitter, debounceEvent, mapEvent, any } from 'vs/base/common/event';
+import { fromEventEmitter } from 'vs/base/node/event';
 import { IInitData, IWorkspaceData } from 'vs/workbench/api/node/extHost.protocol';
 import { MainProcessExtensionService } from 'vs/workbench/api/electron-browser/mainThreadExtensionService';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
@@ -130,7 +131,8 @@ export class ExtensionHostProcessWorker {
 				detached: !!isWindows,
 				execArgv: port
 					? ['--nolazy', (this.isExtensionDevelopmentDebugBrk ? '--debug-brk=' : '--debug=') + port]
-					: undefined
+					: undefined,
+				silent: true
 			};
 
 			const crashReporterOptions = this.crashReporterService.getChildProcessStartOptions('extensionHost');
@@ -140,6 +142,29 @@ export class ExtensionHostProcessWorker {
 
 			// Run Extension Host as fork of current process
 			this.extensionHostProcess = fork(URI.parse(require.toUrl('bootstrap')).fsPath, ['--type=extensionHost'], opts);
+
+			type Output = { data: string, format: string[] };
+
+			this.extensionHostProcess.stdout.setEncoding('utf8');
+			this.extensionHostProcess.stderr.setEncoding('utf8');
+			const onStdout = fromEventEmitter<string>(this.extensionHostProcess.stdout, 'data');
+			const onStderr = fromEventEmitter<string>(this.extensionHostProcess.stderr, 'data');
+			const onOutput = any(
+				mapEvent(onStdout, o => ({ data: `%c${o}`, format: [''] })),
+				mapEvent(onStderr, o => ({ data: `%c${o}`, format: ['color: red'] }))
+			);
+
+			const onDebouncedOutput = debounceEvent<Output>(onOutput, (r, o) => {
+				return r
+					? { data: r.data + o.data, format: [...r.format, ...o.format] }
+					: { data: o.data, format: o.format };
+			}, 300);
+
+			onDebouncedOutput(data => {
+				console.group('Extension Host');
+				console.log(data.data, ...data.format);
+				console.groupEnd();
+			});
 
 			// Support logging from extension host
 			this.extensionHostProcess.on('message', msg => {
