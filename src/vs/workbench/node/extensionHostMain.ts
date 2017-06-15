@@ -104,7 +104,6 @@ export class ExtensionHostMain {
 			return TPromise.as(null);
 		}
 
-
 		const desiredFilesMap: {
 			[filename: string]: boolean;
 		} = {};

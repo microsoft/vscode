@@ -60,7 +60,6 @@ export interface IWorkspaceContextService {
 	 * Given a workspace relative path, returns the resource with the absolute path.
 	 */
 	toResource: (workspaceRelativePath: string) => URI;
-
 }
 
 export interface IWorkspace {
@@ -70,6 +69,11 @@ export interface IWorkspace {
 	 * of the workspace on disk.
 	 */
 	resource: URI;
+
+	/**
+	 * the creation date of the workspace if known.
+	 */
+	ctime: number;
 
 	/**
 	 * the name of the workspace
@@ -93,12 +97,13 @@ export interface IWorkspace2 {
 	 * Mutliple roots in this workspace. First entry is master and never changes.
 	 */
 	readonly roots: URI[];
-
 }
 
 export class Workspace implements IWorkspace {
+	private _name: string;
 
-	constructor(private _resource: URI, private _name?: string) {
+	constructor(private _resource: URI, private _ctime?: number) {
+		this._name = paths.basename(this._resource.fsPath) || this._resource.fsPath;
 	}
 
 	public get resource(): URI {
@@ -107,6 +112,10 @@ export class Workspace implements IWorkspace {
 
 	public get name(): string {
 		return this._name;
+	}
+
+	public get ctime(): number {
+		return this._ctime;
 	}
 
 	public isInsideWorkspace(resource: URI): boolean {
@@ -131,9 +140,5 @@ export class Workspace implements IWorkspace {
 		}
 
 		return null;
-	}
-
-	public toJSON() {
-		return { resource: this._resource, name: this._name };
 	}
 }

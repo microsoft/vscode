@@ -69,7 +69,7 @@ class Workspace implements IWorkspace2 {
 
 	public get name(): string {
 		if (!this._name) {
-			this._name = this.roots.map(root => basename(root.fsPath)).join(', ');
+			this._name = this.roots.map(root => basename(root.fsPath) || root.fsPath).join(', ');
 		}
 
 		return this._name;
@@ -101,7 +101,13 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	constructor(private environmentService: IEnvironmentService, private singleRootWorkspace?: SingleRootWorkspace, private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME) {
 		super();
 
-		this.workspace = singleRootWorkspace ? new Workspace(createHash('md5').update(singleRootWorkspace.resource.toString()).digest('hex'), [singleRootWorkspace.resource]) : null; // TODO@Ben for now use the first root folder as id, but revisit this later
+		if (singleRootWorkspace) {
+			const workspaceId = createHash('md5').update(singleRootWorkspace.resource.fsPath).update(singleRootWorkspace.ctime ? String(singleRootWorkspace.ctime) : '').digest('hex');
+			this.workspace = new Workspace(workspaceId, [singleRootWorkspace.resource]);
+		} else {
+			this.workspace = null;
+		}
+
 		this.rootsTrieMap = new TrieMap<URI>(TrieMap.PathSplitter);
 		if (this.workspace) {
 			this.rootsTrieMap.insert(this.workspace.roots[0].fsPath, this.workspace.roots[0]);
