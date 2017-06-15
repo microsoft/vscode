@@ -17,12 +17,11 @@ export class OverviewRulerImpl {
 	private _domNode: FastDomNode<HTMLCanvasElement>;
 	private _lanesCount: number;
 	private _zoneManager: OverviewZoneManager;
-	private _canUseTranslate3d: boolean;
 	private _background: Color;
 
 	constructor(
 		canvasLeftOffset: number, cssClassName: string, scrollHeight: number, lineHeight: number,
-		canUseTranslate3d: boolean, pixelRatio: number, minimumHeight: number, maximumHeight: number,
+		pixelRatio: number, minimumHeight: number, maximumHeight: number,
 		getVerticalOffsetForLine: (lineNumber: number) => number
 	) {
 		this._canvasLeftOffset = canvasLeftOffset;
@@ -31,10 +30,10 @@ export class OverviewRulerImpl {
 
 		this._domNode.setClassName(cssClassName);
 		this._domNode.setPosition('absolute');
+		this._domNode.setLayerHinting(true);
 
 		this._lanesCount = 3;
 
-		this._canUseTranslate3d = canUseTranslate3d;
 		this._background = null;
 
 		this._zoneManager = new OverviewZoneManager(getVerticalOffsetForLine);
@@ -127,13 +126,6 @@ export class OverviewRulerImpl {
 		}
 	}
 
-	public setCanUseTranslate3d(canUseTranslate3d: boolean, render: boolean): void {
-		this._canUseTranslate3d = canUseTranslate3d;
-		if (render) {
-			this.render(true);
-		}
-	}
-
 	public setPixelRatio(pixelRatio: number, render: boolean): void {
 		this._zoneManager.setPixelRatio(pixelRatio);
 		this._domNode.setWidth(this._zoneManager.getDOMWidth());
@@ -155,11 +147,6 @@ export class OverviewRulerImpl {
 	public render(forceRender: boolean): boolean {
 		if (this._zoneManager.getOuterHeight() === 0) {
 			return false;
-		}
-		if (this._canUseTranslate3d) {
-			this._domNode.setTransform('translate3d(0px, 0px, 0px)');
-		} else {
-			this._domNode.setTransform('');
 		}
 
 		const width = this._zoneManager.getCanvasWidth();

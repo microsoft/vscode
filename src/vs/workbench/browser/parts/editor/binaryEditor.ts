@@ -59,7 +59,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		this.binaryContainer.tabindex(0); // enable focus support from the editor part (do not remove)
 
 		// Custom Scrollbars
-		this.scrollbar = new DomScrollableElement(binaryContainerElement, { canUseTranslate3d: false, horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Auto });
+		this.scrollbar = new DomScrollableElement(binaryContainerElement, { horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Auto });
 		parent.getHTMLElement().appendChild(this.scrollbar.getDomNode());
 	}
 

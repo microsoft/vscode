@@ -152,7 +152,6 @@ export class TabsTitleControl extends TitleControl {
 			vertical: ScrollbarVisibility.Hidden,
 			scrollYToX: true,
 			useShadows: false,
-			canUseTranslate3d: false,
 			horizontalScrollbarSize: 3
 		});
 

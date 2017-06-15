@@ -1037,6 +1037,14 @@ export enum TaskRevealKind {
 	Never = 3
 }
 
+export enum TaskInstanceKind {
+	Shared = 1,
+
+	Same = 2,
+
+	New = 3
+}
+
 export class BaseTask {
 
 	private _name: string;

@@ -246,10 +246,11 @@ export interface IEditorOptions {
 	 */
 	fontLigatures?: boolean;
 	/**
-	 * Disable the use of `translate3d`.
+	 * Disable the use of `will-change` for the editor margin and lines layers.
+	 * The usage of `will-change` acts as a hint for browsers to create an extra layer.
 	 * Defaults to false.
 	 */
-	disableTranslate3d?: boolean;
+	disableLayerHinting?: boolean;
 	/**
 	 * Disable the optimizations for monospace fonts.
 	 * Defaults to false.
@@ -326,6 +327,11 @@ export interface IEditorOptions {
 	 * Defaults to true.
 	 */
 	hover?: boolean;
+	/**
+	 * Enable detecting links and making them clickable.
+	 * Defaults to true.
+	 */
+	links?: boolean;
 	/**
 	 * Enable custom contextmenu.
 	 * Defaults to true.
@@ -751,6 +757,7 @@ export interface InternalEditorViewOptions {
 export interface EditorContribOptions {
 	readonly selectionClipboard: boolean;
 	readonly hover: boolean;
+	readonly links: boolean;
 	readonly contextmenu: boolean;
 	readonly quickSuggestions: boolean | { other: boolean, comments: boolean, strings: boolean };
 	readonly quickSuggestionsDelay: number;
@@ -786,7 +793,7 @@ export interface IValidatedEditorOptions {
 	readonly lineDecorationsWidth: number | string;
 	readonly readOnly: boolean;
 	readonly mouseStyle: 'text' | 'default' | 'copy';
-	readonly disableTranslate3d: boolean;
+	readonly disableLayerHinting: boolean;
 	readonly automaticLayout: boolean;
 	readonly wordWrap: 'off' | 'on' | 'wordWrapColumn' | 'bounded';
 	readonly wordWrapColumn: number;
@@ -812,7 +819,7 @@ export interface IValidatedEditorOptions {
 export class InternalEditorOptions {
 	readonly _internalEditorOptionsBrand: void;
 
-	readonly canUseTranslate3d: boolean;
+	readonly canUseLayerHinting: boolean;
 	readonly pixelRatio: number;
 	readonly editorClassName: string;
 	readonly lineHeight: number;
@@ -842,7 +849,7 @@ export class InternalEditorOptions {
 	 * @internal
 	 */
 	constructor(source: {
-		canUseTranslate3d: boolean;
+		canUseLayerHinting: boolean;
 		pixelRatio: number;
 		editorClassName: string;
 		lineHeight: number;
@@ -861,7 +868,7 @@ export class InternalEditorOptions {
 		wrappingInfo: EditorWrappingInfo;
 		contribInfo: EditorContribOptions;
 	}) {
-		this.canUseTranslate3d = source.canUseTranslate3d;
+		this.canUseLayerHinting = source.canUseLayerHinting;
 		this.pixelRatio = source.pixelRatio;
 		this.editorClassName = source.editorClassName;
 		this.lineHeight = source.lineHeight | 0;
@@ -886,7 +893,7 @@ export class InternalEditorOptions {
 	 */
 	public equals(other: InternalEditorOptions): boolean {
 		return (
-			this.canUseTranslate3d === other.canUseTranslate3d
+			this.canUseLayerHinting === other.canUseLayerHinting
 			&& this.pixelRatio === other.pixelRatio
 			&& this.editorClassName === other.editorClassName
 			&& this.lineHeight === other.lineHeight
@@ -912,7 +919,7 @@ export class InternalEditorOptions {
 	 */
 	public createChangeEvent(newOpts: InternalEditorOptions): IConfigurationChangedEvent {
 		return {
-			canUseTranslate3d: (this.canUseTranslate3d !== newOpts.canUseTranslate3d),
+			canUseLayerHinting: (this.canUseLayerHinting !== newOpts.canUseLayerHinting),
 			pixelRatio: (this.pixelRatio !== newOpts.pixelRatio),
 			editorClassName: (this.editorClassName !== newOpts.editorClassName),
 			lineHeight: (this.lineHeight !== newOpts.lineHeight),
@@ -929,7 +936,7 @@ export class InternalEditorOptions {
 			fontInfo: (!this.fontInfo.equals(newOpts.fontInfo)),
 			viewInfo: (!InternalEditorOptions._equalsViewOptions(this.viewInfo, newOpts.viewInfo)),
 			wrappingInfo: (!InternalEditorOptions._equalsWrappingInfo(this.wrappingInfo, newOpts.wrappingInfo)),
-			contribInfo: (!InternalEditorOptions._equalsContribOptions(this.contribInfo, newOpts.contribInfo)),
+			contribInfo: (!InternalEditorOptions._equalsContribOptions(this.contribInfo, newOpts.contribInfo))
 		};
 	}
 
@@ -1087,6 +1094,7 @@ export class InternalEditorOptions {
 		return (
 			a.selectionClipboard === b.selectionClipboard
 			&& a.hover === b.hover
+			&& a.links === b.links
 			&& a.contextmenu === b.contextmenu
 			&& InternalEditorOptions._equalsQuickSuggestions(a.quickSuggestions, b.quickSuggestions)
 			&& a.quickSuggestionsDelay === b.quickSuggestionsDelay
@@ -1251,7 +1259,7 @@ export interface EditorLayoutInfo {
  * An event describing that the configuration of the editor has changed.
  */
 export interface IConfigurationChangedEvent {
-	readonly canUseTranslate3d: boolean;
+	readonly canUseLayerHinting: boolean;
 	readonly pixelRatio: boolean;
 	readonly editorClassName: boolean;
 	readonly lineHeight: boolean;
@@ -1281,7 +1289,6 @@ export interface IEnvironmentalOptions {
 	readonly extraEditorClassName: string;
 	readonly isDominatedByLongLines: boolean;
 	readonly lineNumbersDigitCount: number;
-	readonly canUseTranslate3d: boolean;
 	readonly emptySelectionClipboard: boolean;
 	readonly pixelRatio: number;
 	readonly tabFocusMode: boolean;
@@ -1428,7 +1435,7 @@ export class EditorOptionsValidator {
 			lineDecorationsWidth: (typeof opts.lineDecorationsWidth === 'undefined' ? defaults.lineDecorationsWidth : opts.lineDecorationsWidth),
 			readOnly: _boolean(opts.readOnly, defaults.readOnly),
 			mouseStyle: _stringSet<'text' | 'default' | 'copy'>(opts.mouseStyle, defaults.mouseStyle, ['text', 'default', 'copy']),
-			disableTranslate3d: _boolean(opts.disableTranslate3d, defaults.disableTranslate3d),
+			disableLayerHinting: _boolean(opts.disableLayerHinting, defaults.disableLayerHinting),
 			automaticLayout: _boolean(opts.automaticLayout, defaults.automaticLayout),
 			wordWrap: wordWrap,
 			wordWrapColumn: _clampedInt(opts.wordWrapColumn, defaults.wordWrapColumn, 1, Constants.MAX_SAFE_SMALL_INTEGER),
@@ -1612,6 +1619,7 @@ export class EditorOptionsValidator {
 		return {
 			selectionClipboard: _boolean(opts.selectionClipboard, defaults.selectionClipboard),
 			hover: _boolean(opts.hover, defaults.hover),
+			links: _boolean(opts.links, defaults.links),
 			contextmenu: _boolean(opts.contextmenu, defaults.contextmenu),
 			quickSuggestions: quickSuggestions,
 			quickSuggestionsDelay: _clampedInt(opts.quickSuggestionsDelay, defaults.quickSuggestionsDelay, Constants.MIN_SAFE_SMALL_INTEGER, Constants.MAX_SAFE_SMALL_INTEGER),
@@ -1652,7 +1660,7 @@ export class InternalEditorOptionsFactory {
 			lineDecorationsWidth: opts.lineDecorationsWidth,
 			readOnly: opts.readOnly,
 			mouseStyle: opts.mouseStyle,
-			disableTranslate3d: opts.disableTranslate3d,
+			disableLayerHinting: opts.disableLayerHinting,
 			automaticLayout: opts.automaticLayout,
 			wordWrap: opts.wordWrap,
 			wordWrapColumn: opts.wordWrapColumn,
@@ -1706,6 +1714,7 @@ export class InternalEditorOptionsFactory {
 			contribInfo: {
 				selectionClipboard: opts.contribInfo.selectionClipboard,
 				hover: opts.contribInfo.hover,
+				links: (accessibilityIsOn ? false : opts.contribInfo.links), // DISABLED WHEN SCREEN READER IS ATTACHED
 				contextmenu: opts.contribInfo.contextmenu,
 				quickSuggestions: opts.contribInfo.quickSuggestions,
 				quickSuggestionsDelay: opts.contribInfo.quickSuggestionsDelay,
@@ -1858,7 +1867,7 @@ export class InternalEditorOptionsFactory {
 		}
 
 		return new InternalEditorOptions({
-			canUseTranslate3d: opts.disableTranslate3d ? false : env.canUseTranslate3d,
+			canUseLayerHinting: opts.disableLayerHinting ? false : true,
 			pixelRatio: env.pixelRatio,
 			editorClassName: className,
 			lineHeight: env.fontInfo.lineHeight,
@@ -2070,7 +2079,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	lineDecorationsWidth: 10,
 	readOnly: false,
 	mouseStyle: 'text',
-	disableTranslate3d: false,
+	disableLayerHinting: false,
 	automaticLayout: false,
 	wordWrap: 'off',
 	wordWrapColumn: 80,
@@ -2137,6 +2146,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	contribInfo: {
 		selectionClipboard: true,
 		hover: true,
+		links: true,
 		contextmenu: true,
 		quickSuggestions: { other: true, comments: false, strings: false },
 		quickSuggestionsDelay: 10,

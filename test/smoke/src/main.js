@@ -71,7 +71,7 @@ function runTests() {
 	console.log('Running tests...')
 	const spawn = require('child_process').spawn;
 	var proc = spawn(process.execPath, [
-		'src/mocha-runner.js'
+		'out/mocha-runner.js'
 	]);
 	proc.stdout.on('data', data => {
 		console.log(data.toString());

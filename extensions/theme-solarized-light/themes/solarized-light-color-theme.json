@@ -462,21 +462,21 @@
 
 		// Workbench: Terminal
 		// Colors sourced from the official palette http://ethanschoonover.com/solarized
-		"terminal.ansiBlack": "#262626",
-		"terminal.ansiBlue": "#0087ff",
-		"terminal.ansiBrightBlack": "#1c1c1c",
-		"terminal.ansiBrightBlue": "#808080",
-		"terminal.ansiBrightCyan": "#808080",
-		"terminal.ansiBrightGreen": "#585858",
-		"terminal.ansiBrightMagenta": "#5f5faf",
-		"terminal.ansiBrightRed": "#d75f00",
-		"terminal.ansiBrightWhite": "#808080",
-		"terminal.ansiBrightYellow": "#626262",
-		"terminal.ansiCyan": "#00afaf",
-		"terminal.ansiGreen": "#5f8700",
-		"terminal.ansiMagenta": "#af005f",
-		"terminal.ansiRed": "#d70000",
-		"terminal.ansiWhite": "#808080",
-		"terminal.ansiYellow": "#af8700"
+		"terminal.ansiBlack": "#073642",
+		"terminal.ansiRed": "#dc322f",
+		"terminal.ansiGreen": "#859900",
+		"terminal.ansiYellow": "#b58900",
+		"terminal.ansiBlue": "#268bd2",
+		"terminal.ansiMagenta": "#d33682",
+		"terminal.ansiCyan": "#2aa198",
+		"terminal.ansiWhite": "#eee8d5",
+		"terminal.ansiBrightBlack": "#002b36",
+		"terminal.ansiBrightRed": "#cb4b16",
+		"terminal.ansiBrightGreen": "#586e75",
+		"terminal.ansiBrightYellow": "#657b83",
+		"terminal.ansiBrightBlue": "#839496",
+		"terminal.ansiBrightMagenta": "#6c71c4",
+		"terminal.ansiBrightCyan": "#93a1a1",
+		"terminal.ansiBrightWhite": "#fdf6e3"
 	}
 }

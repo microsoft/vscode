@@ -22,7 +22,6 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -31,7 +30,7 @@ import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { ITextSource } from 'vs/editor/common/model/textSource';
 
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IWorkspaceConfigurationValues } from 'vs/workbench/services/configuration/common/configuration';
+import { IConfigurationValues } from 'vs/platform/configuration/common/configuration';
 
 import { IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
@@ -57,12 +56,18 @@ export interface IEnvironment {
 	extensionTestsPath: string;
 }
 
+export interface IWorkspaceData {
+	id: string;
+	name: string;
+	roots: URI[];
+}
+
 export interface IInitData {
 	parentPid: number;
 	environment: IEnvironment;
-	workspace: IWorkspace;
+	workspace: IWorkspaceData;
 	extensions: IExtensionDescription[];
-	configuration: IWorkspaceConfigurationValues;
+	configuration: IConfigurationValues;
 	telemetryInfo: ITelemetryInfo;
 }
 
@@ -80,9 +85,9 @@ export class InstanceCollection {
 	public define<T>(id: ProxyIdentifier<T>): InstanceSetter<T> {
 		let that = this;
 		return new class {
-			set(value: T) {
+			set<R extends T>(value: T): R {
 				that._set(id, value);
-				return value;
+				return <R>value;
 			}
 		};
 	}
@@ -344,7 +349,7 @@ export abstract class ExtHostCommandsShape {
 }
 
 export abstract class ExtHostConfigurationShape {
-	$acceptConfigurationChanged(values: IWorkspaceConfigurationValues) { throw ni(); }
+	$acceptConfigurationChanged(values: IConfigurationValues) { throw ni(); }
 }
 
 export abstract class ExtHostDiagnosticsShape {
@@ -405,7 +410,7 @@ export abstract class ExtHostTreeViewsShape {
 }
 
 export abstract class ExtHostWorkspaceShape {
-	$acceptWorkspaceData(folders: URI[]): void { throw ni(); }
+	$acceptWorkspaceData(workspace: IWorkspaceData): void { throw ni(); }
 }
 
 export abstract class ExtHostExtensionServiceShape {

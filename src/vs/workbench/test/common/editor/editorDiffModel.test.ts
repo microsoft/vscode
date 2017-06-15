@@ -14,7 +14,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import URI from 'vs/base/common/uri';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import { TPromise } from "vs/base/common/winjs.base";
@@ -26,7 +26,7 @@ class MyTextEditorModel extends BaseTextEditorModel { }
 
 class ServiceAccessor {
 	constructor(
-		@ITextModelResolverService public textModelResolverService: ITextModelResolverService,
+		@ITextModelService public textModelResolverService: ITextModelService,
 		@IModelService public modelService: IModelService,
 		@IModeService public modeService: IModeService,
 		@ITextFileService public textFileService: TestTextFileService

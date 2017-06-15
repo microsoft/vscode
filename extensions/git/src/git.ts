@@ -21,10 +21,6 @@ export interface IGit {
 	version: string;
 }
 
-export interface PushOptions {
-	setUpstream?: boolean;
-}
-
 export interface IFileStatus {
 	x: string;
 	y: string;
@@ -762,10 +758,10 @@ export class Repository {
 		}
 	}
 
-	async push(remote?: string, name?: string, options?: PushOptions): Promise<void> {
+	async push(remote?: string, name?: string, setUpstream: boolean = false): Promise<void> {
 		const args = ['push'];
 
-		if (options && options.setUpstream) {
+		if (setUpstream) {
 			args.push('-u');
 		}
 

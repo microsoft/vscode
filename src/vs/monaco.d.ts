@@ -2793,10 +2793,11 @@ declare module monaco.editor {
 		 */
 		fontLigatures?: boolean;
 		/**
-		 * Disable the use of `translate3d`.
+		 * Disable the use of `will-change` for the editor margin and lines layers.
+		 * The usage of `will-change` acts as a hint for browsers to create an extra layer.
 		 * Defaults to false.
 		 */
-		disableTranslate3d?: boolean;
+		disableLayerHinting?: boolean;
 		/**
 		 * Disable the optimizations for monospace fonts.
 		 * Defaults to false.
@@ -2872,6 +2873,11 @@ declare module monaco.editor {
 		 * Defaults to true.
 		 */
 		hover?: boolean;
+		/**
+		 * Enable detecting links and making them clickable.
+		 * Defaults to true.
+		 */
+		links?: boolean;
 		/**
 		 * Enable custom contextmenu.
 		 * Defaults to true.
@@ -3237,6 +3243,7 @@ declare module monaco.editor {
 	export interface EditorContribOptions {
 		readonly selectionClipboard: boolean;
 		readonly hover: boolean;
+		readonly links: boolean;
 		readonly contextmenu: boolean;
 		readonly quickSuggestions: boolean | {
 			other: boolean;
@@ -3269,7 +3276,7 @@ declare module monaco.editor {
 	 */
 	export class InternalEditorOptions {
 		readonly _internalEditorOptionsBrand: void;
-		readonly canUseTranslate3d: boolean;
+		readonly canUseLayerHinting: boolean;
 		readonly pixelRatio: number;
 		readonly editorClassName: string;
 		readonly lineHeight: number;
@@ -3400,7 +3407,7 @@ declare module monaco.editor {
 	 * An event describing that the configuration of the editor has changed.
 	 */
 	export interface IConfigurationChangedEvent {
-		readonly canUseTranslate3d: boolean;
+		readonly canUseLayerHinting: boolean;
 		readonly pixelRatio: boolean;
 		readonly editorClassName: boolean;
 		readonly lineHeight: boolean;
@@ -3954,7 +3961,7 @@ declare module monaco.languages {
 	export function registerDocumentSymbolProvider(languageId: string, provider: DocumentSymbolProvider): IDisposable;
 
 	/**
-	 * Register a document highlight provider (used by e.g. highlight occurences).
+	 * Register a document highlight provider (used by e.g. highlight occurrences).
 	 */
 	export function registerDocumentHighlightProvider(languageId: string, provider: DocumentHighlightProvider): IDisposable;
 

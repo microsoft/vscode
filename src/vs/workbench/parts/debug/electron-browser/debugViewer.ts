@@ -366,9 +366,9 @@ export class CallStackDataSource implements IDataSource {
 	}
 
 	private getThreadChildren(thread: Thread): TPromise<any> {
-		const callStack: any[] = thread.getCallStack();
+		let callStack: any[] = thread.getCallStack();
 		if (!callStack || !callStack.length) {
-			return thread.fetchCallStack(false).then(() => thread.getCallStack());
+			thread.fetchCallStack().then(() => callStack = thread.getCallStack());
 		}
 		if (callStack.length === 1) {
 			// To reduce flashing of the call stack view simply append the stale call stack
@@ -544,9 +544,9 @@ export class CallStackRenderer implements IRenderer {
 	}
 
 	private renderStackFrame(stackFrame: debug.IStackFrame, data: IStackFrameTemplateData): void {
-		dom.toggleClass(data.stackFrame, 'disabled', stackFrame.source.presenationHint === 'deemphasize');
-		dom.toggleClass(data.stackFrame, 'label', stackFrame.source.presenationHint === 'label');
-		dom.toggleClass(data.stackFrame, 'subtle', stackFrame.source.presenationHint === 'subtle');
+		dom.toggleClass(data.stackFrame, 'disabled', stackFrame.source.presentationHint === 'deemphasize');
+		dom.toggleClass(data.stackFrame, 'label', stackFrame.source.presentationHint === 'label');
+		dom.toggleClass(data.stackFrame, 'subtle', stackFrame.source.presentationHint === 'subtle');
 
 		data.file.title = stackFrame.source.raw.path || stackFrame.source.name;
 		if (stackFrame.source.raw.origin) {

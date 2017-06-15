@@ -17,10 +17,7 @@ import Uri from 'vs/base/common/uri';
 import { BackupFileService, BackupFilesModel } from 'vs/workbench/services/backup/node/backupFileService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { IBackupService } from 'vs/platform/backup/common/backup';
 import { parseArgs } from 'vs/platform/environment/node/argv';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { TestWindowService } from 'vs/workbench/test/workbenchTestServices';
 import { RawTextSource } from 'vs/editor/common/model/textSource';
 
 class TestEnvironmentService extends EnvironmentService {
@@ -51,13 +48,8 @@ const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', crypto.cre
 class TestBackupFileService extends BackupFileService {
 	constructor(workspace: Uri, backupHome: string, workspacesJsonPath: string) {
 		const fileService = new FileService(workspace.fsPath, { disableWatcher: true });
-		const environmentService = new TestEnvironmentService(backupHome, workspacesJsonPath);
-		const backupService: IBackupService = {
-			_serviceBrand: null,
-			getBackupPath: () => TPromise.as(workspaceBackupPath)
-		};
 
-		super(environmentService, fileService, new TestWindowService(), backupService);
+		super(workspaceBackupPath, fileService);
 	}
 
 	public getBackupResource(resource: Uri, legacyMacWindowsFormat?: boolean): Uri {

@@ -3,20 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWindowSettings } from 'vs/platform/windows/common/windows';
+const MochaTest = require('mocha');
+const path = require('path');
 
-export interface IPath {
-	filePath: string;
-	lineNumber?: number;
-	columnNumber?: number;
-}
+const mochaTest = new MochaTest({
+	timeout: 360000,
+	retries: 2,
+	slow: 50000,
+	useColors: true
+});
 
-export interface IOpenFileRequest {
-	filesToOpen?: IPath[];
-	filesToCreate?: IPath[];
-	filesToDiff?: IPath[];
-}
-
-export interface IWindowConfiguration {
-	window: IWindowSettings;
-}
+mochaTest.addFile(path.join(process.cwd(), 'out/test.js'));
+mochaTest.run((failures) => {
+	process.exit(failures);
+});

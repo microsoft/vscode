@@ -265,6 +265,7 @@ const configurationValueWhitelist = [
 	'window.openFilesInNewWindow',
 	'javascript.validate.enable',
 	'window.reopenFolders',
+	'window.restoreWindows',
 	'extensions.autoUpdate',
 	'files.eol',
 	'explorer.openEditors.visible',

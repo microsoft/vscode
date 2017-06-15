@@ -271,11 +271,15 @@ export class CodeWindow implements ICodeWindow {
 	}
 
 	public get openedWorkspacePath(): string {
-		return this.currentConfig.workspacePath;
+		return this.currentConfig ? this.currentConfig.workspacePath : void 0;
+	}
+
+	public get backupPath(): string {
+		return this.currentConfig ? this.currentConfig.backupPath : void 0;
 	}
 
 	public get openedFilePath(): string {
-		return this.currentConfig.filesToOpen && this.currentConfig.filesToOpen[0] && this.currentConfig.filesToOpen[0].filePath;
+		return this.currentConfig && this.currentConfig.filesToOpen && this.currentConfig.filesToOpen[0] && this.currentConfig.filesToOpen[0].filePath;
 	}
 
 	public setReady(): void {

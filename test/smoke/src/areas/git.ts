@@ -14,7 +14,7 @@ export class Git {
 	}
 
 	public openGitViewlet(): Promise<any> {
-		return this.spectron.command('workbench.view.git');
+		return this.spectron.command('workbench.view.scm');
 	}
 
 	public getScmIconChanges(): Promise<any> {

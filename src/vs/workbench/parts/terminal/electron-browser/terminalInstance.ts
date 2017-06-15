@@ -342,7 +342,17 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public selectAll(): void {
+		// Focus here to ensure the terminal context key is set
+		this._xterm.focus();
 		this._xterm.selectAll();
+	}
+
+	public findNext(term: string): boolean {
+		return this._xterm.findNext(term);
+	}
+
+	public findPrevious(term: string): boolean {
+		return this._xterm.findPrevious(term);
 	}
 
 	public dispose(): void {
@@ -533,6 +543,7 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 
 		this._isExiting = true;
+		this._process = null;
 		let exitCodeMessage: string;
 		if (exitCode) {
 			exitCodeMessage = nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode);
@@ -765,11 +776,19 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		this._processReady.then(() => {
 			if (this._process) {
-				this._process.send({
-					event: 'resize',
-					cols: this._cols,
-					rows: this._rows
-				});
+				// The child process could aready be terminated
+				try {
+					this._process.send({
+						event: 'resize',
+						cols: this._cols,
+						rows: this._rows
+					});
+				} catch (error) {
+					// We tried to write to a closed pipe / channel.
+					if (error.code !== 'EPIPE' && error.code !== 'ERR_IPC_CHANNEL_CLOSED') {
+						throw (error);
+					}
+				}
 			}
 		});
 	}
@@ -785,6 +804,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public setTitle(title: string): void {
 		const didTitleChange = title !== this._title;
+		this._title = title;
 		if (didTitleChange) {
 			this._onTitleChanged.fire(title);
 		}

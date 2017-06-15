@@ -19,7 +19,7 @@ import { parseArgs } from 'vs/platform/environment/node/argv';
 import extfs = require('vs/base/node/extfs');
 import uuid = require('vs/base/common/uuid');
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
+import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configuration';
 import URI from 'vs/base/common/uri';
 import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 
@@ -212,7 +212,7 @@ suite('WorkspaceConfigurationService - Node', () => {
 				service.onDidUpdateConfiguration(event => {
 					const config = service.getConfiguration<{ testworkbench: { editor: { icons: boolean } } }>();
 					assert.equal(config.testworkbench.editor.icons, true);
-					assert.equal(event.config.testworkbench.editor.icons, true);
+					assert.equal(service.getConfiguration<any>().testworkbench.editor.icons, true);
 
 					service.dispose();
 

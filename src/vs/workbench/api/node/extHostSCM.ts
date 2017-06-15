@@ -316,14 +316,17 @@ export class ExtHostSCM {
 		return sourceControl;
 	}
 
-	$provideOriginalResource(sourceControlHandle: number, uri: URI): TPromise<vscode.Uri> {
+	$provideOriginalResource(sourceControlHandle: number, uri: URI): TPromise<URI> {
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
 		if (!sourceControl || !sourceControl.quickDiffProvider) {
 			return TPromise.as(null);
 		}
 
-		return asWinJsPromise(token => sourceControl.quickDiffProvider.provideOriginalResource(uri, token));
+		return asWinJsPromise(token => {
+			const result = sourceControl.quickDiffProvider.provideOriginalResource(uri, token);
+			return result && URI.parse(result.toString());
+		});
 	}
 
 	$onActiveSourceControlChange(handle: number): TPromise<void> {

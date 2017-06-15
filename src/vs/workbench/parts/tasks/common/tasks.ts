@@ -80,6 +80,40 @@ export namespace RevealKind {
 	}
 }
 
+export enum InstanceKind {
+
+	/**
+	 * Shares a terminal with other tasks. This is the default.
+	 */
+	Shared = 1,
+
+	/**
+	 * Uses the same terminal for every run if possible. The terminal is not
+	 * shared with other tasks.
+	 */
+	Same = 2,
+
+	/**
+	 * Creates a new terminal whenever that task is executed
+	 */
+	New = 3
+}
+
+export namespace InstanceKind {
+	export function fromString(value: string): InstanceKind {
+		switch (value.toLowerCase()) {
+			case 'shared':
+				return InstanceKind.Shared;
+			case 'same':
+				return InstanceKind.Same;
+			case 'new':
+				return InstanceKind.New;
+			default:
+				return InstanceKind.Shared;
+		}
+	}
+}
+
 export interface TerminalBehavior {
 	/**
 	 * Controls whether the terminal executing a task is brought to front or not.
@@ -91,6 +125,16 @@ export interface TerminalBehavior {
 	 * Controls whether the executed command is printed to the output window or terminal as well.
 	 */
 	echo: boolean;
+
+	/**
+	 * Controls whether the terminal is focus when this task is executed
+	 */
+	focus: boolean;
+
+	/**
+	 * Controls whether the task runs in a new terminal
+	 */
+	instance: InstanceKind;
 }
 
 export enum CommandType {

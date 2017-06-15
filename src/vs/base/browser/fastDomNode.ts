@@ -6,7 +6,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 
-export abstract class FastDomNode<T extends HTMLElement> {
+export class FastDomNode<T extends HTMLElement> {
 
 	public readonly domNode: T;
 	private _maxWidth: number;
@@ -25,7 +25,7 @@ export abstract class FastDomNode<T extends HTMLElement> {
 	private _display: string;
 	private _position: string;
 	private _visibility: string;
-	private _transform: string;
+	private _layerHint: boolean;
 
 	constructor(domNode: T) {
 		this.domNode = domNode;
@@ -45,7 +45,7 @@ export abstract class FastDomNode<T extends HTMLElement> {
 		this._display = '';
 		this._position = '';
 		this._visibility = '';
-		this._transform = '';
+		this._layerHint = false;
 	}
 
 	public setMaxWidth(maxWidth: number): void {
@@ -215,15 +215,13 @@ export abstract class FastDomNode<T extends HTMLElement> {
 		this.domNode.style.visibility = this._visibility;
 	}
 
-	public setTransform(transform: string): void {
-		if (this._transform === transform) {
+	public setLayerHinting(layerHint: boolean): void {
+		if (this._layerHint === layerHint) {
 			return;
 		}
-		this._transform = transform;
-		this._setTransform(this.domNode, this._transform);
+		this._layerHint = layerHint;
+		(<any>this.domNode.style).willChange = this._layerHint ? 'transform' : 'auto';
 	}
-
-	protected abstract _setTransform(domNode: T, transform: string): void;
 
 	public setAttribute(name: string, value: string): void {
 		this.domNode.setAttribute(name, value);
@@ -250,29 +248,6 @@ export abstract class FastDomNode<T extends HTMLElement> {
 	}
 }
 
-class WebKitFastDomNode<T extends HTMLElement> extends FastDomNode<T> {
-	protected _setTransform(domNode: T, transform: string): void {
-		(<any>domNode.style).webkitTransform = transform;
-	}
-}
-
-class StandardFastDomNode<T extends HTMLElement> extends FastDomNode<T> {
-	protected _setTransform(domNode: T, transform: string): void {
-		domNode.style.transform = transform;
-	}
-}
-
-let useWebKitFastDomNode = false;
-(function () {
-	let testDomNode = document.createElement('div');
-	if (typeof (<any>testDomNode.style).webkitTransform !== 'undefined') {
-		useWebKitFastDomNode = true;
-	}
-})();
 export function createFastDomNode<T extends HTMLElement>(domNode: T): FastDomNode<T> {
-	if (useWebKitFastDomNode) {
-		return new WebKitFastDomNode(domNode);
-	} else {
-		return new StandardFastDomNode(domNode);
-	}
+	return new FastDomNode(domNode);
 }

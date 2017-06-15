@@ -15,11 +15,14 @@ import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 
 class MockConfigurationService implements IConfigurationService {
 	public _serviceBrand: any;
+	public serviceId = IConfigurationService;
 	public constructor(private configuration: any = {}) { }
 	public reloadConfiguration<T>(section?: string): TPromise<T> { return TPromise.as(this.getConfiguration()); }
-	public lookup(key: string) { return { value: getConfigurationValue(this.getConfiguration(), key), default: getConfigurationValue(this.getConfiguration(), key), user: getConfigurationValue(this.getConfiguration(), key) }; }
+	public lookup(key: string) { return { value: getConfigurationValue(this.getConfiguration(), key), default: getConfigurationValue(this.getConfiguration(), key), user: getConfigurationValue(this.getConfiguration(), key), workspace: void 0 }; }
+	public keys() { return { default: [], user: [], workspace: [] }; }
+	public values() { return {}; }
 	public getConfiguration(): any { return this.configuration; }
-	public keys() { return { default: [], user: [] }; }
+	public getConfigurationData(): any { return null; }
 	public onDidUpdateConfiguration() { return { dispose() { } }; }
 }
 

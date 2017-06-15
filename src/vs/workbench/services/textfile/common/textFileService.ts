@@ -117,7 +117,7 @@ export abstract class TextFileService implements ITextFileService {
 		this.lifecycleService.onShutdown(this.dispose, this);
 
 		// Configuration changes
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(this.configurationService.getConfiguration<IFilesConfiguration>())));
 	}
 
 	private beforeShutdown(reason: ShutdownReason): boolean | TPromise<boolean> {

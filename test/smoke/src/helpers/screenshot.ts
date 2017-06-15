@@ -20,20 +20,20 @@ export class Screenshot {
 		this.createFolder(this.testPath);
 	}
 
-	public capture(): Promise<any> {
+	public async capture(): Promise<any> {
 		return new Promise(async (res, rej) => {
 			const image: Electron.NativeImage = await this.spectron.app.browserWindow.capturePage();
 			fs.writeFile(`${this.testPath}/${this.index}.png`, image, (err) => {
 				if (err) {
 					rej(err);
 				}
+				this.index++;
+				res();
 			});
-			this.index++;
-			res();
 		});
 	}
 
-	private createFolder(name: string) {
+	private createFolder(name: string): void {
 		name.split('/').forEach((folderName, i, fullPath) => {
 			const folder = fullPath.slice(0, i + 1).join('/');
 			if (!fs.existsSync(folder)) {

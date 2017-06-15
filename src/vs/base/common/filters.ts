@@ -463,6 +463,9 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 	let patternPos = patternStartPos;
 	let wordPos = 0;
 
+	// Run a simple check if the characters of pattern occur
+	// (in order) at all in word. If that isn't the case we
+	// stop because no match will be possible
 	while (patternPos < patternLen && wordPos < wordLen) {
 		if (lowPattern[patternPos] === lowWord[wordPos]) {
 			patternPos += 1;
@@ -470,10 +473,10 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 		wordPos += 1;
 	}
 	if (patternPos !== patternLen) {
-		// no simple matches found -> return early
 		return undefined;
 	}
 
+	// There will be a mach, fill in tables
 	for (patternPos = patternStartPos + 1; patternPos <= patternLen; patternPos++) {
 
 		let lastLowWordChar = '';
@@ -483,20 +486,22 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 			let score = -1;
 			let lowWordChar = lowWord[wordPos - 1];
 			if (lowPattern[patternPos - 1] === lowWordChar) {
-
-				if (wordPos === 1) {
+				if (wordPos === (patternPos - patternStartPos)) {
+					// common prefix: `foobar <-> foobaz`
 					if (pattern[patternPos - 1] === word[wordPos - 1]) {
 						score = 7;
 					} else {
 						score = 5;
 					}
 				} else if (lowWordChar !== word[wordPos - 1]) {
+					// hitting upper-case: `foo <-> forOthers`
 					if (pattern[patternPos - 1] === word[wordPos - 1]) {
 						score = 7;
 					} else {
 						score = 5;
 					}
 				} else if (_seps[lastLowWordChar]) {
+					// post separator: `foo <-> bar_foo`
 					score = 5;
 
 				} else {
@@ -546,30 +551,26 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 		console.log(printTable(_scores, pattern, patternLen, word, wordLen));
 	}
 
+	// _bucket is an array of [PrefixArray] we use to keep
+	// track of scores and matches. After calling `_findAllMatches`
+	// the best match (if available) is the first item in the array
 	_bucket.length = 0;
+	_topScore = -100;
 	_patternStartPos = patternStartPos;
-	_findAllMatches(patternLen, wordLen, 0, [], false);
+	_findAllMatches(patternLen, wordLen, 0, new LazyArray(), false);
 
 	if (_bucket.length === 0) {
 		return undefined;
 	}
 
-	let topMatch = _bucket.shift();
-	for (const match of _bucket) {
-		if (!topMatch || topMatch[0] < match[0]) {
-			topMatch = match;
-		}
-	}
-	if (_debug) {
-		console.log(`${pattern} & ${word} => ${topMatch[0]} points for ${topMatch[1]}`);
-	}
-	return topMatch;
+	return [_topScore, _bucket[0].toArray()];
 }
 
-let _bucket: [number, number[]][] = [];
+let _bucket: LazyArray[] = [];
+let _topScore: number = 0;
 let _patternStartPos: number = 0;
 
-function _findAllMatches(patternPos: number, wordPos: number, total: number, matches: number[], lastMatched: boolean): void {
+function _findAllMatches(patternPos: number, wordPos: number, total: number, matches: LazyArray, lastMatched: boolean): void {
 
 	if (_bucket.length >= 10 || total < -25) {
 		// stop when having already 10 results, or
@@ -589,7 +590,7 @@ function _findAllMatches(patternPos: number, wordPos: number, total: number, mat
 			wordPos -= 1;
 			if (lastMatched) {
 				total -= 5; // new gap penalty
-			} else if (matches.length !== 0) {
+			} else if (!matches.isEmpty()) {
 				total -= 1; // gap penalty after first match
 			}
 			lastMatched = false;
@@ -602,8 +603,8 @@ function _findAllMatches(patternPos: number, wordPos: number, total: number, mat
 				_findAllMatches(
 					patternPos,
 					wordPos - 1,
-					matches.length !== 0 ? total - 1 : total,
-					matches.slice(0),
+					!matches.isEmpty() ? total - 1 : total, // gap penalty after first match
+					matches.slice(),
 					lastMatched
 				);
 			}
@@ -615,9 +616,20 @@ function _findAllMatches(patternPos: number, wordPos: number, total: number, mat
 			matches.unshift(wordPos);
 			lastMatched = true;
 
+			// count simple matches and boost a row of
+			// simple matches when they yield in a
+			// strong match.
 			if (score === 1) {
 				simpleMatchCount += 1;
+
+				if (patternPos === _patternStartPos) {
+					// when the first match is a weak
+					// match we discard it
+					return undefined;
+				}
+
 			} else {
+				// boost
 				total += 1 + (simpleMatchCount * (score - 1));
 				simpleMatchCount = 0;
 			}
@@ -627,16 +639,58 @@ function _findAllMatches(patternPos: number, wordPos: number, total: number, mat
 		}
 	}
 
-	if (_scores[1][matches[0] + 1] === 1) {
-		// first match is weak
-		return undefined;
-	}
-
 	total -= wordPos >= 3 ? 9 : wordPos * 3; // late start penalty
 
-	_bucket.push([total, matches]);
+	// dynamically keep track of the current top score
+	// and insert the current best score at head, the rest at tail
+	if (total > _topScore) {
+		_topScore = total;
+		_bucket.unshift(matches);
+	} else {
+		_bucket.push(matches);
+	}
 }
 
+class LazyArray {
+
+	private _parent: LazyArray;
+	private _parentLen: number;
+	private _data: number[];
+
+	isEmpty(): boolean {
+		return !this._data && (!this._parent || this._parent.isEmpty());
+	}
+
+	unshift(n: number) {
+		if (!this._data) {
+			this._data = [n];
+		} else {
+			this._data.unshift(n);
+		}
+	}
+
+	slice(): LazyArray {
+		const ret = new LazyArray();
+		ret._parent = this;
+		ret._parentLen = this._data ? this._data.length : 0;
+		return ret;
+	}
+
+	toArray(): number[] {
+		if (!this._data) {
+			return this._parent.toArray();
+		}
+		const bucket: number[][] = [];
+		let element = <LazyArray>this;
+		while (element) {
+			if (element._parent && element._parent._data) {
+				bucket.push(element._parent._data.slice(element._parent._data.length - element._parentLen));
+			}
+			element = element._parent;
+		}
+		return Array.prototype.concat.apply(this._data, bucket);
+	}
+}
 
 export function nextTypoPermutation(pattern: string, patternPos: number) {
 

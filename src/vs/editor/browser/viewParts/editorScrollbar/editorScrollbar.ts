@@ -34,7 +34,6 @@ export class EditorScrollbar extends ViewPart {
 		const configScrollbarOpts = editor.viewInfo.scrollbar;
 
 		let scrollbarOptions: ScrollableElementCreationOptions = {
-			canUseTranslate3d: editor.canUseTranslate3d,
 			listenOnDomNode: viewDomNode.domNode,
 			className: 'editor-scrollable' + ' ' + getThemeTypeSelector(context.theme.type),
 			useShadows: false,
@@ -127,10 +126,9 @@ export class EditorScrollbar extends ViewPart {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.viewInfo || e.canUseTranslate3d) {
+		if (e.viewInfo) {
 			const editor = this._context.configuration.editor;
 			let newOpts: ScrollableElementChangeOptions = {
-				canUseTranslate3d: editor.canUseTranslate3d,
 				handleMouseWheel: editor.viewInfo.scrollbar.handleMouseWheel,
 				mouseWheelScrollSensitivity: editor.viewInfo.scrollbar.mouseWheelScrollSensitivity
 			};

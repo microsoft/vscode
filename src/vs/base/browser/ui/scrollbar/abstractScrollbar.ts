@@ -32,7 +32,6 @@ export interface ScrollbarHost {
 }
 
 export interface AbstractScrollbarOptions {
-	canUseTranslate3d: boolean;
 	lazyRender: boolean;
 	host: ScrollbarHost;
 	scrollbarState: ScrollbarState;
@@ -43,7 +42,6 @@ export interface AbstractScrollbarOptions {
 
 export abstract class AbstractScrollbar extends Widget {
 
-	protected _canUseTranslate3d: boolean;
 	protected _host: ScrollbarHost;
 	protected _scrollable: Scrollable;
 	private _lazyRender: boolean;
@@ -58,7 +56,6 @@ export abstract class AbstractScrollbar extends Widget {
 
 	constructor(opts: AbstractScrollbarOptions) {
 		super();
-		this._canUseTranslate3d = opts.canUseTranslate3d;
 		this._lazyRender = opts.lazyRender;
 		this._host = opts.host;
 		this._scrollable = opts.scrollable;
@@ -98,6 +95,7 @@ export abstract class AbstractScrollbar extends Widget {
 		this.slider.setLeft(left);
 		this.slider.setWidth(width);
 		this.slider.setHeight(height);
+		this.slider.setLayerHinting(true);
 
 		this.domNode.domNode.appendChild(this.slider.domNode);
 
@@ -110,11 +108,6 @@ export abstract class AbstractScrollbar extends Widget {
 	}
 
 	// ----------------- Update state
-
-	public setCanUseTranslate3d(canUseTranslate3d: boolean): boolean {
-		this._canUseTranslate3d = canUseTranslate3d;
-		return true;
-	}
 
 	protected _onElementSize(visibleSize: number): boolean {
 		if (this._scrollbarState.setVisibleSize(visibleSize)) {
@@ -164,13 +157,6 @@ export abstract class AbstractScrollbar extends Widget {
 			return;
 		}
 		this._shouldRender = false;
-
-		if (this._canUseTranslate3d) {
-			// Put the scrollbar in its own layer
-			this.domNode.setTransform('translate3d(0px, 0px, 0px)');
-		} else {
-			this.domNode.setTransform('');
-		}
 
 		this._renderDomNode(this._scrollbarState.getRectangleLargeSize(), this._scrollbarState.getRectangleSmallSize());
 		this._updateSlider(this._scrollbarState.getSliderSize(), this._scrollbarState.getArrowSize() + this._scrollbarState.getSliderPosition());

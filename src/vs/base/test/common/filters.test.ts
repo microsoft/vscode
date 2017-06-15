@@ -397,6 +397,12 @@ suite('Filters', () => {
 		assertTopScore(fuzzyScore, 'title', 1, 'files.trimTrailingWhitespace', 'window.title');
 	});
 
+	test('Unexpected suggestion scoring, #28791', function () {
+		assertTopScore(fuzzyScore, '_lines', 1, '_lineStarts', '_lines');
+		assertTopScore(fuzzyScore, '_lines', 1, '_lineS', '_lines');
+		assertTopScore(fuzzyScore, '_lineS', 0, '_lineS', '_lines');
+	});
+
 	test('nextTypoPermutation', function () {
 
 		function assertTypos(pattern: string, ...variants: string[]) {

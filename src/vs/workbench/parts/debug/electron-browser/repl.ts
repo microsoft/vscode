@@ -278,7 +278,12 @@ export class Repl extends Panel implements IPrivateReplService {
 	}
 
 	public shutdown(): void {
-		this.storageService.store(HISTORY_STORAGE_KEY, JSON.stringify(Repl.HISTORY.save()), StorageScope.WORKSPACE);
+		const replHistory = Repl.HISTORY.save();
+		if (replHistory.length) {
+			this.storageService.store(HISTORY_STORAGE_KEY, JSON.stringify(replHistory), StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
+		}
 	}
 
 	private getReplInputOptions(): IEditorOptions {

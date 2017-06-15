@@ -681,6 +681,9 @@ suite('TelemetryService', () => {
 						enableTelemetry
 					};
 				},
+				getConfigurationData(): any {
+					return null;
+				},
 				reloadConfiguration() {
 					return TPromise.as(this.getConfiguration());
 				},
@@ -688,10 +691,12 @@ suite('TelemetryService', () => {
 					return {
 						value: getConfigurationValue(this.getConfiguration(), key),
 						default: getConfigurationValue(this.getConfiguration(), key),
-						user: getConfigurationValue(this.getConfiguration(), key)
+						user: getConfigurationValue(this.getConfiguration(), key),
+						workspace: null,
 					};
 				},
-				keys() { return { default: [], user: [] }; },
+				keys() { return { default: [], user: [], workspace: [] }; },
+				values() { return {}; },
 				onDidUpdateConfiguration: emitter.event
 			});
 

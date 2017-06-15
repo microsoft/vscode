@@ -107,7 +107,7 @@ suite('Workbench - TerminalInstance', () => {
 		});
 
 		test('should use to the workspace if it exists', () => {
-			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, { resource: Uri.file('/foo') }), '/foo');
+			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, { resource: Uri.file('/foo'), ctime: Date.now() }), '/foo');
 		});
 
 		test('should use an absolute custom cwd as is', () => {
@@ -117,11 +117,11 @@ suite('Workbench - TerminalInstance', () => {
 
 		test('should normalize a relative custom cwd against the workspace path', () => {
 			configHelper.config.cwd = 'foo';
-			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, { resource: Uri.file('/bar') }), '/bar/foo');
+			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, { resource: Uri.file('/bar'), ctime: Date.now() }), '/bar/foo');
 			configHelper.config.cwd = './foo';
-			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, { resource: Uri.file('/bar') }), '/bar/foo');
+			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, { resource: Uri.file('/bar'), ctime: Date.now() }), '/bar/foo');
 			configHelper.config.cwd = '../foo';
-			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, { resource: Uri.file('/bar') }, ), '/foo');
+			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, { resource: Uri.file('/bar'), ctime: Date.now() }, ), '/foo');
 		});
 
 		test('should fall back for relative a custom cwd that doesn\'t have a workspace', () => {
@@ -135,7 +135,7 @@ suite('Workbench - TerminalInstance', () => {
 
 		test('should ignore custom cwd when told to ignore', () => {
 			configHelper.config.cwd = '/foo';
-			assertPathsMatch(instance._getCwd({ executable: null, args: [], ignoreConfigurationCwd: true }, { resource: Uri.file('/bar') }), '/bar');
+			assertPathsMatch(instance._getCwd({ executable: null, args: [], ignoreConfigurationCwd: true }, { resource: Uri.file('/bar'), ctime: Date.now() }), '/bar');
 		});
 	});
 });

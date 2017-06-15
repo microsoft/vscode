@@ -10,6 +10,7 @@ import { nextItemStylesheet, prevItemStylesheet } from './selectItemStylesheet';
 import parseStylesheet from '@emmetio/css-parser';
 import parse from '@emmetio/html-matcher';
 import Node from '@emmetio/node';
+import { DocumentStreamReader } from './bufferStream';
 
 export function fetchSelectItem(direction: string): void {
 	let editor = vscode.window.activeTextEditor;
@@ -31,11 +32,11 @@ export function fetchSelectItem(direction: string): void {
 		parseContent = parse;
 	}
 
-	let rootNode: Node = parseContent(editor.document.getText());
+	let rootNode: Node = parseContent(new DocumentStreamReader(editor.document));
 	let newSelections: vscode.Selection[] = [];
 	editor.selections.forEach(selection => {
-		const selectionStart = editor.document.offsetAt(selection.isReversed ? selection.active : selection.anchor);
-		const selectionEnd = editor.document.offsetAt(selection.isReversed ? selection.anchor : selection.active);
+		const selectionStart = selection.isReversed ? selection.active : selection.anchor;
+		const selectionEnd = selection.isReversed ? selection.anchor : selection.active;
 
 		let updatedSelection = direction === 'next' ? nextItem(selectionStart, selectionEnd, editor, rootNode) : prevItem(selectionStart, selectionEnd, editor, rootNode);
 		newSelections.push(updatedSelection ? updatedSelection : selection);

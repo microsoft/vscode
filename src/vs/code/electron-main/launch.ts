@@ -114,7 +114,7 @@ export class LaunchService implements ILaunchService {
 
 		// If the other instance is waiting to be killed, we hook up a window listener if one window
 		// is being used and only then resolve the startup promise which will kill this second instance
-		if (args.wait && usedWindows && usedWindows.length === 1 && usedWindows[0]) {
+		if (args.wait && usedWindows.length === 1 && usedWindows[0]) {
 			const windowId = usedWindows[0].id;
 
 			return new TPromise<void>((c, e) => {

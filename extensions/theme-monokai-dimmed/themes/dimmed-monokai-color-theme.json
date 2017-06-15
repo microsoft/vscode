@@ -191,7 +191,7 @@
 		},
 		{
 			"name": "Class Variable",
-			"scope": "variable.other, variable.js, punctuation.separator.variable",
+			"scope": "variable.js, punctuation.separator.variable",
 			"settings": {
 				"fontStyle": "\n    \t\t\t",
 				"foreground": "#6089B4"
@@ -230,24 +230,8 @@
 			}
 		},
 		{
-			"name": "Function Call",
-			"scope": "meta.function-call",
-			"settings": {
-				"fontStyle": "\n    \t\t\t",
-				"foreground": "#0080FF"
-			}
-		},
-		{
 			"name": "Function Object",
 			"scope": "meta.function-call.object",
-			"settings": {
-				"fontStyle": "\n    \t\t\t",
-				"foreground": "#9872A2"
-			}
-		},
-		{
-			"name": "Function Call Variable",
-			"scope": "variable.other.property",
 			"settings": {
 				"fontStyle": "\n    \t\t\t",
 				"foreground": "#9872A2"
@@ -549,6 +533,20 @@
 			"scope": "token.debug-token",
 			"settings": {
 				"foreground": "#b267e6"
+			}
+		},
+		{
+			"name": "this.self",
+			"scope": "variable.language",
+			"settings": {
+				"foreground": "#c7444a"
+			}
+		},
+		{
+			"name": "this.self",
+			"scope": "variable.language",
+			"settings": {
+				"foreground": "#c7444a"
 			}
 		}
 	]

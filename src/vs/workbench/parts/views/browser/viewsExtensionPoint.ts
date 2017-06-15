@@ -41,7 +41,7 @@ namespace schema {
 				return false;
 			}
 			if (typeof descriptor.name !== 'string') {
-				collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'label'));
+				collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'name'));
 				return false;
 			}
 			if (descriptor.when && typeof descriptor.when !== 'string') {

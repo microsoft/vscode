@@ -74,10 +74,9 @@ export default class MergeDectorator implements vscode.Disposable {
 				this.generateBlockRenderOptions('merge.incomingContentBackground', 'editorOverviewRuler.incomingContentForeground', config)
 			);
 
-			this.decorations['commonAncestors.content'] = vscode.window.createTextEditorDecorationType({
-				color: new vscode.ThemeColor('editor.foreground'),
-				isWholeLine: this.decorationUsesWholeLine,
-			});
+			this.decorations['commonAncestors.content'] = vscode.window.createTextEditorDecorationType(
+				this.generateBlockRenderOptions('merge.commonContentBackground', 'editorOverviewRuler.commonContentForeground', config)
+			);
 		}
 
 		if (config.enableDecorations) {
@@ -95,8 +94,12 @@ export default class MergeDectorator implements vscode.Disposable {
 			});
 
 			this.decorations['commonAncestors.header'] = vscode.window.createTextEditorDecorationType({
-				color: new vscode.ThemeColor('editor.foreground'),
 				isWholeLine: this.decorationUsesWholeLine,
+				backgroundColor: new vscode.ThemeColor('merge.commonHeaderBackground'),
+				color: new vscode.ThemeColor('editor.foreground'),
+				outlineStyle: 'solid',
+				outlineWidth: '1pt',
+				outlineColor: new vscode.ThemeColor('merge.border')
 			});
 
 			this.decorations['splitter'] = vscode.window.createTextEditorDecorationType({

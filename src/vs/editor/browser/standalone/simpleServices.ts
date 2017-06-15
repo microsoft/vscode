@@ -8,7 +8,7 @@ import { Schemas } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue, IConfigurationKeys } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue, IConfigurationKeys, IConfigurationValues, Configuration, IConfigurationData, ConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { ICommandService, ICommand, ICommandEvent, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
@@ -17,6 +17,7 @@ import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingReso
 import { IKeybindingEvent, KeybindingSource, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IMessageService } from 'vs/platform/message/common/message';
+import { IWorkspaceContextService, IWorkspace as ILegacyWorkspace, IWorkspace2 } from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -24,7 +25,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { getDefaultValues as getDefaultConfiguration } from 'vs/platform/configuration/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
-import { ITextModelResolverService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IDisposable, IReference, ImmortalReference, combinedDisposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -36,6 +37,7 @@ import { ResolvedKeybinding, Keybinding, createKeybinding, SimpleKeybinding } fr
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { OS } from 'vs/base/common/platform';
 import { IRange } from 'vs/editor/common/core/range';
+import { generateUuid } from "vs/base/common/uuid";
 
 export class SimpleEditor implements IEditor {
 
@@ -172,7 +174,7 @@ export class SimpleEditorService implements IEditorService {
 	}
 }
 
-export class SimpleEditorModelResolverService implements ITextModelResolverService {
+export class SimpleEditorModelResolverService implements ITextModelService {
 	public _serviceBrand: any;
 
 	private editor: SimpleEditor;
@@ -440,6 +442,10 @@ export class SimpleConfigurationService implements IConfigurationService {
 		return this._config;
 	}
 
+	public getConfigurationData(): IConfigurationData<any> {
+		return new Configuration(new ConfigurationModel(this._config), new ConfigurationModel()).toData();
+	}
+
 	public reloadConfiguration<T>(section?: string): TPromise<T> {
 		return TPromise.as<T>(this.getConfiguration<T>(section));
 	}
@@ -448,12 +454,17 @@ export class SimpleConfigurationService implements IConfigurationService {
 		return {
 			value: getConfigurationValue<C>(this.getConfiguration(), key),
 			default: getConfigurationValue<C>(this.getConfiguration(), key),
-			user: getConfigurationValue<C>(this.getConfiguration(), key)
+			user: getConfigurationValue<C>(this.getConfiguration(), key),
+			workspace: void 0
 		};
 	}
 
 	public keys(): IConfigurationKeys {
-		return { default: [], user: [] };
+		return { default: [], user: [], workspace: [] };
+	}
+
+	public values(): IConfigurationValues {
+		return {};
 	}
 }
 
@@ -487,5 +498,51 @@ export class StandaloneTelemetryService implements ITelemetryService {
 
 	public getExperiments(): ITelemetryExperiments {
 		return null;
+	}
+}
+
+export class SimpleWorkspaceContextService implements IWorkspaceContextService {
+
+	public _serviceBrand: any;
+
+	private static SCHEME: 'inmemory';
+
+	private readonly _onDidChangeWorkspaceRoots: Emitter<URI[]> = new Emitter<URI[]>();
+	public readonly onDidChangeWorkspaceRoots: Event<URI[]> = this._onDidChangeWorkspaceRoots.event;
+
+	private readonly legacyWorkspace: ILegacyWorkspace;
+	private readonly workspace: IWorkspace2;
+
+	constructor() {
+		this.legacyWorkspace = { resource: URI.from({ scheme: SimpleWorkspaceContextService.SCHEME, authority: 'model', path: '/' }), ctime: Date.now() };
+		this.workspace = { id: generateUuid(), roots: [this.legacyWorkspace.resource], name: this.legacyWorkspace.resource.fsPath };
+	}
+
+	public getWorkspace(): ILegacyWorkspace {
+		return this.legacyWorkspace;
+	}
+
+	public getWorkspace2(): IWorkspace2 {
+		return this.workspace;
+	}
+
+	public getRoot(resource: URI): URI {
+		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME ? this.workspace.roots[0] : void 0;
+	}
+
+	public hasWorkspace(): boolean {
+		return true;
+	}
+
+	public isInsideWorkspace(resource: URI): boolean {
+		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME;
+	}
+
+	public toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
+		return resource.fsPath;
+	}
+
+	public toResource(workspaceRelativePath: string): URI {
+		return URI.file(workspaceRelativePath);
 	}
 }

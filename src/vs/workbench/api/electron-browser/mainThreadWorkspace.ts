@@ -14,7 +14,7 @@ import { ICommonCodeEditor, isCommonCodeEditor } from 'vs/editor/common/editorCo
 import { bulkEdit, IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { MainThreadWorkspaceShape, ExtHostWorkspaceShape, ExtHostContext } from '../node/extHost.protocol';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -31,19 +31,19 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
-		@ITextModelResolverService private readonly _textModelResolverService: ITextModelResolverService,
+		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@IFileService private readonly _fileService: IFileService,
 		@IThreadService threadService: IThreadService
 	) {
 		super();
 		this._proxy = threadService.get(ExtHostContext.ExtHostWorkspace);
-		this._contextService.onDidChangeFolders(this._onDidChangeWorkspace, this, this._toDispose);
+		this._contextService.onDidChangeWorkspaceRoots(this._onDidChangeWorkspace, this, this._toDispose);
 	}
 
 	// --- workspace ---
 
-	private _onDidChangeWorkspace(folders: URI[]): void {
-		this._proxy.$acceptWorkspaceData(folders);
+	private _onDidChangeWorkspace(): void {
+		this._proxy.$acceptWorkspaceData(this._contextService.getWorkspace2());
 	}
 
 	// --- search ---
