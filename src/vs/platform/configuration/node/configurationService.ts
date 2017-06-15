@@ -9,7 +9,7 @@ import { ConfigWatcher } from 'vs/base/node/config';
 import { Registry } from 'vs/platform/platform';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { ConfigurationSource, IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, IConfigurationKeys, ConfigurationModel, IConfigurationOptions, Configuration, IConfigurationValues, IConfigurationData } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationSource, IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, IConfigurationKeys, ConfigurationModel, IConfigurationOverrides, Configuration, IConfigurationValues, IConfigurationData } from 'vs/platform/configuration/common/configuration';
 import { CustomConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/model';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -67,10 +67,8 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 		});
 	}
 
-	public getConfiguration<C>(section?: string): C
-	public getConfiguration<C>(options?: IConfigurationOptions): C
-	public getConfiguration<C>(arg?: any): C {
-		return this.configuration().getValue<C>(this.toOptions(arg));
+	public getConfiguration<C>(section?: string, options?: IConfigurationOverrides): C {
+		return this.configuration().getValue<C>(section, options);
 	}
 
 	public lookup<C>(key: string, overrideIdentifier?: string): IConfigurationValue<C> {
@@ -91,16 +89,6 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 
 	private reset(): void {
 		this._configuration = this.consolidateConfigurations();
-	}
-
-	private toOptions(arg: any): IConfigurationOptions {
-		if (typeof arg === 'string') {
-			return { section: arg };
-		}
-		if (typeof arg === 'object') {
-			return arg;
-		}
-		return {};
 	}
 
 	private consolidateConfigurations(): Configuration<T> {

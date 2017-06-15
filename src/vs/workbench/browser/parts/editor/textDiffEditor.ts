@@ -217,7 +217,7 @@ export class TextDiffEditor extends BaseTextEditor {
 
 		const language = this.getLanguage();
 		if (language) {
-			objects.assign(editorConfiguration, this.configurationService.getConfiguration<IEditorConfiguration>({ overrideIdentifier: language, section: 'diffEditor' }));
+			objects.assign(editorConfiguration, this.configurationService.getConfiguration<IEditorConfiguration>('diffEditor', { language }));
 		}
 
 		return editorConfiguration;

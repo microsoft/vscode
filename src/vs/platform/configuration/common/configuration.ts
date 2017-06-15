@@ -14,10 +14,9 @@ import Event from 'vs/base/common/event';
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
 
-export interface IConfigurationOptions {
-	overrideIdentifier?: string;
+export interface IConfigurationOverrides {
+	language?: string;
 	resource?: URI;
-	section?: string;
 }
 
 export type IConfigurationValues = { [key: string]: IConfigurationValue<any> };
@@ -31,8 +30,7 @@ export interface IConfigurationService {
 	 * Fetches the appropriate section of the configuration JSON file.
 	 * This will be an object keyed off the section name.
 	 */
-	getConfiguration<T>(section?: string): T;
-	getConfiguration<T>(options?: IConfigurationOptions): T;
+	getConfiguration<T>(section?: string, overrides?: IConfigurationOverrides): T;
 
 	/**
 	 * Resolves a configuration key to its values in the different scopes
@@ -243,9 +241,9 @@ export class Configuration<T> {
 		}
 	}
 
-	getValue<C>(options: IConfigurationOptions = {}): C {
+	getValue<C>(section: string = '', options: IConfigurationOverrides = {}): C {
 		const configModel = this.getConfigurationModel(options);
-		return options.section ? configModel.getContentsFor<C>(options.section) : configModel.contents;
+		return section ? configModel.getContentsFor<C>(section) : configModel.contents;
 	}
 
 	lookup<C>(key: string, overrideIdentifier?: string): IConfigurationValue<C> {
@@ -298,9 +296,9 @@ export class Configuration<T> {
 		return result;
 	}
 
-	private getConfigurationModel<C>(options: IConfigurationOptions): ConfigurationModel<any> {
+	private getConfigurationModel<C>(options: IConfigurationOverrides): ConfigurationModel<any> {
 		let configurationModel = (options.resource ? this._foldersConsolidated.get(options.resource) : this._workspace) || new ConfigurationModel();
-		return options.overrideIdentifier ? configurationModel.override<T>(options.overrideIdentifier) : configurationModel;
+		return options.language ? configurationModel.override<T>(options.language) : configurationModel;
 	}
 
 	public toData(): IConfigurationData<any> {

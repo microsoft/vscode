@@ -24,7 +24,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { CustomConfigurationModel } from 'vs/platform/configuration/common/model';
 import { ScopedConfigurationModel, FolderConfigurationModel, FolderSettingsModel } from 'vs/workbench/services/configuration/common/configurationModels';
-import { IConfigurationServiceEvent, ConfigurationSource, IConfigurationKeys, IConfigurationValue, ConfigurationModel, IConfigurationOptions, Configuration as BaseConfiguration, IConfigurationValues, IConfigurationData } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationServiceEvent, ConfigurationSource, IConfigurationKeys, IConfigurationValue, ConfigurationModel, IConfigurationOverrides, Configuration as BaseConfiguration, IConfigurationValues, IConfigurationData } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceConfigurationService, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME, WORKSPACE_STANDALONE_CONFIGURATIONS, WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
 import { ConfigurationService as GlobalConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { createHash } from "crypto";
@@ -201,10 +201,8 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		return this._configuration;
 	}
 
-	public getConfiguration<C>(section?: string): C
-	public getConfiguration<C>(options?: IConfigurationOptions): C
-	public getConfiguration<C>(arg?: any): C {
-		return this._configuration.getValue<C>(this.toOptions(arg));
+	public getConfiguration<C>(section?: string, overrides?: IConfigurationOverrides): C {
+		return this._configuration.getValue<C>(section, overrides);
 	}
 
 	public lookup<C>(key: string, overrideIdentifier?: string): IConfigurationValue<C> {
@@ -309,16 +307,6 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 
 	private trigger(source: ConfigurationSource, sourceConfig: any = this._configuration.getFolderConfigurationModel(this.workspace.roots[0]).contents): void {
 		this._onDidUpdateConfiguration.fire({ source, sourceConfig });
-	}
-
-	private toOptions(arg: any): IConfigurationOptions {
-		if (typeof arg === 'string') {
-			return { section: arg };
-		}
-		if (typeof arg === 'object') {
-			return arg;
-		}
-		return {};
 	}
 }
 
@@ -539,9 +527,9 @@ class Configuration<T> extends BaseConfiguration<T> {
 
 	updateFolderConfiguration(resource: URI, configuration: FolderConfigurationModel<T>): boolean {
 		this.folders.set(resource, configuration);
-		const current = this.getValue({ resource });
+		const current = this.getValue(null, { resource });
 		this.mergeFolder(resource);
-		return !objects.equals(current, this.getValue({ resource }));
+		return !objects.equals(current, this.getValue(null, { resource }));
 	}
 
 	deleteFolderConfiguration(folder: URI): boolean {
@@ -572,7 +560,7 @@ class Configuration<T> extends BaseConfiguration<T> {
 		}
 
 		for (const resource of this._foldersConsolidated.keys()) {
-			if (!objects.equals(this.getValue({ resource }), other.getValue({ resource }))) {
+			if (!objects.equals(this.getValue(null, { resource }), other.getValue(null, { resource }))) {
 				return false;
 			}
 		}
