@@ -347,6 +347,14 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm.selectAll();
 	}
 
+	public findNext(term: string): boolean {
+		return this._xterm.findNext(term);
+	}
+
+	public findPrevious(term: string): boolean {
+		return this._xterm.findPrevious(term);
+	}
+
 	public dispose(): void {
 		if (this._linkHandler) {
 			this._linkHandler.dispose();

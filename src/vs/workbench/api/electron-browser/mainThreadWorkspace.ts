@@ -42,8 +42,8 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 
 	// --- workspace ---
 
-	private _onDidChangeWorkspace(folders: URI[]): void {
-		this._proxy.$acceptWorkspaceData(folders);
+	private _onDidChangeWorkspace(): void {
+		this._proxy.$acceptWorkspaceData(this._contextService.getWorkspace2());
 	}
 
 	// --- search ---

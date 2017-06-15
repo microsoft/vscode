@@ -29,7 +29,7 @@ import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { generateRandomPipeName, Protocol } from 'vs/base/parts/ipc/node/ipc.net';
 import { createServer, Server } from 'net';
 import Event, { Emitter } from 'vs/base/common/event';
-import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
+import { IInitData, IWorkspaceData } from 'vs/workbench/api/node/extHost.protocol';
 import { MainProcessExtensionService } from 'vs/workbench/api/electron-browser/mainThreadExtensionService';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { ICrashReporterService } from 'vs/workbench/services/crashReporter/common/crashReporterService';
@@ -259,7 +259,7 @@ export class ExtensionHostProcessWorker {
 					enableProposedApiForAll: !this.environmentService.isBuilt || (!!this.environmentService.extensionDevelopmentPath && product.nameLong.indexOf('Insiders') >= 0),
 					enableProposedApiFor: this.environmentService.args['enable-proposed-api'] || []
 				},
-				workspace: this.contextService.getWorkspace(),
+				workspace: <IWorkspaceData>this.contextService.getWorkspace2(),
 				extensions: extensionDescriptions,
 				configuration: this.configurationService.values(),
 				telemetryInfo

@@ -78,3 +78,75 @@
 .hc-black .monaco-workbench.mac .panel.integrated-terminal .xterm-rows {
 	cursor: -webkit-image-set(url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAQAAAC1+jfqAAAAL0lEQVQoz2NgCD3x//9/BhBYBWdhgFVAiVW4JBFKGIa4AqD0//9D3pt4I4tAdAMAHTQ/j5Zom30AAAAASUVORK5CYII=') 1x, url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAQAAADZc7J/AAAAz0lEQVRIx2NgYGBY/R8I/vx5eelX3n82IJ9FxGf6tksvf/8FiTMQAcAGQMDvSwu09abffY8QYSAScNk45G198eX//yev73/4///701eh//kZSARckrNBRvz//+8+6ZohwCzjGNjdgQxkAg7B9WADeBjIBqtJCbhRA0YNoIkBSNmaPEMoNmA0FkYNoFKhapJ6FGyAH3nauaSmPfwI0v/3OukVi0CIZ+F25KrtYcx/CTIy0e+rC7R1Z4KMICVTQQ14feVXIbR695u14+Ir4gwAAD49E54wc1kWAAAAAElFTkSuQmCC') 2x) 5 8, text;
 }
+
+.monaco-workbench .panel.integrated-terminal .find-part {
+	position: absolute;
+	top: -40px;
+	right: 28px;
+	display: none;
+	padding: 4px;
+	align-items: center;
+
+	-webkit-transition: top 200ms linear;
+	-o-transition: top 200ms linear;
+	-moz-transition: top 200ms linear;
+	-ms-transition: top 200ms linear;
+	transition: top 200ms linear;
+}
+
+.monaco-workbench .panel.integrated-terminal .find-part.visible {
+	top: 0;
+	display: flex;
+}
+
+/* Temporarily we don't show match numbers */
+.monaco-workbench .panel.integrated-terminal .find-part .monaco-findInput .controls {
+	display: none;
+}
+.monaco-workbench .panel.integrated-terminal .find-part .monaco-findInput .monaco-inputbox .wrapper .input {
+	width: 100% !important;
+}
+
+.monaco-workbench .panel.integrated-terminal .find-part .button {
+	min-width: 20px;
+	width: 20px;
+	height: 20px;
+	display: flex;
+	flex: initial;
+	margin-left: 3px;
+	background-position: center center;
+	background-repeat: no-repeat;
+	cursor: pointer;
+}
+
+.monaco-workbench .panel.integrated-terminal .find-part .button.previous {
+	background-image: url('previous.svg');
+}
+
+.monaco-workbench .panel.integrated-terminal .find-part .button.next {
+	background-image: url('next.svg');
+}
+
+.monaco-workbench .panel.integrated-terminal .find-part .button.close-fw {
+	background-image: url('close.svg');
+}
+
+.hc-black .monaco-workbench .panel.integrated-terminal .find-part .button.previous,
+.vs-dark .monaco-workbench .panel.integrated-terminal .find-part .button.previous {
+	background-image: url('previous-inverse.svg');
+}
+
+.hc-black .monaco-workbench .panel.integrated-terminal .find-part .button.next,
+.vs-dark .monaco-workbench .panel.integrated-terminal .find-part .button.next {
+	background-image: url('next-inverse.svg');
+}
+
+.hc-black .monaco-workbench .panel.integrated-terminal .find-part .button.close-fw,
+.vs-dark .monaco-workbench .panel.integrated-terminal .find-part .button.close-fw {
+	background-image: url('close-dark.svg');
+}
+
+monaco-workbench .panel.integrated-terminal .find-part .button.disabled {
+	opacity: 0.3;
+	cursor: default;
+}

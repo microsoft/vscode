@@ -15,9 +15,8 @@ import { ExtHostThreadService } from 'vs/workbench/services/thread/common/extHos
 import { QueryType, ISearchQuery } from 'vs/platform/search/common/search';
 import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
 import { RemoteTelemetryService } from 'vs/workbench/api/node/extHostTelemetry';
-import { IInitData, IEnvironment, MainContext } from 'vs/workbench/api/node/extHost.protocol';
+import { IInitData, IEnvironment, IWorkspaceData, MainContext } from 'vs/workbench/api/node/extHost.protocol';
 import * as errors from 'vs/base/common/errors';
-import { IWorkspace } from "vs/platform/workspace/common/workspace";
 
 const nativeExit = process.exit.bind(process);
 process.exit = function () {
@@ -36,7 +35,7 @@ export class ExtensionHostMain {
 
 	private _isTerminating: boolean = false;
 	private _diskSearch: DiskSearch;
-	private _workspace: IWorkspace;
+	private _workspace: IWorkspaceData;
 	private _environment: IEnvironment;
 	private _extensionService: ExtHostExtensionService;
 
@@ -101,11 +100,10 @@ export class ExtensionHostMain {
 	}
 
 	private handleWorkspaceContainsEagerExtensions(): TPromise<void> {
-		if (!this._workspace || !this._workspace.resource) {
+		if (!this._workspace || this._workspace.roots.length === 0) {
 			return TPromise.as(null);
 		}
 
-		const folderPath = this._workspace.resource.fsPath;
 
 		const desiredFilesMap: {
 			[filename: string]: boolean;
@@ -135,7 +133,7 @@ export class ExtensionHostMain {
 				}
 
 				const query: ISearchQuery = {
-					folderResources: [this._workspace.resource],
+					folderResources: this._workspace.roots,
 					type: QueryType.File,
 					maxResults: 1,
 					includePattern: { [p]: true }
@@ -143,7 +141,16 @@ export class ExtensionHostMain {
 
 				return this._diskSearch.search(query).then(result => result.results.length ? p : undefined);
 			} else {
-				return pfs.exists(join(folderPath, p)).then(exists => exists ? p : undefined);
+				// find exact path
+				return new TPromise<string>(async resolve => {
+					for (const { fsPath } of this._workspace.roots) {
+						if (await pfs.exists(join(fsPath, p))) {
+							resolve(p);
+							return;
+						}
+					}
+					resolve(undefined);
+				});
 			}
 		});
 

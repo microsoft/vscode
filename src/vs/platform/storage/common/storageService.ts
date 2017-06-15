@@ -23,7 +23,6 @@ export interface IStorage {
 export interface IWorkspaceStorageIdentifier {
 	resource: URI;
 	uid?: number;
-	name?: string;
 }
 
 export class StorageService implements IStorageService {
@@ -55,7 +54,7 @@ export class StorageService implements IStorageService {
 		// Make sure to delete all workspace storage if the workspace has been recreated meanwhile
 		// which is only possible if a UID property is provided that we can check on
 		if (workspaceIdentifier && types.isNumber(workspaceIdentifier.uid)) {
-			this.cleanupWorkspaceScope(workspaceIdentifier.uid, workspaceIdentifier.name);
+			this.cleanupWorkspaceScope(workspaceIdentifier.uid);
 		}
 	}
 
@@ -76,13 +75,13 @@ export class StorageService implements IStorageService {
 		return `${strings.rtrim(workspaceIdStr, '/')}/`;
 	}
 
-	private cleanupWorkspaceScope(workspaceId: number, workspaceName: string): void {
+	private cleanupWorkspaceScope(workspaceUid: number): void {
 
 		// Get stored identifier from storage
 		const id = this.getInteger(StorageService.WORKSPACE_IDENTIFIER, StorageScope.WORKSPACE);
 
 		// If identifier differs, assume the workspace got recreated and thus clean all storage for this workspace
-		if (types.isNumber(id) && workspaceId !== id) {
+		if (types.isNumber(id) && workspaceUid !== id) {
 			const keyPrefix = this.toStorageKey('', StorageScope.WORKSPACE);
 			const toDelete: string[] = [];
 			const length = this.workspaceStorage.length;
@@ -99,10 +98,6 @@ export class StorageService implements IStorageService {
 				}
 			}
 
-			if (toDelete.length > 0) {
-				console.warn('Clearing previous version of local storage for workspace ', workspaceName);
-			}
-
 			// Run the delete
 			toDelete.forEach((keyToDelete) => {
 				this.workspaceStorage.removeItem(keyToDelete);
@@ -110,8 +105,8 @@ export class StorageService implements IStorageService {
 		}
 
 		// Store workspace identifier now
-		if (workspaceId !== id) {
-			this.store(StorageService.WORKSPACE_IDENTIFIER, workspaceId, StorageScope.WORKSPACE);
+		if (workspaceUid !== id) {
+			this.store(StorageService.WORKSPACE_IDENTIFIER, workspaceUid, StorageScope.WORKSPACE);
 		}
 	}
 

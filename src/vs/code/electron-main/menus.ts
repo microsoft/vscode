@@ -263,6 +263,11 @@ export class CodeMenu {
 		const helpMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mHelp', comment: ['&& denotes a mnemonic'] }, "&&Help")), submenu: helpMenu, role: 'help' });
 		this.setHelpMenu(helpMenu);
 
+		// Tasks
+		const taskMenu = new Menu();
+		const taskMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mTask', comment: ['&& denotes a mnemonic'] }, "&&Tasks")), submenu: taskMenu });
+		this.setTaskMenu(taskMenu);
+
 		// Menu Structure
 		if (macApplicationMenuItem) {
 			menubar.append(macApplicationMenuItem);
@@ -274,6 +279,7 @@ export class CodeMenu {
 		menubar.append(viewMenuItem);
 		menubar.append(gotoMenuItem);
 		menubar.append(debugMenuItem);
+		menubar.append(taskMenuItem);
 
 		if (macWindowMenuItem) {
 			menubar.append(macWindowMenuItem);
@@ -586,7 +592,6 @@ export class CodeMenu {
 		const output = this.createMenuItem(nls.localize({ key: 'miToggleOutput', comment: ['&& denotes a mnemonic'] }, "&&Output"), 'workbench.action.output.toggleOutput');
 		const debugConsole = this.createMenuItem(nls.localize({ key: 'miToggleDebugConsole', comment: ['&& denotes a mnemonic'] }, "De&&bug Console"), 'workbench.debug.action.toggleRepl');
 		const integratedTerminal = this.createMenuItem(nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "&&Integrated Terminal"), 'workbench.action.terminal.toggleTerminal');
-		const taskMenu = this.createMenuItem(nls.localize({ key: 'miShowTask', comment: ['&& denotes a mnemonic'] }, "Show Tas&&ks..."), 'workbench.action.showTasks');
 		const problems = this.createMenuItem(nls.localize({ key: 'miMarker', comment: ['&& denotes a mnemonic'] }, "&&Problems"), 'workbench.actions.view.problems');
 
 		let additionalViewlets: Electron.MenuItem;
@@ -658,7 +663,6 @@ export class CodeMenu {
 			problems,
 			debugConsole,
 			integratedTerminal,
-			taskMenu,
 			__separator__(),
 			fullscreen,
 			toggleZenMode,
@@ -899,6 +903,24 @@ export class CodeMenu {
 			helpMenu.append(__separator__());
 			helpMenu.append(new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About")), click: () => this.openAboutDialog() }));
 		}
+	}
+
+	private setTaskMenu(taskMenu: Electron.Menu): void {
+		const runTask = this.createMenuItem(nls.localize({ key: 'miRunTask', comment: ['&& denotes a mnemonic'] }, "&&Run Task..."), 'workbench.action.tasks.runTask');
+		const restartTask = this.createMenuItem(nls.localize({ key: 'miRestartTask', comment: ['&& denotes a mnemonic'] }, "R&&estart Task"), 'workbench.action.tasks.restartTask');
+		const terminateTask = this.createMenuItem(nls.localize({ key: 'miTerminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task"), 'workbench.action.tasks.terminate');
+		const buildTask = this.createMenuItem(nls.localize({ key: 'miBuildTask', comment: ['&& denotes a mnemonic'] }, "&&Build Task"), 'workbench.action.tasks.build');
+		const testTask = this.createMenuItem(nls.localize({ key: 'miTestTask', comment: ['&& denotes a mnemonic'] }, "Test T&&ask"), 'workbench.action.tasks.test');
+		const showTaskLog = this.createMenuItem(nls.localize({ key: 'miShowTaskLog', comment: ['&& denotes a mnemonic'] }, "&&Show Task Log"), 'workbench.action.tasks.showLog');
+
+		[
+			showTaskLog,
+			runTask,
+			restartTask,
+			terminateTask,
+			buildTask,
+			testTask
+		].forEach(item => taskMenu.append(item));
 	}
 
 	private openAccessibilityOptions(): void {

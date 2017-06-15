@@ -43,7 +43,7 @@ const nodeModules = ['electron', 'original-fs']
 
 const builtInExtensions = [
 	{ name: 'ms-vscode.node-debug', version: '1.14.1' },
-	{ name: 'ms-vscode.node-debug2', version: '1.13.3' }
+	{ name: 'ms-vscode.node-debug2', version: '1.14.0' }
 ];
 
 const vscodeEntryPoints = _.flatten([
@@ -123,6 +123,8 @@ const config = {
 	darwinIcon: 'resources/darwin/code.icns',
 	darwinBundleIdentifier: product.darwinBundleIdentifier,
 	darwinApplicationCategoryType: 'public.app-category.developer-tools',
+	darwinHelpBookFolder: 'VS Code HelpBook',
+	darwinHelpBookName: 'VS Code HelpBook',
 	darwinBundleDocumentTypes: [{
 		name: product.nameLong + ' document',
 		role: 'Editor',

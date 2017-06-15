@@ -277,8 +277,7 @@ export class EditorGroup implements IEditorGroup {
 						targetIndex--; // accomodate for the fact that the preview editor closes
 					}
 
-					this.closeEditor(this.preview, !makeActive); // optimization to prevent multiple setActive() in one call
-					this.splice(targetIndex, false, editor);
+					this.replaceEditor(this.preview, editor, targetIndex, !makeActive);
 				}
 
 				this.preview = editor;
@@ -345,10 +344,31 @@ export class EditorGroup implements IEditorGroup {
 		}));
 	}
 
+	public replaceEditor(toReplace: EditorInput, replaceWidth: EditorInput, replaceIndex: number, openNext = true): void {
+		const event = this.doCloseEditor(toReplace, openNext); // optimization to prevent multiple setActive() in one call
+
+		// We want to first add the new editor into our model before emitting the close event because
+		// firing the close event can trigger a dispose on the same editor that is now being added.
+		// This can lead into opening a disposed editor which is not what we want.
+		this.splice(replaceIndex, false, replaceWidth);
+
+		if (event) {
+			this.fireEvent(this._onEditorClosed, event, true);
+		}
+	}
+
 	public closeEditor(editor: EditorInput, openNext = true): void {
+		const event = this.doCloseEditor(editor, openNext);
+
+		if (event) {
+			this.fireEvent(this._onEditorClosed, event, true);
+		}
+	}
+
+	private doCloseEditor(editor: EditorInput, openNext = true): EditorCloseEvent {
 		const index = this.indexOf(editor);
 		if (index === -1) {
-			return; // not found
+			return null; // not found
 		}
 
 		// Active Editor closed
@@ -376,7 +396,7 @@ export class EditorGroup implements IEditorGroup {
 		this.splice(index, true);
 
 		// Event
-		this.fireEvent(this._onEditorClosed, { editor, pinned, index, group: this }, true);
+		return { editor, pinned, index, group: this };
 	}
 
 	public closeEditors(except: EditorInput, direction?: Direction): void {

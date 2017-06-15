@@ -58,7 +58,7 @@ const decoration = {
 	}),
 };
 
-class LinkOccurence {
+class LinkOccurrence {
 
 	public static decoration(link: Link, useMetaKey: boolean): editorCommon.IModelDeltaDecoration {
 		return {
@@ -68,7 +68,7 @@ class LinkOccurence {
 				endLineNumber: link.range.endLineNumber,
 				endColumn: link.range.endColumn
 			},
-			options: LinkOccurence._getOptions(useMetaKey, false)
+			options: LinkOccurrence._getOptions(useMetaKey, false)
 		};
 	}
 
@@ -88,11 +88,11 @@ class LinkOccurence {
 	}
 
 	public activate(changeAccessor: editorCommon.IModelDecorationsChangeAccessor, useMetaKey: boolean): void {
-		changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurence._getOptions(useMetaKey, true));
+		changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurrence._getOptions(useMetaKey, true));
 	}
 
 	public deactivate(changeAccessor: editorCommon.IModelDecorationsChangeAccessor, useMetaKey: boolean): void {
-		changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurence._getOptions(useMetaKey, false));
+		changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurrence._getOptions(useMetaKey, false));
 	}
 }
 
@@ -116,7 +116,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	private openerService: IOpenerService;
 	private messageService: IMessageService;
 	private editorWorkerService: IEditorWorkerService;
-	private currentOccurences: { [decorationId: string]: LinkOccurence; };
+	private currentOccurrences: { [decorationId: string]: LinkOccurrence; };
 
 	constructor(
 		editor: ICodeEditor,
@@ -167,7 +167,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 
 		this.timeoutPromise = null;
 		this.computePromise = null;
-		this.currentOccurences = {};
+		this.currentOccurrences = {};
 		this.activeLinkDecorationId = null;
 		this.beginCompute();
 	}
@@ -181,7 +181,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 
 	private onModelChanged(): void {
-		this.currentOccurences = {};
+		this.currentOccurrences = {};
 		this.activeLinkDecorationId = null;
 		this.stop();
 		this.beginCompute();
@@ -221,10 +221,10 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		const useMetaKey = (this.editor.getConfiguration().multiCursorModifier === 'altKey');
 		this.editor.changeDecorations((changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => {
 			var oldDecorations: string[] = [];
-			let keys = Object.keys(this.currentOccurences);
+			let keys = Object.keys(this.currentOccurrences);
 			for (let i = 0, len = keys.length; i < len; i++) {
 				let decorationId = keys[i];
-				let occurance = this.currentOccurences[decorationId];
+				let occurance = this.currentOccurrences[decorationId];
 				oldDecorations.push(occurance.decorationId);
 			}
 
@@ -232,17 +232,17 @@ class LinkDetector implements editorCommon.IEditorContribution {
 			if (links) {
 				// Not sure why this is sometimes null
 				for (var i = 0; i < links.length; i++) {
-					newDecorations.push(LinkOccurence.decoration(links[i], useMetaKey));
+					newDecorations.push(LinkOccurrence.decoration(links[i], useMetaKey));
 				}
 			}
 
 			var decorations = changeAccessor.deltaDecorations(oldDecorations, newDecorations);
 
-			this.currentOccurences = {};
+			this.currentOccurrences = {};
 			this.activeLinkDecorationId = null;
 			for (let i = 0, len = decorations.length; i < len; i++) {
-				var occurance = new LinkOccurence(links[i], decorations[i]);
-				this.currentOccurences[occurance.decorationId] = occurance;
+				var occurance = new LinkOccurrence(links[i], decorations[i]);
+				this.currentOccurrences[occurance.decorationId] = occurance;
 			}
 		});
 	}
@@ -251,11 +251,11 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		const useMetaKey = (this.editor.getConfiguration().multiCursorModifier === 'altKey');
 		if (this.isEnabled(mouseEvent, withKey)) {
 			this.cleanUpActiveLinkDecoration(); // always remove previous link decoration as their can only be one
-			var occurence = this.getLinkOccurence(mouseEvent.target.position);
-			if (occurence) {
+			var occurrence = this.getLinkOccurrence(mouseEvent.target.position);
+			if (occurrence) {
 				this.editor.changeDecorations((changeAccessor) => {
-					occurence.activate(changeAccessor, useMetaKey);
-					this.activeLinkDecorationId = occurence.decorationId;
+					occurrence.activate(changeAccessor, useMetaKey);
+					this.activeLinkDecorationId = occurrence.decorationId;
 				});
 			}
 		} else {
@@ -266,10 +266,10 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	private cleanUpActiveLinkDecoration(): void {
 		const useMetaKey = (this.editor.getConfiguration().multiCursorModifier === 'altKey');
 		if (this.activeLinkDecorationId) {
-			var occurence = this.currentOccurences[this.activeLinkDecorationId];
-			if (occurence) {
+			var occurrence = this.currentOccurrences[this.activeLinkDecorationId];
+			if (occurrence) {
 				this.editor.changeDecorations((changeAccessor) => {
-					occurence.deactivate(changeAccessor, useMetaKey);
+					occurrence.deactivate(changeAccessor, useMetaKey);
 				});
 			}
 
@@ -281,20 +281,20 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		if (!this.isEnabled(mouseEvent)) {
 			return;
 		}
-		var occurence = this.getLinkOccurence(mouseEvent.target.position);
-		if (!occurence) {
+		var occurrence = this.getLinkOccurrence(mouseEvent.target.position);
+		if (!occurrence) {
 			return;
 		}
-		this.openLinkOccurence(occurence, mouseEvent.hasSideBySideModifier);
+		this.openLinkOccurrence(occurrence, mouseEvent.hasSideBySideModifier);
 	}
 
-	public openLinkOccurence(occurence: LinkOccurence, openToSide: boolean): void {
+	public openLinkOccurrence(occurrence: LinkOccurrence, openToSide: boolean): void {
 
 		if (!this.openerService) {
 			return;
 		}
 
-		const { link } = occurence;
+		const { link } = occurrence;
 
 		link.resolve().then(uri => {
 			// open the uri
@@ -312,7 +312,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		}).done(null, onUnexpectedError);
 	}
 
-	public getLinkOccurence(position: Position): LinkOccurence {
+	public getLinkOccurrence(position: Position): LinkOccurrence {
 		var decorations = this.editor.getModel().getDecorationsInRange({
 			startLineNumber: position.lineNumber,
 			startColumn: position.column,
@@ -322,9 +322,9 @@ class LinkDetector implements editorCommon.IEditorContribution {
 
 		for (var i = 0; i < decorations.length; i++) {
 			var decoration = decorations[i];
-			var currentOccurence = this.currentOccurences[decoration.id];
-			if (currentOccurence) {
-				return currentOccurence;
+			var currentOccurrence = this.currentOccurrences[decoration.id];
+			if (currentOccurrence) {
+				return currentOccurrence;
 			}
 		}
 
@@ -373,9 +373,9 @@ class OpenLinkAction extends EditorAction {
 			return;
 		}
 
-		let link = linkDetector.getLinkOccurence(editor.getPosition());
+		let link = linkDetector.getLinkOccurrence(editor.getPosition());
 		if (link) {
-			linkDetector.openLinkOccurence(link, false);
+			linkDetector.openLinkOccurrence(link, false);
 		}
 	}
 }

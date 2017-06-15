@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ConfigModel } from 'vs/platform/configuration/common/model';
+import { CustomConfiguration } from 'vs/platform/configuration/common/model';
 import { WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
 import { Registry } from 'vs/platform/platform';
 import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 
-export class ScopedConfigModel<T> extends ConfigModel<T> {
+export class ScopedConfigModel<T> extends CustomConfiguration<T> {
 
 	constructor(content: string, name: string, public readonly scope: string) {
 		super(null, name);
@@ -25,7 +25,7 @@ export class ScopedConfigModel<T> extends ConfigModel<T> {
 
 }
 
-export class WorkspaceSettingsConfigModel<T> extends ConfigModel<T> {
+export class WorkspaceSettingsConfigModel<T> extends CustomConfiguration<T> {
 
 	private _raw: T;
 	private _unsupportedKeys: string[];
@@ -62,7 +62,7 @@ export class WorkspaceSettingsConfigModel<T> extends ConfigModel<T> {
 	}
 }
 
-export class WorkspaceConfigModel<T> extends ConfigModel<T> {
+export class WorkspaceConfigModel<T> extends CustomConfiguration<T> {
 
 	constructor(public readonly workspaceSettingsConfig: WorkspaceSettingsConfigModel<T>, private scopedConfigs: ScopedConfigModel<T>[]) {
 		super();

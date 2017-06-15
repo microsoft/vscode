@@ -20,11 +20,12 @@ import * as extfs from 'vs/base/node/extfs';
 import { IWorkspaceContextService, IWorkspace2, Workspace as SingleRootWorkspace, IWorkspace } from "vs/platform/workspace/common/workspace";
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileChangeType, FileChangesEvent, isEqual } from 'vs/platform/files/common/files';
-import { ConfigModel } from 'vs/platform/configuration/common/model';
 import { ScopedConfigModel, WorkspaceConfigModel, WorkspaceSettingsConfigModel } from 'vs/workbench/services/configuration/common/configurationModels';
-import { IConfigurationServiceEvent, ConfigurationSource, getConfigurationValue, IConfigModel, IConfigurationOptions } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationServiceEvent, ConfigurationSource, getConfigurationValue, IConfigurationOptions, Configuration } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceConfigurationValues, IWorkspaceConfigurationService, IWorkspaceConfigurationValue, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME, WORKSPACE_STANDALONE_CONFIGURATIONS, WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
 import { ConfigurationService as GlobalConfigurationService } from 'vs/platform/configuration/node/configurationService';
+import { createHash } from "crypto";
+import { basename } from "path";
 
 interface IStat {
 	resource: URI;
@@ -45,18 +46,31 @@ interface IWorkspaceConfiguration<T> {
 type IWorkspaceFoldersConfiguration = { [rootFolder: string]: { folders: string[]; } };
 
 class Workspace implements IWorkspace2 {
+	private _name: string;
 
-	constructor(readonly id: string, private _roots: URI[]) {
+	constructor(
+		public readonly id: string,
+		private _roots: URI[]
+	) {
+		//
 	}
 
-	get roots(): URI[] {
+	public set roots(roots: URI[]) {
+		this._roots = roots;
+		this._name = null; // will be recomputed based on roots next time accessed
+	}
+
+	public get roots(): URI[] {
 		return this._roots;
 	}
 
-	setRoots(roots: URI[]): void {
-		this._roots = roots;
-	}
+	public get name(): string {
+		if (!this._name) {
+			this._name = this.roots.map(root => basename(root.fsPath)).join(', ');
+		}
 
+		return this._name;
+	}
 }
 
 export class WorkspaceConfigurationService extends Disposable implements IWorkspaceContextService, IWorkspaceConfigurationService {
@@ -73,11 +87,11 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 
 	private baseConfigurationService: GlobalConfigurationService<any>;
 
-	private cachedConfig: ConfigModel<any>;
+	private cachedConfig: Configuration<any>;
 	private cachedWorkspaceConfig: WorkspaceConfigModel<any>;
 
 	private bulkFetchFromWorkspacePromise: TPromise<any>;
-	private workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: TPromise<IConfigModel<any>> };
+	private workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: TPromise<Configuration<any>> };
 	private reloadConfigurationScheduler: RunOnceScheduler;
 
 	private readonly workspace: Workspace;
@@ -85,10 +99,10 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	constructor(private environmentService: IEnvironmentService, private singleRootWorkspace?: SingleRootWorkspace, private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME) {
 		super();
 
-		this.workspace = singleRootWorkspace ? new Workspace(`${singleRootWorkspace.uid}`, [singleRootWorkspace.resource]) : null;
+		this.workspace = singleRootWorkspace ? new Workspace(createHash('md5').update(singleRootWorkspace.resource.toString()).digest('hex'), [singleRootWorkspace.resource]) : null; // TODO@Ben for now use the first root folder as id, but revisit this later
 
 		this.workspaceFilePathToConfiguration = Object.create(null);
-		this.cachedConfig = new ConfigModel<any>(null);
+		this.cachedConfig = new Configuration<any>();
 		this.cachedWorkspaceConfig = new WorkspaceConfigModel(new WorkspaceSettingsConfigModel(null), []);
 
 		this.baseConfigurationService = this._register(new GlobalConfigurationService(environmentService));
@@ -130,7 +144,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		// Find changes
 		const changed = !equals(this.workspace.roots, configuredFolders, (r1, r2) => r1.toString() === r2.toString());
 
-		this.workspace.setRoots(configuredFolders);
+		this.workspace.roots = configuredFolders;
 
 		if (notify && changed) {
 			this._onDidChangeWorkspaceRoots.fire(configuredFolders);
@@ -167,7 +181,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		}
 
 		// update cached config when base config changes
-		const configModel = <ConfigModel<any>>this.baseConfigurationService.getCache().consolidated		// global/default values (do NOT modify)
+		const configModel = <Configuration<any>>this.baseConfigurationService.getCache().consolidated		// global/default values (do NOT modify)
 			.merge(this.cachedWorkspaceConfig);		// workspace configured values
 
 		// emit this as update to listeners if changed
@@ -189,7 +203,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	public getConfiguration<C>(options?: IConfigurationOptions): C
 	public getConfiguration<C>(arg?: any): C {
 		const options = this.toOptions(arg);
-		const configModel = options.overrideIdentifier ? this.cachedConfig.configWithOverrides<C>(options.overrideIdentifier) : this.cachedConfig;
+		const configModel = options.overrideIdentifier ? this.cachedConfig.override<C>(options.overrideIdentifier) : this.cachedConfig;
 		return options.section ? configModel.getContentsFor<C>(options.section) : configModel.contents;
 	}
 
@@ -198,8 +212,8 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		return {
 			default: configurationValue.default,
 			user: configurationValue.user,
-			workspace: objects.clone(getConfigurationValue<C>(overrideIdentifier ? this.cachedWorkspaceConfig.configWithOverrides(overrideIdentifier).contents : this.cachedWorkspaceConfig.contents, key)),
-			value: objects.clone(getConfigurationValue<C>(overrideIdentifier ? this.cachedConfig.configWithOverrides(overrideIdentifier).contents : this.cachedConfig.contents, key))
+			workspace: objects.clone(getConfigurationValue<C>(overrideIdentifier ? this.cachedWorkspaceConfig.override(overrideIdentifier).contents : this.cachedWorkspaceConfig.contents, key)),
+			value: objects.clone(getConfigurationValue<C>(overrideIdentifier ? this.cachedConfig.override(overrideIdentifier).contents : this.cachedConfig.contents, key))
 		};
 	}
 
@@ -273,7 +287,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 			this.cachedWorkspaceConfig = new WorkspaceConfigModel<T>(workspaceSettingsConfig, otherConfigModels);
 
 			// Override base (global < user) with workspace locals (global < user < workspace)
-			this.cachedConfig = <ConfigModel<any>>this.baseConfigurationService.getCache().consolidated		// global/default values (do NOT modify)
+			this.cachedConfig = <Configuration<any>>this.baseConfigurationService.getCache().consolidated		// global/default values (do NOT modify)
 				.merge(this.cachedWorkspaceConfig);		// workspace configured values
 
 			return {
@@ -283,7 +297,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		});
 	}
 
-	private loadWorkspaceConfigFiles<T>(): TPromise<{ [relativeWorkspacePath: string]: IConfigModel<T> }> {
+	private loadWorkspaceConfigFiles<T>(): TPromise<{ [relativeWorkspacePath: string]: Configuration<T> }> {
 
 		// Return early if we don't have a workspace
 		if (!this.workspace) {
@@ -368,7 +382,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		}
 	}
 
-	private createConfigModel<T>(content: IContent): IConfigModel<T> {
+	private createConfigModel<T>(content: IContent): Configuration<T> {
 		const path = this.toWorkspaceRelativePath(content.resource);
 		if (path === WORKSPACE_CONFIG_DEFAULT_PATH) {
 			return new WorkspaceSettingsConfigModel<T>(content.value, content.resource.toString());
@@ -379,7 +393,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 			}
 		}
 
-		return new ConfigModel<T>(null);
+		return new Configuration<T>();
 	}
 
 	private isWorkspaceConfigurationFile(workspaceRelativePath: string): boolean {

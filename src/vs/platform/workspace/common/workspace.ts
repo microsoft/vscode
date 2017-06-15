@@ -66,13 +66,6 @@ export interface IWorkspace {
 	resource: URI;
 
 	/**
-	 * the unique identifier of the workspace. if the workspace is deleted and recreated
-	 * the identifier also changes. this makes the uid more unique compared to the id which
-	 * is just derived from the workspace name.
-	 */
-	uid?: number;
-
-	/**
 	 * the name of the workspace
 	 */
 	name?: string;
@@ -86,6 +79,11 @@ export interface IWorkspace2 {
 	readonly id: string;
 
 	/**
+	 * the name of the workspace.
+	 */
+	readonly name: string;
+
+	/**
 	 * Mutliple roots in this workspace. First entry is master and never changes.
 	 */
 	readonly roots: URI[];
@@ -94,15 +92,11 @@ export interface IWorkspace2 {
 
 export class Workspace implements IWorkspace {
 
-	constructor(private _resource: URI, private _uid?: number, private _name?: string) {
+	constructor(private _resource: URI, private _name?: string) {
 	}
 
 	public get resource(): URI {
 		return this._resource;
-	}
-
-	public get uid(): number {
-		return this._uid;
 	}
 
 	public get name(): string {
@@ -134,6 +128,6 @@ export class Workspace implements IWorkspace {
 	}
 
 	public toJSON() {
-		return { resource: this._resource, uid: this._uid, name: this._name };
+		return { resource: this._resource, name: this._name };
 	}
 }
