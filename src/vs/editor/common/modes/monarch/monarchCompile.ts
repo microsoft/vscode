@@ -118,7 +118,7 @@ function selectScrutinee(id: string, matches: string[], state: string, num: numb
 	return null;
 }
 
-function createGuard(lexer: monarchCommon.ILexerMin, ruleName: string, tkey: string, val: monarchCommon.IAction): monarchCommon.IBranch {
+function createGuard(lexer: monarchCommon.ILexerMin, ruleName: string, tkey: string, val: monarchCommon.FuzzyAction): monarchCommon.IBranch {
 	// get the scrutinee and pattern
 	var scrut = -1; // -1: $!, 0-99: $n, 100+n: $Sn
 	var oppat = tkey;
@@ -222,7 +222,7 @@ function createGuard(lexer: monarchCommon.ILexerMin, ruleName: string, tkey: str
  * contains user functions as actions (which is usually not allowed), then this
  * may be called during lexing. It is important therefore to compile common cases efficiently
  */
-function compileAction(lexer: monarchCommon.ILexerMin, ruleName: string, action: any): monarchCommon.IAction {
+function compileAction(lexer: monarchCommon.ILexerMin, ruleName: string, action: any): monarchCommon.FuzzyAction {
 	if (!action) {
 		return { token: '' };
 	}
@@ -285,7 +285,7 @@ function compileAction(lexer: monarchCommon.ILexerMin, ruleName: string, action:
 		}
 	}
 	else if (Array.isArray(action)) {
-		var results = [];
+		var results: monarchCommon.FuzzyAction[] = [];
 		var idx: string;
 		for (idx in action) {
 			if (action.hasOwnProperty(idx)) {
@@ -345,7 +345,7 @@ function compileAction(lexer: monarchCommon.ILexerMin, ruleName: string, action:
  */
 class Rule implements monarchCommon.IRule {
 	public regex: RegExp = new RegExp('');
-	public action: monarchCommon.IAction = { token: '' };
+	public action: monarchCommon.FuzzyAction = { token: '' };
 	public matchOnlyAtLineStart: boolean = false;
 	public name: string = '';
 
