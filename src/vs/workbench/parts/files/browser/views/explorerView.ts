@@ -733,7 +733,8 @@ export class ExplorerView extends CollapsibleView {
 			}
 
 			// First time refresh: The stat becomes the input of the viewer
-			return this.explorerViewer.setInput(this.model).then(() => {
+			// Display roots only when there is more than 1 root
+			return this.explorerViewer.setInput(this.model.roots.length === 1 ? this.model.roots[0] : this.model).then(() => {
 
 				// Make sure to expand all folders that where expanded in the previous session
 				if (targetsToExpand) {
