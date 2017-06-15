@@ -10,7 +10,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 export abstract class TerminalService implements ITerminalService {
@@ -18,6 +18,7 @@ export abstract class TerminalService implements ITerminalService {
 
 	protected _isShuttingDown: boolean;
 	protected _terminalFocusContextKey: IContextKey<boolean>;
+	protected _findWidgetVisible: IContextKey<boolean>;
 	protected _terminalContainer: HTMLElement;
 	protected _onInstancesChanged: Emitter<string>;
 	protected _onInstanceDisposed: Emitter<ITerminalInstance>;
@@ -43,7 +44,7 @@ export abstract class TerminalService implements ITerminalService {
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IConfigurationService private _configurationService: IConfigurationService,
-		@IPanelService private _panelService: IPanelService,
+		@IPanelService protected _panelService: IPanelService,
 		@IPartService private _partService: IPartService,
 		@ILifecycleService lifecycleService: ILifecycleService
 	) {
@@ -61,6 +62,7 @@ export abstract class TerminalService implements ITerminalService {
 		this._configurationService.onDidUpdateConfiguration(() => this.updateConfig());
 		lifecycleService.onWillShutdown(event => event.veto(this._onWillShutdown()));
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
+		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
 		this.onInstanceDisposed((terminalInstance) => { this._removeInstance(terminalInstance); });
 	}
 
@@ -199,6 +201,9 @@ export abstract class TerminalService implements ITerminalService {
 			this._partService.setPanelHidden(true).done(undefined, errors.onUnexpectedError);
 		}
 	}
+
+	public abstract focusFindWidget(): TPromise<void>;
+	public abstract hideFindWidget(): void;
 
 	private _getIndexFromId(terminalId: number): number {
 		let terminalIndex = -1;
