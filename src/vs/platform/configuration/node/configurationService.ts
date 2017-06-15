@@ -9,7 +9,7 @@ import { ConfigWatcher } from 'vs/base/node/config';
 import { Registry } from 'vs/platform/platform';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { ConfigurationSource, IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, IConfigurationKeys, ConfigurationModel, IConfigurationOptions, Configuration, IConfigurationValues } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationSource, IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, IConfigurationKeys, ConfigurationModel, IConfigurationOptions, ConfigurationData, IConfigurationValues } from 'vs/platform/configuration/common/configuration';
 import { CustomConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/model';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -18,7 +18,7 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 
 	_serviceBrand: any;
 
-	private _configuration: Configuration<T>;
+	private _configuration: ConfigurationData<T>;
 	private userConfigModelWatcher: ConfigWatcher<ConfigurationModel<T>>;
 
 	private _onDidUpdateConfiguration: Emitter<IConfigurationServiceEvent> = this._register(new Emitter<IConfigurationServiceEvent>());
@@ -46,7 +46,7 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 	private onConfigurationChange(source: ConfigurationSource): void {
 		this.reset(); // reset our caches
 
-		const cache = this.getConfiguration2();
+		const cache = this.getConfigurationData();
 
 		this._onDidUpdateConfiguration.fire({
 			source,
@@ -66,22 +66,22 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 	public getConfiguration<C>(section?: string): C
 	public getConfiguration<C>(options?: IConfigurationOptions): C
 	public getConfiguration<C>(arg?: any): C {
-		return this.getConfiguration2().getValue<C>(this.toOptions(arg));
+		return this.getConfigurationData().getValue<C>(this.toOptions(arg));
 	}
 
 	public lookup<C>(key: string, overrideIdentifier?: string): IConfigurationValue<C> {
-		return this.getConfiguration2().lookup<C>(key, overrideIdentifier);
+		return this.getConfigurationData().lookup<C>(key, overrideIdentifier);
 	}
 
 	public keys(): IConfigurationKeys {
-		return this.getConfiguration2().keys();
+		return this.getConfigurationData().keys();
 	}
 
 	public values<V>(): IConfigurationValues {
 		return this._configuration.values();
 	}
 
-	public getConfiguration2(): Configuration<T> {
+	public getConfigurationData(): ConfigurationData<T> {
 		return this._configuration || (this._configuration = this.consolidateConfigurations());
 	}
 
@@ -99,9 +99,9 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 		return {};
 	}
 
-	private consolidateConfigurations(): Configuration<T> {
+	private consolidateConfigurations(): ConfigurationData<T> {
 		const defaults = new DefaultConfigurationModel<T>();
 		const user = this.userConfigModelWatcher.getConfig();
-		return new Configuration(defaults, user);
+		return new ConfigurationData(defaults, user);
 	}
 }

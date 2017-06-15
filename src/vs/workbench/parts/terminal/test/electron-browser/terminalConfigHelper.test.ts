@@ -22,6 +22,7 @@ class MockConfigurationService implements IConfigurationService {
 	public keys() { return { default: [], user: [], workspace: [] }; }
 	public values() { return {}; }
 	public getConfiguration(): any { return this.configuration; }
+	public getConfigurationData(): any { return null; }
 	public onDidUpdateConfiguration() { return { dispose() { } }; }
 }
 

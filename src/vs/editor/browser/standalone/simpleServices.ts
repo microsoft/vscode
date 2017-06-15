@@ -8,7 +8,7 @@ import { Schemas } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue, IConfigurationKeys, IConfigurationValues } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue, IConfigurationKeys, IConfigurationValues, ConfigurationData, ConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { ICommandService, ICommand, ICommandEvent, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
@@ -440,6 +440,10 @@ export class SimpleConfigurationService implements IConfigurationService {
 
 	public getConfiguration<T>(section?: any): T {
 		return this._config;
+	}
+
+	public getConfigurationData(): ConfigurationData<any> {
+		return new ConfigurationData(new ConfigurationModel(this._config), new ConfigurationModel());
 	}
 
 	public reloadConfiguration<T>(section?: string): TPromise<T> {

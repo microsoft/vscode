@@ -681,6 +681,9 @@ suite('TelemetryService', () => {
 						enableTelemetry
 					};
 				},
+				getConfigurationData(): any {
+					return null;
+				},
 				reloadConfiguration() {
 					return TPromise.as(this.getConfiguration());
 				},
