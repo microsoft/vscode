@@ -621,9 +621,20 @@ function _findAllMatches(patternPos: number, wordPos: number, total: number, mat
 			matches.unshift(wordPos);
 			lastMatched = true;
 
+			// count simple matches and boost a row of
+			// simple matches when they yield in a
+			// strong match.
 			if (score === 1) {
 				simpleMatchCount += 1;
+
+				if (patternPos === _patternStartPos) {
+					// when the first match is a weak
+					// match we discard it
+					return undefined;
+				}
+
 			} else {
+				// boost
 				total += 1 + (simpleMatchCount * (score - 1));
 				simpleMatchCount = 0;
 			}
@@ -631,11 +642,6 @@ function _findAllMatches(patternPos: number, wordPos: number, total: number, mat
 		} else {
 			return undefined;
 		}
-	}
-
-	if (_scores[1][matches[0] + 1] === 1) {
-		// first match is weak
-		return undefined;
 	}
 
 	total -= wordPos >= 3 ? 9 : wordPos * 3; // late start penalty
