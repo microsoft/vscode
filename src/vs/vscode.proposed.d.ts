@@ -29,6 +29,28 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Controls how the task channel is used between tasks
+	 */
+	export enum TaskInstanceKind {
+
+		/**
+		 * Shares a channel with other tasks. This is the default.
+		 */
+		Shared = 1,
+
+		/**
+		 * Uses the same task channel for every run if possible. The task channel is not
+		 * shared with other tasks.
+		 */
+		Same = 2,
+
+		/**
+		 * Creates a new task channel whenever that task is executed
+		 */
+		New = 3
+	}
+
+	/**
 	 * Controls terminal specific behavior.
 	 */
 	export interface TaskTerminalBehavior {
@@ -42,6 +64,16 @@ declare module 'vscode' {
 		 * Controls whether the command is echoed in the terminal or not.
 		 */
 		echo?: boolean;
+
+		/**
+		 * Controls whether the task pane takes focus when the task is executed
+		 */
+		focus?: boolean;
+
+		/**
+		 * Controls in which pane the task is executed.
+		 */
+		instance?: TaskInstanceKind;
 	}
 
 	export interface ProcessTaskOptions {

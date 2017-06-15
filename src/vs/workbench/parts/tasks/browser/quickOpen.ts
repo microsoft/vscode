@@ -21,7 +21,7 @@ import { ActionBarContributor, ContributableActionProvider } from 'vs/workbench/
 
 export class TaskEntry extends Model.QuickOpenEntry {
 
-	constructor(protected taskService: ITaskService, protected _task: Task, highlights: Model.IHighlight[] = []) {
+	constructor(protected taskService: ITaskService, protected quickOpenService: IQuickOpenService, protected _task: Task, highlights: Model.IHighlight[] = []) {
 		super(highlights);
 	}
 
@@ -75,7 +75,8 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 			}
 			let recentlyUsedTasks = this.taskService.getRecentlyUsedTasks();
 			let recent: Task[] = [];
-			let others: Task[] = [];
+			let configured: Task[] = [];
+			let detected: Task[] = [];
 			let taskMap: IStringDictionary<Task> = Object.create(null);
 			tasks.forEach(task => taskMap[task.identifier] = task);
 			recentlyUsedTasks.keys().forEach(key => {
@@ -86,37 +87,43 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 			});
 			for (let task of tasks) {
 				if (!recentlyUsedTasks.has(task.identifier)) {
-					others.push(task);
+					if (task._source.kind === TaskSourceKind.Workspace) {
+						configured.push(task);
+					} else {
+						detected.push(task);
+					}
 				}
 			}
-			others = others.sort((a, b) => a._source.label.localeCompare(b._source.label));
-			let sortedTasks = recent.concat(others);
-			let recentlyUsed: boolean = recentlyUsedTasks.has(tasks[0].identifier);
-			let otherTasks: boolean = !recentlyUsedTasks.has(tasks[tasks.length - 1].identifier);
-			let hasRecentlyUsed: boolean = false;
-			for (let task of sortedTasks) {
-				let highlights = Filters.matchesContiguousSubString(input, task._label);
-				if (!highlights) {
-					continue;
-				}
-				if (recentlyUsed) {
-					recentlyUsed = false;
-					hasRecentlyUsed = true;
-					entries.push(new TaskGroupEntry(this.createEntry(this.taskService, task, highlights), nls.localize('recentlyUsed', 'recently used'), false));
-				} else if (!recentlyUsedTasks.has(task.identifier) && otherTasks) {
-					otherTasks = false;
-					entries.push(new TaskGroupEntry(this.createEntry(this.taskService, task, highlights), nls.localize('other tasks', 'other tasks'), hasRecentlyUsed));
-				} else {
-					entries.push(this.createEntry(this.taskService, task, highlights));
-				}
-			}
+			let hasRecentlyUsed: boolean = recent.length > 0;
+			this.fillEntries(entries, input, recent, nls.localize('recentlyUsed', 'recently used tasks'));
+			configured = configured.sort((a, b) => a._label.localeCompare(b._label));
+			let hasConfigured = configured.length > 0;
+			this.fillEntries(entries, input, configured, nls.localize('configured', 'configured tasks'), hasRecentlyUsed);
+			detected = detected.sort((a, b) => a._label.localeCompare(b._label));
+			this.fillEntries(entries, input, detected, nls.localize('detected', 'detected tasks'), hasRecentlyUsed || hasConfigured);
 			return new Model.QuickOpenModel(entries, new ContributableActionProvider());
 		});
 	}
 
+	private fillEntries(entries: Model.QuickOpenEntry[], input: string, tasks: Task[], groupLabel: string, withBorder: boolean = false) {
+		let first = true;
+		for (let task of tasks) {
+			let highlights = Filters.matchesContiguousSubString(input, task._label);
+			if (!highlights) {
+				continue;
+			}
+			if (first) {
+				first = false;
+				entries.push(new TaskGroupEntry(this.createEntry(task, highlights), groupLabel, withBorder));
+			} else {
+				entries.push(this.createEntry(task, highlights));
+			}
+		}
+	}
+
 	protected abstract getTasks(): TPromise<Task[]>;
 
-	protected abstract createEntry(taskService: ITaskService, task: Task, highlights: Model.IHighlight[]): TaskEntry;
+	protected abstract createEntry(task: Task, highlights: Model.IHighlight[]): TaskEntry;
 
 	public getAutoFocus(input: string): QuickOpen.IAutoFocus {
 		return {

@@ -207,12 +207,33 @@ namespace TaskRevealKind {
 	}
 }
 
+namespace TaskInstanceKind {
+	export function from(value: vscode.TaskInstanceKind): TaskSystem.InstanceKind {
+		if (value === void 0 || value === null) {
+			return TaskSystem.InstanceKind.Shared;
+		}
+		switch (value) {
+			case types.TaskInstanceKind.Same:
+				return TaskSystem.InstanceKind.Same;
+			case types.TaskInstanceKind.New:
+				return TaskSystem.InstanceKind.New;
+			default:
+				return TaskSystem.InstanceKind.Shared;
+		}
+	}
+}
+
 namespace TerminalBehaviour {
 	export function from(value: vscode.TaskTerminalBehavior): TaskSystem.TerminalBehavior {
 		if (value === void 0 || value === null) {
-			return { reveal: TaskSystem.RevealKind.Always, echo: false };
+			return { reveal: TaskSystem.RevealKind.Always, echo: true, focus: false, instance: TaskSystem.InstanceKind.Shared };
 		}
-		return { reveal: TaskRevealKind.from(value.reveal), echo: !!value.echo };
+		return {
+			reveal: TaskRevealKind.from(value.reveal),
+			echo: value.echo === void 0 ? true : !!value.echo,
+			focus: !!value.focus,
+			instance: TaskInstanceKind.from(value.instance)
+		};
 	}
 }
 
