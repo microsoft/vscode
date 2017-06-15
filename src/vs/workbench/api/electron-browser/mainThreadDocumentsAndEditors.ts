@@ -10,7 +10,7 @@ import { compare } from 'vs/base/common/strings';
 import { delta } from 'vs/base/common/arrays';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
-import Event, { Emitter, any } from 'vs/base/common/event';
+import Event, { Emitter } from 'vs/base/common/event';
 import { ExtHostContext, ExtHostDocumentsAndEditorsShape, IModelAddedData, ITextEditorAddData, IDocumentsAndEditorsDelta } from '../node/extHost.protocol';
 import { MainThreadTextEditor } from './mainThreadEditor';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
@@ -127,12 +127,9 @@ class MainThreadDocumentAndEditorStateComputer {
 	}
 
 	private _onDidAddEditor(e: ICommonCodeEditor): void {
-		const listener = any<any>(
-			e.onDidChangeModel,
-			e.onDidFocusEditor,
-			e.onDidBlurEditor
-		)(this._updateState, this);
-		this._toDisposeOnEditorRemove.set(e.getId(), listener);
+		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidChangeModel(() => this._updateState()));
+		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidFocusEditor(() => this._updateState()));
+		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidBlurEditor(() => this._updateState()));
 		this._updateState();
 	}
 

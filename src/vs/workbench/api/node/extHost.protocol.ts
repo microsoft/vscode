@@ -84,9 +84,9 @@ export class InstanceCollection {
 	public define<T>(id: ProxyIdentifier<T>): InstanceSetter<T> {
 		let that = this;
 		return new class {
-			set(value: T) {
+			set<R extends T>(value: T): R {
 				that._set(id, value);
-				return value;
+				return <R>value;
 			}
 		};
 	}
