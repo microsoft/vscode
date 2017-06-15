@@ -95,7 +95,7 @@ suite('Workbench StorageSevice', () => {
 		assert.strictEqual(s.get('wkey1', StorageScope.WORKSPACE), 'foo');
 		assert.strictEqual(s.get('wkey2', StorageScope.WORKSPACE), 'foo2');
 
-		ws = new Workspace(TestWorkspace.resource, TestWorkspace.name);
+		ws = new Workspace(TestWorkspace.resource, Date.now());
 		ws.uid = new Date().getTime() + 100;
 		s = new StorageService(storageImpl, null, ws);
 

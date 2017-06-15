@@ -8,5 +8,5 @@ import URI from 'vs/base/common/uri';
 
 export const TestWorkspace = new Workspace(
 	URI.file('C:\\testWorkspace'),
-	'Test Workspace'
+	Date.now()
 );

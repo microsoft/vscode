@@ -81,7 +81,7 @@ export class SpectronApplication {
 	}
 
 	public waitFor(func: (...args: any[]) => any, args: any): Promise<any> {
-		return this.callClientAPI(func, args, 0);
+		return this.callClientAPI(func, args);
 	}
 
 	public wait(): Promise<any> {
@@ -109,39 +109,28 @@ export class SpectronApplication {
 		});
 	}
 
-	private callClientAPI(func: (...args: any[]) => Promise<any>, args: any, trial: number): Promise<any> {
-		if (trial > this.pollTrials) {
-			return Promise.reject(`Could not retrieve the element in ${this.testRetry * this.pollTrials * this.pollTimeout} seconds.`);
-		}
-
+	private callClientAPI(func: (...args: any[]) => Promise<any>, args: any): Promise<any> {
+		let trial = 1;
 		return new Promise(async (res, rej) => {
-			let resolved = false, capture = false;
-
-			const tryCall = async (resolve: any, reject: any): Promise<any> => {
-				await this.wait();
-				try {
-					const result = await this.callClientAPI(func, args, ++trial);
-					res(result);
-				} catch (error) {
-					rej(error);
+			while (true) {
+				if (trial > this.pollTrials) {
+					rej(`Could not retrieve the element in ${this.testRetry * this.pollTrials * this.pollTimeout} seconds.`);
+					break;
 				}
-			}
 
-			try {
-				const result = await func.call(this.client, args, capture);
-				if (!resolved && result === '') {
-					resolved = true;
-					await tryCall(res, rej);
-				} else if (!resolved) {
-					resolved = true;
+				let result;
+				try {
+					result = await func.call(this.client, args);
+				} catch (e) {}
+
+				if (result && result !== '') {
 					await this.screenshot.capture();
 					res(result);
+					break;
 				}
-			} catch (e) {
-				if (!resolved) {
-					resolved = true;
-					await tryCall(res, rej);
-				}
+
+				this.wait();
+				trial++;
 			}
 		});
 	}

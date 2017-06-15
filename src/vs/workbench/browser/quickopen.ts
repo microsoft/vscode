@@ -131,18 +131,21 @@ export interface QuickOpenHandlerHelpEntry {
 export class QuickOpenHandlerDescriptor extends AsyncDescriptor<QuickOpenHandler> {
 	public prefix: string;
 	public description: string;
+	public contextKey: string;
 	public isDefault: boolean;
 	public helpEntries: QuickOpenHandlerHelpEntry[];
 	public instantProgress: boolean;
+
 	private id: string;
 
-	constructor(moduleId: string, ctorName: string, prefix: string, description: string, instantProgress?: boolean);
-	constructor(moduleId: string, ctorName: string, prefix: string, helpEntries: QuickOpenHandlerHelpEntry[], instantProgress?: boolean);
-	constructor(moduleId: string, ctorName: string, prefix: string, param: any, instantProgress: boolean = false) {
+	constructor(moduleId: string, ctorName: string, prefix: string, contextKey: string, description: string, instantProgress?: boolean);
+	constructor(moduleId: string, ctorName: string, prefix: string, contextKey: string, helpEntries: QuickOpenHandlerHelpEntry[], instantProgress?: boolean);
+	constructor(moduleId: string, ctorName: string, prefix: string, contextKey: string, param: any, instantProgress: boolean = false) {
 		super(moduleId, ctorName);
 
-		this.prefix = prefix;
 		this.id = moduleId + ctorName;
+		this.prefix = prefix;
+		this.contextKey = contextKey;
 		this.instantProgress = instantProgress;
 
 		if (types.isString(param)) {

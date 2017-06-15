@@ -36,14 +36,16 @@ export class TestConfigurationService extends EventEmitter implements IConfigura
 		return {
 			value: getConfigurationValue<C>(this.getConfiguration(), key),
 			default: getConfigurationValue<C>(this.getConfiguration(), key),
-			user: getConfigurationValue<C>(this.getConfiguration(), key)
+			user: getConfigurationValue<C>(this.getConfiguration(), key),
+			workspace: null
 		};
 	}
 
 	public keys(): IConfigurationKeys {
 		return {
 			default: getConfigurationKeys(),
-			user: Object.keys(this.configuration)
+			user: Object.keys(this.configuration),
+			workspace: []
 		};
 	}
 }

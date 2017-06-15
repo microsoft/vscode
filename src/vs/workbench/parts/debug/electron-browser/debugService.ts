@@ -912,14 +912,12 @@ export class DebugService implements debug.IDebugService {
 					let config = process.configuration;
 					if (this.launchJsonChanged) {
 						this.launchJsonChanged = false;
-						config = this.configurationManager.getConfiguration(process.configuration.name) || process.configuration;
-						if (config) {
-							// Take the type from the process since the debug extension might overwrite it #21316
-							config.type = process.configuration.type;
-							config.noDebug = process.configuration.noDebug;
-							config.__restart = restartData;
-						}
+						config = this.configurationManager.getConfiguration(process.configuration.name) || config;
+						// Take the type from the process since the debug extension might overwrite it #21316
+						config.type = process.configuration.type;
+						config.noDebug = process.configuration.noDebug;
 					}
+					config.__restart = restartData;
 					this.createProcess(config).then(() => c(null), err => e(err));
 				}, 300);
 			})

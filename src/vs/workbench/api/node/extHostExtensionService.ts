@@ -16,7 +16,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { createApiFactory, initializeExtensionApi } from 'vs/workbench/api/node/extHost.api.impl';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { MainContext, MainProcessExtensionServiceShape, IWorkspaceData, IEnvironment, IInitData } from './extHost.protocol';
-import { createHash } from 'crypto';
 
 const hasOwnProperty = Object.hasOwnProperty;
 
@@ -129,12 +128,7 @@ class ExtensionStoragePath {
 		if (!this._workspace) {
 			return TPromise.as(undefined);
 		}
-		// TODO@joh what to do with multiple roots?
-		const storageName = createHash('md5')
-			.update(this._workspace.roots[0].fsPath)
-			.update(this._workspace.id || '')
-			.digest('hex');
-
+		const storageName = this._workspace.id;
 		const storagePath = join(this._environment.appSettingsHome, 'workspaceStorage', storageName);
 
 		return dirExists(storagePath).then(exists => {

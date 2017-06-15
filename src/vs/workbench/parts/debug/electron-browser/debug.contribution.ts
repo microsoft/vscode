@@ -137,6 +137,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(SelectAndStartAction, 
 		'vs/workbench/parts/debug/browser/debugQuickOpen',
 		'DebugQuickOpenHandler',
 		'debug ',
+		'inLaunchConfigurationsPicker',
 		nls.localize('debugCommands', "Debug Configuration")
 	)
 );

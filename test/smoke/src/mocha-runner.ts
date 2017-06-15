@@ -3,19 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-var Mocha = require('mocha');
-var path = require('path');
+const MochaTest = require('mocha');
+const path = require('path');
 
-var mocha = new Mocha({
+const mochaTest = new MochaTest({
 	timeout: 360000,
 	retries: 2,
 	slow: 50000,
 	useColors: true
 });
 
-mocha.addFile(path.join(process.cwd(), 'out/test.js'));
-mocha.run((failures) => {
-	process.on('exit', () => {
-		process.exit(failures);
-	});
+mochaTest.addFile(path.join(process.cwd(), 'out/test.js'));
+mochaTest.run((failures) => {
+	process.exit(failures);
 });

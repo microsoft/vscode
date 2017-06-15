@@ -7,7 +7,7 @@
 import { Registry } from 'vs/platform/platform';
 import * as json from 'vs/base/common/json';
 import { IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
-import { Configuration, IOverrides } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationModel, IOverrides } from 'vs/platform/configuration/common/configuration';
 
 export function getDefaultValues(): any {
 	const valueTreeRoot: any = Object.create(null);
@@ -65,7 +65,7 @@ export function getConfigurationKeys(): string[] {
 	return Object.keys(properties);
 }
 
-export class DefaultConfiguration<T> extends Configuration<T> {
+export class DefaultConfigurationModel<T> extends ConfigurationModel<T> {
 
 	constructor() {
 		super(getDefaultValues());
@@ -89,7 +89,7 @@ interface Overrides<T> extends IOverrides<T> {
 	raw: any;
 }
 
-export class CustomConfiguration<T> extends Configuration<T> {
+export class CustomConfigurationModel<T> extends ConfigurationModel<T> {
 
 	protected _parseErrors: any[] = [];
 

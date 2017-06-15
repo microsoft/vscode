@@ -82,7 +82,7 @@ class TerminalBehaviorBuilder {
 	public result: Tasks.TerminalBehavior;
 
 	constructor(public parent: CommandConfigurationBuilder) {
-		this.result = { echo: false, reveal: Tasks.RevealKind.Always };
+		this.result = { echo: false, reveal: Tasks.RevealKind.Always, focus: false, instance: Tasks.InstanceKind.Shared };
 	}
 
 	public echo(value: boolean): TerminalBehaviorBuilder {
@@ -92,6 +92,16 @@ class TerminalBehaviorBuilder {
 
 	public reveal(value: Tasks.RevealKind): TerminalBehaviorBuilder {
 		this.result.reveal = value;
+		return this;
+	}
+
+	public focus(value: boolean): TerminalBehaviorBuilder {
+		this.result.focus = value;
+		return this;
+	}
+
+	public instance(value: Tasks.InstanceKind): TerminalBehaviorBuilder {
+		this.result.instance = value;
 		return this;
 	}
 
@@ -1446,7 +1456,8 @@ suite('Tasks version 2.0.0', () => {
 		builder.task('dir', 'dir').
 			group(Tasks.TaskGroup.Build).
 			command().suppressTaskName(true).
-			type(Tasks.CommandType.Shell);
+			type(Tasks.CommandType.Shell).
+			terminal().echo(true);
 		testConfiguration(external, builder);
 	});
 

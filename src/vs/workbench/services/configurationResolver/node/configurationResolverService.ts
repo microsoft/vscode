@@ -214,7 +214,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		}
 
 		// We need a map from interactive variables to keys because we only want to trigger an command once per key -
-		// even though it might occure multiple times in configuration #7026.
+		// even though it might occur multiple times in configuration #7026.
 		const interactiveVariablesToSubstitutes: { [interactiveVariable: string]: { object: any, key: string }[] } = {};
 		const findInteractiveVariables = (object: any) => {
 			Object.keys(object).forEach(key => {

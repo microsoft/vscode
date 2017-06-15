@@ -64,7 +64,7 @@ export const TestEnvironmentService = new EnvironmentService(parseArgs(process.a
 export class TestContextService implements IWorkspaceContextService {
 	public _serviceBrand: any;
 
-	private workspace: any;
+	private workspace: IWorkspace;
 	private id: string;
 	private options: any;
 
@@ -94,7 +94,11 @@ export class TestContextService implements IWorkspaceContextService {
 	}
 
 	public getWorkspace2(): IWorkspace2 {
-		return this.workspace ? { id: this.id, roots: [this.workspace.resource] } : void 0;
+		return this.workspace ? { id: this.id, roots: [this.workspace.resource], name: this.workspace.resource.fsPath } : void 0;
+	}
+
+	public getRoot(resource: URI): URI {
+		return this.isInsideWorkspace(resource) ? this.workspace.resource : null;
 	}
 
 	public setWorkspace(workspace: any): void {
@@ -525,7 +529,7 @@ export class TestEditorService implements IWorkbenchEditorService {
 		return TPromise.as([]);
 	}
 
-	public closeEditors(position: Position, except?: IEditorInput, direction?: Direction): TPromise<void> {
+	public closeEditors(position: Position, filter?: { except?: IEditorInput, direction?: Direction, unmodifiedOnly?: boolean }): TPromise<void> {
 		return TPromise.as(null);
 	}
 

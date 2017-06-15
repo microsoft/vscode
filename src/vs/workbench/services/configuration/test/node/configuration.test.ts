@@ -212,7 +212,7 @@ suite('WorkspaceConfigurationService - Node', () => {
 				service.onDidUpdateConfiguration(event => {
 					const config = service.getConfiguration<{ testworkbench: { editor: { icons: boolean } } }>();
 					assert.equal(config.testworkbench.editor.icons, true);
-					assert.equal(event.config.testworkbench.editor.icons, true);
+					assert.equal(service.getConfiguration<any>().testworkbench.editor.icons, true);
 
 					service.dispose();
 
