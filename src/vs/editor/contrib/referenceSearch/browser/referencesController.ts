@@ -5,7 +5,6 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { alert } from 'vs/base/browser/ui/aria/aria';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
@@ -227,7 +226,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 				return;
 			}
 			this._model.setReferences(aggregatedLocations);
-		}).then(() => alert(this._model.getAriaMessage()));
+		});
 
 		const onDone = stopwatch(fromPromise(promise));
 
