@@ -463,6 +463,9 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 	let patternPos = patternStartPos;
 	let wordPos = 0;
 
+	// Run a simple check if the characters of pattern occur
+	// (in order) at all in word. If that isn't the case we
+	// stop because no match will be possible
 	while (patternPos < patternLen && wordPos < wordLen) {
 		if (lowPattern[patternPos] === lowWord[wordPos]) {
 			patternPos += 1;
@@ -470,10 +473,10 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 		wordPos += 1;
 	}
 	if (patternPos !== patternLen) {
-		// no simple matches found -> return early
 		return undefined;
 	}
 
+	// There will be a mach, fill in tables
 	for (patternPos = patternStartPos + 1; patternPos <= patternLen; patternPos++) {
 
 		let lastLowWordChar = '';
@@ -483,20 +486,22 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 			let score = -1;
 			let lowWordChar = lowWord[wordPos - 1];
 			if (lowPattern[patternPos - 1] === lowWordChar) {
-
-				if (wordPos === 1) {
+				if (wordPos === (patternPos - patternStartPos)) {
+					// common prefix: `foobar <-> foobaz`
 					if (pattern[patternPos - 1] === word[wordPos - 1]) {
 						score = 7;
 					} else {
 						score = 5;
 					}
 				} else if (lowWordChar !== word[wordPos - 1]) {
+					// hitting upper-case: `foo <-> forOthers`
 					if (pattern[patternPos - 1] === word[wordPos - 1]) {
 						score = 7;
 					} else {
 						score = 5;
 					}
 				} else if (_seps[lastLowWordChar]) {
+					// post separator: `foo <-> bar_foo`
 					score = 5;
 
 				} else {
