@@ -340,10 +340,6 @@ export class ExplorerView extends CollapsibleView {
 		return toResource(input, { supportSideBySide: true, filter: 'file' });
 	}
 
-	private get root(): FileStat {
-		return this.explorerViewer ? (<FileStat>this.explorerViewer.getInput()) : null;
-	}
-
 	private get isCreated(): boolean {
 		return this.explorerViewer && this.explorerViewer.getInput();
 	}
@@ -687,7 +683,11 @@ export class ExplorerView extends CollapsibleView {
 	}
 
 	private doRefresh(): TPromise<void> {
-		const targetsToResolve: URI[] = [];
+		const targetsToResolve: { root: FileStat, resource: URI, options: { resolveTo: URI[] } }[] = [];
+		this.model.roots.forEach(root => {
+			const rootAndTargets = { root, resource: root.resource, options: { resolveTo: [] } };
+			targetsToResolve.push(rootAndTargets);
+		});
 		let targetsToExpand: URI[] = [];
 
 		if (this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES]) {
@@ -698,48 +698,50 @@ export class ExplorerView extends CollapsibleView {
 		if (!this.isCreated) {
 			const activeFile = this.getActiveFile();
 			if (activeFile) {
-				targetsToResolve.push(activeFile);
+				const root = this.contextService.getRoot(activeFile);
+				if (root) {
+					const found = targetsToResolve.filter(t => t.root.resource.toString() === root.toString()).pop();
+					found.options.resolveTo.push(activeFile);
+				}
 			}
 
-			if (targetsToExpand.length) {
-				targetsToResolve.push(...targetsToExpand);
-			}
+			targetsToExpand.forEach(toExpand => {
+				const root = this.contextService.getRoot(toExpand);
+				if (root) {
+					const found = targetsToResolve.filter(ttr => ttr.resource.toString() === root.toString()).pop();
+					found.options.resolveTo.push(toExpand);
+				}
+			});
 		}
 
 		// Subsequent refresh: Receive targets through expanded folders in tree
 		else {
-			this.getResolvedDirectories(this.root, targetsToResolve);
+			targetsToResolve.forEach(t => {
+				this.getResolvedDirectories(t.root, t.options.resolveTo);
+			});
 		}
 
 		// Load Root Stat with given target path configured
-		const options: IResolveFileOptions = { resolveTo: targetsToResolve };
-		const promise = this.fileService.resolveFile(this.contextService.getWorkspace().resource, options).then(stat => {
-			let explorerPromise: TPromise<void>;
-
+		const promise = this.fileService.resolveFiles(targetsToResolve).then(stats => {
 			// Convert to model
-			const modelStat = FileStat.create(stat, options.resolveTo);
+			const modelStats = stats.map((stat, index) => FileStat.create(stat, targetsToResolve[index].options.resolveTo));
+			// Subsequent refresh: Merge stat into our local model and refresh tree
+			modelStats.forEach((modelStat, index) => FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]));
+
+			if (this.isCreated) {
+				return this.explorerViewer.refresh();
+			}
 
 			// First time refresh: The stat becomes the input of the viewer
-			if (!this.isCreated) {
-				explorerPromise = this.explorerViewer.setInput(modelStat).then(() => {
+			return this.explorerViewer.setInput(this.model).then(() => {
 
-					// Make sure to expand all folders that where expanded in the previous session
-					if (targetsToExpand) {
-						return this.explorerViewer.expandAll(targetsToExpand.map(expand => this.root.find(expand)));
-					}
+				// Make sure to expand all folders that where expanded in the previous session
+				if (targetsToExpand) {
+					return this.explorerViewer.expandAll(targetsToExpand.map(expand => this.model.findFirst(expand)));
+				}
 
-					return TPromise.as(null);
-				});
-			}
-
-			// Subsequent refresh: Merge stat into our local model and refresh tree
-			else {
-				FileStat.mergeLocalWithDisk(modelStat, this.root);
-
-				explorerPromise = this.explorerViewer.refresh(this.root);
-			}
-
-			return explorerPromise;
+				return TPromise.as(null);
+			});
 		}, (e: any) => TPromise.wrapError(e));
 
 		this.progressService.showWhile(promise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
@@ -796,23 +798,24 @@ export class ExplorerView extends CollapsibleView {
 			return TPromise.as(null);
 		}
 
-		const fileStat = this.root.find(resource);
+		const fileStat = this.model.findFirst(resource);
 		if (fileStat) {
 			return this.doSelect(fileStat, reveal);
 		}
 
 		// Stat needs to be resolved first and then revealed
 		const options: IResolveFileOptions = { resolveTo: [resource] };
-		return this.fileService.resolveFile(this.contextService.getWorkspace().resource, options).then(stat => {
+		const rootUri = this.contextService.getRoot(resource);
+		return this.fileService.resolveFile(rootUri, options).then(stat => {
 
 			// Convert to model
 			const modelStat = FileStat.create(stat, options.resolveTo);
-
+			const root = this.model.roots.filter(r => r.resource.toString() === rootUri.toString()).pop();
 			// Update Input with disk Stat
-			FileStat.mergeLocalWithDisk(modelStat, this.root);
+			FileStat.mergeLocalWithDisk(modelStat, root);
 
 			// Select and Reveal
-			return this.explorerViewer.refresh(this.root).then(() => this.doSelect(this.root.find(resource), reveal));
+			return this.explorerViewer.refresh(root).then(() => this.doSelect(root.find(resource), reveal));
 
 		}, (e: any) => this.messageService.show(Severity.Error, e));
 	}

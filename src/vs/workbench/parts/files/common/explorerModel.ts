@@ -53,11 +53,6 @@ export class Model {
 
 		return null;
 	}
-
-	public rootForResource(resource: URI): FileStat {
-		// TODO@Isidor temporary until we have a utility method for this
-		return this.roots[0];
-	}
 }
 
 export class FileStat implements IFileStat {
@@ -148,9 +143,11 @@ export class FileStat implements IFileStat {
 
 			// Map resource => stat
 			const oldLocalChildren = new ResourceMap<FileStat>();
-			local.children.forEach((localChild: FileStat) => {
-				oldLocalChildren.set(localChild.resource, localChild);
-			});
+			if (local.children) {
+				local.children.forEach((localChild: FileStat) => {
+					oldLocalChildren.set(localChild.resource, localChild);
+				});
+			}
 
 			// Clear current children
 			local.children = [];
