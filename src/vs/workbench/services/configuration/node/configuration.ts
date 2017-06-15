@@ -18,7 +18,7 @@ import { Schemas } from "vs/base/common/network";
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { readFile } from 'vs/base/node/pfs';
 import * as extfs from 'vs/base/node/extfs';
-import { IWorkspaceContextService, IWorkspace2, Workspace as SingleRootWorkspace, IWorkspace } from "vs/platform/workspace/common/workspace";
+import { IWorkspaceContextService, IWorkspace2, Workspace as LegacyWorkspace, IWorkspace as ILegacyWorkspace } from "vs/platform/workspace/common/workspace";
 import { FileChangeType, FileChangesEvent, isEqual, isEqualOrParent } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -98,12 +98,12 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	private rootsTrieMap: TrieMap<URI> = new TrieMap<URI>(TrieMap.PathSplitter);
 	private _configuration: Configuration<any>;
 
-	constructor(private environmentService: IEnvironmentService, private singleRootWorkspace?: SingleRootWorkspace, private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME) {
+	constructor(private environmentService: IEnvironmentService, private legacyWorkspace?: LegacyWorkspace, private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME) {
 		super();
 
-		if (singleRootWorkspace) {
-			const workspaceId = createHash('md5').update(singleRootWorkspace.resource.fsPath).update(singleRootWorkspace.ctime ? String(singleRootWorkspace.ctime) : '').digest('hex');
-			this.workspace = new Workspace(workspaceId, [singleRootWorkspace.resource]);
+		if (legacyWorkspace) {
+			const workspaceId = createHash('md5').update(legacyWorkspace.resource.fsPath).update(legacyWorkspace.ctime ? String(legacyWorkspace.ctime) : '').digest('hex');
+			this.workspace = new Workspace(workspaceId, [legacyWorkspace.resource]);
 		} else {
 			this.workspace = null;
 		}
@@ -161,8 +161,8 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		}
 	}
 
-	public getWorkspace(): IWorkspace {
-		return this.singleRootWorkspace;
+	public getWorkspace(): ILegacyWorkspace {
+		return this.legacyWorkspace;
 	}
 
 	public getWorkspace2(): IWorkspace2 {
@@ -182,15 +182,15 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	}
 
 	public isInsideWorkspace(resource: URI): boolean {
-		return this.workspace ? this.singleRootWorkspace.isInsideWorkspace(resource) : false;
+		return this.workspace ? this.legacyWorkspace.isInsideWorkspace(resource) : false;
 	}
 
 	public toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
-		return this.workspace ? this.singleRootWorkspace.toWorkspaceRelativePath(resource, toOSPath) : null;
+		return this.workspace ? this.legacyWorkspace.toWorkspaceRelativePath(resource, toOSPath) : null;
 	}
 
 	public toResource(workspaceRelativePath: string): URI {
-		return this.workspace ? this.singleRootWorkspace.toResource(workspaceRelativePath) : null;
+		return this.workspace ? this.legacyWorkspace.toResource(workspaceRelativePath) : null;
 	}
 
 	public get configuration(): BaseConfiguration<any> {

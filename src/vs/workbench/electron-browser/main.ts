@@ -18,7 +18,7 @@ import paths = require('vs/base/common/paths');
 import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { IWorkspace, Workspace } from "vs/platform/workspace/common/workspace";
+import { Workspace as LegacyWorkspace } from "vs/platform/workspace/common/workspace";
 import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configuration';
 import { realpath, stat } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
@@ -95,11 +95,11 @@ function toInputs(paths: IPath[], isUntitledFile?: boolean): IResourceInput[] {
 }
 
 function openWorkbench(configuration: IWindowConfiguration, options: IOptions): TPromise<void> {
-	return resolveWorkspace(configuration).then(workspace => {
+	return resolveLegacyWorkspace(configuration).then(legacyWorkspace => {
 		const environmentService = new EnvironmentService(configuration, configuration.execPath);
-		const workspaceConfigurationService = new WorkspaceConfigurationService(environmentService, workspace);
+		const workspaceConfigurationService = new WorkspaceConfigurationService(environmentService, legacyWorkspace);
 		const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, !workspaceConfigurationService.hasWorkspace());
-		const storageService = createStorageService(workspace, configuration, environmentService);
+		const storageService = createStorageService(legacyWorkspace, configuration, environmentService);
 
 		// Since the configuration service is one of the core services that is used in so many places, we initialize it
 		// right before startup of the workbench shell to have its data ready for consumers
@@ -133,7 +133,7 @@ function openWorkbench(configuration: IWindowConfiguration, options: IOptions): 
 	});
 }
 
-function resolveWorkspace(configuration: IWindowConfiguration): TPromise<Workspace> {
+function resolveLegacyWorkspace(configuration: IWindowConfiguration): TPromise<LegacyWorkspace> {
 	if (!configuration.workspacePath) {
 		return TPromise.as(null);
 	}
@@ -152,7 +152,7 @@ function resolveWorkspace(configuration: IWindowConfiguration): TPromise<Workspa
 		configuration.workspacePath = realWorkspacePath;
 
 		// resolve ctime of workspace
-		return stat(realWorkspacePath).then(folderStat => new Workspace(
+		return stat(realWorkspacePath).then(folderStat => new LegacyWorkspace(
 			uri.file(realWorkspacePath),
 			platform.isLinux ? folderStat.ino : folderStat.birthtime.getTime() // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
 		));
@@ -163,7 +163,7 @@ function resolveWorkspace(configuration: IWindowConfiguration): TPromise<Workspa
 	});
 }
 
-function createStorageService(workspace: IWorkspace, configuration: IWindowConfiguration, environmentService: IEnvironmentService): IStorageService {
+function createStorageService(workspace: LegacyWorkspace, configuration: IWindowConfiguration, environmentService: IEnvironmentService): IStorageService {
 	let id: IWorkspaceStorageIdentifier;
 	if (workspace) {
 		id = { resource: workspace.resource, uid: workspace.ctime };
