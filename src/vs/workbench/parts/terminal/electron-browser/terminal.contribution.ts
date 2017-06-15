@@ -186,7 +186,9 @@ configurationRegistry.registerConfiguration({
 				FocusFirstGroupAction.ID,
 				FocusSecondGroupAction.ID,
 				FocusThirdGroupAction.ID,
-				SelectAllTerminalAction.ID
+				SelectAllTerminalAction.ID,
+				FocusTerminalFindWidgetAction.ID,
+				HideTerminalFindWidgetAction.ID
 			].sort()
 		}
 	}
@@ -278,10 +280,9 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(AllowWorkspaceSh
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(DisallowWorkspaceShellTerminalCommand, DisallowWorkspaceShellTerminalCommand.ID, DisallowWorkspaceShellTerminalCommand.LABEL), 'Terminal: Disallow Workspace Shell Configuration', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(RenameTerminalAction, RenameTerminalAction.ID, RenameTerminalAction.LABEL), 'Terminal: Rename', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalFindWidgetAction, FocusTerminalFindWidgetAction.ID, FocusTerminalFindWidgetAction.LABEL, {
-	primary: KeyMod.WinCtrl | KeyCode.Shift | KeyCode.KEY_F,
-	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_F }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Focus Find Widget', nls.localize('Terminal: Focus Find Widget', category));
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_F
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Focus Find Widget', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(HideTerminalFindWidgetAction, HideTerminalFindWidgetAction.ID, HideTerminalFindWidgetAction.LABEL, {
 	primary: KeyCode.Escape
-}, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE), 'Terminal: Focus Find Widget', nls.localize('Terminal: Focus Find Widget', category));
+}, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE), 'Terminal: Focus Find Widget', category);
 registerColors();
