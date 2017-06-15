@@ -182,19 +182,22 @@ export class TerminalFindWidget extends Widget {
 	}
 
 	public reveal(): void {
-		if (!this._isVisible) {
-			this._isVisible = true;
-
-			setTimeout(() => {
-				dom.addClass(this._domNode, 'visible');
-				this._domNode.setAttribute('aria-hidden', 'false');
-				dom.addClass(this._domNode, 'noanimation');
-				setTimeout(() => {
-					dom.removeClass(this._domNode, 'noanimation');
-					this._findInput.select();
-				}, 200);
-			}, 0);
+		if (this._isVisible) {
+			this._findInput.select();
+			return;
 		}
+
+		this._isVisible = true;
+
+		setTimeout(() => {
+			dom.addClass(this._domNode, 'visible');
+			this._domNode.setAttribute('aria-hidden', 'false');
+			dom.addClass(this._domNode, 'noanimation');
+			setTimeout(() => {
+				dom.removeClass(this._domNode, 'noanimation');
+				this._findInput.select();
+			}, 200);
+		}, 0);
 	}
 
 	public hide(): void {
