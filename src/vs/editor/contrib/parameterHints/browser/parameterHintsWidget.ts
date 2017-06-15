@@ -81,7 +81,7 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	trigger(delay = ParameterHintsModel.DELAY): void {
-		if (!this.enabled || !SignatureHelpProviderRegistry.has(this.editor.getModel())) {
+		if (!this.active && delay !== 0 && !this.enabled || !SignatureHelpProviderRegistry.has(this.editor.getModel())) {
 			return;
 		}
 
