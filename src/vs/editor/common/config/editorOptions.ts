@@ -496,6 +496,11 @@ export interface IEditorOptions {
 	 * The letter spacing
 	 */
 	letterSpacing?: number;
+
+	/**
+	 * Enable changes in gutter
+	 */
+	showChangesInGutter?: boolean;
 }
 
 /**
@@ -795,6 +800,7 @@ export interface IValidatedEditorOptions {
 	readonly useTabStops: boolean;
 	readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 	readonly accessibilitySupport: 'auto' | 'off' | 'on';
+	readonly showChangesInGutter: boolean;
 
 	readonly viewInfo: InternalEditorViewOptions;
 	readonly contribInfo: EditorContribOptions;
@@ -1438,6 +1444,7 @@ export class EditorOptionsValidator {
 			accessibilitySupport: _stringSet<'auto' | 'on' | 'off'>(opts.accessibilitySupport, defaults.accessibilitySupport, ['auto', 'on', 'off']),
 			viewInfo: viewInfo,
 			contribInfo: contribInfo,
+			showChangesInGutter: _boolean(opts.showChangesInGutter, defaults.showChangesInGutter)
 		};
 	}
 
@@ -1659,6 +1666,7 @@ export class InternalEditorOptionsFactory {
 			useTabStops: opts.useTabStops,
 			multiCursorModifier: opts.multiCursorModifier,
 			accessibilitySupport: opts.accessibilitySupport,
+			showChangesInGutter: opts.showChangesInGutter,
 
 			viewInfo: {
 				extraEditorClassName: opts.viewInfo.extraEditorClassName,
@@ -2076,6 +2084,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	useTabStops: true,
 	multiCursorModifier: 'altKey',
 	accessibilitySupport: 'auto',
+	showChangesInGutter: true,
 
 	viewInfo: {
 		extraEditorClassName: '',

@@ -22,7 +22,9 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import URI from 'vs/base/common/uri';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ISCMService } from 'vs/workbench/services/scm/common/scm';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
@@ -70,13 +72,12 @@ class DirtyDiffModelDecorator {
 		}
 	});
 
+	private configurationService: IConfigurationService;
 	private decorations: string[];
 	private baselineModel: common.IModel;
 	private diffDelayer: ThrottledDelayer<common.IChange[]>;
 	private _originalURIPromise: winjs.TPromise<URI>;
 	private toDispose: IDisposable[];
-
-	private static disableSCMGutter: boolean;
 
 	constructor(
 		private model: common.IModel,
@@ -86,7 +87,8 @@ class DirtyDiffModelDecorator {
 		@IEditorWorkerService private editorWorkerService: IEditorWorkerService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService
+		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		this.decorations = [];
 		this.diffDelayer = new ThrottledDelayer<common.IChange[]>(200);
@@ -94,9 +96,7 @@ class DirtyDiffModelDecorator {
 		this.triggerDiff();
 		this.toDispose.push(model.onDidChangeContent(() => this.triggerDiff()));
 		this.toDispose.push(scmService.onDidChangeProvider(() => this.triggerDiff()));
-
-		// TODO: Get setting and set status to this.disableSCMGutter
-		DirtyDiffModelDecorator.disableSCMGutter = true; // testing
+		this.configurationService = configurationService;
 	}
 
 	private triggerDiff(): winjs.Promise {
@@ -115,7 +115,10 @@ class DirtyDiffModelDecorator {
 					diff = [];
 				}
 
-				return this.decorations = this.model.deltaDecorations(this.decorations, DirtyDiffModelDecorator.changesToDecorations(diff || []));
+				// check whether decorations should be hidden
+				const hiddenDecorations = !this.configurationService.getConfiguration<IEditorOptions>('editor').showChangesInGutter;
+
+				return this.decorations = this.model.deltaDecorations(this.decorations, DirtyDiffModelDecorator.changesToDecorations(diff || [], hiddenDecorations));
 			});
 	}
 
@@ -162,9 +165,9 @@ class DirtyDiffModelDecorator {
 		});
 	}
 
-	private static changesToDecorations(diff: common.IChange[]): common.IModelDeltaDecoration[] {
+	private static changesToDecorations(diff: common.IChange[], hidden = false): common.IModelDeltaDecoration[] {
 		return diff.map((change) => {
-			if (DirtyDiffModelDecorator.disableSCMGutter) {
+			if (hidden) {
 				return {
 					range: {
 						startLineNumber: 0, startColumn: 1,
