@@ -688,10 +688,11 @@ suite('TelemetryService', () => {
 					return {
 						value: getConfigurationValue(this.getConfiguration(), key),
 						default: getConfigurationValue(this.getConfiguration(), key),
-						user: getConfigurationValue(this.getConfiguration(), key)
+						user: getConfigurationValue(this.getConfiguration(), key),
+						workspace: null,
 					};
 				},
-				keys() { return { default: [], user: [] }; },
+				keys() { return { default: [], user: [], workspace: [] }; },
 				onDidUpdateConfiguration: emitter.event
 			});
 

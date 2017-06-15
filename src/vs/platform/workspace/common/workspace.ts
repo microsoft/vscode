@@ -39,6 +39,12 @@ export interface IWorkspaceContextService {
 	onDidChangeWorkspaceRoots: Event<URI[]>;
 
 	/**
+	 * Returns the root for the given resource from the workspace.
+	 * Can be null if there is no workspace or the resource is not inside the workspace.
+	 */
+	getRoot(resource: URI): URI;
+
+	/**
 	 * Returns iff the provided resource is inside the workspace or not.
 	 */
 	isInsideWorkspace(resource: URI): boolean;

@@ -64,7 +64,7 @@ export const TestEnvironmentService = new EnvironmentService(parseArgs(process.a
 export class TestContextService implements IWorkspaceContextService {
 	public _serviceBrand: any;
 
-	private workspace: any;
+	private workspace: IWorkspace;
 	private id: string;
 	private options: any;
 
@@ -95,6 +95,10 @@ export class TestContextService implements IWorkspaceContextService {
 
 	public getWorkspace2(): IWorkspace2 {
 		return this.workspace ? { id: this.id, roots: [this.workspace.resource], name: this.workspace.resource.fsPath } : void 0;
+	}
+
+	public getRoot(resource: URI): URI {
+		return this.isInsideWorkspace(resource) ? this.workspace.resource : null;
 	}
 
 	public setWorkspace(workspace: any): void {

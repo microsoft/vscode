@@ -52,7 +52,8 @@ export class SpectronApplication {
 		this.spectron = new Application({
 			path: electronPath,
 			args: args,
-			chromeDriverArgs: chromeDriverArgs
+			chromeDriverArgs: chromeDriverArgs,
+			requireName: 'electronRequire'
 		});
 		this.screenshot = new Screenshot(this, testName);
 		this.client = new SpectronClient(this.spectron, this.screenshot);

@@ -29,5 +29,9 @@ step "Run smoke test" \
 	pushd test/smoke
 	npm install
 	npm run compile
+<<<<<<< HEAD
 	xvfb-run -a -s="-screen 0 1024x768x8" node src/main.js --latest "$AGENT_BUILDDIRECTORY/VSCode-linux-ia32/code-insiders"
+=======
+	xvfb-run -a -s "-screen 0 1024x768x8" node src/main.js --latest "$AGENT_BUILDDIRECTORY/VSCode-linux-ia32/code-insiders"
+>>>>>>> master
 	popd
