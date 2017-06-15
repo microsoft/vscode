@@ -617,7 +617,7 @@ export class CloseLeftEditorsInGroupAction extends Action {
 	public run(context?: IEditorContext): TPromise<any> {
 		const editor = getTarget(this.editorService, this.groupService, context);
 		if (editor) {
-			return this.editorService.closeEditors(editor.position, editor.input, Direction.LEFT);
+			return this.editorService.closeEditors(editor.position, { except: editor.input, direction: Direction.LEFT });
 		}
 
 		return TPromise.as(false);
@@ -641,7 +641,7 @@ export class CloseRightEditorsInGroupAction extends Action {
 	public run(context?: IEditorContext): TPromise<any> {
 		const editor = getTarget(this.editorService, this.groupService, context);
 		if (editor) {
-			return this.editorService.closeEditors(editor.position, editor.input, Direction.RIGHT);
+			return this.editorService.closeEditors(editor.position, { except: editor.input, direction: Direction.RIGHT });
 		}
 
 		return TPromise.as(false);
@@ -706,13 +706,18 @@ export class CloseUnmodifiedEditorsInGroupAction extends Action {
 	}
 
 	public run(context?: IEditorContext): TPromise<any> {
-		const activeGroup = this.editorGroupService.getStacksModel().activeGroup;
-		const groupId = context && context.group ? context.group.id : activeGroup ? activeGroup.id : null;
-		if (groupId !== null) {
-			const stacks = this.editorGroupService.getStacksModel();
-			const group = stacks.getGroup(groupId);
-			group.getEditors().filter(e => !e.isDirty()).forEach(e => this.editorService.closeEditor(stacks.positionOfGroup(group), e));
-			return TPromise.as(null);
+		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
+
+		// If position is not passed in take the position of the active editor.
+		if (typeof position !== 'number') {
+			const active = this.editorService.getActiveEditor();
+			if (active) {
+				position = active.position;
+			}
+		}
+
+		if (typeof position === 'number') {
+			return this.editorService.closeEditors(position, { unmodifiedOnly: true });
 		}
 
 		return TPromise.as(false);
@@ -776,7 +781,7 @@ export class CloseOtherEditorsInGroupAction extends Action {
 		}
 
 		if (typeof position === 'number' && input) {
-			return this.editorService.closeEditors(position, input);
+			return this.editorService.closeEditors(position, { except: input });
 		}
 
 		return TPromise.as(false);
