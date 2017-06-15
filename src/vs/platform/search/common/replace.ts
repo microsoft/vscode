@@ -175,7 +175,7 @@ export class ReplacePattern {
 		}
 
 		if (substrFrom === 0) {
-			// no replacement occured
+			// no replacement occurred
 			return;
 		}
 

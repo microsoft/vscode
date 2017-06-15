@@ -145,7 +145,7 @@ export function createApiFactory(
 							console.warn('Edits from command ' + id + ' were not applied.');
 						}
 					}, (err) => {
-						console.warn('An error occured while running command ' + id, err);
+						console.warn('An error occurred while running command ' + id, err);
 					});
 				});
 			},
