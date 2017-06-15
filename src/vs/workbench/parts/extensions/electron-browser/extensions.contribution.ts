@@ -59,6 +59,7 @@ Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
 		'vs/workbench/parts/extensions/browser/extensionsQuickOpen',
 		'ExtensionsHandler',
 		'ext ',
+		null,
 		localize('extensionsCommands', "Manage Extensions"),
 		true
 	)
@@ -69,6 +70,7 @@ Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
 		'vs/workbench/parts/extensions/browser/extensionsQuickOpen',
 		'GalleryExtensionsHandler',
 		'ext install ',
+		null,
 		localize('galleryExtensionsCommands', "Install Gallery Extensions"),
 		true
 	)
