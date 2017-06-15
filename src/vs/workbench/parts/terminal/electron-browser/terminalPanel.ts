@@ -10,11 +10,12 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITerminalService, ITerminalFont, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { TerminalFindWidget } from './terminalFindWidget';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR } from './terminalColorRegistry';
 import { ColorIdentifier, selectionBackground } from 'vs/platform/theme/common/colorRegistry';
 import { KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
@@ -34,10 +35,12 @@ export class TerminalPanel extends Panel {
 	private _parentDomElement: HTMLElement;
 	private _terminalContainer: HTMLElement;
 	private _themeStyleElement: HTMLElement;
+	private _findWidget: TerminalFindWidget;
 
 	constructor(
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@IContextMenuService private _contextMenuService: IContextMenuService,
+		@IContextViewService private _contextViewService: IContextViewService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@ITerminalService private _terminalService: ITerminalService,
 		@IThemeService protected themeService: IThemeService,
@@ -55,9 +58,13 @@ export class TerminalPanel extends Panel {
 
 		this._terminalContainer = document.createElement('div');
 		dom.addClass(this._terminalContainer, 'terminal-outer-container');
+
+		this._findWidget = new TerminalFindWidget(this._contextViewService, this._terminalService);
+
 		this._parentDomElement.appendChild(this._themeStyleElement);
 		this._parentDomElement.appendChild(this._fontStyleElement);
 		this._parentDomElement.appendChild(this._terminalContainer);
+		this._parentDomElement.appendChild(this._findWidget.getDomNode());
 
 		this._attachEventListeners();
 
@@ -147,6 +154,14 @@ export class TerminalPanel extends Panel {
 		if (activeInstance) {
 			activeInstance.focus(true);
 		}
+	}
+
+	public focusFindWidget() {
+		this._findWidget.reveal();
+	}
+
+	public hideFindWidget() {
+		this._findWidget.hide();
 	}
 
 	private _attachEventListeners(): void {
@@ -272,6 +287,7 @@ export class TerminalPanel extends Panel {
 		}
 
 		this._themeStyleElement.innerHTML = css;
+		this._findWidget.updateTheme(theme);
 	}
 
 	private _updateFont(): void {
