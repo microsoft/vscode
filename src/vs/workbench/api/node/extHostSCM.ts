@@ -323,7 +323,10 @@ export class ExtHostSCM {
 			return TPromise.as(null);
 		}
 
-		return asWinJsPromise(token => URI.parse(sourceControl.quickDiffProvider.provideOriginalResource(uri, token).toString()));
+		return asWinJsPromise(token => {
+			const result = sourceControl.quickDiffProvider.provideOriginalResource(uri, token);
+			return result && URI.parse(result.toString());
+		});
 	}
 
 	$onActiveSourceControlChange(handle: number): TPromise<void> {
