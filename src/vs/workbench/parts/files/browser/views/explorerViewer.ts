@@ -122,19 +122,18 @@ export class FileDataSource implements IDataSource {
 		}
 	}
 
-	public getParent(tree: ITree, stat: FileStat): TPromise<FileStat> {
+	public getParent(tree: ITree, stat: FileStat | Model): TPromise<FileStat> {
 		if (!stat) {
 			return TPromise.as(null); // can be null if nothing selected in the tree
 		}
 
 		// Return if root reached
-		const workspace = this.contextService.getWorkspace2();
-		if (workspace && workspace.roots.filter(root => root.toString() === stat.resource.toString())) {
+		if (tree.getInput() === stat) {
 			return TPromise.as(null);
 		}
 
 		// Return if parent already resolved
-		if (stat.parent) {
+		if (stat instanceof FileStat && stat.parent) {
 			return TPromise.as(stat.parent);
 		}
 
