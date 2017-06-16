@@ -142,3 +142,33 @@ export class LegacyWorkspace implements ILegacyWorkspace {
 		return null;
 	}
 }
+
+export class Workspace implements IWorkspace {
+
+	constructor(
+		public readonly id: string,
+		private _name: string,
+		private _roots: URI[]
+	) {
+	}
+
+	public get roots(): URI[] {
+		return this._roots;
+	}
+
+	public set roots(roots: URI[]) {
+		this._roots = roots;
+	}
+
+	public get name(): string {
+		return this._name;
+	}
+
+	public set name(name: string) {
+		this._name = name;
+	}
+
+	public toJSON(): IWorkspace {
+		return { id: this.id, roots: this.roots, name: this.name };
+	}
+}

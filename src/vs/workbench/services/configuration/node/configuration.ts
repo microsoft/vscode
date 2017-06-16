@@ -18,7 +18,7 @@ import { Schemas } from "vs/base/common/network";
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { readFile } from 'vs/base/node/pfs';
 import * as extfs from 'vs/base/node/extfs';
-import { IWorkspaceContextService, IWorkspace, LegacyWorkspace, ILegacyWorkspace } from "vs/platform/workspace/common/workspace";
+import { IWorkspaceContextService, IWorkspace, Workspace, ILegacyWorkspace, LegacyWorkspace } from "vs/platform/workspace/common/workspace";
 import { FileChangeType, FileChangesEvent, isEqual, isEqualOrParent } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -48,38 +48,6 @@ interface IWorkspaceConfiguration<T> {
 
 type IWorkspaceFoldersConfiguration = { [rootFolder: string]: { folders: string[]; } };
 
-class Workspace implements IWorkspace {
-	private _name: string;
-
-	constructor(
-		public readonly id: string,
-		private _roots: URI[]
-	) {
-		//
-	}
-
-	public set roots(roots: URI[]) {
-		this._roots = roots;
-		this._name = null; // will be recomputed based on roots next time accessed
-	}
-
-	public get roots(): URI[] {
-		return this._roots;
-	}
-
-	public get name(): string {
-		if (!this._name) {
-			this._name = this.roots.map(root => basename(root.fsPath) || root.fsPath).join(', ');
-		}
-
-		return this._name;
-	}
-
-	public toJSON(): IWorkspace {
-		return { id: this.id, roots: this.roots, name: this.name };
-	}
-}
-
 export class WorkspaceConfigurationService extends Disposable implements IWorkspaceContextService, IWorkspaceConfigurationService {
 
 	public _serviceBrand: any;
@@ -98,15 +66,10 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	private rootsTrieMap: TrieMap<URI> = new TrieMap<URI>(TrieMap.PathSplitter);
 	private _configuration: Configuration<any>;
 
-	constructor(private environmentService: IEnvironmentService, private legacyWorkspace?: LegacyWorkspace, private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME) {
+	constructor(private environmentService: IEnvironmentService, private readonly legacyWorkspace?: LegacyWorkspace, private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME) {
 		super();
 
-		if (legacyWorkspace) {
-			const workspaceId = createHash('md5').update(legacyWorkspace.resource.fsPath).update(legacyWorkspace.ctime ? String(legacyWorkspace.ctime) : '').digest('hex');
-			this.workspace = new Workspace(workspaceId, [legacyWorkspace.resource]);
-		} else {
-			this.workspace = null;
-		}
+		this.workspace = legacyWorkspace ? new Workspace(createHash('md5').update(legacyWorkspace.resource.fsPath).update(legacyWorkspace.ctime ? String(legacyWorkspace.ctime) : '').digest('hex'), basename(legacyWorkspace.resource.fsPath), [legacyWorkspace.resource]) : null;
 
 		this.rootsTrieMap = new TrieMap<URI>(TrieMap.PathSplitter);
 		if (this.workspace) {
@@ -147,9 +110,11 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		// Find changes
 		const changed = !equals(this.workspace.roots, configuredFolders, (r1, r2) => r1.toString() === r2.toString());
 
-		this.workspace.roots = configuredFolders;
-
 		if (changed) {
+
+			this.workspace.roots = configuredFolders;
+			this.workspace.name = configuredFolders.map(root => basename(root.fsPath) || root.fsPath).join(', ');
+
 			this.rootsTrieMap = new TrieMap<URI>(TrieMap.PathSplitter);
 			for (const folder of this.workspace.roots) {
 				this.rootsTrieMap.insert(folder.fsPath, folder);
