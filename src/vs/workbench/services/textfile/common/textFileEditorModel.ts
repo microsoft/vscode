@@ -322,9 +322,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		const storageKey = 'workbench.tasks.ranTaskBefore';
-		const fileName = path.relative(this.fileService['raw'].basePath, this.resource.path);
+		const fileName = path.relative(this.storageService['workspaceKey'], this.resource['_formatted']);
 
-		if (this.storageService.get(storageKey)
+		if (!this.storageService.get(storageKey)
 			&& (fileName.match(/^gruntfile\.js$/i) || fileName.match(/^gulpfile\.js$/i) || fileName.match(/^tsconfig\.json$/i))) {
 			const message = localize('taskFileOpened', "Visual Studio Code has support for this type of file");
 			const action = this.instantiationService.createInstance(ShowTasksAction, ShowTasksAction.ID, localize('showTasks', "Show Tasks"));
