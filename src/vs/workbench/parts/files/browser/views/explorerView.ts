@@ -146,6 +146,7 @@ export class ExplorerView extends CollapsibleView {
 		};
 
 		this.toDispose.push(this.themeService.onDidFileIconThemeChange(onFileIconThemeChange));
+		this.toDispose.push(this.contextService.onDidChangeWorkspaceRoots(() => this.refreshFromEvent()));
 		onFileIconThemeChange(this.themeService.getFileIconTheme());
 	}
 
@@ -341,7 +342,7 @@ export class ExplorerView extends CollapsibleView {
 	}
 
 	private get isCreated(): boolean {
-		return this.explorerViewer && this.explorerViewer.getInput();
+		return !!(this.explorerViewer && this.explorerViewer.getInput());
 	}
 
 	@memoize
@@ -728,13 +729,14 @@ export class ExplorerView extends CollapsibleView {
 			// Subsequent refresh: Merge stat into our local model and refresh tree
 			modelStats.forEach((modelStat, index) => FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]));
 
-			if (this.isCreated) {
+			const input = this.model.roots.length === 1 ? this.model.roots[0] : this.model;
+			if (input === this.explorerViewer.getInput()) {
 				return this.explorerViewer.refresh();
 			}
 
 			// First time refresh: The stat becomes the input of the viewer
 			// Display roots only when there is more than 1 root
-			return this.explorerViewer.setInput(this.model.roots.length === 1 ? this.model.roots[0] : this.model).then(() => {
+			return this.explorerViewer.setInput(input).then(() => {
 
 				// Make sure to expand all folders that where expanded in the previous session
 				if (targetsToExpand) {
