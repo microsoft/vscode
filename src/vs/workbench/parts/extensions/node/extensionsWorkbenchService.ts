@@ -805,32 +805,32 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		const extensionId = match[1];
 
 		this.queryGallery({ names: [extensionId] })
-			.done(result => {
+			.then(result => {
 				if (result.total < 1) {
-					return;
+					return TPromise.as(null);
 				}
 
 				const extension = result.firstPage[0];
-				this.open(extension).then(() => {
+				return this.open(extension).then(() => {
 					const message = nls.localize('installConfirmation', "Would you like to install the '{0}' extension?", extension.displayName, extension.publisher);
 					const options = [
 						nls.localize('install', "Install"),
 						nls.localize('cancel', "Cancel")
 					];
-					this.choiceService.choose(Severity.Info, message, options, 2, false)
+					return this.choiceService.choose(Severity.Info, message, options, 2, false)
 						.then<void>(value => {
 							if (value === 0) {
 								const promises: TPromise<any>[] = [];
 								if (this.local.every(local => local.id !== extension.id)) {
 									promises.push(this.install(extension));
 								}
-
-								TPromise.join(promises)
-									.done(null, error => this.onError(error));
+								return TPromise.join(promises);
 							}
+							return TPromise.as(null);
 						});
 				});
-			});
+			})
+			.done(undefined, error => this.onError(error));
 	}
 
 	dispose(): void {
