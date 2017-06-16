@@ -988,6 +988,8 @@ declare module DebugProtocol {
 		supportsExceptionInfoRequest?: boolean;
 		/** The debug adapter supports the 'terminateDebuggee' attribute on the 'disconnect' request. */
 		supportTerminateDebuggee?: boolean;
+		/** The debug adapter supports the delayed loading of parts of the stack, which requires that both the 'startFrame' and 'levels' arguments and the 'totalFrames' result of the 'StackTrace' request are supported. */
+		supportsDelayedStackTraceLoading?: boolean;
 	}
 
 	/** An ExceptionBreakpointsFilter is shown in the UI as an option for configuring how exceptions are dealt with. */
@@ -1305,6 +1307,8 @@ declare module DebugProtocol {
 		line?: boolean;
 		/** Displays the module of the stack frame. */
 		module?: boolean;
+		/** Includes all stack frames, including those the debug adapter might otherwise hide. */
+		includeAll?: boolean;
 	}
 
 	/** An ExceptionOptions assigns configuration options to a set of exceptions. */
