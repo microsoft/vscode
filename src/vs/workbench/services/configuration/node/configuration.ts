@@ -243,6 +243,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	private initCachesForFolders(folders: URI[]): void {
 		for (const folder of folders) {
 			this.cachedFolderConfigs.set(folder, new FolderConfiguration(folder, this.workspaceSettingsRootFolder, this.workspace));
+			this._configuration.updateFolderConfiguration(folder, new FolderConfigurationModel<any>(new FolderSettingsModel<any>(null), []), false);
 		}
 	}
 
@@ -484,11 +485,11 @@ class Configuration<T> extends BaseConfiguration<T> {
 		return !this.equals(current);
 	}
 
-	updateFolderConfiguration(resource: URI, configuration: FolderConfigurationModel<T>): boolean {
+	updateFolderConfiguration(resource: URI, configuration: FolderConfigurationModel<T>, compare: boolean = true): boolean {
 		this.folders.set(resource, configuration);
 		const current = this.getValue(null, { resource });
 		this.mergeFolder(resource);
-		return !objects.equals(current, this.getValue(null, { resource }));
+		return compare && !objects.equals(current, this.getValue(null, { resource }));
 	}
 
 	deleteFolderConfiguration(folder: URI): boolean {
