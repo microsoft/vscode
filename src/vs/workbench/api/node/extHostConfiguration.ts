@@ -8,9 +8,8 @@ import { mixin } from 'vs/base/common/objects';
 import Event, { Emitter } from 'vs/base/common/event';
 import { WorkspaceConfiguration } from 'vscode';
 import { ExtHostConfigurationShape, MainThreadConfigurationShape } from './extHost.protocol';
-import { IConfigurationValues } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationData, Configuration } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { toValuesTree } from 'vs/platform/configuration/common/model';
 
 function lookUp(tree: any, key: string) {
 	if (key) {
@@ -23,51 +22,41 @@ function lookUp(tree: any, key: string) {
 	}
 }
 
-interface UsefulConfiguration {
-	data: IConfigurationValues;
-	valueTree: any;
-}
-
-function createUsefulConfiguration(data: IConfigurationValues): { data: IConfigurationValues, valueTree: any } {
-	const valueMap: { [key: string]: any } = Object.create(null);
-	for (let key in data) {
-		if (Object.prototype.hasOwnProperty.call(data, key)) {
-			valueMap[key] = data[key].value;
-		}
-	}
-	const valueTree = toValuesTree(valueMap, message => console.error(`Conflict in configuration settings: ${message}`));
-	return {
-		data,
-		valueTree
-	};
-}
-
 export class ExtHostConfiguration extends ExtHostConfigurationShape {
 
 	private _onDidChangeConfiguration = new Emitter<void>();
 	private _proxy: MainThreadConfigurationShape;
-	private _configuration: UsefulConfiguration;
+	private _data: IConfigurationData<any>;
+	private _configuration: Configuration<any>;
 
-	constructor(proxy: MainThreadConfigurationShape, data: IConfigurationValues) {
+	constructor(proxy: MainThreadConfigurationShape, data: IConfigurationData<any>) {
 		super();
 		this._proxy = proxy;
-		this._configuration = createUsefulConfiguration(data);
+		this._data = data;
 	}
 
 	get onDidChangeConfiguration(): Event<void> {
 		return this._onDidChangeConfiguration && this._onDidChangeConfiguration.event;
 	}
 
-	public $acceptConfigurationChanged(data: IConfigurationValues) {
-		this._configuration = createUsefulConfiguration(data);
+	public $acceptConfigurationChanged(data: IConfigurationData<any>) {
+		this._configuration = null;
+		this._data = data;
 		this._onDidChangeConfiguration.fire(undefined);
+	}
+
+	private get configuration(): Configuration<any> {
+		if (!this._configuration) {
+			this._configuration = Configuration.parse(this._data);
+		}
+		return this._configuration;
 	}
 
 	public getConfiguration(section?: string): WorkspaceConfiguration {
 
 		const config = section
-			? lookUp(this._configuration.valueTree, section)
-			: this._configuration.valueTree;
+			? lookUp(this.configuration.getValue(), section)
+			: this.configuration.getValue();
 
 		const result: WorkspaceConfiguration = {
 			has(key: string): boolean {
@@ -91,7 +80,7 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 			},
 			inspect: <T>(key: string): { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T } => {
 				key = section ? `${section}.${key}` : key;
-				const config = this._configuration.data[key];
+				const config = this.configuration.values()[key];
 				if (config) {
 					return {
 						key,
