@@ -51,14 +51,10 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
-// Multiple of the same folder in the explorer - id needs to get more complex, add index for the parent
-// check context menu actions
 // special context menu actions for root
-// more checks might be needed for drag n drop
+// expand state in second root
 // step2: deleting one of the root folders
-// Resolve me all the expansion state in one go
 // revealing an element might be tricky if it is in two workspaces, in that case just reveal the first to not break. Not a common scenario
-
 // files.exclude, for each of the roots ask the configurations service for files.exclude
 
 export class FileDataSource implements IDataSource {
@@ -75,8 +71,15 @@ export class FileDataSource implements IDataSource {
 			return 'model';
 		}
 
-		const root = this.contextService.getRoot(stat.resource);
-		return `${root ? root.toString() : ''}:${stat.getId()}`;
+		// TODO@Isidor each file stat should have a reference to the root, this way you do not have to walk up the parent chain
+		let parent = stat.parent;
+		let depth = 0;
+		while (parent) {
+			parent = parent.parent;
+			depth++;
+		}
+
+		return `${depth}:${stat.getId()}`;
 	}
 
 	public hasChildren(tree: ITree, stat: FileStat | Model): boolean {

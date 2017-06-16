@@ -421,31 +421,28 @@ export class ExplorerView extends CollapsibleView {
 			return; // ignore if not yet created
 		}
 
-		let modelElement: FileStat;
-		let parents: FileStat[];
-		let parentResource: URI;
-
 		// Add
 		if (e.operation === FileOperation.CREATE || e.operation === FileOperation.IMPORT || e.operation === FileOperation.COPY) {
 			const addedElement = e.target;
-			parentResource = URI.file(paths.dirname(addedElement.resource.fsPath));
-			parents = this.model.findAll(parentResource);
+			const parentResource = URI.file(paths.dirname(addedElement.resource.fsPath));
+			const parents = this.model.findAll(parentResource);
 
 			if (parents.length) {
 
 				// Add the new file to its parent (Model)
-				const childElement = FileStat.create(addedElement);
-				parents[0].removeChild(childElement); // make sure to remove any previous version of the file if any
-				parents[0].addChild(childElement);
+				parents.forEach(p => {
+					const childElement = FileStat.create(addedElement);
+					p.removeChild(childElement); // make sure to remove any previous version of the file if any
+					p.addChild(childElement);
+					// Refresh the Parent (View)
+					this.explorerViewer.refresh(p).then(() => {
+						return this.reveal(childElement, 0.5).then(() => {
 
-				// Refresh the Parent (View)
-				TPromise.join(parents.map(p => this.explorerViewer.refresh(p))).then(() => {
-					return this.reveal(childElement, 0.5).then(() => {
-
-						// Focus new element
-						this.explorerViewer.setFocus(childElement);
-					});
-				}).done(null, errors.onUnexpectedError);
+							// Focus new element
+							this.explorerViewer.setFocus(childElement);
+						});
+					}).done(null, errors.onUnexpectedError);
+				});
 			}
 		}
 
@@ -466,43 +463,39 @@ export class ExplorerView extends CollapsibleView {
 
 			// Handle Rename
 			if (oldParentResource && newParentResource && oldParentResource.toString() === newParentResource.toString()) {
-				modelElement = this.model.findFirst(oldResource);
-				if (modelElement) {
-
+				const modelElements = this.model.findAll(oldResource);
+				modelElements.forEach(modelElement => {
 					// Rename File (Model)
 					modelElement.rename(newElement);
 
 					// Update Parent (View)
-					parents = this.model.findAll(modelElement.parent.resource);
-					if (parents.length) {
-						TPromise.join(parents.map(p => this.explorerViewer.refresh(p))).done(() => {
+					this.explorerViewer.refresh(modelElement.parent).done(() => {
 
-							// Select in Viewer if set
-							if (restoreFocus) {
-								this.explorerViewer.setFocus(modelElement);
-							}
-						}, errors.onUnexpectedError);
-					}
-				}
+						// Select in Viewer if set
+						if (restoreFocus) {
+							this.explorerViewer.setFocus(modelElement);
+						}
+					}, errors.onUnexpectedError);
+				});
 			}
 
 			// Handle Move
 			else if (oldParentResource && newParentResource) {
-				const oldParents = this.model.findAll(oldParentResource);
 				const newParents = this.model.findAll(newParentResource);
-				modelElement = this.model.findFirst(oldResource);
+				const modelElements = this.model.findAll(oldResource);
 
-				if (oldParents.length && newParents.length && modelElement) {
+				if (newParents.length && modelElements.length) {
 
 					// Move in Model
-					modelElement.move(newParents[0], (callback: () => void) => {
-
-						// Update old parent
-						TPromise.join(oldParents.map(p => this.explorerViewer.refresh(p))).done(callback, errors.onUnexpectedError);
-					}, () => {
-
-						// Update new parent
-						TPromise.join(newParents.map(p => this.explorerViewer.refresh(p, true))).done(() => this.explorerViewer.expand(newParents[0]), errors.onUnexpectedError);
+					modelElements.forEach((modelElement, index) => {
+						const oldParent = modelElement.parent;
+						modelElement.move(newParents[index], (callback: () => void) => {
+							// Update old parent
+							this.explorerViewer.refresh(oldParent).done(callback, errors.onUnexpectedError);
+						}, () => {
+							// Update new parent
+							this.explorerViewer.refresh(newParents[index], true).done(() => this.explorerViewer.expand(newParents[index]), errors.onUnexpectedError);
+						});
 					});
 				}
 			}
@@ -510,23 +503,24 @@ export class ExplorerView extends CollapsibleView {
 
 		// Delete
 		else if (e.operation === FileOperation.DELETE) {
-			modelElement = this.model.findFirst(e.resource);
-			if (modelElement && modelElement.parent) {
-				parents = this.model.findAll(modelElement.parent.resource);
+			const modelElements = this.model.findAll(e.resource);
+			modelElements.forEach(element => {
+				if (element.parent) {
+					const parent = element.parent;
+					// Remove Element from Parent (Model)
+					parent.removeChild(element);
 
-				// Remove Element from Parent (Model)
-				parents[0].removeChild(modelElement);
+					// Refresh Parent (View)
+					const restoreFocus = this.explorerViewer.isDOMFocused();
+					this.explorerViewer.refresh(parent).done(() => {
 
-				// Refresh Parent (View)
-				const restoreFocus = this.explorerViewer.isDOMFocused();
-				TPromise.join(parents.map(p => this.explorerViewer.refresh(p))).done(() => {
-
-					// Ensure viewer has keyboard focus if event originates from viewer
-					if (restoreFocus) {
-						this.explorerViewer.DOMFocus();
-					}
-				}, errors.onUnexpectedError);
-			}
+						// Ensure viewer has keyboard focus if event originates from viewer
+						if (restoreFocus) {
+							this.explorerViewer.DOMFocus();
+						}
+					}, errors.onUnexpectedError);
+				}
+			});
 		}
 	}
 
