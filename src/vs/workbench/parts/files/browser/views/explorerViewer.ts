@@ -75,7 +75,8 @@ export class FileDataSource implements IDataSource {
 			return 'model';
 		}
 
-		return `${this.contextService.getRoot(stat.resource).toString()}:${stat.getId()}`;
+		const root = this.contextService.getRoot(stat.resource);
+		return `${root ? root.toString() : ''}:${stat.getId()}`;
 	}
 
 	public hasChildren(tree: ITree, stat: FileStat | Model): boolean {

@@ -438,7 +438,7 @@ export class ExplorerView extends CollapsibleView {
 				parents[0].addChild(childElement);
 
 				// Refresh the Parent (View)
-				this.explorerViewer.refresh(parents).then(() => {
+				TPromise.join(parents.map(p => this.explorerViewer.refresh(p))).then(() => {
 					return this.reveal(childElement, 0.5).then(() => {
 
 						// Focus new element
@@ -474,7 +474,7 @@ export class ExplorerView extends CollapsibleView {
 					// Update Parent (View)
 					parents = this.model.findAll(modelElement.parent.resource);
 					if (parents.length) {
-						this.explorerViewer.refresh(parents).done(() => {
+						TPromise.join(parents.map(p => this.explorerViewer.refresh(p))).done(() => {
 
 							// Select in Viewer if set
 							if (restoreFocus) {
@@ -497,11 +497,11 @@ export class ExplorerView extends CollapsibleView {
 					modelElement.move(newParents[0], (callback: () => void) => {
 
 						// Update old parent
-						this.explorerViewer.refresh(oldParents, true).done(callback, errors.onUnexpectedError);
+						TPromise.join(oldParents.map(p => this.explorerViewer.refresh(p))).done(callback, errors.onUnexpectedError);
 					}, () => {
 
 						// Update new parent
-						this.explorerViewer.refresh(newParents, true).done(() => this.explorerViewer.expand(newParents[0]), errors.onUnexpectedError);
+						TPromise.join(newParents.map(p => this.explorerViewer.refresh(p, true))).done(() => this.explorerViewer.expand(newParents[0]), errors.onUnexpectedError);
 					});
 				}
 			}
@@ -518,7 +518,7 @@ export class ExplorerView extends CollapsibleView {
 
 				// Refresh Parent (View)
 				const restoreFocus = this.explorerViewer.isDOMFocused();
-				this.explorerViewer.refresh(parents).done(() => {
+				TPromise.join(parents.map(p => this.explorerViewer.refresh(p))).done(() => {
 
 					// Ensure viewer has keyboard focus if event originates from viewer
 					if (restoreFocus) {
@@ -806,7 +806,7 @@ export class ExplorerView extends CollapsibleView {
 
 		// Stat needs to be resolved first and then revealed
 		const options: IResolveFileOptions = { resolveTo: [resource] };
-		const rootUri = this.contextService.getRoot(resource);
+		const rootUri = this.contextService.getRoot(resource) || this.model.roots[0].resource;
 		return this.fileService.resolveFile(rootUri, options).then(stat => {
 
 			// Convert to model
