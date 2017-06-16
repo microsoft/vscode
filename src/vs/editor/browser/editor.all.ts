@@ -14,7 +14,7 @@ import 'vs/css!vs/editor/contrib/bracketMatching/browser/bracketMatching';
 import 'vs/editor/contrib/caretOperations/common/caretOperations';
 import 'vs/editor/contrib/caretOperations/common/transpose';
 import 'vs/editor/contrib/clipboard/browser/clipboard';
-import 'vs/editor/contrib/codelens/browser/codelens';
+import 'vs/editor/contrib/codelens/browser/codelensController';
 import 'vs/editor/contrib/comment/common/comment';
 import 'vs/editor/contrib/contextmenu/browser/contextmenu';
 import 'vs/editor/contrib/cursorUndo/browser/cursorUndo';
