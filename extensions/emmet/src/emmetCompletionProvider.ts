@@ -6,12 +6,12 @@
 
 import * as vscode from 'vscode';
 import { expand, createSnippetsRegistry } from '@emmetio/expand-abbreviation';
-import { getSyntax, getProfile, extractAbbreviation } from './util';
+import { getSyntax, getProfile, extractAbbreviation, isStyleSheet } from './util';
 
 const field = (index, placeholder) => `\${${index}${placeholder ? ':' + placeholder : ''}}`;
 const snippetCompletionsCache = new Map<string, vscode.CompletionItem[]>();
 
-export abstract class EmmetCompletionItemProviderBase implements vscode.CompletionItemProvider {
+export class EmmetCompletionItemProvider implements vscode.CompletionItemProvider {
 
 	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Thenable<vscode.CompletionList> {
 
@@ -19,15 +19,27 @@ export abstract class EmmetCompletionItemProviderBase implements vscode.Completi
 			return Promise.resolve(null);
 		}
 
+		let completionItems: vscode.CompletionItem[] = [];
+		let syntax = getSyntax(document);
 		let currentWord = getCurrentWord(document, position);
 		let expandedAbbr = this.getExpandedAbbreviation(document, position);
-		let abbreviationSuggestions = this.getAbbreviationSuggestions(getSyntax(document), currentWord, (expandedAbbr && currentWord === expandedAbbr.label));
-		let completionItems = expandedAbbr ? [expandedAbbr, ...abbreviationSuggestions] : abbreviationSuggestions;
+
+		if (!isStyleSheet(syntax)) {
+			if (expandedAbbr) {
+				// In non stylesheet like syntax, this extension returns expanded abbr plus posssible abbr completions
+				// To differentiate between the 2, the former is given CompletionItemKind.Value so that it gets a different icon
+				expandedAbbr.kind = vscode.CompletionItemKind.Value;
+			}
+			let abbreviationSuggestions = this.getAbbreviationSuggestions(syntax, currentWord, (expandedAbbr && currentWord === expandedAbbr.label));
+			completionItems = expandedAbbr ? [expandedAbbr, ...abbreviationSuggestions] : abbreviationSuggestions;
+		} else {
+			completionItems = expandedAbbr ? [expandedAbbr] : [];
+		}
 
 		return Promise.resolve(new vscode.CompletionList(completionItems, true));
 	}
 
-	protected getExpandedAbbreviation(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionItem {
+	getExpandedAbbreviation(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionItem {
 		if (!vscode.workspace.getConfiguration('emmet')['showExpandedAbbreviation']) {
 			return;
 		}
@@ -51,25 +63,6 @@ export abstract class EmmetCompletionItemProviderBase implements vscode.Completi
 
 
 		return completionitem;
-	}
-
-	abstract getAbbreviationSuggestions(syntax: string, prefix: string, skipExactMatch: boolean): vscode.CompletionItem[];
-
-}
-
-export class EmmetCompletionItemProviderHtml extends EmmetCompletionItemProviderBase {
-
-	protected getExpandedAbbreviation(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionItem {
-		let completionItem = super.getExpandedAbbreviation(document, position);
-
-		if (completionItem) {
-			// In non stylesheet like syntax, this extension returns expanded abbr plus posssible abbr completions
-			// To differentiate between the 2, the former is given CompletionItemKind.Value so that it gets a different icon
-			completionItem.kind = vscode.CompletionItemKind.Value;
-		}
-
-
-		return completionItem;
 	}
 
 	getAbbreviationSuggestions(syntax: string, prefix: string, skipExactMatch: boolean) {
@@ -102,19 +95,9 @@ export class EmmetCompletionItemProviderHtml extends EmmetCompletionItemProvider
 
 	}
 
-
 }
 
-export class EmmetCompletionItemProviderCss extends EmmetCompletionItemProviderBase {
-	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Thenable<vscode.CompletionList> {
-		return super.provideCompletionItems(document, position, token);
-	}
 
-	getAbbreviationSuggestions(syntax: string, prefix: string, skipExactMatch: boolean) {
-		return [];
-	}
-
-}
 
 function getCurrentWord(document: vscode.TextDocument, position: vscode.Position): string {
 	let wordAtPosition = document.getWordRangeAtPosition(position);
