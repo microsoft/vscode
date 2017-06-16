@@ -1,9 +1,14 @@
 # stop when there's an error
 $ErrorActionPreference = 'Stop'
 
-# set agent specific npm cache
+$env:HOME=$env:USERPROFILE
+
 if (Test-Path env:AGENT_WORKFOLDER) {
-	$env:npm_config_cache = "${env:AGENT_WORKFOLDER}\npm-cache"
+	$env:USERPROFILE="${env:AGENT_WORKFOLDER}\home"
+	$env:HOME="${env:USERPROFILE}"
+	$env:npm_config_cache="${env:USERPROFILE}\npm-cache"
+	New-Item -Path "$env:USERPROFILE" -Type directory -Force | out-null
+	New-Item -Path "$env:npm_config_cache" -Type directory -Force | out-null
 }
 
 # throw when a process exits with something other than 0

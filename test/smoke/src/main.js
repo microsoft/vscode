@@ -42,7 +42,6 @@ if (parseInt(process.version.substr(1)) < 6) {
 }
 
 // Setting up environment variables
-process.env.SMOKE_TEST = 'true';
 process.env.VSCODE_LATEST_PATH = program.latest;
 if (program.stable) process.env.VSCODE_STABLE_PATH = program.stable;
 process.env.SMOKETEST_REPO = testRepoLocalDir;

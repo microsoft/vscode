@@ -100,7 +100,6 @@ export interface ITaskResolver {
 
 export interface ITaskSystem extends IEventEmitter {
 	run(task: Task, resolver: ITaskResolver): ITaskExecuteResult;
-	show(task: Task, forceFocus?: boolean): void;
 	isActive(): TPromise<boolean>;
 	isActiveSync(): boolean;
 	getActiveTasks(): Task[];

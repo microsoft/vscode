@@ -741,13 +741,6 @@ export class ModelLine {
 		this._lineNumber = newLineNumber;
 	}
 
-	public deleteLine(): LineMarker[] {
-		if (!this._markers) {
-			return [];
-		}
-		return this._markers;
-	}
-
 	private _indexOfMarkerId(markerId: string): number {
 		let markers = this._markers;
 		for (let i = 0, len = markers.length; i < len; i++) {

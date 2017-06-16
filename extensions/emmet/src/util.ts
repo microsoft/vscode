@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import parse from '@emmetio/html-matcher';
 import Node from '@emmetio/node';
 import * as extract from '@emmetio/extract-abbreviation';
-
+import { DocumentStreamReader } from './bufferStream';
 
 export function validate(allowStylesheet: boolean = true): boolean {
 	let editor = vscode.window.activeTextEditor;
@@ -80,24 +80,26 @@ export function getProfile(syntax: string): any {
 	return newOptions;
 }
 
-export function getOpenCloseRange(document: vscode.TextDocument, offset: number): [vscode.Range, vscode.Range] {
-	let rootNode: Node = parse(document.getText());
-	let nodeToUpdate = getNode(rootNode, offset);
-	let openRange = new vscode.Range(document.positionAt(nodeToUpdate.open.start), document.positionAt(nodeToUpdate.open.end));
+export function getOpenCloseRange(document: vscode.TextDocument, position: vscode.Position): [vscode.Range, vscode.Range] {
+	let rootNode: Node = parse(new DocumentStreamReader(document));
+	let nodeToUpdate = getNode(rootNode, position);
+	let openRange = new vscode.Range(nodeToUpdate.open.start, nodeToUpdate.open.end);
 	let closeRange = null;
 	if (nodeToUpdate.close) {
-		closeRange = new vscode.Range(document.positionAt(nodeToUpdate.close.start), document.positionAt(nodeToUpdate.close.end));
+		closeRange = new vscode.Range(nodeToUpdate.close.start, nodeToUpdate.close.end);
 	}
 	return [openRange, closeRange];
 }
 
-export function getNode(root: Node, offset: number, includeNodeBoundary: boolean = false) {
+export function getNode(root: Node, position: vscode.Position, includeNodeBoundary: boolean = false) {
 	let currentNode: Node = root.firstChild;
 	let foundNode: Node = null;
 
 	while (currentNode) {
-		if ((currentNode.start < offset && currentNode.end > offset)
-			|| (includeNodeBoundary && (currentNode.start <= offset && currentNode.end >= offset))) {
+		const nodeStart: vscode.Position = currentNode.start;
+		const nodeEnd: vscode.Position = currentNode.end;
+		if ((nodeStart.isBefore(position) && nodeEnd.isAfter(position))
+			|| (includeNodeBoundary && (nodeStart.isBeforeOrEqual(position) && nodeEnd.isAfterOrEqual(position)))) {
 
 			foundNode = currentNode;
 			// Dig deeper
@@ -108,14 +110,6 @@ export function getNode(root: Node, offset: number, includeNodeBoundary: boolean
 	}
 
 	return foundNode;
-}
-
-export function getNodeOuterSelection(document: vscode.TextDocument, node: Node): vscode.Selection {
-	return new vscode.Selection(document.positionAt(node.start), document.positionAt(node.end));
-}
-
-export function getNodeInnerSelection(document: vscode.TextDocument, node: Node): vscode.Selection {
-	return new vscode.Selection(document.positionAt(node.open.end), document.positionAt(node.close.start));
 }
 
 export function extractAbbreviation(position: vscode.Position): [vscode.Range, string] {
@@ -229,32 +223,32 @@ export function getNodesInBetween(node1: Node, node2: Node): Node[] {
 	}
 
 	// node2 is ancestor of node1
-	if (node2.start < node1.start) {
+	if (node2.start.isBefore(node1.start)) {
 		return [node2];
 	}
 
 	// node1 is ancestor of node2
-	if (node2.start < node1.end) {
+	if (node2.start.isBefore(node1.end)) {
 		return [node1];
 	}
 
 	// Get the highest ancestor of node1 that should be commented
-	while (node1.parent && node1.parent.end < node2.start) {
+	while (node1.parent && node1.parent.end.isBefore(node2.start)) {
 		node1 = node1.parent;
 	}
 
 	// Get the highest ancestor of node2 that should be commented
-	while (node2.parent && node2.parent.start > node1.start) {
+	while (node2.parent && node2.parent.start.isAfter(node1.start)) {
 		node2 = node2.parent;
 	}
 
 	return getNextSiblingsTillPosition(node1, node2.end);
 }
 
-function getNextSiblingsTillPosition(node: Node, position: number): Node[] {
+function getNextSiblingsTillPosition(node: Node, position: vscode.Position): Node[] {
 	let siblings: Node[] = [];
 	let currentNode = node;
-	while (currentNode && currentNode.start < position) {
+	while (currentNode && position.isAfter(currentNode.start)) {
 		siblings.push(currentNode);
 		currentNode = currentNode.nextSibling;
 	}
@@ -265,5 +259,5 @@ export function sameNodes(node1: Node, node2: Node): boolean {
 	if (!node1 || !node2) {
 		return false;
 	}
-	return node1.start === node2.start && node1.end === node2.end;
+	return (<vscode.Position>node1.start).isEqual(node2.start) && (<vscode.Position>node1.end).isEqual(node2.end);
 }

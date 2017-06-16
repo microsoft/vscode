@@ -159,6 +159,11 @@
 					"default": "hide",
 					"description": "%markdown.previewFrontMatter.dec%"
 				},
+				"markdown.preview.breaks": {
+					"type": "boolean",
+					"default": false,
+					"description": "%markdown.preview.breaks.desc%"
+				},
 				"markdown.preview.fontFamily": {
 					"type": "string",
 					"default": "-apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', 'HelveticaNeue-Light', 'Ubuntu', 'Droid Sans', sans-serif",

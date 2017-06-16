@@ -43,7 +43,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config, true)));
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(this.configurationService.getConfiguration<IConfiguration>(), true)));
 	}
 
 	private onConfigurationChange(config: IConfiguration, notify: boolean): void {

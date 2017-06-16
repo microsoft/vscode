@@ -63,7 +63,7 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 
 		});
 
-		this._configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config));
+		this._configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(this._configurationService.getConfiguration<IFilesConfiguration>()));
 
 		this.onDidCreateMode((mode) => {
 			this._extensionService.activateByEvent(`onLanguage:${mode.getId()}`).done(null, onUnexpectedError);

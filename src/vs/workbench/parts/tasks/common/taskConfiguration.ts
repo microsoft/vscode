@@ -355,6 +355,134 @@ function fillProperty<T, K extends keyof T>(target: T, source: T, key: K) {
 }
 
 
+interface ParserType<T> {
+	isEmpty(value: T): boolean;
+	assignProperties(target: T, source: T): T;
+	fillProperties(target: T, source: T): T;
+	fillDefaults(value: T, context: ParseContext): T;
+	freeze(value: T): Readonly<T>;
+}
+
+interface MetaData<T, U> {
+	property: keyof T;
+	type?: ParserType<U>;
+}
+
+
+function _isEmpty<T>(this: void, value: T, properties: MetaData<T, any>[]): boolean {
+	if (value === void 0 || value === null) {
+		return true;
+	}
+	for (let meta of properties) {
+		let property = value[meta.property];
+		if (property !== void 0 && property !== null) {
+			if (meta.type !== void 0 && !meta.type.isEmpty(property)) {
+				return false;
+			} else if (!Array.isArray(property) || property.length > 0) {
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
+function _assignProperties<T>(this: void, target: T, source: T, properties: MetaData<T, any>[]): T {
+	if (_isEmpty(source, properties)) {
+		return target;
+	}
+	if (_isEmpty(target, properties)) {
+		return source;
+	}
+	for (let meta of properties) {
+		let property = meta.property;
+		let value: any;
+		if (meta.type !== void 0) {
+			value = meta.type.assignProperties(target[property], source[property]);
+		} else {
+			value = source[property];
+		}
+		if (value !== void 0 && value !== null) {
+			target[property] = value;
+		}
+	}
+	return target;
+}
+
+function _fillProperties<T>(this: void, target: T, source: T, properties: MetaData<T, any>[]): T {
+	if (_isEmpty(source, properties)) {
+		return target;
+	}
+	if (_isEmpty(target, properties)) {
+		return source;
+	}
+	for (let meta of properties) {
+		let property = meta.property;
+		if (target[property] !== void 0) {
+			continue;
+		}
+		let value: any;
+		if (meta.type) {
+			value = meta.type.fillProperties(target[property], source[property]);
+		} else {
+			value = source[property];
+		}
+
+		if (value !== void 0 && value !== null) {
+			target[property] = value;
+		}
+	}
+	return target;
+}
+
+function _fillDefaults<T>(this: void, target: T, defaults: T, properties: MetaData<T, any>[], context: ParseContext): T {
+	if (target && Object.isFrozen(target)) {
+		return target;
+	}
+	if (target === void 0 || target === null) {
+		if (defaults !== void 0 && defaults !== null) {
+			return Objects.deepClone(defaults);
+		} else {
+			return undefined;
+		}
+	}
+	for (let meta of properties) {
+		let property = meta.property;
+		if (target[property] !== void 0) {
+			continue;
+		}
+		let value: any;
+		if (meta.type) {
+			value = meta.type.fillDefaults(target[property], context);
+		} else {
+			value = defaults[property];
+		}
+
+		if (value !== void 0 && value !== null) {
+			target[property] = value;
+		}
+	}
+	return target;
+}
+
+function _freeze<T>(this: void, target: T, properties: MetaData<T, any>[]): Readonly<T> {
+	if (target === void 0 || target === null) {
+		return undefined;
+	}
+	if (Object.isFrozen(target)) {
+		return target;
+	}
+	for (let meta of properties) {
+		if (meta.type) {
+			let value = target[meta.property];
+			if (value) {
+				meta.type.freeze(value);
+			}
+		}
+	}
+	Object.freeze(target);
+	return target;
+}
+
 interface ParseContext {
 	problemReporter: IProblemReporter;
 	namedProblemMatchers: IStringDictionary<NamedProblemMatcher>;
@@ -363,7 +491,11 @@ interface ParseContext {
 	schemaVersion: Tasks.JsonSchemaVersion;
 }
 
+
 namespace ShellConfiguration {
+
+	const properties: MetaData<Tasks.ShellConfiguration, void>[] = [{ property: 'executable' }, { property: 'args' }];
+
 	export function is(value: any): value is ShellConfiguration {
 		let candidate: ShellConfiguration = value;
 		return candidate && Types.isString(candidate.executable) && (candidate.args === void 0 || Types.isStringArray(candidate.args));
@@ -380,46 +512,35 @@ namespace ShellConfiguration {
 		return result;
 	}
 
-	export function isEmpty(value: Tasks.ShellConfiguration): boolean {
-		return !value || value.executable === void 0 && (value.args === void 0 || value.args.length === 0);
+	export function isEmpty(this: void, value: Tasks.ShellConfiguration): boolean {
+		return _isEmpty(value, properties);
 	}
 
-	export function assignProperties(target: Tasks.ShellConfiguration, source: Tasks.ShellConfiguration): Tasks.ShellConfiguration {
-		if (isEmpty(source)) {
-			return target;
-		}
-		if (isEmpty(target)) {
-			return source;
-		}
-		assignProperty(target, source, 'executable');
-		assignProperty(target, source, 'args');
-		return target;
+	export function assignProperties(this: void, target: Tasks.ShellConfiguration, source: Tasks.ShellConfiguration): Tasks.ShellConfiguration {
+		return _assignProperties(target, source, properties);
 	}
 
-	export function fillProperties(target: Tasks.ShellConfiguration, source: Tasks.ShellConfiguration): Tasks.ShellConfiguration {
-		if (isEmpty(source)) {
-			return target;
-		}
-		if (isEmpty(target)) {
-			return source;
-		}
-		fillProperty(target, source, 'executable');
-		fillProperty(target, source, 'args');
-		return target;
+	export function fillProperties(this: void, target: Tasks.ShellConfiguration, source: Tasks.ShellConfiguration): Tasks.ShellConfiguration {
+		return _fillProperties(target, source, properties);
 	}
 
-	export function fillDefaults(value: Tasks.ShellConfiguration): void {
+	export function fillDefaults(this: void, value: Tasks.ShellConfiguration, context: ParseContext): Tasks.ShellConfiguration {
+		return value;
 	}
 
-	export function freeze(value: Tasks.ShellConfiguration): void {
+	export function freeze(this: void, value: Tasks.ShellConfiguration): Readonly<Tasks.ShellConfiguration> {
 		if (!value) {
-			return;
+			return undefined;
 		}
-		Object.freeze(value);
+		return Object.freeze(value);
 	}
 }
 
 namespace CommandOptions {
+
+	const properties: MetaData<Tasks.CommandOptions, Tasks.ShellConfiguration>[] = [{ property: 'cwd' }, { property: 'env' }, { property: 'shell', type: ShellConfiguration }];
+	const defaults: CommandOptions = { cwd: '${workspaceRoot}' };
+
 	export function from(this: void, options: CommandOptions, context: ParseContext): Tasks.CommandOptions {
 		let result: Tasks.CommandOptions = {};
 		if (options.cwd !== void 0) {
@@ -437,7 +558,7 @@ namespace CommandOptions {
 	}
 
 	export function isEmpty(value: Tasks.CommandOptions): boolean {
-		return !value || value.cwd === void 0 && value.env === void 0 && value.shell === void 0;
+		return _isEmpty(value, properties);
 	}
 
 	export function assignProperties(target: Tasks.CommandOptions, source: Tasks.CommandOptions): Tasks.CommandOptions {
@@ -461,45 +582,25 @@ namespace CommandOptions {
 	}
 
 	export function fillProperties(target: Tasks.CommandOptions, source: Tasks.CommandOptions): Tasks.CommandOptions {
-		if (isEmpty(source)) {
-			return target;
-		}
-		if (isEmpty(target)) {
-			return source;
-		}
-		fillProperty(target, source, 'cwd');
-		fillProperty(target, source, 'env');
-		target.shell = ShellConfiguration.fillProperties(target.shell, source.shell);
-		return target;
+		return _fillProperties(target, source, properties);
 	}
 
-	export function fillDefaults(value: Tasks.CommandOptions): Tasks.CommandOptions {
-		if (value && Object.isFrozen(value)) {
-			return value;
-		}
-		if (value === void 0) {
-			value = {};
-		}
-		if (value.cwd === void 0) {
-			value.cwd = '${workspaceRoot}';
-		}
-		ShellConfiguration.fillDefaults(value.shell);
-		return value;
+	export function fillDefaults(value: Tasks.CommandOptions, context: ParseContext): Tasks.CommandOptions {
+		return _fillDefaults(value, defaults, properties, context);
 	}
 
-	export function freeze(value: Tasks.CommandOptions): void {
-		Object.freeze(value);
-		if (value.env) {
-			Object.freeze(value.env);
-		}
-		ShellConfiguration.freeze(value.shell);
+	export function freeze(value: Tasks.CommandOptions): Readonly<Tasks.CommandOptions> {
+		return _freeze(value, properties);
 	}
 }
 
 namespace CommandConfiguration {
+
 	interface TerminalBehavior {
 		echo?: boolean;
 		reveal?: string;
+		focus?: boolean;
+		instance?: string;
 	}
 
 	interface BaseCommandConfiguationShape {
@@ -522,9 +623,13 @@ namespace CommandConfiguration {
 	}
 
 	export namespace TerminalBehavior {
+		const properties: MetaData<Tasks.TerminalBehavior, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'focus' }, { property: 'instance' }];
+
 		export function from(this: void, config: BaseCommandConfiguationShape, context: ParseContext): Tasks.TerminalBehavior {
-			let echo: boolean = undefined;
-			let reveal: Tasks.RevealKind = undefined;
+			let echo: boolean;
+			let reveal: Tasks.RevealKind;
+			let focus: boolean;
+			let instance: Tasks.InstanceKind;
 			if (Types.isBoolean(config.echoCommand)) {
 				echo = config.echoCommand;
 			}
@@ -538,64 +643,46 @@ namespace CommandConfiguration {
 				if (Types.isString(config.terminal.reveal)) {
 					reveal = Tasks.RevealKind.fromString(config.terminal.reveal);
 				}
+				if (Types.isBoolean(config.terminal.focus)) {
+					focus = config.terminal.focus;
+				}
+				if (Types.isString(config.terminal.instance)) {
+					instance = Tasks.InstanceKind.fromString(config.terminal.instance);
+				}
 			}
-			if (echo === void 0 && reveal === void 0) {
+			if (echo === void 0 && reveal === void 0 && focus === void 0 && instance === void 0) {
 				return undefined;
 			}
-			return { echo, reveal };
+			return { echo, reveal, focus, instance };
 		}
 
 		export function assignProperties(target: Tasks.TerminalBehavior, source: Tasks.TerminalBehavior): Tasks.TerminalBehavior {
-			if (isEmpty(source)) {
-				return target;
-			}
-			if (isEmpty(target)) {
-				return source;
-			}
-			assignProperty(target, source, 'echo');
-			assignProperty(target, source, 'reveal');
-			return target;
+			return _assignProperties(target, source, properties);
 		}
 
 		export function fillProperties(target: Tasks.TerminalBehavior, source: Tasks.TerminalBehavior): Tasks.TerminalBehavior {
-			if (isEmpty(source)) {
-				return target;
-			}
-			if (isEmpty(target)) {
-				return source;
-			}
-			fillProperty(target, source, 'echo');
-			fillProperty(target, source, 'reveal');
-			return target;
+			return _fillProperties(target, source, properties);
 		}
 
-		export function fillDefault(value: Tasks.TerminalBehavior, context: ParseContext): Tasks.TerminalBehavior {
-			if (value && Object.isFrozen(value)) {
-				return value;
-			}
-			if (value === void 0) {
-				return { echo: false, reveal: Tasks.RevealKind.Always };
-			}
-			if (value.echo === void 0) {
-				value.echo = context.engine === Tasks.ExecutionEngine.Terminal ? true : false;
-			}
-			if (value.reveal === void 0) {
-				value.reveal = Tasks.RevealKind.Always;
-			}
-			return value;
+		export function fillDefaults(value: Tasks.TerminalBehavior, context: ParseContext): Tasks.TerminalBehavior {
+			let defaultEcho = context.engine === Tasks.ExecutionEngine.Terminal ? true : false;
+			return _fillDefaults(value, { echo: defaultEcho, reveal: Tasks.RevealKind.Always, focus: false, instance: Tasks.InstanceKind.Shared }, properties, context);
 		}
 
-		export function freeze(value: Tasks.TerminalBehavior): void {
-			if (value === void 0) {
-				return;
-			}
-			Object.freeze(value);
+		export function freeze(value: Tasks.TerminalBehavior): Readonly<Tasks.TerminalBehavior> {
+			return _freeze(value, properties);
 		}
 
 		export function isEmpty(this: void, value: Tasks.TerminalBehavior): boolean {
-			return !value || value.echo === void 0 && value.reveal === void 0;
+			return _isEmpty(value, properties);
 		}
 	}
+
+	const properties: MetaData<Tasks.CommandConfiguration, CommandOptions | TerminalBehavior>[] = [
+		{ property: 'type' }, { property: 'name' }, { property: 'options', type: CommandOptions },
+		{ property: 'args' }, { property: 'taskSelector' }, { property: 'suppressTaskName' },
+		{ property: 'terminalBehavior', type: TerminalBehavior }
+	];
 
 	export function from(this: void, config: CommandConfiguationShape, context: ParseContext): Tasks.CommandConfiguration {
 		let result: Tasks.CommandConfiguration = fromBase(config, context);
@@ -662,13 +749,7 @@ namespace CommandConfiguration {
 	}
 
 	export function isEmpty(value: Tasks.CommandConfiguration): boolean {
-		return !value || value.name === void 0
-			&& value.type === void 0
-			&& value.args === void 0
-			&& value.taskSelector === void 0
-			&& value.suppressTaskName === void 0
-			&& CommandOptions.isEmpty(value.options)
-			&& TerminalBehavior.isEmpty(value.terminalBehavior);
+		return _isEmpty(value, properties);
 	}
 
 	export function onlyTerminalBehaviour(value: Tasks.CommandConfiguration): boolean {
@@ -739,9 +820,9 @@ namespace CommandConfiguration {
 		if (value.name !== void 0 && value.type === void 0) {
 			value.type = Tasks.CommandType.Process;
 		}
-		value.terminalBehavior = TerminalBehavior.fillDefault(value.terminalBehavior, context);
+		value.terminalBehavior = TerminalBehavior.fillDefaults(value.terminalBehavior, context);
 		if (!isEmpty(value)) {
-			value.options = CommandOptions.fillDefaults(value.options);
+			value.options = CommandOptions.fillDefaults(value.options, context);
 		}
 		if (value.args === void 0) {
 			value.args = EMPTY_ARRAY;
@@ -751,17 +832,8 @@ namespace CommandConfiguration {
 		}
 	}
 
-	export function freeze(value: Tasks.CommandConfiguration): void {
-		Object.freeze(value);
-		if (value.args) {
-			Object.freeze(value.args);
-		}
-		if (value.options) {
-			CommandOptions.freeze(value.options);
-		}
-		if (value.terminalBehavior) {
-			TerminalBehavior.freeze(value.terminalBehavior);
-		}
+	export function freeze(value: Tasks.CommandConfiguration): Readonly<Tasks.CommandConfiguration> {
+		return _freeze(value, properties);
 	}
 }
 

@@ -581,7 +581,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				const spliceStartLineNumber = startLineNumber + editingLinesCnt;
 				const spliceStartColumn = this.getLineMaxColumn(spliceStartLineNumber);
 
-				let endLineRemains = this._lines[endLineNumber - 1].split(markersTracker, endColumn, false, tabSize);
+				const endLineRemains = this._lines[endLineNumber - 1].split(markersTracker, endColumn, false, tabSize);
 				this._invalidateLine(spliceStartLineNumber - 1);
 
 				const spliceCnt = endLineNumber - spliceStartLineNumber;
@@ -590,7 +590,10 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				let markersOnDeletedLines: LineMarker[] = [];
 				for (let j = 0; j < spliceCnt; j++) {
 					const deleteLineIndex = spliceStartLineNumber + j;
-					markersOnDeletedLines = markersOnDeletedLines.concat(this._lines[deleteLineIndex].deleteLine());
+					const deleteLineMarkers = this._lines[deleteLineIndex].getMarkers();
+					if (deleteLineMarkers) {
+						markersOnDeletedLines = markersOnDeletedLines.concat(deleteLineMarkers);
+					}
 				}
 
 				this._lines.splice(spliceStartLineNumber, spliceCnt);

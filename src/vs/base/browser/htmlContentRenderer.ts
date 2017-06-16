@@ -33,7 +33,7 @@ export function renderMarkedString(markedString: MarkedString, options: RenderOp
  */
 export function renderHtml(content: RenderableContent, options: RenderOptions = {}): Node {
 	if (typeof content === 'string') {
-		return _renderHtml({ isText: true, text: content }, options);
+		return document.createTextNode(content);
 	} else if (Array.isArray(content)) {
 		return _renderHtml({ children: content }, options);
 	} else if (content) {
@@ -46,11 +46,7 @@ function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}):
 
 	let { codeBlockRenderer, actionCallback } = options;
 
-	if (content.isText) {
-		return document.createTextNode(content.text);
-	}
-
-	var tagName = getSafeTagName(content.tagName) || 'div';
+	var tagName = content.inline ? 'span' : 'div';
 	var element = document.createElement(tagName);
 
 	if (content.className) {
@@ -58,14 +54,6 @@ function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}):
 	}
 	if (content.text) {
 		element.textContent = content.text;
-	}
-	if (content.style) {
-		element.setAttribute('style', content.style);
-	}
-	if (content.customStyle) {
-		Object.keys(content.customStyle).forEach((key) => {
-			element.style[key] = content.customStyle[key];
-		});
 	}
 	if (content.children) {
 		content.children.forEach((child) => {
@@ -189,45 +177,6 @@ function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}):
 	}
 
 	return element;
-}
-
-var SAFE_TAG_NAMES = {
-	a: true,
-	b: true,
-	blockquote: true,
-	code: true,
-	del: true,
-	dd: true,
-	div: true,
-	dl: true,
-	dt: true,
-	em: true,
-	h1h2h3i: true,
-	img: true,
-	kbd: true,
-	li: true,
-	ol: true,
-	p: true,
-	pre: true,
-	s: true,
-	span: true,
-	sup: true,
-	sub: true,
-	strong: true,
-	strike: true,
-	ul: true,
-	br: true,
-	hr: true,
-};
-
-function getSafeTagName(tagName: string): string {
-	if (!tagName) {
-		return null;
-	}
-	if (SAFE_TAG_NAMES.hasOwnProperty(tagName)) {
-		return tagName;
-	}
-	return null;
 }
 
 // --- formatted string parsing

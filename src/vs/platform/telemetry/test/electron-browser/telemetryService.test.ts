@@ -681,6 +681,9 @@ suite('TelemetryService', () => {
 						enableTelemetry
 					};
 				},
+				getConfigurationData(): any {
+					return null;
+				},
 				reloadConfiguration() {
 					return TPromise.as(this.getConfiguration());
 				},
@@ -693,6 +696,7 @@ suite('TelemetryService', () => {
 					};
 				},
 				keys() { return { default: [], user: [], workspace: [] }; },
+				values() { return {}; },
 				onDidUpdateConfiguration: emitter.event
 			});
 

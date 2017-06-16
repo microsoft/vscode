@@ -761,6 +761,14 @@ export class ReferenceWidget extends PeekViewWidget {
 		// listen on model changes
 		this._disposeOnNewModel.push(this._model.onDidChangeReferenceRange(reference => this._tree.refresh(reference)));
 
+		// listen on selection and focus
+		this._disposeOnNewModel.push(this._tree.addListener(Controller.Events.FOCUSED, (element) => {
+			if (element instanceof OneReference) {
+				this._revealReference(element);
+				this._onDidSelectReference.fire({ element, kind: 'show', source: 'tree' });
+			}
+		}));
+
 		this._disposeOnNewModel.push(this._tree.addListener(Controller.Events.SELECTED, (element: any) => {
 			if (element instanceof OneReference) {
 				this._onDidSelectReference.fire({ element, kind: 'goto', source: 'tree' });

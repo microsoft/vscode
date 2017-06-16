@@ -42,6 +42,7 @@ export class OpenEditorsView extends CollapsibleView {
 	private static DEFAULT_VISIBLE_OPEN_EDITORS = 9;
 	private static DEFAULT_DYNAMIC_HEIGHT = true;
 	static ID = 'workbench.explorer.openEditorsView';
+	static NAME = nls.localize({ key: 'openEditors', comment: ['Open is an adjective'] }, "Open Editors");
 
 	private visibleOpenEditors: number;
 	private dynamicHeight: boolean;
@@ -88,7 +89,7 @@ export class OpenEditorsView extends CollapsibleView {
 	public renderHeader(container: HTMLElement): void {
 		const titleDiv = dom.append(container, $('.title'));
 		const titleSpan = dom.append(titleDiv, $('span'));
-		titleSpan.textContent = nls.localize({ key: 'openEditors', comment: ['Open is an adjective'] }, "Open Editors");
+		titleSpan.textContent = this.name;
 
 		this.dirtyCountElement = dom.append(titleDiv, $('.monaco-count-badge'));
 
@@ -186,7 +187,7 @@ export class OpenEditorsView extends CollapsibleView {
 		this.toDispose.push(this.model.onModelChanged(e => this.onEditorStacksModelChanged(e)));
 
 		// Also handle configuration updates
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>())));
 
 		// Handle dirty counter
 		this.toDispose.push(this.untitledEditorService.onDidChangeDirty(e => this.updateDirtyIndicator()));

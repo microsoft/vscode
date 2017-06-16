@@ -459,7 +459,7 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 				continue;
 			}
 			let rule: monarchCommon.IRule = rules[idx];
-			if (rule.action.nextEmbedded !== '@pop') {
+			if (monarchCommon.isIAction(rule.action) && rule.action.nextEmbedded !== '@pop') {
 				continue;
 			}
 			hasEmbeddedPopRule = true;
@@ -518,7 +518,7 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 
 		// regular expression group matching
 		// these never need cloning or equality since they are only used within a line match
-		let groupActions: monarchCommon.IAction[] = null;
+		let groupActions: monarchCommon.FuzzyAction[] = null;
 		let groupMatches: string[] = null;
 		let groupMatched: string[] = null;
 		let groupRule: monarchCommon.IRule = null;
@@ -531,7 +531,7 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 
 			let matches: string[] = null;
 			let matched: string = null;
-			let action: monarchCommon.IAction = null;
+			let action: monarchCommon.FuzzyAction | monarchCommon.FuzzyAction[] = null;
 			let rule: monarchCommon.IRule = null;
 
 			let enteringEmbeddedMode: string = null;
@@ -604,22 +604,23 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 			pos += matched.length;
 
 			// maybe call action function (used for 'cases')
-			while (action.test) {
+			while (monarchCommon.isFuzzyAction(action) && monarchCommon.isIAction(action) && action.test) {
 				action = action.test(matched, matches, state, pos === lineLength);
 			}
 
-			let result: string | monarchCommon.IAction[] = null;
+			let result: monarchCommon.FuzzyAction | monarchCommon.FuzzyAction[] = null;
 			// set the result: either a string or an array of actions
 			if (typeof action === 'string' || Array.isArray(action)) {
 				result = action;
 			} else if (action.group) {
 				result = action.group;
 			} else if (action.token !== null && action.token !== undefined) {
-				result = action.token;
 
 				// do $n replacements?
 				if (action.tokenSubst) {
-					result = monarchCommon.substituteMatches(this._lexer, result, matched, matches, state);
+					result = monarchCommon.substituteMatches(this._lexer, action.token, matched, matches, state);
+				} else {
+					result = action.token;
 				}
 
 				// enter embedded mode?
@@ -739,7 +740,7 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 				// return the result (and check for brace matching)
 				// todo: for efficiency we could pre-sanitize tokenPostfix and substitutions
 				let tokenType: string = null;
-				if (result.indexOf('@brackets') === 0) {
+				if (monarchCommon.isString(result) && result.indexOf('@brackets') === 0) {
 					let rest = result.substr('@brackets'.length);
 					let bracket = findBracket(this._lexer, matched);
 					if (!bracket) {

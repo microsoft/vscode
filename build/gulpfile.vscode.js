@@ -214,7 +214,8 @@ function packageTask(platform, arch, opts) {
 			'vs/workbench/electron-browser/workbench.main.js',
 			'vs/workbench/electron-browser/workbench.main.css',
 			'vs/workbench/electron-browser/bootstrap/index.html',
-			'vs/workbench/electron-browser/bootstrap/index.js'
+			'vs/workbench/electron-browser/bootstrap/index.js',
+			'vs/workbench/electron-browser/bootstrap/preload.js'
 		]);
 
 		const src = gulp.src(out + '/**', { base: '.' })

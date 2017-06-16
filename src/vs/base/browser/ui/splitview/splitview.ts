@@ -617,6 +617,7 @@ export class SplitView implements
 		this.viewFocusNextListeners.splice(index, 1);
 
 		this.views.splice(index, 1);
+		this.initialWeights.splice(index, 1);
 		this.el.removeChild(this.viewElements[index]);
 		this.viewElements.splice(index, 1);
 

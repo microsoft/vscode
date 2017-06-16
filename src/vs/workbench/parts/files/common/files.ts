@@ -21,6 +21,7 @@ export const VIEWLET_ID = 'workbench.view.explorer';
  */
 const explorerViewletVisibleId = 'explorerViewletVisible';
 const filesExplorerFocusId = 'filesExplorerFocus';
+const openEditorsVisibleId = 'openEditorsVisible';
 const openEditorsFocusId = 'openEditorsFocus';
 const explorerViewletFocusId = 'explorerViewletFocus';
 const explorerResourceIsFolderId = 'explorerResourceIsFolder';
@@ -28,9 +29,11 @@ const explorerResourceIsFolderId = 'explorerResourceIsFolder';
 export const ExplorerViewletVisibleContext = new RawContextKey<boolean>(explorerViewletVisibleId, true);
 export const ExplorerFolderContext = new RawContextKey<boolean>(explorerResourceIsFolderId, false);
 export const FilesExplorerFocussedContext = new RawContextKey<boolean>(filesExplorerFocusId, false);
+export const OpenEditorsVisibleContext = new RawContextKey<boolean>(openEditorsVisibleId, false);
 export const OpenEditorsFocussedContext = new RawContextKey<boolean>(openEditorsFocusId, false);
 export const ExplorerFocussedContext = new RawContextKey<boolean>(explorerViewletFocusId, false);
 
+export const OpenEditorsVisibleCondition = ContextKeyExpr.has(openEditorsVisibleId);
 export const FilesExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(filesExplorerFocusId));
 export const ExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(explorerViewletFocusId));
 
