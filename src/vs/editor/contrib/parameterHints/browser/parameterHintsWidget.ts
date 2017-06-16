@@ -81,7 +81,7 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	trigger(delay = ParameterHintsModel.DELAY): void {
-		if (!this.enabled || !SignatureHelpProviderRegistry.has(this.editor.getModel())) {
+		if (!SignatureHelpProviderRegistry.has(this.editor.getModel())) {
 			return;
 		}
 
@@ -132,8 +132,11 @@ export class ParameterHintsModel extends Disposable {
 		}
 
 		this.triggerCharactersListeners.push(this.editor.onDidType((text: string) => {
-			let lastCharCode = text.charCodeAt(text.length - 1);
-			if (triggerChars.has(lastCharCode)) {
+			if (!this.enabled) {
+				return;
+			}
+
+			if (triggerChars.has(text.charCodeAt(text.length - 1))) {
 				this.trigger();
 			}
 		}));
