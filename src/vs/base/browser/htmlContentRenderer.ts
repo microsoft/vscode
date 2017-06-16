@@ -13,7 +13,7 @@ import { IHTMLContentElement, MarkedString, removeMarkdownEscapes } from 'vs/bas
 import { marked } from 'vs/base/common/marked/marked';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 
-export type RenderableContent = string | IHTMLContentElement | IHTMLContentElement[];
+export type RenderableContent = string | IHTMLContentElement;
 
 export interface RenderOptions {
 	actionCallback?: (content: string, event?: IMouseEvent) => void;
@@ -21,7 +21,7 @@ export interface RenderOptions {
 }
 
 export function renderMarkedString(markedString: MarkedString, options: RenderOptions = {}): Node {
-	const htmlContentElement = typeof markedString === 'string' ? { markdown: markedString } : { code: markedString };
+	const htmlContentElement: IHTMLContentElement = typeof markedString === 'string' ? { markdown: markedString } : { code: markedString };
 	return renderHtml(htmlContentElement, options);
 }
 
@@ -34,8 +34,6 @@ export function renderMarkedString(markedString: MarkedString, options: RenderOp
 export function renderHtml(content: RenderableContent, options: RenderOptions = {}): Node {
 	if (typeof content === 'string') {
 		return document.createTextNode(content);
-	} else if (Array.isArray(content)) {
-		return _renderHtml({ children: content }, options);
 	} else if (content) {
 		return _renderHtml(content, options);
 	}
@@ -54,11 +52,6 @@ function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}):
 	}
 	if (content.text) {
 		element.textContent = content.text;
-	}
-	if (content.children) {
-		content.children.forEach((child) => {
-			element.appendChild(renderHtml(child, options));
-		});
 	}
 	if (content.formattedText) {
 		renderFormattedText(element, parseFormattedText(content.formattedText), actionCallback);

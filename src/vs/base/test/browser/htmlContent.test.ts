@@ -32,18 +32,6 @@ suite('HtmlContent', () => {
 		assert.strictEqual(result.className, 'testClass');
 	});
 
-	test('render element with children', () => {
-		var result: HTMLElement = <any>renderHtml({
-			className: 'parent',
-			children: [{
-				text: 'child'
-			}]
-		});
-		assert.strictEqual(result.children.length, 1);
-		assert.strictEqual(result.className, 'parent');
-		assert.strictEqual(result.firstChild.textContent, 'child');
-	});
-
 	test('simple formatting', () => {
 		var result: HTMLElement = <any>renderHtml({
 			formattedText: '**bold**'
