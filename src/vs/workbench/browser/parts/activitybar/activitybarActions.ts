@@ -445,6 +445,7 @@ export class ViewletActionItem extends ActivityActionItem {
 
 		this.$label.title(title);
 		this.$badge.title(title);
+		this.$container.title(title);
 	}
 
 	protected _updateClass(): void {
