@@ -636,6 +636,9 @@ export class FileDragAndDrop implements IDragAndDrop {
 	}
 
 	public getDragURI(tree: ITree, stat: FileStat): string {
+		if (this.contextService.getWorkspace2().roots.some(r => r.toString() === stat.resource.toString())) {
+			return null; // Can not move root folder
+		}
 		if (stat.isDirectory) {
 			return URI.from({ scheme: 'folder', path: stat.resource.fsPath }).toString(); // indicates that we are dragging a folder
 		}
@@ -673,8 +676,8 @@ export class FileDragAndDrop implements IDragAndDrop {
 		}
 	}
 
-	public onDragOver(tree: ITree, data: IDragAndDropData, target: FileStat, originalEvent: DragMouseEvent): IDragOverReaction {
-		if (!this.dropEnabled) {
+	public onDragOver(tree: ITree, data: IDragAndDropData, target: FileStat | Model, originalEvent: DragMouseEvent): IDragOverReaction {
+		if (!this.dropEnabled || target instanceof Model) {
 			return DRAG_OVER_REJECT;
 		}
 
@@ -736,8 +739,8 @@ export class FileDragAndDrop implements IDragAndDrop {
 			return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY(true) : DRAG_OVER_ACCEPT_BUBBLE_DOWN(true);
 		}
 
-		const workspace = this.contextService.getWorkspace();
-		if (workspace && target.resource.toString() !== workspace.resource.toString()) {
+		const workspace = this.contextService.getWorkspace2();
+		if (workspace && workspace.roots.every(r => r.toString() !== target.resource.toString())) {
 			return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_UP_COPY : DRAG_OVER_ACCEPT_BUBBLE_UP;
 		}
 
