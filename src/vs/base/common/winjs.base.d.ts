@@ -55,6 +55,18 @@ export interface TProgressCallback<T> {
 	(progress: T): void;
 }
 
+interface IPromiseErrorDetail {
+	parent: TPromise<any>;
+	error: any;
+	id: number;
+	handler: Function;
+	exception: Error;
+}
+
+interface IPromiseError {
+	detail: IPromiseErrorDetail;
+}
+
 /**
  * A Promise implementation that supports progress and cancelation.
  */
@@ -95,6 +107,11 @@ export declare class TPromise<V> {
 	public static wrap<ValueType>(value: ValueType): TPromise<ValueType>;
 
 	public static wrapError<ValueType>(error: any): TPromise<ValueType>;
+
+	/**
+	 * @internal
+	 */
+	public static addEventListener(event: 'error', promiseErrorHandler: (e: IPromiseError) => void);
 }
 
 // --- Generic promise with generic progress value
