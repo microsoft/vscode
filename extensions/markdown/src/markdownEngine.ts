@@ -20,6 +20,8 @@ interface MarkdownIt {
 	parse(text: string, env: any): IToken[];
 
 	utils: any;
+
+	set(options: any): MarkdownIt;
 }
 
 const FrontMatterRegex = /^---\s*[^]*?(-{3}|\.{3})\s*/;
@@ -79,6 +81,7 @@ export class MarkdownEngine {
 			this.addLinkNormalizer(this.md);
 			this.addLinkValidator(this.md);
 		}
+		this.md.set({ breaks: vscode.workspace.getConfiguration('markdown').get('preview.breaks', false) });
 		return this.md;
 	}
 
