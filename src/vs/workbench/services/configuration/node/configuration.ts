@@ -8,7 +8,7 @@ import URI from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
-import { StrictResourceMap, TrieMap } from 'vs/base/common/map';
+import { StrictResourceMap } from 'vs/base/common/map';
 import { distinct, equals } from "vs/base/common/arrays";
 import * as objects from 'vs/base/common/objects';
 import * as errors from 'vs/base/common/errors';
@@ -63,18 +63,13 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	private cachedFolderConfigs: StrictResourceMap<FolderConfiguration<any>>;
 
 	private readonly workspace: Workspace;
-	private rootsTrieMap: TrieMap<URI> = new TrieMap<URI>(TrieMap.PathSplitter);
+
 	private _configuration: Configuration<any>;
 
 	constructor(private environmentService: IEnvironmentService, private readonly legacyWorkspace?: LegacyWorkspace, private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME) {
 		super();
 
 		this.workspace = legacyWorkspace ? new Workspace(createHash('md5').update(legacyWorkspace.resource.fsPath).update(legacyWorkspace.ctime ? String(legacyWorkspace.ctime) : '').digest('hex'), basename(legacyWorkspace.resource.fsPath), [legacyWorkspace.resource]) : null;
-
-		this.rootsTrieMap = new TrieMap<URI>(TrieMap.PathSplitter);
-		if (this.workspace) {
-			this.rootsTrieMap.insert(this.workspace.roots[0].fsPath, this.workspace.roots[0]);
-		}
 		this._register(this.onDidUpdateConfiguration(e => this.resolveAdditionalFolders(true)));
 
 		this.baseConfigurationService = this._register(new GlobalConfigurationService(environmentService));
@@ -115,11 +110,6 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 			this.workspace.roots = configuredFolders;
 			this.workspace.name = configuredFolders.map(root => basename(root.fsPath) || root.fsPath).join(', ');
 
-			this.rootsTrieMap = new TrieMap<URI>(TrieMap.PathSplitter);
-			for (const folder of this.workspace.roots) {
-				this.rootsTrieMap.insert(folder.fsPath, folder);
-			}
-
 			if (notify) {
 				this._onDidChangeWorkspaceRoots.fire(configuredFolders);
 			}
@@ -139,7 +129,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	}
 
 	public getRoot(resource: URI): URI {
-		return this.rootsTrieMap.findSubstr(resource.fsPath);
+		return this.workspace ? this.workspace.getRoot(resource) : null;
 	}
 
 	private get workspaceUri(): URI {

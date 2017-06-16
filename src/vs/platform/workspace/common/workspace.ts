@@ -6,7 +6,8 @@
 
 import URI from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import paths = require('vs/base/common/paths');
+import * as paths from 'vs/base/common/paths';
+import { TrieMap } from 'vs/base/common/map';
 import { isEqualOrParent } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
 import Event from 'vs/base/common/event';
@@ -145,11 +146,14 @@ export class LegacyWorkspace implements ILegacyWorkspace {
 
 export class Workspace implements IWorkspace {
 
+	private _rootsMap: TrieMap<URI> = new TrieMap<URI>(TrieMap.PathSplitter);
+
 	constructor(
 		public readonly id: string,
 		private _name: string,
 		private _roots: URI[]
 	) {
+		this.updateRootsMap();
 	}
 
 	public get roots(): URI[] {
@@ -158,6 +162,7 @@ export class Workspace implements IWorkspace {
 
 	public set roots(roots: URI[]) {
 		this._roots = roots;
+		this.updateRootsMap();
 	}
 
 	public get name(): string {
@@ -166,6 +171,17 @@ export class Workspace implements IWorkspace {
 
 	public set name(name: string) {
 		this._name = name;
+	}
+
+	public getRoot(resource: URI): URI {
+		return this._rootsMap.findSubstr(resource.fsPath);
+	}
+
+	private updateRootsMap(): void {
+		this._rootsMap = new TrieMap<URI>(TrieMap.PathSplitter);
+		for (const root of this.roots) {
+			this._rootsMap.insert(root.fsPath, root);
+		}
 	}
 
 	public toJSON(): IWorkspace {
