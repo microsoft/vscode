@@ -1,12 +1,16 @@
 # stop when there's an error
 $ErrorActionPreference = 'Stop'
 
+$env:HOME=$env:USERPROFILE
+
 if (Test-Path env:AGENT_WORKFOLDER) {
 	# will be used by node-gyp
 	$env:HOME = "${env:AGENT_WORKFOLDER}\home"
+	New-Item -Path "$env:HOME" -Type directory -Force | out-null
 
 	# will be used by npm
 	$env:npm_config_cache = "${env:AGENT_WORKFOLDER}\npm-cache"
+	New-Item -Path "$env:npm_config_cache" -Type directory -Force | out-null
 }
 
 # throw when a process exits with something other than 0
