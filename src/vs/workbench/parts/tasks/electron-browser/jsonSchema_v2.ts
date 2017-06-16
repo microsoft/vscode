@@ -43,23 +43,35 @@ const dependsOn: IJSONSchema = {
 	]
 };
 
-const terminal: IJSONSchema = {
+const presentation: IJSONSchema = {
 	type: 'object',
 	default: {
 		reveal: 'always'
 	},
-	description: nls.localize('JsonSchema.tasks.terminal', 'Configures the terminal that is used to execute the task.'),
+	description: nls.localize('JsonSchema.tasks.terminal', 'Configures the panel that is used to present the task\'s ouput and reads its input.'),
+	additionalProperties: false,
 	properties: {
 		echo: {
 			type: 'boolean',
+			default: true,
+			description: nls.localize('JsonSchema.tasks.terminal.echo', 'Controls whether the executed command is echoed to the panel. Default is true.')
+		},
+		focus: {
+			type: 'boolean',
 			default: false,
-			description: nls.localize('JsonSchema.tasks.terminal.echo', 'Controls whether the executed command is echoed to the terminal. Default is false.')
+			description: nls.localize('JsonSchema.tasks.terminal.focus', 'Controls whether the panel takes focus. Default is false. If set to true the panel is revealed as well.')
 		},
 		reveal: {
 			type: 'string',
 			enum: ['always', 'silent', 'never'],
 			default: 'always',
-			description: nls.localize('JsonSchema.tasks.terminal.reveals', 'Controls whether the terminal running the task is revealed or not. Default is \"always\".')
+			description: nls.localize('JsonSchema.tasks.terminal.reveals', 'Controls whether the panel running the task is revealed or not. Default is \"always\".')
+		},
+		panel: {
+			type: 'string',
+			enum: ['shared', 'dedicated', 'new'],
+			default: 'shared',
+			description: nls.localize('JsonSchema.tasks.terminal.instance', 'Controls if the panel is shared between tasks, dedicated to this task or a new one is created on every run.')
 		}
 	}
 };
@@ -131,7 +143,7 @@ definitions.taskDescription.properties.dependsOn = dependsOn;
 // definitions.taskDescription.properties.isTestCommand.deprecationMessage = nls.localize('JsonSchema.tasks.isTestCommand.deprecated', 'The property isTestCommand is deprecated. Use the group property instead.');
 definitions.taskDescription.properties.customize = customize;
 definitions.taskDescription.properties.type = Objects.deepClone(taskType);
-definitions.taskDescription.properties.terminal = terminal;
+definitions.taskDescription.properties.presentation = presentation;
 definitions.taskDescription.properties.group = group;
 definitions.options.properties.shell = {
 	$ref: '#/definitions/shellConfiguration'

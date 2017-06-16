@@ -207,32 +207,32 @@ namespace TaskRevealKind {
 	}
 }
 
-namespace TaskInstanceKind {
-	export function from(value: vscode.TaskInstanceKind): TaskSystem.InstanceKind {
+namespace TaskPanelKind {
+	export function from(value: vscode.TaskPanelKind): TaskSystem.PanelKind {
 		if (value === void 0 || value === null) {
-			return TaskSystem.InstanceKind.Shared;
+			return TaskSystem.PanelKind.Shared;
 		}
 		switch (value) {
-			case types.TaskInstanceKind.Same:
-				return TaskSystem.InstanceKind.Same;
-			case types.TaskInstanceKind.New:
-				return TaskSystem.InstanceKind.New;
+			case types.TaskPanelKind.Dedicated:
+				return TaskSystem.PanelKind.Dedicated;
+			case types.TaskPanelKind.New:
+				return TaskSystem.PanelKind.New;
 			default:
-				return TaskSystem.InstanceKind.Shared;
+				return TaskSystem.PanelKind.Shared;
 		}
 	}
 }
 
-namespace TerminalBehaviour {
-	export function from(value: vscode.TaskTerminalBehavior): TaskSystem.TerminalBehavior {
+namespace PresentationOptions {
+	export function from(value: vscode.TaskPresentationOptions): TaskSystem.PresentationOptions {
 		if (value === void 0 || value === null) {
-			return { reveal: TaskSystem.RevealKind.Always, echo: true, focus: false, instance: TaskSystem.InstanceKind.Shared };
+			return { reveal: TaskSystem.RevealKind.Always, echo: true, focus: false, panel: TaskSystem.PanelKind.Shared };
 		}
 		return {
 			reveal: TaskRevealKind.from(value.reveal),
 			echo: value.echo === void 0 ? true : !!value.echo,
 			focus: !!value.focus,
-			instance: TaskInstanceKind.from(value.instance)
+			panel: TaskPanelKind.from(value.panel)
 		};
 	}
 }
@@ -359,7 +359,7 @@ namespace Tasks {
 			args: Strings.from(value.args),
 			type: TaskSystem.CommandType.Process,
 			suppressTaskName: true,
-			terminalBehavior: TerminalBehaviour.from(value.terminalBehavior)
+			presentation: PresentationOptions.from(value.presentationOptions)
 		};
 		if (value.options) {
 			result.options = CommandOptions.from(value.options);
@@ -374,7 +374,7 @@ namespace Tasks {
 		let result: TaskSystem.CommandConfiguration = {
 			name: value.commandLine,
 			type: TaskSystem.CommandType.Shell,
-			terminalBehavior: TerminalBehaviour.from(value.terminalBehavior)
+			presentation: PresentationOptions.from(value.presentationOptions)
 		};
 		if (value.options) {
 			result.options = CommandOptions.from(value.options);

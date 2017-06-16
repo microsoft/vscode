@@ -489,7 +489,7 @@ export function createApiFactory(
 			ThemeColor: extHostTypes.ThemeColor,
 			// functions
 			TaskRevealKind: extHostTypes.TaskRevealKind,
-			TaskInstanceKind: extHostTypes.TaskInstanceKind,
+			TaskPanelKind: extHostTypes.TaskPanelKind,
 			TaskGroup: extHostTypes.TaskGroup,
 			ShellTask: extHostTypes.ShellTask,
 			ProcessTask: extHostTypes.ProcessTask
