@@ -58,6 +58,16 @@
 				]
 			},
 			{
+				// vs/base/test/common contains tests for vs/base/common
+				"target": "**/vs/base/test/common/**",
+				"restrictions": [
+					"assert",
+					"vs/nls",
+					"**/vs/base/common/**",
+					"**/vs/base/test/common/**"
+				]
+			},
+			{
 				// vs/base/browser can only depend on vs/base/common
 				"target": "**/vs/base/browser/**",
 				"restrictions": [
@@ -65,6 +75,18 @@
 					"vs/css!./**/*",
 					"**/vs/base/common/**",
 					"**/vs/base/browser/**"
+				]
+			},
+			{
+				// vs/base/test/browser contains tests for vs/base/browser
+				"target": "**/vs/base/test/browser/**",
+				"restrictions": [
+					"assert",
+					"vs/nls",
+					"**/vs/base/common/**",
+					"**/vs/base/test/common/**",
+					"**/vs/base/browser/**",
+					"**/vs/base/test/browser/**"
 				]
 			},
 			{
