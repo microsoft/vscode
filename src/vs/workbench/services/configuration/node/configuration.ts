@@ -69,7 +69,11 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	constructor(private environmentService: IEnvironmentService, private readonly legacyWorkspace?: LegacyWorkspace, private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME) {
 		super();
 
-		this.workspace = legacyWorkspace ? new Workspace(createHash('md5').update(legacyWorkspace.resource.fsPath).update(legacyWorkspace.ctime ? String(legacyWorkspace.ctime) : '').digest('hex'), basename(legacyWorkspace.resource.fsPath), [legacyWorkspace.resource]) : null;
+		this.workspace = legacyWorkspace ? new Workspace(
+			createHash('md5').update(legacyWorkspace.resource.fsPath).update(legacyWorkspace.ctime ? String(legacyWorkspace.ctime) : '').digest('hex'),
+			basename(legacyWorkspace.resource.fsPath),
+			[legacyWorkspace.resource]
+		) : null;
 		this._register(this.onDidUpdateConfiguration(e => this.resolveAdditionalFolders(true)));
 
 		this.baseConfigurationService = this._register(new GlobalConfigurationService(environmentService));
@@ -233,7 +237,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 
 	private initCaches(): void {
 		this.cachedFolderConfigs = new StrictResourceMap<FolderConfiguration<any>>();
-		this._configuration = new Configuration(<any>this.baseConfigurationService.configuration(), new StrictResourceMap<FolderConfigurationModel<any>>(), this.workspaceUri);
+		this._configuration = new Configuration(<any>this.baseConfigurationService.configuration(), new StrictResourceMap<FolderConfigurationModel<any>>(), this.workspace);
 		this.initCachesForFolders(this.workspace ? this.workspace.roots : []);
 	}
 
@@ -467,12 +471,12 @@ function resolveStat(resource: URI): TPromise<IStat> {
 
 class Configuration<T> extends BaseConfiguration<T> {
 
-	constructor(private _baseConfiguration: Configuration<T>, protected folders: StrictResourceMap<FolderConfigurationModel<T>>, workspaceUri: URI) {
-		super(_baseConfiguration.defaults, _baseConfiguration.user, folders, workspaceUri);
+	constructor(private _baseConfiguration: Configuration<T>, protected folders: StrictResourceMap<FolderConfigurationModel<T>>, workspace: Workspace) {
+		super(_baseConfiguration.defaults, _baseConfiguration.user, folders, workspace);
 	}
 
 	updateBaseConfiguration(baseConfiguration: Configuration<T>): boolean {
-		const current = new Configuration(this._baseConfiguration, this.folders, this.workspaceUri);
+		const current = new Configuration(this._baseConfiguration, this.folders, this._workspace);
 
 		this._defaults = baseConfiguration.defaults;
 		this._user = baseConfiguration.user;
@@ -489,13 +493,13 @@ class Configuration<T> extends BaseConfiguration<T> {
 	}
 
 	deleteFolderConfiguration(folder: URI): boolean {
-		if (this.workspaceUri && this.workspaceUri.fsPath === folder.fsPath) {
+		if (this.workspace && this.workspaceUri.fsPath === folder.fsPath) {
 			// Do not remove workspace configuration
 			return false;
 		}
 
 		this.folders.delete(folder);
-		return this._foldersConsolidated.delete(folder);
+		return this._foldersConsolidatedConfigurations.delete(folder);
 	}
 
 	getFolderConfigurationModel(folder: URI): FolderConfigurationModel<T> {
@@ -511,11 +515,11 @@ class Configuration<T> extends BaseConfiguration<T> {
 			return false;
 		}
 
-		if (this._foldersConsolidated.size !== other._foldersConsolidated.size) {
+		if (this._foldersConsolidatedConfigurations.size !== other._foldersConsolidatedConfigurations.size) {
 			return false;
 		}
 
-		for (const resource of this._foldersConsolidated.keys()) {
+		for (const resource of this._foldersConsolidatedConfigurations.keys()) {
 			if (!objects.equals(this.getValue(null, { resource }), other.getValue(null, { resource }))) {
 				return false;
 			}

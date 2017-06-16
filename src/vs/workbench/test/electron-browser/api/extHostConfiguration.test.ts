@@ -6,11 +6,13 @@
 'use strict';
 
 import * as assert from 'assert';
+import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { MainThreadConfigurationShape } from 'vs/workbench/api/node/extHost.protocol';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ConfigurationTarget, ConfigurationEditingErrorCode, IConfigurationEditingError } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ConfigurationModel } from 'vs/platform/configuration/common/configuration';
+import { TestThreadService } from './testThreadService';
 
 suite('ExtHostConfiguration', function () {
 
@@ -29,9 +31,8 @@ suite('ExtHostConfiguration', function () {
 		return new ExtHostConfiguration(shape, {
 			defaults: new ConfigurationModel(contents),
 			user: new ConfigurationModel(contents),
-			folders: Object.create(null),
-			workspaceUri: void 0
-		});
+			folders: Object.create(null)
+		}, new ExtHostWorkspace(new TestThreadService(), null));
 	}
 
 	test('getConfiguration fails regression test 1.7.1 -> 1.8 #15552', function () {
