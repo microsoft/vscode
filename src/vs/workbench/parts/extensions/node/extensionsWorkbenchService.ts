@@ -811,14 +811,25 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 				}
 
 				const extension = result.firstPage[0];
-				const promises = [this.open(extension)];
+				this.open(extension).then(() => {
+					const message = nls.localize('installConfirmation', "Would you like to install the '{0}' extension?", extension.displayName, extension.publisher);
+					const options = [
+						nls.localize('install', "Install"),
+						nls.localize('cancel', "Cancel")
+					];
+					this.choiceService.choose(Severity.Info, message, options, 2, false)
+						.then<void>(value => {
+							if (value === 0) {
+								const promises: TPromise<any>[] = [];
+								if (this.local.every(local => local.id !== extension.id)) {
+									promises.push(this.install(extension));
+								}
 
-				if (this.local.every(local => local.id !== extension.id)) {
-					promises.push(this.install(extension));
-				}
-
-				TPromise.join(promises)
-					.done(null, error => this.onError(error));
+								TPromise.join(promises)
+									.done(null, error => this.onError(error));
+							}
+						});
+				});
 			});
 	}
 
