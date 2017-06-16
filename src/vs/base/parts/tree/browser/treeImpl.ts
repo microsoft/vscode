@@ -170,10 +170,6 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		return this.model.refresh(element, recursive);
 	}
 
-	public refreshAll(elements: any[], recursive = true): WinJS.Promise {
-		return this.model.refreshAll(elements, recursive);
-	}
-
 	public expand(element: any): WinJS.Promise {
 		return this.model.expand(element);
 	}
