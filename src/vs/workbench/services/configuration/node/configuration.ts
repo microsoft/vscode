@@ -161,7 +161,6 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	}
 
 	public getConfiguration<C>(section?: string, overrides?: IConfigurationOverrides): C {
-		overrides = overrides && overrides.resource ? { ...overrides, resource: this.getRoot(overrides.resource) } : overrides;
 		return this._configuration.getValue<C>(section, overrides);
 	}
 

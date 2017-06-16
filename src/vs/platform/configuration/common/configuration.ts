@@ -301,8 +301,25 @@ export class Configuration<T> {
 	}
 
 	private getConfigurationModel<C>(overrides: IConfigurationOverrides): ConfigurationModel<any> {
-		let configurationModel = overrides.resource ? this._foldersConsolidatedConfigurations.get(overrides.resource) || this._workspaceConfiguration : this._workspaceConfiguration;
+		let configurationModel = this.getConfigurationForResource(overrides);
 		return overrides.language ? configurationModel.override<T>(overrides.language) : configurationModel;
+	}
+
+	private getConfigurationForResource({ resource }: IConfigurationOverrides): ConfigurationModel<any> {
+		if (!this.workspace) {
+			return this._globalConfiguration;
+		}
+
+		if (!resource) {
+			return this._workspaceConfiguration;
+		}
+
+		const root = this._workspace.getRoot(resource);
+		if (!root) {
+			return this._workspaceConfiguration;
+		}
+
+		return this._foldersConsolidatedConfigurations.get(root) || this._workspaceConfiguration;
 	}
 
 	public toData(): IConfigurationData<any> {
