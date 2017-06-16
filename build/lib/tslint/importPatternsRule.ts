@@ -9,7 +9,7 @@ import * as minimatch from 'minimatch';
 
 interface ImportPatternsConfig {
 	target: string;
-	restrictions: string;
+	restrictions: string | string[];
 }
 
 export class Rule extends Lint.Rules.AbstractRule {
@@ -45,8 +45,24 @@ class ImportPatterns extends Lint.RuleWalker {
 			return;
 		}
 
-		if (!minimatch(path, this._config.restrictions)) {
-			this.addFailure(this.createFailure(node.getStart(), node.getWidth(), `Imports violates '${this._config.restrictions}'-restriction.`));
+		let restrictions: string[];
+		if (typeof this._config.restrictions === 'string') {
+			restrictions = [this._config.restrictions];
+		} else {
+			restrictions = this._config.restrictions;
+		}
+
+		let matched = false;
+		for (const pattern of restrictions) {
+			if (minimatch(path, pattern)) {
+				matched = true;
+				break;
+			}
+		}
+
+		if (!matched) {
+			// None of the restrictions matched
+			this.addFailure(this.createFailure(node.getStart(), node.getWidth(), `Imports violates '${restrictions.join(' or ')}' restrictions.`));
 		}
 	}
 }

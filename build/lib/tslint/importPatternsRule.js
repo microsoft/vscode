@@ -49,8 +49,24 @@ var ImportPatterns = (function (_super) {
         if (path[0] === '.') {
             return;
         }
-        if (!minimatch(path, this._config.restrictions)) {
-            this.addFailure(this.createFailure(node.getStart(), node.getWidth(), "Imports violates '" + this._config.restrictions + "'-restriction."));
+        var restrictions;
+        if (typeof this._config.restrictions === 'string') {
+            restrictions = [this._config.restrictions];
+        }
+        else {
+            restrictions = this._config.restrictions;
+        }
+        var matched = false;
+        for (var _i = 0, restrictions_1 = restrictions; _i < restrictions_1.length; _i++) {
+            var pattern = restrictions_1[_i];
+            if (minimatch(path, pattern)) {
+                matched = true;
+                break;
+            }
+        }
+        if (!matched) {
+            // None of the restrictions matched
+            this.addFailure(this.createFailure(node.getStart(), node.getWidth(), "Imports violates '" + restrictions.join(' or ') + "' restrictions."));
         }
     };
     return ImportPatterns;
