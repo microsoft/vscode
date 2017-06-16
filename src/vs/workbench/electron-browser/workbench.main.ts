@@ -11,7 +11,6 @@ import 'vs/base/common/errors';
 
 // Editor
 import 'vs/editor/contrib/inspectTMScopes/electron-browser/inspectTMScopes';
-import 'vs/editor/contrib/selectionClipboard/electron-browser/selectionClipboard';
 import 'vs/editor/browser/editor.all';
 
 // Menus/Actions
