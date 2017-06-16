@@ -18,7 +18,7 @@ import { Schemas } from "vs/base/common/network";
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { readFile } from 'vs/base/node/pfs';
 import * as extfs from 'vs/base/node/extfs';
-import { IWorkspaceContextService, IWorkspace2, LegacyWorkspace, ILegacyWorkspace } from "vs/platform/workspace/common/workspace";
+import { IWorkspaceContextService, IWorkspace, LegacyWorkspace, ILegacyWorkspace } from "vs/platform/workspace/common/workspace";
 import { FileChangeType, FileChangesEvent, isEqual, isEqualOrParent } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -48,7 +48,7 @@ interface IWorkspaceConfiguration<T> {
 
 type IWorkspaceFoldersConfiguration = { [rootFolder: string]: { folders: string[]; } };
 
-class Workspace implements IWorkspace2 {
+class Workspace implements IWorkspace {
 	private _name: string;
 
 	constructor(
@@ -75,7 +75,7 @@ class Workspace implements IWorkspace2 {
 		return this._name;
 	}
 
-	public toJSON(): IWorkspace2 {
+	public toJSON(): IWorkspace {
 		return { id: this.id, roots: this.roots, name: this.name };
 	}
 }
@@ -165,7 +165,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		return this.legacyWorkspace;
 	}
 
-	public getWorkspace2(): IWorkspace2 {
+	public getWorkspace2(): IWorkspace {
 		return this.workspace;
 	}
 

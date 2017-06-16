@@ -17,7 +17,7 @@ import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingReso
 import { IKeybindingEvent, KeybindingSource, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IMessageService } from 'vs/platform/message/common/message';
-import { IWorkspaceContextService, ILegacyWorkspace, IWorkspace2 } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, ILegacyWorkspace, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -511,7 +511,7 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 	public readonly onDidChangeWorkspaceRoots: Event<URI[]> = this._onDidChangeWorkspaceRoots.event;
 
 	private readonly legacyWorkspace: ILegacyWorkspace;
-	private readonly workspace: IWorkspace2;
+	private readonly workspace: IWorkspace;
 
 	constructor() {
 		this.legacyWorkspace = { resource: URI.from({ scheme: SimpleWorkspaceContextService.SCHEME, authority: 'model', path: '/' }), ctime: Date.now() };
@@ -522,7 +522,7 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 		return this.legacyWorkspace;
 	}
 
-	public getWorkspace2(): IWorkspace2 {
+	public getWorkspace2(): IWorkspace {
 		return this.workspace;
 	}
 

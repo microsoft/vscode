@@ -31,7 +31,7 @@ export interface IWorkspaceContextService {
 	 * Provides access to the workspace object the platform is running with. This may be null if the workbench was opened
 	 * without workspace (empty);
 	 */
-	getWorkspace2(): IWorkspace2;
+	getWorkspace2(): IWorkspace;
 
 	/**
 	 * An event which fires on workspace roots change.
@@ -81,7 +81,7 @@ export interface ILegacyWorkspace {
 	name?: string;
 }
 
-export interface IWorkspace2 {
+export interface IWorkspace {
 
 	/**
 	 * the unique identifier of the workspace.
