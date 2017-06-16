@@ -1,8 +1,11 @@
 # stop when there's an error
 $ErrorActionPreference = 'Stop'
 
-# set agent specific npm cache
 if (Test-Path env:AGENT_WORKFOLDER) {
+	# will be used by node-gyp
+	$env:HOME = "${env:AGENT_WORKFOLDER}\home"
+
+	# will be used by npm
 	$env:npm_config_cache = "${env:AGENT_WORKFOLDER}\npm-cache"
 }
 
