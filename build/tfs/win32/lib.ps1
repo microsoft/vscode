@@ -3,13 +3,10 @@ $ErrorActionPreference = 'Stop'
 
 $env:HOME=$env:USERPROFILE
 
-if (Test-Path env:AGENT_WORKFOLDER) {
-	# will be used by node-gyp
-	$env:HOME = "${env:AGENT_WORKFOLDER}\home"
-	New-Item -Path "$env:HOME" -Type directory -Force | out-null
-
-	# will be used by npm
-	$env:npm_config_cache = "${env:AGENT_WORKFOLDER}\npm-cache"
+if (Test-Path env:AGENT_HOMEDIRECTORY) {
+	$env:USERPROFILE="${env:AGENT_HOMEDIRECTORY}"
+	$env:HOME="${env:AGENT_HOMEDIRECTORY}"
+	$env:npm_config_cache="${env:AGENT_HOMEDIRECTORY}/.npm-electron"
 	New-Item -Path "$env:npm_config_cache" -Type directory -Force | out-null
 }
 
