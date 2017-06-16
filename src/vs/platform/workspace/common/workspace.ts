@@ -8,7 +8,6 @@ import URI from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import * as paths from 'vs/base/common/paths';
 import { TrieMap } from 'vs/base/common/map';
-import { isEqualOrParent } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
 import Event from 'vs/base/common/event';
 
@@ -129,7 +128,7 @@ export class LegacyWorkspace implements ILegacyWorkspace {
 
 	private contains(resource: URI): boolean {
 		if (resource) {
-			return isEqualOrParent(resource.fsPath, this._resource.fsPath, !isLinux /* ignorecase */);
+			return paths.isEqualOrParent(resource.fsPath, this._resource.fsPath, !isLinux /* ignorecase */);
 		}
 
 		return false;

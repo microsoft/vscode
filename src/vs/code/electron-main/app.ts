@@ -46,7 +46,8 @@ import { IWindowsMainService } from "vs/platform/windows/electron-main/windows";
 import { IHistoryMainService } from "vs/platform/history/electron-main/historyMainService";
 import { isUndefinedOrNull } from "vs/base/common/types";
 import { CodeWindow } from "vs/code/electron-main/window";
-import { isEqual, isParent } from "vs/platform/files/common/files";
+import { isParent } from "vs/platform/files/common/files";
+import { isEqual } from "vs/base/common/paths";
 import { KeyboardLayoutMonitor } from "vs/code/electron-main/keyboard";
 import URI from 'vs/base/common/uri';
 
