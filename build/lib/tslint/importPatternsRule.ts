@@ -6,6 +6,7 @@
 import * as ts from 'typescript';
 import * as Lint from 'tslint';
 import * as minimatch from 'minimatch';
+import { join } from 'path';
 
 interface ImportPatternsConfig {
 	target: string;
@@ -34,15 +35,23 @@ class ImportPatterns extends Lint.RuleWalker {
 		super(file, opts);
 	}
 
-	protected visitImportDeclaration(node: ts.ImportDeclaration): void {
-		let path = node.moduleSpecifier.getText();
+	protected visitImportEqualsDeclaration(node: ts.ImportEqualsDeclaration): void {
+		if (node.moduleReference.kind === ts.SyntaxKind.ExternalModuleReference) {
+			this._validateImport(node.moduleReference.expression.getText(), node);
+		}
+	}
 
+	protected visitImportDeclaration(node: ts.ImportDeclaration): void {
+		this._validateImport(node.moduleSpecifier.getText(), node);
+	}
+
+	private _validateImport(path: string, node: ts.Node): void {
 		// remove quotes
 		path = path.slice(1, -1);
 
-		// ignore relative paths
+		// resolve relative paths
 		if (path[0] === '.') {
-			return;
+			path = join(this.getSourceFile().fileName, path);
 		}
 
 		let restrictions: string[];

@@ -14,8 +14,10 @@ var __extends = (this && this.__extends) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+var ts = require("typescript");
 var Lint = require("tslint");
 var minimatch = require("minimatch");
+var path_1 = require("path");
 var Rule = (function (_super) {
     __extends(Rule, _super);
     function Rule() {
@@ -41,13 +43,20 @@ var ImportPatterns = (function (_super) {
         _this._config = _config;
         return _this;
     }
+    ImportPatterns.prototype.visitImportEqualsDeclaration = function (node) {
+        if (node.moduleReference.kind === ts.SyntaxKind.ExternalModuleReference) {
+            this._validateImport(node.moduleReference.expression.getText(), node);
+        }
+    };
     ImportPatterns.prototype.visitImportDeclaration = function (node) {
-        var path = node.moduleSpecifier.getText();
+        this._validateImport(node.moduleSpecifier.getText(), node);
+    };
+    ImportPatterns.prototype._validateImport = function (path, node) {
         // remove quotes
         path = path.slice(1, -1);
-        // ignore relative paths
+        // resolve relative paths
         if (path[0] === '.') {
-            return;
+            path = path_1.join(this.getSourceFile().fileName, path);
         }
         var restrictions;
         if (typeof this._config.restrictions === 'string') {
