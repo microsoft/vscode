@@ -51,8 +51,8 @@ You can download packages for Windows, Mac and Linux on [VS Code's website](http
 It's based on Code Open Source with some changes:
 * Microsoft branding
 * licensed under Microsoft [closed source custom product license](https://code.visualstudio.com/License) (EULA)
-* Extension Marketplace supported
-* crash reporting and telemetry enabled
+* [Extension Marketplace](https://code.visualstudio.com/docs/editor/extension-gallery) supported
+* [crash reporting](https://code.visualstudio.com/docs/supporting/faq#_how-to-disable-crash-reporting) and [telemetry](https://code.visualstudio.com/docs/supporting/faq#_how-to-disable-telemetry-reporting) enabled
 * user configuration and extensions stored in different directory than Code - Open Source
 * extension debugging supported 
 
