@@ -19,6 +19,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { TextEdit } from 'vs/editor/common/modes';
+import * as IndentUtil from './indentUtils';
 
 export function shiftIndent(tabSize: number, indentation: string, count?: number): string {
 	count = count || 1;
@@ -402,7 +403,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		this.callOnModel = dispose(this.callOnModel);
 
 		// we are disabled
-		if (!this.editor.getConfiguration().autoIndent) {
+		if (!this.editor.getConfiguration().autoIndent || this.editor.getConfiguration().contribInfo.formatOnPaste) {
 			return;
 		}
 
@@ -451,11 +452,11 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		if (indentOfFirstLine !== null) {
 			let firstLineText = model.getLineContent(range.startLineNumber);
 			let oldIndentation = strings.getLeadingWhitespace(firstLineText);
-			let newSpaceCnt = this.getSpaceCnt(indentOfFirstLine, tabSize);
-			let oldSpaceCnt = this.getSpaceCnt(oldIndentation, tabSize);
+			let newSpaceCnt = IndentUtil.getSpaceCnt(indentOfFirstLine, tabSize);
+			let oldSpaceCnt = IndentUtil.getSpaceCnt(oldIndentation, tabSize);
 
 			if (newSpaceCnt !== oldSpaceCnt) {
-				let newIndent = this.generateIndent(newSpaceCnt, tabSize, insertSpaces);
+				let newIndent = IndentUtil.generateIndent(newSpaceCnt, tabSize, insertSpaces);
 				textEdits.push({
 					range: new Range(range.startLineNumber, 1, range.startLineNumber, oldIndentation.length + 1),
 					text: newIndent
@@ -483,17 +484,17 @@ export class AutoIndentOnPaste implements IEditorContribution {
 					}
 				};
 				let indentOfSecondLine = LanguageConfigurationRegistry.getGoodIndentForLine(virtualModel, model.getLanguageIdentifier().id, range.startLineNumber + 1, indentConverter);
-				let newSpaceCntOfSecondLine = this.getSpaceCnt(indentOfSecondLine, tabSize);
-				let oldSpaceCntOfSecondLine = this.getSpaceCnt(strings.getLeadingWhitespace(model.getLineContent(range.startLineNumber + 1)), tabSize);
+				let newSpaceCntOfSecondLine = IndentUtil.getSpaceCnt(indentOfSecondLine, tabSize);
+				let oldSpaceCntOfSecondLine = IndentUtil.getSpaceCnt(strings.getLeadingWhitespace(model.getLineContent(range.startLineNumber + 1)), tabSize);
 
 				if (newSpaceCntOfSecondLine !== oldSpaceCntOfSecondLine) {
 					let spaceCntOffset = newSpaceCntOfSecondLine - oldSpaceCntOfSecondLine;
 					for (let i = range.startLineNumber + 1; i <= range.endLineNumber; i++) {
 						let lineContent = model.getLineContent(i);
 						let originalIndent = strings.getLeadingWhitespace(lineContent);
-						let originalSpacesCnt = this.getSpaceCnt(originalIndent, tabSize);
+						let originalSpacesCnt = IndentUtil.getSpaceCnt(originalIndent, tabSize);
 						let newSpacesCnt = originalSpacesCnt + spaceCntOffset;
-						let newIndent = this.generateIndent(newSpacesCnt, tabSize, insertSpaces);
+						let newIndent = IndentUtil.generateIndent(newSpacesCnt, tabSize, insertSpaces);
 
 						if (newIndent !== originalIndent) {
 							textEdits.push({
@@ -518,39 +519,6 @@ export class AutoIndentOnPaste implements IEditorContribution {
 	public dispose(): void {
 		this.callOnDispose = dispose(this.callOnDispose);
 		this.callOnModel = dispose(this.callOnModel);
-	}
-
-	private getSpaceCnt(str, tabSize) {
-		let spacesCnt = 0;
-
-		for (let i = 0; i < str.length; i++) {
-			if (str.charAt(i) === '\t') {
-				spacesCnt += tabSize;
-			} else {
-				spacesCnt++;
-			}
-		}
-
-		return spacesCnt;
-	}
-
-	private generateIndent(spacesCnt: number, tabSize, insertSpaces) {
-		spacesCnt = spacesCnt < 0 ? 0 : spacesCnt;
-
-		let result = '';
-		if (!insertSpaces) {
-			let tabsCnt = Math.floor(spacesCnt / tabSize);
-			spacesCnt = spacesCnt % tabSize;
-			for (let i = 0; i < tabsCnt; i++) {
-				result += '\t';
-			}
-		}
-
-		for (let i = 0; i < spacesCnt; i++) {
-			result += ' ';
-		}
-
-		return result;
 	}
 }
 

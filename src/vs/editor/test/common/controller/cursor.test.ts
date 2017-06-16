@@ -2340,6 +2340,37 @@ suite('Editor Controller - Indentation Rules', () => {
 		});
 	});
 
+	test('Enter honors indentNextLinePattern 2', () => {
+		let model = Model.createFromString(
+			[
+				'if (true)',
+				'\tif (true)'
+			].join('\n'),
+			{
+				defaultEOL: DefaultEndOfLine.LF,
+				detectIndentation: false,
+				insertSpaces: false,
+				tabSize: 4,
+				trimAutoWhitespace: true
+			},
+			mode.getLanguageIdentifier()
+		);
+
+		withMockCodeEditor(null, { model: model, autoIndent: true }, (editor, cursor) => {
+			moveTo(cursor, 2, 11, false);
+			assertCursor(cursor, new Selection(2, 11, 2, 11));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(3, 3, 3, 3));
+
+			cursorCommand(cursor, H.Type, { text: 'console.log();' }, 'keyboard');
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(4, 1, 4, 1));
+		});
+
+		model.dispose();
+	});
+
 	test('Enter adjusts indentation of current line 1', () => {
 		usingCursor({
 			text: [
@@ -2377,6 +2408,26 @@ suite('Editor Controller - Indentation Rules', () => {
 			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
 			assertCursor(cursor, new Selection(5, 1, 5, 1));
 			assert.equal(model.getLineContent(4), '\t}', '001');
+		});
+	});
+
+	test('Enter honors intential indent', () => {
+		usingCursor({
+			text: [
+				'if (true) {',
+				'\tif (true) {',
+				'return true;',
+				'}}'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 3, 13, false);
+			assertCursor(cursor, new Selection(3, 13, 3, 13));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(4, 1, 4, 1));
+			assert.equal(model.getLineContent(3), 'return true;', '001');
 		});
 	});
 
@@ -2763,6 +2814,40 @@ suite('Editor Controller - Indentation Rules', () => {
 			assert.equal(model.getLineContent(4), '\t\t\t\t\t');
 		});
 
+		model.dispose();
+	});
+
+	test('type honors indentation rules: ruby keywords', () => {
+		let rubyMode = new IndentRulesMode({
+			increaseIndentPattern: /^\s*((begin|class|def|else|elsif|ensure|for|if|module|rescue|unless|until|when|while)|(.*\sdo\b))\b[^\{;]*$/,
+			decreaseIndentPattern: /^\s*([}\]]([,)]?\s*(#|$)|\.[a-zA-Z_]\w*\b)|(end|rescue|ensure|else|elsif|when)\b)/
+		});
+		let model = Model.createFromString(
+			[
+				'class Greeter',
+				'  def initialize(name)',
+				'    @name = name',
+				'    en'
+			].join('\n'),
+			{
+				defaultEOL: DefaultEndOfLine.LF,
+				detectIndentation: false,
+				insertSpaces: true,
+				tabSize: 2,
+				trimAutoWhitespace: true
+			},
+			rubyMode.getLanguageIdentifier()
+		);
+
+		withMockCodeEditor(null, { model: model, autoIndent: true }, (editor, cursor) => {
+			moveTo(cursor, 4, 7, false);
+			assertCursor(cursor, new Selection(4, 7, 4, 7));
+
+			cursorCommand(cursor, H.Type, { text: 'd' }, 'keyboard');
+			assert.equal(model.getLineContent(4), '  end');
+		});
+
+		rubyMode.dispose();
 		model.dispose();
 	});
 });
