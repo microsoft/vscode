@@ -47,6 +47,23 @@
 		"import-patterns": [
 			true,
 			{
+				"target": "**/vs/base/common/**",
+				"restrictions": [
+					"vs/nls",
+					"**/vs/base/common/**"
+				]
+			},
+			{
+				"target": "**/vs/editor/contrib/**",
+				"restrictions": [
+					"**/vs/css!./**/*",
+					"**/vs/nls",
+					"**/vs/{base,platform}/**/{common,browser}/**",
+					"**/vs/editor/**",
+					"assert"
+				]
+			},
+			{
 				"target": "**/{node,electron-browser,electron-main,extensions}/**",
 				"restrictions": "**/*"
 			},
