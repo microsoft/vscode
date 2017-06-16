@@ -134,7 +134,7 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 		const suggestion = (<ICompletionItem>element).suggestion;
 
 		if (canExpandCompletionItem(element)) {
-			data.root.setAttribute('aria-label', nls.localize('suggestionWithDetailsAriaLabel', "{0}, suggestion, has details, press {1} to read more", suggestion.label, this.triggerKeybindingLabel));
+			data.root.setAttribute('aria-label', nls.localize('suggestionWithDetailsAriaLabel', "{0}, suggestion, has details", suggestion.label));
 		} else {
 			data.root.setAttribute('aria-label', nls.localize('suggestionAriaLabel', "{0}, suggestion", suggestion.label));
 		}

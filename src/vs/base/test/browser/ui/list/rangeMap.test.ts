@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert = require('assert');
-import { RangeMap, intersect, groupIntersect, consolidate } from '../rangeMap';
+import { RangeMap, intersect, groupIntersect, consolidate } from 'vs/base/browser/ui/list/rangeMap';
 
 suite('RangeMap', () => {
 	var rangeMap: RangeMap;

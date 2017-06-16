@@ -13,7 +13,7 @@ import * as sinon from 'sinon';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/platform';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import { Workspace } from 'vs/platform/workspace/common/workspace';
+import { LegacyWorkspace } from 'vs/platform/workspace/common/workspace';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import extfs = require('vs/base/node/extfs');
@@ -47,7 +47,7 @@ suite('WorkspaceConfigurationService - Node', () => {
 	}
 
 	function createService(workspaceDir: string, globalSettingsFile: string): TPromise<WorkspaceConfigurationService> {
-		const workspace = new Workspace(URI.file(workspaceDir));
+		const workspace = new LegacyWorkspace(URI.file(workspaceDir));
 		const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
 		const service = new WorkspaceConfigurationService(environmentService, workspace);
 
@@ -204,7 +204,7 @@ suite('WorkspaceConfigurationService - Node', () => {
 
 	test('workspace change triggers event', (done: () => void) => {
 		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
-			const workspace = new Workspace(URI.file(workspaceDir));
+			const workspace = new LegacyWorkspace(URI.file(workspaceDir));
 			const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
 			const service = new WorkspaceConfigurationService(environmentService, workspace);
 
@@ -230,7 +230,7 @@ suite('WorkspaceConfigurationService - Node', () => {
 
 	test('workspace reload should triggers event if content changed', (done: () => void) => {
 		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
-			const workspace = new Workspace(URI.file(workspaceDir));
+			const workspace = new LegacyWorkspace(URI.file(workspaceDir));
 			const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
 			const service = new WorkspaceConfigurationService(environmentService, workspace);
 
@@ -255,7 +255,7 @@ suite('WorkspaceConfigurationService - Node', () => {
 
 	test('workspace reload should not trigger event if nothing changed', (done: () => void) => {
 		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
-			const workspace = new Workspace(URI.file(workspaceDir));
+			const workspace = new LegacyWorkspace(URI.file(workspaceDir));
 			const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
 			const service = new WorkspaceConfigurationService(environmentService, workspace);
 
@@ -280,7 +280,7 @@ suite('WorkspaceConfigurationService - Node', () => {
 
 	test('workspace reload should not trigger event if there is no model', (done: () => void) => {
 		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
-			const workspace = new Workspace(URI.file(workspaceDir));
+			const workspace = new LegacyWorkspace(URI.file(workspaceDir));
 			const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
 			const service = new WorkspaceConfigurationService(environmentService, workspace);
 

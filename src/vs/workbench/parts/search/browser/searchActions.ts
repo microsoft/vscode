@@ -29,7 +29,6 @@ import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiati
 import { IListService } from 'vs/platform/list/browser/listService';
 import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { isEqual } from 'vs/platform/files/common/files';
 import { OS } from 'vs/base/common/platform';
 
 export function isSearchViewletFocussed(viewletService: IViewletService): boolean {
@@ -525,7 +524,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	private hasToOpenFile(): boolean {
 		const file = toResource(this.editorService.getActiveEditorInput(), { filter: 'file' });
 		if (file) {
-			return isEqual(file.fsPath, this.element.parent().resource().fsPath);
+			return paths.isEqual(file.fsPath, this.element.parent().resource().fsPath);
 		}
 		return false;
 	}

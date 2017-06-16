@@ -31,49 +31,52 @@ declare module 'vscode' {
 	/**
 	 * Controls how the task channel is used between tasks
 	 */
-	export enum TaskInstanceKind {
+	export enum TaskPanelKind {
 
 		/**
-		 * Shares a channel with other tasks. This is the default.
+		 * Shares a panel with other tasks. This is the default.
 		 */
 		Shared = 1,
 
 		/**
-		 * Uses the same task channel for every run if possible. The task channel is not
+		 * Uses a dedicated panel for this tasks. The panel is not
 		 * shared with other tasks.
 		 */
-		Same = 2,
+		Dedicated = 2,
 
 		/**
-		 * Creates a new task channel whenever that task is executed
+		 * Creates a new panel whenever this task is executed.
 		 */
 		New = 3
 	}
 
 	/**
-	 * Controls terminal specific behavior.
+	 * Controls how the task is presented in the UI.
 	 */
-	export interface TaskTerminalBehavior {
+	export interface TaskPresentationOptions {
 		/**
-		 * Controls whether the terminal executing a task is brought to front or not.
+		 * Controls whether the task output is reveal in the user interface.
 		 * Defaults to `RevealKind.Always`.
 		 */
 		reveal?: TaskRevealKind;
 
 		/**
-		 * Controls whether the command is echoed in the terminal or not.
+		 * Controls whether the command associated with the task is echoed
+		 * in the user interface.
 		 */
 		echo?: boolean;
 
 		/**
-		 * Controls whether the task pane takes focus when the task is executed
+		 * Controls whether the panel showing the task output is taking focus.
 		 */
 		focus?: boolean;
 
 		/**
-		 * Controls in which pane the task is executed.
+		 * Controls if the task panel is used for this task only (dedicated),
+		 * shared between tasks (shared) or if a new panel is created on
+		 * every task execution (new). Defaults to `TaskInstanceKind.Shared`
 		 */
-		instance?: TaskInstanceKind;
+		panel?: TaskPanelKind;
 	}
 
 	export interface ProcessTaskOptions {
@@ -200,9 +203,9 @@ declare module 'vscode' {
 		options: ProcessTaskOptions;
 
 		/**
-		 * The terminal behavior. Defaults to an empty object literal.
+		 * The presentation options. Defaults to an empty literal.
 		 */
-		terminalBehavior: TaskTerminalBehavior;
+		presentationOptions: TaskPresentationOptions;
 
 		/**
 		 * The problem matchers attached to the task. Defaults to an empty
@@ -332,9 +335,9 @@ declare module 'vscode' {
 		options: ShellTaskOptions;
 
 		/**
-		 * The terminal behavior. Defaults to an empty object literal.
+		 * The presentation options. Defaults to an empty literal.
 		 */
-		terminalBehavior: TaskTerminalBehavior;
+		presentationOptions: TaskPresentationOptions;
 
 		/**
 		 * The problem matchers attached to the task. Defaults to an empty

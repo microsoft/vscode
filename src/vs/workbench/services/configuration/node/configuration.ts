@@ -8,7 +8,7 @@ import URI from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
-import { StrictResourceMap, TrieMap } from 'vs/base/common/map';
+import { StrictResourceMap } from 'vs/base/common/map';
 import { distinct, equals } from "vs/base/common/arrays";
 import * as objects from 'vs/base/common/objects';
 import * as errors from 'vs/base/common/errors';
@@ -18,8 +18,8 @@ import { Schemas } from "vs/base/common/network";
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { readFile } from 'vs/base/node/pfs';
 import * as extfs from 'vs/base/node/extfs';
-import { IWorkspaceContextService, IWorkspace2, Workspace as LegacyWorkspace, IWorkspace as ILegacyWorkspace } from "vs/platform/workspace/common/workspace";
-import { FileChangeType, FileChangesEvent, isEqual, isEqualOrParent } from 'vs/platform/files/common/files';
+import { IWorkspaceContextService, IWorkspace, Workspace, ILegacyWorkspace, LegacyWorkspace } from "vs/platform/workspace/common/workspace";
+import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { CustomConfigurationModel } from 'vs/platform/configuration/common/model';
@@ -48,38 +48,6 @@ interface IWorkspaceConfiguration<T> {
 
 type IWorkspaceFoldersConfiguration = { [rootFolder: string]: { folders: string[]; } };
 
-class Workspace implements IWorkspace2 {
-	private _name: string;
-
-	constructor(
-		public readonly id: string,
-		private _roots: URI[]
-	) {
-		//
-	}
-
-	public set roots(roots: URI[]) {
-		this._roots = roots;
-		this._name = null; // will be recomputed based on roots next time accessed
-	}
-
-	public get roots(): URI[] {
-		return this._roots;
-	}
-
-	public get name(): string {
-		if (!this._name) {
-			this._name = this.roots.map(root => basename(root.fsPath) || root.fsPath).join(', ');
-		}
-
-		return this._name;
-	}
-
-	public toJSON(): IWorkspace2 {
-		return { id: this.id, roots: this.roots, name: this.name };
-	}
-}
-
 export class WorkspaceConfigurationService extends Disposable implements IWorkspaceContextService, IWorkspaceConfigurationService {
 
 	public _serviceBrand: any;
@@ -95,23 +63,17 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	private cachedFolderConfigs: StrictResourceMap<FolderConfiguration<any>>;
 
 	private readonly workspace: Workspace;
-	private rootsTrieMap: TrieMap<URI> = new TrieMap<URI>(TrieMap.PathSplitter);
+
 	private _configuration: Configuration<any>;
 
-	constructor(private environmentService: IEnvironmentService, private legacyWorkspace?: LegacyWorkspace, private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME) {
+	constructor(private environmentService: IEnvironmentService, private readonly legacyWorkspace?: LegacyWorkspace, private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME) {
 		super();
 
-		if (legacyWorkspace) {
-			const workspaceId = createHash('md5').update(legacyWorkspace.resource.fsPath).update(legacyWorkspace.ctime ? String(legacyWorkspace.ctime) : '').digest('hex');
-			this.workspace = new Workspace(workspaceId, [legacyWorkspace.resource]);
-		} else {
-			this.workspace = null;
-		}
-
-		this.rootsTrieMap = new TrieMap<URI>(TrieMap.PathSplitter);
-		if (this.workspace) {
-			this.rootsTrieMap.insert(this.workspace.roots[0].fsPath, this.workspace.roots[0]);
-		}
+		this.workspace = legacyWorkspace ? new Workspace(
+			createHash('md5').update(legacyWorkspace.resource.fsPath).update(legacyWorkspace.ctime ? String(legacyWorkspace.ctime) : '').digest('hex'),
+			basename(legacyWorkspace.resource.fsPath),
+			[legacyWorkspace.resource]
+		) : null;
 		this._register(this.onDidUpdateConfiguration(e => this.resolveAdditionalFolders(true)));
 
 		this.baseConfigurationService = this._register(new GlobalConfigurationService(environmentService));
@@ -147,13 +109,10 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		// Find changes
 		const changed = !equals(this.workspace.roots, configuredFolders, (r1, r2) => r1.toString() === r2.toString());
 
-		this.workspace.roots = configuredFolders;
-
 		if (changed) {
-			this.rootsTrieMap = new TrieMap<URI>(TrieMap.PathSplitter);
-			for (const folder of this.workspace.roots) {
-				this.rootsTrieMap.insert(folder.fsPath, folder);
-			}
+
+			this.workspace.roots = configuredFolders;
+			this.workspace.name = configuredFolders.map(root => basename(root.fsPath) || root.fsPath).join(', ');
 
 			if (notify) {
 				this._onDidChangeWorkspaceRoots.fire(configuredFolders);
@@ -165,7 +124,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		return this.legacyWorkspace;
 	}
 
-	public getWorkspace2(): IWorkspace2 {
+	public getWorkspace2(): IWorkspace {
 		return this.workspace;
 	}
 
@@ -174,7 +133,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	}
 
 	public getRoot(resource: URI): URI {
-		return this.rootsTrieMap.findSubstr(resource.fsPath);
+		return this.workspace ? this.workspace.getRoot(resource) : null;
 	}
 
 	private get workspaceUri(): URI {
@@ -202,7 +161,6 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	}
 
 	public getConfiguration<C>(section?: string, overrides?: IConfigurationOverrides): C {
-		overrides = overrides && overrides.resource ? { ...overrides, resource: this.getRoot(overrides.resource) } : overrides;
 		return this._configuration.getValue<C>(section, overrides);
 	}
 
@@ -278,13 +236,14 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 
 	private initCaches(): void {
 		this.cachedFolderConfigs = new StrictResourceMap<FolderConfiguration<any>>();
-		this._configuration = new Configuration(<any>this.baseConfigurationService.configuration(), new StrictResourceMap<FolderConfigurationModel<any>>(), this.workspaceUri);
+		this._configuration = new Configuration(<any>this.baseConfigurationService.configuration(), new StrictResourceMap<FolderConfigurationModel<any>>(), this.workspace);
 		this.initCachesForFolders(this.workspace ? this.workspace.roots : []);
 	}
 
 	private initCachesForFolders(folders: URI[]): void {
 		for (const folder of folders) {
 			this.cachedFolderConfigs.set(folder, new FolderConfiguration(folder, this.workspaceSettingsRootFolder, this.workspace));
+			this._configuration.updateFolderConfiguration(folder, new FolderConfigurationModel<any>(new FolderSettingsModel<any>(null), []), false);
 		}
 	}
 
@@ -381,7 +340,7 @@ class FolderConfiguration<T> extends Disposable {
 		for (let i = 0, len = events.length; i < len; i++) {
 			const resource = events[i].resource;
 			const isJson = paths.extname(resource.fsPath) === '.json';
-			const isDeletedSettingsFolder = (events[i].type === FileChangeType.DELETED && isEqual(paths.basename(resource.fsPath), this.configFolderRelativePath));
+			const isDeletedSettingsFolder = (events[i].type === FileChangeType.DELETED && paths.isEqual(paths.basename(resource.fsPath), this.configFolderRelativePath));
 			if (!isJson && !isDeletedSettingsFolder) {
 				continue; // only JSON files or the actual settings folder
 			}
@@ -467,7 +426,7 @@ class FolderConfiguration<T> extends Disposable {
 
 	private contains(resource: URI): boolean {
 		if (resource) {
-			return isEqualOrParent(resource.fsPath, this.folder.fsPath, !isLinux /* ignorecase */);
+			return paths.isEqualOrParent(resource.fsPath, this.folder.fsPath, !isLinux /* ignorecase */);
 		}
 
 		return false;
@@ -512,12 +471,12 @@ function resolveStat(resource: URI): TPromise<IStat> {
 
 class Configuration<T> extends BaseConfiguration<T> {
 
-	constructor(private _baseConfiguration: Configuration<T>, protected folders: StrictResourceMap<FolderConfigurationModel<T>>, workspaceUri: URI) {
-		super(_baseConfiguration.defaults, _baseConfiguration.user, folders, workspaceUri);
+	constructor(private _baseConfiguration: Configuration<T>, protected folders: StrictResourceMap<FolderConfigurationModel<T>>, workspace: Workspace) {
+		super(_baseConfiguration.defaults, _baseConfiguration.user, folders, workspace);
 	}
 
 	updateBaseConfiguration(baseConfiguration: Configuration<T>): boolean {
-		const current = new Configuration(this._baseConfiguration, this.folders, this.workspaceUri);
+		const current = new Configuration(this._baseConfiguration, this.folders, this._workspace);
 
 		this._defaults = baseConfiguration.defaults;
 		this._user = baseConfiguration.user;
@@ -526,21 +485,21 @@ class Configuration<T> extends BaseConfiguration<T> {
 		return !this.equals(current);
 	}
 
-	updateFolderConfiguration(resource: URI, configuration: FolderConfigurationModel<T>): boolean {
+	updateFolderConfiguration(resource: URI, configuration: FolderConfigurationModel<T>, compare: boolean = true): boolean {
 		this.folders.set(resource, configuration);
 		const current = this.getValue(null, { resource });
 		this.mergeFolder(resource);
-		return !objects.equals(current, this.getValue(null, { resource }));
+		return compare && !objects.equals(current, this.getValue(null, { resource }));
 	}
 
 	deleteFolderConfiguration(folder: URI): boolean {
-		if (this.workspaceUri && this.workspaceUri.fsPath === folder.fsPath) {
+		if (this.workspace && this.workspaceUri.fsPath === folder.fsPath) {
 			// Do not remove workspace configuration
 			return false;
 		}
 
 		this.folders.delete(folder);
-		return this._foldersConsolidated.delete(folder);
+		return this._foldersConsolidatedConfigurations.delete(folder);
 	}
 
 	getFolderConfigurationModel(folder: URI): FolderConfigurationModel<T> {
@@ -556,11 +515,11 @@ class Configuration<T> extends BaseConfiguration<T> {
 			return false;
 		}
 
-		if (this._foldersConsolidated.size !== other._foldersConsolidated.size) {
+		if (this._foldersConsolidatedConfigurations.size !== other._foldersConsolidatedConfigurations.size) {
 			return false;
 		}
 
-		for (const resource of this._foldersConsolidated.keys()) {
+		for (const resource of this._foldersConsolidatedConfigurations.keys()) {
 			if (!objects.equals(this.getValue(null, { resource }), other.getValue(null, { resource }))) {
 				return false;
 			}

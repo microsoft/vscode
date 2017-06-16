@@ -11,8 +11,9 @@ import os = require('os');
 import crypto = require('crypto');
 import assert = require('assert');
 
-import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveContentOptions, IFileStat, IStreamContent, IFileOperationResult, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent, isEqualOrParent } from 'vs/platform/files/common/files';
+import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveContentOptions, IFileStat, IStreamContent, IFileOperationResult, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent } from 'vs/platform/files/common/files';
 import strings = require('vs/base/common/strings');
+import { isEqualOrParent } from 'vs/base/common/paths';
 import { ResourceMap } from 'vs/base/common/map';
 import arrays = require('vs/base/common/arrays');
 import baseMime = require('vs/base/common/mime');

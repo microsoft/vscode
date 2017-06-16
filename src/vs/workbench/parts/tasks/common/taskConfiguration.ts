@@ -234,16 +234,27 @@ export interface BaseTaskRunnerConfiguration {
 	/**
 	 * Controls the behavior of the used terminal
 	 */
-	terminal?: {
+	presentation?: {
 		/**
-		 * The terminal should echo the run command.
-		 */
-		echo?: boolean;
-		/**
-		 * Controls whether or not the terminal is reveal if a task
-		 * is executed.
+		 * Controls whether the terminal executing a task is brought to front or not.
+		 * Defaults to `RevealKind.Always`.
 		 */
 		reveal?: string;
+
+		/**
+		 * Controls whether the executed command is printed to the output window or terminal as well.
+		 */
+		echo?: boolean;
+
+		/**
+		 * Controls whether the terminal is focus when this task is executed
+		 */
+		focus?: boolean;
+
+		/**
+		 * Controls whether the task runs in a new terminal
+		 */
+		panel?: string;
 	};
 
 	/**
@@ -596,11 +607,11 @@ namespace CommandOptions {
 
 namespace CommandConfiguration {
 
-	interface TerminalBehavior {
+	interface PresentationOptions {
 		echo?: boolean;
 		reveal?: string;
 		focus?: boolean;
-		instance?: string;
+		panel?: string;
 	}
 
 	interface BaseCommandConfiguationShape {
@@ -611,7 +622,11 @@ namespace CommandConfiguration {
 		options?: CommandOptions;
 		echoCommand?: boolean;
 		showOutput?: string;
-		terminal?: TerminalBehavior;
+		/**
+		 * @deprecated Use panel instead.
+		 */
+		terminal?: PresentationOptions;
+		presentation?: PresentationOptions;
 		taskSelector?: string;
 		suppressTaskName?: boolean;
 	}
@@ -622,66 +637,67 @@ namespace CommandConfiguration {
 		linux?: BaseCommandConfiguationShape;
 	}
 
-	export namespace TerminalBehavior {
-		const properties: MetaData<Tasks.TerminalBehavior, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'focus' }, { property: 'instance' }];
+	export namespace PresentationOptions {
+		const properties: MetaData<Tasks.PresentationOptions, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'focus' }, { property: 'panel' }];
 
-		export function from(this: void, config: BaseCommandConfiguationShape, context: ParseContext): Tasks.TerminalBehavior {
+		export function from(this: void, config: BaseCommandConfiguationShape, context: ParseContext): Tasks.PresentationOptions {
 			let echo: boolean;
 			let reveal: Tasks.RevealKind;
 			let focus: boolean;
-			let instance: Tasks.InstanceKind;
+			let panel: Tasks.PanelKind;
 			if (Types.isBoolean(config.echoCommand)) {
 				echo = config.echoCommand;
 			}
 			if (Types.isString(config.showOutput)) {
 				reveal = Tasks.RevealKind.fromString(config.showOutput);
 			}
-			if (config.terminal) {
-				if (Types.isBoolean(config.terminal.echo)) {
-					echo = config.terminal.echo;
+			let presentation = config.presentation || config.terminal;
+			if (presentation) {
+				if (Types.isBoolean(presentation.echo)) {
+					echo = presentation.echo;
 				}
-				if (Types.isString(config.terminal.reveal)) {
-					reveal = Tasks.RevealKind.fromString(config.terminal.reveal);
+				if (Types.isString(presentation.reveal)) {
+					reveal = Tasks.RevealKind.fromString(presentation.reveal);
 				}
-				if (Types.isBoolean(config.terminal.focus)) {
-					focus = config.terminal.focus;
+				if (Types.isBoolean(presentation.focus)) {
+					focus = presentation.focus;
 				}
-				if (Types.isString(config.terminal.instance)) {
-					instance = Tasks.InstanceKind.fromString(config.terminal.instance);
+				if (Types.isString(presentation.panel)) {
+					panel = Tasks.PanelKind.fromString(presentation.panel);
 				}
 			}
-			if (echo === void 0 && reveal === void 0 && focus === void 0 && instance === void 0) {
+			if (echo === void 0 && reveal === void 0 && focus === void 0 && panel === void 0) {
 				return undefined;
 			}
-			return { echo, reveal, focus, instance };
+			return { echo, reveal, focus, panel };
 		}
 
-		export function assignProperties(target: Tasks.TerminalBehavior, source: Tasks.TerminalBehavior): Tasks.TerminalBehavior {
+		export function assignProperties(target: Tasks.PresentationOptions, source: Tasks.PresentationOptions): Tasks.PresentationOptions {
 			return _assignProperties(target, source, properties);
 		}
 
-		export function fillProperties(target: Tasks.TerminalBehavior, source: Tasks.TerminalBehavior): Tasks.TerminalBehavior {
+		export function fillProperties(target: Tasks.PresentationOptions, source: Tasks.PresentationOptions): Tasks.PresentationOptions {
 			return _fillProperties(target, source, properties);
 		}
 
-		export function fillDefaults(value: Tasks.TerminalBehavior, context: ParseContext): Tasks.TerminalBehavior {
+		export function fillDefaults(value: Tasks.PresentationOptions, context: ParseContext): Tasks.PresentationOptions {
 			let defaultEcho = context.engine === Tasks.ExecutionEngine.Terminal ? true : false;
-			return _fillDefaults(value, { echo: defaultEcho, reveal: Tasks.RevealKind.Always, focus: false, instance: Tasks.InstanceKind.Shared }, properties, context);
+			return _fillDefaults(value, { echo: defaultEcho, reveal: Tasks.RevealKind.Always, focus: false, panel: Tasks.PanelKind.Shared }, properties, context);
 		}
 
-		export function freeze(value: Tasks.TerminalBehavior): Readonly<Tasks.TerminalBehavior> {
+		export function freeze(value: Tasks.PresentationOptions): Readonly<Tasks.PresentationOptions> {
 			return _freeze(value, properties);
 		}
 
-		export function isEmpty(this: void, value: Tasks.TerminalBehavior): boolean {
+		export function isEmpty(this: void, value: Tasks.PresentationOptions): boolean {
 			return _isEmpty(value, properties);
 		}
 	}
 
-	const properties: MetaData<Tasks.CommandConfiguration, CommandOptions | TerminalBehavior>[] = [
+	const properties: MetaData<Tasks.CommandConfiguration, CommandOptions | PresentationOptions>[] = [
 		{ property: 'type' }, { property: 'name' }, { property: 'options', type: CommandOptions },
 		{ property: 'args' }, { property: 'taskSelector' }, { property: 'suppressTaskName' },
-		{ property: 'terminalBehavior', type: TerminalBehavior }
+		{ property: 'presentation', type: PresentationOptions }
 	];
 
 	export function from(this: void, config: CommandConfiguationShape, context: ParseContext): Tasks.CommandConfiguration {
@@ -705,7 +721,7 @@ namespace CommandConfiguration {
 		let result: Tasks.CommandConfiguration = {
 			name: undefined,
 			type: undefined,
-			terminalBehavior: undefined
+			presentation: undefined
 		};
 		if (Types.isString(config.command)) {
 			result.name = config.command;
@@ -735,9 +751,9 @@ namespace CommandConfiguration {
 				}
 			}
 		}
-		let terminal = TerminalBehavior.from(config, context);
-		if (terminal) {
-			result.terminalBehavior = terminal;
+		let panel = PresentationOptions.from(config, context);
+		if (panel) {
+			result.presentation = panel;
 		}
 		if (Types.isString(config.taskSelector)) {
 			result.taskSelector = config.taskSelector;
@@ -754,7 +770,7 @@ namespace CommandConfiguration {
 
 	export function onlyTerminalBehaviour(value: Tasks.CommandConfiguration): boolean {
 		return value &&
-			value.terminalBehavior && (value.terminalBehavior.echo !== void 0 || value.terminalBehavior.reveal !== void 0) &&
+			value.presentation && (value.presentation.echo !== void 0 || value.presentation.reveal !== void 0) &&
 			value.name === void 0 && value.type === void 0 && value.args === void 0 && CommandOptions.isEmpty(value.options);
 	}
 
@@ -776,7 +792,7 @@ namespace CommandConfiguration {
 				target.args = target.args.concat(source.args);
 			}
 		}
-		target.terminalBehavior = TerminalBehavior.assignProperties(target.terminalBehavior, source.terminalBehavior);
+		target.presentation = PresentationOptions.assignProperties(target.presentation, source.presentation);
 		target.options = CommandOptions.assignProperties(target.options, source.options);
 		return target;
 	}
@@ -788,14 +804,14 @@ namespace CommandConfiguration {
 		target = target || {
 			name: undefined,
 			type: undefined,
-			terminalBehavior: undefined
+			presentation: undefined
 		};
 		fillProperty(target, source, 'name');
 		fillProperty(target, source, 'type');
 		fillProperty(target, source, 'taskSelector');
 		fillProperty(target, source, 'suppressTaskName');
 
-		target.terminalBehavior = TerminalBehavior.fillProperties(target.terminalBehavior, source.terminalBehavior);
+		target.presentation = PresentationOptions.fillProperties(target.presentation, source.presentation);
 		target.options = CommandOptions.fillProperties(target.options, source.options);
 
 		let args: string[] = source.args ? source.args.slice() : [];
@@ -820,7 +836,7 @@ namespace CommandConfiguration {
 		if (value.name !== void 0 && value.type === void 0) {
 			value.type = Tasks.CommandType.Process;
 		}
-		value.terminalBehavior = TerminalBehavior.fillDefaults(value.terminalBehavior, context);
+		value.presentation = PresentationOptions.fillDefaults(value.presentation, context);
 		if (!isEmpty(value)) {
 			value.options = CommandOptions.fillDefaults(value.options, context);
 		}
@@ -1415,7 +1431,7 @@ class ConfigurationParser {
 				command: {
 					name: undefined,
 					type: undefined,
-					terminalBehavior: undefined,
+					presentation: undefined,
 					suppressTaskName: true
 				},
 				isBackground: isBackground,

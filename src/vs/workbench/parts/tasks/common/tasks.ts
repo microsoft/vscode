@@ -80,61 +80,64 @@ export namespace RevealKind {
 	}
 }
 
-export enum InstanceKind {
+export enum PanelKind {
 
 	/**
-	 * Shares a terminal with other tasks. This is the default.
+	 * Shares a panel with other tasks. This is the default.
 	 */
 	Shared = 1,
 
 	/**
-	 * Uses the same terminal for every run if possible. The terminal is not
+	 * Uses a dedicated panel for this tasks. The panel is not
 	 * shared with other tasks.
 	 */
-	Same = 2,
+	Dedicated = 2,
 
 	/**
-	 * Creates a new terminal whenever that task is executed
+	 * Creates a new panel whenever this task is executed.
 	 */
 	New = 3
 }
 
-export namespace InstanceKind {
-	export function fromString(value: string): InstanceKind {
+export namespace PanelKind {
+	export function fromString(value: string): PanelKind {
 		switch (value.toLowerCase()) {
 			case 'shared':
-				return InstanceKind.Shared;
-			case 'same':
-				return InstanceKind.Same;
+				return PanelKind.Shared;
+			case 'dedicated':
+				return PanelKind.Dedicated;
 			case 'new':
-				return InstanceKind.New;
+				return PanelKind.New;
 			default:
-				return InstanceKind.Shared;
+				return PanelKind.Shared;
 		}
 	}
 }
 
-export interface TerminalBehavior {
+export interface PresentationOptions {
 	/**
-	 * Controls whether the terminal executing a task is brought to front or not.
+	 * Controls whether the task output is reveal in the user interface.
 	 * Defaults to `RevealKind.Always`.
 	 */
 	reveal: RevealKind;
 
 	/**
-	 * Controls whether the executed command is printed to the output window or terminal as well.
+	 * Controls whether the command associated with the task is echoed
+	 * in the user interface.
 	 */
 	echo: boolean;
 
 	/**
-	 * Controls whether the terminal is focus when this task is executed
+	 * Controls whether the panel showing the task output is taking focus.
 	 */
 	focus: boolean;
 
 	/**
-	 * Controls whether the task runs in a new terminal
+	 * Controls if the task panel is used for this task only (dedicated),
+	 * shared between tasks (shared) or if a new panel is created on
+	 * every task execution (new). Defaults to `TaskInstanceKind.Shared`
 	 */
-	instance: InstanceKind;
+	panel: PanelKind;
 }
 
 export enum CommandType {
@@ -189,9 +192,9 @@ export interface CommandConfiguration {
 	suppressTaskName?: boolean;
 
 	/**
-	 * Describes how the terminal is supposed to behave.
+	 * Describes how the task is presented in the UI.
 	 */
-	terminalBehavior: TerminalBehavior;
+	presentation: PresentationOptions;
 }
 
 export namespace TaskGroup {

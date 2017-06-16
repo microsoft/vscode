@@ -342,14 +342,11 @@ export abstract class TextFileService implements ITextFileService {
 		}
 
 		// Hot exit
-		const hotExitMode = configuration && configuration.files ? configuration.files.hotExit : HotExitConfiguration.OFF;
-		// Handle the legacy case where hot exit was a boolean
-		if (<any>hotExitMode === false) {
-			this.configuredHotExit = HotExitConfiguration.OFF;
-		} else if (<any>hotExitMode === true) {
-			this.configuredHotExit = HotExitConfiguration.ON_EXIT;
-		} else {
+		const hotExitMode = configuration && configuration.files && configuration.files.hotExit;
+		if (hotExitMode === HotExitConfiguration.OFF || hotExitMode === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
 			this.configuredHotExit = hotExitMode;
+		} else {
+			this.configuredHotExit = HotExitConfiguration.ON_EXIT;
 		}
 	}
 
@@ -469,8 +466,8 @@ export abstract class TextFileService implements ITextFileService {
 		});
 	}
 
-	private doSaveAllFiles(arg1?: any /* URI[] */, reason?: SaveReason): TPromise<ITextFileOperationResult> {
-		const dirtyFileModels = this.getDirtyFileModels(Array.isArray(arg1) ? arg1 : void 0 /* Save All */)
+	private doSaveAllFiles(resources?: URI[], reason?: SaveReason): TPromise<ITextFileOperationResult> {
+		const dirtyFileModels = this.getDirtyFileModels(Array.isArray(resources) ? resources : void 0 /* Save All */)
 			.filter(model => {
 				if (model.hasState(ModelState.CONFLICT) && (reason === SaveReason.AUTO || reason === SaveReason.FOCUS_CHANGE || reason === SaveReason.WINDOW_CHANGE)) {
 					return false; // if model is in save conflict, do not save unless save reason is explicit or not provided at all

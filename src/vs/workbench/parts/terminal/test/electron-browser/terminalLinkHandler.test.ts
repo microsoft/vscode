@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import { Platform } from 'vs/base/common/platform';
 import { TerminalLinkHandler, LineColumnInfo } from 'vs/workbench/parts/terminal/electron-browser/terminalLinkHandler';
-import { Workspace } from 'vs/platform/workspace/common/workspace';
+import { LegacyWorkspace } from 'vs/platform/workspace/common/workspace';
 import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import URI from 'vs/base/common/uri';
 import * as strings from 'vs/base/common/strings';
@@ -45,7 +45,7 @@ interface LinkFormatInfo {
 	column?: string;
 }
 
-class TestWorkspace extends Workspace {
+class TestWorkspace extends LegacyWorkspace {
 	constructor(private basePath: string) {
 		super(new TestURI(basePath));
 	}

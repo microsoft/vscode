@@ -8,7 +8,7 @@
 import 'vs/workbench/parts/search/browser/search.contribution'; // load contributions
 import * as assert from 'assert';
 import * as fs from 'fs';
-import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, LegacyWorkspace } from 'vs/platform/workspace/common/workspace';
 import { createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ISearchService, IQueryOptions } from 'vs/platform/search/common/search';
@@ -62,7 +62,7 @@ suite('TextSearch performance (integration)', () => {
 			[ITelemetryService, telemetryService],
 			[IConfigurationService, configurationService],
 			[IModelService, new ModelServiceImpl(null, configurationService)],
-			[IWorkspaceContextService, new TestContextService(new Workspace(URI.file(testWorkspacePath)))],
+			[IWorkspaceContextService, new TestContextService(new LegacyWorkspace(URI.file(testWorkspacePath)))],
 			[IWorkbenchEditorService, new TestEditorService()],
 			[IEditorGroupService, new TestEditorGroupService()],
 			[IEnvironmentService, TestEnvironmentService],

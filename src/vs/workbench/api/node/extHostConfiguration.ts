@@ -7,6 +7,7 @@
 import { mixin } from 'vs/base/common/objects';
 import Event, { Emitter } from 'vs/base/common/event';
 import { WorkspaceConfiguration } from 'vscode';
+import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostConfigurationShape, MainThreadConfigurationShape } from './extHost.protocol';
 import { IConfigurationData, Configuration } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
@@ -29,7 +30,7 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 	private _data: IConfigurationData<any>;
 	private _configuration: Configuration<any>;
 
-	constructor(proxy: MainThreadConfigurationShape, data: IConfigurationData<any>) {
+	constructor(proxy: MainThreadConfigurationShape, data: IConfigurationData<any>, private extWorkspace: ExtHostWorkspace) {
 		super();
 		this._proxy = proxy;
 		this._data = data;
@@ -47,7 +48,7 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 
 	private get configuration(): Configuration<any> {
 		if (!this._configuration) {
-			this._configuration = Configuration.parse(this._data);
+			this._configuration = Configuration.parse(this._data, this.extWorkspace.workspace);
 		}
 		return this._configuration;
 	}

@@ -40,7 +40,7 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, textPreformatForeground, contrastBorder, textBlockQuoteBackground, textBlockQuoteBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils';
-import { UILabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
+import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);

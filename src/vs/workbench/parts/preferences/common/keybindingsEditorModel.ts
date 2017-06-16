@@ -11,7 +11,7 @@ import { OperatingSystem, language, LANGUAGE_DEFAULT } from 'vs/base/common/plat
 import { IMatch, IFilter, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from 'vs/base/common/filters';
 import { Registry } from 'vs/platform/platform';
 import { ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
-import { AriaLabelProvider, UserSettingsLabelProvider, UILabelProvider, ModifierLabels as ModLabels } from 'vs/platform/keybinding/common/keybindingLabels';
+import { AriaLabelProvider, UserSettingsLabelProvider, UILabelProvider, ModifierLabels as ModLabels } from 'vs/base/common/keybindingLabels';
 import { CommonEditorRegistry, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { MenuRegistry, ILocalizedString, SyncActionDescriptor, ICommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';

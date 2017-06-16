@@ -27,14 +27,14 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
-import { IWorkspace, IWorkspaceContextService, IWorkspace2 } from 'vs/platform/workspace/common/workspace';
+import { ILegacyWorkspace, IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEditorGroupService, GroupArrangement, GroupOrientation, ITabOptions, IMoveOptions } from 'vs/workbench/services/group/common/groupService';
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
-import { FileOperationEvent, IFileService, IResolveContentOptions, IFileOperationResult, IFileStat, IImportResult, FileChangesEvent, IResolveFileOptions, IContent, IUpdateContentOptions, IStreamContent, isEqualOrParent } from 'vs/platform/files/common/files';
+import { FileOperationEvent, IFileService, IResolveContentOptions, IFileOperationResult, IFileStat, IImportResult, FileChangesEvent, IResolveFileOptions, IContent, IUpdateContentOptions, IStreamContent } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
@@ -64,7 +64,7 @@ export const TestEnvironmentService = new EnvironmentService(parseArgs(process.a
 export class TestContextService implements IWorkspaceContextService {
 	public _serviceBrand: any;
 
-	private workspace: IWorkspace;
+	private workspace: ILegacyWorkspace;
 	private id: string;
 	private options: any;
 
@@ -89,11 +89,11 @@ export class TestContextService implements IWorkspaceContextService {
 		return !!this.workspace;
 	}
 
-	public getWorkspace(): IWorkspace {
+	public getWorkspace(): ILegacyWorkspace {
 		return this.workspace;
 	}
 
-	public getWorkspace2(): IWorkspace2 {
+	public getWorkspace2(): IWorkspace {
 		return this.workspace ? { id: this.id, roots: [this.workspace.resource], name: this.workspace.resource.fsPath } : void 0;
 	}
 
@@ -115,7 +115,7 @@ export class TestContextService implements IWorkspaceContextService {
 
 	public isInsideWorkspace(resource: URI): boolean {
 		if (resource && this.workspace) {
-			return isEqualOrParent(resource.fsPath, this.workspace.resource.fsPath, !isLinux /* ignorecase */);
+			return paths.isEqualOrParent(resource.fsPath, this.workspace.resource.fsPath, !isLinux /* ignorecase */);
 		}
 
 		return false;

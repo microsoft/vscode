@@ -18,7 +18,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocussedContext, ExplorerFocussedContext } from 'vs/workbench/parts/files/common/files';
-import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileChange, IFileService, isEqualOrParent } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileChange, IFileService } from 'vs/platform/files/common/files';
 import { RefreshViewExplorerAction, NewFolderAction, NewFileAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/browser/views/explorerViewer';
 import { toResource } from 'vs/workbench/common/editor';
@@ -760,7 +760,7 @@ export class ExplorerView extends CollapsibleView {
 				// Drop those path which are parents of the current one
 				for (let i = resolvedDirectories.length - 1; i >= 0; i--) {
 					const resource = resolvedDirectories[i];
-					if (isEqualOrParent(stat.resource.fsPath, resource.fsPath, !isLinux /* ignorecase */)) {
+					if (paths.isEqualOrParent(stat.resource.fsPath, resource.fsPath, !isLinux /* ignorecase */)) {
 						resolvedDirectories.splice(i);
 					}
 				}

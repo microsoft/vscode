@@ -7,9 +7,8 @@
 import URI from 'vs/base/common/uri';
 import platform = require('vs/base/common/platform');
 import types = require('vs/base/common/types');
-import { nativeSep, normalize } from 'vs/base/common/paths';
+import { nativeSep, normalize, isEqualOrParent, isEqual } from 'vs/base/common/paths';
 import { endsWith, ltrim } from 'vs/base/common/strings';
-import { isEqualOrParent, isEqual } from 'vs/platform/files/common/files';
 
 export interface ILabelProvider {
 
