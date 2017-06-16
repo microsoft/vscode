@@ -76,7 +76,7 @@ export function mergeSort<T>(data: T[], compare: (a: T, b: T) => number): T[] {
 }
 
 function _divideAndMerge<T>(data: T[], compare: (a: T, b: T) => number): void {
-	if (data.length === 1) {
+	if (data.length <= 1) {
 		// sorted
 		return;
 	}
