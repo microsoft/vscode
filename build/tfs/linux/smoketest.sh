@@ -25,6 +25,13 @@ step "Install distro dependencies" \
 step "Build minified" \
 	npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-min"
 
+step "Configure environment" \
+	id -u testuser &>/dev/null || (useradd -m testuser; echo -e "testpassword\ntestpassword" | passwd testuser &>/dev/null)
+	su testuser
+	cd $BUILD_REPOSITORY_LOCALPATH
+	git config --global user.name "Michel Kaporin"
+	git config --global user.email "monacotools@microsoft.com"
+
 step "Run smoke test" \
 	pushd test/smoke
 	npm install
