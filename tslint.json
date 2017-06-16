@@ -46,7 +46,11 @@
 		],
 		"import-patterns": [
 			true,
+			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+			// !!! Do not relax these rules !!!
+			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 			{
+				// vs/base/common cannot depend on anything else
 				"target": "**/vs/base/common/**",
 				"restrictions": [
 					"vs/nls",
@@ -54,11 +58,23 @@
 				]
 			},
 			{
+				// vs/base/browser can only depend on vs/base/common
+				"target": "**/vs/base/browser/**",
+				"restrictions": [
+					"vs/nls",
+					"vs/css!./**/*",
+					"**/vs/base/common/**",
+					"**/vs/base/browser/**"
+				]
+			},
+			{
 				"target": "**/vs/editor/contrib/**",
 				"restrictions": [
-					"**/vs/css!./**/*",
-					"**/vs/nls",
-					"**/vs/{base,platform}/**/{common,browser}/**",
+					"vs/nls",
+					"vs/css!./**/*",
+					"**/vs/base/{common,browser}/**",
+					"**/vs/base/parts/{tree,quickopen}/{common,browser}/**",
+					"**/vs/platform/**/{common,browser}/**",
 					"**/vs/editor/**",
 					"assert"
 				]
