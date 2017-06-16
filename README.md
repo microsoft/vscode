@@ -53,7 +53,7 @@ It's based on Code Open Source with some changes:
 * licensed under Microsoft [closed source custom product license](https://code.visualstudio.com/License) (EULA)
 * Extension Marketplace supported
 * crash reporting and telemetry enabled
-* user configuration and extensions stored in different directory then Code - Open Source
+* user configuration and extensions stored in different directory than Code - Open Source
 * extension debugging supported 
 
 To get the latest releases everyday, you can install the [Insiders version of VS Code](https://code.visualstudio.com/insiders). This builds from the master branch and is updated at least daily.
