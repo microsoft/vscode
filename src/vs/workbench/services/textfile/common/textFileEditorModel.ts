@@ -321,12 +321,21 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			etag = this.lastResolvedDiskStat.etag; // otherwise respect etag to support caching
 		}
 
+		this.taskNotification();
+
+		// Resolve Content
+		return this.textFileService
+			.resolveTextContent(this.resource, { acceptTextOnly: true, etag, encoding: this.preferredEncoding })
+			.then(content => this.handleLoadSuccess(content), error => this.handleLoadError(error));
+	}
+
+	private taskNotification(): void {
 		const storageKey = 'workbench.tasks.ranTaskBefore';
-		const fileName = path.relative(this.storageService['workspaceKey'], this.resource['_formatted']);
+		const fileName = path.relative(this.contextService.getWorkspace().resource.toString(), this.resource.toString());
 
 		if (!this.storageService.get(storageKey)
 			&& (fileName.match(/^gruntfile\.js$/i) || fileName.match(/^gulpfile\.js$/i) || fileName.match(/^tsconfig\.json$/i))) {
-			const message = localize('taskFileOpened', "Visual Studio Code has support for this type of file");
+			const message = localize('taskFileOpened', "Visual Studio Code has extra functionality for this type of file");
 			const action = this.instantiationService.createInstance(ShowTasksAction, ShowTasksAction.ID, localize('showTasks', "Show Tasks"));
 
 			const options = [
@@ -343,11 +352,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				}
 			});
 		}
-
-		// Resolve Content
-		return this.textFileService
-			.resolveTextContent(this.resource, { acceptTextOnly: true, etag, encoding: this.preferredEncoding })
-			.then(content => this.handleLoadSuccess(content), error => this.handleLoadError(error));
 	}
 
 	private handleLoadSuccess(content: IRawTextContent): TPromise<TextFileEditorModel> {
