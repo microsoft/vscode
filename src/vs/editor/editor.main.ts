@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/editor/browser/editor.all';
+import 'vs/editor/editor.all';
 import 'vs/editor/contrib/quickOpen/browser/quickOutline';
 import 'vs/editor/contrib/quickOpen/browser/gotoLine';
 import 'vs/editor/contrib/quickOpen/browser/quickCommand';
