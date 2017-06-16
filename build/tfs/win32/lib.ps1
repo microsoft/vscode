@@ -3,10 +3,11 @@ $ErrorActionPreference = 'Stop'
 
 $env:HOME=$env:USERPROFILE
 
-if (Test-Path env:AGENT_HOMEDIRECTORY) {
-	$env:USERPROFILE="${env:AGENT_HOMEDIRECTORY}"
-	$env:HOME="${env:AGENT_HOMEDIRECTORY}"
-	$env:npm_config_cache="${env:AGENT_HOMEDIRECTORY}/.npm-electron"
+if (Test-Path env:AGENT_WORKFOLDER) {
+	$env:USERPROFILE="${env:AGENT_WORKFOLDER}/home"
+	$env:HOME="${env:USERPROFILE}"
+	$env:npm_config_cache="${env:USERPROFILE}/.npm-electron"
+	New-Item -Path "$env:USERPROFILE" -Type directory -Force | out-null
 	New-Item -Path "$env:npm_config_cache" -Type directory -Force | out-null
 }
 
