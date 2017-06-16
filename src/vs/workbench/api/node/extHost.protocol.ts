@@ -30,7 +30,7 @@ import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { ITextSource } from 'vs/editor/common/model/textSource';
 
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IConfigurationValues } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationData } from 'vs/platform/configuration/common/configuration';
 
 import { IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
@@ -67,7 +67,7 @@ export interface IInitData {
 	environment: IEnvironment;
 	workspace: IWorkspaceData;
 	extensions: IExtensionDescription[];
-	configuration: IConfigurationValues;
+	configuration: IConfigurationData<any>;
 	telemetryInfo: ITelemetryInfo;
 }
 
@@ -349,7 +349,7 @@ export abstract class ExtHostCommandsShape {
 }
 
 export abstract class ExtHostConfigurationShape {
-	$acceptConfigurationChanged(values: IConfigurationValues) { throw ni(); }
+	$acceptConfigurationChanged(data: IConfigurationData<any>) { throw ni(); }
 }
 
 export abstract class ExtHostDiagnosticsShape {
