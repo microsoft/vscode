@@ -25,7 +25,7 @@ export interface IWorkspaceContextService {
 	 * Provides access to the workspace object the platform is running with. This may be null if the workbench was opened
 	 * without workspace (empty);
 	 */
-	getWorkspace(): IWorkspace;
+	getWorkspace(): ILegacyWorkspace;
 
 	/**
 	 * Provides access to the workspace object the platform is running with. This may be null if the workbench was opened
@@ -62,7 +62,7 @@ export interface IWorkspaceContextService {
 	toResource: (workspaceRelativePath: string) => URI;
 }
 
-export interface IWorkspace {
+export interface ILegacyWorkspace {
 
 	/**
 	 * the full uri of the workspace. this is a file:// URL to the location
@@ -99,7 +99,7 @@ export interface IWorkspace2 {
 	readonly roots: URI[];
 }
 
-export class Workspace implements IWorkspace {
+export class LegacyWorkspace implements ILegacyWorkspace {
 	private _name: string;
 
 	constructor(private _resource: URI, private _ctime?: number) {

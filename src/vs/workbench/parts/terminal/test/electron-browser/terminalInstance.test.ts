@@ -10,7 +10,7 @@ import * as os from 'os';
 import Uri from 'vs/base/common/uri';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ILegacyWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import { IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -20,11 +20,11 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 class TestTerminalInstance extends TerminalInstance {
-	public _getCwd(shell: IShellLaunchConfig, workspace: IWorkspace): string {
+	public _getCwd(shell: IShellLaunchConfig, workspace: ILegacyWorkspace): string {
 		return super._getCwd(shell, workspace);
 	}
 
-	protected _createProcess(workspace: IWorkspace, shell: IShellLaunchConfig): void { }
+	protected _createProcess(workspace: ILegacyWorkspace, shell: IShellLaunchConfig): void { }
 	protected _createXterm(): void { }
 }
 
