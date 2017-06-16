@@ -361,7 +361,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Hide active one first
 		if (editorAtPosition) {
-			this.doHideEditor(position, false);
+			this.doHideEditor(editorAtPosition, position, false);
 		}
 
 		// Create Editor
@@ -592,8 +592,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// Update stacks model
 		this.modifyGroups(() => this.stacks.closeGroup(group));
 
-		// Hide Editor
-		this.doHideEditor(position, true);
+		// Hide Editor if there is one
+		const editor = this.visibleEditors[position];
+		if (editor) {
+			this.doHideEditor(editor, position, true);
+		}
 
 		// Emit Change Event
 		this._onEditorsChanged.fire();
@@ -613,8 +616,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 	}
 
-	private doHideEditor(position: Position, layoutAndRochade: boolean): void {
-		const editor = this.visibleEditors[position];
+	private doHideEditor(editor: BaseEditor, position: Position, layoutAndRochade: boolean): void {
 
 		// Hide in side by side control
 		const rochade = this.editorGroupsControl.hide(editor, position, layoutAndRochade);

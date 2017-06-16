@@ -519,12 +519,8 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		// Clear Position
 		this.clearPosition(position);
 
-		// Take editor container offdom and hide. Check if the editor container
-		// exists in case someone manages to hide an editor before it was created
-		const editorContainer = editor.getContainer();
-		if (editorContainer) {
-			editorContainer.offDOM().hide();
-		}
+		// Take editor container offdom and hide
+		editor.getContainer().offDOM().hide();
 
 		// Adjust layout and rochade if instructed to do so
 		if (layoutAndRochade) {
