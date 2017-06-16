@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./codelensController';
+import 'vs/css!./codelensWidget';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { format, escape } from 'vs/base/common/strings';
