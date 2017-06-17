@@ -77,10 +77,6 @@ export class FileWatcher {
 		};
 	}
 
-	public addFolder(folder: string): void {
-		console.log('addFolder: ' + folder);
-	}
-
 	private onRawFileEvents(events: IRawFileChange[]): void {
 
 		// Emit through broadcast service

@@ -19,7 +19,10 @@ nsfwActionToRawChangeType[nsfw.actions.DELETED] = FileChangeType.DELETED;
 
 
 interface IPathWatcher {
-	watcher?: any;
+	watcher?: {
+		start(): void;
+		stop(): void;
+	};
 }
 
 export class NsfwWatcherService implements IWatcherService {
@@ -130,7 +133,6 @@ export class NsfwWatcherService implements IWatcherService {
 			});
 		}
 
-		// TODO: Watch multiple folders
 		// TODO: Don't watch sub-folders of folders
 		return TPromise.join(promises).then(() => void 0);
 	}
