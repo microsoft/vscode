@@ -4,7 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'nsfw' {
-	function init(dir: string, ...args: any[]);
+	interface NsfwFunction {
+		(dir: string, ...args: any[]): any;
+		actions: {
+			CREATED: number;
+			DELETED: number;
+			MODIFIED: number;
+			RENAMED: number;
+		}
+	}
 
-	export = init;
+	var nsfw: NsfwFunction;
+	export = nsfw;
 }
