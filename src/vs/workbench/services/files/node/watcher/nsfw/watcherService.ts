@@ -40,7 +40,7 @@ export class FileWatcher implements IFileWatcher {
 				serverName: 'Watcher',
 				args,
 				env: {
-					AMD_ENTRYPOINT: 'vs/workbench/services/files/node/watcher/unix/watcherApp',
+					AMD_ENTRYPOINT: 'vs/workbench/services/files/node/watcher/nsfw/watcherApp',
 					PIPE_LOGGING: 'true',
 					VERBOSE_LOGGING: this.verboseLogging
 				}

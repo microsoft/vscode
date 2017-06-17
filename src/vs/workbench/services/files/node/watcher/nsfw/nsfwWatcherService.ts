@@ -6,9 +6,9 @@
 import * as glob from 'vs/base/common/glob';
 import * as path from 'path';
 import * as watcher from 'vs/workbench/services/files/node/watcher/common';
-import nsfw = require('nsfw');
+import * as nsfw from 'nsfw';
 import { IWatcherService, IWatcherRequest } from 'vs/workbench/services/files/node/watcher/unix/watcher';
-import { TPromise } from "vs/base/common/winjs.base";
+import { TPromise } from 'vs/base/common/winjs.base';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { FileChangeType } from 'vs/platform/files/common/files';
 
@@ -20,16 +20,11 @@ nsfwActionToRawChangeType[nsfw.actions.DELETED] = FileChangeType.DELETED;
 export class NsfwWatcherService implements IWatcherService {
 	private static FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
 
-	private _ignored: string[];
-
-	constructor() {}
-
 	public watch(request: IWatcherRequest): TPromise<void> {
 		if (request.verboseLogging) {
 			console.log('request', request);
 		}
 
-		this._ignored = request.ignored;
 		let undeliveredFileEvents: watcher.IRawFileChange[] = [];
 		const fileEventDelayer = new ThrottledDelayer(NsfwWatcherService.FS_EVENT_DELAY);
 
@@ -47,16 +42,16 @@ export class NsfwWatcherService implements IWatcherService {
 					if (e.action === nsfw.actions.RENAMED) {
 						// Rename fires when a file's name changes within a single directory
 						absolutePath = path.join(e.directory, e.oldFile);
-						if (!this._isPathIgnored(absolutePath)) {
+						if (!this._isPathIgnored(absolutePath, request.ignored)) {
 							undeliveredFileEvents.push({ type: FileChangeType.DELETED, path: absolutePath });
 						}
 						absolutePath = path.join(e.directory, e.newFile);
-						if (!this._isPathIgnored(absolutePath)) {
+						if (!this._isPathIgnored(absolutePath, request.ignored)) {
 							undeliveredFileEvents.push({ type: FileChangeType.ADDED, path: absolutePath });
 						}
 					} else {
 						absolutePath = path.join(e.directory, e.file);
-						if (!this._isPathIgnored(absolutePath)) {
+						if (!this._isPathIgnored(absolutePath, request.ignored)) {
 							undeliveredFileEvents.push({
 								type: nsfwActionToRawChangeType[e.action],
 								path: absolutePath
@@ -89,7 +84,7 @@ export class NsfwWatcherService implements IWatcherService {
 		});
 	}
 
-	private _isPathIgnored(absolutePath: string): boolean {
-		return this._ignored && this._ignored.some(ignore => glob.match(ignore, absolutePath));
+	private _isPathIgnored(absolutePath: string, ignored: string[]): boolean {
+		return ignored && ignored.some(ignore => glob.match(ignore, absolutePath));
 	}
 }
