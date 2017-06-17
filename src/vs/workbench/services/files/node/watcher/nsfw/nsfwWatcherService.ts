@@ -30,15 +30,17 @@ export class NsfwWatcherService implements IWatcherService {
 
 		return new TPromise<void>((c, e, p) => {
 			nsfw(request.basePath, events => {
-				if (request.verboseLogging) {
-					console.log('raw events start');
-					events.forEach(e => console.log(e));
-					console.log('raw events end');
-				}
-
 				for (let i = 0; i < events.length; i++) {
-					let absolutePath: string;
 					const e = events[i];
+
+					// Logging
+					if (request.verboseLogging) {
+						const logPath = e.action === nsfw.actions.RENAMED ? path.join(e.directory, e.oldFile) + ' -> ' + e.newFile : path.join(e.directory, e.file);
+						console.log(e.action === nsfw.actions.CREATED ? '[CREATED]' : e.action === nsfw.actions.DELETED ? '[DELETED]' : e.action === nsfw.actions.MODIFIED ? '[CHANGED]' : '[RENAMED]', logPath);
+					}
+
+					// Convert nsfw event to IRawFileChange and add to queue
+					let absolutePath: string;
 					if (e.action === nsfw.actions.RENAMED) {
 						// Rename fires when a file's name changes within a single directory
 						absolutePath = path.join(e.directory, e.oldFile);

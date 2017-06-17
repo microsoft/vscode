@@ -12,9 +12,8 @@ import uri from 'vs/base/common/uri';
 import { toFileChangesEvent, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
 import { IWatcherChannel, WatcherChannelClient } from 'vs/workbench/services/files/node/watcher/unix/watcherIpc';
 import { FileChangesEvent } from 'vs/platform/files/common/files';
-import { IFileWatcher } from "vs/workbench/services/files/node/watcher/unix/watcher";
 
-export class FileWatcher implements IFileWatcher {
+export class FileWatcher {
 	private static MAX_RESTARTS = 5;
 
 	private isDisposed: boolean;
