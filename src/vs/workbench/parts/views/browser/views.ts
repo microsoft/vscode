@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IThemable, attachHeaderViewStyler } from 'vs/platform/theme/common/styler';
+import { IThemable, attachStyler } from 'vs/platform/theme/common/styler';
 import * as errors from 'vs/base/common/errors';
 import * as DOM from 'vs/base/browser/dom';
 import { $, Dimension, Builder } from 'vs/base/browser/builder';
@@ -30,6 +30,8 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND } from "vs/workbench/common/theme";
+import { contrastBorder } from "vs/platform/theme/common/colorRegistry";
 
 export interface IViewOptions {
 
@@ -535,13 +537,21 @@ export class ComposedViewsViewlet extends Viewlet {
 				toCreate.push(view);
 
 				this.views.splice(index, 0, view);
-				attachHeaderViewStyler(view, this.themeService);
+				this.attachHeaderViewStyler(view, this.themeService);
 				this.splitView.addView(view, viewState && viewState.size ? Math.max(viewState.size, 1) : viewDescriptor.size, index);
 			}
 		}
 
 		return TPromise.join(toCreate.map(view => view.create()))
 			.then(() => this.onViewsUpdated());
+	}
+
+	private attachHeaderViewStyler(widget: IThemable, themeService: IThemeService, options?: { noContrastBorder?: boolean }): IDisposable {
+		return attachStyler(themeService, {
+			headerForeground: SIDE_BAR_SECTION_HEADER_FOREGROUND,
+			headerBackground: SIDE_BAR_SECTION_HEADER_BACKGROUND,
+			headerHighContrastBorder: (options && options.noContrastBorder) ? null : contrastBorder
+		}, widget);
 	}
 
 	private isCurrentlyVisible(viewDescriptor: IViewDescriptor): boolean {

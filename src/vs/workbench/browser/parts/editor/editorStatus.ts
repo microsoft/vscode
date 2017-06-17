@@ -1105,7 +1105,7 @@ export class ChangeEncodingAction extends Action {
 
 					return this.fileService.resolveContent(resource, { autoGuessEncoding: true, acceptTextOnly: true }).then(content => content.encoding, err => null);
 				})
-				.then(guessedEncoding => {
+				.then((guessedEncoding: string) => {
 					const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
 
 					const isReopenWithEncoding = (action === reopenWithEncodingPick);

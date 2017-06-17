@@ -8,7 +8,6 @@
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectBorder, inputBorder, foreground, editorBackground, contrastBorder, inputActiveOptionBorder, listFocusBackground, listFocusForeground, listActiveSelectionBackground, listActiveSelectionForeground, listInactiveSelectionForeground, listInactiveSelectionBackground, listHoverBackground, listHoverForeground, listDropBackground, pickerGroupBorder, pickerGroupForeground, widgetShadow, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationErrorBorder, inputValidationErrorBackground, activeContrastBorder, buttonForeground, buttonBackground, buttonHoverBackground, ColorFunction, lighten, badgeBackground, badgeForeground, progressBarBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND } from 'vs/workbench/common/theme';
 
 export type styleFn = (colors: { [name: string]: ColorIdentifier }) => void;
 
@@ -16,7 +15,7 @@ export interface IThemable {
 	style: styleFn;
 }
 
-function doAttachStyler(themeService: IThemeService, optionsMapping: { [optionsKey: string]: ColorIdentifier | ColorFunction }, widgetOrCallback: IThemable | styleFn): IDisposable {
+export function attachStyler(themeService: IThemeService, optionsMapping: { [optionsKey: string]: ColorIdentifier | ColorFunction }, widgetOrCallback: IThemable | styleFn): IDisposable {
 	function applyStyles(theme: ITheme): void {
 		const styles = Object.create(null);
 		for (let key in optionsMapping) {
@@ -41,7 +40,7 @@ function doAttachStyler(themeService: IThemeService, optionsMapping: { [optionsK
 }
 
 export function attachCheckboxStyler(widget: IThemable, themeService: IThemeService, style?: { inputActiveOptionBorderColor?: ColorIdentifier }): IDisposable {
-	return doAttachStyler(themeService, {
+	return attachStyler(themeService, {
 		inputActiveOptionBorder: (style && style.inputActiveOptionBorderColor) || inputActiveOptionBorder
 	}, widget);
 }
@@ -51,7 +50,7 @@ export function attachBadgeStyler(widget: IThemable, themeService: IThemeService
 		badgeBackground?: ColorIdentifier,
 		badgeForeground?: ColorIdentifier
 	}): IDisposable {
-	return doAttachStyler(themeService, {
+	return attachStyler(themeService, {
 		badgeBackground: (style && style.badgeBackground) || badgeBackground,
 		badgeForeground: (style && style.badgeForeground) || badgeForeground,
 		badgeBorder: contrastBorder
@@ -70,7 +69,7 @@ export function attachInputBoxStyler(widget: IThemable, themeService: IThemeServ
 		inputValidationErrorBorder?: ColorIdentifier,
 		inputValidationErrorBackground?: ColorIdentifier
 	}): IDisposable {
-	return doAttachStyler(themeService, {
+	return attachStyler(themeService, {
 		inputBackground: (style && style.inputBackground) || inputBackground,
 		inputForeground: (style && style.inputForeground) || inputForeground,
 		inputBorder: (style && style.inputBorder) || inputBorder,
@@ -84,7 +83,7 @@ export function attachInputBoxStyler(widget: IThemable, themeService: IThemeServ
 }
 
 export function attachSelectBoxStyler(widget: IThemable, themeService: IThemeService, style?: { selectBackground?: ColorIdentifier, selectForeground?: ColorIdentifier, selectBorder?: ColorIdentifier }): IDisposable {
-	return doAttachStyler(themeService, {
+	return attachStyler(themeService, {
 		selectBackground: (style && style.selectBackground) || selectBackground,
 		selectForeground: (style && style.selectForeground) || selectForeground,
 		selectBorder: (style && style.selectBorder) || selectBorder
@@ -104,7 +103,7 @@ export function attachFindInputBoxStyler(widget: IThemable, themeService: ITheme
 		inputValidationErrorBorder?: ColorIdentifier,
 		inputValidationErrorBackground?: ColorIdentifier
 	}): IDisposable {
-	return doAttachStyler(themeService, {
+	return attachStyler(themeService, {
 		inputBackground: (style && style.inputBackground) || inputBackground,
 		inputForeground: (style && style.inputForeground) || inputForeground,
 		inputBorder: (style && style.inputBorder) || inputBorder,
@@ -150,7 +149,7 @@ export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeSer
 	listSelectionOutline?: ColorIdentifier,
 	listHoverOutline?: ColorIdentifier
 }): IDisposable {
-	return doAttachStyler(themeService, {
+	return attachStyler(themeService, {
 		foreground: (style && style.foreground) || foreground,
 		background: (style && style.background) || editorBackground,
 		borderColor: style && style.borderColor || contrastBorder,
@@ -202,7 +201,7 @@ export function attachListStyler(widget: IThemable, themeService: IThemeService,
 	listSelectionOutline?: ColorIdentifier,
 	listHoverOutline?: ColorIdentifier,
 }): IDisposable {
-	return doAttachStyler(themeService, {
+	return attachStyler(themeService, {
 		listFocusBackground: (style && style.listFocusBackground) || listFocusBackground,
 		listFocusForeground: (style && style.listFocusForeground) || listFocusForeground,
 		listActiveSelectionBackground: (style && style.listActiveSelectionBackground) || lighten(listActiveSelectionBackground, 0.1),
@@ -222,16 +221,8 @@ export function attachListStyler(widget: IThemable, themeService: IThemeService,
 	}, widget);
 }
 
-export function attachHeaderViewStyler(widget: IThemable, themeService: IThemeService, options?: { noContrastBorder?: boolean }): IDisposable {
-	return doAttachStyler(themeService, {
-		headerForeground: SIDE_BAR_SECTION_HEADER_FOREGROUND,
-		headerBackground: SIDE_BAR_SECTION_HEADER_BACKGROUND,
-		headerHighContrastBorder: (options && options.noContrastBorder) ? null : contrastBorder
-	}, widget);
-}
-
 export function attachButtonStyler(widget: IThemable, themeService: IThemeService, style?: { buttonForeground?: ColorIdentifier, buttonBackground?: ColorIdentifier, buttonHoverBackground?: ColorIdentifier }): IDisposable {
-	return doAttachStyler(themeService, {
+	return attachStyler(themeService, {
 		buttonForeground: (style && style.buttonForeground) || buttonForeground,
 		buttonBackground: (style && style.buttonBackground) || buttonBackground,
 		buttonHoverBackground: (style && style.buttonHoverBackground) || buttonHoverBackground,
@@ -240,11 +231,11 @@ export function attachButtonStyler(widget: IThemable, themeService: IThemeServic
 }
 
 export function attachProgressBarStyler(widget: IThemable, themeService: IThemeService, style?: { progressBarBackground?: ColorIdentifier }): IDisposable {
-	return doAttachStyler(themeService, {
+	return attachStyler(themeService, {
 		progressBarBackground: (style && style.progressBarBackground) || progressBarBackground
 	}, widget);
 }
 
 export function attachStylerCallback(themeService: IThemeService, colors: { [name: string]: ColorIdentifier }, callback: styleFn): IDisposable {
-	return doAttachStyler(themeService, colors, callback);
+	return attachStyler(themeService, colors, callback);
 }
