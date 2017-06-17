@@ -20,6 +20,7 @@ export class WatcherChannel implements IWatcherChannel {
 
 	call(command: string, arg: any): TPromise<any> {
 		switch (command) {
+			case 'setRoots': return this.service.setRoots(arg);
 			case 'watch': return this.service.watch(arg);
 		}
 		return undefined;
@@ -29,6 +30,10 @@ export class WatcherChannel implements IWatcherChannel {
 export class WatcherChannelClient implements IWatcherService {
 
 	constructor(private channel: IWatcherChannel) { }
+
+	setRoots(roots: string[]): TPromise<void> {
+		return this.channel.call('setRoots', roots);
+	}
 
 	watch(request: IWatcherRequest): TPromise<void> {
 		return this.channel.call('watch', request);

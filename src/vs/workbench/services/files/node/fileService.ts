@@ -127,7 +127,6 @@ export class FileService implements IFileService {
 		}
 
 		if (this.basePath && !this.options.disableWatcher) {
-			console.log(this.options);
 			if (this.options.useNsfwFileWatcher) {
 				this.setupNsfwWorkspceWatching();
 			} else {
@@ -167,8 +166,7 @@ export class FileService implements IFileService {
 	}
 
 	private setupNsfwWorkspceWatching(): void {
-		const service = new NsfwWatcherService(this.basePath, this.options.watcherIgnoredPatterns, e => this._onFileChanges.fire(e), this.options.errorLogger, this.options.verboseLogging);
-		this.toDispose.push(toDisposable(service.startWatching()));
+		this.toDispose.push(toDisposable(new NsfwWatcherService(this.basePath, this.options.watcherIgnoredPatterns, e => this._onFileChanges.fire(e), this.options.errorLogger, this.options.verboseLogging, this.contextService).startWatching()));
 	}
 
 	public resolveFile(resource: uri, options?: IResolveFileOptions): TPromise<IFileStat> {

@@ -14,6 +14,7 @@ export interface IWatcherRequest {
 }
 
 export interface IWatcherService {
+	setRoots(roots: string[]): TPromise<void>;
 	watch(request: IWatcherRequest): TPromise<void>;
 }
 

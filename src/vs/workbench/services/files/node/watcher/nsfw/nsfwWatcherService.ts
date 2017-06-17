@@ -7,7 +7,7 @@ import * as glob from 'vs/base/common/glob';
 import * as path from 'path';
 import * as watcher from 'vs/workbench/services/files/node/watcher/common';
 import * as nsfw from 'nsfw';
-import { IWatcherService, IWatcherRequest } from 'vs/workbench/services/files/node/watcher/unix/watcher';
+import { IWatcherService, IWatcherRequest } from 'vs/workbench/services/files/node/watcher/nsfw/watcher';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { FileChangeType } from 'vs/platform/files/common/files';
@@ -82,6 +82,13 @@ export class NsfwWatcherService implements IWatcherService {
 				return watcher.start();
 			});
 		});
+	}
+
+	public setRoots(roots: string[]): TPromise<void> {
+		console.log('nsfwWatcherService, setRoots', roots);
+		// TODO: Watch multiple folders
+		// TODO: Don't watch sub-folders of folders
+		return TPromise.as(void 0);
 	}
 
 	private _isPathIgnored(absolutePath: string, ignored: string[]): boolean {
