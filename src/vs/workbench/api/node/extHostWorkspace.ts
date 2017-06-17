@@ -9,6 +9,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { normalize } from 'vs/base/common/paths';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { relative } from 'path';
+import { Workspace } from 'vs/platform/workspace/common/workspace';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -22,17 +23,21 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 
 	private readonly _onDidChangeWorkspace = new Emitter<this>();
 	private readonly _proxy: MainThreadWorkspaceShape;
-	private _workspace: IWorkspaceData;
+	private _workspace: Workspace;
 
 	readonly onDidChangeWorkspace: Event<this> = this._onDidChangeWorkspace.event;
 
-	constructor(threadService: IThreadService, workspace: IWorkspaceData) {
+	constructor(threadService: IThreadService, data: IWorkspaceData) {
 		super();
 		this._proxy = threadService.get(MainContext.MainThreadWorkspace);
-		this._workspace = workspace;
+		this._workspace = data ? new Workspace(data.id, data.name, data.roots) : null;
 	}
 
 	// --- workspace ---
+
+	get workspace(): Workspace {
+		return this._workspace;
+	}
 
 	getPath(): string {
 		// this is legacy from the days before having
@@ -69,8 +74,8 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 		return normalize(path);
 	}
 
-	$acceptWorkspaceData(workspace: IWorkspaceData): void {
-		this._workspace = workspace;
+	$acceptWorkspaceData(data: IWorkspaceData): void {
+		this._workspace = data ? new Workspace(data.id, data.name, data.roots) : null;
 		this._onDidChangeWorkspace.fire(this);
 	}
 

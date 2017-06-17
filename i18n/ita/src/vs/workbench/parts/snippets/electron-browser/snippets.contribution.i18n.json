@@ -11,6 +11,6 @@
 	"snippetSchema.json.default": "Frammento vuoto",
 	"snippetSchema.json": "Configurazione del frammento utente",
 	"snippetSchema.json.prefix": "Prefisso da usare quando si seleziona il frammento in IntelliSense",
-	"snippetSchema.json.body": "Contenuto del frammento. Usare '${id}', '${id:label}', '${1:label}' per le variabili e '$0', '$1' per le posizioni del cursore",
+	"snippetSchema.json.body": "Il contenuto del frammento. Usare '$1', '${1:defaultText}' per definire le posizioni del cursore, utilizzare '$0' per la posizione finale del cursore. Inserire i valori delle variabili con '${varName}' e '${varName:defaultText}', ad esempio 'Nome del file: $TM_FILENAME'.",
 	"snippetSchema.json.description": "Descrizione del frammento."
 }

@@ -24,7 +24,7 @@ import { getLastActiveWindow, findBestWindowOrFolder } from 'vs/code/node/window
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/node/product';
 import { ITelemetryService, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { isEqual, isEqualOrParent } from 'vs/platform/files/common/files';
+import { isEqual, isEqualOrParent } from 'vs/base/common/paths';
 import { IWindowsMainService, IOpenConfiguration } from "vs/platform/windows/electron-main/windows";
 import { IHistoryMainService } from "vs/platform/history/electron-main/historyMainService";
 import { IProcessEnvironment, isLinux, isMacintosh } from "vs/base/common/platform";

@@ -8,6 +8,7 @@
 	"workbench.action.terminal.kill": "Finalizar a Instância de Terminal Ativa",
 	"workbench.action.terminal.kill.short": "Encerrar Terminal",
 	"workbench.action.terminal.copySelection": "Copiar Seleção",
+	"workbench.action.terminal.selectAll": "Selecionar Tudo",
 	"workbench.action.terminal.new": "Criar Novo Terminal Integrado",
 	"workbench.action.terminal.new.short": "Novo Terminal",
 	"workbench.action.terminal.focus": "Focalizar Terminal",
@@ -28,5 +29,9 @@
 	"workbench.action.terminal.scrollToTop": "Rolar para cima",
 	"workbench.action.terminal.clear": "Limpar",
 	"workbench.action.terminal.allowWorkspaceShell": "Permitir a Configuração de Shell da Área de Trabalho",
-	"workbench.action.terminal.disallowWorkspaceShell": "Não Permitir a Configuração de Shell da Área de Trabalho"
+	"workbench.action.terminal.disallowWorkspaceShell": "Não Permitir a Configuração de Shell da Área de Trabalho",
+	"workbench.action.terminal.rename": "Renomear",
+	"workbench.action.terminal.rename.prompt": "Digite o nome do terminal",
+	"workbench.action.terminal.focusFindWidget": "Focalizar Ferramenta de Pesquisa",
+	"workbench.action.terminal.hideFindWidget": "Ocultar Ferramenta de Pesquisa"
 }

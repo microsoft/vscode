@@ -32,7 +32,7 @@
 	"command.push": "推送",
 	"command.pushTo": "推送到...",
 	"command.sync": "同步",
-	"command.publish": "发布",
+	"command.publish": "发布分支",
 	"command.showOutput": "显示 GIT 输出",
 	"config.enabled": "是否已启用 GIT",
 	"config.path": "Git 可执行文件路径",

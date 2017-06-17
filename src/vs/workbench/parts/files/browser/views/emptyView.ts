@@ -25,6 +25,7 @@ import { ViewSizing } from 'vs/base/browser/ui/splitview/splitview';
 export class EmptyView extends CollapsibleView {
 
 	public static ID: string = 'workbench.explorer.emptyView';
+	public static NAME = nls.localize('noWorkspace', "No Folder Opened");
 
 	private openFolderButton: Button;
 
@@ -40,7 +41,7 @@ export class EmptyView extends CollapsibleView {
 
 	public renderHeader(container: HTMLElement): void {
 		let titleDiv = $('div.title').appendTo(container);
-		$('span').text(nls.localize('noWorkspace', "No Folder Opened")).appendTo(titleDiv);
+		$('span').text(this.name).appendTo(titleDiv);
 	}
 
 	protected renderBody(container: HTMLElement): void {

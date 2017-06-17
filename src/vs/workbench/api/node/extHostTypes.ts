@@ -1037,10 +1037,10 @@ export enum TaskRevealKind {
 	Never = 3
 }
 
-export enum TaskInstanceKind {
+export enum TaskPanelKind {
 	Shared = 1,
 
-	Same = 2,
+	Dedicated = 2,
 
 	New = 3
 }
@@ -1053,7 +1053,7 @@ export class BaseTask {
 	private _isBackground: boolean;
 	private _source: string;
 	private _group: string;
-	private _terminalBehavior: vscode.TaskTerminalBehavior;
+	private _presentationOptions: vscode.TaskPresentationOptions;
 
 	constructor(name: string, problemMatchers: string[]) {
 		if (typeof name !== 'string') {
@@ -1062,7 +1062,7 @@ export class BaseTask {
 		this._name = name;
 		this._problemMatchers = problemMatchers || [];
 		this._isBackground = false;
-		this._terminalBehavior = Object.create(null);
+		this._presentationOptions = Object.create(null);
 	}
 
 	get identifier(): string {
@@ -1124,15 +1124,15 @@ export class BaseTask {
 		this._group = value;
 	}
 
-	get terminalBehavior(): vscode.TaskTerminalBehavior {
-		return this._terminalBehavior;
+	get presentationOptions(): vscode.TaskPresentationOptions {
+		return this._presentationOptions;
 	}
 
-	set terminalBehavior(value: vscode.TaskTerminalBehavior) {
+	set presentationOptions(value: vscode.TaskPresentationOptions) {
 		if (value === void 0 || value === null) {
 			value = Object.create(null);
 		}
-		this._terminalBehavior = value;
+		this._presentationOptions = value;
 	}
 
 	get problemMatchers(): string[] {

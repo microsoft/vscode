@@ -9,5 +9,6 @@
 	"emmetPreferences": "Preferências usadas para modificar o comportamento de algumas ações e resolvedores de Emmet.",
 	"emmetSyntaxProfiles": "Definir o perfil para a sintaxe especificada ou usar seu próprio perfil com regras específicas.",
 	"emmetExclude": "Uma matriz de línguagens onde abreviaturas emmet não devem ser expandidas.",
-	"emmetExtensionsPath": "Caminho para uma pasta contendo perfis emmet, trechos e preferências"
+	"emmetExtensionsPath": "Caminho para uma pasta contendo perfis emmet, trechos e preferências",
+	"useNewEmmet": "Experimente os novos módulos emmet (que irão substituir a antiga biblioteca unica emmet) para todos os recursos emmet."
 }

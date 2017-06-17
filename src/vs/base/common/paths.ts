@@ -6,7 +6,7 @@
 
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { fill } from 'vs/base/common/arrays';
-import { rtrim } from 'vs/base/common/strings';
+import { rtrim, beginsWithIgnoreCase, equalsIgnoreCase } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
 
 /**
@@ -341,4 +341,55 @@ export function isValidBasename(name: string): boolean {
 	}
 
 	return true;
+}
+
+export function isEqual(pathA: string, pathB: string, ignoreCase?: boolean): boolean {
+	const identityEquals = (pathA === pathB);
+	if (!ignoreCase || identityEquals) {
+		return identityEquals;
+	}
+
+	if (!pathA || !pathB) {
+		return false;
+	}
+
+	return equalsIgnoreCase(pathA, pathB);
+}
+
+export function isEqualOrParent(path: string, candidate: string, ignoreCase?: boolean): boolean {
+	if (path === candidate) {
+		return true;
+	}
+
+	if (!path || !candidate) {
+		return false;
+	}
+
+	if (candidate.length > path.length) {
+		return false;
+	}
+
+	if (ignoreCase) {
+		const beginsWith = beginsWithIgnoreCase(path, candidate);
+		if (!beginsWith) {
+			return false;
+		}
+
+		if (candidate.length === path.length) {
+			return true; // same path, different casing
+		}
+
+		let sepOffset = candidate.length;
+		if (candidate.charAt(candidate.length - 1) === nativeSep) {
+			sepOffset--; // adjust the expected sep offset in case our candidate already ends in separator character
+		}
+
+		return path.charAt(sepOffset) === nativeSep;
+	}
+
+	if (candidate.charAt(candidate.length - 1) !== nativeSep) {
+		candidate += nativeSep;
+	}
+
+	return path.indexOf(candidate) === 0;
 }

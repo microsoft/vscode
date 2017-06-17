@@ -22,7 +22,9 @@
 	"TaskService.noBuildTask": "Nenhuma tarefa de compilação definida. Marque uma tarefa com 'isBuildCommand' no arquivo tasks.json.",
 	"TaskService.noTestTask": "Nenhuma tarefa de teste definida. Marque uma tarefa com 'isTestCommand' no arquivo tasks.json.",
 	"TaskServer.noTask": "Tarefa {0} requisitada para execução não encontrada.",
-	"TaskSystem.activeSame": "A tarefa já está ativa e em modo de monitoramento. Para terminar a tarefa, use `F1 > terminar tarefa`",
+	"customizeParseErrors": "A configuração da tarefa atual tem erros. Por favor, corrija os erros primeiro antes de personalizar uma tarefa.",
+	"moreThanOneBuildTask": "Há muitas tarefas de compilação definidas em tasks.json. Executando a primeira.\n",
+	"TaskSystem.activeSame.background": "A tarefa já está ativa e em modo background. Para finalizar a tarefa use 'F1 > terminar tarefa'",
 	"TaskSystem.active": "Já existe uma tarefa sendo executada. Finalize-a antes de executar outra tarefa.",
 	"TaskSystem.restartFailed": "Falha ao finalizar e reiniciar a tarefa {0}",
 	"TaskSystem.configurationErrors": "Erro: A configuração da tarefa informada possui erros de validação e não pode ser utilizada. Por favor, corrija os erros primeiro.",
@@ -43,5 +45,7 @@
 	"TestAction.label": "Executar Tarefa de Teste",
 	"quickOpen.task": "Executar Tarefa",
 	"quickOpen.terminateTask": "Finalizar Tarefa",
-	"quickOpen.restartTask": "Reiniciar Tarefa"
+	"quickOpen.restartTask": "Reiniciar Tarefa",
+	"quickOpen.buildTask": "Tarefa de Compilação",
+	"quickOpen.testTask": "Tarefa de Teste"
 }

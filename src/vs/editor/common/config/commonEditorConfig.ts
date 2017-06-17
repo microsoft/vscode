@@ -401,6 +401,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.contribInfo.formatOnPaste,
 			'description': nls.localize('formatOnPaste', "Controls if the editor should automatically format the pasted content. A formatter must be available and the formatter should be able to format a range in a document.")
 		},
+		'editor.autoIndent': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.autoIndent,
+			'description': nls.localize('autoIndent', "Controls if the editor should automatically adjust the indenation when users type, paste or move lines. Indentation Rules of the language must be available. ")
+		},
 		'editor.suggestOnTriggerCharacters': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.suggestOnTriggerCharacters,

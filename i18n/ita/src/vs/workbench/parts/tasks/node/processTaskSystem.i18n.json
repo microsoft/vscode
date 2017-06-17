@@ -7,5 +7,6 @@
 	"TaskRunnerSystem.unknownError": "Si è verificato un errore sconosciuto durante l'esecuzione di un'attività. Per dettagli, vedere il log di output dell'attività.",
 	"TaskRunnerSystem.watchingBuildTaskFinished": "\nIl controllo delle attività di build è terminato.",
 	"TaskRunnerSystem.childProcessError": "Failed to launch external program {0} {1}.",
-	"TaskRunnerSystem.cancelRequested": "\nL'attività '{0}' è stata terminata come richiesto dall'utente."
+	"TaskRunnerSystem.cancelRequested": "\nL'attività '{0}' è stata terminata come richiesto dall'utente.",
+	"unkownProblemMatcher": "Il matcher problemi {0} non può essere risolto. Il matcher verrà ignorato"
 }

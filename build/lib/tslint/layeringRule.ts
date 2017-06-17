@@ -51,9 +51,17 @@ class LayeringRule extends Lint.RuleWalker {
 		this._config = config;
 	}
 
-	protected visitImportDeclaration(node: ts.ImportDeclaration): void {
-		let path = node.moduleSpecifier.getText();
+	protected visitImportEqualsDeclaration(node: ts.ImportEqualsDeclaration): void {
+		if (node.moduleReference.kind === ts.SyntaxKind.ExternalModuleReference) {
+			this._validateImport(node.moduleReference.expression.getText(), node);
+		}
+	}
 
+	protected visitImportDeclaration(node: ts.ImportDeclaration): void {
+		this._validateImport(node.moduleSpecifier.getText(), node);
+	}
+
+	private _validateImport(path: string, node: ts.Node): void {
 		// remove quotes
 		path = path.slice(1, -1);
 

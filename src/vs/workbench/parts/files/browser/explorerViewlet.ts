@@ -10,9 +10,10 @@ import { IActionRunner } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
 import { Builder } from 'vs/base/browser/builder';
-import { VIEWLET_ID, ExplorerViewletVisibleContext, IFilesConfiguration } from 'vs/workbench/parts/files/common/files';
+import { VIEWLET_ID, ExplorerViewletVisibleContext, IFilesConfiguration, OpenEditorsVisibleContext, OpenEditorsVisibleCondition } from 'vs/workbench/parts/files/common/files';
 import { ComposedViewsViewlet, IView, IViewletViewOptions } from 'vs/workbench/parts/views/browser/views';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationEditingService } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ActionRunner, FileViewletState } from 'vs/workbench/parts/files/browser/views/explorerViewer';
 import { ExplorerView, IExplorerViewOptions } from 'vs/workbench/parts/files/browser/views/explorerView';
 import { EmptyView } from 'vs/workbench/parts/files/browser/views/emptyView';
@@ -37,6 +38,7 @@ export class ExplorerViewlet extends ComposedViewsViewlet {
 
 	private viewletState: FileViewletState;
 	private viewletVisibleContextKey: IContextKey<boolean>;
+	private openEditorsVisibleContextKey: IContextKey<boolean>;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -47,14 +49,17 @@ export class ExplorerViewlet extends ComposedViewsViewlet {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@IThemeService themeService: IThemeService
 	) {
 		super(VIEWLET_ID, ViewLocation.Explorer, ExplorerViewlet.EXPLORER_VIEWS_STATE, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService);
 
 		this.viewletState = new FileViewletState();
 		this.viewletVisibleContextKey = ExplorerViewletVisibleContext.bindTo(contextKeyService);
+		this.openEditorsVisibleContextKey = OpenEditorsVisibleContext.bindTo(contextKeyService);
 
 		this.registerViews();
+		this.onConfigurationUpdated();
 		this._register(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated()));
 	}
 
@@ -64,9 +69,9 @@ export class ExplorerViewlet extends ComposedViewsViewlet {
 
 	private registerViews(): void {
 		let viewDescriptors = [];
-		if (this.isOpenEditorsVisible()) {
-			viewDescriptors.push(this.createOpenEditorsViewDescriptor());
-		}
+
+		viewDescriptors.push(this.createOpenEditorsViewDescriptor());
+
 		if (this.contextService.hasWorkspace()) {
 			viewDescriptors.push(this.createExplorerViewDescriptor());
 		} else {
@@ -79,17 +84,18 @@ export class ExplorerViewlet extends ComposedViewsViewlet {
 	private createOpenEditorsViewDescriptor(): IViewDescriptor {
 		return {
 			id: OpenEditorsView.ID,
-			name: '',
+			name: OpenEditorsView.NAME,
 			location: ViewLocation.Explorer,
 			ctor: OpenEditorsView,
-			order: 0
+			order: 0,
+			when: OpenEditorsVisibleCondition
 		};
 	}
 
 	private createEmptyViewDescriptor(): IViewDescriptor {
 		return {
 			id: EmptyView.ID,
-			name: '',
+			name: EmptyView.NAME,
 			location: ViewLocation.Explorer,
 			ctor: EmptyView,
 			order: 1
@@ -107,21 +113,7 @@ export class ExplorerViewlet extends ComposedViewsViewlet {
 	}
 
 	private onConfigurationUpdated(): void {
-		let openEditorsViewDescriptor = ViewsRegistry.getViews(ViewLocation.Explorer).filter(viewDescriptor => viewDescriptor.id === OpenEditorsView.ID)[0];
-		let isOpenEditorsVisible = this.isOpenEditorsVisible();
-		if (isOpenEditorsVisible) {
-			if (!openEditorsViewDescriptor) {
-				ViewsRegistry.registerViews([this.createOpenEditorsViewDescriptor()]);
-			}
-		} else {
-			if (openEditorsViewDescriptor) {
-				ViewsRegistry.deregisterViews([OpenEditorsView.ID], ViewLocation.Explorer);
-			}
-		}
-	}
-
-	private isOpenEditorsVisible(): boolean {
-		return !this.contextService.hasWorkspace() || (<IFilesConfiguration>this.configurationService.getConfiguration()).explorer.openEditors.visible !== 0;
+		this.openEditorsVisibleContextKey.set(!this.contextService.hasWorkspace() || (<IFilesConfiguration>this.configurationService.getConfiguration()).explorer.openEditors.visible !== 0);
 	}
 
 	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): IView {

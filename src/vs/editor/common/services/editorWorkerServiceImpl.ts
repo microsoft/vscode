@@ -17,7 +17,7 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditorSimpleWorkerImpl } from 'vs/editor/common/services/editorSimpleWorker';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { IConfigurationService, IConfigurationOptions } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IRange } from 'vs/editor/common/core/range';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -93,8 +93,7 @@ class WordBasedCompletionItemProvider implements modes.ISuggestSupport {
 
 	provideCompletionItems(model: editorCommon.IModel, position: Position): TPromise<modes.ISuggestResult> {
 		const { language } = this._modeService.getLanguageIdentifier(model.getLanguageIdAtPosition(position.lineNumber, position.column));
-		const options = <IConfigurationOptions>{ section: 'editor', overrideIdentifier: language };
-		const { wordBasedSuggestions } = this._configurationService.getConfiguration<IEditorOptions>(options);
+		const { wordBasedSuggestions } = this._configurationService.getConfiguration<IEditorOptions>('editor', { language });
 		if (!wordBasedSuggestions) {
 			return undefined;
 		}

@@ -77,11 +77,6 @@ export interface ITree extends Events.IEventEmitter {
 	refresh(element?: any, recursive?: boolean): WinJS.Promise;
 
 	/**
-	 * Refreshes all given elements.
-	 */
-	refreshAll(elements: any[], recursive?: boolean): WinJS.Promise;
-
-	/**
 	 * Expands an element.
 	 * The returned promise returns a boolean for whether the element was expanded or not.
 	 */

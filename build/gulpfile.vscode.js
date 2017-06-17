@@ -42,7 +42,7 @@ const nodeModules = ['electron', 'original-fs']
 // Build
 
 const builtInExtensions = [
-	{ name: 'ms-vscode.node-debug', version: '1.14.2' },
+	{ name: 'ms-vscode.node-debug', version: '1.14.3' },
 	{ name: 'ms-vscode.node-debug2', version: '1.14.0' }
 ];
 
@@ -214,7 +214,8 @@ function packageTask(platform, arch, opts) {
 			'vs/workbench/electron-browser/workbench.main.js',
 			'vs/workbench/electron-browser/workbench.main.css',
 			'vs/workbench/electron-browser/bootstrap/index.html',
-			'vs/workbench/electron-browser/bootstrap/index.js'
+			'vs/workbench/electron-browser/bootstrap/index.js',
+			'vs/workbench/electron-browser/bootstrap/preload.js'
 		]);
 
 		const src = gulp.src(out + '/**', { base: '.' })

@@ -13,6 +13,5 @@
 	"error.connection.unknown": "Une erreur de connexion inconnue s'est produite. Soit vous n'êtes plus connecté à Internet, soit le serveur auquel vous êtes connecté est hors connexion.",
 	"stackTrace.format": "{0} : {1}",
 	"error.defaultMessage": "Une erreur inconnue s’est produite. Veuillez consulter le journal pour plus de détails.",
-	"nodeExceptionMessage": "Une erreur système s'est produite ({0})",
 	"error.moreErrors": "{0} ({1} erreurs au total)"
 }

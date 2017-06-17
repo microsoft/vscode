@@ -13,6 +13,5 @@
 	"error.connection.unknown": "Ocorreu um erro de conexão desconhecido. Você não está mais conectado à Internet ou o servidor que você está conectado está offline.",
 	"stackTrace.format": "{0}: {1}",
 	"error.defaultMessage": "Ocorreu um erro desconhecido. Consulte o log para obter mais detalhes.",
-	"nodeExceptionMessage": "Ocorreu um erro de sistema ({0})",
 	"error.moreErrors": "{0} ({1} erros no total)"
 }

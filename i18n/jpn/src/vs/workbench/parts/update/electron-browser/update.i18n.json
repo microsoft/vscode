@@ -15,5 +15,18 @@
 	"license": "ライセンスの閲覧",
 	"updateAvailable": "{0} は再起動後に更新されます。",
 	"thereIsUpdateAvailable": "利用可能な更新プログラムがあります。",
-	"noUpdatesAvailable": "現在入手可能な更新はありません。"
+	"noUpdatesAvailable": "現在入手可能な更新はありません。",
+	"updateIsReady": "新しい更新が利用可能です。",
+	"commandPalette": "コマンド パレット...",
+	"settings": "設定",
+	"keyboardShortcuts": "キーボード ショートカット",
+	"selectTheme.label": "配色テーマ",
+	"themes.selectIconTheme.label": "ファイル アイコンのテーマ",
+	"not available": "更新は利用できません",
+	"checkingForUpdates": "更新を確認しています...",
+	"DownloadUpdate": "利用可能な更新プログラムをダウンロードします",
+	"DownloadingUpdate": "更新をダウンロードしています...",
+	"InstallingUpdate": "更新プログラムをインストールしています...",
+	"restartToUpdate": "更新のために再起動します...",
+	"checkForUpdates": "更新の確認..."
 }

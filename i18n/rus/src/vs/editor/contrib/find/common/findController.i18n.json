@@ -14,6 +14,5 @@
 	"addSelectionToPreviousFindMatch": "Добавить выделенный фрагмент в предыдущее найденное совпадение",
 	"moveSelectionToNextFindMatch": "Переместить последнее выделение в следующее найденное совпадение",
 	"moveSelectionToPreviousFindMatch": "Переместить последний выделенный фрагмент в предыдущее найденное совпадение",
-	"selectAllOccurencesOfFindMatch": "Выбрать все вхождения найденных совпадений",
 	"changeAll.label": "Изменить все вхождения"
 }

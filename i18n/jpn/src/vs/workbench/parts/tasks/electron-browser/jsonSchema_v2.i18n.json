@@ -7,6 +7,10 @@
 	"JsonSchema.shell": "コマンドがシェル コマンドか外部プログラムかを指定します。省略すると、既定は false になります。",
 	"JsonSchema.tasks.dependsOn.string": "このタスクが依存している別のタスク。",
 	"JsonSchema.tasks.dependsOn.array": "このタスクが依存している他の複数のタスク。",
+	"JsonSchema.tasks.group": "このタスクが属する実行グループを定義します。省略した場合、タスクはグループに属しません。",
+	"JsonSchema.tasks.type": "タスクをプロセスとして実行するか、またはシェル内部でコマンドとして実行するかどうかを定義します。既定は process です。",
+	"JsonSchema.version": "構成のバージョン番号",
+	"JsonSchema.tasks.customize": "カスタマイズ対象の提供されたタスク。",
 	"JsonSchema.windows": "Windows 固有のコマンド構成",
 	"JsonSchema.mac": "Mac 固有のコマンド構成",
 	"JsonSchema.linux": "Linux 固有のコマンド構成"

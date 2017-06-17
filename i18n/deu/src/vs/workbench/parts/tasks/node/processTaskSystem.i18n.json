@@ -7,5 +7,6 @@
 	"TaskRunnerSystem.unknownError": "Unbekannter Fehler beim Ausführen eines Tasks. Details finden Sie im Taskausgabeprotokoll.",
 	"TaskRunnerSystem.watchingBuildTaskFinished": "\nDie Überwachung der Buildtasks wurde beendet.",
 	"TaskRunnerSystem.childProcessError": "Failed to launch external program {0} {1}.",
-	"TaskRunnerSystem.cancelRequested": "\nDer Task \"{0}\" wurde durch eine Benutzeranforderung beendet."
+	"TaskRunnerSystem.cancelRequested": "\nDer Task \"{0}\" wurde durch eine Benutzeranforderung beendet.",
+	"unkownProblemMatcher": "Der Problemabgleicher {0} kann nicht aufgelöst werden. Der Abgleicher wird ignoriert."
 }

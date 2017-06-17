@@ -290,7 +290,7 @@ export class ExtensionHostProcessWorker {
 				},
 				workspace: <IWorkspaceData>this.contextService.getWorkspace2(),
 				extensions: extensionDescriptions,
-				configuration: this.configurationService.values(),
+				configuration: this.configurationService.getConfigurationData(),
 				telemetryInfo
 			};
 		});

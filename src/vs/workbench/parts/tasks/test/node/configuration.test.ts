@@ -77,31 +77,31 @@ class ConfiguationBuilder {
 	}
 }
 
-class TerminalBehaviorBuilder {
+class PresentationBuilder {
 
-	public result: Tasks.TerminalBehavior;
+	public result: Tasks.PresentationOptions;
 
 	constructor(public parent: CommandConfigurationBuilder) {
-		this.result = { echo: false, reveal: Tasks.RevealKind.Always, focus: false, instance: Tasks.InstanceKind.Shared };
+		this.result = { echo: false, reveal: Tasks.RevealKind.Always, focus: false, panel: Tasks.PanelKind.Shared };
 	}
 
-	public echo(value: boolean): TerminalBehaviorBuilder {
+	public echo(value: boolean): PresentationBuilder {
 		this.result.echo = value;
 		return this;
 	}
 
-	public reveal(value: Tasks.RevealKind): TerminalBehaviorBuilder {
+	public reveal(value: Tasks.RevealKind): PresentationBuilder {
 		this.result.reveal = value;
 		return this;
 	}
 
-	public focus(value: boolean): TerminalBehaviorBuilder {
+	public focus(value: boolean): PresentationBuilder {
 		this.result.focus = value;
 		return this;
 	}
 
-	public instance(value: Tasks.InstanceKind): TerminalBehaviorBuilder {
-		this.result.instance = value;
+	public instance(value: Tasks.PanelKind): PresentationBuilder {
+		this.result.panel = value;
 		return this;
 	}
 
@@ -112,10 +112,10 @@ class TerminalBehaviorBuilder {
 class CommandConfigurationBuilder {
 	public result: Tasks.CommandConfiguration;
 
-	private terminalBuilder: TerminalBehaviorBuilder;
+	private presentationBuilder: PresentationBuilder;
 
 	constructor(public parent: TaskBuilder, command: string) {
-		this.terminalBuilder = new TerminalBehaviorBuilder(this);
+		this.presentationBuilder = new PresentationBuilder(this);
 		this.result = {
 			name: command,
 			type: Tasks.CommandType.Process,
@@ -123,7 +123,7 @@ class CommandConfigurationBuilder {
 			options: {
 				cwd: '${workspaceRoot}'
 			},
-			terminalBehavior: this.terminalBuilder.result,
+			presentation: this.presentationBuilder.result,
 			suppressTaskName: false
 		};
 	}
@@ -158,13 +158,13 @@ class CommandConfigurationBuilder {
 		return this;
 	}
 
-	public terminal(): TerminalBehaviorBuilder {
-		return this.terminalBuilder;
+	public presentation(): PresentationBuilder {
+		return this.presentationBuilder;
 	}
 
 	public done(taskName: string): void {
 		this.result.args = this.result.args.map(arg => arg === '$name' ? taskName : arg);
-		this.terminalBuilder.done();
+		this.presentationBuilder.done();
 	}
 }
 
@@ -458,7 +458,7 @@ function assertTask(actual: Tasks.Task, expected: Tasks.Task) {
 function assertCommandConfiguration(actual: Tasks.CommandConfiguration, expected: Tasks.CommandConfiguration) {
 	assert.strictEqual(typeof actual, typeof expected);
 	if (actual && expected) {
-		assertTerminalBehavior(actual.terminalBehavior, expected.terminalBehavior);
+		assertPresentation(actual.presentation, expected.presentation);
 		assert.strictEqual(actual.name, expected.name, 'name');
 		assert.strictEqual(actual.type, expected.type, 'task type');
 		assert.strictEqual(actual.suppressTaskName, expected.suppressTaskName, 'suppressTaskName');
@@ -475,7 +475,7 @@ function assertCommandConfiguration(actual: Tasks.CommandConfiguration, expected
 	}
 }
 
-function assertTerminalBehavior(actual: Tasks.TerminalBehavior, expected: Tasks.TerminalBehavior) {
+function assertPresentation(actual: Tasks.PresentationOptions, expected: Tasks.PresentationOptions) {
 	assert.strictEqual(typeof actual, typeof expected);
 	if (actual && expected) {
 		assert.strictEqual(actual.echo, expected.echo);
@@ -574,7 +574,7 @@ suite('Tasks version 0.1.0', () => {
 			task('tsc', 'tsc').
 			group(Tasks.TaskGroup.Build).
 			command().suppressTaskName(true).
-			terminal().reveal(Tasks.RevealKind.Silent);
+			presentation().reveal(Tasks.RevealKind.Silent);
 		testConfiguration(
 			{
 				version: '0.1.0',
@@ -639,7 +639,7 @@ suite('Tasks version 0.1.0', () => {
 			task('tsc', 'tsc').
 			group(Tasks.TaskGroup.Build).
 			command().suppressTaskName(true).
-			terminal().reveal(Tasks.RevealKind.Never);
+			presentation().reveal(Tasks.RevealKind.Never);
 		testConfiguration(
 			{
 				version: '0.1.0',
@@ -656,7 +656,7 @@ suite('Tasks version 0.1.0', () => {
 			task('tsc', 'tsc').
 			group(Tasks.TaskGroup.Build).
 			command().suppressTaskName(true).
-			terminal().
+			presentation().
 			echo(true);
 		testConfiguration(
 			{
@@ -805,7 +805,7 @@ suite('Tasks version 0.1.0', () => {
 			task('tsc', 'tsc').
 			group(Tasks.TaskGroup.Build).
 			command().suppressTaskName(true).
-			terminal().reveal(Platform.isWindows ? Tasks.RevealKind.Always : Tasks.RevealKind.Never);
+			presentation().reveal(Platform.isWindows ? Tasks.RevealKind.Always : Tasks.RevealKind.Never);
 		let external: ExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
@@ -823,7 +823,7 @@ suite('Tasks version 0.1.0', () => {
 			task('tsc', 'tsc').
 			group(Tasks.TaskGroup.Build).
 			command().suppressTaskName(true).
-			terminal().
+			presentation().
 			echo(Platform.isWindows ? false : true);
 		let external: ExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
@@ -951,7 +951,7 @@ suite('Tasks version 0.1.0', () => {
 			isBackground(true).
 			promptOnClose(false).
 			command().args(['$name', '--p']).
-			terminal().
+			presentation().
 			echo(true).reveal(Tasks.RevealKind.Never);
 
 		testConfiguration(external, builder);
@@ -972,7 +972,7 @@ suite('Tasks version 0.1.0', () => {
 		let builder = new ConfiguationBuilder();
 		builder.task('test', 'tsc').
 			group(Tasks.TaskGroup.Test).
-			command().args(['$name']).terminal().
+			command().args(['$name']).presentation().
 			echo(true).reveal(Tasks.RevealKind.Never);
 
 		testConfiguration(external, builder);
@@ -1457,7 +1457,7 @@ suite('Tasks version 2.0.0', () => {
 			group(Tasks.TaskGroup.Build).
 			command().suppressTaskName(true).
 			type(Tasks.CommandType.Shell).
-			terminal().echo(true);
+			presentation().echo(true);
 		testConfiguration(external, builder);
 	});
 
@@ -1518,14 +1518,14 @@ suite('Bugs / regression tests', () => {
 				command().suppressTaskName(true).
 				args(['-ExecutionPolicy', 'RemoteSigned', '.\\dockerTask.ps1', '-ComposeForDebug', '-Environment', 'debug']).
 				options({ cwd: '${workspaceRoot}' }).
-				terminal().echo(true).reveal(Tasks.RevealKind.Always);
+				presentation().echo(true).reveal(Tasks.RevealKind.Always);
 			testConfiguration(external, builder);
 		} else if (Platform.isMacintosh) {
 			builder.task('composeForDebug', '/bin/bash').
 				command().suppressTaskName(true).
 				args(['-c', './dockerTask.sh composeForDebug debug']).
 				options({ cwd: '${workspaceRoot}' }).
-				terminal().reveal(Tasks.RevealKind.Always);
+				presentation().reveal(Tasks.RevealKind.Always);
 			testConfiguration(external, builder);
 		}
 	});

@@ -8,6 +8,7 @@
 	"workbench.action.terminal.kill": "Terminar la instancia del terminal activo",
 	"workbench.action.terminal.kill.short": "Terminar el terminal",
 	"workbench.action.terminal.copySelection": "Copiar selección",
+	"workbench.action.terminal.selectAll": "Seleccionar todo",
 	"workbench.action.terminal.new": "Crear nuevo terminal integrado",
 	"workbench.action.terminal.new.short": "Nuevo terminal",
 	"workbench.action.terminal.focus": "Enfocar terminal",
@@ -28,5 +29,6 @@
 	"workbench.action.terminal.scrollToTop": "Desplazar al principio",
 	"workbench.action.terminal.clear": "Borrar",
 	"workbench.action.terminal.allowWorkspaceShell": "Permitir la configuración del área de trabajo Shell",
-	"workbench.action.terminal.disallowWorkspaceShell": "No permitir la configuración del área de trabajo Shell"
+	"workbench.action.terminal.disallowWorkspaceShell": "No permitir la configuración del área de trabajo Shell",
+	"workbench.action.terminal.rename": "Cambiar nombre"
 }

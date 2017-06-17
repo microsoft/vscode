@@ -26,7 +26,7 @@ class TaskEntry extends base.TaskEntry {
 		}
 		let task = this._task;
 		this.taskService.run(task);
-		if (task.command.terminalBehavior.focus) {
+		if (task.command.presentation.focus) {
 			this.quickOpenService.close();
 			return false;
 		}

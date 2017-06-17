@@ -8,7 +8,7 @@ import { Schemas } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue, IConfigurationKeys } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue, IConfigurationKeys, IConfigurationValues, Configuration, IConfigurationData, ConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { ICommandService, ICommand, ICommandEvent, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
@@ -17,7 +17,7 @@ import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingReso
 import { IKeybindingEvent, KeybindingSource, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IMessageService } from 'vs/platform/message/common/message';
-import { IWorkspaceContextService, IWorkspace as ILegacyWorkspace, IWorkspace2 } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, ILegacyWorkspace, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -442,6 +442,10 @@ export class SimpleConfigurationService implements IConfigurationService {
 		return this._config;
 	}
 
+	public getConfigurationData(): IConfigurationData<any> {
+		return new Configuration(new ConfigurationModel(this._config), new ConfigurationModel()).toData();
+	}
+
 	public reloadConfiguration<T>(section?: string): TPromise<T> {
 		return TPromise.as<T>(this.getConfiguration<T>(section));
 	}
@@ -457,6 +461,10 @@ export class SimpleConfigurationService implements IConfigurationService {
 
 	public keys(): IConfigurationKeys {
 		return { default: [], user: [], workspace: [] };
+	}
+
+	public values(): IConfigurationValues {
+		return {};
 	}
 }
 
@@ -503,7 +511,7 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 	public readonly onDidChangeWorkspaceRoots: Event<URI[]> = this._onDidChangeWorkspaceRoots.event;
 
 	private readonly legacyWorkspace: ILegacyWorkspace;
-	private readonly workspace: IWorkspace2;
+	private readonly workspace: IWorkspace;
 
 	constructor() {
 		this.legacyWorkspace = { resource: URI.from({ scheme: SimpleWorkspaceContextService.SCHEME, authority: 'model', path: '/' }), ctime: Date.now() };
@@ -514,7 +522,7 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 		return this.legacyWorkspace;
 	}
 
-	public getWorkspace2(): IWorkspace2 {
+	public getWorkspace2(): IWorkspace {
 		return this.workspace;
 	}
 

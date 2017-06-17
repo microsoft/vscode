@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { StorageScope } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, LegacyWorkspace } from 'vs/platform/workspace/common/workspace';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
 import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
@@ -95,7 +95,7 @@ suite('Workbench StorageSevice', () => {
 		assert.strictEqual(s.get('wkey1', StorageScope.WORKSPACE), 'foo');
 		assert.strictEqual(s.get('wkey2', StorageScope.WORKSPACE), 'foo2');
 
-		ws = new Workspace(TestWorkspace.resource, Date.now());
+		ws = new LegacyWorkspace(TestWorkspace.resource, Date.now());
 		ws.uid = new Date().getTime() + 100;
 		s = new StorageService(storageImpl, null, ws);
 

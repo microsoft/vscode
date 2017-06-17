@@ -342,7 +342,9 @@ class MockConfigurationService implements IConfigurationService {
 	public reloadConfiguration<T>(section?: string): TPromise<T> { return TPromise.as(this.getConfiguration()); }
 	public lookup(key: string) { return { value: getConfigurationValue(this.getConfiguration(), key), default: getConfigurationValue(this.getConfiguration(), key), user: getConfigurationValue(this.getConfiguration(), key), workspace: void 0 }; }
 	public keys() { return { default: [], user: [], workspace: [] }; }
+	public values() { return {}; }
 	public getConfiguration(): any { return this.configuration; }
+	public getConfigurationData(): any { return null; }
 	public onDidUpdateConfiguration() { return { dispose() { } }; }
 }
 

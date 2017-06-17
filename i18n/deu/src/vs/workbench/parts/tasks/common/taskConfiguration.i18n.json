@@ -12,5 +12,6 @@
 	"ConfigurationParser.invalidVaraibleReference": "Fehler: Ungültiger ProblemMatcher-Verweis: {0}\n",
 	"ConfigurationParser.noTaskName": "Fehler: Tasks müssen eine Eigenschaft \"TaskName\" angeben. Der Task wird ignoriert.\n{0}\n",
 	"taskConfiguration.shellArgs": "Warnung: Die Aufgabe \"{0}\" ist ein Shellbefehl, und der Befehlsname oder eines seiner Argumente enthält Leerzeichen ohne Escapezeichen. Führen Sie Argumente im Befehl zusammen, um eine korrekte Angabe der Befehlszeile sicherzustellen.",
+	"taskConfiguration.noCommandOrDependsOn": "Fehler: Aufgabe \"{0}\" definiert keinen Befehl bzw. keine depondsOn-Eigenschaft. Die Aufgabe wird ignoriert. Die Definition lautet:\n{1}",
 	"taskConfiguration.noCommand": "Fehler: Aufgabe \"{0}\" definiert keinen Befehl. Die Aufgabe wird ignoriert. Die Definition lautet:\n{1}"
 }

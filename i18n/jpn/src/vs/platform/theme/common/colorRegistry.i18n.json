@@ -12,7 +12,7 @@
 	"focusBorder": "フォーカスされた要素の境界線全体の色。この色はコンポーネントによって上書きされていない場合にのみ使用されます。",
 	"contrastBorder": "コントラストを強めるために、他の要素と隔てる追加の境界線。",
 	"activeContrastBorder": "コントラストを強めるために、アクティブな他要素と隔てる追加の境界線。",
-	"selectionBackground": "ワークベンチ内のテキスト選択の背景色 (例: 入力フィールドやテキストエリア)。エディター内やターミナル内の選択には適用されないことに注意してください。",
+	"selectionBackground": "ワークベンチ内のテキスト選択の背景色 (例: 入力フィールドやテキストエリア)。エディター内の選択には適用されないことに注意してください。",
 	"textSeparatorForeground": "テキストの区切り文字の色。",
 	"textLinkForeground": "テキスト内のリンクの前景色。",
 	"textLinkActiveForeground": "テキスト内のアクティブなリンクの前景色。",
@@ -60,6 +60,7 @@
 	"editorBackground": "エディターの背景色。",
 	"editorForeground": "エディターの既定の前景色。",
 	"editorWidgetBackground": "検索/置換窓など、エディター ウィジェットの背景色。",
+	"editorWidgetBorder": "エディター ウィジェットの境界線色。ウィジェットに境界線があり、ウィジェットによって配色を上書きされていない場合でのみこの配色は使用されます。",
 	"editorSelection": "エディターの選択範囲の色。",
 	"editorInactiveSelection": "非アクティブなエディターの選択範囲の色。",
 	"editorSelectionHighlight": "選択範囲と同じコンテンツの領域の色。",
@@ -73,5 +74,12 @@
 	"diffEditorInserted": "挿入されたテキストの背景色。",
 	"diffEditorRemoved": "削除されたテキストの背景色。",
 	"diffEditorInsertedOutline": "挿入されたテキストの輪郭の色。",
-	"diffEditorRemovedOutline": "削除されたテキストの輪郭の色。"
+	"diffEditorRemovedOutline": "削除されたテキストの輪郭の色。",
+	"mergeCurrentHeaderBackground": "行内マージ競合の現在のヘッダー背景色。",
+	"mergeCurrentContentBackground": "行内マージ競合の現在のコンテンツ背景色。",
+	"mergeIncomingHeaderBackground": "行内マージ競合の入力側ヘッダー背景色。",
+	"mergeIncomingContentBackground": "行内マージ競合の入力側コンテンツ背景色。",
+	"mergeBorder": "行内マージ競合のヘッダーとスプリッターの境界線の色。",
+	"overviewRulerCurrentContentForeground": "行内マージ競合の現在の概要ルーラー前景色。",
+	"overviewRulerIncomingContentForeground": "行内マージ競合の入力側の概要ルーラー前景色。"
 }

@@ -12,7 +12,7 @@ import Severity from 'vs/base/common/severity';
 import * as vscode from 'vscode';
 import { MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape } from './extHost.protocol';
 import { DiagnosticSeverity } from './extHostTypes';
-import { stableSort } from 'vs/base/common/arrays';
+import { mergeSort } from 'vs/base/common/arrays';
 
 export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
@@ -76,7 +76,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 			let lastUri: vscode.Uri;
 
 			// ensure stable-sort
-			stableSort(first, DiagnosticCollection._compareIndexedTuplesByUri);
+			mergeSort(first, DiagnosticCollection._compareIndexedTuplesByUri);
 
 			for (const tuple of first) {
 				const [uri, diagnostics] = tuple;

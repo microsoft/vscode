@@ -6,9 +6,6 @@
 {
 	"closeActiveEditor": "エディターを閉じる",
 	"closeWindow": "ウィンドウを閉じる",
-	"switchWindow": "切り替えウィンドウ",
-	"switchWindowPlaceHolder": "ウィンドウの選択",
-	"current": "現在のウィンドウ",
 	"closeFolder": "フォルダーを閉じる",
 	"noFolderOpened": "このインスタンスで現在開いているフォルダーがないので、閉じられません。",
 	"newWindow": "新しいウィンドウ",
@@ -20,7 +17,7 @@
 	"zoomReset": "ズームのリセット",
 	"appPerf": "スタートアップ パフォーマンス",
 	"reloadWindow": "ウィンドウの再読み込み",
-	"openRecent": "最近開いた項目",
+	"current": "現在のウィンドウ",
 	"folders": "フォルダー",
 	"files": "ファイル",
 	"openRecentPlaceHolderMac": "パスを選択 (Cmd キーを押しながら新しいウィンドウで開く)",
@@ -32,10 +29,6 @@
 	"openDocumentationUrl": "ドキュメント",
 	"openIntroductoryVideosUrl": "紹介ビデオ",
 	"toggleSharedProcess": "共有プロセスを切り替える",
-	"navigateLeft": "左のビュー部分に移動",
-	"navigateRight": "右のビュー部分に移動",
-	"navigateUp": "上のビュー部分に移動",
-	"navigateDown": "下のビュー部分に移動",
 	"increaseViewSize": "現在のビューのサイズの拡大",
 	"decreaseViewSize": "現在のビューのサイズの縮小"
 }

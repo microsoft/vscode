@@ -120,8 +120,6 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			conf.wrappingInfo.wrappingIndent
 		);
 
-		this.configuration.setMaxLineNumber(this.model.getLineCount());
-
 		this.coordinatesConverter = new CoordinatesConverter(this.lines);
 
 		this.viewLayout = this._register(new ViewLayout(this.configuration, this.getLineCount()));

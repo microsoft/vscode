@@ -21,7 +21,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { ITerminalProcessFactory } from 'vs/workbench/parts/terminal/electron-browser/terminal';
-import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ILegacyWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -464,7 +464,7 @@ export class TerminalInstance implements ITerminalInstance {
 		return typeof data === 'string' ? data.replace(TerminalInstance.WINDOWS_EOL_REGEX, '\r') : data;
 	}
 
-	protected _getCwd(shell: IShellLaunchConfig, workspace: IWorkspace): string {
+	protected _getCwd(shell: IShellLaunchConfig, workspace: ILegacyWorkspace): string {
 		if (shell.cwd) {
 			return shell.cwd;
 		}
@@ -492,7 +492,7 @@ export class TerminalInstance implements ITerminalInstance {
 		return TerminalInstance._sanitizeCwd(cwd);
 	}
 
-	protected _createProcess(workspace: IWorkspace, shell: IShellLaunchConfig): void {
+	protected _createProcess(workspace: ILegacyWorkspace, shell: IShellLaunchConfig): void {
 		const locale = this._configHelper.config.setLocaleVariables ? platform.locale : undefined;
 		if (!shell.executable) {
 			this._configHelper.mergeDefaultShellPathAndArgs(shell);

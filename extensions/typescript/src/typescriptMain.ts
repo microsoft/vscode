@@ -38,11 +38,11 @@ import BufferSyncSupport from './features/bufferSyncSupport';
 import CompletionItemProvider from './features/completionItemProvider';
 import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
 import CodeActionProvider from './features/codeActionProvider';
+import RefactorProvider from './features/refactorProvider';
 import ReferenceCodeLensProvider from './features/referencesCodeLensProvider';
 import { JsDocCompletionProvider, TryCompleteJsDocCommand } from './features/jsDocCompletionProvider';
 import { DirectiveCommentCompletionProvider } from './features/directiveCommentCompletionProvider';
 import TypeScriptTaskProviderManager from './features/taskProvider';
-
 import ImplementationCodeLensProvider from './features/implementationsCodeLensProvider';
 
 import * as ProjectStatus from './utils/projectStatus';
@@ -167,6 +167,7 @@ export function activate(context: ExtensionContext): void {
 const validateSetting = 'validate.enable';
 
 class LanguageProvider {
+
 	private syntaxDiagnostics: ObjectMap<Diagnostic[]>;
 	private readonly currentDiagnostics: DiagnosticCollection;
 	private readonly bufferSyncSupport: BufferSyncSupport;
@@ -263,7 +264,7 @@ class LanguageProvider {
 		this.disposables.push(languages.registerRenameProvider(selector, new RenameProvider(client)));
 
 		this.disposables.push(languages.registerCodeActionsProvider(selector, new CodeActionProvider(client, this.description.id)));
-
+		this.disposables.push(languages.registerCodeActionsProvider(selector, new RefactorProvider(client, this.description.id)));
 		this.registerVersionDependentProviders();
 
 		this.description.modeIds.forEach(modeId => {
@@ -283,9 +284,10 @@ class LanguageProvider {
 			this.disposables.push(languages.setLanguageConfiguration(modeId, {
 				indentationRules: {
 					// ^(.*\*/)?\s*\}.*$
-					decreaseIndentPattern: /^(.*\*\/)?\s*\}.*$/,
+					decreaseIndentPattern: /^(.*\*\/)?\s*[\}|\]|\)].*$/,
 					// ^.*\{[^}"']*$
-					increaseIndentPattern: /^.*\{[^}"'`]*$/
+					increaseIndentPattern: /^.*(\{[^}"'`]*|\([^)"'`]*|\[[^\]"'`]*)$/,
+					indentNextLinePattern: /^\s*(for|while|if|else)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$)/
 				},
 				wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
 				onEnterRules: [

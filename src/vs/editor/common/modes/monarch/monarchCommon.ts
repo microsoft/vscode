@@ -46,19 +46,37 @@ export interface IBracket {
 	close: string;
 }
 
+export type FuzzyAction = IAction | string;
+
+export function isFuzzyActionArr(what: FuzzyAction | FuzzyAction[]): what is FuzzyAction[] {
+	return (Array.isArray(what));
+}
+
+export function isFuzzyAction(what: FuzzyAction | FuzzyAction[]): what is FuzzyAction {
+	return !isFuzzyActionArr(what);
+}
+
+export function isString(what: FuzzyAction): what is string {
+	return (typeof what === 'string');
+}
+
+export function isIAction(what: FuzzyAction): what is IAction {
+	return !isString(what);
+}
+
 export interface IRule {
 	regex: RegExp;
-	action: IAction;
+	action: FuzzyAction;
 	matchOnlyAtLineStart: boolean;
 	name: string;
 }
 
 export interface IAction {
 	// an action is either a group of actions
-	group?: IAction[];
+	group?: FuzzyAction[];
 
 	// or a function that returns a fresh action
-	test?: (id: string, matches: string[], state: string, eos: boolean) => IAction;
+	test?: (id: string, matches: string[], state: string, eos: boolean) => FuzzyAction;
 
 	// or it is a declarative action with a token value and various other attributes
 	token?: string;
@@ -74,7 +92,7 @@ export interface IAction {
 
 export interface IBranch {
 	name: string;
-	value: IAction;
+	value: FuzzyAction;
 	test: (id: string, matches: string[], state: string, eos: boolean) => boolean;
 }
 

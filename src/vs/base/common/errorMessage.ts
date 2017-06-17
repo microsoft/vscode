@@ -9,7 +9,14 @@ import objects = require('vs/base/common/objects');
 import types = require('vs/base/common/types');
 import arrays = require('vs/base/common/arrays');
 import strings = require('vs/base/common/strings');
-import { IXHRResponse } from 'vs/base/common/http';
+
+export interface IXHRResponse {
+	responseText: string;
+	status: number;
+
+	readyState: number;
+	getResponseHeader: (header: string) => string;
+}
 
 export interface IConnectionErrorData {
 	status: number;

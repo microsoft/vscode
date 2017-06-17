@@ -9,5 +9,5 @@
 	"hint1n": "Made 1 formatting edit between lines {0} and {1}",
 	"hintnn": "Made {0} formatting edits between lines {1} and {2}",
 	"formatDocument.label": "Format Document",
-	"formatSelection.label": "Format Selection"
+	"formatSelection.label": "選択範囲のフォーマット"
 }

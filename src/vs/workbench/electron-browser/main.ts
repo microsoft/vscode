@@ -18,7 +18,7 @@ import paths = require('vs/base/common/paths');
 import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { Workspace as LegacyWorkspace } from "vs/platform/workspace/common/workspace";
+import { LegacyWorkspace } from "vs/platform/workspace/common/workspace";
 import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configuration';
 import { realpath, stat } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';

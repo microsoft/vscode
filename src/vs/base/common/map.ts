@@ -485,14 +485,18 @@ export class LinkedMap<K, V> {
 	}
 
 	public delete(key: K): boolean {
+		return !!this.remove(key);
+	}
+
+	public remove(key: K): V | undefined {
 		const item = this._map.get(key);
 		if (!item) {
-			return false;
+			return undefined;
 		}
 		this._map.delete(key);
 		this.removeItem(item);
 		this._size--;
-		return true;
+		return item.value;
 	}
 
 	public shift(): V | undefined {

@@ -420,25 +420,6 @@ export class TextAreaHandler extends ViewPart {
 			Configuration.applyFontInfo(ta, this._fontInfo);
 		} else {
 			ta.setFontSize(1);
-			// Chrome does not generate input events in empty textareas that end
-			// up having a line height smaller than 1 screen pixel.
-
-			// The problem is that I could not find any formula to explain how Chromium converts css px to screen px in the DOM.
-			// Observed values on a retina screen (by taking screenshots):
-			// |--------|-----------|------------|------------|-----------|
-			// | css px | zoomLevel | zoomFactor | pixelRatio | screen px |
-			// |--------|-----------|------------|------------|-----------|
-			// |   18   |    -8     |   0.2325   |   0.5000   |      8    |
-			// |   18   |    -7     |   0.2790   |   0.5581   |     10    |
-			// |   18   |    -6     |   0.3348   |   0.6697   |     12    |
-			// |   18   |    -5     |   0.4018   |   0.8037   |     14    |
-			// |   18   |    -4     |   0.4822   |   0.9645   |     18    |
-			// |   18   |    -3     |   0.5787   |   1.1574   |     20    |
-			// |   18   |    -2     |   0.6944   |   1.3888   |     26    |
-			// |   18   |    -1     |   0.8333   |   1.6666   |     30    |
-			// |   18   |     0     |   1.0000   |   2.0000   |     36    |
-			// |--------|-----------|------------|------------|-----------|
-
 			ta.setLineHeight(this._fontInfo.lineHeight);
 		}
 

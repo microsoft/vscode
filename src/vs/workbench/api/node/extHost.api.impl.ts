@@ -83,7 +83,8 @@ export function createApiFactory(
 	const extHostEditors = col.define(ExtHostContext.ExtHostEditors).set<ExtHostEditors>(new ExtHostEditors(threadService, extHostDocumentsAndEditors));
 	const extHostCommands = col.define(ExtHostContext.ExtHostCommands).set<ExtHostCommands>(new ExtHostCommands(threadService, extHostHeapService));
 	const extHostTreeViews = col.define(ExtHostContext.ExtHostTreeViews).set<ExtHostTreeViews>(new ExtHostTreeViews(threadService, extHostCommands));
-	const extHostConfiguration = col.define(ExtHostContext.ExtHostConfiguration).set<ExtHostConfiguration>(new ExtHostConfiguration(threadService.get(MainContext.MainThreadConfiguration), initData.configuration));
+	const extHostWorkspace = col.define(ExtHostContext.ExtHostWorkspace).set<ExtHostWorkspace>(new ExtHostWorkspace(threadService, initData.workspace));
+	const extHostConfiguration = col.define(ExtHostContext.ExtHostConfiguration).set<ExtHostConfiguration>(new ExtHostConfiguration(threadService.get(MainContext.MainThreadConfiguration), initData.configuration, extHostWorkspace));
 	const extHostDiagnostics = col.define(ExtHostContext.ExtHostDiagnostics).set<ExtHostDiagnostics>(new ExtHostDiagnostics(threadService));
 	const languageFeatures = col.define(ExtHostContext.ExtHostLanguageFeatures).set<ExtHostLanguageFeatures>(new ExtHostLanguageFeatures(threadService, extHostDocuments, extHostCommands, extHostHeapService, extHostDiagnostics));
 	const extHostFileSystemEvent = col.define(ExtHostContext.ExtHostFileSystemEventService).set<ExtHostFileSystemEventService>(new ExtHostFileSystemEventService());
@@ -91,7 +92,6 @@ export function createApiFactory(
 	const extHostTerminalService = col.define(ExtHostContext.ExtHostTerminalService).set<ExtHostTerminalService>(new ExtHostTerminalService(threadService));
 	const extHostSCM = col.define(ExtHostContext.ExtHostSCM).set<ExtHostSCM>(new ExtHostSCM(threadService, extHostCommands));
 	const extHostTask = col.define(ExtHostContext.ExtHostTask).set<ExtHostTask>(new ExtHostTask(threadService));
-	const extHostWorkspace = col.define(ExtHostContext.ExtHostWorkspace).set<ExtHostWorkspace>(new ExtHostWorkspace(threadService, initData.workspace));
 	col.define(ExtHostContext.ExtHostExtensionService).set(extensionService);
 	col.finish(false, threadService);
 
@@ -489,7 +489,7 @@ export function createApiFactory(
 			ThemeColor: extHostTypes.ThemeColor,
 			// functions
 			TaskRevealKind: extHostTypes.TaskRevealKind,
-			TaskInstanceKind: extHostTypes.TaskInstanceKind,
+			TaskPanelKind: extHostTypes.TaskPanelKind,
 			TaskGroup: extHostTypes.TaskGroup,
 			ShellTask: extHostTypes.ShellTask,
 			ProcessTask: extHostTypes.ProcessTask
