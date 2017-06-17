@@ -51,11 +51,8 @@ export class FileWatcher {
 		const channel = getNextTickChannel(client.getChannel<IWatcherChannel>('watcher'));
 		const service = new WatcherChannelClient(channel);
 
-		const roots = this.contextService.getWorkspace2().roots;
-		console.log('roots', roots);
-
 		// Start watching
-		service.watch({ basePath: roots[0].fsPath, ignored: this.ignored, verboseLogging: this.verboseLogging }).then(null, (err) => {
+		service.watch({ basePath: this.basePath, ignored: this.ignored, verboseLogging: this.verboseLogging }).then(null, (err) => {
 			if (!(err instanceof Error && err.name === 'Canceled' && err.message === 'Canceled')) {
 				return TPromise.wrapError(err); // the service lib uses the promise cancel error to indicate the process died, we do not want to bubble this up
 			}
@@ -75,17 +72,6 @@ export class FileWatcher {
 			}
 		}, this.errorLogger);
 
-		for (let i = 1; i < roots.length; i++) {
-			// TODO: Is ignored is root specific?
-			console.log('start watching ' + roots[1].fsPath);
-			service.watch({ basePath: roots[i].fsPath, ignored: this.ignored, verboseLogging: this.verboseLogging }).then(null, (err) => {
-				if (!(err instanceof Error && err.name === 'Canceled' && err.message === 'Canceled')) {
-					return TPromise.wrapError(err); // the service lib uses the promise cancel error to indicate the process died, we do not want to bubble this up
-				}
-				return undefined;
-			}, (events: IRawFileChange[]) => this.onRawFileEvents(events));
-		}
-
 		this.contextService.onDidChangeWorkspaceRoots(roots => {
 			service.setRoots(roots.map(r => r.fsPath));
 			console.log('roots changed', roots);
@@ -95,10 +81,6 @@ export class FileWatcher {
 			client.dispose();
 			this.isDisposed = true;
 		};
-	}
-
-	public addFolder(folder: string): void {
-		console.log('addFolder: ' + folder);
 	}
 
 	private onRawFileEvents(events: IRawFileChange[]): void {

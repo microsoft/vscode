@@ -17,8 +17,15 @@ nsfwActionToRawChangeType[nsfw.actions.CREATED] = FileChangeType.ADDED;
 nsfwActionToRawChangeType[nsfw.actions.MODIFIED] = FileChangeType.UPDATED;
 nsfwActionToRawChangeType[nsfw.actions.DELETED] = FileChangeType.DELETED;
 
+
+interface IPathWatcher {
+	watcher?: any;
+}
+
 export class NsfwWatcherService implements IWatcherService {
 	private static FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
+
+	private _pathWatchers: { [watchPath: string]: IPathWatcher } = {};
 
 	public watch(request: IWatcherRequest): TPromise<void> {
 		if (request.verboseLogging) {
@@ -28,7 +35,10 @@ export class NsfwWatcherService implements IWatcherService {
 		let undeliveredFileEvents: watcher.IRawFileChange[] = [];
 		const fileEventDelayer = new ThrottledDelayer(NsfwWatcherService.FS_EVENT_DELAY);
 
-		return new TPromise<void>((c, e, p) => {
+		console.log('starting to watch ' + request.basePath);
+		this._pathWatchers[request.basePath] = {};
+
+		const promise = new TPromise<void>((c, e, p) => {
 			nsfw(request.basePath, events => {
 				for (let i = 0; i < events.length; i++) {
 					const e = events[i];
@@ -81,16 +91,48 @@ export class NsfwWatcherService implements IWatcherService {
 					return TPromise.as(null);
 				});
 			}).then(watcher => {
+				console.log('watcher ready ' + request.basePath);
+				this._pathWatchers[request.basePath].watcher = watcher;
 				return watcher.start();
 			});
 		});
+
+		return promise;
 	}
 
 	public setRoots(roots: string[]): TPromise<void> {
-		console.log('nsfwWatcherService, setRoots', roots);
+		const rootsToStartWatching = roots.filter(r => !(r in this._pathWatchers));
+		const rootsToStopWatching = Object.keys(this._pathWatchers).filter(r => roots.indexOf(r) === -1);
+
+		// TODO: Don't watch inner folders
+		// TODO: Move verboseLogging to constructor
+		// Logging
+		if (true) {
+			console.log(`Set watch roots: start: [${rootsToStartWatching.join(',')}], stop: [${rootsToStopWatching.join(',')}]`);
+		}
+
+		const promises: TPromise<void>[] = [];
+		if (rootsToStartWatching.length) {
+			rootsToStartWatching.forEach(root => {
+				promises.push(this.watch({
+					basePath: root,
+					ignored: [],
+					// TODO: Inherit from initial request
+					verboseLogging: true
+				}));
+			});
+		}
+
+		if (rootsToStopWatching.length) {
+			rootsToStopWatching.forEach(root => {
+				this._pathWatchers[root].watcher.stop();
+				delete this._pathWatchers[root];
+			});
+		}
+
 		// TODO: Watch multiple folders
 		// TODO: Don't watch sub-folders of folders
-		return TPromise.as(void 0);
+		return TPromise.join(promises).then(() => void 0);
 	}
 
 	private _isPathIgnored(absolutePath: string, ignored: string[]): boolean {
