@@ -321,36 +321,38 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			etag = this.lastResolvedDiskStat.etag; // otherwise respect etag to support caching
 		}
 
-		this.taskNotification();
-
 		// Resolve Content
 		return this.textFileService
 			.resolveTextContent(this.resource, { acceptTextOnly: true, etag, encoding: this.preferredEncoding })
-			.then(content => this.handleLoadSuccess(content), error => this.handleLoadError(error));
+			.then(content => this.handleLoadSuccess(content), error => this.handleLoadError(error))
+			.then((result) => {
+				this.showTaskNotification();
+				return result;
+			});
 	}
 
-	private taskNotification(): void {
+	private showTaskNotification(): void {
 		const storageKey = 'workbench.tasks.ranTaskBefore';
-		const fileName = path.relative(this.contextService.getWorkspace().resource.toString(), this.resource.toString());
+		if (!this.storageService.get(storageKey)) {
+			const fileName = path.relative(this.contextService.getWorkspace().resource.toString(), this.resource.toString());
+			if (fileName.match(/^gruntfile\.js$/i) || fileName.match(/^gulpfile\.js$/i) || fileName.match(/^tsconfig\.json$/i)) {
+				const message = localize('taskFileOpened', "Visual Studio Code has extra functionality for this type of file");
+				const action = this.instantiationService.createInstance(ShowTasksAction, ShowTasksAction.ID, localize('showTasks', "Show Tasks"));
 
-		if (!this.storageService.get(storageKey)
-			&& (fileName.match(/^gruntfile\.js$/i) || fileName.match(/^gulpfile\.js$/i) || fileName.match(/^tsconfig\.json$/i))) {
-			const message = localize('taskFileOpened', "Visual Studio Code has extra functionality for this type of file");
-			const action = this.instantiationService.createInstance(ShowTasksAction, ShowTasksAction.ID, localize('showTasks', "Show Tasks"));
+				const options = [
+					action.label,
+					localize('neverShowAgain', "Don't show again"),
+					localize('close', "Close"),
+				];
 
-			const options = [
-				action.label,
-				localize('neverShowAgain', "Don't show again"),
-				localize('close', "Close"),
-			];
-
-			this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
-				switch (choice) {
-					case 0: return action.run();
-					case 1: return this.storageService.store(storageKey, true, StorageScope.GLOBAL);
-					case 2: return;
-				}
-			});
+				this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
+					switch (choice) {
+						case 0: return action.run();
+						case 1: return this.storageService.store(storageKey, true, StorageScope.GLOBAL);
+						case 2: return;
+					}
+				});
+			}
 		}
 	}
 
