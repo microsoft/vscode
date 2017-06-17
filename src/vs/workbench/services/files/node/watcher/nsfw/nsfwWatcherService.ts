@@ -8,19 +8,21 @@ import { IWatcherService, IWatcherRequest } from 'vs/workbench/services/files/no
 import { TPromise } from "vs/base/common/winjs.base";
 import watcher = require('vs/workbench/services/files/node/watcher/common');
 import * as path from 'path';
+import { ThrottledDelayer } from 'vs/base/common/async';
+import { FileChangeType } from 'vs/platform/files/common/files';
 
-const nsfwEventActionToRawChangeType = {
-	0: 1, // Created
-	1: 2, // Deleted
-	2: 0, // Modified
-	// TODO: handle rename event type
-	3: null // Rename
-};
+const nsfwActionToRawChangeType: { [key: number]: number } = [];
+nsfwActionToRawChangeType[nsfw.actions.CREATED] = FileChangeType.ADDED;
+nsfwActionToRawChangeType[nsfw.actions.MODIFIED] = FileChangeType.UPDATED;
+nsfwActionToRawChangeType[nsfw.actions.DELETED] = FileChangeType.DELETED;
 
 export class NsfwWatcherService implements IWatcherService {
+	private static FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
+
 	public watch(request: IWatcherRequest): TPromise<void> {
-		console.log('nsfw ' + nsfw);
-		console.log('basePath ' + request.basePath);
+		let undeliveredFileEvents: watcher.IRawFileChange[] = [];
+		const fileEventDelayer = new ThrottledDelayer(NsfwWatcherService.FS_EVENT_DELAY);
+
 		return new TPromise<void>((c, e, p) => {
 			nsfw(request.basePath, events => {
 				if (request.verboseLogging) {
@@ -28,47 +30,42 @@ export class NsfwWatcherService implements IWatcherService {
 					events.forEach(e => console.log(e));
 					console.log('raw events end');
 				}
-				const convertedEvents: watcher.IRawFileChange[] = [];
-				events.forEach(e => {
-					const c = this._mapNsfwEventToRawFileChanges(e);
-					if (c && c.length) {
-						c.forEach(c1 => convertedEvents.push(c1));
+
+				for (let i = 0; i < events.length; i++) {
+					const e = events[i];
+					if (e.action === nsfw.actions.RENAMED) {
+						// Rename fires when a file's name changes within a single directory
+						undeliveredFileEvents.push({ type: FileChangeType.DELETED, path: path.join(e.directory, e.oldFile) });
+						undeliveredFileEvents.push({ type: FileChangeType.ADDED, path: path.join(e.directory, e.newFile) });
+					} else {
+						undeliveredFileEvents.push({
+							type: nsfwActionToRawChangeType[e.action],
+							path: path.join(e.directory, e.file)
+						});
 					}
-				});
-				if (request.verboseLogging) {
-					console.log('converted events', convertedEvents);
 				}
-				// TODO: Utilize fileEventDelayer and watcher.normalize
-				p(convertedEvents);
+
+				// Delay and send buffer
+				fileEventDelayer.trigger(() => {
+					const events = undeliveredFileEvents;
+					undeliveredFileEvents = [];
+
+					// Broadcast to clients normalized
+					const res = watcher.normalize(events);
+					p(res);
+
+					// Logging
+					if (request.verboseLogging) {
+						res.forEach(r => {
+							console.log(' >> normalized', r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]', r.path);
+						});
+					}
+
+					return TPromise.as(null);
+				});
 			}).then(watcher => {
 				return watcher.start();
 			});
 		});
-	}
-
-	private _mapNsfwEventToRawFileChanges(nsfwEvent: any): watcher.IRawFileChange[] {
-		// TODO: Handle other event types (directory change?)
-
-
-		// Convert a rename event to a delete and a create
-		if (nsfwEvent.action === 3) {
-			console.log('rename', nsfwEvent);
-			return [
-				{ type: 2, path: path.join(nsfwEvent.directory, nsfwEvent.oldFile) }, // Delete
-				{ type: 1, path: path.join(nsfwEvent.directory, nsfwEvent.newFile) } // Create
-			];
-		}
-
-		if (!nsfwEvent.directory || !nsfwEvent.file) {
-			throw new Error('unhandled case');
-			// return null;
-		}
-		const p = path.join(nsfwEvent.directory, nsfwEvent.file);
-
-		const event: watcher.IRawFileChange = {
-			type: nsfwEventActionToRawChangeType[nsfwEvent.action],
-			path: p
-		};
-		return [event];
 	}
 }
