@@ -13,9 +13,5 @@
 	"appStalled": "창이 더 이상 응답하지 않습니다.",
 	"appStalledDetail": "창을 다시 열거나, 닫거나, 계속 기다릴 수 있습니다.",
 	"appCrashed": "창이 충돌했습니다.",
-	"appCrashedDetail": "불편을 드려서 죄송합니다. 창을 다시 열면 중단된 위치에서 계속할 수 있습니다.",
-	"newWindow": "새 창",
-	"newWindowDesc": "새 창을 엽니다.",
-	"recentFolders": "최근 폴더",
-	"folderDesc": "{0} {1}"
+	"appCrashedDetail": "불편을 드려서 죄송합니다. 창을 다시 열면 중단된 위치에서 계속할 수 있습니다."
 }

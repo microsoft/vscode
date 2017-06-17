@@ -6,7 +6,6 @@
 {
 	"hintExclude": "Um die JavaScript/TypeScript-Sprachfunktionen für das gesamte Projekt zu aktivieren, schließen Sie Ordner mit vielen Dateien aus. Beispiel: {0}",
 	"hintExclude.generic": "Um JavaScript/TypeScript-Sprachfunktionen für das gesamte Projekt zu aktivieren, schließen Sie große Ordner mit Quelldateien aus, an denen Sie nicht arbeiten.",
-	"open": "Auszuschließende Elemente konfigurieren",
 	"large.label": "Auszuschließende Elemente konfigurieren",
 	"hintExclude.tooltip": "Um JavaScript/TypeScript-Sprachfunktionen für das gesamte Projekt zu aktivieren, schließen Sie große Ordner mit Quelldateien aus, an denen Sie nicht arbeiten."
 }

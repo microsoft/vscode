@@ -13,7 +13,6 @@
 	"typescript.check.tscVersion": "Überprüfen, ob sich ein global installierter TypeScript-Compiler (z. B. tsc) vom verwendeten TypeScript-Sprachdienst unterscheidet.",
 	"typescript.tsserver.log": "Aktiviert die Protokollierung des TS-Servers in eine Datei. Mithilfe der Protokolldatei lassen sich Probleme beim TS-Server diagnostizieren. Die Protokolldatei kann Dateipfade, Quellcode und weitere potenziell sensible Informationen aus Ihrem Projekt enthalten.",
 	"typescript.tsserver.trace": "Aktiviert die Ablaufverfolgung von an den TS-Server gesendeten Nachrichten. Mithilfe der Ablaufverfolgung lassen sich Probleme beim TS-Server diagnostizieren. Die Ablaufverfolgung kann Dateipfade, Quellcode und weitere potenziell sensible Informationen aus Ihrem Projekt enthalten.",
-	"typescript.tsserver.experimentalAutoBuild": "Ermöglicht experimentelle automatische Buildvorgänge. Erfordert Version 1.9 dev oder 2.x tsserver sowie einen Neustart von VS Code nach der Änderung.",
 	"typescript.validate.enable": "TypeScript-Überprüfung aktivieren/deaktivieren.",
 	"typescript.format.enable": "Standardmäßigen TypeScript-Formatierer aktivieren/deaktivieren.",
 	"javascript.format.enable": "Standardmäßigen JavaScript-Formatierer aktivieren/deaktivieren.",
@@ -33,10 +32,16 @@
 	"javascript.validate.enable": "JavaScript-Überprüfung aktivieren/deaktivieren.",
 	"typescript.goToProjectConfig.title": "Zur Projektkonfiguration wechseln",
 	"javascript.goToProjectConfig.title": "Zur Projektkonfiguration wechseln",
+	"javascript.referencesCodeLens.enabled": "Aktiviert oder deaktiviert CodeLens-Verweise in JavaScript Dateien. Erfordert TypeScript 2.0.6 oder höher.",
+	"typescript.referencesCodeLens.enabled": "Aktiviert oder deaktiviert CodeLens-Verweise in TypeScript Dateien. Erfordert TypeScript 2.0.6 oder höher.",
 	"typescript.implementationsCodeLens.enabled": "Aktiviert oder deaktiviert CodeLens-Implementierungen. Erfordert TypeScript 2.2.0 oder höher.",
 	"typescript.openTsServerLog.title": "TS Server-Protokolldatei öffnen",
 	"typescript.restartTsServer": "TS Server neu starten",
 	"typescript.selectTypeScriptVersion.title": "TypeScript-Version wählen",
 	"jsDocCompletion.enabled": "Automatische JSDoc-Kommentare aktivieren/deaktivieren",
-	"javascript.implicitProjectConfig.checkJs": "Aktiviert/deaktiviert die Semantikprüfung bei JavaScript-Dateien. Diese Einstellung wird von vorhandenen \"jsconfig.json\"- oder \"tsconfig.json\"-Dateien außer Kraft gesetzt. Erfordert TypeScript 2.3.1 oder höher."
+	"javascript.implicitProjectConfig.checkJs": "Aktiviert/deaktiviert die Semantikprüfung bei JavaScript-Dateien. Diese Einstellung wird von vorhandenen \"jsconfig.json\"- oder \"tsconfig.json\"-Dateien außer Kraft gesetzt. Erfordert TypeScript 2.3.1 oder höher.",
+	"typescript.npm": "Gibt den Pfad zur ausführbaren NPM-Datei an, die für die automatische Typerfassung verwendet wird. Hierfür ist TypeScript 2.3.4 oder höher erforderlich.",
+	"typescript.check.npmIsInstalled": "Überprüfen Sie, ob NPM für die automatische Typerfassung installiert ist.",
+	"javascript.nameSuggestions": "Das Einbeziehen eindeutiger Namen von der Datei in der JavaScript-Vorschlagsliste aktivieren/deaktivieren.",
+	"typescript.tsc.autoDetect": "Steuert, ob die automatische Erkennung von tsc-Tasks aktiviert oder deaktiviert ist.\n"
 }

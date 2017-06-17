@@ -7,6 +7,7 @@
 	"debugAdapterBinNotFound": "L'exécutable d'adaptateur de débogage '{0}' n'existe pas.",
 	"debugAdapterCannotDetermineExecutable": "Impossible de déterminer l'exécutable pour l'adaptateur de débogage '{0}'.",
 	"debugType": "Type de configuration.",
+	"debugTypeNotRecognised": "Le type de débogage n'est pas reconnu. Vérifiez que vous avez installé l'extension de débogage correspondante et qu'elle est activée.",
 	"node2NotSupported": "\"node2\" n'est plus pris en charge. Utilisez \"node\" à la place, et affectez la valeur \"inspector\" à l'attribut \"protocol\".",
 	"debugName": "Le nom de la configuration s'affiche dans le menu déroulant de la configuration de lancement.",
 	"debugRequest": "Type de requête de configuration. Il peut s'agir de \"launch\" ou \"attach\".",

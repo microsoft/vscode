@@ -15,5 +15,18 @@
 	"license": "Leer licencia",
 	"updateAvailable": "{0} se actualizará después de reiniciarse.",
 	"thereIsUpdateAvailable": "Hay una actualización disponible.",
-	"noUpdatesAvailable": "Actualmente no hay actualizaciones disponibles."
+	"noUpdatesAvailable": "Actualmente no hay actualizaciones disponibles.",
+	"updateIsReady": "Nueva actualización disponible.",
+	"commandPalette": "Paleta de comandos...",
+	"settings": "Configuración",
+	"keyboardShortcuts": "Métodos abreviados de teclado",
+	"selectTheme.label": "Tema de color",
+	"themes.selectIconTheme.label": "Tema de icono de archivo",
+	"not available": "Actualizaciones no disponibles",
+	"checkingForUpdates": "Buscando actualizaciones...",
+	"DownloadUpdate": "Descargar actualización disponible",
+	"DownloadingUpdate": "Descargando actualización...",
+	"InstallingUpdate": "Instalando actualización...",
+	"restartToUpdate": "Reiniciar para actualizar...",
+	"checkForUpdates": "Buscar actualizaciones..."
 }

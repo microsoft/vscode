@@ -7,12 +7,17 @@
 	"tabActiveBackground": "活动选项卡的背景色。在编辑器区域，选项卡是编辑器的容器。可在一个编辑器组中打开多个选项卡。可以有多个编辑器组。",
 	"tabInactiveBackground": "非活动选项卡的背景色。在编辑器区域，选项卡是编辑器的容器。可在一个编辑器组中打开多个选项卡。可以有多个编辑器组。",
 	"tabBorder": "用于将选项卡彼此分隔开的边框。选项卡是编辑器区域中编辑器的容器。可在一个编辑器组中打开多个选项卡。可以存在多个编辑器组。",
+	"tabActiveForeground": "活动组中活动选项卡的前景色。在编辑器区域，选项卡是编辑器的容器。可在一个编辑器组中打开多个选项卡。可以有多个编辑器组。",
+	"tabInactiveForeground": "活动组中非活动选项卡的前景色。在编辑器区域，选项卡是编辑器的容器。可在一个编辑器组中打开多个选项卡。可以有多个编辑器组。",
+	"tabUnfocusedActiveForeground": "非活动组中活动选项卡的前景色。在编辑器区域，选项卡是编辑器的容器。可在一个编辑器组中打开多个选项卡。可以有多个编辑器组。",
+	"tabUnfocusedInactiveForeground": "非活动组中非活动选项卡的前景色。在编辑器区域，选项卡是编辑器的容器。可在一个编辑器组中打开多个选项卡。可以有多个编辑器组。",
 	"editorGroupBackground": "编辑器组的背景颜色。编辑器组是编辑器的容器。此颜色在拖动编辑器组时显示。",
 	"tabsContainerBackground": "启用选项卡时编辑器组标题的背景颜色。编辑器组是编辑器的容器。",
 	"tabsContainerBorder": "选项卡启用时编辑器组标题的边框颜色。编辑器组是编辑器的容器。",
 	"editorGroupHeaderBackground": "禁用选项卡时编辑器组标题的背景颜色。编辑器组是编辑器的容器。",
 	"editorGroupBorder": "将多个编辑器组彼此分隔开的颜色。编辑器组是编辑器的容器。",
 	"editorDragAndDropBackground": "拖动编辑器时的背景颜色。此颜色应有透明度，以便编辑器内容能透过背景。",
+	"panelBackground": "面板的背景色。面板显示在编辑器区域下方，可包含输出和集成终端等视图。",
 	"panelBorder": "分隔到编辑器的顶部面板边框色。面板显示在编辑器区域下方，可包含输出和集成终端等视图。",
 	"panelActiveTitleForeground": "活动面板的标题颜色。面板显示在编辑器区域下方，并包含输出和集成终端等视图。",
 	"panelInactiveTitleForeground": "非活动面板的标题颜色。面板显示在编辑器区域下方，并包含输出和集成终端等视图。",
@@ -43,5 +48,9 @@
 	"titleBarActiveBackground": "窗口处于活动状态时的标题栏背景色。请注意，该颜色当前仅在 macOS 上受支持。",
 	"titleBarInactiveBackground": "窗口处于非活动状态时的标题栏背景色。请注意，该颜色当前仅在 macOS 上受支持。",
 	"notificationsForeground": "通知前景色。通知从窗口顶部滑入。",
-	"notificationsBackground": "通知背颜色。通知从窗口顶部滑入。"
+	"notificationsBackground": "通知背颜色。通知从窗口顶部滑入。",
+	"notificationsButtonForeground": "通知按钮前景色。通知从窗口顶部滑入。",
+	"notificationsInfoForeground": "消息通知前景色。通知从窗口顶部滑入。",
+	"notificationsWarningForeground": "警告通知前景色。通知从窗口顶部滑入。",
+	"notificationsErrorForeground": "错误通知前景色。通知从窗口顶部滑入。"
 }

@@ -6,5 +6,6 @@
 {
 	"copyValue": "複製值",
 	"copy": "複製",
+	"copyAll": "全部複製",
 	"copyStackTrace": "複製呼叫堆疊"
 }

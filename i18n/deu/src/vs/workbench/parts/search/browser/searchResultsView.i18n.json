@@ -6,5 +6,7 @@
 {
 	"searchMatches": "{0} Übereinstimmungen gefunden",
 	"searchMatch": "{0} Übereinstimmung gefunden",
-	"fileMatchAriaLabel": "{0} Übereinstimmungen in der Datei \"{1}\" des Ordners \"{2}\", Suchergebnis"
+	"fileMatchAriaLabel": "{0} Übereinstimmungen in der Datei \"{1}\" des Ordners \"{2}\", Suchergebnis",
+	"replacePreviewResultAria": "Ersetze Term {0} mit {1} an Spaltenposition {2} in Zeile mit Text {3}",
+	"searchResultAria": "Term {0} an Spaltenposition {1} in Zeile mit Text {2} gefunden"
 }

@@ -31,7 +31,6 @@
 	"welcomePage.colorThemeDescription": "使编辑器和代码呈现你喜欢的外观",
 	"welcomePage.learn": "学习",
 	"welcomePage.showCommands": "查找并运行所有命令",
-	"welcomePage.showCommandsDescription": "从控制面板快速访问并搜索命令({0})",
 	"welcomePage.interfaceOverview": "界面概述",
 	"welcomePage.interfaceOverviewDescription": "查看突出显示主要 UI 组件的叠加图",
 	"welcomePage.interactivePlayground": "交互式演练场",

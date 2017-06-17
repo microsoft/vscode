@@ -13,7 +13,6 @@
 	"typescript.check.tscVersion": "Vérifiez si un compilateur TypeScript installé globalement (par exemple tsc) est différent du service de langage TypeScript.",
 	"typescript.tsserver.log": "Active la journalisation du serveur TS dans un fichier. Ce journal peut être utilisé pour diagnostiquer les problèmes du serveur TS. Il peut contenir des chemins de fichier, du code source et d'autres informations potentiellement sensibles de votre projet.",
 	"typescript.tsserver.trace": "Active le traçage des messages envoyés au serveur TS. Cette trace peut être utilisée pour diagnostiquer les problèmes du serveur TS. Elle peut contenir des chemins de fichier, du code source et d'autres informations potentiellement sensibles de votre projet.",
-	"typescript.tsserver.experimentalAutoBuild": "Active la build automatique expérimentale. Nécessite la version 1.9 dev ou 2.x tsserver et le redémarrage du code VS une fois celui-ci modifié.",
 	"typescript.validate.enable": "Activez/désactivez la validation TypeScript.",
 	"typescript.format.enable": "Activez/désactivez le formateur TypeScript par défaut.",
 	"javascript.format.enable": "Activez/désactivez le formateur JavaScript par défaut.",
@@ -33,8 +32,16 @@
 	"javascript.validate.enable": "Activez/désactivez la validation JavaScript.",
 	"typescript.goToProjectConfig.title": "Accéder à la configuration du projet",
 	"javascript.goToProjectConfig.title": "Accéder à la configuration du projet",
+	"javascript.referencesCodeLens.enabled": "Activez/désactivez les références CodeLens dans les fichiers JavaScript.",
+	"typescript.referencesCodeLens.enabled": "Activez/désactivez les références CodeLens dans les fichiers TypeScript. Nécessite TypeScript >= 2.0.6.",
 	"typescript.implementationsCodeLens.enabled": "Activer/désactiver CodeLens dans les implémentations. Nécessite TypeScript >= 2.2.0.",
+	"typescript.openTsServerLog.title": "Ouvrir le journal du serveur TS",
+	"typescript.restartTsServer": "Redémarrer le serveur TS",
 	"typescript.selectTypeScriptVersion.title": "Sélectionner la version de TypeScript",
 	"jsDocCompletion.enabled": "Activer/désactiver les commentaires JSDoc automatiques",
-	"javascript.implicitProjectConfig.checkJs": "Activer/désactiver la vérification sémantique des fichiers JavaScript. Les fichiers jsconfig.json ou tsconfig.json existants remplacent ce paramètre. Nécessite TypeScript >=2.3.1."
+	"javascript.implicitProjectConfig.checkJs": "Activer/désactiver la vérification sémantique des fichiers JavaScript. Les fichiers jsconfig.json ou tsconfig.json existants remplacent ce paramètre. Nécessite TypeScript >=2.3.1.",
+	"typescript.npm": "Spécifie le chemin de l'exécutable NPM utilisé pour l'acquisition de type automatique. Nécessite TypeScript >= 2.3.4.",
+	"typescript.check.npmIsInstalled": "Vérifie si NPM est installé pour l'acquisition de type automatique.",
+	"javascript.nameSuggestions": "Activez/désactivez l'inclusion de noms uniques à partir du fichier dans les listes de suggestions JavaScript.",
+	"typescript.tsc.autoDetect": "Contrôle si la détection automatique des tâches tsc est activée ou désactivée."
 }

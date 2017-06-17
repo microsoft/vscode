@@ -12,7 +12,6 @@
 	"focusBorder": "Colore dei bordi degli elementi evidenziati. Questo colore è utilizzato solo se non viene sovrascritto da un componente.",
 	"contrastBorder": "Un bordo supplementare attorno agli elementi per contrastarli maggiormente rispetto agli altri.",
 	"activeContrastBorder": "Un bordo supplementare intorno agli elementi attivi per contrastarli maggiormente rispetto agli altri.",
-	"selectionBackground": "Il colore di sfondo delle selezioni di testo nel workbench (ad esempio per i campi di input o aree di testo). Si noti che questo non si applica alle selezioni all'interno dell'editor e del terminale.",
 	"textSeparatorForeground": "Colore dei separatori di testo.",
 	"textLinkForeground": "Colore primo piano dei link nel testo.",
 	"textLinkActiveForeground": "Colore primo piano dei link attivi nel testo.",
@@ -60,6 +59,7 @@
 	"editorBackground": "Colore di sfondo dell'editor.",
 	"editorForeground": "Colore primo piano predefinito dell'editor.",
 	"editorWidgetBackground": "Colore di sfondo dei widget dell'editor, ad esempio Trova/Sostituisci.",
+	"editorWidgetBorder": "Colore bordo dei widget dell'editor. Il colore viene utilizzato solo se il widget sceglie di avere un bordo e se il colore non è sottoposto a override da un widget.",
 	"editorSelection": "Colore della selezione dell'editor.",
 	"editorInactiveSelection": "Colore della selezione in un editor inattivo.",
 	"editorSelectionHighlight": "Colore delle aree con lo stesso contenuto della selezione.",
@@ -74,10 +74,11 @@
 	"diffEditorRemoved": "Colore di sfondo del testo che è stato rimosso.",
 	"diffEditorInsertedOutline": "Colore del contorno del testo che è stato inserito.",
 	"diffEditorRemovedOutline": "Colore del contorno del testo che è stato rimosso.",
-	"mergeCurrentHeaderBackground": "Sfondo intestazione corrente in conflitto di merge in linea.",
-	"mergeCurrentContentBackground": "Sfondo contenuto corrente in conflitto di merge in linea.",
-	"mergeIncomingHeaderBackground": "Sfondo intestazione modifica in ingresso in conflitto di merge in linea.",
-	"mergeIncomingContentBackground": "Sfondo contenuto modifica in ingresso in conflitto di merge in linea.",
-	"overviewRulerCurrentContentForeground": "Primo piano righello panoramica corrente per conflitto di merge in linea.",
-	"overviewRulerIncomingContentForeground": "Primo piano righello panoramica modifiche in ingresso per conflitto di merge in linea."
+	"mergeCurrentHeaderBackground": "Sfondo intestazione corrente in conflitti di merge in linea.",
+	"mergeCurrentContentBackground": "Sfondo contenuto corrente in conflitti di merge in linea.",
+	"mergeIncomingHeaderBackground": "Sfondo intestazione modifica in ingresso in conflitti di merge in linea.",
+	"mergeIncomingContentBackground": "Sfondo contenuto modifica in ingresso in conflitti di merge in linea.",
+	"mergeBorder": "Colore bordo su intestazioni e sulla barra di divisione di conflitti di merge in linea.",
+	"overviewRulerCurrentContentForeground": "Colore primo piano righello panoramica attuale per i conflitti di merge in linea.",
+	"overviewRulerIncomingContentForeground": "Colore primo piano del righello panoramica modifiche in arrivo per i conflitti di merge in linea."
 }

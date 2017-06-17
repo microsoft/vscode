@@ -13,7 +13,6 @@
 	"typescript.check.tscVersion": "Verifica se un compilatore TypeScript di installazione globale, ad esempio tsc, è diverso dal servizio di linguaggio TypeScript usato.",
 	"typescript.tsserver.log": "Abilita la registrazione del server TypeScript in un file. Questo registro può essere utilizzato per diagnosticare problemi del server TypeScript. Il registro può contenere percorsi di file, codice sorgente e altre informazioni del progetto potenzialmente riservate. ",
 	"typescript.tsserver.trace": "Abilita la traccia dei messaggi inviati al server TypeScript. Questa traccia può essere utilizzata per diagnosticare problemi del server TypeScript. La traccia può contenere percorsi di file, codice sorgente e altre informazioni del progetto potenzialmente riservate.",
-	"typescript.tsserver.experimentalAutoBuild": "Abilita la compilazione automatica sperimentale. Richiede la versione 1.9 dev o 2.x tsserver e il riavvio di Visual Studio Code dopo la modifica.",
 	"typescript.validate.enable": "Abilita/Disabilita la convalida TypeScript.",
 	"typescript.format.enable": "Abilita/Disabilita il formattatore TypeScript predefinito.",
 	"javascript.format.enable": "Abilita/Disabilita il formattatore JavaScript predefinito.",
@@ -41,6 +40,8 @@
 	"typescript.selectTypeScriptVersion.title": "Seleziona la versione di TypeScript",
 	"jsDocCompletion.enabled": "Abilita/Disabilita commenti automatici JSDoc",
 	"javascript.implicitProjectConfig.checkJs": "Abilita/disabilita il controllo semantico di file JavaScript. File jsconfig.json o tsconfig.json esistenti sovrascrivono su questa impostazione. Richiede TypeScript >= 2.3.1.",
+	"typescript.npm": "Specifica il percorso dell'eseguibile NPM utilizzato per l'acquisizione automatica delle definizioni di tipi. Richiede TypeScript >= 2.3.4.",
+	"typescript.check.npmIsInstalled": "Controlla se NPM è installato per l'acquisizione automatica delle definizioni di tipi",
 	"javascript.nameSuggestions": "Abilita/disabilita l'inclusione di nomi univoci dal file negli elenchi di suggerimento di JavaScript.",
 	"typescript.tsc.autoDetect": "Controlla se la rilevazione automatica di attività tsc è on/off."
 }

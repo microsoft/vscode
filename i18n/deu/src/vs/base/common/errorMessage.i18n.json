@@ -13,6 +13,5 @@
 	"error.connection.unknown": "Es ist ein unbekannter Verbindungsfehler aufgetreten. Entweder besteht keine Internetverbindung mehr, oder der verbundene Server ist offline.",
 	"stackTrace.format": "{0}: {1}",
 	"error.defaultMessage": "Ein unbekannter Fehler ist aufgetreten. Weitere Details dazu finden Sie im Protokoll.",
-	"nodeExceptionMessage": "Systemfehler ({0})",
 	"error.moreErrors": "{0} ({1} Fehler gesamt)"
 }

@@ -10,7 +10,7 @@
 	"multiSelection": "Выделений: {0}",
 	"endOfLineLineFeed": "LF",
 	"endOfLineCarriageReturnLineFeed": "CRLF",
-	"tabFocusModeEnabled": "Клавиша TAB перемещает фокус",
+	"screenReaderDetectedExtra": "Если вы не используете средство чтения с экрана, измените значение параметра \"editor.accessibilitySupport\" на \"off\".",
 	"disableTabMode": "Отключить режим специальных возможностей",
 	"gotoLine": "Перейти к строке",
 	"indentation": "Отступ",

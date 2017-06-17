@@ -31,10 +31,6 @@
 	"window.openFoldersInNewWindow.off": "Las carpetas reemplazarán la ventana activa más reciente",
 	"window.openFoldersInNewWindow.default": "Las carpetas se abrirán en una nueva ventana a menos que se seleccione una carpeta desde la aplicación (p. ej. mediante el menú Archivo)",
 	"openFoldersInNewWindow": "Controla si las carpetas deben abrirse en una ventana nueva o reemplazar la última ventana activa.\n- default: las carpetas se abrirán en una ventana nueva, a menos que se seleccione una carpeta desde la aplicación (por ejemplo, desde el menú Archivo)\n- on: las carpetas se abrirán en una ventana nueva\n- off: las carpetas reemplazarán la última ventana activa\nTenga en cuenta que aún puede haber casos en los que este parámetro se ignore (por ejemplo, al usar la opción de la línea de comandos -new-window o -reuse-window).",
-	"window.reopenFolders.none": "No volver a abrir nunca una carpeta.",
-	"window.reopenFolders.one": "Volver a abrir la carpeta activa más reciente.",
-	"window.reopenFolders.all": "Volver a abrir todas las carpetas de la sesión más reciente.",
-	"reopenFolders": "Controla cómo se vuelven a abrir las carpetas tras un reinicio. Seleccione \"none\" para no volver a abrir jamás una carpeta, \"one\" para volver a abrir la última carpeta en la que trabajó o seleccione \"all\" para volver a abrir todas las carpetas de la última sesión.",
 	"restoreFullscreen": "Controla si una ventana se debe restaurar al modo de pantalla completa si se salió de ella en dicho modo.",
 	"zoomLevel": "Ajuste el nivel de zoom de la ventana. El tamaño original es 0 y cada incremento (por ejemplo, 1) o disminución (por ejemplo, -1) representa una aplicación de zoom un 20 % más grande o más pequeño. También puede especificar decimales para ajustar el nivel de zoom con una granularidad más precisa.",
 	"title": "Controla el título de la ventana según el editor activo. Las variables se sustituyen según el contexto: ${activeEditorShort}: por ejemplo, myFile.txt ${activeEditorMedium}: por ejemplo, myFolder/myFile.txt ${activeEditorLong}: por ejemplo, /Users/Development/myProject/myFolder/myFile.txt ${rootName}: por ejemplo, myProject ${rootPath}: por ejemplo, /Users/Development/myProject ${appName}: por ejemplo, VS Code ${dirty}: un indicador con modificaciones si el editor activo está desfasado ${separator}: un separador condicional (\" - \") que solo se muestra cuando está rodeado por variables con valores",
@@ -58,5 +54,7 @@
 	"zenMode.hideTabs": "Controla si la activación del modo zen también oculta las pestañas del área de trabajo.",
 	"zenMode.hideStatusBar": "Controla si la activación del modo zen oculta también la barra de estado en la parte inferior del área de trabajo.",
 	"zenMode.hideActivityBar": "Controla si la activación del modo zen oculta también la barra de estado en la parte izquierda del área de trabajo.",
-	"zenMode.restore": "Controla si una ventana debe restaurarse a modo zen si se cerró en modo zen."
+	"zenMode.restore": "Controla si una ventana debe restaurarse a modo zen si se cerró en modo zen.",
+	"workspaceConfigurationTitle": "Área de trabajo",
+	"files.exclude.boolean": "El patrón global con el que se harán coincidir las rutas de acceso de los archivos. Establézcalo en true o false para habilitarlo o deshabilitarlo."
 }

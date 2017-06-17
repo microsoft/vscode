@@ -12,5 +12,6 @@
 	"ConfigurationParser.invalidVaraibleReference": "오류: 잘못된 problemMatcher 참조:  {0}\n",
 	"ConfigurationParser.noTaskName": "오류: 작업에서 taskName 속성을 제공해야 합니다. 이 작업은 무시됩니다.\n{0}\n",
 	"taskConfiguration.shellArgs": "경고: 작업 '{0}'은(는) 셸 명령이며, 명령 이름이나 인수 중 하나에 이스케이프되지 않은 공백이 있습니다. 명령줄 인용을 올바르게 하려면 인수를 명령으로 병합하세요.",
+	"taskConfiguration.noCommandOrDependsOn": "오류: 작업 '{0}'에서 명령이나 dependsOn 속성을 지정하지 않습니다. 이 작업은 무시됩니다. 해당 작업의 정의는 {1}입니다.",
 	"taskConfiguration.noCommand": "오류: 작업 '{0}'에서 명령을 정의하지 않습니다. 이 작업은 무시됩니다. 해당 작업의 정의는\n{1}입니다."
 }

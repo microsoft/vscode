@@ -22,6 +22,8 @@
 	"disableGloballyAction": "Sempre",
 	"disableAction": "Disabilita",
 	"checkForUpdates": "Controlla la disponibilità di aggiornamenti",
+	"enableAutoUpdate": "Abilita l'aggiornamento automatico delle estensioni",
+	"disableAutoUpdate": "Disabilita l'aggiornamento automatico delle estensioni",
 	"updateAll": "Aggiorna tutte le estensioni",
 	"reloadAction": "Ricarica",
 	"postUpdateTooltip": "Ricaricare per aggiornare",
@@ -44,6 +46,8 @@
 	"showWorkspaceRecommendedExtensions": "Mostra estensioni consigliate per l'area di lavoro",
 	"showRecommendedKeymapExtensions": "Mostra mappature tastiera consigliate",
 	"showRecommendedKeymapExtensionsShort": "Mappature tastiera",
+	"showLanguageExtensions": "Mostra estensioni del linguaggio",
+	"showLanguageExtensionsShort": "Estensioni del linguaggio",
 	"configureWorkspaceRecommendedExtensions": "Configura estensioni consigliate (area di lavoro)",
 	"ConfigureWorkspaceRecommendations.noWorkspace": "Gli elementi consigliati sono disponibili solo per una cartella dell'area di lavoro.",
 	"OpenExtensionsFile.failed": "Non è possibile creare il file 'extensions.json' all'interno della cartella '.vscode' ({0}).",
@@ -51,5 +55,8 @@
 	"disableAll": "Disabilita tutte le estensioni installate",
 	"disableAllWorkspace": "Disabilita tutte le estensioni installate per questa area di lavoro",
 	"enableAll": "Abilita tutte le estensioni installate",
-	"enableAllWorkspace": "Abilita tutte le estensioni installate per questa area di lavoro"
+	"enableAllWorkspace": "Abilita tutte le estensioni installate per questa area di lavoro",
+	"extensionButtonProminentBackground": "Colore di sfondo delle azioni di estensioni che si distinguono (es. pulsante Installa).",
+	"extensionButtonProminentForeground": "Colore primo piano di pulsanti per azioni di estensioni che si distinguono (es. pulsante Installa).",
+	"extensionButtonProminentHoverBackground": "Colore di sfondo al passaggio del mouse dei pulsanti per azioni di estensione che si distinguono (es. pulsante Installa)."
 }

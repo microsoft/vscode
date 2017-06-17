@@ -22,5 +22,5 @@
 	"keybindings.json.when": "键处于活动状态时的条件。",
 	"keybindings.json.args": "要传递给命令以执行的参数。",
 	"keyboardConfigurationTitle": "键盘",
-	"dispatch": "控制按键的分派逻辑以使用 \"keydown.code\" (推荐)或 \"eydown.keyCode\"。"
+	"dispatch": "控制按键的调度逻辑以使用“keydown.code”(推荐) 或“keydown.keyCode”。"
 }

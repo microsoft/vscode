@@ -7,5 +7,6 @@
 	"replAriaLabel": "Ler o Painel de Impressão Eval",
 	"actions.repl.historyPrevious": "História anterior",
 	"actions.repl.historyNext": "Próxima história",
-	"actions.repl.acceptInput": "REPL Aceitar Entrada"
+	"actions.repl.acceptInput": "REPL Aceitar Entrada",
+	"actions.repl.copyAll": "Depurar: Copiar Todos os Consoles"
 }

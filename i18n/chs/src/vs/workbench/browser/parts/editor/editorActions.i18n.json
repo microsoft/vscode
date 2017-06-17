@@ -19,6 +19,7 @@
 	"closeEditorsToTheLeft": "关闭左侧编辑器",
 	"closeEditorsToTheRight": "关闭右侧编辑器",
 	"closeAllEditors": "关闭所有编辑器",
+	"closeUnmodifiedEditors": "关闭组中未作更改的编辑器",
 	"closeEditorsInOtherGroups": "关闭其他组中的编辑器",
 	"closeOtherEditorsInGroup": "关闭其他编辑器",
 	"closeEditorsInGroup": "关闭组中的所有编辑器",

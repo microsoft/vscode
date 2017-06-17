@@ -7,6 +7,7 @@
 	"debugAdapterBinNotFound": "디버그 어댑터 실행 파일 '{0}'이(가) 없습니다.",
 	"debugAdapterCannotDetermineExecutable": "디버그 어댑터 '{0}'에 대한 실행 파일을 확인할 수 없습니다.",
 	"debugType": "구성의 형식입니다.",
+	"debugTypeNotRecognised": "디버그 형식이 인식되지 않습니다. 해당하는 디버그 확장을 설치하고 사용하도록 설정했는지 확인하세요.",
 	"node2NotSupported": "\"node2\"는 더 이상 지원되지 않습니다. 대신 \"node\"를 사용하고 \"protocol\" 특성을 \"inspector\"로 설정하세요.",
 	"debugName": "구성 이름이며, 구성 시작 드롭다운 메뉴에 표시됩니다.",
 	"debugRequest": "구성 형식을 요청합니다. \"시작\" 또는 \"연결\"일 수 있습니다.",

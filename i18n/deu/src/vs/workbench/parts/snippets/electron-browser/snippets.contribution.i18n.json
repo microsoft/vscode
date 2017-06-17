@@ -11,6 +11,6 @@
 	"snippetSchema.json.default": "Leerer Codeausschnitt",
 	"snippetSchema.json": "Benutzerkonfiguration des Codeausschnitts",
 	"snippetSchema.json.prefix": "Das Präfix, das beim Auswählen des Codeausschnitts in IntelliSense verwendet werden soll.",
-	"snippetSchema.json.body": "Der Inhalt des Codeausschnitts. Verwenden Sie \"${id}\", \"${id:label}\", \"${1:label}\" für Variablen und \"$0\", \"$1\" für die Cursorpositionen.",
+	"snippetSchema.json.body": "Der Inhalt des Codeausschnitts. Verwenden Sie \"$1\", \"${1:defaultText}\", um Cursorpositionen zu definieren, und \"$0\" für die finale Cursorposition. Fügen Sie mit \"${varName}\" und \"${varName:defaultText}\" Variablenwerte ein, z. B. \"This is file: $TM_FILENAME\".",
 	"snippetSchema.json.description": "Die Beschreibung des Codeausschnitts."
 }
