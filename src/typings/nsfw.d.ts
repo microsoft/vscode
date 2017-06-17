@@ -4,8 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'nsfw' {
+	interface NsfwWatcher {
+		start(): void;
+		stop(): void;
+	}
+
+	interface NsfwWatchingPromise {
+		then(): void;
+	}
+
+	interface NsfwStartWatchingPromise {
+		then(fn: (watcher: NsfwWatcher) => void): NsfwWatchingPromise;
+	}
+
+	interface NsfwEvent {
+		action: number;
+		directory: string;
+		file?: string;
+		newFile?: string;
+		oldFile?: string;
+	}
+
 	interface NsfwFunction {
-		(dir: string, ...args: any[]): any;
+		(dir: string, eventHandler: (events: NsfwEvent[]) => void, options?: any): NsfwStartWatchingPromise;
 		actions: {
 			CREATED: number;
 			DELETED: number;
