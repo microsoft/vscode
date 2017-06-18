@@ -8,10 +8,10 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import { Action } from 'vs/base/common/actions';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickOpenService, IShowOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr } from "vs/platform/contextkey/common/contextkey";
-import { ICommandHandler } from "vs/platform/commands/common/commands";
+import { ICommandHandler, ICommandService } from "vs/platform/commands/common/commands";
 
 export const inQuickOpenContext = ContextKeyExpr.has('inQuickOpen');
 export const defaultQuickOpenContextKey = 'inFilesPicker';
@@ -22,15 +22,15 @@ export class GlobalQuickOpenAction extends Action {
 	public static ID = 'workbench.action.quickOpen';
 	public static LABEL = nls.localize('quickOpen', "Go to File...");
 
-	constructor(id: string, label: string, @IQuickOpenService private quickOpenService: IQuickOpenService) {
+	constructor(id: string, label: string, @IQuickOpenService private quickOpenService: IQuickOpenService, @ICommandService private commandService: ICommandService) {
 		super(id, label);
 
 		this.order = 100; // Allow other actions to position before or after
 		this.class = 'quickopen';
 	}
 
-	public run(): TPromise<any> {
-		this.quickOpenService.show(null);
+	public run(prefix?: string, showOptions?: IShowOptions): TPromise<any> {
+		this.commandService.executeCommand('vscode.quickOpen', [prefix, showOptions]);
 
 		return TPromise.as(true);
 	}

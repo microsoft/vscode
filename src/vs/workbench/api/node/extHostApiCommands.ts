@@ -17,6 +17,7 @@ import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { IOutline } from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IShowOptions } from 'vs/platform/quickOpen/common/quickOpen';
 
 export class ExtHostApiCommands {
 
@@ -237,6 +238,16 @@ export class ExtHostApiCommands {
 				args: [
 					{ name: 'resource', description: 'Resource to open', constraint: URI },
 					{ name: 'column', description: '(optional) Column in which to open', constraint: v => v === void 0 || typeof v === 'number' }
+				]
+			});
+
+		this._register('vscode.quickOpen', (prefix: string, showOptions: IShowOptions) => {
+			return this._commands.executeCommand('_workbench.quickOpen', [prefix, showOptions]);
+		}, {
+				description: 'Shows the quick open widget',
+				args: [
+					{ name: 'prefix', description: '(optional) Open the quick open widget with a default prefix' },
+					{ name: 'showOptions', description: '(optional) Show options' }
 				]
 			});
 	}
