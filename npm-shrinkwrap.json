@@ -302,6 +302,11 @@
       "from": "normalize-path@>=2.0.1 <3.0.0",
       "resolved": "https://registry.npmjs.org/normalize-path/-/normalize-path-2.0.1.tgz"
     },
+    "nsfw": {
+      "version": "1.0.15",
+      "from": "nsfw@1.0.15",
+      "resolved": "https://registry.npmjs.org/nsfw/-/nsfw-1.0.15.tgz"
+    },
     "object.omit": {
       "version": "2.0.0",
       "from": "object.omit@>=2.0.0 <3.0.0",

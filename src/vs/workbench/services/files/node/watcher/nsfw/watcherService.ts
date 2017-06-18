@@ -10,8 +10,9 @@ import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import uri from 'vs/base/common/uri';
 import { toFileChangesEvent, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
-import { IWatcherChannel, WatcherChannelClient } from 'vs/workbench/services/files/node/watcher/unix/watcherIpc';
+import { IWatcherChannel, WatcherChannelClient } from 'vs/workbench/services/files/node/watcher/nsfw/watcherIpc';
 import { FileChangesEvent } from 'vs/platform/files/common/files';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export class FileWatcher {
 	private static MAX_RESTARTS = 5;
@@ -24,7 +25,8 @@ export class FileWatcher {
 		private ignored: string[],
 		private onFileChanges: (changes: FileChangesEvent) => void,
 		private errorLogger: (msg: string) => void,
-		private verboseLogging: boolean
+		private verboseLogging: boolean,
+		private contextService: IWorkspaceContextService
 	) {
 		this.isDisposed = false;
 		this.restartCounter = 0;
@@ -39,7 +41,7 @@ export class FileWatcher {
 				serverName: 'Watcher',
 				args,
 				env: {
-					AMD_ENTRYPOINT: 'vs/workbench/services/files/node/watcher/unix/watcherApp',
+					AMD_ENTRYPOINT: 'vs/workbench/services/files/node/watcher/nsfw/watcherApp',
 					PIPE_LOGGING: 'true',
 					VERBOSE_LOGGING: this.verboseLogging
 				}
@@ -63,13 +65,17 @@ export class FileWatcher {
 				if (this.restartCounter <= FileWatcher.MAX_RESTARTS) {
 					this.errorLogger('[FileWatcher] terminated unexpectedly and is restarted again...');
 					this.restartCounter++;
-					// TODO: What do we do for multi-root here?
 					this.startWatching();
 				} else {
 					this.errorLogger('[FileWatcher] failed to start after retrying for some time, giving up. Please report this as a bug report!');
 				}
 			}
 		}, this.errorLogger);
+
+		this.contextService.onDidChangeWorkspaceRoots(roots => {
+			service.setRoots(roots.map(r => r.fsPath));
+			console.log('roots changed', roots);
+		});
 
 		return () => {
 			client.dispose();
