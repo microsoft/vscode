@@ -27,7 +27,6 @@ import { ScopedConfigurationModel, FolderConfigurationModel, FolderSettingsModel
 import { IConfigurationServiceEvent, ConfigurationSource, IConfigurationKeys, IConfigurationValue, ConfigurationModel, IConfigurationOverrides, Configuration as BaseConfiguration, IConfigurationValues, IConfigurationData } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceConfigurationService, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME, WORKSPACE_STANDALONE_CONFIGURATIONS, WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
 import { ConfigurationService as GlobalConfigurationService } from 'vs/platform/configuration/node/configurationService';
-import { createHash } from "crypto";
 import { basename } from "path";
 
 interface IStat {
@@ -62,18 +61,15 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 
 	private cachedFolderConfigs: StrictResourceMap<FolderConfiguration<any>>;
 
-	private readonly workspace: Workspace;
+	private readonly legacyWorkspace: LegacyWorkspace;
 
 	private _configuration: Configuration<any>;
 
-	constructor(private environmentService: IEnvironmentService, private readonly legacyWorkspace?: LegacyWorkspace, private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME) {
+	constructor(private environmentService: IEnvironmentService, private readonly workspace?: Workspace, private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME) {
 		super();
 
-		this.workspace = legacyWorkspace ? new Workspace(
-			createHash('md5').update(legacyWorkspace.resource.fsPath).update(legacyWorkspace.ctime ? String(legacyWorkspace.ctime) : '').digest('hex'),
-			basename(legacyWorkspace.resource.fsPath),
-			[legacyWorkspace.resource]
-		) : null;
+		this.legacyWorkspace = this.workspace && this.workspace.roots.length ? new LegacyWorkspace(this.workspace.roots[0]) : null;
+
 		this._register(this.onDidUpdateConfiguration(e => this.resolveAdditionalFolders(true)));
 
 		this.baseConfigurationService = this._register(new GlobalConfigurationService(environmentService));

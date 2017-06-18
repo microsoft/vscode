@@ -177,7 +177,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	 */
 	private doGetWindowTitle(): string {
 		const input = this.editorService.getActiveEditorInput();
-		const workspace = this.contextService.getWorkspace();
+		const workspace = this.contextService.getWorkspace2();
 
 		// Variables
 		const activeEditorShort = input ? input.getTitle(Verbosity.SHORT) : '';

@@ -18,7 +18,7 @@ import paths = require('vs/base/common/paths');
 import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { LegacyWorkspace } from "vs/platform/workspace/common/workspace";
+import { LegacyWorkspace, Workspace } from "vs/platform/workspace/common/workspace";
 import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configuration';
 import { realpath, stat } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
@@ -35,6 +35,7 @@ import { StorageService, inMemoryLocalStorageInstance, IWorkspaceStorageIdentifi
 import { webFrame } from 'electron';
 
 import fs = require('fs');
+import { createHash } from "crypto";
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
 export function startup(configuration: IWindowConfiguration): TPromise<void> {
@@ -97,7 +98,7 @@ function toInputs(paths: IPath[], isUntitledFile?: boolean): IResourceInput[] {
 function openWorkbench(configuration: IWindowConfiguration, options: IOptions): TPromise<void> {
 	return resolveLegacyWorkspace(configuration).then(legacyWorkspace => {
 		const environmentService = new EnvironmentService(configuration, configuration.execPath);
-		const workspaceConfigurationService = new WorkspaceConfigurationService(environmentService, legacyWorkspace);
+		const workspaceConfigurationService = new WorkspaceConfigurationService(environmentService, legacyWorkspaceToMultiRootWorkspace(legacyWorkspace));
 		const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, !!legacyWorkspace);
 		const storageService = createStorageService(legacyWorkspace, configuration, environmentService);
 
@@ -131,6 +132,14 @@ function openWorkbench(configuration: IWindowConfiguration, options: IOptions): 
 			});
 		});
 	});
+}
+
+function legacyWorkspaceToMultiRootWorkspace(legacyWorkspace: LegacyWorkspace): Workspace {
+	return legacyWorkspace ? new Workspace(
+		createHash('md5').update(legacyWorkspace.resource.fsPath).update(legacyWorkspace.ctime ? String(legacyWorkspace.ctime) : '').digest('hex'),
+		path.basename(legacyWorkspace.resource.fsPath),
+		[legacyWorkspace.resource]
+	) : null;
 }
 
 function resolveLegacyWorkspace(configuration: IWindowConfiguration): TPromise<LegacyWorkspace> {

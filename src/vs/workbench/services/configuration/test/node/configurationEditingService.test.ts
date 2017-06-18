@@ -15,7 +15,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { parseArgs } from 'vs/platform/environment/node/argv';
-import { IWorkspaceContextService, LegacyWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import extfs = require('vs/base/node/extfs');
 import { TestTextFileService, TestEditorGroupService, TestLifecycleService, TestBackupFileService } from 'vs/workbench/test/workbenchTestServices';
@@ -115,7 +115,7 @@ suite('ConfigurationEditingService', () => {
 		instantiationService = new TestInstantiationService();
 		const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
 		instantiationService.stub(IEnvironmentService, environmentService);
-		const workspace = noWorkspace ? null : new LegacyWorkspace(URI.file(workspaceDir));
+		const workspace = noWorkspace ? null : new Workspace(workspaceDir, workspaceDir, [URI.file(workspaceDir)]);
 		const workspaceService = new WorkspaceConfigurationService(environmentService, workspace);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 		instantiationService.stub(IConfigurationService, workspaceService);
