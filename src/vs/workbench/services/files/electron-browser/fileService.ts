@@ -85,7 +85,7 @@ export class FileService implements IFileService {
 			encodingOverride,
 			watcherIgnoredPatterns,
 			verboseLogging: environmentService.verbose,
-			useNsfwFileWatcher: configuration.files.useNsfwFileWatcher
+			useExperimentalFileWatcher: configuration.files.useExperimentalFileWatcher
 		};
 
 		// create service

@@ -538,7 +538,7 @@ export interface IFilesConfiguration {
 		autoSaveDelay: number;
 		eol: string;
 		hotExit: string;
-		useNsfwFileWatcher: boolean;
+		useExperimentalFileWatcher: boolean;
 	};
 }
 

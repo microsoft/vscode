@@ -275,10 +275,10 @@ configurationRegistry.registerConfiguration({
 			],
 			'description': nls.localize('hotExit', "Controls whether unsaved files are remembered between sessions, allowing the save prompt when exiting the editor to be skipped.", HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE)
 		},
-		'files.useNsfwFileWatcher': {
+		'files.useExperimentalFileWatcher': {
 			'type': 'boolean',
 			'default': false,
-			'description': nls.localize('useNsfwFileWatcher', "Use the new experimental file watcher utilizing the nsfw library.")
+			'description': nls.localize('useExperimentalFileWatcher', "Use the new experimental file watcher.")
 		},
 		'files.defaultLanguage': {
 			'type': 'string',

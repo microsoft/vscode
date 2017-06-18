@@ -53,7 +53,7 @@ export interface IFileServiceOptions {
 	watcherIgnoredPatterns?: string[];
 	disableWatcher?: boolean;
 	verboseLogging?: boolean;
-	useNsfwFileWatcher?: boolean;
+	useExperimentalFileWatcher?: boolean;
 }
 
 function etag(stat: fs.Stats): string;
@@ -127,7 +127,7 @@ export class FileService implements IFileService {
 		}
 
 		if (this.basePath && !this.options.disableWatcher) {
-			if (this.options.useNsfwFileWatcher) {
+			if (this.options.useExperimentalFileWatcher) {
 				this.setupNsfwWorkspceWatching();
 			} else {
 				if (isWindows) {
