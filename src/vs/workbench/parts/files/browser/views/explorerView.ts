@@ -119,7 +119,7 @@ export class ExplorerView extends CollapsibleView {
 
 	public renderHeader(container: HTMLElement): void {
 		const titleDiv = $('div.title').appendTo(container);
-		$('span').text(this.contextService.getWorkspace().name).title(labels.getPathLabel(this.contextService.getWorkspace().resource.fsPath, void 0, this.environmentService)).appendTo(titleDiv);
+		$('span').text(this.name).title(labels.getPathLabel(this.contextService.getWorkspace().resource.fsPath, void 0, this.environmentService)).appendTo(titleDiv);
 
 		super.renderHeader(container);
 	}
@@ -193,7 +193,7 @@ export class ExplorerView extends CollapsibleView {
 			this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = activeFile.toString();
 
 			// Select file if input is inside workspace
-			if (this.isVisible && this.contextService.isInsideWorkspace(activeFile)) {
+			if (this.isVisible() && this.contextService.isInsideWorkspace(activeFile)) {
 				const selection = this.hasSelection(activeFile);
 				if (!selection) {
 					this.select(activeFile).done(null, errors.onUnexpectedError);
@@ -627,7 +627,7 @@ export class ExplorerView extends CollapsibleView {
 	}
 
 	private refreshFromEvent(): void {
-		if (this.isVisible) {
+		if (this.isVisible()) {
 			this.explorerRefreshDelayer.trigger(() => {
 				if (!this.explorerViewer.getHighlight()) {
 					return this.doRefresh();

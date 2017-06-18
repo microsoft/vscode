@@ -207,7 +207,7 @@ export class OpenEditorsView extends CollapsibleView {
 	}
 
 	private onEditorStacksModelChanged(e: IStacksModelChangeEvent): void {
-		if (this.isDisposed || !this.isVisible || !this.tree) {
+		if (this.isDisposed || !this.isVisible() || !this.tree) {
 			return;
 		}
 
