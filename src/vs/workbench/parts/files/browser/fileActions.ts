@@ -767,7 +767,8 @@ export class ImportFileAction extends BaseFileAction {
 		@IFileService fileService: IFileService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService messageService: IMessageService,
-		@ITextFileService textFileService: ITextFileService
+		@ITextFileService textFileService: ITextFileService,
+		@IWindowService private windowService: IWindowService,
 	) {
 		super(ImportFileAction.ID, nls.localize('importFiles', "Import Files"), fileService, messageService, textFileService);
 
@@ -783,6 +784,19 @@ export class ImportFileAction extends BaseFileAction {
 
 	public getViewer(): ITree {
 		return this.tree;
+	}
+
+	private bringWindowToForeground(): void {
+		if (isWindows) {
+			try {
+				const { allowSetForegroundWindow } = <any>require.__$__nodeRequire('windows-foreground-love');
+				allowSetForegroundWindow(process.pid);
+			} catch (e) {
+				// noop
+			}
+		}
+
+		this.windowService.focusWindow();
 	}
 
 	public run(context?: any): TPromise<any> {
@@ -808,6 +822,9 @@ export class ImportFileAction extends BaseFileAction {
 					const file = input.files[i];
 					filesArray.push(file);
 				}
+
+				// Bring the window to foreground before doing any actual work
+				this.bringWindowToForeground();
 
 				// Resolve target to check for name collisions and ask user
 				return this.fileService.resolveFile(targetElement.resource).then((targetStat: IFileStat) => {
