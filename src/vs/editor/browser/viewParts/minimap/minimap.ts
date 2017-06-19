@@ -290,6 +290,29 @@ class RenderData {
 		this._renderedLines._set(renderedLayout.startLineNumber, lines);
 	}
 
+	/**
+	 * Check if the current RenderData matches accurately the new desired layout and no painting is needed.
+	 */
+	public linesEquals(layout: MinimapLayout): boolean {
+		if (this.renderedLayout.startLineNumber !== layout.startLineNumber) {
+			return false;
+		}
+		if (this.renderedLayout.endLineNumber !== layout.endLineNumber) {
+			return false;
+		}
+
+		const tmp = this._renderedLines._get();
+		const lines = tmp.lines;
+		for (let i = 0, len = lines.length; i < len; i++) {
+			if (lines[i].dy === -1) {
+				// This line is invalid
+				return false;
+			}
+		}
+
+		return true;
+	}
+
 	_get(): { imageData: ImageData; rendLineNumberStart: number; lines: MinimapLine[]; } {
 		let tmp = this._renderedLines._get();
 		return {
@@ -625,27 +648,10 @@ export class Minimap extends ViewPart {
 		const minimapLineHeight = getMinimapLineHeight(renderMinimap);
 
 		// Check if nothing changed w.r.t. lines from last frame
-		if (this._lastRenderData) {
+		if (this._lastRenderData && this._lastRenderData.linesEquals(layout)) {
 			const _lastData = this._lastRenderData._get();
-			const lastStartLineNumber = _lastData.rendLineNumberStart;
-			const lastLines = _lastData.lines;
-			const lastLinesLength = lastLines.length;
-
-			let linesNeedPainting = false;
-			for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-				const lastLineIndex = lineNumber - lastStartLineNumber;
-				const source_dy = (lastLineIndex >= 0 && lastLineIndex < lastLinesLength ? lastLines[lastLineIndex].dy : -1);
-
-				if (source_dy === -1) {
-					linesNeedPainting = true;
-					break;
-				}
-			}
-
-			if (!linesNeedPainting) {
-				// Nice!! Nothing changed from last frame
-				return new RenderData(layout, _lastData.imageData, _lastData.lines);
-			}
+			// Nice!! Nothing changed from last frame
+			return new RenderData(layout, _lastData.imageData, _lastData.lines);
 		}
 
 		// Oh well!! We need to repaint some lines...
