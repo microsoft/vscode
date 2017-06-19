@@ -57,7 +57,6 @@ export class ResourceLabel extends IconLabel {
 	private registerListeners(): void {
 		this.extensionService.onReady().then(() => this.render(true /* clear cache */)); // update when extensions are loaded with potentially new languages
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => this.render(true /* clear cache */))); // update when file.associations change
-		this.toDispose.push(this.contextService.onDidChangeWorkspaceRoots(() => this.render(true /* clear cache */))); // update when roots change
 	}
 
 	public setLabel(label: IEditorLabel, options?: IResourceLabelOptions): void {
