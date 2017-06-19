@@ -496,12 +496,18 @@ export class Thread implements IThread {
 				});
 			}
 
-			return session.exceptionInfo({ threadId: this.threadId }).then(exception => ({
-				id: exception.body.exceptionId,
-				description: exception.body.description,
-				breakMode: exception.body.breakMode,
-				details: exception.body.details
-			}));
+			return session.exceptionInfo({ threadId: this.threadId }).then(exception => {
+				if (!exception) {
+					return null;
+				}
+
+				return {
+					id: exception.body.exceptionId,
+					description: exception.body.description,
+					breakMode: exception.body.breakMode,
+					details: exception.body.details
+				};
+			});
 		}
 
 		return TPromise.as(null);
