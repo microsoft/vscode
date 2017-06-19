@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import { parse, ParseError } from 'vs/base/common/json';
 import { readFile } from 'vs/base/node/pfs';
-import { CharacterPair, LanguageConfiguration, IAutoClosingPair, IAutoClosingPairConditional, CommentRule } from 'vs/editor/common/modes/languageConfiguration';
+import { CharacterPair, LanguageConfiguration, IAutoClosingPair, IAutoClosingPairConditional, IndentationRule, CommentRule } from 'vs/editor/common/modes/languageConfiguration';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
@@ -21,12 +21,20 @@ interface IRegExp {
 	flags?: string;
 }
 
+interface IIndentationRules {
+	decreaseIndentPattern: string | IRegExp;
+	increaseIndentPattern: string | IRegExp;
+	indentNextLinePattern?: string | IRegExp;
+	unIndentedLinePattern?: string | IRegExp;
+}
+
 interface ILanguageConfiguration {
 	comments?: CommentRule;
 	brackets?: CharacterPair[];
 	autoClosingPairs?: (CharacterPair | IAutoClosingPairConditional)[];
 	surroundingPairs?: (CharacterPair | IAutoClosingPair)[];
 	wordPattern?: string | IRegExp;
+	indentationRules?: IIndentationRules;
 }
 
 export class LanguageConfigurationFileHandler {
@@ -92,26 +100,61 @@ export class LanguageConfigurationFileHandler {
 		}
 
 		if (configuration.wordPattern) {
-			let pattern = '';
-			let flags = '';
-
-			if (typeof configuration.wordPattern === 'string') {
-				pattern = configuration.wordPattern;
-			} else if (typeof configuration.wordPattern === 'object') {
-				pattern = configuration.wordPattern.pattern;
-				flags = configuration.wordPattern.flags;
-			}
-
-			if (pattern) {
-				try {
-					richEditConfig.wordPattern = new RegExp(pattern, flags);
-				} catch (error) {
-					// Malformed regexes are ignored
+			try {
+				let wordPattern = this._parseRegex(configuration.wordPattern);
+				if (wordPattern) {
+					richEditConfig.wordPattern = wordPattern;
 				}
+			} catch (error) {
+				// Malformed regexes are ignored
+			}
+		}
+
+		if (configuration.indentationRules) {
+			let indentationRules = this._mapIndentationRules(configuration.indentationRules);
+			if (indentationRules) {
+				richEditConfig.indentationRules = indentationRules;
 			}
 		}
 
 		LanguageConfigurationRegistry.register(languageIdentifier, richEditConfig);
+	}
+
+	private _parseRegex(value: string | IRegExp) {
+		if (typeof value === 'string') {
+			return new RegExp(value, '');
+		} else if (typeof value === 'object') {
+			return new RegExp(value.pattern, value.flags);
+		}
+
+		return null;
+	}
+
+	private _mapIndentationRules(indentationRules: IIndentationRules): IndentationRule {
+		try {
+			let increaseIndentPattern = this._parseRegex(indentationRules.increaseIndentPattern);
+			let decreaseIndentPattern = this._parseRegex(indentationRules.decreaseIndentPattern);
+
+			if (increaseIndentPattern && decreaseIndentPattern) {
+				let result: IndentationRule = {
+					increaseIndentPattern: increaseIndentPattern,
+					decreaseIndentPattern: decreaseIndentPattern
+				};
+
+				if (indentationRules.indentNextLinePattern) {
+					result.indentNextLinePattern = this._parseRegex(indentationRules.indentNextLinePattern);
+				}
+				if (indentationRules.unIndentedLinePattern) {
+					result.unIndentedLinePattern = this._parseRegex(indentationRules.unIndentedLinePattern);
+				}
+
+				return result;
+			}
+		} catch (error) {
+			// Malformed regexes are ignored
+		}
+
+		return null;
 	}
 
 	private _mapCharacterPairs(pairs: (CharacterPair | IAutoClosingPairConditional)[]): IAutoClosingPairConditional[] {
@@ -250,6 +293,88 @@ const schema: IJSONSchema = {
 					default: 'g',
 					pattern: '^([gimuy]+)$',
 					patternErrorMessage: nls.localize('schema.wordPattern.flags.errorMessage', 'Must match the pattern `/^([gimuy]+)$/`.')
+				}
+			}
+		},
+		indentationRules: {
+			default: {
+				increaseIndentPattern: '',
+				decreaseIndentPattern: ''
+			},
+			description: nls.localize('schema.indentationRules', 'The language\'s indentation settings.'),
+			type: 'object',
+			properties: {
+				increaseIndentPattern: {
+					type: ['string', 'object'],
+					description: nls.localize('schema.indentationRules.increaseIndentPattern', 'If a line matches this pattern, then all the lines after it should be indented once (until another rule matches).'),
+					properties: {
+						pattern: {
+							type: 'string',
+							description: nls.localize('schema.indentationRules.increaseIndentPattern.pattern', 'The RegExp pattern for increaseIndentPattern.'),
+							default: '',
+						},
+						flags: {
+							type: 'string',
+							description: nls.localize('schema.indentationRules.increaseIndentPattern.flags', 'The RegExp flags for increaseIndentPattern.'),
+							default: '',
+							pattern: '^([gimuy]+)$',
+							patternErrorMessage: nls.localize('schema.indentationRules.increaseIndentPattern.errorMessage', 'Must match the pattern `/^([gimuy]+)$/`.')
+						}
+					}
+				},
+				decreaseIndentPattern: {
+					type: ['string', 'object'],
+					description: nls.localize('schema.indentationRules.decreaseIndentPattern', 'If a line matches this pattern, then all the lines after it should be unindendented once (until another rule matches).'),
+					properties: {
+						pattern: {
+							type: 'string',
+							description: nls.localize('schema.indentationRules.decreaseIndentPattern.pattern', 'The RegExp pattern for decreaseIndentPattern.'),
+							default: '',
+						},
+						flags: {
+							type: 'string',
+							description: nls.localize('schema.indentationRules.decreaseIndentPattern.flags', 'The RegExp flags for decreaseIndentPattern.'),
+							default: '',
+							pattern: '^([gimuy]+)$',
+							patternErrorMessage: nls.localize('schema.indentationRules.decreaseIndentPattern.errorMessage', 'Must match the pattern `/^([gimuy]+)$/`.')
+						}
+					}
+				},
+				indentNextLinePattern: {
+					type: ['string', 'object'],
+					description: nls.localize('schema.indentationRules.indentNextLinePattern', 'If a line matches this pattern, then **only the next line** after it should be indented once.'),
+					properties: {
+						pattern: {
+							type: 'string',
+							description: nls.localize('schema.indentationRules.indentNextLinePattern.pattern', 'The RegExp pattern for indentNextLinePattern.'),
+							default: '',
+						},
+						flags: {
+							type: 'string',
+							description: nls.localize('schema.indentationRules.indentNextLinePattern.flags', 'The RegExp flags for indentNextLinePattern.'),
+							default: '',
+							pattern: '^([gimuy]+)$',
+							patternErrorMessage: nls.localize('schema.indentationRules.indentNextLinePattern.errorMessage', 'Must match the pattern `/^([gimuy]+)$/`.')
+						}
+					}
+				},
+				unIndentedLinePattern: {
+					type: ['string', 'object'],
+					description: nls.localize('schema.indentationRules.unIndentedLinePattern', 'If a line matches this pattern, then its indentation should not be changed and it should not be evaluated against the other rules.'),
+					properties: {
+						pattern: {
+							type: 'string',
+							description: nls.localize('schema.indentationRules.unIndentedLinePattern.pattern', 'The RegExp pattern for unIndentedLinePattern.'),
+							default: '',
+						},
+						flags: {
+							type: 'string',
+							description: nls.localize('schema.indentationRules.unIndentedLinePattern.flags', 'The RegExp flags for unIndentedLinePattern.'),
+							default: '',
+							pattern: '^([gimuy]+)$',
+							patternErrorMessage: nls.localize('schema.indentationRules.unIndentedLinePattern.errorMessage', 'Must match the pattern `/^([gimuy]+)$/`.')
+						}
+					}
 				}
 			}
 		}
