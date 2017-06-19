@@ -73,8 +73,7 @@
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/common/**",
-					"**/vs/base/browser/**"
+					"**/vs/base/{common,browser}/**"
 				]
 			},
 			{
@@ -83,10 +82,8 @@
 				"restrictions": [
 					"assert",
 					"vs/nls",
-					"**/vs/base/common/**",
-					"**/vs/base/test/common/**",
-					"**/vs/base/browser/**",
-					"**/vs/base/test/browser/**"
+					"**/vs/base/{common,browser}/**",
+					"**/vs/base/test/{common,browser}/**"
 				]
 			},
 			{
@@ -101,11 +98,9 @@
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/common/**",
-					"**/vs/base/browser/**",
+					"**/vs/base/{common,browser}/**",
 					"**/vs/base/parts/tree/browser/**",
-					"**/vs/base/parts/quickopen/common/**",
-					"**/vs/base/parts/quickopen/browser/**"
+					"**/vs/base/parts/quickopen/{common,browser}/**"
 				]
 			},
 			{
@@ -113,8 +108,7 @@
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/common/**",
-					"**/vs/base/browser/**",
+					"**/vs/base/{common,browser}/**",
 					"**/vs/base/parts/tree/browser/**"
 				]
 			},
@@ -167,13 +161,10 @@
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/common/**",
-					"**/vs/base/browser/**",
-					"**/vs/platform/*/common/**",
-					"**/vs/platform/*/browser/**",
+					"**/vs/base/{common,browser}/**",
+					"**/vs/platform/*/{common,browser}/**",
 					"**/vs/platform/platform",
-					"**/vs/editor/common/**",
-					"**/vs/editor/browser/**",
+					"**/vs/editor/{common,browser}/**",
 					"vs/editor/contrib/diffNavigator/common/diffNavigator" // TODO@Alex
 				]
 			},
@@ -184,7 +175,8 @@
 					"vs/css!./**/*",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/base/parts/{tree,quickopen}/{common,browser}/**",
-					"**/vs/platform/**/{common,browser}/**",
+					"**/vs/platform/*/{common,browser}/**",
+					"**/vs/platform/*/test/{common,browser}/**",
 					"**/vs/editor/**",
 					"assert"
 				]
