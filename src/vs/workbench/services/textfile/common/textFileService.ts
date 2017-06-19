@@ -16,7 +16,6 @@ import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IRevertOptions, IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ISaveOptions, ModelState } from 'vs/workbench/services/textfile/common/textfiles';
 import { ConfirmResult } from 'vs/workbench/common/editor';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IFileService, IResolveContentOptions, IFilesConfiguration, IFileOperationResult, FileOperationResult, AutoSaveConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
@@ -69,7 +68,6 @@ export abstract class TextFileService implements ITextFileService {
 		@IMessageService private messageService: IMessageService,
 		@IEnvironmentService protected environmentService: IEnvironmentService,
 		@IBackupFileService private backupFileService: IBackupFileService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWindowsService private windowsService: IWindowsService
 	) {
 		this.toUnbind = [];
