@@ -22,7 +22,14 @@ export class SharedProcess implements ISharedProcess {
 
 	@memoize
 	private get _whenReady(): TPromise<void> {
-		this.window = new BrowserWindow({ show: false });
+		this.window = new BrowserWindow({
+			show: false,
+			webPreferences: {
+				images: false,
+				webaudio: false,
+				webgl: false
+			}
+		});
 		const config = assign({
 			appRoot: this.environmentService.appRoot,
 			nodeCachedDataDir: this.environmentService.nodeCachedDataDir,

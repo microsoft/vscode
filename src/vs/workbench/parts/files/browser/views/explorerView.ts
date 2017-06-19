@@ -200,7 +200,7 @@ export class ExplorerView extends CollapsibleView {
 			this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = activeFile.toString();
 
 			// Select file if input is inside workspace
-			if (this.isVisible && this.contextService.isInsideWorkspace(activeFile)) {
+			if (this.isVisible() && this.contextService.isInsideWorkspace(activeFile)) {
 				const selection = this.hasSelection(activeFile);
 				if (!selection) {
 					this.select(activeFile).done(null, errors.onUnexpectedError);
@@ -632,7 +632,7 @@ export class ExplorerView extends CollapsibleView {
 	}
 
 	private refreshFromEvent(): void {
-		if (this.isVisible) {
+		if (this.isVisible()) {
 			this.explorerRefreshDelayer.trigger(() => {
 				if (!this.explorerViewer.getHighlight()) {
 					return this.doRefresh();

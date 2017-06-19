@@ -9,7 +9,7 @@ import URI from 'vs/base/common/uri';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import nls = require('vs/nls');
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -105,7 +105,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerFileInputFactory(
 
 interface ISerializedFileInput {
 	resource: string;
-	resourceJSON: any;
+	resourceJSON: object;
 	encoding?: string;
 }
 
@@ -274,6 +274,11 @@ configurationRegistry.registerConfiguration({
 				nls.localize('hotExit.onExitAndWindowClose', 'Hot exit will be triggered when the application is closed, that is when the last window is closed on Windows/Linux or when the workbench.action.quit command is triggered (command palette, keybinding, menu), and also for any window with a folder opened regardless of whether it\'s the last window. All windows without folders opened will be restored upon next launch. To restore folder windows as they were before shutdown set "window.restoreWindows" to "all".')
 			],
 			'description': nls.localize('hotExit', "Controls whether unsaved files are remembered between sessions, allowing the save prompt when exiting the editor to be skipped.", HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE)
+		},
+		'files.useExperimentalFileWatcher': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('useExperimentalFileWatcher', "Use the new experimental file watcher.")
 		},
 		'files.defaultLanguage': {
 			'type': 'string',

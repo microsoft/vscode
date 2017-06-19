@@ -12,7 +12,7 @@
 	"focusBorder": "Cor geral da borda para elementos focalizados. Essa cor é usada somente se não for substituída por um componente.",
 	"contrastBorder": "Uma borda extra em torno de elementos para separá-los dos outros de maior contraste.",
 	"activeContrastBorder": "Uma borda extra em torno de elementos ativos para separá-los dos outros de maior contraste.",
-	"selectionBackground": "A cor de fundo das seleções de texto na bancada de trabalho (por exemplo, para campos de entrada ou áreas de texto). Note que isto não se aplica a seleções dentro do editor e do terminal.",
+	"selectionBackground": "A cor de fundo das seleções de texto na área de trabalho (por exemplo, para campos de entrada ou áreas de texto). Note que isto não se aplica a seleções dentro do editor.",
 	"textSeparatorForeground": "Cor para separadores de texto.",
 	"textLinkForeground": "Cor de primeiro plano para links no texto.",
 	"textLinkActiveForeground": "Cor de primeiro plano para links ativos no texto.",
@@ -60,6 +60,7 @@
 	"editorBackground": "Cor de plano de fundo do editor.",
 	"editorForeground": "Cor de primeiro plano padrão do editor.",
 	"editorWidgetBackground": "Cor de plano de fundo das ferramentas de edição, como pesquisar/substituir.",
+	"editorWidgetBorder": "Cor da borda das ferramentas do editor. A cor é usada somente se a ferramenta escolhe ter uma borda e a cor não é substituída por uma ferramenta.",
 	"editorSelection": "Cor de seleção do editor.",
 	"editorInactiveSelection": "Cor de seleção em um editor inativo.",
 	"editorSelectionHighlight": "Cor de regiões com o mesmo conteúdo da seleção.",
@@ -78,6 +79,7 @@
 	"mergeCurrentContentBackground": "Cor de fundo de conteúdo atual em conflito de mesclagem em linha.",
 	"mergeIncomingHeaderBackground": "Cor de fundo de cabeçalho de entrada em conflito de mesclagem em linha.",
 	"mergeIncomingContentBackground": "Cor de fundo de conteúdo de entrada em conflito de mesclagem em linha.",
+	"mergeBorder": "Cor da borda dos cabeçalhos e separadores estão em conflito de mesclagem em linha.",
 	"overviewRulerCurrentContentForeground": "Cor de fundo de régua de visuaização atual em conflito de mesclagem em linha.",
 	"overviewRulerIncomingContentForeground": "Cor de fundo de régua de visuaização de entrada em conflito de mesclagem em linha."
 }

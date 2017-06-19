@@ -20,7 +20,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { once } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -74,7 +74,7 @@ export class EditorState {
 
 interface ISerializedFileHistoryEntry {
 	resource?: string;
-	resourceJSON: any;
+	resourceJSON: object;
 }
 
 export abstract class BaseHistoryService {

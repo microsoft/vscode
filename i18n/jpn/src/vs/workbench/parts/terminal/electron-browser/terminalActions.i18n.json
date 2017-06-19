@@ -6,9 +6,10 @@
 {
 	"workbench.action.terminal.toggleTerminal": "統合ターミナルの切り替え",
 	"workbench.action.terminal.kill": "アクティブな端末インスタンスを強制終了",
-	"workbench.action.terminal.kill.short": "端末の強制終了",
+	"workbench.action.terminal.kill.short": "ターミナルの強制終了",
 	"workbench.action.terminal.copySelection": "選択内容のコピー",
-	"workbench.action.terminal.new": "新しい統合端末の作成",
+	"workbench.action.terminal.selectAll": "すべて選択",
+	"workbench.action.terminal.new": "新しい統合ターミナルの作成",
 	"workbench.action.terminal.new.short": "新しいターミナル",
 	"workbench.action.terminal.focus": "端末にフォーカス",
 	"workbench.action.terminal.focusNext": "次の端末にフォーカス",
@@ -19,7 +20,7 @@
 	"workbench.action.terminal.runSelectedText": "アクティブなターミナルで選択したテキストを実行",
 	"workbench.action.terminal.runActiveFile": "アクティブなファイルをアクティブなターミナルで実行",
 	"workbench.action.terminal.runActiveFile.noFile": "ターミナルで実行できるのは、ディスク上のファイルのみです",
-	"workbench.action.terminal.switchTerminalInstance": "端末インスタンスをスイッチ",
+	"workbench.action.terminal.switchTerminalInstance": "ターミナル インスタンスの切り替え",
 	"workbench.action.terminal.scrollDown": "下にスクロール (行)",
 	"workbench.action.terminal.scrollDownPage": "スクロール ダウン (ページ)",
 	"workbench.action.terminal.scrollToBottom": "一番下にスクロール",
@@ -28,5 +29,6 @@
 	"workbench.action.terminal.scrollToTop": "一番上にスクロール",
 	"workbench.action.terminal.clear": "クリア",
 	"workbench.action.terminal.allowWorkspaceShell": "ワークスペースでシェルを構成することを許可する",
-	"workbench.action.terminal.disallowWorkspaceShell": "ワークスペースでシェルを構成することを許可しない"
+	"workbench.action.terminal.disallowWorkspaceShell": "ワークスペースでシェルを構成することを許可しない",
+	"workbench.action.terminal.rename": "名前変更"
 }

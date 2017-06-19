@@ -37,7 +37,6 @@ import { ResolvedKeybinding, Keybinding, createKeybinding, SimpleKeybinding } fr
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { OS } from 'vs/base/common/platform';
 import { IRange } from 'vs/editor/common/core/range';
-import { generateUuid } from "vs/base/common/uuid";
 
 export class SimpleEditor implements IEditor {
 
@@ -514,8 +513,9 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 	private readonly workspace: IWorkspace;
 
 	constructor() {
-		this.legacyWorkspace = { resource: URI.from({ scheme: SimpleWorkspaceContextService.SCHEME, authority: 'model', path: '/' }), ctime: Date.now() };
-		this.workspace = { id: generateUuid(), roots: [this.legacyWorkspace.resource], name: this.legacyWorkspace.resource.fsPath };
+		this.legacyWorkspace = { resource: URI.from({ scheme: SimpleWorkspaceContextService.SCHEME, authority: 'model', path: '/' }) };
+		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', roots: [this.legacyWorkspace.resource], name: this.legacyWorkspace.resource.fsPath };
+		console.log(this.workspace);
 	}
 
 	public getWorkspace(): ILegacyWorkspace {

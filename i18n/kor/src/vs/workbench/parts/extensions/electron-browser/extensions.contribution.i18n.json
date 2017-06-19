@@ -10,5 +10,6 @@
 	"extensions": "확장",
 	"view": "보기",
 	"extensionsConfigurationTitle": "확장",
-	"extensionsAutoUpdate": "자동으로 확장 업데이트"
+	"extensionsAutoUpdate": "자동으로 확장 업데이트",
+	"extensionsIgnoreRecommendations": "확장 권장 사항 무시"
 }

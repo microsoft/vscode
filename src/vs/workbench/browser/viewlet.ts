@@ -7,7 +7,7 @@ import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import DOM = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import { Action } from 'vs/base/common/actions';
 import { ITree, IFocusEvent, ISelectionEvent } from 'vs/base/parts/tree/browser/tree';

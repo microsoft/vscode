@@ -31,10 +31,6 @@
 	"window.openFoldersInNewWindow.off": "Les dossiers remplacent la dernière fenêtre active",
 	"window.openFoldersInNewWindow.default": "Les dossiers s'ouvrent dans une nouvelle fenêtre, sauf si un dossier est sélectionné depuis l'application (par exemple, via le menu Fichier)",
 	"openFoldersInNewWindow": "Contrôle si les dossiers doivent s'ouvrir dans une nouvelle fenêtre ou remplacer la dernière fenêtre active.\n- default : les dossiers s'ouvrent dans une nouvelle fenêtre, sauf si un dossier est sélectionné depuis l'application (par exemple, via le menu Fichier)\n- on : les dossiers s'ouvrent dans une nouvelle fenêtre\n- off : les dossiers remplacent la dernière fenêtre active\nNotez que dans certains cas, ce paramètre est ignoré (par exemple, quand vous utilisez l'option de ligne de commande -new-window ou -reuse-window).",
-	"window.reopenFolders.none": "Permet de ne jamais rouvrir un dossier.",
-	"window.reopenFolders.one": "Permet de rouvrir le dernier dossier actif.",
-	"window.reopenFolders.all": "Permet de rouvrir tous les dossiers de la dernière session.",
-	"reopenFolders": "Contrôle la façon dont les dossiers sont rouverts après un redémarrage. Sélectionnez 'none' pour ne jamais rouvrir un dossier, 'one' pour rouvrir le dernier dossier utilisé, ou 'all' pour rouvrir tous les dossiers de votre dernière session.",
 	"restoreFullscreen": "Contrôle si une fenêtre doit être restaurée en mode plein écran si elle a été fermée dans ce mode.",
 	"zoomLevel": "Modifiez le niveau de zoom de la fenêtre. La taille d'origine est 0. Chaque incrément supérieur (exemple : 1) ou inférieur (exemple : -1) représente un zoom 20 % plus gros ou plus petit. Vous pouvez également entrer des décimales pour changer le niveau de zoom avec une granularité plus fine.",
 	"title": "Contrôle le titre de la fenêtre en fonction de l'éditeur actif. Les variables sont remplacées en fonction du contexte :\n${activeEditorShort} : exemple : myFile.txt\n${activeEditorMedium} : exemple : myFolder/myFile.txt\n${activeEditorLong} : exemple : /Users/Development/myProject/myFolder/myFile.txt\n${rootName} : exemple : myProject\n${rootPath} : exemple : /Users/Development/myProject\n${appName} : exemple : VS Code\n${dirty} : indicateur d'intégrité si l'intégrité de l'éditeur actif est compromise\n${separator} : séparateur conditionnel (\" - \") qui s'affiche uniquement quand il est entouré de variables avec des valeurs",
@@ -42,11 +38,13 @@
 	"window.newWindowDimensions.inherit": "Permet d'ouvrir les nouvelles fenêtres avec la même dimension que la dernière fenêtre active.",
 	"window.newWindowDimensions.maximized": "Permet d'ouvrir les nouvelles fenêtres de manière agrandie.",
 	"window.newWindowDimensions.fullscreen": "Permet d'ouvrir les nouvelles fenêtres en mode plein écran.",
+	"newWindowDimensions": "Contrôle les dimensions d'ouverture d'une nouvelle fenêtre quand au moins une fenêtre est déjà ouverte. Par défaut, une nouvelle fenêtre s'ouvre au centre de l'écran avec des dimensions réduites. Quand la valeur est 'inherit', la fenêtre a les mêmes dimensions que la dernière fenêtre active. Quand la valeur est 'maximized', la fenêtre s'ouvre dans sa taille maximale et quand la valeur est 'fullscreen', elle s'ouvre en mode plein écran. Notez que ce paramètre n'a aucun impact sur la première fenêtre ouverte, laquelle est toujours restaurée à la taille et l'emplacement définis au moment de sa fermeture.",
 	"window.menuBarVisibility.default": "Le menu n'est masqué qu'en mode plein écran.",
 	"window.menuBarVisibility.visible": "Le menu est toujours visible même en mode plein écran.",
 	"window.menuBarVisibility.toggle": "Le menu est masqué mais il peut être affiché via la touche Alt.",
 	"window.menuBarVisibility.hidden": "Le menu est toujours masqué.",
 	"menuBarVisibility": "Contrôle la visibilité de la barre de menus. Le paramètre 'toggle' signifie que la barre de menus est masquée, et qu'une seule pression sur la touche Alt permet de l'afficher. Par défaut, la barre de menus est visible, sauf si la fenêtre est en mode plein écran.",
+	"enableMenuBarMnemonics": "S'ils sont activés, les menus principaux peuvent être ouverts via des raccourcis avec la touche Alt. La désactivation des mnémoniques permet plutôt de lier ces raccourcis avec la touche Alt aux commandes de l'éditeur.",
 	"autoDetectHighContrast": "Si cette option est activée, le thème à contraste élevé est automatiquement choisi quand Windows utilise un thème à contraste élevé. À l'inverse, le thème sombre est automatiquement choisi quand Windows n'utilise plus le thème à contraste élevé.",
 	"titleBarStyle": "Ajustez l'apparence de la barre de titre de la fenêtre. Vous devez effectuer un redémarrage complet pour que les changements soient appliqués.",
 	"window.nativeTabs": "Active les onglets macOS Sierra. Notez que vous devez redémarrer l'ordinateur pour appliquer les modifications et que les onglets natifs désactivent tout style de barre de titre personnalisé configuré, le cas échéant.",
@@ -56,5 +54,7 @@
 	"zenMode.hideTabs": "Contrôle si l'activation du mode Zen masque également les onglets du banc d'essai.",
 	"zenMode.hideStatusBar": "Contrôle si l'activation du mode Zen masque également la barre d'état au bas du banc d'essai.",
 	"zenMode.hideActivityBar": "Contrôle si l'activation du mode Zen masque également la barre d'activités à gauche du banc d'essai.",
-	"zenMode.restore": "Contrôle si une fenêtre doit être restaurée en mode zen, si elle a été fermée en mode zen."
+	"zenMode.restore": "Contrôle si une fenêtre doit être restaurée en mode zen, si elle a été fermée en mode zen.",
+	"workspaceConfigurationTitle": "Espace de travail",
+	"files.exclude.boolean": "Modèle Glob auquel les chemins de fichiers doivent correspondre. Affectez la valeur true ou false pour activer ou désactiver le modèle."
 }

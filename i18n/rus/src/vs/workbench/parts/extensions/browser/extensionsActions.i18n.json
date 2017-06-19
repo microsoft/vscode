@@ -22,6 +22,8 @@
 	"disableGloballyAction": "Всегда",
 	"disableAction": "Отключить",
 	"checkForUpdates": "Проверка обновлений",
+	"enableAutoUpdate": "Включить автоматическое обновление расширений",
+	"disableAutoUpdate": "Отключить автоматическое обновление расширений",
 	"updateAll": "Обновить все расширения",
 	"reloadAction": "Перезагрузка",
 	"postUpdateTooltip": "Обновление окна для обновления",
@@ -44,6 +46,8 @@
 	"showWorkspaceRecommendedExtensions": "Показать рекомендуемые расширения рабочей области",
 	"showRecommendedKeymapExtensions": "Показать рекомендуемые раскладки клавиатуры",
 	"showRecommendedKeymapExtensionsShort": "Раскладки клавиатуры",
+	"showLanguageExtensions": "Показать расширения языка",
+	"showLanguageExtensionsShort": "Расширения языка",
 	"configureWorkspaceRecommendedExtensions": "Настроить рекомендуемые расширения (рабочая область)",
 	"ConfigureWorkspaceRecommendations.noWorkspace": "Рекомендации доступны только для папки рабочей области.",
 	"OpenExtensionsFile.failed": "Не удается создать файл \"extensions.json\" в папке \".vscode\" ({0}).",
@@ -51,5 +55,8 @@
 	"disableAll": "Отключить все установленные расширения",
 	"disableAllWorkspace": "Отключить все установленные расширения для этой рабочей области",
 	"enableAll": "Включить все установленные расширения",
-	"enableAllWorkspace": "Включить все установленные расширения для этой рабочей области"
+	"enableAllWorkspace": "Включить все установленные расширения для этой рабочей области",
+	"extensionButtonProminentBackground": "Цвет фона кнопок, соответствующих основным действиям расширения (например, кнопка \"Установить\").",
+	"extensionButtonProminentForeground": "Цвет переднего плана кнопок, соответствующих основным действиям расширения (например, кнопка \"Установить\").",
+	"extensionButtonProminentHoverBackground": "Цвет фона кнопок, соответствующих основным действиям расширения, при наведении мыши (например, кнопка \"Установить\")."
 }

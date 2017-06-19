@@ -6,9 +6,6 @@
 {
 	"closeActiveEditor": "Chiudi editor",
 	"closeWindow": "Chiudi finestra",
-	"switchWindow": "Cambia finestra",
-	"switchWindowPlaceHolder": "Selezionare una finestra",
-	"current": "Finestra corrente",
 	"closeFolder": "Chiudi cartella",
 	"noFolderOpened": "In questa istanza non ci sono attualmente cartelle aperte da chiudere.",
 	"newWindow": "Nuova finestra",
@@ -20,7 +17,7 @@
 	"zoomReset": "Reimposta zoom",
 	"appPerf": "Prestazioni all'avvio",
 	"reloadWindow": "Ricarica finestra",
-	"openRecent": "Apri recenti",
+	"current": "Finestra corrente",
 	"folders": "cartelle",
 	"files": "file",
 	"openRecentPlaceHolderMac": "Selezionare un percorso (tenere premuto CMD per aprirlo in una nuova finestra)",
@@ -32,10 +29,6 @@
 	"openDocumentationUrl": "Documentazione",
 	"openIntroductoryVideosUrl": "Video introduttivi",
 	"toggleSharedProcess": "Attiva/Disattiva processo condiviso",
-	"navigateLeft": "Passa alla visualizzazione a sinistra",
-	"navigateRight": "Passa alla visualizzazione a destra",
-	"navigateUp": "Passa alla visualizzazione in alto",
-	"navigateDown": "Passa alla visualizzazione in basso",
 	"increaseViewSize": "Aumenta la dimensione della visualizzazione corrente",
 	"decreaseViewSize": "Diminuisce la dimensione della visualizzazione corrente"
 }

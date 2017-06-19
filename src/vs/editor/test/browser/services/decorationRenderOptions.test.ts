@@ -9,7 +9,7 @@ import URI from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
 import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
-import { TestThemeService, TestTheme } from 'vs/workbench/test/workbenchTestServices';
+import { TestTheme, TestThemeService } from "vs/platform/theme/test/common/testThemeService";
 
 const themeServiceMock = new TestThemeService();
 

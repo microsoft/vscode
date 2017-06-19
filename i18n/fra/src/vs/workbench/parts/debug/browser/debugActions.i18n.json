@@ -6,6 +6,7 @@
 {
 	"openLaunchJson": "Ouvrir {0}",
 	"launchJsonNeedsConfigurtion": "Configurer ou corriger 'launch.json'",
+	"noFolderDebugConfig": "Ouvrez d'abord un dossier pour effectuer une configuration de débogage avancée.",
 	"startDebug": "Démarrer le débogage",
 	"startWithoutDebugging": "Exécuter sans débogage",
 	"selectAndStartDebugging": "Sélectionner et démarrer le débogage",

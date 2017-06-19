@@ -335,6 +335,7 @@ export class StackFrame implements IStackFrame {
 		public frameId: number,
 		public source: Source,
 		public name: string,
+		public presentationHint: string,
 		public range: IRange,
 		private index: number
 	) {
@@ -458,16 +459,14 @@ export class Thread implements IThread {
 			}
 
 			return response.body.stackFrames.map((rsf, index) => {
-				let source = new Source(rsf.source, rsf.source ? rsf.source.presentationHint : rsf.presentationHint);
+				let source = new Source(rsf.source);
 				if (this.process.sources.has(source.uri.toString())) {
-					const alreadyCreatedSource = this.process.sources.get(source.uri.toString());
-					alreadyCreatedSource.presentationHint = source.presentationHint;
-					source = alreadyCreatedSource;
+					source = this.process.sources.get(source.uri.toString());
 				} else {
 					this.process.sources.set(source.uri.toString(), source);
 				}
 
-				return new StackFrame(this, rsf.id, source, rsf.name, new Range(
+				return new StackFrame(this, rsf.id, source, rsf.name, rsf.presentationHint, new Range(
 					rsf.line,
 					rsf.column,
 					rsf.endLine,
@@ -496,12 +495,18 @@ export class Thread implements IThread {
 				});
 			}
 
-			return session.exceptionInfo({ threadId: this.threadId }).then(exception => ({
-				id: exception.body.exceptionId,
-				description: exception.body.description,
-				breakMode: exception.body.breakMode,
-				details: exception.body.details
-			}));
+			return session.exceptionInfo({ threadId: this.threadId }).then(exception => {
+				if (!exception) {
+					return null;
+				}
+
+				return {
+					id: exception.body.exceptionId,
+					description: exception.body.description,
+					breakMode: exception.body.breakMode,
+					details: exception.body.details
+				};
+			});
 		}
 
 		return TPromise.as(null);
@@ -809,24 +814,22 @@ export class Model implements IModel {
 		}
 	}
 
-	public fetchCallStack(thread: IThread): TPromise<void> {
-		return (<Thread>thread).fetchCallStack(1).then(() => {
-			if (!this.schedulers.has(thread.getId())) {
-				this.schedulers.set(thread.getId(), new RunOnceScheduler(() => {
-					const callStack = thread.getCallStack();
-					// Some adapters might not respect the number levels in StackTraceRequest and might
-					// return more stackFrames than requested. For those do not send an additional stackTrace request.
-					if (callStack.length <= 1) {
-						(<Thread>thread).fetchCallStack(19).done(() => {
-							this._onDidChangeCallStack.fire();
-						}, errors.onUnexpectedError);
-					}
-				}, 420));
-			}
+	public fetchCallStack(thread: Thread): TPromise<void> {
+		if (thread.process.session.capabilities.supportsDelayedStackTraceLoading) {
+			// For improved performance load the first stack frame and then load the rest async.
+			return thread.fetchCallStack(1).then(() => {
+				if (!this.schedulers.has(thread.getId())) {
+					this.schedulers.set(thread.getId(), new RunOnceScheduler(() => {
+						thread.fetchCallStack(19).done(() => this._onDidChangeCallStack.fire(), errors.onUnexpectedError);
+					}, 420));
+				}
 
-			this.schedulers.get(thread.getId()).schedule();
-			this._onDidChangeCallStack.fire();
-		});
+				this.schedulers.get(thread.getId()).schedule();
+				this._onDidChangeCallStack.fire();
+			});
+		}
+
+		return thread.fetchCallStack();
 	}
 
 	public getBreakpoints(): Breakpoint[] {
@@ -1048,10 +1051,10 @@ export class Model implements IModel {
 		this._onDidChangeWatchExpressions.fire();
 	}
 
-	public deemphasizeSource(uri: uri): void {
+	public sourceIsNotAvailable(uri: uri): void {
 		this.processes.forEach(p => {
 			if (p.sources.has(uri.toString())) {
-				p.sources.get(uri.toString()).presentationHint = 'deemphasize';
+				p.sources.get(uri.toString()).available = false;
 			}
 		});
 		this._onDidChangeCallStack.fire();

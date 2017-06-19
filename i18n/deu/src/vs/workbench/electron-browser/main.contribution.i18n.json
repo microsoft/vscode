@@ -31,10 +31,6 @@
 	"window.openFoldersInNewWindow.off": "Ordner ersetzen das letzte aktive Fenster.",
 	"window.openFoldersInNewWindow.default": "Ordner werden in einem neuen Fenster geöffnet, sofern kein Ordner innerhalb der Anwendung ausgewählt wird (z. B. über das Dateimenü).",
 	"openFoldersInNewWindow": "Steuert, ob Ordner in einem neuen Fenster geöffnet werden oder das letzte aktive Fenster ersetzen.\n- default: Die Ordner werden in einem neuen Fenster geöffnet, sofern kein Ordner innerhalb der Anwendung ausgewählt wird (z. B. über das Dateimenü).\n- on: Die Ordner werden in einem neuen Fenster geöffnet.\n- off: Die Ordner ersetzen das letzte aktive Fenster.\nIn einigen Fällen wird diese Einstellung unter Umständen ignoriert (z. B. bei der Befehlszeilenoption \"-new-window\" oder \"-reuse-window\").",
-	"window.reopenFolders.none": "Ordner nie erneut öffnen.",
-	"window.reopenFolders.one": "Den letzten aktiven Ordner erneut öffnen.",
-	"window.reopenFolders.all": "Alle Ordner der letzten Sitzung erneut öffnen.",
-	"reopenFolders": "Steuert, wie Ordner nach einem Neustart erneut geöffnet werden. Wählen Sie \"none\" aus, um Ordner nie erneut zu öffnen, \"one\", um den zuletzt bearbeiteten Ordner erneut zu öffnen, oder \"all\", um alle Ordner der letzten Sitzung erneut zu öffnen.",
 	"restoreFullscreen": "Steuert, ob ein Fenster im Vollbildmodus wiederhergestellt wird, wenn es im Vollbildmodus beendet wurde.",
 	"zoomLevel": "Passen Sie den Zoomfaktor des Fensters an. Die ursprüngliche Größe ist 0. Jede Inkrementierung nach oben (z. B. 1) oder unten (z. B. -1) stellt eine Vergrößerung bzw. Verkleinerung um 20 % dar. Sie können auch Dezimalwerte eingeben, um den Zoomfaktor genauer anzupassen.",
 	"title": "Steuert den Fenstertitel abhängig vom aktiven Editor. Variablen werden abhängig vom Kontext ersetzt:\n${activeEditorShort}: z. B. myFile.txt\n${activeEditorMedium}: z. B. myFolder/myFile.txt\n${activeEditorLong}: z. B. /Users/Development/myProject/myFolder/myFile.txt\n${rootName}: z. B. myProject\n${rootPath}: z. B. /Users/Development/myProject\n${appName}: z. B. VS Code\n${dirty}: ein geänderter Indikator, wenn der aktive Editor geändert wurde\n${separator}: ein bedingtes Trennzeichen (\" - \"), das nur in der Umgebung von Variablen mit Werten angezeigt wird",
@@ -42,11 +38,13 @@
 	"window.newWindowDimensions.inherit": "Öffnet neue Fenster mit den gleichen Abmessungen wie das letzte aktive Fenster.",
 	"window.newWindowDimensions.maximized": "Öffnet neue Fenster maximiert.",
 	"window.newWindowDimensions.fullscreen": "Öffnet neue Fenster im Vollbildmodus.",
+	"newWindowDimensions": "Steuert die Abmessungen beim Öffnen eines neuen Fensters. Standardmäßig wird in der Mitte des Bildschirms ein neues Fenster mit kleinen Abmessungen geöffnet. Bei der Einstellung \"inherit\" erhält das Fenster die gleichen Abmessungen wie das letzte aktive Fenster. Bei der Einstellung \"maximized\" wird das Fenster maximiert geöffnet, und bei \"fullscreen\" wird es im Vollbildmodus geöffnet. Die Einstellung hat keine Auswirkungen auf das zuerst geöffnete Fenster. Größe und Position des ersten Fensters werden immer so wiederhergestellt, wie sie vor dem Schließen waren.",
 	"window.menuBarVisibility.default": "Das Menü ist nur im Vollbildmodus ausgeblendet.",
 	"window.menuBarVisibility.visible": "Das Menu wird immer angezeigt, auch im Vollbildmodus.",
 	"window.menuBarVisibility.toggle": "Das Menu ist ausgeblendet, kann aber mit der Alt-Taste angezeigt werden.",
 	"window.menuBarVisibility.hidden": "Das Menü ist immer ausgeblendet.",
 	"menuBarVisibility": "Steuert die Sichtbarkeit der Menüleiste. Die Einstellung \"Umschalten\" bedeutet, dass die Menüleiste durch einfaches Betätigen der ALT-Taste angezeigt und ausgeblendet wird. Die Menüleite wird standardmäßig angezeigt, sofern sich das Fenster nicht im Vollbildmodus befindet.",
+	"enableMenuBarMnemonics": "Ist dies aktiviert, können die Hauptmenüs mithilfe von Tastenkombinationen mit der Alt-Taste geöffnet werden. Wenn mnemonische Zeichen deaktiviert werden, können diese Tastenkombinationen mit der Alt-Taste stattdessen an Editor-Befehle gebunden werden.",
 	"autoDetectHighContrast": "Ist diese Option aktiviert, erfolgt automatisch ein Wechsel zu einem Design mit hohem Kontrast, wenn Windows ein Design mit hohem Kontrast verwendet, und zu einem dunklen Design, wenn Sie für Windows kein Design mit hohem Kontrast mehr verwenden.",
 	"titleBarStyle": "Passt das Aussehen der Titelleiste des Fensters an. Zum Anwenden der Änderungen ist ein vollständiger Neustart erforderlich.",
 	"window.nativeTabs": "Aktiviert MacOS Sierra-Fensterregisterkarten. Beachten Sie, dass zum Übernehmen von Änderungen ein vollständiger Neustart erforderlich ist und durch ggf. konfigurierte native Registerkarten ein benutzerdefinierter Titelleistenstil deaktiviert wird.",
@@ -56,5 +54,7 @@
 	"zenMode.hideTabs": "Steuert, ob die Workbench-Registerkarten durch Aktivieren des Zen-Modus ebenfalls ausgeblendet werden.",
 	"zenMode.hideStatusBar": "Steuert, ob die Statusleiste im unteren Bereich der Workbench durch Aktivieren des Zen-Modus ebenfalls ausgeblendet wird.",
 	"zenMode.hideActivityBar": "Steuert, ob die Aktivitätsleiste im linken Bereich der Workbench durch Aktivieren des Zen-Modus ebenfalls ausgeblendet wird.",
-	"zenMode.restore": "Steuert, ob ein Fenster im Zen-Modus wiederhergestellt werden soll, wenn es im Zen-Modus beendet wurde."
+	"zenMode.restore": "Steuert, ob ein Fenster im Zen-Modus wiederhergestellt werden soll, wenn es im Zen-Modus beendet wurde.",
+	"workspaceConfigurationTitle": "Arbeitsbereich",
+	"files.exclude.boolean": "Das Globmuster, mit dem Dateipfade verglichen werden sollen. Legen Sie diesen Wert auf \"true\" oder \"false\" fest, um das Muster zu aktivieren bzw. zu deaktivieren."
 }

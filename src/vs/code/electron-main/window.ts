@@ -355,17 +355,6 @@ export class CodeWindow implements ICodeWindow {
 			this.sendWhenReady('vscode:leaveFullScreen');
 		});
 
-		// React to HC color scheme changes (Windows)
-		if (isWindows) {
-			systemPreferences.on('inverted-color-scheme-changed', () => {
-				if (systemPreferences.isInvertedColorScheme()) {
-					this.sendWhenReady('vscode:enterHighContrast');
-				} else {
-					this.sendWhenReady('vscode:leaveHighContrast');
-				}
-			});
-		}
-
 		// Window Failed to load
 		this._win.webContents.on('did-fail-load', (event: Event, errorCode: string, errorDescription: string) => {
 			console.warn('[electron event]: fail to load, ', errorDescription);

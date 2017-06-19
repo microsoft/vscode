@@ -10,7 +10,7 @@
 	"multiSelection": "{0} selecciones",
 	"endOfLineLineFeed": "LF",
 	"endOfLineCarriageReturnLineFeed": "CRLF",
-	"tabFocusModeEnabled": "La tabulación mueve el foco",
+	"screenReaderDetectedExtra": "Si no va a usar un lector de pantalla, cambie el valor de configuración \"editor.accessibilitySupport\" a \"desactivado\".",
 	"disableTabMode": "Deshabilitar modo de accesibilidad",
 	"gotoLine": "Ir a la línea",
 	"indentation": "Sangría",

@@ -7,6 +7,10 @@
 	"JsonSchema.shell": "指定命令是 shell 命令还是外部程序。如果省略，默认值是 false。",
 	"JsonSchema.tasks.dependsOn.string": "此任务依赖的另一任务。",
 	"JsonSchema.tasks.dependsOn.array": "此任务依赖的其他任务。",
+	"JsonSchema.tasks.group": "定义此任务属于的执行组。如被省略，则此任务不属于任何组。",
+	"JsonSchema.tasks.type": "定义任务是被作为进程运行还是在 shell 中作为命令运行。默认作为进程运行。",
+	"JsonSchema.version": "配置的版本号。",
+	"JsonSchema.tasks.customize": "要自定义的提供的视图。",
 	"JsonSchema.windows": "Windows 特定的命令配置",
 	"JsonSchema.mac": "Mac 特定的命令配置",
 	"JsonSchema.linux": "Linux 特定的命令配置"

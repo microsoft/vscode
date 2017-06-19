@@ -9,6 +9,8 @@
 	"neverShowAgain": "不要再顯示",
 	"close": "關閉",
 	"workspaceRecommended": "此工作區具有擴充功能建議。",
+	"ignoreExtensionRecommendations": "是否略過所有建議的擴充功能？",
+	"ignoreAll": "是，略過全部",
 	"no": "否",
 	"cancel": "取消"
 }

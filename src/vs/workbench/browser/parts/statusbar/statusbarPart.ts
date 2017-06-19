@@ -13,7 +13,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Part } from 'vs/workbench/browser/part';

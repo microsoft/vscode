@@ -16,6 +16,7 @@ import { INewMarker, TextModelWithMarkers } from 'vs/editor/common/model/textMod
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { ITextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
+import { ThemeColor } from "vs/platform/theme/common/themeService";
 
 export const ClassName = {
 	EditorWarningDecoration: 'greensquiggly',
@@ -840,9 +841,9 @@ function cleanClassName(className: string): string {
 }
 
 export class ModelDecorationOverviewRulerOptions implements editorCommon.IModelDecorationOverviewRulerOptions {
-	readonly color: string | editorCommon.ThemeColor;
-	readonly darkColor: string | editorCommon.ThemeColor;
-	readonly hcColor: string | editorCommon.ThemeColor;
+	readonly color: string | ThemeColor;
+	readonly darkColor: string | ThemeColor;
+	readonly hcColor: string | ThemeColor;
 	readonly position: editorCommon.OverviewRulerLane;
 
 	constructor(options: editorCommon.IModelDecorationOverviewRulerOptions) {

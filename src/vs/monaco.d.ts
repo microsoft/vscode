@@ -1052,6 +1052,10 @@ declare module monaco.editor {
 		Visible = 3,
 	}
 
+	export interface ThemeColor {
+		id: string;
+	}
+
 	/**
 	 * Vertical Lane in the overview ruler of the editor.
 	 */
@@ -2159,10 +2163,6 @@ declare module monaco.editor {
 		restoreViewState?(state: any): void;
 	}
 
-	export interface ThemeColor {
-		id: string;
-	}
-
 	export interface ICommonCodeEditor extends IEditor {
 		/**
 		 * An event emitted when the content of the current model has changed.
@@ -2927,6 +2927,11 @@ declare module monaco.editor {
 		 */
 		autoClosingBrackets?: boolean;
 		/**
+		 * Enable auto indentation adjustment.
+		 * Defaults to false.
+		 */
+		autoIndent?: boolean;
+		/**
 		 * Enable format on type.
 		 * Defaults to false.
 		 */
@@ -3284,6 +3289,7 @@ declare module monaco.editor {
 		readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 		readonly wordSeparators: string;
 		readonly autoClosingBrackets: boolean;
+		readonly autoIndent: boolean;
 		readonly useTabStops: boolean;
 		readonly tabFocusMode: boolean;
 		readonly dragAndDrop: boolean;
@@ -3416,6 +3422,7 @@ declare module monaco.editor {
 		readonly multiCursorModifier: boolean;
 		readonly wordSeparators: boolean;
 		readonly autoClosingBrackets: boolean;
+		readonly autoIndent: boolean;
 		readonly useTabStops: boolean;
 		readonly tabFocusMode: boolean;
 		readonly dragAndDrop: boolean;

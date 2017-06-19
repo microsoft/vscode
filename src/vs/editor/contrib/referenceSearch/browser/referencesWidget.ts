@@ -384,9 +384,8 @@ class OneReferenceTemplate {
 	readonly before: HTMLSpanElement;
 	readonly inside: HTMLSpanElement;
 	readonly after: HTMLSpanElement;
-	readonly dispose: () => void;
 
-	constructor(container: HTMLElement, editor: ICodeEditor) {
+	constructor(container: HTMLElement) {
 		const parent = document.createElement('div');
 		this.before = document.createElement('span');
 		this.inside = document.createElement('span');
@@ -397,14 +396,6 @@ class OneReferenceTemplate {
 		parent.appendChild(this.inside);
 		parent.appendChild(this.after);
 		container.appendChild(parent);
-
-		function applyFontInfo() {
-			container.style.fontFamily = editor.getConfiguration().fontInfo.fontFamily;
-		}
-
-		applyFontInfo();
-		const reg = editor.onDidChangeConfiguration(e => e.fontInfo && applyFontInfo());
-		this.dispose = () => reg.dispose();
 	}
 
 	set(element: OneReference): void {
@@ -423,7 +414,6 @@ class Renderer implements tree.IRenderer {
 	};
 
 	constructor(
-		private _editor: ICodeEditor,
 		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
 		@IThemeService private _themeService: IThemeService,
 		@optional(IEnvironmentService) private _environmentService: IEnvironmentService,
@@ -448,7 +438,7 @@ class Renderer implements tree.IRenderer {
 		if (templateId === Renderer._ids.FileReferences) {
 			return new FileReferencesTemplate(container, this._contextService, this._environmentService, this._themeService);
 		} else if (templateId === Renderer._ids.OneReference) {
-			return new OneReferenceTemplate(container, this._editor);
+			return new OneReferenceTemplate(container);
 		}
 		throw templateId;
 	}
@@ -463,8 +453,10 @@ class Renderer implements tree.IRenderer {
 		}
 	}
 
-	disposeTemplate(tree: tree.ITree, templateId: string, templateData: any): void {
-		templateData.dispose();
+	disposeTemplate(tree: tree.ITree, templateId: string, templateData: FileReferencesTemplate | OneReferenceTemplate): void {
+		if (templateData instanceof FileReferencesTemplate) {
+			templateData.dispose();
+		}
 	}
 }
 
@@ -687,7 +679,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		container.div({ 'class': 'ref-tree inline' }, (div: Builder) => {
 			var config = <tree.ITreeConfiguration>{
 				dataSource: this._instantiationService.createInstance(DataSource),
-				renderer: this._instantiationService.createInstance(Renderer, this.editor),
+				renderer: this._instantiationService.createInstance(Renderer),
 				controller: new Controller(),
 				accessibilityProvider: new AriaProvider()
 			};

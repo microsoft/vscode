@@ -13,7 +13,7 @@ import winjs = require('vs/base/common/winjs.base');
 import { join } from 'path';
 import actions = require('vs/base/common/actions');
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import platform = require('vs/platform/platform');
+import platform = require('vs/platform/registry/common/platform');
 import workbenchActionRegistry = require('vs/workbench/common/actionRegistry');
 import workbenchContributions = require('vs/workbench/common/contributions');
 import snippetsTracker = require('./snippetsTracker');

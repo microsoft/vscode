@@ -41,7 +41,7 @@ import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/commo
 import { isWelcomePageEnabled } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IStorageService } from "vs/platform/storage/common/storage";
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 used();
 
@@ -227,8 +227,8 @@ class WelcomePage {
 
 		recentlyOpened.then(({ folders }) => {
 			if (this.contextService.hasWorkspace()) {
-				const current = this.contextService.getWorkspace().resource.fsPath;
-				folders = folders.filter(folder => !this.pathEquals(folder, current));
+				const currents = this.contextService.getWorkspace2().roots;
+				folders = folders.filter(folder => !currents.some(current => this.pathEquals(folder, current.fsPath)));
 			}
 			if (!folders.length) {
 				const recent = container.querySelector('.welcomePage') as HTMLElement;

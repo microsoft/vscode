@@ -17,7 +17,7 @@ import { QuickOpenEntryGroup, IHighlight, QuickOpenModel, QuickOpenEntry } from 
 import { SyncActionDescriptor, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { QuickOpenHandler, IWorkbenchQuickOpenConfiguration } from 'vs/workbench/browser/quickopen';
 import { IEditorAction, IEditor, isCommonCodeEditor, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { matchesWords, matchesPrefix, matchesContiguousSubString, or } from 'vs/base/common/filters';
@@ -133,7 +133,7 @@ export class ShowAllCommandsAction extends Action {
 		super(id, label);
 	}
 
-	public run(context?: any): TPromise<any> {
+	public run(context?: any): TPromise<void> {
 		const config = <IWorkbenchQuickOpenConfiguration>this.configurationService.getConfiguration();
 		const restoreInput = config.workbench && config.workbench.commandPalette && config.workbench.commandPalette.preserveInput === true;
 
@@ -163,7 +163,7 @@ export class ClearCommandHistoryAction extends Action {
 		super(id, label);
 	}
 
-	public run(context?: any): TPromise<any> {
+	public run(context?: any): TPromise<void> {
 		const commandHistoryLength = resolveCommandHistory(this.configurationService);
 		if (commandHistoryLength > 0) {
 			commandHistory = new BoundedMap<number>(commandHistoryLength);

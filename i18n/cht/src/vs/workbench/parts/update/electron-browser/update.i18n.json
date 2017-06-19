@@ -15,5 +15,18 @@
 	"license": "閱讀授權",
 	"updateAvailable": "{0} 重新啟動後將會更新。",
 	"thereIsUpdateAvailable": "已有更新可用。",
-	"noUpdatesAvailable": "目前沒有可用的更新。"
+	"noUpdatesAvailable": "目前沒有可用的更新。",
+	"updateIsReady": "可用的更新",
+	"commandPalette": "命令選擇區...",
+	"settings": "設定",
+	"keyboardShortcuts": "鍵盤快速鍵(&&K)",
+	"selectTheme.label": "色彩佈景主題",
+	"themes.selectIconTheme.label": "檔案圖示佈景主題",
+	"not available": "無可用更新",
+	"checkingForUpdates": "正在查看是否有更新...",
+	"DownloadUpdate": "下載可用更新",
+	"DownloadingUpdate": "正在下載更新...",
+	"InstallingUpdate": "正在安裝更新...",
+	"restartToUpdate": "重新啟動以更新...",
+	"checkForUpdates": "查看是否有更新..."
 }

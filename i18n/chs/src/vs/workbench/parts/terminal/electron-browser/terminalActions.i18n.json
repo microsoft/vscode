@@ -8,6 +8,7 @@
 	"workbench.action.terminal.kill": "终止活动终端实例",
 	"workbench.action.terminal.kill.short": "终止终端",
 	"workbench.action.terminal.copySelection": "复制所选内容",
+	"workbench.action.terminal.selectAll": "全选",
 	"workbench.action.terminal.new": "新建集成终端",
 	"workbench.action.terminal.new.short": "新的终端",
 	"workbench.action.terminal.focus": "聚焦于终端",
@@ -28,5 +29,9 @@
 	"workbench.action.terminal.scrollToTop": "滚动到顶部",
 	"workbench.action.terminal.clear": "清除",
 	"workbench.action.terminal.allowWorkspaceShell": "允许配置工作区 Shell",
-	"workbench.action.terminal.disallowWorkspaceShell": "禁止配置工作区 Shell"
+	"workbench.action.terminal.disallowWorkspaceShell": "禁止配置工作区 Shell",
+	"workbench.action.terminal.rename": "重命名",
+	"workbench.action.terminal.rename.prompt": "输入终端名称",
+	"workbench.action.terminal.focusFindWidget": "聚焦于查找小组件",
+	"workbench.action.terminal.hideFindWidget": "隐藏查找小组件"
 }

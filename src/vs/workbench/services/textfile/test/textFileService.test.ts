@@ -98,12 +98,13 @@ suite('Files - TextFileService', () => {
 		}, error => onError(error, done));
 	});
 
-	test('confirm onWillShutdown - no veto and backups cleaned up if user does not want to save', function (done) {
+	test('confirm onWillShutdown - no veto and backups cleaned up if user does not want to save (hot.exit: off)', function (done) {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const service = accessor.textFileService;
 		service.setConfirmResult(ConfirmResult.DONT_SAVE);
+		service.onConfigurationChange({ files: { hotExit: 'off' } });
 
 		model.load().done(() => {
 			model.textEditorModel.setValue('foo');
@@ -130,12 +131,13 @@ suite('Files - TextFileService', () => {
 		}, error => onError(error, done));
 	});
 
-	test('confirm onWillShutdown - save', function (done) {
+	test('confirm onWillShutdown - save (hot.exit: off)', function (done) {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const service = accessor.textFileService;
 		service.setConfirmResult(ConfirmResult.SAVE);
+		service.onConfigurationChange({ files: { hotExit: 'off' } });
 
 		model.load().done(() => {
 			model.textEditorModel.setValue('foo');

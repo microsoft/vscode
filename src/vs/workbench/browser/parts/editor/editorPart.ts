@@ -8,7 +8,7 @@
 import 'vs/css!./media/editorpart';
 import 'vs/workbench/browser/parts/editor/editor.contribution';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
 import nls = require('vs/nls');
 import strings = require('vs/base/common/strings');
@@ -86,7 +86,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	private dimension: Dimension;
 	private editorGroupsControl: IEditorGroupsControl;
-	private memento: any;
+	private memento: object;
 	private stacks: EditorStacksModel;
 	private tabOptions: ITabOptions;
 	private forceHideTabs: boolean;

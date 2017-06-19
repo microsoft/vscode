@@ -51,7 +51,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 
 			return model;
 		}, (err: DebugProtocol.ErrorResponse) => {
-			this.debugService.deemphasizeSource(resource);
+			this.debugService.sourceIsNotAvailable(resource);
 			const modePromise = this.modeService.getOrCreateMode(MIME_TEXT);
 			const model = this.modelService.createModel(err.message, modePromise, resource);
 

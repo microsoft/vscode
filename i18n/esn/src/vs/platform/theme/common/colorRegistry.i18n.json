@@ -12,7 +12,6 @@
 	"focusBorder": "Color de borde de los elementos con foco. Este color solo se usa si un componente no lo invalida.",
 	"contrastBorder": "Un borde adicional alrededor de los elementos para separarlos unos de otros y así mejorar el contraste.",
 	"activeContrastBorder": "Un borde adicional alrededor de los elementos activos para separarlos unos de otros y así mejorar el contraste.",
-	"selectionBackground": "El color de fondo del texto seleccionado en la área de trabajo (por ejemplo, campos de entrada o áreas de texto). Esto no se aplica a las selecciones dentro del editor o el terminal.",
 	"textSeparatorForeground": "Color para los separadores de texto.",
 	"textLinkForeground": "Color de primer plano para los vínculos en el texto.",
 	"textLinkActiveForeground": "Color de primer plano para los vínculos activos en el texto.",
@@ -60,6 +59,7 @@
 	"editorBackground": "Color de fondo del editor.",
 	"editorForeground": "Color de primer plano predeterminado del editor.",
 	"editorWidgetBackground": "Color de fondo del editor de widgets como buscar/reemplazar",
+	"editorWidgetBorder": "Color de borde de los widgets del editor. El color solo se usa si el widget elige tener un borde y no invalida el color.",
 	"editorSelection": "Color de la selección del editor.",
 	"editorInactiveSelection": "Color de la selección en un editor inactivo.",
 	"editorSelectionHighlight": "Color de las regiones con el mismo contenido que la selección.",
@@ -73,5 +73,12 @@
 	"diffEditorInserted": "Color de fondo para el texto insertado.",
 	"diffEditorRemoved": "Color de fondo para el texto quitado.",
 	"diffEditorInsertedOutline": "Color de contorno para el texto insertado.",
-	"diffEditorRemovedOutline": "Color de contorno para el texto quitado."
+	"diffEditorRemovedOutline": "Color de contorno para el texto quitado.",
+	"mergeCurrentHeaderBackground": "Fondo del encabezado actual en conflictos de combinación alineados.",
+	"mergeCurrentContentBackground": "Fondo del contenido actual en conflictos de combinación alineados.",
+	"mergeIncomingHeaderBackground": "Fondo del encabezado de entrada en conflictos de combinación alineados.",
+	"mergeIncomingContentBackground": "Fondo del contenido de entrada en conflcitos de combinación alineados.",
+	"mergeBorder": "Color del borde en los encabezados y el divisor en conflictos de combinación alineados.",
+	"overviewRulerCurrentContentForeground": "Primer plano de la regla de visión general actual para conflictos de combinación alineados.",
+	"overviewRulerIncomingContentForeground": "Primer plano de regla de visión general de entrada para conflictos de combinación alineados."
 }

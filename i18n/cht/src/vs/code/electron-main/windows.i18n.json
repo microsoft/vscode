@@ -13,9 +13,5 @@
 	"appStalled": "視窗已沒有回應",
 	"appStalledDetail": "您可以重新開啟或關閉視窗，或是繼續等候。",
 	"appCrashed": "視窗已損毀",
-	"appCrashedDetail": "很抱歉造成您的不便! 您可以重新開啟視窗，從您離開的地方繼續進行。",
-	"newWindow": "開新視窗",
-	"newWindowDesc": "開啟新視窗",
-	"recentFolders": "最近使用的資料夾",
-	"folderDesc": "{0} {1}"
+	"appCrashedDetail": "很抱歉造成您的不便! 您可以重新開啟視窗，從您離開的地方繼續進行。"
 }

@@ -6,7 +6,7 @@
 
 import nls = require('vs/nls');
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const ICrashReporterService = createDecorator<ICrashReporterService>('crashReporterService');

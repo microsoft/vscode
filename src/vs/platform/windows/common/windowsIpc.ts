@@ -43,7 +43,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'whenSharedProcessReady'): TPromise<void>;
 	call(command: 'toggleSharedProcess'): TPromise<void>;
 	call(command: 'log', arg: [string, string[]]): TPromise<void>;
-	call(command: 'closeExtensionHostWindow', arg: string): TPromise<void>;
+	call(command: 'closeExtensionHostWindow', arg: string[]): TPromise<void>;
 	call(command: 'showItemInFolder', arg: string): TPromise<void>;
 	call(command: 'openExternal', arg: string): TPromise<boolean>;
 	call(command: 'startCrashReporter', arg: Electron.CrashReporterStartOptions): TPromise<void>;
@@ -235,8 +235,8 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('log', [severity, messages]);
 	}
 
-	closeExtensionHostWindow(extensionDevelopmentPath: string): TPromise<void> {
-		return this.channel.call('closeExtensionHostWindow', extensionDevelopmentPath);
+	closeExtensionHostWindow(extensionDevelopmentPaths: string[]): TPromise<void> {
+		return this.channel.call('closeExtensionHostWindow', extensionDevelopmentPaths);
 	}
 
 	showItemInFolder(path: string): TPromise<void> {

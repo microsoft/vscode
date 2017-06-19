@@ -6,6 +6,7 @@
 {
 	"TerminalTaskSystem.unknownError": "Um erro desconhecido ocorreu durante a execução de uma tarefa. Consulte o log de saída de tarefa para obter detalhes.",
 	"TerminalTaskSystem.terminalName": "Tarefa - {0}",
+	"reuseTerminal": "Terminal será reutilizado pelas tarefas, pressione qualquer tecla para fechar.",
 	"TerminalTaskSystem": "Não é possível executar um comando shell em uma unidade UNC.",
 	"unkownProblemMatcher": "Problem matcher {0} não pode ser resolvido. O matcher será ignorado"
 }

@@ -18,7 +18,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import * as minimist from 'minimist';
 import * as path from 'path';
 import { QuickOpenHandler, IQuickOpenRegistry, Extensions } from 'vs/workbench/browser/quickopen';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { SearchService } from 'vs/workbench/services/search/node/searchService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { TestEnvironmentService, TestEditorService, TestEditorGroupService, TestContextService } from 'vs/workbench/test/workbenchTestServices';

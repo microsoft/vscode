@@ -7,6 +7,10 @@
 	"JsonSchema.shell": "Gibt an, ob der Befehl ein Shellbefehl oder ein externes Programm ist. Wenn keine Angabe erfolgt, ist der Standardwert \"false\".",
 	"JsonSchema.tasks.dependsOn.string": "Eine weitere Aufgabe, von der diese Aufgabe abhängt.",
 	"JsonSchema.tasks.dependsOn.array": "Die anderen Aufgaben, von denen diese Aufgabe abhängt.",
+	"JsonSchema.tasks.group": "Definiert die Ausführungsgruppe, der diese Aufgabe angehört. Wird dies ausgelassen, gehört die Aufgabe keiner Gruppe an.",
+	"JsonSchema.tasks.type": "Definiert, ob die Aufgabe als Prozess oder als Befehl innerhalb einer Shell ausgeführt wird. Standardmäßig wird sie als Prozess ausgeführt.",
+	"JsonSchema.version": "Die Versionsnummer der Konfiguration.",
+	"JsonSchema.tasks.customize": "Die anzupassende beigetragene Aufgabe.",
 	"JsonSchema.windows": "Windows-spezifische Befehlskonfiguration",
 	"JsonSchema.mac": "Mac-spezifische Befehlskonfiguration",
 	"JsonSchema.linux": "Linux-spezifische Befehlskonfiguration"

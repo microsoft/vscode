@@ -11,7 +11,7 @@ import { Part } from 'vs/workbench/browser/part';
 import * as Types from 'vs/base/common/types';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
-import { TestThemeService } from 'vs/workbench/test/workbenchTestServices';
+import { TestThemeService } from "vs/platform/theme/test/common/testThemeService";
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 class MyPart extends Part {

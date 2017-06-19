@@ -16,9 +16,12 @@
 	"peekViewTitleInfoForeground": "Couleur des informations sur le titre de l'affichage d'aperçu.",
 	"peekViewBorder": "Couleur des bordures et de la flèche de l'affichage d'aperçu.",
 	"peekViewResultsBackground": "Couleur d'arrière-plan de la liste des résultats de l'affichage d'aperçu.",
+	"peekViewResultsMatchForeground": "Couleur de premier plan des noeuds de lignes dans la liste des résultats de l'affichage d'aperçu.",
+	"peekViewResultsFileForeground": "Couleur de premier plan des noeuds de fichiers dans la liste des résultats de l'affichage d'aperçu.",
 	"peekViewResultsSelectionBackground": "Couleur d'arrière-plan de l'entrée sélectionnée dans la liste des résultats de l'affichage d'aperçu.",
 	"peekViewResultsSelectionForeground": "Couleur de premier plan de l'entrée sélectionnée dans la liste des résultats de l'affichage d'aperçu.",
 	"peekViewEditorBackground": "Couleur d'arrière-plan de l'éditeur d'affichage d'aperçu.",
+	"peekViewEditorGutterBackground": "Couleur d'arrière-plan de la bordure de l'éditeur d'affichage d'aperçu.",
 	"peekViewResultsMatchHighlight": "Couleur de mise en surbrillance d'une correspondance dans la liste des résultats de l'affichage d'aperçu.",
 	"peekViewEditorMatchHighlight": "Couleur de mise en surbrillance d'une correspondance dans l'éditeur de l'affichage d'aperçu."
 }

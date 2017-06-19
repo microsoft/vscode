@@ -13,6 +13,5 @@
 	"error.connection.unknown": "Si è verificato un errore di connessione sconosciuto. La connessione a Internet è stata interrotta oppure il server al quale si è connessi è offline.",
 	"stackTrace.format": "{0}: {1}",
 	"error.defaultMessage": "Si è verificato un errore sconosciuto. Per altri dettagli, vedere il log.",
-	"nodeExceptionMessage": "Si è verificato un errore di sistema ({0})",
 	"error.moreErrors": "{0} ({1} errori in totale)"
 }

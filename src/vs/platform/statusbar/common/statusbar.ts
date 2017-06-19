@@ -7,7 +7,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ThemeColor } from 'vs/editor/common/editorCommon';
+import { ThemeColor } from "vs/platform/theme/common/themeService";
 
 export var IStatusbarService = createDecorator<IStatusbarService>('statusbarService');
 

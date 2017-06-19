@@ -13,6 +13,5 @@
 	"error.connection.unknown": "發生未知的連接錯誤。可能是您已經沒有連線到網際網路，或是您連接的伺服器已離線。",
 	"stackTrace.format": "{0}: {1}",
 	"error.defaultMessage": "發生未知的錯誤。如需詳細資訊，請參閱記錄檔。",
-	"nodeExceptionMessage": "發生系統錯誤 ({0})",
 	"error.moreErrors": "{0} (總計 {1} 個錯誤)"
 }

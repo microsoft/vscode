@@ -44,6 +44,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { getCodeEditor as getEditorWidget } from 'vs/editor/common/services/codeEditorService';
+// tslint:disable-next-line:import-patterns TODO@Ben TODO@Sandeep layer breaker
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
@@ -1105,7 +1106,7 @@ export class ChangeEncodingAction extends Action {
 
 					return this.fileService.resolveContent(resource, { autoGuessEncoding: true, acceptTextOnly: true }).then(content => content.encoding, err => null);
 				})
-				.then(guessedEncoding => {
+				.then((guessedEncoding: string) => {
 					const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
 
 					const isReopenWithEncoding = (action === reopenWithEncodingPick);

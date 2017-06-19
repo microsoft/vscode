@@ -20,7 +20,7 @@ import { SimpleEditorService, SimpleEditorModelResolverService } from 'vs/editor
 import * as modes from 'vs/editor/common/modes';
 import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebWorker } from 'vs/editor/common/services/webWorker';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
-import { DiffNavigator } from 'vs/editor/contrib/diffNavigator/common/diffNavigator';
+import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';

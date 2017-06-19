@@ -31,7 +31,6 @@
 	"welcomePage.colorThemeDescription": "Modifique a su gusto la apariencia del editor y el código",
 	"welcomePage.learn": "Más información",
 	"welcomePage.showCommands": "Buscar y ejecutar todos los comandos",
-	"welcomePage.showCommandsDescription": "Acceda rápidamente y busque comandos desde el panel de control ({0})",
 	"welcomePage.interfaceOverview": "Introducción a la interfaz",
 	"welcomePage.interfaceOverviewDescription": "Obtenga una superposición que resalta los componentes principales de la interfaz de usuario",
 	"welcomePage.interactivePlayground": "Área de juegos interactiva",

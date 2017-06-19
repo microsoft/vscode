@@ -1397,7 +1397,7 @@ class ConfigurationParser {
 	private createTaskRunnerConfiguration(fileConfig: ExternalTaskRunnerConfiguration, context: ParseContext): TaskParseResult {
 		let globals = Globals.from(fileConfig, context);
 		if (this.problemReporter.status.isFatal()) {
-			return undefined;
+			return { tasks: [], annotatingTasks: [] };
 		}
 		context.namedProblemMatchers = ProblemMatcherConverter.namedFrom(fileConfig.declares, context);
 		let globalTasks: TaskParseResult;

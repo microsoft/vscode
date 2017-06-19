@@ -31,10 +31,6 @@
 	"window.openFoldersInNewWindow.off": "폴더가 마지막 활성 창을 바꿉니다.",
 	"window.openFoldersInNewWindow.default": "폴더를 응용 프로그램 내에서 선택(예: 파일 메뉴를 통해)하는 경우를 제외하고 폴더가 새 창에서 열립니다.",
 	"openFoldersInNewWindow": "폴더를 새 창에서 열지, 마지막 활성 창과 바꿀지를 제어합니다.\n- default: 응용 프로그램 내에서 [파일] 메뉴 등을 통해 폴더를 선택하는 경우를 제외하고, 폴더는 새 창에서 열립니다.\n- on: 폴더가 새 창에서 열립니다.\n- off: 폴더가 마지막 활성 창을 대체합니다\n이 설정이 무시되는 경우도 있을 수 있습니다(예: -new-window 또는 -reuse-window 명령줄 옵션을 사용할 경우).",
-	"window.reopenFolders.none": "폴더를 다시 열지 않습니다.",
-	"window.reopenFolders.one": "마지막 활성 폴더를 다시 엽니다.",
-	"window.reopenFolders.all": "마지막 세션의 모든 폴더를 다시 엽니다.",
-	"reopenFolders": "다시 시작한 이후에 폴더를 다시 여는 방법을 제어합니다. 폴더를 다시 열지 않으려면 'none'을 선택하고, 마지막으로 작업한 폴더를 다시 열려면 'one'을 선택하고, 마지막 세션의 모든 폴더를 다시 열려면 'all'을 선택합니다.",
 	"restoreFullscreen": "창이 전체 화면 모드에서 종료된 경우 창을 전체 화면 모드로 복원할지 여부를 제어합니다.",
 	"zoomLevel": "창의 확대/축소 수준을 조정합니다. 원래 크기는 0이고 각 상한 증분(예: 1) 또는 하한 증분(예: -1)은 20% 더 크거나 더 작게 확대/축소하는 것을 나타냅니다. 10진수를 입력하여 확대/축소 수준을 세부적으로 조정할 수도 있습니다.",
 	"title": "활성 편집기를 기반으로 창 제목을 제어합니다. 변수는 컨텍스트를 기반으로 대체됩니다.\n${activeEditorShort}: 예: myFile.txt\n${activeEditorMedium}: 예: myFolder/myFile.txt\n${activeEditorLong}: 예:  /Users/Development/myProject/myFolder/myFile.txt\n${rootName}: 예: myProject\n${rootPath}: 예:  /Users/Development/myProject\n${appName}: 예:  VS Code\n${dirty}: 활성 편집기가 더티인 경우 더티 표시기\n${separator}: 값이 있는 변수로 둘러싸인 경우에만 표시되는 조건부 구분 기호(\" - \")",
@@ -42,11 +38,13 @@
 	"window.newWindowDimensions.inherit": "마지막 활성 창과 동일한 크기로 새 창을 엽니다.",
 	"window.newWindowDimensions.maximized": "최대화된 새 창을 엽니다.",
 	"window.newWindowDimensions.fullscreen": "전체 화면 모드에서 새 창을 엽니다.",
+	"newWindowDimensions": "하나 이상의 창이 이미 열려 있을 때 여는 새 새 창의 크기를 제어합니다. 기본적으로 새 창은 화면 가운데에 작은 크기로 열립니다. 'inherit'으로 설정할 경우 마지막 활성 창과 동일한 크기로 창이 열립니다. 'maximized'로 설정할 경우 창이 최대화되어 열리고 'fullscreen'으로 구성할 경우 전체 화면으로 열립니다. 이 설정은 여는 첫 번째 창에는 적용되지 않습니다. 첫 번째 창의 경우 항상 창을 닫기 전의 크기와 위치가 복원됩니다.",
 	"window.menuBarVisibility.default": "메뉴가 전체 화면 모드에서만 숨겨집니다.",
 	"window.menuBarVisibility.visible": "메뉴가 전체 화면 모드에서도 항상 표시됩니다.",
 	"window.menuBarVisibility.toggle": "메뉴가 숨겨져 있지만 <Alt> 키를 통해 메뉴를 표시할 수 있습니다.",
 	"window.menuBarVisibility.hidden": "메뉴가 항상 숨겨집니다.",
 	"menuBarVisibility": "메뉴 모음의 표시 여부를 제어합니다. '설정/해제'를 설정함으로써 메뉴 모음이 숨겨지고 <Alt> 키를 누를 때마다 메뉴 모음이 표시됩니다. 기본값으로, 창이 전체 화면인 경우를 제외하고 메뉴 모음이 표시됩니다.",
+	"enableMenuBarMnemonics": "사용하도록 설정하는 경우 Alt 키 바로 가기를 통해 주 메뉴를 열 수 있습니다. 니모닉을 사용하지 않도록 설정하면 대신 이러한 Alt 키 바로 가기를 편집기 명령에 바인딩할 수 있습니다.",
 	"autoDetectHighContrast": "사용하도록 설정한 경우 Windows에서 고대비 테마를 사용 중이면 고대비 테마로 자동으로 변경되고 Windows 고대비 테마를 해제하면 어두운 테마로 변경됩니다.",
 	"titleBarStyle": "창 제목 표시줄의 모양을 조정합니다. 변경 내용을 적용하려면 전체 다시 시작해야 합니다.",
 	"window.nativeTabs": "macOS Sierra 창 탭을 사용하도록 설정합니다. 변경\n 내용을 적용하려면 전체 다시 시작해야 하고, 기본 탭에서\n 사용자 지정 제목 표시줄 스타일(구성된 경우)을 비활성화합니다.",
@@ -56,5 +54,7 @@
 	"zenMode.hideTabs": "Zen 모드를 켜면 워크벤치 탭도 숨길지를 제어합니다.",
 	"zenMode.hideStatusBar": "Zen 모드를 켜면 워크벤치 하단에서 상태 표시줄도 숨길지를 제어합니다.",
 	"zenMode.hideActivityBar": "Zen 모드를 켜면 워크벤치의 왼쪽에 있는 작업 막대도 숨길지\n 여부를 제어합니다.",
-	"zenMode.restore": "창이 Zen 모드에서 종료된 경우 Zen 모드로 복원할지 제어합니다."
+	"zenMode.restore": "창이 Zen 모드에서 종료된 경우 Zen 모드로 복원할지 제어합니다.",
+	"workspaceConfigurationTitle": "작업 영역",
+	"files.exclude.boolean": "파일 경로를 일치시킬 GLOB 패턴입니다. 패턴을 사용하거나 사용하지 않도록 설정하려면 true 또는 false로 설정하세요."
 }

@@ -10,7 +10,7 @@ import 'vs/base/common/strings';
 import 'vs/base/common/errors';
 
 // Editor
-import 'vs/editor/browser/editor.all';
+import 'vs/editor/editor.all';
 
 // Menus/Actions
 import 'vs/platform/actions/electron-browser/menusExtensionPoint';

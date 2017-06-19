@@ -13,6 +13,5 @@
 	"error.connection.unknown": "不明な接続エラーが発生しました。インターネット接続が切れたか、接続先のサーバーがオフラインです。",
 	"stackTrace.format": "{0}: {1}",
 	"error.defaultMessage": "不明なエラーが発生しました。ログで詳細を確認してください。",
-	"nodeExceptionMessage": "システム エラーが発生しました ({0})",
 	"error.moreErrors": "{0} (合計 {1} エラー)"
 }

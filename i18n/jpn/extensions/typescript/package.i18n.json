@@ -13,7 +13,6 @@
 	"typescript.check.tscVersion": "グローバル インストール TypeScript コンパイラ (tsc など) が、使用された TypeScript 言語サービスと異なっているかどうかを確認します。",
 	"typescript.tsserver.log": "ファイルへの TS サーバーのログを有効にします。このログは TS サーバーの問題を診断するために使用できます。ログには、プロジェクトのファイルパス、ソースコード、その他の潜在的に機密性の高い情報が含まれている場合があります。",
 	"typescript.tsserver.trace": "TS サーバーに送信されるメッセージのトレースを有効にします。このトレースは TS サーバーの問題を診断するために使用できます。トレースには、プロジェクトのファイルパス、ソースコード、その他の潜在的に機密性の高い情報が含まれている場合があります。",
-	"typescript.tsserver.experimentalAutoBuild": "試験的な自動ビルドを有効にします。1.9 dev または 2.x tsserver バージョンと、変更後に VS Code の再起動が必要です。",
 	"typescript.validate.enable": "TypeScript の検証を有効/無効にします。",
 	"typescript.format.enable": "既定の TypeScript フォーマッタを有効/無効にします。",
 	"javascript.format.enable": "既定の JavaScript フォーマッタを有効/無効にします。",
@@ -41,6 +40,8 @@
 	"typescript.selectTypeScriptVersion.title": "TypeScript のバージョンの選択",
 	"jsDocCompletion.enabled": " 自動 JSDoc コメントを有効/無効にします",
 	"javascript.implicitProjectConfig.checkJs": "JavaScript ファイルのセマンティック チェックを有効/無効にします。既存の jsconfi.json や tsconfi.json ファイルの設定はこれより優先されます。TypeScript は 2.3.1 以上である必要があります。",
+	"typescript.npm": "型定義の自動取得に使用される NPM 実行可能ファイルへのパスを指定します。TypeScript 2.3.4 以上が必要です。",
+	"typescript.check.npmIsInstalled": "型定義の自動取得に NPM がインストールされているかどうかを確認します。",
 	"javascript.nameSuggestions": "JavaScript の候補リスト内でファイルから一意の名前を含むかどうかを有効/無効にします。",
 	"typescript.tsc.autoDetect": "tsc タスクの自動検出をオンにするかオフにするかを制御します。"
 }

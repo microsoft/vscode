@@ -18,7 +18,7 @@ import paths = require('vs/base/common/paths');
 import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { LegacyWorkspace } from "vs/platform/workspace/common/workspace";
+import { LegacyWorkspace, Workspace } from "vs/platform/workspace/common/workspace";
 import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configuration';
 import { realpath, stat } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
@@ -30,11 +30,12 @@ import { KeyboardMapperFactory } from "vs/workbench/services/keybinding/electron
 import { IWindowConfiguration, IPath } from "vs/platform/windows/common/windows";
 import { IStorageService } from "vs/platform/storage/common/storage";
 import { IEnvironmentService } from "vs/platform/environment/common/environment";
-import { StorageService, inMemoryLocalStorageInstance, IWorkspaceStorageIdentifier } from "vs/platform/storage/common/storageService";
+import { StorageService, inMemoryLocalStorageInstance } from "vs/platform/storage/common/storageService";
 
 import { webFrame } from 'electron';
 
 import fs = require('fs');
+import { createHash } from "crypto";
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
 export function startup(configuration: IWindowConfiguration): TPromise<void> {
@@ -96,10 +97,11 @@ function toInputs(paths: IPath[], isUntitledFile?: boolean): IResourceInput[] {
 
 function openWorkbench(configuration: IWindowConfiguration, options: IOptions): TPromise<void> {
 	return resolveLegacyWorkspace(configuration).then(legacyWorkspace => {
+		const workspace = legacyWorkspaceToMultiRootWorkspace(legacyWorkspace);
 		const environmentService = new EnvironmentService(configuration, configuration.execPath);
-		const workspaceConfigurationService = new WorkspaceConfigurationService(environmentService, legacyWorkspace);
-		const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, !!legacyWorkspace);
-		const storageService = createStorageService(legacyWorkspace, configuration, environmentService);
+		const workspaceConfigurationService = new WorkspaceConfigurationService(environmentService, workspace);
+		const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, !!workspace);
+		const storageService = createStorageService(legacyWorkspace, workspace, configuration, environmentService);
 
 		// Since the configuration service is one of the core services that is used in so many places, we initialize it
 		// right before startup of the workbench shell to have its data ready for consumers
@@ -133,6 +135,18 @@ function openWorkbench(configuration: IWindowConfiguration, options: IOptions): 
 	});
 }
 
+function legacyWorkspaceToMultiRootWorkspace(legacyWorkspace: LegacyWorkspace): Workspace {
+	if (!legacyWorkspace) {
+		return null;
+	}
+
+	return new Workspace(
+		createHash('md5').update(legacyWorkspace.resource.fsPath).update(legacyWorkspace.ctime ? String(legacyWorkspace.ctime) : '').digest('hex'),
+		path.basename(legacyWorkspace.resource.fsPath),
+		[legacyWorkspace.resource]
+	);
+}
+
 function resolveLegacyWorkspace(configuration: IWindowConfiguration): TPromise<LegacyWorkspace> {
 	if (!configuration.workspacePath) {
 		return TPromise.as(null);
@@ -163,10 +177,10 @@ function resolveLegacyWorkspace(configuration: IWindowConfiguration): TPromise<L
 	});
 }
 
-function createStorageService(workspace: LegacyWorkspace, configuration: IWindowConfiguration, environmentService: IEnvironmentService): IStorageService {
-	let id: IWorkspaceStorageIdentifier;
+function createStorageService(legacyWorkspace: LegacyWorkspace, workspace: Workspace, configuration: IWindowConfiguration, environmentService: IEnvironmentService): IStorageService {
+	let id: string;
 	if (workspace) {
-		id = { resource: workspace.resource, uid: workspace.ctime };
+		id = legacyWorkspace.resource.toString();
 	} else if (configuration.backupPath) {
 		// if we do not have a workspace open, we need to find another identifier for the window to store
 		// workspace UI state. if we have a backup path in the configuration we can use that because this
@@ -174,13 +188,13 @@ function createStorageService(workspace: LegacyWorkspace, configuration: IWindow
 		// dirty files in the workspace.
 		// We use basename() to produce a short identifier, we do not need the full path. We use a custom
 		// scheme so that we can later distinguish these identifiers from the workspace one.
-		id = { resource: uri.from({ path: path.basename(configuration.backupPath), scheme: 'empty' }) };
+		id = uri.from({ path: path.basename(configuration.backupPath), scheme: 'empty' }).toString();
 	}
 
 	const disableStorage = !!environmentService.extensionTestsPath; // never keep any state when running extension tests!
 	const storage = disableStorage ? inMemoryLocalStorageInstance : window.localStorage;
 
-	return new StorageService(storage, storage, id);
+	return new StorageService(storage, storage, { id, name: workspace && workspace.name, roots: workspace && workspace.roots }, legacyWorkspace ? legacyWorkspace.ctime : void 0);
 }
 
 function loaderError(err: Error): Error {

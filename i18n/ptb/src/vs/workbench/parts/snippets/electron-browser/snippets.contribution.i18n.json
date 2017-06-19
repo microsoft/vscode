@@ -11,6 +11,6 @@
 	"snippetSchema.json.default": "Trecho de código vazio",
 	"snippetSchema.json": "Configuração do trecho do usuário",
 	"snippetSchema.json.prefix": "O prefixo usado ao selecionar o trecho no intelliSense",
-	"snippetSchema.json.body": "O conteúdo do trecho de código. Use '${id}', '${id: rótulo}', '${1:label}' para variáveis e '$0', '$1' para posições do cursor",
+	"snippetSchema.json.body": "O conteúdo do trecho. Use '$1', '${1:defaultText}' para definir as posições do cursor, use '$0' para a posição final do cursor. Insira valores de variáveis com '${varName}' e '${varName:defaultText}', por exemplo ' Este é o arquivo: $TM_FILENAME'.",
 	"snippetSchema.json.description": "A descrição do trecho."
 }

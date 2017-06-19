@@ -8,6 +8,7 @@
 	"workbench.action.terminal.kill": "Tuer l'instance active du terminal",
 	"workbench.action.terminal.kill.short": "Tuer le terminal",
 	"workbench.action.terminal.copySelection": "Copier la sélection",
+	"workbench.action.terminal.selectAll": "Tout Sélectionner",
 	"workbench.action.terminal.new": "Créer un terminal intégré",
 	"workbench.action.terminal.new.short": "Nouveau terminal",
 	"workbench.action.terminal.focus": "Focus sur le terminal",
@@ -26,5 +27,8 @@
 	"workbench.action.terminal.scrollUp": "Faire défiler vers le haut (ligne)",
 	"workbench.action.terminal.scrollUpPage": "Faire défiler vers le haut (page)",
 	"workbench.action.terminal.scrollToTop": "Faire défiler jusqu'en haut",
-	"workbench.action.terminal.clear": "Effacer"
+	"workbench.action.terminal.clear": "Effacer",
+	"workbench.action.terminal.allowWorkspaceShell": "Autoriser la configuration de l'interpréteur de commandes de l'espace de travail",
+	"workbench.action.terminal.disallowWorkspaceShell": "Interdire la configuration de l'interpréteur de commandes de l'espace de travail",
+	"workbench.action.terminal.rename": "Renommer"
 }

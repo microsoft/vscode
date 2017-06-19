@@ -32,7 +32,7 @@
 	"command.push": "Insertar",
 	"command.pushTo": "Insertar en...",
 	"command.sync": "Sincronizar",
-	"command.publish": "Publicar",
+	"command.publish": "Publicar rama",
 	"command.showOutput": "Mostrar salida de GIT",
 	"config.enabled": "Si GIT está habilitado",
 	"config.path": "Ruta de acceso del ejecutable de GIT",

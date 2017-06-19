@@ -7,6 +7,7 @@
 	"JsonSchema.options": "Options de commande supplémentaires",
 	"JsonSchema.options.cwd": "Répertoire de travail actif du programme ou script exécuté. En cas d'omission, la racine de l'espace de travail actif de Code est utilisée.",
 	"JsonSchema.options.env": "Environnement du programme ou de l'interpréteur de commandes exécuté. En cas d'omission, l'environnement du processus parent est utilisé.",
+	"JsonSchema.shellConfiguration": "Configure l'interpréteur de commandes à utiliser.",
 	"JsonSchema.shell.executable": "Interpréteur de commandes à utiliser.",
 	"JsonSchema.shell.args": "Arguments de l'interpréteur de commandes.",
 	"JsonSchema.command": "Commande à exécuter. Il peut s'agir d'un programme externe ou d'une commande d'interpréteur de commandes.",

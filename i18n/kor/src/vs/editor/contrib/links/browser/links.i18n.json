@@ -6,6 +6,7 @@
 {
 	"links.navigate.mac": "Cmd 키를 누르고 클릭하여 링크로 이동",
 	"links.navigate": "Ctrl 키를 누르고 클릭하여 링크로 이동",
+	"links.navigate.al": "Alt 키를 누르고 클릭하여 링크로 이동",
 	"invalid.url": "죄송합니다. 이 링크는 형식이 올바르지 않으므로 열지 못했습니다. {0}",
 	"missing.url": "죄송합니다. 대상이 없으므로 이 링크를 열지 못했습니다.",
 	"label": "링크 열기"

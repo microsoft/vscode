@@ -32,7 +32,7 @@
 	"command.push": "Esegui push",
 	"command.pushTo": "Esegui push in...",
 	"command.sync": "Sincronizza",
-	"command.publish": "Pubblica",
+	"command.publish": "Pubblica ramo",
 	"command.showOutput": "Mostra output GIT",
 	"config.enabled": "Indica se GIT è abilitato",
 	"config.path": "Percorso dell'eseguibile di GIT",

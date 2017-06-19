@@ -52,9 +52,9 @@
 	"ProblemMatcherSchema.watching.activeOnStart": "true に設定すると、タスクの開始時にウォッチャーがアクティブ モードになります。これは beginPattern と一致する行の発行と同等です。",
 	"ProblemMatcherSchema.watching.beginsPattern": "出力内で一致すると、ウォッチ中のタスクの開始が通知されます。",
 	"ProblemMatcherSchema.watching.endsPattern": "出力内で一致すると、ウォッチ中のタスクの終了が通知されます。",
-	"LegacyProblemMatcherSchema.watchedBegin.deprecated": "This property is deprecated. Use the watching property instead.",
+	"LegacyProblemMatcherSchema.watchedBegin.deprecated": "このプロパティは非推奨です。代わりに watching プロパティをご使用ください。",
 	"LegacyProblemMatcherSchema.watchedBegin": "ファイル ウォッチでトリガーされた ウォッチ対象タスクの実行が開始されたことを伝達する正規表現。",
-	"LegacyProblemMatcherSchema.watchedEnd.deprecated": "This property is deprecated. Use the watching property instead.",
+	"LegacyProblemMatcherSchema.watchedEnd.deprecated": "このプロパティは非推奨です。代わりに watching プロパティをご使用ください。",
 	"LegacyProblemMatcherSchema.watchedEnd": "ウォッチ対象タスクの実行が終了したことを伝達する正規表現。",
 	"NamedProblemMatcherSchema.name": "問題マッチャーの名前。",
 	"ProblemMatcherExtPoint": "問題マッチャーを提供"
