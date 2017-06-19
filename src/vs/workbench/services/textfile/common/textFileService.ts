@@ -342,7 +342,7 @@ export abstract class TextFileService implements ITextFileService {
 		}
 
 		// Hot exit
-		const hotExitMode = configuration && configuration.files ? configuration.files.hotExit : HotExitConfiguration.OFF;
+		const hotExitMode = configuration && configuration.files && configuration.files.hotExit;
 		if (hotExitMode === HotExitConfiguration.OFF || hotExitMode === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
 			this.configuredHotExit = hotExitMode;
 		} else {
