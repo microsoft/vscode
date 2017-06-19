@@ -118,25 +118,25 @@
 					"**/vs/base/parts/tree/browser/**"
 				]
 			},
-			// {
-			// 	"target": "**/vs/platform/test/common/**",
-			// 	"restrictions": [
-			// 		"assert",
-			// 		"**/vs/platform/platform",
-			// 		"**/vs/base/common/**"
-			// 	]
-			// },
-			// {
-			// 	"target": "**/vs/platform/*/common/**",
-			// 	"restrictions": [
-			// 		"vs/nls",
-			// 		"**/vs/base/common/**",
-			// 		"**/vs/platform/*/common/**",
-			// 		"**/vs/platform/platform",
-			// 		"**/vs/base/parts/ipc/common/**",
-			// 		"**/vs/base/parts/quickopen/common/**"
-			// 	]
-			// },
+			{
+				"target": "**/vs/platform/test/common/**",
+				"restrictions": [
+					"assert",
+					"**/vs/platform/platform",
+					"**/vs/base/common/**"
+				]
+			},
+			{
+				"target": "**/vs/platform/*/common/**",
+				"restrictions": [
+					"vs/nls",
+					"**/vs/base/common/**",
+					"**/vs/platform/*/common/**",
+					"**/vs/platform/platform",
+					"**/vs/base/parts/ipc/common/**",
+					"**/vs/base/parts/quickopen/common/**"
+				]
+			},
 			{
 				"target": "**/vs/editor/common/**",
 				"restrictions": [
