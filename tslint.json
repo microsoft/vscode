@@ -87,29 +87,20 @@
 				]
 			},
 			{
-				"target": "**/vs/base/parts/quickopen/common/**",
+				"target": "**/vs/base/parts/*/common/**",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/common/**"
+					"**/vs/base/common/**",
+					"**/vs/base/parts/*/common/**"
 				]
 			},
 			{
-				"target": "**/vs/base/parts/quickopen/browser/**",
+				"target": "**/vs/base/parts/*/browser/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
 					"**/vs/base/{common,browser}/**",
-					"**/vs/base/parts/tree/browser/**",
-					"**/vs/base/parts/quickopen/{common,browser}/**"
-				]
-			},
-			{
-				"target": "**/vs/base/parts/tree/browser/**",
-				"restrictions": [
-					"vs/nls",
-					"vs/css!./**/*",
-					"**/vs/base/{common,browser}/**",
-					"**/vs/base/parts/tree/browser/**"
+					"**/vs/base/parts/*/{common,browser}/**"
 				]
 			},
 			{
@@ -125,10 +116,31 @@
 				"restrictions": [
 					"vs/nls",
 					"**/vs/base/common/**",
-					"**/vs/platform/*/common/**",
+					"**/vs/base/parts/*/common/**",
 					"**/vs/platform/platform",
-					"**/vs/base/parts/ipc/common/**",
-					"**/vs/base/parts/quickopen/common/**"
+					"**/vs/platform/*/common/**"
+				]
+			},
+			// {
+			// 	"target": "**/vs/platform/*/test/common/**",
+			// 	"restrictions": [
+			// 		"assert",
+			// 		"vs/nls",
+			// 		"**/vs/base/common/**",
+			// 		"**/vs/platform/*/common/**",
+			// 		"**/vs/platform/platform",
+			// 		"**/vs/platform/*/test/common/**"
+			// 	]
+			// },
+			{
+				"target": "**/vs/platform/*/browser/**",
+				"restrictions": [
+					"vs/nls",
+					"vs/css!./**/*",
+					"**/vs/base/{common,browser}/**",
+					"**/vs/base/parts/*/{common,browser}/**",
+					"**/vs/platform/platform",
+					"**/vs/platform/*/{common,browser}/**"
 				]
 			},
 			{
@@ -174,7 +186,7 @@
 					"vs/nls",
 					"vs/css!./**/*",
 					"**/vs/base/{common,browser}/**",
-					"**/vs/base/parts/{tree,quickopen}/{common,browser}/**",
+					"**/vs/base/parts/*/{common,browser}/**",
 					"**/vs/platform/*/{common,browser}/**",
 					"**/vs/platform/*/test/{common,browser}/**",
 					"**/vs/editor/**",
