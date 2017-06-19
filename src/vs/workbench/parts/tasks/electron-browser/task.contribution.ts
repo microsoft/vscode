@@ -972,7 +972,7 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	public terminate(task: string | Task): TPromise<TaskTerminateResponse> {
 		if (!this._taskSystem) {
-			return TPromise.as({ success: true });
+			return TPromise.as({ success: true, task: undefined });
 		}
 		const id: string = Types.isString(task) ? task : task._id;
 		return this._taskSystem.terminate(id);
@@ -1138,7 +1138,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		{
 			let { config, hasParseErrors } = this.getConfiguration();
 			if (hasParseErrors) {
-				return TPromise.as({ set: undefined, hasErrors: true });
+				return TPromise.as({ set: undefined, hasErrors: true, annotatingTasks: undefined });
 			}
 			let engine = TaskConfig.ExecutionEngine._default;
 			if (config) {

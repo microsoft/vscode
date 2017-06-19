@@ -146,20 +146,20 @@ export class FileWalker {
 			}
 
 			// For each root folder
-			flow.parallel<string, void>(rootFolders, (rootFolder: string, rootFolderDone: (err?: Error) => void) => {
+			flow.parallel<string, void>(rootFolders, (rootFolder: string, rootFolderDone: (err: Error, result: void) => void) => {
 				this.call(traverse, this, rootFolder, onResult, (err?: Error) => {
 					if (err) {
 						if (isNodeTraversal) {
-							rootFolderDone(err);
+							rootFolderDone(err, undefined);
 						} else {
 							// fallback
 							const errorMessage = toErrorMessage(err);
 							console.error(errorMessage);
 							this.errors.push(errorMessage);
-							this.nodeJSTraversal(rootFolder, onResult, rootFolderDone);
+							this.nodeJSTraversal(rootFolder, onResult, err => rootFolderDone(err, undefined));
 						}
 					} else {
-						rootFolderDone();
+						rootFolderDone(undefined, undefined);
 					}
 				});
 			}, (err, result) => {
@@ -478,11 +478,11 @@ export class FileWalker {
 	private doWalk(rootFolder: string, relativeParentPath: string, files: string[], onResult: (result: IRawFileMatch) => void, done: (error: Error) => void): void {
 
 		// Execute tasks on each file in parallel to optimize throughput
-		flow.parallel(files, (file: string, clb: (error: Error) => void): void => {
+		flow.parallel(files, (file: string, clb: (error: Error, result: {}) => void): void => {
 
 			// Check canceled
 			if (this.isCanceled || this.isLimitHit) {
-				return clb(null);
+				return clb(null, undefined);
 			}
 
 			// If the user searches for the exact file name, we adjust the glob matching
@@ -496,14 +496,14 @@ export class FileWalker {
 			// Check exclude pattern
 			let currentRelativePath = relativeParentPath ? [relativeParentPath, file].join(paths.sep) : file;
 			if (this.excludePattern(currentRelativePath, file, () => siblings)) {
-				return clb(null);
+				return clb(null, undefined);
 			}
 
 			// Use lstat to detect links
 			let currentAbsolutePath = [rootFolder, currentRelativePath].join(paths.sep);
 			fs.lstat(currentAbsolutePath, (error, lstat) => {
 				if (error || this.isCanceled || this.isLimitHit) {
-					return clb(null);
+					return clb(null, undefined);
 				}
 
 				// If the path is a link, we must instead use fs.stat() to find out if the
@@ -511,7 +511,7 @@ export class FileWalker {
 				// the link which is always a file.
 				this.statLinkIfNeeded(currentAbsolutePath, lstat, (error, stat) => {
 					if (error || this.isCanceled || this.isLimitHit) {
-						return clb(null);
+						return clb(null, undefined);
 					}
 
 					// Directory: Follow directories
@@ -521,11 +521,11 @@ export class FileWalker {
 						// to really prevent loops with links we need to resolve the real path of them
 						return this.realPathIfNeeded(currentAbsolutePath, lstat, (error, realpath) => {
 							if (error || this.isCanceled || this.isLimitHit) {
-								return clb(null);
+								return clb(null, undefined);
 							}
 
 							if (this.walkedPaths[realpath]) {
-								return clb(null); // escape when there are cycles (can happen with symlinks)
+								return clb(null, undefined); // escape when there are cycles (can happen with symlinks)
 							}
 
 							this.walkedPaths[realpath] = true; // remember as walked
@@ -533,10 +533,10 @@ export class FileWalker {
 							// Continue walking
 							return extfs.readdir(currentAbsolutePath, (error: Error, children: string[]): void => {
 								if (error || this.isCanceled || this.isLimitHit) {
-									return clb(null);
+									return clb(null, undefined);
 								}
 
-								this.doWalk(rootFolder, currentRelativePath, children, onResult, clb);
+								this.doWalk(rootFolder, currentRelativePath, children, onResult, err => clb(err, undefined));
 							});
 						});
 					}
@@ -545,18 +545,18 @@ export class FileWalker {
 					else {
 						this.filesWalked++;
 						if (currentRelativePath === this.filePattern) {
-							return clb(null); // ignore file if its path matches with the file pattern because checkFilePatternRelativeMatch() takes care of those
+							return clb(null, undefined); // ignore file if its path matches with the file pattern because checkFilePatternRelativeMatch() takes care of those
 						}
 
 						if (this.maxFilesize && types.isNumber(stat.size) && stat.size > this.maxFilesize) {
-							return clb(null); // ignore file if max file size is hit
+							return clb(null, undefined); // ignore file if max file size is hit
 						}
 
 						this.matchFile(onResult, { base: rootFolder, relativePath: currentRelativePath, basename: file, size: stat.size });
 					}
 
 					// Unwind
-					return clb(null);
+					return clb(null, undefined);
 				});
 			});
 		}, (error: Error[]): void => {

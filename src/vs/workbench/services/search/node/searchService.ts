@@ -144,7 +144,7 @@ export class SearchService implements ISearchService {
 						fileMatch.lineMatches.push(new LineMatch(model.getLineContent(match.range.startLineNumber), match.range.startLineNumber - 1, [[match.range.startColumn - 1, match.range.endColumn - match.range.startColumn]]));
 					});
 				} else {
-					localResults.set(resource, false);
+					localResults.set(resource, null);
 				}
 			});
 		}

@@ -7,7 +7,7 @@ import assert = require('assert');
 import uri from 'vs/base/common/uri';
 import platform = require('vs/base/common/platform');
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IConfigurationService, getConfigurationValue } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, getConfigurationValue, IConfigurationOverrides, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/node/configurationResolverService';
@@ -340,7 +340,7 @@ class MockConfigurationService implements IConfigurationService {
 	public serviceId = IConfigurationService;
 	public constructor(private configuration: any = {}) { }
 	public reloadConfiguration<T>(section?: string): TPromise<T> { return TPromise.as(this.getConfiguration()); }
-	public lookup(key: string) { return { value: getConfigurationValue(this.getConfiguration(), key), default: getConfigurationValue(this.getConfiguration(), key), user: getConfigurationValue(this.getConfiguration(), key), workspace: void 0 }; }
+	public lookup<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> { return { value: getConfigurationValue<T>(this.getConfiguration(), key), default: getConfigurationValue<T>(this.getConfiguration(), key), user: getConfigurationValue<T>(this.getConfiguration(), key), workspace: void 0 }; }
 	public keys() { return { default: [], user: [], workspace: [] }; }
 	public values() { return {}; }
 	public getConfiguration(): any { return this.configuration; }

@@ -885,7 +885,7 @@ namespace ProblemMatcherConverter {
 				JSON.stringify(config, null, 4)));
 			return result;
 		} else if (kind === ProblemMatcherKind.String || kind === ProblemMatcherKind.ProblemMatcher) {
-			let matcher = resolveProblemMatcher(config, context);
+			let matcher = resolveProblemMatcher(config as ProblemMatcherConfig.ProblemMatcher, context);
 			if (matcher) {
 				result.push(matcher);
 			}
