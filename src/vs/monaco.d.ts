@@ -1052,6 +1052,10 @@ declare module monaco.editor {
 		Visible = 3,
 	}
 
+	export interface ThemeColor {
+		id: string;
+	}
+
 	/**
 	 * Vertical Lane in the overview ruler of the editor.
 	 */
@@ -2157,10 +2161,6 @@ declare module monaco.editor {
 		 * Restore view state.
 		 */
 		restoreViewState?(state: any): void;
-	}
-
-	export interface ThemeColor {
-		id: string;
 	}
 
 	export interface ICommonCodeEditor extends IEditor {

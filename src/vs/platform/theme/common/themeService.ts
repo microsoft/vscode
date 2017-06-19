@@ -13,6 +13,10 @@ import Event, { Emitter } from 'vs/base/common/event';
 
 export let IThemeService = createDecorator<IThemeService>('themeService');
 
+export interface ThemeColor {
+	id: string;
+}
+
 // base themes
 export const DARK: ThemeType = 'dark';
 export const LIGHT: ThemeType = 'light';
