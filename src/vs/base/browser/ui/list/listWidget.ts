@@ -651,12 +651,14 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		if (options.ariaLabel) {
 			this.view.domNode.setAttribute('aria-label', options.ariaLabel);
 		}
+		this.view.domNode.setAttribute('aria-setsize', '0');
 
 		this.style(options);
 	}
 
 	splice(start: number, deleteCount: number, elements: T[] = []): void {
 		this.eventBufferer.bufferEvents(() => this.spliceable.splice(start, deleteCount, elements));
+		this.view.domNode.setAttribute('aria-setsize', this.length.toString());
 	}
 
 	get length(): number {
@@ -712,6 +714,11 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	setFocus(indexes: number[]): void {
 		indexes = indexes.sort(numericSort);
 		this.focus.set(indexes);
+		if (indexes.length) {
+			this.view.domNode.setAttribute('aria-posinset', (indexes[0] + 1).toString());
+		} else {
+			this.view.domNode.removeAttribute('aria-posinset');
+		}
 	}
 
 	focusNext(n = 1, loop = false): void {
