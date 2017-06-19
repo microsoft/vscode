@@ -191,10 +191,11 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		});
 
 		const onDone = stopwatch(fromPromise(promise));
+		const mode = this._editor.getModel().getLanguageIdentifier().language;
 
 		onDone(duration => this._telemetryService.publicLog('findReferences', {
 			duration,
-			mode: this._editor.getModel().getLanguageIdentifier().language
+			mode
 		}));
 	}
 
