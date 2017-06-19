@@ -151,7 +151,6 @@
 					"**/vs/platform/*/common/**",
 					"**/vs/platform/*/test/common/**",
 					"**/vs/editor/common/**",
-					"**/vs/editor/contrib/wordOperations/**", // TODO@Alex
 					"**/vs/editor/contrib/folding/common/**", // TODO@Alex
 					"**/vs/editor/test/common/**"
 				]
