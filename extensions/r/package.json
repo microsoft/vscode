@@ -3,9 +3,6 @@
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
-	"scripts": {
-		"update-grammar": "node ../../build/npm/update-grammar.js textmate/r.tmbundle Syntaxes/R.plist ./syntaxes/r.tmLanguage.json"
-	},
 	"contributes": {
 		"languages": [{
 			"id": "r",
@@ -16,7 +13,7 @@
 		"grammars": [{
 			"language": "r",
 			"scopeName": "source.r",
-			"path": "./syntaxes/r.tmLanguage.json"
+			"path": "./syntaxes/r.json"
 		}]
 	}
 }
