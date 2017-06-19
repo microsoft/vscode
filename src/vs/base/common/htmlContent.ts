@@ -12,11 +12,6 @@
  */
 export type MarkedString = string | { readonly language: string; readonly value: string };
 
-export interface IHTMLContentElementCode {
-	language: string;
-	value: string;
-}
-
 export function markedStringsEquals(a: MarkedString | MarkedString[], b: MarkedString | MarkedString[]): boolean {
 	if (!a && !b) {
 		return true;
@@ -29,9 +24,9 @@ export function markedStringsEquals(a: MarkedString | MarkedString[], b: MarkedS
 		if (!Array.isArray(b)) {
 			return false;
 		}
-		return markedStringArrEquals(<MarkedString[]>a, <MarkedString[]>b);
+		return markedStringArrEquals(a, b);
 	}
-	return markedStringEqual(<MarkedString>a, <MarkedString>b);
+	return markedStringEqual(a, b as MarkedString);
 }
 
 
@@ -76,16 +71,4 @@ export function removeMarkdownEscapes(text: string): string {
 		return text;
 	}
 	return text.replace(/\\([\\`*_{}[\]()#+\-.!])/g, '$1');
-}
-
-export interface IHTMLContentElement {
-	/**
-	 * supports **bold**, __italics__, and [[actions]]
-	 */
-	formattedText?: string;
-	text?: string;
-	className?: string;
-	inline?: boolean;
-	markdown?: string;
-	code?: IHTMLContentElementCode;
 }
