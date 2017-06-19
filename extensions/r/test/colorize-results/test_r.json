@@ -54,9 +54,9 @@
 			"hc_black": "comment: #7CA668"
 		}
 	},
-	{
-		"c": " ",
-		"t": "source.r comment.line.roxygen.r",
+    {
+		"c": "#'",
+		"t": "source.r comment.line.roxygen.r punctuation.definition.comment.r",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -66,8 +66,8 @@
 		}
 	},
 	{
-		"c": "#'",
-		"t": "source.r comment.line.roxygen.r punctuation.definition.comment.r",
+		"c": " ",
+		"t": "source.r comment.line.roxygen.r",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
