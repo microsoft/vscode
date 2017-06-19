@@ -22,7 +22,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
-import { ModelBuilder } from 'vs/editor/node/model/modelBuilder';
+import { ModelBuilder } from 'vs/workbench/services/textfile/electron-browser/modelBuilder';
 import product from 'vs/platform/node/product';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

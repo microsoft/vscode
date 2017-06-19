@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { ModelBuilder, computeHash } from 'vs/editor/node/model/modelBuilder';
+import { ModelBuilder, computeHash } from 'vs/workbench/services/textfile/electron-browser/modelBuilder';
 import { ITextModelCreationOptions } from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import * as strings from 'vs/base/common/strings';
