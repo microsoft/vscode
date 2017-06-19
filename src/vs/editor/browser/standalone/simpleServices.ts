@@ -25,6 +25,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { getDefaultValues as getDefaultConfiguration } from 'vs/platform/configuration/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { ITextModelService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IDisposable, IReference, ImmortalReference, combinedDisposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
@@ -465,6 +466,22 @@ export class SimpleConfigurationService implements IConfigurationService {
 	public values(): IConfigurationValues {
 		return {};
 	}
+}
+
+export class SimpleResourceConfigurationService implements ITextResourceConfigurationService {
+
+	_serviceBrand: any;
+
+	public readonly onDidUpdateConfiguration: Event<any>;
+
+	constructor(private configurationService: SimpleConfigurationService) {
+		this.onDidUpdateConfiguration = this.configurationService.onDidUpdateConfiguration;
+	}
+
+	public getConfiguration<T>(): T {
+		return this.configurationService.getConfiguration<T>();
+	}
+
 }
 
 export class SimpleMenuService implements IMenuService {
