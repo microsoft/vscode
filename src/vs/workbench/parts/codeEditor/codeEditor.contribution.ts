@@ -5,7 +5,7 @@
 
 import './electron-browser/accessibility';
 import './electron-browser/inspectKeybindings';
-import './electron-browser/inspectTMScopes';
+import './electron-browser/textMate/inspectTMScopes';
 import './electron-browser/selectionClipboard';
 import './electron-browser/toggleMultiCursorModifier';
 import './electron-browser/toggleRenderControlCharacter';

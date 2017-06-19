@@ -19,7 +19,7 @@ import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
 import { IGrammar, StackElement } from 'vscode-textmate';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
-import { ThemeRule, findMatchingThemeRule } from 'vs/editor/electron-browser/textMate/TMHelper';
+import { ThemeRule, findMatchingThemeRule } from 'vs/workbench/parts/codeEditor/electron-browser/textMate/TMHelper';
 import { Color } from 'vs/base/common/color';
 
 interface IToken {
