@@ -13,9 +13,5 @@
 	"appStalled": "ウィンドウから応答がありません",
 	"appStalledDetail": "ウィンドウを再度開くか、閉じるか、このまま待機できます。",
 	"appCrashed": "ウィンドウがクラッシュしました",
-	"appCrashedDetail": "ご不便をおかけして申し訳ありません。ウィンドウを再度開いて、中断したところから続行できます。",
-	"newWindow": "新しいウィンドウ",
-	"newWindowDesc": "新しいウィンドウを開く",
-	"recentFolders": "最近使用したフォルダー",
-	"folderDesc": "{0} {1}"
+	"appCrashedDetail": "ご不便をおかけして申し訳ありません。ウィンドウを再度開いて、中断したところから続行できます。"
 }

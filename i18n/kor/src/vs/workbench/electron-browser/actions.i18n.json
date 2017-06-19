@@ -6,9 +6,6 @@
 {
 	"closeActiveEditor": "편집기 닫기",
 	"closeWindow": "창 닫기",
-	"switchWindow": "창 전환",
-	"switchWindowPlaceHolder": "창 선택",
-	"current": "현재 창",
 	"closeFolder": "폴더 닫기",
 	"noFolderOpened": "이 인스턴스에 현재 열려 있는 닫을 폴더가 없습니다.",
 	"newWindow": "새 창",
@@ -20,7 +17,7 @@
 	"zoomReset": "확대/축소 다시 설정",
 	"appPerf": "시작 성능",
 	"reloadWindow": "창 다시 로드",
-	"openRecent": "최근 파일 열기",
+	"current": "현재 창",
 	"folders": "폴더",
 	"files": "파일",
 	"openRecentPlaceHolderMac": "경로 선택(새 창에서 열려면 Cmd 키를 길게 누름)",
@@ -32,10 +29,6 @@
 	"openDocumentationUrl": "설명서",
 	"openIntroductoryVideosUrl": "소개 비디오",
 	"toggleSharedProcess": "공유 프로세스 설정/해제",
-	"navigateLeft": "뷰 왼쪽으로 이동",
-	"navigateRight": "뷰 오른쪽으로 이동",
-	"navigateUp": "뷰 위로 이동",
-	"navigateDown": "뷰 아래로 이동",
 	"increaseViewSize": "현재 뷰 크기 늘리기",
 	"decreaseViewSize": "현재 뷰 크기 줄이기"
 }

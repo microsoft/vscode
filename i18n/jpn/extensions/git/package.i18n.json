@@ -32,7 +32,7 @@
 	"command.push": "プッシュ",
 	"command.pushTo": "プッシュ先...",
 	"command.sync": "同期",
-	"command.publish": "公開",
+	"command.publish": "ブランチの発行",
 	"command.showOutput": "Git 出力の表示",
 	"config.enabled": "Git が有効になっているかどうか",
 	"config.path": "Git 実行可能ファイルのパス",

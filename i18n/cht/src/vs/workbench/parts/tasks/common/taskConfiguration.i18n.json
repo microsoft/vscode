@@ -12,5 +12,6 @@
 	"ConfigurationParser.invalidVaraibleReference": "錯誤: problemMatcher 參考無效: {0}\n",
 	"ConfigurationParser.noTaskName": "錯誤: 工作必須提供 taskName 屬性。即將忽略此工作。\n{0}\n",
 	"taskConfiguration.shellArgs": "警告: 工作 '{0}' 是殼層命令，但命令名稱或其中一個引數有的未逸出的空格。若要確保命令列正確引述，請將引數合併到命令中。",
+	"taskConfiguration.noCommandOrDependsOn": "錯誤: 工作 '{0}' 未指定命令與 dependsOn 屬性。將會略過該工作。其定義為: \n{1}",
 	"taskConfiguration.noCommand": "錯誤: 工作 '{0}' 未定義命令。即將略過該工作。其定義為:\n{1}"
 }

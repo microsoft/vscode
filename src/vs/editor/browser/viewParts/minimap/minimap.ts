@@ -118,8 +118,8 @@ class MinimapOptions {
 		this.minimapWidth = layoutInfo.minimapWidth;
 		this.minimapHeight = layoutInfo.height;
 
-		this.canvasInnerWidth = Math.floor(pixelRatio * this.minimapWidth);
-		this.canvasInnerHeight = Math.floor(pixelRatio * this.minimapHeight);
+		this.canvasInnerWidth = Math.max(1, Math.floor(pixelRatio * this.minimapWidth));
+		this.canvasInnerHeight = Math.max(1, Math.floor(pixelRatio * this.minimapHeight));
 
 		this.canvasOuterWidth = this.canvasInnerWidth / pixelRatio;
 		this.canvasOuterHeight = this.canvasInnerHeight / pixelRatio;

@@ -13,11 +13,11 @@
 	"typescript.check.tscVersion": "Verifica se um ima instalação global do compilador TypeScript (por exemplo, tsc) difere do serviço de linguagem TypeScript usado.",
 	"typescript.tsserver.log": "Habilita o log do servidor TS para um arquivo. Este log pode ser usado para diagnosticar problemas do servidor de TS. O log pode conter caminhos de arquivo, código-fonte e outras informações potencialmente confidenciais do seu projeto.",
 	"typescript.tsserver.trace": "Habilita o rastreamento de mensagens enviadas para o servidor de TS. Este rastreamento pode ser usado para diagnosticar problemas do servidor de TS. O rastreamento pode conter caminhos de arquivo, código-fonte e outras informações potencialmente confidenciais do seu projeto.",
-	"typescript.tsserver.experimentalAutoBuild": "Habilita auto build experimental. Requer a versão 1.9 dev ou 2.x do tsserver  e o reinício do VS Code depois da alteração.",
 	"typescript.validate.enable": "Habilita/Desabilita a validação TypeScript.",
 	"typescript.format.enable": "Habilita/Desabilita o formatador padrão TypeScript.",
 	"javascript.format.enable": "Habilita/Desabilita o formatador padrão JavaScript.",
 	"format.insertSpaceAfterCommaDelimiter": "Define o tratamento de espaços após um delimitador vírgula.",
+	"format.insertSpaceAfterConstructor": "Define a manipulação de espaços após a palavra-chave do construtor. Requer TypeScript > = 2.3.0.",
 	"format.insertSpaceAfterSemicolonInForStatements": "Define o tratamento de espaços após um ponto e vírgula para um comando.",
 	"format.insertSpaceBeforeAndAfterBinaryOperators": "Define o tratamento de espaços após um operador binário.",
 	"format.insertSpaceAfterKeywordsInControlFlowStatements": "Define o tratamento de espaços após palavras-chave em um comando de controle de fluxo.",
@@ -41,6 +41,8 @@
 	"typescript.selectTypeScriptVersion.title": "Selecionar a versão do JavaScript",
 	"jsDocCompletion.enabled": "Habilitar/Desabilitar comentários JSDoc automáticos.",
 	"javascript.implicitProjectConfig.checkJs": "Habilitar/desabilitar verificação semântica de arquivos JavaScript. Os arquivos existentes  jsconfig.json ou tsconfig.json substituem essa configuração. Requer TypeScript > = 2.3.1.",
+	"typescript.npm": "Especifica o caminho para o executável do NPM usado para Aquisição de Tipo Automático. Requer TypeScript > = 2.3.4.",
+	"typescript.check.npmIsInstalled": "Verificar se o NPM está instalado para aquisição automática de tipo.",
 	"javascript.nameSuggestions": "Habilitar/desabilitar incluindo nomes exclusivos do arquivo nas listas de sugestão de JavaScript.",
 	"typescript.tsc.autoDetect": "Controla se a auto-detecção de tarefas tsc estão ligadas ou desligadas."
 }

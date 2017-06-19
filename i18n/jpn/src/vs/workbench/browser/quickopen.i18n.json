@@ -6,6 +6,5 @@
 {
 	"noResultsMatching": "一致する結果はありません",
 	"noResultsFound2": "一致する項目はありません",
-	"entryAriaLabel": "{0}、コマンド",
-	"noCommands": "一致するコマンドはありません"
+	"entryAriaLabel": "{0}、コマンド"
 }

@@ -7,6 +7,10 @@
 	"JsonSchema.shell": "Especifica si el comando es un comando shell o un programa externo. Si se omite, el valor predeterminado es false.",
 	"JsonSchema.tasks.dependsOn.string": "Otra tarea de la que depende esta tarea.",
 	"JsonSchema.tasks.dependsOn.array": "Las otras tareas de las que depende esta tarea.",
+	"JsonSchema.tasks.group": "Define el grupo de ejecución al que pertenece esta tarea. Si se omite, la tarea no pertenece a ningún grupo.",
+	"JsonSchema.tasks.type": "Define si la tarea se ejecuta como un proceso o como un comando dentro de un shell. El valor predeterminado es proceso.",
+	"JsonSchema.version": "El número de versión de la configuración.",
+	"JsonSchema.tasks.customize": "La tarea contribuida que se va a personalizar.",
 	"JsonSchema.windows": "Configuración de comando específico de Windows",
 	"JsonSchema.mac": "Configuración de comando específico de Mac",
 	"JsonSchema.linux": "Configuración de comando específico de Linux"

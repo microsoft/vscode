@@ -124,7 +124,7 @@ suite('ConfigurationEditingService', () => {
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IModeService, ModeServiceImpl);
 		instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
-		instantiationService.stub(IFileService, new FileService(workspaceDir, { disableWatcher: true }));
+		instantiationService.stub(IFileService, instantiationService.createInstance(FileService, workspaceDir, { disableWatcher: true }));
 		instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 
 		instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));

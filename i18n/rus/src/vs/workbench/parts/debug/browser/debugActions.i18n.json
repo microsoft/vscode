@@ -6,6 +6,7 @@
 {
 	"openLaunchJson": "Открыть {0}",
 	"launchJsonNeedsConfigurtion": "Настройте или исправьте \"launch.json\"",
+	"noFolderDebugConfig": "Чтобы перейти к расширенной конфигурации отладки, сначала откройте папку.",
 	"startDebug": "Начать отладку",
 	"startWithoutDebugging": "Начать без отладки",
 	"selectAndStartDebugging": "Выбрать и начать отладку",

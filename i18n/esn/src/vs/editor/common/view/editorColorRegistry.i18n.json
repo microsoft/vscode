@@ -16,5 +16,9 @@
 	"editorBracketMatchBackground": "Color de fondo tras corchetes coincidentes",
 	"editorBracketMatchBorder": "Color de bloques con corchetes coincidentes",
 	"editorOverviewRulerBorder": "Color del borde de la regla de visión general.",
-	"editorGutter": "Color de fondo del margen del editor. Este espacio contiene los márgenes de glifos y los números de línea."
+	"editorGutter": "Color de fondo del margen del editor. Este espacio contiene los márgenes de glifos y los números de línea.",
+	"errorForeground": "Color de primer plano de squigglies de error en el editor.",
+	"errorBorder": "Color de borde de squigglies de error en el editor.",
+	"warningForeground": "Color de primer plano de squigglies de advertencia en el editor.",
+	"warningBorder": "Color de borde de squigglies de advertencia en el editor."
 }

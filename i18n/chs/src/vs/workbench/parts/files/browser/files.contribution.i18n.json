@@ -28,7 +28,6 @@
 	"watcherExclude": "配置文件路径的 glob 模式以从文件监视排除。更改此设置要求重启。如果在启动时遇到 Code 消耗大量 CPU 时间，则可以排除大型文件夹以减少初始加载。",
 	"hotExit.off": "禁用热退出。",
 	"hotExit.onExit": "应用程序关闭时将触发热退出。在 Windows/Linux 上关闭最后一个窗口或触发 workbench.action.quit 命令（命令托盘、键绑定、菜单）会引起应用程序关闭。下次启动时将还原所有已备份的窗口。",
-	"hotExit.onExitAndWindowClose": "应用程序关闭时将触发热退出。在 Windows/Linux 上关闭最后一个窗口、触发 workbench.action.quit 命令（命令托盘、键绑定、菜单）会引起应用程序关闭。对于任何有文件夹打开的窗口，则不论该窗口是否是最后一个窗口。下次启动时将还原所有未打开文件夹的窗口。若要还原打开有文件夹的窗口，请将“window.reopenFolders”设置为“all”。",
 	"hotExit": "控制是否在会话间记住未保存的文件，以允许在退出编辑器时跳过保存提示。",
 	"defaultLanguage": "分配给新文件的默认语言模式。",
 	"editorConfigurationTitle": "编辑器",

@@ -7,6 +7,7 @@
 	"JsonSchema.options": "Opciones de comando adicionales",
 	"JsonSchema.options.cwd": "Directorio de trabajo actual del script o el programa ejecutado. Si se omite, se usa la raíz del área de trabajo actual de Code.",
 	"JsonSchema.options.env": "Entorno del shell o el programa ejecutado. Si se omite, se usa el entorno del proceso primario.",
+	"JsonSchema.shellConfiguration": "Configura el shell que se usará.",
 	"JsonSchema.shell.executable": "Shell que se va a usar.",
 	"JsonSchema.shell.args": "Argumentos de shell.",
 	"JsonSchema.command": "El comando que se va a ejecutar. Puede ser un programa externo o un comando shell.",

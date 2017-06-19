@@ -7,6 +7,7 @@
 	"JsonSchema.options": "Opzioni dei comandi aggiuntive",
 	"JsonSchema.options.cwd": "Directory di lavoro corrente del programma o dello script eseguito. Se omesso, viene usata la radice dell'area di lavoro corrente di Visual Studio Code.",
 	"JsonSchema.options.env": "Ambiente della shell o del programma eseguito. Se omesso, viene usato l'ambiente del processo padre.",
+	"JsonSchema.shellConfiguration": "Configura la shell da utilizzare.",
 	"JsonSchema.shell.executable": "Shell da usare.",
 	"JsonSchema.shell.args": "Argomenti della shell.",
 	"JsonSchema.command": "Comando da eseguire. Può essere un programma esterno o un comando della shell.",

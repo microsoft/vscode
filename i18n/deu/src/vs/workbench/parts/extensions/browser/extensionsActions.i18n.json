@@ -22,6 +22,8 @@
 	"disableGloballyAction": "Immer",
 	"disableAction": "Deaktivieren",
 	"checkForUpdates": "Nach Updates suchen",
+	"enableAutoUpdate": "Aktivere die automatische Aktualisierung von Erweiterungen",
+	"disableAutoUpdate": "Deaktivere die automatische Aktualisierung von Erweiterungen",
 	"updateAll": "Alle Erweiterungen aktualisieren",
 	"reloadAction": "Neu starten",
 	"postUpdateTooltip": "Zum Aktualisieren erneut laden",
@@ -44,6 +46,8 @@
 	"showWorkspaceRecommendedExtensions": "Für den Arbeitsbereich empfohlene Erweiterungen anzeigen",
 	"showRecommendedKeymapExtensions": "Empfohlene Tastenzuordnungen anzeigen",
 	"showRecommendedKeymapExtensionsShort": "Tastenzuordnungen",
+	"showLanguageExtensions": "Spracherweiterungen anzeigen",
+	"showLanguageExtensionsShort": "Spracherweiterungen",
 	"configureWorkspaceRecommendedExtensions": "Empfohlene Erweiterungen konfigurieren (Arbeitsbereich)",
 	"ConfigureWorkspaceRecommendations.noWorkspace": "Empfehlungen sind nur für einen Arbeitsbereichsordner verfügbar.",
 	"OpenExtensionsFile.failed": "Die Datei \"extensions.json\" kann nicht im Ordner \".vscode\" erstellt werden ({0}).",
@@ -51,5 +55,8 @@
 	"disableAll": "Alle installierten Erweiterungen löschen",
 	"disableAllWorkspace": "Alle installierten Erweiterungen für diesen Arbeitsbereich deaktivieren",
 	"enableAll": "Alle installierten Erweiterungen aktivieren",
-	"enableAllWorkspace": "Alle installierten Erweiterungen für diesen Arbeitsbereich aktivieren"
+	"enableAllWorkspace": "Alle installierten Erweiterungen für diesen Arbeitsbereich aktivieren",
+	"extensionButtonProminentBackground": "Hintergrundfarbe für markante Aktionenerweiterungen (z. B. die Schaltfläche zum Installieren).",
+	"extensionButtonProminentForeground": "Vordergrundfarbe für markante Aktionenerweiterungen (z. B. die Schaltfläche zum Installieren).",
+	"extensionButtonProminentHoverBackground": "Hoverhintergrundfarbe für markante Aktionenerweiterungen (z. B. die Schaltfläche zum Installieren)."
 }

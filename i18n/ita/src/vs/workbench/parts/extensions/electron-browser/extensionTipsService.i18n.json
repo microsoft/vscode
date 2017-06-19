@@ -9,6 +9,8 @@
 	"neverShowAgain": "Non visualizzare più questo messaggio",
 	"close": "Chiudi",
 	"workspaceRecommended": "Per questa area di lavoro sono disponibili estensioni consigliate.",
+	"ignoreExtensionRecommendations": "Si desidera ignorare tutte le raccomandazioni di estensioni?",
+	"ignoreAll": "Sì, ignora tutti",
 	"no": "No",
 	"cancel": "Annulla"
 }

@@ -58,6 +58,16 @@
 				]
 			},
 			{
+				// vs/base/test/common contains tests for vs/base/common
+				"target": "**/vs/base/test/common/**",
+				"restrictions": [
+					"assert",
+					"vs/nls",
+					"**/vs/base/common/**",
+					"**/vs/base/test/common/**"
+				]
+			},
+			{
 				// vs/base/browser can only depend on vs/base/common
 				"target": "**/vs/base/browser/**",
 				"restrictions": [
@@ -65,6 +75,92 @@
 					"vs/css!./**/*",
 					"**/vs/base/common/**",
 					"**/vs/base/browser/**"
+				]
+			},
+			{
+				// vs/base/test/browser contains tests for vs/base/browser
+				"target": "**/vs/base/test/browser/**",
+				"restrictions": [
+					"assert",
+					"vs/nls",
+					"**/vs/base/common/**",
+					"**/vs/base/test/common/**",
+					"**/vs/base/browser/**",
+					"**/vs/base/test/browser/**"
+				]
+			},
+			{
+				"target": "**/vs/base/parts/quickopen/common/**",
+				"restrictions": [
+					"vs/nls",
+					"**/vs/base/common/**"
+				]
+			},
+			{
+				"target": "**/vs/base/parts/quickopen/browser/**",
+				"restrictions": [
+					"vs/nls",
+					"vs/css!./**/*",
+					"**/vs/base/common/**",
+					"**/vs/base/browser/**",
+					"**/vs/base/parts/tree/browser/**",
+					"**/vs/base/parts/quickopen/common/**",
+					"**/vs/base/parts/quickopen/browser/**"
+				]
+			},
+			{
+				"target": "**/vs/base/parts/tree/browser/**",
+				"restrictions": [
+					"vs/nls",
+					"vs/css!./**/*",
+					"**/vs/base/common/**",
+					"**/vs/base/browser/**",
+					"**/vs/base/parts/tree/browser/**"
+				]
+			},
+			// {
+			// 	"target": "**/vs/platform/test/common/**",
+			// 	"restrictions": [
+			// 		"assert",
+			// 		"**/vs/platform/platform",
+			// 		"**/vs/base/common/**"
+			// 	]
+			// },
+			// {
+			// 	"target": "**/vs/platform/*/common/**",
+			// 	"restrictions": [
+			// 		"vs/nls",
+			// 		"**/vs/base/common/**",
+			// 		"**/vs/platform/*/common/**",
+			// 		"**/vs/platform/platform",
+			// 		"**/vs/base/parts/ipc/common/**",
+			// 		"**/vs/base/parts/quickopen/common/**"
+			// 	]
+			// },
+			{
+				"target": "**/vs/editor/common/**",
+				"restrictions": [
+					"vs/nls",
+					"**/vs/base/common/**",
+					"**/vs/base/worker/**",
+					"**/vs/platform/*/common/**",
+					"**/vs/platform/platform",
+					"**/vs/editor/common/**"
+				]
+			},
+			{
+				"target": "**/vs/editor/browser/**",
+				"restrictions": [
+					"vs/nls",
+					"vs/css!./**/*",
+					"**/vs/base/common/**",
+					"**/vs/base/browser/**",
+					"**/vs/platform/*/common/**",
+					"**/vs/platform/*/browser/**",
+					"**/vs/platform/platform",
+					"**/vs/editor/common/**",
+					"**/vs/editor/browser/**",
+					"vs/editor/contrib/diffNavigator/common/diffNavigator" // TODO@Alex
 				]
 			},
 			{

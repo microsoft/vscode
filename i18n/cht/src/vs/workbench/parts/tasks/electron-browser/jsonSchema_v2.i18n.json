@@ -7,6 +7,10 @@
 	"JsonSchema.shell": "指定此命令是殼層命令或外部程式。如果省略，預設為 False。",
 	"JsonSchema.tasks.dependsOn.string": "此工作相依的另一個工作。",
 	"JsonSchema.tasks.dependsOn.array": "此工作相依的其他工作。",
+	"JsonSchema.tasks.group": "請定義此工作所屬的執行群組。若是省略此步驟，工作會屬於沒有群組。",
+	"JsonSchema.tasks.type": "定義工作是作為處理序或殼層中的命令執行。預設為處理序。",
+	"JsonSchema.version": "組態版本號碼",
+	"JsonSchema.tasks.customize": "要自訂的已提供工作。",
 	"JsonSchema.windows": "Windows 特定命令組態",
 	"JsonSchema.mac": "Mac 特定命令組態",
 	"JsonSchema.linux": "Linux 特定命令組態"

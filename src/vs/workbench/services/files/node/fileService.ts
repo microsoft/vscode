@@ -26,6 +26,7 @@ import uri from 'vs/base/common/uri';
 import nls = require('vs/nls');
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 import pfs = require('vs/base/node/pfs');
 import encoding = require('vs/base/node/encoding');
@@ -35,6 +36,7 @@ import { FileWatcher as UnixWatcherService } from 'vs/workbench/services/files/n
 import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/files/node/watcher/win32/watcherService';
 import { toFileChangesEvent, normalize, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
 import Event, { Emitter } from 'vs/base/common/event';
+import { FileWatcher as NsfwWatcherService } from 'vs/workbench/services/files/node/watcher/nsfw/watcherService';
 
 export interface IEncodingOverride {
 	resource: uri;
@@ -51,6 +53,7 @@ export interface IFileServiceOptions {
 	watcherIgnoredPatterns?: string[];
 	disableWatcher?: boolean;
 	verboseLogging?: boolean;
+	useExperimentalFileWatcher?: boolean;
 }
 
 function etag(stat: fs.Stats): string;
@@ -90,7 +93,11 @@ export class FileService implements IFileService {
 	private fileChangesWatchDelayer: ThrottledDelayer<void>;
 	private undeliveredRawFileChangesEvents: IRawFileChange[];
 
-	constructor(basePath: string, options: IFileServiceOptions) {
+	constructor(
+		basePath: string,
+		options: IFileServiceOptions,
+		private contextService: IWorkspaceContextService
+	) {
 		this.toDispose = [];
 		this.basePath = basePath ? paths.normalize(basePath) : void 0;
 
@@ -120,10 +127,14 @@ export class FileService implements IFileService {
 		}
 
 		if (this.basePath && !this.options.disableWatcher) {
-			if (isWindows) {
-				this.setupWin32WorkspaceWatching();
+			if (this.options.useExperimentalFileWatcher) {
+				this.setupNsfwWorkspceWatching();
 			} else {
-				this.setupUnixWorkspaceWatching();
+				if (isWindows) {
+					this.setupWin32WorkspaceWatching();
+				} else {
+					this.setupUnixWorkspaceWatching();
+				}
 			}
 		}
 
@@ -152,6 +163,10 @@ export class FileService implements IFileService {
 
 	private setupUnixWorkspaceWatching(): void {
 		this.toDispose.push(toDisposable(new UnixWatcherService(this.basePath, this.options.watcherIgnoredPatterns, e => this._onFileChanges.fire(e), this.options.errorLogger, this.options.verboseLogging).startWatching()));
+	}
+
+	private setupNsfwWorkspceWatching(): void {
+		this.toDispose.push(toDisposable(new NsfwWatcherService(this.basePath, this.options.watcherIgnoredPatterns, e => this._onFileChanges.fire(e), this.options.errorLogger, this.options.verboseLogging, this.contextService).startWatching()));
 	}
 
 	public resolveFile(resource: uri, options?: IResolveFileOptions): TPromise<IFileStat> {

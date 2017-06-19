@@ -29,6 +29,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { OpenNextRecentlyUsedEditorInGroupAction, OpenPreviousRecentlyUsedEditorInGroupAction, FocusActiveGroupAction, FocusFirstGroupAction, FocusSecondGroupAction, FocusThirdGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { registerColors } from './terminalColorRegistry';
+import { NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction } from "vs/workbench/electron-browser/actions";
 
 let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -188,7 +189,11 @@ configurationRegistry.registerConfiguration({
 				FocusThirdGroupAction.ID,
 				SelectAllTerminalAction.ID,
 				FocusTerminalFindWidgetAction.ID,
-				HideTerminalFindWidgetAction.ID
+				HideTerminalFindWidgetAction.ID,
+				NavigateUpAction.ID,
+				NavigateDownAction.ID,
+				NavigateRightAction.ID,
+				NavigateLeftAction.ID
 			].sort()
 		}
 	}

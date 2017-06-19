@@ -10,7 +10,7 @@
 	"multiSelection": "{0} Auswahlen",
 	"endOfLineLineFeed": "LF",
 	"endOfLineCarriageReturnLineFeed": "CRLF",
-	"tabFocusModeEnabled": "TAB-TASTE verschiebt Fokus",
+	"screenReaderDetectedExtra": "Wenn Sie keine Sprachausgabe verwenden, ändern Sie die Einstellung \"editor.accessibilitySupport\" in \"Aus\".",
 	"disableTabMode": "Barrierefreiheitsmodus deaktivieren",
 	"gotoLine": "Gehe zu Zeile",
 	"indentation": "Einzug",

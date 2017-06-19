@@ -29,7 +29,7 @@
 	"ProblemMatcherParser.noOwner": "错误: 描述未定义所有者:\n{0}\n",
 	"ProblemMatcherParser.noFileLocation": "错误: 描述未定义文件位置:\n{0}\n",
 	"ProblemMatcherParser.unknownSeverity": "信息：未知严重性 {0}。有效值为“error”、“warning”和“info”。\n",
-	"ProblemMatcherParser.noDefinedPatter": "错误: 含标识符 {0} 的模式不存在。",
+	"ProblemMatcherParser.noDefinedPatter": "错误: 标识符为 {0} 的模式不存在。",
 	"ProblemMatcherParser.noIdentifier": "错误: 模式属性引用空标识符。",
 	"ProblemMatcherParser.noValidIdentifier": "错误: 模式属性 {0} 是无效的模式变量名。",
 	"ProblemMatcherParser.problemPattern.watchingMatcher": "问题匹配程序必须定义监视的开始模式和结束模式。",

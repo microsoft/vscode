@@ -15,5 +15,18 @@
 	"license": "Lire la licence",
 	"updateAvailable": "{0} sera mis à jour après avoir redémarré.",
 	"thereIsUpdateAvailable": "Une mise à jour est disponible.",
-	"noUpdatesAvailable": "Aucune mise à jour n'est disponible actuellement."
+	"noUpdatesAvailable": "Aucune mise à jour n'est disponible actuellement.",
+	"updateIsReady": "Nouvelle mise à jour disponible.",
+	"commandPalette": "Palette de commandes...",
+	"settings": "Paramètres",
+	"keyboardShortcuts": "Raccourcis clavier",
+	"selectTheme.label": "Thème de couleur",
+	"themes.selectIconTheme.label": "Thème d'icône de fichier",
+	"not available": "Mises à jour non disponibles",
+	"checkingForUpdates": "Recherche des mises à jour...",
+	"DownloadUpdate": "Télécharger la mise à jour disponible",
+	"DownloadingUpdate": "Téléchargement de la mise à jour...",
+	"InstallingUpdate": "Installation de la mise à jour...",
+	"restartToUpdate": "Redémarrer pour mettre à jour...",
+	"checkForUpdates": "Rechercher les mises à jour..."
 }

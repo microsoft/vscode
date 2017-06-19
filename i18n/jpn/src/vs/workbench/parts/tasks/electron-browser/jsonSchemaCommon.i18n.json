@@ -7,6 +7,7 @@
 	"JsonSchema.options": "追加のコマンド オプション",
 	"JsonSchema.options.cwd": "実行されるプログラムまたはスクリプトの現在の作業ディレクトリ。省略すると、Code の現在のワークスペースのルートが使用されます。",
 	"JsonSchema.options.env": "実行されるプログラムまたはシェルの環境。省略すると、親プロセスの環境が使用されます。",
+	"JsonSchema.shellConfiguration": "使用するシェルを構成します。",
 	"JsonSchema.shell.executable": "使用するシェル。",
 	"JsonSchema.shell.args": "シェル引数。",
 	"JsonSchema.command": "実行されるコマンド。外部プログラムかシェル コマンドです。",

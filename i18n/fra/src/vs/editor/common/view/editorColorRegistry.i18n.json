@@ -16,5 +16,9 @@
 	"editorBracketMatchBackground": "Couleur d'arrière-plan pour les accolades associées",
 	"editorBracketMatchBorder": "Couleur pour le contour des accolades associées",
 	"editorOverviewRulerBorder": "Couleur de la bordure de la règle d'apperçu.",
-	"editorGutter": "Couleur de fond pour la bordure de l'éditeur. La bordure contient les marges pour les symboles et les numéros de ligne."
+	"editorGutter": "Couleur de fond pour la bordure de l'éditeur. La bordure contient les marges pour les symboles et les numéros de ligne.",
+	"errorForeground": "Couleur de premier plan de la ligne ondulée marquant les erreurs dans l'éditeur.",
+	"errorBorder": "Couleur de bordure de la ligne ondulée marquant les erreurs dans l'éditeur.",
+	"warningForeground": "Couleur de premier plan de la ligne ondulée marquant les avertissements dans l'éditeur.",
+	"warningBorder": "Couleur de bordure de la ligne ondulée marquant les avertissements dans l'éditeur."
 }

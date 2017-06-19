@@ -13,9 +13,5 @@
 	"appStalled": "A janela não está mais respondendo",
 	"appStalledDetail": "Você pode reabrir, fechar a janela ou continuar esperando.",
 	"appCrashed": "A janela foi fechada inesperadamente",
-	"appCrashedDetail": "Pedimos desculpas pelo inconveniente! Você pode reabrir a janela para continuar de onde parou.",
-	"newWindow": "Nova Janela",
-	"newWindowDesc": "Abrir uma nova janela",
-	"recentFolders": "Pastas Recentes",
-	"folderDesc": "{0} {1}"
+	"appCrashedDetail": "Pedimos desculpas pelo inconveniente! Você pode reabrir a janela para continuar de onde parou."
 }

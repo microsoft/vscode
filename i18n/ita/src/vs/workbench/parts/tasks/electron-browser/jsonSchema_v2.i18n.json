@@ -7,6 +7,10 @@
 	"JsonSchema.shell": "Specifica se il comando è un comando della shell o un programma esterno. Se omesso, viene usato il valore predefinito false.",
 	"JsonSchema.tasks.dependsOn.string": "Altra attività da cui dipende questa attività.",
 	"JsonSchema.tasks.dependsOn.array": "Altre attività da cui dipende questa attività.",
+	"JsonSchema.tasks.group": "Definisce a quale gruppo di esecuzione appartiene questa attività. Se omesso l'attività non appartiene ad alcun gruppo.",
+	"JsonSchema.tasks.type": "Definisce se l'attività viene eseguita come un processo o come un comando all'interno di una shell. L'impostazione predefinita è processo.",
+	"JsonSchema.version": "Numero di versione della configurazione",
+	"JsonSchema.tasks.customize": "L'attività contribuita da personalizzare.",
 	"JsonSchema.windows": "Configurazione dei comandi specifica di Windows",
 	"JsonSchema.mac": "Configurazione dei comandi specifica di Mac",
 	"JsonSchema.linux": "Configurazione dei comandi specifica di Linux"

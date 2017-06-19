@@ -6,6 +6,7 @@
 {
 	"openLaunchJson": "{0} öffnen",
 	"launchJsonNeedsConfigurtion": "Konfigurieren oder reparieren Sie \"launch.json\".",
+	"noFolderDebugConfig": "Öffnen Sie bitte einen Ordner, um erweitertes Debuggen zu konfigurieren.",
 	"startDebug": "Debuggen starten",
 	"startWithoutDebugging": "Ohne Debuggen starten",
 	"selectAndStartDebugging": "Debugging auswählen und starten",

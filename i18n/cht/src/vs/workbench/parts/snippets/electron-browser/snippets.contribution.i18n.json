@@ -11,6 +11,6 @@
 	"snippetSchema.json.default": "空白程式碼片段",
 	"snippetSchema.json": "使用者程式碼片段組態",
 	"snippetSchema.json.prefix": "在 Intellisense 中選取程式碼片段時要使用的前置詞",
-	"snippetSchema.json.body": "程式碼片段內容。請針對變數使用 '${id}'、'${id:label}'、'${1:label}'，並針對游標位置使用 '$0'、'$1'",
+	"snippetSchema.json.body": "程式碼片段內容。請使用 '$1', '${1:defaultText}' 以定義游標位置，並使用 '$0' 定義最終游標位置。將 '${varName}' and '${varName:defaultText}' 插入變數值，例如 'This is file: $TM_FILENAME'。",
 	"snippetSchema.json.description": "程式碼片段描述。"
 }

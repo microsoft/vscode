@@ -9,5 +9,6 @@
 	"emmetPreferences": "用于修改 Emmet 某些操作和解析程序的行为的首选项。",
 	"emmetSyntaxProfiles": "为指定的语法定义配置文件或使用带有特定规则的配置文件。",
 	"emmetExclude": "不应展开 Emmet 缩写的语言数组。",
-	"emmetExtensionsPath": "包含 Emmet 配置文件、代码段和首选项的文件夹路径"
+	"emmetExtensionsPath": "包含 Emmet 配置文件、代码段和首选项的文件夹路径",
+	"useNewEmmet": "试用新版 Emmet 模块（最终会替换旧版单一 Emmet 库）体验所有 Emmet 功能。"
 }

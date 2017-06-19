@@ -63,6 +63,7 @@ export class FileWatcher {
 				if (this.restartCounter <= FileWatcher.MAX_RESTARTS) {
 					this.errorLogger('[FileWatcher] terminated unexpectedly and is restarted again...');
 					this.restartCounter++;
+					// TODO: What do we do for multi-root here?
 					this.startWatching();
 				} else {
 					this.errorLogger('[FileWatcher] failed to start after retrying for some time, giving up. Please report this as a bug report!');

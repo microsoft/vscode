@@ -31,10 +31,6 @@
 	"window.openFoldersInNewWindow.off": "フォルダーは、最後のアクティブ ウィンドウで開きます",
 	"window.openFoldersInNewWindow.default": "フォルダーがアプリケーション内から (たとえば、[ファイル] メニューから) 選択された場合を除いて、新しいウィンドウでフォルダーを開きます",
 	"openFoldersInNewWindow": "フォルダーを新しいウィンドウで開くか、最後のアクティブ ウィンドウで開くかを制御します。\n- default: アプリケーション内で ([ファイル] メニューなどから) 選択したものでなければ、新しいウィンドウでフォルダーを開く\n- on: 新しいウィンドウでフォルダーを開く\n- off: 最後のアクティブ ウィンドウでフォルダーを開く\nこの設定は無視される場合もあります (-new-window または -reuse-window コマンド ライン オプションを使用する場合など)。",
-	"window.reopenFolders.none": "フォルダーを再度開きません。",
-	"window.reopenFolders.one": "最後にアクティブだったフォルダーを再び開きます。",
-	"window.reopenFolders.all": "最後のセッションの全フォルダーを再び開きます。",
-	"reopenFolders": "再起動後にフォルダーを再度開く方法を制御します。'none' を選択するとフォルダーを再度開くことはありません。'one' を選択すると最後に作業したフォルダーを再度開きます。'all' を選択すると前回のセッションのフォルダーすべてを再度開きます。",
 	"restoreFullscreen": "全画面表示モードで終了した場合に、ウィンドウを全画面表示モードに復元するかどうかを制御します。",
 	"zoomLevel": "ウィンドウのズーム レベルを調整します。元のサイズは 0 で、1 つ上げるごとに (1 など) 20% ずつ拡大することを表し、1 つ下げるごとに (-1 など) 20% ずつ縮小することを表します。小数点以下の桁数を入力して、さらに細かくズーム レベルを調整することもできます。",
 	"title": "アクティブなエディターに基づいてウィンドウのタイトルを制御します。変数は、コンテキストに基づいて置換されます:\n${activeEditorShort}: 例:  myFile.txt\n${activeEditorMedium}: 例: myFolder/myFile.txt\n${activeEditorLong}: 例: /Users/Development/myProject/myFolder/myFile.txt\n${rootName}: 例:  myProject\n${rootPath}: 例:  /Users/Development/myProject\n${appName}: 例:  VS Code\n${dirty}: アクティブなエディターがダーティである場合のダーティ インジケーター\n${separator}: 値のある変数で囲まれた場合にのみ表示される条件付き区切り記号 (\" - \")",
@@ -58,5 +54,7 @@
 	"zenMode.hideTabs": "Zen Mode をオンにしたときにワークベンチ タブも非表示にするかどうかを制御します。",
 	"zenMode.hideStatusBar": "Zen Mode をオンにするとワークベンチの下部にあるステータス バーを非表示にするかどうかを制御します。",
 	"zenMode.hideActivityBar": "Zen Mode をオンにするとワークベンチの左側にあるアクティビティ バーを非表示にするかを制御します。",
-	"zenMode.restore": "Zen Mode で終了したウィンドウを Zen Mode に復元するかどうかを制御します。"
+	"zenMode.restore": "Zen Mode で終了したウィンドウを Zen Mode に復元するかどうかを制御します。",
+	"workspaceConfigurationTitle": "ワークスペース",
+	"files.exclude.boolean": "ファイル パスの照合基準となる glob パターン。これを true または false に設定すると、パターンがそれぞれ有効/無効になります。"
 }
