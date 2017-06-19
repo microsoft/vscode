@@ -14,7 +14,7 @@ import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/platform/storage/node/storage';
 import { CodeWindow, IWindowState as ISingleWindowState, defaultWindowState, WindowMode } from 'vs/code/electron-main/window';
-import { ipcMain as ipc, screen, BrowserWindow, dialog } from 'electron';
+import { ipcMain as ipc, screen, BrowserWindow, dialog, systemPreferences } from 'electron';
 import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/node/paths';
 import { ILifecycleService, UnloadReason } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -27,7 +27,7 @@ import { ITelemetryService, ITelemetryData } from 'vs/platform/telemetry/common/
 import { isEqual, isEqualOrParent } from 'vs/base/common/paths';
 import { IWindowsMainService, IOpenConfiguration } from "vs/platform/windows/electron-main/windows";
 import { IHistoryMainService } from "vs/platform/history/electron-main/historyMainService";
-import { IProcessEnvironment, isLinux, isMacintosh } from "vs/base/common/platform";
+import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from "vs/base/common/platform";
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -152,6 +152,17 @@ export class WindowsManager implements IWindowsMainService {
 				this._onWindowReady.fire(win);
 			}
 		});
+
+		// React to HC color scheme changes (Windows)
+		if (isWindows) {
+			systemPreferences.on('inverted-color-scheme-changed', () => {
+				if (systemPreferences.isInvertedColorScheme()) {
+					this.sendToAll('vscode:enterHighContrast');
+				} else {
+					this.sendToAll('vscode:leaveHighContrast');
+				}
+			});
+		}
 
 		// Update our windows state before quitting and before closing windows
 		this.lifecycleService.onBeforeWindowClose(win => this.onBeforeWindowClose(win as CodeWindow));
@@ -1019,7 +1030,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 	}
 
-	public sendToAll(channel: string, payload: any, windowIdsToIgnore?: number[]): void {
+	public sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void {
 		WindowsManager.WINDOWS.forEach(w => {
 			if (windowIdsToIgnore && windowIdsToIgnore.indexOf(w.id) >= 0) {
 				return; // do not send if we are instructed to ignore it
