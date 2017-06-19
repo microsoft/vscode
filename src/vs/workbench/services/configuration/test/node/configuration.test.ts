@@ -11,7 +11,7 @@ import path = require('path');
 import fs = require('fs');
 import * as sinon from 'sinon';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';

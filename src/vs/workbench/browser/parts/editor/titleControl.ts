@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/titlecontrol';
 import nls = require('vs/nls');
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { Scope, IActionBarRegistry, Extensions, prepareActions } from 'vs/workbench/browser/actions';
 import { IAction, Action } from 'vs/base/common/actions';
 import errors = require('vs/base/common/errors');

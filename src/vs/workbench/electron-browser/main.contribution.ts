@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import nls = require('vs/nls');
 import product from 'vs/platform/node/product';
 import * as os from 'os';

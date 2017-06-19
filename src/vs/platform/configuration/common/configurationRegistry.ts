@@ -7,7 +7,7 @@
 import nls = require('vs/nls');
 import Event, { Emitter } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import objects = require('vs/base/common/objects');
 import types = require('vs/base/common/types');
 import * as strings from 'vs/base/common/strings';

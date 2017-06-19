@@ -41,7 +41,7 @@ import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/commo
 import { isWelcomePageEnabled } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IStorageService } from "vs/platform/storage/common/storage";
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 used();
 

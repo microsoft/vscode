@@ -104,20 +104,11 @@
 				]
 			},
 			{
-				"target": "**/vs/platform/test/common/**",
-				"restrictions": [
-					"assert",
-					"**/vs/platform/platform",
-					"**/vs/base/common/**"
-				]
-			},
-			{
 				"target": "**/vs/platform/*/common/**",
 				"restrictions": [
 					"vs/nls",
 					"**/vs/base/common/**",
 					"**/vs/base/parts/*/common/**",
-					"**/vs/platform/platform",
 					"**/vs/platform/*/common/**"
 				]
 			},
@@ -128,7 +119,6 @@
 			// 		"vs/nls",
 			// 		"**/vs/base/common/**",
 			// 		"**/vs/platform/*/common/**",
-			// 		"**/vs/platform/platform",
 			// 		"**/vs/platform/*/test/common/**"
 			// 	]
 			// },
@@ -139,7 +129,6 @@
 					"vs/css!./**/*",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/base/parts/*/{common,browser}/**",
-					"**/vs/platform/platform",
 					"**/vs/platform/*/{common,browser}/**"
 				]
 			},
@@ -150,7 +139,6 @@
 					"**/vs/base/common/**",
 					"**/vs/base/worker/**",
 					"**/vs/platform/*/common/**",
-					"**/vs/platform/platform",
 					"**/vs/editor/common/**"
 				]
 			},
@@ -175,7 +163,6 @@
 					"vs/css!./**/*",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/platform/*/{common,browser}/**",
-					"**/vs/platform/platform",
 					"**/vs/editor/{common,browser}/**",
 					"vs/editor/contrib/diffNavigator/common/diffNavigator" // TODO@Alex
 				]
