@@ -461,7 +461,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 					range: new Range(range.startLineNumber, 1, range.startLineNumber, oldIndentation.length + 1),
 					text: newIndent
 				});
-				firstLineText = newIndent + firstLineText.substr(oldIndentation.length + 1);
+				firstLineText = newIndent + firstLineText.substr(oldIndentation.length);
 			}
 
 			if (range.startLineNumber !== range.endLineNumber) {
