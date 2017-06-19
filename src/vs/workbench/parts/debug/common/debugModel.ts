@@ -814,24 +814,22 @@ export class Model implements IModel {
 		}
 	}
 
-	public fetchCallStack(thread: IThread): TPromise<void> {
-		return (<Thread>thread).fetchCallStack(1).then(() => {
-			if (!this.schedulers.has(thread.getId())) {
-				this.schedulers.set(thread.getId(), new RunOnceScheduler(() => {
-					const callStack = thread.getCallStack();
-					// Some adapters might not respect the number levels in StackTraceRequest and might
-					// return more stackFrames than requested. For those do not send an additional stackTrace request.
-					if (callStack.length <= 1) {
-						(<Thread>thread).fetchCallStack(19).done(() => {
-							this._onDidChangeCallStack.fire();
-						}, errors.onUnexpectedError);
-					}
-				}, 420));
-			}
+	public fetchCallStack(thread: Thread): TPromise<void> {
+		if (thread.process.session.capabilities.supportsDelayedStackTraceLoading) {
+			// For improved performance load the first stack frame and then load the rest async.
+			return thread.fetchCallStack(1).then(() => {
+				if (!this.schedulers.has(thread.getId())) {
+					this.schedulers.set(thread.getId(), new RunOnceScheduler(() => {
+						thread.fetchCallStack(19).done(() => this._onDidChangeCallStack.fire(), errors.onUnexpectedError);
+					}, 420));
+				}
 
-			this.schedulers.get(thread.getId()).schedule();
-			this._onDidChangeCallStack.fire();
-		});
+				this.schedulers.get(thread.getId()).schedule();
+				this._onDidChangeCallStack.fire();
+			});
+		}
+
+		return thread.fetchCallStack();
 	}
 
 	public getBreakpoints(): Breakpoint[] {
