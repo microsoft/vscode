@@ -894,8 +894,8 @@ export class DebugService implements debug.IDebugService {
 		});
 	}
 
-	public deemphasizeSource(uri: uri): void {
-		this.model.deemphasizeSource(uri);
+	public sourceIsNotAvailable(uri: uri): void {
+		this.model.sourceIsNotAvailable(uri);
 	}
 
 	public restartProcess(process: debug.IProcess, restartData?: any): TPromise<any> {

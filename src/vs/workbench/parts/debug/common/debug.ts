@@ -539,9 +539,9 @@ export interface IDebugService {
 	stopProcess(process: IProcess): TPromise<any>;
 
 	/**
-	 * Deemphasizes all sources with the passed uri. Source will appear as grayed out in callstack view.
+	 * Makes unavailable all sources with the passed uri. Source will appear as grayed out in callstack view.
 	 */
-	deemphasizeSource(uri: uri): void;
+	sourceIsNotAvailable(uri: uri): void;
 
 	/**
 	 * Gets the current debug model.

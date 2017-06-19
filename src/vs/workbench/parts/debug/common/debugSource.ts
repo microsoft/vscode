@@ -12,12 +12,14 @@ const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
 export class Source {
 
 	public uri: uri;
+	public available: boolean;
 
 	constructor(public raw: DebugProtocol.Source, public presentationHint: string) {
 		if (!raw) {
 			this.raw = { name: UNKNOWN_SOURCE_LABEL };
 		}
 		const path = this.raw.path || this.raw.name;
+		this.available = this.raw.name !== UNKNOWN_SOURCE_LABEL;
 		this.uri = this.raw.sourceReference > 0 ? uri.parse(`${DEBUG_SCHEME}:${path}`) : uri.file(path);
 	}
 
@@ -31,10 +33,6 @@ export class Source {
 
 	public get reference() {
 		return this.raw.sourceReference;
-	}
-
-	public get available() {
-		return this.raw.name !== UNKNOWN_SOURCE_LABEL && this.presentationHint !== 'deemphasize';
 	}
 
 	public get inMemory() {

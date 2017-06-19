@@ -97,7 +97,7 @@ export class MockDebugService implements debug.IDebugService {
 
 	public logToRepl(value: string): void { }
 
-	public deemphasizeSource(uri: uri): void { }
+	public sourceIsNotAvailable(uri: uri): void { }
 }
 
 export class MockSession implements debug.ISession {

@@ -1054,10 +1054,10 @@ export class Model implements IModel {
 		this._onDidChangeWatchExpressions.fire();
 	}
 
-	public deemphasizeSource(uri: uri): void {
+	public sourceIsNotAvailable(uri: uri): void {
 		this.processes.forEach(p => {
 			if (p.sources.has(uri.toString())) {
-				p.sources.get(uri.toString()).presentationHint = 'deemphasize';
+				p.sources.get(uri.toString()).available = false;
 			}
 		});
 		this._onDidChangeCallStack.fire();
