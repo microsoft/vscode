@@ -71,15 +71,7 @@ export class FileDataSource implements IDataSource {
 			return 'model';
 		}
 
-		// TODO@Isidor each file stat should have a reference to the root, this way you do not have to walk up the parent chain
-		let parent = stat.parent;
-		let depth = 0;
-		while (parent) {
-			parent = parent.parent;
-			depth++;
-		}
-
-		return `${depth}:${stat.getId()}`;
+		return `${stat.root.toString()}:${stat.getId()}`;
 	}
 
 	public hasChildren(tree: ITree, stat: FileStat | Model): boolean {
@@ -103,7 +95,7 @@ export class FileDataSource implements IDataSource {
 			const promise = this.fileService.resolveFile(stat.resource, { resolveSingleChildDescendants: true }).then(dirStat => {
 
 				// Convert to view model
-				const modelDirStat = FileStat.create(dirStat);
+				const modelDirStat = FileStat.create(dirStat, stat.root);
 
 				// Add children to folder
 				for (let i = 0; i < modelDirStat.children.length; i++) {

@@ -25,7 +25,7 @@ export class Model {
 	private _roots: FileStat[];
 
 	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
-		const setRoots = () => this._roots = this.contextService.getWorkspace2().roots.map(uri => new FileStat(uri));
+		const setRoots = () => this._roots = this.contextService.getWorkspace2().roots.map(uri => new FileStat(uri, uri));
 		this.contextService.onDidChangeWorkspaceRoots(() => setRoots());
 		setRoots();
 	}
@@ -67,7 +67,7 @@ export class FileStat implements IFileStat {
 
 	public isDirectoryResolved: boolean;
 
-	constructor(resource: URI, isDirectory?: boolean, hasChildren?: boolean, name: string = paths.basename(resource.fsPath), mtime?: number, etag?: string) {
+	constructor(resource: URI, public root: URI, isDirectory?: boolean, hasChildren?: boolean, name: string = paths.basename(resource.fsPath), mtime?: number, etag?: string) {
 		this.resource = resource;
 		this.name = name;
 		this.isDirectory = !!isDirectory;
@@ -87,8 +87,8 @@ export class FileStat implements IFileStat {
 		return this.resource.toString();
 	}
 
-	public static create(raw: IFileStat, resolveTo?: URI[]): FileStat {
-		const stat = new FileStat(raw.resource, raw.isDirectory, raw.hasChildren, raw.name, raw.mtime, raw.etag);
+	public static create(raw: IFileStat, root: URI, resolveTo?: URI[]): FileStat {
+		const stat = new FileStat(raw.resource, root, raw.isDirectory, raw.hasChildren, raw.name, raw.mtime, raw.etag);
 
 		// Recursively add children if present
 		if (stat.isDirectory) {
@@ -103,7 +103,7 @@ export class FileStat implements IFileStat {
 			// Recurse into children
 			if (raw.children) {
 				for (let i = 0, len = raw.children.length; i < len; i++) {
-					const child = FileStat.create(raw.children[i], resolveTo);
+					const child = FileStat.create(raw.children[i], root, resolveTo);
 					child.parent = stat;
 					stat.children.push(child);
 					stat.hasChildren = stat.children.length > 0;
@@ -313,7 +313,7 @@ export class NewStatPlaceholder extends FileStat {
 	private directoryPlaceholder: boolean;
 
 	constructor(isDirectory: boolean) {
-		super(URI.file(''));
+		super(URI.file(''), URI.file(''));
 
 		this.id = NewStatPlaceholder.ID++;
 		this.isDirectoryResolved = isDirectory;

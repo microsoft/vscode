@@ -14,7 +14,7 @@ import { validateFileName } from 'vs/workbench/parts/files/browser/fileActions';
 import { FileStat } from 'vs/workbench/parts/files/common/explorerModel';
 
 function createStat(path, name, isFolder, hasChildren, size, mtime) {
-	return new FileStat(toResource(path), isFolder, hasChildren, name, mtime);
+	return new FileStat(toResource(path), toResource(path), isFolder, hasChildren, name, mtime);
 }
 
 function toResource(path) {
@@ -246,20 +246,20 @@ suite('Files - View Model', () => {
 	test('Merge Local with Disk', function () {
 		const d = new Date().toUTCString();
 
-		const merge1 = new FileStat(URI.file(join('C:\\', '/path/to')), true, false, 'to', Date.now(), d);
-		const merge2 = new FileStat(URI.file(join('C:\\', '/path/to')), true, false, 'to', Date.now(), new Date(0).toUTCString());
+		const merge1 = new FileStat(URI.file(join('C:\\', '/path/to')), URI.file(join('C:\\', '/path')), true, false, 'to', Date.now(), d);
+		const merge2 = new FileStat(URI.file(join('C:\\', '/path/to')), URI.file(join('C:\\', '/path')), true, false, 'to', Date.now(), new Date(0).toUTCString());
 
 		// Merge Properties
 		FileStat.mergeLocalWithDisk(merge2, merge1);
 		assert.strictEqual(merge1.mtime, merge2.mtime);
 
 		// Merge Child when isDirectoryResolved=false is a no-op
-		merge2.addChild(new FileStat(URI.file(join('C:\\', '/path/to/foo.html')), true, false, 'foo.html', Date.now(), d));
+		merge2.addChild(new FileStat(URI.file(join('C:\\', '/path/to/foo.html')), URI.file(join('C:\\', '/path')), true, false, 'foo.html', Date.now(), d));
 		FileStat.mergeLocalWithDisk(merge2, merge1);
 		assert.strictEqual(merge1.children.length, 0);
 
 		// Merge Child with isDirectoryResolved=true
-		const child = new FileStat(URI.file(join('C:\\', '/path/to/foo.html')), true, false, 'foo.html', Date.now(), d);
+		const child = new FileStat(URI.file(join('C:\\', '/path/to/foo.html')), URI.file(join('C:\\', '/path')), true, false, 'foo.html', Date.now(), d);
 		merge2.removeChild(child);
 		merge2.addChild(child);
 		merge2.isDirectoryResolved = true;
