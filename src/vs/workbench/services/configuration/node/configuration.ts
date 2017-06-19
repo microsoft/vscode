@@ -163,8 +163,8 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 
 	public _serviceBrand: any;
 
-	private readonly _onDidChangeWorkspaceRoots: Emitter<URI[]> = this._register(new Emitter<URI[]>());
-	public readonly onDidChangeWorkspaceRoots: Event<URI[]> = this._onDidChangeWorkspaceRoots.event;
+	private readonly _onDidChangeWorkspaceRoots: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidChangeWorkspaceRoots: Event<void> = this._onDidChangeWorkspaceRoots.event;
 
 	private readonly _onDidUpdateConfiguration: Emitter<IConfigurationServiceEvent> = this._register(new Emitter<IConfigurationServiceEvent>());
 	public readonly onDidUpdateConfiguration: Event<IConfigurationServiceEvent> = this._onDidUpdateConfiguration.event;
@@ -222,7 +222,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 			this.workspace.roots = configuredFolders;
 			this.workspace.name = configuredFolders.map(root => basename(root.fsPath) || root.fsPath).join(', ');
 
-			this._onDidChangeWorkspaceRoots.fire(configuredFolders);
+			this._onDidChangeWorkspaceRoots.fire();
 		}
 	}
 
@@ -372,7 +372,10 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		}
 	}
 
-	private trigger(source: ConfigurationSource, sourceConfig: any = this._configuration.getFolderConfigurationModel(this.workspace.roots[0]).contents): void {
+	private trigger(source: ConfigurationSource, sourceConfig?: any): void {
+		if (!sourceConfig) {
+			sourceConfig = this.workspace ? this._configuration.getFolderConfigurationModel(this.workspace.roots[0]).contents : this._configuration.user.contents;
+		}
 		this._onDidUpdateConfiguration.fire({ source, sourceConfig });
 	}
 }

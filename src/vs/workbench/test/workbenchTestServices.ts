@@ -68,16 +68,16 @@ export class TestContextService implements IWorkspaceContextService {
 	private id: string;
 	private options: any;
 
-	private _onDidChangeWorkspaceRoots: Emitter<URI[]>;
+	private _onDidChangeWorkspaceRoots: Emitter<void>;
 
 	constructor(workspace: any = TestWorkspace, options: any = null) {
 		this.workspace = workspace;
 		this.id = generateUuid();
 		this.options = options || Object.create(null);
-		this._onDidChangeWorkspaceRoots = new Emitter<URI[]>();
+		this._onDidChangeWorkspaceRoots = new Emitter<void>();
 	}
 
-	public get onDidChangeWorkspaceRoots(): Event<URI[]> {
+	public get onDidChangeWorkspaceRoots(): Event<void> {
 		return this._onDidChangeWorkspaceRoots.event;
 	}
 

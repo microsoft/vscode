@@ -523,8 +523,8 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 
 	private static SCHEME: 'inmemory';
 
-	private readonly _onDidChangeWorkspaceRoots: Emitter<URI[]> = new Emitter<URI[]>();
-	public readonly onDidChangeWorkspaceRoots: Event<URI[]> = this._onDidChangeWorkspaceRoots.event;
+	private readonly _onDidChangeWorkspaceRoots: Emitter<void> = new Emitter<void>();
+	public readonly onDidChangeWorkspaceRoots: Event<void> = this._onDidChangeWorkspaceRoots.event;
 
 	private readonly legacyWorkspace: ILegacyWorkspace;
 	private readonly workspace: IWorkspace;
