@@ -25,15 +25,21 @@ step "Install distro dependencies" \
 step "Build minified" \
 	npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-min"
 
-step "Configure environment" \
-	id -u testuser || (useradd -m testuser; chpasswd <<< testuser:testpassword); su testuser
-	cd $BUILD_REPOSITORY_LOCALPATH
-	git config --global user.name "Michel Kaporin"
+function configureEnvironment {
+	id -u testuser || (useradd -m testuser; chpasswd <<< testuser:testpassword)
+	git config --global user.name "VS Code Agent"
 	git config --global user.email "monacotools@microsoft.com"
+}
 
-step "Run smoke test" \
+function runTest {
 	pushd test/smoke
 	npm install
 	npm run compile
-	xvfb-run -a -s "-screen 0 1024x768x8" node src/main.js --latest "$AGENT_BUILDDIRECTORY/VSCode-linux-ia32/code-insiders"
+	sudo -u testuser xvfb-run -a -s "-screen 0 1024x768x8" node src/main.js --latest "$AGENT_BUILDDIRECTORY/VSCode-linux-ia32/code-insiders"
 	popd
+}
+
+step "Configure environment" configureEnvironment
+
+step "Run smoke test" runTest
+
