@@ -16,8 +16,8 @@ import { ITokenizationSupport, TokenizationRegistry, IState, LanguageId } from '
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { INITIAL, StackElement, IGrammar, Registry, IEmbeddedLanguagesMap as IEmbeddedLanguagesMap2 } from 'vscode-textmate';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
-import { grammarsExtPoint, IEmbeddedLanguagesMap, ITMSyntaxExtensionPoint } from 'vs/editor/node/textMate/TMGrammars';
+import { ITextMateService } from 'vs/workbench/parts/codeEditor/electron-browser/textMate/textMateService';
+import { grammarsExtPoint, IEmbeddedLanguagesMap, ITMSyntaxExtensionPoint } from 'vs/workbench/parts/codeEditor/electron-browser/textMate/TMGrammars';
 import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
 import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';

@@ -88,7 +88,7 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
 import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { remote, ipcRenderer as ipc } from 'electron';
-import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
+import { ITextMateService } from 'vs/workbench/parts/codeEditor/electron-browser/textMate/textMateService';
 import { MainProcessTextMateSyntax } from 'vs/workbench/parts/codeEditor/electron-browser/textMate/TMSyntax';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { restoreFontInfo, readFontInfo, saveFontInfo } from 'vs/editor/browser/config/configuration';

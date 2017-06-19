@@ -39,7 +39,7 @@ import { MainThreadSCM } from './mainThreadSCM';
 // --- other interested parties
 import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
 import { JSONValidationExtensionPoint } from 'vs/platform/jsonschemas/common/jsonValidationExtensionPoint';
-import { LanguageConfigurationFileHandler } from 'vs/editor/node/languageConfigurationExtensionPoint';
+import { LanguageConfigurationFileHandler } from 'vs/workbench/parts/codeEditor/electron-browser/languageConfiguration/languageConfigurationExtensionPoint';
 import { SaveParticipant } from './mainThreadSaveParticipant';
 
 // --- registers itself as service

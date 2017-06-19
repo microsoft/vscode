@@ -15,7 +15,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IWorkbenchThemeService, IColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
-import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
+import { ITextMateService } from 'vs/workbench/parts/codeEditor/electron-browser/textMate/textMateService';
 import { IGrammar, StackElement } from 'vscode-textmate';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';

@@ -14,7 +14,7 @@ import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/c
 import { Registry } from 'vs/platform/platform';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
+import { ITextMateService } from 'vs/workbench/parts/codeEditor/electron-browser/textMate/textMateService';
 
 interface IRegExp {
 	pattern: string;

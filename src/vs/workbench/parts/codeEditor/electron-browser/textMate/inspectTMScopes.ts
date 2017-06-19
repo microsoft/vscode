@@ -17,7 +17,7 @@ import { ICodeEditor, ContentWidgetPositionPreference, IContentWidget, IContentW
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IGrammar, StackElement, IToken } from 'vscode-textmate';
-import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
+import { ITextMateService } from 'vs/workbench/parts/codeEditor/electron-browser/textMate/textMateService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
 import { TokenizationRegistry, LanguageIdentifier, FontStyle, StandardTokenType } from 'vs/editor/common/modes';
