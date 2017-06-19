@@ -337,7 +337,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		if (!this.storageService.get(storageKey)) {
 			const fileName = path.relative(this.contextService.getWorkspace().resource.toString(), this.resource.toString());
 			if (fileName.match(/^gruntfile\.js$/i) || fileName.match(/^gulpfile\.js$/i) || fileName.match(/^tsconfig\.json$/i)) {
-				const message = localize('taskFileOpened', `Run your {0} in VS code. Get started here.`, fileName.split('.')[0]);
+				const message = localize('taskFileOpened', `Run your {0} in VS Code. Get started here.`, fileName.split('.')[0]);
 				let action: Action;
 				let messageTest: string;
 				const showDocumentation = this.telemetryService.getExperiments().showTaskDocumentation;
