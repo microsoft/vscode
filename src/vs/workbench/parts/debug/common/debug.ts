@@ -184,6 +184,7 @@ export interface IScope extends IExpressionContainer {
 export interface IStackFrame extends ITreeElement {
 	thread: IThread;
 	name: string;
+	presentationHint: string;
 	frameId: number;
 	range: IRange;
 	source: Source;

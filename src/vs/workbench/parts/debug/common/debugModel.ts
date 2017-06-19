@@ -335,6 +335,7 @@ export class StackFrame implements IStackFrame {
 		public frameId: number,
 		public source: Source,
 		public name: string,
+		public presentationHint: string,
 		public range: IRange,
 		private index: number
 	) {
@@ -458,16 +459,14 @@ export class Thread implements IThread {
 			}
 
 			return response.body.stackFrames.map((rsf, index) => {
-				let source = new Source(rsf.source, rsf.source ? rsf.source.presentationHint : rsf.presentationHint);
+				let source = new Source(rsf.source);
 				if (this.process.sources.has(source.uri.toString())) {
-					const alreadyCreatedSource = this.process.sources.get(source.uri.toString());
-					alreadyCreatedSource.presentationHint = source.presentationHint;
-					source = alreadyCreatedSource;
+					source = this.process.sources.get(source.uri.toString());
 				} else {
 					this.process.sources.set(source.uri.toString(), source);
 				}
 
-				return new StackFrame(this, rsf.id, source, rsf.name, new Range(
+				return new StackFrame(this, rsf.id, source, rsf.name, rsf.presentationHint, new Range(
 					rsf.line,
 					rsf.column,
 					rsf.endLine,

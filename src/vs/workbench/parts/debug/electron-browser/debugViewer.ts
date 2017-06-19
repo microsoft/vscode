@@ -544,9 +544,9 @@ export class CallStackRenderer implements IRenderer {
 	}
 
 	private renderStackFrame(stackFrame: debug.IStackFrame, data: IStackFrameTemplateData): void {
-		dom.toggleClass(data.stackFrame, 'disabled', stackFrame.source.presentationHint === 'deemphasize');
-		dom.toggleClass(data.stackFrame, 'label', stackFrame.source.presentationHint === 'label');
-		dom.toggleClass(data.stackFrame, 'subtle', stackFrame.source.presentationHint === 'subtle');
+		dom.toggleClass(data.stackFrame, 'disabled', !stackFrame.source.available || stackFrame.source.presentationHint === 'deemphasize');
+		dom.toggleClass(data.stackFrame, 'label', stackFrame.presentationHint === 'label');
+		dom.toggleClass(data.stackFrame, 'subtle', stackFrame.presentationHint === 'subtle');
 
 		data.file.title = stackFrame.source.raw.path || stackFrame.source.name;
 		if (stackFrame.source.raw.origin) {

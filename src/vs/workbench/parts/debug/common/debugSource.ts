@@ -14,7 +14,7 @@ export class Source {
 	public uri: uri;
 	public available: boolean;
 
-	constructor(public raw: DebugProtocol.Source, public presentationHint: string) {
+	constructor(public raw: DebugProtocol.Source) {
 		if (!raw) {
 			this.raw = { name: UNKNOWN_SOURCE_LABEL };
 		}
@@ -29,6 +29,10 @@ export class Source {
 
 	public get origin() {
 		return this.raw.origin;
+	}
+
+	public get presentationHint() {
+		return this.raw.presentationHint;
 	}
 
 	public get reference() {
