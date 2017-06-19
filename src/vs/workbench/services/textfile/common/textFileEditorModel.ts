@@ -31,12 +31,12 @@ import { IMessageService, Severity, IChoiceService } from 'vs/platform/message/c
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { anonymize } from 'vs/platform/telemetry/common/telemetryUtils';
+import { anonymize, isShowTaskDocumentation } from 'vs/platform/telemetry/common/telemetryUtils';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IRawTextSource } from 'vs/editor/common/model/textSource';
 import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
 import { localize } from 'vs/nls';
-import { ShowTasksAction } from 'vs/workbench/parts/quickopen/common/quickopenActions';
+import { ShowTasksAction, ShowTasksDocumentationAction } from 'vs/workbench/parts/quickopen/common/quickopenActions';
 /**
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
  */
@@ -333,23 +333,44 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private showTaskNotification(): void {
 		const storageKey = 'workbench.tasks.ranTaskBefore';
-		if (!this.storageService.get(storageKey)) {
+		if (this.storageService.get(storageKey)) {
 			const fileName = path.relative(this.contextService.getWorkspace().resource.toString(), this.resource.toString());
 			if (fileName.match(/^gruntfile\.js$/i) || fileName.match(/^gulpfile\.js$/i) || fileName.match(/^tsconfig\.json$/i)) {
-				const message = localize('taskFileOpened', "Visual Studio Code has extra functionality for this type of file");
-				const action = this.instantiationService.createInstance(ShowTasksAction, ShowTasksAction.ID, localize('showTasks', "Show Tasks"));
-
+				const message = localize('taskFileOpened', `Run your ${fileName.split('.')[0]} in vscode. Get started here.`);
+				let action: any;
+				let messageTest: string;
+				const showDocumentation = isShowTaskDocumentation(this.storageService);
+				if (showDocumentation) {
+					action = this.instantiationService.createInstance(ShowTasksDocumentationAction, ShowTasksDocumentationAction.ID, localize('showTaskDocumentation', "Show task Documentation"));
+					messageTest = ShowTasksDocumentationAction.LABEL;
+				} else {
+					action = this.instantiationService.createInstance(ShowTasksAction, ShowTasksAction.ID, localize('showTasks', "Show tasks"));
+					messageTest = ShowTasksAction.LABEL;
+				}
 				const options = [
-					action.label,
+					messageTest,
 					localize('neverShowAgain', "Don't show again"),
-					localize('close', "Close"),
+					localize('close', "Close")
 				];
 
 				this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
 					switch (choice) {
-						case 0: return action.run();
-						case 1: return this.storageService.store(storageKey, true, StorageScope.GLOBAL);
-						case 2: return;
+						case 0: {
+							this.telemetryService.publicLog('taskNotificationOptionChoice',
+								{ choice: 0, test: showDocumentation });
+							this.storageService.store(storageKey, true, StorageScope.GLOBAL);
+							return action.run();
+						}
+						case 1: {
+							this.telemetryService.publicLog('taskNotificationOptionChoice',
+								{ choice: 1, test: showDocumentation });
+							return this.storageService.store(storageKey, true, StorageScope.GLOBAL);
+						}
+						case 2: {
+							this.telemetryService.publicLog('taskNotificationOptionChoice',
+								{ choice: 2, test: showDocumentation });
+							return;
+						}
 					}
 				});
 			}

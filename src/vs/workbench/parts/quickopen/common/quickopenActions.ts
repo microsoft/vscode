@@ -16,7 +16,7 @@ export const ALL_COMMANDS_PREFIX = '>';
 export class ShowTasksAction extends Action {
 
 	public static ID = 'workbench.action.showTasks';
-	public static LABEL = nls.localize('showTasks', "Show Task Menu");
+	public static LABEL = nls.localize('showTasks', "Show task menu");
 
 	constructor(
 		id: string,
@@ -31,6 +31,24 @@ export class ShowTasksAction extends Action {
 		const value = `${ALL_COMMANDS_PREFIX}tasks`;
 		this.quickOpenService.show(value);
 
+		return TPromise.as(null);
+	}
+}
+
+export class ShowTasksDocumentationAction extends Action {
+
+	public static ID = 'workbench.action.showTaskDocumentation';
+	public static LABEL = nls.localize('showTaskDocumentation', "Show task documentation");
+
+	constructor(
+		id: string,
+		label: string,
+	) {
+		super(id, label);
+	}
+
+	public run(context?: any): TPromise<any> {
+		window.open('https://go.microsoft.com/fwlink/?LinkId=733558');
 		return TPromise.as(null);
 	}
 }
