@@ -17,7 +17,7 @@ suite('Debug - Source', () => {
 			presentationHint: 'emphasize'
 		});
 
-		assert.equal(source.presentationHint, 'label');
+		assert.equal(source.presentationHint, 'emphasize');
 		assert.equal(source.name, 'zz');
 		assert.equal(source.inMemory, false);
 		assert.equal(source.reference, 0);
