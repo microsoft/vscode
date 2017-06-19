@@ -775,7 +775,7 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xterm.element.style.width = terminalWidth + 'px';
 		}
 		this._processReady.then(() => {
-			if (this._process) {
+			if (this._process && this._process.connected) {
 				// The child process could aready be terminated
 				try {
 					this._process.send({
