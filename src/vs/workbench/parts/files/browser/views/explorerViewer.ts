@@ -550,6 +550,15 @@ export class FileSorter implements ISorter {
 			return 1;
 		}
 
+		// Do not sort roots
+		if (statA.resource.toString() === statA.root.toString()) {
+			return -1;
+		}
+
+		if (statB.resource.toString() === statB.root.toString()) {
+			return 1;
+		}
+
 		return comparers.compareFileNames(statA.name, statB.name);
 	}
 }
