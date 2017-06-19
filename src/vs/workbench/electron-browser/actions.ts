@@ -845,8 +845,8 @@ Steps to Reproduce:
 			return onlyTheme ? 'themes' : 'nonThemes';
 		});
 
-		const themeExclusionStr = themes.length ? `\n(${themes.length} theme extensions excluded)` : '';
-		extensions = nonThemes;
+		const themeExclusionStr = (themes && themes.length) ? `\n(${themes.length} theme extensions excluded)` : '';
+		extensions = nonThemes || [];
 
 		if (!extensions.length) {
 			return 'none' + themeExclusionStr;
