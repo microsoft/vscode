@@ -41,7 +41,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 		}
 	}
 
-	private doRestoreBackups(): TPromise<any> {
+	private doRestoreBackups(): TPromise<URI[]> {
 
 		// Find all files and untitled with backups
 		return this.backupFileService.getWorkspaceFileBackups().then(backups => {
@@ -62,7 +62,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 	private doResolveOpenedBackups(backups: URI[]): TPromise<URI[]> {
 		const stacks = this.groupService.getStacksModel();
 
-		const restorePromises: TPromise<any>[] = [];
+		const restorePromises: TPromise<number>[] = [];
 		const unresolved: URI[] = [];
 
 		backups.forEach(backup => {

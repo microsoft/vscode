@@ -137,7 +137,7 @@ export interface IFileService {
 	/**
 	 * Configures the file service with the provided options.
 	 */
-	updateOptions(options: any): void;
+	updateOptions(options: object): void;
 
 	/**
 	 * Returns the preferred encoding to use for a given resource.

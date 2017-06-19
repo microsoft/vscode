@@ -74,7 +74,7 @@ export class EditorState {
 
 interface ISerializedFileHistoryEntry {
 	resource?: string;
-	resourceJSON: any;
+	resourceJSON: object;
 }
 
 export abstract class BaseHistoryService {

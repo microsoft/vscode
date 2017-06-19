@@ -101,7 +101,7 @@ export class SidebarPart extends CompositePart<Viewlet> {
 		}
 
 		// First check if sidebar is hidden and show if so
-		let promise = TPromise.as<any>(null);
+		let promise = TPromise.as<void>(null);
 		if (!this.partService.isVisible(Parts.SIDEBAR_PART)) {
 			try {
 				this.blockOpeningViewlet = true;

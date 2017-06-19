@@ -86,7 +86,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	private dimension: Dimension;
 	private editorGroupsControl: IEditorGroupsControl;
-	private memento: any;
+	private memento: object;
 	private stacks: EditorStacksModel;
 	private tabOptions: ITabOptions;
 	private forceHideTabs: boolean;

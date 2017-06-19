@@ -133,7 +133,7 @@ export class ShowAllCommandsAction extends Action {
 		super(id, label);
 	}
 
-	public run(context?: any): TPromise<any> {
+	public run(context?: any): TPromise<void> {
 		const config = <IWorkbenchQuickOpenConfiguration>this.configurationService.getConfiguration();
 		const restoreInput = config.workbench && config.workbench.commandPalette && config.workbench.commandPalette.preserveInput === true;
 
@@ -163,7 +163,7 @@ export class ClearCommandHistoryAction extends Action {
 		super(id, label);
 	}
 
-	public run(context?: any): TPromise<any> {
+	public run(context?: any): TPromise<void> {
 		const commandHistoryLength = resolveCommandHistory(this.configurationService);
 		if (commandHistoryLength > 0) {
 			commandHistory = new BoundedMap<number>(commandHistoryLength);

@@ -365,7 +365,7 @@ class ToggleEditorModeAction extends Action {
 		return ToggleEditorModeAction.isInlineMode(this.editor) ? ToggleEditorModeAction.SIDEBYSIDE_LABEL : ToggleEditorModeAction.INLINE_LABEL;
 	}
 
-	public run(): TPromise<any> {
+	public run(): TPromise<boolean> {
 		const inlineModeActive = ToggleEditorModeAction.isInlineMode(this.editor);
 
 		const control = this.editor.getControl();

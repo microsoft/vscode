@@ -129,17 +129,17 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return TPromise.as<IEditor>(null);
 	}
 
-	private toOptions(arg1?: any): EditorOptions {
-		if (!arg1 || arg1 instanceof EditorOptions) {
-			return arg1;
+	private toOptions(options?: IEditorOptions | EditorOptions): EditorOptions {
+		if (!options || options instanceof EditorOptions) {
+			return options as EditorOptions;
 		}
 
-		const textOptions: ITextEditorOptions = arg1;
+		const textOptions: ITextEditorOptions = options;
 		if (!!textOptions.selection) {
-			return TextEditorOptions.create(arg1);
+			return TextEditorOptions.create(options);
 		}
 
-		return EditorOptions.create(arg1);
+		return EditorOptions.create(options);
 	}
 
 	/**

@@ -105,7 +105,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerFileInputFactory(
 
 interface ISerializedFileInput {
 	resource: string;
-	resourceJSON: any;
+	resourceJSON: object;
 	encoding?: string;
 }
 

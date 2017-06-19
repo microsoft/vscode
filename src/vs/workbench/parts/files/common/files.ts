@@ -72,7 +72,7 @@ export interface IFileResource {
 /**
  * Helper to get an explorer item from an object.
  */
-export function explorerItemToFileResource(obj: any): IFileResource {
+export function explorerItemToFileResource(obj: FileStat | OpenEditor): IFileResource {
 	if (obj instanceof FileStat) {
 		const stat = obj as FileStat;
 

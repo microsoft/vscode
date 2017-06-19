@@ -39,8 +39,8 @@ interface ITextEditorViewState {
 }
 
 export interface IEditorConfiguration {
-	editor: any;
-	diffEditor: any;
+	editor: object;
+	diffEditor: object;
 }
 
 /**

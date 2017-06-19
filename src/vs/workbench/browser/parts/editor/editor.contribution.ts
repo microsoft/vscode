@@ -94,7 +94,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 
 interface ISerializedUntitledEditorInput {
 	resource: string;
-	resourceJSON: any;
+	resourceJSON: object;
 	modeId: string;
 	encoding: string;
 }

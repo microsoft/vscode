@@ -55,7 +55,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	private viewletIdToActionItems: { [viewletId: string]: IActionItem; };
 	private viewletIdToActivityStack: { [viewletId: string]: IViewletActivity[]; };
 
-	private memento: any;
+	private memento: object;
 	private pinnedViewlets: string[];
 	private activeUnpinnedViewlet: ViewletDescriptor;
 
