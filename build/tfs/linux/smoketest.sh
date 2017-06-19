@@ -30,7 +30,7 @@ function configureEnvironment {
 	git config --global user.name "VS Code Agent"
 	git config --global user.email "monacotools@microsoft.com"
 	chown -R testuser $AGENT_BUILDDIRECTORY
-	chown -R testuser ~/.npm
+	chown -R testuser /root/.npm
 }
 
 function runTest {
