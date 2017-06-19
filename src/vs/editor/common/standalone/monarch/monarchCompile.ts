@@ -10,8 +10,8 @@
  */
 
 import * as objects from 'vs/base/common/objects';
-import * as monarchCommon from 'vs/editor/common/modes/monarch/monarchCommon';
-import { IMonarchLanguage, IMonarchLanguageBracket } from 'vs/editor/common/modes/monarch/monarchTypes';
+import * as monarchCommon from 'vs/editor/common/standalone/monarch/monarchCommon';
+import { IMonarchLanguage, IMonarchLanguageBracket } from 'vs/editor/common/standalone/monarch/monarchTypes';
 
 /*
  * Type helpers
