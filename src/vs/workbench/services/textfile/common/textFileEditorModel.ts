@@ -31,12 +31,13 @@ import { IMessageService, Severity, IChoiceService } from 'vs/platform/message/c
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { anonymize, isShowTaskDocumentation } from 'vs/platform/telemetry/common/telemetryUtils';
+import { anonymize } from 'vs/platform/telemetry/common/telemetryUtils';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IRawTextSource } from 'vs/editor/common/model/textSource';
 import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
 import { localize } from 'vs/nls';
 import { ShowTasksAction, ShowTasksDocumentationAction } from 'vs/workbench/parts/quickopen/common/quickopenActions';
+import { Action } from 'vs/base/common/actions';
 /**
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
  */
@@ -333,13 +334,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private showTaskNotification(): void {
 		const storageKey = 'workbench.tasks.ranTaskBefore';
-		if (this.storageService.get(storageKey)) {
+		if (!this.storageService.get(storageKey)) {
 			const fileName = path.relative(this.contextService.getWorkspace().resource.toString(), this.resource.toString());
 			if (fileName.match(/^gruntfile\.js$/i) || fileName.match(/^gulpfile\.js$/i) || fileName.match(/^tsconfig\.json$/i)) {
-				const message = localize('taskFileOpened', `Run your ${fileName.split('.')[0]} in vscode. Get started here.`);
-				let action: any;
+				const message = localize('taskFileOpened', `Run your {0} in VS code. Get started here.`, fileName.split('.')[0]);
+				let action: Action;
 				let messageTest: string;
-				const showDocumentation = isShowTaskDocumentation(this.storageService);
+				const showDocumentation = this.telemetryService.getExperiments().showTaskDocumentation;
 				if (showDocumentation) {
 					action = this.instantiationService.createInstance(ShowTasksDocumentationAction, ShowTasksDocumentationAction.ID, localize('showTaskDocumentation', "Show task Documentation"));
 					messageTest = ShowTasksDocumentationAction.LABEL;
