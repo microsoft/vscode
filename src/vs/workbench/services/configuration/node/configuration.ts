@@ -182,7 +182,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 
 		this.legacyWorkspace = this.workspace && this.workspace.roots.length ? new LegacyWorkspace(this.workspace.roots[0]) : null;
 
-		this._register(this.onDidUpdateConfiguration(e => this.resolveAdditionalFolders(true)));
+		this._register(this.onDidUpdateConfiguration(e => this.resolveAdditionalFolders()));
 
 		this.baseConfigurationService = this._register(new GlobalConfigurationService(environmentService));
 		this._register(this.baseConfigurationService.onDidUpdateConfiguration(e => this.onBaseConfigurationChanged(e)));
@@ -191,7 +191,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		this.initCaches();
 	}
 
-	private resolveAdditionalFolders(notify?: boolean): void {
+	private resolveAdditionalFolders(): void {
 		if (!this.workspace) {
 			return; // no additional folders for empty workspaces
 		}
@@ -222,9 +222,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 			this.workspace.roots = configuredFolders;
 			this.workspace.name = configuredFolders.map(root => basename(root.fsPath) || root.fsPath).join(', ');
 
-			if (notify) {
-				this._onDidChangeWorkspaceRoots.fire(configuredFolders);
-			}
+			this._onDidChangeWorkspaceRoots.fire(configuredFolders);
 		}
 	}
 
@@ -312,7 +310,8 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 
 	public initialize(): TPromise<any> {
 		this.initCaches();
-		return this.doInitialize(this.workspace ? this.workspace.roots : []);
+		return this.doInitialize(this.workspace ? this.workspace.roots : [])
+			.then(() => this.trigger(this.workspace ? ConfigurationSource.Workspace : ConfigurationSource.User));
 	}
 
 	private onRootsChanged(): void {
