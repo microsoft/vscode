@@ -30,6 +30,12 @@ export class EmmetCompletionItemProvider implements vscode.CompletionItemProvide
 		let parseContent = isStyleSheet(syntax) ? parseStylesheet : parse;
 		let rootNode: Node = parseContent(new DocumentStreamReader(document));
 		let currentNode = getNode(rootNode, position);
+
+		// Inside <style> tag, trigger css abbreviations
+		if (!isStyleSheet(syntax) && currentNode && currentNode.name === 'style') {
+			syntax = 'css';
+		}
+
 		let expandedAbbr = this.getExpandedAbbreviation(document, position, syntax, currentNode);
 
 		if (!isStyleSheet(syntax)) {
