@@ -26,7 +26,7 @@ step "Build minified" \
 	npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-min"
 
 step "Configure environment" \
-	id -u testuser || (useradd -m testuser; echo -e "testpassword\ntestpassword" | passwd testuser)
+	id -u testuser || (useradd -m testuser; chpasswd <<< testuser:testpassword)
 	su testuser
 	cd $BUILD_REPOSITORY_LOCALPATH
 	git config --global user.name "Michel Kaporin"
