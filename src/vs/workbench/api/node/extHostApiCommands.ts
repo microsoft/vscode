@@ -14,7 +14,6 @@ import { ISingleEditOperation } from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
-import { IOutline } from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
@@ -385,7 +384,7 @@ export class ExtHostApiCommands {
 		const args = {
 			resource
 		};
-		return this._commands.executeCommand<IOutline>('_executeDocumentSymbolProvider', args).then(value => {
+		return this._commands.executeCommand<modes.IOutline>('_executeDocumentSymbolProvider', args).then(value => {
 			if (value && Array.isArray(value.entries)) {
 				return value.entries.map(typeConverters.toSymbolInformation);
 			}
