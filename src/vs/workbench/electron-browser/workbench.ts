@@ -449,8 +449,8 @@ export class Workbench implements IPartService {
 			}
 		}
 
-		// Empty workbench: some first time users will not have an untiled file; returning users will always have one
-		else if (!this.contextService.hasWorkspace() && this.telemetryService.getExperiments().openUntitledFile && !this.configurationService.lookup('workbench.welcome.enabled').value) {
+		// Empty workbench
+		else if (!this.contextService.hasWorkspace() && this.openUntitledFile()) {
 			if (this.editorPart.hasEditorsToRestore()) {
 				return TPromise.as([]); // do not open any empty untitled file if we have editors to restore
 			}
@@ -465,6 +465,17 @@ export class Workbench implements IPartService {
 		}
 
 		return TPromise.as([]);
+	}
+
+	private openUntitledFile() {
+		const startupEditor = this.configurationService.lookup('workbench.startupEditor');
+		if (!startupEditor.user && !startupEditor.workspace) {
+			const welcomeEnabled = this.configurationService.lookup('workbench.welcome.enabled');
+			if (welcomeEnabled.value !== undefined && welcomeEnabled.value !== null) {
+				return !welcomeEnabled.value;
+			}
+		}
+		return startupEditor.value === 'newUntitledFile';
 	}
 
 	private initServices(): void {

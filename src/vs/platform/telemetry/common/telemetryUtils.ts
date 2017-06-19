@@ -13,15 +13,10 @@ import { ConfigurationSource, IConfigurationService } from 'vs/platform/configur
 import { IKeybindingService, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService, ITelemetryExperiments, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import * as objects from 'vs/base/common/objects';
 
 export const defaultExperiments: ITelemetryExperiments = {
-	showNewUserWatermark: false,
-	openUntitledFile: true,
-	enableWelcomePage: true,
 	mergeQuickLinks: false,
 };
 
@@ -45,43 +40,20 @@ export const NullTelemetryService = {
 };
 
 export function loadExperiments(accessor: ServicesAccessor): ITelemetryExperiments {
-	const contextService = accessor.get(IWorkspaceContextService);
 	const storageService = accessor.get(IStorageService);
 	const configurationService = accessor.get(IConfigurationService);
 
-	updateExperimentsOverrides(configurationService, storageService);
-	configurationService.onDidUpdateConfiguration(e => updateExperimentsOverrides(configurationService, storageService));
-
 	let {
-		showNewUserWatermark,
-		openUntitledFile,
-		enableWelcomePage,
 		mergeQuickLinks,
 	} = splitExperimentsRandomness(storageService);
 
-	const newUserDuration = 24 * 60 * 60 * 1000;
-	const firstSessionDate = storageService.get('telemetry.firstSessionDate');
-	const isNewUser = !firstSessionDate || Date.now() - Date.parse(firstSessionDate) < newUserDuration;
-	if (!isNewUser || contextService.hasWorkspace()) {
-		showNewUserWatermark = defaultExperiments.showNewUserWatermark;
-		openUntitledFile = defaultExperiments.openUntitledFile;
-	}
-
 	return applyOverrides({
-		showNewUserWatermark,
-		openUntitledFile,
-		enableWelcomePage,
 		mergeQuickLinks,
-	}, storageService);
+	}, configurationService);
 }
 
-export function isWelcomePageEnabled(storageService: IStorageService) {
-	const overrides = getExperimentsOverrides(storageService);
-	return 'enableWelcomePage' in overrides ? overrides.enableWelcomePage : splitExperimentsRandomness(storageService).enableWelcomePage;
-}
-
-function applyOverrides(experiments: ITelemetryExperiments, storageService: IStorageService): ITelemetryExperiments {
-	const experimentsConfig = getExperimentsOverrides(storageService);
+function applyOverrides(experiments: ITelemetryExperiments, configurationService: IConfigurationService): ITelemetryExperiments {
+	const experimentsConfig = getExperimentsOverrides(configurationService);
 	Object.keys(experiments).forEach(key => {
 		if (key in experimentsConfig) {
 			experiments[key] = experimentsConfig[key];
@@ -92,22 +64,18 @@ function applyOverrides(experiments: ITelemetryExperiments, storageService: ISto
 
 function splitExperimentsRandomness(storageService: IStorageService): ITelemetryExperiments {
 	const random1 = getExperimentsRandomness(storageService);
-	const [random2, showNewUserWatermark] = splitRandom(random1);
-	const [random3, openUntitledFile] = splitRandom(random2);
+	const [random2, /* showNewUserWatermark */] = splitRandom(random1);
+	const [random3, /* openUntitledFile */] = splitRandom(random2);
 	const [random4, mergeQuickLinks] = splitRandom(random3);
-	const [, enableWelcomePage] = splitRandom(random4);
+	// tslint:disable-next-line:no-unused-variable (https://github.com/Microsoft/TypeScript/issues/16628)
+	const [random5, /* enableWelcomePage */] = splitRandom(random4);
 	return {
-		showNewUserWatermark,
-		openUntitledFile,
-		enableWelcomePage,
 		mergeQuickLinks,
 	};
 }
 
-const GLOBAL_PREFIX = `storage://global/`; // TODO@Christoph debt, why do you need to know? just use the storageservice?
-
 function getExperimentsRandomness(storageService: IStorageService) {
-	const key = GLOBAL_PREFIX + 'experiments.randomness';
+	const key = 'experiments.randomness';
 	let valueString = storageService.get(key);
 	if (!valueString) {
 		valueString = Math.random().toString();
@@ -123,20 +91,9 @@ function splitRandom(random: number): [number, boolean] {
 	return [scaled - i, i === 1];
 }
 
-const experimentsOverridesKey = GLOBAL_PREFIX + 'experiments.overrides';
-
-function getExperimentsOverrides(storageService: IStorageService): ITelemetryExperiments {
-	const valueString = storageService.get(experimentsOverridesKey);
-	return valueString ? JSON.parse(valueString) : <any>{};
-}
-
-function updateExperimentsOverrides(configurationService: IConfigurationService, storageService: IStorageService) {
-	const storageOverrides = getExperimentsOverrides(storageService);
+function getExperimentsOverrides(configurationService: IConfigurationService): ITelemetryExperiments {
 	const config: any = configurationService.getConfiguration('telemetry');
-	const configOverrides = config && config.experiments || {};
-	if (!objects.equals(storageOverrides, configOverrides)) {
-		storageService.store(experimentsOverridesKey, JSON.stringify(configOverrides));
-	}
+	return config && config.experiments || {};
 }
 
 export interface ITelemetryAppender {
@@ -284,6 +241,7 @@ const configurationValueWhitelist = [
 	'php.validate.enable',
 	'php.validate.run',
 	'workbench.welcome.enabled',
+	'workbench.startupEditor',
 ];
 
 export function configurationTelemetry(telemetryService: ITelemetryService, configurationService: IConfigurationService): IDisposable {
