@@ -384,7 +384,7 @@ export class IPCServer implements IChannelServer, IRoutingChannelClient, IDispos
 			const id = router.route(command, arg);
 
 			if (!id) {
-				return TPromise.wrapError('Client id should be provided');
+				return TPromise.wrapError(new Error('Client id should be provided'));
 			}
 
 			return this.getClient(id).then(client => client.getChannel(channelName).call(command, arg));

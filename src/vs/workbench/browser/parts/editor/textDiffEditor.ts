@@ -23,7 +23,7 @@ import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
 import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
@@ -257,7 +257,7 @@ export class TextDiffEditor extends BaseTextEditor {
 			return errors.some(e => this.isFileBinaryError(e));
 		}
 
-		return (<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY;
+		return (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY;
 	}
 
 	public clearInput(): void {

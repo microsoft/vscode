@@ -496,9 +496,10 @@ export interface IImportResult {
 	isNew: boolean;
 }
 
-export interface IFileOperationResult {
-	message: string;
-	fileOperationResult: FileOperationResult;
+export class FileOperationError extends Error {
+	constructor(message: string, public fileOperationResult: FileOperationResult) {
+		super(message);
+	}
 }
 
 export enum FileOperationResult {

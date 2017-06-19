@@ -25,7 +25,7 @@ import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorMo
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IBackupFileService, BACKUP_FILE_RESOLVE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
-import { IFileService, IFileStat, IFileOperationResult, FileOperationResult, IContent, CONTENT_CHANGE_EVENT_BUFFER_DELAY, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
+import { IFileService, IFileStat, FileOperationError, FileOperationResult, IContent, CONTENT_CHANGE_EVENT_BUFFER_DELAY, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -331,7 +331,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.loadWithContent(content);
 	}
 
-	private handleLoadError(error: IFileOperationResult): TPromise<TextFileEditorModel> {
+	private handleLoadError(error: FileOperationError): TPromise<TextFileEditorModel> {
 		const result = error.fileOperationResult;
 
 		// Apply orphaned state based on error code
@@ -699,7 +699,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				this.inErrorMode = true;
 
 				// Look out for a save conflict
-				if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
+				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
 					this.inConflictMode = true;
 				}
 

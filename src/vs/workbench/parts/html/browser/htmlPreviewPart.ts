@@ -194,7 +194,7 @@ export class HtmlPreviewPart extends WebviewEditor {
 		this._modelChangeSubscription.dispose();
 
 		if (!(input instanceof HtmlInput)) {
-			return TPromise.wrapError<void>('Invalid input');
+			return TPromise.wrapError<void>(new Error('Invalid input'));
 		}
 
 		return super.setInput(input, options).then(() => {
@@ -207,7 +207,7 @@ export class HtmlPreviewPart extends WebviewEditor {
 				}
 
 				if (!this.model) {
-					return TPromise.wrapError<void>(localize('html.voidInput', "Invalid editor input."));
+					return TPromise.wrapError<void>(new Error(localize('html.voidInput', "Invalid editor input.")));
 				}
 
 				this._modelChangeSubscription = this.model.onDidChangeContent(() => {

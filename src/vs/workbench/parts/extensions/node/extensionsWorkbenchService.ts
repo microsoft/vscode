@@ -188,7 +188,7 @@ class Extension implements IExtension {
 			return readFile(uri.fsPath, 'utf8');
 		}
 
-		return TPromise.wrapError<string>('not available');
+		return TPromise.wrapError<string>(new Error('not available'));
 	}
 
 	getChangelog(): TPromise<string> {
@@ -199,7 +199,7 @@ class Extension implements IExtension {
 		const changelogUrl = this.local && this.local.changelogUrl;
 
 		if (!changelogUrl) {
-			return TPromise.wrapError<string>('not available');
+			return TPromise.wrapError<string>(new Error('not available'));
 		}
 
 		const uri = URI.parse(changelogUrl);
@@ -208,7 +208,7 @@ class Extension implements IExtension {
 			return readFile(uri.fsPath, 'utf8');
 		}
 
-		return TPromise.wrapError<string>('not available');
+		return TPromise.wrapError<string>(new Error('not available'));
 	}
 
 	get dependencies(): string[] {
@@ -590,7 +590,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		if (!enable) {
 			let dependents = this.getDependentsAfterDisablement(extension, dependencies, this.local, workspace);
 			if (dependents.length) {
-				return TPromise.wrapError<void>(this.getDependentsErrorMessage(extension, dependents));
+				return TPromise.wrapError<void>(new Error(this.getDependentsErrorMessage(extension, dependents)));
 			}
 		}
 		return TPromise.join([extension, ...dependencies].map(e => this.doSetEnablement(e, enable, workspace)));

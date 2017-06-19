@@ -38,9 +38,10 @@ export enum ConfigurationEditingErrorCode {
 	ERROR_INVALID_CONFIGURATION
 }
 
-export interface IConfigurationEditingError {
-	code: ConfigurationEditingErrorCode;
-	message: string;
+export class ConfigurationEditingError extends Error {
+	constructor(message: string, public code: ConfigurationEditingErrorCode) {
+		super(message);
+	}
 }
 
 export enum ConfigurationTarget {

@@ -80,7 +80,7 @@ export class TextResourceEditor extends BaseTextEditor {
 
 			// Assert Model instance
 			if (!(resolvedModel instanceof BaseTextEditorModel)) {
-				return TPromise.wrapError<void>('Unable to open file as text');
+				return TPromise.wrapError<void>(new Error('Unable to open file as text'));
 			}
 
 			// Assert that the current input is still the one we expect. This prevents a race condition when loading takes long and another input was set meanwhile

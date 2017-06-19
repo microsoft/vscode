@@ -11,7 +11,7 @@ import os = require('os');
 import crypto = require('crypto');
 import assert = require('assert');
 
-import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveContentOptions, IFileStat, IStreamContent, IFileOperationResult, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent, IFilesConfiguration } from 'vs/platform/files/common/files';
+import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent, IFilesConfiguration } from 'vs/platform/files/common/files';
 import { isEqualOrParent } from 'vs/base/common/paths';
 import { ResourceMap } from 'vs/base/common/map';
 import arrays = require('vs/base/common/arrays');
@@ -217,10 +217,10 @@ export class FileService implements IFileService {
 
 		// Guard early against attempts to resolve an invalid file path
 		if (resource.scheme !== 'file' || !resource.fsPath) {
-			return TPromise.wrapError<IStreamContent>(<IFileOperationResult>{
-				message: nls.localize('fileInvalidPath', "Invalid file resource ({0})", resource.toString()),
-				fileOperationResult: FileOperationResult.FILE_INVALID_PATH
-			});
+			return TPromise.wrapError<IStreamContent>(new FileOperationError(
+				nls.localize('fileInvalidPath', "Invalid file resource ({0})", resource.toString()),
+				FileOperationResult.FILE_INVALID_PATH
+			));
 		}
 
 		// 1.) resolve resource
@@ -228,26 +228,20 @@ export class FileService implements IFileService {
 
 			// Return early if resource is a directory
 			if (model.isDirectory) {
-				return TPromise.wrapError<IStreamContent>(<IFileOperationResult>{
-					message: nls.localize('fileIsDirectoryError', "File is directory ({0})", absolutePath),
-					fileOperationResult: FileOperationResult.FILE_IS_DIRECTORY
-				});
+				return TPromise.wrapError<IStreamContent>(new FileOperationError(
+					nls.localize('fileIsDirectoryError', "File is directory ({0})", absolutePath),
+					FileOperationResult.FILE_IS_DIRECTORY
+				));
 			}
 
 			// Return early if file not modified since
 			if (options && options.etag && options.etag === model.etag) {
-				return TPromise.wrapError<IStreamContent>(<IFileOperationResult>{
-					message: nls.localize('fileNotModifiedError', "File not modified since"),
-					fileOperationResult: FileOperationResult.FILE_NOT_MODIFIED_SINCE
-				});
+				return TPromise.wrapError<IStreamContent>(new FileOperationError(nls.localize('fileNotModifiedError', "File not modified since"), FileOperationResult.FILE_NOT_MODIFIED_SINCE));
 			}
 
 			// Return early if file is too large to load
 			if (types.isNumber(model.size) && model.size > MAX_FILE_SIZE) {
-				return TPromise.wrapError<IStreamContent>(<IFileOperationResult>{
-					message: nls.localize('fileTooLargeError', "File too large to open"),
-					fileOperationResult: FileOperationResult.FILE_TOO_LARGE
-				});
+				return TPromise.wrapError<IStreamContent>(new FileOperationError(nls.localize('fileTooLargeError', "File too large to open"), FileOperationResult.FILE_TOO_LARGE));
 			}
 
 			// 2.) detect mimes
@@ -257,10 +251,10 @@ export class FileService implements IFileService {
 
 				// Return error early if client only accepts text and this is not text
 				if (options && options.acceptTextOnly && !isText) {
-					return TPromise.wrapError<IStreamContent>(<IFileOperationResult>{
-						message: nls.localize('fileBinaryError', "File seems to be binary and cannot be opened as text"),
-						fileOperationResult: FileOperationResult.FILE_IS_BINARY
-					});
+					return TPromise.wrapError<IStreamContent>(new FileOperationError(
+						nls.localize('fileBinaryError', "File seems to be binary and cannot be opened as text"),
+						FileOperationResult.FILE_IS_BINARY
+					));
 				}
 
 				let preferredEncoding: string;
@@ -286,7 +280,7 @@ export class FileService implements IFileService {
 		}, (error) => {
 
 			// bubble up existing file operation results
-			if (!types.isUndefinedOrNull((<IFileOperationResult>error).fileOperationResult)) {
+			if (!types.isUndefinedOrNull((<FileOperationError>error).fileOperationResult)) {
 				return TPromise.wrapError<IStreamContent>(error);
 			}
 
@@ -295,10 +289,10 @@ export class FileService implements IFileService {
 
 				// Return if file not found
 				if (!exists) {
-					return TPromise.wrapError<IStreamContent>(<IFileOperationResult>{
-						message: nls.localize('fileNotFoundError', "File not found ({0})", absolutePath),
-						fileOperationResult: FileOperationResult.FILE_NOT_FOUND
-					});
+					return TPromise.wrapError<IStreamContent>(new FileOperationError(
+						nls.localize('fileNotFoundError', "File not found ({0})", absolutePath),
+						FileOperationResult.FILE_NOT_FOUND
+					));
 				}
 
 				// otherwise just give up
@@ -472,17 +466,14 @@ export class FileService implements IFileService {
 
 			// Return early with conflict if target exists and we are not told to overwrite
 			if (exists && !isCaseRename && !overwrite) {
-				return TPromise.wrapError<boolean>(<IFileOperationResult>{
-					message: nls.localize('fileMoveConflict', "Unable to move/copy. File already exists at destination."),
-					fileOperationResult: FileOperationResult.FILE_MOVE_CONFLICT
-				});
+				return TPromise.wrapError<boolean>(new FileOperationError(nls.localize('fileMoveConflict', "Unable to move/copy. File already exists at destination."), FileOperationResult.FILE_MOVE_CONFLICT));
 			}
 
 			// 2.) make sure target is deleted before we move/copy unless this is a case rename of the same file
 			let deleteTargetPromise = TPromise.as<void>(void 0);
 			if (exists && !isCaseRename) {
 				if (isEqualOrParent(sourcePath, targetPath, !isLinux /* ignorecase */)) {
-					return TPromise.wrapError<boolean>(nls.localize('unableToMoveCopyError', "Unable to move/copy. File would replace folder it is contained in.")); // catch this corner case!
+					return TPromise.wrapError<boolean>(new Error(nls.localize('unableToMoveCopyError', "Unable to move/copy. File would replace folder it is contained in."))); // catch this corner case!
 				}
 
 				deleteTargetPromise = this.del(uri.file(targetPath));
@@ -514,7 +505,7 @@ export class FileService implements IFileService {
 		// 1.) resolve
 		return pfs.stat(sourcePath).then(stat => {
 			if (stat.isDirectory()) {
-				return TPromise.wrapError<IImportResult>(nls.localize('foldersCopyError', "Folders cannot be copied into the workspace. Please select individual files to copy them.")); // for now we do not allow to import a folder into a workspace
+				return TPromise.wrapError<IImportResult>(new Error(nls.localize('foldersCopyError', "Folders cannot be copied into the workspace. Please select individual files to copy them."))); // for now we do not allow to import a folder into a workspace
 			}
 
 			// 2.) copy
@@ -574,10 +565,7 @@ export class FileService implements IFileService {
 
 		// Return early if file is too large to load
 		if (types.isNumber(model.size) && model.size > MAX_FILE_SIZE) {
-			return TPromise.wrapError<IStreamContent>(<IFileOperationResult>{
-				message: nls.localize('fileTooLargeError', "File too large to open"),
-				fileOperationResult: FileOperationResult.FILE_TOO_LARGE
-			});
+			return TPromise.wrapError<IStreamContent>(new FileOperationError(nls.localize('fileTooLargeError', "File too large to open"), FileOperationResult.FILE_TOO_LARGE));
 		}
 
 		const absolutePath = this.toAbsolutePath(model);
@@ -682,10 +670,7 @@ export class FileService implements IFileService {
 
 						// Find out if content length has changed
 						if (options.etag !== etag(stat.size, options.mtime)) {
-							return TPromise.wrapError<boolean>(<IFileOperationResult>{
-								message: nls.localize('fileModifiedError', "File Modified Since"),
-								fileOperationResult: FileOperationResult.FILE_MODIFIED_SINCE
-							});
+							return TPromise.wrapError<boolean>(new FileOperationError(nls.localize('fileModifiedError', "File Modified Since"), FileOperationResult.FILE_MODIFIED_SINCE));
 						}
 					}
 
@@ -694,10 +679,10 @@ export class FileService implements IFileService {
 
 					// Throw if file is readonly and we are not instructed to overwrite
 					if (readonly && !options.overwriteReadonly) {
-						return TPromise.wrapError<boolean>(<IFileOperationResult>{
-							message: nls.localize('fileReadOnlyError', "File is Read Only"),
-							fileOperationResult: FileOperationResult.FILE_READ_ONLY
-						});
+						return TPromise.wrapError<boolean>(new FileOperationError(
+							nls.localize('fileReadOnlyError', "File is Read Only"),
+							FileOperationResult.FILE_READ_ONLY
+						));
 					}
 
 					if (readonly) {

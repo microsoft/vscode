@@ -31,13 +31,13 @@ export class MainThreadDebugService extends MainThreadDebugServiceShape {
 
 	public $createDebugSession(configuration: IConfig): TPromise<DebugSessionUUID> {
 		if (configuration.request !== 'launch' && configuration.request !== 'attach') {
-			return TPromise.wrapError(`only 'launch' or 'attach' allowed for 'request' attribute`);
+			return TPromise.wrapError(new Error(`only 'launch' or 'attach' allowed for 'request' attribute`));
 		}
 		return this.debugService.createProcess(configuration).then(process => {
 			if (process) {
 				return <DebugSessionUUID>process.getId();
 			}
-			return TPromise.wrapError('cannot create debug session');
+			return TPromise.wrapError(new Error('cannot create debug session'));
 		}, err => {
 			return TPromise.wrapError(err && err.message ? err.message : 'cannot create debug session');
 		});
@@ -50,11 +50,11 @@ export class MainThreadDebugService extends MainThreadDebugServiceShape {
 				if (response.success) {
 					return response.body;
 				} else {
-					return TPromise.wrapError(response.message);
+					return TPromise.wrapError(new Error(response.message));
 				}
 			});
 		}
-		return TPromise.wrapError('debug session not found');
+		return TPromise.wrapError(new Error('debug session not found'));
 	}
 
 	private _findProcessByUUID(processId: DebugSessionUUID): IProcess | null {

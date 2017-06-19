@@ -1002,7 +1002,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		return result.then<QuickOpenHandler>(null, (error) => {
 			delete this.mapResolvedHandlersToPrefix[id];
 
-			return TPromise.wrapError('Unable to instantiate quick open handler ' + handler.moduleName + ' - ' + handler.ctorName + ': ' + JSON.stringify(error));
+			return TPromise.wrapError(new Error('Unable to instantiate quick open handler ' + handler.moduleName + ' - ' + handler.ctorName + ': ' + JSON.stringify(error)));
 		});
 	}
 

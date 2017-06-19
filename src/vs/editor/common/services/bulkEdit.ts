@@ -338,7 +338,7 @@ export function createBulkEdit(textModelResolverService: ITextModelService, edit
 
 		let concurrentEdits = getConcurrentEdits();
 		if (concurrentEdits) {
-			return TPromise.wrapError<ISelection>(concurrentEdits);
+			return TPromise.wrapError<ISelection>(new Error(concurrentEdits));
 		}
 
 		let uri: URI;

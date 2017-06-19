@@ -25,7 +25,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import labels = require('vs/base/common/labels');
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileService, IFileStat, IFileOperationResult } from 'vs/platform/files/common/files';
+import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { toResource, IEditorIdentifier, EditorInput } from 'vs/workbench/common/editor';
 import { FileStat, Model, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
 import { ExplorerView } from 'vs/workbench/parts/files/browser/views/explorerView';
@@ -76,9 +76,8 @@ export class BaseErrorReportingAction extends Action {
 	}
 
 	protected onError(error: any): void {
-		const fileOperation = error as IFileOperationResult;
-		if (typeof fileOperation.message === 'string') {
-			error = fileOperation.message;
+		if (error.message === 'string') {
+			error = error.message;
 		}
 
 		this._messageService.show(Severity.Error, toErrorMessage(error, false));
@@ -172,17 +171,17 @@ export class TriggerRenameFileAction extends BaseFileAction {
 
 	public run(context?: any): TPromise<any> {
 		if (!context) {
-			return TPromise.wrapError('No context provided to BaseEnableFileRenameAction.');
+			return TPromise.wrapError(new Error('No context provided to BaseEnableFileRenameAction.'));
 		}
 
 		const viewletState = <IFileViewletState>context.viewletState;
 		if (!viewletState) {
-			return TPromise.wrapError('Invalid viewlet state provided to BaseEnableFileRenameAction.');
+			return TPromise.wrapError(new Error('Invalid viewlet state provided to BaseEnableFileRenameAction.'));
 		}
 
 		const stat = <IFileStat>context.stat;
 		if (!stat) {
-			return TPromise.wrapError('Invalid stat provided to BaseEnableFileRenameAction.');
+			return TPromise.wrapError(new Error('Invalid stat provided to BaseEnableFileRenameAction.'));
 		}
 
 		viewletState.setEditable(stat, {
@@ -235,12 +234,12 @@ export abstract class BaseRenameAction extends BaseFileAction {
 
 	public run(context?: any): TPromise<any> {
 		if (!context) {
-			return TPromise.wrapError('No context provided to BaseRenameFileAction.');
+			return TPromise.wrapError(new Error('No context provided to BaseRenameFileAction.'));
 		}
 
 		let name = <string>context.value;
 		if (!name) {
-			return TPromise.wrapError('No new name provided to BaseRenameFileAction.');
+			return TPromise.wrapError(new Error('No new name provided to BaseRenameFileAction.'));
 		}
 
 		// Automatically trim whitespaces and trailing dots to produce nice file names
@@ -369,12 +368,12 @@ export class BaseNewAction extends BaseFileAction {
 
 	public run(context?: any): TPromise<any> {
 		if (!context) {
-			return TPromise.wrapError('No context provided to BaseNewAction.');
+			return TPromise.wrapError(new Error('No context provided to BaseNewAction.'));
 		}
 
 		const viewletState = <IFileViewletState>context.viewletState;
 		if (!viewletState) {
-			return TPromise.wrapError('Invalid viewlet state provided to BaseNewAction.');
+			return TPromise.wrapError(new Error('Invalid viewlet state provided to BaseNewAction.'));
 		}
 
 		let folder = this.presetFolder;
@@ -389,7 +388,7 @@ export class BaseNewAction extends BaseFileAction {
 		}
 
 		if (!folder) {
-			return TPromise.wrapError('Invalid parent folder to create.');
+			return TPromise.wrapError(new Error('Invalid parent folder to create.'));
 		}
 
 		return this.tree.reveal(folder, 0.5).then(() => {

@@ -343,7 +343,7 @@ export class ExtHostApiCommands {
 				return undefined;
 			}
 			if (value.rejectReason) {
-				return TPromise.wrapError<types.WorkspaceEdit>(value.rejectReason);
+				return TPromise.wrapError<types.WorkspaceEdit>(new Error(value.rejectReason));
 			}
 			let workspaceEdit = new types.WorkspaceEdit();
 			for (let edit of value.edits) {

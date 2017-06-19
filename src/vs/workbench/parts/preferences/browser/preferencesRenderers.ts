@@ -22,7 +22,7 @@ import { IContextMenuService, ContextSubMenu } from 'vs/platform/contextview/bro
 import { SettingsGroupTitleWidget, EditPreferenceWidget, SettingsHeaderWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
-import { IConfigurationEditingService, IConfigurationEditingError, ConfigurationEditingErrorCode, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IConfigurationEditingService, ConfigurationEditingError, ConfigurationEditingErrorCode, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { overrideIdentifierFromKey } from 'vs/platform/configuration/common/model';
 import { IMarkerService, IMarkerData } from 'vs/platform/markers/common/markers';
@@ -100,7 +100,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 			});
 	}
 
-	private toErrorMessage(error: IConfigurationEditingError, target: ConfigurationTarget): string {
+	private toErrorMessage(error: ConfigurationEditingError, target: ConfigurationTarget): string {
 		switch (error.code) {
 			case ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION: {
 				return nls.localize('errorInvalidConfiguration', "Unable to write into settings. Correct errors/warnings in the file and try again.");
