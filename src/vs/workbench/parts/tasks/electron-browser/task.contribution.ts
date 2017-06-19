@@ -1422,11 +1422,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (total === 0) {
 				return;
 			}
-			if (total === 1) {
-				this.run(configured[0] || detected[0]);
-			} else {
-				this.quickOpenService.show('build task ');
-			}
+			this.quickOpenService.show('build task ');
 		});
 	}
 
@@ -1435,7 +1431,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			return;
 		}
 		if (!this.inTerminal()) {
-			this.build();
+			this.runTest();
 			return;
 		}
 		this.getTasksForGroup(TaskGroup.Test).then((tasks) => {
@@ -1444,11 +1440,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (total === 0) {
 				return;
 			}
-			if (total === 1) {
-				this.run(configured[0] || detected[0]);
-			} else {
-				this.quickOpenService.show('test task ');
-			}
+			this.quickOpenService.show('test task ');
 		});
 	}
 
