@@ -50,10 +50,10 @@ import { IWindowsService, IWindowService } from 'vs/platform/windows/common/wind
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { RawTextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IThemeService, ITheme, DARK } from 'vs/platform/theme/common/themeService';
-import { Color } from 'vs/base/common/color';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { isLinux } from 'vs/base/common/platform';
 import { generateUuid } from "vs/base/common/uuid";
+import { TestThemeService } from "vs/platform/theme/test/common/testThemeService";
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -1031,48 +1031,3 @@ export class TestWindowsService implements IWindowsService {
 	}
 }
 
-export class TestTheme implements ITheme {
-
-	constructor(private colors: { [id: string]: string; } = {}, public type = DARK) {
-	}
-
-	getColor(color: string, useDefault?: boolean): Color {
-		let value = this.colors[color];
-		if (value) {
-			return Color.fromHex(value);
-		}
-		return void 0;
-	}
-
-	defines(color: string): boolean {
-		throw new Error('Method not implemented.');
-	}
-}
-
-export class TestThemeService implements IThemeService {
-
-	_serviceBrand: any;
-	_theme: ITheme;
-	_onThemeChange = new Emitter<ITheme>();
-
-	constructor(theme = new TestTheme()) {
-		this._theme = theme;
-	}
-
-	getTheme(): ITheme {
-		return this._theme;
-	}
-
-	setTheme(theme: ITheme) {
-		this._theme = theme;
-		this.fireThemeChange();
-	}
-
-	fireThemeChange() {
-		this._onThemeChange.fire(this._theme);
-	}
-
-	public get onThemeChange(): Event<ITheme> {
-		return this._onThemeChange.event;
-	}
-}
