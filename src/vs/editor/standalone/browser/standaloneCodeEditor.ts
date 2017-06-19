@@ -15,8 +15,8 @@ import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/con
 import { IActionDescriptor, IModel, IModelChangedEvent } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { StandaloneKeybindingService } from 'vs/editor/browser/standalone/simpleServices';
-import { IEditorContextViewService } from 'vs/editor/browser/standalone/standaloneServices';
+import { StandaloneKeybindingService } from 'vs/editor/standalone/browser/simpleServices';
+import { IEditorContextViewService } from 'vs/editor/standalone/browser/standaloneServices';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';

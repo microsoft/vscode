@@ -177,6 +177,51 @@
 				]
 			},
 			{
+				"target": "**/vs/editor/standalone/common/**",
+				"restrictions": [
+					"vs/nls",
+					"**/vs/base/common/**",
+					"**/vs/platform/*/common/**",
+					"**/vs/editor/common/**"
+				]
+			},
+			{
+				"target": "**/vs/editor/standalone/test/common/**",
+				"restrictions": [
+					"assert",
+					"vs/nls",
+					"**/vs/base/common/**",
+					"**/vs/platform/*/common/**",
+					"**/vs/platform/*/test/common/**",
+					"**/vs/editor/common/**",
+					"**/vs/editor/test/common/**"
+				]
+			},
+			{
+				"target": "**/vs/editor/standalone/browser/**",
+				"restrictions": [
+					"vs/nls",
+					"vs/css!./**/*",
+					"**/vs/base/{common,browser}/**",
+					"**/vs/platform/*/{common,browser}/**",
+					"**/vs/editor/{common,browser}/**",
+					"**/vs/editor/standalone/{common,browser}/**"
+				]
+			},
+			{
+				"target": "**/vs/editor/standalone/test/browser/**",
+				"restrictions": [
+					"assert",
+					"vs/nls",
+					"**/vs/base/{common,browser}/**",
+					"**/vs/platform/*/{common,browser}/**",
+					"**/vs/platform/*/test/{common,browser}/**",
+					"**/vs/editor/{common,browser}/**",
+					"**/vs/editor/standalone/{common,browser}/**",
+					"**/vs/editor/test/{common,browser}/**"
+				]
+			},
+			{
 				"target": "**/vs/editor/contrib/*/test/**",
 				"restrictions": [
 					"assert",

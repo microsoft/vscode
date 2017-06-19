@@ -35,7 +35,7 @@ import {
 	SimpleConfigurationService, SimpleResourceConfigurationService, SimpleMenuService, SimpleMessageService,
 	SimpleProgressService, StandaloneCommandService, StandaloneKeybindingService,
 	StandaloneTelemetryService, SimpleWorkspaceContextService
-} from 'vs/editor/browser/standalone/simpleServices';
+} from 'vs/editor/standalone/browser/simpleServices';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IStandaloneThemeService } from 'vs/editor/common/services/standaloneThemeService';

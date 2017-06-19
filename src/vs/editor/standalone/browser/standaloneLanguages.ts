@@ -10,7 +10,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { IMonarchLanguage } from 'vs/editor/common/standalone/monarch/monarchTypes';
 import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
-import { StaticServices } from 'vs/editor/browser/standalone/standaloneServices';
+import { StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
 import * as modes from 'vs/editor/common/modes';
 import { LanguageConfiguration, IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import * as editorCommon from 'vs/editor/common/editorCommon';
