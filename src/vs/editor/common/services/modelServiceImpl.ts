@@ -267,7 +267,7 @@ export class ModelServiceImpl implements IModelService {
 	public getCreationOptions(language: string): editorCommon.ITextModelCreationOptions {
 		let creationOptions = this._modelCreationOptionsByLanguage[language];
 		if (!creationOptions) {
-			creationOptions = ModelServiceImpl._readModelOptions(this._configurationService.getConfiguration(null, { language }));
+			creationOptions = ModelServiceImpl._readModelOptions(this._configurationService.getConfiguration(null, { overrideIdentifier: language }));
 			this._modelCreationOptionsByLanguage[language] = creationOptions;
 		}
 		return creationOptions;

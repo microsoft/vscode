@@ -71,8 +71,8 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 		return this.configuration().getValue<C>(section, options);
 	}
 
-	public lookup<C>(key: string, overrideIdentifier?: string): IConfigurationValue<C> {
-		return this.configuration().lookup<C>(key, overrideIdentifier);
+	public lookup<C>(key: string, options?: IConfigurationOverrides): IConfigurationValue<C> {
+		return this.configuration().lookup<C>(key, options);
 	}
 
 	public keys(): IConfigurationKeys {

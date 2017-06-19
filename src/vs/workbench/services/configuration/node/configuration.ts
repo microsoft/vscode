@@ -270,8 +270,8 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		return this._configuration.getValue<C>(section, overrides);
 	}
 
-	public lookup<C>(key: string, overrideIdentifier?: string): IConfigurationValue<C> {
-		return this._configuration.lookup<C>(key, overrideIdentifier);
+	public lookup<C>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<C> {
+		return this._configuration.lookup<C>(key, overrides);
 	}
 
 	public keys(): IConfigurationKeys {

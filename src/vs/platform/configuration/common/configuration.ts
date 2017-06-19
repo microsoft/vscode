@@ -16,7 +16,7 @@ import Event from 'vs/base/common/event';
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
 
 export interface IConfigurationOverrides {
-	language?: string;
+	overrideIdentifier?: string;
 	resource?: URI;
 }
 
@@ -37,7 +37,7 @@ export interface IConfigurationService {
 	 * Resolves a configuration key to its values in the different scopes
 	 * the setting is defined.
 	 */
-	lookup<T>(key: string, overrideIdentifier?: string): IConfigurationValue<T>;
+	lookup<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T>;
 
 	/**
 	 * Returns the defined keys of configurations in the different scopes
@@ -246,13 +246,14 @@ export class Configuration<T> {
 		return section ? configModel.getContentsFor<C>(section) : configModel.contents;
 	}
 
-	lookup<C>(key: string, overrideIdentifier?: string): IConfigurationValue<C> {
+	lookup<C>(key: string, overrides: IConfigurationOverrides = {}): IConfigurationValue<C> {
 		// make sure to clone the configuration so that the receiver does not tamper with the values
+		const workspaceConfiguration = this.getConfigurationModel(overrides);
 		return {
-			default: objects.clone(getConfigurationValue<C>(overrideIdentifier ? this._defaults.override(overrideIdentifier).contents : this._defaults.contents, key)),
-			user: objects.clone(getConfigurationValue<C>(overrideIdentifier ? this._user.override(overrideIdentifier).contents : this._user.contents, key)),
-			workspace: objects.clone(this._workspace ? getConfigurationValue<C>(overrideIdentifier ? this.folders.get(this.workspaceUri).override(overrideIdentifier).contents : this.folders.get(this.workspaceUri).contents, key) : void 0),
-			value: objects.clone(getConfigurationValue<C>(overrideIdentifier ? this._workspaceConfiguration.override(overrideIdentifier).contents : this._workspaceConfiguration.contents, key))
+			default: objects.clone(getConfigurationValue<C>(overrides.overrideIdentifier ? this._defaults.override(overrides.overrideIdentifier).contents : this._defaults.contents, key)),
+			user: objects.clone(getConfigurationValue<C>(overrides.overrideIdentifier ? this._user.override(overrides.overrideIdentifier).contents : this._user.contents, key)),
+			workspace: objects.clone(this._workspace ? getConfigurationValue<C>(overrides.overrideIdentifier ? this.folders.get(this.workspaceUri).override(overrides.overrideIdentifier).contents : this.folders.get(this.workspaceUri).contents, key) : void 0),
+			value: objects.clone(getConfigurationValue<C>(workspaceConfiguration.contents, key))
 		};
 	}
 
@@ -302,7 +303,7 @@ export class Configuration<T> {
 
 	private getConfigurationModel<C>(overrides: IConfigurationOverrides): ConfigurationModel<any> {
 		let configurationModel = this.getConfigurationForResource(overrides);
-		return overrides.language ? configurationModel.override<T>(overrides.language) : configurationModel;
+		return overrides.overrideIdentifier ? configurationModel.override<T>(overrides.overrideIdentifier) : configurationModel;
 	}
 
 	private getConfigurationForResource({ resource }: IConfigurationOverrides): ConfigurationModel<any> {
