@@ -51,12 +51,6 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
-// special context menu actions for root
-// expand state in second root
-// step2: deleting one of the root folders
-// revealing an element might be tricky if it is in two workspaces, in that case just reveal the first to not break. Not a common scenario
-// files.exclude, for each of the roots ask the configurations service for files.exclude
-
 export class FileDataSource implements IDataSource {
 	constructor(
 		@IProgressService private progressService: IProgressService,
