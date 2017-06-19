@@ -17,7 +17,6 @@ import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { IOutline } from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IShowOptions } from 'vs/platform/quickOpen/common/quickOpen';
 
 export class ExtHostApiCommands {
 
@@ -241,8 +240,8 @@ export class ExtHostApiCommands {
 				]
 			});
 
-		this._register('vscode.quickOpen', (prefix: string, showOptions: IShowOptions) => {
-			return this._commands.executeCommand('_workbench.quickOpen', [prefix, showOptions]);
+		this._register('vscode.quickOpen', (prefix: string) => {
+			return this._commands.executeCommand('_workbench.quickOpen', [prefix]);
 		}, {
 				description: 'Shows the quick open widget',
 				args: [

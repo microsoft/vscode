@@ -21,7 +21,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import URI from 'vs/base/common/uri';
 import { IEditorOptions, Position as EditorPosition } from 'vs/platform/editor/common/editor';
-import { IQuickOpenService, IShowOptions } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
 // --- List Commands
 
@@ -424,11 +424,11 @@ export function registerCommands(): void {
 		});
 	});
 
-	CommandsRegistry.registerCommand('_workbench.quickOpen', function (accessor: ServicesAccessor, args: [string, IShowOptions]) {
+	CommandsRegistry.registerCommand('_workbench.quickOpen', function (accessor: ServicesAccessor, args: [string]) {
 		const quickOpenService = accessor.get(IQuickOpenService);
-		const [prefix, showOptions] = args;
+		const [prefix] = args;
 
-		return quickOpenService.show(prefix, showOptions).then(() => {
+		return quickOpenService.show(prefix).then(() => {
 			return void 0;
 		});
 	});

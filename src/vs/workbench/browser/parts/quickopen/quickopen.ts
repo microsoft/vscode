@@ -8,7 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import { Action } from 'vs/base/common/actions';
-import { IQuickOpenService, IShowOptions } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr } from "vs/platform/contextkey/common/contextkey";
 import { ICommandHandler, ICommandService } from "vs/platform/commands/common/commands";
@@ -29,8 +29,8 @@ export class GlobalQuickOpenAction extends Action {
 		this.class = 'quickopen';
 	}
 
-	public run(prefix?: string, showOptions?: IShowOptions): TPromise<any> {
-		this.commandService.executeCommand('vscode.quickOpen', [prefix, showOptions]);
+	public run(): TPromise<any> {
+		this.commandService.executeCommand('vscode.quickOpen');
 
 		return TPromise.as(true);
 	}
