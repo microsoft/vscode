@@ -77,17 +77,6 @@
 		}
 	},
 	{
-		"c": " ",
-		"t": "source.r comment.line.roxygen.r",
-		"r": {
-			"dark_plus": "comment: #608B4E",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
-		}
-	},
-	{
 		"c": "@param",
 		"t": "source.r comment.line.roxygen.r keyword.other.r",
 		"r": {
@@ -122,7 +111,7 @@
 	},
 	{
 		"c": " A number.",
-		"t": "source.r comment.line.roxygen.r punctuation.definition.comment.r",
+		"t": "source.r comment.line.roxygen.r",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"dark_vs": "comment: #608B4E",
@@ -188,7 +177,7 @@
 	},
 	{
 		"c": " A number.",
-		"t": "source.r comment.line.roxygen.r punctuation.definition.comment.r",
+		"t": "source.r comment.line.roxygen.r",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"dark_vs": "comment: #608B4E",
