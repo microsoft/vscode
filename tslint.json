@@ -163,8 +163,7 @@
 					"vs/css!./**/*",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/platform/*/{common,browser}/**",
-					"**/vs/editor/{common,browser}/**",
-					"vs/editor/contrib/diffNavigator/common/diffNavigator" // TODO@Alex
+					"**/vs/editor/{common,browser}/**"
 				]
 			},
 			{

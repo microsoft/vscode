@@ -8,6 +8,7 @@
 import 'vs/editor/common/controller/coreCommands';
 import 'vs/editor/browser/widget/codeEditorWidget';
 import 'vs/editor/browser/widget/diffEditorWidget';
+import 'vs/editor/browser/widget/diffNavigator';
 
 import 'vs/editor/contrib/bracketMatching/common/bracketMatching';
 import 'vs/css!vs/editor/contrib/bracketMatching/browser/bracketMatching';
@@ -18,7 +19,6 @@ import 'vs/editor/contrib/codelens/browser/codelensController';
 import 'vs/editor/contrib/comment/common/comment';
 import 'vs/editor/contrib/contextmenu/browser/contextmenu';
 import 'vs/editor/contrib/cursorUndo/browser/cursorUndo';
-import 'vs/editor/contrib/diffNavigator/common/diffNavigator';
 import 'vs/editor/contrib/dnd/browser/dnd';
 import 'vs/editor/contrib/find/browser/find';
 import 'vs/editor/contrib/folding/browser/folding';
