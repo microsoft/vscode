@@ -290,7 +290,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		const current = this._configuration;
 
 		return this.baseConfigurationService.reloadConfiguration()
-			.then(() => this.initialize()) // Reinitialize to ensure we are hitting the disk
+			.then(() => this.initialize(false)) // Reinitialize to ensure we are hitting the disk
 			.then(() => !this._configuration.equals(current)) // Check if the configuration is changed
 			.then(changed => changed ? this.trigger(ConfigurationSource.Workspace, ) : void 0) // Trigger event if changed
 			.then(() => this.getConfiguration(section));
@@ -308,10 +308,14 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		}
 	}
 
-	public initialize(): TPromise<any> {
+	public initialize(trigger: boolean = true): TPromise<any> {
 		this.initCaches();
 		return this.doInitialize(this.workspace ? this.workspace.roots : [])
-			.then(() => this.trigger(this.workspace ? ConfigurationSource.Workspace : ConfigurationSource.User));
+			.then(() => {
+				if (trigger) {
+					this.trigger(this.workspace ? ConfigurationSource.Workspace : ConfigurationSource.User);
+				}
+			});
 	}
 
 	private onRootsChanged(): void {
