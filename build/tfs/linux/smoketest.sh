@@ -26,9 +26,10 @@ step "Build minified" \
 	npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-min"
 
 function configureEnvironment {
-	id -u testuser || (useradd -m testuser; chpasswd <<< testuser:testpassword)
+	id -u testuser &>/dev/null || (useradd -m testuser; chpasswd <<< testuser:testpassword)
 	git config --global user.name "VS Code Agent"
 	git config --global user.email "monacotools@microsoft.com"
+	chown -R testuser $AGENT_BUILDDIRECTORY
 }
 
 function runTest {
