@@ -42,8 +42,7 @@ import { IStorageService } from "vs/platform/storage/common/storage";
 
 used();
 
-const configurationKey = 'workbench.startupEditor';
-const oldConfigurationKey = 'workbench.welcome.enabled';
+const configurationKey = 'workbench.welcome.enabled';
 const telemetryFrom = 'welcomePage';
 
 export class WelcomePageContribution implements IWorkbenchContribution {
@@ -77,14 +76,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 }
 
 function isWelcomePageEnabled(configurationService: IConfigurationService) {
-	const startupEditor = configurationService.lookup(configurationKey);
-	if (!startupEditor.user && !startupEditor.workspace) {
-		const welcomeEnabled = configurationService.lookup(oldConfigurationKey);
-		if (welcomeEnabled.value !== undefined && welcomeEnabled.value !== null) {
-			return welcomeEnabled.value;
-		}
-	}
-	return startupEditor.value === 'welcomePage';
+	return configurationService.lookup(configurationKey).value;
 }
 
 export class WelcomePageAction extends Action {
@@ -217,7 +209,7 @@ class WelcomePage {
 			showOnStartup.setAttribute('checked', 'checked');
 		}
 		showOnStartup.addEventListener('click', e => {
-			this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: configurationKey, value: showOnStartup.checked ? 'welcomePage' : 'newUntitledFile' });
+			this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: configurationKey, value: showOnStartup.checked });
 		});
 
 		recentlyOpened.then(({ folders }) => {
