@@ -389,4 +389,8 @@ suite('SnippetParser', () => {
 
 		assert.equal(Placeholder.compareByIndex(_10, _2), 1);
 	});
+
+	test('Maximum call stack size exceeded, #28983', function () {
+		new SnippetParser().parse('${1:${foo:${1}}}');
+	});
 });
