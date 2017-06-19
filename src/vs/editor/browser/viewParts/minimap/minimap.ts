@@ -73,6 +73,8 @@ class MinimapOptions {
 
 	public readonly renderMinimap: RenderMinimap;
 
+	public readonly scrollBeyondLastLine: boolean;
+
 	public readonly showSlider: 'always' | 'mouseover';
 
 	public readonly pixelRatio: number;
@@ -112,6 +114,7 @@ class MinimapOptions {
 		const viewInfo = configuration.editor.viewInfo;
 
 		this.renderMinimap = layoutInfo.renderMinimap | 0;
+		this.scrollBeyondLastLine = viewInfo.scrollBeyondLastLine;
 		this.showSlider = viewInfo.minimap.showSlider;
 		this.pixelRatio = pixelRatio;
 		this.lineHeight = configuration.editor.lineHeight;
@@ -127,6 +130,7 @@ class MinimapOptions {
 
 	public equals(other: MinimapOptions): boolean {
 		return (this.renderMinimap === other.renderMinimap
+			&& this.scrollBeyondLastLine === other.scrollBeyondLastLine
 			&& this.showSlider === other.showSlider
 			&& this.pixelRatio === other.pixelRatio
 			&& this.lineHeight === other.lineHeight
@@ -229,7 +233,16 @@ class MinimapLayout {
 			sliderHeight = Math.floor(expectedViewportLineCount * minimapLineHeight / pixelRatio);
 		}
 
-		const maxMinimapSliderTop = Math.min(options.minimapHeight - sliderHeight, (lineCount - 1) * minimapLineHeight / pixelRatio);
+		let maxMinimapSliderTop: number;
+		if (options.scrollBeyondLastLine) {
+			// The minimap slider, when dragged all the way down, will contain the last line at its top
+			maxMinimapSliderTop = (lineCount - 1) * minimapLineHeight / pixelRatio;
+		} else {
+			// The minimap slider, when dragged all the way down, will contain the last line at its bottom
+			maxMinimapSliderTop = Math.max(0, lineCount * minimapLineHeight / pixelRatio - sliderHeight);
+		}
+		maxMinimapSliderTop = Math.min(options.minimapHeight - sliderHeight, maxMinimapSliderTop);
+
 		// The slider can move from 0 to `maxMinimapSliderTop`
 		// in the same way `scrollTop` can move from 0 to `scrollHeight` - `viewportHeight`.
 		const computedSliderRatio = (maxMinimapSliderTop) / (scrollHeight - viewportHeight);
