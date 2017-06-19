@@ -6,7 +6,7 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { EditorModel, IEncodingSupport } from 'vs/workbench/common/editor';
+import { IEncodingSupport } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import URI from 'vs/base/common/uri';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
@@ -153,7 +153,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		this.contentChangeEventScheduler.schedule();
 	}
 
-	public load(): TPromise<EditorModel> {
+	public load(): TPromise<UntitledEditorModel> {
 
 		// Check for backups first
 		return this.backupFileService.loadBackupResource(this.resource).then(backupResource => {
@@ -183,11 +183,11 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		});
 	}
 
-	private doLoad(content: string): TPromise<EditorModel> {
+	private doLoad(content: string): TPromise<UntitledEditorModel> {
 
 		// Create text editor model if not yet done
 		if (!this.textEditorModel) {
-			return this.createTextEditorModel(content, this.resource, this.modeId);
+			return this.createTextEditorModel(content, this.resource, this.modeId).then(model => this);
 		}
 
 		// Otherwise update
@@ -195,7 +195,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 			this.updateTextEditorModel(content);
 		}
 
-		return TPromise.as<EditorModel>(this);
+		return TPromise.as<UntitledEditorModel>(this);
 	}
 
 	private onModelContentChanged(): void {
