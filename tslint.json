@@ -149,6 +149,20 @@
 				]
 			},
 			{
+				"target": "**/vs/editor/test/common/**",
+				"restrictions": [
+					"assert",
+					"vs/nls",
+					"**/vs/base/common/**",
+					"**/vs/platform/*/common/**",
+					"**/vs/platform/*/test/common/**",
+					"**/vs/editor/common/**",
+					"**/vs/editor/contrib/wordOperations/**", // TODO@Alex
+					"**/vs/editor/contrib/folding/common/**", // TODO@Alex
+					"**/vs/editor/test/common/**"
+				]
+			},
+			{
 				"target": "**/vs/editor/browser/**",
 				"restrictions": [
 					"vs/nls",
