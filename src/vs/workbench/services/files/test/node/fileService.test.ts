@@ -20,6 +20,7 @@ import encodingLib = require('vs/base/node/encoding');
 import utils = require('vs/workbench/services/files/test/node/utils');
 import { onError } from 'vs/base/test/common/utils';
 import { TestContextService } from "vs/workbench/test/workbenchTestServices";
+import { Workspace } from "vs/platform/workspace/common/workspace";
 
 suite('FileService', () => {
 	let service: FileService;
@@ -36,7 +37,7 @@ suite('FileService', () => {
 				return onError(error, done);
 			}
 
-			service = new FileService(testDir, { disableWatcher: true }, new TestContextService());
+			service = new FileService(new TestContextService(new Workspace(testDir, testDir, [uri.file(testDir)])), { disableWatcher: true });
 			done();
 		});
 	});
@@ -732,11 +733,11 @@ suite('FileService', () => {
 				encoding: 'utf16le'
 			});
 
-			let _service = new FileService(_testDir, {
+			let _service = new FileService(new TestContextService(new Workspace(_testDir, _testDir, [uri.file(_testDir)])), {
 				encoding: 'windows1252',
-				encodingOverride: encodingOverride,
+				encodingOverride,
 				disableWatcher: true
-			}, new TestContextService());
+			});
 
 			_service.resolveContent(uri.file(path.join(testDir, 'index.html'))).done(c => {
 				assert.equal(c.encoding, 'windows1252');
@@ -760,9 +761,9 @@ suite('FileService', () => {
 		let _sourceDir = require.toUrl('./fixtures/service');
 		let resource = uri.file(path.join(testDir, 'index.html'));
 
-		let _service = new FileService(_testDir, {
+		let _service = new FileService(new TestContextService(new Workspace(_testDir, _testDir, [uri.file(_testDir)])), {
 			disableWatcher: true
-		}, new TestContextService());
+		});
 
 		extfs.copy(_sourceDir, _testDir, () => {
 			fs.readFile(resource.fsPath, (error, data) => {

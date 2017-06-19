@@ -12,7 +12,6 @@ import crypto = require('crypto');
 import assert = require('assert');
 
 import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveContentOptions, IFileStat, IStreamContent, IFileOperationResult, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent } from 'vs/platform/files/common/files';
-import strings = require('vs/base/common/strings');
 import { isEqualOrParent } from 'vs/base/common/paths';
 import { ResourceMap } from 'vs/base/common/map';
 import arrays = require('vs/base/common/arrays');
@@ -80,7 +79,6 @@ export class FileService implements IFileService {
 	private static FS_REWATCH_DELAY = 300; // delay to rewatch a file that was renamed or deleted (in ms)
 	private static MAX_DEGREE_OF_PARALLEL_FS_OPS = 10; // degree of parallel fs calls that we accept at the same time
 
-	private basePath: string;
 	private tmpPath: string;
 	private options: IFileServiceOptions;
 
@@ -94,25 +92,10 @@ export class FileService implements IFileService {
 	private undeliveredRawFileChangesEvents: IRawFileChange[];
 
 	constructor(
-		basePath: string,
+		private contextService: IWorkspaceContextService,
 		options: IFileServiceOptions,
-		private contextService: IWorkspaceContextService
 	) {
 		this.toDispose = [];
-		this.basePath = basePath ? paths.normalize(basePath) : void 0;
-
-		if (this.basePath && this.basePath.indexOf('\\\\') === 0 && strings.endsWith(this.basePath, paths.sep)) {
-			// for some weird reason, node adds a trailing slash to UNC paths
-			// we never ever want trailing slashes as our base path unless
-			// someone opens root ("/").
-			// See also https://github.com/nodejs/io.js/issues/1765
-			this.basePath = strings.rtrim(this.basePath, paths.sep);
-		}
-
-		if (this.basePath && !paths.isAbsolute(basePath)) {
-			throw new Error('basePath has to be an absolute path');
-		}
-
 		this.options = options || Object.create(null);
 		this.tmpPath = this.options.tmpDir || os.tmpdir();
 
@@ -126,7 +109,7 @@ export class FileService implements IFileService {
 			this.options.errorLogger = console.error;
 		}
 
-		if (this.basePath && !this.options.disableWatcher) {
+		if (contextService.hasWorkspace() && !this.options.disableWatcher) {
 			if (this.options.useExperimentalFileWatcher) {
 				this.setupNsfwWorkspceWatching();
 			} else {
@@ -158,15 +141,15 @@ export class FileService implements IFileService {
 	}
 
 	private setupWin32WorkspaceWatching(): void {
-		this.toDispose.push(toDisposable(new WindowsWatcherService(this.basePath, this.options.watcherIgnoredPatterns, e => this._onFileChanges.fire(e), this.options.errorLogger, this.options.verboseLogging).startWatching()));
+		this.toDispose.push(toDisposable(new WindowsWatcherService(this.contextService, this.options.watcherIgnoredPatterns, e => this._onFileChanges.fire(e), this.options.errorLogger, this.options.verboseLogging).startWatching()));
 	}
 
 	private setupUnixWorkspaceWatching(): void {
-		this.toDispose.push(toDisposable(new UnixWatcherService(this.basePath, this.options.watcherIgnoredPatterns, e => this._onFileChanges.fire(e), this.options.errorLogger, this.options.verboseLogging).startWatching()));
+		this.toDispose.push(toDisposable(new UnixWatcherService(this.contextService, this.options.watcherIgnoredPatterns, e => this._onFileChanges.fire(e), this.options.errorLogger, this.options.verboseLogging).startWatching()));
 	}
 
 	private setupNsfwWorkspceWatching(): void {
-		this.toDispose.push(toDisposable(new NsfwWatcherService(this.basePath, this.options.watcherIgnoredPatterns, e => this._onFileChanges.fire(e), this.options.errorLogger, this.options.verboseLogging, this.contextService).startWatching()));
+		this.toDispose.push(toDisposable(new NsfwWatcherService(this.contextService, this.options.watcherIgnoredPatterns, e => this._onFileChanges.fire(e), this.options.errorLogger, this.options.verboseLogging).startWatching()));
 	}
 
 	public resolveFile(resource: uri, options?: IResolveFileOptions): TPromise<IFileStat> {

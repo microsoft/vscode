@@ -69,7 +69,7 @@ suite('ExtensionEnablementService Test', () => {
 	test('test when no extensions are disabled for workspace when there is no workspace', (done) => {
 		testObject.setEnablement('pub.a', false, true)
 			.then(() => {
-				instantiationService.stub(IWorkspaceContextService, 'getWorkspace', null);
+				instantiationService.stub(IWorkspaceContextService, 'hasWorkspace', false);
 				assert.deepEqual([], testObject.getWorkspaceDisabledExtensions());
 			})
 			.then(done, done);
@@ -174,7 +174,7 @@ suite('ExtensionEnablementService Test', () => {
 	});
 
 	test('test disable an extension for workspace when there is no workspace throws error', (done) => {
-		instantiationService.stub(IWorkspaceContextService, 'getWorkspace', null);
+		instantiationService.stub(IWorkspaceContextService, 'hasWorkspace', false);
 		testObject.setEnablement('pub.a', false, true)
 			.then(() => assert.fail('should throw an error'), error => assert.ok(error))
 			.then(done, done);

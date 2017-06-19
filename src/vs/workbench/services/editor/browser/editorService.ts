@@ -19,7 +19,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import nls = require('vs/nls');
-import { getPathLabel, IWorkspaceProvider } from 'vs/base/common/labels';
+import { getPathLabel } from 'vs/base/common/labels';
 import { ResourceMap } from 'vs/base/common/map';
 import { once } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -287,7 +287,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return input;
 	}
 
-	private toDiffLabel(res1: URI, res2: URI, context: IWorkspaceProvider, environment: IEnvironmentService): string {
+	private toDiffLabel(res1: URI, res2: URI, context: IWorkspaceContextService, environment: IEnvironmentService): string {
 		const leftName = getPathLabel(res1.fsPath, context, environment);
 		const rightName = getPathLabel(res2.fsPath, context, environment);
 

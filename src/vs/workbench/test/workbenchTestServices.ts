@@ -64,7 +64,7 @@ export const TestEnvironmentService = new EnvironmentService(parseArgs(process.a
 export class TestContextService implements IWorkspaceContextService {
 	public _serviceBrand: any;
 
-	private workspace: ILegacyWorkspace;
+	private workspace: IWorkspace;
 	private id: string;
 	private options: any;
 
@@ -82,7 +82,7 @@ export class TestContextService implements IWorkspaceContextService {
 	}
 
 	public getFolders(): URI[] {
-		return this.workspace ? [this.workspace.resource] : [];
+		return this.workspace ? this.workspace.roots : [];
 	}
 
 	public hasWorkspace(): boolean {
@@ -90,15 +90,15 @@ export class TestContextService implements IWorkspaceContextService {
 	}
 
 	public getWorkspace(): ILegacyWorkspace {
-		return this.workspace;
+		return this.workspace ? { resource: this.workspace.roots[0] } : void 0;
 	}
 
 	public getWorkspace2(): IWorkspace {
-		return this.workspace ? { id: this.id, roots: [this.workspace.resource], name: this.workspace.resource.fsPath } : void 0;
+		return this.workspace;
 	}
 
 	public getRoot(resource: URI): URI {
-		return this.isInsideWorkspace(resource) ? this.workspace.resource : null;
+		return this.isInsideWorkspace(resource) ? this.workspace.roots[0] : null;
 	}
 
 	public setWorkspace(workspace: any): void {
@@ -115,7 +115,7 @@ export class TestContextService implements IWorkspaceContextService {
 
 	public isInsideWorkspace(resource: URI): boolean {
 		if (resource && this.workspace) {
-			return paths.isEqualOrParent(resource.fsPath, this.workspace.resource.fsPath, !isLinux /* ignorecase */);
+			return paths.isEqualOrParent(resource.fsPath, this.workspace.roots[0].fsPath, !isLinux /* ignorecase */);
 		}
 
 		return false;
@@ -363,7 +363,7 @@ export class TestStorageService extends EventEmitter implements IStorageService 
 		super();
 
 		let context = new TestContextService();
-		this.storage = new StorageService(new InMemoryLocalStorage(), null, context.getWorkspace());
+		this.storage = new StorageService(new InMemoryLocalStorage(), null, context.getWorkspace2());
 	}
 
 	store(key: string, value: any, scope: StorageScope = StorageScope.GLOBAL): void {
@@ -1012,7 +1012,7 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 	// TODO@joao: what?
-	closeExtensionHostWindow(extensionDevelopmentPath: string): TPromise<void> {
+	closeExtensionHostWindow(extensionDevelopmentPaths: string[]): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 	showItemInFolder(path: string): TPromise<void> {

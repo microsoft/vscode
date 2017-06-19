@@ -56,7 +56,7 @@ export interface IWindowsService {
 	getWindowCount(): TPromise<number>;
 	log(severity: string, ...messages: string[]): TPromise<void>;
 	// TODO@joao: what?
-	closeExtensionHostWindow(extensionDevelopmentPath: string): TPromise<void>;
+	closeExtensionHostWindow(extensionDevelopmentPaths: string[]): TPromise<void>;
 	showItemInFolder(path: string): TPromise<void>;
 
 	// This needs to be handled from browser process to prevent

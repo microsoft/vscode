@@ -263,12 +263,12 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return TPromise.as(null);
 	}
 
-	closeExtensionHostWindow(extensionDevelopmentPath: string): TPromise<void> {
-		const windowOnExtension = this.windowsMainService.findWindow(null, null, extensionDevelopmentPath);
-
-		if (windowOnExtension) {
-			windowOnExtension.win.close();
-		}
+	closeExtensionHostWindow(extensionDevelopmentPaths: string[]): TPromise<void> {
+		extensionDevelopmentPaths.map(p => this.windowsMainService.findWindow(null, null, p)).forEach(windowOnExtension => {
+			if (windowOnExtension) {
+				windowOnExtension.win.close();
+			}
+		});
 
 		return TPromise.as(null);
 	}

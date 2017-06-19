@@ -8,11 +8,15 @@
 import { IRawFileChange, toFileChangesEvent } from 'vs/workbench/services/files/node/watcher/common';
 import { OutOfProcessWin32FolderWatcher } from 'vs/workbench/services/files/node/watcher/win32/csharpWatcherService';
 import { FileChangesEvent } from 'vs/platform/files/common/files';
+import { IWorkspaceContextService } from "vs/platform/workspace/common/workspace";
+import { normalize } from "path";
+import { rtrim, endsWith } from "vs/base/common/strings";
+import { sep } from "vs/base/common/paths";
 
 export class FileWatcher {
 
 	constructor(
-		private basePath: string,
+		private contextService: IWorkspaceContextService,
 		private ignored: string[],
 		private onFileChanges: (changes: FileChangesEvent) => void,
 		private errorLogger: (msg: string) => void,
@@ -21,8 +25,18 @@ export class FileWatcher {
 	}
 
 	public startWatching(): () => void {
-		let watcher = new OutOfProcessWin32FolderWatcher(
-			this.basePath,
+		let basePath: string = normalize(this.contextService.getWorkspace2().roots[0].fsPath);
+
+		if (basePath && basePath.indexOf('\\\\') === 0 && endsWith(basePath, sep)) {
+			// for some weird reason, node adds a trailing slash to UNC paths
+			// we never ever want trailing slashes as our base path unless
+			// someone opens root ("/").
+			// See also https://github.com/nodejs/io.js/issues/1765
+			basePath = rtrim(basePath, sep);
+		}
+
+		const watcher = new OutOfProcessWin32FolderWatcher(
+			basePath,
 			this.ignored,
 			(events) => this.onRawFileEvents(events),
 			(error) => this.onError(error),

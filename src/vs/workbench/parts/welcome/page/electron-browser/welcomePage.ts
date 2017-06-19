@@ -227,8 +227,8 @@ class WelcomePage {
 
 		recentlyOpened.then(({ folders }) => {
 			if (this.contextService.hasWorkspace()) {
-				const current = this.contextService.getWorkspace().resource.fsPath;
-				folders = folders.filter(folder => !this.pathEquals(folder, current));
+				const currents = this.contextService.getWorkspace2().roots;
+				folders = folders.filter(folder => !currents.some(current => this.pathEquals(folder, current.fsPath)));
 			}
 			if (!folders.length) {
 				const recent = container.querySelector('.welcomePage') as HTMLElement;

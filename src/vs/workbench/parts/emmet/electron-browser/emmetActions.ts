@@ -285,7 +285,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 		const modeService = accessor.get(IModeService);
 		const messageService = accessor.get(IMessageService);
 		const contextService = accessor.get(IWorkspaceContextService);
-		const workspaceRoot = contextService.getWorkspace() ? contextService.getWorkspace().resource.fsPath : '';
+		const workspaceRoot = contextService.hasWorkspace() ? contextService.getWorkspace().resource.fsPath : '';
 		const telemetryService = accessor.get(ITelemetryService);
 		const commandService = accessor.get(ICommandService);
 
