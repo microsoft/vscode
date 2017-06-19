@@ -10,7 +10,7 @@ import { Panel, PanelRegistry, PanelDescriptor, Extensions } from 'vs/workbench/
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 const TASK_PANEL_ID = 'workbench.panel.task';
@@ -48,7 +48,7 @@ export class TaskPanel extends Panel {
 	'vs/workbench/parts/tasks/electron-browser/taskPanel.ts',
 	'TaskPanel',
 	TASK_PANEL_ID,
-	nls.localize('task', "Task"),
+	nls.localize('task', "Tasks"),
 	'task',
 	41,
 	'testing'
