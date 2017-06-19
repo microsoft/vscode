@@ -651,15 +651,13 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		if (options.ariaLabel) {
 			this.view.domNode.setAttribute('aria-label', options.ariaLabel);
 		}
-		this.view.domNode.setAttribute('aria-setsize', this.length.toString());
+		this.view.domNode.setAttribute('aria-setsize', '0');
 
 		this.style(options);
 	}
 
 	splice(start: number, deleteCount: number, elements: T[] = []): void {
-		this.eventBufferer.bufferEvents(() => {
-			this.spliceable.splice(start, deleteCount, elements);
-		});
+		this.eventBufferer.bufferEvents(() => this.spliceable.splice(start, deleteCount, elements));
 		this.view.domNode.setAttribute('aria-setsize', this.length.toString());
 	}
 
