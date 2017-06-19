@@ -39,7 +39,7 @@ import {
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IStandaloneThemeService } from 'vs/editor/common/services/standaloneThemeService';
-import { StandaloneThemeServiceImpl } from 'vs/editor/browser/services/standaloneThemeServiceImpl';
+import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
 
 export interface IEditorContextViewService extends IContextViewService {
 	dispose(): void;

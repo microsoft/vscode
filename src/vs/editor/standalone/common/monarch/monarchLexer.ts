@@ -11,7 +11,7 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as modes from 'vs/editor/common/modes';
-import * as monarchCommon from 'vs/editor/common/standalone/monarch/monarchCommon';
+import * as monarchCommon from 'vs/editor/standalone/common/monarch/monarchCommon';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import { NULL_STATE, NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';

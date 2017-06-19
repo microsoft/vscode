@@ -182,7 +182,8 @@
 					"vs/nls",
 					"**/vs/base/common/**",
 					"**/vs/platform/*/common/**",
-					"**/vs/editor/common/**"
+					"**/vs/editor/common/**",
+					"**/vs/editor/standalone/common/**"
 				]
 			},
 			{
