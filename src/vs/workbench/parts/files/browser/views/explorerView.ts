@@ -120,9 +120,11 @@ export class ExplorerView extends CollapsibleView {
 
 	public renderHeader(container: HTMLElement): void {
 		const titleDiv = $('div.title').appendTo(container);
+		const titleSpan = $('span').appendTo(titleDiv);
 		const setHeader = () => {
-			const title = this.contextService.getWorkspace2().roots.map(root => labels.getPathLabel(root.fsPath, void 0, this.environmentService)).join();
-			$('span').text(this.name).title(title).appendTo(titleDiv);
+			const roots = this.contextService.getWorkspace2().roots;
+			const title = roots.map(root => labels.getPathLabel(root.fsPath, void 0, this.environmentService)).join();
+			titleSpan.text(roots.length === 1 ? this.name : nls.localize('folders', "Folders")).title(title);
 		};
 		this.toDispose.push(this.contextService.onDidChangeWorkspaceRoots(() => setHeader()));
 		setHeader();
