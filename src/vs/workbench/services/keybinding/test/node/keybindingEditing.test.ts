@@ -17,7 +17,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { KeyCode, SimpleKeybinding, ChordKeybinding } from 'vs/base/common/keyCodes';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import extfs = require('vs/base/node/extfs');
-import { TestTextFileService, TestEditorGroupService, TestLifecycleService, TestBackupFileService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
+import { TestTextFileService, TestEditorGroupService, TestLifecycleService, TestBackupFileService, TestContextService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
 import uuid = require('vs/base/common/uuid');
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
@@ -42,6 +42,8 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { IChoiceService } from 'vs/platform/message/common/message';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 interface Modifiers {
 	metaKey?: boolean;
@@ -67,7 +69,12 @@ suite('Keybindings Editing', () => {
 			instantiationService.stub(IConfigurationService, ConfigurationService);
 			instantiationService.stub(IConfigurationService, 'getConfiguration', { 'eol': '\n' });
 			instantiationService.stub(IConfigurationService, 'onDidUpdateConfiguration', () => { });
-
+			instantiationService.stub(IStorageService, new TestStorageService());
+			instantiationService.stub(IChoiceService, {
+				choose: (severity, message, options, cancelId): TPromise<number> => {
+					return TPromise.as(cancelId);
+				}
+			});
 			instantiationService.stub(IWorkspaceContextService, new TestContextService());
 			instantiationService.stub(ILifecycleService, new TestLifecycleService());
 			instantiationService.stub(IEditorGroupService, new TestEditorGroupService());
