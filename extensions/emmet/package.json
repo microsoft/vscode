@@ -76,7 +76,7 @@
         "@types/node": "^7.0.4"
     },
     "dependencies": {
-        "@emmetio/expand-abbreviation": "^0.5.4",
+        "@emmetio/expand-abbreviation": "^0.5.8",
         "@emmetio/extract-abbreviation": "^0.1.1",
         "@emmetio/html-matcher": "^0.3.1",
         "@emmetio/css-parser": "^0.3.0"
