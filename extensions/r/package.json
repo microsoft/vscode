@@ -13,7 +13,7 @@
 		"grammars": [{
 			"language": "r",
 			"scopeName": "source.r",
-			"path": "./syntaxes/r.json"
+			"path": "./syntaxes/r.tmLanguage.json"
 		}]
 	}
 }
