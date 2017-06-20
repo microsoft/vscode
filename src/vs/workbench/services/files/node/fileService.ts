@@ -110,9 +110,14 @@ export class FileService implements IFileService {
 		}
 
 		if (contextService.hasWorkspace() && !this.options.disableWatcher) {
-			if (this.options.useExperimentalFileWatcher) {
+
+			// new watcher: use it if setting tells us so or we run in multi-root environment
+			if (this.options.useExperimentalFileWatcher || contextService.getWorkspace2().roots.length > 1) {
 				this.setupNsfwWorkspceWatching();
-			} else {
+			}
+
+			// old watcher
+			else {
 				if (isWindows) {
 					this.setupWin32WorkspaceWatching();
 				} else {
