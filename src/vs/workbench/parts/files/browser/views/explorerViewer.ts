@@ -545,11 +545,11 @@ export class FileSorter implements ISorter {
 		}
 
 		// Do not sort roots
-		if (statA.resource.toString() === statA.root.toString()) {
+		if (statA.isRoot) {
 			return -1;
 		}
 
-		if (statB.resource.toString() === statB.root.toString()) {
+		if (statB.isRoot) {
 			return 1;
 		}
 

@@ -87,6 +87,10 @@ export class FileStat implements IFileStat {
 		return this.resource.toString();
 	}
 
+	public get isRoot(): boolean {
+		return this.resource.toString() === this.root.toString();
+	}
+
 	public static create(raw: IFileStat, root: URI, resolveTo?: URI[]): FileStat {
 		const stat = new FileStat(raw.resource, root, raw.isDirectory, raw.hasChildren, raw.name, raw.mtime, raw.etag);
 
