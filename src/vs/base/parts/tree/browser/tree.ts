@@ -428,6 +428,10 @@ export interface IAccessibilityProvider {
 	 * See also: https://www.w3.org/TR/wai-aria/states_and_properties#aria-label
 	 */
 	getAriaLabel(tree: ITree, element: any): string;
+
+	getPosInSet?(tree: ITree, element: any): string;
+
+	getSetSize?(): string;
 }
 
 export /* abstract */ class ContextMenuEvent {
