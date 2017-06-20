@@ -27,17 +27,10 @@ export function wrapWithAbbreviation() {
 	}
 	let textToReplace = editor.document.getText(rangeToReplace);
 	let syntax = getSyntax(editor.document);
-	let options = {
-		field: field,
-		syntax: syntax,
-		profile: getProfile(getSyntax(editor.document)),
-		text: textToReplace,
-		addons: syntax === 'jsx' ? { 'jsx': syntax === 'jsx' } : null
-	};
 
 	vscode.window.showInputBox({ prompt: 'Enter Abbreviation' }).then(abbr => {
 		if (!abbr || !abbr.trim()) { return; }
-		let expandedText = expand(abbr, options);
+		let expandedText = expand(abbr, getExpandOptions(syntax, textToReplace));
 		editor.insertSnippet(new vscode.SnippetString(expandedText), rangeToReplace);
 	});
 }
@@ -96,14 +89,7 @@ export function expandAbbreviationHelper(syntax: string, document: vscode.TextDo
 		[abbreviationRange, abbreviation] = extractAbbreviation(document, abbreviationRange.start);
 	}
 
-	let options = {
-		field: field,
-		syntax: syntax,
-		profile: getProfile(syntax),
-		addons: syntax === 'jsx' ? { 'jsx': true } : null
-	};
-
-	let expandedText = expand(abbreviation, options);
+	let expandedText = expand(abbreviation, getExpandOptions(syntax));
 	return { expandedText, abbreviationRange, abbreviation, syntax };
 }
 
@@ -153,4 +139,15 @@ function isValidLocationForEmmetAbbreviation(currentNode: Node, syntax: string, 
 	}
 
 	return false;
+}
+
+function getExpandOptions(syntax: string, textToReplace?: string) {
+	return {
+		field: field,
+		syntax: syntax,
+		profile: getProfile(syntax),
+		addons: syntax === 'jsx' ? { 'jsx': true } : null,
+		variables: vscode.workspace.getConfiguration('emmet')['variables'],
+		text: textToReplace ? textToReplace : ''
+	};
 }

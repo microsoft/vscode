@@ -21,7 +21,7 @@
     "contributes": {
         "configuration": {
             "type": "object",
-            "title": "Emmet configuration",
+            "title": "Emmet",
             "properties": {
                 "emmet.showExpandedAbbreviation": {
                     "type": "boolean",
@@ -32,6 +32,39 @@
                     "type": "boolean",
                     "default": true,
                     "description": "Shows possible emmet abbreviations as suggestions"
+                },
+                "emmet.variables":{
+                    "type": "object",
+                    "properties": {
+                        "lang": {
+                            "type": "string",
+                            "default": "en"
+                        },
+                        "locale": {
+                            "type": "string",
+                            "default": "en-US"
+                        },
+                        "charset": {
+                            "type": "string",
+                            "default": "UTF-8"
+                        },
+                        "indentation": {
+                            "type": "string",
+                            "default": "\t"
+                        },
+                        "newline": {
+                            "type": "string",
+                            "default": "\n"
+                        }
+                    },
+                    "default":{
+                        "lang": "en",
+                        "locale": "en-US",
+                        "charset": "UTF-8",
+                        "indentation": "\t",
+                        "newline": "\n"
+                    },
+                    "description": "Variables to be used in emmet snippets"
                 }
             }
         }
