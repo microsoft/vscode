@@ -17,9 +17,9 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/wor
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { FileStat } from 'vs/workbench/parts/files/common/explorerModel';
+import { FileStat, Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
-import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
+import { OpenFolderAction, OpenFileFolderAction, AddRootFolderAction, RemoveRootFolderAction } from 'vs/workbench/browser/actions/fileActions';
 import { copyFocusedFilesExplorerViewItem, revealInOSFocusedFilesExplorerItem, openFocusedExplorerItemSideBySideCommand, copyPathOfFocusedExplorerItem, copyPathCommand, revealInExplorerCommand, revealInOSCommand, openFolderPickerCommand, openWindowCommand, openFileInNewWindowCommand, deleteFocusedFilesExplorerViewItemCommand, moveFocusedFilesExplorerViewItemToTrashCommand, renameFocusedFilesExplorerViewItemCommand } from 'vs/workbench/parts/files/browser/fileCommands';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -40,14 +40,17 @@ class FilesViewerActionContributor extends ActionBarContributor {
 		const element = context.element;
 
 		// Contribute only on Stat Objects (File Explorer)
-		return element instanceof FileStat;
+		return element instanceof FileStat || element instanceof Model;
 	}
 
 	public getSecondaryActions(context: any): IAction[] {
-		const stat = (<FileStat>context.element);
+		const stat = (<FileStat | Model>context.element);
 		const tree = context.viewer;
 		const actions: IAction[] = [];
 		let separateOpen = false;
+		if (stat instanceof Model) {
+			return [this.instantiationService.createInstance(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL)];
+		}
 
 		// Open side by side
 		if (!stat.isDirectory) {
@@ -86,13 +89,8 @@ class FilesViewerActionContributor extends ActionBarContributor {
 			actions.push(new Separator(null, 100));
 		}
 
-		const workspace = this.contextService.getWorkspace();
-		const isRoot = workspace && stat.resource.toString() === workspace.resource.toString();
-
 		// Copy File/Folder
-		if (!isRoot) {
-			actions.push(this.instantiationService.createInstance(CopyFileAction, tree, <FileStat>stat));
-		}
+		actions.push(this.instantiationService.createInstance(CopyFileAction, tree, <FileStat>stat));
 
 		// Paste File/Folder
 		if (stat.isDirectory) {
@@ -100,13 +98,13 @@ class FilesViewerActionContributor extends ActionBarContributor {
 		}
 
 		// Rename File/Folder
-		if (!isRoot) {
+		if (stat.isRoot) {
+			actions.push(new Separator(null, 150));
+			actions.push(this.instantiationService.createInstance(RemoveRootFolderAction, stat.resource, RemoveRootFolderAction.ID, RemoveRootFolderAction.LABEL));
+		} else {
 			actions.push(new Separator(null, 150));
 			actions.push(this.instantiationService.createInstance(TriggerRenameFileAction, tree, <FileStat>stat));
-		}
-
-		// Delete File/Folder
-		if (!isRoot) {
+			// Delete File/Folder
 			actions.push(this.instantiationService.createInstance(MoveFileToTrashAction, tree, <FileStat>stat));
 		}
 

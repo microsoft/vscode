@@ -50,7 +50,7 @@ export class OpenFileFolderAction extends Action {
 	}
 }
 
-export class AddFolderAction extends Action {
+export class AddRootFolderAction extends Action {
 
 	static ID = 'workbench.action.addRootFolder';
 	static LABEL = nls.localize('addFolder', "Add Root Folder...");
@@ -76,22 +76,21 @@ export class AddFolderAction extends Action {
 	}
 }
 
-export class RemoveFoldersAction extends Action {
+export class RemoveRootFolderAction extends Action {
 
-	static ID = 'workbench.action.removeRootFolders';
-	static LABEL = nls.localize('removeFolders', "Remove Root Folders");
+	static ID = 'workbench.action.removeRootFolder';
+	static LABEL = nls.localize('removeRootFolder', "Remove Root Folder");
 
 	constructor(
+		private rootUri: URI,
 		id: string,
 		label: string,
-		@IWindowService private windowService: IWindowService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		return this.workspaceEditingService.removeRoots(this.contextService.getWorkspace2().roots);
+		return this.workspaceEditingService.removeRoots([this.rootUri]);
 	}
 }
