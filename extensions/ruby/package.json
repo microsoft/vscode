@@ -1,10 +1,8 @@
 {
 	"name": "ruby",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
-	"activationEvents": ["onLanguage:ruby"],
-	"main": "./out/rubyMain",
 	"contributes": {
 		"languages": [{
 			"id": "ruby",
@@ -19,10 +17,5 @@
 			"scopeName": "source.ruby",
 			"path": "./syntaxes/ruby.tmLanguage.json"
 		}]
-	},
-	"scripts": {
-		"compile": "gulp compile-extension:ruby",
-		"watch": "gulp watch-extension:ruby",
-		"update-grammar": "node ../../build/npm/update-grammar.js textmate/ruby.tmbundle Syntaxes/Ruby.plist ./syntaxes/ruby.tmLanguage.json"
 	}
 }
