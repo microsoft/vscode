@@ -91,9 +91,13 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		}
 
 		// Apply to config
-		workspaceUserConfig[master.toString()] = {
-			folders: newWorkspaceRoots
-		};
+		if (newWorkspaceRoots.length) {
+			workspaceUserConfig[master.toString()] = {
+				folders: newWorkspaceRoots
+			};
+		} else {
+			delete workspaceUserConfig[master.toString()];
+		}
 
 		return this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: workspaceConfigKey, value: workspaceUserConfig }).then(() => void 0);
 	}

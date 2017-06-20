@@ -36,7 +36,6 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts, Position as SidebarPosition } from 'vs/workbench/services/part/common/partService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IKeybindingService } from "vs/platform/keybinding/common/keybinding";
-
 import * as os from 'os';
 import { webFrame } from 'electron';
 import { getPathLabel } from "vs/base/common/labels";
@@ -1428,21 +1427,46 @@ export class DecreaseViewSizeAction extends BaseResizeViewAction {
 
 export class AddFolderAction extends Action {
 
-	static ID = 'workbench.action.files.addFolder';
+	static ID = 'workbench.action.addFolder';
 	static LABEL = nls.localize('addFolder', "Add Folder...");
 
 	constructor(
 		id: string,
 		label: string,
 		@IWindowService private windowService: IWindowService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
+		if (!this.contextService.hasWorkspace()) {
+			return this.windowService.pickFolderAndOpen(false /* prefer same window */);
+		}
+
 		return this.windowService.pickFolder().then(folders => {
-			this.workspaceEditingService.addRoots(folders.map(folder => URI.file(folder)));
+			return this.workspaceEditingService.addRoots(folders.map(folder => URI.file(folder)));
 		});
+	}
+}
+
+export class RemoveFoldersAction extends Action {
+
+	static ID = 'workbench.action.removeFolders';
+	static LABEL = nls.localize('removeFolders', "Remove Folders");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowService private windowService: IWindowService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return this.workspaceEditingService.clearRoots();
 	}
 }
