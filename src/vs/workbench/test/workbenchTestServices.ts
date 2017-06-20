@@ -24,7 +24,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IChoiceService, IMessageService, IConfirmation } from 'vs/platform/message/common/message';
 import { ILegacyWorkspace, IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
@@ -224,8 +224,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IPartService, new TestPartService());
 	instantiationService.stub(IEditorGroupService, new TestEditorGroupService());
 	instantiationService.stub(IModeService, ModeServiceImpl);
-	instantiationService.stub(IHistoryService, {});
-	instantiationService.stub(IHistoryService, 'getHistory', []);
+	instantiationService.stub(IHistoryService, new TestHistoryService());
 	instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
 	instantiationService.stub(IFileService, new TestFileService());
 	instantiationService.stub(IBackupFileService, new TestBackupFileService());
@@ -244,6 +243,40 @@ export function workbenchInstantiationService(): IInstantiationService {
 	});
 
 	return instantiationService;
+}
+
+export class TestHistoryService implements IHistoryService {
+
+	public _serviceBrand: any;
+
+	constructor(private root?: URI) {
+	}
+
+	public reopenLastClosedEditor(): void {
+	}
+
+	public add(input: IEditorInput, options?: ITextEditorOptions): void {
+	}
+
+	public forward(acrossEditors?: boolean): void {
+	}
+
+	public back(acrossEditors?: boolean): void {
+	}
+
+	public remove(input: IEditorInput | IResourceInput): void {
+	}
+
+	public clear(): void {
+	}
+
+	public getHistory(): (IEditorInput | IResourceInput)[] {
+		return [];
+	}
+
+	public getLastActiveWorkspaceRoot(): URI {
+		return this.root;
+	}
 }
 
 export class TestMessageService implements IMessageService {
