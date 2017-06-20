@@ -8,7 +8,7 @@ import { Schemas } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue, IConfigurationKeys, IConfigurationValues, Configuration, IConfigurationData, ConfigurationModel } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, IConfigurationKeys, IConfigurationValues, Configuration, IConfigurationData, ConfigurationModel, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { ICommandService, ICommand, ICommandEvent, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
@@ -22,7 +22,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
 import Event, { Emitter } from 'vs/base/common/event';
-import { getDefaultValues as getDefaultConfiguration } from 'vs/platform/configuration/common/model';
+import { DefaultConfigurationModel } from 'vs/platform/configuration/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
@@ -432,39 +432,38 @@ export class SimpleConfigurationService implements IConfigurationService {
 	private _onDidUpdateConfiguration = new Emitter<IConfigurationServiceEvent>();
 	public onDidUpdateConfiguration: Event<IConfigurationServiceEvent> = this._onDidUpdateConfiguration.event;
 
-	private _config: any;
+	private _configuration: Configuration<any>;
 
 	constructor() {
-		this._config = getDefaultConfiguration();
+		this._configuration = new Configuration(new DefaultConfigurationModel(), new ConfigurationModel());
 	}
 
-	public getConfiguration<T>(section?: any): T {
-		return this._config;
-	}
-
-	public getConfigurationData(): IConfigurationData<any> {
-		return new Configuration(new ConfigurationModel(this._config), new ConfigurationModel()).toData();
+	private configuration(): Configuration<any> {
+		return this._configuration;
 	}
 
 	public reloadConfiguration<T>(section?: string): TPromise<T> {
 		return TPromise.as<T>(this.getConfiguration<T>(section));
 	}
 
-	public lookup<C>(key: string): IConfigurationValue<C> {
-		return {
-			value: getConfigurationValue<C>(this.getConfiguration(), key),
-			default: getConfigurationValue<C>(this.getConfiguration(), key),
-			user: getConfigurationValue<C>(this.getConfiguration(), key),
-			workspace: void 0
-		};
+	public getConfiguration<C>(section?: string, options?: IConfigurationOverrides): C {
+		return this.configuration().getValue<C>(section, options);
+	}
+
+	public lookup<C>(key: string, options?: IConfigurationOverrides): IConfigurationValue<C> {
+		return this.configuration().lookup<C>(key, options);
 	}
 
 	public keys(): IConfigurationKeys {
-		return { default: [], user: [], workspace: [] };
+		return this.configuration().keys();
 	}
 
-	public values(): IConfigurationValues {
-		return {};
+	public values<V>(): IConfigurationValues {
+		return this._configuration.values();
+	}
+
+	public getConfigurationData(): IConfigurationData<any> {
+		return this.configuration().toData();
 	}
 }
 
