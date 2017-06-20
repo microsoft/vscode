@@ -26,7 +26,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import * as DOM from 'vs/base/browser/dom';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
-import { CollapsibleView, IViewletViewOptions } from 'vs/workbench/parts/views/browser/views';
+import { CollapsibleView, IViewletViewOptions, IViewOptions } from 'vs/workbench/parts/views/browser/views';
 import { FileStat, Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -101,7 +101,7 @@ export class ExplorerView extends CollapsibleView {
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
-		super({ ...options, ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section"), sizing: ViewSizing.Flexible }, keybindingService, contextMenuService);
+		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section"), sizing: ViewSizing.Flexible }, keybindingService, contextMenuService);
 
 		this.settings = options.viewletSettings;
 		this.viewletState = options.viewletState;

@@ -512,9 +512,9 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		return this.extensionService.installFromGallery(gallery, promptToInstallDependencies);
 	}
 
-	setEnablement(extension: IExtension, enable: boolean, workspace: boolean = false): TPromise<any> {
+	setEnablement(extension: IExtension, enable: boolean, workspace: boolean = false): TPromise<void> {
 		if (extension.type === LocalExtensionType.System) {
-			return TPromise.wrap(null);
+			return TPromise.wrap<void>(void 0);
 		}
 
 		return this.promptAndSetEnablement(extension, enable, workspace).then(reload => {

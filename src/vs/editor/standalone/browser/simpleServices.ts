@@ -471,10 +471,13 @@ export class SimpleResourceConfigurationService implements ITextResourceConfigur
 
 	_serviceBrand: any;
 
-	public readonly onDidUpdateConfiguration: Event<any>;
+	public readonly onDidUpdateConfiguration: Event<void>;
+	private readonly _onDidUpdateConfigurationEmitter = new Emitter();
 
 	constructor(private configurationService: SimpleConfigurationService) {
-		this.onDidUpdateConfiguration = this.configurationService.onDidUpdateConfiguration;
+		this.configurationService.onDidUpdateConfiguration(() => {
+			this._onDidUpdateConfigurationEmitter.fire();
+		});
 	}
 
 	public getConfiguration<T>(): T {

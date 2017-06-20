@@ -260,7 +260,7 @@ suite('WorkbenchEditorService', () => {
 		}
 		let ed = instantiationService.createInstance(MyEditor, 'my.editor');
 
-		let inp = instantiationService.createInstance(ResourceEditorInput, 'name', 'description', URI.from('my://resource'));
+		let inp = instantiationService.createInstance(ResourceEditorInput, 'name', 'description', URI.parse('my://resource'));
 		let delegate = instantiationService.createInstance(DelegatingWorkbenchEditorService);
 		delegate.setEditorOpenHandler((input, options?) => {
 			assert.strictEqual(input, inp);
