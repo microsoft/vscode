@@ -71,6 +71,7 @@
     "gulp-buffer": "0.0.2",
     "gulp-concat": "^2.6.0",
     "gulp-cssnano": "^2.1.0",
+    "gulp-eslint": "^3.0.1",
     "gulp-filter": "^3.0.0",
     "gulp-flatmap": "^1.0.0",
     "gulp-image-resize": "^0.10.0",

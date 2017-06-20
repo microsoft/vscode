@@ -9,6 +9,7 @@ const gulp = require('gulp');
 const filter = require('gulp-filter');
 const es = require('event-stream');
 const gulptslint = require('gulp-tslint');
+const gulpeslint = require('gulp-eslint');
 const tsfmt = require('typescript-formatter');
 const tslint = require('tslint');
 
@@ -95,6 +96,16 @@ const copyrightFilter = [
 	'!extensions/html/server/src/modes/typescript/*'
 ];
 
+const eslintFilter = [
+	'src/**/*.js',
+	'!src/vs/css.js',
+	'!src/vs/loader.js',
+	'!src/vs/nls.js',
+	'!src/**/winjs.base.raw.js',
+	'!src/**/raw.marked.js',
+	'!**/test/**'
+];
+
 const tslintFilter = [
 	'src/**/*.ts',
 	'extensions/**/*.ts',
@@ -123,6 +134,14 @@ function reportFailures(failures) {
 		console.error(`${name}:${line + 1}:${character + 1}:${failure.failure}`);
 	});
 }
+
+gulp.task('eslint', () => {
+	return gulp.src(all, { base: '.' })
+		.pipe(filter(eslintFilter))
+		.pipe(gulpeslint('src/.eslintrc'))
+		.pipe(gulpeslint.formatEach('compact'))
+		.pipe(gulpeslint.failAfterError());
+});
 
 gulp.task('tslint', () => {
 	const options = { summarizeFailureOutput: true };
@@ -176,7 +195,6 @@ const hygiene = exports.hygiene = (some, options) => {
 	});
 
 	const formatting = es.map(function (file, cb) {
-
 		tsfmt.processString(file.path, file.contents.toString('utf8'), {
 			verify: true,
 			tsfmt: true,
@@ -209,17 +227,27 @@ const hygiene = exports.hygiene = (some, options) => {
 		this.emit('data', file);
 	});
 
-	return gulp.src(some || all, { base: '.' })
+	const result = gulp.src(some || all, { base: '.' })
 		.pipe(filter(f => !f.stat.isDirectory()))
 		.pipe(filter(eolFilter))
 		.pipe(options.skipEOL ? es.through() : eol)
 		.pipe(filter(indentationFilter))
 		.pipe(indentation)
 		.pipe(filter(copyrightFilter))
-		.pipe(copyrights)
+		.pipe(copyrights);
+
+	const typescript = result
 		.pipe(filter(tslintFilter))
 		.pipe(formatting)
-		.pipe(tsl)
+		.pipe(tsl);
+
+	const javascript = result
+		.pipe(filter(eslintFilter))
+		.pipe(gulpeslint('src/.eslintrc'))
+		.pipe(gulpeslint.formatEach('compact'))
+		.pipe(gulpeslint.failAfterError());
+
+	return es.merge(typescript, javascript)
 		.pipe(es.through(null, function () {
 			if (errorCount > 0) {
 				this.emit('error', 'Hygiene failed with ' + errorCount + ' errors. Check \'build/gulpfile.hygiene.js\'.');
