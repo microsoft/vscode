@@ -54,7 +54,7 @@
 			"hc_black": "comment: #7CA668"
 		}
 	},
-    {
+	{
 		"c": "#'",
 		"t": "source.r comment.line.roxygen.r punctuation.definition.comment.r",
 		"r": {
