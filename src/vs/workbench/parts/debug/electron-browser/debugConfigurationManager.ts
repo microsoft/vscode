@@ -369,7 +369,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 					resource: resource,
 					options: {
 						forceOpen: true,
-						pinned: configFileCreated ? true : undefined, // pin only if config file is created #8727
+						pinned: configFileCreated, // pin only if config file is created #8727
 						revealIfVisible: true
 					},
 				}, sideBySide);

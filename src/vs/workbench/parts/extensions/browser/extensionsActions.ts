@@ -1208,7 +1208,7 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends Action {
 				resource: value.extensionsFileResource,
 				options: {
 					forceOpen: true,
-					pinned: value.created ? true : undefined
+					pinned: value.created
 				},
 			});
 		}, (error) => TPromise.wrapError(new Error(localize('OpenExtensionsFile.failed', "Unable to create 'extensions.json' file inside the '.vscode' folder ({0}).", error))));

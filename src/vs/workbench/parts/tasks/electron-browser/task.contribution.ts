@@ -186,7 +186,7 @@ abstract class OpenTaskConfigurationAction extends Action {
 				resource: stat.resource,
 				options: {
 					forceOpen: true,
-					pinned: configFileCreated ? true : undefined // pin only if config file is created #8727
+					pinned: configFileCreated // pin only if config file is created #8727
 				}
 			}, sideBySide);
 		}, (error) => {
