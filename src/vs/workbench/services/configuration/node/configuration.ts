@@ -607,7 +607,7 @@ class Configuration<T> extends BaseConfiguration<T> {
 	}
 
 	deleteFolderConfiguration(folder: URI): boolean {
-		if (this.workspace && this.workspaceUri.fsPath === folder.fsPath) {
+		if (this.workspaceUri && this.workspaceUri.fsPath === folder.fsPath) {
 			// Do not remove workspace configuration
 			return false;
 		}

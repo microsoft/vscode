@@ -220,10 +220,6 @@ export class Configuration<T> {
 		return this._user;
 	}
 
-	get workspace(): ConfigurationModel<T> {
-		return this._workspaceConfiguration;
-	}
-
 	protected merge(): void {
 		this._globalConfiguration = this._workspaceConfiguration = new ConfigurationModel<T>().merge(this._defaults).merge(this._user);
 		this._foldersConsolidatedConfigurations = new StrictResourceMap<ConfigurationModel<T>>();
@@ -233,7 +229,7 @@ export class Configuration<T> {
 	}
 
 	protected mergeFolder(folder: URI) {
-		if (this._workspace && this.workspaceUri.fsPath === folder.fsPath) {
+		if (this.workspaceUri && this.workspaceUri.fsPath === folder.fsPath) {
 			this._workspaceConfiguration = new ConfigurationModel<T>().merge(this._globalConfiguration).merge(this.folders.get(this.workspaceUri));
 			this._foldersConsolidatedConfigurations.set(folder, this._workspaceConfiguration);
 		} else {
@@ -252,7 +248,7 @@ export class Configuration<T> {
 		return {
 			default: objects.clone(getConfigurationValue<C>(overrides.overrideIdentifier ? this._defaults.override(overrides.overrideIdentifier).contents : this._defaults.contents, key)),
 			user: objects.clone(getConfigurationValue<C>(overrides.overrideIdentifier ? this._user.override(overrides.overrideIdentifier).contents : this._user.contents, key)),
-			workspace: objects.clone(this._workspace ? getConfigurationValue<C>(overrides.overrideIdentifier ? this.folders.get(this.workspaceUri).override(overrides.overrideIdentifier).contents : this.folders.get(this.workspaceUri).contents, key) : void 0),
+			workspace: objects.clone(this.workspaceUri ? getConfigurationValue<C>(overrides.overrideIdentifier ? this.folders.get(this.workspaceUri).override(overrides.overrideIdentifier).contents : this.folders.get(this.workspaceUri).contents, key) : void 0),
 			value: objects.clone(getConfigurationValue<C>(workspaceConfiguration.contents, key))
 		};
 	}
@@ -261,7 +257,7 @@ export class Configuration<T> {
 		return {
 			default: this._defaults.keys,
 			user: this._user.keys,
-			workspace: this._workspace ? this.folders.get(this.workspaceUri).keys : []
+			workspace: this.workspaceUri ? this.folders.get(this.workspaceUri).keys : []
 		};
 	}
 
@@ -298,7 +294,7 @@ export class Configuration<T> {
 	}
 
 	protected get workspaceUri(): URI {
-		return this.workspace ? this._workspace.roots[0] : null;
+		return this._workspace ? this._workspace.roots[0] : null;
 	}
 
 	private getConfigurationModel<C>(overrides: IConfigurationOverrides): ConfigurationModel<any> {
@@ -307,7 +303,7 @@ export class Configuration<T> {
 	}
 
 	private getConfigurationForResource({ resource }: IConfigurationOverrides): ConfigurationModel<any> {
-		if (!this.workspace) {
+		if (!this._workspace) {
 			return this._globalConfiguration;
 		}
 
