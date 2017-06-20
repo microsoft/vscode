@@ -10,6 +10,7 @@ import * as fs from 'original-fs';
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import { assign, mixin } from 'vs/base/common/objects';
+import URI from 'vs/base/common/uri';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/platform/storage/node/storage';
@@ -29,6 +30,7 @@ import { IWindowsMainService, IOpenConfiguration } from "vs/platform/windows/ele
 import { IHistoryMainService } from "vs/platform/history/electron-main/historyMainService";
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from "vs/base/common/platform";
 import { TPromise } from "vs/base/common/winjs.base";
+
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -795,6 +797,25 @@ export class WindowsManager implements IWindowsMainService {
 			codeWindow.win.webContents.on('crashed', () => this.onWindowError(codeWindow, WindowError.CRASHED));
 			codeWindow.win.on('unresponsive', () => this.onWindowError(codeWindow, WindowError.UNRESPONSIVE));
 			codeWindow.win.on('closed', () => this.onWindowClosed(codeWindow));
+
+			// Prevent loading on svgs in main renderer
+			codeWindow.win.webContents.session.webRequest.onBeforeRequest((details, callback) => {
+				if (details.url.indexOf('.svg') > 0) {
+					const uri = URI.parse(details.url);
+					if (uri && !uri.scheme.match(/file/i) && (uri.path as any).endsWith('.svg')) {
+						return callback({ cancel: true });
+					}
+				}
+				return callback({});
+			});
+
+			codeWindow.win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+				const contentType: string[] = details.responseHeaders['content-type'] as any;
+				if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
+					return callback({ cancel: true });
+				}
+				return callback({});
+			});
 
 			// Lifecycle
 			this.lifecycleService.registerWindow(codeWindow);
