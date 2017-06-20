@@ -18,7 +18,6 @@ import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { ColorId } from 'vs/editor/common/modes';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
 import { RenderedLinesCollection, ILine } from 'vs/editor/browser/view/viewLayer';
 import { Range } from 'vs/editor/common/core/range';
 import { RGBA } from 'vs/base/common/color';
@@ -207,7 +206,6 @@ class MinimapLayout {
 		viewportHeight: number,
 		viewportContainsWhitespaceGaps: boolean,
 		lineCount: number,
-		scrollbarSliderCenter: number,
 		scrollTop: number,
 		scrollHeight: number
 	): MinimapLayout {
@@ -409,8 +407,6 @@ class MinimapBuffers {
 
 export class Minimap extends ViewPart {
 
-	private readonly _editorScrollbar: EditorScrollbar;
-
 	private readonly _domNode: FastDomNode<HTMLElement>;
 	private readonly _shadow: FastDomNode<HTMLElement>;
 	private readonly _canvas: FastDomNode<HTMLCanvasElement>;
@@ -427,9 +423,8 @@ export class Minimap extends ViewPart {
 	private _lastRenderData: RenderData;
 	private _buffers: MinimapBuffers;
 
-	constructor(context: ViewContext, editorScrollbar: EditorScrollbar) {
+	constructor(context: ViewContext) {
 		super(context);
-		this._editorScrollbar = editorScrollbar;
 
 		this._options = new MinimapOptions(this._context.configuration);
 		this._lastRenderData = null;
@@ -655,7 +650,6 @@ export class Minimap extends ViewPart {
 			renderingCtx.viewportHeight,
 			(renderingCtx.viewportData.whitespaceViewportData.length > 0),
 			this._context.model.getLineCount(),
-			this._editorScrollbar.getVerticalSliderVerticalCenter(),
 			renderingCtx.scrollTop,
 			renderingCtx.scrollHeight
 		);
