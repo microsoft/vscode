@@ -15,7 +15,6 @@ import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/node/product';
 import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
@@ -54,6 +53,14 @@ export const defaultWindowState = function (mode = WindowMode.Normal): IWindowSt
 		mode
 	};
 };
+
+interface IWorkbenchEditorConfiguration {
+	workbench: {
+		editor: {
+			swipeToNavigate: boolean
+		}
+	};
+}
 
 export class CodeWindow implements ICodeWindow {
 

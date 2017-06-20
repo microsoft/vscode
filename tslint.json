@@ -348,6 +348,16 @@
 				]
 			},
 			{
+				"target": "**/vs/code/**",
+				"restrictions": [
+					"vs/nls",
+					"**/vs/base/**",
+					"**/vs/platform/**",
+					"**/vs/code/**",
+					"*" // node modules
+				]
+			},
+			{
 				"target": "**/{node,electron-browser,electron-main,extensions}/**",
 				"restrictions": "**/*"
 			},
