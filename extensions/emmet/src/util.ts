@@ -39,6 +39,11 @@ export function getProfile(syntax: string): any {
 	let config = vscode.workspace.getConfiguration('emmet')['syntaxProfiles'] || {};
 	let options = config[syntax];
 	if (!options || typeof options === 'string') {
+		if (options === 'xhtml') {
+			return {
+				selfClosingStyle: 'xhtml'
+			};
+		}
 		return {};
 	}
 	let newOptions = {};
