@@ -36,8 +36,11 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IRawTextSource } from 'vs/editor/common/model/textSource';
 import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
 import { localize } from 'vs/nls';
-import { ShowTasksAction, ShowTasksDocumentationAction } from 'vs/workbench/parts/quickopen/common/quickopenActions';
 import { Action } from 'vs/base/common/actions';
+
+// TODO@Rob layer breaker
+// tslint:disable-next-line:import-patterns
+import { ShowTasksAction, ShowTasksDocumentationAction } from 'vs/workbench/parts/quickopen/common/quickopenActions';
 /**
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
  */

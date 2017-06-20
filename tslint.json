@@ -234,6 +234,71 @@
 				]
 			},
 			{
+				"target": "**/vs/workbench/electron-browser/workbench.main.ts",
+				"restrictions": [
+					"**"
+				]
+			},
+			{
+				"target": "**/vs/workbench/electron-browser/**",
+				"restrictions": [
+					"vs/nls",
+					"vs/css!./**/*",
+					"**/vs/base/{common,browser,node,electron-browser}/**",
+					"**/vs/base/parts/*/{common,browser,node,electron-browser}/**",
+					"**/vs/platform/node/**",
+					"**/vs/platform/*/{common,browser,node,electron-browser}/**",
+					"**/vs/editor/{common,browser,node,electron-browser}/**",
+					"**/vs/editor/contrib/*/{common,browser,node,electron-browser}/**",
+					"**/vs/workbench/{common,browser,node,electron-browser,api}/**",
+					"**/vs/workbench/services/*/{common,browser,node,electron-browser}/**",
+					"*" // node modules
+				]
+			},
+			{
+				"target": "**/vs/workbench/node/**",
+				"restrictions": [
+					"vs/nls",
+					"vs/css!./**/*",
+					"**/vs/base/{common,node}/**",
+					"**/vs/base/parts/*/{common,node}/**",
+					"**/vs/platform/node/**",
+					"**/vs/platform/*/{common,node}/**",
+					"**/vs/editor/{common,node}/**",
+					"**/vs/editor/contrib/*/{common,node}/**",
+					"**/vs/workbench/{common,node,api}/**",
+					"**/vs/workbench/services/*/{common,node}/**",
+					"*" // node modules
+				]
+			},
+			{
+				"target": "**/vs/workbench/services/**/test/**",
+				"restrictions": [
+					"vs/nls",
+					"vs/css!./**/*",
+					"**/vs/base/**",
+					"**/vs/platform/**",
+					"**/vs/editor/**",
+					"**/vs/workbench/{common,browser,node,api,electron-browser}/**",
+					"**/vs/workbench/services/**",
+					"**/vs/workbench/test/**",
+					"*" // node modules
+				]
+			},
+			{
+				"target": "**/vs/workbench/services/**",
+				"restrictions": [
+					"vs/nls",
+					"vs/css!./**/*",
+					"**/vs/base/**",
+					"**/vs/platform/**",
+					"**/vs/editor/**",
+					"**/vs/workbench/{common,browser,node,api,electron-browser}/**",
+					"**/vs/workbench/services/**",
+					"*" // node modules
+				]
+			},
+			{
 				"target": "**/{node,electron-browser,electron-main,extensions}/**",
 				"restrictions": "**/*"
 			},

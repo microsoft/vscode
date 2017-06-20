@@ -88,8 +88,6 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
 import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { remote, ipcRenderer as ipc } from 'electron';
-import { ITextMateService } from 'vs/workbench/parts/codeEditor/electron-browser/textMate/textMateService';
-import { MainProcessTextMateSyntax } from 'vs/workbench/parts/codeEditor/electron-browser/textMate/TMSyntax';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { restoreFontInfo, readFontInfo, saveFontInfo } from 'vs/editor/browser/config/configuration';
 import * as browser from 'vs/base/browser/browser';
@@ -101,6 +99,10 @@ import { TextResourceConfigurationService } from 'vs/editor/common/services/reso
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 
+// TODO@Alex layer breaker
+// tslint:disable-next-line:import-patterns
+import { ITextMateService } from 'vs/workbench/parts/codeEditor/electron-browser/textMate/textMateService';
+import { MainProcessTextMateSyntax } from 'vs/workbench/parts/codeEditor/electron-browser/textMate/TMSyntax';
 /**
  * Services that we require for the Shell
  */
