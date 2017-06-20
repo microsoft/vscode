@@ -70,7 +70,7 @@ export class AddRootFolderAction extends Action {
 			return this.windowService.pickFolderAndOpen(false /* prefer same window */);
 		}
 
-		return this.windowService.pickFolder().then(folders => {
+		return this.windowService.pickFolder({ buttonLabel: nls.localize('add', "Add") }).then(folders => {
 			return this.workspaceEditingService.addRoots(folders.map(folder => URI.file(folder)));
 		});
 	}

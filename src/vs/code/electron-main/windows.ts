@@ -1142,9 +1142,9 @@ export class WindowsManager implements IWindowsMainService {
 		this.fileDialog.pickAndOpen({ pickFolders: true, forceNewWindow, window }, 'openFolder', data);
 	}
 
-	public pickFolder(): TPromise<string[]> {
+	public pickFolder(options?: { buttonLabel: string }): TPromise<string[]> {
 		return new TPromise((c, e) => {
-			this.fileDialog.getFileOrFolderPaths({ pickFolders: true }, folders => {
+			this.fileDialog.getFileOrFolderPaths({ pickFolders: true, buttonLabel: options && options.buttonLabel }, folders => {
 				c(folders || []);
 			});
 		});
@@ -1174,6 +1174,7 @@ interface INativeOpenDialogOptions {
 	path?: string;
 	forceNewWindow?: boolean;
 	window?: CodeWindow;
+	buttonLabel?: string;
 }
 
 class FileDialog {
@@ -1215,7 +1216,8 @@ class FileDialog {
 
 		dialog.showOpenDialog(focussedWindow && focussedWindow.win, {
 			defaultPath: workingDir,
-			properties: pickerProperties
+			properties: pickerProperties,
+			buttonLabel: options && options.buttonLabel ? options.buttonLabel : void 0
 		}, paths => {
 			if (paths && paths.length > 0) {
 

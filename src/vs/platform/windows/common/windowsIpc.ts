@@ -17,7 +17,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'pickFileFolderAndOpen', arg: [number, boolean, ITelemetryData]): TPromise<void>;
 	call(command: 'pickFileAndOpen', arg: [number, boolean, string, ITelemetryData]): TPromise<void>;
 	call(command: 'pickFolderAndOpen', arg: [number, boolean, ITelemetryData]): TPromise<void>;
-	call(command: 'pickFolder'): TPromise<string[]>;
+	call(command: 'pickFolder', arg: { buttonLabel: string }): TPromise<string[]>;
 	call(command: 'reloadWindow', arg: number): TPromise<void>;
 	call(command: 'toggleDevTools', arg: number): TPromise<void>;
 	call(command: 'closeFolder', arg: number): TPromise<void>;
@@ -68,7 +68,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'pickFileFolderAndOpen': return this.service.pickFileFolderAndOpen(arg[0], arg[1], arg[2]);
 			case 'pickFileAndOpen': return this.service.pickFileAndOpen(arg[0], arg[1], arg[2], arg[3]);
 			case 'pickFolderAndOpen': return this.service.pickFolderAndOpen(arg[0], arg[1], arg[2]);
-			case 'pickFolder': return this.service.pickFolder();
+			case 'pickFolder': return this.service.pickFolder(arg);
 			case 'reloadWindow': return this.service.reloadWindow(arg);
 			case 'openDevTools': return this.service.openDevTools(arg);
 			case 'toggleDevTools': return this.service.toggleDevTools(arg);
@@ -129,8 +129,8 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('pickFolderAndOpen', [windowId, forceNewWindow, data]);
 	}
 
-	pickFolder(): TPromise<string[]> {
-		return this.channel.call('pickFolder');
+	pickFolder(options?: { buttonLabel: string }): TPromise<string[]> {
+		return this.channel.call('pickFolder', options);
 	}
 
 	reloadWindow(windowId: number): TPromise<void> {
