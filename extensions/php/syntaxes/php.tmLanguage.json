@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-php/commit/f6462225e76ab54efae04a5b477e803e90f9572c",
+	"version": "https://github.com/atom/language-php/commit/e1290265f3d68316347e0ab2665686016b4b24b7",
 	"scopeName": "text.html.php",
 	"name": "PHP",
 	"fileTypes": [
@@ -3214,7 +3214,7 @@
 							"name": "punctuation.section.array.end.php"
 						}
 					},
-					"match": "(?x)\n((\\$)(?<name>[a-z_\\x{7f}-\\x{ff}][a-z0-9_\\x{7f}-\\x{ff}]*))\n(?:\n  (->)(\\g<name>)\n  |\n  (\\[)(?:(\\d+)|((\\$)\\g<name>)|([a-z_\\x{7f}-\\x{ff}][a-z0-9_\\x{7f}-\\x{ff}]*))(\\])\n)?"
+					"match": "(?xi)\n((\\$)(?<name>[a-z_\\x{7f}-\\x{ff}][a-z0-9_\\x{7f}-\\x{ff}]*))\n(?:\n  (->)(\\g<name>)\n  |\n  (\\[)(?:(\\d+)|((\\$)\\g<name>)|([a-z_\\x{7f}-\\x{ff}][a-z0-9_\\x{7f}-\\x{ff}]*))(\\])\n)?"
 				},
 				{
 					"captures": {
