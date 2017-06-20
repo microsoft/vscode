@@ -205,7 +205,7 @@ if (isMacintosh) {
 }
 
 // Commands
-CommandsRegistry.registerCommand('_files.openFolderPicker', openFolderPickerCommand);
+CommandsRegistry.registerCommand('_files.pickFolderAndOpen', openFolderPickerCommand);
 CommandsRegistry.registerCommand('_files.windowOpen', openWindowCommand);
 CommandsRegistry.registerCommand('workbench.action.files.openFileInNewWindow', openFileInNewWindowCommand);
 

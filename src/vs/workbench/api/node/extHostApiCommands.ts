@@ -181,7 +181,7 @@ export class ExtHostApiCommands {
 
 		this._register('vscode.openFolder', (uri?: URI, forceNewWindow?: boolean) => {
 			if (!uri) {
-				return this._commands.executeCommand('_files.openFolderPicker', forceNewWindow);
+				return this._commands.executeCommand('_files.pickFolderAndOpen', forceNewWindow);
 			}
 
 			return this._commands.executeCommand('_files.windowOpen', [uri.fsPath], forceNewWindow);

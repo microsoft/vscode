@@ -842,15 +842,15 @@ export class TestWindowService implements IWindowService {
 		return 0;
 	}
 
-	openFileFolderPicker(forceNewWindow?: boolean): TPromise<void> {
+	pickFileFolderAndOpen(forceNewWindow?: boolean): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	openFilePicker(forceNewWindow?: boolean, path?: string): TPromise<void> {
+	pickFileAndOpen(forceNewWindow?: boolean, path?: string): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	openFolderPicker(forceNewWindow?: boolean): TPromise<void> {
+	pickFolderAndOpen(forceNewWindow?: boolean): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
@@ -961,13 +961,13 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(false);
 	}
 
-	openFileFolderPicker(windowId: number, forceNewWindow?: boolean): TPromise<void> {
+	pickFileFolderAndOpen(windowId: number, forceNewWindow?: boolean): TPromise<void> {
 		return TPromise.as(void 0);
 	}
-	openFilePicker(windowId: number, forceNewWindow?: boolean, path?: string): TPromise<void> {
+	pickFileAndOpen(windowId: number, forceNewWindow?: boolean, path?: string): TPromise<void> {
 		return TPromise.as(void 0);
 	}
-	openFolderPicker(windowId: number, forceNewWindow?: boolean): TPromise<void> {
+	pickFolderAndOpen(windowId: number, forceNewWindow?: boolean): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 	reloadWindow(windowId: number): TPromise<void> {

@@ -1818,7 +1818,7 @@ export class OpenFileAction extends Action {
 	run(event?: any, data?: ITelemetryData): TPromise<any> {
 		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 
-		return this.windowService.openFilePicker(false, fileResource ? paths.dirname(fileResource.fsPath) : void 0, data);
+		return this.windowService.pickFileAndOpen(false, fileResource ? paths.dirname(fileResource.fsPath) : void 0, data);
 	}
 }
 
