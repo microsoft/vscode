@@ -28,7 +28,6 @@ import 'vs/editor/contrib/goToDeclaration/browser/goToDeclarationMouse';
 import 'vs/editor/contrib/gotoError/browser/gotoError';
 import 'vs/editor/contrib/hover/browser/hover';
 import 'vs/editor/contrib/inPlaceReplace/common/inPlaceReplace';
-import 'vs/editor/contrib/iPadShowKeyboard/browser/iPadShowKeyboard';
 import 'vs/editor/contrib/linesOperations/common/linesOperations';
 import 'vs/editor/contrib/links/browser/links';
 import 'vs/editor/contrib/multicursor/common/multicursor';
