@@ -22,6 +22,7 @@ export interface IStandaloneThemeData {
 
 export interface IStandaloneTheme extends ITheme {
 	tokenTheme: TokenTheme;
+	themeName: string;
 }
 
 export interface IStandaloneThemeService extends IThemeService {

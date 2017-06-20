@@ -11,6 +11,7 @@ import 'vs/editor/standalone/browser/iPadShowKeyboard/iPadShowKeyboard';
 import 'vs/editor/standalone/browser/quickOpen/quickOutline';
 import 'vs/editor/standalone/browser/quickOpen/gotoLine';
 import 'vs/editor/standalone/browser/quickOpen/quickCommand';
+import 'vs/editor/standalone/browser/toggleHighContrast/toggleHighContrast';
 
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
 import { createMonacoEditorAPI } from 'vs/editor/standalone/browser/standaloneEditor';
