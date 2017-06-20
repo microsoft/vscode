@@ -28,6 +28,7 @@ import { isEqual, isEqualOrParent } from 'vs/base/common/paths';
 import { IWindowsMainService, IOpenConfiguration } from "vs/platform/windows/electron-main/windows";
 import { IHistoryMainService } from "vs/platform/history/electron-main/historyMainService";
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from "vs/base/common/platform";
+import { TPromise } from "vs/base/common/winjs.base";
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -1141,6 +1142,14 @@ export class WindowsManager implements IWindowsMainService {
 		this.fileDialog.pickAndOpen({ pickFolders: true, forceNewWindow, window }, 'openFolder', data);
 	}
 
+	public pickFolder(): TPromise<string[]> {
+		return new TPromise((c, e) => {
+			this.fileDialog.getFileOrFolderPaths({ pickFolders: true }, folders => {
+				c(folders || []);
+			});
+		});
+	}
+
 	public quit(): void {
 
 		// If the user selected to exit from an extension development host window, do not quit, but just
@@ -1193,7 +1202,7 @@ class FileDialog {
 		});
 	}
 
-	private getFileOrFolderPaths(options: INativeOpenDialogOptions, clb: (paths: string[]) => void): void {
+	public getFileOrFolderPaths(options: INativeOpenDialogOptions, clb: (paths: string[]) => void): void {
 		const workingDir = options.path || this.storageService.getItem<string>(FileDialog.workingDirPickerStorageKey);
 		const focussedWindow = options.window || this.windowsMainService.getFocusedWindow();
 

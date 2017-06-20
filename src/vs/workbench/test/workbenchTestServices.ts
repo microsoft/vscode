@@ -854,6 +854,10 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
+	pickFolder(): TPromise<string[]> {
+		return TPromise.as([]);
+	}
+
 	reloadWindow(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
@@ -964,96 +968,130 @@ export class TestWindowsService implements IWindowsService {
 	pickFileFolderAndOpen(windowId: number, forceNewWindow?: boolean): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	pickFileAndOpen(windowId: number, forceNewWindow?: boolean, path?: string): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	pickFolderAndOpen(windowId: number, forceNewWindow?: boolean): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
+	pickFolder(): TPromise<string[]> {
+		return TPromise.as([]);
+	}
+
 	reloadWindow(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	openDevTools(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	toggleDevTools(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	// TODO@joao: rename, shouldn't this be closeWindow?
 	closeFolder(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	toggleFullScreen(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	removeFromRecentlyOpen(paths: string[]): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	clearRecentPathsList(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }> {
 		return TPromise.as(void 0);
 	}
+
 	focusWindow(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	isMaximized(windowId: number): TPromise<boolean> {
 		return TPromise.as(void 0);
 	}
+
 	maximizeWindow(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	unmaximizeWindow(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	onWindowTitleDoubleClick(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	setDocumentEdited(windowId: number, flag: boolean): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	quit(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	whenSharedProcessReady(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	toggleSharedProcess(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	// Global methods
 	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean }): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	openNewWindow(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	showWindow(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	getWindows(): TPromise<{ id: number; path: string; title: string; }[]> {
 		return TPromise.as(void 0);
 	}
+
 	getWindowCount(): TPromise<number> {
 		return TPromise.as(this.windowCount);
 	}
+
 	log(severity: string, ...messages: string[]): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	// TODO@joao: what?
 	closeExtensionHostWindow(extensionDevelopmentPaths: string[]): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	showItemInFolder(path: string): TPromise<void> {
 		return TPromise.as(void 0);
 	}

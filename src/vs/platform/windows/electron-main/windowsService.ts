@@ -67,6 +67,10 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return TPromise.as(null);
 	}
 
+	pickFolder(): TPromise<string[]> {
+		return this.windowsMainService.pickFolder();
+	}
+
 	reloadWindow(windowId: number): TPromise<void> {
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 

@@ -96,6 +96,8 @@ import { OpenRecentAction, ToggleDevToolsAction, ReloadWindowAction, inRecentFil
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingsRegistry } from "vs/platform/keybinding/common/keybindingsRegistry";
 import { getQuickNavigateHandler, inQuickOpenContext } from "vs/workbench/browser/parts/quickopen/quickopen";
+import { IWorkspaceEditingService } from "vs/workbench/services/workspace/common/workspaceEditing";
+import { WorkspaceEditingService } from "vs/workbench/services/workspace/node/workspaceEditingService";
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -566,6 +568,9 @@ export class Workbench implements IPartService {
 		// Configuration Editing
 		this.configurationEditingService = this.instantiationService.createInstance(ConfigurationEditingService);
 		serviceCollection.set(IConfigurationEditingService, this.configurationEditingService);
+
+		// Workspace Editing
+		serviceCollection.set(IWorkspaceEditingService, new SyncDescriptor(WorkspaceEditingService));
 
 		// Keybinding Editing
 		serviceCollection.set(IKeybindingEditingService, this.instantiationService.createInstance(KeybindingsEditingService));

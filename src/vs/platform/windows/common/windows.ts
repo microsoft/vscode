@@ -24,6 +24,7 @@ export interface IWindowsService {
 	pickFileFolderAndOpen(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void>;
 	pickFileAndOpen(windowId: number, forceNewWindow?: boolean, path?: string, data?: ITelemetryData): TPromise<void>;
 	pickFolderAndOpen(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void>;
+	pickFolder(): TPromise<string[]>;
 	reloadWindow(windowId: number): TPromise<void>;
 	openDevTools(windowId: number): TPromise<void>;
 	toggleDevTools(windowId: number): TPromise<void>;
@@ -77,6 +78,7 @@ export interface IWindowService {
 	pickFileFolderAndOpen(forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void>;
 	pickFileAndOpen(forceNewWindow?: boolean, path?: string, data?: ITelemetryData): TPromise<void>;
 	pickFolderAndOpen(forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void>;
+	pickFolder(): TPromise<string[]>;
 	reloadWindow(): TPromise<void>;
 	openDevTools(): TPromise<void>;
 	toggleDevTools(): TPromise<void>;
