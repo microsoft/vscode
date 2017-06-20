@@ -849,7 +849,7 @@ export class Repository {
 			if (pop) {
 				args.push('pop');
 				if (index) {
-					args.push(`"stash{${index}}"`);
+					args.push(`stash@{${index}}`);
 				}
 			}
 

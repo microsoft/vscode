@@ -1110,14 +1110,14 @@ export class CommandCenter {
 			return;
 		}
 
-		const picks = this.model.stashes.map(r => `#${r.id}:  ${r.description}`);
+		const picks = this.model.stashes.map(r => { return { label: `#${r.id}:  ${r.description}`, description: "", derails: "", id: r.id }; });
 		const placeHolder = localize('pick stash', "Pick a stash");
 		const choice = await window.showQuickPick(picks, { placeHolder });
 
 		if (!choice) {
 			return;
 		}
-		return await this.model.stash(true, choice);
+		return await this.model.stash(true, choice.id);
 	}
 
 	@command('git.stashPopLatest')
