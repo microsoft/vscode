@@ -32,7 +32,6 @@ import 'vs/editor/contrib/iPadShowKeyboard/browser/iPadShowKeyboard';
 import 'vs/editor/contrib/linesOperations/common/linesOperations';
 import 'vs/editor/contrib/links/browser/links';
 import 'vs/editor/contrib/multicursor/common/multicursor';
-import 'vs/editor/contrib/multicursor/browser/menuPreventer';
 import 'vs/editor/contrib/parameterHints/browser/parameterHints';
 import 'vs/editor/contrib/quickFix/browser/quickFixCommands';
 import 'vs/editor/contrib/referenceSearch/browser/referenceSearch';
