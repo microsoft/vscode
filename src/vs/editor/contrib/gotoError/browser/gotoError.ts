@@ -20,12 +20,12 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, IActionOptions, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { registerColor, oneOf } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
-import { Color } from 'vs/base/common/color';
+import { Color, RGBA } from 'vs/base/common/color';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { AccessibilitySupport } from 'vs/base/common/platform';
 import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder } from 'vs/editor/common/view/editorColorRegistry';
@@ -212,6 +212,110 @@ class MessageWidget {
 	}
 }
 
+class MarkerZone implements IViewZone {
+
+	domNode : HTMLElement;
+	afterLineNumber: number;
+	afterColumn: number;
+	heightInLines: number;
+	suppressMouseDown = true;
+	private _message: MessageWidget;
+	private _severity = Severity.Warning;
+	private _backgroundColor = Color.white;
+	private _frameColor = Color.fromRGBA(new RGBA(0, 122, 204));
+	private _container: HTMLElement;
+	private _title: HTMLElement;
+	private _callOnDispose: IDisposable[] = [];
+
+	constructor(private _marker: IMarker, private _editor: ICodeEditor, private _model: MarkerModel, private _themeService: IThemeService) {
+		this._fillDomNode();
+		this._setContent();
+		this._applyStyles();
+		this._setPosition();
+		this._wireModelAndView();
+	}
+
+	private _fillDomNode(): void {
+		this.domNode = document.createElement('div');
+		dom.addClass(this.domNode, 'zone-widget');
+
+		this._container = document.createElement('div');
+		dom.addClass(this._container, 'marker-widget');
+		dom.addClass(this._container, 'zone-widget-container');
+		this._container.tabIndex = 0;
+		this._container.setAttribute('role', 'tooltip');
+
+		this._title = document.createElement('div');
+		this._title.className = 'block title';
+		this._container.appendChild(this._title);
+
+		this._message = new MessageWidget(this._container);
+
+		this.domNode.appendChild(this._container);
+	}
+
+	private _setContent(): void {
+		let marker = this._marker;
+		if (!marker) {
+			return;
+		}
+		this._container.classList.remove('stale');
+		this._title.innerHTML = nls.localize('title.wo_source', "({0}/{1})", this._model.indexOf(marker), this._model.total);
+		this._message.update(marker);
+	}
+
+	private _applyStyles(): void {
+		this._severity = this._marker.severity;
+		let theme = this._themeService.getTheme();
+		this._backgroundColor = theme.getColor(editorMarkerNavigationBackground);
+		this._frameColor = theme.getColor(this._severity === Severity.Error ? editorMarkerNavigationError : editorMarkerNavigationWarning);
+
+		if (this._container) {
+			this._container.style.backgroundColor = this._backgroundColor.toString();
+			this._container.style.borderTopColor = this._frameColor.toString();
+			this._container.style.borderBottomColor = this._frameColor.toString();
+			this._container.style.borderTopWidth = '2px';
+			this._container.style.borderBottomWidth = '2px';
+			this._editor.applyFontInfo(this._message.domNode);
+
+		}
+	}
+
+	private _setPosition(): void {
+		this.afterLineNumber = this._marker.startLineNumber;
+		this.afterColumn = this._marker.startColumn;
+		this.heightInLines = this._message.lines;
+	}
+
+	private _onMarkersChanged(): void {
+		let pos = new Position(this.afterLineNumber, this.afterColumn);
+
+		const marker = this._model.findMarkerAtPosition(pos);
+		if (marker) {
+			this._title.classList.remove('stale');
+			this._message.domNode.classList.remove('stale');
+			this._message.update(marker);
+		} else {
+			this._title.classList.add('stale');
+			this._message.domNode.classList.add('stale');
+		}
+	}
+
+	private _wireModelAndView(): void {
+		// listen to events
+		this._model.onMarkerSetChanged(this._onMarkersChanged, this, this._callOnDispose);
+	}
+
+	focus(): void {
+		this.domNode.focus();
+	}
+
+	dispose(): void {
+		this._callOnDispose = dispose(this._callOnDispose);
+		this.domNode.remove();
+	}
+}
+
 class MarkerNavigationWidget extends ZoneWidget {
 
 	private _parentContainer: HTMLElement;
@@ -373,6 +477,8 @@ class MarkerController implements editorCommon.IEditorContribution {
 	private _editor: ICodeEditor;
 	private _model: MarkerModel;
 	private _zone: MarkerNavigationWidget;
+	private _zones: MarkerZone[] = [];
+	private _zonesIds: number[] = [];
 	private _callOnClose: IDisposable[] = [];
 	private _markersNavigationVisible: IContextKey<boolean>;
 
@@ -395,6 +501,7 @@ class MarkerController implements editorCommon.IEditorContribution {
 	}
 
 	private _cleanUp(): void {
+		this._clearZones();
 		this._markersNavigationVisible.reset();
 		this._callOnClose = dispose(this._callOnClose);
 		this._zone = null;
@@ -403,10 +510,10 @@ class MarkerController implements editorCommon.IEditorContribution {
 
 	public getOrCreateModel(): MarkerModel {
 
+		this._clearZones();
 		if (this._model) {
 			return this._model;
 		}
-
 		const markers = this._getMarkers();
 		this._model = new MarkerModel(this._editor, markers);
 		this._zone = new MarkerNavigationWidget(this._editor, this._model, this._themeService);
@@ -435,6 +542,30 @@ class MarkerController implements editorCommon.IEditorContribution {
 
 	private _getMarkers(): IMarker[] {
 		return this._markerService.read({ resource: this._editor.getModel().uri });
+	}
+
+	public showAll(): void {
+		this.closeMarkersNavigation();
+		this._model = this.getOrCreateModel();
+		this._editor.changeViewZones(accessor => {
+			this._getMarkers().forEach(marker => {
+
+				let zone = new MarkerZone(marker, this._editor, this._model, this._themeService);
+				let id = accessor.addZone(zone);
+				this._zonesIds.push(id);
+			});
+		});
+	}
+
+	private _clearZones(): void {
+		this._editor.changeViewZones(accessor => {
+			this._zonesIds.forEach(id => {
+				accessor.removeZone(id);
+			});
+
+		});
+		this._zonesIds = [];
+		this._zones = dispose(this._zones);
 	}
 }
 
@@ -467,6 +598,31 @@ class PrevMarkerAction extends MarkerNavigationAction {
 				primary: KeyMod.Shift | KeyCode.F8
 			}
 		});
+	}
+}
+
+@editorAction
+class ShowAllErrorsAction extends EditorAction {
+	constructor(){
+		super({
+			id: 'editor.action.marker.all',
+			label: nls.localize('markerAction.all.label', "Show all errors"),
+			alias: 'Show all errors',
+			precondition: EditorContextKeys.writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.focus,
+				primary: KeyMod.Alt | KeyCode.F8
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+		const controller = MarkerController.get(editor);
+		if (!controller) {
+			return;
+		}
+		controller.showAll();
+
 	}
 }
 
