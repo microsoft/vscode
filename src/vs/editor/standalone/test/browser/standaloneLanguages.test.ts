@@ -45,6 +45,8 @@ suite('TokenizationSupport2Adapter', () => {
 			return {
 				tokenTheme: new MockTokenTheme(),
 
+				themeName: LIGHT,
+
 				type: LIGHT,
 
 				getColor: (color: ColorIdentifier, useDefault?: boolean): Color => {
