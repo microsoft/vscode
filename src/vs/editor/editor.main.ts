@@ -6,9 +6,9 @@
 'use strict';
 
 import 'vs/editor/editor.all';
-import 'vs/editor/contrib/quickOpen/browser/quickOutline';
-import 'vs/editor/contrib/quickOpen/browser/gotoLine';
-import 'vs/editor/contrib/quickOpen/browser/quickCommand';
+import 'vs/editor/standalone/browser/quickOpen/quickOutline';
+import 'vs/editor/standalone/browser/quickOpen/gotoLine';
+import 'vs/editor/standalone/browser/quickOpen/quickCommand';
 import 'vs/editor/contrib/inspectTokens/browser/inspectTokens';
 
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';

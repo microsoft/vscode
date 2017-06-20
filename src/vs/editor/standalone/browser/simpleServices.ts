@@ -532,7 +532,6 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 	constructor() {
 		this.legacyWorkspace = { resource: URI.from({ scheme: SimpleWorkspaceContextService.SCHEME, authority: 'model', path: '/' }) };
 		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', roots: [this.legacyWorkspace.resource], name: this.legacyWorkspace.resource.fsPath };
-		console.log(this.workspace);
 	}
 
 	public getWorkspace(): ILegacyWorkspace {
