@@ -11,11 +11,11 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as modes from 'vs/editor/common/modes';
-import * as monarchCommon from 'vs/editor/common/modes/monarch/monarchCommon';
+import * as monarchCommon from 'vs/editor/standalone/common/monarch/monarchCommon';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import { NULL_STATE, NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
-import { IStandaloneThemeService } from 'vs/editor/common/services/standaloneThemeService';
+import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { TokenTheme } from 'vs/editor/common/modes/supports/tokenization';
 
 const CACHE_STACK_DEPTH = 5;
@@ -23,7 +23,7 @@ const CACHE_STACK_DEPTH = 5;
 /**
  * Reuse the same stack elements up to a certain depth.
  */
-export class MonarchStackElementFactory {
+class MonarchStackElementFactory {
 
 	private static _INSTANCE = new MonarchStackElementFactory(CACHE_STACK_DEPTH);
 	public static create(parent: MonarchStackElement, state: string): MonarchStackElement {
@@ -59,7 +59,7 @@ export class MonarchStackElementFactory {
 	}
 }
 
-export class MonarchStackElement {
+class MonarchStackElement {
 
 	public readonly parent: MonarchStackElement;
 	public readonly state: string;
@@ -125,7 +125,7 @@ export class MonarchStackElement {
 	}
 }
 
-export class EmbeddedModeData {
+class EmbeddedModeData {
 	public readonly modeId: string;
 	public readonly state: modes.IState;
 
@@ -154,7 +154,7 @@ export class EmbeddedModeData {
 /**
  * Reuse the same line states up to a certain depth.
  */
-export class MonarchLineStateFactory {
+class MonarchLineStateFactory {
 
 	private static _INSTANCE = new MonarchLineStateFactory(CACHE_STACK_DEPTH);
 	public static create(stack: MonarchStackElement, embeddedModeData: EmbeddedModeData): MonarchLineState {
@@ -190,7 +190,7 @@ export class MonarchLineStateFactory {
 	}
 }
 
-export class MonarchLineState implements modes.IState {
+class MonarchLineState implements modes.IState {
 
 	public readonly stack: MonarchStackElement;
 	public readonly embeddedModeData: EmbeddedModeData;
@@ -375,7 +375,7 @@ class MonarchModernTokensCollector implements IMonarchTokensCollector {
 	}
 }
 
-export class MonarchTokenizer implements modes.ITokenizationSupport {
+class MonarchTokenizer implements modes.ITokenizationSupport {
 
 	private readonly _modeService: IModeService;
 	private readonly _standaloneThemeService: IStandaloneThemeService;

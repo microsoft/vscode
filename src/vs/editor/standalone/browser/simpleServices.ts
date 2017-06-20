@@ -25,6 +25,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { getDefaultValues as getDefaultConfiguration } from 'vs/platform/configuration/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { ITextModelService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IDisposable, IReference, ImmortalReference, combinedDisposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
@@ -467,6 +468,22 @@ export class SimpleConfigurationService implements IConfigurationService {
 	}
 }
 
+export class SimpleResourceConfigurationService implements ITextResourceConfigurationService {
+
+	_serviceBrand: any;
+
+	public readonly onDidUpdateConfiguration: Event<any>;
+
+	constructor(private configurationService: SimpleConfigurationService) {
+		this.onDidUpdateConfiguration = this.configurationService.onDidUpdateConfiguration;
+	}
+
+	public getConfiguration<T>(): T {
+		return this.configurationService.getConfiguration<T>();
+	}
+
+}
+
 export class SimpleMenuService implements IMenuService {
 
 	_serviceBrand: any;
@@ -506,8 +523,8 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 
 	private static SCHEME: 'inmemory';
 
-	private readonly _onDidChangeWorkspaceRoots: Emitter<URI[]> = new Emitter<URI[]>();
-	public readonly onDidChangeWorkspaceRoots: Event<URI[]> = this._onDidChangeWorkspaceRoots.event;
+	private readonly _onDidChangeWorkspaceRoots: Emitter<void> = new Emitter<void>();
+	public readonly onDidChangeWorkspaceRoots: Event<void> = this._onDidChangeWorkspaceRoots.event;
 
 	private readonly legacyWorkspace: ILegacyWorkspace;
 	private readonly workspace: IWorkspace;
@@ -515,7 +532,6 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 	constructor() {
 		this.legacyWorkspace = { resource: URI.from({ scheme: SimpleWorkspaceContextService.SCHEME, authority: 'model', path: '/' }) };
 		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', roots: [this.legacyWorkspace.resource], name: this.legacyWorkspace.resource.fsPath };
-		console.log(this.workspace);
 	}
 
 	public getWorkspace(): ILegacyWorkspace {

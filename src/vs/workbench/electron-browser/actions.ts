@@ -36,12 +36,12 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts, Position as SidebarPosition } from 'vs/workbench/services/part/common/partService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IKeybindingService } from "vs/platform/keybinding/common/keybinding";
-
 import * as os from 'os';
 import { webFrame } from 'electron';
 import { getPathLabel } from "vs/base/common/labels";
 import { IViewlet } from "vs/workbench/common/viewlet";
 import { IPanel } from "vs/workbench/common/panel";
+import { IWorkspaceEditingService } from "vs/workbench/services/workspace/common/workspaceEditing";
 
 // --- actions
 
@@ -845,8 +845,8 @@ Steps to Reproduce:
 			return onlyTheme ? 'themes' : 'nonThemes';
 		});
 
-		const themeExclusionStr = themes.length ? `\n(${themes.length} theme extensions excluded)` : '';
-		extensions = nonThemes;
+		const themeExclusionStr = (themes && themes.length) ? `\n(${themes.length} theme extensions excluded)` : '';
+		extensions = nonThemes || [];
 
 		if (!extensions.length) {
 			return 'none' + themeExclusionStr;
@@ -1422,5 +1422,51 @@ export class DecreaseViewSizeAction extends BaseResizeViewAction {
 	public run(): TPromise<boolean> {
 		this.resizePart(-BaseResizeViewAction.RESIZE_INCREMENT);
 		return TPromise.as(true);
+	}
+}
+
+export class AddFolderAction extends Action {
+
+	static ID = 'workbench.action.addFolder';
+	static LABEL = nls.localize('addFolder', "Add Folder...");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowService private windowService: IWindowService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		if (!this.contextService.hasWorkspace()) {
+			return this.windowService.pickFolderAndOpen(false /* prefer same window */);
+		}
+
+		return this.windowService.pickFolder().then(folders => {
+			return this.workspaceEditingService.addRoots(folders.map(folder => URI.file(folder)));
+		});
+	}
+}
+
+export class RemoveFoldersAction extends Action {
+
+	static ID = 'workbench.action.removeFolders';
+	static LABEL = nls.localize('removeFolders', "Remove Folders");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowService private windowService: IWindowService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return this.workspaceEditingService.clearRoots();
 	}
 }

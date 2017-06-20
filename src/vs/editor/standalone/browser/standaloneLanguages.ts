@@ -8,9 +8,9 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { IMonarchLanguage } from 'vs/editor/common/modes/monarch/monarchTypes';
+import { IMonarchLanguage } from 'vs/editor/standalone/common/monarch/monarchTypes';
 import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
-import { StaticServices } from 'vs/editor/browser/standalone/standaloneServices';
+import { StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
 import * as modes from 'vs/editor/common/modes';
 import { LanguageConfiguration, IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -18,12 +18,12 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toThenable } from 'vs/base/common/async';
-import { compile } from 'vs/editor/common/modes/monarch/monarchCompile';
-import { createTokenizationSupport } from 'vs/editor/common/modes/monarch/monarchLexer';
+import { compile } from 'vs/editor/standalone/common/monarch/monarchCompile';
+import { createTokenizationSupport } from 'vs/editor/standalone/common/monarch/monarchLexer';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
-import { IStandaloneThemeService } from 'vs/editor/common/services/standaloneThemeService';
+import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 
 /**
  * Register information about a new language.

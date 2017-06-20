@@ -24,9 +24,9 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
+import { IChoiceService, IMessageService, IConfirmation } from 'vs/platform/message/common/message';
 import { ILegacyWorkspace, IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
@@ -68,16 +68,16 @@ export class TestContextService implements IWorkspaceContextService {
 	private id: string;
 	private options: any;
 
-	private _onDidChangeWorkspaceRoots: Emitter<URI[]>;
+	private _onDidChangeWorkspaceRoots: Emitter<void>;
 
 	constructor(workspace: any = TestWorkspace, options: any = null) {
 		this.workspace = workspace;
 		this.id = generateUuid();
 		this.options = options || Object.create(null);
-		this._onDidChangeWorkspaceRoots = new Emitter<URI[]>();
+		this._onDidChangeWorkspaceRoots = new Emitter<void>();
 	}
 
-	public get onDidChangeWorkspaceRoots(): Event<URI[]> {
+	public get onDidChangeWorkspaceRoots(): Event<void> {
 		return this._onDidChangeWorkspaceRoots.event;
 	}
 
@@ -156,9 +156,10 @@ export class TestTextFileService extends TextFileService {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMessageService messageService: IMessageService,
 		@IBackupFileService backupFileService: IBackupFileService,
-		@IWindowsService windowsService: IWindowsService
+		@IWindowsService windowsService: IWindowsService,
+		@IHistoryService historyService: IHistoryService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, fileService, untitledEditorService, instantiationService, messageService, TestEnvironmentService, backupFileService, windowsService);
+		super(lifecycleService, contextService, configurationService, telemetryService, fileService, untitledEditorService, instantiationService, messageService, TestEnvironmentService, backupFileService, windowsService, historyService);
 	}
 
 	public setPromptPath(path: string): void {
@@ -223,8 +224,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IPartService, new TestPartService());
 	instantiationService.stub(IEditorGroupService, new TestEditorGroupService());
 	instantiationService.stub(IModeService, ModeServiceImpl);
-	instantiationService.stub(IHistoryService, {});
-	instantiationService.stub(IHistoryService, 'getHistory', []);
+	instantiationService.stub(IHistoryService, new TestHistoryService());
 	instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
 	instantiationService.stub(IFileService, new TestFileService());
 	instantiationService.stub(IBackupFileService, new TestBackupFileService());
@@ -236,8 +236,47 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(IThemeService, new TestThemeService());
+	instantiationService.stub(IChoiceService, {
+		choose: (severity, message, options, cancelId): TPromise<number> => {
+			return TPromise.as(cancelId);
+		}
+	});
 
 	return instantiationService;
+}
+
+export class TestHistoryService implements IHistoryService {
+
+	public _serviceBrand: any;
+
+	constructor(private root?: URI) {
+	}
+
+	public reopenLastClosedEditor(): void {
+	}
+
+	public add(input: IEditorInput, options?: ITextEditorOptions): void {
+	}
+
+	public forward(acrossEditors?: boolean): void {
+	}
+
+	public back(acrossEditors?: boolean): void {
+	}
+
+	public remove(input: IEditorInput | IResourceInput): void {
+	}
+
+	public clear(): void {
+	}
+
+	public getHistory(): (IEditorInput | IResourceInput)[] {
+		return [];
+	}
+
+	public getLastActiveWorkspaceRoot(): URI {
+		return this.root;
+	}
 }
 
 export class TestMessageService implements IMessageService {
@@ -807,16 +846,20 @@ export class TestWindowService implements IWindowService {
 		return 0;
 	}
 
-	openFileFolderPicker(forceNewWindow?: boolean): TPromise<void> {
+	pickFileFolderAndOpen(forceNewWindow?: boolean): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	openFilePicker(forceNewWindow?: boolean, path?: string): TPromise<void> {
+	pickFileAndOpen(forceNewWindow?: boolean, path?: string): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	openFolderPicker(forceNewWindow?: boolean): TPromise<void> {
+	pickFolderAndOpen(forceNewWindow?: boolean): TPromise<void> {
 		return TPromise.as(void 0);
+	}
+
+	pickFolder(): TPromise<string[]> {
+		return TPromise.as([]);
 	}
 
 	reloadWindow(): TPromise<void> {
@@ -926,99 +969,133 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(false);
 	}
 
-	openFileFolderPicker(windowId: number, forceNewWindow?: boolean): TPromise<void> {
+	pickFileFolderAndOpen(windowId: number, forceNewWindow?: boolean): TPromise<void> {
 		return TPromise.as(void 0);
 	}
-	openFilePicker(windowId: number, forceNewWindow?: boolean, path?: string): TPromise<void> {
+
+	pickFileAndOpen(windowId: number, forceNewWindow?: boolean, path?: string): TPromise<void> {
 		return TPromise.as(void 0);
 	}
-	openFolderPicker(windowId: number, forceNewWindow?: boolean): TPromise<void> {
+
+	pickFolderAndOpen(windowId: number, forceNewWindow?: boolean): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
+	pickFolder(): TPromise<string[]> {
+		return TPromise.as([]);
+	}
+
 	reloadWindow(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	openDevTools(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	toggleDevTools(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	// TODO@joao: rename, shouldn't this be closeWindow?
 	closeFolder(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	toggleFullScreen(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	removeFromRecentlyOpen(paths: string[]): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	clearRecentPathsList(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }> {
 		return TPromise.as(void 0);
 	}
+
 	focusWindow(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	isMaximized(windowId: number): TPromise<boolean> {
 		return TPromise.as(void 0);
 	}
+
 	maximizeWindow(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	unmaximizeWindow(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	onWindowTitleDoubleClick(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	setDocumentEdited(windowId: number, flag: boolean): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	quit(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	whenSharedProcessReady(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	toggleSharedProcess(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	// Global methods
 	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean }): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	openNewWindow(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	showWindow(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	getWindows(): TPromise<{ id: number; path: string; title: string; }[]> {
 		return TPromise.as(void 0);
 	}
+
 	getWindowCount(): TPromise<number> {
 		return TPromise.as(this.windowCount);
 	}
+
 	log(severity: string, ...messages: string[]): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	// TODO@joao: what?
 	closeExtensionHostWindow(extensionDevelopmentPaths: string[]): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
 	showItemInFolder(path: string): TPromise<void> {
 		return TPromise.as(void 0);
 	}

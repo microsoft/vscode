@@ -30,6 +30,7 @@ function configureEnvironment {
 	git config --global user.name "VS Code Agent"
 	git config --global user.email "monacotools@microsoft.com"
 	chown -R testuser $AGENT_BUILDDIRECTORY
+	chown -R testuser /root # to allow 'npm install' to succeed in Express repository
 }
 
 function runTest {

@@ -25,7 +25,7 @@ export class OpenFolderAction extends Action {
 	}
 
 	run(event?: any, data?: ITelemetryData): TPromise<any> {
-		return this.windowService.openFolderPicker(undefined, data);
+		return this.windowService.pickFolderAndOpen(undefined, data);
 	}
 }
 
@@ -43,6 +43,6 @@ export class OpenFileFolderAction extends Action {
 	}
 
 	run(event?: any, data?: ITelemetryData): TPromise<any> {
-		return this.windowService.openFileFolderPicker(undefined, data);
+		return this.windowService.pickFileFolderAndOpen(undefined, data);
 	}
 }

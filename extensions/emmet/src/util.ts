@@ -6,7 +6,6 @@
 import * as vscode from 'vscode';
 import parse from '@emmetio/html-matcher';
 import Node from '@emmetio/node';
-import * as extract from '@emmetio/extract-abbreviation';
 import { DocumentStreamReader } from './bufferStream';
 
 export function validate(allowStylesheet: boolean = true): boolean {
@@ -112,16 +111,11 @@ export function getNode(root: Node, position: vscode.Position, includeNodeBounda
 	return foundNode;
 }
 
-export function extractAbbreviation(position: vscode.Position): [vscode.Range, string] {
-	let editor = vscode.window.activeTextEditor;
-	let currentLine = editor.document.lineAt(position.line).text;
-	let result = extract(currentLine, position.character, true);
-	if (!result) {
-		return [null, ''];
+export function getInnerRange(currentNode: Node): vscode.Range {
+	if (!currentNode.close) {
+		return;
 	}
-
-	let rangeToReplace = new vscode.Range(position.line, result.location, position.line, result.location + result.abbreviation.length);
-	return [rangeToReplace, result.abbreviation];
+	return new vscode.Range(currentNode.open.end, currentNode.close.start);
 }
 
 export function getDeepestNode(node: Node): Node {

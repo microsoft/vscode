@@ -43,6 +43,10 @@ MenuRegistry.addCommand({
 
 type ApiThemeClassName = 'vscode-light' | 'vscode-dark' | 'vscode-high-contrast';
 
+export interface WebviewOptions {
+	enableJavascript?: boolean;
+}
+
 export default class Webview {
 
 	private _webview: WebviewElement;
@@ -55,7 +59,8 @@ export default class Webview {
 
 	constructor(
 		private parent: HTMLElement,
-		private _styleElement: Element
+		private _styleElement: Element,
+		private options: WebviewOptions = {}
 	) {
 		this._webview = <any>document.createElement('webview');
 
@@ -158,7 +163,10 @@ export default class Webview {
 	}
 
 	set contents(value: string[]) {
-		this._send('content', value);
+		this._send('content', {
+			contents: value,
+			options: this.options
+		});
 	}
 
 	set baseUrl(value: string) {

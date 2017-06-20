@@ -6,82 +6,54 @@
 
 import * as vscode from 'vscode';
 import { expand, createSnippetsRegistry } from '@emmetio/expand-abbreviation';
-import { getSyntax, getProfile, extractAbbreviation, isStyleSheet, getNode } from './util';
-import parseStylesheet from '@emmetio/css-parser';
-import parse from '@emmetio/html-matcher';
-import Node from '@emmetio/node';
-import { DocumentStreamReader } from './bufferStream';
+import { getSyntax, isStyleSheet } from './util';
+import { expandAbbreviationHelper, ExpandAbbreviationHelperOutput } from './abbreviationActions';
 
 const field = (index, placeholder) => `\${${index}${placeholder ? ':' + placeholder : ''}}`;
 const snippetCompletionsCache = new Map<string, vscode.CompletionItem[]>();
 
 export class EmmetCompletionItemProvider implements vscode.CompletionItemProvider {
-
+	private _mappedSyntax = false;
+	constructor(mappedSyntax?: boolean) {
+		if (mappedSyntax) {
+			this._mappedSyntax = true;
+		}
+	}
 	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Thenable<vscode.CompletionList> {
 
 		if (!vscode.workspace.getConfiguration('emmet')['useNewEmmet']) {
 			return Promise.resolve(null);
 		}
 
-		let completionItems: vscode.CompletionItem[] = [];
 		let syntax = getSyntax(document);
-		let currentWord = getCurrentWord(document, position);
-
-		let parseContent = isStyleSheet(syntax) ? parseStylesheet : parse;
-		let rootNode: Node = parseContent(new DocumentStreamReader(document));
-		let currentNode = getNode(rootNode, position);
-
-		// Inside <style> tag, trigger css abbreviations
-		if (!isStyleSheet(syntax) && currentNode && currentNode.name === 'style') {
-			syntax = 'css';
+		let expandedAbbr: vscode.CompletionItem;
+		if (vscode.workspace.getConfiguration('emmet')['showExpandedAbbreviation']) {
+			let output: ExpandAbbreviationHelperOutput = expandAbbreviationHelper(syntax, document, new vscode.Range(position, position), this._mappedSyntax);
+			if (output) {
+				expandedAbbr = new vscode.CompletionItem(output.abbreviation);
+				expandedAbbr.insertText = new vscode.SnippetString(output.expandedText);
+				expandedAbbr.documentation = removeTabStops(output.expandedText);
+				expandedAbbr.range = output.abbreviationRange;
+				expandedAbbr.detail = 'Expand Emmet Abbreviation';
+				syntax = output.syntax;
+			}
 		}
 
-		let expandedAbbr = this.getExpandedAbbreviation(document, position, syntax, currentNode);
-
+		let completionItems: vscode.CompletionItem[] = expandedAbbr ? [expandedAbbr] : [];
 		if (!isStyleSheet(syntax)) {
 			if (expandedAbbr) {
 				// In non stylesheet like syntax, this extension returns expanded abbr plus posssible abbr completions
 				// To differentiate between the 2, the former is given CompletionItemKind.Value so that it gets a different icon
 				expandedAbbr.kind = vscode.CompletionItemKind.Value;
 			}
+			let currentWord = getCurrentWord(document, position);
+
 			let abbreviationSuggestions = this.getAbbreviationSuggestions(syntax, currentWord, (expandedAbbr && currentWord === expandedAbbr.label));
-			completionItems = expandedAbbr ? [expandedAbbr, ...abbreviationSuggestions] : abbreviationSuggestions;
-		} else {
-			completionItems = expandedAbbr ? [expandedAbbr] : [];
+			completionItems = completionItems.concat(abbreviationSuggestions);
 		}
 
 		return Promise.resolve(new vscode.CompletionList(completionItems, true));
 	}
-
-	getExpandedAbbreviation(document: vscode.TextDocument, position: vscode.Position, syntax: string, currentNode: Node): vscode.CompletionItem {
-		if (!vscode.workspace.getConfiguration('emmet')['showExpandedAbbreviation']) {
-			return;
-		}
-		let [rangeToReplace, wordToExpand] = extractAbbreviation(position);
-		if (!rangeToReplace || !wordToExpand) {
-			return;
-		}
-		if (!isValidLocationForEmmetAbbreviation(currentNode, syntax, position)) {
-			return;
-		}
-
-		let expandedWord = expand(wordToExpand, {
-			field: field,
-			syntax: syntax,
-			profile: getProfile(syntax),
-			addons: syntax === 'jsx' ? { 'jsx': true } : null
-		});
-
-		let completionitem = new vscode.CompletionItem(wordToExpand);
-		completionitem.insertText = new vscode.SnippetString(expandedWord);
-		completionitem.documentation = removeTabStops(expandedWord);
-		completionitem.range = rangeToReplace;
-		completionitem.detail = 'Expand Emmet Abbreviation';
-
-
-		return completionitem;
-	}
-
 	getAbbreviationSuggestions(syntax: string, prefix: string, skipExactMatch: boolean) {
 		if (!vscode.workspace.getConfiguration('emmet')['showAbbreviationSuggestions'] || !prefix) {
 			return [];
@@ -131,17 +103,6 @@ function removeTabStops(expandedWord: string): string {
 	return expandedWord.replace(/\$\{\d+\}/g, '').replace(/\$\{\d+:([^\}]+)\}/g, '$1');
 }
 
-function isValidLocationForEmmetAbbreviation(currentNode: Node, syntax: string, position: vscode.Position): boolean {
-	if (!currentNode) {
-		return true;
-	}
-
-	if (isStyleSheet(syntax)) {
-		return currentNode.type !== 'rule';
-	}
-
-	return position.isAfter(currentNode.open.end);
-}
 
 
 

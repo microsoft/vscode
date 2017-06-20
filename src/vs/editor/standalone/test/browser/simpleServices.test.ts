@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
-import { SimpleConfigurationService, SimpleMessageService, StandaloneKeybindingService, StandaloneCommandService } from 'vs/editor/browser/standalone/simpleServices';
+import { SimpleConfigurationService, SimpleMessageService, StandaloneKeybindingService, StandaloneCommandService } from 'vs/editor/standalone/browser/simpleServices';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { KeyCode } from 'vs/base/common/keyCodes';

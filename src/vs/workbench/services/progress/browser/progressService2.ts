@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/css!vs/workbench/services/progress/browser/media/progressService2';
+import 'vs/css!./media/progressService2';
 import * as dom from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IActivityBarService, ProgressBadge } from 'vs/workbench/services/activity/common/activityBarService';

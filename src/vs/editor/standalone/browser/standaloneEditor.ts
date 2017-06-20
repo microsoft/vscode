@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/css!./media/standalone-tokens';
+import 'vs/css!./standalone-tokens';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor, ContentWidgetPositionPreference, OverlayWidgetPositionPreference, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { StandaloneEditor, IStandaloneCodeEditor, StandaloneDiffEditor, IStandaloneDiffEditor, IEditorConstructionOptions, IDiffEditorConstructionOptions } from 'vs/editor/browser/standalone/standaloneCodeEditor';
+import { StandaloneEditor, IStandaloneCodeEditor, StandaloneDiffEditor, IStandaloneDiffEditor, IEditorConstructionOptions, IDiffEditorConstructionOptions } from 'vs/editor/standalone/browser/standaloneCodeEditor';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { IEditorOverrideServices, DynamicStandaloneServices, StaticServices } from 'vs/editor/browser/standalone/standaloneServices';
+import { IEditorOverrideServices, DynamicStandaloneServices, StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { OpenerService } from 'vs/platform/opener/browser/openerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { Colorizer, IColorizerElementOptions, IColorizerOptions } from 'vs/editor/browser/standalone/colorizer';
-import { SimpleEditorService, SimpleEditorModelResolverService } from 'vs/editor/browser/standalone/simpleServices';
+import { Colorizer, IColorizerElementOptions, IColorizerOptions } from 'vs/editor/standalone/browser/colorizer';
+import { SimpleEditorService, SimpleEditorModelResolverService } from 'vs/editor/standalone/browser/simpleServices';
 import * as modes from 'vs/editor/common/modes';
 import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebWorker } from 'vs/editor/common/services/webWorker';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
@@ -31,7 +31,7 @@ import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService'
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { NULL_STATE, nullTokenize } from 'vs/editor/common/modes/nullMode';
-import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/common/services/standaloneThemeService';
+import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { Token } from 'vs/editor/common/core/token';
 import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';

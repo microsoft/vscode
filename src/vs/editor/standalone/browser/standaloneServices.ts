@@ -25,20 +25,21 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
 import {
-	SimpleConfigurationService, SimpleMenuService, SimpleMessageService,
+	SimpleConfigurationService, SimpleResourceConfigurationService, SimpleMenuService, SimpleMessageService,
 	SimpleProgressService, StandaloneCommandService, StandaloneKeybindingService,
 	StandaloneTelemetryService, SimpleWorkspaceContextService
-} from 'vs/editor/browser/standalone/simpleServices';
+} from 'vs/editor/standalone/browser/simpleServices';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IMenuService } from 'vs/platform/actions/common/actions';
-import { IStandaloneThemeService } from 'vs/editor/common/services/standaloneThemeService';
-import { StandaloneThemeServiceImpl } from 'vs/editor/browser/services/standaloneThemeServiceImpl';
+import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
+import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
 
 export interface IEditorContextViewService extends IContextViewService {
 	dispose(): void;
@@ -117,6 +118,8 @@ export module StaticServices {
 	const configurationServiceImpl = new SimpleConfigurationService();
 	export const configurationService = define(IConfigurationService, () => configurationServiceImpl);
 
+	export const resourceConfigurationService = define(ITextResourceConfigurationService, () => new SimpleResourceConfigurationService(configurationServiceImpl));
+
 	export const contextService = define(IWorkspaceContextService, () => new SimpleWorkspaceContextService());
 
 	export const telemetryService = define(ITelemetryService, () => new StandaloneTelemetryService());
@@ -129,7 +132,7 @@ export module StaticServices {
 
 	export const modelService = define(IModelService, (o) => new ModelServiceImpl(markerService.get(o), configurationService.get(o)));
 
-	export const editorWorkerService = define(IEditorWorkerService, (o) => new EditorWorkerServiceImpl(modelService.get(o), configurationService.get(o), modeService.get(o)));
+	export const editorWorkerService = define(IEditorWorkerService, (o) => new EditorWorkerServiceImpl(modelService.get(o), resourceConfigurationService.get(o), modeService.get(o)));
 
 	export const standaloneThemeService = define(IStandaloneThemeService, () => new StandaloneThemeServiceImpl());
 

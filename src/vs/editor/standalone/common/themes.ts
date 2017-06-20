@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IStandaloneThemeData } from 'vs/editor/common/services/standaloneThemeService';
+import { IStandaloneThemeData } from 'vs/editor/standalone/common/standaloneThemeService';
 import { editorBackground, editorForeground, editorSelectionHighlight, editorInactiveSelection } from 'vs/platform/theme/common/colorRegistry';
 import { editorIndentGuides } from 'vs/editor/common/view/editorColorRegistry';
 

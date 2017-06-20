@@ -28,6 +28,7 @@ import { isEqual, isEqualOrParent } from 'vs/base/common/paths';
 import { IWindowsMainService, IOpenConfiguration } from "vs/platform/windows/electron-main/windows";
 import { IHistoryMainService } from "vs/platform/history/electron-main/historyMainService";
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from "vs/base/common/platform";
+import { TPromise } from "vs/base/common/winjs.base";
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -1129,16 +1130,24 @@ export class WindowsManager implements IWindowsMainService {
 		this._onWindowClose.fire(win.id);
 	}
 
-	public openFileFolderPicker(forceNewWindow?: boolean, data?: ITelemetryData): void {
+	public pickFileFolderAndOpen(forceNewWindow?: boolean, data?: ITelemetryData): void {
 		this.fileDialog.pickAndOpen({ pickFolders: true, pickFiles: true, forceNewWindow }, 'openFileFolder', data);
 	}
 
-	public openFilePicker(forceNewWindow?: boolean, path?: string, window?: CodeWindow, data?: ITelemetryData): void {
+	public pickFileAndOpen(forceNewWindow?: boolean, path?: string, window?: CodeWindow, data?: ITelemetryData): void {
 		this.fileDialog.pickAndOpen({ pickFiles: true, forceNewWindow, path, window }, 'openFile', data);
 	}
 
-	public openFolderPicker(forceNewWindow?: boolean, window?: CodeWindow, data?: ITelemetryData): void {
+	public pickFolderAndOpen(forceNewWindow?: boolean, window?: CodeWindow, data?: ITelemetryData): void {
 		this.fileDialog.pickAndOpen({ pickFolders: true, forceNewWindow, window }, 'openFolder', data);
+	}
+
+	public pickFolder(): TPromise<string[]> {
+		return new TPromise((c, e) => {
+			this.fileDialog.getFileOrFolderPaths({ pickFolders: true }, folders => {
+				c(folders || []);
+			});
+		});
 	}
 
 	public quit(): void {
@@ -1193,7 +1202,7 @@ class FileDialog {
 		});
 	}
 
-	private getFileOrFolderPaths(options: INativeOpenDialogOptions, clb: (paths: string[]) => void): void {
+	public getFileOrFolderPaths(options: INativeOpenDialogOptions, clb: (paths: string[]) => void): void {
 		const workingDir = options.path || this.storageService.getItem<string>(FileDialog.workingDirPickerStorageKey);
 		const focussedWindow = options.window || this.windowsMainService.getFocusedWindow();
 

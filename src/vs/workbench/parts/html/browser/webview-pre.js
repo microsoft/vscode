@@ -121,8 +121,9 @@
 		});
 
 		// update iframe-contents
-		ipcRenderer.on('content', function (_event, value) {
-			const text = value.join('\n');
+		ipcRenderer.on('content', function (_event, data) {
+			const options = data.options;
+			const text = data.contents.join('\n');
 			const newDocument = new DOMParser().parseFromString(text, 'text/html');
 
 			// know what happens here
@@ -188,7 +189,7 @@
 			const newFrame = document.createElement('iframe');
 			newFrame.setAttribute('id', 'pending-frame');
 			newFrame.setAttribute('frameborder', '0');
-			newFrame.setAttribute('sandbox', 'allow-scripts allow-forms allow-same-origin');
+			newFrame.setAttribute('sandbox', options.enableJavascript ? 'allow-scripts allow-forms allow-same-origin' : 'allow-same-origin');
 			newFrame.style.cssText = "margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; display: none";
 			document.body.appendChild(newFrame);
 

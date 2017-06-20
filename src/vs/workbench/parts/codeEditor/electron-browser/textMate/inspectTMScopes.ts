@@ -17,12 +17,12 @@ import { ICodeEditor, ContentWidgetPositionPreference, IContentWidget, IContentW
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IGrammar, StackElement, IToken } from 'vscode-textmate';
-import { ITextMateService } from 'vs/workbench/parts/codeEditor/electron-browser/textMate/textMateService';
+import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
 import { TokenizationRegistry, LanguageIdentifier, FontStyle, StandardTokenType } from 'vs/editor/common/modes';
 import { CharCode } from 'vs/base/common/charCode';
-import { findMatchingThemeRule } from 'vs/workbench/parts/codeEditor/electron-browser/textMate/TMHelper';
+import { findMatchingThemeRule } from 'vs/workbench/services/textMate/electron-browser/TMHelper';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { Color } from 'vs/base/common/color';
 import { IMessageService } from 'vs/platform/message/common/message';

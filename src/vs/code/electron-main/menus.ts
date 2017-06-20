@@ -339,12 +339,12 @@ export class CodeMenu {
 			newFile = this.createMenuItem(nls.localize({ key: 'miNewFile', comment: ['&& denotes a mnemonic'] }, "&&New File"), 'workbench.action.files.newUntitledFile');
 		}
 
-		const open = new MenuItem(this.likeAction('workbench.action.files.openFileFolder', { label: this.mnemonicLabel(nls.localize({ key: 'miOpen', comment: ['&& denotes a mnemonic'] }, "&&Open...")), click: (menuItem, win, event) => this.windowsService.openFileFolderPicker(this.isOptionClick(event), { from: telemetryFrom }) }));
-		const openFolder = new MenuItem(this.likeAction('workbench.action.files.openFolder', { label: this.mnemonicLabel(nls.localize({ key: 'miOpenFolder', comment: ['&& denotes a mnemonic'] }, "Open &&Folder...")), click: (menuItem, win, event) => this.windowsService.openFolderPicker(this.isOptionClick(event), undefined, { from: telemetryFrom }) }));
+		const open = new MenuItem(this.likeAction('workbench.action.files.openFileFolder', { label: this.mnemonicLabel(nls.localize({ key: 'miOpen', comment: ['&& denotes a mnemonic'] }, "&&Open...")), click: (menuItem, win, event) => this.windowsService.pickFileFolderAndOpen(this.isOptionClick(event), { from: telemetryFrom }) }));
+		const openFolder = new MenuItem(this.likeAction('workbench.action.files.openFolder', { label: this.mnemonicLabel(nls.localize({ key: 'miOpenFolder', comment: ['&& denotes a mnemonic'] }, "Open &&Folder...")), click: (menuItem, win, event) => this.windowsService.pickFolderAndOpen(this.isOptionClick(event), undefined, { from: telemetryFrom }) }));
 
 		let openFile: Electron.MenuItem;
 		if (hasNoWindows) {
-			openFile = new MenuItem(this.likeAction('workbench.action.files.openFile', { label: this.mnemonicLabel(nls.localize({ key: 'miOpenFile', comment: ['&& denotes a mnemonic'] }, "&&Open File...")), click: (menuItem, win, event) => this.windowsService.openFilePicker(this.isOptionClick(event), undefined, undefined, { from: telemetryFrom }) }));
+			openFile = new MenuItem(this.likeAction('workbench.action.files.openFile', { label: this.mnemonicLabel(nls.localize({ key: 'miOpenFile', comment: ['&& denotes a mnemonic'] }, "&&Open File...")), click: (menuItem, win, event) => this.windowsService.pickFileAndOpen(this.isOptionClick(event), undefined, undefined, { from: telemetryFrom }) }));
 		} else {
 			openFile = this.createMenuItem(nls.localize({ key: 'miOpenFile', comment: ['&& denotes a mnemonic'] }, "&&Open File..."), ['workbench.action.files.openFile', 'workbench.action.files.openFileInNewWindow']);
 		}
@@ -352,6 +352,10 @@ export class CodeMenu {
 		const openRecentMenu = new Menu();
 		this.setOpenRecentMenu(openRecentMenu);
 		const openRecent = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miOpenRecent', comment: ['&& denotes a mnemonic'] }, "Open &&Recent")), submenu: openRecentMenu, enabled: openRecentMenu.items.length > 0 });
+
+		const isMultiRootEnabled = (product.quality !== 'stable'); // TODO@Ben multi root
+		const addFolder = this.createMenuItem(nls.localize({ key: 'miAddFolder', comment: ['&& denotes a mnemonic'] }, "&&Add Folder"), 'workbench.action.addFolder', this.windowsService.getWindowCount() > 0);
+		const removeFolders = this.createMenuItem(nls.localize({ key: 'miRemoveFolders', comment: ['&& denotes a mnemonic'] }, "&&Remove Folders"), 'workbench.action.removeFolders', this.windowsService.getWindowCount() > 0);
 
 		const saveFile = this.createMenuItem(nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "&&Save"), 'workbench.action.files.save', this.windowsService.getWindowCount() > 0);
 		const saveFileAs = this.createMenuItem(nls.localize({ key: 'miSaveAs', comment: ['&& denotes a mnemonic'] }, "Save &&As..."), 'workbench.action.files.saveAs', this.windowsService.getWindowCount() > 0);
@@ -379,6 +383,9 @@ export class CodeMenu {
 			!isMacintosh ? openFile : null,
 			!isMacintosh ? openFolder : null,
 			openRecent,
+			isMultiRootEnabled ? __separator__() : null,
+			isMultiRootEnabled ? addFolder : null,
+			isMultiRootEnabled ? removeFolders : null,
 			__separator__(),
 			saveFile,
 			saveFileAs,

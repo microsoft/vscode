@@ -9,8 +9,11 @@ import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 
 import * as editorColorRegistry from 'vs/editor/common/view/editorColorRegistry';
 import * as wordHighlighter from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
-import { ansiColorIdentifiers } from 'vs/workbench/parts/terminal/electron-browser/terminalColorRegistry';
 import { peekViewEditorMatchHighlight, peekViewResultsMatchHighlight } from 'vs/editor/contrib/referenceSearch/browser/referencesWidget';
+
+// TODO@Martin layer breaker
+// tslint:disable-next-line:import-patterns
+import { ansiColorIdentifiers } from 'vs/workbench/parts/terminal/electron-browser/terminalColorRegistry';
 
 const settingToColorIdMapping: { [settingId: string]: string[] } = {};
 function addSettingMapping(settingId: string, colorId: string) {

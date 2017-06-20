@@ -16,34 +16,39 @@ import { toggleComment } from './toggleComment';
 import { fetchEditPoint } from './editPoint';
 import { fetchSelectItem } from './selectItem';
 
-interface ISupportedLanguageMode {
-	id: string;
-	triggerCharacters: string[];
-}
-
-const LANGUAGE_MODES: ISupportedLanguageMode[] = [
-	{ id: 'html', triggerCharacters: ['!', '.', '}'] },
-	{ id: 'jade', triggerCharacters: ['!', '.', '}'] },
-	{ id: 'slim', triggerCharacters: ['!', '.', '}'] },
-	{ id: 'haml', triggerCharacters: ['!', '.', '}'] },
-	{ id: 'xml', triggerCharacters: ['.', '}'] },
-	{ id: 'xsl', triggerCharacters: ['.', '}'] },
-
-	{ id: 'javascriptreact', triggerCharacters: ['.'] },
-	{ id: 'typescriptreact', triggerCharacters: ['.'] },
-
-	{ id: 'css', triggerCharacters: [':'] },
-	{ id: 'scss', triggerCharacters: [':'] },
-	{ id: 'sass', triggerCharacters: [':'] },
-	{ id: 'less', triggerCharacters: [':'] },
-	{ id: 'stylus', triggerCharacters: [':'] }
-];
+const LANGUAGE_MODES: Object = {
+	'html': ['!', '.', '}'],
+	'jade': ['!', '.', '}'],
+	'slim': ['!', '.', '}'],
+	'haml': ['!', '.', '}'],
+	'xml': ['.', '}'],
+	'xsl': ['.', '}'],
+	'javascriptreact': ['.'],
+	'typescriptreact': ['.'],
+	'css': [':'],
+	'scss': [':'],
+	'sass': [':'],
+	'less': [':'],
+	'stylus': [':']
+};
 
 export function activate(context: vscode.ExtensionContext) {
 	let completionProvider = new EmmetCompletionItemProvider();
-	for (let language of LANGUAGE_MODES) {
-		const provider = vscode.languages.registerCompletionItemProvider({ language: language.id }, completionProvider, ...language.triggerCharacters);
+	Object.keys(LANGUAGE_MODES).forEach(language => {
+		const provider = vscode.languages.registerCompletionItemProvider(language, completionProvider, ...LANGUAGE_MODES[language]);
 		context.subscriptions.push(provider);
+	});
+
+	let completionProviderForMappedSyntax = new EmmetCompletionItemProvider(true);
+	let emmetConfig = vscode.workspace.getConfiguration('emmet');
+	if (emmetConfig && emmetConfig['syntaxProfiles']) {
+		let syntaxProfiles = emmetConfig['syntaxProfiles'];
+		Object.keys(syntaxProfiles).forEach(syntax => {
+			if (typeof syntaxProfiles[syntax] === 'string' && LANGUAGE_MODES[syntaxProfiles[syntax]]) {
+				const provider = vscode.languages.registerCompletionItemProvider(syntax, completionProviderForMappedSyntax, ...LANGUAGE_MODES[syntaxProfiles[syntax]]);
+				context.subscriptions.push(provider);
+			}
+		});
 	}
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.wrapWithAbbreviation', () => {

@@ -163,8 +163,8 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 
 	public _serviceBrand: any;
 
-	private readonly _onDidChangeWorkspaceRoots: Emitter<URI[]> = this._register(new Emitter<URI[]>());
-	public readonly onDidChangeWorkspaceRoots: Event<URI[]> = this._onDidChangeWorkspaceRoots.event;
+	private readonly _onDidChangeWorkspaceRoots: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidChangeWorkspaceRoots: Event<void> = this._onDidChangeWorkspaceRoots.event;
 
 	private readonly _onDidUpdateConfiguration: Emitter<IConfigurationServiceEvent> = this._register(new Emitter<IConfigurationServiceEvent>());
 	public readonly onDidUpdateConfiguration: Event<IConfigurationServiceEvent> = this._onDidUpdateConfiguration.event;
@@ -182,7 +182,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 
 		this.legacyWorkspace = this.workspace && this.workspace.roots.length ? new LegacyWorkspace(this.workspace.roots[0]) : null;
 
-		this._register(this.onDidUpdateConfiguration(e => this.resolveAdditionalFolders(true)));
+		this._register(this.onDidUpdateConfiguration(e => this.resolveAdditionalFolders()));
 
 		this.baseConfigurationService = this._register(new GlobalConfigurationService(environmentService));
 		this._register(this.baseConfigurationService.onDidUpdateConfiguration(e => this.onBaseConfigurationChanged(e)));
@@ -191,9 +191,10 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		this.initCaches();
 	}
 
-	private resolveAdditionalFolders(notify?: boolean): void {
-		if (!this.workspace) {
-			return; // no additional folders for empty workspaces
+	private resolveAdditionalFolders(): void {
+		// TODO@Ben multi root
+		if (!this.workspace || this.environmentService.appQuality === 'stable') {
+			return; // no additional folders for empty workspaces or in stable
 		}
 
 		// Resovled configured folders for workspace
@@ -222,9 +223,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 			this.workspace.roots = configuredFolders;
 			this.workspace.name = configuredFolders.map(root => basename(root.fsPath) || root.fsPath).join(', ');
 
-			if (notify) {
-				this._onDidChangeWorkspaceRoots.fire(configuredFolders);
-			}
+			this._onDidChangeWorkspaceRoots.fire();
 		}
 	}
 
@@ -272,8 +271,8 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		return this._configuration.getValue<C>(section, overrides);
 	}
 
-	public lookup<C>(key: string, overrideIdentifier?: string): IConfigurationValue<C> {
-		return this._configuration.lookup<C>(key, overrideIdentifier);
+	public lookup<C>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<C> {
+		return this._configuration.lookup<C>(key, overrides);
 	}
 
 	public keys(): IConfigurationKeys {
@@ -292,7 +291,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		const current = this._configuration;
 
 		return this.baseConfigurationService.reloadConfiguration()
-			.then(() => this.initialize()) // Reinitialize to ensure we are hitting the disk
+			.then(() => this.initialize(false)) // Reinitialize to ensure we are hitting the disk
 			.then(() => !this._configuration.equals(current)) // Check if the configuration is changed
 			.then(changed => changed ? this.trigger(ConfigurationSource.Workspace, ) : void 0) // Trigger event if changed
 			.then(() => this.getConfiguration(section));
@@ -310,9 +309,14 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		}
 	}
 
-	public initialize(): TPromise<any> {
+	public initialize(trigger: boolean = true): TPromise<any> {
 		this.initCaches();
-		return this.doInitialize(this.workspace ? this.workspace.roots : []);
+		return this.doInitialize(this.workspace ? this.workspace.roots : [])
+			.then(() => {
+				if (trigger) {
+					this.trigger(this.workspace ? ConfigurationSource.Workspace : ConfigurationSource.User);
+				}
+			});
 	}
 
 	private onRootsChanged(): void {
@@ -373,7 +377,10 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		}
 	}
 
-	private trigger(source: ConfigurationSource, sourceConfig: any = this._configuration.getFolderConfigurationModel(this.workspace.roots[0]).contents): void {
+	private trigger(source: ConfigurationSource, sourceConfig?: any): void {
+		if (!sourceConfig) {
+			sourceConfig = this.workspace ? this._configuration.getFolderConfigurationModel(this.workspace.roots[0]).contents : this._configuration.user.contents;
+		}
 		this._onDidUpdateConfiguration.fire({ source, sourceConfig });
 	}
 }
@@ -601,7 +608,7 @@ class Configuration<T> extends BaseConfiguration<T> {
 	}
 
 	deleteFolderConfiguration(folder: URI): boolean {
-		if (this.workspace && this.workspaceUri.fsPath === folder.fsPath) {
+		if (this.workspaceUri && this.workspaceUri.fsPath === folder.fsPath) {
 			// Do not remove workspace configuration
 			return false;
 		}

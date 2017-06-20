@@ -5,8 +5,8 @@
 'use strict';
 
 import { TokenTheme, ITokenThemeRule, generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
-import { IStandaloneThemeService, BuiltinTheme, IStandaloneThemeData, IStandaloneTheme, IColors } from 'vs/editor/common/services/standaloneThemeService';
-import { vs, vs_dark, hc_black } from 'vs/editor/common/standalone/themes';
+import { IStandaloneThemeService, BuiltinTheme, IStandaloneThemeData, IStandaloneTheme, IColors } from 'vs/editor/standalone/common/standaloneThemeService';
+import { vs, vs_dark, hc_black } from 'vs/editor/standalone/common/themes';
 import * as dom from 'vs/base/browser/dom';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { Color } from 'vs/base/common/color';

@@ -2844,6 +2844,27 @@ suite('Editor Controller - Indentation Rules', () => {
 		rubyMode.dispose();
 		model.dispose();
 	});
+
+	test('Auto indent on type: increaseIndentPattern has higher priority than decreaseIndent when inheriting', () => {
+		usingCursor({
+			text: [
+				'\tif (true) {',
+				'\t\tconsole.log();',
+				'\t} else if {',
+				'\t\tconsole.log()',
+				'\t}'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 5, 3, false);
+			assertCursor(cursor, new Selection(5, 3, 5, 3));
+
+			cursorCommand(cursor, H.Type, { text: 'e' }, 'keyboard');
+			assertCursor(cursor, new Selection(5, 4, 5, 4));
+			assert.equal(model.getLineContent(5), '\t}e', 'This line should not decrease indent');
+		});
+	});
 });
 
 interface ICursorOpts {

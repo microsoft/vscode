@@ -134,6 +134,13 @@ export class CodeApplication {
 					return;
 				}
 				// Otherwise prevent loading
+
+				console.error('Prevented webview attach');
+				event.preventDefault();
+			});
+
+			contents.on('will-navigate', event => {
+				console.error('Prevented webcontent navigation');
 				event.preventDefault();
 			});
 		});

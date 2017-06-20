@@ -36,7 +36,7 @@ export interface IWorkspaceContextService {
 	/**
 	 * An event which fires on workspace roots change.
 	 */
-	onDidChangeWorkspaceRoots: Event<URI[]>;
+	onDidChangeWorkspaceRoots: Event<void>;
 
 	/**
 	 * Returns the root for the given resource from the workspace.

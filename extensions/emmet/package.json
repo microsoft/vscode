@@ -15,19 +15,7 @@
         "url": "https://github.com/Microsoft/vscode-emmet"
     },
     "activationEvents": [
-        "onLanguage:html",
-        "onLanguage:jade",
-        "onLanguage:slim",
-        "onLanguage:haml",
-        "onLanguage:xml",
-        "onLanguage:xsl",
-        "onLanguage:css",
-        "onLanguage:scss",
-        "onLanguage:sass",
-        "onLanguage:less",
-        "onLanguage:stylus",
-        "onLanguage:javascriptreact",
-        "onLanguage:typescriptreact"
+        "*"
     ],
     "main": "./out/extension",
     "contributes": {
