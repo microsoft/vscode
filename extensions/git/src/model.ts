@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, Command, EventEmitter, Event, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit } from 'vscode';
-import { Git, Repository, Ref, Branch, Remote, Commit, GitErrorCodes } from './git';
+import { Git, Repository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash } from './git';
 import { anyEvent, eventToPromise, filterEvent, EmptyDisposable, combinedDisposable, dispose } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import * as path from 'path';
@@ -215,7 +215,8 @@ export enum Operation {
 	DeleteBranch = 1 << 16,
 	Merge = 1 << 17,
 	Ignore = 1 << 18,
-	Tag = 1 << 19
+	Tag = 1 << 19,
+	Stash = 1 << 20
 }
 
 // function getOperationName(operation: Operation): string {
@@ -345,6 +346,11 @@ export class Model implements Disposable {
 		return this._remotes;
 	}
 
+	private _stashes: Stash[] = [];
+	get stashes(): Stash[] {
+		return this._stashes;
+	}
+
 	private _operations = new OperationsImpl();
 	get operations(): Operations { return this._operations; }
 
@@ -359,6 +365,7 @@ export class Model implements Disposable {
 		this._HEAD = undefined;
 		this._refs = [];
 		this._remotes = [];
+		this._stashes = [];
 		this._mergeGroup = new MergeGroup();
 		this._indexGroup = new IndexGroup();
 		this._workingTreeGroup = new WorkingTreeGroup();
@@ -542,6 +549,11 @@ export class Model implements Disposable {
 		});
 	}
 
+	@throttle
+	async stash(pop: boolean = false, index?: string): Promise<void> {
+		return await this.run(Operation.Stash, () => this.repository.stash(pop, index));
+	}
+
 	async getCommitTemplate(): Promise<string> {
 		return await this.run(Operation.GetCommitTemplate, async () => this.repository.getCommitTemplate());
 	}
@@ -692,11 +704,12 @@ export class Model implements Disposable {
 			// noop
 		}
 
-		const [refs, remotes] = await Promise.all([this.repository.getRefs(), this.repository.getRemotes()]);
+		const [refs, remotes, stashes] = await Promise.all([this.repository.getRefs(), this.repository.getRemotes(), this.repository.getStashes()]);
 
 		this._HEAD = HEAD;
 		this._refs = refs;
 		this._remotes = remotes;
+		this._stashes = stashes;
 
 		const index: Resource[] = [];
 		const workingTree: Resource[] = [];
