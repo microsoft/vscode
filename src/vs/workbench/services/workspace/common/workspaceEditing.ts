@@ -17,6 +17,4 @@ export interface IWorkspaceEditingService {
 	addRoots(roots: URI[]): TPromise<void>;
 
 	removeRoots(roots: URI[]): TPromise<void>;
-
-	clearRoots(): TPromise<void>;
 }

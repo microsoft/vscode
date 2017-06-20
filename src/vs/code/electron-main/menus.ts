@@ -354,8 +354,7 @@ export class CodeMenu {
 		const openRecent = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miOpenRecent', comment: ['&& denotes a mnemonic'] }, "Open &&Recent")), submenu: openRecentMenu, enabled: openRecentMenu.items.length > 0 });
 
 		const isMultiRootEnabled = (product.quality !== 'stable'); // TODO@Ben multi root
-		const addFolder = this.createMenuItem(nls.localize({ key: 'miAddFolder', comment: ['&& denotes a mnemonic'] }, "&&Add Folder"), 'workbench.action.addFolder', this.windowsService.getWindowCount() > 0);
-		const removeFolders = this.createMenuItem(nls.localize({ key: 'miRemoveFolders', comment: ['&& denotes a mnemonic'] }, "&&Remove Folders"), 'workbench.action.removeFolders', this.windowsService.getWindowCount() > 0);
+		const addFolder = this.createMenuItem(nls.localize({ key: 'miAddRootFolder', comment: ['&& denotes a mnemonic'] }, "&&Add Root Folder"), 'workbench.action.addRootFolder', this.windowsService.getWindowCount() > 0);
 
 		const saveFile = this.createMenuItem(nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "&&Save"), 'workbench.action.files.save', this.windowsService.getWindowCount() > 0);
 		const saveFileAs = this.createMenuItem(nls.localize({ key: 'miSaveAs', comment: ['&& denotes a mnemonic'] }, "Save &&As..."), 'workbench.action.files.saveAs', this.windowsService.getWindowCount() > 0);
@@ -385,7 +384,6 @@ export class CodeMenu {
 			openRecent,
 			isMultiRootEnabled ? __separator__() : null,
 			isMultiRootEnabled ? addFolder : null,
-			isMultiRootEnabled ? removeFolders : null,
 			__separator__(),
 			saveFile,
 			saveFileAs,

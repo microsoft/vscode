@@ -64,14 +64,6 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		return this.doSetRoots(roots.filter(root => rootsToRemoveRaw.indexOf(root.toString()) === -1));
 	}
 
-	public clearRoots(): TPromise<void> {
-		if (!this.supported) {
-			return TPromise.as(void 0); // we need a workspace to begin with
-		}
-
-		return this.doSetRoots([]);
-	}
-
 	private doSetRoots(roots: URI[]): TPromise<void> {
 		const workspaceUserConfig = this.configurationService.lookup(workspaceConfigKey).user as IWorkspaceConfiguration || Object.create(null);
 		const master = this.contextService.getWorkspace2().roots[0].toString();

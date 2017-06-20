@@ -52,8 +52,8 @@ export class OpenFileFolderAction extends Action {
 
 export class AddFolderAction extends Action {
 
-	static ID = 'workbench.action.addFolder';
-	static LABEL = nls.localize('addFolder', "Add Folder...");
+	static ID = 'workbench.action.addRootFolder';
+	static LABEL = nls.localize('addFolder', "Add Root Folder...");
 
 	constructor(
 		id: string,
@@ -78,8 +78,8 @@ export class AddFolderAction extends Action {
 
 export class RemoveFoldersAction extends Action {
 
-	static ID = 'workbench.action.removeFolders';
-	static LABEL = nls.localize('removeFolders', "Remove Folders");
+	static ID = 'workbench.action.removeRootFolders';
+	static LABEL = nls.localize('removeFolders', "Remove Root Folders");
 
 	constructor(
 		id: string,
@@ -92,6 +92,6 @@ export class RemoveFoldersAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		return this.workspaceEditingService.clearRoots();
+		return this.workspaceEditingService.removeRoots(this.contextService.getWorkspace2().roots);
 	}
 }

@@ -18,7 +18,7 @@ import { CloseEditorAction, KeybindingsReferenceAction, OpenDocumentationUrlActi
 import { MessagesVisibleContext } from 'vs/workbench/electron-browser/workbench';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { registerCommands } from 'vs/workbench/electron-browser/commands';
-import { AddFolderAction, RemoveFoldersAction } from "vs/workbench/browser/actions/fileActions";
+import { AddFolderAction } from "vs/workbench/browser/actions/fileActions";
 
 // Contribute Commands
 registerCommands();
@@ -80,8 +80,7 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(Decrea
 
 // TODO@Ben multi root
 if (product.quality !== 'stable') {
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(AddFolderAction, AddFolderAction.ID, AddFolderAction.LABEL), 'Files: Add Folder...', fileCategory);
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(RemoveFoldersAction, RemoveFoldersAction.ID, RemoveFoldersAction.LABEL), 'Files: Remove Folders', fileCategory);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(AddFolderAction, AddFolderAction.ID, AddFolderAction.LABEL), 'Files: Add Root Folder...', fileCategory);
 }
 
 // Developer related actions
