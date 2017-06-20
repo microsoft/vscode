@@ -98,11 +98,9 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { TextResourceConfigurationService } from 'vs/editor/common/services/resourceConfigurationImpl';
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
+import { TextMateService } from 'vs/workbench/services/textMate/electron-browser/TMSyntax';
+import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
 
-// TODO@Alex layer breaker
-// tslint:disable-next-line:import-patterns
-import { ITextMateService } from 'vs/workbench/parts/codeEditor/electron-browser/textMate/textMateService';
-import { MainProcessTextMateSyntax } from 'vs/workbench/parts/codeEditor/electron-browser/textMate/TMSyntax';
 /**
  * Services that we require for the Shell
  */
@@ -375,7 +373,7 @@ export class WorkbenchShell {
 
 		serviceCollection.set(IUntitledEditorService, new SyncDescriptor(UntitledEditorService));
 
-		serviceCollection.set(ITextMateService, new SyncDescriptor(MainProcessTextMateSyntax));
+		serviceCollection.set(ITextMateService, new SyncDescriptor(TextMateService));
 
 		serviceCollection.set(ISearchService, new SyncDescriptor(SearchService));
 

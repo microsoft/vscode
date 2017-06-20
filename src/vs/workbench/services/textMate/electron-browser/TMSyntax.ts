@@ -16,8 +16,8 @@ import { ITokenizationSupport, TokenizationRegistry, IState, LanguageId } from '
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { INITIAL, StackElement, IGrammar, Registry, IEmbeddedLanguagesMap as IEmbeddedLanguagesMap2 } from 'vscode-textmate';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { ITextMateService } from 'vs/workbench/parts/codeEditor/electron-browser/textMate/textMateService';
-import { grammarsExtPoint, IEmbeddedLanguagesMap, ITMSyntaxExtensionPoint } from 'vs/workbench/parts/codeEditor/electron-browser/textMate/TMGrammars';
+import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
+import { grammarsExtPoint, IEmbeddedLanguagesMap, ITMSyntaxExtensionPoint } from 'vs/workbench/services/textMate/electron-browser/TMGrammars';
 import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
 import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
@@ -97,7 +97,7 @@ interface ICreateGrammarResult {
 	containsEmbeddedLanguages: boolean;
 }
 
-export class MainProcessTextMateSyntax implements ITextMateService {
+export class TextMateService implements ITextMateService {
 	public _serviceBrand: any;
 
 	private _grammarRegistry: Registry;
@@ -162,7 +162,7 @@ export class MainProcessTextMateSyntax implements ITextMateService {
 	private _updateTheme(): void {
 		let colorTheme = this._themeService.getColorTheme();
 		this._grammarRegistry.setTheme({ name: colorTheme.label, settings: colorTheme.tokenColors });
-		let colorMap = MainProcessTextMateSyntax._toColorMap(this._grammarRegistry.getColorMap());
+		let colorMap = TextMateService._toColorMap(this._grammarRegistry.getColorMap());
 		let cssRules = generateTokensCSSForColorMap(colorMap);
 		this._styleElement.innerHTML = cssRules;
 		TokenizationRegistry.setColorMap(colorMap);

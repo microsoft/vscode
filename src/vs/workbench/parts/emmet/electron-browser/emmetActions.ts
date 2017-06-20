@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { EditorAction, ServicesAccessor, IActionOptions, ICommandKeybindingsOptions } from 'vs/editor/common/editorCommonExtensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { grammarsExtPoint, ITMSyntaxExtensionPoint } from 'vs/workbench/parts/codeEditor/electron-browser/textMate/TMGrammars';
+import { grammarsExtPoint, ITMSyntaxExtensionPoint } from 'vs/workbench/services/textMate/electron-browser/TMGrammars';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EditorAccessor, IGrammarContributions } from 'vs/workbench/parts/emmet/electron-browser/editorAccessor';
