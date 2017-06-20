@@ -153,11 +153,17 @@ export function renderMarkdown(markdown: string, options: RenderOptions = {}): N
 
 	if (options.actionCallback) {
 		DOM.addStandardDisposableListener(element, 'click', event => {
-			if (event.target.tagName === 'A') {
-				const href = event.target.dataset['href'];
-				if (href) {
-					options.actionCallback(href, event);
+			let target = event.target;
+			if (target.tagName !== 'A') {
+				target = target.parentElement;
+				if (!target || target.tagName !== 'A') {
+					return;
 				}
+			}
+
+			const href = target.dataset['href'];
+			if (href) {
+				options.actionCallback(href, event);
 			}
 		});
 	}
