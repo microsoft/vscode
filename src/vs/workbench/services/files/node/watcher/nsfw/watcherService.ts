@@ -76,7 +76,6 @@ export class FileWatcher {
 		this.contextService.onDidChangeWorkspaceRoots(() => {
 			const roots = this.contextService.getWorkspace2().roots;
 			service.setRoots(roots.map(r => r.fsPath));
-			console.log('roots changed', roots);
 		});
 
 		return () => {
