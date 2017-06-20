@@ -23,7 +23,7 @@ import { createTokenizationSupport } from 'vs/editor/standalone/common/monarch/m
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
-import { IStandaloneThemeService } from 'vs/editor/common/services/standaloneThemeService';
+import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 
 /**
  * Register information about a new language.

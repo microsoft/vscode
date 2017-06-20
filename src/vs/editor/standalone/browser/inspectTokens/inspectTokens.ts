@@ -17,7 +17,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
 import { TokenizationRegistry, LanguageIdentifier, FontStyle, StandardTokenType, ITokenizationSupport, IState } from 'vs/editor/common/modes';
 import { CharCode } from 'vs/base/common/charCode';
-import { IStandaloneThemeService } from 'vs/editor/common/services/standaloneThemeService';
+import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { NULL_STATE, nullTokenize, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { Token } from 'vs/editor/common/core/token';
 import { Color } from 'vs/base/common/color';

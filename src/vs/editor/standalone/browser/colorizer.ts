@@ -13,7 +13,7 @@ import { renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/vie
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import * as strings from 'vs/base/common/strings';
-import { IStandaloneThemeService } from 'vs/editor/common/services/standaloneThemeService';
+import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 
 export interface IColorizerOptions {
 	tabSize?: number;

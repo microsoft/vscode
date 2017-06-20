@@ -20,7 +20,7 @@ import { IEditorContextViewService } from 'vs/editor/standalone/browser/standalo
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IStandaloneThemeService } from 'vs/editor/common/services/standaloneThemeService';
+import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';

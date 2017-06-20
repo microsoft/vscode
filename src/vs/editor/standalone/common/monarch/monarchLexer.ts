@@ -15,7 +15,7 @@ import * as monarchCommon from 'vs/editor/standalone/common/monarch/monarchCommo
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import { NULL_STATE, NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
-import { IStandaloneThemeService } from 'vs/editor/common/services/standaloneThemeService';
+import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { TokenTheme } from 'vs/editor/common/modes/supports/tokenization';
 
 const CACHE_STACK_DEPTH = 5;
