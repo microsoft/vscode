@@ -423,8 +423,12 @@ export function registerCommands(): void {
 			return void 0;
 		});
 	});
+}
 
-	CommandsRegistry.registerCommand('_workbench.quickOpen', function (accessor: ServicesAccessor, args: [string]) {
+namespace GlobalQuickOpenCommand {
+	export const ID = 'vscode.quickOpen';
+
+	CommandsRegistry.registerCommand(ID, function (accessor: ServicesAccessor, args: [string]) {
 		const quickOpenService = accessor.get(IQuickOpenService);
 		const [prefix] = args;
 

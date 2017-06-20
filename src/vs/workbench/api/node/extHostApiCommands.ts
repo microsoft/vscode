@@ -239,16 +239,6 @@ export class ExtHostApiCommands {
 					{ name: 'column', description: '(optional) Column in which to open', constraint: v => v === void 0 || typeof v === 'number' }
 				]
 			});
-
-		this._register('vscode.quickOpen', (prefix: string) => {
-			return this._commands.executeCommand('_workbench.quickOpen', [prefix]);
-		}, {
-				description: 'Shows the quick open widget',
-				args: [
-					{ name: 'prefix', description: '(optional) Open the quick open widget with a default prefix' },
-					{ name: 'showOptions', description: '(optional) Show options' }
-				]
-			});
 	}
 
 	// --- command impl

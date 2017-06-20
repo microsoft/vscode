@@ -30,7 +30,7 @@ export class GlobalQuickOpenAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		this.commandService.executeCommand('vscode.quickOpen');
+		this.quickOpenService.show(null);
 
 		return TPromise.as(true);
 	}
