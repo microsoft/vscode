@@ -15,6 +15,7 @@ import { mergeLines } from './mergeLines';
 import { toggleComment } from './toggleComment';
 import { fetchEditPoint } from './editPoint';
 import { fetchSelectItem } from './selectItem';
+import { updateExtensionsPath } from './util';
 
 const LANGUAGE_MODES: Object = {
 	'html': ['!', '.', '}'],
@@ -109,6 +110,10 @@ export function activate(context: vscode.ExtensionContext) {
 		fetchSelectItem('prev');
 	}));
 
+	updateExtensionsPath();
+	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
+		updateExtensionsPath();
+	}));
 }
 
 export function deactivate() {

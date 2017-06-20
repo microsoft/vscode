@@ -10,7 +10,7 @@ import parseStylesheet from '@emmetio/css-parser';
 import parse from '@emmetio/html-matcher';
 import Node from '@emmetio/node';
 
-import { getSyntax, getProfile, isStyleSheet, getNode, getInnerRange } from './util';
+import { getSyntax, getProfile, getVariables, isStyleSheet, getNode, getInnerRange } from './util';
 import { DocumentStreamReader } from './bufferStream';
 
 const field = (index, placeholder) => `\${${index}${placeholder ? ':' + placeholder : ''}}`;
@@ -147,7 +147,7 @@ function getExpandOptions(syntax: string, textToReplace?: string) {
 		syntax: syntax,
 		profile: getProfile(syntax),
 		addons: syntax === 'jsx' ? { 'jsx': true } : null,
-		variables: vscode.workspace.getConfiguration('emmet')['variables'],
+		variables: getVariables(),
 		text: textToReplace ? textToReplace : ''
 	};
 }

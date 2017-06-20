@@ -57,13 +57,7 @@
                             "default": "\n"
                         }
                     },
-                    "default":{
-                        "lang": "en",
-                        "locale": "en-US",
-                        "charset": "UTF-8",
-                        "indentation": "\t",
-                        "newline": "\n"
-                    },
+                    "default":{},
                     "description": "Variables to be used in emmet snippets"
                 }
             }
