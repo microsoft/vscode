@@ -13,7 +13,12 @@ const field = (index, placeholder) => `\${${index}${placeholder ? ':' + placehol
 const snippetCompletionsCache = new Map<string, vscode.CompletionItem[]>();
 
 export class EmmetCompletionItemProvider implements vscode.CompletionItemProvider {
-
+	private _mappedSyntax = false;
+	constructor(mappedSyntax?: boolean) {
+		if (mappedSyntax) {
+			this._mappedSyntax = true;
+		}
+	}
 	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Thenable<vscode.CompletionList> {
 
 		if (!vscode.workspace.getConfiguration('emmet')['useNewEmmet']) {
@@ -23,12 +28,12 @@ export class EmmetCompletionItemProvider implements vscode.CompletionItemProvide
 		let syntax = getSyntax(document);
 		let expandedAbbr: vscode.CompletionItem;
 		if (vscode.workspace.getConfiguration('emmet')['showExpandedAbbreviation']) {
-			let output: ExpandAbbreviationHelperOutput = expandAbbreviationHelper(syntax, document, new vscode.Range(position, position));
+			let output: ExpandAbbreviationHelperOutput = expandAbbreviationHelper(syntax, document, new vscode.Range(position, position), this._mappedSyntax);
 			if (output) {
 				expandedAbbr = new vscode.CompletionItem(output.abbreviation);
 				expandedAbbr.insertText = new vscode.SnippetString(output.expandedText);
 				expandedAbbr.documentation = removeTabStops(output.expandedText);
-				expandedAbbr.range = output.rangeToReplace;
+				expandedAbbr.range = output.abbreviationRange;
 				expandedAbbr.detail = 'Expand Emmet Abbreviation';
 				syntax = output.syntax;
 			}

@@ -49,39 +49,51 @@ export function expandAbbreviation() {
 		return;
 	}
 	let syntax = getSyntax(editor.document);
-	let output = expandAbbreviationHelper(syntax, editor.document, editor.selection);
+	let mappedSyntax = false;
+	let emmetConfig = vscode.workspace.getConfiguration('emmet');
+	if (emmetConfig && emmetConfig['syntaxProfiles']) {
+		let syntaxProfiles = emmetConfig['syntaxProfiles'];
+		if (typeof syntaxProfiles[syntax] === 'string') {
+			syntax = syntaxProfiles[syntax];
+			mappedSyntax = true;
+		}
+	}
+	let output = expandAbbreviationHelper(syntax, editor.document, editor.selection, mappedSyntax);
 	if (output) {
-		editor.insertSnippet(new vscode.SnippetString(output.expandedText), output.rangeToReplace);
+		editor.insertSnippet(new vscode.SnippetString(output.expandedText), output.abbreviationRange);
 	}
 }
 
 export interface ExpandAbbreviationHelperOutput {
 	expandedText: string;
-	rangeToReplace: vscode.Range;
+	abbreviationRange: vscode.Range;
 	abbreviation: string;
 	syntax: string;
 }
 
 /**
  * Expands abbreviation at given range in the given document
- * @param syntax 
- * @param document 
- * @param rangeToReplace 
- */
-export function expandAbbreviationHelper(syntax: string, document: vscode.TextDocument, rangeToReplace: vscode.Range): ExpandAbbreviationHelperOutput {
-	let parseContent = isStyleSheet(syntax) ? parseStylesheet : parse;
-	let rootNode: Node = parseContent(new DocumentStreamReader(document));
-	let currentNode = getNode(rootNode, rangeToReplace.end);
+ * @param syntax string syntax to be used for expanding abbreviations
+ * @param document vscode.TextDocument
+ * @param abbreviationRange vscode.Range range of the abbreviation that needs to be expanded
+ * @param mappedSyntax Boolean Pass true if given document language was mapped to given syntax to get emmet abbreviation expansions.
+ * */
+export function expandAbbreviationHelper(syntax: string, document: vscode.TextDocument, abbreviationRange: vscode.Range, mappedSyntax: boolean): ExpandAbbreviationHelperOutput {
+	if (!mappedSyntax) {
+		let parseContent = isStyleSheet(syntax) ? parseStylesheet : parse;
+		let rootNode: Node = parseContent(new DocumentStreamReader(document));
+		let currentNode = getNode(rootNode, abbreviationRange.end);
 
-	if (forceCssSyntax(syntax, currentNode, rangeToReplace.end)) {
-		syntax = 'css';
-	} else if (!isValidLocationForEmmetAbbreviation(currentNode, syntax, rangeToReplace.end)) {
-		return;
+		if (forceCssSyntax(syntax, currentNode, abbreviationRange.end)) {
+			syntax = 'css';
+		} else if (!isValidLocationForEmmetAbbreviation(currentNode, syntax, abbreviationRange.end)) {
+			return;
+		}
 	}
 
-	let abbreviation = document.getText(rangeToReplace);
-	if (rangeToReplace.isEmpty) {
-		[rangeToReplace, abbreviation] = extractAbbreviation(document, rangeToReplace.start);
+	let abbreviation = document.getText(abbreviationRange);
+	if (abbreviationRange.isEmpty) {
+		[abbreviationRange, abbreviation] = extractAbbreviation(document, abbreviationRange.start);
 	}
 
 	let options = {
@@ -92,7 +104,7 @@ export function expandAbbreviationHelper(syntax: string, document: vscode.TextDo
 	};
 
 	let expandedText = expand(abbreviation, options);
-	return { expandedText, rangeToReplace, abbreviation, syntax };
+	return { expandedText, abbreviationRange, abbreviation, syntax };
 }
 
 /**
