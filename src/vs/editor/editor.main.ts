@@ -6,11 +6,11 @@
 'use strict';
 
 import 'vs/editor/editor.all';
+import 'vs/editor/standalone/browser/inspectTokens/inspectTokens';
+import 'vs/editor/standalone/browser/iPadShowKeyboard/iPadShowKeyboard';
 import 'vs/editor/standalone/browser/quickOpen/quickOutline';
 import 'vs/editor/standalone/browser/quickOpen/gotoLine';
 import 'vs/editor/standalone/browser/quickOpen/quickCommand';
-import 'vs/editor/contrib/inspectTokens/browser/inspectTokens';
-import 'vs/editor/standalone/browser/iPadShowKeyboard/iPadShowKeyboard';
 
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
 import { createMonacoEditorAPI } from 'vs/editor/standalone/browser/standaloneEditor';
