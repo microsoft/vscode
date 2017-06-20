@@ -192,8 +192,9 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	}
 
 	private resolveAdditionalFolders(): void {
-		if (!this.workspace) {
-			return; // no additional folders for empty workspaces
+		// TODO@Ben multi root
+		if (!this.workspace || this.environmentService.appQuality === 'stable') {
+			return; // no additional folders for empty workspaces or in stable
 		}
 
 		// Resovled configured folders for workspace

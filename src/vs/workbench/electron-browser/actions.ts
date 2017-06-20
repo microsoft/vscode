@@ -42,6 +42,7 @@ import { webFrame } from 'electron';
 import { getPathLabel } from "vs/base/common/labels";
 import { IViewlet } from "vs/workbench/common/viewlet";
 import { IPanel } from "vs/workbench/common/panel";
+import { IWorkspaceEditingService } from "vs/workbench/services/workspace/common/workspaceEditing";
 
 // --- actions
 
@@ -1422,5 +1423,26 @@ export class DecreaseViewSizeAction extends BaseResizeViewAction {
 	public run(): TPromise<boolean> {
 		this.resizePart(-BaseResizeViewAction.RESIZE_INCREMENT);
 		return TPromise.as(true);
+	}
+}
+
+export class AddFolderAction extends Action {
+
+	static ID = 'workbench.action.files.addFolder';
+	static LABEL = nls.localize('addFolder', "Add Folder...");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowService private windowService: IWindowService,
+		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return this.windowService.pickFolder().then(folders => {
+			this.workspaceEditingService.addRoots(folders.map(folder => URI.file(folder)));
+		});
 	}
 }

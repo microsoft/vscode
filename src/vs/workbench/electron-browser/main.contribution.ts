@@ -14,7 +14,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { CloseEditorAction, KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, ReportIssueAction, ReportPerformanceIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseFolderAction, CloseWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction, NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction, IncreaseViewSizeAction, DecreaseViewSizeAction, ShowStartupPerformance, ToggleSharedProcessAction, QuickSwitchWindow, QuickOpenRecentAction } from 'vs/workbench/electron-browser/actions';
+import { CloseEditorAction, KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, ReportIssueAction, ReportPerformanceIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseFolderAction, CloseWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction, NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction, IncreaseViewSizeAction, DecreaseViewSizeAction, ShowStartupPerformance, ToggleSharedProcessAction, QuickSwitchWindow, QuickOpenRecentAction, AddFolderAction } from 'vs/workbench/electron-browser/actions';
 import { MessagesVisibleContext } from 'vs/workbench/electron-browser/workbench';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { registerCommands } from 'vs/workbench/electron-browser/commands';
@@ -76,6 +76,11 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(Naviga
 
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(IncreaseViewSizeAction, IncreaseViewSizeAction.ID, IncreaseViewSizeAction.LABEL, null), 'View: Increase Current View Size', viewCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(DecreaseViewSizeAction, DecreaseViewSizeAction.ID, DecreaseViewSizeAction.LABEL, null), 'View: Decrease Current View Size', viewCategory);
+
+// TODO@Ben multi root
+if (product.quality !== 'stable') {
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(AddFolderAction, AddFolderAction.ID, AddFolderAction.LABEL), 'Files: Add Folder...', 'Files');
+}
 
 // Developer related actions
 const developerCategory = nls.localize('developer', "Developer");
@@ -361,30 +366,33 @@ configurationRegistry.registerConfiguration({
 });
 
 // Configuration: Workspace
-configurationRegistry.registerConfiguration({
-	'id': 'workspace',
-	'order': 10000,
-	'title': nls.localize('workspaceConfigurationTitle', "Workspace"),
-	'type': 'object',
-	'properties': {
-		'workspace': {
-			'type': 'object',
-			'description': nls.localize('workspaces.title', "Folder configuration of the workspace"),
-			'additionalProperties': {
-				'anyOf': [{
-					'type': 'object',
-					'description': nls.localize('files.exclude.boolean', "The glob pattern to match file paths against. Set to true or false to enable or disable the pattern."),
-					'properties': {
-						'folders': {
-							'description': nls.localize('workspaces.additionalFolders', "Folders of this workspace"),
-							'type': 'array',
-							'items': {
-								'type': 'string'
+// TODO@Ben multi root
+if (product.quality !== 'stable') {
+	configurationRegistry.registerConfiguration({
+		'id': 'workspace',
+		'order': 10000,
+		'title': nls.localize('workspaceConfigurationTitle', "Workspace"),
+		'type': 'object',
+		'properties': {
+			'workspace': {
+				'type': 'object',
+				'description': nls.localize('workspaces.title', "Folder configuration of the workspace"),
+				'additionalProperties': {
+					'anyOf': [{
+						'type': 'object',
+						'description': nls.localize('files.exclude.boolean', "The glob pattern to match file paths against. Set to true or false to enable or disable the pattern."),
+						'properties': {
+							'folders': {
+								'description': nls.localize('workspaces.additionalFolders', "Folders of this workspace"),
+								'type': 'array',
+								'items': {
+									'type': 'string'
+								}
 							}
 						}
-					}
-				}]
+					}]
+				}
 			}
 		}
-	}
-});
+	});
+}

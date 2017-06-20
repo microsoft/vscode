@@ -12,6 +12,7 @@ import { TPromise } from "vs/base/common/winjs.base";
 import { IWorkspaceContextService } from "vs/platform/workspace/common/workspace";
 import { IConfigurationEditingService, ConfigurationTarget } from "vs/workbench/services/configuration/common/configurationEditing";
 import { IConfigurationService } from "vs/platform/configuration/common/configuration";
+import { IEnvironmentService } from "vs/platform/environment/common/environment";
 
 interface IWorkspaceConfiguration {
 	[master: string]: {
@@ -28,12 +29,22 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	constructor(
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 	}
 
-	public addRoots(rootsToAdd: URI[]): TPromise<void> {
+	private supported(): boolean {
 		if (!this.contextService.hasWorkspace()) {
+			return false; // we need a workspace to begin with
+		}
+
+		// TODO@Ben multi root
+		return this.environmentService.appQuality !== 'stable'; // not yet enabled in stable
+	}
+
+	public addRoots(rootsToAdd: URI[]): TPromise<void> {
+		if (!this.supported) {
 			return TPromise.as(void 0); // we need a workspace to begin with
 		}
 
@@ -43,7 +54,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	public removeRoots(rootsToRemove: URI[]): TPromise<void> {
-		if (!this.contextService.hasWorkspace()) {
+		if (!this.supported) {
 			return TPromise.as(void 0); // we need a workspace to begin with
 		}
 
@@ -54,7 +65,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	public clearRoots(): TPromise<void> {
-		if (!this.contextService.hasWorkspace()) {
+		if (!this.supported) {
 			return TPromise.as(void 0); // we need a workspace to begin with
 		}
 
