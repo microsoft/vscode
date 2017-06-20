@@ -53,7 +53,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		return this.doSetRoots(roots.filter(root => rootsToRemoveRaw.indexOf(root.toString()) === -1));
 	}
 
-	public clearRoots(roots: URI[]): TPromise<void> {
+	public clearRoots(): TPromise<void> {
 		if (!this.contextService.hasWorkspace()) {
 			return TPromise.as(void 0); // we need a workspace to begin with
 		}
