@@ -696,4 +696,27 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			return void 0;
 		}).filter(input => !!input);
 	}
+
+	public getLastActiveWorkspaceRoot(): URI {
+		if (!this.contextService.hasWorkspace()) {
+			return void 0;
+		}
+
+		const history = this.getHistory();
+		for (let i = 0; i < history.length; i++) {
+			const input = history[i];
+			if (input instanceof EditorInput) {
+				continue;
+			}
+
+			const resourceInput = input as IResourceInput;
+			const resourceWorkspace = this.contextService.getRoot(resourceInput.resource);
+			if (resourceWorkspace) {
+				return resourceWorkspace;
+			}
+		}
+
+		// fallback to first workspace
+		return this.contextService.getWorkspace2().roots[0];
+	}
 }

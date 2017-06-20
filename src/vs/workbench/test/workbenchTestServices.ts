@@ -156,9 +156,10 @@ export class TestTextFileService extends TextFileService {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMessageService messageService: IMessageService,
 		@IBackupFileService backupFileService: IBackupFileService,
-		@IWindowsService windowsService: IWindowsService
+		@IWindowsService windowsService: IWindowsService,
+		@IHistoryService historyService: IHistoryService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, fileService, untitledEditorService, instantiationService, messageService, TestEnvironmentService, backupFileService, windowsService);
+		super(lifecycleService, contextService, configurationService, telemetryService, fileService, untitledEditorService, instantiationService, messageService, TestEnvironmentService, backupFileService, windowsService, historyService);
 	}
 
 	public setPromptPath(path: string): void {
