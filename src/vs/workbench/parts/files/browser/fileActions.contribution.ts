@@ -98,10 +98,12 @@ class FilesViewerActionContributor extends ActionBarContributor {
 		}
 
 		// Rename File/Folder
-		if (stat.isRoot) {
+		if (stat.isRoot && this.contextService.getWorkspace2().roots.length > 1) {
 			actions.push(new Separator(null, 150));
 			actions.push(this.instantiationService.createInstance(RemoveRootFolderAction, stat.resource, RemoveRootFolderAction.ID, RemoveRootFolderAction.LABEL));
-		} else {
+		}
+
+		if (!stat.isRoot) {
 			actions.push(new Separator(null, 150));
 			actions.push(this.instantiationService.createInstance(TriggerRenameFileAction, tree, <FileStat>stat));
 			// Delete File/Folder
