@@ -61,6 +61,7 @@ const indentationFilter = [
 	'!**/*.d.ts.recipe',
 	'!test/assert.js',
 	'!**/package.json',
+	'!**/package-lock.json',
 	'!**/npm-shrinkwrap.json',
 	'!**/octicons/**',
 	'!**/vs/base/common/marked/raw.marked.js',

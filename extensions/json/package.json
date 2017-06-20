@@ -117,7 +117,9 @@
     },
     "configurationDefaults": {
       "[json]": {
-        "editor.quickSuggestions": { "strings": true }
+        "editor.quickSuggestions": {
+          "strings": true
+        }
       }
     }
   },

@@ -1,11 +1,11 @@
 {
   "name": "vscode-extensions",
   "version": "0.0.1",
+  "lockfileVersion": 1,
   "dependencies": {
     "typescript": {
-      "version": "2.4.1-insiders.20170615",
-      "from": "typescript@2.4.1-insiders.20170615",
-      "resolved": "https://registry.npmjs.org/typescript/-/typescript-2.4.1-insiders.20170615.tgz"
+      "version": "https://registry.npmjs.org/typescript/-/typescript-2.4.1-insiders.20170615.tgz",
+      "integrity": "sha1-HPHfohKx7PVXoRklJWM/GWayHa8="
     }
   }
 }
