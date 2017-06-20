@@ -183,6 +183,32 @@ class FocusTrait<T> extends Trait<T> {
 	}
 }
 
+class Aria<T> implements IRenderer<T, HTMLElement>, ISpliceable<T> {
+
+	private length = 0;
+
+	get templateId(): string {
+		return 'aria';
+	}
+
+	splice(start: number, deleteCount: number, elements: T[]): void {
+		this.length += elements.length - deleteCount;
+	}
+
+	renderTemplate(container: HTMLElement): HTMLElement {
+		return container;
+	}
+
+	renderElement(element: T, index: number, container: HTMLElement): void {
+		container.setAttribute('aria-setsize', `${this.length}`);
+		container.setAttribute('aria-posinset', `${index + 1}`);
+	}
+
+	disposeTemplate(container: HTMLElement): void {
+		// noop
+	}
+}
+
 /**
  * The TraitSpliceable is used as a util class to be able
  * to preserve traits across splice calls, given an identity
@@ -608,12 +634,14 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		renderers: IRenderer<T, any>[],
 		options: IListOptions<T> = DefaultOptions
 	) {
+		const aria = new Aria();
 		this.focus = new FocusTrait(i => this.getElementDomId(i));
 		this.selection = new Trait('selected');
+
 		this.eventBufferer = new EventBufferer();
 		mixin(options, defaultStyles, false);
 
-		renderers = renderers.map(r => new PipelineRenderer(r.templateId, [this.focus.renderer, this.selection.renderer, r]));
+		renderers = renderers.map(r => new PipelineRenderer(r.templateId, [aria, this.focus.renderer, this.selection.renderer, r]));
 
 		this.view = new ListView(container, delegate, renderers, options);
 		this.view.domNode.setAttribute('role', 'tree');
@@ -623,6 +651,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.styleElement = DOM.createStyleSheet(this.view.domNode);
 
 		this.spliceable = new CombinedSpliceable([
+			aria,
 			new TraitSpliceable(this.focus, this.view, options.identityProvider),
 			new TraitSpliceable(this.selection, this.view, options.identityProvider),
 			this.view
@@ -651,14 +680,12 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		if (options.ariaLabel) {
 			this.view.domNode.setAttribute('aria-label', options.ariaLabel);
 		}
-		this.view.domNode.setAttribute('aria-setsize', '0');
 
 		this.style(options);
 	}
 
 	splice(start: number, deleteCount: number, elements: T[] = []): void {
 		this.eventBufferer.bufferEvents(() => this.spliceable.splice(start, deleteCount, elements));
-		this.view.domNode.setAttribute('aria-setsize', this.length.toString());
 	}
 
 	get length(): number {
@@ -714,11 +741,6 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	setFocus(indexes: number[]): void {
 		indexes = indexes.sort(numericSort);
 		this.focus.set(indexes);
-		if (indexes.length) {
-			this.view.domNode.setAttribute('aria-posinset', (indexes[0] + 1).toString());
-		} else {
-			this.view.domNode.removeAttribute('aria-posinset');
-		}
 	}
 
 	focusNext(n = 1, loop = false): void {
