@@ -24,6 +24,7 @@ import { copyFocusedFilesExplorerViewItem, revealInOSFocusedFilesExplorerItem, o
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IEnvironmentService } from "vs/platform/environment/common/environment";
 import { explorerItemToFileResource, ExplorerFocusCondition, FilesExplorerFocusCondition } from 'vs/workbench/parts/files/common/files';
 
 class FilesViewerActionContributor extends ActionBarContributor {
@@ -31,7 +32,8 @@ class FilesViewerActionContributor extends ActionBarContributor {
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super();
 	}
@@ -98,9 +100,14 @@ class FilesViewerActionContributor extends ActionBarContributor {
 		}
 
 		// Rename File/Folder
-		if (stat.isRoot && this.contextService.getWorkspace2().roots.length > 1) {
-			actions.push(new Separator(null, 150));
-			actions.push(this.instantiationService.createInstance(RemoveRootFolderAction, stat.resource, RemoveRootFolderAction.ID, RemoveRootFolderAction.LABEL));
+		if (stat.isRoot) {
+			if (this.contextService.getWorkspace2().roots.length > 1) {
+				actions.push(new Separator(null, 150));
+				actions.push(this.instantiationService.createInstance(RemoveRootFolderAction, stat.resource, RemoveRootFolderAction.ID, RemoveRootFolderAction.LABEL));
+			} else if (this.environmentService.appQuality !== 'stable') {
+				actions.push(new Separator(null, 150));
+				actions.push(this.instantiationService.createInstance(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL));
+			}
 		}
 
 		if (!stat.isRoot) {
