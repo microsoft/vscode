@@ -507,6 +507,26 @@ suite('FileService', () => {
 		}, error => onError(error, done));
 	});
 
+	test('resolveFiles', function (done: () => void) {
+		service.resolveFiles([
+			{ resource: uri.file(testDir), options: { resolveTo: [uri.file(path.join(testDir, 'deep'))] } },
+			{ resource: uri.file(path.join(testDir, 'deep')) }
+		]).then(res => {
+			const r1 = res[0];
+
+			assert.equal(r1.children.length, 6);
+
+			let deep = utils.getByName(r1, 'deep');
+			assert.equal(deep.children.length, 4);
+
+			const r2 = res[1];
+			assert.equal(r2.children.length, 4);
+			assert.equal(r2.name, 'deep');
+
+			done();
+		}, error => onError(error, done));
+	});
+
 	test('existsFile', function (done: () => void) {
 		service.existsFile(uri.file(testDir)).then((exists) => {
 			assert.equal(exists, true);
