@@ -20,9 +20,9 @@ export const TERMINAL_FOREGROUND_COLOR = registerColor('terminal.foreground', {
 	hc: '#FFFFFF'
 }, nls.localize('terminal.foreground', 'The foreground color of the terminal.'));
 export const TERMINAL_SELECTION_BACKGROUND_COLOR = registerColor('terminal.selectionBackground', {
-	light: '#B0B0B0',
-	dark: '#404040',
-	hc: '#808080'
+	light: '#000',
+	dark: '#FFF',
+	hc: '#FFF'
 }, nls.localize('terminal.selectionBackground', 'The selection background color of the terminal.'));
 
 const ansiColorMap = {
