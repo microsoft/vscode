@@ -7,16 +7,52 @@
 
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import { IFileStat, isParent } from 'vs/platform/files/common/files';
-import { IEditorInput } from 'vs/platform/editor/common/editor';
-import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
 import { ResourceMap } from 'vs/base/common/map';
 import { isLinux } from 'vs/base/common/platform';
+import { IFileStat, isParent } from 'vs/platform/files/common/files';
+import { IEditorInput } from 'vs/platform/editor/common/editor';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
 
 export enum StatType {
 	FILE,
 	FOLDER,
 	ANY
+}
+
+export class Model {
+
+	private _roots: FileStat[];
+
+	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
+		const setRoots = () => this._roots = this.contextService.getWorkspace2().roots.map(uri => new FileStat(uri, uri));
+		this.contextService.onDidChangeWorkspaceRoots(() => setRoots());
+		setRoots();
+	}
+
+	public get roots(): FileStat[] {
+		return this._roots;
+	}
+
+	/**
+	 * Returns a child stat from this stat that matches with the provided path.
+	 * Starts matching from the first root.
+	 * Will return "null" in case the child does not exist.
+	 */
+	public findAll(resource: URI): FileStat[] {
+		return this.roots.map(root => root.find(resource)).filter(stat => !!stat);
+	}
+
+	public findFirst(resource: URI): FileStat {
+		for (let root of this.roots) {
+			const result = root.find(resource);
+			if (result) {
+				return result;
+			}
+		}
+
+		return null;
+	}
 }
 
 export class FileStat implements IFileStat {
@@ -31,7 +67,7 @@ export class FileStat implements IFileStat {
 
 	public isDirectoryResolved: boolean;
 
-	constructor(resource: URI, isDirectory?: boolean, hasChildren?: boolean, name: string = paths.basename(resource.fsPath), mtime?: number, etag?: string) {
+	constructor(resource: URI, public root: URI, isDirectory?: boolean, hasChildren?: boolean, name: string = paths.basename(resource.fsPath), mtime?: number, etag?: string) {
 		this.resource = resource;
 		this.name = name;
 		this.isDirectory = !!isDirectory;
@@ -51,8 +87,12 @@ export class FileStat implements IFileStat {
 		return this.resource.toString();
 	}
 
-	public static create(raw: IFileStat, resolveTo?: URI[]): FileStat {
-		const stat = new FileStat(raw.resource, raw.isDirectory, raw.hasChildren, raw.name, raw.mtime, raw.etag);
+	public get isRoot(): boolean {
+		return this.resource.toString() === this.root.toString();
+	}
+
+	public static create(raw: IFileStat, root: URI, resolveTo?: URI[]): FileStat {
+		const stat = new FileStat(raw.resource, root, raw.isDirectory, raw.hasChildren, raw.name, raw.mtime, raw.etag);
 
 		// Recursively add children if present
 		if (stat.isDirectory) {
@@ -67,7 +107,7 @@ export class FileStat implements IFileStat {
 			// Recurse into children
 			if (raw.children) {
 				for (let i = 0, len = raw.children.length; i < len; i++) {
-					const child = FileStat.create(raw.children[i], resolveTo);
+					const child = FileStat.create(raw.children[i], root, resolveTo);
 					child.parent = stat;
 					stat.children.push(child);
 					stat.hasChildren = stat.children.length > 0;
@@ -107,9 +147,11 @@ export class FileStat implements IFileStat {
 
 			// Map resource => stat
 			const oldLocalChildren = new ResourceMap<FileStat>();
-			local.children.forEach((localChild: FileStat) => {
-				oldLocalChildren.set(localChild.resource, localChild);
-			});
+			if (local.children) {
+				local.children.forEach((localChild: FileStat) => {
+					oldLocalChildren.set(localChild.resource, localChild);
+				});
+			}
 
 			// Clear current children
 			local.children = [];
@@ -275,7 +317,7 @@ export class NewStatPlaceholder extends FileStat {
 	private directoryPlaceholder: boolean;
 
 	constructor(isDirectory: boolean) {
-		super(URI.file(''));
+		super(URI.file(''), URI.file(''));
 
 		this.id = NewStatPlaceholder.ID++;
 		this.isDirectoryResolved = isDirectory;

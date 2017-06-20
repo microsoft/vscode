@@ -670,6 +670,10 @@ export class TestFileService implements IFileService {
 		});
 	}
 
+	resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): TPromise<IFileStat[]> {
+		return TPromise.join(toResolve.map(resourceAndOption => this.resolveFile(resourceAndOption.resource, resourceAndOption.options)));
+	}
+
 	existsFile(resource: URI): TPromise<boolean> {
 		return TPromise.as(null);
 	}

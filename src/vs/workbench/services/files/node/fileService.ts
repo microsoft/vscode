@@ -156,6 +156,10 @@ export class FileService implements IFileService {
 		return this.resolve(resource, options);
 	}
 
+	public resolveFiles(toResolve: { resource: uri, options?: IResolveFileOptions }[]): TPromise<IFileStat[]> {
+		return TPromise.join(toResolve.map(resourceAndOptions => this.resolve(resourceAndOptions.resource, resourceAndOptions.options)));
+	}
+
 	public existsFile(resource: uri): TPromise<boolean> {
 		return this.resolveFile(resource).then(() => true, () => false);
 	}
