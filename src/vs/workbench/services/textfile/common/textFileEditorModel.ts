@@ -334,7 +334,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private showTaskNotification(): void {
 		const storageKey = 'workbench.tasks.ranTaskBefore';
-		if (!this.storageService.get(storageKey)) {
+		if (!this.storageService.get(storageKey) && this.contextService.getWorkspace()) {
 			const fileName = path.relative(this.contextService.getWorkspace().resource.toString(), this.resource.toString());
 			if (fileName.match(/^gruntfile\.js$/i) || fileName.match(/^gulpfile\.js$/i) || fileName.match(/^tsconfig\.json$/i)) {
 				const message = localize('taskFileOpened', `Run your {0} in VS Code. Get started here.`, fileName.split('.')[0]);
