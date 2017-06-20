@@ -43,36 +43,36 @@ export default class CommandHandler implements vscode.Disposable {
 		);
 	}
 
-	acceptCurrent(editor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args): Promise<void> {
-		return this.accept(interfaces.CommitType.Current, editor, ...args);
+	acceptCurrent(editor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args) {
+		return this.accept(interfaces.CommitType.Current, editor, edit, ...args);
 	}
 
-	acceptIncoming(editor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args): Promise<void> {
-		return this.accept(interfaces.CommitType.Incoming, editor, ...args);
+	acceptIncoming(editor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args) {
+		return this.accept(interfaces.CommitType.Incoming, editor, edit, ...args);
 	}
 
-	acceptBoth(editor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args): Promise<void> {
-		return this.accept(interfaces.CommitType.Both, editor, ...args);
+	acceptBoth(editor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args) {
+		return this.accept(interfaces.CommitType.Both, editor, edit, ...args);
 	}
 
-	acceptAllCurrent(editor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args): Promise<void> {
-		return this.acceptAll(interfaces.CommitType.Current, editor);
+	acceptAllCurrent(editor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args) {
+		return this.acceptAll(interfaces.CommitType.Current, editor, edit);
 	}
 
-	acceptAllIncoming(editor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args): Promise<void> {
-		return this.acceptAll(interfaces.CommitType.Incoming, editor);
+	acceptAllIncoming(editor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args) {
+		return this.acceptAll(interfaces.CommitType.Incoming, editor, edit);
 	}
 
-	acceptAllBoth(editor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args): Promise<void> {
-		return this.acceptAll(interfaces.CommitType.Both, editor);
+	acceptAllBoth(editor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args) {
+		return this.acceptAll(interfaces.CommitType.Both, editor, edit);
 	}
 
-	async compare(editor: vscode.TextEditor, edit: vscode.TextEditorEdit, conflict: interfaces.IDocumentMergeConflict | null, ...args) {
+	compare(editor: vscode.TextEditor, edit: vscode.TextEditorEdit, conflict: interfaces.IDocumentMergeConflict | null, ...args) {
 		const fileName = path.basename(editor.document.uri.fsPath);
 
 		// No conflict, command executed from command palette
 		if (!conflict) {
-			conflict = await this.findConflictContainingSelection(editor);
+			conflict = this.findConflictContainingSelection(editor);
 
 			// Still failed to find conflict, warn the user and exit
 			if (!conflict) {
@@ -91,7 +91,13 @@ export default class CommandHandler implements vscode.Disposable {
 		const rightUri = leftUri.with({ query: JSON.stringify(range) });
 
 		const title = localize('compareChangesTitle', '{0}: Current Changes ⟷ Incoming Changes', fileName);
-		vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
+
+		// Temporary fix for edits attempting to be applied to a disposed TextEditor.
+		// If the diff window opens over the top of this window, at some later point
+		// vscode core will attempt to apply edits to a non-visble, disposed editor,
+		// even though we don't actually use the edit builder.
+		// We need to return from this method, and execute the diff command lazily.
+		setTimeout(() => vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title), 200);
 	}
 
 	navigateNext(editor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args): Promise<void> {
@@ -102,8 +108,8 @@ export default class CommandHandler implements vscode.Disposable {
 		return this.navigate(editor, NavigationDirection.Backwards);
 	}
 
-	async acceptSelection(editor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args): Promise<void> {
-		let conflict = await this.findConflictContainingSelection(editor);
+	acceptSelection(editor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args) {
+		let conflict = this.findConflictContainingSelection(editor);
 
 		if (!conflict) {
 			vscode.window.showWarningMessage(localize('cursorNotInConflict', 'Editor cursor is not within a merge conflict'));
@@ -138,7 +144,7 @@ export default class CommandHandler implements vscode.Disposable {
 		}
 
 		this.tracker.forget(editor.document);
-		conflict.commitEdit(typeToAccept, editor);
+		conflict.commitEdit(typeToAccept, editor, edit);
 	}
 
 	dispose() {
@@ -167,7 +173,7 @@ export default class CommandHandler implements vscode.Disposable {
 		editor.revealRange(navigationResult.conflict.range, vscode.TextEditorRevealType.Default);
 	}
 
-	private async accept(type: interfaces.CommitType, editor: vscode.TextEditor, ...args): Promise<void> {
+	private accept(type: interfaces.CommitType, editor: vscode.TextEditor, edit: vscode.TextEditorEdit | undefined, ...args) {
 
 		let conflict: interfaces.IDocumentMergeConflict | null;
 
@@ -177,7 +183,7 @@ export default class CommandHandler implements vscode.Disposable {
 		}
 		else {
 			// Attempt to find a conflict that matches the current curosr position
-			conflict = await this.findConflictContainingSelection(editor);
+			conflict = this.findConflictContainingSelection(editor);
 		}
 
 		if (!conflict) {
@@ -187,11 +193,11 @@ export default class CommandHandler implements vscode.Disposable {
 
 		// Tracker can forget as we know we are going to do an edit
 		this.tracker.forget(editor.document);
-		conflict.commitEdit(type, editor);
+		conflict.commitEdit(type, editor, edit);
 	}
 
-	private async acceptAll(type: interfaces.CommitType, editor: vscode.TextEditor): Promise<void> {
-		let conflicts = await this.tracker.getConflicts(editor.document);
+	private acceptAll(type: interfaces.CommitType, editor: vscode.TextEditor, edit: vscode.TextEditorEdit | undefined) {
+		let conflicts = this.tracker.getConflictsSync(editor.document);
 
 		if (!conflicts || conflicts.length === 0) {
 			vscode.window.showWarningMessage(localize('noConflicts', 'No merge conflicts found in this file'));
@@ -201,16 +207,25 @@ export default class CommandHandler implements vscode.Disposable {
 		// For get the current state of the document, as we know we are doing to do a large edit
 		this.tracker.forget(editor.document);
 
-		// Apply all changes as one edit
-		await editor.edit((edit) => conflicts.forEach(conflict => {
+		// Generate a "callback" that applies the specified action to all conflicts with the document
+		const allConflictsEdit = (edit) => conflicts.forEach(conflict => {
 			conflict.applyEdit(type, editor, edit);
-		}));
+		});
+
+		// We got an edit from the command system, use that.
+		if (edit) {
+			allConflictsEdit(edit);
+			return;
+		}
+
+		// No edit supplied, generate one
+		editor.edit(allConflictsEdit);
 	}
 
-	private async findConflictContainingSelection(editor: vscode.TextEditor, conflicts?: interfaces.IDocumentMergeConflict[]): Promise<interfaces.IDocumentMergeConflict | null> {
+	private findConflictContainingSelection(editor: vscode.TextEditor, conflicts?: interfaces.IDocumentMergeConflict[]): interfaces.IDocumentMergeConflict | null {
 
 		if (!conflicts) {
-			conflicts = await this.tracker.getConflicts(editor.document);
+			conflicts = this.tracker.getConflictsSync(editor.document);
 		}
 
 		if (!conflicts || conflicts.length === 0) {

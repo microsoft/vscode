@@ -21,19 +21,17 @@ export class DocumentMergeConflict implements interfaces.IDocumentMergeConflict 
 		this.splitter = descriptor.splitter;
 	}
 
-	public commitEdit(type: interfaces.CommitType, editor: vscode.TextEditor, edit?: vscode.TextEditorEdit): Thenable<boolean> {
+	public async commitEdit(type: interfaces.CommitType, editor: vscode.TextEditor, edit?: vscode.TextEditorEdit): Promise<boolean> {
 
 		if (edit) {
-
 			this.applyEdit(type, editor, edit);
-			return Promise.resolve(true);
+			return true;
 		};
 
-		return editor.edit((edit) => this.applyEdit(type, editor, edit));
+		return await editor.edit((edit) => this.applyEdit(type, editor, edit));
 	}
 
 	public applyEdit(type: interfaces.CommitType, editor: vscode.TextEditor, edit: vscode.TextEditorEdit): void {
-
 		// Each conflict is a set of ranges as follows, note placements or newlines
 		// which may not in in spans
 		// [ Conflict Range             -- (Entire content below)
