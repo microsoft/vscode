@@ -185,10 +185,7 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 		this.onSearchChange = mapEvent(onSearchInput, e => e.target.value);
 
 		this.searchExtensionsContextKey.set(!!this.searchBox.value);
-		return super.create(new Builder(this.extensionsBox))
-			.then(() => {
-				this.doSearch();
-			});
+		return super.create(new Builder(this.extensionsBox));
 	}
 
 	public updateStyles(): void {
@@ -204,13 +201,20 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 	}
 
 	setVisible(visible: boolean): TPromise<void> {
-		if (this.isVisible() !== visible) {
+		const isVisibilityChanged = this.isVisible() !== visible;
+		if (isVisibilityChanged) {
 			if (visible) {
 				this.searchBox.focus();
 				this.searchBox.setSelectionRange(0, this.searchBox.value.length);
 			}
 		}
-		return super.setVisible(visible);
+		return super.setVisible(visible).then(() => {
+			if (isVisibilityChanged) {
+				if (visible) {
+					this.doSearch();
+				}
+			}
+		});
 	}
 
 	focus(): void {
