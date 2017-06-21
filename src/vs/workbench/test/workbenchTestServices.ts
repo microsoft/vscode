@@ -858,7 +858,7 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
-	pickFolder(options?: { buttonLabel: string }): TPromise<string[]> {
+	pickFolder(options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
 		return TPromise.as([]);
 	}
 
@@ -981,7 +981,7 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
-	pickFolder(options?: { buttonLabel: string }): TPromise<string[]> {
+	pickFolder(options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
 		return TPromise.as([]);
 	}
 

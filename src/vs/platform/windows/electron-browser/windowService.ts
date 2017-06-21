@@ -34,7 +34,7 @@ export class WindowService implements IWindowService {
 		return this.windowsService.pickFolderAndOpen(this.windowId, forceNewWindow, data);
 	}
 
-	pickFolder(options?: { buttonLabel: string }): TPromise<string[]> {
+	pickFolder(options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
 		return this.windowsService.pickFolder(options);
 	}
 

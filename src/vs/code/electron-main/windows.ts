@@ -1135,14 +1135,14 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	public pickFileAndOpen(forceNewWindow?: boolean, path?: string, window?: CodeWindow, data?: ITelemetryData): void {
-		this.fileDialog.pickAndOpen({ pickFiles: true, forceNewWindow, path, window }, 'openFile', data);
+		this.fileDialog.pickAndOpen({ pickFiles: true, forceNewWindow, path, window, title: nls.localize('openFile', "Open File") }, 'openFile', data);
 	}
 
 	public pickFolderAndOpen(forceNewWindow?: boolean, window?: CodeWindow, data?: ITelemetryData): void {
-		this.fileDialog.pickAndOpen({ pickFolders: true, forceNewWindow, window }, 'openFolder', data);
+		this.fileDialog.pickAndOpen({ pickFolders: true, forceNewWindow, window, title: nls.localize('openFolder', "Open Folder") }, 'openFolder', data);
 	}
 
-	public pickFolder(options?: { buttonLabel: string }): TPromise<string[]> {
+	public pickFolder(options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
 		return new TPromise((c, e) => {
 			this.fileDialog.getFileOrFolderPaths({ pickFolders: true, buttonLabel: options && options.buttonLabel }, folders => {
 				c(folders || []);
@@ -1169,6 +1169,7 @@ export class WindowsManager implements IWindowsMainService {
 }
 
 interface INativeOpenDialogOptions {
+	title?: string;
 	pickFolders?: boolean;
 	pickFiles?: boolean;
 	path?: string;
@@ -1215,6 +1216,7 @@ class FileDialog {
 		}
 
 		dialog.showOpenDialog(focussedWindow && focussedWindow.win, {
+			title: options && options.title ? options.title : void 0,
 			defaultPath: workingDir,
 			properties: pickerProperties,
 			buttonLabel: options && options.buttonLabel ? options.buttonLabel : void 0

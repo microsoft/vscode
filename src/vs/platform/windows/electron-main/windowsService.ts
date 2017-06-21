@@ -67,7 +67,7 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return TPromise.as(null);
 	}
 
-	pickFolder(options?: { buttonLabel: string }): TPromise<string[]> {
+	pickFolder(options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
 		return this.windowsMainService.pickFolder(options);
 	}
 
