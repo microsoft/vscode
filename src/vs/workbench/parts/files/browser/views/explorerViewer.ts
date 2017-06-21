@@ -158,7 +158,7 @@ export class FileActionProvider extends ContributableActionProvider {
 		return super.getActions(tree, stat);
 	}
 
-	public hasSecondaryActions(tree: ITree, stat: FileStat): boolean {
+	public hasSecondaryActions(tree: ITree, stat: FileStat | Model): boolean {
 		if (stat instanceof NewStatPlaceholder) {
 			return false;
 		}
@@ -166,7 +166,7 @@ export class FileActionProvider extends ContributableActionProvider {
 		return super.hasSecondaryActions(tree, stat);
 	}
 
-	public getSecondaryActions(tree: ITree, stat: FileStat): TPromise<IAction[]> {
+	public getSecondaryActions(tree: ITree, stat: FileStat | Model): TPromise<IAction[]> {
 		if (stat instanceof NewStatPlaceholder) {
 			return TPromise.as([]);
 		}
@@ -474,7 +474,7 @@ export class FileController extends DefaultController {
 		return true;
 	}
 
-	public onContextMenu(tree: ITree, stat: FileStat, event: ContextMenuEvent): boolean {
+	public onContextMenu(tree: ITree, stat: FileStat | Model, event: ContextMenuEvent): boolean {
 		if (event.target && event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
 			return false;
 		}
@@ -493,7 +493,7 @@ export class FileController extends DefaultController {
 			getAnchor: () => anchor,
 			getActions: () => {
 				return this.state.actionProvider.getSecondaryActions(tree, stat).then(actions => {
-					fillInActions(this.contributedContextMenu, { arg: stat.resource }, actions);
+					fillInActions(this.contributedContextMenu, stat instanceof FileStat ? { arg: stat.resource } : null, actions);
 					return actions;
 				});
 			},
