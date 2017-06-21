@@ -63,6 +63,6 @@ suite('ExtHostWorkspace', function () {
 		assert.equal(ws.getPath(), undefined);
 
 		ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', name: 'Test', roots: [URI.file('/Folder')] });
-		assert.equal(ws.getPath(), '/Folder');
+		assert.equal(ws.getPath().replace(/\\/g, '/'), '/Folder');
 	});
 });
