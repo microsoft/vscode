@@ -110,7 +110,7 @@ export class OutputService implements IOutputService {
 		const channels = this.getChannels();
 		this.activeChannelId = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, channels && channels.length > 0 ? channels[0].id : null);
 
-		this._outputLinkDetector = new OutputLinkProvider(contextService, modelService);
+		this._outputLinkDetector = instantiationService.createInstance(OutputLinkProvider);
 
 		this._outputContentProvider = instantiationService.createInstance(OutputContentProvider, this);
 
