@@ -38,8 +38,8 @@ export function activate(context: vscode.ExtensionContext) {
 		wrapWithAbbreviation();
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.expandAbbreviation', () => {
-		expandAbbreviation();
+	context.subscriptions.push(vscode.commands.registerCommand('emmet.expandAbbreviation', (args) => {
+		expandAbbreviation(args);
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.removeTag', () => {

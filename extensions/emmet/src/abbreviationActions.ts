@@ -10,7 +10,7 @@ import parseStylesheet from '@emmetio/css-parser';
 import parse from '@emmetio/html-matcher';
 import Node from '@emmetio/node';
 
-import { getSyntax, getProfile, getVariables, isStyleSheet, getNode, getInnerRange, getMappedModes } from './util';
+import { getSyntax, getProfile, getVariables, isStyleSheet, getNode, getInnerRange } from './util';
 import { DocumentStreamReader } from './bufferStream';
 
 const field = (index, placeholder) => `\${${index}${placeholder ? ':' + placeholder : ''}}`;
@@ -35,24 +35,17 @@ export function wrapWithAbbreviation() {
 	});
 }
 
-export function expandAbbreviation() {
+export function expandAbbreviation(args) {
+
 	let editor = vscode.window.activeTextEditor;
 	if (!editor) {
 		vscode.window.showInformationMessage('No editor is active');
 		return;
 	}
-	let syntax = getSyntax(editor.document);
-	let mappedSyntax = getMappedModes()[syntax];
-
-	if (!mappedSyntax) {
-		syntax = syntaxHelper(syntax, editor.document, editor.selection.end);
-	} else {
-		syntax = mappedSyntax;
-	}
-	if (!syntax) {
+	if (typeof args !== 'object' || !args['syntax']) {
 		return;
 	}
-	let output = expandAbbreviationHelper(syntax, editor.document, editor.selection);
+	let output = expandAbbreviationHelper(args['syntax'], editor.document, editor.selection);
 	if (output) {
 		editor.insertSnippet(new vscode.SnippetString(output.expandedText), output.abbreviationRange);
 	}
@@ -97,6 +90,7 @@ export function syntaxHelper(syntax: string, document: vscode.TextDocument, posi
 	} else if (!isValidLocationForEmmetAbbreviation(currentNode, syntax, position)) {
 		return;
 	}
+	return syntax;
 }
 
 /**
