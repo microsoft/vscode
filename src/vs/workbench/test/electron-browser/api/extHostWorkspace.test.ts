@@ -48,4 +48,21 @@ suite('ExtHostWorkspace', function () {
 		assert.equal(ws.getRelativePath('/Coding/Two/files/out.txt'), 'files/out.txt');
 		assert.equal(ws.getRelativePath('/Coding/Two2/files/out.txt'), '/Coding/Two2/files/out.txt');
 	});
+
+	test('getPath, legacy', function () {
+		let ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', name: 'Test', roots: [] });
+		assert.equal(ws.getPath(), undefined);
+
+		ws = new ExtHostWorkspace(new TestThreadService(), null);
+		assert.equal(ws.getPath(), undefined);
+
+		ws = new ExtHostWorkspace(new TestThreadService(), undefined);
+		assert.equal(ws.getPath(), undefined);
+
+		ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', name: 'Test', roots: [URI.file('Folder'), URI.file('Another/Folder')] });
+		assert.equal(ws.getPath(), undefined);
+
+		ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', name: 'Test', roots: [URI.file('/Folder')] });
+		assert.equal(ws.getPath(), '/Folder');
+	});
 });

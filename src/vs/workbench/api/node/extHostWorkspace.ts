@@ -43,7 +43,16 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 		// this is legacy from the days before having
 		// multi-root and we keep it only alive if there
 		// is just one workspace folder.
-		return this._workspace ? this._workspace.roots[0].fsPath : undefined;
+		if (!this._workspace) {
+			return undefined;
+		}
+		const { roots } = this._workspace;
+		if (roots.length === 1) {
+			return roots[0].fsPath;
+		}
+		// return `undefined` when there no or more than 1
+		// root folder.
+		return undefined;
 	}
 
 	getRelativePath(pathOrUri: string | vscode.Uri): string {
