@@ -46,6 +46,7 @@ type ApiThemeClassName = 'vscode-light' | 'vscode-dark' | 'vscode-high-contrast'
 
 export interface WebviewOptions {
 	allowScripts?: boolean;
+	allowSvgs?: boolean;
 }
 
 export default class Webview {
@@ -95,32 +96,43 @@ export default class Webview {
 		});
 
 		let loaded = false;
-		const subscription = addDisposableListener(this._webview, 'did-start-loading', () => {
-			if (loaded) {
-				return;
-			}
-			loaded = true;
-			const contents = this._webview.getWebContents();
-			contents.session.webRequest.onBeforeRequest((details, callback) => {
-				if (details.url.indexOf('.svg') > 0) {
-					const uri = URI.parse(details.url);
-					if (uri && !uri.scheme.match(/file/i) && (uri.path as any).endsWith('.svg')) {
-						return callback({ cancel: true });
+		if (!options.allowSvgs) {
+			const subscription = addDisposableListener(this._webview, 'did-start-loading', () => {
+				if (loaded) {
+					return;
+				}
+				loaded = true;
+
+				const contents = this._webview.getWebContents();
+				if (!contents) {
+					return;
+				}
+
+				contents.session.webRequest.onBeforeRequest((details, callback) => {
+					if (details.url.indexOf('.svg') > 0) {
+						const uri = URI.parse(details.url);
+						if (uri && !uri.scheme.match(/file/i) && (uri.path as any).endsWith('.svg') && !this.isAllowedSvg(uri)) {
+							return callback({ cancel: true });
+						}
 					}
-				}
-				return callback({});
+					return callback({});
+				});
+
+				contents.session.webRequest.onHeadersReceived((details, callback) => {
+					const contentType: string[] = (details.responseHeaders['content-type'] || details.responseHeaders['Content-Type']) as any;
+					if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
+						const uri = URI.parse(details.url);
+						if (uri && !this.isAllowedSvg(uri)) {
+							return callback({ cancel: true });
+						}
+					}
+					return callback({ cancel: false, responseHeaders: details.responseHeaders });
+				});
 			});
 
-			contents.session.webRequest.onHeadersReceived((details, callback) => {
-				const contentType: string[] = details.responseHeaders['content-type'] as any;
-				if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
-					return callback({ cancel: true });
-				}
-				return callback({});
-			});
-		});
+			this._disposables.push(subscription);
+		}
 
-		this._disposables.push(subscription);
 
 		this._disposables.push(
 			addDisposableListener(this._webview, 'console-message', function (e: { level: number; message: string; line: number; sourceId: string; }) {
@@ -323,5 +335,13 @@ export default class Webview {
 				}
 			});
 		});
+	}
+
+	private isAllowedSvg(uri: URI): boolean {
+		if (uri.scheme !== 'https') {
+			return false;
+		}
+		const whitelist = ['travis-ci.org', 'api.travis-ci.org', 'img.shields.io', 'ci.appveyor.com'];
+		return whitelist.indexOf(uri.authority) >= 0;
 	}
 }

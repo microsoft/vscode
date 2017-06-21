@@ -11,6 +11,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 export interface HtmlInputOptions {
 	allowScripts?: boolean;
+	allowSvgs?: boolean;
 }
 
 export class HtmlInput extends ResourceEditorInput {

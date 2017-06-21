@@ -810,11 +810,11 @@ export class WindowsManager implements IWindowsMainService {
 			});
 
 			codeWindow.win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
-				const contentType: string[] = details.responseHeaders['content-type'] as any;
+				const contentType: string[] = (details.responseHeaders['content-type'] || details.responseHeaders['Content-Type']) as any;
 				if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
 					return callback({ cancel: true });
 				}
-				return callback({});
+				return callback({ cancel: false, responseHeaders: details.responseHeaders });
 			});
 
 			// Lifecycle
