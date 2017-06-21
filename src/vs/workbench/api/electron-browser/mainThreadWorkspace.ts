@@ -49,13 +49,13 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 	// --- search ---
 
 	$startSearch(include: string, exclude: string, maxResults: number, requestId: number): Thenable<URI[]> {
-		const workspace = this._contextService.getWorkspace();
+		const workspace = this._contextService.getWorkspace2();
 		if (!workspace) {
 			return undefined;
 		}
 
 		const search = this._searchService.search({
-			folderResources: [workspace.resource],
+			folderResources: workspace.roots,
 			type: QueryType.File,
 			maxResults,
 			includePattern: { [include]: true },

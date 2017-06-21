@@ -184,6 +184,7 @@ export interface IScope extends IExpressionContainer {
 export interface IStackFrame extends ITreeElement {
 	thread: IThread;
 	name: string;
+	presentationHint: string;
 	frameId: number;
 	range: IRange;
 	source: Source;
@@ -539,9 +540,9 @@ export interface IDebugService {
 	stopProcess(process: IProcess): TPromise<any>;
 
 	/**
-	 * Deemphasizes all sources with the passed uri. Source will appear as grayed out in callstack view.
+	 * Makes unavailable all sources with the passed uri. Source will appear as grayed out in callstack view.
 	 */
-	deemphasizeSource(uri: uri): void;
+	sourceIsNotAvailable(uri: uri): void;
 
 	/**
 	 * Gets the current debug model.

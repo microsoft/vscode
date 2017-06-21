@@ -36,10 +36,11 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts, Position as SidebarPosition } from 'vs/workbench/services/part/common/partService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IKeybindingService } from "vs/platform/keybinding/common/keybinding";
-
 import * as os from 'os';
 import { webFrame } from 'electron';
 import { getPathLabel } from "vs/base/common/labels";
+import { IViewlet } from "vs/workbench/common/viewlet";
+import { IPanel } from "vs/workbench/common/panel";
 
 // --- actions
 
@@ -56,13 +57,13 @@ export class CloseEditorAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): TPromise<void> {
 		const activeEditor = this.editorService.getActiveEditor();
 		if (activeEditor) {
 			return this.editorService.closeEditor(activeEditor.position, activeEditor.input);
 		}
 
-		return TPromise.as(false);
+		return TPromise.as(null);
 	}
 }
 
@@ -156,7 +157,7 @@ export class ToggleMenuBarAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): TPromise<void> {
 		let currentVisibilityValue = this.configurationService.lookup<MenuBarVisibility>(ToggleMenuBarAction.menuBarVisibilityKey).value;
 		if (typeof currentVisibilityValue !== 'string') {
 			currentVisibilityValue = 'default';
@@ -843,8 +844,8 @@ Steps to Reproduce:
 			return onlyTheme ? 'themes' : 'nonThemes';
 		});
 
-		const themeExclusionStr = themes.length ? `\n(${themes.length} theme extensions excluded)` : '';
-		extensions = nonThemes;
+		const themeExclusionStr = (themes && themes.length) ? `\n(${themes.length} theme extensions excluded)` : '';
+		extensions = nonThemes || [];
 
 		if (!extensions.length) {
 			return 'none' + themeExclusionStr;
@@ -1112,37 +1113,39 @@ export abstract class BaseNavigationAction extends Action {
 		return TPromise.as(false);
 	}
 
-	protected navigateOnEditorFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean> {
+	protected navigateOnEditorFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean | IViewlet | IPanel> {
 		return TPromise.as(true);
 	}
 
-	protected navigateOnPanelFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean> {
+	protected navigateOnPanelFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean | IPanel> {
 		return TPromise.as(true);
 	}
 
-	protected navigateOnSidebarFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean> {
+	protected navigateOnSidebarFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean | IViewlet> {
 		return TPromise.as(true);
 	}
 
-	protected navigateToPanel(): TPromise<any> {
+	protected navigateToPanel(): TPromise<IPanel | boolean> {
 		if (!this.partService.isVisible(Parts.PANEL_PART)) {
 			return TPromise.as(false);
 		}
 
 		const activePanelId = this.panelService.getActivePanel().getId();
+
 		return this.panelService.openPanel(activePanelId, true);
 	}
 
-	protected navigateToSidebar(): TPromise<any> {
+	protected navigateToSidebar(): TPromise<IViewlet | boolean> {
 		if (!this.partService.isVisible(Parts.SIDEBAR_PART)) {
 			return TPromise.as(false);
 		}
 
 		const activeViewletId = this.viewletService.getActiveViewlet().getId();
+
 		return this.viewletService.openViewlet(activeViewletId, true);
 	}
 
-	protected navigateAcrossEditorGroup(direction): TPromise<any> {
+	protected navigateAcrossEditorGroup(direction): TPromise<boolean> {
 		const model = this.groupService.getStacksModel();
 		const currentPosition = model.positionOfGroup(model.activeGroup);
 		const nextPosition = direction === Direction.Next ? currentPosition + 1 : currentPosition - 1;
@@ -1152,25 +1155,29 @@ export abstract class BaseNavigationAction extends Action {
 		}
 
 		this.groupService.focusGroup(nextPosition);
+
 		return TPromise.as(true);
 	}
 
-	protected navigateToLastActiveGroup(): TPromise<any> {
+	protected navigateToLastActiveGroup(): TPromise<boolean> {
 		const model = this.groupService.getStacksModel();
 		const lastActiveGroup = model.activeGroup;
 		this.groupService.focusGroup(lastActiveGroup);
+
 		return TPromise.as(true);
 	}
 
-	protected navigateToFirstEditorGroup(): TPromise<any> {
+	protected navigateToFirstEditorGroup(): TPromise<boolean> {
 		this.groupService.focusGroup(0);
+
 		return TPromise.as(true);
 	}
 
-	protected navigateToLastEditorGroup(): TPromise<any> {
+	protected navigateToLastEditorGroup(): TPromise<boolean> {
 		const model = this.groupService.getStacksModel();
 		const lastEditorGroupPosition = model.groups.length - 1;
 		this.groupService.focusGroup(lastEditorGroupPosition);
+
 		return TPromise.as(true);
 	}
 }
@@ -1191,7 +1198,7 @@ export class NavigateLeftAction extends BaseNavigationAction {
 		super(id, label, groupService, panelService, partService, viewletService);
 	}
 
-	protected navigateOnEditorFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
+	protected navigateOnEditorFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean | IViewlet> {
 		if (!isEditorGroupVertical) {
 			if (isSidebarPositionLeft) {
 				return this.navigateToSidebar();
@@ -1207,10 +1214,11 @@ export class NavigateLeftAction extends BaseNavigationAction {
 			});
 	}
 
-	protected navigateOnPanelFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
+	protected navigateOnPanelFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean | IViewlet> {
 		if (isSidebarPositionLeft) {
 			return this.navigateToSidebar();
 		}
+
 		return TPromise.as(false);
 	}
 
@@ -1218,9 +1226,11 @@ export class NavigateLeftAction extends BaseNavigationAction {
 		if (isSidebarPositionLeft) {
 			return TPromise.as(false);
 		}
+
 		if (isEditorGroupVertical) {
 			return this.navigateToLastEditorGroup();
 		}
+
 		return this.navigateToLastActiveGroup();
 	}
 }
@@ -1241,13 +1251,14 @@ export class NavigateRightAction extends BaseNavigationAction {
 		super(id, label, groupService, panelService, partService, viewletService);
 	}
 
-	protected navigateOnEditorFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
+	protected navigateOnEditorFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean | IViewlet> {
 		if (!isEditorGroupVertical) {
 			if (!isSidebarPositionLeft) {
 				return this.navigateToSidebar();
 			}
 			return TPromise.as(false);
 		}
+
 		return this.navigateAcrossEditorGroup(Direction.Next)
 			.then(didNavigate => {
 				if (!didNavigate && !isSidebarPositionLeft) {
@@ -1257,10 +1268,11 @@ export class NavigateRightAction extends BaseNavigationAction {
 			});
 	}
 
-	protected navigateOnPanelFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
+	protected navigateOnPanelFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean | IViewlet> {
 		if (!isSidebarPositionLeft) {
 			return this.navigateToSidebar();
 		}
+
 		return TPromise.as(false);
 	}
 
@@ -1268,9 +1280,11 @@ export class NavigateRightAction extends BaseNavigationAction {
 		if (!isSidebarPositionLeft) {
 			return TPromise.as(false);
 		}
+
 		if (isEditorGroupVertical) {
 			return this.navigateToFirstEditorGroup();
 		}
+
 		return this.navigateToLastActiveGroup();
 	}
 }
@@ -1322,10 +1336,11 @@ export class NavigateDownAction extends BaseNavigationAction {
 		super(id, label, groupService, panelService, partService, viewletService);
 	}
 
-	protected navigateOnEditorFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
+	protected navigateOnEditorFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean | IPanel> {
 		if (isEditorGroupVertical) {
 			return this.navigateToPanel();
 		}
+
 		return this.navigateAcrossEditorGroup(Direction.Next)
 			.then(didNavigate => {
 				if (didNavigate) {

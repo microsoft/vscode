@@ -889,13 +889,9 @@ export class SearchViewlet extends Viewlet {
 		}
 	}
 
-	public searchInFolder(resource: URI): void {
-		const workspace = this.contextService.getWorkspace();
-		if (!workspace) {
-			return;
-		}
-
-		if (workspace.resource.toString() === resource.toString()) {
+	public searchInFolder(resource?: URI): void {
+		const workspaceRelativePath = this.contextService.toWorkspaceRelativePath(resource);
+		if (!workspaceRelativePath || workspaceRelativePath === '.') {
 			this.inputPatternIncludes.setValue('');
 			this.searchWidget.focus();
 			return;
@@ -904,12 +900,10 @@ export class SearchViewlet extends Viewlet {
 		if (!this.showsFileTypes()) {
 			this.toggleQueryDetails(true, true);
 		}
-		const workspaceRelativePath = this.contextService.toWorkspaceRelativePath(resource);
-		if (workspaceRelativePath) {
-			this.inputPatternIncludes.setIsGlobPattern(false);
-			this.inputPatternIncludes.setValue('./' + workspaceRelativePath);
-			this.searchWidget.focus(false);
-		}
+
+		this.inputPatternIncludes.setIsGlobPattern(false);
+		this.inputPatternIncludes.setValue('./' + workspaceRelativePath);
+		this.searchWidget.focus(false);
 	}
 
 	public onQueryChanged(rerunQuery: boolean, preserveFocus?: boolean): void {
@@ -956,7 +950,7 @@ export class SearchViewlet extends Viewlet {
 		const { expression: includePattern, searchPaths } = this.inputPatternIncludes.getGlob();
 
 		const options: IQueryOptions = {
-			folderResources: this.contextService.hasWorkspace() ? [this.contextService.getWorkspace().resource] : [],
+			folderResources: this.contextService.hasWorkspace() ? this.contextService.getWorkspace2().roots : [],
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
 			excludePattern,
 			includePattern,

@@ -11,8 +11,8 @@ import { IWorkspaceConfigurationService } from 'vs/workbench/services/configurat
 import { IChoiceService } from 'vs/platform/message/common/message';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLaunchConfig, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY } from 'vs/workbench/parts/terminal/common/terminal';
-import { Severity } from 'vs/editor/common/standalone/standaloneBase';
 import { TPromise } from 'vs/base/common/winjs.base';
+import Severity from 'vs/base/common/severity';
 
 interface IEditorConfiguration {
 	editor: IEditorOptions;

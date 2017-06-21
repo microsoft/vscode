@@ -334,10 +334,9 @@ export class MessageList {
 				sevLabel.appendTo(div);
 
 				// Error message
-				const messageContentElement = htmlRenderer.renderHtml({
+				const messageContentElement = htmlRenderer.renderFormattedText(text, {
 					inline: true,
 					className: 'message-left-side',
-					formattedText: text
 				});
 
 				$(messageContentElement as HTMLElement).title(messageContentElement.textContent).appendTo(div);

@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction } from 'vs/base/common/actions';
 import Event from 'vs/base/common/event';
 import { Builder, $ } from 'vs/base/browser/builder';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { Scope } from 'vs/workbench/browser/actions';
 import { IPanel } from 'vs/workbench/common/panel';
 import { CompositePart, ICompositeTitleLabel } from 'vs/workbench/browser/parts/compositePart';

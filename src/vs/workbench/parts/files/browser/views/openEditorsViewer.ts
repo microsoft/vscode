@@ -22,7 +22,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorGroup, IEditorStacksModel } from 'vs/workbench/common/editor';
-import { OpenEditor } from 'vs/workbench/parts/files/common/explorerViewModel';
+import { OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 import { ContributableActionProvider } from 'vs/workbench/browser/actions';
 import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';

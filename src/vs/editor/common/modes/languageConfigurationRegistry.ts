@@ -387,12 +387,7 @@ export class LanguageConfigurationRegistryImpl {
 				// search from precedingUnIgnoredLine until we find one whose indent is not temporary
 				for (let i = precedingUnIgnoredLine; i > 0; i--) {
 					let lineContent = model.getLineContent(i);
-					if (indentRulesSupport.shouldDecrease(lineContent)) {
-						return {
-							indentation: strings.getLeadingWhitespace(lineContent),
-							action: null
-						};
-					} else if (indentRulesSupport.shouldIncrease(lineContent)) {
+					if (indentRulesSupport.shouldIncrease(lineContent)) {
 						return {
 							indentation: strings.getLeadingWhitespace(lineContent),
 							action: IndentAction.Indent
@@ -409,6 +404,11 @@ export class LanguageConfigurationRegistryImpl {
 
 						return {
 							indentation: strings.getLeadingWhitespace(model.getLineContent(stopLine + 1)),
+							action: null
+						};
+					} else if (indentRulesSupport.shouldDecrease(lineContent)) {
+						return {
+							indentation: strings.getLeadingWhitespace(lineContent),
 							action: null
 						};
 					}

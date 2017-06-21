@@ -627,7 +627,7 @@ export class TextEditorOptions extends EditorOptions {
 			}
 
 			if (input.options.viewState) {
-				options.editorViewState = input.options.viewState;
+				options.editorViewState = input.options.viewState as IEditorViewState;
 			}
 
 			if (typeof input.options.index === 'number') {

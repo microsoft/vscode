@@ -407,6 +407,22 @@ export abstract class AbstractCollapsibleView extends HeaderView {
 		this.updateSize();
 	}
 
+	showHeader(): boolean {
+		const result = super.showHeader();
+		if (result) {
+			this.updateSize();
+		}
+		return result;
+	}
+
+	hideHeader(): boolean {
+		const result = super.hideHeader();
+		if (result) {
+			this.updateSize();
+		}
+		return result;
+	}
+
 	dispose(): void {
 		if (this.headerClickListener) {
 			this.headerClickListener.dispose();

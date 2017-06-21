@@ -6,10 +6,25 @@
 
 import { localize } from 'vs/nls';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { WelcomePageContribution, WelcomePageAction } from 'vs/workbench/parts/welcome/page/electron-browser/welcomePage';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+	.registerConfiguration({
+		'id': 'workbench',
+		'order': 7,
+		'title': localize('workbenchConfigurationTitle', "Workbench"),
+		'properties': {
+			'workbench.welcome.enabled': {
+				'type': 'boolean',
+				'default': true,
+				'description': localize('welcomePage.enabled', "When enabled, will show the Welcome page on startup.")
+			},
+		}
+	});
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(WelcomePageContribution);

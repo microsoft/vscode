@@ -209,7 +209,7 @@ export class View extends ViewEventHandler {
 		let rulers = new Rulers(this._context);
 		this.viewParts.push(rulers);
 
-		let minimap = new Minimap(this._context, this._scrollbar);
+		let minimap = new Minimap(this._context);
 		this.viewParts.push(minimap);
 
 		// -------------- Wire dom nodes up

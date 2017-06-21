@@ -9,6 +9,7 @@ import assert = require('assert');
 import os = require('os');
 import path = require('path');
 import fs = require('fs');
+import uri from 'vs/base/common/uri';
 import * as json from 'vs/base/common/json';
 import { OS } from 'vs/base/common/platform';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
@@ -16,8 +17,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { KeyCode, SimpleKeybinding, ChordKeybinding } from 'vs/base/common/keyCodes';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import extfs = require('vs/base/node/extfs');
-import { TestTextFileService, TestEditorGroupService, TestLifecycleService, TestBackupFileService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { TestTextFileService, TestEditorGroupService, TestLifecycleService, TestBackupFileService, TestContextService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
+import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
 import uuid = require('vs/base/common/uuid');
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
@@ -41,6 +42,8 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { IChoiceService } from 'vs/platform/message/common/message';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 interface Modifiers {
 	metaKey?: boolean;
@@ -53,7 +56,7 @@ suite('Keybindings Editing', () => {
 
 	let instantiationService: TestInstantiationService;
 	let testObject: KeybindingsEditingService;
-	let testDir;
+	let testDir: string;
 	let keybindingsFile;
 
 	setup(() => {
@@ -66,14 +69,19 @@ suite('Keybindings Editing', () => {
 			instantiationService.stub(IConfigurationService, ConfigurationService);
 			instantiationService.stub(IConfigurationService, 'getConfiguration', { 'eol': '\n' });
 			instantiationService.stub(IConfigurationService, 'onDidUpdateConfiguration', () => { });
-
+			instantiationService.stub(IStorageService, new TestStorageService());
+			instantiationService.stub(IChoiceService, {
+				choose: (severity, message, options, cancelId): TPromise<number> => {
+					return TPromise.as(cancelId);
+				}
+			});
 			instantiationService.stub(IWorkspaceContextService, new TestContextService());
 			instantiationService.stub(ILifecycleService, new TestLifecycleService());
 			instantiationService.stub(IEditorGroupService, new TestEditorGroupService());
 			instantiationService.stub(ITelemetryService, NullTelemetryService);
 			instantiationService.stub(IModeService, ModeServiceImpl);
 			instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
-			instantiationService.stub(IFileService, new FileService(testDir, { disableWatcher: true }, new TestContextService()));
+			instantiationService.stub(IFileService, new FileService(new TestContextService(new Workspace(testDir, testDir, [uri.file(testDir)])), { disableWatcher: true }));
 			instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 			instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));

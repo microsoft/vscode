@@ -11,7 +11,7 @@ import { Delayer } from 'vs/base/common/async';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { toResource, SideBySideEditorInput, EditorOptions, EditorInput, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { BaseEditor, EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
@@ -36,7 +36,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
@@ -471,7 +471,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IModelService private modelService: IModelService,

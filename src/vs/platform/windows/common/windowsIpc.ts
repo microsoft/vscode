@@ -14,9 +14,10 @@ import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 export interface IWindowsChannel extends IChannel {
 	call(command: 'event:onWindowOpen'): TPromise<number>;
 	call(command: 'event:onWindowFocus'): TPromise<number>;
-	call(command: 'openFileFolderPicker', arg: [number, boolean, ITelemetryData]): TPromise<void>;
-	call(command: 'openFilePicker', arg: [number, boolean, string, ITelemetryData]): TPromise<void>;
-	call(command: 'openFolderPicker', arg: [number, boolean, ITelemetryData]): TPromise<void>;
+	call(command: 'pickFileFolderAndOpen', arg: [number, boolean, ITelemetryData]): TPromise<void>;
+	call(command: 'pickFileAndOpen', arg: [number, boolean, string, ITelemetryData]): TPromise<void>;
+	call(command: 'pickFolderAndOpen', arg: [number, boolean, ITelemetryData]): TPromise<void>;
+	call(command: 'pickFolder', arg: { buttonLabel: string }): TPromise<string[]>;
 	call(command: 'reloadWindow', arg: number): TPromise<void>;
 	call(command: 'toggleDevTools', arg: number): TPromise<void>;
 	call(command: 'closeFolder', arg: number): TPromise<void>;
@@ -43,7 +44,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'whenSharedProcessReady'): TPromise<void>;
 	call(command: 'toggleSharedProcess'): TPromise<void>;
 	call(command: 'log', arg: [string, string[]]): TPromise<void>;
-	call(command: 'closeExtensionHostWindow', arg: string): TPromise<void>;
+	call(command: 'closeExtensionHostWindow', arg: string[]): TPromise<void>;
 	call(command: 'showItemInFolder', arg: string): TPromise<void>;
 	call(command: 'openExternal', arg: string): TPromise<boolean>;
 	call(command: 'startCrashReporter', arg: Electron.CrashReporterStartOptions): TPromise<void>;
@@ -64,9 +65,10 @@ export class WindowsChannel implements IWindowsChannel {
 		switch (command) {
 			case 'event:onWindowOpen': return eventToCall(this.onWindowOpen);
 			case 'event:onWindowFocus': return eventToCall(this.onWindowFocus);
-			case 'openFileFolderPicker': return this.service.openFileFolderPicker(arg[0], arg[1], arg[2]);
-			case 'openFilePicker': return this.service.openFilePicker(arg[0], arg[1], arg[2], arg[3]);
-			case 'openFolderPicker': return this.service.openFolderPicker(arg[0], arg[1], arg[2]);
+			case 'pickFileFolderAndOpen': return this.service.pickFileFolderAndOpen(arg[0], arg[1], arg[2]);
+			case 'pickFileAndOpen': return this.service.pickFileAndOpen(arg[0], arg[1], arg[2], arg[3]);
+			case 'pickFolderAndOpen': return this.service.pickFolderAndOpen(arg[0], arg[1], arg[2]);
+			case 'pickFolder': return this.service.pickFolder(arg);
 			case 'reloadWindow': return this.service.reloadWindow(arg);
 			case 'openDevTools': return this.service.openDevTools(arg);
 			case 'toggleDevTools': return this.service.toggleDevTools(arg);
@@ -115,16 +117,20 @@ export class WindowsChannelClient implements IWindowsService {
 	private _onWindowFocus: Event<number> = eventFromCall<number>(this.channel, 'event:onWindowFocus');
 	get onWindowFocus(): Event<number> { return this._onWindowFocus; }
 
-	openFileFolderPicker(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
-		return this.channel.call('openFileFolderPicker', [windowId, forceNewWindow, data]);
+	pickFileFolderAndOpen(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
+		return this.channel.call('pickFileFolderAndOpen', [windowId, forceNewWindow, data]);
 	}
 
-	openFilePicker(windowId: number, forceNewWindow?: boolean, path?: string, data?: ITelemetryData): TPromise<void> {
-		return this.channel.call('openFilePicker', [windowId, forceNewWindow, path, data]);
+	pickFileAndOpen(windowId: number, forceNewWindow?: boolean, path?: string, data?: ITelemetryData): TPromise<void> {
+		return this.channel.call('pickFileAndOpen', [windowId, forceNewWindow, path, data]);
 	}
 
-	openFolderPicker(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
-		return this.channel.call('openFolderPicker', [windowId, forceNewWindow, data]);
+	pickFolderAndOpen(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
+		return this.channel.call('pickFolderAndOpen', [windowId, forceNewWindow, data]);
+	}
+
+	pickFolder(options?: { buttonLabel: string }): TPromise<string[]> {
+		return this.channel.call('pickFolder', options);
 	}
 
 	reloadWindow(windowId: number): TPromise<void> {
@@ -235,8 +241,8 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('log', [severity, messages]);
 	}
 
-	closeExtensionHostWindow(extensionDevelopmentPath: string): TPromise<void> {
-		return this.channel.call('closeExtensionHostWindow', extensionDevelopmentPath);
+	closeExtensionHostWindow(extensionDevelopmentPaths: string[]): TPromise<void> {
+		return this.channel.call('closeExtensionHostWindow', extensionDevelopmentPaths);
 	}
 
 	showItemInFolder(path: string): TPromise<void> {

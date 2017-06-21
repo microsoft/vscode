@@ -27,7 +27,7 @@ import labels = require('vs/base/common/labels');
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { toResource, IEditorIdentifier, EditorInput } from 'vs/workbench/common/editor';
-import { FileStat, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerViewModel';
+import { FileStat, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
 import { ExplorerView } from 'vs/workbench/parts/files/browser/views/explorerView';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/browser/explorerViewlet';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -1835,7 +1835,7 @@ export class OpenFileAction extends Action {
 	run(event?: any, data?: ITelemetryData): TPromise<any> {
 		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 
-		return this.windowService.openFilePicker(false, fileResource ? paths.dirname(fileResource.fsPath) : void 0, data);
+		return this.windowService.pickFileAndOpen(false, fileResource ? paths.dirname(fileResource.fsPath) : void 0, data);
 	}
 }
 

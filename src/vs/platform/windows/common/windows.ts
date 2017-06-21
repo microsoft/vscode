@@ -21,9 +21,10 @@ export interface IWindowsService {
 	onWindowOpen: Event<number>;
 	onWindowFocus: Event<number>;
 
-	openFileFolderPicker(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void>;
-	openFilePicker(windowId: number, forceNewWindow?: boolean, path?: string, data?: ITelemetryData): TPromise<void>;
-	openFolderPicker(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void>;
+	pickFileFolderAndOpen(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void>;
+	pickFileAndOpen(windowId: number, forceNewWindow?: boolean, path?: string, data?: ITelemetryData): TPromise<void>;
+	pickFolderAndOpen(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void>;
+	pickFolder(options?: { buttonLabel: string }): TPromise<string[]>;
 	reloadWindow(windowId: number): TPromise<void>;
 	openDevTools(windowId: number): TPromise<void>;
 	toggleDevTools(windowId: number): TPromise<void>;
@@ -56,7 +57,7 @@ export interface IWindowsService {
 	getWindowCount(): TPromise<number>;
 	log(severity: string, ...messages: string[]): TPromise<void>;
 	// TODO@joao: what?
-	closeExtensionHostWindow(extensionDevelopmentPath: string): TPromise<void>;
+	closeExtensionHostWindow(extensionDevelopmentPaths: string[]): TPromise<void>;
 	showItemInFolder(path: string): TPromise<void>;
 
 	// This needs to be handled from browser process to prevent
@@ -74,9 +75,10 @@ export interface IWindowService {
 	_serviceBrand: any;
 
 	getCurrentWindowId(): number;
-	openFileFolderPicker(forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void>;
-	openFilePicker(forceNewWindow?: boolean, path?: string, data?: ITelemetryData): TPromise<void>;
-	openFolderPicker(forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void>;
+	pickFileFolderAndOpen(forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void>;
+	pickFileAndOpen(forceNewWindow?: boolean, path?: string, data?: ITelemetryData): TPromise<void>;
+	pickFolderAndOpen(forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void>;
+	pickFolder(options?: { buttonLabel: string }): TPromise<string[]>;
 	reloadWindow(): TPromise<void>;
 	openDevTools(): TPromise<void>;
 	toggleDevTools(): TPromise<void>;

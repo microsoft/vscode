@@ -724,7 +724,7 @@ class TabActionRunner extends ActionRunner {
 		super();
 	}
 
-	public run(action: IAction, context?: any): TPromise<any> {
+	public run(action: IAction, context?: any): TPromise<void> {
 		const group = this.group();
 		if (!group) {
 			return TPromise.as(void 0);

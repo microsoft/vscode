@@ -7,13 +7,12 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IEventEmitter } from 'vs/base/common/eventEmitter';
-import { TerminateResponse } from 'vs/base/common/processes';
 import { LinkedMap } from 'vs/base/common/map';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Task, TaskSet } from 'vs/workbench/parts/tasks/common/tasks';
-import { ITaskSummary, TaskEvent, TaskType } from 'vs/workbench/parts/tasks/common/taskSystem';
+import { ITaskSummary, TaskEvent, TaskType, TaskTerminateResponse } from 'vs/workbench/parts/tasks/common/taskSystem';
 
-export { ITaskSummary, Task, TaskEvent, TaskType };
+export { ITaskSummary, Task, TaskEvent, TaskType, TaskTerminateResponse };
 
 export const ITaskService = createDecorator<ITaskService>('taskService');
 
@@ -40,8 +39,8 @@ export interface ITaskService extends IEventEmitter {
 	isActive(): TPromise<boolean>;
 	getActiveTasks(): TPromise<Task[]>;
 	restart(task: string | Task): void;
-	terminate(task: string | Task): TPromise<TerminateResponse>;
-	terminateAll(): TPromise<TerminateResponse>;
+	terminate(task: string | Task): TPromise<TaskTerminateResponse>;
+	terminateAll(): TPromise<TaskTerminateResponse[]>;
 	tasks(): TPromise<Task[]>;
 	getTasksForGroup(group: string): TPromise<Task[]>;
 	getRecentlyUsedTasks(): LinkedMap<string, string>;

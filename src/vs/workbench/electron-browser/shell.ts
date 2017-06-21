@@ -88,16 +88,18 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
 import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { remote, ipcRenderer as ipc } from 'electron';
-import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
-import { MainProcessTextMateSyntax } from 'vs/editor/electron-browser/textMate/TMSyntax';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { restoreFontInfo, readFontInfo, saveFontInfo } from 'vs/editor/browser/config/configuration';
 import * as browser from 'vs/base/browser/browser';
 import 'vs/platform/opener/browser/opener.contribution';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { TextResourceConfigurationService } from 'vs/editor/common/services/resourceConfigurationImpl';
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
+import { TextMateService } from 'vs/workbench/services/textMate/electron-browser/TMSyntax';
+import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
 
 /**
  * Services that we require for the Shell
@@ -365,11 +367,13 @@ export class WorkbenchShell {
 
 		serviceCollection.set(IModelService, new SyncDescriptor(ModelServiceImpl));
 
+		serviceCollection.set(ITextResourceConfigurationService, new SyncDescriptor(TextResourceConfigurationService));
+
 		serviceCollection.set(IEditorWorkerService, new SyncDescriptor(EditorWorkerServiceImpl));
 
 		serviceCollection.set(IUntitledEditorService, new SyncDescriptor(UntitledEditorService));
 
-		serviceCollection.set(ITextMateService, new SyncDescriptor(MainProcessTextMateSyntax));
+		serviceCollection.set(ITextMateService, new SyncDescriptor(TextMateService));
 
 		serviceCollection.set(ISearchService, new SyncDescriptor(SearchService));
 

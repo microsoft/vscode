@@ -29,7 +29,7 @@ import { ViewsRegistry } from 'vs/workbench/parts/views/browser/viewsRegistry';
 import { ITreeViewDataProvider, ITreeItem, TreeItemCollapsibleState, TreeViewItemHandleArg } from 'vs/workbench/parts/views/common/views';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { CollapsibleState, ViewSizing } from 'vs/base/browser/ui/splitview/splitview';
-import { CollapsibleView, IViewletViewOptions } from 'vs/workbench/parts/views/browser/views';
+import { CollapsibleView, IViewletViewOptions, IViewOptions } from 'vs/workbench/parts/views/browser/views';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class TreeView extends CollapsibleView {
@@ -55,7 +55,7 @@ export class TreeView extends CollapsibleView {
 		@IExtensionService private extensionService: IExtensionService,
 		@ICommandService private commandService: ICommandService
 	) {
-		super({ ...options, ariaHeaderLabel: options.name, sizing: ViewSizing.Flexible, collapsed: options.collapsed === void 0 ? true : options.collapsed }, keybindingService, contextMenuService);
+		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name, sizing: ViewSizing.Flexible, collapsed: options.collapsed === void 0 ? true : options.collapsed }, keybindingService, contextMenuService);
 		this.menus = this.instantiationService.createInstance(Menus, this.id);
 		this.viewFocusContext = this.contextKeyService.createKey<boolean>(this.id, void 0);
 		this.menus.onDidChangeTitle(() => this.updateActions(), this, this.disposables);

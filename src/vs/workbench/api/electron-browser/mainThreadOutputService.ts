@@ -5,7 +5,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IOutputService, IOutputChannel, OUTPUT_PANEL_ID, Extensions, IOutputChannelRegistry } from 'vs/workbench/parts/output/common/output';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';

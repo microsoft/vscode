@@ -136,18 +136,13 @@
 	position: absolute;
 	left: 0;
 	bottom: 0;
+	z-index: 1;
+	opacity: 0.3;
+	pointer-events: none;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-selection div {
 	position: absolute;
-	opacity: 0.5;
-	background-color: #808080;
-}
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm .xterm-selection div {
-	background-color: #808080;
-}
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm .xterm-selection div {
-	background-color: #FFF;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-bold {

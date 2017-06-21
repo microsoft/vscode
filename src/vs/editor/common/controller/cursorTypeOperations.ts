@@ -342,13 +342,13 @@ export class TypeOperations {
 			if (firstNonWhitespace === 0) {
 				return TypeOperations._typeCommand(
 					new Range(range.startLineNumber, 0, range.endLineNumber, range.endColumn),
-					actualIndentation + ch,
+					config.normalizeIndentation(actualIndentation) + ch,
 					false
 				);
 			} else {
 				return TypeOperations._typeCommand(
 					new Range(range.startLineNumber, 0, range.endLineNumber, range.endColumn),
-					actualIndentation +
+					config.normalizeIndentation(actualIndentation) +
 					model.getLineContent(range.startLineNumber).substring(firstNonWhitespace - 1, range.startColumn - 1) + ch,
 					false
 				);

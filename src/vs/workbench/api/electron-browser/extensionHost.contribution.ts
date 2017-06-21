@@ -6,7 +6,7 @@
 'use strict';
 
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { MainContext, InstanceCollection } from '../node/extHost.protocol';
@@ -39,7 +39,7 @@ import { MainThreadSCM } from './mainThreadSCM';
 // --- other interested parties
 import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
 import { JSONValidationExtensionPoint } from 'vs/platform/jsonschemas/common/jsonValidationExtensionPoint';
-import { LanguageConfigurationFileHandler } from 'vs/editor/node/languageConfigurationExtensionPoint';
+import { LanguageConfigurationFileHandler } from 'vs/workbench/parts/codeEditor/electron-browser/languageConfiguration/languageConfigurationExtensionPoint';
 import { SaveParticipant } from './mainThreadSaveParticipant';
 
 // --- registers itself as service

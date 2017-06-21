@@ -940,7 +940,7 @@ export class ShowDisabledExtensionsAction extends Action {
 	}
 }
 
-export class ClearExtensionsInputAction extends ShowInstalledExtensionsAction {
+export class ClearExtensionsInputAction extends Action {
 
 	static ID = 'workbench.extensions.action.clearExtensionsInput';
 	static LABEL = localize('clearExtensionsInput', "Clear Extensions Input");
@@ -951,16 +951,25 @@ export class ClearExtensionsInputAction extends ShowInstalledExtensionsAction {
 		id: string,
 		label: string,
 		onSearchChange: Event<string>,
-		@IViewletService viewletService: IViewletService,
-		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IViewletService private viewletService: IViewletService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
-		super(id, label, viewletService, extensionsWorkbenchService);
+		super(id, label, 'clear-extensions', true);
 		this.enabled = false;
 		onSearchChange(this.onSearchChange, this, this.disposables);
 	}
 
 	private onSearchChange(value: string): void {
 		this.enabled = !!value;
+	}
+
+	run(): TPromise<void> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search('');
+				viewlet.focus();
+			});
 	}
 
 	dispose(): void {

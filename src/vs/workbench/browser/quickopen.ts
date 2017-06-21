@@ -11,7 +11,7 @@ import arrays = require('vs/base/common/arrays');
 import strings = require('vs/base/common/strings');
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { KeyMod } from 'vs/base/common/keyCodes';
 import { Mode, IEntryRunContext, IAutoFocus, IModel, IQuickNavigateConfiguration } from 'vs/base/parts/quickopen/common/quickOpen';
@@ -370,7 +370,7 @@ export class QuickOpenAction extends Action {
 		this.enabled = !!this.quickOpenService;
 	}
 
-	public run(context?: any): TPromise<any> {
+	public run(context?: any): TPromise<void> {
 
 		// Show with prefix
 		this.quickOpenService.show(this.prefix);

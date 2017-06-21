@@ -6,7 +6,7 @@
 import Messages from 'vs/workbench/parts/markers/common/messages';
 import Constants from 'vs/workbench/parts/markers/common/constants';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';

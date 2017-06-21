@@ -397,7 +397,7 @@ export class DebugService implements debug.IDebugService {
 			const process = this.viewModel.focusedProcess;
 			if (process && session && process.getId() === session.getId() && strings.equalsIgnoreCase(process.configuration.type, 'extensionhost') && this.sessionStates.get(session.getId()) === debug.State.Running &&
 				process && this.contextService.hasWorkspace() && process.configuration.noDebug) {
-				this.windowsService.closeExtensionHostWindow(this.contextService.getWorkspace().resource.fsPath);
+				this.windowsService.closeExtensionHostWindow(this.contextService.getWorkspace2().roots.map(r => r.fsPath));
 			}
 			if (session && session.getId() === event.body.sessionId) {
 				this.onSessionEnd(session);
@@ -894,8 +894,8 @@ export class DebugService implements debug.IDebugService {
 		});
 	}
 
-	public deemphasizeSource(uri: uri): void {
-		this.model.deemphasizeSource(uri);
+	public sourceIsNotAvailable(uri: uri): void {
+		this.model.sourceIsNotAvailable(uri);
 	}
 
 	public restartProcess(process: debug.IProcess, restartData?: any): TPromise<any> {

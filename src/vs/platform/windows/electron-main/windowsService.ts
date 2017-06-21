@@ -37,27 +37,38 @@ export class WindowsService implements IWindowsService, IDisposable {
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IHistoryMainService private historyService: IHistoryMainService
 	) {
+		// Catch file URLs
 		chain(urlService.onOpenURL)
 			.filter(uri => uri.authority === 'file' && !!uri.path)
 			.map(uri => URI.file(uri.fsPath))
 			.on(this.openFileForURI, this, this.disposables);
+
+		// Catch extension URLs when there are no windows open
+		chain(urlService.onOpenURL)
+			.filter(uri => /^extension/.test(uri.path))
+			.filter(() => this.windowsMainService.getWindowCount() === 0)
+			.on(this.openExtensionForURI, this, this.disposables);
 	}
 
-	openFileFolderPicker(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
-		this.windowsMainService.openFileFolderPicker(forceNewWindow, data);
+	pickFileFolderAndOpen(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
+		this.windowsMainService.pickFileFolderAndOpen(forceNewWindow, data);
 		return TPromise.as(null);
 	}
 
-	openFilePicker(windowId: number, forceNewWindow?: boolean, path?: string, data?: ITelemetryData): TPromise<void> {
-		this.windowsMainService.openFilePicker(forceNewWindow, path, undefined, data);
+	pickFileAndOpen(windowId: number, forceNewWindow?: boolean, path?: string, data?: ITelemetryData): TPromise<void> {
+		this.windowsMainService.pickFileAndOpen(forceNewWindow, path, undefined, data);
 		return TPromise.as(null);
 	}
 
-	openFolderPicker(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
+	pickFolderAndOpen(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
-		this.windowsMainService.openFolderPicker(forceNewWindow, codeWindow, data);
+		this.windowsMainService.pickFolderAndOpen(forceNewWindow, codeWindow, data);
 
 		return TPromise.as(null);
+	}
+
+	pickFolder(options?: { buttonLabel: string }): TPromise<string[]> {
+		return this.windowsMainService.pickFolder(options);
 	}
 
 	reloadWindow(windowId: number): TPromise<void> {
@@ -263,12 +274,12 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return TPromise.as(null);
 	}
 
-	closeExtensionHostWindow(extensionDevelopmentPath: string): TPromise<void> {
-		const windowOnExtension = this.windowsMainService.findWindow(null, null, extensionDevelopmentPath);
-
-		if (windowOnExtension) {
-			windowOnExtension.win.close();
-		}
+	closeExtensionHostWindow(extensionDevelopmentPaths: string[]): TPromise<void> {
+		extensionDevelopmentPaths.map(p => this.windowsMainService.findWindow(null, null, p)).forEach(windowOnExtension => {
+			if (windowOnExtension) {
+				windowOnExtension.win.close();
+			}
+		});
 
 		return TPromise.as(null);
 	}
@@ -312,6 +323,16 @@ export class WindowsService implements IWindowsService, IDisposable {
 		const pathsToOpen = [uri.fsPath];
 
 		this.windowsMainService.open({ context: OpenContext.API, cli, pathsToOpen });
+		return TPromise.as(null);
+	}
+
+	/**
+	 * This should only fire whenever an extension URL is open
+	 * and there are no windows to handle it.
+	 */
+	private openExtensionForURI(uri: URI): TPromise<void> {
+		const cli = assign(Object.create(null), this.environmentService.args);
+		this.windowsMainService.open({ context: OpenContext.API, cli });
 		return TPromise.as(null);
 	}
 

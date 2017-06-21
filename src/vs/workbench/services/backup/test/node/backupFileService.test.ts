@@ -20,6 +20,7 @@ import { EnvironmentService } from 'vs/platform/environment/node/environmentServ
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { RawTextSource } from 'vs/editor/common/model/textSource';
 import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
+import { Workspace } from "vs/platform/workspace/common/workspace";
 
 class TestEnvironmentService extends EnvironmentService {
 
@@ -48,7 +49,7 @@ const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', crypto.cre
 
 class TestBackupFileService extends BackupFileService {
 	constructor(workspace: Uri, backupHome: string, workspacesJsonPath: string) {
-		const fileService = new FileService(workspace.fsPath, { disableWatcher: true }, new TestContextService());
+		const fileService = new FileService(new TestContextService(new Workspace(workspace.fsPath, workspace.fsPath, [workspace])), { disableWatcher: true });
 
 		super(workspaceBackupPath, fileService);
 	}

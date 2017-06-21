@@ -119,10 +119,6 @@ export class EditorScrollbar extends ViewPart {
 		this.scrollbar.delegateSliderMouseDown(e, onDragFinished);
 	}
 
-	public getVerticalSliderVerticalCenter(): number {
-		return this.scrollbar.getVerticalSliderVerticalCenter();
-	}
-
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {

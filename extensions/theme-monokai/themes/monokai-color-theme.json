@@ -112,7 +112,10 @@
 		},
 		{
 			"name": "Template Definition",
-			"scope": "punctuation.definition.template-expression",
+			"scope": [
+				"punctuation.definition.template-expression",
+				"punctuation.section.embedded.coffee"
+			],
 			"settings": {
 				"foreground": "#F92672"
 			}

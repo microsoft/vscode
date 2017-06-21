@@ -17,7 +17,7 @@
 
 	function styleBody(body) {
 		if (!body) {
-			return
+			return;
 		}
 		body.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast');
 		body.classList.add(initData.activeTheme);
@@ -88,7 +88,7 @@
 		});
 	}
 
-	document.addEventListener('DOMContentLoaded', function (event) {
+	document.addEventListener('DOMContentLoaded', function () {
 		ipcRenderer.on('baseUrl', function (event, value) {
 			initData.baseUrl = value;
 		});
@@ -98,7 +98,7 @@
 			initData.activeTheme = activeTheme;
 
 			// webview
-			var target = getActiveFrame()
+			var target = getActiveFrame();
 			if (!target) {
 				return;
 			}
@@ -121,8 +121,9 @@
 		});
 
 		// update iframe-contents
-		ipcRenderer.on('content', function (_event, value) {
-			const text = value.join('\n');
+		ipcRenderer.on('content', function (_event, data) {
+			const options = data.options;
+			const text = data.contents.join('\n');
 			const newDocument = new DOMParser().parseFromString(text, 'text/html');
 
 			// know what happens here
@@ -157,25 +158,25 @@
 
 			// keep current scrollTop around and use later
 			var setInitialScrollPosition;
-			if (firstLoad)  {
+			if (firstLoad) {
 				firstLoad = false;
 				setInitialScrollPosition = function (body, window) {
 					body.scrollTop = 0;
 					if (!isNaN(initData.initialScrollProgress)) {
 						window.addEventListener('load', function () {
 							if (body.scrollTop === 0) {
-								body.scrollTop = body.clientHeight * initData.initialScrollProgress
+								body.scrollTop = body.clientHeight * initData.initialScrollProgress;
 							}
 						});
 					}
-				}
+				};
 			} else {
 				const scrollY = frame.contentDocument && frame.contentDocument.body ? frame.contentDocument.body.scrollTop : 0;
 				setInitialScrollPosition = function (body) {
 					if (body.scrollTop === 0) {
 						body.scrollTop = scrollY;
 					}
-				}
+				};
 			}
 
 			// Clean up old pending frames and set current one as new one
@@ -188,13 +189,13 @@
 			const newFrame = document.createElement('iframe');
 			newFrame.setAttribute('id', 'pending-frame');
 			newFrame.setAttribute('frameborder', '0');
-			newFrame.setAttribute('sandbox', 'allow-scripts allow-forms allow-same-origin');
+			newFrame.setAttribute('sandbox', options.enableJavascript ? 'allow-scripts allow-forms allow-same-origin' : 'allow-same-origin');
 			newFrame.style.cssText = "margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; display: none";
 			document.body.appendChild(newFrame);
 
 			// write new content onto iframe
 			newFrame.contentDocument.open('text/html', 'replace');
-			newFrame.contentWindow.onbeforeunload = function (e) {
+			newFrame.contentWindow.onbeforeunload = function () {
 				console.log('prevented webview navigation');
 				return false;
 			};

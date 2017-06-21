@@ -9,7 +9,7 @@ import { assign } from 'vs/base/common/objects';
 import { distinct } from 'vs/base/common/arrays';
 import URI from 'vs/base/common/uri';
 import { IReference } from 'vs/base/common/lifecycle';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { visit, JSONVisitor } from 'vs/base/common/json';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';

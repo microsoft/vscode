@@ -885,7 +885,7 @@ namespace ProblemMatcherConverter {
 				JSON.stringify(config, null, 4)));
 			return result;
 		} else if (kind === ProblemMatcherKind.String || kind === ProblemMatcherKind.ProblemMatcher) {
-			let matcher = resolveProblemMatcher(config, context);
+			let matcher = resolveProblemMatcher(config as ProblemMatcherConfig.ProblemMatcher, context);
 			if (matcher) {
 				result.push(matcher);
 			}
@@ -1397,7 +1397,7 @@ class ConfigurationParser {
 	private createTaskRunnerConfiguration(fileConfig: ExternalTaskRunnerConfiguration, context: ParseContext): TaskParseResult {
 		let globals = Globals.from(fileConfig, context);
 		if (this.problemReporter.status.isFatal()) {
-			return undefined;
+			return { tasks: [], annotatingTasks: [] };
 		}
 		context.namedProblemMatchers = ProblemMatcherConverter.namedFrom(fileConfig.declares, context);
 		let globalTasks: TaskParseResult;

@@ -6,7 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ConfigWatcher } from 'vs/base/node/config';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ConfigurationSource, IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, IConfigurationKeys, ConfigurationModel, IConfigurationOverrides, Configuration, IConfigurationValues, IConfigurationData } from 'vs/platform/configuration/common/configuration';
@@ -71,8 +71,8 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 		return this.configuration().getValue<C>(section, options);
 	}
 
-	public lookup<C>(key: string, overrideIdentifier?: string): IConfigurationValue<C> {
-		return this.configuration().lookup<C>(key, overrideIdentifier);
+	public lookup<C>(key: string, options?: IConfigurationOverrides): IConfigurationValue<C> {
+		return this.configuration().lookup<C>(key, options);
 	}
 
 	public keys(): IConfigurationKeys {
@@ -83,7 +83,7 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 		return this._configuration.values();
 	}
 
-	public getConfigurationData(): IConfigurationData<T> {
+	public getConfigurationData<T2>(): IConfigurationData<T2> {
 		return this.configuration().toData();
 	}
 

@@ -252,7 +252,7 @@ namespace Strings {
 }
 
 namespace CommandOptions {
-	function isShellOptions(value: any): value is vscode.ShellTaskOptions {
+	function isShellConfiguration(value: any): value is { executable: string; shellArgs?: string[] } {
 		return value && typeof value.executable === 'string';
 	}
 	export function from(value: vscode.ShellTaskOptions | vscode.ProcessTaskOptions): TaskSystem.CommandOptions {
@@ -273,7 +273,7 @@ namespace CommandOptions {
 				}
 			});
 		}
-		if (isShellOptions(value)) {
+		if (isShellConfiguration(value)) {
 			result.shell = ShellConfiguration.from(value);
 		}
 		return result;
@@ -281,14 +281,14 @@ namespace CommandOptions {
 }
 
 namespace ShellConfiguration {
-	export function from(value: { executable?: string, args?: string[] }): TaskSystem.ShellConfiguration {
+	export function from(value: { executable?: string, shellArgs?: string[] }): TaskSystem.ShellConfiguration {
 		if (value === void 0 || value === null || !value.executable) {
 			return undefined;
 		}
 
 		let result: TaskSystem.ShellConfiguration = {
 			executable: value.executable,
-			args: Strings.from(value.args)
+			args: Strings.from(value.shellArgs)
 		};
 		return result;
 	}

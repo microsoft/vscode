@@ -16,7 +16,7 @@ import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorIn
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -36,7 +36,7 @@ export class TextResourceEditor extends BaseTextEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IModeService modeService: IModeService,

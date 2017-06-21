@@ -18,7 +18,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingEvent, IUserFriendlyKeybinding, KeybindingSource, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingItem, KeybindingsRegistry, IKeybindingRule2 } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { keybindingsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -210,7 +210,7 @@ let keybindingType: IJSONSchema = {
 			type: 'string'
 		},
 		key: {
-			description: nls.localize('vscode.extension.contributes.keybindings.key', 'Key or key sequence (separate keys with plus-sign and sequences with space, e.g Ctrl+O and Ctrl+L L for a chord'),
+			description: nls.localize('vscode.extension.contributes.keybindings.key', 'Key or key sequence (separate keys with plus-sign and sequences with space, e.g Ctrl+O and Ctrl+L L for a chord).'),
 			type: 'string'
 		},
 		mac: {

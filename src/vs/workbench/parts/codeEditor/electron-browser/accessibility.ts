@@ -11,7 +11,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import * as dom from 'vs/base/browser/dom';
-import { renderHtml } from 'vs/base/browser/htmlContentRenderer';
+import { renderFormattedText } from 'vs/base/browser/htmlContentRenderer';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -252,9 +252,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 
 		text += '\n\n' + nls.localize('outroMsg', "You can dismiss this tooltip and return to the editor by pressing Escape or Shift+Escape.");
 
-		this._contentDomNode.domNode.appendChild(renderHtml({
-			formattedText: text
-		}));
+		this._contentDomNode.domNode.appendChild(renderFormattedText(text));
 	}
 
 	public hide(): void {

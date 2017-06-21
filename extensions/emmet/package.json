@@ -15,25 +15,13 @@
         "url": "https://github.com/Microsoft/vscode-emmet"
     },
     "activationEvents": [
-        "onLanguage:html",
-        "onLanguage:jade",
-        "onLanguage:slim",
-        "onLanguage:haml",
-        "onLanguage:xml",
-        "onLanguage:xsl",
-        "onLanguage:css",
-        "onLanguage:scss",
-        "onLanguage:sass",
-        "onLanguage:less",
-        "onLanguage:stylus",
-        "onLanguage:javascriptreact",
-        "onLanguage:typescriptreact"
+        "*"
     ],
     "main": "./out/extension",
     "contributes": {
         "configuration": {
             "type": "object",
-            "title": "Emmet configuration",
+            "title": "Emmet",
             "properties": {
                 "emmet.showExpandedAbbreviation": {
                     "type": "boolean",
@@ -44,25 +32,45 @@
                     "type": "boolean",
                     "default": true,
                     "description": "Shows possible emmet abbreviations as suggestions"
+                },
+                "emmet.variables":{
+                    "type": "object",
+                    "properties": {
+                        "lang": {
+                            "type": "string",
+                            "default": "en"
+                        },
+                        "locale": {
+                            "type": "string",
+                            "default": "en-US"
+                        },
+                        "charset": {
+                            "type": "string",
+                            "default": "UTF-8"
+                        },
+                        "indentation": {
+                            "type": "string",
+                            "default": "\t"
+                        },
+                        "newline": {
+                            "type": "string",
+                            "default": "\n"
+                        }
+                    },
+                    "default":{},
+                    "description": "Variables to be used in emmet snippets"
                 }
             }
         }
     },
     "scripts": {
-        "vscode:prepublish": "tsc -p ./",
-        "compile": "tsc -watch -p ./",
-        "postinstall": "node ./node_modules/vscode/bin/install",
-        "test": "node ./node_modules/vscode/bin/test"
+        "compile": "gulp compile-extension:emmet"
     },
     "devDependencies": {
-        "typescript": "^2.0.3",
-        "vscode": "^1.0.0",
-        "mocha": "^2.3.3",
-        "@types/node": "^6.0.40",
-        "@types/mocha": "^2.2.32"
+        "@types/node": "^7.0.4"
     },
     "dependencies": {
-        "@emmetio/expand-abbreviation": "^0.5.4",
+        "@emmetio/expand-abbreviation": "^0.5.8",
         "@emmetio/extract-abbreviation": "^0.1.1",
         "@emmetio/html-matcher": "^0.3.1",
         "@emmetio/css-parser": "^0.3.0"

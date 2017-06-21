@@ -15,7 +15,7 @@ function createModuleDescription(name, exclude) {
 	return result;
 }
 
-exports.collectModules = function (excludes) {
+exports.collectModules = function () {
 	var modules = [
 		createModuleDescription('vs/workbench/parts/output/common/outputLinkComputer', ['vs/base/common/worker/simpleWorker', 'vs/editor/common/services/editorSimpleWorker']),
 

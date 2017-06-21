@@ -538,7 +538,12 @@ export const symbolKindToCssClass = (function () {
 	};
 })();
 
-
+/**
+ * @internal
+ */
+export interface IOutline {
+	entries: SymbolInformation[];
+}
 /**
  * Represents information about programming constructs like variables, classes,
  * interfaces etc.

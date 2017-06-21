@@ -5,7 +5,7 @@
 'use strict';
 
 import nls = require('vs/nls');
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { Action, IAction } from 'vs/base/common/actions';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ActionItem, BaseActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -17,13 +17,14 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/wor
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { FileStat } from 'vs/workbench/parts/files/common/explorerViewModel';
+import { FileStat, Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
-import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
+import { OpenFolderAction, OpenFileFolderAction, AddRootFolderAction, RemoveRootFolderAction } from 'vs/workbench/browser/actions/fileActions';
 import { copyFocusedFilesExplorerViewItem, revealInOSFocusedFilesExplorerItem, openFocusedExplorerItemSideBySideCommand, copyPathOfFocusedExplorerItem, copyPathCommand, revealInExplorerCommand, revealInOSCommand, openFolderPickerCommand, openWindowCommand, openFileInNewWindowCommand, deleteFocusedFilesExplorerViewItemCommand, moveFocusedFilesExplorerViewItemToTrashCommand, renameFocusedFilesExplorerViewItemCommand } from 'vs/workbench/parts/files/browser/fileCommands';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IEnvironmentService } from "vs/platform/environment/common/environment";
 import { explorerItemToFileResource, ExplorerFocusCondition, FilesExplorerFocusCondition } from 'vs/workbench/parts/files/common/files';
 
 class FilesViewerActionContributor extends ActionBarContributor {
@@ -31,7 +32,8 @@ class FilesViewerActionContributor extends ActionBarContributor {
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super();
 	}
@@ -40,14 +42,17 @@ class FilesViewerActionContributor extends ActionBarContributor {
 		const element = context.element;
 
 		// Contribute only on Stat Objects (File Explorer)
-		return element instanceof FileStat;
+		return element instanceof FileStat || element instanceof Model;
 	}
 
 	public getSecondaryActions(context: any): IAction[] {
-		const stat = (<FileStat>context.element);
+		const stat = (<FileStat | Model>context.element);
 		const tree = context.viewer;
 		const actions: IAction[] = [];
 		let separateOpen = false;
+		if (stat instanceof Model) {
+			return [this.instantiationService.createInstance(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL)];
+		}
 
 		// Open side by side
 		if (!stat.isDirectory) {
@@ -86,13 +91,8 @@ class FilesViewerActionContributor extends ActionBarContributor {
 			actions.push(new Separator(null, 100));
 		}
 
-		const workspace = this.contextService.getWorkspace();
-		const isRoot = workspace && stat.resource.toString() === workspace.resource.toString();
-
 		// Copy File/Folder
-		if (!isRoot) {
-			actions.push(this.instantiationService.createInstance(CopyFileAction, tree, <FileStat>stat));
-		}
+		actions.push(this.instantiationService.createInstance(CopyFileAction, tree, <FileStat>stat));
 
 		// Paste File/Folder
 		if (stat.isDirectory) {
@@ -100,13 +100,20 @@ class FilesViewerActionContributor extends ActionBarContributor {
 		}
 
 		// Rename File/Folder
-		if (!isRoot) {
-			actions.push(new Separator(null, 150));
-			actions.push(this.instantiationService.createInstance(TriggerRenameFileAction, tree, <FileStat>stat));
+		if (stat.isRoot) {
+			if (this.contextService.getWorkspace2().roots.length > 1) {
+				actions.push(new Separator(null, 150));
+				actions.push(this.instantiationService.createInstance(RemoveRootFolderAction, stat.resource, RemoveRootFolderAction.ID, RemoveRootFolderAction.LABEL));
+			} else if (this.environmentService.appQuality !== 'stable') {
+				actions.push(new Separator(null, 150));
+				actions.push(this.instantiationService.createInstance(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL));
+			}
 		}
 
-		// Delete File/Folder
-		if (!isRoot) {
+		if (!stat.isRoot) {
+			actions.push(new Separator(null, 150));
+			actions.push(this.instantiationService.createInstance(TriggerRenameFileAction, tree, <FileStat>stat));
+			// Delete File/Folder
 			actions.push(this.instantiationService.createInstance(MoveFileToTrashAction, tree, <FileStat>stat));
 		}
 
@@ -205,7 +212,7 @@ if (isMacintosh) {
 }
 
 // Commands
-CommandsRegistry.registerCommand('_files.openFolderPicker', openFolderPickerCommand);
+CommandsRegistry.registerCommand('_files.pickFolderAndOpen', openFolderPickerCommand);
 CommandsRegistry.registerCommand('_files.windowOpen', openWindowCommand);
 CommandsRegistry.registerCommand('workbench.action.files.openFileInNewWindow', openFileInNewWindowCommand);
 

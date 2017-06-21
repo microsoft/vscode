@@ -81,7 +81,7 @@ export class HtmlPreviewPart extends WebviewEditor {
 
 	private get webview(): Webview {
 		if (!this._webview) {
-			this._webview = new Webview(this._container, this.partService.getContainer(Parts.EDITOR_PART));
+			this._webview = new Webview(this._container, this.partService.getContainer(Parts.EDITOR_PART), { enableJavascript: true });
 			this._webview.baseUrl = this._baseUrl && this._baseUrl.toString(true);
 			if (this.input && this.input instanceof HtmlInput) {
 				const state = this.loadViewState(this.input.getResource());

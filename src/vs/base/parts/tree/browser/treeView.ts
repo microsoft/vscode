@@ -1626,6 +1626,10 @@ export class TreeView extends HeightMap {
 	}
 
 	private removeItemFromDOM(item: ViewItem): void {
+		if (!item) {
+			return;
+		}
+
 		item.removeFromDOM();
 	}
 

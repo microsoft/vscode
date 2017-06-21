@@ -45,6 +45,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 
 import { ITreeItem } from 'vs/workbench/parts/views/common/views';
+import { ThemeColor } from "vs/platform/theme/common/themeService";
 
 export interface IEnvironment {
 	enableProposedApiForAll: boolean;
@@ -274,7 +275,7 @@ export abstract class MainThreadQuickOpenShape {
 }
 
 export abstract class MainThreadStatusBarShape {
-	$setEntry(id: number, extensionId: string, text: string, tooltip: string, command: string, color: string | editorCommon.ThemeColor, alignment: MainThreadStatusBarAlignment, priority: number): void { throw ni(); }
+	$setEntry(id: number, extensionId: string, text: string, tooltip: string, command: string, color: string | ThemeColor, alignment: MainThreadStatusBarAlignment, priority: number): void { throw ni(); }
 	$dispose(id: number) { throw ni(); }
 }
 

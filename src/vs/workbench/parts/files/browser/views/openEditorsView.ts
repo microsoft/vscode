@@ -18,11 +18,11 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup } from 'vs/workbench/common/editor';
 import { SaveAllAction } from 'vs/workbench/parts/files/browser/fileActions';
-import { CollapsibleView, IViewletViewOptions } from 'vs/workbench/parts/views/browser/views';
+import { CollapsibleView, IViewletViewOptions, IViewOptions } from 'vs/workbench/parts/views/browser/views';
 import { IFilesConfiguration, VIEWLET_ID, OpenEditorsFocussedContext, ExplorerFocussedContext } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { OpenEditor } from 'vs/workbench/parts/files/common/explorerViewModel';
+import { OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 import { Renderer, DataSource, Controller, AccessibilityProvider, ActionProvider, DragAndDrop } from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { CloseAllEditorsAction } from 'vs/workbench/browser/parts/editor/editorActions';
@@ -71,7 +71,7 @@ export class OpenEditorsView extends CollapsibleView {
 		@IThemeService private themeService: IThemeService
 	) {
 		super({
-			...options,
+			...(options as IViewOptions),
 			ariaHeaderLabel: nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"),
 			sizing: ViewSizing.Fixed,
 			initialBodySize: OpenEditorsView.computeExpandedBodySize(editorGroupService.getStacksModel())
@@ -207,7 +207,7 @@ export class OpenEditorsView extends CollapsibleView {
 	}
 
 	private onEditorStacksModelChanged(e: IStacksModelChangeEvent): void {
-		if (this.isDisposed || !this.isVisible || !this.tree) {
+		if (this.isDisposed || !this.isVisible() || !this.tree) {
 			return;
 		}
 

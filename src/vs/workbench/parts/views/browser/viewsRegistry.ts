@@ -12,6 +12,7 @@ export class ViewLocation {
 
 	static readonly Explorer = new ViewLocation('explorer');
 	static readonly Debug = new ViewLocation('debug');
+	static readonly Extensions = new ViewLocation('extensions');
 
 	constructor(private _id: string) {
 	}

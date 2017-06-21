@@ -19,14 +19,14 @@ import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts
 import { TextEditorOptions, TextDiffEditorOptions, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID, IFileEditorInput } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { DiffNavigator } from 'vs/editor/contrib/diffNavigator/common/diffNavigator';
+import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
 import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -51,7 +51,7 @@ export class TextDiffEditor extends BaseTextEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
@@ -215,11 +215,6 @@ export class TextDiffEditor extends BaseTextEditor {
 			objects.mixin(editorConfiguration, configuration.diffEditor);
 		}
 
-		const language = this.getLanguage();
-		if (language) {
-			objects.assign(editorConfiguration, this.configurationService.getConfiguration<IEditorConfiguration>('diffEditor', { language }));
-		}
-
 		return editorConfiguration;
 	}
 
@@ -365,7 +360,7 @@ class ToggleEditorModeAction extends Action {
 		return ToggleEditorModeAction.isInlineMode(this.editor) ? ToggleEditorModeAction.SIDEBYSIDE_LABEL : ToggleEditorModeAction.INLINE_LABEL;
 	}
 
-	public run(): TPromise<any> {
+	public run(): TPromise<boolean> {
 		const inlineModeActive = ToggleEditorModeAction.isInlineMode(this.editor);
 
 		const control = this.editor.getControl();

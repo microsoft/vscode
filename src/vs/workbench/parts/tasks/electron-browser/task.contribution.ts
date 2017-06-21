@@ -25,13 +25,13 @@ import { EventEmitter } from 'vs/base/common/eventEmitter';
 import * as Builder from 'vs/base/browser/builder';
 import * as Types from 'vs/base/common/types';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { TerminateResponse, TerminateResponseCode } from 'vs/base/common/processes';
+import { TerminateResponseCode } from 'vs/base/common/processes';
 import * as strings from 'vs/base/common/strings';
 import { ValidationStatus, ValidationState } from 'vs/base/common/parsers';
 import * as UUID from 'vs/base/common/uuid';
 import { LinkedMap, Touch } from 'vs/base/common/map';
 
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { SyncActionDescriptor, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -73,9 +73,9 @@ import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs
 
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
-import { ITaskSystem, ITaskResolver, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskSystemEvents } from 'vs/workbench/parts/tasks/common/taskSystem';
+import { ITaskSystem, ITaskResolver, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskSystemEvents, TaskTerminateResponse } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { Task, TaskSet, TaskGroup, ExecutionEngine, JsonSchemaVersion, TaskSourceKind } from 'vs/workbench/parts/tasks/common/tasks';
-import { ITaskService, TaskServiceEvents, ITaskProvider } from 'vs/workbench/parts/tasks/common/taskService';
+import { ITaskService, TaskServiceEvents, ITaskProvider, TaskEvent } from 'vs/workbench/parts/tasks/common/taskService';
 import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
 import * as TaskConfig from 'vs/workbench/parts/tasks/common/taskConfiguration';
@@ -378,7 +378,10 @@ class StatusBarItem extends Themable implements IStatusbarItem {
 			updateLabel(this.markerService.getStatistics());
 		});
 
-		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Active, () => {
+		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Active, (event: TaskEvent) => {
+			if (event.group !== TaskGroup.Build) {
+				return;
+			}
 			this.activeCount++;
 			if (this.activeCount === 1) {
 				let index = 1;
@@ -395,7 +398,10 @@ class StatusBarItem extends Themable implements IStatusbarItem {
 			}
 		}));
 
-		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Inactive, (data: TaskServiceEventData) => {
+		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Inactive, (event: TaskEvent) => {
+			if (event.group !== TaskGroup.Build) {
+				return;
+			}
 			// Since the exiting of the sub process is communicated async we can't order inactive and terminate events.
 			// So try to treat them accordingly.
 			if (this.activeCount > 0) {
@@ -410,7 +416,10 @@ class StatusBarItem extends Themable implements IStatusbarItem {
 			}
 		}));
 
-		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Terminated, () => {
+		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Terminated, (event: TaskEvent) => {
+			if (event.group !== TaskGroup.Build) {
+				return;
+			}
 			if (this.activeCount !== 0) {
 				$(progress).hide();
 				if (this.intervalToken) {
@@ -456,11 +465,11 @@ class NullTaskSystem extends EventEmitter implements ITaskSystem {
 	public canAutoTerminate(): boolean {
 		return true;
 	}
-	public terminate(task: string | Task): TPromise<TerminateResponse> {
-		return TPromise.as<TerminateResponse>({ success: true });
+	public terminate(task: string | Task): TPromise<TaskTerminateResponse> {
+		return TPromise.as<TaskTerminateResponse>({ success: true, task: undefined });
 	}
-	public terminateAll(): TPromise<TerminateResponse> {
-		return TPromise.as<TerminateResponse>({ success: true });
+	public terminateAll(): TPromise<TaskTerminateResponse[]> {
+		return TPromise.as<TaskTerminateResponse[]>([]);
 	}
 }
 
@@ -961,27 +970,19 @@ class TaskService extends EventEmitter implements ITaskService {
 		});
 	}
 
-	public terminate(task: string | Task): TPromise<TerminateResponse> {
+	public terminate(task: string | Task): TPromise<TaskTerminateResponse> {
 		if (!this._taskSystem) {
-			return TPromise.as({ success: true });
+			return TPromise.as({ success: true, task: undefined });
 		}
 		const id: string = Types.isString(task) ? task : task._id;
-		return this._taskSystem.terminate(id).then((response) => {
-			if (response.success) {
-				this.emit(TaskServiceEvents.Terminated, {});
-			}
-			return response;
-		});
+		return this._taskSystem.terminate(id);
 	}
 
-	public terminateAll(): TPromise<TerminateResponse> {
+	public terminateAll(): TPromise<TaskTerminateResponse[]> {
 		if (!this._taskSystem) {
-			return TPromise.as({ success: true });
+			return TPromise.as<TaskTerminateResponse[]>([]);
 		}
-		return this._taskSystem.terminateAll().then((response) => {
-			this.emit(TaskServiceEvents.Terminated, {});
-			return response;
-		});
+		return this._taskSystem.terminateAll();
 	}
 
 	private getTaskSystem(): ITaskSystem {
@@ -1006,6 +1007,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		}
 		this._taskSystemListeners.push(this._taskSystem.addListener(TaskSystemEvents.Active, (event) => this.emit(TaskServiceEvents.Active, event)));
 		this._taskSystemListeners.push(this._taskSystem.addListener(TaskSystemEvents.Inactive, (event) => this.emit(TaskServiceEvents.Inactive, event)));
+		this._taskSystemListeners.push(this._taskSystem.addListener(TaskSystemEvents.Terminated, (event) => this.emit(TaskServiceEvents.Terminated, event)));
 		return this._taskSystem;
 	}
 
@@ -1136,7 +1138,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		{
 			let { config, hasParseErrors } = this.getConfiguration();
 			if (hasParseErrors) {
-				return TPromise.as({ set: undefined, hasErrors: true });
+				return TPromise.as({ set: undefined, hasErrors: true, annotatingTasks: undefined });
 			}
 			let engine = TaskConfig.ExecutionEngine._default;
 			if (config) {
@@ -1292,35 +1294,53 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	public beforeShutdown(): boolean | TPromise<boolean> {
-		this.saveRecentlyUsedTasks();
-		if (this._taskSystem && this._taskSystem.isActiveSync()) {
-			if (this._taskSystem.canAutoTerminate() || this.messageService.confirm({
-				message: nls.localize('TaskSystem.runningTask', 'There is a task running. Do you want to terminate it?'),
-				primaryButton: nls.localize({ key: 'TaskSystem.terminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task"),
-				type: 'question'
-			})) {
-				return this._taskSystem.terminateAll().then((response) => {
-					if (response.success) {
-						this.emit(TaskServiceEvents.Terminated, {});
-						this._taskSystem = null;
-						this.disposeTaskSystemListeners();
-						return false; // no veto
-					} else if (response.code && response.code === TerminateResponseCode.ProcessNotFound) {
-						return !this.messageService.confirm({
-							message: nls.localize('TaskSystem.noProcess', 'The launched task doesn\'t exist anymore. If the task spawned background processes exiting VS Code might result in orphaned processes. To avoid this start the last background process with a wait flag.'),
-							primaryButton: nls.localize({ key: 'TaskSystem.exitAnyways', comment: ['&& denotes a mnemonic'] }, "&&Exit Anyways"),
-							type: 'info'
-						});
-					}
-					return true; // veto
-				}, (err) => {
-					return true; // veto
-				});
-			} else {
-				return true; // veto
-			}
+		if (!this._taskSystem) {
+			return false;
 		}
-		return false; // Nothing to do here
+		this.saveRecentlyUsedTasks();
+		if (!this._taskSystem.isActiveSync()) {
+			return false;
+		}
+		// The terminal service kills all terminal on shutdown. So there
+		// is nothing we can do to prevent this here.
+		if (this._taskSystem instanceof TerminalTaskSystem) {
+			return false;
+		}
+		if (this._taskSystem.canAutoTerminate() || this.messageService.confirm({
+			message: nls.localize('TaskSystem.runningTask', 'There is a task running. Do you want to terminate it?'),
+			primaryButton: nls.localize({ key: 'TaskSystem.terminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task"),
+			type: 'question'
+		})) {
+			return this._taskSystem.terminateAll().then((responses) => {
+				let success = true;
+				let code: number = undefined;
+				for (let response of responses) {
+					success = success && response.success;
+					// We only have a code in the old output runner which only has one task
+					// So we can use the first code.
+					if (code === void 0 && response.code !== void 0) {
+						code = response.code;
+					}
+				}
+				if (success) {
+					this.emit(TaskServiceEvents.Terminated, {});
+					this._taskSystem = null;
+					this.disposeTaskSystemListeners();
+					return false; // no veto
+				} else if (code && code === TerminateResponseCode.ProcessNotFound) {
+					return !this.messageService.confirm({
+						message: nls.localize('TaskSystem.noProcess', 'The launched task doesn\'t exist anymore. If the task spawned background processes exiting VS Code might result in orphaned processes. To avoid this start the last background process with a wait flag.'),
+						primaryButton: nls.localize({ key: 'TaskSystem.exitAnyways', comment: ['&& denotes a mnemonic'] }, "&&Exit Anyways"),
+						type: 'info'
+					});
+				}
+				return true; // veto
+			}, (err) => {
+				return true; // veto
+			});
+		} else {
+			return true; // veto
+		}
 	}
 
 	private getConfigureAction(code: TaskErrors): Action {
@@ -1402,11 +1422,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (total === 0) {
 				return;
 			}
-			if (total === 1) {
-				this.run(configured[0] || detected[0]);
-			} else {
-				this.quickOpenService.show('build task ');
-			}
+			this.quickOpenService.show('build task ');
 		});
 	}
 
@@ -1415,7 +1431,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			return;
 		}
 		if (!this.inTerminal()) {
-			this.build();
+			this.runTest();
 			return;
 		}
 		this.getTasksForGroup(TaskGroup.Test).then((tasks) => {
@@ -1424,11 +1440,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (total === 0) {
 				return;
 			}
-			if (total === 1) {
-				this.run(configured[0] || detected[0]);
-			} else {
-				this.quickOpenService.show('test task ');
-			}
+			this.quickOpenService.show('test task ');
 		});
 	}
 
@@ -1450,7 +1462,9 @@ class TaskService extends EventEmitter implements ITaskService {
 		} else {
 			this.isActive().then((active) => {
 				if (active) {
-					this.terminateAll().then((response) => {
+					this.terminateAll().then((responses) => {
+						// the output runner has only one task
+						let response = responses[0];
 						if (response.success) {
 							return;
 						}

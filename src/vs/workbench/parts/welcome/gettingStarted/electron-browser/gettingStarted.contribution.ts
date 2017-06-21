@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { GettingStarted } from './gettingStarted';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 

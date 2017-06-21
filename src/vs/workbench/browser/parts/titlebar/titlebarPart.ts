@@ -71,7 +71,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		this.isPure = true;
 		this.activeEditorListeners = [];
-		this.workspacePath = contextService.hasWorkspace() ? labels.getPathLabel(contextService.getWorkspace().resource, void 0, environmentService) : '';
+		this.computeWorkspacePath();
 
 		this.init();
 
@@ -100,6 +100,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.FOCUS, () => this.onFocus()));
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(() => this.onConfigurationChanged(true)));
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+		this.toUnbind.push(this.contextService.onDidChangeWorkspaceRoots(() => this.onDidChangeWorkspaceRoots()));
 	}
 
 	private onBlur(): void {
@@ -110,6 +111,20 @@ export class TitlebarPart extends Part implements ITitleService {
 	private onFocus(): void {
 		this.isInactive = false;
 		this.updateStyles();
+	}
+
+	private onDidChangeWorkspaceRoots(): void {
+		this.computeWorkspacePath();
+		this.setTitle(this.getWindowTitle());
+	}
+
+	private computeWorkspacePath(): void {
+		const workspace = this.contextService.getWorkspace2();
+		if (workspace && workspace.roots.length === 1) {
+			this.workspacePath = labels.getPathLabel(workspace.roots[0], void 0, this.environmentService);
+		} else {
+			this.workspacePath = '';
+		}
 	}
 
 	private onConfigurationChanged(update?: boolean): void {
@@ -177,7 +192,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	 */
 	private doGetWindowTitle(): string {
 		const input = this.editorService.getActiveEditorInput();
-		const workspace = this.contextService.getWorkspace();
+		const workspace = this.contextService.getWorkspace2();
 
 		// Variables
 		const activeEditorShort = input ? input.getTitle(Verbosity.SHORT) : '';

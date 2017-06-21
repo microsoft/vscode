@@ -9,7 +9,7 @@ import 'vs/css!./media/compositepart';
 import nls = require('vs/nls');
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
 import events = require('vs/base/common/events');

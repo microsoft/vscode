@@ -15,36 +15,24 @@ import { mergeLines } from './mergeLines';
 import { toggleComment } from './toggleComment';
 import { fetchEditPoint } from './editPoint';
 import { fetchSelectItem } from './selectItem';
+import { updateExtensionsPath, LANGUAGE_MODES, getMappedModes } from './util';
 
-interface ISupportedLanguageMode {
-	id: string;
-	triggerCharacters: string[];
-}
 
-const LANGUAGE_MODES: ISupportedLanguageMode[] = [
-	{ id: 'html', triggerCharacters: ['!', '.', '}'] },
-	{ id: 'jade', triggerCharacters: ['!', '.', '}'] },
-	{ id: 'slim', triggerCharacters: ['!', '.', '}'] },
-	{ id: 'haml', triggerCharacters: ['!', '.', '}'] },
-	{ id: 'xml', triggerCharacters: ['.', '}'] },
-	{ id: 'xsl', triggerCharacters: ['.', '}'] },
-
-	{ id: 'javascriptreact', triggerCharacters: ['.'] },
-	{ id: 'typescriptreact', triggerCharacters: ['.'] },
-
-	{ id: 'css', triggerCharacters: [':'] },
-	{ id: 'scss', triggerCharacters: [':'] },
-	{ id: 'sass', triggerCharacters: [':'] },
-	{ id: 'less', triggerCharacters: [':'] },
-	{ id: 'stylus', triggerCharacters: [':'] }
-];
 
 export function activate(context: vscode.ExtensionContext) {
 	let completionProvider = new EmmetCompletionItemProvider();
-	for (let language of LANGUAGE_MODES) {
-		const provider = vscode.languages.registerCompletionItemProvider({ language: language.id }, completionProvider, ...language.triggerCharacters);
+	Object.keys(LANGUAGE_MODES).forEach(language => {
+		const provider = vscode.languages.registerCompletionItemProvider(language, completionProvider, ...LANGUAGE_MODES[language]);
 		context.subscriptions.push(provider);
-	}
+	});
+
+	let completionProviderForMappedSyntax = new EmmetCompletionItemProvider(true);
+	let mappedModes = getMappedModes();
+	Object.keys(mappedModes).forEach(syntax => {
+		const provider = vscode.languages.registerCompletionItemProvider(syntax, completionProviderForMappedSyntax, ...LANGUAGE_MODES[mappedModes[syntax]]);
+		context.subscriptions.push(provider);
+	});
+
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.wrapWithAbbreviation', () => {
 		wrapWithAbbreviation();
@@ -104,6 +92,10 @@ export function activate(context: vscode.ExtensionContext) {
 		fetchSelectItem('prev');
 	}));
 
+	updateExtensionsPath();
+	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
+		updateExtensionsPath();
+	}));
 }
 
 export function deactivate() {

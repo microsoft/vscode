@@ -16,8 +16,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITerminalService, ITerminalFont, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { TerminalFindWidget } from './terminalFindWidget';
-import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR } from './terminalColorRegistry';
-import { ColorIdentifier, selectionBackground } from 'vs/platform/theme/common/colorRegistry';
+import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from './terminalColorRegistry';
+import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -137,7 +137,8 @@ export class TerminalPanel extends Panel {
 				this._register(a);
 			});
 		}
-		this._copyContextMenuAction.enabled = document.activeElement.classList.contains('xterm') && window.getSelection().toString().length > 0;
+		const activeInstance = this._terminalService.getActiveInstance();
+		this._copyContextMenuAction.enabled = activeInstance && activeInstance.hasSelection();
 		return this._contextMenuActions;
 	}
 
@@ -277,13 +278,9 @@ export class TerminalPanel extends Panel {
 				`.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-bar.focus.xterm-cursor-blink .terminal-cursor::before,` +
 				`.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-underline.focus.xterm-cursor-blink .terminal-cursor::before { background-color: ${fgColor}; }`;
 		}
-		// Use selection.background as the terminal selection, this is temporary
-		// until proper color inverting is implemented to ensure contrast.
-		const selectionColor = theme.getColor(selectionBackground);
+		const selectionColor = theme.getColor(TERMINAL_SELECTION_BACKGROUND_COLOR);
 		if (selectionColor) {
-			// selection.background is set to null when not defined by the
-			// theme, as such it's default values are defined in CSS.
-			css += `.monaco-workbench .panel.integrated-terminal .xterm .xterm-selection div { background-color: ${selectionColor} !important; }`;
+			css += `.monaco-workbench .panel.integrated-terminal .xterm .xterm-selection div { background-color: ${selectionColor}; }`;
 		}
 
 		this._themeStyleElement.innerHTML = css;

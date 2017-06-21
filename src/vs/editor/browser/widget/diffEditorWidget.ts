@@ -803,7 +803,9 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	private _beginUpdateDecorations(): void {
 		this._beginUpdateDecorationsTimeout = -1;
-		if (!this.modifiedEditor.getModel()) {
+		const currentOriginalModel = this.originalEditor.getModel();
+		const currentModifiedModel = this.modifiedEditor.getModel();
+		if (!currentOriginalModel || !currentModifiedModel) {
 			return;
 		}
 
@@ -812,8 +814,6 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		// yet supported, so using tokens for now.
 		this._diffComputationToken++;
 		let currentToken = this._diffComputationToken;
-		let currentOriginalModel = this.originalEditor.getModel();
-		let currentModifiedModel = this.modifiedEditor.getModel();
 
 		this._editorWorkerService.computeDiff(currentOriginalModel.uri, currentModifiedModel.uri, this._ignoreTrimWhitespace).then((result) => {
 			if (currentToken === this._diffComputationToken

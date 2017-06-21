@@ -6,9 +6,34 @@
 import * as vscode from 'vscode';
 import parse from '@emmetio/html-matcher';
 import Node from '@emmetio/node';
-import * as extract from '@emmetio/extract-abbreviation';
 import { DocumentStreamReader } from './bufferStream';
+import * as path from 'path';
+import * as fs from 'fs';
 
+let variablesFromFile = {};
+let profilesFromFile = {};
+let emmetExtensionsPath = '';
+
+export const LANGUAGE_MODES: Object = {
+	'html': ['!', '.', '}'],
+	'jade': ['!', '.', '}'],
+	'slim': ['!', '.', '}'],
+	'haml': ['!', '.', '}'],
+	'xml': ['.', '}'],
+	'xsl': ['.', '}'],
+	'javascriptreact': ['.'],
+	'typescriptreact': ['.'],
+	'css': [':'],
+	'scss': [':'],
+	'sass': [':'],
+	'less': [':'],
+	'stylus': [':']
+};
+
+// Explicitly map languages to their parent language to get emmet support
+export const MAPPED_MODES: Object = {
+	'handlebars': 'html'
+};
 export function validate(allowStylesheet: boolean = true): boolean {
 	let editor = vscode.window.activeTextEditor;
 	if (!editor) {
@@ -37,9 +62,16 @@ export function isStyleSheet(syntax): boolean {
 }
 
 export function getProfile(syntax: string): any {
-	let config = vscode.workspace.getConfiguration('emmet')['syntaxProfiles'] || {};
-	let options = config[syntax];
+	let profilesFromSettings = vscode.workspace.getConfiguration('emmet')['syntaxProfiles'] || {};
+	let profilesConfig = Object.assign({}, profilesFromFile, profilesFromSettings);
+
+	let options = profilesConfig[syntax];
 	if (!options || typeof options === 'string') {
+		if (options === 'xhtml') {
+			return {
+				selfClosingStyle: 'xhtml'
+			};
+		}
 		return {};
 	}
 	let newOptions = {};
@@ -80,6 +112,58 @@ export function getProfile(syntax: string): any {
 	return newOptions;
 }
 
+export function getVariables(): any {
+	let variablesFromSettings = vscode.workspace.getConfiguration('emmet')['variables'];
+	return Object.assign({}, variablesFromFile, variablesFromSettings);
+}
+
+export function getMappedModes(): any {
+	let finalMappedModes = {};
+	let syntaxProfileConfig = vscode.workspace.getConfiguration('emmet')['syntaxProfiles'];
+	let syntaxProfiles = Object.assign({}, MAPPED_MODES, syntaxProfileConfig ? syntaxProfileConfig : {});
+	Object.keys(syntaxProfiles).forEach(syntax => {
+		if (typeof syntaxProfiles[syntax] === 'string' && LANGUAGE_MODES[syntaxProfiles[syntax]]) {
+			finalMappedModes[syntax] = syntaxProfiles[syntax];
+		}
+	});
+	return finalMappedModes;
+}
+
+export function updateExtensionsPath() {
+	let currentEmmetExtensionsPath = vscode.workspace.getConfiguration('emmet')['extensionsPath'];
+	if (emmetExtensionsPath !== currentEmmetExtensionsPath) {
+		emmetExtensionsPath = currentEmmetExtensionsPath;
+
+		if (emmetExtensionsPath && emmetExtensionsPath.trim()) {
+			let dirPath = path.isAbsolute(emmetExtensionsPath) ? emmetExtensionsPath : path.join(vscode.workspace.rootPath, emmetExtensionsPath);
+			let snippetsPath = path.join(dirPath, 'snippets.json');
+			let profilesPath = path.join(dirPath, 'syntaxProfiles.json');
+			if (dirExists(dirPath)) {
+				fs.readFile(snippetsPath, (err, snippetsData) => {
+					if (err) {
+						return;
+					}
+					try {
+						let snippetsJson = JSON.parse(snippetsData.toString());
+						variablesFromFile = snippetsJson['variables'];
+					} catch (e) {
+
+					}
+				});
+				fs.readFile(profilesPath, (err, profilesData) => {
+					if (err) {
+						return;
+					}
+					try {
+						profilesFromFile = JSON.parse(profilesData.toString());
+					} catch (e) {
+
+					}
+				});
+			}
+		}
+	}
+}
 export function getOpenCloseRange(document: vscode.TextDocument, position: vscode.Position): [vscode.Range, vscode.Range] {
 	let rootNode: Node = parse(new DocumentStreamReader(document));
 	let nodeToUpdate = getNode(rootNode, position);
@@ -112,16 +196,11 @@ export function getNode(root: Node, position: vscode.Position, includeNodeBounda
 	return foundNode;
 }
 
-export function extractAbbreviation(position: vscode.Position): [vscode.Range, string] {
-	let editor = vscode.window.activeTextEditor;
-	let currentLine = editor.document.lineAt(position.line).text;
-	let result = extract(currentLine, position.character, true);
-	if (!result) {
-		return [null, ''];
+export function getInnerRange(currentNode: Node): vscode.Range {
+	if (!currentNode.close) {
+		return;
 	}
-
-	let rangeToReplace = new vscode.Range(position.line, result.location, position.line, result.location + result.abbreviation.length);
-	return [rangeToReplace, result.abbreviation];
+	return new vscode.Range(currentNode.open.end, currentNode.close.start);
 }
 
 export function getDeepestNode(node: Node): Node {
@@ -260,4 +339,13 @@ export function sameNodes(node1: Node, node2: Node): boolean {
 		return false;
 	}
 	return (<vscode.Position>node1.start).isEqual(node2.start) && (<vscode.Position>node1.end).isEqual(node2.end);
+}
+
+function dirExists(dirPath: string): boolean {
+	try {
+
+		return fs.statSync(dirPath).isDirectory();
+	} catch (e) {
+		return false;
+	}
 }

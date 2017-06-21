@@ -9,7 +9,7 @@ import URI from 'vs/base/common/uri';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import nls = require('vs/nls');
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -105,7 +105,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerFileInputFactory(
 
 interface ISerializedFileInput {
 	resource: string;
-	resourceJSON: any;
+	resourceJSON: object;
 	encoding?: string;
 }
 

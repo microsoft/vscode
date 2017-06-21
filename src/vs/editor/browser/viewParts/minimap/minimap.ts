@@ -18,7 +18,6 @@ import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { ColorId } from 'vs/editor/common/modes';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
 import { RenderedLinesCollection, ILine } from 'vs/editor/browser/view/viewLayer';
 import { Range } from 'vs/editor/common/core/range';
 import { RGBA } from 'vs/base/common/color';
@@ -73,9 +72,13 @@ class MinimapOptions {
 
 	public readonly renderMinimap: RenderMinimap;
 
+	public readonly scrollBeyondLastLine: boolean;
+
 	public readonly showSlider: 'always' | 'mouseover';
 
 	public readonly pixelRatio: number;
+
+	public readonly typicalHalfwidthCharacterWidth: number;
 
 	public readonly lineHeight: number;
 
@@ -110,16 +113,19 @@ class MinimapOptions {
 		const pixelRatio = configuration.editor.pixelRatio;
 		const layoutInfo = configuration.editor.layoutInfo;
 		const viewInfo = configuration.editor.viewInfo;
+		const fontInfo = configuration.editor.fontInfo;
 
 		this.renderMinimap = layoutInfo.renderMinimap | 0;
+		this.scrollBeyondLastLine = viewInfo.scrollBeyondLastLine;
 		this.showSlider = viewInfo.minimap.showSlider;
 		this.pixelRatio = pixelRatio;
+		this.typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this.lineHeight = configuration.editor.lineHeight;
 		this.minimapWidth = layoutInfo.minimapWidth;
 		this.minimapHeight = layoutInfo.height;
 
-		this.canvasInnerWidth = Math.floor(pixelRatio * this.minimapWidth);
-		this.canvasInnerHeight = Math.floor(pixelRatio * this.minimapHeight);
+		this.canvasInnerWidth = Math.max(1, Math.floor(pixelRatio * this.minimapWidth));
+		this.canvasInnerHeight = Math.max(1, Math.floor(pixelRatio * this.minimapHeight));
 
 		this.canvasOuterWidth = this.canvasInnerWidth / pixelRatio;
 		this.canvasOuterHeight = this.canvasInnerHeight / pixelRatio;
@@ -127,8 +133,10 @@ class MinimapOptions {
 
 	public equals(other: MinimapOptions): boolean {
 		return (this.renderMinimap === other.renderMinimap
+			&& this.scrollBeyondLastLine === other.scrollBeyondLastLine
 			&& this.showSlider === other.showSlider
 			&& this.pixelRatio === other.pixelRatio
+			&& this.typicalHalfwidthCharacterWidth === other.typicalHalfwidthCharacterWidth
 			&& this.lineHeight === other.lineHeight
 			&& this.minimapWidth === other.minimapWidth
 			&& this.minimapHeight === other.minimapHeight
@@ -198,7 +206,6 @@ class MinimapLayout {
 		viewportHeight: number,
 		viewportContainsWhitespaceGaps: boolean,
 		lineCount: number,
-		scrollbarSliderCenter: number,
 		scrollTop: number,
 		scrollHeight: number
 	): MinimapLayout {
@@ -229,7 +236,16 @@ class MinimapLayout {
 			sliderHeight = Math.floor(expectedViewportLineCount * minimapLineHeight / pixelRatio);
 		}
 
-		const maxMinimapSliderTop = Math.min(options.minimapHeight - sliderHeight, (lineCount - 1) * minimapLineHeight / pixelRatio);
+		let maxMinimapSliderTop: number;
+		if (options.scrollBeyondLastLine) {
+			// The minimap slider, when dragged all the way down, will contain the last line at its top
+			maxMinimapSliderTop = (lineCount - 1) * minimapLineHeight / pixelRatio;
+		} else {
+			// The minimap slider, when dragged all the way down, will contain the last line at its bottom
+			maxMinimapSliderTop = Math.max(0, lineCount * minimapLineHeight / pixelRatio - sliderHeight);
+		}
+		maxMinimapSliderTop = Math.min(options.minimapHeight - sliderHeight, maxMinimapSliderTop);
+
 		// The slider can move from 0 to `maxMinimapSliderTop`
 		// in the same way `scrollTop` can move from 0 to `scrollHeight` - `viewportHeight`.
 		const computedSliderRatio = (maxMinimapSliderTop) / (scrollHeight - viewportHeight);
@@ -288,6 +304,29 @@ class RenderData {
 			() => MinimapLine.INVALID
 		);
 		this._renderedLines._set(renderedLayout.startLineNumber, lines);
+	}
+
+	/**
+	 * Check if the current RenderData matches accurately the new desired layout and no painting is needed.
+	 */
+	public linesEquals(layout: MinimapLayout): boolean {
+		if (this.renderedLayout.startLineNumber !== layout.startLineNumber) {
+			return false;
+		}
+		if (this.renderedLayout.endLineNumber !== layout.endLineNumber) {
+			return false;
+		}
+
+		const tmp = this._renderedLines._get();
+		const lines = tmp.lines;
+		for (let i = 0, len = lines.length; i < len; i++) {
+			if (lines[i].dy === -1) {
+				// This line is invalid
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	_get(): { imageData: ImageData; rendLineNumberStart: number; lines: MinimapLine[]; } {
@@ -368,12 +407,11 @@ class MinimapBuffers {
 
 export class Minimap extends ViewPart {
 
-	private readonly _editorScrollbar: EditorScrollbar;
-
 	private readonly _domNode: FastDomNode<HTMLElement>;
 	private readonly _shadow: FastDomNode<HTMLElement>;
 	private readonly _canvas: FastDomNode<HTMLCanvasElement>;
 	private readonly _slider: FastDomNode<HTMLElement>;
+	private readonly _sliderHorizontal: FastDomNode<HTMLElement>;
 	private readonly _tokensColorTracker: MinimapTokensColorTracker;
 	private readonly _mouseDownListener: IDisposable;
 	private readonly _sliderMouseMoveMonitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
@@ -385,9 +423,8 @@ export class Minimap extends ViewPart {
 	private _lastRenderData: RenderData;
 	private _buffers: MinimapBuffers;
 
-	constructor(context: ViewContext, editorScrollbar: EditorScrollbar) {
+	constructor(context: ViewContext) {
 		super(context);
-		this._editorScrollbar = editorScrollbar;
 
 		this._options = new MinimapOptions(this._context.configuration);
 		this._lastRenderData = null;
@@ -415,6 +452,11 @@ export class Minimap extends ViewPart {
 		this._slider.setClassName('minimap-slider');
 		this._slider.setLayerHinting(true);
 		this._domNode.appendChild(this._slider);
+
+		this._sliderHorizontal = createFastDomNode(document.createElement('div'));
+		this._sliderHorizontal.setPosition('absolute');
+		this._sliderHorizontal.setClassName('minimap-slider-horizontal');
+		this._slider.appendChild(this._sliderHorizontal);
 
 		this._tokensColorTracker = MinimapTokensColorTracker.getInstance();
 
@@ -608,12 +650,19 @@ export class Minimap extends ViewPart {
 			renderingCtx.viewportHeight,
 			(renderingCtx.viewportData.whitespaceViewportData.length > 0),
 			this._context.model.getLineCount(),
-			this._editorScrollbar.getVerticalSliderVerticalCenter(),
 			renderingCtx.scrollTop,
 			renderingCtx.scrollHeight
 		);
 		this._slider.setTop(layout.sliderTop);
 		this._slider.setHeight(layout.sliderHeight);
+
+		// Compute horizontal slider coordinates
+		const scrollLeftChars = renderingCtx.scrollLeft / this._options.typicalHalfwidthCharacterWidth;
+		const horizontalSliderLeft = Math.min(this._options.minimapWidth, Math.round(scrollLeftChars * getMinimapCharWidth(this._options.renderMinimap) / this._options.pixelRatio));
+		this._sliderHorizontal.setLeft(horizontalSliderLeft);
+		this._sliderHorizontal.setWidth(this._options.minimapWidth - horizontalSliderLeft);
+		this._sliderHorizontal.setTop(0);
+		this._sliderHorizontal.setHeight(layout.sliderHeight);
 
 		this._lastRenderData = this.renderLines(layout);
 	}
@@ -625,27 +674,10 @@ export class Minimap extends ViewPart {
 		const minimapLineHeight = getMinimapLineHeight(renderMinimap);
 
 		// Check if nothing changed w.r.t. lines from last frame
-		if (this._lastRenderData) {
+		if (this._lastRenderData && this._lastRenderData.linesEquals(layout)) {
 			const _lastData = this._lastRenderData._get();
-			const lastStartLineNumber = _lastData.rendLineNumberStart;
-			const lastLines = _lastData.lines;
-			const lastLinesLength = lastLines.length;
-
-			let linesNeedPainting = false;
-			for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-				const lastLineIndex = lineNumber - lastStartLineNumber;
-				const source_dy = (lastLineIndex >= 0 && lastLineIndex < lastLinesLength ? lastLines[lastLineIndex].dy : -1);
-
-				if (source_dy === -1) {
-					linesNeedPainting = true;
-					break;
-				}
-			}
-
-			if (!linesNeedPainting) {
-				// Nice!! Nothing changed from last frame
-				return new RenderData(layout, _lastData.imageData, _lastData.lines);
-			}
+			// Nice!! Nothing changed from last frame
+			return new RenderData(layout, _lastData.imageData, _lastData.lines);
 		}
 
 		// Oh well!! We need to repaint some lines...
@@ -833,19 +865,22 @@ export class Minimap extends ViewPart {
 }
 
 registerThemingParticipant((theme, collector) => {
-	let sliderBackground = theme.getColor(scrollbarSliderBackground);
+	const sliderBackground = theme.getColor(scrollbarSliderBackground);
 	if (sliderBackground) {
-		collector.addRule(`.monaco-editor .minimap-slider { background: ${sliderBackground}; }`);
+		const halfSliderBackground = sliderBackground.transparent(0.5);
+		collector.addRule(`.monaco-editor .minimap-slider, .monaco-editor .minimap-slider .minimap-slider-horizontal { background: ${halfSliderBackground}; }`);
 	}
-	let sliderHoverBackground = theme.getColor(scrollbarSliderHoverBackground);
+	const sliderHoverBackground = theme.getColor(scrollbarSliderHoverBackground);
 	if (sliderHoverBackground) {
-		collector.addRule(`.monaco-editor .minimap-slider:hover { background: ${sliderHoverBackground}; }`);
+		const halfSliderHoverBackground = sliderHoverBackground.transparent(0.5);
+		collector.addRule(`.monaco-editor .minimap-slider:hover, .monaco-editor .minimap-slider:hover .minimap-slider-horizontal { background: ${halfSliderHoverBackground}; }`);
 	}
-	let sliderActiveBackground = theme.getColor(scrollbarSliderActiveBackground);
+	const sliderActiveBackground = theme.getColor(scrollbarSliderActiveBackground);
 	if (sliderActiveBackground) {
-		collector.addRule(`.monaco-editor .minimap-slider.active { background: ${sliderActiveBackground}; }`);
+		const halfSliderActiveBackground = sliderActiveBackground.transparent(0.5);
+		collector.addRule(`.monaco-editor .minimap-slider.active, .monaco-editor .minimap-slider.active .minimap-slider-horizontal { background: ${halfSliderActiveBackground}; }`);
 	}
-	let shadow = theme.getColor(scrollbarShadow);
+	const shadow = theme.getColor(scrollbarShadow);
 	if (shadow) {
 		collector.addRule(`.monaco-editor .minimap-shadow-visible { box-shadow: ${shadow} -6px 0 6px -6px inset; }`);
 	}

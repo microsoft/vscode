@@ -9,11 +9,11 @@ import URI from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
 import {
 	IDecorationRenderOptions, IModelDecorationOptions, IModelDecorationOverviewRulerOptions, IThemeDecorationRenderOptions,
-	IContentDecorationRenderOptions, OverviewRulerLane, TrackedRangeStickiness, ThemeColor, isThemeColor
+	IContentDecorationRenderOptions, OverviewRulerLane, TrackedRangeStickiness, isThemeColor
 } from 'vs/editor/common/editorCommon';
 import { AbstractCodeEditorService } from 'vs/editor/common/services/abstractCodeEditorService';
 import { IDisposable, dispose as disposeAll } from 'vs/base/common/lifecycle';
-import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ITheme, ThemeColor } from 'vs/platform/theme/common/themeService';
 
 export class CodeEditorServiceImpl extends AbstractCodeEditorService {
 
