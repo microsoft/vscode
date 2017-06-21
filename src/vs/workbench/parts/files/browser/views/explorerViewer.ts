@@ -562,18 +562,24 @@ export class FileFilter implements IFilter {
 
 	private static MAX_SIBLINGS_FILTER_THRESHOLD = 2000;
 
-	private hiddenExpression: glob.IExpression;
+	private hiddenExpressionPerRoot: Map<string, glob.IExpression>;
 
-	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
-		this.hiddenExpression = Object.create(null);
+	constructor(
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IConfigurationService private configurationService: IConfigurationService
+	) {
+		this.hiddenExpressionPerRoot = new Map<string, glob.IExpression>();
+		this.contextService.onDidChangeWorkspaceRoots(() => this.updateConfiguration());
 	}
 
-	public updateConfiguration(configuration: IFilesConfiguration): boolean {
-		const excludesConfig = (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
-		const needsRefresh = !objects.equals(this.hiddenExpression, excludesConfig);
-
-		// This needs to be per folder
-		this.hiddenExpression = objects.clone(excludesConfig); // do not keep the config, as it gets mutated under our hoods
+	public updateConfiguration(): boolean {
+		let needsRefresh = false;
+		this.contextService.getWorkspace2().roots.forEach(root => {
+			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(undefined, { resource: root });
+			const excludesConfig = (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
+			needsRefresh = needsRefresh || !objects.equals(this.hiddenExpressionPerRoot.get(root.toString()), excludesConfig);
+			this.hiddenExpressionPerRoot.set(root.toString(), objects.clone(excludesConfig)); // do not keep the config, as it gets mutated under our hoods
+		});
 
 		return needsRefresh;
 	}
@@ -595,7 +601,8 @@ export class FileFilter implements IFilter {
 
 		// Hide those that match Hidden Patterns
 		const siblingsFn = () => siblings && siblings.map(c => c.name);
-		if (glob.match(this.hiddenExpression, this.contextService.toWorkspaceRelativePath(stat.resource, true), siblingsFn)) {
+		const expression = this.hiddenExpressionPerRoot.get(stat.root.toString()) || Object.create(null);
+		if (glob.match(expression, paths.normalize(paths.relative(stat.root.fsPath, stat.resource.fsPath)), siblingsFn)) {
 			return false; // hidden through pattern
 		}
 

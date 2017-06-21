@@ -239,7 +239,7 @@ export class ExplorerView extends CollapsibleView {
 		// Push down config updates to components of viewer
 		let needsRefresh = false;
 		if (this.filter) {
-			needsRefresh = this.filter.updateConfiguration(configuration);
+			needsRefresh = this.filter.updateConfiguration();
 		}
 
 		// Refresh viewer as needed
