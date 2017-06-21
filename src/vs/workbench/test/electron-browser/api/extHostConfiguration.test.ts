@@ -29,11 +29,11 @@ suite('ExtHostConfiguration', function () {
 		if (!shape) {
 			shape = new class extends MainThreadConfigurationShape { };
 		}
-		return new ExtHostConfiguration(shape, {
+		return new ExtHostConfiguration(shape, new ExtHostWorkspace(new TestThreadService(), null), {
 			defaults: new ConfigurationModel(contents),
 			user: new ConfigurationModel(contents),
 			folders: Object.create(null)
-		}, new ExtHostWorkspace(new TestThreadService(), null));
+		});
 	}
 
 	test('getConfiguration fails regression test 1.7.1 -> 1.8 #15552', function () {
@@ -91,23 +91,27 @@ suite('ExtHostConfiguration', function () {
 				'wordWrap': 'bounded'
 			}
 		}, ['editor.wordWrap']);
-		const testObject = new ExtHostConfiguration(new class extends MainThreadConfigurationShape { }, {
-			defaults: new ConfigurationModel({
-				'editor': {
-					'wordWrap': 'off'
-				}
-			}, ['editor.wordWrap']),
-			user: new ConfigurationModel({
-				'editor': {
-					'wordWrap': 'on'
-				}
-			}, ['editor.wordWrap']),
-			folders
-		}, new ExtHostWorkspace(new TestThreadService(), {
-			'id': 'foo',
-			'roots': [URI.file('foo')],
-			'name': 'foo'
-		}));
+		const testObject = new ExtHostConfiguration(
+			new class extends MainThreadConfigurationShape { },
+			new ExtHostWorkspace(new TestThreadService(), {
+				'id': 'foo',
+				'roots': [URI.file('foo')],
+				'name': 'foo'
+			}),
+			{
+				defaults: new ConfigurationModel({
+					'editor': {
+						'wordWrap': 'off'
+					}
+				}, ['editor.wordWrap']),
+				user: new ConfigurationModel({
+					'editor': {
+						'wordWrap': 'on'
+					}
+				}, ['editor.wordWrap']),
+				folders
+			}
+		);
 
 		const actual = testObject.getConfiguration().inspect('editor.wordWrap');
 		assert.equal(actual.defaultValue, 'off');
