@@ -337,8 +337,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private showTaskNotification(): void {
 		const storageKey = 'workbench.tasks.ranTaskBefore';
-		if (!this.storageService.get(storageKey) && this.contextService.getWorkspace()) {
-			const fileName = path.relative(this.contextService.getWorkspace().resource.toString(), this.resource.toString());
+		const ignoreKey = 'workbench.tasks.ignoreTask';
+		if (!this.storageService.get(ignoreKey) && (!this.storageService.get(storageKey) && this.contextService.getWorkspace2())) {
+			const fileName = path.relative(this.contextService.getWorkspace2().roots[0].toString(), this.resource.toString());
 			if (fileName.match(/^gruntfile\.js$/i) || fileName.match(/^gulpfile\.js$/i) || fileName.match(/^tsconfig\.json$/i)) {
 				const message = localize('taskFileOpened', `Run your {0} in VS Code. Get started here.`, fileName.split('.')[0]);
 				let action: Action;
@@ -362,13 +363,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 						case 0: {
 							this.telemetryService.publicLog('taskNotificationOptionChoice',
 								{ choice: 0, test: showDocumentation });
-							this.storageService.store(storageKey, true, StorageScope.GLOBAL);
 							return action.run();
 						}
 						case 1: {
 							this.telemetryService.publicLog('taskNotificationOptionChoice',
 								{ choice: 1, test: showDocumentation });
-							return this.storageService.store(storageKey, true, StorageScope.GLOBAL);
+							return this.storageService.store(ignoreKey, true, StorageScope.GLOBAL);
 						}
 						case 2: {
 							this.telemetryService.publicLog('taskNotificationOptionChoice',
