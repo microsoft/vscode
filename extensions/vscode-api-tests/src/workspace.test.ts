@@ -451,6 +451,8 @@ suite('workspace-namespace', () => {
 	});
 
 	test('findFiles', () => {
+		this.timeout(1000 * 60); // increase timeout for test using search
+
 		return vscode.workspace.findFiles('*.js').then((res) => {
 			assert.equal(res.length, 1);
 			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'far.js');
