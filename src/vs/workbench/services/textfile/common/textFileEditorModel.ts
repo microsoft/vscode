@@ -337,7 +337,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private showTaskNotification(): void {
 		const storageKey = 'workbench.tasks.ranTaskBefore';
-		const ignoreKey = 'workbench.tasks.ignoreTask';
+		const ignoreKey = 'workbench.tasks.ignoreTaskNotification';
 		if (!this.storageService.get(ignoreKey) && (!this.storageService.get(storageKey) && this.contextService.getWorkspace2())) {
 			const fileName = path.relative(this.contextService.getWorkspace2().roots[0].toString(), this.resource.toString());
 			if (fileName.match(/^gruntfile\.js$/i) || fileName.match(/^gulpfile\.js$/i) || fileName.match(/^tsconfig\.json$/i)) {
