@@ -8,8 +8,7 @@ import parseStylesheet from '@emmetio/css-parser';
 import parse from '@emmetio/html-matcher';
 import Node from '@emmetio/node';
 import { DocumentStreamReader } from './bufferStream';
-import { isStyleSheet } from './vscode-emmet-helper/abbreviationUtil';
-import { EmmetCompletionItemProvider } from './vscode-emmet-helper/emmetCompletionProvider';
+import { EmmetCompletionItemProvider, isStyleSheet } from 'vscode-emmet-helper';
 import { isValidLocationForEmmetAbbreviation } from './abbreviationActions';
 import { getSyntax, getNode, getInnerRange } from './util';
 

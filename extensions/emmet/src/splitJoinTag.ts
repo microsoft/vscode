@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import parse from '@emmetio/html-matcher';
 import Node from '@emmetio/node';
 import { DocumentStreamReader } from './bufferStream';
-import { isStyleSheet } from './vscode-emmet-helper/abbreviationUtil';
+import { isStyleSheet } from 'vscode-emmet-helper';
 import { getNode } from './util';
 
 export function splitJoinTag() {

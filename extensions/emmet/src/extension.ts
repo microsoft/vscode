@@ -16,7 +16,7 @@ import { toggleComment } from './toggleComment';
 import { fetchEditPoint } from './editPoint';
 import { fetchSelectItem } from './selectItem';
 import { LANGUAGE_MODES, getMappedModes } from './util';
-import { updateExtensionsPath } from './vscode-emmet-helper/abbreviationUtil';
+import { updateExtensionsPath } from 'vscode-emmet-helper';
 
 export function activate(context: vscode.ExtensionContext) {
 	let completionProvider = new DefaultCompletionItemProvider();

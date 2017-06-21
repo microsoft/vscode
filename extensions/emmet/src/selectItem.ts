@@ -11,7 +11,7 @@ import parseStylesheet from '@emmetio/css-parser';
 import parse from '@emmetio/html-matcher';
 import Node from '@emmetio/node';
 import { DocumentStreamReader } from './bufferStream';
-import { isStyleSheet } from './vscode-emmet-helper/abbreviationUtil';
+import { isStyleSheet } from 'vscode-emmet-helper';
 
 
 export function fetchSelectItem(direction: string): void {

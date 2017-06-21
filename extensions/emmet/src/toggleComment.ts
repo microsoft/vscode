@@ -9,7 +9,7 @@ import parse from '@emmetio/html-matcher';
 import parseStylesheet from '@emmetio/css-parser';
 import Node from '@emmetio/node';
 import { DocumentStreamReader } from './bufferStream';
-import { isStyleSheet } from './vscode-emmet-helper/abbreviationUtil';
+import { isStyleSheet } from 'vscode-emmet-helper';
 
 const startCommentStylesheet = '/*';
 const endCommentStylesheet = '*/';
