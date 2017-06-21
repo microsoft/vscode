@@ -63,7 +63,7 @@ export default class Webview {
 	constructor(
 		private parent: HTMLElement,
 		private _styleElement: Element,
-		private options: WebviewOptions = {}
+		private _options: WebviewOptions = {}
 	) {
 		this._webview = <any>document.createElement('webview');
 
@@ -96,29 +96,29 @@ export default class Webview {
 		});
 
 		let loaded = false;
-		if (!options.allowSvgs) {
-			const subscription = addDisposableListener(this._webview, 'did-start-loading', () => {
-				if (loaded) {
-					return;
-				}
-				loaded = true;
+		const subscription = addDisposableListener(this._webview, 'did-start-loading', () => {
+			if (loaded) {
+				return;
+			}
+			loaded = true;
 
-				const contents = this._webview.getWebContents();
-				if (!contents) {
-					return;
-				}
+			const contents = this._webview.getWebContents();
+			if (!contents) {
+				return;
+			}
 
-				contents.session.webRequest.onBeforeRequest((details, callback) => {
-					if (details.url.indexOf('.svg') > 0) {
-						const uri = URI.parse(details.url);
-						if (uri && !uri.scheme.match(/file/i) && (uri.path as any).endsWith('.svg') && !this.isAllowedSvg(uri)) {
-							return callback({ cancel: true });
-						}
+			contents.session.webRequest.onBeforeRequest((details, callback) => {
+				if (!this._options.allowSvgs && details.url.indexOf('.svg') > 0) {
+					const uri = URI.parse(details.url);
+					if (uri && !uri.scheme.match(/file/i) && (uri.path as any).endsWith('.svg') && !this.isAllowedSvg(uri)) {
+						return callback({ cancel: true });
 					}
-					return callback({});
-				});
+				}
+				return callback({});
+			});
 
-				contents.session.webRequest.onHeadersReceived((details, callback) => {
+			contents.session.webRequest.onHeadersReceived((details, callback) => {
+				if (!this._options.allowSvgs) {
 					const contentType: string[] = (details.responseHeaders['content-type'] || details.responseHeaders['Content-Type']) as any;
 					if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
 						const uri = URI.parse(details.url);
@@ -126,13 +126,12 @@ export default class Webview {
 							return callback({ cancel: true });
 						}
 					}
-					return callback({ cancel: false, responseHeaders: details.responseHeaders });
-				});
+				}
+				return callback({ cancel: false, responseHeaders: details.responseHeaders });
 			});
+		});
 
-			this._disposables.push(subscription);
-		}
-
+		this._disposables.push(subscription);
 
 		this._disposables.push(
 			addDisposableListener(this._webview, 'console-message', function (e: { level: number; message: string; line: number; sourceId: string; }) {
@@ -204,10 +203,14 @@ export default class Webview {
 		this._send('initial-scroll-position', value);
 	}
 
+	set options(value: WebviewOptions) {
+		this._options = value;
+	}
+
 	set contents(value: string[]) {
 		this._send('content', {
 			contents: value,
-			options: this.options
+			options: this._options
 		});
 	}
 

@@ -69,15 +69,19 @@ CommandsRegistry.registerCommand('_workbench.htmlZone', function (accessor: Serv
 
 		HtmlZoneController.getInstance(codeEditor).addZone(params.lineNumber, contents);
 	});
-
 });
+
+const defaultPreviewHtmlOptions: HtmlInputOptions = {
+	allowScripts: true,
+	allowSvgs: true
+};
 
 CommandsRegistry.registerCommand('_workbench.previewHtml', function (
 	accessor: ServicesAccessor,
 	resource: URI | string,
 	position?: EditorPosition,
 	label?: string,
-	options: HtmlInputOptions = {}
+	options?: HtmlInputOptions
 ) {
 	const uri = resource instanceof URI ? resource : URI.parse(resource);
 	label = label || uri.fsPath;
@@ -96,7 +100,7 @@ CommandsRegistry.registerCommand('_workbench.previewHtml', function (
 
 	// Otherwise, create new input and open it
 	if (!input) {
-		input = accessor.get(IInstantiationService).createInstance(HtmlInput, label, '', uri, options);
+		input = accessor.get(IInstantiationService).createInstance(HtmlInput, label, '', uri, options || defaultPreviewHtmlOptions);
 	} else {
 		input.setName(label); // make sure to use passed in label
 	}
@@ -109,7 +113,7 @@ CommandsRegistry.registerCommand('_workbench.previewHtml', function (
 CommandsRegistry.registerCommand('_workbench.htmlPreview.postMessage', (accessor: ServicesAccessor, resource: URI | string, message: any) => {
 	const uri = resource instanceof URI ? resource : URI.parse(resource);
 	const activePreviews = accessor.get(IWorkbenchEditorService).getVisibleEditors()
-		.filter(c => c instanceof HtmlPreviewPart)
+		.filter(c => c instanceof HtmlPreviewPart && c.model)
 		.map(e => e as HtmlPreviewPart)
 		.filter(e => e.model.uri.scheme === uri.scheme && e.model.uri.fsPath === uri.fsPath);
 	for (const preview of activePreviews) {

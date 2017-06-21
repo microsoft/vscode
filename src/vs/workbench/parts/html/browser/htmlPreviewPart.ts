@@ -74,7 +74,7 @@ export class HtmlPreviewPart extends WebviewEditor {
 
 	private get webview(): Webview {
 		if (!this._webview) {
-			let webviewOptions: WebviewOptions | undefined = { allowScripts: true };
+			let webviewOptions: WebviewOptions = {};
 			if (this.input && this.input instanceof HtmlInput) {
 				webviewOptions = this.input.options;
 			}
@@ -122,9 +122,12 @@ export class HtmlPreviewPart extends WebviewEditor {
 			this._webviewDisposables = dispose(this._webviewDisposables);
 			this._webview = undefined;
 		} else {
-			this._themeChangeSubscription = this.themeService.onThemeChange(themeId => this.webview.style(themeId));
+			this._themeChangeSubscription = this.themeService.onThemeChange(themeId => {
+				if (this._webview) {
+					this._webview.style(themeId);
+				}
+			});
 			this.webview.style(this.themeService.getTheme());
-
 			if (this._hasValidModel()) {
 				this._modelChangeSubscription = this.model.onDidChangeContent(() => this.webview.contents = this.model.getLinesContent());
 				this.webview.contents = this.model.getLinesContent();
@@ -216,6 +219,7 @@ export class HtmlPreviewPart extends WebviewEditor {
 				const state = this.loadViewState(resourceUri);
 				this.scrollYPercentage = state ? state.scrollYPercentage : 0;
 				this.webview.baseUrl = resourceUri.toString(true);
+				this.webview.options = input.options;
 				this.webview.contents = this.model.getLinesContent();
 				this.webview.initialScrollProgress = this.scrollYPercentage;
 				return undefined;

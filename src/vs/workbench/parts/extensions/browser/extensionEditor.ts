@@ -51,13 +51,12 @@ import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLa
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 
 function renderBody(body: string): string {
-	const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
 	return `<!DOCTYPE html>
 		<html>
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src http: https:; media-src https:; script-src 'none'; style-src 'nonce-${nonce}'; child-src 'none'; frame-src 'none';">
-				<link rel="stylesheet" type="text/css" href="${require.toUrl('./media/markdown.css')}" nonce="${nonce}" >
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src http: https:; media-src https:; script-src 'none'; style-src file:; child-src 'none'; frame-src 'none';">
+				<link rel="stylesheet" type="text/css" href="${require.toUrl('./media/markdown.css')}">
 			</head>
 			<body>${body}</body>
 		</html>`;
