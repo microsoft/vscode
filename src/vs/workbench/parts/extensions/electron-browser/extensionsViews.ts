@@ -112,6 +112,7 @@ export class ExtensionsListView extends CollapsibleView {
 	}
 
 	layoutBody(size: number): void {
+		this.extensionsList.style.height = size + 'px';
 		this.list.layout(size);
 	}
 
