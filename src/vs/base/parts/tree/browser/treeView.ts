@@ -197,9 +197,14 @@ export class ViewItem implements IViewItem {
 
 		// ARIA
 		this.element.setAttribute('role', 'treeitem');
-		const ariaLabel = this.context.accessibilityProvider.getAriaLabel(this.context.tree, this.model.getElement());
+		const accessibility = this.context.accessibilityProvider;
+		const ariaLabel = accessibility.getAriaLabel(this.context.tree, this.model.getElement());
 		if (ariaLabel) {
 			this.element.setAttribute('aria-label', ariaLabel);
+		}
+		if (accessibility.getPosInSet && accessibility.getSetSize) {
+			this.element.setAttribute('aria-setsize', accessibility.getSetSize());
+			this.element.setAttribute('aria-posinset', accessibility.getPosInSet(this.context.tree, this.model.getElement()));
 		}
 		if (this.model.hasTrait('focused')) {
 			const base64Id = strings.safeBtoa(this.model.id);
