@@ -288,6 +288,7 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalFin
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_F
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Focus Find Widget', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(HideTerminalFindWidgetAction, HideTerminalFindWidgetAction.ID, HideTerminalFindWidgetAction.LABEL, {
-	primary: KeyCode.Escape
-}, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE), 'Terminal: Focus Find Widget', category);
+	primary: KeyCode.Escape,
+	secondary: [KeyCode.Shift | KeyCode.Escape]
+}, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE)), 'Terminal: Focus Find Widget', category);
 registerColors();

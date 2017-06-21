@@ -253,6 +253,11 @@ export interface ITerminalInstance {
 	findPrevious(term: string): boolean;
 
 	/**
+	 * Notifies the terminal that the find widget's focus state has been changed.
+	 */
+	notifyFindWidgetFocusChanged(isFocused: boolean): void;
+
+	/**
 	 * Focuses the terminal instance.
 	 *
 	 * @param focus Force focus even if there is a selection.
