@@ -394,7 +394,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private get localTypeScriptPath(): string | null {
-		if (!workspace.rootPath) {
+		const rootPath = this.mainWorkspaceRootPath;
+		if (!rootPath) {
 			return null;
 		}
 
@@ -403,10 +404,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			if ((<any>path).isAbsolute(this.configuration.localTsdk)) {
 				return path.join(this.configuration.localTsdk, 'tsserver.js');
 			}
-			return path.join(workspace.rootPath, this.configuration.localTsdk, 'tsserver.js');
+			return path.join(rootPath, this.configuration.localTsdk, 'tsserver.js');
 		}
 
-		const localModulePath = path.join(workspace.rootPath, 'node_modules', 'typescript', 'lib', 'tsserver.js');
+		const localModulePath = path.join(rootPath, 'node_modules', 'typescript', 'lib', 'tsserver.js');
 		if (fs.existsSync(localModulePath) && this.getTypeScriptVersion(localModulePath)) {
 			return localModulePath;
 		}
@@ -418,8 +419,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			this._checkGlobalTSCVersion = false;
 			if ((<any>path).isAbsolute(this.configuration.globalTsdk)) {
 				return path.join(this.configuration.globalTsdk, 'tsserver.js');
-			} else if (workspace.rootPath) {
-				return path.join(workspace.rootPath, this.configuration.globalTsdk, 'tsserver.js');
+			} else if (this.mainWorkspaceRootPath) {
+				return path.join(this.mainWorkspaceRootPath, this.configuration.globalTsdk, 'tsserver.js');
 			}
 		}
 
@@ -435,14 +436,14 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 		if (!this.workspaceState.get<boolean>(TypeScriptServiceClient.tsdkMigratedStorageKey, false)) {
 			this.workspaceState.update(TypeScriptServiceClient.tsdkMigratedStorageKey, true);
-			if (workspace.rootPath && this.hasWorkspaceTsdkSetting()) {
+			if (this.mainWorkspaceRootPath && this.hasWorkspaceTsdkSetting()) {
 				modulePath = this.showVersionPicker(true);
 			}
 		}
 
 		return modulePath.then(modulePath => {
 			if (this.workspaceState.get<boolean>(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, false)) {
-				if (workspace.rootPath) {
+				if (this.mainWorkspaceRootPath) {
 					// TODO: check if we need better error handling
 					return this.localTypeScriptPath || modulePath;
 				}
@@ -485,8 +486,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					const options: electron.IForkOptions = {
 						execArgv: [] // [`--debug-brk=5859`]
 					};
-					if (workspace.rootPath) {
-						options.cwd = workspace.rootPath;
+					if (this.mainWorkspaceRootPath) {
+						options.cwd = this.mainWorkspaceRootPath;
 					}
 
 					if (debugPort && !isNaN(debugPort)) {
@@ -622,7 +623,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	private showVersionPicker(firstRun: boolean): Thenable<string> {
 		const modulePath = this.modulePath || this.globalTypescriptPath;
-		if (!workspace.rootPath || !modulePath) {
+		if (!this.mainWorkspaceRootPath || !modulePath) {
 			return Promise.resolve(modulePath);
 		}
 
@@ -881,6 +882,34 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			return Uri.parse(filepath);
 		}
 		return Uri.file(filepath);
+	}
+
+	private get mainWorkspaceRootPath(): string | undefined {
+		if (workspace.rootPath) {
+			return workspace.rootPath;
+		}
+
+		if (workspace.workspaceFolders && workspace.workspaceFolders.length) {
+			return workspace.workspaceFolders[0].fsPath;
+		}
+
+		return undefined;
+	}
+
+	public getWorkspaceRootForResource(resource: Uri): string | undefined {
+		if (workspace.rootPath) {
+			return workspace.rootPath;
+		}
+
+		if (workspace.workspaceFolders && workspace.workspaceFolders.length) {
+			if (resource.scheme === 'file') {
+				const found = workspace.workspaceFolders.find(root => resource.fsPath.startsWith(root.fsPath));
+				return found ? found.fsPath : found;
+			}
+			return workspace.workspaceFolders[0].fsPath;
+		}
+
+		return undefined;
 	}
 
 	public execute(command: string, args: any, expectsResultOrToken?: boolean | CancellationToken): Promise<any> {
