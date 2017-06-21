@@ -11,19 +11,20 @@ import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import uri from 'vs/base/common/uri';
 import { toFileChangesEvent, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
 import { IWatcherChannel, WatcherChannelClient } from 'vs/workbench/services/files/node/watcher/nsfw/watcherIpc';
-import { FileChangesEvent } from 'vs/platform/files/common/files';
+import { FileChangesEvent, IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { normalize } from "path";
+import { IConfigurationService } from "vs/platform/configuration/common/configuration";
 
 export class FileWatcher {
 	private static MAX_RESTARTS = 5;
 
+	private service: WatcherChannelClient;
 	private isDisposed: boolean;
 	private restartCounter: number;
 
 	constructor(
 		private contextService: IWorkspaceContextService,
-		private ignored: string[],
+		private configurationService: IConfigurationService,
 		private onFileChanges: (changes: FileChangesEvent) => void,
 		private errorLogger: (msg: string) => void,
 		private verboseLogging: boolean,
@@ -48,13 +49,10 @@ export class FileWatcher {
 			}
 		);
 
+		// Initialize watcher
 		const channel = getNextTickChannel(client.getChannel<IWatcherChannel>('watcher'));
-		const service = new WatcherChannelClient(channel);
-
-		// Start watching
-		const activeRoots = this.contextService.getWorkspace2().roots;
-		const basePath: string = normalize(activeRoots[0].fsPath);
-		service.watch({ basePath, ignored: this.ignored, verboseLogging: this.verboseLogging }).then(null, (err) => {
+		this.service = new WatcherChannelClient(channel);
+		this.service.initialize(this.verboseLogging).then(null, (err) => {
 			if (!(err instanceof Error && err.name === 'Canceled' && err.message === 'Canceled')) {
 				return TPromise.wrapError(err); // the service lib uses the promise cancel error to indicate the process died, we do not want to bubble this up
 			}
@@ -73,19 +71,36 @@ export class FileWatcher {
 				}
 			}
 		}, this.errorLogger);
-		if (activeRoots.length > 1) {
-			service.setRoots(activeRoots.map(r => r.fsPath));
-		}
 
-		this.contextService.onDidChangeWorkspaceRoots(() => {
-			const roots = this.contextService.getWorkspace2().roots;
-			service.setRoots(roots.map(r => r.fsPath));
-		});
+		// Start watching
+		this.updateRoots();
+		this.contextService.onDidChangeWorkspaceRoots(() => this.updateRoots());
+		this.configurationService.onDidUpdateConfiguration(() => this.updateRoots());
 
 		return () => {
 			client.dispose();
 			this.isDisposed = true;
 		};
+	}
+
+	private updateRoots() {
+		const roots = this.contextService.getWorkspace2().roots;
+		console.log('updateRoots');
+		this.service.setRoots(roots.map(root => {
+			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(undefined, {
+				resource: root
+			});
+			let ignored: string[] = [];
+			console.log('  root: ' + root);
+			if (configuration.files && configuration.files.watcherExclude) {
+				console.log('  config: ', configuration.files.watcherExclude);
+				ignored = Object.keys(configuration.files.watcherExclude).filter(k => !!configuration.files.watcherExclude[k]);
+			}
+			return {
+				basePath: root.fsPath,
+				ignored
+			};
+		}));
 	}
 
 	private onRawFileEvents(events: IRawFileChange[]): void {
