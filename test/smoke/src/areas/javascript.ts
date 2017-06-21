@@ -54,7 +54,7 @@ export class JavaScript {
 	}
 
 	public async getNextLineNumberAfterFold(): Promise<any> {
-		return this.spectron.client.getText(`.margin-view-overlays>:nth-child(4) .line-numbers`)
+		return this.spectron.client.getText(`.margin-view-overlays>:nth-child(4) .line-numbers`);
 	}
 
 	public async goToExpressDefinition(): Promise<any> {

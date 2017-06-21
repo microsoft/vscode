@@ -108,6 +108,7 @@ const eslintFilter = [
 
 const tslintFilter = [
 	'src/**/*.ts',
+	'test/**/*.ts',
 	'extensions/**/*.ts',
 	'!**/fixtures/**',
 	'!**/typings/**',
