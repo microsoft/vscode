@@ -28,12 +28,14 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 	private _onDidChangeConfiguration = new Emitter<void>();
 	private _proxy: MainThreadConfigurationShape;
 	private _data: IConfigurationData<any>;
+	private _extHostWorkspace: ExtHostWorkspace;
 	private _configuration: Configuration<any>;
 
-	constructor(proxy: MainThreadConfigurationShape, data: IConfigurationData<any>, private extWorkspace: ExtHostWorkspace) {
+	constructor(proxy: MainThreadConfigurationShape, data: IConfigurationData<any>, extWorkspace: ExtHostWorkspace) {
 		super();
 		this._proxy = proxy;
 		this._data = data;
+		this._extHostWorkspace = extWorkspace;
 	}
 
 	get onDidChangeConfiguration(): Event<void> {
@@ -48,7 +50,7 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 
 	private get configuration(): Configuration<any> {
 		if (!this._configuration) {
-			this._configuration = Configuration.parse(this._data, this.extWorkspace.workspace);
+			this._configuration = Configuration.parse(this._data, this._extHostWorkspace.workspace);
 		}
 		return this._configuration;
 	}
