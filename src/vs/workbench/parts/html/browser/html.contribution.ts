@@ -10,7 +10,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
-import { HtmlInput } from '../common/htmlInput';
+import { HtmlInput, HtmlInputOptions } from '../common/htmlInput';
 import { HtmlPreviewPart } from 'vs/workbench/parts/html/browser/htmlPreviewPart';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -38,7 +38,7 @@ interface HtmlZoneParams {
 
 let warn = true;
 
-CommandsRegistry.registerCommand('_workbench.htmlZone', function (accessor: ServicesAccessor, params: HtmlZoneParams) {
+CommandsRegistry.registerCommand('_workbench.htmlZone', (accessor: ServicesAccessor, params: HtmlZoneParams) => {
 
 	if (warn) {
 		console.warn(`'_workbench.htmlZone' is an EXPERIMENTAL feature and therefore subject to CHANGE and REMOVAL without notice.`);
@@ -69,10 +69,13 @@ CommandsRegistry.registerCommand('_workbench.htmlZone', function (accessor: Serv
 
 		HtmlZoneController.getInstance(codeEditor).addZone(params.lineNumber, contents);
 	});
-
 });
 
-CommandsRegistry.registerCommand('_workbench.previewHtml', function (accessor: ServicesAccessor, resource: URI | string, position?: EditorPosition, label?: string) {
+const defaultOptions: HtmlInputOptions = {
+	enableJavaScript: true
+};
+
+CommandsRegistry.registerCommand('_workbench.previewHtml', (accessor: ServicesAccessor, resource: URI | string, position?: EditorPosition, label?: string, options: HtmlInputOptions = defaultOptions) => {
 
 	const uri = resource instanceof URI ? resource : URI.parse(resource);
 	label = label || uri.fsPath;
@@ -91,7 +94,7 @@ CommandsRegistry.registerCommand('_workbench.previewHtml', function (accessor: S
 
 	// Otherwise, create new input and open it
 	if (!input) {
-		input = accessor.get(IInstantiationService).createInstance(HtmlInput, label, '', uri);
+		input = accessor.get(IInstantiationService).createInstance(HtmlInput, label, '', uri, options);
 	} else {
 		input.setName(label); // make sure to use passed in label
 	}

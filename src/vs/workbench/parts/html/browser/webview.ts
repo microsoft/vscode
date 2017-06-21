@@ -60,7 +60,7 @@ export default class Webview {
 	constructor(
 		private parent: HTMLElement,
 		private _styleElement: Element,
-		private options: WebviewOptions = {}
+		private _options: WebviewOptions = {}
 	) {
 		this._webview = <any>document.createElement('webview');
 
@@ -162,10 +162,14 @@ export default class Webview {
 		this._send('initial-scroll-position', value);
 	}
 
+	set options(options: WebviewOptions) {
+		this._options = options;
+	}
+
 	set contents(value: string[]) {
 		this._send('content', {
 			contents: value,
-			options: this.options
+			options: this._options
 		});
 	}
 
