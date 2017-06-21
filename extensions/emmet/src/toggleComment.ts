@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { getNodesInBetween } from './util';
+import { getNodesInBetween, getNode } from './util';
 import parse from '@emmetio/html-matcher';
 import parseStylesheet from '@emmetio/css-parser';
 import Node from '@emmetio/node';
 import { DocumentStreamReader } from './bufferStream';
-import { getNode, isStyleSheet } from './vscode-emmet-helper/abbreviationUtil';
+import { isStyleSheet } from './vscode-emmet-helper/abbreviationUtil';
 
 const startCommentStylesheet = '/*';
 const endCommentStylesheet = '*/';

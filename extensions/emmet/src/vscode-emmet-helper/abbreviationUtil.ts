@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import Node from '@emmetio/node';
 import * as extract from '@emmetio/extract-abbreviation';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -129,44 +128,6 @@ function dirExists(dirPath: string): boolean {
 	} catch (e) {
 		return false;
 	}
-}
-
-/**
- * Returns node corresponding to given position in the given root node
- * @param root 
- * @param position 
- * @param includeNodeBoundary 
- */
-export function getNode(root: Node, position: vscode.Position, includeNodeBoundary: boolean = false) {
-	let currentNode: Node = root.firstChild;
-	let foundNode: Node = null;
-
-	while (currentNode) {
-		const nodeStart: vscode.Position = currentNode.start;
-		const nodeEnd: vscode.Position = currentNode.end;
-		if ((nodeStart.isBefore(position) && nodeEnd.isAfter(position))
-			|| (includeNodeBoundary && (nodeStart.isBeforeOrEqual(position) && nodeEnd.isAfterOrEqual(position)))) {
-
-			foundNode = currentNode;
-			// Dig deeper
-			currentNode = currentNode.firstChild;
-		} else {
-			currentNode = currentNode.nextSibling;
-		}
-	}
-
-	return foundNode;
-}
-
-/**
- * Returns inner range of an html node.
- * @param currentNode 
- */
-export function getInnerRange(currentNode: Node): vscode.Range {
-	if (!currentNode.close) {
-		return;
-	}
-	return new vscode.Range(currentNode.open.end, currentNode.close.start);
 }
 
 /**

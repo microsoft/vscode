@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import parse from '@emmetio/html-matcher';
 import Node from '@emmetio/node';
 import { DocumentStreamReader } from './bufferStream';
-import { getNode } from './vscode-emmet-helper/abbreviationUtil';
+import { getNode } from './util';
 
 export function matchTag() {
 	let editor = vscode.window.activeTextEditor;

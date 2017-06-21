@@ -8,10 +8,10 @@ import parseStylesheet from '@emmetio/css-parser';
 import parse from '@emmetio/html-matcher';
 import Node from '@emmetio/node';
 import { DocumentStreamReader } from './bufferStream';
-import { isStyleSheet, getNode, getInnerRange } from './vscode-emmet-helper/abbreviationUtil';
+import { isStyleSheet } from './vscode-emmet-helper/abbreviationUtil';
 import { EmmetCompletionItemProvider } from './vscode-emmet-helper/emmetCompletionProvider';
 import { isValidLocationForEmmetAbbreviation } from './abbreviationActions';
-import { getSyntax } from './util';
+import { getSyntax, getNode, getInnerRange } from './util';
 
 export class DefaultCompletionItemProvider implements vscode.CompletionItemProvider {
 	private _mappedSyntax = false;

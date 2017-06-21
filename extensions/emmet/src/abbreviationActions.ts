@@ -8,8 +8,8 @@ import { expand } from '@emmetio/expand-abbreviation';
 import parseStylesheet from '@emmetio/css-parser';
 import parse from '@emmetio/html-matcher';
 import Node from '@emmetio/node';
-import { getSyntax } from './util';
-import { getExpandOptions, extractAbbreviation, isStyleSheet, getNode, getInnerRange } from './vscode-emmet-helper/abbreviationUtil';
+import { getSyntax, getNode, getInnerRange } from './util';
+import { getExpandOptions, extractAbbreviation, isStyleSheet } from './vscode-emmet-helper/abbreviationUtil';
 import { DocumentStreamReader } from './bufferStream';
 
 export function wrapWithAbbreviation() {
