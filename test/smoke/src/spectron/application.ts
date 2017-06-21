@@ -54,9 +54,9 @@ export class SpectronApplication {
 			args: args,
 			chromeDriverArgs: chromeDriverArgs
 		});
-		this.screenshot = new Screenshot(this, testName);
-		this.client = new SpectronClient(this.spectron, this.screenshot);
 		this.testRetry += 1; // avoid multiplication by 0 for wait times
+		this.screenshot = new Screenshot(this, testName, testRetry);
+		this.client = new SpectronClient(this.spectron, this.screenshot);
 		this.retrieveKeybindings();
 	}
 
@@ -129,7 +129,7 @@ export class SpectronApplication {
 					break;
 				}
 
-				this.wait();
+				await this.wait();
 				trial++;
 			}
 		});
