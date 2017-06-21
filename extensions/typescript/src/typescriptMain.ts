@@ -606,7 +606,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	}
 
 	private findLanguage(file: string): Thenable<LanguageProvider | null> {
-		return languages.getLanguage(this.client.asUrl(file)).then((languageId: string) => {
+		return languages.getLanguage(this.client.asUrl(file)).then(languageId => {
 			for (const language of this.languages) {
 				if (language.handles(file, languageId)) {
 					return language;

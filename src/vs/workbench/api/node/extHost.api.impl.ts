@@ -199,8 +199,8 @@ export function createApiFactory(
 			getLanguages(): TPromise<string[]> {
 				return extHostLanguages.getLanguages();
 			},
-			getLanguage(resource: vscode.Uri): TPromise<string> {
-				return extHostLanguages.getLanguage(<URI>resource);
+			getLanguage(resource: vscode.Uri, position?: vscode.Position): TPromise<string> {
+				return extHostLanguages.getLanguage(<URI>resource, position ? { lineNumber: position.line, column: position.character } : undefined);
 			},
 			match(selector: vscode.DocumentSelector, document: vscode.TextDocument): number {
 				return score(selector, <any>document.uri, document.languageId);
