@@ -104,8 +104,9 @@ export class NsfwWatcherService implements IWatcherService {
 	}
 
 	public setRoots(roots: string[]): TPromise<void> {
-		const rootsToStartWatching = roots.filter(r => !(r in this._pathWatchers));
-		const rootsToStopWatching = Object.keys(this._pathWatchers).filter(r => roots.indexOf(r) === -1);
+		const normalizedRoots = this._normalizeRoots(roots);
+		const rootsToStartWatching = normalizedRoots.filter(r => !(r in this._pathWatchers));
+		const rootsToStopWatching = Object.keys(this._pathWatchers).filter(r => normalizedRoots.indexOf(r) === -1);
 
 		// TODO: Don't watch inner folders
 		// TODO: Move verboseLogging to constructor
@@ -135,6 +136,16 @@ export class NsfwWatcherService implements IWatcherService {
 
 		// TODO: Don't watch sub-folders of folders
 		return TPromise.join(promises).then(() => void 0);
+	}
+
+	/**
+	 * Normalizes a set of root paths by removing any folders that are
+	 * sub-folders of other roots.
+	 */
+	protected _normalizeRoots(roots: string[]): string[] {
+		return roots.filter(r => roots.every(other => {
+			return !(r.length > other.length && r.indexOf(other) === 0);
+		}));
 	}
 
 	private _isPathIgnored(absolutePath: string, ignored: string[]): boolean {
