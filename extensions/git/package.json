@@ -633,8 +633,8 @@
   },
   "dependencies": {
     "iconv-lite": "0.4.15",
-    "vscode-extension-telemetry": "^0.0.7",
-    "vscode-nls": "^2.0.1"
+    "vscode-extension-telemetry": "0.0.7",
+    "vscode-nls": "2.0.2"
   },
   "devDependencies": {
     "@types/mocha": "^2.2.41",

@@ -112,6 +112,7 @@
     "underscore": "^1.8.2",
     "vinyl": "^0.4.5",
     "vinyl-fs": "^2.4.3",
+    "vsce": "^1.25.1",
     "vscode-nls-dev": "^2.0.1"
   },
   "repository": {

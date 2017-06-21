@@ -30,6 +30,7 @@ const product = require('../product.json');
 const shrinkwrap = require('../npm-shrinkwrap.json');
 const crypto = require('crypto');
 const i18n = require('./lib/i18n');
+const glob = require('glob');
 
 const productDependencies = Object.keys(product.dependencies || {});
 const dependencies = Object.keys(shrinkwrap.dependencies)
@@ -44,6 +45,11 @@ const nodeModules = ['electron', 'original-fs']
 const builtInExtensions = [
 	{ name: 'ms-vscode.node-debug', version: '1.14.5' },
 	{ name: 'ms-vscode.node-debug2', version: '1.14.0' }
+];
+
+const excludedExtensions = [
+	'vscode-api-tests',
+	'vscode-colorize-tests'
 ];
 
 const vscodeEntryPoints = _.flatten([
@@ -222,40 +228,41 @@ function packageTask(platform, arch, opts) {
 			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + out), 'out'); }))
 			.pipe(util.setExecutableBit(['**/*.sh']));
 
-		const extensionsList = [
-			'extensions/*/**',
-			'!extensions/*/src/**',
-			'!extensions/*/out/**/test/**',
-			'!extensions/*/test/**',
-			'!extensions/*/build/**',
-			'!extensions/**/node_modules/@types/**',
-			'!extensions/*/{client,server}/src/**',
-			'!extensions/*/{client,server}/test/**',
-			'!extensions/*/{client,server}/out/**/test/**',
-			'!extensions/*/{client,server}/out/**/typings/**',
-			'!extensions/**/.vscode/**',
-			'!extensions/**/tsconfig.json',
-			'!extensions/typescript/bin/**',
-			'!extensions/vscode-api-tests/**',
-			'!extensions/vscode-colorize-tests/**',
-			...builtInExtensions.map(e => `!extensions/${e.name}/**`)
-		];
+		const root = path.resolve(path.join(__dirname, '..'));
+		const localExtensionDescriptions = glob.sync('extensions/*/package.json')
+			.map(manifestPath => {
+				const extensionPath = path.dirname(path.join(root, manifestPath));
+				const extensionName = path.basename(extensionPath);
+				return { name: extensionName, path: extensionPath };
+			})
+			.filter(({ name }) => excludedExtensions.indexOf(name) === -1)
+			.filter(({ name }) => builtInExtensions.every(b => b.name !== name));
 
-		const nlsFilter = filter('**/*.nls.json', { restore: true });
-		const extensions = gulp.src(extensionsList, { base: '.' })
-			// TODO@Dirk: this filter / buffer is here to make sure the nls.json files are buffered
-			.pipe(nlsFilter)
-			.pipe(buffer())
-			.pipe(nlsDev.createAdditionalLanguageFiles(languages, path.join(__dirname, '..', 'i18n')))
-			.pipe(nlsFilter.restore);
+		const localExtensions = es.merge(...localExtensionDescriptions.map(extension => {
+			const nlsFilter = filter('**/*.nls.json', { restore: true });
+
+			return ext.fromLocal(extension.path)
+				.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`))
+				// 	// TODO@Dirk: this filter / buffer is here to make sure the nls.json files are buffered
+				.pipe(nlsFilter)
+				.pipe(buffer())
+				.pipe(nlsDev.createAdditionalLanguageFiles(languages, path.join(__dirname, '..', 'i18n')))
+				.pipe(nlsFilter.restore);
+		}));
+
+		const localExtensionDependencies = gulp.src('extensions/node_modules/**', { base: '.' });
 
 		const marketplaceExtensions = es.merge(...builtInExtensions.map(extension => {
-			return ext.src(extension.name, extension.version)
+			return ext.fromMarketplace(extension.name, extension.version)
 				.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
 		}));
 
-		const sources = es.merge(src, extensions, marketplaceExtensions)
-			.pipe(filter(['**', '!**/*.js.map']));
+		const sources = es.merge(
+			src,
+			localExtensions,
+			localExtensionDependencies,
+			marketplaceExtensions
+		).pipe(filter(['**', '!**/*.js.map']));
 
 		let version = packageJson.version;
 		const quality = product.quality;

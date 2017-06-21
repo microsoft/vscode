@@ -1,6 +1,4 @@
 test/**
-build/**
-out/test/**
 src/**
 tsconfig.json
 npm-shrinkwrap.json
