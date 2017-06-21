@@ -753,7 +753,7 @@ export class ExplorerView extends CollapsibleView {
 	 */
 	private getResolvedDirectories(stat: FileStat, resolvedDirectories: URI[]): void {
 		if (stat.isDirectoryResolved) {
-			if (stat.resource.toString() !== this.contextService.getWorkspace().resource.toString()) {
+			if (!stat.isRoot) {
 
 				// Drop those path which are parents of the current one
 				for (let i = resolvedDirectories.length - 1; i >= 0; i--) {
@@ -782,7 +782,7 @@ export class ExplorerView extends CollapsibleView {
 	public select(resource: URI, reveal: boolean = this.autoReveal): TPromise<void> {
 
 		// Require valid path
-		if (!resource || resource.toString() === this.contextService.getWorkspace().resource.toString()) {
+		if (!resource) {
 			return TPromise.as(null);
 		}
 
@@ -867,7 +867,7 @@ export class ExplorerView extends CollapsibleView {
 		// Keep list of expanded folders to restore on next load
 		if (this.isCreated) {
 			const expanded = this.explorerViewer.getExpandedElements()
-				.filter((e: FileStat) => e.resource.toString() !== this.contextService.getWorkspace().resource.toString())
+				.filter(e => e instanceof FileStat)
 				.map((e: FileStat) => e.resource.toString());
 
 			if (expanded.length) {
