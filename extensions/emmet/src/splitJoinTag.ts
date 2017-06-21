@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { isStyleSheet, getNode } from './util';
 import parse from '@emmetio/html-matcher';
 import Node from '@emmetio/node';
-import { DocumentStreamReader } from './bufferStream';
+import { DocumentStreamReader } from './emmetForVSCode/bufferStream';
+import { getNode, isStyleSheet } from './emmetForVSCode/emmetUtils';
 
 export function splitJoinTag() {
 	let editor = vscode.window.activeTextEditor;

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { EmmetCompletionItemProvider } from './emmetCompletionProvider';
+import { DefaultCompletionItemProvider } from './defaultCompletionProvider';
 import { expandAbbreviation, wrapWithAbbreviation } from './abbreviationActions';
 import { removeTag } from './removeTag';
 import { updateTag } from './updateTag';
@@ -15,18 +15,17 @@ import { mergeLines } from './mergeLines';
 import { toggleComment } from './toggleComment';
 import { fetchEditPoint } from './editPoint';
 import { fetchSelectItem } from './selectItem';
-import { updateExtensionsPath, LANGUAGE_MODES, getMappedModes } from './util';
-
-
+import { LANGUAGE_MODES, getMappedModes } from './util';
+import { updateExtensionsPath } from './emmetForVSCode/emmetUtils';
 
 export function activate(context: vscode.ExtensionContext) {
-	let completionProvider = new EmmetCompletionItemProvider();
+	let completionProvider = new DefaultCompletionItemProvider();
 	Object.keys(LANGUAGE_MODES).forEach(language => {
 		const provider = vscode.languages.registerCompletionItemProvider(language, completionProvider, ...LANGUAGE_MODES[language]);
 		context.subscriptions.push(provider);
 	});
 
-	let completionProviderForMappedSyntax = new EmmetCompletionItemProvider(true);
+	let completionProviderForMappedSyntax = new DefaultCompletionItemProvider(true);
 	let mappedModes = getMappedModes();
 	Object.keys(mappedModes).forEach(syntax => {
 		const provider = vscode.languages.registerCompletionItemProvider(syntax, completionProviderForMappedSyntax, ...LANGUAGE_MODES[mappedModes[syntax]]);

@@ -6,16 +6,15 @@
 
 import * as vscode from 'vscode';
 import { expand, createSnippetsRegistry } from '@emmetio/expand-abbreviation';
-import { getSyntax, isStyleSheet } from './util';
-import { syntaxHelper, expandAbbreviationHelper, ExpandAbbreviationHelperOutput, getExpandOptions } from './abbreviationActions';
+import { isStyleSheet, extractAbbreviation, getExpandOptions } from './emmetUtils';
 
 const snippetKeyCache = new Map<string, string[]>();
 
 export class EmmetCompletionItemProvider implements vscode.CompletionItemProvider {
-	private _mappedSyntax = false;
-	constructor(mappedSyntax?: boolean) {
-		if (mappedSyntax) {
-			this._mappedSyntax = true;
+	private _syntax: string;
+	constructor(syntax: string) {
+		if (syntax) {
+			this._syntax = syntax;
 		}
 	}
 	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Thenable<vscode.CompletionList> {
@@ -25,32 +24,26 @@ export class EmmetCompletionItemProvider implements vscode.CompletionItemProvide
 			return Promise.resolve(null);
 		}
 
-		let syntax = getSyntax(document);
-		let abbreviationRange = new vscode.Range(position, position);
-		if (!this._mappedSyntax) {
-			syntax = syntaxHelper(syntax, document, position);
-		}
+		let [abbreviationRange, abbreviation] = extractAbbreviation(document, position);
+		let expandedText = expand(abbreviation, getExpandOptions(this._syntax));
 
-		let output: ExpandAbbreviationHelperOutput = expandAbbreviationHelper(syntax, document, abbreviationRange);
-		if (!output) {
+		if (!expandedText) {
 			return;
 		}
 
-		let expandedAbbr = new vscode.CompletionItem(output.abbreviation);
-		expandedAbbr.insertText = new vscode.SnippetString(output.expandedText);
-		expandedAbbr.documentation = removeTabStops(output.expandedText);
-		expandedAbbr.range = output.abbreviationRange;
+		let expandedAbbr = new vscode.CompletionItem(abbreviation);
+		expandedAbbr.insertText = new vscode.SnippetString(expandedText);
+		expandedAbbr.documentation = this.removeTabStops(expandedText);
+		expandedAbbr.range = abbreviationRange;
 		expandedAbbr.detail = 'Emmet Abbreviation';
 
-		// Workaround for completion items appearing out of order
+		// Workaround for the main expanded abbr not appearing before the snippet suggestions
 		expandedAbbr.sortText = '0' + expandedAbbr.label;
 
-		syntax = output.syntax;
-
 		let completionItems: vscode.CompletionItem[] = expandedAbbr ? [expandedAbbr] : [];
-		if (!isStyleSheet(syntax)) {
-			let currentWord = getCurrentWord(document, position);
-			let abbreviationSuggestions = this.getAbbreviationSuggestions(syntax, currentWord, output.abbreviation, output.abbreviationRange);
+		if (!isStyleSheet(this._syntax)) {
+			let currentWord = this.getCurrentWord(document, position);
+			let abbreviationSuggestions = this.getAbbreviationSuggestions(this._syntax, currentWord, abbreviation, abbreviationRange);
 			completionItems = completionItems.concat(abbreviationSuggestions);
 		}
 		return Promise.resolve(new vscode.CompletionList(completionItems, true));
@@ -81,15 +74,15 @@ export class EmmetCompletionItemProvider implements vscode.CompletionItemProvide
 			let expandedAbbr = expand(currentAbbr, getExpandOptions(syntax));
 
 			let item = new vscode.CompletionItem(snippetKey);
-			item.documentation = removeTabStops(expandedAbbr);
+			item.documentation = this.removeTabStops(expandedAbbr);
 			item.detail = 'Emmet Abbreviation';
 			item.insertText = new vscode.SnippetString(expandedAbbr);
 			item.range = abbreviationRange;
 
-			// Workaround for completion items getting filtered out
+			// Workaround for snippet suggestions items getting filtered out as the complete abbr does not start with snippetKey 
 			item.filterText = abbreviation;
 
-			// Workaround for completion items appearing in wrong order
+			// Workaround for the main expanded abbr not appearing before the snippet suggestions
 			item.sortText = '9' + abbreviation;
 
 			snippetCompletions.push(item);
@@ -99,24 +92,26 @@ export class EmmetCompletionItemProvider implements vscode.CompletionItemProvide
 
 	}
 
-}
+	private getCurrentWord(document: vscode.TextDocument, position: vscode.Position): string {
+		let wordAtPosition = document.getWordRangeAtPosition(position);
+		let currentWord = '';
+		if (wordAtPosition && wordAtPosition.start.character < position.character) {
+			let word = document.getText(wordAtPosition);
+			currentWord = word.substr(0, position.character - wordAtPosition.start.character);
+		}
 
-
-
-function getCurrentWord(document: vscode.TextDocument, position: vscode.Position): string {
-	let wordAtPosition = document.getWordRangeAtPosition(position);
-	let currentWord = '';
-	if (wordAtPosition && wordAtPosition.start.character < position.character) {
-		let word = document.getText(wordAtPosition);
-		currentWord = word.substr(0, position.character - wordAtPosition.start.character);
+		return currentWord;
 	}
 
-	return currentWord;
+	private removeTabStops(expandedWord: string): string {
+		return expandedWord.replace(/\$\{\d+\}/g, '').replace(/\$\{\d+:([^\}]+)\}/g, '$1');
+	}
+
 }
 
-function removeTabStops(expandedWord: string): string {
-	return expandedWord.replace(/\$\{\d+\}/g, '').replace(/\$\{\d+:([^\}]+)\}/g, '$1');
-}
+
+
+
 
 
 

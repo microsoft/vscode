@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { getNode, getDeepestNode, findNextWord, findPrevWord } from './util';
+import { getDeepestNode, findNextWord, findPrevWord } from './util';
 import Node from '@emmetio/node';
+import { getNode } from './emmetForVSCode/emmetUtils';
+
 
 export function nextItemStylesheet(startOffset: vscode.Position, endOffset: vscode.Position, editor: vscode.TextEditor, rootNode: Node): vscode.Selection {
 	let currentNode = getNode(rootNode, endOffset, true);

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { getNode } from './util';
 import parse from '@emmetio/html-matcher';
 import Node from '@emmetio/node';
-import { DocumentStreamReader } from './bufferStream';
+import { DocumentStreamReader } from './emmetForVSCode/bufferStream';
+import { getNode } from './emmetForVSCode/emmetUtils';
 
 export function updateTag(tagName: string) {
 	let editor = vscode.window.activeTextEditor;
