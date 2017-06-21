@@ -59,6 +59,12 @@ async function readFile(file: string): Promise<string> {
 	});
 }
 
+interface NpmTaskIdentifier extends vscode.TaskIdentifier {
+	script: string;
+	file?: string;
+}
+
+
 async function getNpmScriptsAsTasks(): Promise<vscode.Task[]> {
 	let workspaceRoot = vscode.workspace.rootPath;
 	let emptyTasks: vscode.Task[] = [];
@@ -81,7 +87,11 @@ async function getNpmScriptsAsTasks(): Promise<vscode.Task[]> {
 
 		const result: vscode.Task[] = [];
 		Object.keys(json.scripts).forEach(each => {
-			const task = new vscode.ShellTask(`run ${each}`, `npm run ${each}`);
+			const identifier: NpmTaskIdentifier = {
+				type: 'npm',
+				script: each
+			};
+			const task = new vscode.ShellTask(identifier, `run ${each}`, `npm run ${each}`);
 			const lowerCaseTaskName = each.toLowerCase();
 			if (lowerCaseTaskName === 'build') {
 				task.group = vscode.TaskGroup.Build;
@@ -91,7 +101,7 @@ async function getNpmScriptsAsTasks(): Promise<vscode.Task[]> {
 			result.push(task);
 		});
 		// add some 'well known' npm tasks
-		result.push(new vscode.ShellTask(`install`, `npm install`));
+		result.push(new vscode.ShellTask({ type: 'npm', script: 'install' } as NpmTaskIdentifier, `install`, `npm install`));
 		return Promise.resolve(result);
 	} catch (e) {
 		return Promise.resolve(emptyTasks);

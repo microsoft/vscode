@@ -11,6 +11,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import commonSchema from './jsonSchemaCommon';
 
 import { ProblemMatcherRegistry } from 'vs/platform/markers/common/problemMatcher';
+import { TaskTypeRegistry } from '../common/taskTypeRegistry';
 
 const shellCommand: IJSONSchema = {
 	anyOf: [
@@ -96,9 +97,42 @@ const version: IJSONSchema = {
 	description: nls.localize('JsonSchema.version', 'The config\'s version number.')
 };
 
-const customize: IJSONSchema = {
-	type: 'string',
-	description: nls.localize('JsonSchema.tasks.customize', 'The contributed task to be customized.')
+const customizeTaskDescription: IJSONSchema = Objects.deepClone(commonSchema.definitions.taskDescription);
+customizeTaskDescription.required = undefined;
+customizeTaskDescription.properties.presentation = Objects.deepClone(presentation);
+
+TaskTypeRegistry.onReady().then(() => {
+	let oneOf: IJSONSchema[] = [];
+	for (let taskType of TaskTypeRegistry.all()) {
+		let schema: IJSONSchema = {
+			type: 'object',
+			properties: {
+			}
+		};
+		schema.properties.type = {
+			type: 'string',
+			description: nls.localize('JsonSchema.customizations.customizes.type', 'The task system to customize'),
+			enum: [taskType.taskType]
+		};
+		if (taskType.required) {
+			schema.required = taskType.required.slice();
+		}
+		for (let key of Object.keys(taskType.properties)) {
+			let property = taskType.properties[key];
+			schema.properties[key] = Objects.deepClone(property);
+		}
+		oneOf.push(schema);
+	}
+	customizeTaskDescription.properties.customizes = {
+		description: nls.localize('JsonSchema.customizations.customizes', 'The task to be customized'),
+		oneOf
+	};
+});
+
+const customizations: IJSONSchema = {
+	type: 'array',
+	description: nls.localize('JsonSchema.customizations', 'The tasks to be customized'),
+	items: customizeTaskDescription
 };
 
 const schema: IJSONSchema = {
@@ -121,7 +155,8 @@ const schema: IJSONSchema = {
 						linux: {
 							'$ref': '#/definitions/taskRunnerConfiguration',
 							'description': nls.localize('JsonSchema.linux', 'Linux specific command configuration')
-						}
+						},
+						customizations: customizations
 					}
 				},
 				{
@@ -141,7 +176,6 @@ definitions.taskDescription.properties.dependsOn = dependsOn;
 // definitions.taskDescription.properties.echoCommand.deprecationMessage = nls.localize('JsonSchema.tasks.echoCommand.deprecated', 'The property echoCommand is deprecated. Use the terminal property instead.');
 // definitions.taskDescription.properties.isBuildCommand.deprecationMessage = nls.localize('JsonSchema.tasks.isBuildCommand.deprecated', 'The property isBuildCommand is deprecated. Use the group property instead.');
 // definitions.taskDescription.properties.isTestCommand.deprecationMessage = nls.localize('JsonSchema.tasks.isTestCommand.deprecated', 'The property isTestCommand is deprecated. Use the group property instead.');
-definitions.taskDescription.properties.customize = customize;
 definitions.taskDescription.properties.type = Objects.deepClone(taskType);
 definitions.taskDescription.properties.presentation = presentation;
 definitions.taskDescription.properties.group = group;

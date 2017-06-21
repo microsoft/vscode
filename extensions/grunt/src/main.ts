@@ -81,6 +81,11 @@ function getOutputChannel(): vscode.OutputChannel {
 	return _channel;
 }
 
+interface GruntTaskIdentifier extends vscode.TaskIdentifier {
+	task: string;
+	file?: string;
+}
+
 async function getGruntTasks(): Promise<vscode.Task[]> {
 	let workspaceRoot = vscode.workspace.rootPath;
 	let emptyTasks: vscode.Task[] = [];
@@ -145,10 +150,13 @@ async function getGruntTasks(): Promise<vscode.Task[]> {
 						let matches = regExp.exec(line);
 						if (matches && matches.length === 2) {
 							let taskName = matches[1];
+							let identifier: GruntTaskIdentifier = {
+								type: 'grunt',
+								task: taskName
+							};
 							let task = taskName.indexOf(' ') === -1
-								? new vscode.ShellTask(taskName, `${command} ${taskName}`)
-								: new vscode.ShellTask(taskName, `${command} "${taskName}"`);
-							task.identifier = `grunt.${taskName}`;
+								? new vscode.ShellTask(identifier, taskName, `${command} ${taskName}`)
+								: new vscode.ShellTask(identifier, taskName, `${command} "${taskName}"`);
 							result.push(task);
 							let lowerCaseTaskName = taskName.toLowerCase();
 							if (lowerCaseTaskName === 'build') {

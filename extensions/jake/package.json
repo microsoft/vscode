@@ -41,6 +41,22 @@
           "description": "%config.jake.autoDetect%"
         }
       }
-    }
+    },
+    "taskTypes": [
+      {
+        "taskType": "jake",
+        "required": ["task"],
+        "properties": {
+          "task": {
+            "type": "string",
+            "description": "The Jake task to customize"
+          },
+          "file": {
+            "type": "string",
+            "description": "The Jake file that provides the task. Can be omitted."
+          }
+        }
+      }
+    ]
   }
 }

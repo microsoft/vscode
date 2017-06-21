@@ -78,7 +78,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 			let configured: Task[] = [];
 			let detected: Task[] = [];
 			let taskMap: IStringDictionary<Task> = Object.create(null);
-			tasks.forEach(task => taskMap[task.identifier] = task);
+			tasks.forEach(task => taskMap[Task.getKey(task)] = task);
 			recentlyUsedTasks.keys().forEach(key => {
 				let task = taskMap[key];
 				if (task) {
@@ -86,7 +86,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 				}
 			});
 			for (let task of tasks) {
-				if (!recentlyUsedTasks.has(task.identifier)) {
+				if (!recentlyUsedTasks.has(Task.getKey(task))) {
 					if (task._source.kind === TaskSourceKind.Workspace) {
 						configured.push(task);
 					} else {
@@ -98,7 +98,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 			this.fillEntries(entries, input, recent, nls.localize('recentlyUsed', 'recently used tasks'));
 			configured = configured.sort((a, b) => a._label.localeCompare(b._label));
 			let hasConfigured = configured.length > 0;
-			this.fillEntries(entries, input, configured, nls.localize('configured', 'configured tasks'), hasRecentlyUsed);
+			this.fillEntries(entries, input, configured, nls.localize('configured', 'custom tasks'), hasRecentlyUsed);
 			detected = detected.sort((a, b) => a._label.localeCompare(b._label));
 			this.fillEntries(entries, input, detected, nls.localize('detected', 'detected tasks'), hasRecentlyUsed || hasConfigured);
 			return new Model.QuickOpenModel(entries, new ContributableActionProvider());

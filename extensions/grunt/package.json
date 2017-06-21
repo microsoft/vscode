@@ -41,6 +41,22 @@
           "description": "%config.grunt.autoDetect%"
         }
       }
-    }
+    },
+    "taskTypes": [
+      {
+        "taskType": "grunt",
+        "required": ["task"],
+        "properties": {
+          "task": {
+            "type": "string",
+            "description": "The Grunt task to customize"
+          },
+          "file": {
+            "type": "string",
+            "description": "The Grunt file that provides the task. Can be omitted."
+          }
+        }
+      }
+    ]
   }
 }

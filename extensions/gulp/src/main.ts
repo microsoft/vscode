@@ -81,6 +81,11 @@ function getOutputChannel(): vscode.OutputChannel {
 	return _channel;
 }
 
+interface GulpTaskIdentifier extends vscode.TaskIdentifier {
+	task: string;
+	file?: string;
+}
+
 async function getGulpTasks(): Promise<vscode.Task[]> {
 	let workspaceRoot = vscode.workspace.rootPath;
 	let emptyTasks: vscode.Task[] = [];
@@ -121,8 +126,11 @@ async function getGulpTasks(): Promise<vscode.Task[]> {
 				if (line.length === 0) {
 					continue;
 				}
-				let task = new vscode.ShellTask(line, `${gulpCommand} ${line}`);
-				task.identifier = `gulp.${line}`;
+				let identifier: GulpTaskIdentifier = {
+					type: 'gulp',
+					task: line
+				};
+				let task = new vscode.ShellTask(identifier, line, `${gulpCommand} ${line}`);
 				result.push(task);
 				let lowerCaseLine = line.toLowerCase();
 				if (lowerCaseLine === 'build') {

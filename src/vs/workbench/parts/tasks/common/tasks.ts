@@ -5,6 +5,7 @@
 'use strict';
 
 import * as Types from 'vs/base/common/types';
+import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
@@ -140,20 +141,20 @@ export interface PresentationOptions {
 	panel: PanelKind;
 }
 
-export enum CommandType {
+export enum RuntimeType {
 	Shell = 1,
 	Process = 2
 }
 
-export namespace CommandType {
-	export function fromString(value: string): CommandType {
+export namespace RuntimeType {
+	export function fromString(value: string): RuntimeType {
 		switch (value.toLowerCase()) {
 			case 'shell':
-				return CommandType.Shell;
+				return RuntimeType.Shell;
 			case 'process':
-				return CommandType.Process;
+				return RuntimeType.Process;
 			default:
-				return CommandType.Process;
+				return RuntimeType.Process;
 		}
 	}
 }
@@ -163,7 +164,7 @@ export interface CommandConfiguration {
 	/**
 	 * The task type
 	 */
-	type: CommandType;
+	runtime: RuntimeType;
 
 	/**
 	 * The command to execute
@@ -225,40 +226,22 @@ export interface TaskSource {
 	detail?: string;
 }
 
-/**
- * A task description
- */
-export interface Task {
+export interface TaskIdentifier {
+	_key: string;
+	type: string;
+}
 
-	/**
-	 * The task's internal id
-	 */
-	_id: string;
-
-	/**
-	 * The cached label.
-	 */
-	_label: string;
-
-	/**
-	 * Indicated the source of the task (e.g tasks.json or extension)
-	 */
-	_source: TaskSource;
+export interface ConfigurationProperties {
 
 	/**
 	 * The task's name
 	 */
-	name: string;
+	name?: string;
 
 	/**
-	 * The task's identifier.
+	 * The task's name
 	 */
-	identifier: string;
-
-	/**
-	 * The id of the customized task
-	 */
-	customize?: string;
+	identifier?: string;
 
 	/**
 	 * the task's group;
@@ -266,9 +249,9 @@ export interface Task {
 	group?: string;
 
 	/**
-	 * The command configuration
+	 * The presentation options
 	 */
-	command: CommandConfiguration;
+	presentation?: PresentationOptions;
 
 	/**
 	 * Whether the task is a background task or not.
@@ -291,6 +274,89 @@ export interface Task {
 	problemMatchers?: (string | ProblemMatcher)[];
 }
 
+export interface CommonTask {
+
+	/**
+	 * The task's internal id
+	 */
+	_id: string;
+
+	/**
+	 * The cached label.
+	 */
+	_label: string;
+
+	/**
+	 * Indicated the source of the task (e.g tasks.json or extension)
+	 */
+	_source: TaskSource;
+
+	type: string;
+}
+
+export interface CustomTask extends CommonTask, ConfigurationProperties {
+
+	type: 'custom';
+
+	name: string;
+
+	identifier: string;
+
+	/**
+	 * The command configuration
+	 */
+	command: CommandConfiguration;
+}
+
+export namespace CustomTask {
+	export function is(value: any): value is CustomTask {
+		let candidate: CustomTask = value;
+		return candidate && candidate.type === 'custom';
+	}
+}
+
+export interface ConfiguringTask extends CommonTask, ConfigurationProperties {
+
+	configures: TaskIdentifier;
+}
+
+export namespace ConfiguringTask {
+	export function is(value: any): value is ConfiguringTask {
+		let candidate: ConfiguringTask = value;
+		return candidate && candidate.configures && Types.isString(candidate.configures.type) && value.command === void 0;
+	}
+}
+
+export interface ContributedTask extends CommonTask, ConfigurationProperties {
+
+	defines: TaskIdentifier;
+
+	/**
+	 * The command configuration
+	 */
+	command: CommandConfiguration;
+}
+
+export namespace ContributedTask {
+	export function is(value: any): value is ContributedTask {
+		let candidate: ContributedTask = value;
+		return candidate && candidate.defines && Types.isString(candidate.defines.type) && candidate.command !== void 0;
+	}
+}
+
+export type Task = CustomTask | ContributedTask;
+
+export namespace Task {
+	export function getKey(task: Task): string {
+		if (CustomTask.is(task)) {
+			return task.identifier;
+		} else {
+			return task.defines._key;
+		}
+	}
+}
+
+
 export enum ExecutionEngine {
 	Process = 1,
 	Terminal = 2
@@ -304,4 +370,10 @@ export enum JsonSchemaVersion {
 export interface TaskSet {
 	tasks: Task[];
 	extension?: IExtensionDescription;
+}
+
+export interface TaskTypeDescription {
+	taskType: string;
+	required: string[];
+	properties: IJSONSchemaMap;
 }

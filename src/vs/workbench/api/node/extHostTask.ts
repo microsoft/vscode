@@ -7,6 +7,7 @@
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as UUID from 'vs/base/common/uuid';
+import * as Objects from 'vs/base/common/objects';
 import { asWinJsPromise } from 'vs/base/common/async';
 
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -315,7 +316,7 @@ namespace Tasks {
 		return result;
 	}
 
-	function fromSingle(task: vscode.Task, extension: IExtensionDescription, uuidMap: UUIDMap): TaskSystem.Task {
+	function fromSingle(task: vscode.Task, extension: IExtensionDescription, uuidMap: UUIDMap): TaskSystem.ContributedTask {
 		if (typeof task.name !== 'string') {
 			return undefined;
 		}
@@ -336,12 +337,20 @@ namespace Tasks {
 			detail: extension.id
 		};
 		let label = nls.localize('task.label', '{0}: {1}', source.label, task.name);
-		let result: TaskSystem.Task = {
-			_id: uuidMap.getUUID(task.identifier),
+		let id = `${extension.id}.${task.identifierKey}`;
+		let identifier: TaskSystem.TaskIdentifier = {
+			_key: task.identifierKey,
+			type: task.identifier.type
+		};
+		Objects.assign(identifier, task.identifier);
+		let result: TaskSystem.ContributedTask = {
+			_id: id, // uuidMap.getUUID(identifier),
 			_source: source,
 			_label: label,
+			type: task.identifier.type,
+			defines: identifier,
 			name: task.name,
-			identifier: task.identifier ? task.identifier : `${extension.id}.${task.name}`,
+			identifier: label,
 			group: types.TaskGroup.is(task.group) ? task.group : undefined,
 			command: command,
 			isBackground: !!task.isBackground,
@@ -357,7 +366,7 @@ namespace Tasks {
 		let result: TaskSystem.CommandConfiguration = {
 			name: value.process,
 			args: Strings.from(value.args),
-			type: TaskSystem.CommandType.Process,
+			runtime: TaskSystem.RuntimeType.Process,
 			suppressTaskName: true,
 			presentation: PresentationOptions.from(value.presentationOptions)
 		};
@@ -373,7 +382,7 @@ namespace Tasks {
 		}
 		let result: TaskSystem.CommandConfiguration = {
 			name: value.commandLine,
-			type: TaskSystem.CommandType.Shell,
+			runtime: TaskSystem.RuntimeType.Shell,
 			presentation: PresentationOptions.from(value.presentationOptions)
 		};
 		if (value.options) {

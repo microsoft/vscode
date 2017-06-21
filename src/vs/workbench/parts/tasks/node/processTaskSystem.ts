@@ -30,7 +30,7 @@ import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TelemetryEvent, Triggers,
 	TaskSystemEvents, TaskEvent, TaskType, TaskTerminateResponse
 } from 'vs/workbench/parts/tasks/common/taskSystem';
-import { Task, CommandOptions, RevealKind, CommandConfiguration, CommandType } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, CommandOptions, RevealKind, CommandConfiguration, RuntimeType } from 'vs/workbench/parts/tasks/common/tasks';
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
@@ -171,7 +171,7 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		let args: string[] = commandConfig.args ? commandConfig.args.slice() : [];
 		args = this.resolveVariables(args);
 		let command: string = this.resolveVariable(commandConfig.name);
-		this.childProcess = new LineProcess(command, args, commandConfig.type === CommandType.Shell, this.resolveOptions(commandConfig.options));
+		this.childProcess = new LineProcess(command, args, commandConfig.runtime === RuntimeType.Shell, this.resolveOptions(commandConfig.options));
 		telemetryEvent.command = this.childProcess.getSanitizedCommand();
 		// we have no problem matchers defined. So show the output log
 		let reveal = task.command.presentation.reveal;

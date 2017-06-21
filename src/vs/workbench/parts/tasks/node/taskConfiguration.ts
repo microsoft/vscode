@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as crypto from 'crypto';
+
 import nls = require('vs/nls');
 
 import * as Objects from 'vs/base/common/objects';
@@ -18,7 +20,8 @@ import {
 	isNamedProblemMatcher, ProblemMatcherRegistry
 } from 'vs/platform/markers/common/problemMatcher';
 
-import * as Tasks from './tasks';
+import * as Tasks from '../common/tasks';
+import { TaskTypeRegistry } from '../common/taskTypeRegistry';
 
 /**
  * Defines the problem handling strategy
@@ -55,18 +58,85 @@ export interface CommandOptions {
 	shell?: ShellConfiguration;
 }
 
-export interface PlatformTaskDescription {
+export interface PresentationOptions {
+	/**
+	 * Controls whether the terminal executing a task is brought to front or not.
+	 * Defaults to `RevealKind.Always`.
+	 */
+	reveal?: string;
 
 	/**
-	 * Whether the task is a shell task or a process task.
+	 * Controls whether the executed command is printed to the output window or terminal as well.
+	 */
+	echo?: boolean;
+
+	/**
+	 * Controls whether the terminal is focus when this task is executed
+	 */
+	focus?: boolean;
+
+	/**
+	 * Controls whether the task runs in a new terminal
+	 */
+	panel?: string;
+}
+
+export interface TaskIdentifier {
+	type?: string;
+}
+
+export interface LegacyTaskProperties {
+	/**
+	 * @deprecated Use `isBackground` instead.
+	 * Whether the executed command is kept alive and is watching the file system.
+	 */
+	isWatching?: boolean;
+
+	/**
+	 * @deprecated Use `group` instead.
+	 * Whether this task maps to the default build command.
+	 */
+	isBuildCommand?: boolean;
+
+	/**
+	 * @deprecated Use `group` instead.
+	 * Whether this task maps to the default test command.
+	 */
+	isTestCommand?: boolean;
+}
+
+export interface LegacyCommandProperties {
+
+	/**
+	 * Whether this is a shell or process
 	 */
 	type?: string;
 
 	/**
-	 * The command to be executed. Can be an external program or a shell
-	 * command.
+	 * @deprecated Use presentation options
+	 * Controls whether the output view of the running tasks is brought to front or not.
+	 * See BaseTaskRunnerConfiguration#showOutput for details.
 	 */
-	command?: string;
+	showOutput?: string;
+
+	/**
+	 * @deprecated Use presentation options
+	 * Controls whether the executed command is printed to the output windows as well.
+	 */
+	echoCommand?: boolean;
+
+	/**
+	 * @deprecated Use inline commands.
+	 * See BaseTaskRunnerConfiguration#suppressTaskName for details.
+	 */
+	suppressTaskName?: boolean;
+
+	/**
+	 * Some commands require that the task argument is highlighted with a special
+	 * prefix (e.g. /t: for msbuild). This property can be used to control such
+	 * a prefix.
+	 */
+	taskSelector?: string;
 
 	/**
 	 * @deprecated use the task type instead.
@@ -76,6 +146,20 @@ export interface PlatformTaskDescription {
 	 * Defaults to false if omitted.
 	 */
 	isShellCommand?: boolean | ShellConfiguration;
+}
+
+export interface BaseCommandProperties {
+
+	/**
+	 * Whether the task is a shell task or a process task.
+	 */
+	runtime?: string;
+
+	/**
+	 * The command to be executed. Can be an external program or a shell
+	 * command.
+	 */
+	command?: string;
 
 	/**
 	 * The command options used when the command is executed. Can be omitted.
@@ -89,47 +173,36 @@ export interface PlatformTaskDescription {
 	args?: string[];
 }
 
-/**
- * The description of a task.
- */
-export interface TaskDescription extends PlatformTaskDescription {
 
+export interface CommandProperties extends BaseCommandProperties {
+
+	/**
+	 * Windows specific command properties
+	 */
+	windows?: BaseCommandProperties;
+
+	/**
+	 * OSX specific command properties
+	 */
+	osx?: BaseCommandProperties;
+
+	/**
+	 * linux specific command properties
+	 */
+	linux?: BaseCommandProperties;
+}
+
+export interface ConfigurationProperties {
 	/**
 	 * The task's name
 	 */
-	taskName: string;
+	taskName?: string;
 
 	/**
-	 * A unique optional identifier in case the name
-	 * can't be used as such.
+	 * An optional indentifier which can be used to reference a task
+	 * in a dependsOn or other attributes.
 	 */
 	identifier?: string;
-
-	/**
-	 * The id of the customized task
-	 */
-	customize?: string;
-
-	/**
-	 * Windows specific task configuration
-	 */
-	windows?: PlatformTaskDescription;
-
-	/**
-	 * Mac specific task configuration
-	 */
-	osx?: PlatformTaskDescription;
-
-	/**
-	 * Linux speciif task configuration
-	 */
-	linux?: PlatformTaskDescription;
-
-	/**
-	 * @deprecated Use `isBackground` instead.
-	 * Whether the executed command is kept alive and is watching the file system.
-	 */
-	isWatching?: boolean;
 
 	/**
 	 * Whether the executed command is kept alive and runs in the background.
@@ -147,43 +220,35 @@ export interface TaskDescription extends PlatformTaskDescription {
 	group?: string;
 
 	/**
-	 * @deprecated Use `group` instead.
-	 * Whether this task maps to the default build command.
-	 */
-	isBuildCommand?: boolean;
-
-	/**
-	 * @deprecated Use `group` instead.
-	 * Whether this task maps to the default test command.
-	 */
-	isTestCommand?: boolean;
-
-	/**
-	 * Controls whether the output view of the running tasks is brought to front or not.
-	 * See BaseTaskRunnerConfiguration#showOutput for details.
-	 */
-	showOutput?: string;
-
-	/**
-	 * Controls whether the executed command is printed to the output windows as well.
-	 */
-	echoCommand?: boolean;
-
-	/**
-	 * See BaseTaskRunnerConfiguration#suppressTaskName for details.
-	 */
-	suppressTaskName?: boolean;
-
-	/**
 	 * The other tasks the task depend on
 	 */
 	dependsOn?: string | string[];
+
+	/**
+	 * Controls the behavior of the used terminal
+	 */
+	presentation?: PresentationOptions;
 
 	/**
 	 * The problem matcher(s) to use to capture problems in the tasks
 	 * output.
 	 */
 	problemMatcher?: ProblemMatcherConfig.ProblemMatcherType;
+}
+
+export interface CustomTask extends CommandProperties, ConfigurationProperties {
+	/**
+	 * Custom tasks have the type 'custom'
+	 */
+	type?: string;
+
+}
+
+export interface ConfiguringTask extends ConfigurationProperties {
+	/**
+	 * The contributed type of the task
+	 */
+	type?: string;
 }
 
 /**
@@ -234,28 +299,7 @@ export interface BaseTaskRunnerConfiguration {
 	/**
 	 * Controls the behavior of the used terminal
 	 */
-	presentation?: {
-		/**
-		 * Controls whether the terminal executing a task is brought to front or not.
-		 * Defaults to `RevealKind.Always`.
-		 */
-		reveal?: string;
-
-		/**
-		 * Controls whether the executed command is printed to the output window or terminal as well.
-		 */
-		echo?: boolean;
-
-		/**
-		 * Controls whether the terminal is focus when this task is executed
-		 */
-		focus?: boolean;
-
-		/**
-		 * Controls whether the task runs in a new terminal
-		 */
-		panel?: string;
-	};
+	presentation?: PresentationOptions;
 
 	/**
 	 * If set to false the task name is added as an additional argument to the
@@ -301,7 +345,7 @@ export interface BaseTaskRunnerConfiguration {
 	 * The configuration of the available tasks. A tasks.json file can either
 	 * contain a global problemMatcher property or a tasks property but not both.
 	 */
-	tasks?: TaskDescription[];
+	tasks?: (CustomTask | ConfiguringTask)[];
 
 	/**
 	 * Problem matcher declarations
@@ -353,13 +397,13 @@ enum ProblemMatcherKind {
 const EMPTY_ARRAY: any[] = [];
 Object.freeze(EMPTY_ARRAY);
 
-function assignProperty<T, K extends keyof T>(target: T, source: T, key: K) {
+function assignProperty<T, K extends keyof T>(target: T, source: Partial<T>, key: K) {
 	if (source[key] !== void 0) {
 		target[key] = source[key];
 	}
 }
 
-function fillProperty<T, K extends keyof T>(target: T, source: T, key: K) {
+function fillProperty<T, K extends keyof T>(target: T, source: Partial<T>, key: K) {
 	if (target[key] === void 0 && source[key] !== void 0) {
 		target[key] = source[key];
 	}
@@ -428,16 +472,12 @@ function _fillProperties<T>(this: void, target: T, source: T, properties: MetaDa
 	}
 	for (let meta of properties) {
 		let property = meta.property;
-		if (target[property] !== void 0) {
-			continue;
-		}
 		let value: any;
 		if (meta.type) {
 			value = meta.type.fillProperties(target[property], source[property]);
-		} else {
+		} else if (target[property] === void 0) {
 			value = source[property];
 		}
-
 		if (value !== void 0 && value !== null) {
 			target[property] = value;
 		}
@@ -500,6 +540,7 @@ interface ParseContext {
 	uuidMap: UUIDMap;
 	engine: Tasks.ExecutionEngine;
 	schemaVersion: Tasks.JsonSchemaVersion;
+	taskConfigurations: boolean;
 }
 
 
@@ -607,40 +648,15 @@ namespace CommandOptions {
 
 namespace CommandConfiguration {
 
-	interface PresentationOptions {
-		echo?: boolean;
-		reveal?: string;
-		focus?: boolean;
-		panel?: string;
-	}
-
-	interface BaseCommandConfiguationShape {
-		command?: string;
-		type?: string;
-		isShellCommand?: boolean | ShellConfiguration;
-		args?: string[];
-		options?: CommandOptions;
-		echoCommand?: boolean;
-		showOutput?: string;
-		/**
-		 * @deprecated Use panel instead.
-		 */
-		terminal?: PresentationOptions;
-		presentation?: PresentationOptions;
-		taskSelector?: string;
-		suppressTaskName?: boolean;
-	}
-
-	interface CommandConfiguationShape extends BaseCommandConfiguationShape {
-		windows?: BaseCommandConfiguationShape;
-		osx?: BaseCommandConfiguationShape;
-		linux?: BaseCommandConfiguationShape;
-	}
-
 	export namespace PresentationOptions {
 		const properties: MetaData<Tasks.PresentationOptions, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'focus' }, { property: 'panel' }];
 
-		export function from(this: void, config: BaseCommandConfiguationShape, context: ParseContext): Tasks.PresentationOptions {
+		interface PresentationOptionsShape extends LegacyCommandProperties {
+			terminal?: PresentationOptions;
+			presentation?: PresentationOptions;
+		}
+
+		export function from(this: void, config: PresentationOptionsShape, context: ParseContext): Tasks.PresentationOptions {
 			let echo: boolean;
 			let reveal: Tasks.RevealKind;
 			let focus: boolean;
@@ -694,8 +710,17 @@ namespace CommandConfiguration {
 		}
 	}
 
-	const properties: MetaData<Tasks.CommandConfiguration, CommandOptions | PresentationOptions>[] = [
-		{ property: 'type' }, { property: 'name' }, { property: 'options', type: CommandOptions },
+	interface BaseCommandConfiguationShape extends BaseCommandProperties, LegacyCommandProperties {
+	}
+
+	interface CommandConfiguationShape extends BaseCommandConfiguationShape {
+		windows?: BaseCommandConfiguationShape;
+		osx?: BaseCommandConfiguationShape;
+		linux?: BaseCommandConfiguationShape;
+	}
+
+	const properties: MetaData<Tasks.CommandConfiguration, any>[] = [
+		{ property: 'runtime' }, { property: 'name' }, { property: 'options', type: CommandOptions },
 		{ property: 'args' }, { property: 'taskSelector' }, { property: 'suppressTaskName' },
 		{ property: 'presentation', type: PresentationOptions }
 	];
@@ -720,20 +745,25 @@ namespace CommandConfiguration {
 	function fromBase(this: void, config: BaseCommandConfiguationShape, context: ParseContext): Tasks.CommandConfiguration {
 		let result: Tasks.CommandConfiguration = {
 			name: undefined,
-			type: undefined,
+			runtime: undefined,
 			presentation: undefined
 		};
 		if (Types.isString(config.command)) {
 			result.name = config.command;
 		}
 		if (Types.isString(config.type)) {
-			result.type = Tasks.CommandType.fromString(config.type);
+			if (config.type === 'shell' || config.type === 'process') {
+				result.runtime = Tasks.RuntimeType.fromString(config.type);
+			}
 		}
 		let isShellConfiguration = ShellConfiguration.is(config.isShellCommand);
 		if (Types.isBoolean(config.isShellCommand) || isShellConfiguration) {
-			result.type = Tasks.CommandType.Shell;
+			result.runtime = Tasks.RuntimeType.Shell;
 		} else if (config.isShellCommand !== void 0) {
-			result.type = !!config.isShellCommand ? Tasks.CommandType.Shell : Tasks.CommandType.Process;
+			result.runtime = !!config.isShellCommand ? Tasks.RuntimeType.Shell : Tasks.RuntimeType.Process;
+		}
+		if (Types.isString(config.runtime)) {
+			result.runtime = Tasks.RuntimeType.fromString(config.runtime);
 		}
 		if (config.args !== void 0) {
 			if (Types.isStringArray(config.args)) {
@@ -771,7 +801,7 @@ namespace CommandConfiguration {
 	export function onlyTerminalBehaviour(value: Tasks.CommandConfiguration): boolean {
 		return value &&
 			value.presentation && (value.presentation.echo !== void 0 || value.presentation.reveal !== void 0) &&
-			value.name === void 0 && value.type === void 0 && value.args === void 0 && CommandOptions.isEmpty(value.options);
+			value.name === void 0 && value.runtime === void 0 && value.args === void 0 && CommandOptions.isEmpty(value.options);
 	}
 
 	export function assignProperties(target: Tasks.CommandConfiguration, source: Tasks.CommandConfiguration): Tasks.CommandConfiguration {
@@ -782,7 +812,7 @@ namespace CommandConfiguration {
 			return source;
 		}
 		assignProperty(target, source, 'name');
-		assignProperty(target, source, 'type');
+		assignProperty(target, source, 'runtime');
 		assignProperty(target, source, 'taskSelector');
 		assignProperty(target, source, 'suppressTaskName');
 		if (source.args !== void 0) {
@@ -797,17 +827,21 @@ namespace CommandConfiguration {
 		return target;
 	}
 
+	export function fillProperties(target: Tasks.CommandConfiguration, source: Tasks.CommandConfiguration): Tasks.CommandConfiguration {
+		return _fillProperties(target, source, properties);
+	}
+
 	export function fillGlobals(target: Tasks.CommandConfiguration, source: Tasks.CommandConfiguration, taskName: string): Tasks.CommandConfiguration {
 		if (isEmpty(source)) {
 			return target;
 		}
 		target = target || {
 			name: undefined,
-			type: undefined,
+			runtime: undefined,
 			presentation: undefined
 		};
 		fillProperty(target, source, 'name');
-		fillProperty(target, source, 'type');
+		fillProperty(target, source, 'runtime');
 		fillProperty(target, source, 'taskSelector');
 		fillProperty(target, source, 'suppressTaskName');
 
@@ -833,8 +867,8 @@ namespace CommandConfiguration {
 		if (!value || Object.isFrozen(value)) {
 			return;
 		}
-		if (value.name !== void 0 && value.type === void 0) {
-			value.type = Tasks.CommandType.Process;
+		if (value.name !== void 0 && value.runtime === void 0) {
+			value.runtime = Tasks.RuntimeType.Process;
 		}
 		value.presentation = PresentationOptions.fillDefaults(value.presentation, context);
 		if (!isEmpty(value)) {
@@ -939,170 +973,193 @@ namespace ProblemMatcherConverter {
 	}
 }
 
-interface TaskParseResult {
-	tasks: Tasks.Task[] | undefined;
-	annotatingTasks: Tasks.Task[] | undefined;
-}
-
-namespace TaskDescription {
-
-	export let source: Tasks.TaskSource = {
-		kind: Tasks.TaskSourceKind.Workspace,
-		label: 'Workspace',
-		detail: '.settins\\tasks.json'
-	};
-
-	export function from(this: void, tasks: TaskDescription[], globals: Globals, context: ParseContext): TaskParseResult {
-		if (!tasks) {
+namespace TaskIdentifier {
+	export function from(this: void, value: TaskIdentifier): Tasks.TaskIdentifier {
+		if (!value || !Types.isString(value.type)) {
 			return undefined;
 		}
-		let parsedTasks: Tasks.Task[] = [];
-		let annotatingTasks: Tasks.Task[] = [];
-		let defaultBuildTask: { task: Tasks.Task; rank: number; } = { task: undefined, rank: -1 };
-		let defaultTestTask: { task: Tasks.Task; rank: number; } = { task: undefined, rank: -1 };
-		let schema2_0_0: boolean = context.schemaVersion === Tasks.JsonSchemaVersion.V2_0_0;
-		tasks.forEach((externalTask) => {
-			let taskName = externalTask.taskName;
-			if (!taskName) {
-				context.problemReporter.fatal(nls.localize('ConfigurationParser.noTaskName', 'Error: tasks must provide a taskName property. The task will be ignored.\n{0}\n', JSON.stringify(externalTask, null, 4)));
-				return;
+		const hash = crypto.createHash('md5');
+		hash.update(JSON.stringify(value));
+		let key = hash.digest('hex');
+		let result: Tasks.TaskIdentifier = {
+			_key: key,
+			type: value.type
+		};
+		result = Objects.assign(result, value);
+		return result;
+	}
+}
+
+const source: Tasks.TaskSource = {
+	kind: Tasks.TaskSourceKind.Workspace,
+	label: 'Workspace',
+	detail: '.settins\\tasks.json'
+};
+
+namespace ConfigurationProperties {
+
+	const properties: MetaData<Tasks.ConfigurationProperties, any>[] = [
+		{ property: 'name' }, { property: 'identifier' }, { property: 'group' }, { property: 'isBackground' },
+		{ property: 'promptOnClose' }, { property: 'dependsOn' },
+		{ property: 'presentation', type: CommandConfiguration.PresentationOptions }, { property: 'problemMatchers' }
+	];
+
+	export function from(this: void, external: ConfigurationProperties, context: ParseContext, includePresentation): Tasks.ConfigurationProperties {
+		if (!external) {
+			return undefined;
+		}
+		let result: Tasks.ConfigurationProperties = {};
+		if (Types.isString(external.taskName)) {
+			result.name = external.taskName;
+		}
+		if (Types.isString(external.identifier)) {
+			result.identifier = external.identifier;
+		}
+		if (external.isBackground !== void 0) {
+			result.isBackground = !!external.isBackground;
+		}
+		if (external.promptOnClose !== void 0) {
+			result.promptOnClose = !!external.promptOnClose;
+		}
+		if (Tasks.TaskGroup.is(external.group)) {
+			result.group = external.group;
+		}
+		if (external.dependsOn !== void 0) {
+			if (Types.isString(external.dependsOn)) {
+				result.dependsOn = [external.dependsOn];
+			} else if (Types.isStringArray(external.dependsOn)) {
+				result.dependsOn = external.dependsOn.slice();
 			}
-			let problemMatchers = ProblemMatcherConverter.from(externalTask.problemMatcher, context);
-			let command: Tasks.CommandConfiguration = CommandConfiguration.from(externalTask, context);
-			let identifer = Types.isString(externalTask.identifier) ? externalTask.identifier : taskName;
-			let task: Tasks.Task = {
-				_id: context.uuidMap.getUUID(taskName),
-				_source: source,
-				_label: taskName,
-				name: taskName,
-				identifier: identifer,
-				command
-			};
-			if (externalTask.isWatching !== void 0) {
-				task.isBackground = !!externalTask.isWatching;
-			}
-			if (externalTask.isBackground !== void 0) {
-				task.isBackground = !!externalTask.isBackground;
-			}
-			if (externalTask.promptOnClose !== void 0) {
-				task.promptOnClose = !!externalTask.promptOnClose;
-			}
-			if (Tasks.TaskGroup.is(externalTask.group)) {
-				task.group = externalTask.group;
-			}
-			if (task.group === void 0) {
-				if (Types.isBoolean(externalTask.isBuildCommand) && externalTask.isBuildCommand) {
-					task.group = Tasks.TaskGroup.Build;
-				} else if (Types.isBoolean(externalTask.isTestCommand && externalTask.isTestCommand)) {
-					task.group = Tasks.TaskGroup.Test;
-				}
-			}
-			if (Types.isString(externalTask.customize)) {
-				task.customize = externalTask.customize;
-			}
-			if (externalTask.command !== void 0) {
-				// if the task has its own command then we suppress the
-				// task name by default.
-				command.suppressTaskName = true;
-			}
-			if (externalTask.dependsOn !== void 0) {
-				if (Types.isString(externalTask.dependsOn)) {
-					task.dependsOn = [externalTask.dependsOn];
-				} else if (Types.isStringArray(externalTask.dependsOn)) {
-					task.dependsOn = externalTask.dependsOn.slice();
-				}
-			}
-			if (problemMatchers) {
-				task.problemMatchers = problemMatchers;
-			}
-			if (schema2_0_0 && isAnnotating(task)) {
-				mergeGlobalsIntoAnnnotation(task, globals);
-				annotatingTasks.push(task);
-				return;
-			}
-			fillGlobals(task, globals);
-			fillDefaults(task, context);
-			let addTask: boolean = true;
-			if (context.engine === Tasks.ExecutionEngine.Terminal && task.command && task.command.name && task.command.type === Tasks.CommandType.Shell && task.command.args && task.command.args.length > 0) {
-				if (hasUnescapedSpaces(task.command.name) || task.command.args.some(hasUnescapedSpaces)) {
-					context.problemReporter.warn(nls.localize('taskConfiguration.shellArgs', 'Warning: the task \'{0}\' is a shell command and either the command name or one of its arguments has unescaped spaces. To ensure correct command line quoting please merge args into the command.', task.name));
-				}
-			}
-			if (schema2_0_0) {
-				if ((task.command === void 0 || task.command.name === void 0) && (task.dependsOn === void 0 || task.dependsOn.length === 0)) {
-					context.problemReporter.error(nls.localize(
-						'taskConfiguration.noCommandOrDependsOn', 'Error: the task \'{0}\' neither specifies a command nor a dependsOn property. The task will be ignored. Its definition is:\n{1}',
-						task.name, JSON.stringify(externalTask, undefined, 4)
-					));
-					addTask = false;
-				}
-			} else {
-				if (task.command === void 0 || task.command.name === void 0) {
-					context.problemReporter.warn(nls.localize(
-						'taskConfiguration.noCommand', 'Error: the task \'{0}\' doesn\'t define a command. The task will be ignored. Its definition is:\n{1}',
-						task.name, JSON.stringify(externalTask, undefined, 4)
-					));
-					addTask = false;
-				}
-			}
-			if (addTask) {
-				parsedTasks.push(task);
-				if (task.group === Tasks.TaskGroup.Build && defaultBuildTask.rank < 2) {
-					defaultBuildTask.task = task;
-					defaultBuildTask.rank = 2;
-				} else if (task.group === Tasks.TaskGroup.Test && defaultTestTask.rank < 2) {
-					defaultTestTask.task = task;
-					defaultTestTask.rank = 2;
-				} else if (task.name === 'build' && defaultBuildTask.rank < 1) {
-					defaultBuildTask.task = task;
-					defaultBuildTask.rank = 1;
-				} else if (task.name === 'test' && defaultTestTask.rank < 1) {
-					defaultTestTask.task = task;
-					defaultTestTask.rank = 1;
-				}
+		}
+		if (includePresentation && external.presentation !== void 0) {
+			result.presentation = CommandConfiguration.PresentationOptions.from(external, context);
+		}
+		if (external.problemMatcher) {
+			result.problemMatchers = ProblemMatcherConverter.from(external.problemMatcher, context);
+		}
+		return isEmpty(result) ? undefined : result;
+	}
+
+	export function isEmpty(this: void, value: Tasks.ConfigurationProperties): boolean {
+		return _isEmpty(value, properties);
+	}
+}
+
+namespace ConfiguringTask {
+
+	export function from(this: void, external: ConfiguringTask, context: ParseContext): Tasks.ConfiguringTask {
+		if (!external) {
+			return undefined;
+		}
+		let type = external.type;
+		if (!type) {
+			context.problemReporter.fatal(nls.localize('ConfigurationParser.noTaskType', 'Error: tasks configuration must have a type property. The configuration will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
+			return undefined;
+		}
+		let typeDeclaration = TaskTypeRegistry.get(type);
+		let identifier: TaskIdentifier = {
+			type
+		};
+		Object.keys(typeDeclaration.properties).forEach((property) => {
+			let value = external[property];
+			if (value !== void 0 && value !== null) {
+				identifier[property] = value;
 			}
 		});
-		if (defaultBuildTask.rank > -1 && defaultBuildTask.rank < 2) {
-			defaultBuildTask.task.group = Tasks.TaskGroup.Build;
-		} else if (defaultTestTask.rank > -1 && defaultTestTask.rank < 2) {
-			defaultTestTask.task.group = Tasks.TaskGroup.Test;
-		}
-		return {
-			tasks: parsedTasks.length > 0 ? parsedTasks : undefined,
-			annotatingTasks: annotatingTasks.length > 0 ? annotatingTasks : undefined
+		let taskIdentifier = TaskIdentifier.from(identifier);
+		let result: Tasks.ConfiguringTask = {
+			type: type,
+			configures: taskIdentifier,
+			_id: taskIdentifier._key,
+			_source: source,
+			_label: undefined
 		};
+		let configuration = ConfigurationProperties.from(external, context, true);
+		if (configuration) {
+			result = Objects.assign(result, configuration);
+			if (result.name) {
+				result._label = result.name;
+			} else {
+				let label = result.configures.type;
+				if (typeDeclaration.required && typeDeclaration.required.length > 0) {
+					for (let required of typeDeclaration.required) {
+						let value = result.configures[required];
+						if (value) {
+							label = label + ' ' + value;
+							break;
+						}
+					}
+				}
+				result._label = label;
+			}
+			if (!result.identifier) {
+				result.identifier = taskIdentifier._key;
+			}
+		}
+		return result;
+	}
+}
+
+namespace CustomTask {
+
+	export function from(this: void, external: CustomTask, context: ParseContext): Tasks.CustomTask {
+		if (!external) {
+			return undefined;
+		}
+		let type = external.type;
+		if (type === void 0 || type === null) {
+			type = 'custom';
+		}
+		if (type !== 'custom' && type !== 'shell' && type !== 'process') {
+			context.problemReporter.fatal(nls.localize('ConfigurationParser.notCustom', 'Error: tasks is not declared as a custom task. The configuration will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
+			return undefined;
+		}
+		let taskName = external.taskName;
+		if (!taskName) {
+			context.problemReporter.fatal(nls.localize('ConfigurationParser.noTaskName', 'Error: tasks must provide a taskName property. The task will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
+			return undefined;
+		}
+
+		let result: Tasks.CustomTask = {
+			type: 'custom',
+			_id: context.uuidMap.getUUID(taskName),
+			_source: source,
+			_label: taskName,
+			name: taskName,
+			identifier: taskName,
+			command: undefined
+		};
+		let configuration = ConfigurationProperties.from(external, context, false);
+		if (configuration) {
+			result = Objects.assign(result, configuration);
+		}
+		let supportLegacy: boolean = true; //context.schemaVersion === Tasks.JsonSchemaVersion.V2_0_0;
+		if (supportLegacy) {
+			let legacy: LegacyTaskProperties = external as LegacyTaskProperties;
+			if (result.isBackground === void 0 && legacy.isWatching !== void 0) {
+				result.isBackground = !!legacy.isWatching;
+			}
+			if (result.group === void 0) {
+				if (legacy.isBuildCommand === true) {
+					result.group = Tasks.TaskGroup.Build;
+				} else if (legacy.isTestCommand === true) {
+					result.group = Tasks.TaskGroup.Test;
+				}
+			}
+		}
+		let command: Tasks.CommandConfiguration = CommandConfiguration.from(external, context);
+		if (command) {
+			result.command = command;
+		}
+		if (external.command !== void 0) {
+			// if the task has its own command then we suppress the
+			// task name by default.
+			command.suppressTaskName = true;
+		}
+		return result;
 	}
 
-	export function assignTasks(target: Tasks.Task[], source: Tasks.Task[]): Tasks.Task[] {
-		if (source === void 0 || source.length === 0) {
-			return target;
-		}
-		if (target === void 0 || target.length === 0) {
-			return source;
-		}
-
-		if (source) {
-			// Tasks are keyed by ID but we need to merge by name
-			let map: IStringDictionary<Tasks.Task> = Object.create(null);
-			target.forEach((task) => {
-				map[task.name] = task;
-			});
-
-			source.forEach((task) => {
-				map[task.name] = task;
-			});
-			let newTarget: Tasks.Task[] = [];
-			target.forEach(task => {
-				newTarget.push(map[task.name]);
-				delete map[task.name];
-			});
-			Object.keys(map).forEach(key => newTarget.push(map[key]));
-			target = newTarget;
-		}
-		return target;
-	}
-
-	export function fillGlobals(task: Tasks.Task, globals: Globals): void {
+	export function fillGlobals(task: Tasks.CustomTask, globals: Globals): void {
 		// We only merge a command from a global definition if there is no dependsOn
 		if (task.dependsOn === void 0) {
 			task.command = CommandConfiguration.fillGlobals(task.command, globals.command, task.name);
@@ -1113,10 +1170,7 @@ namespace TaskDescription {
 		}
 	}
 
-	export function mergeGlobalsIntoAnnnotation(task: Tasks.Task, globals: Globals): void {
-	}
-
-	export function fillDefaults(task: Tasks.Task, context: ParseContext): void {
+	export function fillDefaults(task: Tasks.CustomTask, context: ParseContext): void {
 		CommandConfiguration.fillDefaults(task.command, context);
 		if (task.promptOnClose === void 0) {
 			task.promptOnClose = task.isBackground !== void 0 ? !task.isBackground : true;
@@ -1127,6 +1181,154 @@ namespace TaskDescription {
 		if (task.problemMatchers === void 0) {
 			task.problemMatchers = EMPTY_ARRAY;
 		}
+	}
+
+	export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfigurationProperties): Tasks.CustomTask {
+		let result: Tasks.CustomTask = {
+			_id: contributedTask._id,
+			_source: source,
+			_label: configuredProps.name || contributedTask._label,
+			type: 'custom',
+			command: contributedTask.command,
+			name: configuredProps.name || contributedTask.name,
+			identifier: configuredProps.identifier || contributedTask.identifier
+		};
+		let resultConfigProps: Tasks.ConfigurationProperties = result;
+
+		assignProperty(resultConfigProps, configuredProps, 'group');
+		assignProperty(resultConfigProps, configuredProps, 'isBackground');
+		assignProperty(resultConfigProps, configuredProps, 'dependsOn');
+		assignProperty(resultConfigProps, configuredProps, 'problemMatchers');
+		assignProperty(resultConfigProps, configuredProps, 'promptOnClose');
+		result.command.presentation = CommandConfiguration.PresentationOptions.assignProperties(
+			result.command.presentation, configuredProps.presentation);
+
+		let contributedConfigProps: Tasks.ConfigurationProperties = contributedTask;
+		fillProperty(resultConfigProps, contributedConfigProps, 'group');
+		fillProperty(resultConfigProps, contributedConfigProps, 'isBackground');
+		fillProperty(resultConfigProps, contributedConfigProps, 'dependsOn');
+		fillProperty(resultConfigProps, contributedConfigProps, 'problemMatchers');
+		fillProperty(resultConfigProps, contributedConfigProps, 'promptOnClose');
+		result.command.presentation = CommandConfiguration.PresentationOptions.fillProperties(
+			result.command.presentation, contributedConfigProps.presentation);
+
+		return result;
+	}
+}
+
+interface TaskParseResult {
+	custom: Tasks.CustomTask[];
+	configured: Tasks.ConfiguringTask[];
+}
+
+namespace TaskParser {
+
+	function isCustomTask(value: CustomTask | ConfiguringTask): value is CustomTask {
+		let type = value.type;
+		return type === void 0 || type === null || type === 'custom' || type === 'shell' || type === 'process';
+	}
+
+	export function from(this: void, externals: (CustomTask | ConfiguringTask)[], globals: Globals, context: ParseContext): TaskParseResult {
+		let result: TaskParseResult = { custom: [], configured: [] };
+		if (!externals) {
+			return result;
+		}
+		let defaultBuildTask: { task: Tasks.Task; rank: number; } = { task: undefined, rank: -1 };
+		let defaultTestTask: { task: Tasks.Task; rank: number; } = { task: undefined, rank: -1 };
+		let schema2_0_0: boolean = context.schemaVersion === Tasks.JsonSchemaVersion.V2_0_0;
+
+		for (let external of externals) {
+			if (isCustomTask(external)) {
+				let customTask = CustomTask.from(external, context);
+				if (customTask) {
+					CustomTask.fillGlobals(customTask, globals);
+					CustomTask.fillDefaults(customTask, context);
+					if (context.engine === Tasks.ExecutionEngine.Terminal && customTask.command && customTask.command.name && customTask.command.runtime === Tasks.RuntimeType.Shell && customTask.command.args && customTask.command.args.length > 0) {
+						if (hasUnescapedSpaces(customTask.command.name) || customTask.command.args.some(hasUnescapedSpaces)) {
+							context.problemReporter.warn(
+								nls.localize(
+									'taskConfiguration.shellArgs',
+									'Warning: the task \'{0}\' is a shell command and either the command name or one of its arguments has unescaped spaces. To ensure correct command line quoting please merge args into the command.',
+									customTask.name
+								)
+							);
+						}
+					}
+					if (schema2_0_0) {
+						if ((customTask.command === void 0 || customTask.command.name === void 0) && (customTask.dependsOn === void 0 || customTask.dependsOn.length === 0)) {
+							context.problemReporter.error(nls.localize(
+								'taskConfiguration.noCommandOrDependsOn', 'Error: the task \'{0}\' neither specifies a command nor a dependsOn property. The task will be ignored. Its definition is:\n{1}',
+								customTask.name, JSON.stringify(external, undefined, 4)
+							));
+							continue;
+						}
+					} else {
+						if (customTask.command === void 0 || customTask.command.name === void 0) {
+							context.problemReporter.warn(nls.localize(
+								'taskConfiguration.noCommand', 'Error: the task \'{0}\' doesn\'t define a command. The task will be ignored. Its definition is:\n{1}',
+								customTask.name, JSON.stringify(external, undefined, 4)
+							));
+							continue;
+						}
+					}
+					if (customTask.group === Tasks.TaskGroup.Build && defaultBuildTask.rank < 2) {
+						defaultBuildTask.task = customTask;
+						defaultBuildTask.rank = 2;
+					} else if (customTask.group === Tasks.TaskGroup.Test && defaultTestTask.rank < 2) {
+						defaultTestTask.task = customTask;
+						defaultTestTask.rank = 2;
+					} else if (customTask.name === 'build' && defaultBuildTask.rank < 1) {
+						defaultBuildTask.task = customTask;
+						defaultBuildTask.rank = 1;
+					} else if (customTask.name === 'test' && defaultTestTask.rank < 1) {
+						defaultTestTask.task = customTask;
+						defaultTestTask.rank = 1;
+					}
+					result.custom.push(customTask);
+				}
+			} else {
+				let configuredTask = ConfiguringTask.from(external, context);
+				if (configuredTask) {
+					result.configured.push(configuredTask);
+				}
+			}
+		}
+		if (defaultBuildTask.rank > -1 && defaultBuildTask.rank < 2) {
+			defaultBuildTask.task.group = Tasks.TaskGroup.Build;
+		} else if (defaultTestTask.rank > -1 && defaultTestTask.rank < 2) {
+			defaultTestTask.task.group = Tasks.TaskGroup.Test;
+		}
+
+		return result;
+	}
+
+	export function assignTasks(target: Tasks.CustomTask[], source: Tasks.CustomTask[]): Tasks.CustomTask[] {
+		if (source === void 0 || source.length === 0) {
+			return target;
+		}
+		if (target === void 0 || target.length === 0) {
+			return source;
+		}
+
+		if (source) {
+			// Tasks are keyed by ID but we need to merge by name
+			let map: IStringDictionary<Tasks.CustomTask> = Object.create(null);
+			target.forEach((task) => {
+				map[task.name] = task;
+			});
+
+			source.forEach((task) => {
+				map[task.name] = task;
+			});
+			let newTarget: Tasks.CustomTask[] = [];
+			target.forEach(task => {
+				newTarget.push(map[task.name]);
+				delete map[task.name];
+			});
+			Object.keys(map).forEach(key => newTarget.push(map[key]));
+			target = newTarget;
+		}
+		return target;
 	}
 
 	function hasUnescapedSpaces(value: string): boolean {
@@ -1149,27 +1351,6 @@ namespace TaskDescription {
 			}
 			return false;
 		}
-	}
-
-	function isAnnotating(task: Tasks.Task): boolean {
-		return task.customize !== void 0 && (task.command === void 0 || task.command.name === void 0);
-	}
-
-	export function assignProperties(target: Tasks.Task, source: Tasks.Task): Tasks.Task {
-		if (!target) {
-			return source;
-		}
-		if (!source) {
-			return target;
-		}
-
-		assignProperty(target, source, 'group');
-		target.command = CommandConfiguration.assignProperties(target.command, source.command);
-		assignProperty(target, source, 'isBackground');
-		assignProperty(target, source, 'promptOnClose');
-		assignProperty(target, source, 'dependsOn');
-		assignProperty(target, source, 'problemMatchers');
-		return target;
 	}
 }
 
@@ -1302,8 +1483,8 @@ export namespace JsonSchemaVersion {
 
 export interface ParseResult {
 	validationStatus: ValidationStatus;
-	tasks: Tasks.Task[];
-	annotatingTasks: Tasks.Task[];
+	custom: Tasks.CustomTask[];
+	configured: Tasks.ConfiguringTask[];
 	engine: Tasks.ExecutionEngine;
 }
 
@@ -1384,12 +1565,13 @@ class ConfigurationParser {
 			namedProblemMatchers: undefined,
 			engine,
 			schemaVersion,
+			taskConfigurations: schemaVersion !== Tasks.JsonSchemaVersion.V0_1_0
 		};
 		let taskParseResult = this.createTaskRunnerConfiguration(fileConfig, context);
 		return {
 			validationStatus: this.problemReporter.status,
-			tasks: taskParseResult.tasks,
-			annotatingTasks: taskParseResult.annotatingTasks,
+			custom: taskParseResult.custom,
+			configured: taskParseResult.configured,
 			engine
 		};
 	}
@@ -1397,52 +1579,52 @@ class ConfigurationParser {
 	private createTaskRunnerConfiguration(fileConfig: ExternalTaskRunnerConfiguration, context: ParseContext): TaskParseResult {
 		let globals = Globals.from(fileConfig, context);
 		if (this.problemReporter.status.isFatal()) {
-			return { tasks: [], annotatingTasks: [] };
+			return { custom: [], configured: [] };
 		}
 		context.namedProblemMatchers = ProblemMatcherConverter.namedFrom(fileConfig.declares, context);
-		let globalTasks: TaskParseResult;
+		let globalTasks: Tasks.CustomTask[];
 		if (fileConfig.windows && Platform.platform === Platform.Platform.Windows) {
-			globalTasks = TaskDescription.from(fileConfig.windows.tasks, globals, context);
+			globalTasks = TaskParser.from(fileConfig.windows.tasks, globals, context).custom;
 		} else if (fileConfig.osx && Platform.platform === Platform.Platform.Mac) {
-			globalTasks = TaskDescription.from(fileConfig.osx.tasks, globals, context);
+			globalTasks = TaskParser.from(fileConfig.osx.tasks, globals, context).custom;
 		} else if (fileConfig.linux && Platform.platform === Platform.Platform.Linux) {
-			globalTasks = TaskDescription.from(fileConfig.linux.tasks, globals, context);
+			globalTasks = TaskParser.from(fileConfig.linux.tasks, globals, context).custom;
 		}
 
-		let result: TaskParseResult = { tasks: undefined, annotatingTasks: undefined };
+		let result: TaskParseResult = { custom: undefined, configured: undefined };
 		if (fileConfig.tasks) {
-			result = TaskDescription.from(fileConfig.tasks, globals, context);
+			result = TaskParser.from(fileConfig.tasks, globals, context);
 		}
 		if (globalTasks) {
-			result.tasks = TaskDescription.assignTasks(result.tasks, globalTasks.tasks);
-			result.annotatingTasks = TaskDescription.assignTasks(result.annotatingTasks, globalTasks.annotatingTasks);
+			result.custom = TaskParser.assignTasks(result.custom, globalTasks);
 		}
 
-		if ((!result.tasks || result.tasks.length === 0) && (globals.command && globals.command.name)) {
+		if ((!result.custom || result.custom.length === 0) && (globals.command && globals.command.name)) {
 			let matchers: ProblemMatcher[] = ProblemMatcherConverter.from(fileConfig.problemMatcher, context);
 			let isBackground = fileConfig.isBackground ? !!fileConfig.isBackground : fileConfig.isWatching ? !!fileConfig.isWatching : undefined;
-			let task: Tasks.Task = {
+			let task: Tasks.CustomTask = {
 				_id: context.uuidMap.getUUID(globals.command.name),
-				_source: TaskDescription.source,
+				_source: source,
 				_label: globals.command.name,
+				type: 'custom',
 				name: globals.command.name,
 				identifier: globals.command.name,
 				group: Tasks.TaskGroup.Build,
 				command: {
 					name: undefined,
-					type: undefined,
+					runtime: undefined,
 					presentation: undefined,
 					suppressTaskName: true
 				},
 				isBackground: isBackground,
 				problemMatchers: matchers
 			};
-			TaskDescription.fillGlobals(task, globals);
-			TaskDescription.fillDefaults(task, context);
-			result.tasks = [task];
+			CustomTask.fillGlobals(task, globals);
+			CustomTask.fillDefaults(task, context);
+			result.custom = [task];
 		}
-		result.tasks = result.tasks || [];
-		result.annotatingTasks = result.annotatingTasks || [];
+		result.custom = result.custom || [];
+		result.configured = result.configured || [];
 		return result;
 	}
 }
@@ -1457,8 +1639,12 @@ export function parse(configuration: ExternalTaskRunnerConfiguration, logger: IP
 	}
 }
 
-export function mergeTasks(target: Tasks.Task, source: Tasks.Task): Tasks.Task {
-	return TaskDescription.assignProperties(target, source);
+export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfigurationProperties): Tasks.CustomTask {
+	return CustomTask.createCustomTask(contributedTask, configuredProps);
+}
+
+export function getTaskIdentifier(value: TaskIdentifier): Tasks.TaskIdentifier {
+	return TaskIdentifier.from(value);
 }
 
 /*

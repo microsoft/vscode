@@ -123,6 +123,21 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * An identifer to uniquely identify a task in the system.
+	 * The value must be JSON-stringifyable.
+	 */
+	export interface TaskIdentifier {
+		/**
+		 * The task type as defined by the extension implementing a
+		 * task provider. Examples are 'grunt', 'npm' or 'tsc'.
+		 * Usually a task provider defines more properties to identify
+		 * a task. They need to be defined in the package.json of the
+		 * extension under the 'taskTypes' extension point.
+		 */
+		readonly type: string;
+	}
+
+	/**
 	 * A task that starts an external process.
 	 */
 	export class ProcessTask {
@@ -130,17 +145,19 @@ declare module 'vscode' {
 		/**
 		 * Creates a process task.
 		 *
+		 * @param identifier: the task's identifier as defined in the 'taskTypes' extension point.
 		 * @param name the task's name. Is presented in the user interface.
 		 * @param process the process to start.
 		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
 		 *  or '$eslint'. Problem matchers can be contributed by an extension using
 		 *  the `problemMatchers` extension point.
 		 */
-		constructor(name: string, process: string, problemMatchers?: string | string[]);
+		constructor(identifier: TaskIdentifier, name: string, process: string, problemMatchers?: string | string[]);
 
 		/**
 		 * Creates a process task.
 		 *
+		 * @param identifier: the task's identifier as defined in the 'taskTypes' extension point.
 		 * @param name the task's name. Is presented in the user interface.
 		 * @param process the process to start.
 		 * @param args arguments to be passed to the process.
@@ -148,11 +165,12 @@ declare module 'vscode' {
 		 *  or '$eslint'. Problem matchers can be contributed by an extension using
 		 *  the `problemMatchers` extension point.
 		 */
-		constructor(name: string, process: string, args: string[], problemMatchers?: string | string[]);
+		constructor(identifier: TaskIdentifier, name: string, process: string, args: string[], problemMatchers?: string | string[]);
 
 		/**
 		 * Creates a process task.
 		 *
+		 * @param identifier: the task's identifier as defined in the 'taskTypes' extension point.
 		 * @param name the task's name. Is presented in the user interface.
 		 * @param process the process to start.
 		 * @param args arguments to be passed to the process.
@@ -161,18 +179,17 @@ declare module 'vscode' {
 		 *  or '$eslint'. Problem matchers can be contributed by an extension using
 		 *  the `problemMatchers` extension point.
 		 */
-		constructor(name: string, process: string, args: string[], options: ProcessTaskOptions, problemMatchers?: string | string[]);
+		constructor(identifier: TaskIdentifier, name: string, process: string, args: string[], options: ProcessTaskOptions, problemMatchers?: string | string[]);
+
+		/**
+		 * The task's identifier.
+		 */
+		identifier: TaskIdentifier;
 
 		/**
 		 * The task's name
 		 */
-		readonly name: string;
-
-		/**
-		 * The task's identifier. If omitted the internal identifier will
-		 * be `${extensionName}:${name}`
-		 */
-		identifier: string | undefined;
+		name: string;
 
 		/**
 		 * Whether the task is a background task or not.
@@ -182,7 +199,7 @@ declare module 'vscode' {
 		/**
 		 * The process to be executed.
 		 */
-		readonly process: string;
+		process: string;
 
 		/**
 		 * The arguments passed to the process. Defaults to an empty array.
@@ -280,17 +297,19 @@ declare module 'vscode' {
 		/**
 		 * Creates a shell task.
 		 *
+		 * @param identifier: the task's identifier as defined in the 'taskTypes' extension point.
 		 * @param name the task's name. Is presented in the user interface.
 		 * @param commandLine the command line to execute.
 		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
 		 *  or '$eslint'. Problem matchers can be contributed by an extension using
 		 *  the `problemMatchers` extension point.
 		 */
-		constructor(name: string, commandLine: string, problemMatchers?: string | string[]);
+		constructor(identifier: TaskIdentifier, name: string, commandLine: string, problemMatchers?: string | string[]);
 
 		/**
 		 * Creates a shell task.
 		 *
+		 * @param identifier: the task's identifier as defined in the 'taskTypes' extension point.
 		 * @param name the task's name. Is presented in the user interface.
 		 * @param commandLine the command line to execute.
 		 * @param options additional options used when creating the shell.
@@ -298,18 +317,17 @@ declare module 'vscode' {
 		 *  or '$eslint'. Problem matchers can be contributed by an extension using
 		 *  the `problemMatchers` extension point.
 		 */
-		constructor(name: string, commandLine: string, options: ShellTaskOptions, problemMatchers?: string | string[]);
+		constructor(identifier: TaskIdentifier, name: string, commandLine: string, options: ShellTaskOptions, problemMatchers?: string | string[]);
+
+		/**
+		 * The task's identifier.
+		 */
+		identifier: TaskIdentifier;
 
 		/**
 		 * The task's name
 		 */
-		readonly name: string;
-
-		/**
-		 * The task's identifier. If omitted the internal identifier will
-		 * be `${extensionName}:${name}`
-		 */
-		identifier: string | undefined;
+		name: string;
 
 		/**
 		 * Whether the task is a background task or not.
@@ -319,7 +337,7 @@ declare module 'vscode' {
 		/**
 		 * The command line to execute.
 		 */
-		readonly commandLine: string;
+		commandLine: string;
 
 		/**
 		 * A human-readable string describing the source of this

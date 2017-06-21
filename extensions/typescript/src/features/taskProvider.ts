@@ -21,6 +21,11 @@ const exists = (file: string): Promise<boolean> =>
 		});
 	});
 
+
+interface TypeScriptTaskIdentifier extends vscode.TaskIdentifier {
+	configFile: string;
+}
+
 /**
  * Provides tasks for building `tsconfig.json` files in a project.
  */
@@ -48,7 +53,8 @@ class TscTaskProvider implements vscode.TaskProvider {
 
 		return projects.map(configFile => {
 			const configFileName = path.relative(rootPath, configFile);
-			const buildTask = new vscode.ShellTask(`build ${configFileName}`, `${command} -p "${configFile}"`, '$tsc');
+			const identifier: TypeScriptTaskIdentifier = { type: 'typescript', configFile: configFileName };
+			const buildTask = new vscode.ShellTask(identifier, `build ${configFileName}`, `${command} -p "${configFile}"`, '$tsc');
 			buildTask.source = 'tsc';
 			buildTask.group = vscode.TaskGroup.Build;
 			return buildTask;

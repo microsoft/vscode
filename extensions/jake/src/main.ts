@@ -81,6 +81,11 @@ function getOutputChannel(): vscode.OutputChannel {
 	return _channel;
 }
 
+interface JakeTaskIdentifier extends vscode.TaskIdentifier {
+	task: string;
+	file?: string;
+}
+
 async function getJakeTasks(): Promise<vscode.Task[]> {
 	let workspaceRoot = vscode.workspace.rootPath;
 	let emptyTasks: vscode.Task[] = [];
@@ -125,8 +130,11 @@ async function getJakeTasks(): Promise<vscode.Task[]> {
 				let matches = regExp.exec(line);
 				if (matches && matches.length === 2) {
 					let taskName = matches[1];
-					let task = new vscode.ShellTask(taskName, `${jakeCommand} ${taskName}`);
-					task.identifier = `jake.${taskName}`;
+					let identifier: JakeTaskIdentifier = {
+						type: 'jake',
+						task: taskName
+					};
+					let task = new vscode.ShellTask(identifier, taskName, `${jakeCommand} ${taskName}`);
 					result.push(task);
 					let lowerCaseLine = line.toLowerCase();
 					if (lowerCaseLine === 'build') {
