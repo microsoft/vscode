@@ -65,6 +65,9 @@ export interface ExpandAbbreviationHelperOutput {
  * @param abbreviationRange vscode.Range range of the abbreviation that needs to be expanded
  * */
 export function expandAbbreviationHelper(syntax: string, document: vscode.TextDocument, abbreviationRange: vscode.Range): ExpandAbbreviationHelperOutput {
+	if (!syntax) {
+		return;
+	}
 	let abbreviation = document.getText(abbreviationRange);
 	if (abbreviationRange.isEmpty) {
 		[abbreviationRange, abbreviation] = extractAbbreviation(document, abbreviationRange.start);
