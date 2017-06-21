@@ -17,9 +17,13 @@ function handleDeletions() {
 	});
 }
 
-const watch = process.platform === 'win32'
-	? require('./watch-win32')
-	: require('gulp-watch');
+const disableNewWatcher = process.env['vscode.disableNewWatcher'];
+
+const watch = !disableNewWatcher ?
+	require('./watch-nsfw')
+	: process.platform === 'win32'
+		? require('./watch-win32')
+		: require('gulp-watch');
 
 module.exports = function () {
 	return watch.apply(null, arguments)
