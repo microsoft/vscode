@@ -189,7 +189,7 @@
 			const newFrame = document.createElement('iframe');
 			newFrame.setAttribute('id', 'pending-frame');
 			newFrame.setAttribute('frameborder', '0');
-			newFrame.setAttribute('sandbox', options.enableJavascript ? 'allow-scripts allow-forms allow-same-origin' : 'allow-same-origin');
+			newFrame.setAttribute('sandbox', options.allowScripts ? 'allow-scripts allow-forms allow-same-origin' : 'allow-same-origin');
 			newFrame.style.cssText = "margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; display: none";
 			document.body.appendChild(newFrame);
 

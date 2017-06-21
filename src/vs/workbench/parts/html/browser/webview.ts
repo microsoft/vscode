@@ -23,6 +23,7 @@ declare interface WebviewElement extends HTMLElement {
 	contextIsolation: boolean;
 	send(channel: string, ...args: any[]);
 	openDevTools(): any;
+	getWebContents(): any;
 }
 
 CommandsRegistry.registerCommand('_webview.openDevTools', function () {
@@ -44,14 +45,15 @@ MenuRegistry.addCommand({
 type ApiThemeClassName = 'vscode-light' | 'vscode-dark' | 'vscode-high-contrast';
 
 export interface WebviewOptions {
-	enableJavascript?: boolean;
+	allowScripts?: boolean;
 }
 
 export default class Webview {
+	private static index: number = 0;
 
 	private _webview: WebviewElement;
 	private _ready: TPromise<this>;
-	private _disposables: IDisposable[];
+	private _disposables: IDisposable[] = [];
 	private _onDidClickLink = new Emitter<URI>();
 	private _onDidLoadContent = new Emitter<{ stats: any }>();
 
@@ -75,7 +77,7 @@ export default class Webview {
 
 		this._webview.setAttribute('disableguestresize', '');
 		this._webview.setAttribute('webpreferences', 'contextIsolation=yes');
-		this._webview.setAttribute('partition', 'webview');
+		this._webview.setAttribute('partition', `webview-${Webview.index++}`);
 
 		this._webview.preload = require.toUrl('./webview-pre.js');
 		this._webview.src = require.toUrl('./webview.html');
@@ -92,7 +94,35 @@ export default class Webview {
 			});
 		});
 
-		this._disposables = [
+		let loaded = false;
+		const subscription = addDisposableListener(this._webview, 'did-start-loading', () => {
+			if (loaded) {
+				return;
+			}
+			loaded = true;
+			const contents = this._webview.getWebContents();
+			contents.session.webRequest.onBeforeRequest((details, callback) => {
+				if (details.url.indexOf('.svg') > 0) {
+					const uri = URI.parse(details.url);
+					if (uri && !uri.scheme.match(/file/i) && (uri.path as any).endsWith('.svg')) {
+						return callback({ cancel: true });
+					}
+				}
+				return callback({});
+			});
+
+			contents.session.webRequest.onHeadersReceived((details, callback) => {
+				const contentType: string[] = details.responseHeaders['content-type'] as any;
+				if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
+					return callback({ cancel: true });
+				}
+				return callback({});
+			});
+		});
+
+		this._disposables.push(subscription);
+
+		this._disposables.push(
 			addDisposableListener(this._webview, 'console-message', function (e: { level: number; message: string; line: number; sourceId: string; }) {
 				console.log(`[Embedded Page] ${e.message}`);
 			}),
@@ -123,8 +153,7 @@ export default class Webview {
 					}
 					return;
 				}
-			})
-		];
+			}));
 
 		if (parent) {
 			parent.appendChild(this._webview);

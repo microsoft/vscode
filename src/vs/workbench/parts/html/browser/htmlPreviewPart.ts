@@ -20,7 +20,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
 
-import Webview from './webview';
+import Webview, { WebviewOptions } from './webview';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { WebviewEditor } from 'vs/workbench/browser/parts/editor/webviewEditor';
 
@@ -74,7 +74,12 @@ export class HtmlPreviewPart extends WebviewEditor {
 
 	private get webview(): Webview {
 		if (!this._webview) {
-			this._webview = new Webview(this._container, this.partService.getContainer(Parts.EDITOR_PART), { enableJavascript: true });
+			let webviewOptions: WebviewOptions | undefined = { allowScripts: true };
+			if (this.input && this.input instanceof HtmlInput) {
+				webviewOptions = this.input.options;
+			}
+
+			this._webview = new Webview(this._container, this.partService.getContainer(Parts.EDITOR_PART), webviewOptions);
 			if (this.input && this.input instanceof HtmlInput) {
 				const state = this.loadViewState(this.input.getResource());
 				this.scrollYPercentage = state ? state.scrollYPercentage : 0;
