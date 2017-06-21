@@ -41,3 +41,4 @@ import 'vs/editor/contrib/suggest/browser/suggestController';
 import 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
 import 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import 'vs/editor/contrib/wordOperations/common/wordOperations';
+import 'vs/editor/contrib/colorPicker/browser/colorPicker';
