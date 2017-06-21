@@ -116,20 +116,22 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 
 	private registerViews(): void {
 		let viewDescriptors = [];
-		viewDescriptors.push(this.createExtensionsListViewDescriptor());
+		viewDescriptors.push(this.createMarketPlaceExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createInstalledExtensionsListViewDescriptor());
+		viewDescriptors.push(this.createSearchInstalledExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createRecommendedExtensionsListViewDescriptor());
+		viewDescriptors.push(this.createSearchRecommendedExtensionsListViewDescriptor());
 		ViewsRegistry.registerViews(viewDescriptors);
 	}
 
-	private createExtensionsListViewDescriptor(): IViewDescriptor {
+	private createMarketPlaceExtensionsListViewDescriptor(): IViewDescriptor {
 		return {
 			id: 'extensions.listView',
 			name: localize('marketPlace', "Market Place"),
 			location: ViewLocation.Extensions,
 			ctor: ExtensionsListView,
 			when: ContextKeyExpr.and(ContextKeyExpr.has('searchExtensions'), ContextKeyExpr.not('searchInstalledExtensions'), ContextKeyExpr.not('searchRecommendedExtensions')),
-			size: 50
+			size: 70
 		};
 	}
 
@@ -139,8 +141,19 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 			name: localize('installedExtensions', "Installed"),
 			location: ViewLocation.Extensions,
 			ctor: InstalledExtensionsView,
-			when: ContextKeyExpr.not('searchRecommendedExtensions'),
-			size: 20
+			when: ContextKeyExpr.not('searchExtensions'),
+			size: 50
+		};
+	}
+
+	private createSearchInstalledExtensionsListViewDescriptor(): IViewDescriptor {
+		return {
+			id: 'extensions.search.installedList',
+			name: localize('searchInstalledExtensions', "Installed"),
+			location: ViewLocation.Extensions,
+			ctor: InstalledExtensionsView,
+			when: ContextKeyExpr.and(ContextKeyExpr.has('searchExtensions'), ContextKeyExpr.not('searchRecommendedExtensions')),
+			size: 15
 		};
 	}
 
@@ -150,8 +163,19 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 			name: localize('recommendedExtensions', "Recommended"),
 			location: ViewLocation.Extensions,
 			ctor: RecommendedExtensionsView,
-			when: ContextKeyExpr.not('searchInstalledExtensions'),
-			size: 20
+			when: ContextKeyExpr.not('searchExtensions'),
+			size: 50
+		};
+	}
+
+	private createSearchRecommendedExtensionsListViewDescriptor(): IViewDescriptor {
+		return {
+			id: 'extensions.search.recommendedList',
+			name: localize('searchRecommendedExtensions', "Recommended"),
+			location: ViewLocation.Extensions,
+			ctor: RecommendedExtensionsView,
+			when: ContextKeyExpr.and(ContextKeyExpr.has('searchExtensions'), ContextKeyExpr.not('searchInstalledExtensions')),
+			size: 15
 		};
 	}
 
