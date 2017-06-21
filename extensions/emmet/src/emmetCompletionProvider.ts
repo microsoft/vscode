@@ -7,10 +7,9 @@
 import * as vscode from 'vscode';
 import { expand, createSnippetsRegistry } from '@emmetio/expand-abbreviation';
 import { getSyntax, isStyleSheet } from './util';
-import { expandAbbreviationHelper, ExpandAbbreviationHelperOutput } from './abbreviationActions';
+import { syntaxHelper, expandAbbreviationHelper, ExpandAbbreviationHelperOutput, getExpandOptions } from './abbreviationActions';
 
-const field = (index, placeholder) => `\${${index}${placeholder ? ':' + placeholder : ''}}`;
-const snippetCompletionsCache = new Map<string, vscode.CompletionItem[]>();
+const snippetKeyCache = new Map<string, string[]>();
 
 export class EmmetCompletionItemProvider implements vscode.CompletionItemProvider {
 	private _mappedSyntax = false;
@@ -21,64 +20,70 @@ export class EmmetCompletionItemProvider implements vscode.CompletionItemProvide
 	}
 	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Thenable<vscode.CompletionList> {
 
-		if (!vscode.workspace.getConfiguration('emmet')['useNewEmmet']) {
+		let emmetConfig = vscode.workspace.getConfiguration('emmet');
+		if (!emmetConfig['useNewEmmet'] || !emmetConfig['showExpandedAbbreviation']) {
 			return Promise.resolve(null);
 		}
 
 		let syntax = getSyntax(document);
-		let expandedAbbr: vscode.CompletionItem;
-		if (vscode.workspace.getConfiguration('emmet')['showExpandedAbbreviation']) {
-			let output: ExpandAbbreviationHelperOutput = expandAbbreviationHelper(syntax, document, new vscode.Range(position, position), this._mappedSyntax);
-			if (output) {
-				expandedAbbr = new vscode.CompletionItem(output.abbreviation);
-				expandedAbbr.insertText = new vscode.SnippetString(output.expandedText);
-				expandedAbbr.documentation = removeTabStops(output.expandedText);
-				expandedAbbr.range = output.abbreviationRange;
-				expandedAbbr.detail = 'Expand Emmet Abbreviation';
-				syntax = output.syntax;
-			}
+		let abbreviationRange = new vscode.Range(position, position);
+		if (!this._mappedSyntax) {
+			syntax = syntaxHelper(syntax, document, position);
 		}
+
+		let output: ExpandAbbreviationHelperOutput = expandAbbreviationHelper(syntax, document, abbreviationRange);
+		if (!output) {
+			return;
+		}
+
+		let expandedAbbr = new vscode.CompletionItem(output.abbreviation);
+		expandedAbbr.insertText = new vscode.SnippetString(output.expandedText);
+		expandedAbbr.documentation = removeTabStops(output.expandedText);
+		expandedAbbr.range = output.abbreviationRange;
+		expandedAbbr.detail = 'Expand Emmet Abbreviation';
+		syntax = output.syntax;
 
 		let completionItems: vscode.CompletionItem[] = expandedAbbr ? [expandedAbbr] : [];
 		if (!isStyleSheet(syntax)) {
-			if (expandedAbbr) {
-				// In non stylesheet like syntax, this extension returns expanded abbr plus posssible abbr completions
-				// To differentiate between the 2, the former is given CompletionItemKind.Value so that it gets a different icon
-				expandedAbbr.kind = vscode.CompletionItemKind.Value;
-			}
 			let currentWord = getCurrentWord(document, position);
-
-			let abbreviationSuggestions = this.getAbbreviationSuggestions(syntax, currentWord, (expandedAbbr && currentWord === expandedAbbr.label));
+			let abbreviationSuggestions = this.getAbbreviationSuggestions(syntax, currentWord, output.abbreviation, output.abbreviationRange);
 			completionItems = completionItems.concat(abbreviationSuggestions);
 		}
-
 		return Promise.resolve(new vscode.CompletionList(completionItems, true));
+
+
 	}
-	getAbbreviationSuggestions(syntax: string, prefix: string, skipExactMatch: boolean) {
-		if (!vscode.workspace.getConfiguration('emmet')['showAbbreviationSuggestions'] || !prefix) {
+	getAbbreviationSuggestions(syntax: string, prefix: string, abbreviation: string, abbreviationRange: vscode.Range): vscode.CompletionItem[] {
+		if (!vscode.workspace.getConfiguration('emmet')['showAbbreviationSuggestions'] || !prefix || !abbreviation) {
 			return [];
 		}
 
-		if (!snippetCompletionsCache.has(syntax)) {
+		if (!snippetKeyCache.has(syntax)) {
 			let registry = createSnippetsRegistry(syntax);
-			let completions: vscode.CompletionItem[] = registry.all({ type: 'string' }).map(snippet => {
-				let expandedWord = expand(snippet.value, {
-					field: field,
-					syntax: syntax
-				});
-
-				let item = new vscode.CompletionItem(snippet.key);
-				item.documentation = removeTabStops(expandedWord);
-				item.detail = 'Complete Emmet Abbreviation';
-				item.insertText = snippet.key;
-				return item;
+			let snippetKeys: string[] = registry.all({ type: 'string' }).map(snippet => {
+				return snippet.key;
 			});
-			snippetCompletionsCache.set(syntax, completions);
+			snippetKeyCache.set(syntax, snippetKeys);
 		}
 
-		let snippetCompletions = snippetCompletionsCache.get(syntax);
+		let skipExactMatch = prefix === abbreviation;
+		let snippetKeys = snippetKeyCache.get(syntax);
+		let snippetCompletions = [];
+		snippetKeys.forEach(snippetKey => {
+			if (!snippetKey.startsWith(prefix) || (snippetKey === prefix) || (skipExactMatch && snippetKey === prefix)) {
+				return;
+			}
 
-		snippetCompletions = snippetCompletions.filter(x => x.label.startsWith(prefix) && (!skipExactMatch || x.label !== prefix));
+			let currentAbbr = snippetKey; // For #28556: abbreviation + snippetKey.substr(prefix.length);
+			let expandedAbbr = expand(currentAbbr, getExpandOptions(syntax));
+
+			let item = new vscode.CompletionItem(snippetKey);
+			item.documentation = removeTabStops(expandedAbbr);
+			item.detail = 'Complete Emmet Abbreviation';
+			item.insertText = snippetKey; // For #28556: new vscode.SnippetString(expandedAbbr);
+
+			snippetCompletions.push(item);
+		});
 
 		return snippetCompletions;
 

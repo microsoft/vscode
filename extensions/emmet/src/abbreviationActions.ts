@@ -51,7 +51,13 @@ export function expandAbbreviation() {
 			mappedSyntax = true;
 		}
 	}
-	let output = expandAbbreviationHelper(syntax, editor.document, editor.selection, mappedSyntax);
+	if (!mappedSyntax) {
+		syntax = syntaxHelper(syntax, editor.document, editor.selection.end);
+	}
+	if (!syntax) {
+		return;
+	}
+	let output = expandAbbreviationHelper(syntax, editor.document, editor.selection);
 	if (output) {
 		editor.insertSnippet(new vscode.SnippetString(output.expandedText), output.abbreviationRange);
 	}
@@ -69,21 +75,8 @@ export interface ExpandAbbreviationHelperOutput {
  * @param syntax string syntax to be used for expanding abbreviations
  * @param document vscode.TextDocument
  * @param abbreviationRange vscode.Range range of the abbreviation that needs to be expanded
- * @param mappedSyntax Boolean Pass true if given document language was mapped to given syntax to get emmet abbreviation expansions.
  * */
-export function expandAbbreviationHelper(syntax: string, document: vscode.TextDocument, abbreviationRange: vscode.Range, mappedSyntax: boolean): ExpandAbbreviationHelperOutput {
-	if (!mappedSyntax) {
-		let parseContent = isStyleSheet(syntax) ? parseStylesheet : parse;
-		let rootNode: Node = parseContent(new DocumentStreamReader(document));
-		let currentNode = getNode(rootNode, abbreviationRange.end);
-
-		if (forceCssSyntax(syntax, currentNode, abbreviationRange.end)) {
-			syntax = 'css';
-		} else if (!isValidLocationForEmmetAbbreviation(currentNode, syntax, abbreviationRange.end)) {
-			return;
-		}
-	}
-
+export function expandAbbreviationHelper(syntax: string, document: vscode.TextDocument, abbreviationRange: vscode.Range): ExpandAbbreviationHelperOutput {
 	let abbreviation = document.getText(abbreviationRange);
 	if (abbreviationRange.isEmpty) {
 		[abbreviationRange, abbreviation] = extractAbbreviation(document, abbreviationRange.start);
@@ -91,6 +84,24 @@ export function expandAbbreviationHelper(syntax: string, document: vscode.TextDo
 
 	let expandedText = expand(abbreviation, getExpandOptions(syntax));
 	return { expandedText, abbreviationRange, abbreviation, syntax };
+}
+
+/**
+ * Checks whether given position is valid for emmet abbreviation and returns appropriate syntax
+ * @param syntax string language mode of current document
+ * @param document vscode.Textdocument
+ * @param position vscode.Position position of the abbreviation that needs to be expanded
+ */
+export function syntaxHelper(syntax: string, document: vscode.TextDocument, position: vscode.Position): string {
+	let parseContent = isStyleSheet(syntax) ? parseStylesheet : parse;
+	let rootNode: Node = parseContent(new DocumentStreamReader(document));
+	let currentNode = getNode(rootNode, position);
+
+	if (forceCssSyntax(syntax, currentNode, position)) {
+		return 'css';
+	} else if (!isValidLocationForEmmetAbbreviation(currentNode, syntax, position)) {
+		return;
+	}
 }
 
 /**
@@ -141,7 +152,7 @@ function isValidLocationForEmmetAbbreviation(currentNode: Node, syntax: string, 
 	return false;
 }
 
-function getExpandOptions(syntax: string, textToReplace?: string) {
+export function getExpandOptions(syntax: string, textToReplace?: string) {
 	return {
 		field: field,
 		syntax: syntax,
