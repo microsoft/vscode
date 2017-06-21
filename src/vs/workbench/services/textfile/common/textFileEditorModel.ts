@@ -729,10 +729,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				diag(`doSave(${versionId}) - after updateContent()`, this.resource, new Date());
 
 				// Telemetry
-				if ((this.contextService.hasWorkspace() && paths.isEqualOrParent(this.resource.fsPath, this.contextService.toResource('.vscode').fsPath)) ||
-					this.resource.fsPath === this.environmentService.appSettingsPath) {
-					// Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data
-					this.telemetryService.publicLog('settingsWritten');
+				if (this.isSettingsFile()) {
+					this.telemetryService.publicLog('settingsWritten'); // Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data
 				} else {
 					this.telemetryService.publicLog('filePUT', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: paths.extname(this.lastResolvedDiskStat.resource.fsPath) });
 				}
@@ -771,6 +769,23 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				this._onDidStateChange.fire(StateChange.SAVE_ERROR);
 			}));
 		}));
+	}
+
+	private isSettingsFile(): boolean {
+
+		// Check for global settings file
+		if (this.resource.fsPath === this.environmentService.appSettingsPath) {
+			return true;
+		}
+
+		// Check for workspace settings file
+		if (this.contextService.hasWorkspace()) {
+			return this.contextService.getWorkspace2().roots.some(root => {
+				return paths.isEqualOrParent(this.resource.fsPath, path.join(root.fsPath, '.vscode'));
+			});
+		}
+
+		return false;
 	}
 
 	private doTouch(): TPromise<void> {
