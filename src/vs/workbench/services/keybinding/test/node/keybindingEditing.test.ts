@@ -44,6 +44,7 @@ import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybindin
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { IChoiceService } from 'vs/platform/message/common/message';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { TestConfigurationService } from "vs/platform/configuration/test/common/testConfigurationService";
 
 interface Modifiers {
 	metaKey?: boolean;
@@ -81,7 +82,7 @@ suite('Keybindings Editing', () => {
 			instantiationService.stub(ITelemetryService, NullTelemetryService);
 			instantiationService.stub(IModeService, ModeServiceImpl);
 			instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
-			instantiationService.stub(IFileService, new FileService(new TestContextService(new Workspace(testDir, testDir, [uri.file(testDir)])), { disableWatcher: true }));
+			instantiationService.stub(IFileService, new FileService(new TestContextService(new Workspace(testDir, testDir, [uri.file(testDir)])), new TestConfigurationService(), { disableWatcher: true }));
 			instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 			instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));

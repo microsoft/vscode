@@ -73,8 +73,6 @@ export class FileService implements IFileService {
 		// build config
 		const fileServiceConfig: IFileServiceOptions = {
 			errorLogger: (msg: string) => this.onFileServiceError(msg),
-			encoding: configuration.files && configuration.files.encoding,
-			autoGuessEncoding: configuration.files && configuration.files.autoGuessEncoding,
 			encodingOverride: this.getEncodingOverrides(),
 			watcherIgnoredPatterns,
 			verboseLogging: environmentService.verbose,
@@ -82,7 +80,7 @@ export class FileService implements IFileService {
 		};
 
 		// create service
-		this.raw = new NodeFileService(contextService, fileServiceConfig);
+		this.raw = new NodeFileService(contextService, configurationService, fileServiceConfig);
 
 		// Listeners
 		this.registerListeners();

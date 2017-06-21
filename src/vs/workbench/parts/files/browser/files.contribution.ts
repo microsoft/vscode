@@ -14,7 +14,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory, EditorInput, IFileEditorInput } from 'vs/workbench/common/editor';
-import { AutoSaveConfiguration, HotExitConfiguration, SUPPORTED_ENCODINGS, IFilesConfiguration } from 'vs/platform/files/common/files';
+import { AutoSaveConfiguration, HotExitConfiguration, SUPPORTED_ENCODINGS } from 'vs/platform/files/common/files';
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { FILE_EDITOR_INPUT_ID, VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import { FileEditorTracker } from 'vs/workbench/parts/files/common/editors/fileEditorTracker';
@@ -111,22 +111,10 @@ interface ISerializedFileInput {
 
 // Register Editor Input Factory
 class FileEditorInputFactory implements IEditorInputFactory {
-	private configuredEncoding: string;
 
 	constructor(
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
 	) {
-		this.onConfiguration(configurationService.getConfiguration<IFilesConfiguration>());
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this.configurationService.onDidUpdateConfiguration(e => this.onConfiguration(this.configurationService.getConfiguration<IFilesConfiguration>()));
-	}
-
-	private onConfiguration(config: IFilesConfiguration): void {
-		this.configuredEncoding = config.files && config.files.encoding;
 	}
 
 	public serialize(editorInput: EditorInput): string {
@@ -138,7 +126,7 @@ class FileEditorInputFactory implements IEditorInputFactory {
 		};
 
 		const encoding = fileEditorInput.getPreferredEncoding();
-		if (encoding && encoding !== this.configuredEncoding) {
+		if (encoding && encoding !== this.configurationService.lookup('files.encoding', { resource }).value) {
 			fileInput.encoding = encoding;
 		}
 

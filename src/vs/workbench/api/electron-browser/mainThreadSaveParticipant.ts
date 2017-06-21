@@ -142,7 +142,7 @@ class FormatOnSaveParticipant implements INamedSaveParticpant {
 
 		const model = editorModel.textEditorModel;
 		if (env.reason === SaveReason.AUTO
-			|| !this._configurationService.lookup('editor.formatOnSave', model.getLanguageIdentifier().language).value) {
+			|| !this._configurationService.lookup('editor.formatOnSave', { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() }).value) {
 			return undefined;
 		}
 

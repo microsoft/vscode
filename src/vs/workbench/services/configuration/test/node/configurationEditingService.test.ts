@@ -45,6 +45,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { TestConfigurationService } from "vs/platform/configuration/test/common/testConfigurationService";
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -125,7 +126,7 @@ suite('ConfigurationEditingService', () => {
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IModeService, ModeServiceImpl);
 		instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
-		instantiationService.stub(IFileService, new FileService(workspaceService, { disableWatcher: true }));
+		instantiationService.stub(IFileService, new FileService(workspaceService, new TestConfigurationService(), { disableWatcher: true }));
 		instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 		instantiationService.stub(IStorageService, new TestStorageService());
 		instantiationService.stub(IChoiceService, {

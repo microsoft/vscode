@@ -11,7 +11,7 @@ import os = require('os');
 import crypto = require('crypto');
 import assert = require('assert');
 
-import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveContentOptions, IFileStat, IStreamContent, IFileOperationResult, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent } from 'vs/platform/files/common/files';
+import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveContentOptions, IFileStat, IStreamContent, IFileOperationResult, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent, IFilesConfiguration } from 'vs/platform/files/common/files';
 import { isEqualOrParent } from 'vs/base/common/paths';
 import { ResourceMap } from 'vs/base/common/map';
 import arrays = require('vs/base/common/arrays');
@@ -36,6 +36,7 @@ import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/file
 import { toFileChangesEvent, normalize, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
 import Event, { Emitter } from 'vs/base/common/event';
 import { FileWatcher as NsfwWatcherService } from 'vs/workbench/services/files/node/watcher/nsfw/watcherService';
+import { IConfigurationService } from "vs/platform/configuration/common/configuration";
 
 export interface IEncodingOverride {
 	resource: uri;
@@ -45,9 +46,6 @@ export interface IEncodingOverride {
 export interface IFileServiceOptions {
 	tmpDir?: string;
 	errorLogger?: (msg: string) => void;
-	encoding?: string;
-	autoGuessEncoding?: boolean;
-	bom?: string;
 	encodingOverride?: IEncodingOverride[];
 	watcherIgnoredPatterns?: string[];
 	disableWatcher?: boolean;
@@ -93,6 +91,7 @@ export class FileService implements IFileService {
 
 	constructor(
 		private contextService: IWorkspaceContextService,
+		private configurationService: IConfigurationService,
 		options: IFileServiceOptions,
 	) {
 		this.toDispose = [];
@@ -214,7 +213,7 @@ export class FileService implements IFileService {
 			}
 
 			// 2.) detect mimes
-			const autoGuessEncoding = (options && options.autoGuessEncoding) || (this.options && this.options.autoGuessEncoding);
+			const autoGuessEncoding = (options && options.autoGuessEncoding) || this.configuredAutoGuessEncoding(resource);
 			return detectMimesFromFile(absolutePath, { autoGuessEncoding }).then((detected: IMimeAndEncoding) => {
 				const isText = detected.mimes.indexOf(baseMime.MIME_BINARY) === -1;
 
@@ -239,7 +238,7 @@ export class FileService implements IFileService {
 					} else {
 						preferredEncoding = detected.encoding;
 					}
-				} else if (this.options.encoding === encoding.UTF8_with_bom) {
+				} else if (this.configuredEncoding(resource) === encoding.UTF8_with_bom) {
 					preferredEncoding = encoding.UTF8; // if we did not detect UTF 8 BOM before, this can only be UTF 8 then
 				}
 
@@ -592,7 +591,7 @@ export class FileService implements IFileService {
 		} else if (preferredEncoding) {
 			fileEncoding = preferredEncoding;
 		} else {
-			fileEncoding = this.options.encoding;
+			fileEncoding = this.configuredEncoding(resource);
 		}
 
 		if (!fileEncoding || !encoding.encodingExists(fileEncoding)) {
@@ -600,6 +599,18 @@ export class FileService implements IFileService {
 		}
 
 		return fileEncoding;
+	}
+
+	private configuredAutoGuessEncoding(resource: uri): boolean {
+		const config = this.configurationService.getConfiguration(void 0, { resource }) as IFilesConfiguration;
+
+		return config && config.files && config.files.autoGuessEncoding === true;
+	}
+
+	private configuredEncoding(resource: uri): string {
+		const config = this.configurationService.getConfiguration(void 0, { resource }) as IFilesConfiguration;
+
+		return config && config.files && config.files.encoding;
 	}
 
 	private getEncodingOverride(resource: uri): string {
