@@ -38,7 +38,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 
 	private _recommendations: { [id: string]: boolean; } = Object.create(null);
 	private _availableRecommendations: { [pattern: string]: string[] } = Object.create(null);
-	private importantRecommendations: { [id: string]: { name: string; pattern: string; } };
+	private importantRecommendations: { [id: string]: { name: string; pattern: string; } } = Object.create(null);
 	private importantRecommendationsIgnoreList: string[];
 	private _allRecommendations: string[];
 	private _disposables: IDisposable[] = [];

@@ -201,8 +201,10 @@ export abstract class CollapsibleView extends AbstractCollapsibleView implements
 	}
 
 	public layoutBody(size: number): void {
-		this.treeContainer.style.height = size + 'px';
-		this.tree.layout(size);
+		if (this.tree) {
+			this.treeContainer.style.height = size + 'px';
+			this.tree.layout(size);
+		}
 	}
 
 	public getActions(): IAction[] {
@@ -393,11 +395,7 @@ export class ComposedViewsViewlet extends Viewlet {
 
 	public layout(dimension: Dimension): void {
 		this.dimension = dimension;
-		this.splitView.layout(dimension.height);
-		for (const view of this.views) {
-			let viewState = this.createViewState(view);
-			this.viewsStates.set(view.id, viewState);
-		}
+		this.layoutViews();
 	}
 
 	public getOptimalWidth(): number {
@@ -410,6 +408,14 @@ export class ComposedViewsViewlet extends Viewlet {
 		this.saveViewsStates();
 		this.views.forEach((view) => view.shutdown());
 		super.shutdown();
+	}
+
+	private layoutViews(): void {
+		this.splitView.layout(this.dimension.height);
+		for (const view of this.views) {
+			let viewState = this.createViewState(view);
+			this.viewsStates.set(view.id, viewState);
+		}
 	}
 
 	private onContextMenu(event: StandardMouseEvent): void {
@@ -475,75 +481,74 @@ export class ComposedViewsViewlet extends Viewlet {
 		}
 	}
 
-	private updateViews(): TPromise<void> {
+	protected updateViews(): TPromise<void> {
+		if (this.splitView) {
 
-		if (!this.splitView) {
-			return TPromise.as(null);
-		}
+			const registeredViews = this.getViewDescriptorsFromRegistry();
+			const [visible, toAdd, toRemove] = registeredViews.reduce<[IViewDescriptor[], IViewDescriptor[], IViewDescriptor[]]>((result, viewDescriptor) => {
+				const isCurrentlyVisible = this.isCurrentlyVisible(viewDescriptor);
+				const canBeVisible = this.canBeVisible(viewDescriptor);
 
-		const registeredViews = this.getViewDescriptorsFromRegistry();
-		const [visible, toAdd, toRemove] = registeredViews.reduce<[IViewDescriptor[], IViewDescriptor[], IViewDescriptor[]]>((result, viewDescriptor) => {
-			const isCurrentlyVisible = this.isCurrentlyVisible(viewDescriptor);
-			const canBeVisible = this.canBeVisible(viewDescriptor);
-
-			if (canBeVisible) {
-				result[0].push(viewDescriptor);
-			}
-
-			if (!isCurrentlyVisible && canBeVisible) {
-				result[1].push(viewDescriptor);
-			}
-
-			if (isCurrentlyVisible && !canBeVisible) {
-				result[2].push(viewDescriptor);
-			}
-
-			return result;
-
-		}, [[], [], []]);
-
-		const toCreate = [];
-
-		if (toAdd.length || toRemove.length) {
-			for (const view of this.views) {
-				let viewState = this.viewsStates.get(view.id);
-				if (!viewState || view.size !== viewState.size || !view.isExpanded() !== viewState.collapsed) {
-					viewState = { ...this.createViewState(view), isHidden: viewState && viewState.isHidden };
-					this.viewsStates.set(view.id, viewState);
-					this.splitView.updateWeight(view, viewState.size);
+				if (canBeVisible) {
+					result[0].push(viewDescriptor);
 				}
-			}
-			if (toRemove.length) {
-				for (const viewDescriptor of toRemove) {
-					let view = this.getView(viewDescriptor.id);
-					this.views.splice(this.views.indexOf(view), 1);
-					this.splitView.removeView(view);
-					if (this.lastFocusedView === view) {
-						this.lastFocusedView = null;
+
+				if (!isCurrentlyVisible && canBeVisible) {
+					result[1].push(viewDescriptor);
+				}
+
+				if (isCurrentlyVisible && !canBeVisible) {
+					result[2].push(viewDescriptor);
+				}
+
+				return result;
+
+			}, [[], [], []]);
+
+			const toCreate = [];
+
+			if (toAdd.length || toRemove.length) {
+				for (const view of this.views) {
+					let viewState = this.viewsStates.get(view.id);
+					if (!viewState || view.size !== viewState.size || !view.isExpanded() !== viewState.collapsed) {
+						viewState = { ...this.createViewState(view), isHidden: viewState && viewState.isHidden };
+						this.viewsStates.set(view.id, viewState);
+						this.splitView.updateWeight(view, viewState.size);
 					}
 				}
-			}
+				if (toRemove.length) {
+					for (const viewDescriptor of toRemove) {
+						let view = this.getView(viewDescriptor.id);
+						this.views.splice(this.views.indexOf(view), 1);
+						this.splitView.removeView(view);
+						if (this.lastFocusedView === view) {
+							this.lastFocusedView = null;
+						}
+					}
+				}
 
-			for (const viewDescriptor of toAdd) {
-				let viewState = this.viewsStates.get(viewDescriptor.id);
-				let index = visible.indexOf(viewDescriptor);
-				const view = this.createView(viewDescriptor, {
-					id: viewDescriptor.id,
-					name: viewDescriptor.name,
-					actionRunner: this.getActionRunner(),
-					collapsed: viewState ? viewState.collapsed : void 0,
-					viewletSettings: this.viewletSettings
-				});
-				toCreate.push(view);
+				for (const viewDescriptor of toAdd) {
+					let viewState = this.viewsStates.get(viewDescriptor.id);
+					let index = visible.indexOf(viewDescriptor);
+					const view = this.createView(viewDescriptor, {
+						id: viewDescriptor.id,
+						name: viewDescriptor.name,
+						actionRunner: this.getActionRunner(),
+						collapsed: viewState ? viewState.collapsed : void 0,
+						viewletSettings: this.viewletSettings
+					});
+					toCreate.push(view);
 
-				this.views.splice(index, 0, view);
-				this.attachHeaderViewStyler(view, this.themeService);
-				this.splitView.addView(view, viewState && viewState.size ? Math.max(viewState.size, 1) : viewDescriptor.size, index);
+					this.views.splice(index, 0, view);
+					this.attachHeaderViewStyler(view, this.themeService);
+					this.splitView.addView(view, viewState && viewState.size ? Math.max(viewState.size, 1) : viewDescriptor.size, index);
+				}
+
+				return TPromise.join(toCreate.map(view => view.create()))
+					.then(() => this.onViewsUpdated());
 			}
 		}
-
-		return TPromise.join(toCreate.map(view => view.create()))
-			.then(() => this.onViewsUpdated());
+		return TPromise.as(null);
 	}
 
 	private attachHeaderViewStyler(widget: IThemable, themeService: IThemeService, options?: { noContrastBorder?: boolean }): IDisposable {
@@ -582,7 +587,7 @@ export class ComposedViewsViewlet extends Viewlet {
 		this.updateTitleArea();
 
 		if (this.dimension) {
-			this.layout(this.dimension);
+			this.layoutViews();
 		}
 
 		return this.setVisible(this.isVisible());
