@@ -164,7 +164,10 @@ export class PreferencesEditor extends BaseEditor {
 		this.searchWidget.focus();
 	}
 
-	public focusSearch(): void {
+	public focusSearch(filter?: string): void {
+		if (filter !== null) {
+			this.searchWidget.setValue(filter);
+		}
 		this.searchWidget.focus();
 	}
 
