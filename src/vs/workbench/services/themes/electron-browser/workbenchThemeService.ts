@@ -955,7 +955,7 @@ const colorThemeSettingSchema: IJSONSchema = {
 const iconThemeSettingSchema: IJSONSchema = {
 	type: ['string', 'null'],
 	default: DEFAULT_ICON_THEME_SETTING_VALUE,
-	description: nls.localize('iconTheme', "Specifies the icon theme used in the workbench."),
+	description: nls.localize('iconTheme', "Specifies the icon theme used in the workbench or 'null' to not show any file icons."),
 	enum: [null],
 	enumDescriptions: [nls.localize('noIconThemeDesc', 'No file icons')],
 	errorMessage: nls.localize('iconThemeError', "File icon theme is unknown or not installed.")
