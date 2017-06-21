@@ -4,6 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
+	"version": "https://github.com/atom/language-xml/commit/27352842917b911383122bdcf98ed0d69d55c179",
 	"scopeName": "text.xml",
 	"name": "XML",
 	"fileTypes": [
@@ -418,7 +419,7 @@
 							"name": "entity.other.attribute-name.localname.xml"
 						}
 					},
-					"match": "(?:^|\\s+)(?:([-\\w.]+)((:)))?([-\\w.:]+)="
+					"match": "(?:^|\\s+)(?:([-\\w.]+)((:)))?([-\\w.:]+)\\s*="
 				},
 				{
 					"include": "#doublequotedString"

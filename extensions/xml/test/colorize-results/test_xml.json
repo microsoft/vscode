@@ -88,7 +88,7 @@
 		}
 	},
 	{
-		"c": "=",
+		"c": " = ",
 		"t": "text.xml meta.tag.xml",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
