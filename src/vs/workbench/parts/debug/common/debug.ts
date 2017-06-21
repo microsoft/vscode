@@ -433,6 +433,11 @@ export interface IDebugService {
 	onDidChangeState: Event<State>;
 
 	/**
+	 * Allows to register on end process events.
+	 */
+	onDidEndProcess: Event<IProcess>;
+
+	/**
 	 * Gets the current configuration manager.
 	 */
 	getConfigurationManager(): IConfigurationManager;

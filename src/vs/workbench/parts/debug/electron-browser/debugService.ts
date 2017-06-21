@@ -68,6 +68,7 @@ export class DebugService implements debug.IDebugService {
 
 	private sessionStates: Map<string, debug.State>;
 	private _onDidChangeState: Emitter<debug.State>;
+	private _onDidEndProcess: Emitter<debug.IProcess>;
 	private model: Model;
 	private viewModel: ViewModel;
 	private configurationManager: ConfigurationManager;
@@ -107,6 +108,7 @@ export class DebugService implements debug.IDebugService {
 		this.toDisposeOnSessionEnd = new Map<string, lifecycle.IDisposable[]>();
 		this.breakpointsToSendOnResourceSaved = new Set<string>();
 		this._onDidChangeState = new Emitter<debug.State>();
+		this._onDidEndProcess = new Emitter<debug.IProcess>();
 		this.sessionStates = new Map<string, debug.State>();
 
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager);
@@ -480,6 +482,10 @@ export class DebugService implements debug.IDebugService {
 
 	public get onDidChangeState(): Event<debug.State> {
 		return this._onDidChangeState.event;
+	}
+
+	public get onDidEndProcess(): Event<debug.IProcess> {
+		return this._onDidEndProcess.event;
 	}
 
 	private updateStateAndEmit(sessionId?: string, newState?: debug.State): void {
@@ -959,6 +965,9 @@ export class DebugService implements debug.IDebugService {
 		});
 
 		this.model.removeProcess(session.getId());
+		if (process) {
+			this._onDidEndProcess.fire(process);
+		}
 
 		this.toDisposeOnSessionEnd.set(session.getId(), lifecycle.dispose(this.toDisposeOnSessionEnd.get(session.getId())));
 		const focusedProcess = this.viewModel.focusedProcess;
