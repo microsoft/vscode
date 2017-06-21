@@ -10,7 +10,7 @@ import parseStylesheet from '@emmetio/css-parser';
 import parse from '@emmetio/html-matcher';
 import Node from '@emmetio/node';
 
-import { getSyntax, getProfile, getVariables, isStyleSheet, getNode, getInnerRange } from './util';
+import { getSyntax, getProfile, getVariables, isStyleSheet, getNode, getInnerRange, getMappedModes } from './util';
 import { DocumentStreamReader } from './bufferStream';
 
 const field = (index, placeholder) => `\${${index}${placeholder ? ':' + placeholder : ''}}`;
@@ -42,17 +42,12 @@ export function expandAbbreviation() {
 		return;
 	}
 	let syntax = getSyntax(editor.document);
-	let mappedSyntax = false;
-	let emmetConfig = vscode.workspace.getConfiguration('emmet');
-	if (emmetConfig && emmetConfig['syntaxProfiles']) {
-		let syntaxProfiles = emmetConfig['syntaxProfiles'];
-		if (typeof syntaxProfiles[syntax] === 'string') {
-			syntax = syntaxProfiles[syntax];
-			mappedSyntax = true;
-		}
-	}
+	let mappedSyntax = getMappedModes()[syntax];
+
 	if (!mappedSyntax) {
 		syntax = syntaxHelper(syntax, editor.document, editor.selection.end);
+	} else {
+		syntax = mappedSyntax;
 	}
 	if (!syntax) {
 		return;

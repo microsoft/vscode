@@ -13,6 +13,27 @@ import * as fs from 'fs';
 let variablesFromFile = {};
 let profilesFromFile = {};
 let emmetExtensionsPath = '';
+
+export const LANGUAGE_MODES: Object = {
+	'html': ['!', '.', '}'],
+	'jade': ['!', '.', '}'],
+	'slim': ['!', '.', '}'],
+	'haml': ['!', '.', '}'],
+	'xml': ['.', '}'],
+	'xsl': ['.', '}'],
+	'javascriptreact': ['.'],
+	'typescriptreact': ['.'],
+	'css': [':'],
+	'scss': [':'],
+	'sass': [':'],
+	'less': [':'],
+	'stylus': [':']
+};
+
+// Explicitly map languages to their parent language to get emmet support
+export const MAPPED_MODES: Object = {
+	'handlebars': 'html'
+};
 export function validate(allowStylesheet: boolean = true): boolean {
 	let editor = vscode.window.activeTextEditor;
 	if (!editor) {
@@ -94,6 +115,18 @@ export function getProfile(syntax: string): any {
 export function getVariables(): any {
 	let variablesFromSettings = vscode.workspace.getConfiguration('emmet')['variables'];
 	return Object.assign({}, variablesFromFile, variablesFromSettings);
+}
+
+export function getMappedModes(): any {
+	let finalMappedModes = {};
+	let syntaxProfileConfig = vscode.workspace.getConfiguration('emmet')['syntaxProfiles'];
+	let syntaxProfiles = Object.assign({}, MAPPED_MODES, syntaxProfileConfig ? syntaxProfileConfig : {});
+	Object.keys(syntaxProfiles).forEach(syntax => {
+		if (typeof syntaxProfiles[syntax] === 'string' && LANGUAGE_MODES[syntaxProfiles[syntax]]) {
+			finalMappedModes[syntax] = syntaxProfiles[syntax];
+		}
+	});
+	return finalMappedModes;
 }
 
 export function updateExtensionsPath() {
