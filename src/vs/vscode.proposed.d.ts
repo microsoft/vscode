@@ -7,6 +7,13 @@
 
 declare module 'vscode' {
 
+	export namespace workspace {
+
+		export const onDidChangeWorkspaceFolders: Event<Uri[] | undefined>;
+
+		export let workspaceFolders: Uri[] | undefined;
+	}
+
 	/**
 	 * Controls the behaviour of the terminal's visibility.
 	 */

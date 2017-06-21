@@ -21,11 +21,11 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 
 	private static _requestIdPool = 0;
 
-	private readonly _onDidChangeWorkspace = new Emitter<this>();
+	private readonly _onDidChangeWorkspace = new Emitter<URI[]>();
 	private readonly _proxy: MainThreadWorkspaceShape;
 	private _workspace: Workspace;
 
-	readonly onDidChangeWorkspace: Event<this> = this._onDidChangeWorkspace.event;
+	readonly onDidChangeWorkspace: Event<URI[]> = this._onDidChangeWorkspace.event;
 
 	constructor(threadService: IThreadService, data: IWorkspaceData) {
 		super();
@@ -35,8 +35,12 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 
 	// --- workspace ---
 
-	get workspace(): Workspace {
-		return this._workspace;
+	getRoots(): URI[] {
+		if (!this._workspace) {
+			return undefined;
+		} else {
+			return this._workspace.roots.slice(0);
+		}
 	}
 
 	getPath(): string {
@@ -85,7 +89,7 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 
 	$acceptWorkspaceData(data: IWorkspaceData): void {
 		this._workspace = data ? new Workspace(data.id, data.name, data.roots) : null;
-		this._onDidChangeWorkspace.fire(this);
+		this._onDidChangeWorkspace.fire(this.getRoots());
 	}
 
 	// --- search ---
