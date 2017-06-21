@@ -163,6 +163,10 @@ export class Workspace implements IWorkspace {
 	}
 
 	public getRoot(resource: URI): URI {
+		if (!resource) {
+			return null;
+		}
+
 		return this._rootsMap.findSubstr(resource.fsPath);
 	}
 

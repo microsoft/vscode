@@ -251,14 +251,16 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 	},
 	'window.title': {
 		'type': 'string',
-		'default': isMacintosh ? '${activeEditorShort}${separator}${rootName}' : '${dirty}${activeEditorShort}${separator}${rootName}${separator}${appName}',
+		'default': isMacintosh ? '${activeEditorShort}${separator}${folderName}' : '${dirty}${activeEditorShort}${separator}${folderName}${separator}${appName}',
 		'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by parenthesis are not to be translated.'], key: 'title' },
 			`Controls the window title based on the active editor. Variables are substituted based on the context:
 \${activeEditorShort}: e.g. myFile.txt
 \${activeEditorMedium}: e.g. myFolder/myFile.txt
 \${activeEditorLong}: e.g. /Users/Development/myProject/myFolder/myFile.txt
-\${rootName}: e.g. myProject
-\${rootPath}: e.g. /Users/Development/myProject
+\${folderName}: e.g. myFolder
+\${folderPath}: e.g. /Users/Development/myFolder
+\${rootName}: e.g. myFolder1, myFolder2, myFolder3
+\${rootPath}: e.g. /Users/Development/myWorkspace
 \${appName}: e.g. VS Code
 \${dirty}: a dirty indicator if the active editor is dirty
 \${separator}: a conditional separator (" - ") that only shows when surrounded by variables with values`)
