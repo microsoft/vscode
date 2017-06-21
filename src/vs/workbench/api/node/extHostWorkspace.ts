@@ -35,6 +35,10 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 
 	// --- workspace ---
 
+	get workspace(): Workspace {
+		return this._workspace;
+	}
+
 	getRoots(): URI[] {
 		if (!this._workspace) {
 			return undefined;
