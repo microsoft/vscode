@@ -91,6 +91,18 @@ class FilesViewerActionContributor extends ActionBarContributor {
 			actions.push(new Separator(null, 100));
 		}
 
+		if (stat.isRoot && this.environmentService.appQuality !== 'stable') {
+			let action: Action = this.instantiationService.createInstance(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL);
+			action.order = 52;
+			actions.push(action);
+			if (this.contextService.getWorkspace2().roots.length > 1) {
+				action = this.instantiationService.createInstance(RemoveRootFolderAction, stat.resource, RemoveRootFolderAction.ID, RemoveRootFolderAction.LABEL);
+				action.order = 53;
+				actions.push(action);
+			}
+			actions.push(new Separator(null, 54));
+		}
+
 		// Copy File/Folder
 		actions.push(this.instantiationService.createInstance(CopyFileAction, tree, <FileStat>stat));
 
@@ -100,16 +112,6 @@ class FilesViewerActionContributor extends ActionBarContributor {
 		}
 
 		// Rename File/Folder
-		if (stat.isRoot) {
-			if (this.contextService.getWorkspace2().roots.length > 1) {
-				actions.push(new Separator(null, 150));
-				actions.push(this.instantiationService.createInstance(RemoveRootFolderAction, stat.resource, RemoveRootFolderAction.ID, RemoveRootFolderAction.LABEL));
-			} else if (this.environmentService.appQuality !== 'stable') {
-				actions.push(new Separator(null, 150));
-				actions.push(this.instantiationService.createInstance(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL));
-			}
-		}
-
 		if (!stat.isRoot) {
 			actions.push(new Separator(null, 150));
 			actions.push(this.instantiationService.createInstance(TriggerRenameFileAction, tree, <FileStat>stat));
