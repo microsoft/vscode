@@ -268,15 +268,22 @@ export class ExtensionsListView extends CollapsibleView {
 	private getAllRecommendationsModel(query: Query, options: IQueryOptions): TPromise<IPagedModel<IExtension>> {
 		const value = query.value.replace(/@recommended:all/g, '').trim().toLowerCase();
 
-		return TPromise.join([TPromise.as(this.tipsService.getRecommendations()), this.tipsService.getWorkspaceRecommendations(), TPromise.as(this.tipsService.getKeymapRecommendations())])
-			.then(([recommendations, workspaceRecommendations, keymapsRecommendations]) => {
-				const names = distinct([...recommendations, ...workspaceRecommendations, ...keymapsRecommendations]).filter(name => name.toLowerCase().indexOf(value) > -1);
-				if (!names.length) {
-					return TPromise.as(new PagedModel([]));
-				}
+		return this.extensionsWorkbenchService.queryLocal()
+			.then(result => result.filter(e => e.type === LocalExtensionType.User))
+			.then(local => {
+				return TPromise.join([TPromise.as(this.tipsService.getRecommendations()), this.tipsService.getWorkspaceRecommendations(), TPromise.as(this.tipsService.getKeymapRecommendations())])
+					.then(([recommendations, workspaceRecommendations, keymapsRecommendations]) => {
+						const names = distinct([...recommendations, ...workspaceRecommendations, ...keymapsRecommendations])
+							.filter(name => local.every(ext => `${ext.publisher}.${ext.name}` !== name))
+							.filter(name => name.toLowerCase().indexOf(value) > -1);
 
-				return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
-					.then(pager => new PagedModel(pager || []));
+						if (!names.length) {
+							return TPromise.as(new PagedModel([]));
+						}
+
+						return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
+							.then(pager => new PagedModel(pager || []));
+					});
 			});
 	}
 
