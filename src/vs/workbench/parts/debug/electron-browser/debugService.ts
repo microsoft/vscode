@@ -664,7 +664,7 @@ export class DebugService implements debug.IDebugService {
 		));
 	}
 
-	public createProcess(config: debug.IConfig): TPromise<any> {
+	public createProcess(config: debug.IConfig): TPromise<debug.IProcess> {
 		return this.textFileService.saveAll().then(() =>
 			this.configurationManager.resloveConfiguration(config).then(resolvedConfig => {
 				if (!resolvedConfig) {
@@ -724,7 +724,7 @@ export class DebugService implements debug.IDebugService {
 		);
 	}
 
-	private doCreateProcess(configuration: debug.IConfig): TPromise<any> {
+	private doCreateProcess(configuration: debug.IConfig): TPromise<debug.IProcess> {
 		const sessionId = generateUuid();
 		this.updateStateAndEmit(sessionId, debug.State.Initializing);
 
@@ -817,8 +817,8 @@ export class DebugService implements debug.IDebugService {
 					extensionName: `${adapter.extensionDescription.publisher}.${adapter.extensionDescription.name}`,
 					isBuiltin: adapter.extensionDescription.isBuiltin,
 					launchJsonExists: !!this.configurationService.getConfiguration<debug.IGlobalConfig>('launch')
-				});
-			}).then(undefined, (error: any) => {
+				}).then(() => process);
+			}).then(p => p, (error: any) => {
 				if (error instanceof Error && error.message === 'Canceled') {
 					// Do not show 'canceled' error messages to the user #7906
 					return TPromise.as(null);

@@ -527,7 +527,7 @@ export interface IDebugService {
 	/**
 	 * Creates a new debug process. Depending on the configuration will either 'launch' or 'attach'.
 	 */
-	createProcess(config: IConfig): TPromise<any>;
+	createProcess(config: IConfig): TPromise<IProcess>;
 
 	/**
 	 * Restarts a process or creates a new one if there is no active session.
