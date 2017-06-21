@@ -208,11 +208,8 @@ export class HtmlPreviewPart extends WebviewEditor {
 				}
 
 				this._modelChangeSubscription = this.model.onDidChangeContent(() => {
-					if (this.model && input instanceof HtmlInput) {
+					if (this.model) {
 						this.scrollYPercentage = 0;
-						this.webview.options = {
-							enableJavascript: input.options.enableJavaScript
-						};
 						this.webview.contents = this.model.getLinesContent();
 					}
 				});
