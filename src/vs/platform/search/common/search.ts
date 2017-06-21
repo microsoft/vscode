@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as paths from 'vs/base/common/paths';
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
 import { mixin } from 'vs/base/common/objects';
@@ -25,8 +26,14 @@ export interface ISearchService {
 	clearCache(cacheKey: string): TPromise<void>;
 }
 
+export interface IFolderQueryOptions {
+	folder: uri;
+	excludePattern?: IExpression;
+	fileEncoding?: string;
+}
+
 export interface IQueryOptions {
-	folderResources?: uri[];
+	folderResources?: uri[]; // TODO remove
 	extraFileResources?: uri[];
 	filePattern?: string;
 	excludePattern?: IExpression;
@@ -34,7 +41,6 @@ export interface IQueryOptions {
 	maxResults?: number;
 	sortByScore?: boolean;
 	cacheKey?: string;
-	fileEncoding?: string;
 	useRipgrep?: boolean;
 	disregardIgnoreFiles?: boolean;
 	disregardExcludeSettings?: boolean;
@@ -44,6 +50,7 @@ export interface IQueryOptions {
 export interface ISearchQuery extends IQueryOptions {
 	type: QueryType;
 	contentPattern?: IPatternInfo;
+	folderQueries?: IFolderQueryOptions[];
 }
 
 export enum QueryType {

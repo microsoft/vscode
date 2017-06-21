@@ -11,6 +11,7 @@ import { StringDecoder, NodeStringDecoder } from 'string_decoder';
 import * as cp from 'child_process';
 import { rgPath } from 'vscode-ripgrep';
 
+import objects = require('vs/base/common/objects');
 import * as strings from 'vs/base/common/strings';
 import * as extfs from 'vs/base/node/extfs';
 import * as encoding from 'vs/base/node/encoding';
@@ -18,7 +19,7 @@ import * as glob from 'vs/base/common/glob';
 import { ILineMatch, ISearchLog } from 'vs/platform/search/common/search';
 import { TPromise } from 'vs/base/common/winjs.base';
 
-import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch } from './search';
+import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, IFolderSearch } from './search';
 
 export class RipgrepEngine {
 	private isDone = false;
@@ -40,17 +41,6 @@ export class RipgrepEngine {
 
 	// TODO@Rob - make promise-based once the old search is gone, and I don't need them to have matching interfaces anymore
 	search(onResult: (match: ISerializedFileMatch) => void, onMessage: (message: ISearchLog) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
-		if (this.config.rootFolders.length) {
-			this.searchFolder(this.config.rootFolders[0], onResult, onMessage, done);
-		} else {
-			done(null, {
-				limitHit: false,
-				stats: null
-			});
-		}
-	}
-
-	private searchFolder(rootFolder: string, onResult: (match: ISerializedFileMatch) => void, onMessage: (message: ISearchLog) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
 		const rgArgs = getRgArgs(this.config);
 		if (rgArgs.siblingClauses) {
 			this.postProcessExclusions = glob.parseToAsync(rgArgs.siblingClauses, { trimForExclusions: true });
@@ -62,18 +52,18 @@ export class RipgrepEngine {
 				.join(' ');
 
 			// Allow caller to register progress callback
-			const rgCmd = `rg ${escapedArgs}\n - cwd: ${rootFolder}\n`;
+			const rgCmd = `rg ${escapedArgs}\n - cwd: /\n`;
 			onMessage({ message: rgCmd });
 			if (rgArgs.siblingClauses) {
 				onMessage({ message: ` - Sibling clauses: ${JSON.stringify(rgArgs.siblingClauses)}\n` });
 			}
 		});
-		this.rgProc = cp.spawn(rgPath, rgArgs.args, { cwd: rootFolder });
+		this.rgProc = cp.spawn(rgPath, rgArgs.args, { cwd: '/' });
 
-		this.ripgrepParser = new RipgrepParser(this.config.maxResults, rootFolder);
+		this.ripgrepParser = new RipgrepParser(this.config.maxResults, '/');
 		this.ripgrepParser.on('result', (match: ISerializedFileMatch) => {
 			if (this.postProcessExclusions) {
-				const relativePath = path.relative(rootFolder, match.path);
+				const relativePath = path.relative('/', match.path);
 				const handleResultP = (<TPromise<string>>this.postProcessExclusions(relativePath, undefined, () => getSiblings(match.path)))
 					.then(globMatch => {
 						if (!globMatch) {
@@ -377,12 +367,32 @@ export class LineMatch implements ILineMatch {
 	}
 }
 
-function globExprsToRgGlobs(patterns: glob.IExpression): { globArgs: string[], siblingClauses: glob.IExpression } {
+interface IRgGlobResult {
+	globArgs: string[];
+	siblingClauses: glob.IExpression;
+}
+
+function foldersToRgExcludeGlobs(folderQueries: IFolderSearch[], globalExclude: glob.IExpression): IRgGlobResult {
+	// TODO fold globalExclude into folder-specific excludes
+	const globArgs: string[] = [];
+	let siblingClauses: glob.IExpression = null;
+	folderQueries.forEach(folderQuery => {
+		const result = globExprsToRgGlobs(folderQuery.excludePattern, folderQuery.folder);
+		globArgs.push(...result.globArgs);
+		siblingClauses = objects.assign(siblingClauses, result.siblingClauses);
+	});
+
+	return { globArgs, siblingClauses };
+}
+
+function globExprsToRgGlobs(patterns: glob.IExpression, folder: string): IRgGlobResult {
 	const globArgs: string[] = [];
 	let siblingClauses: glob.IExpression = null;
 	Object.keys(patterns)
 		.forEach(key => {
 			const value = patterns[key];
+			key = path.join(folder, key);
+
 			if (typeof value === 'boolean' && value) {
 				// globs added to ripgrep don't match from the root by default, so add a /
 				if (key.charAt(0) !== '*') {
@@ -402,24 +412,22 @@ function globExprsToRgGlobs(patterns: glob.IExpression): { globArgs: string[], s
 	return { globArgs, siblingClauses };
 }
 
-function getRgArgs(config: IRawSearch): { args: string[], siblingClauses: glob.IExpression } {
+function getRgArgs(config: IRawSearch): IRgGlobResult {
 	const args = ['--hidden', '--heading', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold'];
 	args.push(config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
 	if (config.includePattern) {
 		// I don't think includePattern can have siblingClauses
-		globExprsToRgGlobs(config.includePattern).globArgs.forEach(globArg => {
+		foldersToRgGlobs(config.folderQueries).globArgs.forEach(globArg => {
 			args.push('-g', globArg);
 		});
 	}
 
 	let siblingClauses: glob.IExpression;
-	if (config.excludePattern) {
-		const rgGlobs = globExprsToRgGlobs(config.excludePattern);
-		rgGlobs.globArgs
-			.forEach(rgGlob => args.push('-g', `!${rgGlob}`));
-		siblingClauses = rgGlobs.siblingClauses;
-	}
+	const rgGlobs = foldersToRgExcludeGlobs(config.folderQueries, config.excludePattern);
+	rgGlobs.globArgs
+		.forEach(rgGlob => args.push('-g', `!${rgGlob}`));
+	siblingClauses = rgGlobs.siblingClauses;
 
 	if (config.maxFilesize) {
 		args.push('--max-filesize', config.maxFilesize + '');
@@ -434,9 +442,9 @@ function getRgArgs(config: IRawSearch): { args: string[], siblingClauses: glob.I
 	args.push('--follow');
 
 	// Set default encoding
-	if (config.fileEncoding && config.fileEncoding !== 'utf8') {
-		args.push('--encoding', encoding.toCanonicalName(config.fileEncoding));
-	}
+	// if (config.fileEncoding && config.fileEncoding !== 'utf8') {
+	// 	args.push('--encoding', encoding.toCanonicalName(config.fileEncoding));
+	// }
 
 	// Ripgrep handles -- as a -- arg separator. Only --.
 	// - is ok, --- is ok, --some-flag is handled as query text. Need to special case.
@@ -468,7 +476,7 @@ function getRgArgs(config: IRawSearch): { args: string[], siblingClauses: glob.I
 	if (config.searchPaths && config.searchPaths.length) {
 		args.push(...config.searchPaths);
 	} else {
-		args.push('./');
+		args.push(...config.folderQueries.map(q => q.folder));
 	}
 
 	args.push(...config.extraFiles);
