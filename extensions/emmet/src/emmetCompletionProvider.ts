@@ -40,7 +40,11 @@ export class EmmetCompletionItemProvider implements vscode.CompletionItemProvide
 		expandedAbbr.insertText = new vscode.SnippetString(output.expandedText);
 		expandedAbbr.documentation = removeTabStops(output.expandedText);
 		expandedAbbr.range = output.abbreviationRange;
-		expandedAbbr.detail = 'Expand Emmet Abbreviation';
+		expandedAbbr.detail = 'Emmet Abbreviation';
+
+		// Workaround for completion items appearing out of order
+		expandedAbbr.sortText = '0' + expandedAbbr.label;
+
 		syntax = output.syntax;
 
 		let completionItems: vscode.CompletionItem[] = expandedAbbr ? [expandedAbbr] : [];
@@ -66,21 +70,27 @@ export class EmmetCompletionItemProvider implements vscode.CompletionItemProvide
 			snippetKeyCache.set(syntax, snippetKeys);
 		}
 
-		let skipExactMatch = prefix === abbreviation;
 		let snippetKeys = snippetKeyCache.get(syntax);
 		let snippetCompletions = [];
 		snippetKeys.forEach(snippetKey => {
-			if (!snippetKey.startsWith(prefix) || (snippetKey === prefix) || (skipExactMatch && snippetKey === prefix)) {
+			if (!snippetKey.startsWith(prefix) || snippetKey === prefix) {
 				return;
 			}
 
-			let currentAbbr = snippetKey; // For #28556: abbreviation + snippetKey.substr(prefix.length);
+			let currentAbbr = abbreviation + snippetKey.substr(prefix.length);
 			let expandedAbbr = expand(currentAbbr, getExpandOptions(syntax));
 
 			let item = new vscode.CompletionItem(snippetKey);
 			item.documentation = removeTabStops(expandedAbbr);
-			item.detail = 'Complete Emmet Abbreviation';
-			item.insertText = snippetKey; // For #28556: new vscode.SnippetString(expandedAbbr);
+			item.detail = 'Emmet Abbreviation';
+			item.insertText = new vscode.SnippetString(expandedAbbr);
+			item.range = abbreviationRange;
+
+			// Workaround for completion items getting filtered out
+			item.filterText = abbreviation;
+
+			// Workaround for completion items appearing in wrong order
+			item.sortText = '9' + abbreviation;
 
 			snippetCompletions.push(item);
 		});
