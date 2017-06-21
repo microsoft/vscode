@@ -118,20 +118,18 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 		let viewDescriptors = [];
 		viewDescriptors.push(this.createMarketPlaceExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createInstalledExtensionsListViewDescriptor());
-		viewDescriptors.push(this.createSearchInstalledExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createRecommendedExtensionsListViewDescriptor());
-		viewDescriptors.push(this.createSearchRecommendedExtensionsListViewDescriptor());
 		ViewsRegistry.registerViews(viewDescriptors);
 	}
 
 	private createMarketPlaceExtensionsListViewDescriptor(): IViewDescriptor {
 		return {
 			id: 'extensions.listView',
-			name: localize('marketPlace', "Market Place"),
+			name: localize('marketPlace', "Marketplace"),
 			location: ViewLocation.Extensions,
 			ctor: ExtensionsListView,
 			when: ContextKeyExpr.and(ContextKeyExpr.has('searchExtensions'), ContextKeyExpr.not('searchInstalledExtensions'), ContextKeyExpr.not('searchRecommendedExtensions')),
-			size: 70
+			size: 100
 		};
 	}
 
@@ -146,17 +144,6 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 		};
 	}
 
-	private createSearchInstalledExtensionsListViewDescriptor(): IViewDescriptor {
-		return {
-			id: 'extensions.search.installedList',
-			name: localize('searchInstalledExtensions', "Installed"),
-			location: ViewLocation.Extensions,
-			ctor: InstalledExtensionsView,
-			when: ContextKeyExpr.and(ContextKeyExpr.has('searchExtensions'), ContextKeyExpr.not('searchRecommendedExtensions')),
-			size: 15
-		};
-	}
-
 	private createRecommendedExtensionsListViewDescriptor(): IViewDescriptor {
 		return {
 			id: 'extensions.recommendedList',
@@ -165,17 +152,6 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 			ctor: RecommendedExtensionsView,
 			when: ContextKeyExpr.not('searchExtensions'),
 			size: 50
-		};
-	}
-
-	private createSearchRecommendedExtensionsListViewDescriptor(): IViewDescriptor {
-		return {
-			id: 'extensions.search.recommendedList',
-			name: localize('searchRecommendedExtensions', "Recommended"),
-			location: ViewLocation.Extensions,
-			ctor: RecommendedExtensionsView,
-			when: ContextKeyExpr.and(ContextKeyExpr.has('searchExtensions'), ContextKeyExpr.not('searchInstalledExtensions')),
-			size: 15
 		};
 	}
 
