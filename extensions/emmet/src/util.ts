@@ -6,8 +6,8 @@
 import * as vscode from 'vscode';
 import parse from '@emmetio/html-matcher';
 import Node from '@emmetio/node';
-import { DocumentStreamReader } from './emmetForVSCode/bufferStream';
-import { isStyleSheet, getNode } from './emmetForVSCode/emmetUtils';
+import { DocumentStreamReader } from './bufferStream';
+import { isStyleSheet, getNode } from './vscode-emmet-helper/abbreviationUtil';
 
 export const LANGUAGE_MODES: Object = {
 	'html': ['!', '.', '}'],

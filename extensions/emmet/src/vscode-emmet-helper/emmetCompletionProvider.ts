@@ -6,7 +6,7 @@
 
 import * as vscode from 'vscode';
 import { expand, createSnippetsRegistry } from '@emmetio/expand-abbreviation';
-import { isStyleSheet, extractAbbreviation, getExpandOptions } from './emmetUtils';
+import { isStyleSheet, extractAbbreviation, getExpandOptions } from './abbreviationUtil';
 
 const snippetKeyCache = new Map<string, string[]>();
 

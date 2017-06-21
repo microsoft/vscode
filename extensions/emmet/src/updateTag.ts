@@ -6,8 +6,8 @@
 import * as vscode from 'vscode';
 import parse from '@emmetio/html-matcher';
 import Node from '@emmetio/node';
-import { DocumentStreamReader } from './emmetForVSCode/bufferStream';
-import { getNode } from './emmetForVSCode/emmetUtils';
+import { DocumentStreamReader } from './bufferStream';
+import { getNode } from './vscode-emmet-helper/abbreviationUtil';
 
 export function updateTag(tagName: string) {
 	let editor = vscode.window.activeTextEditor;

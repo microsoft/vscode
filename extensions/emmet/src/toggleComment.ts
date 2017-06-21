@@ -8,8 +8,8 @@ import { getNodesInBetween } from './util';
 import parse from '@emmetio/html-matcher';
 import parseStylesheet from '@emmetio/css-parser';
 import Node from '@emmetio/node';
-import { DocumentStreamReader } from './emmetForVSCode/bufferStream';
-import { getNode, isStyleSheet } from './emmetForVSCode/emmetUtils';
+import { DocumentStreamReader } from './bufferStream';
+import { getNode, isStyleSheet } from './vscode-emmet-helper/abbreviationUtil';
 
 const startCommentStylesheet = '/*';
 const endCommentStylesheet = '*/';

@@ -6,8 +6,8 @@
 import * as vscode from 'vscode';
 import parse from '@emmetio/html-matcher';
 import Node from '@emmetio/node';
-import { DocumentStreamReader } from './emmetForVSCode/bufferStream';
-import { getNode, isStyleSheet } from './emmetForVSCode/emmetUtils';
+import { DocumentStreamReader } from './bufferStream';
+import { getNode, isStyleSheet } from './vscode-emmet-helper/abbreviationUtil';
 
 export function mergeLines() {
 	let editor = vscode.window.activeTextEditor;

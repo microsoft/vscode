@@ -7,9 +7,9 @@ import * as vscode from 'vscode';
 import parseStylesheet from '@emmetio/css-parser';
 import parse from '@emmetio/html-matcher';
 import Node from '@emmetio/node';
-import { DocumentStreamReader } from './emmetForVSCode/bufferStream';
-import { isStyleSheet, getNode, getInnerRange } from './emmetForVSCode/emmetUtils';
-import { EmmetCompletionItemProvider } from './emmetForVSCode/emmetCompletionProvider';
+import { DocumentStreamReader } from './bufferStream';
+import { isStyleSheet, getNode, getInnerRange } from './vscode-emmet-helper/abbreviationUtil';
+import { EmmetCompletionItemProvider } from './vscode-emmet-helper/emmetCompletionProvider';
 import { isValidLocationForEmmetAbbreviation } from './abbreviationActions';
 import { getSyntax } from './util';
 

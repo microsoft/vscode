@@ -9,8 +9,8 @@ import parseStylesheet from '@emmetio/css-parser';
 import parse from '@emmetio/html-matcher';
 import Node from '@emmetio/node';
 import { getSyntax } from './util';
-import { getExpandOptions, extractAbbreviation, isStyleSheet, getNode, getInnerRange } from './emmetForVSCode/emmetUtils';
-import { DocumentStreamReader } from './emmetForVSCode/bufferStream';
+import { getExpandOptions, extractAbbreviation, isStyleSheet, getNode, getInnerRange } from './vscode-emmet-helper/abbreviationUtil';
+import { DocumentStreamReader } from './bufferStream';
 
 export function wrapWithAbbreviation() {
 	let editor = vscode.window.activeTextEditor;

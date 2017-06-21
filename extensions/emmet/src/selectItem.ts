@@ -10,8 +10,8 @@ import { nextItemStylesheet, prevItemStylesheet } from './selectItemStylesheet';
 import parseStylesheet from '@emmetio/css-parser';
 import parse from '@emmetio/html-matcher';
 import Node from '@emmetio/node';
-import { DocumentStreamReader } from './emmetForVSCode/bufferStream';
-import { isStyleSheet } from './emmetForVSCode/emmetUtils';
+import { DocumentStreamReader } from './bufferStream';
+import { isStyleSheet } from './vscode-emmet-helper/abbreviationUtil';
 
 
 export function fetchSelectItem(direction: string): void {
