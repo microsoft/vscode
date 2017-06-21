@@ -84,6 +84,7 @@ export class TerminalFindWidget extends Widget {
 	private _findInput: FindInput;
 	private _domNode: HTMLElement;
 	private _isVisible: boolean;
+	private _focusTracker: dom.IFocusTracker;
 
 	constructor(
 		@IContextViewService private _contextViewService: IContextViewService,
@@ -95,6 +96,9 @@ export class TerminalFindWidget extends Widget {
 			label: NLS_FIND_INPUT_LABEL,
 			placeholder: NLS_FIND_INPUT_PLACEHOLDER,
 		}));
+		this._focusTracker = this._register(dom.trackFocus(this._findInput.inputBox.inputElement));
+		this._register(this._focusTracker.addFocusListener(() => this._terminalService.getActiveInstance().notifyFindWidgetFocusChanged(true)));
+		this._register(this._focusTracker.addBlurListener(() => this._terminalService.getActiveInstance().notifyFindWidgetFocusChanged(false)));
 
 		let find = (previous) => {
 			let val = this._findInput.getValue();
