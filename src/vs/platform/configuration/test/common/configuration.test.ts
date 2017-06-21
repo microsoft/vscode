@@ -72,7 +72,7 @@ suite('Configuration', () => {
 	});
 
 	test('Test override gives all content merged with overrides', () => {
-		const testObject = new ConfigurationModel<any>({ 'a': 1, 'c': 1 }, [{ identifiers: ['b'], contents: { 'a': 2 } }]);
+		const testObject = new ConfigurationModel<any>({ 'a': 1, 'c': 1 }, [], [{ identifiers: ['b'], contents: { 'a': 2 } }]);
 
 		assert.deepEqual(testObject.override('b').contents, { 'a': 2, 'c': 1 });
 	});

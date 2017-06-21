@@ -129,6 +129,7 @@ export function merge(base: any, add: any, overwrite: boolean): void {
 
 export interface IConfiguraionModel<T> {
 	contents: T;
+	keys: string[];
 	overrides: IOverrides<T>[];
 }
 
@@ -139,9 +140,7 @@ export interface IOverrides<T> {
 
 export class ConfigurationModel<T> implements IConfiguraionModel<T> {
 
-	protected _keys: string[] = [];
-
-	constructor(protected _contents: T = <T>{}, protected _overrides: IOverrides<T>[] = []) {
+	constructor(protected _contents: T = <T>{}, protected _keys: string[] = [], protected _overrides: IOverrides<T>[] = []) {
 	}
 
 	public get contents(): T {
@@ -323,15 +322,17 @@ export class Configuration<T> {
 		return {
 			defaults: {
 				contents: this._defaults.contents,
-				overrides: this._defaults.overrides
+				overrides: this._defaults.overrides,
+				keys: this._defaults.keys
 			},
 			user: {
 				contents: this._user.contents,
-				overrides: this._user.overrides
+				overrides: this._user.overrides,
+				keys: this._user.keys
 			},
 			folders: this.folders.keys().reduce((result, folder) => {
-				const { contents, overrides } = this.folders.get(folder);
-				result[folder.toString()] = { contents, overrides };
+				const { contents, overrides, keys } = this.folders.get(folder);
+				result[folder.toString()] = { contents, overrides, keys };
 				return result;
 			}, Object.create({}))
 		};
@@ -348,6 +349,6 @@ export class Configuration<T> {
 	}
 
 	private static parseConfigurationModel(model: IConfiguraionModel<any>): ConfigurationModel<any> {
-		return new ConfigurationModel(model.contents, model.overrides);
+		return new ConfigurationModel(model.contents, model.keys, model.overrides);
 	}
 }
