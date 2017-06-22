@@ -374,6 +374,9 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	private detailsFocusBorderColor: string;
 	private detailsBorderColor: string;
 
+	private storageServiceAvailable: boolean = true;
+	private expandSuggestionDocs: boolean = false;
+
 	constructor(
 		private editor: ICodeEditor,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -389,8 +392,12 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		this.isAuto = false;
 		this.focusedItem = null;
 		this.storageService = storageService;
-		this.element = $('.editor-widget.suggest-widget');
+		const storageResult = this.storageService.store('expandSuggestionDocs', expandSuggestionDocsByDefault, StorageScope.GLOBAL);
+		if (storageResult === undefined) {
+			this.storageServiceAvailable = false;
+		}
 
+		this.element = $('.editor-widget.suggest-widget');
 		if (!this.editor.getConfiguration().contribInfo.iconsInSuggestions) {
 			addClass(this.element, 'no-icons');
 		}
@@ -579,7 +586,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				this.list.setFocus([index]);
 				this.list.reveal(index);
 
-				if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault)) {
+				if (this.expandDocsSettingFromStorage()) {
 					this.showDetails();
 				} else {
 					removeClass(this.element, 'docs-side');
@@ -628,7 +635,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			case State.Open:
 				hide(this.messageElement);
 				show(this.listElement);
-				if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault)
+				if (this.expandDocsSettingFromStorage()
 					&& canExpandCompletionItem(this.list.getFocusedElements()[0])) {
 					show(this.details.element);
 					this.expandSideOrBelow();
@@ -821,8 +828,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			if (this.detailsBorderColor) {
 				this.details.element.style.borderColor = this.detailsBorderColor;
 			}
-		} else if (this.state === State.Open
-			&& this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault)) {
+		} else if (this.state === State.Open && this.expandDocsSettingFromStorage()) {
 			this.setState(State.Details);
 			if (this.detailsFocusBorderColor) {
 				this.details.element.style.borderColor = this.detailsFocusBorderColor;
@@ -836,15 +842,15 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			return;
 		}
 
-		if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault)) {
-			this.storageService.store('expandSuggestionDocs', false, StorageScope.GLOBAL);
+		if (this.expandDocsSettingFromStorage()) {
+			this.updateExpandDocsSetting(false);
 			hide(this.details.element);
 			removeClass(this.element, 'docs-side');
 			removeClass(this.element, 'docs-below');
 			this.editor.layoutContentWidget(this);
 			this.telemetryService.publicLog('suggestWidget:collapseDetails', this.editor.getTelemetryData());
 		} else {
-			this.storageService.store('expandSuggestionDocs', true, StorageScope.GLOBAL);
+			this.updateExpandDocsSetting(true);
 			this.showDetails();
 			this.telemetryService.publicLog('suggestWidget:expandDetails', this.editor.getTelemetryData());
 		}
@@ -1001,6 +1007,24 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 	getTemplateId(element: ICompletionItem): string {
 		return 'suggestion';
+	}
+
+	// Monaco Editor does not have a storage service
+	private expandDocsSettingFromStorage(): boolean {
+		if (this.storageServiceAvailable) {
+			return this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault)
+		} else {
+			return this.expandSuggestionDocs;
+		}
+	}
+
+	// Monaco Editor does not have a storage service
+	private updateExpandDocsSetting(value: boolean) {
+		if (this.storageServiceAvailable) {
+			this.storageService.store('expandSuggestionDocs', value, StorageScope.GLOBAL);
+		} else {
+			this.expandSuggestionDocs = value;
+		}
 	}
 
 	dispose(): void {
