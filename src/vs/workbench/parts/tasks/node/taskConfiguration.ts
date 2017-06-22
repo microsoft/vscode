@@ -126,6 +126,11 @@ export interface LegacyCommandProperties {
 	echoCommand?: boolean;
 
 	/**
+	 * @deprecated Use presentation instead
+	 */
+	terminal?: PresentationOptions;
+
+	/**
 	 * @deprecated Use inline commands.
 	 * See BaseTaskRunnerConfiguration#suppressTaskName for details.
 	 */
@@ -652,7 +657,6 @@ namespace CommandConfiguration {
 		const properties: MetaData<Tasks.PresentationOptions, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'focus' }, { property: 'panel' }];
 
 		interface PresentationOptionsShape extends LegacyCommandProperties {
-			terminal?: PresentationOptions;
 			presentation?: PresentationOptions;
 		}
 
@@ -1031,7 +1035,7 @@ namespace ConfigurationProperties {
 				result.dependsOn = external.dependsOn.slice();
 			}
 		}
-		if (includePresentation && external.presentation !== void 0) {
+		if (includePresentation && (external.presentation !== void 0 || (external as LegacyCommandProperties).terminal !== void 0)) {
 			result.presentation = CommandConfiguration.PresentationOptions.from(external, context);
 		}
 		if (external.problemMatcher) {
@@ -1047,25 +1051,51 @@ namespace ConfigurationProperties {
 
 namespace ConfiguringTask {
 
+	const grunt = 'grunt.';
+	const jake = 'jake.';
+	const gulp = 'gulp.';
+	const npm = 'vscode.npm.';
+	const typescript = 'vscode.typescript.';
+
+	interface CustomizeShape {
+		customize: string;
+	}
+
 	export function from(this: void, external: ConfiguringTask, context: ParseContext): Tasks.ConfiguringTask {
 		if (!external) {
 			return undefined;
 		}
 		let type = external.type;
-		if (!type) {
+		let customize = (external as CustomizeShape).customize;
+		if (!type && !customize) {
 			context.problemReporter.fatal(nls.localize('ConfigurationParser.noTaskType', 'Error: tasks configuration must have a type property. The configuration will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
 			return undefined;
 		}
 		let typeDeclaration = TaskTypeRegistry.get(type);
-		let identifier: TaskIdentifier = {
-			type
-		};
-		Object.keys(typeDeclaration.properties).forEach((property) => {
-			let value = external[property];
-			if (value !== void 0 && value !== null) {
-				identifier[property] = value;
+		let identifier: TaskIdentifier;
+		if (Types.isString(customize)) {
+			if (customize.indexOf(grunt) === 0) {
+				identifier = { type: 'grunt', task: customize.substring(grunt.length) } as TaskIdentifier;
+			} else if (customize.indexOf(jake) === 0) {
+				identifier = { type: 'jake', task: customize.substring(jake.length) } as TaskIdentifier;
+			} else if (customize.indexOf(gulp) === 0) {
+				identifier = { type: 'gulp', task: customize.substring(gulp.length) } as TaskIdentifier;
+			} else if (customize.indexOf(npm) === 0) {
+				identifier = { type: 'npm', script: customize.substring(npm.length + 4) } as TaskIdentifier;
+			} else if (customize.indexOf(typescript) === 0) {
+				identifier = { type: 'typescript', tsconfig: customize.substring(typescript.length + 6) } as TaskIdentifier;
 			}
-		});
+		} else {
+			identifier = {
+				type
+			};
+			Object.keys(typeDeclaration.properties).forEach((property) => {
+				let value = external[property];
+				if (value !== void 0 && value !== null) {
+					identifier[property] = value;
+				}
+			});
+		}
 		let taskIdentifier = TaskIdentifier.from(identifier);
 		let result: Tasks.ConfiguringTask = {
 			type: type,
@@ -1225,7 +1255,8 @@ namespace TaskParser {
 
 	function isCustomTask(value: CustomTask | ConfiguringTask): value is CustomTask {
 		let type = value.type;
-		return type === void 0 || type === null || type === 'custom' || type === 'shell' || type === 'process';
+		let customize = (value as any).customize;
+		return customize === void 0 && (type === void 0 || type === null || type === 'custom' || type === 'shell' || type === 'process');
 	}
 
 	export function from(this: void, externals: (CustomTask | ConfiguringTask)[], globals: Globals, context: ParseContext): TaskParseResult {
