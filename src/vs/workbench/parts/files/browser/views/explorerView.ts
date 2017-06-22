@@ -433,17 +433,25 @@ export class ExplorerView extends CollapsibleView {
 
 				// Add the new file to its parent (Model)
 				parents.forEach(p => {
-					const childElement = FileStat.create(addedElement, p.root);
-					p.removeChild(childElement); // make sure to remove any previous version of the file if any
-					p.addChild(childElement);
-					// Refresh the Parent (View)
-					this.explorerViewer.refresh(p).then(() => {
-						return this.reveal(childElement, 0.5).then(() => {
+					// We have to check if the parent is resolved #29177
+					(p.isDirectoryResolved ? TPromise.as(null) : this.fileService.resolveFile(p.resource)).then(stat => {
+						if (stat) {
+							const modelStat = FileStat.create(stat, p.root);
+							FileStat.mergeLocalWithDisk(modelStat, p);
+						}
 
-							// Focus new element
-							this.explorerViewer.setFocus(childElement);
-						});
-					}).done(null, errors.onUnexpectedError);
+						const childElement = FileStat.create(addedElement, p.root);
+						p.removeChild(childElement); // make sure to remove any previous version of the file if any
+						p.addChild(childElement);
+						// Refresh the Parent (View)
+						this.explorerViewer.refresh(p).then(() => {
+							return this.reveal(childElement, 0.5).then(() => {
+
+								// Focus new element
+								this.explorerViewer.setFocus(childElement);
+							});
+						}).done(null, errors.onUnexpectedError);
+					});
 				});
 			}
 		}
