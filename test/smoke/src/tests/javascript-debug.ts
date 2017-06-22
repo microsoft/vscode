@@ -31,7 +31,7 @@ export function testJavaScriptDebug() {
 			await jsDebug.openDebugViewlet();
 			await jsDebug.pressConfigureLaunchJson();
 			const value = await jsDebug.getProgramConfigValue();
-			process.platform === 'win32' ? assert.equal(value, '"${workspaceRoot}\\\\bin\\\\www"') : assert.equal(value, '"${workspaceRoot}/bin/www"');
+			process.platform === 'win32' ? assert.equal(value, '${workspaceRoot}\\bin\\www') : assert.equal(value, '${workspaceRoot}/bin/www');
 		});
 
 		it(`can set a breakpoint and verify if it's set`, async function () {

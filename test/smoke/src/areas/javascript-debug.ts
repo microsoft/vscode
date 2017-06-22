@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SpectronApplication } from '../spectron/application';
+var stripJsonComments = require('strip-json-comments');
 
 export class JavaScriptDebug {
 	private readonly sidebarSelector = '.margin-view-overlays';
@@ -17,14 +18,20 @@ export class JavaScriptDebug {
 	}
 
 	public async pressConfigureLaunchJson(): Promise<any> {
-		await this.spectron.waitFor(this.spectron.client.click, 'ul[aria-label="Debug actions"] .action-label.icon.debug-action.configure');
+		try {
+			await this.spectron.waitFor(this.spectron.client.click, 'ul[aria-label="Debug actions"] .action-label.icon.debug-action.configure');
+		} catch (e) {
+			return Promise.reject('Clicking on debug configuration gear failed.');
+		}
 		await this.spectron.wait();
 		await this.spectron.client.keys(['ArrowDown', 'NULL', 'Enter']);
 		return this.spectron.wait();
 	}
 
-	public getProgramConfigValue(): Promise<any> {
-		return this.spectron.client.getText('.view-lines>:nth-child(11) .mtk7');
+	public async getProgramConfigValue(): Promise<any> {
+		const lines = stripJsonComments(await this.spectron.client.getText('.view-lines'));
+		const json = JSON.parse(lines);
+		return json.configurations[0].program;
 	}
 
 	public setBreakpointOnLine(lineNumber: number): Promise<any> {

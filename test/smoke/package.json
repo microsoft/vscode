@@ -18,6 +18,7 @@
     "typescript": "^2.2.2",
     "rimraf": "^2.6.1",
     "commander": "^2.9.0",
-    "simple-git": "^1.73.0"
+    "simple-git": "^1.73.0",
+    "strip-json-comments": "^2.0.1"
   }
 }
