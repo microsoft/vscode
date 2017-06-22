@@ -582,6 +582,11 @@
           "description": "%config.autofetch%",
           "default": true
         },
+        "git.autofetchPrune": {
+          "type": "boolean",
+          "description": "%config.autofetchPrune%",
+          "default": false
+        },
         "git.confirmSync": {
           "type": "boolean",
           "description": "%config.confirmSync%",
