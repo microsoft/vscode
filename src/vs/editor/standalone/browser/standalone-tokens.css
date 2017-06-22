@@ -33,32 +33,47 @@
 /* In case the browser goes into high contrast mode and the editor is not configured with the hc-black theme */
 @media screen and (-ms-high-contrast:active) {
 
+	/* current line highlight */
 	.monaco-editor.vs .view-overlays .current-line {
+		border-color: windowtext !important;
 		border-left: 0;
 		border-right: 0;
 	}
 
+	/* view cursors */
 	.monaco-editor.vs .cursor {
 		background-color: windowtext !important;
 	}
+	/* dnd target */
+	.monaco-editor.vs .dnd-target {
+		border-color: windowtext !important;
+	}
 
+	/* selected text background */
 	.monaco-editor.vs .selected-text {
 		background-color: highlight !important;
 	}
 
+	/* allow the text to have a transparent background. */
 	.monaco-editor.vs .view-line {
 		-ms-high-contrast-adjust: none;
-		mix-blend-mode: difference;
 	}
 
+	/* text color */
 	.monaco-editor.vs .view-line span {
 		color: windowtext !important;
 	}
+	/* selected text color */
+	.monaco-editor.vs .view-line span.inline-selected-text {
+		color: highlighttext !important;
+	}
 
+	/* allow decorations */
 	.monaco-editor.vs .view-overlays {
 		-ms-high-contrast-adjust: none;
 	}
 
+	/* various decorations */
 	.monaco-editor.vs .selectionHighlight,
 	.monaco-editor.vs .wordHighlight,
 	.monaco-editor.vs .wordHighlightStrong,
@@ -67,18 +82,119 @@
 		background: transparent !important;
 		box-sizing: border-box;
 	}
+	.monaco-editor.vs .rangeHighlight {
+		background: transparent !important;
+		border: 1px dotted activeborder !important;
+		box-sizing: border-box;
+	}
+	.monaco-editor.vs .bracket-match {
+		border-color: windowtext !important;
+		background: transparent !important;
+	}
 
+	/* find widget */
 	.monaco-editor.vs .findMatch,
 	.monaco-editor.vs .currentFindMatch {
 		border: 2px dotted activeborder !important;
 		background: transparent !important;
 		box-sizing: border-box;
 	}
-
 	.monaco-editor.vs .find-widget {
 		border: 1px solid windowtext;
 	}
-	.monaco-editor.vs .rangeHighlight {
+
+	/* list - used by suggest widget */
+	.monaco-editor.vs .monaco-list .monaco-list-row {
+		-ms-high-contrast-adjust: none;
+		color: windowtext !important;
+	}
+	.monaco-editor.vs .monaco-list .monaco-list-row.focused {
+		color: highlighttext !important;
+		background-color: highlight !important;
+	}
+	.monaco-editor.vs .monaco-list .monaco-list-row:hover {
+		background: transparent !important;
+		border: 1px solid highlight;
+		box-sizing: border-box;
+	}
+
+	/* tree */
+	.monaco-editor.vs .monaco-tree .monaco-tree-row {
+		-ms-high-contrast-adjust: none;
+		color: windowtext !important;
+	}
+	.monaco-editor.vs .monaco-tree .monaco-tree-row.selected,
+	.monaco-editor.vs .monaco-tree .monaco-tree-row.focused {
+		color: highlighttext !important;
+		background-color: highlight !important;
+	}
+	.monaco-editor.vs .monaco-tree .monaco-tree-row:hover {
+		background: transparent !important;
+		border: 1px solid highlight;
+		box-sizing: border-box;
+	}
+
+	/* scrollbars */
+	.monaco-editor.vs .monaco-scrollable-element > .scrollbar {
+		-ms-high-contrast-adjust: none;
+		background: background !important;
+		border: 1px solid windowtext;
+		box-sizing: border-box;
+	}
+	.monaco-editor.vs .monaco-scrollable-element > .scrollbar > .slider {
+		background: windowtext !important;
+	}
+	.monaco-editor.vs .monaco-scrollable-element > .scrollbar > .slider:hover {
+		background: highlight !important;
+	}
+	.monaco-editor.vs .monaco-scrollable-element > .scrollbar > .slider.active {
+		background: highlight !important;
+	}
+
+	/* overview ruler */
+	.monaco-editor.vs .decorationsOverviewRuler {
+		opacity: 0;
+	}
+
+	/* minimap */
+	.monaco-editor.vs .minimap {
+		display: none;
+	}
+
+	/* squiggles */
+	.monaco-editor.vs .redsquiggly {
+		background: transparent !important;
+		border-bottom: 4px double #E47777;
+	}
+	.monaco-editor.vs .greensquiggly {
+		border-bottom: 4px double #71B771;
+	}
+
+	/* contextmenu */
+	.monaco-editor.vs .monaco-menu .monaco-action-bar.vertical .action-item .action-label:focus {
+		-ms-high-contrast-adjust: none;
+		color: highlighttext !important;
+		background-color: highlight !important;
+	}
+	.monaco-editor.vs .monaco-menu .monaco-action-bar.vertical .action-item .action-label:hover {
+		-ms-high-contrast-adjust: none;
+		background: transparent !important;
+		border: 1px solid highlight;
+		box-sizing: border-box;
+	}
+
+	/* diff editor */
+	.monaco-diff-editor.vs .diffOverviewRuler {
+		display: none;
+	}
+	.monaco-editor.vs .line-insert,
+	.monaco-editor.vs .line-delete {
+		background: transparent !important;
+		border: 1px solid highlight !important;
+		box-sizing: border-box;
+	}
+	.monaco-editor.vs .char-insert,
+	.monaco-editor.vs .char-delete {
 		background: transparent !important;
 	}
 }
