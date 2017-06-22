@@ -79,13 +79,20 @@ export class InstallVSIXAction extends Action {
 		if (!result) {
 			return TPromise.as(null);
 		}
-
 		return TPromise.join(result.map(vsix => this.extensionsWorkbenchService.install(vsix))).then(() => {
 			this.messageService.show(
 				severity.Info,
 				{
 					message: localize('InstallVSIXAction.success', "Successfully installed the extension. Restart to enable it."),
 					actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('InstallVSIXAction.reloadNow', "Reload Now"))]
+				}
+			);
+		}, () => {
+			this.messageService.show(
+				severity.Error,
+				{
+					message: localize('InstallVSIXAction.failed', "Installing the extension failed."),
+					actions: []
 				}
 			);
 		});
