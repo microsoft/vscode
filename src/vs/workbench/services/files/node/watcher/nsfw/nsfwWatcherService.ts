@@ -18,8 +18,8 @@ nsfwActionToRawChangeType[nsfw.actions.MODIFIED] = FileChangeType.UPDATED;
 nsfwActionToRawChangeType[nsfw.actions.DELETED] = FileChangeType.DELETED;
 
 interface IWatcherObjet {
-	start(): void;
-	stop(): void;
+	start(): any;
+	stop(): any;
 }
 
 interface IPathWatcher {
@@ -45,7 +45,7 @@ export class NsfwWatcherService implements IWatcherService {
 		return this._watcherPromise;
 	}
 
-	public watch(request: IWatcherRequest): TPromise<void> {
+	private _watch(request: IWatcherRequest): TPromise<void> {
 		let undeliveredFileEvents: watcher.IRawFileChange[] = [];
 		const fileEventDelayer = new ThrottledDelayer(NsfwWatcherService.FS_EVENT_DELAY);
 
@@ -118,7 +118,6 @@ export class NsfwWatcherService implements IWatcherService {
 		return promise;
 	}
 
-	// TODO: This should probably be the only way to watch a folder
 	public setRoots(roots: IWatcherRequest[]): TPromise<void> {
 		const promises: TPromise<void>[] = [];
 		const normalizedRoots = this._normalizeRoots(roots);
@@ -145,7 +144,7 @@ export class NsfwWatcherService implements IWatcherService {
 		});
 
 		// Start watching some roots
-		rootsToStartWatching.forEach(root => promises.push(this.watch(root)));
+		rootsToStartWatching.forEach(root => promises.push(this._watch(root)));
 
 		// Refresh ignored arrays in case they changed
 		roots.forEach(root => {
