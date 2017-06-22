@@ -5,12 +5,13 @@
 
 'use strict';
 
-import { Uri, Command, EventEmitter, Event, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit } from 'vscode';
+import { Uri, Command, EventEmitter, Event, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, Position } from 'vscode';
 import { Git, Repository, Ref, Branch, Remote, Commit, GitErrorCodes } from './git';
 import { anyEvent, eventToPromise, filterEvent, EmptyDisposable, combinedDisposable, dispose } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import * as path from 'path';
 import * as nls from 'vscode-nls';
+import * as fs from 'fs';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -538,12 +539,29 @@ export class Model implements Disposable {
 				.map(file => path.relative(this.repository.root, file.resourceUri.fsPath).replace(/\\/g, '/'))
 				.join(newLineChar);
 
-			// Append in new line.
-			textToAppend = newLineChar + textToAppend;
-			const edit = new WorkspaceEdit();
-			const ignoreFileText = await workspace.openTextDocument(ignoreFile);
-			edit.insert(ignoreFileText.uri, ignoreFileText.lineAt(ignoreFileText.lineCount - 1).range.end, textToAppend);
-			workspace.applyEdit(edit);
+
+			if(fs.existsSync(ignoreFile)) {
+				const edit = new WorkspaceEdit();
+				const ignoreFileToWrite = await workspace.openTextDocument(ignoreFile);
+				//Let's check if that entry exists:
+				const gitIgnoreEntries = ignoreFileToWrite.getText();
+
+				if(gitIgnoreEntries.indexOf(textToAppend) === -1) { //Entry doesn't exist let's insert this entry:
+					// Append in new line if there is entries in the file:
+					textToAppend = (gitIgnoreEntries.length > 0 ? newLineChar : '') + textToAppend;
+					edit.insert(ignoreFileToWrite.uri, ignoreFileToWrite.lineAt(ignoreFileToWrite.lineCount - 1).range.end, textToAppend);
+					workspace.applyEdit(edit);
+				}
+			}
+			else {
+				await workspace.openTextDocument(Uri.file(ignoreFile).with({scheme:'untitled'})).then((doc) => {
+					return window.showTextDocument(doc);
+				}).then((editor) => {
+					const edit = new WorkspaceEdit();
+					edit.insert(editor.document.uri, new Position(0, 0), textToAppend);
+					workspace.applyEdit(edit);
+				});
+			}
 		});
 	}
 
