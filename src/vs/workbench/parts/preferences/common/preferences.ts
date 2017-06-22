@@ -40,7 +40,7 @@ export interface ISetting {
 export interface IFilterResult {
 	filteredGroups: ISettingsGroup[];
 	allGroups: ISettingsGroup[];
-	matches: Map<string, IRange[]>;
+	matches: IRange[];
 }
 
 export interface IPreferencesEditorModel<T> {

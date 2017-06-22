@@ -9,6 +9,7 @@ import URI from 'vs/base/common/uri';
 import * as DOM from 'vs/base/browser/dom';
 import { Delayer } from 'vs/base/common/async';
 import { Dimension, Builder } from 'vs/base/browser/builder';
+import { ArrayNavigator, INavigator } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -241,10 +242,44 @@ export class PreferencesEditor extends BaseEditor {
 	}
 }
 
+class SettingsNavigator implements INavigator<ISetting> {
+
+	private iterator: ArrayNavigator<ISetting>;
+
+	constructor(settings: ISetting[]) {
+		this.iterator = new ArrayNavigator<ISetting>(settings);
+	}
+
+	public next(): ISetting {
+		return this.iterator.next() || this.iterator.first();
+	}
+
+	public previous(): ISetting {
+		return this.iterator.previous() || this.iterator.last();
+	}
+
+	public parent(): ISetting {
+		return this.iterator.parent();
+	}
+
+	public first(): ISetting {
+		return this.iterator.first();
+	}
+
+	public last(): ISetting {
+		return this.iterator.last();
+	}
+
+	public current(): ISetting {
+		return this.iterator.current();
+	}
+}
+
 class PreferencesRenderers extends Disposable {
 
 	private _defaultPreferencesRenderer: IPreferencesRenderer<ISetting>;
 	private _editablePreferencesRenderer: IPreferencesRenderer<ISetting>;
+	private _settingsNavigator: SettingsNavigator;
 
 	private _disposables: IDisposable[] = [];
 
@@ -268,14 +303,18 @@ class PreferencesRenderers extends Disposable {
 	}
 
 	public filterPreferences(filter: string): number {
-		const filterResult = filter ? (<ISettingsEditorModel>this._defaultPreferencesRenderer.preferencesModel).filterSettings(filter) : null;
-		this._filterPreferences(filterResult, this._defaultPreferencesRenderer);
-		this._filterPreferences(filterResult, this._editablePreferencesRenderer);
-		return this._getCount(filterResult ? filterResult.filteredGroups : (this._defaultPreferencesRenderer ? (<ISettingsEditorModel>this._defaultPreferencesRenderer.preferencesModel).settingsGroups : []));
+		const defaultPreferencesFilterResult = filter ? (<ISettingsEditorModel>this._defaultPreferencesRenderer.preferencesModel).filterSettings(filter) : null;
+		const editablePreferencesFilterResult = filter ? (<ISettingsEditorModel>this._editablePreferencesRenderer.preferencesModel).filterSettings(filter) : null;
+		const consolidatedSettings = this._consolidateSettings(editablePreferencesFilterResult ? editablePreferencesFilterResult.filteredGroups : (<ISettingsEditorModel>this._editablePreferencesRenderer.preferencesModel).settingsGroups,
+			defaultPreferencesFilterResult ? defaultPreferencesFilterResult.filteredGroups : (<ISettingsEditorModel>this._defaultPreferencesRenderer.preferencesModel).settingsGroups);
+		this._settingsNavigator = new SettingsNavigator(filter ? consolidatedSettings : []);
+		this._filterPreferences(defaultPreferencesFilterResult, this._defaultPreferencesRenderer);
+		this._filterPreferences(editablePreferencesFilterResult, this._editablePreferencesRenderer);
+		return consolidatedSettings.length;
 	}
 
 	public focusNextPreference(forward: boolean = true) {
-		const setting = forward ? this._defaultPreferencesRenderer.iterator.next() : this._defaultPreferencesRenderer.iterator.previous();
+		const setting = forward ? this._settingsNavigator.next() : this._settingsNavigator.previous();
 		this._focusPreference(setting, this._defaultPreferencesRenderer);
 		this._focusPreference(setting, this._editablePreferencesRenderer);
 	}
@@ -304,14 +343,20 @@ class PreferencesRenderers extends Disposable {
 		}
 	}
 
-	private _getCount(settingsGroups: ISettingsGroup[]): number {
-		let count = 0;
+	private _consolidateSettings(editableSettingsGroups: ISettingsGroup[], defaultSettingsGroups: ISettingsGroup[]): ISetting[] {
+		const editableSettings = this._flatten(editableSettingsGroups);
+		const defaultSettings = this._flatten(defaultSettingsGroups).filter(secondarySetting => !editableSettings.some(primarySetting => primarySetting.key === secondarySetting.key));
+		return [...editableSettings, ...defaultSettings];
+	}
+
+	private _flatten(settingsGroups: ISettingsGroup[]): ISetting[] {
+		const settings: ISetting[] = [];
 		for (const group of settingsGroups) {
 			for (const section of group.sections) {
-				count += section.settings.length;
+				settings.push(...section.settings);
 			}
 		}
-		return count;
+		return settings;
 	}
 
 	public dispose(): void {
