@@ -18,17 +18,19 @@ export function wrapWithAbbreviation() {
 		vscode.window.showInformationMessage('No editor is active');
 		return;
 	}
-	let rangeToReplace: vscode.Range = editor.selection;
-	if (rangeToReplace.isEmpty) {
-		rangeToReplace = new vscode.Range(rangeToReplace.start.line, 0, rangeToReplace.start.line, editor.document.lineAt(rangeToReplace.start.line).text.length);
-	}
-	let textToReplace = editor.document.getText(rangeToReplace);
 	let syntax = getSyntax(editor.document);
 
 	vscode.window.showInputBox({ prompt: 'Enter Abbreviation' }).then(abbr => {
 		if (!abbr || !abbr.trim()) { return; }
-		let expandedText = expand(abbr, getExpandOptions(syntax, textToReplace));
-		editor.insertSnippet(new vscode.SnippetString(expandedText), rangeToReplace);
+		editor.selections.forEach(selection => {
+			let rangeToReplace: vscode.Range = selection;
+			if (rangeToReplace.isEmpty) {
+				rangeToReplace = new vscode.Range(rangeToReplace.start.line, 0, rangeToReplace.start.line, editor.document.lineAt(rangeToReplace.start.line).text.length);
+			}
+			let textToReplace = editor.document.getText(rangeToReplace);
+			let expandedText = expand(abbr, getExpandOptions(syntax, textToReplace));
+			editor.insertSnippet(new vscode.SnippetString(expandedText), rangeToReplace);
+		});
 	});
 }
 
