@@ -17,7 +17,7 @@ function handleDeletions() {
 	});
 }
 
-const disableNewWatcher = process.env['vscode.disableNewWatcher'];
+const disableNewWatcher = process.env['VSCODE_DISABLE_NEW_WATCHER'];
 
 const watch = !disableNewWatcher ?
 	require('./watch-nsfw')
