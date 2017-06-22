@@ -16,8 +16,6 @@ export const LANGUAGE_MODES: Object = {
 	'haml': ['!', '.', '}'],
 	'xml': ['.', '}'],
 	'xsl': ['.', '}'],
-	'javascriptreact': ['.'],
-	'typescriptreact': ['.'],
 	'css': [':'],
 	'scss': [':'],
 	'sass': [':'],
@@ -25,7 +23,7 @@ export const LANGUAGE_MODES: Object = {
 	'stylus': [':']
 };
 
-// Explicitly map languages to their parent language to get emmet support
+// Explicitly map languages to their parent language to get emmet completion support
 export const MAPPED_MODES: Object = {
 	'handlebars': 'html'
 };
@@ -44,9 +42,6 @@ export function validate(allowStylesheet: boolean = true): boolean {
 export function getSyntax(document: vscode.TextDocument): string {
 	if (document.languageId === 'jade') {
 		return 'pug';
-	}
-	if (document.languageId === 'javascriptreact' || document.languageId === 'typescriptreact') {
-		return 'jsx';
 	}
 	return document.languageId;
 }

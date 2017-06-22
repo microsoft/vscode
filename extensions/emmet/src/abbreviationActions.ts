@@ -18,17 +18,19 @@ export function wrapWithAbbreviation() {
 		vscode.window.showInformationMessage('No editor is active');
 		return;
 	}
-	let rangeToReplace: vscode.Range = editor.selection;
-	if (rangeToReplace.isEmpty) {
-		rangeToReplace = new vscode.Range(rangeToReplace.start.line, 0, rangeToReplace.start.line, editor.document.lineAt(rangeToReplace.start.line).text.length);
-	}
-	let textToReplace = editor.document.getText(rangeToReplace);
 	let syntax = getSyntax(editor.document);
 
 	vscode.window.showInputBox({ prompt: 'Enter Abbreviation' }).then(abbr => {
 		if (!abbr || !abbr.trim()) { return; }
-		let expandedText = expand(abbr, getExpandOptions(syntax, textToReplace));
-		editor.insertSnippet(new vscode.SnippetString(expandedText), rangeToReplace);
+		editor.selections.forEach(selection => {
+			let rangeToReplace: vscode.Range = selection;
+			if (rangeToReplace.isEmpty) {
+				rangeToReplace = new vscode.Range(rangeToReplace.start.line, 0, rangeToReplace.start.line, editor.document.lineAt(rangeToReplace.start.line).text.length);
+			}
+			let textToReplace = editor.document.getText(rangeToReplace);
+			let expandedText = expand(abbr, getExpandOptions(syntax, textToReplace));
+			editor.insertSnippet(new vscode.SnippetString(expandedText), rangeToReplace);
+		});
 	});
 }
 
@@ -43,25 +45,27 @@ export function expandAbbreviation(args) {
 		return;
 	}
 	let syntax = args['syntax'];
-	let abbreviationRange: vscode.Range = editor.selection;
-	let position = editor.selection.isReversed ? editor.selection.anchor : editor.selection.active;
-	let abbreviation = editor.document.getText(abbreviationRange);
-	if (abbreviationRange.isEmpty) {
-		[abbreviationRange, abbreviation] = extractAbbreviation(editor.document, position);
-	}
-
 	let parseContent = isStyleSheet(syntax) ? parseStylesheet : parse;
 	let rootNode: Node = parseContent(new DocumentStreamReader(editor.document));
-	let currentNode = getNode(rootNode, position);
 
-	if (!isValidLocationForEmmetAbbreviation(currentNode, syntax, position)) {
-		return;
-	}
+	editor.selections.forEach(selection => {
+		let abbreviationRange: vscode.Range = selection;
+		let position = selection.isReversed ? selection.anchor : selection.active;
+		let abbreviation = editor.document.getText(abbreviationRange);
+		if (abbreviationRange.isEmpty) {
+			[abbreviationRange, abbreviation] = extractAbbreviation(editor.document, position);
+		}
 
-	let expandedText = expand(abbreviation, getExpandOptions(syntax));
-	if (expandedText) {
-		editor.insertSnippet(new vscode.SnippetString(expandedText), abbreviationRange);
-	}
+		let currentNode = getNode(rootNode, position);
+		if (!isValidLocationForEmmetAbbreviation(currentNode, syntax, position)) {
+			return;
+		}
+
+		let expandedText = expand(abbreviation, getExpandOptions(syntax));
+		if (expandedText) {
+			editor.insertSnippet(new vscode.SnippetString(expandedText), abbreviationRange);
+		}
+	});
 }
 
 

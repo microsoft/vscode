@@ -250,7 +250,8 @@ export abstract class EmmetEditorAction extends EditorAction {
 		'editor.emmet.action.selectPreviousItem': 'emmet.selectPrevItem',
 		'editor.emmet.action.selectNextItem': 'emmet.selectNextItem',
 		'editor.emmet.action.splitJoinTag': 'emmet.splitJoinTag',
-		'editor.emmet.action.toggleComment': 'emmet.toggleComment'
+		'editor.emmet.action.toggleComment': 'emmet.toggleComment',
+		'editor.emmet.action.evaluateMath': 'emmet.evaluateMathExpression'
 	};
 
 	protected emmetActionName: string;
