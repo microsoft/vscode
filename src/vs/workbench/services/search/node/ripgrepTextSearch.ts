@@ -47,7 +47,7 @@ export class RipgrepEngine {
 		}
 
 		process.nextTick(() => {
-			const escapedArgs = rgArgs.args
+			const escapedArgs = rgArgs.globArgs
 				.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
 				.join(' ');
 
@@ -58,7 +58,7 @@ export class RipgrepEngine {
 				onMessage({ message: ` - Sibling clauses: ${JSON.stringify(rgArgs.siblingClauses)}\n` });
 			}
 		});
-		this.rgProc = cp.spawn(rgPath, rgArgs.args, { cwd: '/' });
+		this.rgProc = cp.spawn(rgPath, rgArgs.globArgs, { cwd: '/' });
 
 		this.ripgrepParser = new RipgrepParser(this.config.maxResults, '/');
 		this.ripgrepParser.on('result', (match: ISerializedFileMatch) => {
@@ -373,16 +373,28 @@ interface IRgGlobResult {
 }
 
 function foldersToRgExcludeGlobs(folderQueries: IFolderSearch[], globalExclude: glob.IExpression): IRgGlobResult {
-	// TODO fold globalExclude into folder-specific excludes
 	const globArgs: string[] = [];
-	let siblingClauses: glob.IExpression = null;
+	let siblingClauses: glob.IExpression = {};
 	folderQueries.forEach(folderQuery => {
-		const result = globExprsToRgGlobs(folderQuery.excludePattern, folderQuery.folder);
+		const totalExcludePattern = objects.assign({}, globalExclude, folderQuery.excludePattern);
+		const result = globExprsToRgGlobs(totalExcludePattern, folderQuery.folder);
 		globArgs.push(...result.globArgs);
-		siblingClauses = objects.assign(siblingClauses, result.siblingClauses);
+		if (result.siblingClauses) {
+			siblingClauses = objects.assign(siblingClauses, result.siblingClauses);
+		}
 	});
 
 	return { globArgs, siblingClauses };
+}
+
+function foldersToIncludeGlobs(folderQueries: IFolderSearch[], globalInclude: glob.IExpression): string[] {
+	const globArgs: string[] = [];
+	folderQueries.forEach(folderQuery => {
+		const result = globExprsToRgGlobs(globalInclude, folderQuery.folder);
+		globArgs.push(...result.globArgs);
+	});
+
+	return globArgs;
 }
 
 function globExprsToRgGlobs(patterns: glob.IExpression, folder: string): IRgGlobResult {
@@ -394,11 +406,6 @@ function globExprsToRgGlobs(patterns: glob.IExpression, folder: string): IRgGlob
 			key = path.join(folder, key);
 
 			if (typeof value === 'boolean' && value) {
-				// globs added to ripgrep don't match from the root by default, so add a /
-				if (key.charAt(0) !== '*') {
-					key = '/' + key;
-				}
-
 				globArgs.push(key);
 			} else if (value && value.when) {
 				if (!siblingClauses) {
@@ -418,7 +425,7 @@ function getRgArgs(config: IRawSearch): IRgGlobResult {
 
 	if (config.includePattern) {
 		// I don't think includePattern can have siblingClauses
-		foldersToRgGlobs(config.folderQueries).globArgs.forEach(globArg => {
+		foldersToIncludeGlobs(config.folderQueries, config.includePattern).forEach(globArg => {
 			args.push('-g', globArg);
 		});
 	}
@@ -441,10 +448,10 @@ function getRgArgs(config: IRawSearch): IRgGlobResult {
 	// Follow symlinks
 	args.push('--follow');
 
-	// Set default encoding
-	// if (config.fileEncoding && config.fileEncoding !== 'utf8') {
-	// 	args.push('--encoding', encoding.toCanonicalName(config.fileEncoding));
-	// }
+	// Set default encoding if only one folder is opened
+	if (config.folderQueries.length === 1 && config.folderQueries[0].fileEncoding !== 'utf8') {
+		args.push('--encoding', encoding.toCanonicalName(config.folderQueries[0].fileEncoding));
+	}
 
 	// Ripgrep handles -- as a -- arg separator. Only --.
 	// - is ok, --- is ok, --some-flag is handled as query text. Need to special case.
@@ -481,7 +488,7 @@ function getRgArgs(config: IRawSearch): IRgGlobResult {
 
 	args.push(...config.extraFiles);
 
-	return { args, siblingClauses };
+	return { globArgs: args, siblingClauses };
 }
 
 function getSiblings(file: string): TPromise<string[]> {
