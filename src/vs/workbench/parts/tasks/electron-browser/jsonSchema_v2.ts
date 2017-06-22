@@ -47,35 +47,41 @@ const dependsOn: IJSONSchema = {
 const presentation: IJSONSchema = {
 	type: 'object',
 	default: {
-		reveal: 'always'
+		echo: true,
+		reveal: 'always',
+		focus: false,
+		panel: 'shared'
 	},
-	description: nls.localize('JsonSchema.tasks.terminal', 'Configures the panel that is used to present the task\'s ouput and reads its input.'),
+	description: nls.localize('JsonSchema.tasks.presentation', 'Configures the panel that is used to present the task\'s ouput and reads its input.'),
 	additionalProperties: false,
 	properties: {
 		echo: {
 			type: 'boolean',
 			default: true,
-			description: nls.localize('JsonSchema.tasks.terminal.echo', 'Controls whether the executed command is echoed to the panel. Default is true.')
+			description: nls.localize('JsonSchema.tasks.presentation.echo', 'Controls whether the executed command is echoed to the panel. Default is true.')
 		},
 		focus: {
 			type: 'boolean',
 			default: false,
-			description: nls.localize('JsonSchema.tasks.terminal.focus', 'Controls whether the panel takes focus. Default is false. If set to true the panel is revealed as well.')
+			description: nls.localize('JsonSchema.tasks.presentation.focus', 'Controls whether the panel takes focus. Default is false. If set to true the panel is revealed as well.')
 		},
 		reveal: {
 			type: 'string',
 			enum: ['always', 'silent', 'never'],
 			default: 'always',
-			description: nls.localize('JsonSchema.tasks.terminal.reveals', 'Controls whether the panel running the task is revealed or not. Default is \"always\".')
+			description: nls.localize('JsonSchema.tasks.presentation.reveals', 'Controls whether the panel running the task is revealed or not. Default is \"always\".')
 		},
 		panel: {
 			type: 'string',
 			enum: ['shared', 'dedicated', 'new'],
 			default: 'shared',
-			description: nls.localize('JsonSchema.tasks.terminal.instance', 'Controls if the panel is shared between tasks, dedicated to this task or a new one is created on every run.')
+			description: nls.localize('JsonSchema.tasks.presentation.instance', 'Controls if the panel is shared between tasks, dedicated to this task or a new one is created on every run.')
 		}
 	}
 };
+
+const terminal: IJSONSchema = Objects.deepClone(presentation);
+terminal.deprecationMessage = nls.localize('JsonSchema.tasks.terminal', 'The terminal property is deprecated. Use presentation instead');
 
 const group: IJSONSchema = {
 	type: 'string',
@@ -97,21 +103,40 @@ const version: IJSONSchema = {
 	description: nls.localize('JsonSchema.version', 'The config\'s version number.')
 };
 
-const customizeTaskDescription: IJSONSchema = Objects.deepClone(commonSchema.definitions.taskDescription);
-customizeTaskDescription.required = undefined;
-customizeTaskDescription.properties.presentation = Objects.deepClone(presentation);
+let taskConfiguration: IJSONSchema = {
+	type: 'object',
+	additionalProperties: false,
+	properties: {
+		label: {
+			type: 'string',
+			description: nls.localize('JsonSchema.tasks.taskLabel', "The task's label")
+		},
+		group: Objects.deepClone(group),
+		isBackground: {
+			type: 'boolean',
+			description: nls.localize('JsonSchema.tasks.background', 'Whether the executed task is kept alive and is running in the background.'),
+			default: true
+		},
+		promptOnClose: {
+			type: 'boolean',
+			description: nls.localize('JsonSchema.tasks.promptOnClose', 'Whether the user is prompted when VS Code closes with a running task.'),
+			default: false
+		},
+		presentation: Objects.deepClone(presentation),
+		problemMatcher: {
+			$ref: '#/definitions/problemMatcherType2',
+			description: nls.localize('JsonSchema.tasks.matchers', 'The problem matcher(s) to use. Can either be a string or a problem matcher definition or an array of strings and problem matchers.')
+		}
+	}
+};
 
+let taskDefinitions: IJSONSchema[] = [];
 TaskTypeRegistry.onReady().then(() => {
-	let oneOf: IJSONSchema[] = [];
 	for (let taskType of TaskTypeRegistry.all()) {
-		let schema: IJSONSchema = {
-			type: 'object',
-			properties: {
-			}
-		};
+		let schema: IJSONSchema = Objects.deepClone(taskConfiguration);
 		schema.properties.type = {
 			type: 'string',
-			description: nls.localize('JsonSchema.customizations.customizes.type', 'The task system to customize'),
+			description: nls.localize('JsonSchema.customizations.customizes.type', 'The task type to customize'),
 			enum: [taskType.taskType]
 		};
 		if (taskType.required) {
@@ -121,19 +146,39 @@ TaskTypeRegistry.onReady().then(() => {
 			let property = taskType.properties[key];
 			schema.properties[key] = Objects.deepClone(property);
 		}
-		oneOf.push(schema);
+		taskDefinitions.push(schema);
 	}
-	customizeTaskDescription.properties.customizes = {
-		description: nls.localize('JsonSchema.customizations.customizes', 'The task to be customized'),
-		oneOf
-	};
 });
 
-const customizations: IJSONSchema = {
-	type: 'array',
-	description: nls.localize('JsonSchema.customizations', 'The tasks to be customized'),
-	items: customizeTaskDescription
+let definitions = Objects.deepClone(commonSchema.definitions);
+let taskDescription: IJSONSchema = definitions.taskDescription;
+taskDescription.properties.isShellCommand = Objects.deepClone(shellCommand);
+taskDescription.properties.dependsOn = dependsOn;
+// definitions.showOutputType.deprecationMessage = nls.localize('JsonSchema.tasks.showOputput.deprecated', 'The property showOutput is deprecated. Use the terminal property instead.');
+// definitions.taskDescription.properties.echoCommand.deprecationMessage = nls.localize('JsonSchema.tasks.echoCommand.deprecated', 'The property echoCommand is deprecated. Use the terminal property instead.');
+// definitions.taskDescription.properties.isBuildCommand.deprecationMessage = nls.localize('JsonSchema.tasks.isBuildCommand.deprecated', 'The property isBuildCommand is deprecated. Use the group property instead.');
+// definitions.taskDescription.properties.isTestCommand.deprecationMessage = nls.localize('JsonSchema.tasks.isTestCommand.deprecated', 'The property isTestCommand is deprecated. Use the group property instead.');
+taskDescription.properties.type = Objects.deepClone(taskType);
+taskDescription.properties.presentation = Objects.deepClone(presentation);
+taskDescription.properties.terminal = terminal;
+taskDescription.properties.group = group;
+
+taskDefinitions.push({
+	$ref: '#/definitions/taskDescription'
+} as IJSONSchema);
+
+let tasks = definitions.taskRunnerConfiguration.properties.tasks;
+tasks.items = {
+	oneOf: taskDefinitions
 };
+
+definitions.commandConfiguration.properties.isShellCommand = Objects.deepClone(shellCommand);
+definitions.options.properties.shell = {
+	$ref: '#/definitions/shellConfiguration'
+};
+definitions.taskRunnerConfiguration.properties.isShellCommand = Objects.deepClone(shellCommand);
+definitions.taskRunnerConfiguration.properties.type = Objects.deepClone(taskType);
+definitions.taskRunnerConfiguration.properties.version = Objects.deepClone(version);
 
 const schema: IJSONSchema = {
 	oneOf: [
@@ -155,8 +200,7 @@ const schema: IJSONSchema = {
 						linux: {
 							'$ref': '#/definitions/taskRunnerConfiguration',
 							'description': nls.localize('JsonSchema.linux', 'Linux specific command configuration')
-						},
-						customizations: customizations
+						}
 					}
 				},
 				{
@@ -167,24 +211,7 @@ const schema: IJSONSchema = {
 	]
 };
 
-schema.definitions = Objects.deepClone(commonSchema.definitions);
-let definitions = schema.definitions;
-definitions.commandConfiguration.properties.isShellCommand = Objects.deepClone(shellCommand);
-definitions.taskDescription.properties.isShellCommand = Objects.deepClone(shellCommand);
-definitions.taskDescription.properties.dependsOn = dependsOn;
-// definitions.showOutputType.deprecationMessage = nls.localize('JsonSchema.tasks.showOputput.deprecated', 'The property showOutput is deprecated. Use the terminal property instead.');
-// definitions.taskDescription.properties.echoCommand.deprecationMessage = nls.localize('JsonSchema.tasks.echoCommand.deprecated', 'The property echoCommand is deprecated. Use the terminal property instead.');
-// definitions.taskDescription.properties.isBuildCommand.deprecationMessage = nls.localize('JsonSchema.tasks.isBuildCommand.deprecated', 'The property isBuildCommand is deprecated. Use the group property instead.');
-// definitions.taskDescription.properties.isTestCommand.deprecationMessage = nls.localize('JsonSchema.tasks.isTestCommand.deprecated', 'The property isTestCommand is deprecated. Use the group property instead.');
-definitions.taskDescription.properties.type = Objects.deepClone(taskType);
-definitions.taskDescription.properties.presentation = presentation;
-definitions.taskDescription.properties.group = group;
-definitions.options.properties.shell = {
-	$ref: '#/definitions/shellConfiguration'
-};
-definitions.taskRunnerConfiguration.properties.isShellCommand = Objects.deepClone(shellCommand);
-definitions.taskRunnerConfiguration.properties.type = Objects.deepClone(taskType);
-definitions.taskRunnerConfiguration.properties.version = Objects.deepClone(version);
+schema.definitions = definitions;
 
 Object.getOwnPropertyNames(definitions).forEach(key => {
 	let newKey = key + '2';
