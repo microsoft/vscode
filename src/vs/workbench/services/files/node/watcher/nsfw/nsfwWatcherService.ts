@@ -46,14 +46,8 @@ export class NsfwWatcherService implements IWatcherService {
 	}
 
 	public watch(request: IWatcherRequest): TPromise<void> {
-		if (this._verboseLogging) {
-			console.log('request', request);
-		}
-
 		let undeliveredFileEvents: watcher.IRawFileChange[] = [];
 		const fileEventDelayer = new ThrottledDelayer(NsfwWatcherService.FS_EVENT_DELAY);
-
-		console.log('starting to watch ' + request.basePath);
 
 		let readyPromiseCallback: TValueCallback<IWatcherObjet>;
 		this._pathWatchers[request.basePath] = {
@@ -63,7 +57,6 @@ export class NsfwWatcherService implements IWatcherService {
 
 		const promise = new TPromise<void>((c, e, p) => {
 			nsfw(request.basePath, events => {
-				console.log('received events for path: ' + request.basePath);
 				for (let i = 0; i < events.length; i++) {
 					const e = events[i];
 
@@ -88,7 +81,6 @@ export class NsfwWatcherService implements IWatcherService {
 					} else {
 						absolutePath = path.join(e.directory, e.file);
 						if (!this._isPathIgnored(absolutePath, this._pathWatchers[request.basePath].ignored)) {
-							console.log('adding event for path', absolutePath);
 							undeliveredFileEvents.push({
 								type: nsfwActionToRawChangeType[e.action],
 								path: absolutePath
@@ -100,7 +92,6 @@ export class NsfwWatcherService implements IWatcherService {
 				// Delay and send buffer
 				fileEventDelayer.trigger(() => {
 					const events = undeliveredFileEvents;
-					console.log('sending events!', events);
 					undeliveredFileEvents = [];
 
 					// Broadcast to clients normalized
@@ -117,7 +108,6 @@ export class NsfwWatcherService implements IWatcherService {
 					return TPromise.as(null);
 				});
 			}).then(watcher => {
-				console.log('watcher ready ' + request.basePath);
 				this._pathWatchers[request.basePath].watcher = watcher;
 				const startPromise = watcher.start();
 				startPromise.then(() => readyPromiseCallback(watcher));
@@ -130,50 +120,23 @@ export class NsfwWatcherService implements IWatcherService {
 
 	// TODO: This should probably be the only way to watch a folder
 	public setRoots(roots: IWatcherRequest[]): TPromise<void> {
+		const promises: TPromise<void>[] = [];
 		const normalizedRoots = this._normalizeRoots(roots);
 
-		// Start watching roots that are not currently being watched
+		// Gather roots that are not currently being watched
 		const rootsToStartWatching = normalizedRoots.filter(r => {
 			return !(r.basePath in this._pathWatchers);
 		});
 
-		// Stop watching roots that don't exist in the new roots
+		// Gather current roots that don't exist in the new roots array
 		const rootsToStopWatching = Object.keys(this._pathWatchers).filter(r => {
 			return normalizedRoots.every(normalizedRoot => normalizedRoot.basePath !== r);
 		});
 
-		// TODO: Support updating roots when only the ignored files change
-		// This should be just a matter of updating the ignored part
-		const rootsWithChangedOptions = Object.keys(this._pathWatchers).filter(r => {
-			return normalizedRoots.some(normalizedRoot => {
-				if (normalizedRoot.basePath !== r) {
-					return false;
-				}
-				const ignored = this._pathWatchers[r].ignored;
-				// TODO: Improve comments, refactor
-				if (normalizedRoot.ignored.length !== ignored.length) {
-					console.log('ignored changed on root: ' + r);
-					this._pathWatchers[r].ignored = normalizedRoot.ignored;
-					return true;
-				}
-				// Check deep equality
-				for (let i = 0; i < ignored.length; i++) {
-					if (normalizedRoot.ignored[i] !== ignored[i]) {
-						console.log('ignored changed on root: ' + r);
-						this._pathWatchers[r].ignored = normalizedRoot.ignored;
-						return true;
-					}
-				}
-				return false;
-			});
-		});
-
 		// Logging
 		if (this._verboseLogging) {
-			console.log(`Set watch roots: start: [${rootsToStartWatching.map(r => r.basePath).join(',')}], stop: [${rootsToStopWatching.join(',')}], changed: [${rootsWithChangedOptions.join(', ')}]`);
+			console.log(`Start watching: [${rootsToStartWatching.map(r => r.basePath).join(',')}]\nStop watching: [${rootsToStopWatching.join(',')}]`);
 		}
-
-		const promises: TPromise<void>[] = [];
 
 		// Stop watching some roots
 		rootsToStopWatching.forEach(root => {
@@ -184,13 +147,19 @@ export class NsfwWatcherService implements IWatcherService {
 		// Start watching some roots
 		rootsToStartWatching.forEach(root => promises.push(this.watch(root)));
 
-		// TODO: Don't watch sub-folders of folders
+		// Refresh ignored arrays in case they changed
+		roots.forEach(root => {
+			if (root.basePath in this._pathWatchers) {
+				this._pathWatchers[root.basePath].ignored = root.ignored;
+			}
+		});
+
 		return TPromise.join(promises).then(() => void 0);
 	}
 
 	/**
-	 * Normalizes a set of root paths by removing any folders that are
-	 * sub-folders of other roots.
+	 * Normalizes a set of root paths by removing any root paths that are
+	 * sub-paths of other roots.
 	 */
 	protected _normalizeRoots(roots: IWatcherRequest[]): IWatcherRequest[] {
 		return roots.filter(r => roots.every(other => {
@@ -199,8 +168,6 @@ export class NsfwWatcherService implements IWatcherService {
 	}
 
 	private _isPathIgnored(absolutePath: string, ignored: string[]): boolean {
-		console.log('is "' + absolutePath + '" ignored? ' + (ignored && ignored.some(ignore => glob.match(ignore, absolutePath))));
-		console.log('  ignored: ', ignored);
 		return ignored && ignored.some(ignore => glob.match(ignore, absolutePath));
 	}
 }

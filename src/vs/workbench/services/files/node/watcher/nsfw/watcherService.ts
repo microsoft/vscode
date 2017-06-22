@@ -85,15 +85,13 @@ export class FileWatcher {
 
 	private updateRoots() {
 		const roots = this.contextService.getWorkspace2().roots;
-		console.log('updateRoots');
 		this.service.setRoots(roots.map(root => {
+			// Fetch the root's watcherExclude setting and return it
 			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(undefined, {
 				resource: root
 			});
 			let ignored: string[] = [];
-			console.log('  root: ' + root);
 			if (configuration.files && configuration.files.watcherExclude) {
-				console.log('  config: ', configuration.files.watcherExclude);
 				ignored = Object.keys(configuration.files.watcherExclude).filter(k => !!configuration.files.watcherExclude[k]);
 			}
 			return {
@@ -104,7 +102,6 @@ export class FileWatcher {
 	}
 
 	private onRawFileEvents(events: IRawFileChange[]): void {
-
 		// Emit through broadcast service
 		if (events.length > 0) {
 			this.onFileChanges(toFileChangesEvent(events));
