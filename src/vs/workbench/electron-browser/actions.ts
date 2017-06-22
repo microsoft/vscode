@@ -1058,6 +1058,27 @@ export class OpenIntroductoryVideosUrlAction extends Action {
 	}
 }
 
+export class OpenTipsAndTricksUrlAction extends Action {
+
+	public static ID = 'workbench.action.openTipsAndTricksUrl';
+	public static LABEL = nls.localize('openTipsAndTricksUrl', "Tips and Tricks");
+
+	private static URL = product.tipsAndTricksUrl;
+	public static AVAILABLE = !!OpenTipsAndTricksUrlAction.URL;
+
+	constructor(
+		id: string,
+		label: string
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<void> {
+		window.open(OpenTipsAndTricksUrlAction.URL);
+		return null;
+	}
+}
+
 export class ToggleSharedProcessAction extends Action {
 
 	static ID = 'workbench.action.toggleSharedProcess';
