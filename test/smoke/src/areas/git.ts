@@ -22,7 +22,13 @@ export class Git {
 	}
 
 	public async verifyScmChange(fileName: string): Promise<any> {
-		let el = await this.spectron.client.element(`div[class="monaco-icon-label file-icon ${fileName}-name-file-icon ${this.commonActions.getExtensionSelector(fileName)}"]`);
+		let el;
+		try {
+			el = await this.spectron.client.element(`div[class="monaco-icon-label file-icon ${fileName}-name-file-icon ${this.commonActions.getExtensionSelector(fileName)}"]`);
+		} catch (e) {
+			return Promise.reject(`${fileName} change is not present in SCM viewlet.`);
+		}
+
 		if (el.status === 0) {
 			return el;
 		}
@@ -39,20 +45,60 @@ export class Git {
 	}
 
 	public async stageFile(fileName: string): Promise<any> {
-		await this.spectron.client.moveToObject(`div[class="monaco-icon-label file-icon ${fileName}-name-file-icon ${this.commonActions.getExtensionSelector(fileName)}"`);
+		try {
+			await this.spectron.client.moveToObject(`div[class="monaco-icon-label file-icon ${fileName}-name-file-icon ${this.commonActions.getExtensionSelector(fileName)}"`);
+		} catch (e) {
+			return Promise.reject(`${fileName} was not found in SCM viewlet`);
+		}
+
 		await this.spectron.wait();
-		await this.spectron.client.click('.action-label.icon.contrib-cmd-icon-4');
+
+		try {
+			await this.spectron.client.click('.action-label.icon.contrib-cmd-icon-4');
+		} catch (e) {
+			return Promise.reject('Stage button was not found');
+		}
 		return this.spectron.wait();
 	}
 
 	public async unstageFile(fileName: string): Promise<any> {
-		await this.spectron.client.moveToObject(`div[class="monaco-icon-label file-icon ${fileName}-name-file-icon ${this.commonActions.getExtensionSelector(fileName)}"`);
-		await this.spectron.client.click('.action-label.icon.contrib-cmd-icon-6');
+		try {
+			await this.spectron.client.moveToObject(`div[class="monaco-icon-label file-icon ${fileName}-name-file-icon ${this.commonActions.getExtensionSelector(fileName)}"`);
+		} catch (e) {
+			return Promise.reject(`${fileName} was not found in SCM viewlet`);
+		}
+
+		try {
+			await this.spectron.client.click('.action-label.icon.contrib-cmd-icon-6');
+		} catch (e) {
+			return Promise.reject('Unstage button was not found.');
+		}
 		return this.spectron.wait();
 	}
 
-	public getStagedCount(): Promise<any> {
-		return this.spectron.waitFor(this.spectron.client.getText, '.scm-status.show-file-icons .monaco-list-rows>:nth-child(1) .monaco-count-badge');
+	public async getStagedCount(): Promise<any> {
+		let scmHeaders: Array<string>;
+		try {
+			scmHeaders = await this.spectron.waitFor(this.spectron.client.getText, '.scm-status.show-file-icons .monaco-list-rows .name'); // get all headers
+		}
+		catch (e) {
+			return Promise.reject('No row names in SCM viewlet were found.');
+		}
+
+		const stagedTitle = scmHeaders.find((val) => {
+				return val.match(/staged/i) ? true : false;
+			});
+
+		if (!stagedTitle) {
+			return Promise.reject(`No 'Staged' header title found in SCM viewlet`);
+		}
+
+		const monacoRowIndex = scmHeaders.indexOf(stagedTitle);
+		try {
+			return this.spectron.waitFor(this.spectron.client.getText, `.scm-status.show-file-icons .monaco-list-rows>:nth-child(${monacoRowIndex+1}) .monaco-count-badge`);
+		} catch (e) {
+			return Promise.reject('Stage count badge cannot be found');
+		}
 	}
 
 	public focusOnCommitBox(): Promise<any> {
