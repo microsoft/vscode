@@ -126,9 +126,9 @@ class SettingMatches {
 
 	private toDescriptionRange(setting: ISetting, match: IMatch, lineIndex: number): IRange {
 		return {
-			startLineNumber: setting.descriptionRanges[lineIndex].startLineNumber + lineIndex,
+			startLineNumber: setting.descriptionRanges[lineIndex].startLineNumber,
 			startColumn: setting.descriptionRanges[lineIndex].startColumn + match.start,
-			endLineNumber: setting.descriptionRanges[lineIndex].startLineNumber + lineIndex,
+			endLineNumber: setting.descriptionRanges[lineIndex].endLineNumber,
 			endColumn: setting.descriptionRanges[lineIndex].startColumn + match.end
 		};
 	}
