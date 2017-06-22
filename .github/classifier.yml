@@ -1,6 +1,6 @@
 {
     perform: true,
-    alwaysRequireAssignee: true,
+    alwaysRequireAssignee: false,
     labelsRequiringAssignee: [ feature-request ],
     autoAssignees: {
         accessibility: [],
