@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* Based on @sergeche's work in his emmet plugin */
+
 import * as vscode from 'vscode';
 import evaluate from '@emmetio/math-expression';
 import { DocumentStreamReader } from './bufferStream';

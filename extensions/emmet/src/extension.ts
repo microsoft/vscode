@@ -16,6 +16,7 @@ import { toggleComment } from './toggleComment';
 import { fetchEditPoint } from './editPoint';
 import { fetchSelectItem } from './selectItem';
 import { evaluateMathExpression } from './evaluateMathExpression';
+import { incrementDecrement } from './incrementDecrement';
 import { LANGUAGE_MODES, getMappedModes } from './util';
 import { updateExtensionsPath } from 'vscode-emmet-helper';
 
@@ -95,6 +96,32 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.evaluateMathExpression', () => {
 		evaluateMathExpression();
 	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('emmet.incrementNumberByOneTenth', () => {
+		incrementDecrement(.1);
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('emmet.incrementNumberByOne', () => {
+		incrementDecrement(1);
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('emmet.incrementNumberByTen', () => {
+		incrementDecrement(10);
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('emmet.decrementNumberByOneTenth', () => {
+		incrementDecrement(-0.1);
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('emmet.decrementNumberByOne', () => {
+		incrementDecrement(-1);
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('emmet.decrementNumberByTen', () => {
+		incrementDecrement(-10);
+	}));
+
+
 
 	updateExtensionsPath();
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {

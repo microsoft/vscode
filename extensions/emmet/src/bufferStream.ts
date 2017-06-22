@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* Based on @sergeche's work in his emmet plugin */
+
 'use strict';
 
 import { TextDocument, Position, Range, EndOfLine } from 'vscode';
 
 /**
- * A stream reader for VSCode's `TextDocument` 
+ * A stream reader for VSCode's `TextDocument`
  * Based on @emmetio/stream-reader and @emmetio/atom-plugin
  */
 export class DocumentStreamReader {
