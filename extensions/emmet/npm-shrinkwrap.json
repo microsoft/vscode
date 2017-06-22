@@ -111,6 +111,11 @@
       "version": "0.2.1",
       "from": "@emmetio/variable-resolver@>=0.2.1 <0.3.0",
       "resolved": "https://registry.npmjs.org/@emmetio/variable-resolver/-/variable-resolver-0.2.1.tgz"
+    },
+    "vscode-emmet-helper": {
+      "version": "0.0.6",
+      "from": "vscode-emmet-helper@0.0.6",
+      "resolved": "https://registry.npmjs.org/vscode-emmet-helper/-/vscode-emmet-helper-0.0.6.tgz"
     }
   }
 }
