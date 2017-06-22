@@ -36,6 +36,7 @@ export interface IQueryOptions {
 	filePattern?: string;
 	excludePattern?: IExpression;
 	includePattern?: IExpression;
+	fileEncoding?: string;
 	maxResults?: number;
 	sortByScore?: boolean;
 	cacheKey?: string;

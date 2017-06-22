@@ -55,7 +55,7 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 		}
 
 		const search = this._searchService.search({
-			folderResources: workspace.roots,
+			folderQueries: workspace.roots.map(root => ({ folder: root })),
 			type: QueryType.File,
 			maxResults,
 			includePattern: { [include]: true },
