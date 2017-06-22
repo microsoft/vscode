@@ -17,12 +17,16 @@ import { fetchEditPoint } from './editPoint';
 import { fetchSelectItem } from './selectItem';
 import { evaluateMathExpression } from './evaluateMathExpression';
 import { incrementDecrement } from './incrementDecrement';
-import { LANGUAGE_MODES, getMappedModes } from './util';
+import { LANGUAGE_MODES, getMappedModes, getExcludedModes } from './util';
 import { updateExtensionsPath } from 'vscode-emmet-helper';
 
 export function activate(context: vscode.ExtensionContext) {
 	let completionProvider = new DefaultCompletionItemProvider();
+	let exlcludedLanguages = getExcludedModes();
 	Object.keys(LANGUAGE_MODES).forEach(language => {
+		if (exlcludedLanguages.indexOf(language) > -1) {
+			return;
+		}
 		const provider = vscode.languages.registerCompletionItemProvider(language, completionProvider, ...LANGUAGE_MODES[language]);
 		context.subscriptions.push(provider);
 	});
