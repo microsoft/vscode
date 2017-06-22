@@ -13,7 +13,7 @@ import * as types from 'vs/base/common/types';
 import * as objects from 'vs/base/common/objects';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
-import { IWorkbenchThemeService, IColorTheme, IFileIconTheme, ExtensionData, IThemeExtensionPoint, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING, CUSTOM_COLORS_SETTING, DEPRECATED_CUSTOM_COLORS_SETTING } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, IColorTheme, ITokenColorCustomization, ITokenColorizationRule, IFileIconTheme, ExtensionData, IThemeExtensionPoint, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING, CUSTOM_WORKBENCH_COLORS_SETTING, DEPRECATED_CUSTOM_COLORS_SETTING, CUSTOM_EDITOR_COLORS_SETTING } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -181,11 +181,22 @@ const noFileIconTheme: IFileIconTheme = {
 	extensionData: null
 };
 
+const tokenGroupToScopesMap = {
+	comments: 'comment',
+	strings: 'string',
+	keywords: 'keyword',
+	numbers: 'constant.numeric',
+	types: 'entity.name.type',
+	functions: 'entity.name.function',
+	variables: 'variable'
+};
+
 export class WorkbenchThemeService implements IWorkbenchThemeService {
 	_serviceBrand: any;
 
 	private extensionsColorThemes: ColorThemeData[];
 	private colorCustomizations: IColorCustomizations;
+	private tokenColorCustomizations: ITokenColorizationRule[];
 	private numberOfColorCustomizations: number;
 	private currentColorTheme: ColorThemeData;
 	private container: HTMLElement;
@@ -212,7 +223,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		this.container = container;
 		this.extensionsColorThemes = [];
 		this.colorCustomizations = {};
-		this.numberOfColorCustomizations = 0;
+		this.tokenColorCustomizations = [];
 		this.onFileIconThemeChange = new Emitter<IFileIconTheme>();
 		this.knownIconThemes = [];
 		this.onColorThemeChange = new Emitter<IColorTheme>();
@@ -396,9 +407,11 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 						// the loaded theme is identical to the perisisted theme. Don't need to send an event.
 						this.currentColorTheme = themeData;
 						themeData.setCustomColors(this.colorCustomizations);
+						themeData.setCustomTokenColors(this.tokenColorCustomizations);
 						return TPromise.as(themeData);
 					}
 					themeData.setCustomColors(this.colorCustomizations);
+					themeData.setCustomTokenColors(this.tokenColorCustomizations);
 					this.updateDynamicCSSRules(themeData);
 					return this.applyTheme(themeData, settingsTarget);
 				}, error => {
@@ -504,7 +517,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		});
 	}
 
-	private hasCustomizationChanged(newColorCustomizations: IColorCustomizations, newColorIds: string[]): boolean {
+	private hasCustomizationChanged(newColorCustomizations: IColorCustomizations, newColorIds: string[], newTokenColorCustomizations: ITokenColorizationRule[]): boolean {
 		if (newColorIds.length !== this.numberOfColorCustomizations) {
 			return true;
 		}
@@ -514,21 +527,61 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				return true;
 			}
 		}
+
+		if (!objects.equals(newTokenColorCustomizations, this.tokenColorCustomizations)) {
+			return true;
+		}
+
 		return false;
 	}
 
+	private getTokenColorCustomizations(): ITokenColorizationRule[] {
+		let tokenColorCustomizations = this.configurationService.lookup<ITokenColorCustomization>(CUSTOM_EDITOR_COLORS_SETTING).value || {};
+		let rules: ITokenColorizationRule[] = [];
+
+		let value, settings, scope;
+		Object.keys(tokenGroupToScopesMap).forEach(key => {
+			value = tokenColorCustomizations[key];
+			settings = typeof value === 'string'
+				? { foreground: value }
+				: value;
+			scope = tokenGroupToScopesMap[key];
+
+			if (!settings) {
+				return;
+			}
+
+			rules.push({
+				scope,
+				settings
+			});
+		});
+
+		// Put the general customizations such as comments, strings, etc. first so that
+		// they can be overriden by specific customizations like "string.interpolated"
+		const textMateRules: ITokenColorizationRule[] = tokenColorCustomizations['textMateRules'] || [];
+
+		return rules.concat(textMateRules);
+	}
+
 	private updateColorCustomizations(notify = true): void {
-		let newColorCustomizations = this.configurationService.lookup<IColorCustomizations>(CUSTOM_COLORS_SETTING).value || {};
+		let newColorCustomizations = this.configurationService.lookup<IColorCustomizations>(CUSTOM_WORKBENCH_COLORS_SETTING).value || {};
 		let newColorIds = Object.keys(newColorCustomizations);
 		if (newColorIds.length === 0) {
 			newColorCustomizations = this.configurationService.lookup<IColorCustomizations>(DEPRECATED_CUSTOM_COLORS_SETTING).value || {};
 			newColorIds = Object.keys(newColorCustomizations);
 		}
-		if (this.hasCustomizationChanged(newColorCustomizations, newColorIds)) {
+
+		let newRules = this.getTokenColorCustomizations();
+
+		if (this.hasCustomizationChanged(newColorCustomizations, newColorIds, newRules)) {
 			this.colorCustomizations = newColorCustomizations;
+			this.tokenColorCustomizations = newRules;
 			this.numberOfColorCustomizations = newColorIds.length;
+
 			if (this.currentColorTheme) {
 				this.currentColorTheme.setCustomColors(newColorCustomizations);
+				this.currentColorTheme.setCustomTokenColors(newRules);
 				if (notify) {
 					this.updateDynamicCSSRules(this.currentColorTheme);
 					this.onColorThemeChange.fire(this.currentColorTheme);
@@ -986,7 +1039,7 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		[COLOR_THEME_SETTING]: colorThemeSettingSchema,
 		[ICON_THEME_SETTING]: iconThemeSettingSchema,
-		[CUSTOM_COLORS_SETTING]: colorCustomizationsSchema,
+		[CUSTOM_WORKBENCH_COLORS_SETTING]: colorCustomizationsSchema,
 		[DEPRECATED_CUSTOM_COLORS_SETTING]: deprecatedColorCustomizationsSchema
 	}
 });

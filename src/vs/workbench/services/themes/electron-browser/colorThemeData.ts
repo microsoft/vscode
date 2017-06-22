@@ -33,7 +33,13 @@ export class ColorThemeData implements IColorTheme {
 	label: string;
 	settingsId: string;
 	description?: string;
-	tokenColors?: ITokenColorizationRule[];
+	get tokenColors(): ITokenColorizationRule[] {
+		// Add the custom colors after the theme colors
+		// so that they will override them
+		return this.themeTokenColors.concat(this.customTokenColors || []);
+	}
+	themeTokenColors?: ITokenColorizationRule[];
+	customTokenColors?: ITokenColorizationRule[];
 	isLoaded: boolean;
 	path?: string;
 	extensionData: ExtensionData;
@@ -76,12 +82,16 @@ export class ColorThemeData implements IColorTheme {
 		}
 	}
 
+	public setCustomTokenColors(customTokenColors: ITokenColorizationRule[]) {
+		this.customTokenColors = customTokenColors;
+	}
+
 	public ensureLoaded(themeService: WorkbenchThemeService): TPromise<void> {
 		if (!this.isLoaded) {
-			this.tokenColors = [];
+			this.themeTokenColors = [];
 			this.colorMap = {};
 			if (this.path) {
-				return _loadColorThemeFromFile(this.path, this.tokenColors, this.colorMap).then(_ => {
+				return _loadColorThemeFromFile(this.path, this.themeTokenColors, this.colorMap).then(_ => {
 					this.isLoaded = true;
 					_sanitizeTokenColors(this);
 				});
@@ -137,7 +147,7 @@ export function createUnloadedTheme(id: string): ColorThemeData {
 	themeData.label = '';
 	themeData.settingsId = null;
 	themeData.isLoaded = false;
-	themeData.tokenColors = [{ settings: {} }];
+	themeData.themeTokenColors = [{ settings: {} }];
 	return themeData;
 }
 
@@ -267,7 +277,7 @@ function _sanitizeTokenColors(theme: ColorThemeData) {
 	if (!hasDefaultTokens) {
 		updatedTokenColors.push(...defaultThemeColors[theme.type]);
 	}
-	theme.tokenColors = updatedTokenColors;
+	theme.themeTokenColors = updatedTokenColors;
 }
 
 function updateDefaultRuleSettings(defaultRule: ITokenColorizationRule, theme: ColorThemeData): ITokenColorizationRule {
