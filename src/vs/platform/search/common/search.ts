@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as paths from 'vs/base/common/paths';
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
 import { mixin } from 'vs/base/common/objects';
@@ -33,7 +32,6 @@ export interface IFolderQueryOptions {
 }
 
 export interface IQueryOptions {
-	folderResources?: uri[]; // TODO remove
 	extraFileResources?: uri[];
 	filePattern?: string;
 	excludePattern?: IExpression;
