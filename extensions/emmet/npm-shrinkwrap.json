@@ -67,6 +67,11 @@
       "from": "@emmetio/markup-formatters@>=0.3.3 <0.4.0",
       "resolved": "https://registry.npmjs.org/@emmetio/markup-formatters/-/markup-formatters-0.3.3.tgz"
     },
+    "@emmetio/math-expression": {
+      "version": "0.1.1",
+      "from": "@emmetio/math-expression@>=0.1.1 <0.2.0",
+      "resolved": "https://registry.npmjs.org/@emmetio/math-expression/-/math-expression-0.1.1.tgz"
+    },
     "@emmetio/node": {
       "version": "0.1.2",
       "from": "@emmetio/node@>=0.1.2 <0.2.0",

@@ -15,7 +15,7 @@ export class DocumentStreamReader {
 	private document: TextDocument;
 	private start: Position;
 	private _eof: Position;
-	private pos: Position;
+	public pos: Position;
 	private _eol: string;
 
 	/**
