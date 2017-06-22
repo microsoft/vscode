@@ -55,12 +55,15 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 			return undefined;
 		}
 		const { roots } = this._workspace;
-		if (roots.length === 1) {
-			return roots[0].fsPath;
+		if (roots.length === 0) {
+			return undefined;
 		}
+		// if (roots.length === 1) {
+		return roots[0].fsPath;
+		// }
 		// return `undefined` when there no or more than 1
 		// root folder.
-		return undefined;
+		// return undefined;
 	}
 
 	getRelativePath(pathOrUri: string | vscode.Uri): string {

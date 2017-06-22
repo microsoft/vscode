@@ -27,7 +27,7 @@ import labels = require('vs/base/common/labels');
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { toResource, IEditorIdentifier, EditorInput } from 'vs/workbench/common/editor';
-import { FileStat, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
+import { FileStat, Model, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
 import { ExplorerView } from 'vs/workbench/parts/files/browser/views/explorerView';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/browser/explorerViewlet';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -365,13 +365,14 @@ export class BaseNewAction extends BaseFileAction {
 			return TPromise.wrapError('Invalid viewlet state provided to BaseNewAction.');
 		}
 
-		let folder: FileStat = this.presetFolder;
+		let folder = this.presetFolder;
 		if (!folder) {
 			const focus = <FileStat>this.tree.getFocus();
 			if (focus) {
 				folder = focus.isDirectory ? focus : focus.parent;
 			} else {
-				folder = this.tree.getInput();
+				const input: FileStat | Model = this.tree.getInput();
+				folder = input instanceof Model ? input.roots[0] : input;
 			}
 		}
 
@@ -795,7 +796,8 @@ export class ImportFileAction extends BaseFileAction {
 				if (this.element) {
 					targetElement = this.element;
 				} else {
-					targetElement = this.tree.getFocus() || this.tree.getInput();
+					const input: FileStat | Model = this.tree.getInput();
+					targetElement = this.tree.getFocus() || (input instanceof Model ? input.roots[0] : input);
 				}
 
 				if (!targetElement.isDirectory) {
@@ -935,7 +937,11 @@ export class PasteFileAction extends BaseFileAction {
 		super(PasteFileAction.ID, nls.localize('pasteFile', "Paste"), fileService, messageService, textFileService);
 
 		this.tree = tree;
-		this.element = element || this.tree.getInput();
+		this.element = element;
+		if (!this.element) {
+			const input: FileStat | Model = this.tree.getInput();
+			this.element = input instanceof Model ? input.roots[0] : input;
+		}
 		this._updateEnablement();
 	}
 
@@ -947,7 +953,7 @@ export class PasteFileAction extends BaseFileAction {
 		}
 
 		// Check if file was deleted or moved meanwhile
-		const root: FileStat = this.tree.getInput();
+		const root: FileStat = this.element.root;
 		const exists = root.find(fileToCopy.resource);
 		if (!exists) {
 			fileToCopy = null;
@@ -1041,12 +1047,11 @@ export class DuplicateFileAction extends BaseFileAction {
 	}
 
 	private findTarget(): URI {
-		const root: FileStat = this.tree.getInput();
 		let name = this.element.name;
 
 		let candidate = URI.file(paths.join(this.target.resource.fsPath, name));
 		while (true) {
-			if (!root.find(candidate)) {
+			if (!this.element.root.find(candidate)) {
 				break;
 			}
 
@@ -1262,13 +1267,15 @@ export class CompareResourcesAction extends Action {
 
 		// Check if file was deleted or moved meanwhile (explorer only)
 		if (this.tree) {
-			const root: FileStat = this.tree.getInput();
-			if (root instanceof FileStat) {
-				const exists = root.find(globalResourceToCompare);
-				if (!exists) {
-					globalResourceToCompare = null;
-					return false;
-				}
+			const input: FileStat | Model = this.tree.getInput();
+			if (input instanceof Model) {
+				return false;
+			}
+
+			const exists = input.find(globalResourceToCompare);
+			if (!exists) {
+				globalResourceToCompare = null;
+				return false;
 			}
 		}
 

@@ -340,7 +340,7 @@ class MockConfigurationService implements IConfigurationService {
 	public serviceId = IConfigurationService;
 	public constructor(private configuration: any = {}) { }
 	public reloadConfiguration<T>(section?: string): TPromise<T> { return TPromise.as(this.getConfiguration()); }
-	public lookup<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> { return { value: getConfigurationValue<T>(this.getConfiguration(), key), default: getConfigurationValue<T>(this.getConfiguration(), key), user: getConfigurationValue<T>(this.getConfiguration(), key), workspace: void 0 }; }
+	public lookup<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> { return { value: getConfigurationValue<T>(this.getConfiguration(), key), default: getConfigurationValue<T>(this.getConfiguration(), key), user: getConfigurationValue<T>(this.getConfiguration(), key), workspace: void 0, folder: void 0 }; }
 	public keys() { return { default: [], user: [], workspace: [] }; }
 	public values() { return {}; }
 	public getConfiguration(): any { return this.configuration; }

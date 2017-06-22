@@ -693,6 +693,7 @@ suite('TelemetryService', () => {
 						default: getConfigurationValue(this.getConfiguration(), key),
 						user: getConfigurationValue(this.getConfiguration(), key),
 						workspace: null,
+						folder: null
 					};
 				},
 				keys() { return { default: [], user: [], workspace: [] }; },

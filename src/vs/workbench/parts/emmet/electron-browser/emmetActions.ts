@@ -251,7 +251,13 @@ export abstract class EmmetEditorAction extends EditorAction {
 		'editor.emmet.action.selectNextItem': 'emmet.selectNextItem',
 		'editor.emmet.action.splitJoinTag': 'emmet.splitJoinTag',
 		'editor.emmet.action.toggleComment': 'emmet.toggleComment',
-		'editor.emmet.action.evaluateMath': 'emmet.evaluateMathExpression'
+		'editor.emmet.action.evaluateMath': 'emmet.evaluateMathExpression',
+		'editor.emmet.action.incrementNumberByOneTenth': 'emmet.incrementNumberByOneTenth',
+		'editor.emmet.action.incrementNumberByOne': 'emmet.incrementNumberByOne',
+		'editor.emmet.action.incrementNumberByTen': 'emmet.incrementNumberByTen',
+		'editor.emmet.action.decrementNumberByOneTenth': 'emmet.decrementNumberByOneTenth',
+		'editor.emmet.action.decrementNumberByOne': 'emmet.decrementNumberByOne',
+		'editor.emmet.action.decrementNumberByTen': 'emmet.decrementNumberByTen'
 	};
 
 	protected emmetActionName: string;

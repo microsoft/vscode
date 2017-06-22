@@ -58,11 +58,15 @@ export function getMappedModes(): any {
 	return finalMappedModes;
 }
 
+export function getExcludedModes(): string[] {
+	let excludedConfig = vscode.workspace.getConfiguration('emmet')['excludeLanguages'];
+	return Array.isArray(excludedConfig) ? excludedConfig : [];
+}
 /**
  * Returns node corresponding to given position in the given root node
- * @param root 
- * @param position 
- * @param includeNodeBoundary 
+ * @param root
+ * @param position
+ * @param includeNodeBoundary
  */
 export function getNode(root: Node, position: vscode.Position, includeNodeBoundary: boolean = false) {
 	let currentNode: Node = root.firstChild;
@@ -87,7 +91,7 @@ export function getNode(root: Node, position: vscode.Position, includeNodeBounda
 
 /**
  * Returns inner range of an html node.
- * @param currentNode 
+ * @param currentNode
  */
 export function getInnerRange(currentNode: Node): vscode.Range {
 	if (!currentNode.close) {

@@ -65,7 +65,7 @@ export class FileDataSource implements IDataSource {
 			return 'model';
 		}
 
-		return `${stat.root.toString()}:${stat.getId()}`;
+		return `${stat.root.resource.toString()}:${stat.getId()}`;
 	}
 
 	public hasChildren(tree: ITree, stat: FileStat | Model): boolean {
@@ -601,8 +601,8 @@ export class FileFilter implements IFilter {
 
 		// Hide those that match Hidden Patterns
 		const siblingsFn = () => siblings && siblings.map(c => c.name);
-		const expression = this.hiddenExpressionPerRoot.get(stat.root.toString()) || Object.create(null);
-		if (glob.match(expression, paths.normalize(paths.relative(stat.root.fsPath, stat.resource.fsPath)), siblingsFn)) {
+		const expression = this.hiddenExpressionPerRoot.get(stat.root.resource.toString()) || Object.create(null);
+		if (glob.match(expression, paths.normalize(paths.relative(stat.root.resource.fsPath, stat.resource.fsPath)), siblingsFn)) {
 			return false; // hidden through pattern
 		}
 

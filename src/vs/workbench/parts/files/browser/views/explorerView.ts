@@ -433,17 +433,25 @@ export class ExplorerView extends CollapsibleView {
 
 				// Add the new file to its parent (Model)
 				parents.forEach(p => {
-					const childElement = FileStat.create(addedElement, p.root);
-					p.removeChild(childElement); // make sure to remove any previous version of the file if any
-					p.addChild(childElement);
-					// Refresh the Parent (View)
-					this.explorerViewer.refresh(p).then(() => {
-						return this.reveal(childElement, 0.5).then(() => {
+					// We have to check if the parent is resolved #29177
+					(p.isDirectoryResolved ? TPromise.as(null) : this.fileService.resolveFile(p.resource)).then(stat => {
+						if (stat) {
+							const modelStat = FileStat.create(stat, p.root);
+							FileStat.mergeLocalWithDisk(modelStat, p);
+						}
 
-							// Focus new element
-							this.explorerViewer.setFocus(childElement);
-						});
-					}).done(null, errors.onUnexpectedError);
+						const childElement = FileStat.create(addedElement, p.root);
+						p.removeChild(childElement); // make sure to remove any previous version of the file if any
+						p.addChild(childElement);
+						// Refresh the Parent (View)
+						this.explorerViewer.refresh(p).then(() => {
+							return this.reveal(childElement, 0.5).then(() => {
+
+								// Focus new element
+								this.explorerViewer.setFocus(childElement);
+							});
+						}).done(null, errors.onUnexpectedError);
+					});
 				});
 			}
 		}
@@ -721,7 +729,7 @@ export class ExplorerView extends CollapsibleView {
 		// Load Root Stat with given target path configured
 		const promise = this.fileService.resolveFiles(targetsToResolve).then(stats => {
 			// Convert to model
-			const modelStats = stats.map((stat, index) => FileStat.create(stat, targetsToResolve[index].root.resource, targetsToResolve[index].options.resolveTo));
+			const modelStats = stats.map((stat, index) => FileStat.create(stat, targetsToResolve[index].root, targetsToResolve[index].options.resolveTo));
 			// Subsequent refresh: Merge stat into our local model and refresh tree
 			modelStats.forEach((modelStat, index) => FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]));
 
@@ -808,8 +816,8 @@ export class ExplorerView extends CollapsibleView {
 		return this.fileService.resolveFile(rootUri, options).then(stat => {
 
 			// Convert to model
-			const modelStat = FileStat.create(stat, rootUri, options.resolveTo);
 			const root = this.model.roots.filter(r => r.resource.toString() === rootUri.toString()).pop();
+			const modelStat = FileStat.create(stat, root, options.resolveTo);
 			// Update Input with disk Stat
 			FileStat.mergeLocalWithDisk(modelStat, root);
 
