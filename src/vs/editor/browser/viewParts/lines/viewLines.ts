@@ -157,6 +157,15 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 		return true;
 	}
+	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+		let rendStartLineNumber = this._visibleLines.getStartLineNumber();
+		let rendEndLineNumber = this._visibleLines.getEndLineNumber();
+		let r = false;
+		for (let lineNumber = rendStartLineNumber; lineNumber <= rendEndLineNumber; lineNumber++) {
+			r = this._visibleLines.getVisibleLine(lineNumber).onSelectionChanged() || r;
+		}
+		return r;
+	}
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		if (true/*e.inlineDecorationsChanged*/) {
 			let rendStartLineNumber = this._visibleLines.getStartLineNumber();
