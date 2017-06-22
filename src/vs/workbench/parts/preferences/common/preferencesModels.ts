@@ -637,10 +637,16 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 				section.titleRange = { startLineNumber: sectionTitleStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
 			}
 
-			for (const setting of section.settings) {
-				this.pushSetting(setting, indent);
-				lastSetting = setting;
+			if (section.settings.length) {
+				for (const setting of section.settings) {
+					this.pushSetting(setting, indent);
+					lastSetting = setting;
+				}
+			} else {
+				this._contentByLines.push('// No Settings');
+				this._contentByLines.push('');
 			}
+
 		}
 		group.range = { startLineNumber: groupStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
 		return lastSetting;
