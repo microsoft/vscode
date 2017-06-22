@@ -7,9 +7,16 @@
 
 import assert = require('assert');
 import { NsfwWatcherService } from 'vs/workbench/services/files/node/watcher/nsfw/nsfwWatcherService';
+import { IWatcherRequest } from "vs/workbench/services/files/node/watcher/nsfw/watcher";
 
 class TestNsfwWatcherService extends NsfwWatcherService {
-	public normalizeRoots(roots: string[]): string[] { return this._normalizeRoots(roots); }
+	public normalizeRoots(roots: string[]): string[] {
+		// Work with strings as paths to simplify testing
+		const requests: IWatcherRequest[] = roots.map(r => {
+			return { basePath: r, ignored: [] };
+		});
+		return this._normalizeRoots(requests).map(r => r.basePath);
+	}
 }
 
 suite('NSFW Watcher Service', () => {
