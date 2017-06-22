@@ -10,8 +10,6 @@ import nls = require('vs/nls');
 import { Action } from 'vs/base/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { IConfigurationService } from "vs/platform/configuration/common/configuration";
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 
@@ -23,8 +21,6 @@ export class RunTaskAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService
 	) {
 		super(id, label);
@@ -44,8 +40,6 @@ export class RestartTaskAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService
 	) {
 		super(id, label);
@@ -65,8 +59,6 @@ export class TerminateTaskAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService
 	) {
 		super(id, label);
@@ -86,8 +78,6 @@ export class BuildTaskAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService
 	) {
 		super(id, label);
@@ -107,8 +97,6 @@ export class TestTaskAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService
 	) {
 		super(id, label);
@@ -128,8 +116,6 @@ export class ShowTaskLogAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService
 	) {
 		super(id, label);

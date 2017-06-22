@@ -78,7 +78,6 @@ import 'vs/workbench/parts/trust/electron-browser/unsupportedWorkspaceSettings.c
 import 'vs/workbench/parts/relauncher/electron-browser/relauncher.contribution';
 
 import 'vs/workbench/parts/tasks/electron-browser/task.contribution';
-import 'vs/workbench/parts/tasks/common/taskActions';
 
 import 'vs/workbench/parts/emmet/browser/emmet.browser.contribution';
 import 'vs/workbench/parts/emmet/electron-browser/emmet.contribution';
