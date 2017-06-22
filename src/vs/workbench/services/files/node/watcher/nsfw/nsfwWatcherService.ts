@@ -45,7 +45,7 @@ export class NsfwWatcherService implements IWatcherService {
 		return this._watcherPromise;
 	}
 
-	private _watch(request: IWatcherRequest): TPromise<void> {
+	private _watch(request: IWatcherRequest): void {
 		let undeliveredFileEvents: watcher.IRawFileChange[] = [];
 		const fileEventDelayer = new ThrottledDelayer(NsfwWatcherService.FS_EVENT_DELAY);
 
@@ -55,67 +55,63 @@ export class NsfwWatcherService implements IWatcherService {
 			ignored: request.ignored
 		};
 
-		const promise = new TPromise<void>((c, e, p) => {
-			nsfw(request.basePath, events => {
-				for (let i = 0; i < events.length; i++) {
-					const e = events[i];
+		nsfw(request.basePath, events => {
+			for (let i = 0; i < events.length; i++) {
+				const e = events[i];
 
-					// Logging
-					if (this._verboseLogging) {
-						const logPath = e.action === nsfw.actions.RENAMED ? path.join(e.directory, e.oldFile) + ' -> ' + e.newFile : path.join(e.directory, e.file);
-						console.log(e.action === nsfw.actions.CREATED ? '[CREATED]' : e.action === nsfw.actions.DELETED ? '[DELETED]' : e.action === nsfw.actions.MODIFIED ? '[CHANGED]' : '[RENAMED]', logPath);
-					}
-
-					// Convert nsfw event to IRawFileChange and add to queue
-					let absolutePath: string;
-					if (e.action === nsfw.actions.RENAMED) {
-						// Rename fires when a file's name changes within a single directory
-						absolutePath = path.join(e.directory, e.oldFile);
-						if (!this._isPathIgnored(absolutePath, this._pathWatchers[request.basePath].ignored)) {
-							undeliveredFileEvents.push({ type: FileChangeType.DELETED, path: absolutePath });
-						}
-						absolutePath = path.join(e.directory, e.newFile);
-						if (!this._isPathIgnored(absolutePath, this._pathWatchers[request.basePath].ignored)) {
-							undeliveredFileEvents.push({ type: FileChangeType.ADDED, path: absolutePath });
-						}
-					} else {
-						absolutePath = path.join(e.directory, e.file);
-						if (!this._isPathIgnored(absolutePath, this._pathWatchers[request.basePath].ignored)) {
-							undeliveredFileEvents.push({
-								type: nsfwActionToRawChangeType[e.action],
-								path: absolutePath
-							});
-						}
-					}
+				// Logging
+				if (this._verboseLogging) {
+					const logPath = e.action === nsfw.actions.RENAMED ? path.join(e.directory, e.oldFile) + ' -> ' + e.newFile : path.join(e.directory, e.file);
+					console.log(e.action === nsfw.actions.CREATED ? '[CREATED]' : e.action === nsfw.actions.DELETED ? '[DELETED]' : e.action === nsfw.actions.MODIFIED ? '[CHANGED]' : '[RENAMED]', logPath);
 				}
 
-				// Delay and send buffer
-				fileEventDelayer.trigger(() => {
-					const events = undeliveredFileEvents;
-					undeliveredFileEvents = [];
-
-					// Broadcast to clients normalized
-					const res = watcher.normalize(events);
-					p(res);
-
-					// Logging
-					if (this._verboseLogging) {
-						res.forEach(r => {
-							console.log(' >> normalized', r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]', r.path);
+				// Convert nsfw event to IRawFileChange and add to queue
+				let absolutePath: string;
+				if (e.action === nsfw.actions.RENAMED) {
+					// Rename fires when a file's name changes within a single directory
+					absolutePath = path.join(e.directory, e.oldFile);
+					if (!this._isPathIgnored(absolutePath, this._pathWatchers[request.basePath].ignored)) {
+						undeliveredFileEvents.push({ type: FileChangeType.DELETED, path: absolutePath });
+					}
+					absolutePath = path.join(e.directory, e.newFile);
+					if (!this._isPathIgnored(absolutePath, this._pathWatchers[request.basePath].ignored)) {
+						undeliveredFileEvents.push({ type: FileChangeType.ADDED, path: absolutePath });
+					}
+				} else {
+					absolutePath = path.join(e.directory, e.file);
+					if (!this._isPathIgnored(absolutePath, this._pathWatchers[request.basePath].ignored)) {
+						undeliveredFileEvents.push({
+							type: nsfwActionToRawChangeType[e.action],
+							path: absolutePath
 						});
 					}
+				}
+			}
 
-					return TPromise.as(null);
-				});
-			}).then(watcher => {
-				this._pathWatchers[request.basePath].watcher = watcher;
-				const startPromise = watcher.start();
-				startPromise.then(() => readyPromiseCallback(watcher));
-				return startPromise;
+			// Delay and send buffer
+			fileEventDelayer.trigger(() => {
+				const events = undeliveredFileEvents;
+				undeliveredFileEvents = [];
+
+				// Broadcast to clients normalized
+				const res = watcher.normalize(events);
+				this._progressCallback(res);
+
+				// Logging
+				if (this._verboseLogging) {
+					res.forEach(r => {
+						console.log(' >> normalized', r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]', r.path);
+					});
+				}
+
+				return TPromise.as(null);
 			});
+		}).then(watcher => {
+			this._pathWatchers[request.basePath].watcher = watcher;
+			const startPromise = watcher.start();
+			startPromise.then(() => readyPromiseCallback(watcher));
+			return startPromise;
 		});
-
-		return promise;
 	}
 
 	public setRoots(roots: IWatcherRequest[]): TPromise<void> {
@@ -144,7 +140,7 @@ export class NsfwWatcherService implements IWatcherService {
 		});
 
 		// Start watching some roots
-		rootsToStartWatching.forEach(root => promises.push(this._watch(root)));
+		rootsToStartWatching.forEach(root => this._watch(root));
 
 		// Refresh ignored arrays in case they changed
 		roots.forEach(root => {
