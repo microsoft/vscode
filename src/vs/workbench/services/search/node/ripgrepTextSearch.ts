@@ -376,7 +376,7 @@ function foldersToRgExcludeGlobs(folderQueries: IFolderSearch[], globalExclude: 
 	const globArgs: string[] = [];
 	let siblingClauses: glob.IExpression = {};
 	folderQueries.forEach(folderQuery => {
-		const totalExcludePattern = objects.assign({}, globalExclude, folderQuery.excludePattern);
+		const totalExcludePattern = objects.assign({}, globalExclude || {}, folderQuery.excludePattern || {});
 		const result = globExprsToRgGlobs(totalExcludePattern, folderQuery.folder);
 		globArgs.push(...result.globArgs);
 		if (result.siblingClauses) {
@@ -449,7 +449,7 @@ function getRgArgs(config: IRawSearch): IRgGlobResult {
 	args.push('--follow');
 
 	// Set default encoding if only one folder is opened
-	if (config.folderQueries.length === 1 && config.folderQueries[0].fileEncoding !== 'utf8') {
+	if (config.folderQueries.length === 1 && config.folderQueries[0].fileEncoding && config.folderQueries[0].fileEncoding !== 'utf8') {
 		args.push('--encoding', encoding.toCanonicalName(config.folderQueries[0].fileEncoding));
 	}
 
