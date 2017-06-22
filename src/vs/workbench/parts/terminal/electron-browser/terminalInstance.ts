@@ -165,8 +165,8 @@ export class TerminalInstance implements ITerminalInstance {
 			return null;
 		}
 		const font = this._configHelper.getFont();
-		this._cols = Math.floor(dimension.width / font.charWidth);
-		this._rows = Math.floor(dimension.height / font.charHeight);
+		this._cols = Math.max(Math.floor(dimension.width / font.charWidth), 1);
+		this._rows = Math.max(Math.floor(dimension.height / font.charHeight), 1);
 		return dimension.width;
 	}
 
