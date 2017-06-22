@@ -721,7 +721,7 @@ export class ExplorerView extends CollapsibleView {
 		// Load Root Stat with given target path configured
 		const promise = this.fileService.resolveFiles(targetsToResolve).then(stats => {
 			// Convert to model
-			const modelStats = stats.map((stat, index) => FileStat.create(stat, targetsToResolve[index].root.resource, targetsToResolve[index].options.resolveTo));
+			const modelStats = stats.map((stat, index) => FileStat.create(stat, targetsToResolve[index].root, targetsToResolve[index].options.resolveTo));
 			// Subsequent refresh: Merge stat into our local model and refresh tree
 			modelStats.forEach((modelStat, index) => FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]));
 
@@ -808,8 +808,8 @@ export class ExplorerView extends CollapsibleView {
 		return this.fileService.resolveFile(rootUri, options).then(stat => {
 
 			// Convert to model
-			const modelStat = FileStat.create(stat, rootUri, options.resolveTo);
 			const root = this.model.roots.filter(r => r.resource.toString() === rootUri.toString()).pop();
+			const modelStat = FileStat.create(stat, root, options.resolveTo);
 			// Update Input with disk Stat
 			FileStat.mergeLocalWithDisk(modelStat, root);
 
