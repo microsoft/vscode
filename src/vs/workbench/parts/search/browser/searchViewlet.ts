@@ -210,7 +210,7 @@ export class SearchViewlet extends Viewlet {
 						this.onQueryChanged(false);
 					});
 
-				this.inputPatternIncludes.onSubmit(() => this.onQueryChanged(true));
+				this.inputPatternIncludes.onSubmit(() => this.onQueryChanged(true, true));
 				this.trackInputBox(this.inputPatternIncludes.inputFocusTracker);
 			});
 
@@ -233,7 +233,7 @@ export class SearchViewlet extends Viewlet {
 						this.onQueryChanged(false);
 					});
 
-				this.inputPatternExclusions.onSubmit(() => this.onQueryChanged(true));
+				this.inputPatternExclusions.onSubmit(() => this.onQueryChanged(true, true));
 				this.trackInputBox(this.inputPatternExclusions.inputFocusTracker);
 			});
 
