@@ -228,7 +228,13 @@ export class DiskSearch {
 		let request: PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>;
 
 		let rawSearch: IRawSearch = {
-			rootFolders: query.folderResources ? query.folderResources.map(r => r.fsPath) : [],
+			folderQueries: query.folderQueries ? query.folderQueries.map(q => {
+				return {
+					excludePattern: q.excludePattern,
+					fileEncoding: q.fileEncoding,
+					folder: q.folder.fsPath
+				};
+			}) : [],
 			extraFiles: query.extraFileResources ? query.extraFileResources.map(r => r.fsPath) : [],
 			filePattern: query.filePattern,
 			excludePattern: query.excludePattern,
@@ -243,7 +249,6 @@ export class DiskSearch {
 
 		if (query.type === QueryType.Text) {
 			rawSearch.contentPattern = query.contentPattern;
-			rawSearch.fileEncoding = query.fileEncoding;
 		}
 
 		if (query.type === QueryType.File) {

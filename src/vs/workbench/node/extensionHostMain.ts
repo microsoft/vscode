@@ -132,7 +132,7 @@ export class ExtensionHostMain {
 				}
 
 				const query: ISearchQuery = {
-					folderResources: this._workspace.roots,
+					folderQueries: this._workspace.roots.map(root => ({ folder: root })),
 					type: QueryType.File,
 					maxResults: 1,
 					includePattern: { [p]: true }

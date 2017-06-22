@@ -139,7 +139,7 @@ export class SearchViewlet extends Viewlet {
 
 		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
 		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration())));
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated()));
 
 		this.selectCurrentMatchEmitter = new Emitter<string>();
 		debounceEvent(this.selectCurrentMatchEmitter.event, (l, e) => e, 100, /*leading=*/true)
@@ -148,8 +148,13 @@ export class SearchViewlet extends Viewlet {
 		this.delayedRefresh = new Delayer<void>(250);
 	}
 
-	private onConfigurationUpdated(configuration: any): void {
-		this.updateGlobalPatternExclusions(configuration);
+	private onConfigurationUpdated(): void {
+		// TODO
+		// const workspace = this.contextService.getWorkspace2();
+		// workspace.roots.forEach(root => {
+		// 	const config = this.configurationService.getConfiguration(undefined, { resource: root });
+		// })
+		// this.updateGlobalPatternExclusions(configuration);
 	}
 
 	public create(parent: Builder): TPromise<void> {
@@ -911,8 +916,8 @@ export class SearchViewlet extends Viewlet {
 		const isWholeWords = this.searchWidget.searchInput.getWholeWords();
 		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
 		const contentPattern = this.searchWidget.searchInput.getValue();
-		const patternExcludes = this.inputPatternExclusions.getValue().trim();
-		const patternIncludes = this.inputPatternIncludes.getValue().trim();
+		const excludePatternText = this.inputPatternExclusions.getValue().trim();
+		const includePatternText = this.inputPatternIncludes.getValue().trim();
 		const useIgnoreFiles = this.inputPatternExclusions.useIgnoreFiles();
 		const useExcludeSettings = this.inputPatternExclusions.useExcludeSettings();
 
@@ -950,7 +955,6 @@ export class SearchViewlet extends Viewlet {
 		const { expression: includePattern, searchPaths } = this.inputPatternIncludes.getGlob();
 
 		const options: IQueryOptions = {
-			folderResources: this.contextService.hasWorkspace() ? this.contextService.getWorkspace2().roots : [],
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
 			excludePattern,
 			includePattern,
@@ -960,14 +964,15 @@ export class SearchViewlet extends Viewlet {
 			searchPaths
 		};
 
-		this.onQueryTriggered(this.queryBuilder.text(content, options), patternExcludes, patternIncludes);
+		const folderResources = this.contextService.hasWorkspace() ? this.contextService.getWorkspace2().roots : [];
+		this.onQueryTriggered(this.queryBuilder.text(content, folderResources, options), excludePatternText, includePatternText);
 
 		if (!preserveFocus) {
 			this.searchWidget.focus(false); // focus back to input field
 		}
 	}
 
-	private onQueryTriggered(query: ISearchQuery, excludePattern: string, includePattern: string): void {
+	private onQueryTriggered(query: ISearchQuery, excludePatternText: string, includePatternText: string): void {
 		this.viewModel.cancelSearch();
 
 		// Progress total is 100.0% for more progress bar granularity
@@ -1028,18 +1033,18 @@ export class SearchViewlet extends Viewlet {
 			}
 
 			if (!hasResults) {
-				let hasExcludes = !!excludePattern;
-				let hasIncludes = !!includePattern;
+				let hasExcludes = !!excludePatternText;
+				let hasIncludes = !!includePatternText;
 				let message: string;
 
 				if (!completed) {
 					message = nls.localize('searchCanceled', "Search was canceled before any results could be found - ");
 				} else if (hasIncludes && hasExcludes) {
-					message = nls.localize('noResultsIncludesExcludes', "No results found in '{0}' excluding '{1}' - ", includePattern, excludePattern);
+					message = nls.localize('noResultsIncludesExcludes', "No results found in '{0}' excluding '{1}' - ", includePatternText, excludePatternText);
 				} else if (hasIncludes) {
-					message = nls.localize('noResultsIncludes', "No results found in '{0}' - ", includePattern);
+					message = nls.localize('noResultsIncludes', "No results found in '{0}' - ", includePatternText);
 				} else if (hasExcludes) {
-					message = nls.localize('noResultsExcludes', "No results found excluding '{0}' - ", excludePattern);
+					message = nls.localize('noResultsExcludes', "No results found excluding '{0}' - ", excludePatternText);
 				} else {
 					message = nls.localize('noResultsFound', "No results found. Review your settings for configured exclusions - ");
 				}

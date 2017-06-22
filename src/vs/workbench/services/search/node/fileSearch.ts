@@ -626,7 +626,7 @@ export class Engine implements ISearchEngine<IRawFileMatch> {
 	private walker: FileWalker;
 
 	constructor(config: IRawSearch) {
-		this.rootFolders = config.rootFolders;
+		this.rootFolders = config.folderQueries.map(folderQ => folderQ.folder);
 		this.extraFiles = config.extraFiles;
 
 		this.walker = new FileWalker(config);

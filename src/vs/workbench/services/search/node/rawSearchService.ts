@@ -76,7 +76,7 @@ export class SearchService implements IRawSearchService {
 		let engine = new TextSearchEngine(
 			config,
 			new FileWalker({
-				rootFolders: config.rootFolders,
+				folderQueries: config.folderQueries,
 				extraFiles: config.extraFiles,
 				includePattern: config.includePattern,
 				excludePattern: config.excludePattern,
