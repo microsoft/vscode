@@ -458,6 +458,18 @@
         "url": "http://json.schemastore.org/typings"
       }
     ],
+    "taskTypes": [
+      {
+        "type": "typescript",
+        "required": ["tsconfig"],
+        "properties": {
+          "tsconfig": {
+            "type": "string",
+            "description": "The tsconfig file that defines the TS build"
+          }
+        }
+      }
+    ],
     "problemPatterns": [
       {
         "name": "tsc",

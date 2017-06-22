@@ -256,7 +256,7 @@ namespace CommandOptions {
 	function isShellConfiguration(value: any): value is { executable: string; shellArgs?: string[] } {
 		return value && typeof value.executable === 'string';
 	}
-	export function from(value: vscode.ShellTaskOptions | vscode.ProcessTaskOptions): TaskSystem.CommandOptions {
+	export function from(value: vscode.ShellExecutionOptions | vscode.ProcessExecutionOptions): TaskSystem.CommandOptions {
 		if (value === void 0 || value === null) {
 			return undefined;
 		}
@@ -321,37 +321,41 @@ namespace Tasks {
 			return undefined;
 		}
 		let command: TaskSystem.CommandConfiguration;
-		if (task instanceof types.ProcessTask) {
-			command = getProcessCommand(task);
-		} else if (task instanceof types.ShellTask) {
-			command = getShellCommand(task);
+		let execution = task.execution;
+		if (execution instanceof types.ProcessExecution) {
+			command = getProcessCommand(execution);
+		} else if (execution instanceof types.ShellExecution) {
+			command = getShellCommand(execution);
 		} else {
 			return undefined;
 		}
 		if (command === void 0) {
 			return undefined;
 		}
+		command.presentation = PresentationOptions.from(task.presentationOptions);
 		let source = {
 			kind: TaskSystem.TaskSourceKind.Extension,
 			label: typeof task.source === 'string' ? task.source : extension.name,
 			detail: extension.id
 		};
 		let label = nls.localize('task.label', '{0}: {1}', source.label, task.name);
-		let id = `${extension.id}.${task.identifierKey}`;
-		let identifier: TaskSystem.TaskIdentifier = {
-			_key: task.identifierKey,
-			type: task.identifier.type
+		let key = (task as types.Task).kindKey;
+		let kind = (task as types.Task).kind;
+		let id = `${extension.id}.${key}`;
+		let taskKind: TaskSystem.TaskIdentifier = {
+			_key: key,
+			type: kind.type
 		};
-		Objects.assign(identifier, task.identifier);
+		Objects.assign(taskKind, kind);
 		let result: TaskSystem.ContributedTask = {
 			_id: id, // uuidMap.getUUID(identifier),
 			_source: source,
 			_label: label,
-			type: task.identifier.type,
-			defines: identifier,
+			type: kind.type,
+			defines: taskKind,
 			name: task.name,
 			identifier: label,
-			group: types.TaskGroup.is(task.group) ? task.group : undefined,
+			group: task.group ? (task.group as types.TaskGroup).id : undefined,
 			command: command,
 			isBackground: !!task.isBackground,
 			problemMatchers: task.problemMatchers.slice()
@@ -359,7 +363,7 @@ namespace Tasks {
 		return result;
 	}
 
-	function getProcessCommand(value: vscode.ProcessTask): TaskSystem.CommandConfiguration {
+	function getProcessCommand(value: vscode.ProcessExecution): TaskSystem.CommandConfiguration {
 		if (typeof value.process !== 'string') {
 			return undefined;
 		}
@@ -368,7 +372,7 @@ namespace Tasks {
 			args: Strings.from(value.args),
 			runtime: TaskSystem.RuntimeType.Process,
 			suppressTaskName: true,
-			presentation: PresentationOptions.from(value.presentationOptions)
+			presentation: undefined
 		};
 		if (value.options) {
 			result.options = CommandOptions.from(value.options);
@@ -376,14 +380,14 @@ namespace Tasks {
 		return result;
 	}
 
-	function getShellCommand(value: vscode.ShellTask): TaskSystem.CommandConfiguration {
+	function getShellCommand(value: vscode.ShellExecution): TaskSystem.CommandConfiguration {
 		if (typeof value.commandLine !== 'string') {
 			return undefined;
 		}
 		let result: TaskSystem.CommandConfiguration = {
 			name: value.commandLine,
 			runtime: TaskSystem.RuntimeType.Shell,
-			presentation: PresentationOptions.from(value.presentationOptions)
+			presentation: undefined
 		};
 		if (value.options) {
 			result.options = CommandOptions.from(value.options);

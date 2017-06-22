@@ -34,12 +34,15 @@ export function activate(_context: vscode.ExtensionContext): void {
 			taskProvider.dispose();
 			taskProvider = undefined;
 		} else if (!taskProvider && autoDetect === 'on') {
-			taskProvider = vscode.workspace.registerTaskProvider({
+			taskProvider = vscode.workspace.registerTaskProvider('jake', {
 				provideTasks: () => {
 					if (!jakePromise) {
 						jakePromise = getJakeTasks();
 					}
 					return jakePromise;
+				},
+				resolveTask(_task: vscode.Task): vscode.Task | undefined {
+					return undefined;
 				}
 			});
 		}
@@ -81,7 +84,7 @@ function getOutputChannel(): vscode.OutputChannel {
 	return _channel;
 }
 
-interface JakeTaskIdentifier extends vscode.TaskIdentifier {
+interface JakeTaskKind extends vscode.TaskKind {
 	task: string;
 	file?: string;
 }
@@ -130,11 +133,11 @@ async function getJakeTasks(): Promise<vscode.Task[]> {
 				let matches = regExp.exec(line);
 				if (matches && matches.length === 2) {
 					let taskName = matches[1];
-					let identifier: JakeTaskIdentifier = {
+					let kind: JakeTaskKind = {
 						type: 'jake',
 						task: taskName
 					};
-					let task = new vscode.ShellTask(identifier, taskName, `${jakeCommand} ${taskName}`);
+					let task = new vscode.Task(kind, taskName, new vscode.ShellExecution(`${jakeCommand} ${taskName}`));
 					result.push(task);
 					let lowerCaseLine = line.toLowerCase();
 					if (lowerCaseLine === 'build') {

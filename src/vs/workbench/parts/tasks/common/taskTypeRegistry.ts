@@ -20,7 +20,7 @@ const taskTypeSchema: IJSONSchema = {
 	type: 'object',
 	additionalProperties: false,
 	properties: {
-		taskType: {
+		type: {
 			type: 'string',
 			description: nls.localize('TaskType.description', 'The actual task type')
 		},
@@ -36,7 +36,7 @@ const taskTypeSchema: IJSONSchema = {
 
 namespace Configuration {
 	export interface TaskTypeDescription {
-		taskType?: string;
+		type?: string;
 		required?: string[];
 		properties?: IJSONSchemaMap;
 	}
@@ -45,7 +45,7 @@ namespace Configuration {
 		if (!value) {
 			return undefined;
 		}
-		let taskType = Types.isString(value.taskType) ? value.taskType : undefined;
+		let taskType = Types.isString(value.type) ? value.type : undefined;
 		if (!taskType || taskType.length === 0) {
 			messageCollector.error(nls.localize('TaskTypeConfiguration.noType', 'The task type configuration is missing the required \'taskType\' property'));
 			return undefined;
@@ -64,7 +64,7 @@ namespace Configuration {
 
 
 const taskTypesExtPoint = ExtensionsRegistry.registerExtensionPoint<Configuration.TaskTypeDescription[]>('taskTypes', [], {
-	description: nls.localize('TaskTypeExtPoint', 'Contributes task types'),
+	description: nls.localize('TaskTypeExtPoint', 'Contributes task kinds'),
 	type: 'array',
 	items: taskTypeSchema
 });

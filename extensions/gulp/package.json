@@ -41,6 +41,22 @@
           "description": "%config.gulp.autoDetect%"
         }
       }
-    }
+    },
+    "taskTypes": [
+      {
+        "type": "gulp",
+        "required": ["task"],
+        "properties": {
+          "task": {
+            "type": "string",
+            "description": "The Gulp task to customize"
+          },
+          "file": {
+            "type": "string",
+            "description": "The Gulp file that provides the task. Can be omitted."
+          }
+        }
+      }
+    ]
   }
 }

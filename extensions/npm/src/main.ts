@@ -23,9 +23,12 @@ export function activate(_context: vscode.ExtensionContext): void {
 			taskProvider.dispose();
 			taskProvider = undefined;
 		} else if (!taskProvider && autoDetect === 'on') {
-			taskProvider = vscode.workspace.registerTaskProvider({
+			taskProvider = vscode.workspace.registerTaskProvider('npm', {
 				provideTasks: () => {
 					return getNpmScriptsAsTasks();
+				},
+				resolveTask(_task: vscode.Task): vscode.Task | undefined {
+					return undefined;
 				}
 			});
 		}
@@ -59,7 +62,7 @@ async function readFile(file: string): Promise<string> {
 	});
 }
 
-interface NpmTaskIdentifier extends vscode.TaskIdentifier {
+interface NpmTaskKind extends vscode.TaskKind {
 	script: string;
 	file?: string;
 }
@@ -87,11 +90,11 @@ async function getNpmScriptsAsTasks(): Promise<vscode.Task[]> {
 
 		const result: vscode.Task[] = [];
 		Object.keys(json.scripts).forEach(each => {
-			const identifier: NpmTaskIdentifier = {
+			const kind: NpmTaskKind = {
 				type: 'npm',
 				script: each
 			};
-			const task = new vscode.ShellTask(identifier, `run ${each}`, `npm run ${each}`);
+			const task = new vscode.Task(kind, `run ${each}`, new vscode.ShellExecution(`npm run ${each}`));
 			const lowerCaseTaskName = each.toLowerCase();
 			if (lowerCaseTaskName === 'build') {
 				task.group = vscode.TaskGroup.Build;
@@ -101,7 +104,7 @@ async function getNpmScriptsAsTasks(): Promise<vscode.Task[]> {
 			result.push(task);
 		});
 		// add some 'well known' npm tasks
-		result.push(new vscode.ShellTask({ type: 'npm', script: 'install' } as NpmTaskIdentifier, `install`, `npm install`));
+		result.push(new vscode.Task({ type: 'npm', script: 'install' } as NpmTaskKind, `install`, new vscode.ShellExecution(`npm install`)));
 		return Promise.resolve(result);
 	} catch (e) {
 		return Promise.resolve(emptyTasks);

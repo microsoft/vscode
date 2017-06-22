@@ -40,7 +40,7 @@
 				"command": ".\\scripts\\test.bat"
 			},
 			"group": "test",
-			"terminal": {
+			"presentation": {
 				"echo": true,
 				"reveal": "always"
 			}

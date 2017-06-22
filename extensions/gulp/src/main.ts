@@ -34,12 +34,15 @@ export function activate(_context: vscode.ExtensionContext): void {
 			taskProvider.dispose();
 			taskProvider = undefined;
 		} else if (!taskProvider && autoDetect === 'on') {
-			taskProvider = vscode.workspace.registerTaskProvider({
+			taskProvider = vscode.workspace.registerTaskProvider('gulp', {
 				provideTasks: () => {
 					if (!gulpPromise) {
 						gulpPromise = getGulpTasks();
 					}
 					return gulpPromise;
+				},
+				resolveTask(_task: vscode.Task): vscode.Task | undefined {
+					return undefined;
 				}
 			});
 		}
@@ -81,7 +84,7 @@ function getOutputChannel(): vscode.OutputChannel {
 	return _channel;
 }
 
-interface GulpTaskIdentifier extends vscode.TaskIdentifier {
+interface GulpTaskKind extends vscode.TaskKind {
 	task: string;
 	file?: string;
 }
@@ -126,11 +129,11 @@ async function getGulpTasks(): Promise<vscode.Task[]> {
 				if (line.length === 0) {
 					continue;
 				}
-				let identifier: GulpTaskIdentifier = {
+				let kind: GulpTaskKind = {
 					type: 'gulp',
 					task: line
 				};
-				let task = new vscode.ShellTask(identifier, line, `${gulpCommand} ${line}`);
+				let task = new vscode.Task(kind, line, new vscode.ShellExecution(`${gulpCommand} ${line}`));
 				result.push(task);
 				let lowerCaseLine = line.toLowerCase();
 				if (lowerCaseLine === 'build') {
