@@ -26,6 +26,63 @@
 	margin: 0;
 }
 
+/* The hc-black theme is already high contrast optimized */
+.monaco-editor.hc-black {
+	-ms-high-contrast-adjust: none;
+}
+/* In case the browser goes into high contrast mode and the editor is not configured with the hc-black theme */
+@media screen and (-ms-high-contrast:active) {
+
+	.monaco-editor.vs .view-overlays .current-line {
+		border-left: 0;
+		border-right: 0;
+	}
+
+	.monaco-editor.vs .cursor {
+		background-color: windowtext !important;
+	}
+
+	.monaco-editor.vs .selected-text {
+		background-color: highlight !important;
+	}
+
+	.monaco-editor.vs .view-line {
+		-ms-high-contrast-adjust: none;
+		mix-blend-mode: difference;
+	}
+
+	.monaco-editor.vs .view-line span {
+		color: windowtext !important;
+	}
+
+	.monaco-editor.vs .view-overlays {
+		-ms-high-contrast-adjust: none;
+	}
+
+	.monaco-editor.vs .selectionHighlight,
+	.monaco-editor.vs .wordHighlight,
+	.monaco-editor.vs .wordHighlightStrong,
+	.monaco-editor.vs .reference-decoration {
+		border: 2px dotted highlight !important;
+		background: transparent !important;
+		box-sizing: border-box;
+	}
+
+	.monaco-editor.vs .findMatch,
+	.monaco-editor.vs .currentFindMatch {
+		border: 2px dotted activeborder !important;
+		background: transparent !important;
+		box-sizing: border-box;
+	}
+
+	.monaco-editor.vs .find-widget {
+		border: 1px solid windowtext;
+	}
+	.monaco-editor.vs .rangeHighlight {
+		background: transparent !important;
+	}
+}
+
 /*.monaco-editor.vs [tabindex="0"]:focus {
 	outline: 1px solid rgba(0, 122, 204, 0.4);
 	outline-offset: -1px;
