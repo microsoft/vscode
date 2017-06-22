@@ -25,9 +25,10 @@ export function testTasks() {
 		});
 
 		it('verifies that eslint task results in 1 problem', async function () {
+			const expectedOutput = '1 problem (0 errors, 1 warning)';
 			await tasks.build();
-			const res = await tasks.getOutputResult();
-			assert.equal(res, '✖ 1 problem (0 errors, 1 warning)');
+			const actualOutput = await tasks.outputContains(expectedOutput);
+			assert.ok(actualOutput, `Output does not contain the following string: '${expectedOutput}'`);
 		});
 
 		it(`is able to select 'Git' output`, async function () {
@@ -38,12 +39,12 @@ export function testTasks() {
 			assert.equal(viewType, 'Git');
 		});
 
-		it('ensures that build task produces errors in index.js', async function () {
+		it('ensures that build task produces error in index.js', async function () {
 			await tasks.build();
-			assert.ok(await tasks.firstOutputLineEndsWith('index.js'));
+			assert.ok(await tasks.outputContains('index.js'), `Output does not contain error in index.js`);
 		});
 
-		it(`verifies build errors are reflected in 'Problems View'`, async function () {
+		it(`verifies build error is reflected in 'Problems View'`, async function () {
 			await tasks.build();
 			await tasks.openProblemsView();
 			const problemName = await tasks.getProblemsViewFirstElementName();

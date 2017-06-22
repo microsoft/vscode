@@ -24,16 +24,14 @@ export class Tasks {
 		return this.spectron.command('workbench.actions.view.problems');
 	}
 
-	public async firstOutputLineEndsWith(fileName: string): Promise<boolean> {
-		await this.spectron.command('workbench.action.toggleFullScreen'); // toggle full screen to prevent output view to be rendered as wrapped
-		const firstLine = await this.spectron.waitFor(this.spectron.client.getText, `${this.outputViewSelector}>:nth-child(2)`);
+	public async outputContains(string: string): Promise<boolean> {
+		const output: string = await this.spectron.waitFor(this.spectron.client.getText, this.outputViewSelector);
 
-		return firstLine.endsWith(fileName);
-	}
+		if (output.indexOf(string) !== -1) {
+			return true;
+		}
 
-	public async getOutputResult(): Promise<any> {
-		await this.spectron.command('workbench.action.toggleFullScreen'); // toggle full screen to prevent output view to be rendered as wrapped
-		return this.spectron.waitFor(this.spectron.client.getText, `${this.outputViewSelector}>:nth-child(5) span.mtk1`);
+		return false;
 	}
 
 	public selectOutputViewType(type: string): Promise<any> {
