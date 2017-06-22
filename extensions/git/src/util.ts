@@ -149,16 +149,6 @@ export async function mkdirp(path: string, mode?: number): Promise<boolean> {
 	return true;
 }
 
-export async function createOrAppendFile(path: string, data: string, options?: any): Promise<boolean> {
-	try {
-		await nfcall(fs.appendFile, path, data, options);
-	} catch (err) {
-		throw new Error(`Not able to append data in file '${path}'`);
-	}
-
-	return true;
-}
-
 export function uniqueFilter<T>(keyFn: (t: T) => string): (t: T) => boolean {
 	const seen: { [key: string]: boolean; } = Object.create(null);
 

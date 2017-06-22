@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, Command, EventEmitter, Event, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace } from 'vscode';
+import { Uri, Command, EventEmitter, Event, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit } from 'vscode';
 import { Git, Repository, Ref, Branch, Remote, Commit, GitErrorCodes } from './git';
 import { anyEvent, eventToPromise, filterEvent, EmptyDisposable, combinedDisposable, dispose } from './util';
 import { memoize, throttle, debounce } from './decorators';
@@ -540,8 +540,10 @@ export class Model implements Disposable {
 
 			// Append in new line.
 			textToAppend = newLineChar + textToAppend;
-
-			createOrAppendFile(ignoreFile, textToAppend);
+			const edit = new WorkspaceEdit();
+			const ignoreFileText = await workspace.openTextDocument(ignoreFile);
+			edit.insert(ignoreFileText.uri, ignoreFileText.lineAt(ignoreFileText.lineCount - 1).range.end, textToAppend);
+			workspace.applyEdit(edit);
 		});
 	}
 
