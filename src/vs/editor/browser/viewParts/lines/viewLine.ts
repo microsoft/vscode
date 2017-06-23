@@ -15,6 +15,7 @@ import { IVisibleLine } from 'vs/editor/browser/view/viewLayer';
 import { RangeUtil } from 'vs/editor/browser/viewParts/lines/rangeUtil';
 import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { ThemeType, HIGH_CONTRAST } from "vs/platform/theme/common/themeService";
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {
@@ -40,7 +41,7 @@ const canUseFastRenderedViewLine = (function () {
 	return true;
 })();
 
-const renderInlineSelection = (browser.isEdgeOrIE);
+const alwaysRenderInlineSelection = (browser.isEdgeOrIE);
 
 export class DomReadingContext {
 
@@ -67,6 +68,7 @@ export class DomReadingContext {
 }
 
 export class ViewLineOptions {
+	public readonly themeType: ThemeType;
 	public readonly renderWhitespace: 'none' | 'boundary' | 'all';
 	public readonly renderControlCharacters: boolean;
 	public readonly spaceWidth: number;
@@ -75,7 +77,8 @@ export class ViewLineOptions {
 	public readonly stopRenderingLineAfter: number;
 	public readonly fontLigatures: boolean;
 
-	constructor(config: IConfiguration) {
+	constructor(config: IConfiguration, themeType: ThemeType) {
+		this.themeType = themeType;
 		this.renderWhitespace = config.editor.viewInfo.renderWhitespace;
 		this.renderControlCharacters = config.editor.viewInfo.renderControlCharacters;
 		this.spaceWidth = config.editor.fontInfo.spaceWidth;
@@ -90,7 +93,8 @@ export class ViewLineOptions {
 
 	public equals(other: ViewLineOptions): boolean {
 		return (
-			this.renderWhitespace === other.renderWhitespace
+			this.themeType === other.themeType
+			&& this.renderWhitespace === other.renderWhitespace
 			&& this.renderControlCharacters === other.renderControlCharacters
 			&& this.spaceWidth === other.spaceWidth
 			&& this.useMonospaceOptimizations === other.useMonospaceOptimizations
@@ -145,7 +149,7 @@ export class ViewLine implements IVisibleLine {
 		this._options = newOptions;
 	}
 	public onSelectionChanged(): boolean {
-		if (renderInlineSelection) {
+		if (alwaysRenderInlineSelection) {
 			this._isMaybeInvalid = true;
 			return true;
 		}
@@ -164,7 +168,7 @@ export class ViewLine implements IVisibleLine {
 		const options = this._options;
 		const actualInlineDecorations = LineDecoration.filter(lineData.inlineDecorations, lineNumber, lineData.minColumn, lineData.maxColumn);
 
-		if (renderInlineSelection) {
+		if (alwaysRenderInlineSelection || options.themeType === HIGH_CONTRAST) {
 			const selections = viewportData.selections;
 			for (let i = 0, len = selections.length; i < len; i++) {
 				const selection = selections[i];
