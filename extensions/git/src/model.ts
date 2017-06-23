@@ -490,6 +490,11 @@ export class Model implements Disposable {
 	}
 
 	@throttle
+	async pullFromRemote(remote : string, branch : string): Promise<void> {
+		await this.run(Operation.Pull, () => this.repository.pull(true, remote, branch));
+	}
+
+	@throttle
 	async push(): Promise<void> {
 		await this.run(Operation.Push, () => this.repository.push());
 	}
