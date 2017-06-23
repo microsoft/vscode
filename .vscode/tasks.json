@@ -9,6 +9,9 @@
 	"linux": {
 		"command": "./node_modules/.bin/gulp"
 	},
+	"args": [
+		"--max_old_space_size=4096"
+	],
 	"isShellCommand": true,
 	"tasks": [
 		{
