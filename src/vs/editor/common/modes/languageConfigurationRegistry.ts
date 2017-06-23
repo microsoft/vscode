@@ -37,6 +37,12 @@ export interface IVirtualModel {
 	getLineContent(lineNumber: number): string;
 }
 
+export interface IndentConverter {
+	shiftIndent?(indentation: string): string;
+	unshiftIndent?(indentation: string): string;
+	normalizeIndentation?(indentation: string): string;
+}
+
 export class RichEditSupport {
 
 	private readonly _conf: LanguageConfiguration;
@@ -423,7 +429,7 @@ export class LanguageConfigurationRegistryImpl {
 		}
 	}
 
-	public getGoodIndentForLine(virtualModel: IVirtualModel, languageId: LanguageId, lineNumber: number, indentConverter: any): string {
+	public getGoodIndentForLine(virtualModel: IVirtualModel, languageId: LanguageId, lineNumber: number, indentConverter: IndentConverter): string {
 		let indentRulesSupport = this._getIndentRulesSupport(languageId);
 		if (!indentRulesSupport) {
 			return null;
@@ -450,7 +456,7 @@ export class LanguageConfigurationRegistryImpl {
 		return null;
 	}
 
-	public getIndentForEnter(model: ITokenizedModel, range: Range, indentConverter: any): { beforeEnter: string, afterEnter: string } {
+	public getIndentForEnter(model: ITokenizedModel, range: Range, indentConverter: IndentConverter): { beforeEnter: string, afterEnter: string } {
 		model.forceTokenization(range.startLineNumber);
 		let lineTokens = model.getLineTokens(range.startLineNumber);
 
@@ -542,7 +548,7 @@ export class LanguageConfigurationRegistryImpl {
 	 * We should always allow intentional indentation. It means, if users change the indentation of `lineNumber` and the content of
 	 * this line doesn't match decreaseIndentPattern, we should not adjust the indentation.
 	 */
-	public getIndentActionForType(model: ITokenizedModel, range: Range, ch: string, indentConverter: any): string {
+	public getIndentActionForType(model: ITokenizedModel, range: Range, ch: string, indentConverter: IndentConverter): string {
 		let scopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber, range.startColumn);
 		let indentRulesSupport = this._getIndentRulesSupport(scopedLineTokens.languageId);
 		if (!indentRulesSupport) {
