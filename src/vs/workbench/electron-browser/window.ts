@@ -25,6 +25,7 @@ import { toResource } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService, IResourceInputType } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService } from 'vs/platform/message/common/message';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IWindowsService, IWindowService, IWindowSettings, IWindowConfiguration, IPath, IOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -84,7 +85,8 @@ export class ElectronWindow extends Themable {
 		@IViewletService private viewletService: IViewletService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		super(themeService);
 
@@ -206,7 +208,11 @@ export class ElectronWindow extends Themable {
 
 		// Support runAction event
 		ipc.on('vscode:runAction', (event, actionId: string) => {
-			this.commandService.executeCommand(actionId, { from: 'menu' }).done(undefined, err => this.messageService.show(Severity.Error, err));
+			this.commandService.executeCommand(actionId, { from: 'menu' }).done(_ => {
+				this.telemetryService.publicLog('commandExecuted', { id: actionId, from: 'menu' });
+			}, err => {
+				this.messageService.show(Severity.Error, err);
+			});
 		});
 
 		// Support resolve keybindings event
