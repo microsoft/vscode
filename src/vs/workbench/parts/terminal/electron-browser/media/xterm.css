@@ -144,6 +144,10 @@
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-selection div {
 	position: absolute;
 }
+/* TODO: Remove in favor of theme keys, see #28397*/
+.monaco-workbench .panel.integrated-terminal .xterm .xterm-selection div { background-color: #000; }
+.vs-dark .monaco-workbench .panel.integrated-terminal .xterm .xterm-selection div { background-color: #FFF; }
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm .xterm-selection div { background-color: #FFF; }
 
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-bold {
 	font-weight: bold;
