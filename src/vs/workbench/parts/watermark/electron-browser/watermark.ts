@@ -18,8 +18,6 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { KeybindingsReferenceAction, OpenRecentAction } from 'vs/workbench/electron-browser/actions';
-import { ShowRecommendedKeymapExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { OpenRecentAction } from 'vs/workbench/electron-browser/actions';
 import { GlobalNewUntitledFileAction, OpenFileAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
