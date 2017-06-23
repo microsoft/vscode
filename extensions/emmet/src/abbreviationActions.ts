@@ -18,6 +18,7 @@ export function wrapWithAbbreviation() {
 		vscode.window.showInformationMessage('No editor is active');
 		return;
 	}
+	const newLine = editor.document.eol === vscode.EndOfLine.LF ? '\n' : '\r\n';
 	let syntax = getSyntax(editor.document);
 
 	vscode.window.showInputBox({ prompt: 'Enter Abbreviation' }).then(abbr => {
@@ -52,7 +53,7 @@ export function wrapWithAbbreviation() {
 		// We will not be able to maintain multiple cursors after snippet insertion
 		if (!allTextToReplaceSame) {
 			textToReplaceList.forEach(([textToReplace, rangeToReplace]) => {
-				let expandedText = expand(abbr, getExpandOptions(syntax, textToReplace));
+				let expandedText = expand(abbr, getExpandOptions(syntax, newLine + textToReplace + newLine));
 				if (expandedText) {
 					editor.insertSnippet(new vscode.SnippetString(expandedText), rangeToReplace);
 				}
@@ -63,7 +64,7 @@ export function wrapWithAbbreviation() {
 		// Text to replace at all cursors are the same
 		// We can pass all ranges to `editor.insertSnippet` in a single call so that 
 		// all cursors are maintained after snippet insertion
-		let expandedText = expand(abbr, getExpandOptions(syntax, textToReplaceList[0][0]));
+		let expandedText = expand(abbr, getExpandOptions(syntax, newLine + textToReplaceList[0][0] + newLine));
 		let allRanges = textToReplaceList.map(value => {
 			return value[1];
 		});
