@@ -25,19 +25,33 @@ export class Extensions {
 		const searchBoxSelector = `${this.extensionsViewletSelector} .search-box`;
 
 		await this.spectron.client.clearElement(searchBoxSelector);
-		await this.spectron.client.click(searchBoxSelector, false);
+		try {
+			await this.spectron.client.click(searchBoxSelector, false);
+		} catch (e) {
+			return Promise.reject('Failed to click on search box in extensions viewlet.');
+		}
 		await this.spectron.client.keys(name);
+
 		return this.spectron.client.keys(['NULL', 'Enter', 'NULL']);
 	}
 
 	public async installExtension(name: string): Promise<any> {
 		const extensionListSelector = `${this.extensionsViewletSelector} .monaco-list-rows`;
 		this.viewletExtensionIndex = await this.getExtensionIndex(name, extensionListSelector);
-		return this.spectron.client.click(`${extensionListSelector}>:nth-child(${this.viewletExtensionIndex}) .extension .extension-action.install`);
+
+		try {
+			return this.spectron.client.click(`${extensionListSelector}>:nth-child(${this.viewletExtensionIndex}) .extension .extension-action.install`);
+		} catch (e) {
+			return Promise.reject('Failed to click on install button for selected extension.');
+		}
 	}
 
 	public getExtensionReloadText(): Promise<any> {
-		return this.spectron.waitFor(this.spectron.client.getText, `${this.extensionsViewletSelector} .monaco-list-rows>:nth-child(${this.viewletExtensionIndex}) .extension .extension-action.reload`);
+		try {
+			return this.spectron.waitFor(this.spectron.client.getText, `${this.extensionsViewletSelector} .monaco-list-rows>:nth-child(${this.viewletExtensionIndex}) .extension .extension-action.reload`);
+		} catch (e) {
+			return Promise.reject('Reload was not prompted for an installed extension.');
+		}
 	}
 
 	public async selectMinimalIconsTheme(): Promise<any> {
@@ -49,7 +63,11 @@ export class Extensions {
 	}
 
 	public async verifyFolderIconAppearance(): Promise<any> {
-		return this.spectron.waitFor(this.spectron.client.getHTML, 'style[class="contributedIconTheme"]');
+		try {
+			return this.spectron.waitFor(this.spectron.client.getHTML, 'style[class="contributedIconTheme"]');
+		} catch (e) {
+			return Promise.reject('Failed to validate extension contribution.');
+		}
 	}
 
 	private getExtensionIndex(name: string, extensionListSelector: string): Promise<number> {
@@ -57,15 +75,15 @@ export class Extensions {
 			const html = await this.spectron.waitFor(this.spectron.client.getHTML, extensionListSelector);
 			let extensionIndex: number = 0;
 			let extension: boolean;
-			var domelems:string[] = [];
-			var parser = new htmlparser.Parser({
+			let tags: string[] = [];
+			let parser = new htmlparser.Parser({
 				onopentag: function (name, attribs) {
 					if (name === 'div' && attribs.class === 'extension') {
 						extensionIndex++;
 						extension = true;
 					}
 					if (extension) {
-						domelems.push(name);
+						tags.push(name);
 					}
 				},
 				ontext: function (text) {
@@ -75,17 +93,17 @@ export class Extensions {
 				},
 				onclosetag: function (name) {
 					if (extension) {
-						domelems.pop();
+						tags.pop();
 					}
-					if (extension && domelems.length === 0) {
+					if (extension && tags.length === 0) {
 						extension = false;
 					}
 				},
 				onend: function () {
 					if (extensionIndex === 0) {
-						rej(`${name} extension was not found.`);
+						return rej(`${name} extension was not found.`);
 					}
-					res(extensionIndex);
+					return res(extensionIndex);
 				}
 			});
 			parser.write(html);

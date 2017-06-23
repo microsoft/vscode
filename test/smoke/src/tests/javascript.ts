@@ -73,7 +73,7 @@ export function testJavaScript() {
 			await common.openFirstMatchFile('app.js');
 			await js.goToExpressDefinition();
 			await app.wait();
-			assert.ok(await common.getTab('index.d.ts'));
+			assert.ok(await common.getTab('index.d.ts'), 'Tab opened when navigating to definition is not as expected.');
 		});
 
 		it(`verifies that 'Peek Definition' works`, async function () {
@@ -81,7 +81,7 @@ export function testJavaScript() {
 			await js.peekExpressDefinition();
 			await app.wait();
 			const definitionFilename = await js.getPeekExpressResultName();
-			assert.equal(definitionFilename, 'index.d.ts');
+			assert.equal(definitionFilename, 'index.d.ts', 'Peek result is not as expected.');
 		});
 	});
 }

@@ -66,7 +66,11 @@ export class JavaScript {
 		this.foldLine = await this.getLineIndexOfFirstFoldableElement(`.margin-view-overlays`);
 		this.foldSelector = `.margin-view-overlays>:nth-child(${this.foldLine})`;
 
-		return this.spectron.client.click(`${this.foldSelector} .cldr.folding`);
+		try {
+			return this.spectron.client.click(`${this.foldSelector} .cldr.folding`);
+		} catch (e) {
+			return Promise.reject('Clicking on fold element failed ' + e);
+		}
 	}
 
 	public async getFirstCommentFoldedIcon(): Promise<any> {
@@ -82,19 +86,27 @@ export class JavaScript {
 			return Promise.reject('Folded line was not set, most likely because fold was not toggled initially.');
 		}
 
-		return this.spectron.client.getText(`.margin-view-overlays>:nth-child(${this.foldLine+1}) .line-numbers`);
+		return this.spectron.client.getText(`.margin-view-overlays>:nth-child(${this.foldLine + 1}) .line-numbers`);
 	}
 
 	public async goToExpressDefinition(): Promise<any> {
 		await this.setExpressVarSelector();
-		await this.spectron.client.click(this.expressVarSelector);
+		try {
+			await this.spectron.client.click(this.expressVarSelector);
+		} catch (e) {
+			return Promise.reject(`Clicking on express variable failed: ` + e);
+		}
 
 		return this.spectron.command('editor.action.goToDeclaration');
 	}
 
 	public async peekExpressDefinition(): Promise<any> {
 		await this.setExpressVarSelector();
-		await this.spectron.client.click(this.expressVarSelector);
+		try {
+			await this.spectron.client.click(this.expressVarSelector);
+		} catch (e) {
+			return Promise.reject('Clicking on express variable failed: ' + e);
+		}
 
 		return this.spectron.command('editor.action.previewDeclaration');
 	}

@@ -48,9 +48,9 @@ export function testTasks() {
 			await tasks.build();
 			await tasks.openProblemsView();
 			const problemName = await tasks.getProblemsViewFirstElementName();
-			assert.equal(problemName, 'index.js');
+			assert.equal(problemName, 'index.js', `'index.js' is not a build error.`);
 			const problemsCount = await tasks.getProblemsViewFirstElementCount();
-			assert.equal(problemsCount, '1');
+			assert.equal(problemsCount, '1', `Problem count is different to expected.`);
 		});
 	});
 }

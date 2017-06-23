@@ -35,7 +35,11 @@ export class JavaScriptDebug {
 	}
 
 	public setBreakpointOnLine(lineNumber: number): Promise<any> {
-		return this.spectron.client.leftClick(`${this.sidebarSelector}>:nth-child(${lineNumber})`, 5, 5);
+		try {
+			return this.spectron.client.leftClick(`${this.sidebarSelector}>:nth-child(${lineNumber})`, 5, 5);
+		} catch (e) {
+			return Promise.reject('Setting breakpoint failed: ' + e);
+		}
 	}
 
 	public async verifyBreakpointOnLine(lineNumber: number): Promise<any> {

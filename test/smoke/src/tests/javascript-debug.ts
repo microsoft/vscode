@@ -38,7 +38,7 @@ export function testJavaScriptDebug() {
 			await common.openFirstMatchFile('index.js');
 			await jsDebug.setBreakpointOnLine(6);
 			const breakpoint = await jsDebug.verifyBreakpointOnLine(6);
-			assert.ok(breakpoint);
+			assert.ok(breakpoint, 'Breakpoint was not found on line 6.');
 		});
 	});
 }

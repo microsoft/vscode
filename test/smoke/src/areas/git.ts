@@ -105,16 +105,29 @@ export class Git {
 	}
 
 	public focusOnCommitBox(): Promise<any> {
-		return this.spectron.client.click('div[id="workbench.view.scm"] textarea');
+		try {
+			return this.spectron.client.click('div[id="workbench.view.scm"] textarea');
+		} catch (e) {
+			return Promise.reject('Failed to focus on commit box: ' + e);
+		}
 	}
 
 	public async pressCommit(): Promise<any> {
-		await this.spectron.client.click('.action-label.icon.contrib-cmd-icon-10');
+		try {
+			await this.spectron.client.click('.action-label.icon.contrib-cmd-icon-10');
+		} catch (e) {
+			return Promise.reject('Failed to press commit: ' + e);
+		}
+
 		return this.spectron.wait();
 	}
 
 	public getOutgoingChanges(): Promise<string> {
-		return this.spectron.client.getText('a[title="Synchronize Changes"]');
+		try {
+			return this.spectron.client.getText('a[title="Synchronize Changes"]');
+		} catch (e) {
+			return Promise.reject(`Failed to obtain 'synchronize changes' title value from the status bar.`);
+		}
 	}
 
 	private getFirstChangeIndex(changeClass: string, selector: string): Promise<number> {

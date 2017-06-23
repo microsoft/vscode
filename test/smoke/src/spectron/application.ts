@@ -142,7 +142,7 @@ export class SpectronApplication {
 	public command(command: string, capture?: boolean): Promise<any> {
 		const binding = this.keybindings.find(x => x['command'] === command);
 		if (!binding) {
-			throw new Error(`Key binding for ${command} was not found`);
+			return Promise.reject(`Key binding for ${command} was not found.`);
 		}
 
 		const keys: string = binding.key;
