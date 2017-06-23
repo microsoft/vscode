@@ -11,7 +11,6 @@ import 'vs/workbench/parts/tasks/browser/terminateQuickOpen';
 import 'vs/workbench/parts/tasks/browser/restartQuickOpen';
 import 'vs/workbench/parts/tasks/browser/buildQuickOpen';
 import 'vs/workbench/parts/tasks/browser/testQuickOpen';
-import 'vs/workbench/parts/tasks/common/taskActions';
 
 import * as nls from 'vs/nls';
 
