@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as path from 'vs/base/common/paths';
 import nls = require('vs/nls');
 import Event, { Emitter } from 'vs/base/common/event';
 import { TPromise, TValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
@@ -27,20 +26,14 @@ import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel'
 import { IBackupFileService, BACKUP_FILE_RESOLVE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
 import { IFileService, IFileStat, IFileOperationResult, FileOperationResult, IContent, CONTENT_CHANGE_EVENT_BUFFER_DELAY, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, Severity, IChoiceService } from 'vs/platform/message/common/message';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { anonymize } from 'vs/platform/telemetry/common/telemetryUtils';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IRawTextSource } from 'vs/editor/common/model/textSource';
-import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
-import { localize } from 'vs/nls';
-import { Action } from 'vs/base/common/actions';
 
-// TODO@Rob layer breaker
-// tslint:disable-next-line:import-patterns
-import { ShowTasksAction, ShowTasksDocumentationAction } from 'vs/workbench/parts/quickopen/common/quickopenActions';
 /**
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
  */
@@ -93,8 +86,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IChoiceService private choiceService: IChoiceService,
-		@IStorageService private storageService: IStorageService
 	) {
 		super(modelService, modeService);
 
@@ -328,58 +319,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Resolve Content
 		return this.textFileService
 			.resolveTextContent(this.resource, { acceptTextOnly: true, etag, encoding: this.preferredEncoding })
-			.then(content => this.handleLoadSuccess(content), error => this.handleLoadError(error))
-			.then((result) => {
-				this.showTaskNotification();
-				return result;
-			});
-	}
-
-	private showTaskNotification(): void {
-		const storageKey = 'workbench.tasks.ranTaskBefore';
-		const ignoreKey = 'workbench.tasks.ignoreTaskNotification';
-		if (!this.storageService.get(ignoreKey) && !this.storageService.get(storageKey) && this.contextService.getWorkspace2()
-			&& this.contextService.getWorkspace2().roots && this.contextService.getWorkspace2().roots.length > 0) {
-			const fileName = path.relative(this.contextService.getWorkspace2().roots[0].toString(), this.resource.toString());
-			if (fileName.match(/^gruntfile\.js$/i) || fileName.match(/^gulpfile\.js$/i) || fileName.match(/^tsconfig\.json$/i)) {
-				const message = localize('taskFileOpened', `Run your {0} in VS Code. Get started here.`, fileName.split('.')[0]);
-				let action: Action;
-				let messageTest: string;
-				const showDocumentation = this.telemetryService.getExperiments().showTaskDocumentation;
-				if (showDocumentation) {
-					action = this.instantiationService.createInstance(ShowTasksDocumentationAction, ShowTasksDocumentationAction.ID, localize('showTaskDocumentation', "Show task Documentation"));
-					messageTest = ShowTasksDocumentationAction.LABEL;
-				} else {
-					action = this.instantiationService.createInstance(ShowTasksAction, ShowTasksAction.ID, localize('showTasks', "Show tasks"));
-					messageTest = ShowTasksAction.LABEL;
-				}
-				const options = [
-					messageTest,
-					localize('neverShowAgain', "Don't show again"),
-					localize('close', "Close")
-				];
-
-				this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
-					switch (choice) {
-						case 0: {
-							this.telemetryService.publicLog('taskNotificationOptionChoice',
-								{ choice: 0, test: showDocumentation });
-							return action.run();
-						}
-						case 1: {
-							this.telemetryService.publicLog('taskNotificationOptionChoice',
-								{ choice: 1, test: showDocumentation });
-							return this.storageService.store(ignoreKey, true, StorageScope.GLOBAL);
-						}
-						case 2: {
-							this.telemetryService.publicLog('taskNotificationOptionChoice',
-								{ choice: 2, test: showDocumentation });
-							return;
-						}
-					}
-				});
-			}
-		}
+			.then(content => this.handleLoadSuccess(content), error => this.handleLoadError(error));
 	}
 
 	private handleLoadSuccess(content: IRawTextContent): TPromise<TextFileEditorModel> {
