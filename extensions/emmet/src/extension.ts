@@ -17,7 +17,7 @@ import { fetchEditPoint } from './editPoint';
 import { fetchSelectItem } from './selectItem';
 import { evaluateMathExpression } from './evaluateMathExpression';
 import { incrementDecrement } from './incrementDecrement';
-import { LANGUAGE_MODES, getMappedModes, getExcludedModes } from './util';
+import { LANGUAGE_MODES, getExcludedModes } from './util';
 import { updateExtensionsPath } from 'vscode-emmet-helper';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -30,14 +30,6 @@ export function activate(context: vscode.ExtensionContext) {
 		const provider = vscode.languages.registerCompletionItemProvider(language, completionProvider, ...LANGUAGE_MODES[language]);
 		context.subscriptions.push(provider);
 	});
-
-	let completionProviderForMappedSyntax = new DefaultCompletionItemProvider(true);
-	let mappedModes = getMappedModes();
-	Object.keys(mappedModes).forEach(syntax => {
-		const provider = vscode.languages.registerCompletionItemProvider(syntax, completionProviderForMappedSyntax, ...LANGUAGE_MODES[mappedModes[syntax]]);
-		context.subscriptions.push(provider);
-	});
-
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.wrapWithAbbreviation', () => {
 		wrapWithAbbreviation();
