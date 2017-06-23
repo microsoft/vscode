@@ -45,7 +45,7 @@ export interface ITaskService extends IEventEmitter {
 	getTasksForGroup(group: string): TPromise<Task[]>;
 	getRecentlyUsedTasks(): LinkedMap<string, string>;
 
-	customize(task: Task, openConfig?: boolean): TPromise<void>;
+	customize(task: Task, properties?: { problemMatcher: string | string[] }, openConfig?: boolean): TPromise<void>;
 
 	registerTaskProvider(handle: number, taskProvider: ITaskProvider): void;
 	unregisterTaskProvider(handle: number): boolean;

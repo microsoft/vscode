@@ -1473,8 +1473,6 @@ namespace Globals {
 
 export namespace ExecutionEngine {
 
-	export const _default: Tasks.ExecutionEngine = Tasks.ExecutionEngine.Process;
-
 	export function from(config: ExternalTaskRunnerConfiguration): Tasks.ExecutionEngine {
 		let runner = config.runner || config._runner;
 		let result: Tasks.ExecutionEngine;
@@ -1497,12 +1495,11 @@ export namespace ExecutionEngine {
 			throw new Error('Shouldn\'t happen.');
 		}
 	}
-
 }
 
 export namespace JsonSchemaVersion {
 
-	export const _default: Tasks.JsonSchemaVersion = Tasks.JsonSchemaVersion.V0_1_0;
+	const _default: Tasks.JsonSchemaVersion = Tasks.JsonSchemaVersion.V2_0_0;
 
 	export function from(config: ExternalTaskRunnerConfiguration): Tasks.JsonSchemaVersion {
 		let version = config.version;

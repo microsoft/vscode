@@ -362,6 +362,10 @@ export enum ExecutionEngine {
 	Terminal = 2
 }
 
+export namespace ExecutionEngine {
+	export const _default: ExecutionEngine = ExecutionEngine.Terminal;
+}
+
 export enum JsonSchemaVersion {
 	V0_1_0 = 1,
 	V2_0_0 = 2

@@ -610,7 +610,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				? ExecutionEngine.Terminal
 				: this._taskSystem instanceof ProcessTaskSystem
 					? ExecutionEngine.Process
-					: undefined;
+					: ExecutionEngine._default;
 			if (currentExecutionEngine !== this.getExecutionEngine()) {
 				this.messageService.show(Severity.Info, nls.localize('TaskSystem.noHotSwap', 'Changing the task execution engine requires restarting VS Code. The change is ignored.'));
 			}
@@ -820,7 +820,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		return { configured, detected };
 	}
 
-	public customize(task: Task, openConfig: boolean = false): TPromise<void> {
+	public customize(task: Task, properties?: { problemMatcher: string | string[] }, openConfig?: boolean): TPromise<void> {
 		if (!ContributedTask.is(task)) {
 			return TPromise.as<void>(undefined);
 		}
@@ -836,9 +836,19 @@ class TaskService extends EventEmitter implements ITaskService {
 		delete identifier['_key'];
 		Object.keys(identifier).forEach(key => customizes[key] = identifier[key]);
 
-		if (task.problemMatchers === void 0 || task.problemMatchers.length === 0) {
-			customizes.problemMatcher = [];
+		if (properties) {
+			for (let property of Object.getOwnPropertyNames(properties)) {
+				let value = properties[property];
+				if (value !== void 0 && value !== null) {
+					customizes[property] = value;
+				}
+			}
+		} else {
+			if (task.problemMatchers === void 0 || task.problemMatchers.length === 0) {
+				customizes.problemMatcher = [];
+			}
 		}
+
 		if (!fileConfig) {
 			fileConfig = {
 				version: '2.0.0',
@@ -901,6 +911,8 @@ class TaskService extends EventEmitter implements ITaskService {
 			return undefined;
 		}
 
+		// We can only have extension tasks if we are in version 2.0.0. Then we can even run
+		// multiple build tasks.
 		if (extensionTasks.length === 1) {
 			return { task: extensionTasks[0], resolver };
 		} else {
@@ -1152,7 +1164,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (hasParseErrors) {
 				return TPromise.as({ set: undefined, hasErrors: true, configurations: undefined });
 			}
-			let engine = TaskConfig.ExecutionEngine._default;
+			let engine = ExecutionEngine._default;
 			if (config) {
 				engine = TaskConfig.ExecutionEngine.from(config);
 				if (engine === ExecutionEngine.Process) {
@@ -1229,7 +1241,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	private getExecutionEngine(): ExecutionEngine {
 		let { config } = this.getConfiguration();
 		if (!config) {
-			return ExecutionEngine.Terminal;
+			return ExecutionEngine._default;
 		}
 		return TaskConfig.ExecutionEngine.from(config);
 	}
@@ -1429,9 +1441,8 @@ class TaskService extends EventEmitter implements ITaskService {
 			return;
 		}
 		this.getTasksForGroup(TaskGroup.Build).then((tasks) => {
-			let { configured, detected } = this.splitTasks(tasks);
-			let total = configured.length + detected.length;
-			if (total === 0) {
+			if (tasks.length === 0) {
+				// Show no build task message.
 				return;
 			}
 			this.quickOpenService.show('build task ');

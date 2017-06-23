@@ -484,6 +484,7 @@
     "problemMatchers": [
       {
         "name": "tsc",
+        "label": "%typescript.problemMatchers.tsc.label%",
         "owner": "typescript",
         "applyTo": "closedDocuments",
         "fileLocation": [
@@ -494,6 +495,7 @@
       },
       {
         "name": "tsc-watch",
+        "label": "%typescript.problemMatchers.tscWatch.label%",
         "owner": "typescript",
         "applyTo": "closedDocuments",
         "fileLocation": [

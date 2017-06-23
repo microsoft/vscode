@@ -9,15 +9,21 @@ import Filters = require('vs/base/common/filters');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action, IAction } from 'vs/base/common/actions';
 import { IStringDictionary } from 'vs/base/common/collections';
+import * as Objects from 'vs/base/common/objects';
 
 import Quickopen = require('vs/workbench/browser/quickopen');
 import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
+import { ProblemMatcherRegistry, NamedProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
 
 import { Task, TaskSourceKind } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
 import { ActionBarContributor, ContributableActionProvider } from 'vs/workbench/browser/actions';
+
+interface ProblemMatcherPickEntry extends IPickOpenEntry {
+	matcher: NamedProblemMatcher;
+}
 
 export class TaskEntry extends Model.QuickOpenEntry {
 
@@ -35,6 +41,44 @@ export class TaskEntry extends Model.QuickOpenEntry {
 
 	public get task(): Task {
 		return this._task;
+	}
+
+	protected attachProblemMatcher(task: Task): TPromise<Task> {
+		let entries: ProblemMatcherPickEntry[] = [];
+		for (let key of ProblemMatcherRegistry.keys()) {
+			let matcher = ProblemMatcherRegistry.get(key);
+			if (matcher.name === matcher.label) {
+				entries.push({ label: matcher.name, matcher: matcher });
+			} else {
+				entries.push({ label: nls.localize('entries', '{0} [${1}]', matcher.label, matcher.name), matcher: matcher });
+			}
+		}
+		if (entries.length > 0) {
+			entries.push({ label: 'Continue without scanning the build output', separator: { border: true }, matcher: undefined });
+			return this.quickOpenService.pick(entries, {
+				placeHolder: nls.localize('selectProblemMatcher', 'Select for which kind of errors and warnings to scan the build output')
+			}).then((selected) => {
+				if (selected && selected.matcher) {
+					let newTask = Objects.deepClone(task);
+					let matcherReference = `$${selected.matcher.name}`;
+					newTask.problemMatchers = [matcherReference];
+					this.taskService.customize(task, { problemMatcher: [matcherReference] }, true);
+					return newTask;
+				} else {
+					return task;
+				}
+			});
+		}
+		return TPromise.as(task);
+	}
+
+	protected doRun(task: Task): boolean {
+		this.taskService.run(task);
+		if (task.command.presentation.focus) {
+			this.quickOpenService.close();
+			return false;
+		}
+		return true;
 	}
 }
 
@@ -147,7 +191,7 @@ class CustomizeTaskAction extends Action {
 	}
 
 	public run(context: any): TPromise<any> {
-		return this.taskService.customize(this.task, true).then(() => {
+		return this.taskService.customize(this.task, undefined, true).then(() => {
 			this.quickOpenService.close();
 		});
 	}
