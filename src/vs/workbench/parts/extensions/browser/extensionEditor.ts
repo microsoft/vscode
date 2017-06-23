@@ -62,6 +62,27 @@ function renderBody(body: string): string {
 		</html>`;
 }
 
+function removeEmbeddedSVGs(documentContent: string): string {
+	const newDocument = new DOMParser().parseFromString(documentContent, 'text/html');
+
+	// remove all inline svgs
+	const allSVGs = newDocument.documentElement.querySelectorAll('svg');
+	for (let i = 0; i < allSVGs.length; i++) {
+		allSVGs[i].parentNode.removeChild(allSVGs[i]);
+	}
+
+	// remove all svgs encoded as data uris
+	const allImages = newDocument.documentElement.querySelectorAll('img');
+	for (let i = 0; i < allImages.length; i++) {
+		let source = allImages[i].getAttribute('src');
+		if (source && source.indexOf('data:image/svg') === 0) {
+			allImages[i].parentNode.removeChild(allImages[i]);
+		}
+	}
+	const sanitizedContent = newDocument.documentElement.outerHTML;
+	return sanitizedContent;
+}
+
 class NavBar {
 
 	private _onChange = new Emitter<string>();
@@ -322,6 +343,7 @@ export class ExtensionEditor extends BaseEditor {
 		return this.loadContents(() => content
 			.then(marked.parse)
 			.then(renderBody)
+			.then(removeEmbeddedSVGs)
 			.then<void>(body => {
 				const webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART));
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, webview);
