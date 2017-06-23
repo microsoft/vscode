@@ -164,15 +164,14 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 		const layoutInfo = this.editor.getLayoutInfo();
 		this._domNode.style.width = layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth + 'px';
 		this.titleContainer.style.lineHeight = configuration.lineHeight + 3 + 'px';
+		this.titleContainer.style.height = configuration.lineHeight + 3 + 'px';
 		this.titleContainer.style.fontSize = configuration.fontInfo.fontSize + 'px';
-		const iconSize = this.getIconSize();
-		this.icon.style.height = `${iconSize}px`;
-		this.icon.style.width = `${iconSize}px`;
+		this.icon.style.minWidth = `${this.getIconSize(16)}px`;
 	}
 
-	private getIconSize(): number {
+	private getIconSize(minSize: number): number {
 		const fontSize = this.editor.getConfiguration().fontInfo.fontSize;
-		return fontSize > 8 ? Math.max(fontSize, 16) : 12;
+		return fontSize > 8 ? Math.max(fontSize, minSize) : 12;
 	}
 
 	private onKeyDown(keyboardEvent: IKeyboardEvent): void {

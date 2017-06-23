@@ -170,11 +170,18 @@
 	font-weight: bold;
 	-webkit-user-select: none;
 	user-select: none;
+	display: flex;
 }
 
 .vs .monaco-editor .settings-group-title-widget .title-container {
 	color: #6f6f6f;
 }
+
+.monaco-editor .settings-group-title-widget .title-container .title {
+	white-space: nowrap;
+	overflow: hidden;
+}
+
 .vs-dark .monaco-editor .settings-group-title-widget .title-container {
 	color: #bbbbbb;
 }
@@ -199,12 +206,7 @@
 .monaco-editor .settings-group-title-widget .title-container .expand-collapse-icon {
 	background: url(expanded.svg) 50% 50% no-repeat;
 	width: 16px;
-	height: 16px;
-}
-
-.monaco-editor .settings-group-title-widget .title-container > div {
-	vertical-align: middle;
-	display: inline-block;
+	height: 100%;
 }
 
 .monaco-editor.vs-dark .settings-group-title-widget .title-container .expand-collapse-icon,
