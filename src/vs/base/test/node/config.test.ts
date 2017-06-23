@@ -98,6 +98,8 @@ suite('Config', () => {
 	});
 
 	test('watching', function (done: () => void) {
+		this.timeout(10000); // watching is timing intense
+
 		testFile((error, testFile, cleanUp) => {
 			if (error) {
 				return onError(error, done);
@@ -124,6 +126,8 @@ suite('Config', () => {
 	});
 
 	test('watching also works when file created later', function (done: () => void) {
+		this.timeout(10000); // watching is timing intense
+
 		testFile((error, testFile, cleanUp) => {
 			if (error) {
 				return onError(error, done);
@@ -148,6 +152,8 @@ suite('Config', () => {
 	});
 
 	test('watching detects the config file getting deleted', function (done: () => void) {
+		this.timeout(10000); // watching is timing intense
+
 		testFile((error, testFile, cleanUp) => {
 			if (error) {
 				return onError(error, done);

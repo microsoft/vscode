@@ -101,10 +101,11 @@ export class WorkspaceStats {
 		tags['workbench.filesToCreate'] = filesToCreate && filesToCreate.length || undefined;
 		tags['workbench.filesToDiff'] = filesToDiff && filesToDiff.length || undefined;
 
-		const workspace = this.contextService.getWorkspace();
+		const workspace = this.contextService.getWorkspace2();
+		tags['workspace.roots'] = workspace ? workspace.roots.length : 0;
 		tags['workspace.empty'] = !workspace;
 
-		const folder = workspace ? workspace.resource : this.environmentService.appQuality !== 'stable' && this.findFolder(workbenchOptions);
+		const folder = workspace ? workspace.roots[0] /* TODO@Christof https://github.com/Microsoft/vscode/issues/29085 */ : this.environmentService.appQuality !== 'stable' && this.findFolder(workbenchOptions);
 		if (folder && this.fileService) {
 			return this.fileService.resolveFile(folder).then(stats => {
 				let names = (stats.children || []).map(c => c.name);
@@ -261,8 +262,8 @@ export class WorkspaceStats {
 	}
 
 	public reportCloudStats(): void {
-		const workspace = this.contextService.getWorkspace();
-		let uri = workspace ? workspace.resource : null;
+		const workspace = this.contextService.getWorkspace2();
+		let uri = workspace ? workspace.roots[0] : null; // TODO@Christof https://github.com/Microsoft/vscode/issues/29085
 		if (uri && this.fileService) {
 			this.reportRemotes(uri);
 			this.reportAzure(uri);

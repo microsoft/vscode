@@ -6,7 +6,7 @@
 
 import { CustomConfigurationModel } from 'vs/platform/configuration/common/model';
 import { WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 
 export class ScopedConfigurationModel<T> extends CustomConfigurationModel<T> {

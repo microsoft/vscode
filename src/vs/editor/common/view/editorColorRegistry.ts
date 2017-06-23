@@ -39,7 +39,7 @@ export const editorWarningBorder = registerColor('editorWarning.border', { dark:
 registerThemingParticipant((theme, collector) => {
 	let background = theme.getColor(editorBackground);
 	if (background) {
-		collector.addRule(`.monaco-editor, .monaco-editor .monaco-editor-background, .monaco-editor .inputarea.ime-input { background-color: ${background}; }`);
+		collector.addRule(`.monaco-editor, .monaco-editor-background, .monaco-editor .inputarea.ime-input { background-color: ${background}; }`);
 	}
 	let foreground = theme.getColor(editorForeground);
 	if (foreground) {

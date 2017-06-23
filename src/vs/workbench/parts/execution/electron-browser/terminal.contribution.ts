@@ -6,7 +6,7 @@
 
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import baseplatform = require('vs/base/common/platform');
 import { IAction, Action } from 'vs/base/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
@@ -24,6 +24,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED } from 'vs/workbench/parts/terminal/common/terminal';
 import { DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX_READY, DEFAULT_TERMINAL_OSX } from 'vs/workbench/parts/execution/electron-browser/terminal';
+import { IHistoryService } from "vs/workbench/services/history/common/history";
 
 DEFAULT_TERMINAL_LINUX_READY.then(defaultTerminalLinux => {
 	let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
@@ -70,7 +71,8 @@ export class OpenConsoleAction extends Action {
 		label: string,
 		@ITerminalService private terminalService: ITerminalService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IHistoryService private historyService: IHistoryService
 	) {
 		super(id, label);
 
@@ -86,8 +88,8 @@ export class OpenConsoleAction extends Action {
 		let pathToOpen: string;
 
 		// Try workspace path first
-		let workspace = this.contextService.getWorkspace();
-		pathToOpen = this.resource ? this.resource.fsPath : (workspace && workspace.resource.fsPath);
+		const root = this.historyService.getLastActiveWorkspaceRoot();
+		pathToOpen = this.resource ? this.resource.fsPath : (root && root.fsPath);
 
 		// Otherwise check if we have an active file open
 		if (!pathToOpen) {

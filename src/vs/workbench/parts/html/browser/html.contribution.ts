@@ -12,7 +12,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
 import { HtmlInput } from '../common/htmlInput';
 import { HtmlPreviewPart } from 'vs/workbench/parts/html/browser/htmlPreviewPart';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';

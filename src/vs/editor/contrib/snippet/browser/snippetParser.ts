@@ -229,9 +229,7 @@ export function walk(marker: Marker[], visitor: (marker: Marker) => boolean): vo
 		if (!recurse) {
 			break;
 		}
-		if (marker instanceof Placeholder || marker instanceof Variable) {
-			stack.unshift(...marker.children);
-		}
+		stack.unshift(...marker.children);
 	}
 }
 
@@ -366,13 +364,14 @@ export class SnippetParser {
 					// like `${1:foo}and$1` becomes ${1:foo}and${1:foo}
 					if (!placeholderDefaultValues.has(thisMarker.index)) {
 						placeholderDefaultValues.set(thisMarker.index, thisMarker.children);
+						walk(thisMarker.children, placeholderDefaultValues);
+
 					} else if (thisMarker.children.length === 0) {
+						// copy children from first placeholder definition, no need to
+						// recurse on them because they have been visited already
 						thisMarker.children = placeholderDefaultValues.get(thisMarker.index).slice(0);
 					}
 
-					if (thisMarker.children.length > 0) {
-						walk(thisMarker.children, placeholderDefaultValues);
-					}
 
 				} else if (thisMarker instanceof Variable) {
 					walk(thisMarker.children, placeholderDefaultValues);

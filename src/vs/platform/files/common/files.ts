@@ -44,6 +44,11 @@ export interface IFileService {
 	resolveFile(resource: URI, options?: IResolveFileOptions): TPromise<IFileStat>;
 
 	/**
+	 * Same as resolveFile but supports resolving mulitple resources in parallel.
+	 */
+	resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): TPromise<IFileStat[]>;
+
+	/**
 	 *Finds out if a file identified by the resource exists.
 	 */
 	existsFile(resource: URI): TPromise<boolean>;
@@ -137,7 +142,7 @@ export interface IFileService {
 	/**
 	 * Configures the file service with the provided options.
 	 */
-	updateOptions(options: any): void;
+	updateOptions(options: object): void;
 
 	/**
 	 * Returns the preferred encoding to use for a given resource.
@@ -538,7 +543,7 @@ export interface IFilesConfiguration {
 		autoSaveDelay: number;
 		eol: string;
 		hotExit: string;
-		useNsfwFileWatcher: boolean;
+		useExperimentalFileWatcher: boolean;
 	};
 }
 

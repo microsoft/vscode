@@ -21,11 +21,11 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 
 	private static _requestIdPool = 0;
 
-	private readonly _onDidChangeWorkspace = new Emitter<this>();
+	private readonly _onDidChangeWorkspace = new Emitter<URI[]>();
 	private readonly _proxy: MainThreadWorkspaceShape;
 	private _workspace: Workspace;
 
-	readonly onDidChangeWorkspace: Event<this> = this._onDidChangeWorkspace.event;
+	readonly onDidChangeWorkspace: Event<URI[]> = this._onDidChangeWorkspace.event;
 
 	constructor(threadService: IThreadService, data: IWorkspaceData) {
 		super();
@@ -39,11 +39,31 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 		return this._workspace;
 	}
 
+	getRoots(): URI[] {
+		if (!this._workspace) {
+			return undefined;
+		} else {
+			return this._workspace.roots.slice(0);
+		}
+	}
+
 	getPath(): string {
 		// this is legacy from the days before having
 		// multi-root and we keep it only alive if there
 		// is just one workspace folder.
-		return this._workspace ? this._workspace.roots[0].fsPath : undefined;
+		if (!this._workspace) {
+			return undefined;
+		}
+		const { roots } = this._workspace;
+		if (roots.length === 0) {
+			return undefined;
+		}
+		// if (roots.length === 1) {
+		return roots[0].fsPath;
+		// }
+		// return `undefined` when there no or more than 1
+		// root folder.
+		// return undefined;
 	}
 
 	getRelativePath(pathOrUri: string | vscode.Uri): string {
@@ -76,7 +96,7 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 
 	$acceptWorkspaceData(data: IWorkspaceData): void {
 		this._workspace = data ? new Workspace(data.id, data.name, data.roots) : null;
-		this._onDidChangeWorkspace.fire(this);
+		this._onDidChangeWorkspace.fire(this.getRoots());
 	}
 
 	// --- search ---

@@ -25,12 +25,13 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import nls = require('vs/nls');
 import * as labels from 'vs/base/common/labels';
-import { EditorInput } from 'vs/workbench/common/editor';
+import { EditorInput, toResource } from 'vs/workbench/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Verbosity } from 'vs/platform/editor/common/editor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
+import URI from "vs/base/common/uri";
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -52,7 +53,6 @@ export class TitlebarPart extends Part implements ITitleService {
 	private titleTemplate: string;
 	private isPure: boolean;
 	private activeEditorListeners: IDisposable[];
-	private workspacePath: string;
 
 	constructor(
 		id: string,
@@ -71,7 +71,6 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		this.isPure = true;
 		this.activeEditorListeners = [];
-		this.workspacePath = contextService.hasWorkspace() ? labels.getPathLabel(contextService.getWorkspace().resource, void 0, environmentService) : '';
 
 		this.init();
 
@@ -100,6 +99,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.FOCUS, () => this.onFocus()));
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(() => this.onConfigurationChanged(true)));
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+		this.toUnbind.push(this.contextService.onDidChangeWorkspaceRoots(() => this.onDidChangeWorkspaceRoots()));
 	}
 
 	private onBlur(): void {
@@ -110,6 +110,10 @@ export class TitlebarPart extends Part implements ITitleService {
 	private onFocus(): void {
 		this.isInactive = false;
 		this.updateStyles();
+	}
+
+	private onDidChangeWorkspaceRoots(): void {
+		this.setTitle(this.getWindowTitle());
 	}
 
 	private onConfigurationChanged(update?: boolean): void {
@@ -169,22 +173,48 @@ export class TitlebarPart extends Part implements ITitleService {
 	 * {activeEditorLong}: e.g. /Users/Development/myProject/myFolder/myFile.txt
 	 * {activeEditorMedium}: e.g. myFolder/myFile.txt
 	 * {activeEditorShort}: e.g. myFile.txt
-	 * {rootName}: e.g. myProject
+	 * {rootName}: e.g. myFolder1, myFolder2, myFolder3
 	 * {rootPath}: e.g. /Users/Development/myProject
+	 * {folderName}: e.g. myFolder
+	 * {folderPath}: e.g. /Users/Development/myFolder
 	 * {appName}: e.g. VS Code
 	 * {dirty}: indiactor
 	 * {separator}: conditional separator
 	 */
 	private doGetWindowTitle(): string {
 		const input = this.editorService.getActiveEditorInput();
-		const workspace = this.contextService.getWorkspace();
+		const workspace = this.contextService.getWorkspace2();
+
+		// Compute root resource
+		// Single Root Workspace: always the single root workspace in this case
+		// Multi Root Workspace: not yet defined (TODO@Ben multi root)
+		let root: URI;
+		if (workspace) {
+			if (workspace.roots.length === 1) {
+				root = workspace.roots[0];
+			}
+		}
+
+		// Compute folder resource
+		// Single Root Workspace: always the root single workspace in this case
+		// Multi Root Workspace: root folder of the currently active file if any
+		let folder: URI;
+		if (workspace) {
+			if (workspace.roots.length === 1) {
+				folder = workspace.roots[0];
+			} else {
+				folder = this.contextService.getRoot(toResource(input, { supportSideBySide: true, filter: 'file' }));
+			}
+		}
 
 		// Variables
 		const activeEditorShort = input ? input.getTitle(Verbosity.SHORT) : '';
 		const activeEditorMedium = input ? input.getTitle(Verbosity.MEDIUM) : activeEditorShort;
 		const activeEditorLong = input ? input.getTitle(Verbosity.LONG) : activeEditorMedium;
 		const rootName = workspace ? workspace.name : '';
-		const rootPath = workspace ? this.workspacePath : '';
+		const rootPath = workspace ? labels.getPathLabel(root, void 0, this.environmentService) : '';
+		const folderName = folder ? (paths.basename(folder.fsPath) || folder.fsPath) : '';
+		const folderPath = folder ? labels.getPathLabel(folder, void 0, this.environmentService) : '';
 		const dirty = input && input.isDirty() ? TitlebarPart.TITLE_DIRTY : '';
 		const appName = this.environmentService.appNameLong;
 		const separator = TitlebarPart.TITLE_SEPARATOR;
@@ -195,6 +225,8 @@ export class TitlebarPart extends Part implements ITitleService {
 			activeEditorMedium,
 			rootName,
 			rootPath,
+			folderName,
+			folderPath,
 			dirty,
 			appName,
 			separator: { label: separator }

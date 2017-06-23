@@ -47,6 +47,7 @@ export interface IProductConfiguration {
 	keyboardShortcutsUrlLinux: string;
 	keyboardShortcutsUrlWin: string;
 	introductoryVideosUrl: string;
+	tipsAndTricksUrl: string;
 	twitterUrl: string;
 	requestFeatureUrl: string;
 	reportIssueUrl: string;

@@ -7,7 +7,7 @@
 
 import * as nls from 'vs/nls';
 import 'vs/css!./media/update.contribution';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import product from 'vs/platform/node/product';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ReleaseNotesEditor } from 'vs/workbench/parts/update/electron-browser/releaseNotesEditor';

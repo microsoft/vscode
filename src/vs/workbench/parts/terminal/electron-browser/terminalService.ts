@@ -22,7 +22,7 @@ import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-brows
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChoiceService } from 'vs/platform/message/common/message';
-import { Severity } from 'vs/editor/common/standalone/standaloneBase';
+import Severity from 'vs/base/common/severity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { TERMINAL_DEFAULT_SHELL_WINDOWS } from "vs/workbench/parts/terminal/electron-browser/terminal";
 import { TerminalPanel } from "vs/workbench/parts/terminal/electron-browser/terminalPanel";

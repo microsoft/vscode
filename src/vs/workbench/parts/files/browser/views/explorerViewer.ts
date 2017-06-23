@@ -31,7 +31,7 @@ import { DuplicateFileAction, ImportFileAction, IEditableData, IFileViewletState
 import { IDataSource, ITree, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDrop, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
 import { DesktopDragAndDropData, ExternalElementsDragAndDropData } from 'vs/base/parts/tree/browser/treeDnd';
 import { ClickBehavior, DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
-import { FileStat, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerViewModel';
+import { FileStat, NewStatPlaceholder, Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { DragMouseEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -60,15 +60,22 @@ export class FileDataSource implements IDataSource {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) { }
 
-	public getId(tree: ITree, stat: FileStat): string {
-		return stat.getId();
+	public getId(tree: ITree, stat: FileStat | Model): string {
+		if (stat instanceof Model) {
+			return 'model';
+		}
+
+		return `${stat.root.resource.toString()}:${stat.getId()}`;
 	}
 
-	public hasChildren(tree: ITree, stat: FileStat): boolean {
-		return stat.isDirectory;
+	public hasChildren(tree: ITree, stat: FileStat | Model): boolean {
+		return stat instanceof Model || (stat instanceof FileStat && stat.isDirectory);
 	}
 
-	public getChildren(tree: ITree, stat: FileStat): TPromise<FileStat[]> {
+	public getChildren(tree: ITree, stat: FileStat | Model): TPromise<FileStat[]> {
+		if (stat instanceof Model) {
+			return TPromise.as(stat.roots);
+		}
 
 		// Return early if stat is already resolved
 		if (stat.isDirectoryResolved) {
@@ -82,7 +89,7 @@ export class FileDataSource implements IDataSource {
 			const promise = this.fileService.resolveFile(stat.resource, { resolveSingleChildDescendants: true }).then(dirStat => {
 
 				// Convert to view model
-				const modelDirStat = FileStat.create(dirStat);
+				const modelDirStat = FileStat.create(dirStat, stat.root);
 
 				// Add children to folder
 				for (let i = 0; i < modelDirStat.children.length; i++) {
@@ -104,19 +111,18 @@ export class FileDataSource implements IDataSource {
 		}
 	}
 
-	public getParent(tree: ITree, stat: FileStat): TPromise<FileStat> {
+	public getParent(tree: ITree, stat: FileStat | Model): TPromise<FileStat> {
 		if (!stat) {
 			return TPromise.as(null); // can be null if nothing selected in the tree
 		}
 
 		// Return if root reached
-		const workspace = this.contextService.getWorkspace();
-		if (workspace && stat.resource.toString() === workspace.resource.toString()) {
+		if (tree.getInput() === stat) {
 			return TPromise.as(null);
 		}
 
 		// Return if parent already resolved
-		if (stat.parent) {
+		if (stat instanceof FileStat && stat.parent) {
 			return TPromise.as(stat.parent);
 		}
 
@@ -152,7 +158,7 @@ export class FileActionProvider extends ContributableActionProvider {
 		return super.getActions(tree, stat);
 	}
 
-	public hasSecondaryActions(tree: ITree, stat: FileStat): boolean {
+	public hasSecondaryActions(tree: ITree, stat: FileStat | Model): boolean {
 		if (stat instanceof NewStatPlaceholder) {
 			return false;
 		}
@@ -160,7 +166,7 @@ export class FileActionProvider extends ContributableActionProvider {
 		return super.hasSecondaryActions(tree, stat);
 	}
 
-	public getSecondaryActions(tree: ITree, stat: FileStat): TPromise<IAction[]> {
+	public getSecondaryActions(tree: ITree, stat: FileStat | Model): TPromise<IAction[]> {
 		if (stat instanceof NewStatPlaceholder) {
 			return TPromise.as([]);
 		}
@@ -404,7 +410,7 @@ export class FileController extends DefaultController {
 		this.state = state;
 	}
 
-	public onLeftClick(tree: ITree, stat: FileStat, event: IMouseEvent, origin: string = 'mouse'): boolean {
+	public onLeftClick(tree: ITree, stat: FileStat | Model, event: IMouseEvent, origin: string = 'mouse'): boolean {
 		const payload = { origin: origin };
 		const isDoubleClick = (origin === 'mouse' && event.detail === 2);
 
@@ -421,8 +427,7 @@ export class FileController extends DefaultController {
 		}
 
 		// Handle root
-		const workspace = this.contextService.getWorkspace();
-		if (workspace && stat.resource.toString() === workspace.resource.toString()) {
+		if (stat instanceof Model) {
 			tree.clearFocus(payload);
 			tree.clearSelection(payload);
 
@@ -469,7 +474,7 @@ export class FileController extends DefaultController {
 		return true;
 	}
 
-	public onContextMenu(tree: ITree, stat: FileStat, event: ContextMenuEvent): boolean {
+	public onContextMenu(tree: ITree, stat: FileStat | Model, event: ContextMenuEvent): boolean {
 		if (event.target && event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
 			return false;
 		}
@@ -488,7 +493,7 @@ export class FileController extends DefaultController {
 			getAnchor: () => anchor,
 			getActions: () => {
 				return this.state.actionProvider.getSecondaryActions(tree, stat).then(actions => {
-					fillInActions(this.contributedContextMenu, { arg: stat.resource }, actions);
+					fillInActions(this.contributedContextMenu, stat instanceof FileStat ? { arg: stat.resource } : null, actions);
 					return actions;
 				});
 			},
@@ -539,6 +544,15 @@ export class FileSorter implements ISorter {
 			return 1;
 		}
 
+		// Do not sort roots
+		if (statA.isRoot) {
+			return -1;
+		}
+
+		if (statB.isRoot) {
+			return 1;
+		}
+
 		return comparers.compareFileNames(statA.name, statB.name);
 	}
 }
@@ -548,17 +562,24 @@ export class FileFilter implements IFilter {
 
 	private static MAX_SIBLINGS_FILTER_THRESHOLD = 2000;
 
-	private hiddenExpression: glob.IExpression;
+	private hiddenExpressionPerRoot: Map<string, glob.IExpression>;
 
-	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
-		this.hiddenExpression = Object.create(null);
+	constructor(
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IConfigurationService private configurationService: IConfigurationService
+	) {
+		this.hiddenExpressionPerRoot = new Map<string, glob.IExpression>();
+		this.contextService.onDidChangeWorkspaceRoots(() => this.updateConfiguration());
 	}
 
-	public updateConfiguration(configuration: IFilesConfiguration): boolean {
-		const excludesConfig = (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
-		const needsRefresh = !objects.equals(this.hiddenExpression, excludesConfig);
-
-		this.hiddenExpression = objects.clone(excludesConfig); // do not keep the config, as it gets mutated under our hoods
+	public updateConfiguration(): boolean {
+		let needsRefresh = false;
+		this.contextService.getWorkspace2().roots.forEach(root => {
+			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(undefined, { resource: root });
+			const excludesConfig = (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
+			needsRefresh = needsRefresh || !objects.equals(this.hiddenExpressionPerRoot.get(root.toString()), excludesConfig);
+			this.hiddenExpressionPerRoot.set(root.toString(), objects.clone(excludesConfig)); // do not keep the config, as it gets mutated under our hoods
+		});
 
 		return needsRefresh;
 	}
@@ -580,7 +601,8 @@ export class FileFilter implements IFilter {
 
 		// Hide those that match Hidden Patterns
 		const siblingsFn = () => siblings && siblings.map(c => c.name);
-		if (glob.match(this.hiddenExpression, this.contextService.toWorkspaceRelativePath(stat.resource, true), siblingsFn)) {
+		const expression = this.hiddenExpressionPerRoot.get(stat.root.resource.toString()) || Object.create(null);
+		if (glob.match(expression, paths.normalize(paths.relative(stat.root.resource.fsPath, stat.resource.fsPath)), siblingsFn)) {
 			return false; // hidden through pattern
 		}
 
@@ -619,6 +641,9 @@ export class FileDragAndDrop implements IDragAndDrop {
 	}
 
 	public getDragURI(tree: ITree, stat: FileStat): string {
+		if (this.contextService.getWorkspace2().roots.some(r => r.toString() === stat.resource.toString())) {
+			return null; // Can not move root folder
+		}
 		if (stat.isDirectory) {
 			return URI.from({ scheme: 'folder', path: stat.resource.fsPath }).toString(); // indicates that we are dragging a folder
 		}
@@ -656,8 +681,8 @@ export class FileDragAndDrop implements IDragAndDrop {
 		}
 	}
 
-	public onDragOver(tree: ITree, data: IDragAndDropData, target: FileStat, originalEvent: DragMouseEvent): IDragOverReaction {
-		if (!this.dropEnabled) {
+	public onDragOver(tree: ITree, data: IDragAndDropData, target: FileStat | Model, originalEvent: DragMouseEvent): IDragOverReaction {
+		if (!this.dropEnabled || target instanceof Model) {
 			return DRAG_OVER_REJECT;
 		}
 
@@ -719,8 +744,8 @@ export class FileDragAndDrop implements IDragAndDrop {
 			return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY(true) : DRAG_OVER_ACCEPT_BUBBLE_DOWN(true);
 		}
 
-		const workspace = this.contextService.getWorkspace();
-		if (workspace && target.resource.toString() !== workspace.resource.toString()) {
+		const workspace = this.contextService.getWorkspace2();
+		if (workspace && workspace.roots.every(r => r.toString() !== target.resource.toString())) {
 			return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_UP_COPY : DRAG_OVER_ACCEPT_BUBBLE_UP;
 		}
 

@@ -221,9 +221,21 @@ export class UpdateService implements IUpdateService {
 			return null;
 		}
 
-		const platform = process.platform === 'linux' ? `linux-${process.arch}` : process.platform;
+		const platform = this.getUpdatePlatform();
 
 		return `${product.updateUrl}/api/update/${platform}/${channel}/${product.commit}`;
+	}
+
+	private getUpdatePlatform(): string {
+		if (process.platform === 'linux') {
+			return `linux-${process.arch}`;
+		}
+
+		if (process.platform === 'win32' && process.arch === 'x64') {
+			return 'win32-x64';
+		}
+
+		return process.platform;
 	}
 
 	quitAndInstall(): TPromise<void> {

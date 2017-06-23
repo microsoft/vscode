@@ -242,7 +242,8 @@
 				"punctuation.definition.template-expression.begin.js",
 				"punctuation.definition.template-expression.begin.ts",
 				"punctuation.definition.template-expression.end.ts",
-				"punctuation.definition.template-expression.end.js"
+				"punctuation.definition.template-expression.end.js",
+				"punctuation.section.embedded.coffee"
 			],
 			"settings": {
 				"foreground": "#0000ff"
@@ -268,7 +269,8 @@
 				"support.type.property-name",
 				"variable.css",
 				"variable.scss",
-				"variable.other.less"
+				"variable.other.less",
+				"source.coffee.embedded"
 			],
 			"settings": {
 				"foreground": "#ff0000"

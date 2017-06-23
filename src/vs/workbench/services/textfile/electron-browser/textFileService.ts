@@ -22,14 +22,14 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
-import { ModelBuilder } from 'vs/editor/node/model/modelBuilder';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { ModelBuilder } from 'vs/workbench/services/textfile/electron-browser/modelBuilder';
 import product from 'vs/platform/node/product';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IHistoryService } from "vs/workbench/services/history/common/history";
 
 export class TextFileService extends AbstractTextFileService {
 
@@ -49,9 +49,9 @@ export class TextFileService extends AbstractTextFileService {
 		@IMessageService messageService: IMessageService,
 		@IBackupFileService backupFileService: IBackupFileService,
 		@IWindowsService windowsService: IWindowsService,
-		@IEditorGroupService editorGroupService: IEditorGroupService
+		@IHistoryService historyService: IHistoryService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, fileService, untitledEditorService, instantiationService, messageService, environmentService, backupFileService, editorGroupService, windowsService);
+		super(lifecycleService, contextService, configurationService, telemetryService, fileService, untitledEditorService, instantiationService, messageService, environmentService, backupFileService, windowsService, historyService);
 	}
 
 	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {

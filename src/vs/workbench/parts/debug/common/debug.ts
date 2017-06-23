@@ -184,6 +184,7 @@ export interface IScope extends IExpressionContainer {
 export interface IStackFrame extends ITreeElement {
 	thread: IThread;
 	name: string;
+	presentationHint: string;
 	frameId: number;
 	range: IRange;
 	source: Source;
@@ -432,6 +433,11 @@ export interface IDebugService {
 	onDidChangeState: Event<State>;
 
 	/**
+	 * Allows to register on end process events.
+	 */
+	onDidEndProcess: Event<IProcess>;
+
+	/**
 	 * Gets the current configuration manager.
 	 */
 	getConfigurationManager(): IConfigurationManager;
@@ -526,7 +532,7 @@ export interface IDebugService {
 	/**
 	 * Creates a new debug process. Depending on the configuration will either 'launch' or 'attach'.
 	 */
-	createProcess(config: IConfig): TPromise<any>;
+	createProcess(config: IConfig): TPromise<IProcess>;
 
 	/**
 	 * Restarts a process or creates a new one if there is no active session.
@@ -539,9 +545,9 @@ export interface IDebugService {
 	stopProcess(process: IProcess): TPromise<any>;
 
 	/**
-	 * Deemphasizes all sources with the passed uri. Source will appear as grayed out in callstack view.
+	 * Makes unavailable all sources with the passed uri. Source will appear as grayed out in callstack view.
 	 */
-	deemphasizeSource(uri: uri): void;
+	sourceIsNotAvailable(uri: uri): void;
 
 	/**
 	 * Gets the current debug model.

@@ -179,6 +179,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/textMate",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/themes",
 			"project": "vscode-workbench"
 		},

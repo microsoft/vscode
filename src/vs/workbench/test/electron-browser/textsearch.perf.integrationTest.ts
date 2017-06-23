@@ -25,7 +25,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { SimpleConfigurationService } from 'vs/editor/browser/standalone/simpleServices';
+import { SimpleConfigurationService } from 'vs/editor/standalone/browser/simpleServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -70,15 +70,14 @@ suite('TextSearch performance (integration)', () => {
 			[ISearchService, createSyncDescriptor(SearchService)]
 		));
 
-		let queryOptions: IQueryOptions = {
-			folderResources: [URI.file(testWorkspacePath)],
+		const queryOptions: IQueryOptions = {
 			maxResults: 2048
 		};
 
 		const searchModel: SearchModel = instantiationService.createInstance(SearchModel);
 		function runSearch(): TPromise<any> {
 			const queryBuilder: QueryBuilder = instantiationService.createInstance(QueryBuilder);
-			const query = queryBuilder.text({ pattern: 'static_library(' }, queryOptions);
+			const query = queryBuilder.text({ pattern: 'static_library(' }, [URI.file(testWorkspacePath)], queryOptions);
 
 			// Wait for the 'searchResultsFinished' event, which is fired after the search() promise is resolved
 			const onSearchResultsFinished = event.filterEvent(telemetryService.eventLogged, e => e.name === 'searchResultsFinished');

@@ -541,7 +541,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		isTypeScriptProject: boolean,
 		resource: Uri
 	): Thenable<TextEditor | undefined> | undefined {
-		const rootPath = workspace.rootPath;
+		const rootPath = this.client.getWorkspaceRootForResource(resource);
 		if (!rootPath) {
 			window.showInformationMessage(
 				localize(
@@ -588,7 +588,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 				}).then(selected => {
 					switch (selected && selected.id) {
 						case ProjectConfigAction.CreateConfig:
-							return openOrCreateConfigFile(isTypeScriptProject);
+							return openOrCreateConfigFile(isTypeScriptProject, rootPath);
 
 						case ProjectConfigAction.LearnMore:
 							if (isTypeScriptProject) {

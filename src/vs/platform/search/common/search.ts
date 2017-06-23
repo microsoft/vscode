@@ -25,16 +25,21 @@ export interface ISearchService {
 	clearCache(cacheKey: string): TPromise<void>;
 }
 
+export interface IFolderQueryOptions {
+	folder: uri;
+	excludePattern?: IExpression;
+	fileEncoding?: string;
+}
+
 export interface IQueryOptions {
-	folderResources?: uri[];
 	extraFileResources?: uri[];
 	filePattern?: string;
 	excludePattern?: IExpression;
 	includePattern?: IExpression;
+	fileEncoding?: string;
 	maxResults?: number;
 	sortByScore?: boolean;
 	cacheKey?: string;
-	fileEncoding?: string;
 	useRipgrep?: boolean;
 	disregardIgnoreFiles?: boolean;
 	disregardExcludeSettings?: boolean;
@@ -44,6 +49,7 @@ export interface IQueryOptions {
 export interface ISearchQuery extends IQueryOptions {
 	type: QueryType;
 	contentPattern?: IPatternInfo;
+	folderQueries?: IFolderQueryOptions[];
 }
 
 export enum QueryType {

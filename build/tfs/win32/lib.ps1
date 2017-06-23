@@ -4,10 +4,10 @@ $ErrorActionPreference = 'Stop'
 $env:HOME=$env:USERPROFILE
 
 if (Test-Path env:AGENT_WORKFOLDER) {
-	$env:USERPROFILE="${env:AGENT_WORKFOLDER}\home"
-	$env:HOME="${env:USERPROFILE}"
-	$env:npm_config_cache="${env:USERPROFILE}\npm-cache"
-	New-Item -Path "$env:USERPROFILE" -Type directory -Force | out-null
+	$env:HOME="${env:AGENT_WORKFOLDER}\home"
+	$env:npm_config_cache="${env:HOME}\npm-cache"
+	$env:npm_config_devdir="${env:HOME}\npm-devdir"
+	New-Item -Path "$env:HOME" -Type directory -Force | out-null
 	New-Item -Path "$env:npm_config_cache" -Type directory -Force | out-null
 }
 

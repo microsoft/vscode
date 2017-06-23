@@ -33,7 +33,7 @@ import { IEditor as IBaseEditor, IEditorInput } from 'vs/platform/editor/common/
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IFilesConfiguration, SUPPORTED_ENCODINGS, IFileService } from 'vs/platform/files/common/files';
+import { SUPPORTED_ENCODINGS, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -44,9 +44,12 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { getCodeEditor as getEditorWidget } from 'vs/editor/common/services/codeEditorService';
-import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
+
+// TODO@Sandeep layer breaker
+// tslint:disable-next-line:import-patterns
+import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 
 function toEditorWithEncodingSupport(input: IEditorInput): IEncodingSupport {
 	if (input instanceof SideBySideEditorInput) {
@@ -1096,20 +1099,18 @@ export class ChangeEncodingAction extends Action {
 				return undefined;
 			}
 
+			const resource = toResource(activeEditor.input, { filter: 'file', supportSideBySide: true });
+			if (!resource) {
+				return TPromise.as(null);
+			}
+
 			return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */)
 				.then(() => {
-					const resource = toResource(activeEditor.input, { filter: 'file', supportSideBySide: true });
-					if (!resource) {
-						return TPromise.as(null);
-					}
-
 					return this.fileService.resolveContent(resource, { autoGuessEncoding: true, acceptTextOnly: true }).then(content => content.encoding, err => null);
 				})
-				.then(guessedEncoding => {
-					const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
-
+				.then((guessedEncoding: string) => {
 					const isReopenWithEncoding = (action === reopenWithEncodingPick);
-					const configuredEncoding = configuration && configuration.files && configuration.files.encoding;
+					const configuredEncoding = this.configurationService.lookup('files.encoding', { resource }).value;
 					let directMatchIndex: number;
 					let aliasMatchIndex: number;
 

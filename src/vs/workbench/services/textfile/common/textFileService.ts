@@ -16,7 +16,6 @@ import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IRevertOptions, IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ISaveOptions, ModelState } from 'vs/workbench/services/textfile/common/textfiles';
 import { ConfirmResult } from 'vs/workbench/common/editor';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IFileService, IResolveContentOptions, IFilesConfiguration, IFileOperationResult, FileOperationResult, AutoSaveConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
@@ -31,6 +30,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from "vs/base/common/network";
+import { IHistoryService } from "vs/workbench/services/history/common/history";
 
 export interface IBackupResult {
 	didBackup: boolean;
@@ -59,18 +59,18 @@ export abstract class TextFileService implements ITextFileService {
 	private configuredHotExit: string;
 
 	constructor(
-		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IFileService protected fileService: IFileService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IMessageService private messageService: IMessageService,
-		@IEnvironmentService protected environmentService: IEnvironmentService,
-		@IBackupFileService private backupFileService: IBackupFileService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWindowsService private windowsService: IWindowsService
+		private lifecycleService: ILifecycleService,
+		private contextService: IWorkspaceContextService,
+		private configurationService: IConfigurationService,
+		private telemetryService: ITelemetryService,
+		protected fileService: IFileService,
+		private untitledEditorService: IUntitledEditorService,
+		private instantiationService: IInstantiationService,
+		private messageService: IMessageService,
+		protected environmentService: IEnvironmentService,
+		private backupFileService: IBackupFileService,
+		private windowsService: IWindowsService,
+		private historyService: IHistoryService
 	) {
 		this.toUnbind = [];
 
@@ -342,7 +342,7 @@ export abstract class TextFileService implements ITextFileService {
 		}
 
 		// Hot exit
-		const hotExitMode = configuration && configuration.files ? configuration.files.hotExit : HotExitConfiguration.OFF;
+		const hotExitMode = configuration && configuration.files && configuration.files.hotExit;
 		if (hotExitMode === HotExitConfiguration.OFF || hotExitMode === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
 			this.configuredHotExit = hotExitMode;
 		} else {
@@ -611,9 +611,9 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	private suggestFileName(untitledResource: URI): string {
-		const workspace = this.contextService.getWorkspace();
-		if (workspace) {
-			return URI.file(paths.join(workspace.resource.fsPath, this.untitledEditorService.suggestFileName(untitledResource))).fsPath;
+		const root = this.historyService.getLastActiveWorkspaceRoot();
+		if (root) {
+			return URI.file(paths.join(root.fsPath, this.untitledEditorService.suggestFileName(untitledResource))).fsPath;
 		}
 
 		return this.untitledEditorService.suggestFileName(untitledResource);

@@ -5,8 +5,8 @@
 
 declare module 'nsfw' {
 	interface NsfwWatcher {
-		start(): void;
-		stop(): void;
+		start(): any;
+		stop(): any;
 	}
 
 	interface NsfwWatchingPromise {

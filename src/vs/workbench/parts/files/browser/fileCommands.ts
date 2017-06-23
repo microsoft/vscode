@@ -18,7 +18,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/browser/explorerViewlet';
 import { VIEWLET_ID, explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
-import { FileStat, OpenEditor } from 'vs/workbench/parts/files/common/explorerViewModel';
+import { FileStat, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 import errors = require('vs/base/common/errors');
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -54,7 +54,7 @@ export const copyPathCommand = (accessor: ServicesAccessor, resource?: URI) => {
 export const openFolderPickerCommand = (accessor: ServicesAccessor, forceNewWindow: boolean) => {
 	const windowService = accessor.get(IWindowService);
 
-	windowService.openFolderPicker(forceNewWindow);
+	windowService.pickFolderAndOpen(forceNewWindow);
 };
 
 export const openWindowCommand = (accessor: ServicesAccessor, paths: string[], forceNewWindow: boolean) => {
@@ -68,7 +68,7 @@ export const openFileInNewWindowCommand = (accessor: ServicesAccessor) => {
 
 	const fileResource = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 
-	windowService.openFilePicker(true, fileResource ? paths.dirname(fileResource.fsPath) : void 0);
+	windowService.pickFileAndOpen(true, fileResource ? paths.dirname(fileResource.fsPath) : void 0);
 };
 
 export const revealInOSCommand = (accessor: ServicesAccessor, resource?: URI) => {

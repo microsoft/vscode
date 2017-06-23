@@ -8,7 +8,7 @@
 import nls = require('vs/nls');
 
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 import { QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';

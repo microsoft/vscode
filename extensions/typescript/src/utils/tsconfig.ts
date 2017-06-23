@@ -11,13 +11,10 @@ export function isImplicitProjectConfigFile(configFileName: string) {
 }
 
 export function openOrCreateConfigFile(
-	isTypeScriptProject: boolean
+	isTypeScriptProject: boolean,
+	rootPath: string
 ): Thenable<vscode.TextEditor | null> {
-	if (!vscode.workspace.rootPath) {
-		return Promise.resolve(null);
-	}
-
-	const configFile = vscode.Uri.file(path.join(vscode.workspace.rootPath, isTypeScriptProject ? 'tsconfig.json' : 'jsconfig.json'));
+	const configFile = vscode.Uri.file(path.join(rootPath, isTypeScriptProject ? 'tsconfig.json' : 'jsconfig.json'));
 	const col = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined;
 	return vscode.workspace.openTextDocument(configFile)
 		.then(doc => {

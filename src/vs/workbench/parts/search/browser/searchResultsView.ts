@@ -21,6 +21,7 @@ import { RemoveAction, ReplaceAllAction, ReplaceAction } from 'vs/workbench/part
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { getPathLabel } from "vs/base/common/labels";
 
 export class SearchDataSource implements IDataSource {
 
@@ -232,7 +233,7 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 
 	public getAriaLabel(tree: ITree, element: FileMatchOrMatch): string {
 		if (element instanceof FileMatch) {
-			const path = this.contextService.toWorkspaceRelativePath(element.resource()) || element.resource().fsPath;
+			const path = getPathLabel(element.resource(), this.contextService) || element.resource().fsPath;
 
 			return nls.localize('fileMatchAriaLabel', "{0} matches in file {1} of folder {2}, Search result", element.count(), element.name(), paths.dirname(path));
 		}

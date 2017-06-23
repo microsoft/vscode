@@ -6,6 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
+import URI from 'vs/base/common/uri';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { MainThreadConfigurationShape } from 'vs/workbench/api/node/extHost.protocol';
@@ -28,11 +29,11 @@ suite('ExtHostConfiguration', function () {
 		if (!shape) {
 			shape = new class extends MainThreadConfigurationShape { };
 		}
-		return new ExtHostConfiguration(shape, {
+		return new ExtHostConfiguration(shape, new ExtHostWorkspace(new TestThreadService(), null), {
 			defaults: new ConfigurationModel(contents),
 			user: new ConfigurationModel(contents),
 			folders: Object.create(null)
-		}, new ExtHostWorkspace(new TestThreadService(), null));
+		});
 	}
 
 	test('getConfiguration fails regression test 1.7.1 -> 1.8 #15552', function () {
@@ -80,6 +81,42 @@ suite('ExtHostConfiguration', function () {
 
 		assert.ok(config.has('nested'));
 		assert.deepEqual(config.get('nested'), { config1: 42, config2: 'Das Pferd frisst kein Reis.' });
+	});
+
+	test('inspect', function () {
+		const workspaceUri = URI.file('foo');
+		const folders = Object.create(null);
+		folders[workspaceUri.toString()] = new ConfigurationModel({
+			'editor': {
+				'wordWrap': 'bounded'
+			}
+		}, ['editor.wordWrap']);
+		const testObject = new ExtHostConfiguration(
+			new class extends MainThreadConfigurationShape { },
+			new ExtHostWorkspace(new TestThreadService(), {
+				'id': 'foo',
+				'roots': [URI.file('foo')],
+				'name': 'foo'
+			}),
+			{
+				defaults: new ConfigurationModel({
+					'editor': {
+						'wordWrap': 'off'
+					}
+				}, ['editor.wordWrap']),
+				user: new ConfigurationModel({
+					'editor': {
+						'wordWrap': 'on'
+					}
+				}, ['editor.wordWrap']),
+				folders
+			}
+		);
+
+		const actual = testObject.getConfiguration().inspect('editor.wordWrap');
+		assert.equal(actual.defaultValue, 'off');
+		assert.equal(actual.globalValue, 'on');
+		assert.equal(actual.workspaceValue, 'bounded');
 	});
 
 	test('getConfiguration vs get', function () {
@@ -168,31 +205,6 @@ suite('ExtHostConfiguration', function () {
 		assert.equal(shape.lastArgs[1], 'editor.formatOnSave');
 		assert.deepEqual(shape.lastArgs[2], { extensions: ['ts'] });
 	});
-
-	/*
-		test('bogous data, #15834', function () {
-			let oldLogger = console.error;
-			let errorLogged = false;
-
-			// workaround until we have a proper logging story
-			console.error = (message, args) => {
-				errorLogged = true;
-			};
-			let allConfig;
-			try {
-				const shape = new RecordingShape();
-				allConfig = createExtHostConfiguration({
-					['editor.formatOnSave']: createConfigurationValue(true),
-					['editor.formatOnSave.extensions']: createConfigurationValue(['ts'])
-				}, shape);
-			} finally {
-				console.error = oldLogger;
-			}
-			assert.ok(errorLogged);
-			assert.ok(allConfig.getConfiguration('').has('editor.formatOnSave'));
-			assert.ok(!allConfig.getConfiguration('').has('editor.formatOnSave.extensions'));
-		});
-	*/
 
 	test('update/error-state not OK', function () {
 

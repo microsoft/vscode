@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import * as Platform from 'vs/platform/platform';
+import * as Platform from 'vs/platform/registry/common/platform';
 import { ViewletDescriptor, Extensions } from 'vs/workbench/browser/viewlet';
 import * as Types from 'vs/base/common/types';
 

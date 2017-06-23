@@ -10,7 +10,8 @@ import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IWatcherRequest, IWatcherService } from './watcher';
 
 export interface IWatcherChannel extends IChannel {
-	call(command: 'watch', request: IWatcherRequest): TPromise<void>;
+	call(command: 'initialize', verboseLogging: boolean): TPromise<void>;
+	call(command: 'setRoots', request: IWatcherRequest[]): TPromise<void>;
 	call(command: string, arg: any): TPromise<any>;
 }
 
@@ -20,8 +21,8 @@ export class WatcherChannel implements IWatcherChannel {
 
 	call(command: string, arg: any): TPromise<any> {
 		switch (command) {
+			case 'initialize': return this.service.initialize(arg);
 			case 'setRoots': return this.service.setRoots(arg);
-			case 'watch': return this.service.watch(arg);
 		}
 		return undefined;
 	}
@@ -31,11 +32,11 @@ export class WatcherChannelClient implements IWatcherService {
 
 	constructor(private channel: IWatcherChannel) { }
 
-	setRoots(roots: string[]): TPromise<void> {
-		return this.channel.call('setRoots', roots);
+	initialize(verboseLogging: boolean): TPromise<void> {
+		return this.channel.call('initialize', verboseLogging);
 	}
 
-	watch(request: IWatcherRequest): TPromise<void> {
-		return this.channel.call('watch', request);
+	setRoots(roots: IWatcherRequest[]): TPromise<void> {
+		return this.channel.call('setRoots', roots);
 	}
 }

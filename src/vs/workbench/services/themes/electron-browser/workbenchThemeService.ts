@@ -17,7 +17,7 @@ import { IWorkbenchThemeService, IColorTheme, IFileIconTheme, ExtensionData, ITh
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import errors = require('vs/base/common/errors');
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
@@ -301,7 +301,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		});
 	}
 
-	private migrate(): TPromise<any> {
+	private migrate(): TPromise<void> {
 		let legacyColorThemeId = this.storageService.get('workbench.theme', StorageScope.GLOBAL, void 0);
 		let legacyIconThemeId = this.storageService.get('workbench.iconTheme', StorageScope.GLOBAL, void 0);
 		if (types.isUndefined(legacyColorThemeId) && types.isUndefined(legacyIconThemeId)) {
@@ -335,7 +335,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		});
 	}
 
-	private initialize(): TPromise<any> {
+	private initialize(): TPromise<IFileIconTheme> {
 
 		this.updateColorCustomizations(false);
 
@@ -921,7 +921,7 @@ class ConfigurationWriter {
 	constructor( @IConfigurationService private configurationService: IConfigurationService, @IConfigurationEditingService private configurationEditingService: IConfigurationEditingService) {
 	}
 
-	public writeConfiguration(key: string, value: any, settingsTarget: ConfigurationTarget): TPromise<any> {
+	public writeConfiguration(key: string, value: any, settingsTarget: ConfigurationTarget): TPromise<void> {
 		let settings = this.configurationService.lookup(key);
 		if (settingsTarget === ConfigurationTarget.USER) {
 			if (value === settings.user) {
@@ -955,7 +955,7 @@ const colorThemeSettingSchema: IJSONSchema = {
 const iconThemeSettingSchema: IJSONSchema = {
 	type: ['string', 'null'],
 	default: DEFAULT_ICON_THEME_SETTING_VALUE,
-	description: nls.localize('iconTheme', "Specifies the icon theme used in the workbench."),
+	description: nls.localize('iconTheme', "Specifies the icon theme used in the workbench or 'null' to not show any file icons."),
 	enum: [null],
 	enumDescriptions: [nls.localize('noIconThemeDesc', 'No file icons')],
 	errorMessage: nls.localize('iconThemeError', "File icon theme is unknown or not installed.")

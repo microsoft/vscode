@@ -20,7 +20,6 @@ import { EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { Colorizer } from 'vs/editor/browser/standalone/colorizer';
 import { View, IOverlayWidgetData, IContentWidgetData } from 'vs/editor/browser/view/viewImpl';
 import { Disposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -157,18 +156,6 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 
 		this._focusTracker.dispose();
 		super.dispose();
-	}
-
-	public colorizeModelLine(lineNumber: number, model: editorCommon.IModel = this.model): string {
-		if (!model) {
-			return '';
-		}
-		let content = model.getLineContent(lineNumber);
-		model.forceTokenization(lineNumber);
-		let tokens = model.getLineTokens(lineNumber);
-		let inflatedTokens = tokens.inflate();
-		let tabSize = model.getOptions().tabSize;
-		return Colorizer.colorizeLine(content, model.mightContainRTL(), inflatedTokens, tabSize);
 	}
 
 	public createOverviewRuler(cssClassName: string, minimumHeight: number, maximumHeight: number): editorBrowser.IOverviewRuler {

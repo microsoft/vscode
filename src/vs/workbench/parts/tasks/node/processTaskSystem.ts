@@ -14,7 +14,7 @@ import Severity from 'vs/base/common/severity';
 import * as Strings from 'vs/base/common/strings';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 
-import { TerminateResponse, SuccessData, ErrorData } from 'vs/base/common/processes';
+import { SuccessData, ErrorData } from 'vs/base/common/processes';
 import { LineProcess, LineData } from 'vs/base/node/processes';
 
 import { IOutputService, IOutputChannel } from 'vs/workbench/parts/output/common/output';
@@ -27,7 +27,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEvents } from 'vs/workbench/parts/tasks/common/problemCollectors';
 import {
-	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType
+	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TelemetryEvent, Triggers,
+	TaskSystemEvents, TaskEvent, TaskType, TaskTerminateResponse
 } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { Task, CommandOptions, RevealKind, CommandConfiguration, CommandType } from 'vs/workbench/parts/tasks/common/tasks';
 
@@ -103,18 +104,24 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		return true;
 	}
 
-	public terminate(_id: string): TPromise<TerminateResponse> {
+	public terminate(_id: string): TPromise<TaskTerminateResponse> {
 		if (!this.activeTask || this.activeTask._id !== _id) {
-			return TPromise.as<TerminateResponse>({ success: false });
+			return TPromise.as<TaskTerminateResponse>({ success: false, task: undefined });
 		}
-		return this.terminateAll();
+		return this.terminateAll()[0];
 	}
 
-	public terminateAll(): TPromise<TerminateResponse> {
+	public terminateAll(): TPromise<TaskTerminateResponse[]> {
 		if (this.childProcess) {
-			return this.childProcess.terminate();
+			let task = this.activeTask;
+			return this.childProcess.terminate().then((response) => {
+				let result: TaskTerminateResponse = Objects.assign({ task: task }, response);
+				let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun, group: task.group };
+				this.emit(TaskSystemEvents.Terminated, event);
+				return [result];
+			});
 		}
-		return TPromise.as({ success: true });
+		return TPromise.as<TaskTerminateResponse[]>([{ success: true, task: undefined }]);
 	}
 
 	private executeTask(task: Task, trigger: string = Triggers.command): ITaskExecuteResult {
@@ -179,7 +186,7 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		if (task.isBackground) {
 			let watchingProblemMatcher = new WatchingProblemCollector(this.resolveMatchers(task.problemMatchers), this.markerService, this.modelService);
 			let toUnbind: IDisposable[] = [];
-			let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.Watching };
+			let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.Watching, group: task.group };
 			let eventCounter: number = 0;
 			toUnbind.push(watchingProblemMatcher.addListener(ProblemCollectorEvents.WatchingBeginDetected, () => {
 				eventCounter++;
@@ -238,7 +245,7 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 				: { kind: TaskExecuteKind.Started, started: {}, promise: this.activeTaskPromise };
 			return result;
 		} else {
-			let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun };
+			let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun, group: task.group };
 			this.emit(TaskSystemEvents.Active, event);
 			let startStopProblemMatcher = new StartStopProblemCollector(this.resolveMatchers(task.problemMatchers), this.markerService, this.modelService);
 			this.activeTask = task;

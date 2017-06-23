@@ -15,6 +15,10 @@ export class MockDebugService implements debug.IDebugService {
 		return null;
 	}
 
+	public get onDidEndProcess(): Event<debug.IProcess> {
+		return null;
+	}
+
 	public get onDidChangeState(): Event<debug.State> {
 		return null;
 	}
@@ -97,7 +101,7 @@ export class MockDebugService implements debug.IDebugService {
 
 	public logToRepl(value: string): void { }
 
-	public deemphasizeSource(uri: uri): void { }
+	public sourceIsNotAvailable(uri: uri): void { }
 }
 
 export class MockSession implements debug.ISession {

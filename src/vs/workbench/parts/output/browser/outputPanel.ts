@@ -13,7 +13,7 @@ import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -35,7 +35,7 @@ export class OutputPanel extends TextResourceEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IOutputService private outputService: IOutputService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
@@ -89,7 +89,7 @@ export class OutputPanel extends TextResourceEditor {
 		options.renderLineHighlight = 'none';
 		options.minimap = { enabled: false };
 
-		const outputConfig = this.configurationService.getConfiguration('[Log]');
+		const outputConfig = this.configurationService.getConfiguration(null, '[Log]');
 		if (outputConfig && outputConfig['editor.minimap.enabled']) {
 			options.minimap = { enabled: true };
 		}

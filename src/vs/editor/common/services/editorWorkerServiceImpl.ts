@@ -17,7 +17,7 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditorSimpleWorkerImpl } from 'vs/editor/common/services/editorSimpleWorker';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IRange } from 'vs/editor/common/core/range';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -39,7 +39,7 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 
 	constructor(
 		@IModelService modelService: IModelService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IModeService modeService: IModeService
 	) {
 		super();
@@ -82,18 +82,17 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 class WordBasedCompletionItemProvider implements modes.ISuggestSupport {
 
 	private readonly _workerManager: WorkerManager;
-	private readonly _configurationService: IConfigurationService;
+	private readonly _configurationService: ITextResourceConfigurationService;
 	private readonly _modeService: IModeService;
 
-	constructor(workerManager: WorkerManager, configurationService: IConfigurationService, modeService: IModeService) {
+	constructor(workerManager: WorkerManager, configurationService: ITextResourceConfigurationService, modeService: IModeService) {
 		this._workerManager = workerManager;
 		this._configurationService = configurationService;
 		this._modeService = modeService;
 	}
 
 	provideCompletionItems(model: editorCommon.IModel, position: Position): TPromise<modes.ISuggestResult> {
-		const { language } = this._modeService.getLanguageIdentifier(model.getLanguageIdAtPosition(position.lineNumber, position.column));
-		const { wordBasedSuggestions } = this._configurationService.getConfiguration<IEditorOptions>('editor', { language });
+		const { wordBasedSuggestions } = this._configurationService.getConfiguration<IEditorOptions>(model.uri, position, 'editor');
 		if (!wordBasedSuggestions) {
 			return undefined;
 		}

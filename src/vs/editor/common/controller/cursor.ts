@@ -313,6 +313,10 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		return this._cursors.getSelections();
 	}
 
+	public getViewSelections(): Selection[] {
+		return this._cursors.getViewSelections();
+	}
+
 	public getPosition(): Position {
 		return this._cursors.getPrimaryCursor().modelState.position;
 	}

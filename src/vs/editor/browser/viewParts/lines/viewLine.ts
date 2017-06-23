@@ -40,6 +40,8 @@ const canUseFastRenderedViewLine = (function () {
 	return true;
 })();
 
+const renderInlineSelection = (browser.isEdgeOrIE);
+
 export class DomReadingContext {
 
 	private readonly _domNode: HTMLElement;
@@ -142,6 +144,13 @@ export class ViewLine implements IVisibleLine {
 		this._isMaybeInvalid = true;
 		this._options = newOptions;
 	}
+	public onSelectionChanged(): boolean {
+		if (renderInlineSelection) {
+			this._isMaybeInvalid = true;
+			return true;
+		}
+		return false;
+	}
 
 	public renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData): string {
 		if (this._isMaybeInvalid === false) {
@@ -154,6 +163,26 @@ export class ViewLine implements IVisibleLine {
 		const lineData = viewportData.getViewLineRenderingData(lineNumber);
 		const options = this._options;
 		const actualInlineDecorations = LineDecoration.filter(lineData.inlineDecorations, lineNumber, lineData.minColumn, lineData.maxColumn);
+
+		if (renderInlineSelection) {
+			const selections = viewportData.selections;
+			for (let i = 0, len = selections.length; i < len; i++) {
+				const selection = selections[i];
+
+				if (selection.endLineNumber < lineNumber || selection.startLineNumber > lineNumber) {
+					// Selection does not intersect line
+					continue;
+				}
+
+				let startColumn = (selection.startLineNumber === lineNumber ? selection.startColumn : lineData.minColumn);
+				let endColumn = (selection.endLineNumber === lineNumber ? selection.endColumn : lineData.maxColumn);
+
+				if (startColumn < endColumn) {
+					actualInlineDecorations.push(new LineDecoration(startColumn, endColumn, 'inline-selected-text', false));
+				}
+			}
+		}
+
 		let renderLineInput = new RenderLineInput(
 			options.useMonospaceOptimizations,
 			lineData.content,
