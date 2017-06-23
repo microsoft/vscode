@@ -206,8 +206,11 @@ suite('Paths', () => {
 		// Absolute paths
 		[
 			'C:/',
+			'C:\\',
 			'C:/foo',
+			'C:\\foo',
 			'z:/foo/bar.txt',
+			'z:\\foo\\bar.txt',
 
 			'\\\\localhost\\c$\\foo',
 

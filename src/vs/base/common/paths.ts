@@ -414,7 +414,7 @@ export function isAbsolute_win32(path: string): boolean {
 	} else if ((char0 >= CharCode.A && char0 <= CharCode.Z) || (char0 >= CharCode.a && char0 <= CharCode.z)) {
 		if (path.length > 2 && path.charCodeAt(1) === CharCode.Colon) {
 			const char2 = path.charCodeAt(2);
-			if (char2 === CharCode.Slash || char0 === CharCode.Backslash) {
+			if (char2 === CharCode.Slash || char2 === CharCode.Backslash) {
 				return true;
 			}
 		}
