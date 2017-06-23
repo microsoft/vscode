@@ -5,10 +5,14 @@
 
 import { SpectronApplication } from '../spectron/application';
 
+var htmlparser = require('htmlparser2');
+
 export class JavaScript {
-	private readonly appVarSelector = '.view-lines>:nth-child(7) .mtk11';
-	private readonly firstCommentSelector = '.margin-view-overlays>:nth-child(3)';
-	private readonly expressVarSelector = '.view-lines>:nth-child(11) .mtk10';
+	private appVarSelector: string;
+	private expressVarSelector: string;
+
+	private foldSelector: string;
+	private foldLine: number;
 
 	constructor(private spectron: SpectronApplication) {
 		// noop
@@ -19,7 +23,13 @@ export class JavaScript {
 	}
 
 	public async findAppReferences(): Promise<any> {
-		await this.spectron.client.click(this.appVarSelector, false);
+		await this.setAppVarSelector();
+		try {
+			await this.spectron.client.click(this.appVarSelector, false);
+		} catch (e) {
+			return Promise.reject(`Failed to select 'app' variable.`);
+		}
+
 		return this.spectron.command('editor.action.referenceSearch.trigger');
 	}
 
@@ -31,11 +41,18 @@ export class JavaScript {
 
 	public async getTreeReferencesCount(): Promise<any> {
 		const treeElems = await this.spectron.client.elements('.reference-zone-widget.results-loaded .ref-tree.inline .show-twisties .monaco-tree-row');
+
 		return treeElems.value.length;
 	}
 
 	public async renameApp(newValue: string): Promise<any> {
-		await this.spectron.client.click(this.appVarSelector);
+		await this.setAppVarSelector();
+
+		try {
+			await this.spectron.client.click(this.appVarSelector);
+		} catch (e) {
+			return Promise.reject(`Failed to select 'app' variable.`);
+		}
 		await this.spectron.command('editor.action.rename');
 		await this.spectron.wait();
 		return this.spectron.client.keys(newValue, false);
@@ -46,28 +63,110 @@ export class JavaScript {
 	}
 
 	public async toggleFirstCommentFold(): Promise<any> {
-		return this.spectron.client.click(`${this.firstCommentSelector} .cldr.folding`);
+		this.foldLine = await this.getLineIndexOfFirstFoldableElement(`.margin-view-overlays`);
+		this.foldSelector = `.margin-view-overlays>:nth-child(${this.foldLine})`;
+
+		return this.spectron.client.click(`${this.foldSelector} .cldr.folding`);
 	}
 
 	public async getFirstCommentFoldedIcon(): Promise<any> {
-		return this.spectron.client.getHTML(`${this.firstCommentSelector} .cldr.folding.collapsed`);
+		if (!this.foldSelector) {
+			return Promise.reject('No code folding happened to be able to check for a folded icon.');
+		}
+
+		return this.spectron.client.getHTML(`${this.foldSelector} .cldr.folding.collapsed`);
 	}
 
 	public async getNextLineNumberAfterFold(): Promise<any> {
-		return this.spectron.client.getText(`.margin-view-overlays>:nth-child(4) .line-numbers`);
+		if (!this.foldLine) {
+			return Promise.reject('Folded line was not set, most likely because fold was not toggled initially.');
+		}
+
+		return this.spectron.client.getText(`.margin-view-overlays>:nth-child(${this.foldLine+1}) .line-numbers`);
 	}
 
 	public async goToExpressDefinition(): Promise<any> {
+		await this.setExpressVarSelector();
 		await this.spectron.client.click(this.expressVarSelector);
+
 		return this.spectron.command('editor.action.goToDeclaration');
 	}
 
 	public async peekExpressDefinition(): Promise<any> {
+		await this.setExpressVarSelector();
 		await this.spectron.client.click(this.expressVarSelector);
+
 		return this.spectron.command('editor.action.previewDeclaration');
 	}
 
 	public async getPeekExpressResultName(): Promise<any> {
 		return this.spectron.client.getText('.reference-zone-widget.results-loaded .filename');
+	}
+
+	private async setAppVarSelector(): Promise<any> {
+		if (!this.appVarSelector) {
+			const lineIndex = await this.getLineIndexOfFirst('app', '.view-lines');
+			this.appVarSelector = `.view-lines>:nth-child(${lineIndex}) .mtk11`;
+		}
+	}
+
+	private async setExpressVarSelector(): Promise<any> {
+		if (!this.expressVarSelector) {
+			const lineIndex = await this.getLineIndexOfFirst('express', '.view-lines');
+			this.expressVarSelector = `.view-lines>:nth-child(${lineIndex}) .mtk10`;
+		}
+	}
+
+	private getLineIndexOfFirst(string: string, selector: string): Promise<number> {
+		return new Promise(async (res, rej) => {
+			const html = await this.spectron.waitFor(this.spectron.client.getHTML, selector);
+			let lineIndex: number = 0;
+			let stringFound: boolean;
+			let parser = new htmlparser.Parser({
+				onopentag: function (name: string, attribs: any) {
+					if (name === 'div' && attribs.class === 'view-line') {
+						lineIndex++;
+					}
+				},
+				ontext: function (text) {
+					if (!stringFound && text === string) {
+						stringFound = true;
+						parser.end();
+					}
+				},
+				onend: function () {
+					if (!stringFound) {
+						return rej(`No ${string} in editor found.`);
+					}
+					return res(lineIndex);
+				}
+			});
+			parser.write(html);
+		});
+	}
+
+	private getLineIndexOfFirstFoldableElement(selector: string): Promise<number> {
+		return new Promise(async (res, rej) => {
+			const html = await this.spectron.waitFor(this.spectron.client.getHTML, selector);
+			let lineIndex: number = 0;
+			let foldFound: boolean;
+			let parser = new htmlparser.Parser({
+				onopentag: function (name: string, attribs: any) {
+					if (name === 'div' && !attribs.class) {
+						lineIndex++;
+					} else if (name === 'div' && attribs.class.indexOf('cldr folding') !== -1) {
+						foldFound = true;
+						parser.end();
+					}
+				},
+				onend: function () {
+					if (!foldFound) {
+						return rej(`No foldable elements found.`);
+					}
+					return res(lineIndex);
+				}
+			});
+			parser.write(html);
+		});
 	}
 }

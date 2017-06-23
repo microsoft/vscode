@@ -32,7 +32,7 @@ export function testJavaScript() {
 			await js.openQuickOutline();
 			await app.wait();
 			const symbols = await common.getQuickOpenElements();
-			assert.equal(symbols, 12);
+			assert.equal(symbols, 12, 'Quick outline elements count does not match to expected.');
 		});
 
 		it(`finds 'All References' to 'app'`, async function () {
@@ -40,9 +40,9 @@ export function testJavaScript() {
 			await js.findAppReferences();
 			await app.wait();
 			const titleCount = await js.getTitleReferencesCount();
-			assert.equal(titleCount, 3);
+			assert.equal(titleCount, 3, 'References count in widget title is not as expected.');
 			const treeCount = await js.getTreeReferencesCount();
-			assert.equal(treeCount, 3);
+			assert.equal(treeCount, 3, 'References count in tree is not as expected.');
 		});
 
 		it(`renames local 'app' variable`, async function () {
@@ -60,13 +60,13 @@ export function testJavaScript() {
 			// Fold
 			await js.toggleFirstCommentFold();
 			const foldedIcon = await js.getFirstCommentFoldedIcon();
-			assert.ok(foldedIcon);
+			assert.ok(foldedIcon, 'Folded icon was not found in the margin.');
 			let nextLineNumber = await js.getNextLineNumberAfterFold();
-			assert.equal(nextLineNumber, 7);
+			assert.equal(nextLineNumber, 7, 'Line number after folded code is wrong.');
 			// Unfold
 			await js.toggleFirstCommentFold();
 			nextLineNumber = await js.getNextLineNumberAfterFold();
-			assert.equal(nextLineNumber, 4);
+			assert.equal(nextLineNumber, 4, 'Line number with unfolded code is wrong.');
 		});
 
 		it(`verifies that 'Go To Definition' works`, async function () {
