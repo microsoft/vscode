@@ -1012,7 +1012,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	// Monaco Editor does not have a storage service
 	private expandDocsSettingFromStorage(): boolean {
 		if (this.storageServiceAvailable) {
-			return this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault)
+			return this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault);
 		} else {
 			return this.expandSuggestionDocs;
 		}
