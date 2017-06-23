@@ -6,7 +6,6 @@
 
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as UUID from 'vs/base/common/uuid';
 import * as Objects from 'vs/base/common/objects';
 import { asWinJsPromise } from 'vs/base/common/async';
 
@@ -297,26 +296,21 @@ namespace ShellConfiguration {
 
 namespace Tasks {
 
-	export function from(tasks: vscode.Task[], extension: IExtensionDescription, uuidMap: UUIDMap): TaskSystem.Task[] {
+	export function from(tasks: vscode.Task[], extension: IExtensionDescription): TaskSystem.Task[] {
 		if (tasks === void 0 || tasks === null) {
 			return [];
 		}
 		let result: TaskSystem.Task[] = [];
-		try {
-			uuidMap.start();
-			for (let task of tasks) {
-				let converted = fromSingle(task, extension, uuidMap);
-				if (converted) {
-					result.push(converted);
-				}
+		for (let task of tasks) {
+			let converted = fromSingle(task, extension);
+			if (converted) {
+				result.push(converted);
 			}
-		} finally {
-			uuidMap.finish();
 		}
 		return result;
 	}
 
-	function fromSingle(task: vscode.Task, extension: IExtensionDescription, uuidMap: UUIDMap): TaskSystem.ContributedTask {
+	function fromSingle(task: vscode.Task, extension: IExtensionDescription): TaskSystem.ContributedTask {
 		if (typeof task.name !== 'string') {
 			return undefined;
 		}
@@ -396,37 +390,6 @@ namespace Tasks {
 	}
 }
 
-class UUIDMap {
-
-	private _map: StringMap<string>;
-	private _unused: StringMap<boolean>;
-
-	constructor() {
-		this._map = Object.create(null);
-	}
-
-	public start(): void {
-		this._unused = Object.create(null);
-		Object.keys(this._map).forEach(key => this._unused[key] = true);
-	}
-
-	public getUUID(identifier: string): string {
-		delete this._unused[identifier];
-		let result = this._map[identifier];
-		if (result) {
-			return result;
-		}
-		result = UUID.generateUuid();
-		this._map[identifier] = result;
-		return result;
-	}
-
-	public finish(): void {
-		Object.keys(this._unused).forEach(key => delete this._map[key]);
-		this._unused = null;
-	}
-}
-
 interface HandlerData {
 	provider: vscode.TaskProvider;
 	extension: IExtensionDescription;
@@ -437,14 +400,12 @@ export class ExtHostTask extends ExtHostTaskShape {
 	private _proxy: MainThreadTaskShape;
 	private _handleCounter: number;
 	private _handlers: Map<number, HandlerData>;
-	private _idMaps: Map<string, UUIDMap>;
 
 	constructor(threadService: IThreadService) {
 		super();
 		this._proxy = threadService.get(MainContext.MainThreadTask);
 		this._handleCounter = 0;
 		this._handlers = new Map<number, HandlerData>();
-		this._idMaps = new Map<string, UUIDMap>();
 	};
 
 	public registerTaskProvider(extension: IExtensionDescription, provider: vscode.TaskProvider): vscode.Disposable {
@@ -467,7 +428,7 @@ export class ExtHostTask extends ExtHostTaskShape {
 		}
 		return asWinJsPromise(token => handler.provider.provideTasks(token)).then(value => {
 			return {
-				tasks: Tasks.from(value, handler.extension, this.getUUIDMap(handler.extension.id)),
+				tasks: Tasks.from(value, handler.extension),
 				extension: handler.extension
 			};
 		});
@@ -475,15 +436,5 @@ export class ExtHostTask extends ExtHostTaskShape {
 
 	private nextHandle(): number {
 		return this._handleCounter++;
-	}
-
-	private getUUIDMap(extensionId: string): UUIDMap {
-		let result = this._idMaps.get(extensionId);
-		if (result) {
-			return result;
-		}
-		result = new UUIDMap();
-		this._idMaps.set(extensionId, result);
-		return result;
 	}
 }
