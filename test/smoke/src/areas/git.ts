@@ -6,8 +6,10 @@
 import { SpectronApplication } from '../spectron/application';
 import { CommonActions } from "./common";
 
+var htmlparser = require('htmlparser2');
+
 export class Git {
-	private readonly bodyVarSelector = '.view-lines>:nth-child(6) .mtk11';
+	private editorChangeIndex: number;
 
 	constructor(private spectron: SpectronApplication, private commonActions: CommonActions) {
 		// noop
@@ -36,12 +38,13 @@ export class Git {
 		return undefined;
 	}
 
-	public getOriginalAppJsBodyVarName(): Promise<any> {
-		return this.spectron.waitFor(this.spectron.client.getText, `.editor.original ${this.bodyVarSelector}`);
+	public async getOriginalAppJsBodyVarName(): Promise<any> {
+		this.editorChangeIndex = await this.getFirstChangeIndex('cdr line-delete', '.editor.original .view-overlays');
+		return this.spectron.waitFor(this.spectron.client.getText, `.editor.original .view-lines>:nth-child(${this.editorChangeIndex}) .mtk11`);
 	}
 
 	public getModifiedAppJsBodyVarName(): Promise<any> {
-		return this.spectron.waitFor(this.spectron.client.getText, `.editor.modified ${this.bodyVarSelector}`);
+		return this.spectron.waitFor(this.spectron.client.getText, `.editor.modified .view-lines>:nth-child(${this.editorChangeIndex}) .mtk11`);
 	}
 
 	public async stageFile(fileName: string): Promise<any> {
@@ -112,5 +115,39 @@ export class Git {
 
 	public getOutgoingChanges(): Promise<string> {
 		return this.spectron.client.getText('a[title="Synchronize Changes"]');
+	}
+
+	private getFirstChangeIndex(changeClass: string, selector: string): Promise<number> {
+		return new Promise(async (res, rej) => {
+			const html = await this.spectron.waitFor(this.spectron.client.getHTML, selector);
+			let lineIndex: number = 0;
+			let changeFound: boolean;
+			let tags: string[] = [];
+			let parser = new htmlparser.Parser({
+				onopentag: function (name: string, attribs: any) {
+					tags.push(name);
+					if (name === 'div' && !attribs.class) {
+						lineIndex++;
+					} else if (name === 'div' && attribs.class === changeClass) {
+						changeFound = true;
+						parser.end();
+					}
+				},
+				onclosetag: function (name) {
+					// Terminate once last tag is closed
+					tags.pop();
+					if (!changeFound && tags.length === 0) {
+						parser.end();
+					}
+				},
+				onend: function () {
+					if (!changeFound) {
+						return rej(`No changes in the diff found.`);
+					}
+					return res(lineIndex);
+				}
+			});
+			parser.write(html);
+		});
 	}
 }
