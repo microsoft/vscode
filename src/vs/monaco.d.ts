@@ -1959,6 +1959,10 @@ declare module monaco.editor {
 		restoreViewState?(state: any): void;
 	}
 
+	export interface ThemeColor {
+		id: string;
+	}
+
 	export interface ICommonCodeEditor extends IEditor {
 		/**
 		 * An event emitted when the content of the current model has changed.
