@@ -41,6 +41,14 @@ export class RipgrepEngine {
 
 	// TODO@Rob - make promise-based once the old search is gone, and I don't need them to have matching interfaces anymore
 	search(onResult: (match: ISerializedFileMatch) => void, onMessage: (message: ISearchLog) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
+		if (!this.config.folderQueries.length) {
+			done(null, {
+				limitHit: false,
+				stats: null
+			});
+			return;
+		}
+
 		const rgArgs = getRgArgs(this.config);
 		if (rgArgs.siblingClauses) {
 			this.postProcessExclusions = glob.parseToAsync(rgArgs.siblingClauses, { trimForExclusions: true });
