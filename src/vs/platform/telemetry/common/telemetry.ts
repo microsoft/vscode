@@ -23,7 +23,6 @@ export interface ITelemetryData {
 
 export interface ITelemetryExperiments {
 	mergeQuickLinks: boolean;
-	showTaskDocumentation: boolean;
 }
 
 export interface ITelemetryService {

@@ -18,7 +18,6 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 
 export const defaultExperiments: ITelemetryExperiments = {
 	mergeQuickLinks: false,
-	showTaskDocumentation: true
 };
 
 export const NullTelemetryService = {
@@ -46,12 +45,10 @@ export function loadExperiments(accessor: ServicesAccessor): ITelemetryExperimen
 
 	let {
 		mergeQuickLinks,
-		showTaskDocumentation,
 	} = splitExperimentsRandomness(storageService);
 
 	return applyOverrides({
 		mergeQuickLinks,
-		showTaskDocumentation,
 	}, configurationService);
 }
 
@@ -67,14 +64,13 @@ function applyOverrides(experiments: ITelemetryExperiments, configurationService
 
 function splitExperimentsRandomness(storageService: IStorageService): ITelemetryExperiments {
 	const random1 = getExperimentsRandomness(storageService);
-	const [random2, showTaskDocumentation] = splitRandom(random1);
+	const [random2, /* showTaskDocumentation */] = splitRandom(random1);
 	const [random3, /* openUntitledFile */] = splitRandom(random2);
 	const [random4, mergeQuickLinks] = splitRandom(random3);
 	// tslint:disable-next-line:no-unused-variable (https://github.com/Microsoft/TypeScript/issues/16628)
 	const [random5, /* enableWelcomePage */] = splitRandom(random4);
 	return {
 		mergeQuickLinks,
-		showTaskDocumentation,
 	};
 }
 
