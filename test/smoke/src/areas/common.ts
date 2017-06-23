@@ -27,7 +27,11 @@ export class CommonActions {
 	public async addSetting(setting: string, value: string): Promise<any> {
 		await this.spectron.command('workbench.action.openGlobalSettings');
 		await this.spectron.wait();
-		await this.spectron.client.leftClick('.editable-preferences-editor-container .view-lines', 1, 1, false);
+		try {
+			await this.spectron.client.leftClick('.editable-preferences-editor-container .view-lines', 1, 1, false);
+		} catch (e) {
+			return Promise.reject('Failed to select settings editor to add a setting.');
+		}
 		await this.spectron.client.keys(['ArrowDown', 'NULL', 'ArrowDown', 'NULL'], false);
 		await this.spectron.wait();
 		await this.spectron.client.keys(`"${setting}": "${value}"`);
@@ -122,7 +126,12 @@ export class CommonActions {
 		}
 		selector += '"]';
 
-		await this.spectron.waitFor(this.spectron.client.doubleClick, selector);
+		try {
+			await this.spectron.waitFor(this.spectron.client.doubleClick, selector);
+		} catch (e) {
+			return Promise.reject(`Cannot fine ${fileName} in a viewlet.`);
+		}
+
 		return this.spectron.wait();
 	}
 

@@ -41,7 +41,11 @@ export class StatusBar {
 			throw new Error('No such element in the status bar defined.');
 		}
 
-		return this.spectron.client.click(selector);
+		try {
+			return this.spectron.client.click(selector);
+		} catch (e) {
+			return Promise.reject(`Clicking on status bar element ${selector} failed.`);
+		}
 	}
 
 	public async getProblemsView(): Promise<any> {
@@ -49,7 +53,7 @@ export class StatusBar {
 		if (el.status === 0) {
 			return el;
 		}
-		
+
 		return undefined;
 	}
 
@@ -58,7 +62,7 @@ export class StatusBar {
 		if (el.status === 0) {
 			return el;
 		}
-		
+
 		return undefined;
 	}
 
@@ -71,7 +75,7 @@ export class StatusBar {
 		if (el.status === 0) {
 			return el;
 		}
-		
+
 		return undefined;
 	}
 

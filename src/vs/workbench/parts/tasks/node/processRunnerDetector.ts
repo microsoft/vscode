@@ -20,7 +20,8 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
-import * as TaskConfig from '../common/taskConfiguration';
+import * as Tasks from '../common/tasks';
+import * as TaskConfig from './taskConfiguration';
 
 let build: string = 'build';
 let test: string = 'test';
@@ -313,8 +314,8 @@ export class ProcessRunnerDetector {
 		});
 	}
 
-	private createTaskDescriptions(tasks: string[], problemMatchers: string[], list: boolean): TaskConfig.TaskDescription[] {
-		let taskConfigs: TaskConfig.TaskDescription[] = [];
+	private createTaskDescriptions(tasks: string[], problemMatchers: string[], list: boolean): TaskConfig.CustomTask[] {
+		let taskConfigs: TaskConfig.CustomTask[] = [];
 		if (list) {
 			tasks.forEach((task) => {
 				taskConfigs.push({
@@ -337,7 +338,7 @@ export class ProcessRunnerDetector {
 				taskConfigs.push({
 					taskName: name,
 					args: [],
-					isBuildCommand: true,
+					group: Tasks.TaskGroup.Build,
 					problemMatcher: problemMatchers
 				});
 			}
@@ -347,7 +348,7 @@ export class ProcessRunnerDetector {
 				taskConfigs.push({
 					taskName: name,
 					args: [],
-					isTestCommand: true
+					group: Tasks.TaskGroup.Test,
 				});
 			}
 		}

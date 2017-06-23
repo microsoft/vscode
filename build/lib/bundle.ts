@@ -91,6 +91,7 @@ interface IPartialBundleResult {
 
 export interface ILoaderConfig {
 	isBuild?: boolean;
+	paths?: { [path: string]: any; };
 }
 
 /**
@@ -121,6 +122,9 @@ export function bundle(entryPoints: IEntryPoint[], config: ILoaderConfig, callba
 
 	var loader: any = loaderModule.exports;
 	config.isBuild = true;
+	config.paths = config.paths || {};
+	config.paths['vs/nls'] = 'out-build/vs/nls.build';
+	config.paths['vs/css'] = 'out-build/vs/css.build';
 	loader.config(config);
 
 	loader(['require'], (localRequire) => {
