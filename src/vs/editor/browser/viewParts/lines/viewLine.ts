@@ -149,7 +149,7 @@ export class ViewLine implements IVisibleLine {
 		this._options = newOptions;
 	}
 	public onSelectionChanged(): boolean {
-		if (alwaysRenderInlineSelection) {
+		if (alwaysRenderInlineSelection || this._options.themeType === HIGH_CONTRAST) {
 			this._isMaybeInvalid = true;
 			return true;
 		}
