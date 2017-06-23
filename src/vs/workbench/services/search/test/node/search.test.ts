@@ -8,17 +8,17 @@
 import path = require('path');
 import assert = require('assert');
 
-import * as glob from 'vs/base/common/glob';
 import { join, normalize } from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
 
 import { FileWalker, Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
 import { IRawFileMatch, IFolderSearch } from 'vs/workbench/services/search/node/search';
 
-const TEST_ROOT_FOLDER = path.normalize(require.toUrl('./fixtures'));
+const TEST_FIXTURES = path.normalize(require.toUrl('./fixtures'));
+const TEST_ROOT_FOLDER: IFolderSearch = { folder: TEST_FIXTURES };
 function rootFolderQueries(): IFolderSearch[] {
 	return [
-		{ folder: TEST_ROOT_FOLDER }
+		TEST_ROOT_FOLDER
 	];
 }
 
@@ -440,17 +440,18 @@ suite('Search', () => {
 			return;
 		}
 
-		const walker = new FileWalker({ folderQueries: rootFolderQueries() });
 		const file0 = './more/file.txt';
 		const file1 = './examples/subfolder/subfile.txt';
 
-		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER, glob.parse({ '**/something': true }));
+		const walker = new FileWalker({ folderQueries: rootFolderQueries(), excludePattern: { '**/something': true } });
+		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
 		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
 			assert.equal(err1, null);
 			assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
 			assert.notStrictEqual(stdout1.split('\n').indexOf(file1), -1, stdout1);
 
-			const cmd2 = walker.spawnFindCmd(TEST_ROOT_FOLDER, glob.parse({ '**/subfolder': true }));
+			const walker = new FileWalker({ folderQueries: rootFolderQueries(), excludePattern: { '**/subfolder': true } });
+			const cmd2 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
 			walker.readStdout(cmd2, 'utf8', (err2, stdout2) => {
 				assert.equal(err2, null);
 				assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
@@ -466,19 +467,20 @@ suite('Search', () => {
 			return;
 		}
 
-		const walker = new FileWalker({ folderQueries: rootFolderQueries() });
 		const file0 = './index.html';
 		const file1 = './examples/small.js';
 		const file2 = './more/file.txt';
 
-		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER, glob.parse({ '**/something': true }));
+		const walker = new FileWalker({ folderQueries: rootFolderQueries(), excludePattern: { '**/something': true } });
+		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
 		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
 			assert.equal(err1, null);
 			assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
 			assert.notStrictEqual(stdout1.split('\n').indexOf(file1), -1, stdout1);
 			assert.notStrictEqual(stdout1.split('\n').indexOf(file2), -1, stdout1);
 
-			const cmd2 = walker.spawnFindCmd(TEST_ROOT_FOLDER, glob.parse({ '{**/examples,**/more}': true }));
+			const walker = new FileWalker({ folderQueries: rootFolderQueries(), excludePattern: { '{**/examples,**/more}': true } });
+			const cmd2 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
 			walker.readStdout(cmd2, 'utf8', (err2, stdout2) => {
 				assert.equal(err2, null);
 				assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
@@ -495,17 +497,18 @@ suite('Search', () => {
 			return;
 		}
 
-		const walker = new FileWalker({ folderQueries: rootFolderQueries() });
 		const file0 = './examples/company.js';
 		const file1 = './examples/subfolder/subfile.txt';
 
-		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER, glob.parse({ '**/examples/something': true }));
+		const walker = new FileWalker({ folderQueries: rootFolderQueries(), excludePattern: { '**/examples/something': true } });
+		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
 		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
 			assert.equal(err1, null);
 			assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
 			assert.notStrictEqual(stdout1.split('\n').indexOf(file1), -1, stdout1);
 
-			const cmd2 = walker.spawnFindCmd(TEST_ROOT_FOLDER, glob.parse({ '**/examples/subfolder': true }));
+			const walker = new FileWalker({ folderQueries: rootFolderQueries(), excludePattern: { '**/examples/subfolder': true } });
+			const cmd2 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
 			walker.readStdout(cmd2, 'utf8', (err2, stdout2) => {
 				assert.equal(err2, null);
 				assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
@@ -521,17 +524,18 @@ suite('Search', () => {
 			return;
 		}
 
-		const walker = new FileWalker({ folderQueries: rootFolderQueries() });
 		const file0 = './examples/subfolder/subfile.txt';
 		const file1 = './examples/subfolder/anotherfolder/anotherfile.txt';
 
-		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER, glob.parse({ '**/subfolder/something': true }));
+		const walker = new FileWalker({ folderQueries: rootFolderQueries(), excludePattern: { '**/subfolder/something': true } });
+		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
 		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
 			assert.equal(err1, null);
 			assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
 			assert.notStrictEqual(stdout1.split('\n').indexOf(file1), -1, stdout1);
 
-			const cmd2 = walker.spawnFindCmd(TEST_ROOT_FOLDER, glob.parse({ '**/subfolder/anotherfolder': true }));
+			const walker = new FileWalker({ folderQueries: rootFolderQueries(), excludePattern: { '**/subfolder/anotherfolder': true } });
+			const cmd2 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
 			walker.readStdout(cmd2, 'utf8', (err2, stdout2) => {
 				assert.equal(err2, null);
 				assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
@@ -547,17 +551,18 @@ suite('Search', () => {
 			return;
 		}
 
-		const walker = new FileWalker({ folderQueries: rootFolderQueries() });
 		const file0 = './examples/company.js';
 		const file1 = './examples/subfolder/subfile.txt';
 
-		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER, glob.parse({ 'examples/something': true }));
+		const walker = new FileWalker({ folderQueries: rootFolderQueries(), excludePattern: { 'examples/something': true } });
+		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
 		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
 			assert.equal(err1, null);
 			assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
 			assert.notStrictEqual(stdout1.split('\n').indexOf(file1), -1, stdout1);
 
-			const cmd2 = walker.spawnFindCmd(TEST_ROOT_FOLDER, glob.parse({ 'examples/subfolder': true }));
+			const walker = new FileWalker({ folderQueries: rootFolderQueries(), excludePattern: { 'examples/subfolder': true } });
+			const cmd2 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
 			walker.readStdout(cmd2, 'utf8', (err2, stdout2) => {
 				assert.equal(err2, null);
 				assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
@@ -573,7 +578,6 @@ suite('Search', () => {
 			return;
 		}
 
-		const walker = new FileWalker({ folderQueries: rootFolderQueries() });
 		const filesIn = [
 			'./examples/subfolder/subfile.txt',
 			'./examples/company.js',
@@ -584,12 +588,16 @@ suite('Search', () => {
 			'./more/file.txt'
 		];
 
-		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER, glob.parse({
-			'**/subfolder/anotherfolder': true,
-			'**/something/else': true,
-			'**/more': true,
-			'**/andmore': true
-		}));
+		const walker = new FileWalker({
+			folderQueries: rootFolderQueries(),
+			excludePattern: {
+				'**/subfolder/anotherfolder': true,
+				'**/something/else': true,
+				'**/more': true,
+				'**/andmore': true
+			}
+		});
+		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
 		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
 			assert.equal(err1, null);
 			for (const fileIn of filesIn) {

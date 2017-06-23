@@ -13,6 +13,7 @@ import paths = require('path');
 import { Readable } from 'stream';
 
 import scorer = require('vs/base/common/scorer');
+import objects = require('vs/base/common/objects');
 import arrays = require('vs/base/common/arrays');
 import platform = require('vs/base/common/platform');
 import strings = require('vs/base/common/strings');
@@ -46,7 +47,6 @@ export class FileWalker {
 	private config: IRawSearch;
 	private filePattern: string;
 	private normalizedFilePatternLowercase: string;
-	private excludePattern: glob.ParsedExpression;
 	private includePattern: glob.ParsedExpression;
 	private maxResults: number;
 	private maxFilesize: number;
@@ -62,12 +62,14 @@ export class FileWalker {
 	private cmdForkResultTime: number;
 	private cmdResultCount: number;
 
+	private folderExcludePatterns: Map<string, glob.ParsedExpression>;
+	private globalExcludePattern: glob.ParsedExpression;
+
 	private walkedPaths: { [path: string]: boolean; };
 
 	constructor(config: IRawSearch) {
 		this.config = config;
 		this.filePattern = config.filePattern;
-		this.excludePattern = glob.parse(config.excludePattern, { trimForExclusions: true });
 		this.includePattern = config.includePattern && glob.parse(config.includePattern);
 		this.maxResults = config.maxResults || null;
 		this.maxFilesize = config.maxFilesize || null;
@@ -82,6 +84,23 @@ export class FileWalker {
 		if (this.filePattern) {
 			this.normalizedFilePatternLowercase = strings.stripWildcards(this.filePattern).toLowerCase();
 		}
+
+		this.globalExcludePattern = config.excludePattern && glob.parse(config.excludePattern);
+		this.folderExcludePatterns = new Map<string, glob.ParsedExpression>();
+
+		config.folderQueries.forEach(folderQuery => {
+			const folderExcludeExpression: glob.IExpression = objects.assign({}, this.config.excludePattern || {}, folderQuery.excludePattern || {});
+
+			// Add excludes for other root folders
+			config.folderQueries
+				.map(rootFolderQuery => rootFolderQuery.folder)
+				.filter(rootFolder => rootFolder !== folderQuery.folder)
+				.forEach(rootFolder => {
+					folderExcludeExpression[paths.join(rootFolder, '**/*')] = true;
+				});
+
+			this.folderExcludePatterns.set(folderQuery.folder, glob.parse(folderExcludeExpression));
+		});
 	}
 
 	public cancel(): void {
@@ -116,7 +135,7 @@ export class FileWalker {
 			if (extraFiles) {
 				extraFiles.forEach(extraFilePath => {
 					const basename = paths.basename(extraFilePath);
-					if (this.excludePattern(extraFilePath, basename)) {
+					if (!this.globalExcludePattern || this.globalExcludePattern(extraFilePath, basename)) {
 						return; // excluded
 					}
 
@@ -186,7 +205,7 @@ export class FileWalker {
 		let leftover = '';
 		let first = true;
 		const tree = this.initDirectoryTree();
-		const cmd = this.spawnFindCmd(rootFolder, this.excludePattern);
+		const cmd = this.spawnFindCmd(folderQuery);
 		this.collectStdout(cmd, 'utf8', (err: Error, stdout?: string, last?: boolean) => {
 			if (err) {
 				done(err);
@@ -255,17 +274,19 @@ export class FileWalker {
 	/**
 	 * Public for testing.
 	 */
-	public spawnFindCmd(rootFolder: string, excludePattern: glob.ParsedExpression) {
+	public spawnFindCmd(folderQuery: IFolderSearch) {
+		// Does this actually work for absolute paths for other roots?
+		const excludePattern = this.folderExcludePatterns.get(folderQuery.folder);
 		const basenames = glob.getBasenameTerms(excludePattern);
-		const paths = glob.getPathTerms(excludePattern);
+		const pathTerms = glob.getPathTerms(excludePattern);
 		let args = ['-L', '.'];
-		if (basenames.length || paths.length) {
+		if (basenames.length || pathTerms.length) {
 			args.push('-not', '(', '(');
 			for (const basename of basenames) {
 				args.push('-name', basename);
 				args.push('-o');
 			}
-			for (const path of paths) {
+			for (const path of pathTerms) {
 				args.push('-path', path);
 				args.push('-o');
 			}
@@ -273,7 +294,7 @@ export class FileWalker {
 			args.push(')', '-prune', ')');
 		}
 		args.push('-type', 'f');
-		return childProcess.spawn('find', args, { cwd: rootFolder });
+		return childProcess.spawn('find', args, { cwd: folderQuery.folder });
 	}
 
 	/**
@@ -377,7 +398,7 @@ export class FileWalker {
 
 	private matchDirectoryTree({ rootEntries, pathToEntries }: IDirectoryTree, rootFolder: string, onResult: (result: IRawFileMatch) => void) {
 		const self = this;
-		const excludePattern = this.excludePattern;
+		const excludePattern = this.folderExcludePatterns.get(rootFolder);
 		const filePattern = this.filePattern;
 		function matchDirectory(entries: IDirectoryEntry[]) {
 			self.directoriesWalked++;
@@ -497,7 +518,7 @@ export class FileWalker {
 
 			// Check exclude pattern
 			let currentRelativePath = relativeParentPath ? [relativeParentPath, file].join(paths.sep) : file;
-			if (this.excludePattern(currentRelativePath, file, () => siblings)) {
+			if (this.folderExcludePatterns.get(folderQuery.folder)(currentRelativePath, file, () => siblings)) {
 				return clb(null, undefined);
 			}
 
