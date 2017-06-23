@@ -1168,11 +1168,17 @@ export class Task implements vscode.Task {
 	constructor(kind: vscode.TaskKind, name: string, execution: ProcessExecution | ShellExecution);
 	constructor(kind: vscode.TaskKind, name: string, execution: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
 
-	constructor(kind: vscode.TaskKind, name: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string[]) {
+	constructor(kind: vscode.TaskKind, name: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]) {
 		this.kind = kind;
 		this.name = name;
 		this.execution = execution;
-		this._problemMatchers = problemMatchers || [];
+		if (typeof problemMatchers === 'string') {
+			this._problemMatchers = [problemMatchers];
+		} else if (Array.isArray(problemMatchers)) {
+			this._problemMatchers = problemMatchers;
+		} else {
+			this._problemMatchers = [];
+		}
 		this._isBackground = false;
 	}
 
