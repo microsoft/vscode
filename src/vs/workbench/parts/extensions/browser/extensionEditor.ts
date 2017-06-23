@@ -345,7 +345,9 @@ export class ExtensionEditor extends BaseEditor {
 			.then(renderBody)
 			.then(removeEmbeddedSVGs)
 			.then<void>(body => {
-				const webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART));
+				const allowedBadgeProviders = this.extensionsWorkbenchService.allowedBadgeProviders;
+				const webViewOptions = allowedBadgeProviders.length > 0 ? { allowScripts: false, allowSvgs: false, svgWhiteList: allowedBadgeProviders } : undefined;
+				const webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), webViewOptions);
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, webview);
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
 

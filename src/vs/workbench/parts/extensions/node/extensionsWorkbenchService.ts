@@ -310,6 +310,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 	private _isAutoUpdateEnabled: boolean;
 
+	private _extensionAllowedBadgeProviders: string[];
+
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -663,6 +665,13 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return TPromise.join([globalElablement, workspaceEnablement]).then(values => values[0] || values[1]);
 		}
 		return globalElablement;
+	}
+
+	get allowedBadgeProviders(): string[] {
+		if (!this._extensionAllowedBadgeProviders) {
+			this._extensionAllowedBadgeProviders = product.extensionAllowedBadgeProviders || [];
+		}
+		return this._extensionAllowedBadgeProviders;
 	}
 
 	private onInstallExtension(event: InstallExtensionEvent): void {

@@ -47,6 +47,7 @@ type ApiThemeClassName = 'vscode-light' | 'vscode-dark' | 'vscode-high-contrast'
 export interface WebviewOptions {
 	allowScripts?: boolean;
 	allowSvgs?: boolean;
+	svgWhiteList?: string[];
 }
 
 export default class Webview {
@@ -341,10 +342,12 @@ export default class Webview {
 	}
 
 	private isAllowedSvg(uri: URI): boolean {
-		if (uri.scheme !== 'https') {
-			return false;
+		if (this._options.allowSvgs) {
+			return true;
 		}
-		const whitelist = ['travis-ci.org', 'api.travis-ci.org', 'img.shields.io', 'ci.appveyor.com'];
-		return whitelist.indexOf(uri.authority) >= 0;
+		if (this._options.svgWhiteList) {
+			return this._options.svgWhiteList.indexOf(uri.authority) >= 0;
+		}
+		return false;
 	}
 }

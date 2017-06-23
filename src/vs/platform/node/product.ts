@@ -27,6 +27,7 @@ export interface IProductConfiguration {
 	extensionTips: { [id: string]: string; };
 	extensionImportantTips: { [id: string]: { name: string; pattern: string; }; };
 	extensionKeywords: { [extension: string]: string[]; };
+	extensionAllowedBadgeProviders: string[];
 	keymapExtensionTips: string[];
 	crashReporter: {
 		companyName: string;
