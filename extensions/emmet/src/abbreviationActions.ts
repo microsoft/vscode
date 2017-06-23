@@ -147,7 +147,7 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 	// We will not be able to maintain multiple cursors after snippet insertion
 	if (!insertSameSnippet) {
 		expandAbbrList.forEach((expandAbbrInput: ExpandAbbreviationInput) => {
-			let expandedText = expandAbbrInput.textToWrap ? wrapAbbr(expandAbbrInput, preceedingWhiteSpace, newLine) : expand(input.abbreviation, getExpandOptions(input.syntax));
+			let expandedText = expandAbbrInput.textToWrap ? wrapAbbr(expandAbbrInput, preceedingWhiteSpace, newLine) : expand(expandAbbrInput.abbreviation, getExpandOptions(expandAbbrInput.syntax));
 			if (expandedText) {
 				editor.insertSnippet(new vscode.SnippetString(expandedText), expandAbbrInput.rangeToReplace);
 			}
@@ -159,7 +159,7 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 	// We can pass all ranges to `editor.insertSnippet` in a single call so that 
 	// all cursors are maintained after snippet insertion
 	const anyExpandAbbrInput = expandAbbrList[0];
-	let expandedText = anyExpandAbbrInput.textToWrap ? wrapAbbr(anyExpandAbbrInput, preceedingWhiteSpace, newLine) : expand(input.abbreviation, getExpandOptions(input.syntax));
+	let expandedText = anyExpandAbbrInput.textToWrap ? wrapAbbr(anyExpandAbbrInput, preceedingWhiteSpace, newLine) : expand(anyExpandAbbrInput.abbreviation, getExpandOptions(anyExpandAbbrInput.syntax));
 	let allRanges = expandAbbrList.map(value => {
 		return value.rangeToReplace;
 	});
