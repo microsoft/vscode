@@ -22,7 +22,7 @@ import { IProgress, IUncachedSearchStats } from 'vs/platform/search/common/searc
 
 import extfs = require('vs/base/node/extfs');
 import flow = require('vs/base/node/flow');
-import { IRawFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine } from './search';
+import { IRawFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine, IFolderSearch } from './search';
 
 enum Traversal {
 	Node = 1,
@@ -88,7 +88,7 @@ export class FileWalker {
 		this.isCanceled = true;
 	}
 
-	public walk(rootFolders: string[], extraFiles: string[], onResult: (result: IRawFileMatch) => void, done: (error: Error, isLimitHit: boolean) => void): void {
+	public walk(folderQueries: IFolderSearch[], extraFiles: string[], onResult: (result: IRawFileMatch) => void, done: (error: Error, isLimitHit: boolean) => void): void {
 		this.fileWalkStartTime = Date.now();
 
 		// Support that the file pattern is a full path to a file that exists
@@ -146,8 +146,8 @@ export class FileWalker {
 			}
 
 			// For each root folder
-			flow.parallel<string, void>(rootFolders, (rootFolder: string, rootFolderDone: (err: Error, result: void) => void) => {
-				this.call(traverse, this, rootFolder, onResult, (err?: Error) => {
+			flow.parallel<IFolderSearch, void>(folderQueries, (folderQuery: IFolderSearch, rootFolderDone: (err: Error, result: void) => void) => {
+				this.call(traverse, this, folderQuery, onResult, (err?: Error) => {
 					if (err) {
 						if (isNodeTraversal) {
 							rootFolderDone(err, undefined);
@@ -156,7 +156,7 @@ export class FileWalker {
 							const errorMessage = toErrorMessage(err);
 							console.error(errorMessage);
 							this.errors.push(errorMessage);
-							this.nodeJSTraversal(rootFolder, onResult, err => rootFolderDone(err, undefined));
+							this.nodeJSTraversal(folderQuery, onResult, err => rootFolderDone(err, undefined));
 						}
 					} else {
 						rootFolderDone(undefined, undefined);
@@ -176,7 +176,8 @@ export class FileWalker {
 		}
 	}
 
-	private findTraversal(rootFolder: string, onResult: (result: IRawFileMatch) => void, cb: (err?: Error) => void): void {
+	private findTraversal(folderQuery: IFolderSearch, onResult: (result: IRawFileMatch) => void, cb: (err?: Error) => void): void {
+		const rootFolder = folderQuery.folder;
 		const isMac = platform.isMacintosh;
 		let done = (err?: Error) => {
 			done = () => { };
@@ -408,15 +409,15 @@ export class FileWalker {
 		matchDirectory(rootEntries);
 	}
 
-	private nodeJSTraversal(rootFolder: string, onResult: (result: IRawFileMatch) => void, done: (err?: Error) => void): void {
+	private nodeJSTraversal(folderQuery: IFolderSearch, onResult: (result: IRawFileMatch) => void, done: (err?: Error) => void): void {
 		this.directoriesWalked++;
-		extfs.readdir(rootFolder, (error: Error, files: string[]) => {
+		extfs.readdir(folderQuery.folder, (error: Error, files: string[]) => {
 			if (error || this.isCanceled || this.isLimitHit) {
 				return done();
 			}
 
 			// Support relative paths to files from a root resource (ignores excludes)
-			return this.checkFilePatternRelativeMatch(rootFolder, (match, size) => {
+			return this.checkFilePatternRelativeMatch(folderQuery.folder, (match, size) => {
 				if (this.isCanceled || this.isLimitHit) {
 					return done();
 				}
@@ -425,14 +426,14 @@ export class FileWalker {
 				if (match) {
 					this.resultCount++;
 					onResult({
-						base: rootFolder,
+						base: folderQuery.folder,
 						relativePath: this.filePattern,
 						basename: paths.basename(this.filePattern),
 						size
 					});
 				}
 
-				return this.doWalk(rootFolder, '', files, onResult, done);
+				return this.doWalk(folderQuery, '', files, onResult, done);
 			});
 		});
 	}
@@ -475,7 +476,8 @@ export class FileWalker {
 		});
 	}
 
-	private doWalk(rootFolder: string, relativeParentPath: string, files: string[], onResult: (result: IRawFileMatch) => void, done: (error: Error) => void): void {
+	private doWalk(folderQuery: IFolderSearch, relativeParentPath: string, files: string[], onResult: (result: IRawFileMatch) => void, done: (error: Error) => void): void {
+		const rootFolder = folderQuery.folder;
 
 		// Execute tasks on each file in parallel to optimize throughput
 		flow.parallel(files, (file: string, clb: (error: Error, result: {}) => void): void => {
@@ -536,7 +538,7 @@ export class FileWalker {
 									return clb(null, undefined);
 								}
 
-								this.doWalk(rootFolder, currentRelativePath, children, onResult, err => clb(err, undefined));
+								this.doWalk(folderQuery, currentRelativePath, children, onResult, err => clb(err, undefined));
 							});
 						});
 					}
@@ -621,19 +623,19 @@ export class FileWalker {
 }
 
 export class Engine implements ISearchEngine<IRawFileMatch> {
-	private rootFolders: string[];
+	private folderQueries: IFolderSearch[];
 	private extraFiles: string[];
 	private walker: FileWalker;
 
 	constructor(config: IRawSearch) {
-		this.rootFolders = config.folderQueries.map(folderQ => folderQ.folder);
+		this.folderQueries = config.folderQueries;
 		this.extraFiles = config.extraFiles;
 
 		this.walker = new FileWalker(config);
 	}
 
 	public search(onResult: (result: IRawFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
-		this.walker.walk(this.rootFolders, this.extraFiles, onResult, (err: Error, isLimitHit: boolean) => {
+		this.walker.walk(this.folderQueries, this.extraFiles, onResult, (err: Error, isLimitHit: boolean) => {
 			done(err, {
 				limitHit: isLimitHit,
 				stats: this.walker.getStats()

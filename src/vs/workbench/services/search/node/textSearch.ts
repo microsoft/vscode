@@ -126,7 +126,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch[]> {
 		let nextBatch: string[] = [];
 		let nextBatchBytes = 0;
 		const batchFlushBytes = 2 ** 20; // 1MB
-		this.walker.walk(this.config.folderQueries.map(folderQ => folderQ.folder), this.config.extraFiles, result => {
+		this.walker.walk(this.config.folderQueries, this.config.extraFiles, result => {
 			let bytes = result.size || 1;
 			this.totalBytes += bytes;
 
