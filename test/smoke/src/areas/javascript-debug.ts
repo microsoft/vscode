@@ -36,7 +36,7 @@ export class JavaScriptDebug {
 		if (el.status === 0) {
 			return el;
 		}
-		
+
 		return undefined;
 	}
 }

@@ -121,7 +121,7 @@ export class SpectronApplication {
 				let result;
 				try {
 					result = await func.call(this.client, args);
-				} catch (e) {}
+				} catch (e) { }
 
 				if (result && result !== '') {
 					await this.screenshot.capture();

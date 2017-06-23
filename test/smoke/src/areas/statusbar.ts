@@ -49,7 +49,7 @@ export class StatusBar {
 		if (el.status === 0) {
 			return el;
 		}
-		
+
 		return undefined;
 	}
 
@@ -58,7 +58,7 @@ export class StatusBar {
 		if (el.status === 0) {
 			return el;
 		}
-		
+
 		return undefined;
 	}
 
@@ -71,7 +71,7 @@ export class StatusBar {
 		if (el.status === 0) {
 			return el;
 		}
-		
+
 		return undefined;
 	}
 

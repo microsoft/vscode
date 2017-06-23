@@ -7,7 +7,7 @@ import { SpectronApplication } from '../spectron/application';
 import { CommonActions } from "./common";
 
 export class Extensions {
-	
+
 	private readonly extensionsViewletSelector = 'div[id="workbench.view.extensions"]';
 
 	constructor(private spectron: SpectronApplication, private common: CommonActions) {
