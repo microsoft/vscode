@@ -1,23 +1,23 @@
 /*---------------------------------------------------------------------------------------------
-*  Copyright (c) Microsoft Corporation. All rights reserved.
-*  Licensed under the MIT License. See License.txt in the project root for license information.
-*--------------------------------------------------------------------------------------------*/
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 'use strict';
 /*---------------------------------------------------------------------------------------------
-*  Copyright (c) Microsoft Corporation. All rights reserved.
-*  Licensed under the MIT License. See License.txt in the project root for license information.
-*--------------------------------------------------------------------------------------------*/
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 /*---------------------------------------------------------------------------------------------
-*---------------------------------------------------------------------------------------------
-*---------------------------------------------------------------------------------------------
-*---------------------------------------------------------------------------------------------
-*---------------------------------------------------------------------------------------------
-* Please make sure to make edits in the .ts file at https://github.com/Microsoft/vscode-loader/
-*---------------------------------------------------------------------------------------------
-*---------------------------------------------------------------------------------------------
-*---------------------------------------------------------------------------------------------
-*---------------------------------------------------------------------------------------------
-*--------------------------------------------------------------------------------------------*/
+ *---------------------------------------------------------------------------------------------
+ *---------------------------------------------------------------------------------------------
+ *---------------------------------------------------------------------------------------------
+ *---------------------------------------------------------------------------------------------
+ * Please make sure to make edits in the .ts file at https://github.com/Microsoft/vscode-loader/
+ *---------------------------------------------------------------------------------------------
+ *---------------------------------------------------------------------------------------------
+ *---------------------------------------------------------------------------------------------
+ *---------------------------------------------------------------------------------------------
+ *--------------------------------------------------------------------------------------------*/
 var _amdLoaderGlobal = this;
 var AMDLoader;
 (function (AMDLoader) {
@@ -53,9 +53,9 @@ var AMDLoader;
     AMDLoader.Environment = Environment;
 })(AMDLoader || (AMDLoader = {}));
 /*---------------------------------------------------------------------------------------------
-*  Copyright (c) Microsoft Corporation. All rights reserved.
-*  Licensed under the MIT License. See License.txt in the project root for license information.
-*--------------------------------------------------------------------------------------------*/
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 var AMDLoader;
 (function (AMDLoader) {
     var LoaderEventType;
@@ -108,9 +108,9 @@ var AMDLoader;
     AMDLoader.NullLoaderEventRecorder = NullLoaderEventRecorder;
 })(AMDLoader || (AMDLoader = {}));
 /*---------------------------------------------------------------------------------------------
-*  Copyright (c) Microsoft Corporation. All rights reserved.
-*  Licensed under the MIT License. See License.txt in the project root for license information.
-*--------------------------------------------------------------------------------------------*/
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 var AMDLoader;
 (function (AMDLoader) {
     var Utilities = (function () {
@@ -207,9 +207,9 @@ var AMDLoader;
     AMDLoader.Utilities = Utilities;
 })(AMDLoader || (AMDLoader = {}));
 /*---------------------------------------------------------------------------------------------
-*  Copyright (c) Microsoft Corporation. All rights reserved.
-*  Licensed under the MIT License. See License.txt in the project root for license information.
-*--------------------------------------------------------------------------------------------*/
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 var AMDLoader;
 (function (AMDLoader) {
     var ConfigurationOptionsUtil = (function () {
@@ -522,9 +522,9 @@ var AMDLoader;
     AMDLoader.Configuration = Configuration;
 })(AMDLoader || (AMDLoader = {}));
 /*---------------------------------------------------------------------------------------------
-*  Copyright (c) Microsoft Corporation. All rights reserved.
-*  Licensed under the MIT License. See License.txt in the project root for license information.
-*--------------------------------------------------------------------------------------------*/
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 var AMDLoader;
 (function (AMDLoader) {
     /**
@@ -782,17 +782,15 @@ var AMDLoader;
                     errorCode: 'cachedDataRejected',
                     path: cachedDataPath
                 });
-                NodeScriptLoader._runSoon(function () {
-                    return _this._fs.unlink(cachedDataPath, function (err) {
-                        if (err) {
-                            moduleManager.getConfig().getOptionsLiteral().onNodeCachedData({
-                                errorCode: 'unlink',
-                                path: cachedDataPath,
-                                detail: err
-                            });
-                        }
-                    });
-                }, moduleManager.getConfig().getOptionsLiteral().nodeCachedDataWriteDelay);
+                NodeScriptLoader._runSoon(function () { return _this._fs.unlink(cachedDataPath, function (err) {
+                    if (err) {
+                        moduleManager.getConfig().getOptionsLiteral().onNodeCachedData({
+                            errorCode: 'unlink',
+                            path: cachedDataPath,
+                            detail: err
+                        });
+                    }
+                }); }, moduleManager.getConfig().getOptionsLiteral().nodeCachedDataWriteDelay);
             }
             else if (script.cachedDataProduced) {
                 // data produced => tell outside world
@@ -801,17 +799,15 @@ var AMDLoader;
                     length: script.cachedData.length
                 });
                 // data produced => write cache file
-                NodeScriptLoader._runSoon(function () {
-                    return _this._fs.writeFile(cachedDataPath, script.cachedData, function (err) {
-                        if (err) {
-                            moduleManager.getConfig().getOptionsLiteral().onNodeCachedData({
-                                errorCode: 'writeFile',
-                                path: cachedDataPath,
-                                detail: err
-                            });
-                        }
-                    });
-                }, moduleManager.getConfig().getOptionsLiteral().nodeCachedDataWriteDelay);
+                NodeScriptLoader._runSoon(function () { return _this._fs.writeFile(cachedDataPath, script.cachedData, function (err) {
+                    if (err) {
+                        moduleManager.getConfig().getOptionsLiteral().onNodeCachedData({
+                            errorCode: 'writeFile',
+                            path: cachedDataPath,
+                            detail: err
+                        });
+                    }
+                }); }, moduleManager.getConfig().getOptionsLiteral().nodeCachedDataWriteDelay);
             }
         };
         NodeScriptLoader._runSoon = function (callback, minTimeout) {
@@ -831,9 +827,9 @@ var AMDLoader;
     AMDLoader.createScriptLoader = createScriptLoader;
 })(AMDLoader || (AMDLoader = {}));
 /*---------------------------------------------------------------------------------------------
-*  Copyright (c) Microsoft Corporation. All rights reserved.
-*  Licensed under the MIT License. See License.txt in the project root for license information.
-*--------------------------------------------------------------------------------------------*/
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 var AMDLoader;
 (function (AMDLoader) {
     // ------------------------------------------------------------------------

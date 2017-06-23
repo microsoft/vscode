@@ -49,7 +49,7 @@ function createCompile(build: boolean, emitError?: boolean): (token?: util.ICanc
 			.pipe(tsFilter)
 			.pipe(util.loadSourcemaps())
 			.pipe(ts(token))
-			.pipe(build ? reloadTypeScriptNodeModule() : es.through())
+			// .pipe(build ? reloadTypeScriptNodeModule() : es.through())
 			.pipe(noDeclarationsFilter)
 			.pipe(build ? nls() : es.through())
 			.pipe(noDeclarationsFilter.restore)

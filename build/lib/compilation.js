@@ -41,7 +41,6 @@ function createCompile(build, emitError) {
             .pipe(tsFilter)
             .pipe(util.loadSourcemaps())
             .pipe(ts(token))
-            .pipe(build ? reloadTypeScriptNodeModule() : es.through())
             .pipe(noDeclarationsFilter)
             .pipe(build ? nls() : es.through())
             .pipe(noDeclarationsFilter.restore)
