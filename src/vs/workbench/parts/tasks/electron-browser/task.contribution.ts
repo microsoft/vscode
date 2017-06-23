@@ -1229,7 +1229,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	private getExecutionEngine(): ExecutionEngine {
 		let { config } = this.getConfiguration();
 		if (!config) {
-			return ExecutionEngine.Process;
+			return ExecutionEngine.Terminal;
 		}
 		return TaskConfig.ExecutionEngine.from(config);
 	}
