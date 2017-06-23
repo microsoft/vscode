@@ -426,7 +426,8 @@ export function registerCommands(): void {
 }
 
 namespace GlobalQuickOpenCommand {
-	export const ID = 'vscode.quickOpen';
+	export const ID = 'workbench.action.quickOpen';
+	export const LABEL = nls.localize('quickOpen', "Go to File...");
 
 	CommandsRegistry.registerCommand(ID, function (accessor: ServicesAccessor, args: [string]) {
 		const quickOpenService = accessor.get(IQuickOpenService);
@@ -435,5 +436,12 @@ namespace GlobalQuickOpenCommand {
 		return quickOpenService.show(prefix).then(() => {
 			return void 0;
 		});
+	});
+
+	KeybindingsRegistry.registerKeybindingRule({
+		id: 'workbench.action.quickOpen',
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: undefined,
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_P
 	});
 }
