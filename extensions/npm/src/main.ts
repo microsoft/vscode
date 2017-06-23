@@ -67,6 +67,25 @@ interface NpmTaskKind extends vscode.TaskKind {
 	file?: string;
 }
 
+const buildNames: string[] = ['build', 'compile', 'watch'];
+function isBuildTask(name: string): boolean {
+	for (let buildName of buildNames) {
+		if (name.indexOf(buildName) !== -1) {
+			return true;
+		}
+	}
+	return false;
+}
+
+const testNames: string[] = ['test'];
+function isTestTask(name: string): boolean {
+	for (let testName of testNames) {
+		if (name === testName) {
+			return true;
+		}
+	}
+	return false;
+}
 
 async function getNpmScriptsAsTasks(): Promise<vscode.Task[]> {
 	let workspaceRoot = vscode.workspace.rootPath;
@@ -96,9 +115,9 @@ async function getNpmScriptsAsTasks(): Promise<vscode.Task[]> {
 			};
 			const task = new vscode.Task(kind, `run ${each}`, new vscode.ShellExecution(`npm run ${each}`));
 			const lowerCaseTaskName = each.toLowerCase();
-			if (lowerCaseTaskName === 'build') {
+			if (isBuildTask(lowerCaseTaskName)) {
 				task.group = vscode.TaskGroup.Build;
-			} else if (lowerCaseTaskName === 'test') {
+			} else if (isTestTask(lowerCaseTaskName)) {
 				task.group = vscode.TaskGroup.Test;
 			}
 			result.push(task);

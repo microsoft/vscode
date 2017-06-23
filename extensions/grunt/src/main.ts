@@ -89,6 +89,26 @@ interface GruntTaskKind extends vscode.TaskKind {
 	file?: string;
 }
 
+const buildNames: string[] = ['build', 'compile', 'watch'];
+function isBuildTask(name: string): boolean {
+	for (let buildName of buildNames) {
+		if (name.indexOf(buildName) !== -1) {
+			return true;
+		}
+	}
+	return false;
+}
+
+const testNames: string[] = ['test'];
+function isTestTask(name: string): boolean {
+	for (let testName of testNames) {
+		if (name.indexOf(testName) !== -1) {
+			return true;
+		}
+	}
+	return false;
+}
+
 async function getGruntTasks(): Promise<vscode.Task[]> {
 	let workspaceRoot = vscode.workspace.rootPath;
 	let emptyTasks: vscode.Task[] = [];
@@ -119,9 +139,6 @@ async function getGruntTasks(): Promise<vscode.Task[]> {
 		}
 		let result: vscode.Task[] = [];
 		if (stdout) {
-			let buildTask: { task: vscode.Task | undefined, rank: number } = { task: undefined, rank: 0 };
-			let testTask: { task: vscode.Task | undefined, rank: number } = { task: undefined, rank: 0 };
-
 			// grunt lists tasks as follows (description is wrapped into a new line if too long):
 			// ...
 			// Available tasks
@@ -162,24 +179,14 @@ async function getGruntTasks(): Promise<vscode.Task[]> {
 								: new vscode.Task(kind, taskName, new vscode.ShellExecution(`${command} "${taskName}"`));
 							result.push(task);
 							let lowerCaseTaskName = taskName.toLowerCase();
-							if (lowerCaseTaskName === 'build') {
-								buildTask = { task, rank: 2 };
-							} else if (lowerCaseTaskName.indexOf('build') !== -1 && buildTask.rank < 1) {
-								buildTask = { task, rank: 1 };
-							} else if (lowerCaseTaskName === 'test') {
-								testTask = { task, rank: 2 };
-							} else if (lowerCaseTaskName.indexOf('test') !== -1 && testTask.rank < 1) {
-								testTask = { task, rank: 1 };
+							if (isBuildTask(lowerCaseTaskName)) {
+								task.group = vscode.TaskGroup.Build;
+							} else if (isTestTask(lowerCaseTaskName)) {
+								task.group = vscode.TaskGroup.Test;
 							}
 						}
 					}
 				}
-			}
-			if (buildTask.task) {
-				buildTask.task.group = vscode.TaskGroup.Build;
-			}
-			if (testTask.task) {
-				testTask.task.group = vscode.TaskGroup.Test;
 			}
 		}
 		return result;
