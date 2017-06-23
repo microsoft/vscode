@@ -396,7 +396,6 @@ export function isEqualOrParent(path: string, candidate: string, ignoreCase?: bo
 
 /**
  * Adapted from Node's path.isAbsolute functions
- * @param path
  */
 export function isAbsolute(path: string): boolean {
 	return isWindows ?
