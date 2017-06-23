@@ -26,7 +26,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, ExtensionState } from '../common/extensions';
 import {
-	ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowPopularExtensionsAction, ShowDisabledExtensionsAction,
+	ShowInstalledExtensionsAction, ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowPopularExtensionsAction, ShowDisabledExtensionsAction,
 	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, CheckForUpdatesAction, DisableAllAction, EnableAllAction,
 	EnableAutoUpdateAction, DisableAutoUpdateAction
 } from 'vs/workbench/parts/extensions/browser/extensionsActions';
@@ -55,9 +55,9 @@ interface SearchInputEvent extends Event {
 	immediate?: boolean;
 }
 
-const SearchExtensionsContext = new RawContextKey<boolean>('searchExtensions', true);
-const SearchInstalledExtensionsContext = new RawContextKey<boolean>('searchInstalledExtensions', true);
-const SearchRecommendedExtensionsContext = new RawContextKey<boolean>('searchRecommendedExtensions', true);
+const SearchExtensionsContext = new RawContextKey<boolean>('searchExtensions', false);
+const SearchInstalledExtensionsContext = new RawContextKey<boolean>('searchInstalledExtensions', false);
+const SearchRecommendedExtensionsContext = new RawContextKey<boolean>('searchRecommendedExtensions', false);
 
 export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensionsViewlet {
 
@@ -118,6 +118,7 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 		let viewDescriptors = [];
 		viewDescriptors.push(this.createMarketPlaceExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createInstalledExtensionsListViewDescriptor());
+		viewDescriptors.push(this.createSearchInstalledExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createRecommendedExtensionsListViewDescriptor());
 		ViewsRegistry.registerViews(viewDescriptors);
 	}
@@ -128,7 +129,7 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 			name: localize('marketPlace', "Marketplace"),
 			location: ViewLocation.Extensions,
 			ctor: ExtensionsListView,
-			when: ContextKeyExpr.and(ContextKeyExpr.has('searchExtensions'), ContextKeyExpr.not('searchInstalledExtensions'), ContextKeyExpr.not('searchRecommendedExtensions')),
+			when: ContextKeyExpr.and(ContextKeyExpr.has('searchExtensions'), ContextKeyExpr.not('searchInstalledExtensions')),
 			size: 100
 		};
 	}
@@ -140,6 +141,17 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 			location: ViewLocation.Extensions,
 			ctor: InstalledExtensionsView,
 			when: ContextKeyExpr.not('searchExtensions'),
+			size: 50
+		};
+	}
+
+	private createSearchInstalledExtensionsListViewDescriptor(): IViewDescriptor {
+		return {
+			id: 'extensions.searchInstalledList',
+			name: localize('searchInstalledExtensions', "Installed"),
+			location: ViewLocation.Extensions,
+			ctor: InstalledExtensionsView,
+			when: ContextKeyExpr.has('searchInstalledExtensions'),
 			size: 50
 		};
 	}
@@ -242,6 +254,7 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 	getSecondaryActions(): IAction[] {
 		if (!this.secondaryActions) {
 			this.secondaryActions = [
+				this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowOutdatedExtensionsAction, ShowOutdatedExtensionsAction.ID, ShowOutdatedExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowDisabledExtensionsAction, ShowDisabledExtensionsAction.ID, ShowDisabledExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, ShowRecommendedExtensionsAction.LABEL),
