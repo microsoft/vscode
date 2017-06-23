@@ -13,6 +13,22 @@ import commonSchema from './jsonSchemaCommon';
 import { ProblemMatcherRegistry } from 'vs/platform/markers/common/problemMatcher';
 import { TaskTypeRegistry } from '../common/taskTypeRegistry';
 
+function fixReferences(literal: any) {
+	if (Array.isArray(literal)) {
+		literal.forEach(fixReferences);
+	} else if (typeof literal === 'object') {
+		if (literal['$ref']) {
+			literal['$ref'] = literal['$ref'] + '2';
+		}
+		Object.getOwnPropertyNames(literal).forEach(property => {
+			let value = literal[property];
+			if (Array.isArray(value) || typeof value === 'object') {
+				fixReferences(value);
+			}
+		});
+	}
+}
+
 const shellCommand: IJSONSchema = {
 	anyOf: [
 		{
@@ -111,6 +127,11 @@ let taskConfiguration: IJSONSchema = {
 			type: 'string',
 			description: nls.localize('JsonSchema.tasks.taskLabel', "The task's label")
 		},
+		taskName: {
+			type: 'string',
+			description: nls.localize('JsonSchema.tasks.taskName', 'The task\'s name'),
+			deprecationMessage: nls.localize('JsonSchema.tasks.taskName.deprecated', 'The task\'s name property is deprecated. Use the label property instead.')
+		},
 		group: Objects.deepClone(group),
 		isBackground: {
 			type: 'boolean',
@@ -124,7 +145,7 @@ let taskConfiguration: IJSONSchema = {
 		},
 		presentation: Objects.deepClone(presentation),
 		problemMatcher: {
-			$ref: '#/definitions/problemMatcherType2',
+			$ref: '#/definitions/problemMatcherType',
 			description: nls.localize('JsonSchema.tasks.matchers', 'The problem matcher(s) to use. Can either be a string or a problem matcher definition or an array of strings and problem matchers.')
 		}
 	}
@@ -134,6 +155,7 @@ let taskDefinitions: IJSONSchema[] = [];
 TaskTypeRegistry.onReady().then(() => {
 	for (let taskType of TaskTypeRegistry.all()) {
 		let schema: IJSONSchema = Objects.deepClone(taskConfiguration);
+		// Since we do this after the schema is assigned we need to patch the refs.
 		schema.properties.type = {
 			type: 'string',
 			description: nls.localize('JsonSchema.customizations.customizes.type', 'The task type to customize'),
@@ -146,9 +168,17 @@ TaskTypeRegistry.onReady().then(() => {
 			let property = taskType.properties[key];
 			schema.properties[key] = Objects.deepClone(property);
 		}
+		fixReferences(schema);
 		taskDefinitions.push(schema);
 	}
 });
+
+let customize = Objects.deepClone(taskConfiguration);
+customize.properties.customize = {
+	type: 'string',
+	deprecationMessage: nls.localize('JsonSchema.tasks.customize.deprecated', 'The customize property is deprecated. See the 1.14 release notes on how to migrate to the new task customization approach')
+};
+taskDefinitions.push(customize);
 
 let definitions = Objects.deepClone(commonSchema.definitions);
 let taskDescription: IJSONSchema = definitions.taskDescription;
@@ -218,22 +248,6 @@ Object.getOwnPropertyNames(definitions).forEach(key => {
 	definitions[newKey] = definitions[key];
 	delete definitions[key];
 });
-
-function fixReferences(literal: any) {
-	if (Array.isArray(literal)) {
-		literal.forEach(fixReferences);
-	} else if (typeof literal === 'object') {
-		if (literal['$ref']) {
-			literal['$ref'] = literal['$ref'] + '2';
-		}
-		Object.getOwnPropertyNames(literal).forEach(property => {
-			let value = literal[property];
-			if (Array.isArray(value) || typeof value === 'object') {
-				fixReferences(value);
-			}
-		});
-	}
-}
 fixReferences(schema);
 
 ProblemMatcherRegistry.onReady().then(() => {

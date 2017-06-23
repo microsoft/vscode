@@ -204,6 +204,11 @@ export interface ConfigurationProperties {
 	taskName?: string;
 
 	/**
+	 * The UI label used for the task.
+	 */
+	label?: string;
+
+	/**
 	 * An optional indentifier which can be used to reference a task
 	 * in a dependsOn or other attributes.
 	 */
@@ -1015,6 +1020,9 @@ namespace ConfigurationProperties {
 		let result: Tasks.ConfigurationProperties = {};
 		if (Types.isString(external.taskName)) {
 			result.name = external.taskName;
+		}
+		if (Types.isString(external.label) && context.schemaVersion === Tasks.JsonSchemaVersion.V2_0_0) {
+			result.name = external.label;
 		}
 		if (Types.isString(external.identifier)) {
 			result.identifier = external.identifier;
