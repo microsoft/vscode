@@ -30,9 +30,9 @@ export class IntegratedTerminal {
 		for (let i = 0; i < rows.value.length; i++) {
 			let rowText;
 			try {
-				rowText = await this.spectron.client.getText(`${selector}>:nth-child(${i+1})`);
+				rowText = await this.spectron.client.getText(`${selector}>:nth-child(${i + 1})`);
 			} catch (e) {
-				return Promise.reject(`Failed to obtain text from line ${i+1} from the terminal.`);
+				return Promise.reject(`Failed to obtain text from line ${i + 1} from the terminal.`);
 			}
 			if (rowText.trim() === result) {
 				return true;

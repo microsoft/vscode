@@ -89,8 +89,8 @@ export class Git {
 		}
 
 		const stagedTitle = scmHeaders.find((val) => {
-				return val.match(/staged/i) ? true : false;
-			});
+			return val.match(/staged/i) ? true : false;
+		});
 
 		if (!stagedTitle) {
 			return Promise.reject(`No 'Staged' header title found in SCM viewlet`);
@@ -98,7 +98,7 @@ export class Git {
 
 		const monacoRowIndex = scmHeaders.indexOf(stagedTitle);
 		try {
-			return this.spectron.waitFor(this.spectron.client.getText, `.scm-status.show-file-icons .monaco-list-rows>:nth-child(${monacoRowIndex+1}) .monaco-count-badge`);
+			return this.spectron.waitFor(this.spectron.client.getText, `.scm-status.show-file-icons .monaco-list-rows>:nth-child(${monacoRowIndex + 1}) .monaco-count-badge`);
 		} catch (e) {
 			return Promise.reject('Stage count badge cannot be found');
 		}
