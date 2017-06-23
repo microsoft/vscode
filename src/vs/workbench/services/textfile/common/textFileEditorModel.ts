@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as path from 'vs/base/common/paths';
 import nls = require('vs/nls');
 import Event, { Emitter } from 'vs/base/common/event';
 import { TPromise, TValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
