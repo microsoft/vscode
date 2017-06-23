@@ -29,6 +29,63 @@ import { Position } from 'vs/editor/common/core/position';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { buttonBackground, buttonForeground, badgeForeground, badgeBackground, contrastBorder, errorForeground } from 'vs/platform/theme/common/colorRegistry';
 
+export class SettingsHeaderWidget extends Widget implements IViewZone {
+
+	private id: number;
+	private _domNode: HTMLElement;
+
+	private titleContainer: HTMLElement;
+	private messageElement: HTMLElement;
+
+	constructor(private editor: ICodeEditor, private title: string) {
+		super();
+		this.create();
+		this._register(this.editor.onDidChangeConfiguration(() => this.layout()));
+		this._register(this.editor.onDidLayoutChange(() => this.layout()));
+	}
+
+	get domNode(): HTMLElement {
+		return this._domNode;
+	}
+
+	get heightInLines(): number {
+		return 1;
+	}
+
+	get afterLineNumber(): number {
+		return 0;
+	}
+
+	private create() {
+		this._domNode = DOM.$('.settings-header-widget');
+
+		this.titleContainer = DOM.append(this._domNode, DOM.$('.title-container'));
+		DOM.append(this.titleContainer, DOM.$('.title')).textContent = this.title;
+		this.messageElement = DOM.append(this.titleContainer, DOM.$('.message'));
+
+		this.editor.changeViewZones(accessor => {
+			this.id = accessor.addZone(this);
+			this.layout();
+		});
+	}
+
+	public setMessage(message: string): void {
+		this.messageElement.textContent = message;
+	}
+
+	private layout(): void {
+		const configuration = this.editor.getConfiguration();
+		this.titleContainer.style.fontSize = configuration.fontInfo.fontSize + 'px';
+	}
+
+	public dispose() {
+		this.editor.changeViewZones(accessor => {
+			accessor.removeZone(this.id);
+		});
+		super.dispose();
+	}
+}
+
 export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 
 	private id: number;

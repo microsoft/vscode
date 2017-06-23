@@ -19,7 +19,7 @@ import { IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel,
 import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { IContextMenuService, ContextSubMenu } from 'vs/platform/contextview/browser/contextView';
-import { SettingsGroupTitleWidget, EditPreferenceWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
+import { SettingsGroupTitleWidget, EditPreferenceWidget, SettingsHeaderWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
 import { IConfigurationEditingService, IConfigurationEditingError, ConfigurationEditingErrorCode, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
@@ -186,6 +186,7 @@ export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements I
 export class DefaultSettingsRenderer extends Disposable implements IPreferencesRenderer<ISetting> {
 
 	private settingHighlighter: SettingHighlighter;
+	private settingsHeaderRenderer: SettingsHeaderRenderer;
 	private settingsGroupTitleRenderer: SettingsGroupTitleRenderer;
 	private filteredMatchesRenderer: FilteredMatchesRenderer;
 	private hiddenAreasRenderer: HiddenAreasRenderer;
@@ -211,6 +212,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this._register(preferencesModel);
 		this._register(_associatedPreferencesModel);
 		this.settingHighlighter = this._register(instantiationService.createInstance(SettingHighlighter, editor, this._onFocusPreference, this._onClearFocusPreference));
+		this.settingsHeaderRenderer = this._register(instantiationService.createInstance(SettingsHeaderRenderer, editor));
 		this.settingsGroupTitleRenderer = this._register(instantiationService.createInstance(SettingsGroupTitleRenderer, editor));
 		this.filteredMatchesRenderer = this._register(instantiationService.createInstance(FilteredMatchesRenderer, editor));
 		this.editSettingActionRenderer = this._register(instantiationService.createInstance(EditSettingRenderer, editor, preferencesModel, this.settingHighlighter));
@@ -244,11 +246,13 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		if (!filterResult) {
 			this.settingHighlighter.clear(true);
 			this.filteredMatchesRenderer.render(null);
+			this.settingsHeaderRenderer.render(this.preferencesModel.settingsGroups);
 			this.settingsGroupTitleRenderer.render(this.preferencesModel.settingsGroups);
 			this.settingsGroupTitleRenderer.showGroup(1);
 			this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups, this._associatedPreferencesModel);
 		} else {
 			this.filteredMatchesRenderer.render(filterResult);
+			this.settingsHeaderRenderer.render(filterResult.filteredGroups);
 			this.settingsGroupTitleRenderer.render(filterResult.filteredGroups);
 			this.settingHighlighter.clear(true);
 			this.editSettingActionRenderer.render(filterResult.filteredGroups, this._associatedPreferencesModel);
@@ -341,6 +345,24 @@ export class StaticContentHidingRenderer extends Disposable implements HiddenAre
 		];
 	}
 
+}
+
+class SettingsHeaderRenderer extends Disposable {
+
+	private settingsHeaderWidget: SettingsHeaderWidget;
+
+	constructor(private editor: ICodeEditor) {
+		super();
+		this.settingsHeaderWidget = this._register(new SettingsHeaderWidget(editor, nls.localize('defaultSettingsTitle', "Default Settings")));
+	}
+
+	public render(settingsGroups: ISettingsGroup[]) {
+		if (settingsGroups.length) {
+			this.settingsHeaderWidget.setMessage(nls.localize('defaultSettingsMessage', "Place your settings in the file to the right to overwrite."));
+		} else {
+			this.settingsHeaderWidget.setMessage(nls.localize('noSettingsFound', "No Settings Found."));
+		}
+	}
 }
 
 export class SettingsGroupTitleRenderer extends Disposable implements HiddenAreasProvider {

@@ -134,6 +134,32 @@
 	padding-left:10px;
 }
 
+.monaco-editor .settings-header-widget .title-container {
+	padding-left: 12px;
+	display: flex;
+}
+
+.vs .monaco-editor .settings-header-widget .title-container {
+	color: #6f6f6f;
+}
+.vs-dark .monaco-editor .settings-header-widget .title-container {
+	color: #bbbbbb;
+}
+.hc-black .monaco-editor .settings-header-widget .title-container {
+	color: white;
+}
+
+.monaco-editor .settings-header-widget .title-container .title {
+	font-weight: bold;
+	white-space: nowrap;
+	text-transform: uppercase;
+}
+
+.monaco-editor .settings-header-widget .title-container .message {
+	padding-left: 12px;
+	white-space: nowrap;
+}
+
 .monaco-editor .settings-group-title-widget {
 	z-index: 1;
 }

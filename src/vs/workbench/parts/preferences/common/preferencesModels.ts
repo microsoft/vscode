@@ -643,7 +643,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 					lastSetting = setting;
 				}
 			} else {
-				this._contentByLines.push('// No Settings');
+				this._contentByLines.push('// ' + nls.localize('noSettings', "No Settings"));
 				this._contentByLines.push('');
 			}
 
