@@ -263,7 +263,8 @@ suite('TelemetryService', () => {
 	// 	}));
 
 	test('Handle global errors', sinon.test(function () {
-		let errorStub = this.stub(window, 'onerror');
+		let errorStub = sinon.stub();
+		window.onerror = errorStub;
 
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({ appender: testAppender }, undefined);
@@ -289,7 +290,8 @@ suite('TelemetryService', () => {
 	}));
 
 	test('Uncaught Error Telemetry removes PII from filename', sinon.test(function () {
-		let errorStub = this.stub(window, 'onerror');
+		let errorStub = sinon.stub();
+		window.onerror = errorStub;
 		let settings = new ErrorTestingSettings();
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({ appender: testAppender }, undefined);
@@ -347,7 +349,8 @@ suite('TelemetryService', () => {
 	}));
 
 	test('Uncaught Error Telemetry removes PII', sinon.test(function () {
-		let errorStub = this.stub(window, 'onerror');
+		let errorStub = sinon.stub();
+		window.onerror = errorStub;
 		let settings = new ErrorTestingSettings();
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({ appender: testAppender }, undefined);
@@ -407,7 +410,8 @@ suite('TelemetryService', () => {
 	}));
 
 	test('Uncaught Error Telemetry removes PII but preserves Code file path', sinon.test(function () {
-		let errorStub = this.stub(window, 'onerror');
+		let errorStub = sinon.stub();
+		window.onerror = errorStub;
 		let settings = new ErrorTestingSettings();
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({ appender: testAppender }, undefined);
@@ -469,7 +473,8 @@ suite('TelemetryService', () => {
 	}));
 
 	test('Uncaught Error Telemetry removes PII but preserves Code file path when PIIPath is configured', sinon.test(function () {
-		let errorStub = this.stub(window, 'onerror');
+		let errorStub = sinon.stub();
+		window.onerror = errorStub;
 		let settings = new ErrorTestingSettings();
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({ appender: testAppender, piiPaths: [settings.personalInfo + '/resources/app/'] }, undefined);
@@ -531,7 +536,8 @@ suite('TelemetryService', () => {
 	}));
 
 	test('Uncaught Error Telemetry removes PII but preserves Missing Model error message', sinon.test(function () {
-		let errorStub = this.stub(window, 'onerror');
+		let errorStub = sinon.stub();
+		window.onerror = errorStub;
 		let settings = new ErrorTestingSettings();
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({ appender: testAppender }, undefined);
@@ -598,7 +604,8 @@ suite('TelemetryService', () => {
 		Errors.setUnexpectedErrorHandler(() => { });
 
 		try {
-			let errorStub = this.stub(window, 'onerror');
+			let errorStub = sinon.stub();
+			window.onerror = errorStub;
 			let settings = new ErrorTestingSettings();
 			let testAppender = new TestTelemetryAppender();
 			let service = new TelemetryService({ appender: testAppender }, undefined);
@@ -674,6 +681,9 @@ suite('TelemetryService', () => {
 						enableTelemetry
 					};
 				},
+				getConfigurationData(): any {
+					return null;
+				},
 				reloadConfiguration() {
 					return TPromise.as(this.getConfiguration());
 				},
@@ -681,10 +691,13 @@ suite('TelemetryService', () => {
 					return {
 						value: getConfigurationValue(this.getConfiguration(), key),
 						default: getConfigurationValue(this.getConfiguration(), key),
-						user: getConfigurationValue(this.getConfiguration(), key)
+						user: getConfigurationValue(this.getConfiguration(), key),
+						workspace: null,
+						folder: null
 					};
 				},
-				keys() { return { default: [], user: [] }; },
+				keys() { return { default: [], user: [], workspace: [] }; },
+				values() { return {}; },
 				onDidUpdateConfiguration: emitter.event
 			});
 

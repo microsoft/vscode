@@ -10,7 +10,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, EndOfLinePreference } from 'vs/editor/common/editorCommon';
 import { CharCode } from 'vs/base/common/charCode';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { getMapForWordSeparators, WordCharacterClassifier, WordCharacterClass } from "vs/editor/common/controller/wordCharacterClassifier";
+import { getMapForWordSeparators, WordCharacterClassifier, WordCharacterClass } from 'vs/editor/common/controller/wordCharacterClassifier';
 
 const LIMIT_FIND_COUNT = 999;
 
@@ -405,23 +405,57 @@ export class TextModelSearch {
 	}
 }
 
+function leftIsWordBounday(wordSeparators: WordCharacterClassifier, text: string, textLength: number, matchStartIndex: number, matchLength: number): boolean {
+	if (matchStartIndex === 0) {
+		// Match starts at start of string
+		return true;
+	}
+
+	const charBefore = text.charCodeAt(matchStartIndex - 1);
+	if (wordSeparators.get(charBefore) !== WordCharacterClass.Regular) {
+		// The character before the match is a word separator
+		return true;
+	}
+
+	if (matchLength > 0) {
+		const firstCharInMatch = text.charCodeAt(matchStartIndex);
+		if (wordSeparators.get(firstCharInMatch) !== WordCharacterClass.Regular) {
+			// The first character inside the match is a word separator
+			return true;
+		}
+	}
+
+	return false;
+}
+
+function rightIsWordBounday(wordSeparators: WordCharacterClassifier, text: string, textLength: number, matchStartIndex: number, matchLength: number): boolean {
+	if (matchStartIndex + matchLength === textLength) {
+		// Match ends at end of string
+		return true;
+	}
+
+	const charAfter = text.charCodeAt(matchStartIndex + matchLength);
+	if (wordSeparators.get(charAfter) !== WordCharacterClass.Regular) {
+		// The character after the match is a word separator
+		return true;
+	}
+
+	if (matchLength > 0) {
+		const lastCharInMatch = text.charCodeAt(matchStartIndex + matchLength - 1);
+		if (wordSeparators.get(lastCharInMatch) !== WordCharacterClass.Regular) {
+			// The last character in the match is a word separator
+			return true;
+		}
+	}
+
+	return false;
+}
+
 function isValidMatch(wordSeparators: WordCharacterClassifier, text: string, textLength: number, matchStartIndex: number, matchLength: number): boolean {
-
-	if (matchStartIndex - 1 >= 0) {
-		const charBefore = text.charCodeAt(matchStartIndex - 1);
-		if (wordSeparators.get(charBefore) === WordCharacterClass.Regular) {
-			return false;
-		}
-	}
-
-	if (matchStartIndex + matchLength < textLength) {
-		const charAfter = text.charCodeAt(matchStartIndex + matchLength);
-		if (wordSeparators.get(charAfter) === WordCharacterClass.Regular) {
-			return false;
-		}
-	}
-
-	return true;
+	return (
+		leftIsWordBounday(wordSeparators, text, textLength, matchStartIndex, matchLength)
+		&& rightIsWordBounday(wordSeparators, text, textLength, matchStartIndex, matchLength)
+	);
 }
 
 class Searcher {

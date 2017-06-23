@@ -10,10 +10,7 @@ import 'vs/base/common/strings';
 import 'vs/base/common/errors';
 
 // Editor
-import 'vs/editor/contrib/accessibility/browser/accessibility';
-import 'vs/editor/contrib/inspectTMScopes/electron-browser/inspectTMScopes';
-import 'vs/editor/contrib/selectionClipboard/electron-browser/selectionClipboard';
-import 'vs/editor/browser/editor.all';
+import 'vs/editor/editor.all';
 
 // Menus/Actions
 import 'vs/platform/actions/electron-browser/menusExtensionPoint';
@@ -32,6 +29,7 @@ import 'vs/workbench/parts/preferences/browser/preferences.contribution';
 import 'vs/workbench/parts/preferences/browser/keybindingsEditorContribution';
 import 'vs/workbench/browser/actions/configureLocale';
 
+import 'vs/workbench/browser/parts/quickopen/quickopen.contribution';
 import 'vs/workbench/parts/quickopen/browser/quickopen.contribution';
 import 'vs/workbench/browser/parts/editor/editorPicker';
 

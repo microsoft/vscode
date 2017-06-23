@@ -14,7 +14,7 @@ import Severity from 'vs/base/common/severity';
 import * as Strings from 'vs/base/common/strings';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 
-import { TerminateResponse, SuccessData, ErrorData } from 'vs/base/common/processes';
+import { SuccessData, ErrorData } from 'vs/base/common/processes';
 import { LineProcess, LineData } from 'vs/base/node/processes';
 
 import { IOutputService, IOutputChannel } from 'vs/workbench/parts/output/common/output';
@@ -27,9 +27,10 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEvents } from 'vs/workbench/parts/tasks/common/problemCollectors';
 import {
-	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType
+	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TelemetryEvent, Triggers,
+	TaskSystemEvents, TaskEvent, TaskType, TaskTerminateResponse
 } from 'vs/workbench/parts/tasks/common/taskSystem';
-import { Task, CommandOptions, ShowOutput, CommandConfiguration } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, CommandOptions, RevealKind, CommandConfiguration, RuntimeType } from 'vs/workbench/parts/tasks/common/tasks';
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
@@ -103,23 +104,30 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		return true;
 	}
 
-	public terminate(_id: string): TPromise<TerminateResponse> {
+	public terminate(_id: string): TPromise<TaskTerminateResponse> {
 		if (!this.activeTask || this.activeTask._id !== _id) {
-			return TPromise.as<TerminateResponse>({ success: false });
+			return TPromise.as<TaskTerminateResponse>({ success: false, task: undefined });
 		}
-		return this.terminateAll();
+		return this.terminateAll()[0];
 	}
 
-	public terminateAll(): TPromise<TerminateResponse> {
+	public terminateAll(): TPromise<TaskTerminateResponse[]> {
 		if (this.childProcess) {
-			return this.childProcess.terminate();
+			let task = this.activeTask;
+			return this.childProcess.terminate().then((response) => {
+				let result: TaskTerminateResponse = Objects.assign({ task: task }, response);
+				let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun, group: task.group };
+				this.emit(TaskSystemEvents.Terminated, event);
+				return [result];
+			});
 		}
-		return TPromise.as({ success: true });
+		return TPromise.as<TaskTerminateResponse[]>([{ success: true, task: undefined }]);
 	}
 
 	private executeTask(task: Task, trigger: string = Triggers.command): ITaskExecuteResult {
 		let telemetryEvent: TelemetryEvent = {
 			trigger: trigger,
+			runner: 'output',
 			command: 'other',
 			success: true
 		};
@@ -161,35 +169,24 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		}
 
 		let args: string[] = commandConfig.args ? commandConfig.args.slice() : [];
-		// We need to first pass the task name
-		if (!task.suppressTaskName) {
-			if (commandConfig.taskSelector) {
-				args.push(commandConfig.taskSelector + task.name);
-			} else {
-				args.push(task.name);
-			}
-		}
-		// And then additional arguments
-		if (task.args) {
-			args = args.concat(task.args);
-		}
 		args = this.resolveVariables(args);
 		let command: string = this.resolveVariable(commandConfig.name);
-		this.childProcess = new LineProcess(command, args, !!commandConfig.isShellCommand, this.resolveOptions(commandConfig.options));
+		this.childProcess = new LineProcess(command, args, commandConfig.runtime === RuntimeType.Shell, this.resolveOptions(commandConfig.options));
 		telemetryEvent.command = this.childProcess.getSanitizedCommand();
 		// we have no problem matchers defined. So show the output log
-		if (task.showOutput === ShowOutput.Always || (task.showOutput === ShowOutput.Silent && task.problemMatchers.length === 0)) {
+		let reveal = task.command.presentation.reveal;
+		if (reveal === RevealKind.Always || (reveal === RevealKind.Silent && task.problemMatchers.length === 0)) {
 			this.showOutput();
 		}
 
-		if (commandConfig.echo) {
+		if (commandConfig.presentation.echo) {
 			let prompt: string = Platform.isWindows ? '>' : '$';
 			this.log(`running command${prompt} ${command} ${args.join(' ')}`);
 		}
 		if (task.isBackground) {
 			let watchingProblemMatcher = new WatchingProblemCollector(this.resolveMatchers(task.problemMatchers), this.markerService, this.modelService);
 			let toUnbind: IDisposable[] = [];
-			let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.Watching };
+			let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.Watching, group: task.group };
 			let eventCounter: number = 0;
 			toUnbind.push(watchingProblemMatcher.addListener(ProblemCollectorEvents.WatchingBeginDetected, () => {
 				eventCounter++;
@@ -214,7 +211,7 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 				if (!this.checkTerminated(task, success)) {
 					this.log(nls.localize('TaskRunnerSystem.watchingBuildTaskFinished', '\nWatching build tasks has finished.'));
 				}
-				if (success.cmdCode && success.cmdCode === 1 && watchingProblemMatcher.numberOfMatches === 0 && task.showOutput !== ShowOutput.Never) {
+				if (success.cmdCode && success.cmdCode === 1 && watchingProblemMatcher.numberOfMatches === 0 && reveal !== RevealKind.Never) {
 					this.showOutput();
 				}
 				taskSummary.exitCode = success.cmdCode;
@@ -248,7 +245,7 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 				: { kind: TaskExecuteKind.Started, started: {}, promise: this.activeTaskPromise };
 			return result;
 		} else {
-			let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun };
+			let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun, group: task.group };
 			this.emit(TaskSystemEvents.Active, event);
 			let startStopProblemMatcher = new StartStopProblemCollector(this.resolveMatchers(task.problemMatchers), this.markerService, this.modelService);
 			this.activeTask = task;
@@ -258,7 +255,7 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 				startStopProblemMatcher.dispose();
 				this.checkTerminated(task, success);
 				this.emit(TaskSystemEvents.Inactive, event);
-				if (success.cmdCode && success.cmdCode === 1 && startStopProblemMatcher.numberOfMatches === 0 && task.showOutput !== ShowOutput.Never) {
+				if (success.cmdCode && success.cmdCode === 1 && startStopProblemMatcher.numberOfMatches === 0 && reveal !== RevealKind.Never) {
 					this.showOutput();
 				}
 				taskSummary.exitCode = success.cmdCode;
@@ -343,7 +340,11 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		values.forEach((value) => {
 			let matcher: ProblemMatcher;
 			if (Types.isString(value)) {
-				matcher = ProblemMatcherRegistry.get(value);
+				if (value[0] === '$') {
+					matcher = ProblemMatcherRegistry.get(value.substring(1));
+				} else {
+					matcher = ProblemMatcherRegistry.get(value);
+				}
 			} else {
 				matcher = value;
 			}

@@ -32,13 +32,15 @@ const languages = [
 	{ name: 'git_rebase', identifiers: ['git-rebase-todo'], source: 'text.git-rebase' },
 	{ name: 'go', identifiers: ['go', 'golang'], source: 'source.go' },
 	{ name: 'groovy', identifiers: ['groovy', 'gvy'], source: 'source.groovy' },
-	{ name: 'jade', identifiers: ['jade'], source: 'text.jade' },
+	{ name: 'jade', identifiers: ['jade', 'pug'], source: 'text.jade' },
 
 	{ name: 'js', identifiers: ['js', 'jsx', 'javascript', 'es6', 'mjs'], source: 'source.js' },
 	{ name: 'js_regexp', identifiers: ['regexp'], source: 'source.js.regexp' },
 	{ name: 'json', identifiers: ['json', 'sublime-settings', 'sublime-menu', 'sublime-keymap', 'sublime-mousemap', 'sublime-theme', 'sublime-build', 'sublime-project', 'sublime-completions'], source: 'source.json' },
 	{ name: 'less', identifiers: ['less'], source: 'source.css.less' },
 	{ name: 'objc', identifiers: ['objectivec', 'objective-c', 'mm', 'objc', 'obj-c', 'm', 'h'], source: 'source.objc' },
+	{ name: 'scss', identifiers: ['scss'], source: 'source.css.scss' },
+
 	{ name: 'perl6', identifiers: ['perl6', 'p6', 'pl6', 'pm6', 'nqp'], source: 'source.perl.6' },
 	{ name: 'powershell', identifiers: ['powershell', 'ps1', 'psm1', 'psd1'], source: 'source.powershell' },
 	{ name: 'python', identifiers: ['python', 'py', 'py3', 'rpy', 'pyw', 'cpy', 'SConstruct', 'Sconstruct', 'sconstruct', 'SConscript', 'gyp', 'gypi'], source: 'source.python' },

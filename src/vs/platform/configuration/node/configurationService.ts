@@ -5,28 +5,21 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as objects from 'vs/base/common/objects';
 import { ConfigWatcher } from 'vs/base/node/config';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { ConfigurationSource, IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue, IConfigurationKeys, IConfigModel, IConfigurationOptions } from 'vs/platform/configuration/common/configuration';
-import { ConfigModel, DefaultConfigModel } from 'vs/platform/configuration/common/model';
+import { ConfigurationSource, IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, IConfigurationKeys, ConfigurationModel, IConfigurationOverrides, Configuration, IConfigurationValues, IConfigurationData } from 'vs/platform/configuration/common/configuration';
+import { CustomConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/model';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-
-export interface ICache<T> {
-	defaults: IConfigModel<T>;
-	user: IConfigModel<T>;
-	consolidated: IConfigModel<any>;
-}
 
 export class ConfigurationService<T> extends Disposable implements IConfigurationService, IDisposable {
 
 	_serviceBrand: any;
 
-	private cache: ICache<T>;
-	private userConfigModelWatcher: ConfigWatcher<IConfigModel<T>>;
+	private _configuration: Configuration<T>;
+	private userConfigModelWatcher: ConfigWatcher<ConfigurationModel<T>>;
 
 	private _onDidUpdateConfiguration: Emitter<IConfigurationServiceEvent> = this._register(new Emitter<IConfigurationServiceEvent>());
 	public readonly onDidUpdateConfiguration: Event<IConfigurationServiceEvent> = this._onDidUpdateConfiguration.event;
@@ -37,8 +30,8 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 		super();
 
 		this.userConfigModelWatcher = new ConfigWatcher(environmentService.appSettingsPath, {
-			changeBufferDelay: 300, defaultConfig: new ConfigModel<T>(null, environmentService.appSettingsPath), parse: (content: string, parseErrors: any[]) => {
-				const userConfigModel = new ConfigModel<T>(content, environmentService.appSettingsPath);
+			changeBufferDelay: 300, defaultConfig: new CustomConfigurationModel<T>(null, environmentService.appSettingsPath), parse: (content: string, parseErrors: any[]) => {
+				const userConfigModel = new CustomConfigurationModel<T>(content, environmentService.appSettingsPath);
 				parseErrors = [...userConfigModel.errors];
 				return userConfigModel;
 			}
@@ -50,13 +43,16 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(() => this.onConfigurationChange(ConfigurationSource.Default)));
 	}
 
-	private onConfigurationChange(source: ConfigurationSource): void {
-		this.cache = void 0; // reset our caches
+	public configuration(): Configuration<any> {
+		return this._configuration || (this._configuration = this.consolidateConfigurations());
+	}
 
-		const cache = this.getCache();
+	private onConfigurationChange(source: ConfigurationSource): void {
+		this.reset(); // reset our caches
+
+		const cache = this.configuration();
 
 		this._onDidUpdateConfiguration.fire({
-			config: this.getConfiguration(),
 			source,
 			sourceConfig: source === ConfigurationSource.Default ? cache.defaults.contents : cache.user.contents
 		});
@@ -65,60 +61,39 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 	public reloadConfiguration<C>(section?: string): TPromise<C> {
 		return new TPromise<C>(c => {
 			this.userConfigModelWatcher.reload(() => {
-				this.cache = void 0; // reset our caches
-
+				this.reset(); // reset our caches
 				c(this.getConfiguration<C>(section));
 			});
 		});
 	}
 
-	public getConfiguration<C>(section?: string): C
-	public getConfiguration<C>(options?: IConfigurationOptions): C
-	public getConfiguration<C>(arg?: any): C {
-		const options = this.toOptions(arg);
-		const cache = this.getCache();
-		const configModel = options.overrideIdentifier ? cache.consolidated.configWithOverrides<C>(options.overrideIdentifier) : cache.consolidated;
-		return options.section ? configModel.getContentsFor<C>(options.section) : configModel.contents;
+	public getConfiguration<C>(section?: string, options?: IConfigurationOverrides): C {
+		return this.configuration().getValue<C>(section, options);
 	}
 
-	public lookup<C>(key: string, overrideIdentifier?: string): IConfigurationValue<C> {
-		const cache = this.getCache();
-
-		// make sure to clone the configuration so that the receiver does not tamper with the values
-		return {
-			default: objects.clone(getConfigurationValue<C>(overrideIdentifier ? cache.defaults.configWithOverrides(overrideIdentifier).contents : cache.defaults.contents, key)),
-			user: objects.clone(getConfigurationValue<C>(overrideIdentifier ? cache.user.configWithOverrides(overrideIdentifier).contents : cache.user.contents, key)),
-			value: objects.clone(getConfigurationValue<C>(overrideIdentifier ? cache.consolidated.configWithOverrides(overrideIdentifier).contents : cache.consolidated.contents, key))
-		};
+	public lookup<C>(key: string, options?: IConfigurationOverrides): IConfigurationValue<C> {
+		return this.configuration().lookup<C>(key, options);
 	}
 
 	public keys(): IConfigurationKeys {
-		const cache = this.getCache();
-
-		return {
-			default: cache.defaults.keys,
-			user: cache.user.keys
-		};
+		return this.configuration().keys();
 	}
 
-	public getCache(): ICache<T> {
-		return this.cache || (this.cache = this.consolidateConfigurations());
+	public values<V>(): IConfigurationValues {
+		return this._configuration.values();
 	}
 
-	private toOptions(arg: any): IConfigurationOptions {
-		if (typeof arg === 'string') {
-			return { section: arg };
-		}
-		if (typeof arg === 'object') {
-			return arg;
-		}
-		return {};
+	public getConfigurationData<T2>(): IConfigurationData<T2> {
+		return this.configuration().toData();
 	}
 
-	private consolidateConfigurations(): ICache<T> {
-		const defaults = new DefaultConfigModel<T>();
+	private reset(): void {
+		this._configuration = this.consolidateConfigurations();
+	}
+
+	private consolidateConfigurations(): Configuration<T> {
+		const defaults = new DefaultConfigurationModel<T>();
 		const user = this.userConfigModelWatcher.getConfig();
-		const consolidated = defaults.merge(user);
-		return { defaults, user, consolidated };
+		return new Configuration(defaults, user);
 	}
 }

@@ -40,8 +40,8 @@ class TrimWhitespaceParticipant implements INamedSaveParticpant {
 		// Nothing
 	}
 
-	public participate(model: ITextFileEditorModel, env: { reason: SaveReason }): any {
-		if (this.configurationService.lookup('files.trimTrailingWhitespace', model.textEditorModel.getLanguageIdentifier().language).value) {
+	public participate(model: ITextFileEditorModel, env: { reason: SaveReason }): void {
+		if (this.configurationService.lookup('files.trimTrailingWhitespace', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.getResource() }).value) {
 			this.doTrimTrailingWhitespace(model.textEditorModel, env.reason === SaveReason.AUTO);
 		}
 	}
@@ -98,8 +98,8 @@ export class FinalNewLineParticipant implements INamedSaveParticpant {
 		// Nothing
 	}
 
-	public participate(model: ITextFileEditorModel, env: { reason: SaveReason }): any {
-		if (this.configurationService.lookup('files.insertFinalNewline', model.textEditorModel.getLanguageIdentifier().language).value) {
+	public participate(model: ITextFileEditorModel, env: { reason: SaveReason }): void {
+		if (this.configurationService.lookup('files.insertFinalNewline', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.getResource() }).value) {
 			this.doInsertFinalNewLine(model.textEditorModel);
 		}
 	}
@@ -138,11 +138,11 @@ class FormatOnSaveParticipant implements INamedSaveParticpant {
 		// Nothing
 	}
 
-	participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): TPromise<any> {
+	participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): TPromise<void> {
 
 		const model = editorModel.textEditorModel;
 		if (env.reason === SaveReason.AUTO
-			|| !this._configurationService.lookup('editor.formatOnSave', model.getLanguageIdentifier().language).value) {
+			|| !this._configurationService.lookup('editor.formatOnSave', { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() }).value) {
 			return undefined;
 		}
 
@@ -204,7 +204,7 @@ class ExtHostSaveParticipant implements INamedSaveParticpant {
 		this._proxy = threadService.get(ExtHostContext.ExtHostDocumentSaveParticipant);
 	}
 
-	participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): TPromise<any> {
+	participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): TPromise<void> {
 		return new TPromise<any>((resolve, reject) => {
 			setTimeout(reject, 1750);
 			this._proxy.$participateInSave(editorModel.getResource(), env.reason).then(values => {
@@ -240,7 +240,7 @@ export class SaveParticipant implements ISaveParticipant {
 		// Hook into model
 		TextFileEditorModel.setSaveParticipant(this);
 	}
-	participate(model: ITextFileEditorModel, env: { reason: SaveReason }): TPromise<any> {
+	participate(model: ITextFileEditorModel, env: { reason: SaveReason }): TPromise<void> {
 
 		const stats: { [name: string]: number } = Object.create(null);
 

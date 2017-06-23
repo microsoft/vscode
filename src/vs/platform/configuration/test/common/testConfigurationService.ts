@@ -8,7 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { getConfigurationKeys } from 'vs/platform/configuration/common/model';
-import { IConfigurationService, getConfigurationValue, IConfigurationValue, IConfigurationKeys } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, getConfigurationValue, IConfigurationValue, IConfigurationKeys, IConfigurationValues, IConfigurationData, Configuration, ConfigurationModel } from 'vs/platform/configuration/common/configuration';
 
 export class TestConfigurationService extends EventEmitter implements IConfigurationService {
 	public _serviceBrand: any;
@@ -21,6 +21,10 @@ export class TestConfigurationService extends EventEmitter implements IConfigura
 
 	public getConfiguration(): any {
 		return this.configuration;
+	}
+
+	public getConfigurationData(): IConfigurationData<any> {
+		return new Configuration(new ConfigurationModel(), new ConfigurationModel(this.configuration)).toData();
 	}
 
 	public setUserConfiguration(key: any, value: any): Thenable<void> {
@@ -36,14 +40,21 @@ export class TestConfigurationService extends EventEmitter implements IConfigura
 		return {
 			value: getConfigurationValue<C>(this.getConfiguration(), key),
 			default: getConfigurationValue<C>(this.getConfiguration(), key),
-			user: getConfigurationValue<C>(this.getConfiguration(), key)
+			user: getConfigurationValue<C>(this.getConfiguration(), key),
+			workspace: null,
+			folder: null
 		};
 	}
 
 	public keys(): IConfigurationKeys {
 		return {
 			default: getConfigurationKeys(),
-			user: Object.keys(this.configuration)
+			user: Object.keys(this.configuration),
+			workspace: []
 		};
+	}
+
+	public values(): IConfigurationValues {
+		return {};
 	}
 }

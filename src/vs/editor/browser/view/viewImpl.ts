@@ -48,7 +48,8 @@ import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/edi
 import { Minimap } from 'vs/editor/browser/viewParts/minimap/minimap';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IThemeService, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
-import { Cursor } from "vs/editor/common/controller/cursor";
+import { Cursor } from 'vs/editor/common/controller/cursor';
+import { IMouseEvent } from "vs/base/browser/mouseEvent";
 
 export interface IContentWidgetData {
 	widget: editorBrowser.IContentWidget;
@@ -66,6 +67,7 @@ export class View extends ViewEventHandler {
 
 	private _scrollbar: EditorScrollbar;
 	private _context: ViewContext;
+	private _cursor: Cursor;
 
 	// The view lines
 	private viewLines: ViewLines;
@@ -102,6 +104,7 @@ export class View extends ViewEventHandler {
 	) {
 		super();
 		this._isDisposed = false;
+		this._cursor = cursor;
 		this._renderAnimationFrame = null;
 		this.outgoingEvents = new ViewOutgoingEvents(model);
 
@@ -138,7 +141,7 @@ export class View extends ViewEventHandler {
 			this.eventDispatcher.emitMany(events);
 		}));
 
-		this._register(cursor.addEventListener((events: viewEvents.ViewEvent[]) => {
+		this._register(this._cursor.addEventListener((events: viewEvents.ViewEvent[]) => {
 			this.eventDispatcher.emitMany(events);
 		}));
 	}
@@ -208,7 +211,7 @@ export class View extends ViewEventHandler {
 		let rulers = new Rulers(this._context);
 		this.viewParts.push(rulers);
 
-		let minimap = new Minimap(this._context, this._scrollbar);
+		let minimap = new Minimap(this._context);
 		this.viewParts.push(minimap);
 
 		// -------------- Wire dom nodes up
@@ -409,7 +412,12 @@ export class View extends ViewEventHandler {
 		const partialViewportData = this._context.viewLayout.getLinesViewportData();
 		this._context.model.setViewport(partialViewportData.startLineNumber, partialViewportData.endLineNumber, partialViewportData.centeredLineNumber);
 
-		let viewportData = new ViewportData(partialViewportData, this._context.model);
+		let viewportData = new ViewportData(
+			this._cursor.getViewSelections(),
+			partialViewportData,
+			this._context.viewLayout.getWhitespaceViewportData(),
+			this._context.model
+		);
 
 		if (this.viewLines.shouldRender()) {
 			this.viewLines.renderText(viewportData);
@@ -436,7 +444,7 @@ export class View extends ViewEventHandler {
 
 	// --- BEGIN CodeEditor helpers
 
-	public delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void {
+	public delegateVerticalScrollbarMouseDown(browserEvent: IMouseEvent): void {
 		this._scrollbar.delegateVerticalScrollbarMouseDown(browserEvent);
 	}
 

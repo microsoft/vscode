@@ -3,42 +3,10 @@
 <html>
 	<head>
 		<meta charset="utf-8" />
+		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' https: data:; media-src 'none'; child-src 'self'; object-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https:; font-src 'self' https:;">
 	</head>
 	<body class="monaco-shell vs-dark" aria-label="">
-		<script>
-			(function() {
-				function getConfig() {
-					let queryParams = window.location.search.substring(1).split('&');
-					for (let i = 0; i < queryParams.length; i++) {
-						var kv = queryParams[i].split('=');
-						if (kv[0] === 'config' && kv[1]) {
-							return JSON.parse(decodeURIComponent(kv[1]));
-						}
-					}
-					return {};
-				}
-				try {
-					let config = getConfig();
-					let document = window.document;
-
-					// sets the base theme class ('vs', 'vs-dark', 'hc-black')
-					let baseTheme = config.baseTheme || 'vs';
-					document.body.className = 'monaco-shell ' + baseTheme;
-
-					// adds a stylesheet with the backgrdound color
-					let backgroundColor = config.backgroundColor;
-					if (!backgroundColor) {
-						backgroundColor = baseTheme === 'hc-black' ? '#000000' : (baseTheme === 'vs' ? '#FFFFFF' : '#1E1E1E');
-					}
-					let style = document.createElement('style');
-					style.innerHTML = '.monaco-shell { background-color:' + backgroundColor + '; }';
-					document.head.appendChild(style);
-
-				} catch (error) {
-					console.error(error);
-				}
-			})();
-		</script>
+		<script src="preload.js"></script>
 	</body>
 
 	<!-- Startup via index.js -->

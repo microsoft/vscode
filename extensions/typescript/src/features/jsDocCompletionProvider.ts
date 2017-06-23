@@ -88,7 +88,7 @@ export class TryCompleteJsDocCommand {
 	static COMMAND_NAME = '_typeScript.tryCompleteJsDoc';
 
 	constructor(
-		private client: ITypescriptServiceClient
+		private lazyClient: () => ITypescriptServiceClient
 	) { }
 
 	/**
@@ -96,7 +96,7 @@ export class TryCompleteJsDocCommand {
 	 * if possible, otherwise falling back to a default comment format.
 	 */
 	public tryCompleteJsDoc(resource: Uri, start: Position, shouldGetJSDocFromTSServer: boolean): Thenable<boolean> {
-		const file = this.client.normalizePath(resource);
+		const file = this.lazyClient().normalizePath(resource);
 		if (!file) {
 			return Promise.resolve(false);
 		}
@@ -126,7 +126,7 @@ export class TryCompleteJsDocCommand {
 			offset: position.character + 1
 		};
 		return Promise.race([
-			this.client.execute('docCommentTemplate', args),
+			this.lazyClient().execute('docCommentTemplate', args),
 			new Promise((_, reject) => setTimeout(reject, 250))
 		]).then((res: DocCommandTemplateResponse) => {
 			if (!res || !res.body) {

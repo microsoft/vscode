@@ -18,7 +18,7 @@ import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperat
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { TextModelEventType, ModelRawContentChangedEvent, RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
-import { IViewModel } from "vs/editor/common/viewModel/viewModel";
+import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import Event, { Emitter } from 'vs/base/common/event';
 // import { ScreenReaderMessageGenerator } from "vs/editor/common/controller/accGenerator";
@@ -311,6 +311,10 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 	public getSelections(): Selection[] {
 		return this._cursors.getSelections();
+	}
+
+	public getViewSelections(): Selection[] {
+		return this._cursors.getViewSelections();
 	}
 
 	public getPosition(): Position {

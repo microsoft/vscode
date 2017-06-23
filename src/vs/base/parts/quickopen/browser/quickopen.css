@@ -36,7 +36,7 @@
 }
 
 .quick-open-widget .quick-open-tree {
-	line-height: 1.8em;
+	line-height: 22px;
 }
 
 .quick-open-widget .quick-open-tree .monaco-tree-row  > .content > .sub-content {
@@ -87,6 +87,14 @@
 	text-overflow: ellipsis;
 }
 
+.quick-open-widget .quick-open-tree .content.has-group-label .quick-open-entry-keybinding {
+	margin-right: 8px;
+}
+
+.quick-open-widget .quick-open-tree .quick-open-entry-keybinding .monaco-kbkey {
+	vertical-align: text-bottom;
+}
+
 .quick-open-widget .quick-open-tree .results-group {
 	margin-right: 18px;
 }
@@ -121,7 +129,7 @@
 }
 
 .monaco-tree .monaco-tree-row > .content.actions > .primary-action-bar {
-	line-height: 1em;
+	line-height: 22px;
 }
 
 .monaco-tree .monaco-tree-row > .content.actions > .primary-action-bar {

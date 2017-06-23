@@ -1,4 +1,9 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/textmate/groovy.tmbundle/blob/master/Syntaxes/Groovy.tmLanguage",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
 	"fileTypes": [
 		"groovy",
 		"gvy"
@@ -1381,6 +1386,5 @@
 		}
 	},
 	"scopeName": "source.groovy",
-	"uuid": "B3A64888-EBBB-4436-8D9E-F1169C5D7613",
-	"version": "https://github.com/textmate/groovy.tmbundle/commit/85d8f7c97ae473ccb9473f6c8d27e4ec957f4be1"
+	"uuid": "B3A64888-EBBB-4436-8D9E-F1169C5D7613"
 }

@@ -18,9 +18,9 @@ import pfs = require('vs/base/node/pfs');
 
 import { Extensions, IColorRegistry, ColorIdentifier, editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ThemeType } from 'vs/platform/theme/common/themeService';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { WorkbenchThemeService, IColorCustomizations } from "vs/workbench/services/themes/electron-browser/workbenchThemeService";
-import { getParseErrorMessage } from "vs/base/common/jsonErrorMessages";
+import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 
 let colorRegistry = <IColorRegistry>Registry.as(Extensions.ColorContribution);
 
@@ -129,6 +129,16 @@ export class ColorThemeData implements IColorTheme {
 			default: return 'dark';
 		}
 	}
+}
+
+export function createUnloadedTheme(id: string): ColorThemeData {
+	let themeData = new ColorThemeData();
+	themeData.id = id;
+	themeData.label = '';
+	themeData.settingsId = null;
+	themeData.isLoaded = false;
+	themeData.tokenColors = [{ settings: {} }];
+	return themeData;
 }
 
 export function fromStorageData(input: string): ColorThemeData {

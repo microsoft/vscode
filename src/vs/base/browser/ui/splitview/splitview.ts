@@ -9,7 +9,6 @@ import 'vs/css!./splitview';
 import lifecycle = require('vs/base/common/lifecycle');
 import ee = require('vs/base/common/eventEmitter');
 import types = require('vs/base/common/types');
-import objects = require('vs/base/common/objects');
 import dom = require('vs/base/browser/dom');
 import numbers = require('vs/base/common/numbers');
 import sash = require('vs/base/browser/ui/sash/sash');
@@ -102,7 +101,7 @@ export abstract class View extends ee.EventEmitter implements IView {
 	abstract layout(size: number, orientation: Orientation): void;
 }
 
-export interface IHeaderViewOptions extends IHeaderViewStyles {
+export interface IHeaderViewOptions extends IHeaderViewStyles, IViewOptions {
 	headerSize?: number;
 }
 
@@ -240,10 +239,9 @@ export abstract class HeaderView extends View {
 }
 
 export interface ICollapsibleViewOptions {
-	ariaHeaderLabel?: string;
-	fixedSize?: number;
-	minimumSize?: number;
-	headerSize?: number;
+	sizing: ViewSizing;
+	ariaHeaderLabel: string;
+	bodySize?: number;
 	initialState?: CollapsibleState;
 }
 
@@ -260,12 +258,41 @@ export abstract class AbstractCollapsibleView extends HeaderView {
 	private headerClickListener: lifecycle.IDisposable;
 	private headerKeyListener: lifecycle.IDisposable;
 	private focusTracker: dom.IFocusTracker;
+	private _bodySize: number;
+	private _previousSize: number = null;
+	private readonly viewSizing: ViewSizing;
 
 	constructor(opts: ICollapsibleViewOptions) {
 		super(opts);
+		this.viewSizing = opts.sizing;
+		this.ariaHeaderLabel = opts.ariaHeaderLabel;
 
-		this.ariaHeaderLabel = opts && opts.ariaHeaderLabel;
+		this.setBodySize(types.isUndefined(opts.bodySize) ? 22 : opts.bodySize);
 		this.changeState(types.isUndefined(opts.initialState) ? CollapsibleState.EXPANDED : opts.initialState);
+	}
+
+	get previousSize(): number {
+		return this._previousSize;
+	}
+
+	setBodySize(bodySize: number) {
+		this._bodySize = bodySize;
+		this.updateSize();
+	}
+
+	private updateSize() {
+		if (this.viewSizing === ViewSizing.Fixed) {
+			this.setFixed(this.state === CollapsibleState.EXPANDED ? this._bodySize + this.headerSize : this.headerSize);
+		} else {
+			this._minimumSize = this._bodySize + this.headerSize;
+			this._previousSize = !this.previousSize || this._previousSize < this._minimumSize ? this._minimumSize : this._previousSize;
+			if (this.state === CollapsibleState.EXPANDED) {
+				this.setFlexible(this._previousSize || this._minimumSize);
+			} else {
+				this._previousSize = this.size || this._minimumSize;
+				this.setFixed(this.headerSize);
+			}
+		}
 	}
 
 	render(container: HTMLElement, orientation: Orientation): void {
@@ -377,6 +404,23 @@ export abstract class AbstractCollapsibleView extends HeaderView {
 		}
 
 		this.layoutHeader();
+		this.updateSize();
+	}
+
+	showHeader(): boolean {
+		const result = super.showHeader();
+		if (result) {
+			this.updateSize();
+		}
+		return result;
+	}
+
+	hideHeader(): boolean {
+		const result = super.hideHeader();
+		if (result) {
+			this.updateSize();
+		}
+		return result;
 	}
 
 	dispose(): void {
@@ -396,55 +440,6 @@ export abstract class AbstractCollapsibleView extends HeaderView {
 		}
 
 		super.dispose();
-	}
-}
-
-export abstract class CollapsibleView extends AbstractCollapsibleView {
-
-	private previousSize: number;
-
-	constructor(opts: ICollapsibleViewOptions) {
-		super(opts);
-		this.previousSize = null;
-	}
-
-	protected changeState(state: CollapsibleState): void {
-		super.changeState(state);
-
-		if (state === CollapsibleState.EXPANDED) {
-			this.setFlexible(this.previousSize || this._minimumSize);
-		} else {
-			this.previousSize = this.size;
-			this.setFixed();
-		}
-	}
-}
-
-export interface IFixedCollapsibleViewOptions extends ICollapsibleViewOptions {
-	expandedBodySize?: number;
-}
-
-export abstract class FixedCollapsibleView extends AbstractCollapsibleView {
-
-	private _expandedBodySize: number;
-
-	constructor(opts: IFixedCollapsibleViewOptions) {
-		super(objects.mixin({ sizing: ViewSizing.Fixed }, opts));
-		this._expandedBodySize = types.isUndefined(opts.expandedBodySize) ? 22 : opts.expandedBodySize;
-	}
-
-	get fixedSize(): number { return this.state === CollapsibleState.EXPANDED ? this.expandedSize : this.headerSize; }
-	private get expandedSize(): number { return this.expandedBodySize + this.headerSize; }
-
-	get expandedBodySize(): number { return this._expandedBodySize; }
-	set expandedBodySize(size: number) {
-		this._expandedBodySize = size;
-		this.setFixed(this.fixedSize);
-	}
-
-	protected changeState(state: CollapsibleState): void {
-		super.changeState(state);
-		this.setFixed(this.fixedSize);
 	}
 }
 
@@ -555,7 +550,7 @@ export class SplitView implements
 		}
 
 		/**
-		 * Reset size to null. This will layout newly added viees to initial weights.
+		 * Reset size to null. This will layout newly added views to initial weights.
 		 */
 		this.size = null;
 
@@ -599,6 +594,14 @@ export class SplitView implements
 		this.viewFocusNextListeners.splice(index, 0, view.addListener('focusNext', () => index < this.views.length && this.views[index + 1].focus()));
 	}
 
+	updateWeight(view: IView, weight: number) {
+		let index = this.views.indexOf(view);
+		if (index < 0) {
+			return;
+		}
+		this.initialWeights[index] = weight;
+	}
+
 	removeView(view: IView): void {
 		let index = this.views.indexOf(view);
 
@@ -606,13 +609,16 @@ export class SplitView implements
 			return;
 		}
 
+		this.size = null;
 		let deadView = new DeadView(view);
 		this.views[index] = deadView;
 		this.onViewChange(deadView, 0);
 
 		let sashIndex = Math.max(index - 1, 0);
-		this.sashes[sashIndex].dispose();
-		this.sashes.splice(sashIndex, 1);
+		if (sashIndex < this.sashes.length) {
+			this.sashes[sashIndex].dispose();
+			this.sashes.splice(sashIndex, 1);
+		}
 
 		this.viewChangeListeners[index].dispose();
 		this.viewChangeListeners.splice(index, 1);
@@ -627,6 +633,7 @@ export class SplitView implements
 		this.viewFocusNextListeners.splice(index, 1);
 
 		this.views.splice(index, 1);
+		this.initialWeights.splice(index, 1);
 		this.el.removeChild(this.viewElements[index]);
 		this.viewElements.splice(index, 1);
 

@@ -13,10 +13,10 @@ import { readFile } from 'vs/base/node/pfs';
 import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ISnippetsService, ISnippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { languagesExtPoint } from 'vs/editor/common/services/modeServiceImpl';
+import { languagesExtPoint } from "vs/workbench/services/mode/common/workbenchModeService";
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { SnippetParser, Marker, Placeholder, Variable, Text, walk } from 'vs/editor/contrib/snippet/browser/snippetParser';
-import { EditorSnippetVariableResolver } from "vs/editor/contrib/snippet/browser/snippetVariables";
+import { EditorSnippetVariableResolver } from 'vs/editor/contrib/snippet/browser/snippetVariables';
 
 interface ISnippetsExtensionPoint {
 	language: string;
@@ -94,6 +94,12 @@ export function readAndRegisterSnippets(
 	return readFile(filePath).then(fileContents => {
 		let snippets = parseSnippetFile(fileContents.toString(), extensionName, collector);
 		snippetService.registerSnippets(languageIdentifier.id, snippets, filePath);
+	}, err => {
+		if (err && err.code === 'ENOENT') {
+			snippetService.registerSnippets(languageIdentifier.id, [], filePath);
+		} else {
+			throw err;
+		}
 	});
 }
 
@@ -153,7 +159,7 @@ function parseSnippetFile(snippetFileContent: string, extensionName?: string, co
 }
 
 function _rewriteBogousVariables(snippet: ISnippet): boolean {
-	const marker = new SnippetParser(true, false).parse(snippet.codeSnippet, false);
+	const marker = new SnippetParser().parse(snippet.codeSnippet, false);
 
 	let placeholders = new Map<string, number>();
 	let placeholderMax = 0;
@@ -169,13 +175,13 @@ function _rewriteBogousVariables(snippet: ISnippet): boolean {
 			return SnippetParser.escape(marker.string);
 
 		} else if (marker instanceof Placeholder) {
-			if (marker.defaultValue.length > 0) {
-				return `\${${marker.index}:${marker.defaultValue.map(fixBogousVariables).join('')}}`;
+			if (marker.children.length > 0) {
+				return `\${${marker.index}:${marker.children.map(fixBogousVariables).join('')}}`;
 			} else {
 				return `\$${marker.index}`;
 			}
 		} else if (marker instanceof Variable) {
-			if (marker.defaultValue.length === 0 && !EditorSnippetVariableResolver.VariableNames[marker.name]) {
+			if (marker.children.length === 0 && !EditorSnippetVariableResolver.VariableNames[marker.name]) {
 				// a 'variable' without a default value and not being one of our supported
 				// variables is automatically turing into a placeholder. This is to restore
 				// a bug we had before. So `${foo}` becomes `${N:foo}`
@@ -183,8 +189,8 @@ function _rewriteBogousVariables(snippet: ISnippet): boolean {
 				placeholders.set(marker.name, index);
 				return `\${${index++}:${marker.name}}`;
 
-			} else if (marker.defaultValue.length > 0) {
-				return `\${${marker.name}:${marker.defaultValue.map(fixBogousVariables).join('')}}`;
+			} else if (marker.children.length > 0) {
+				return `\${${marker.name}:${marker.children.map(fixBogousVariables).join('')}}`;
 			} else {
 				return `\$${marker.name}`;
 			}

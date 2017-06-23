@@ -10,6 +10,8 @@ var sourcemaps = require("gulp-sourcemaps");
 var filter = require("gulp-filter");
 var minifyCSS = require("gulp-cssnano");
 var uglify = require("gulp-uglify");
+var composer = require("gulp-uglify/composer");
+var uglifyes = require("uglify-es");
 var es = require("event-stream");
 var concat = require("gulp-concat");
 var VinylFile = require("vinyl");
@@ -163,7 +165,8 @@ function optimizeTask(opts) {
             includeContent: true
         }))
             .pipe(i18n.processNlsFiles({
-            fileHeader: bundledFileHeader
+            fileHeader: bundledFileHeader,
+            languages: opts.languages
         }))
             .pipe(gulp.dest(out));
     };
@@ -200,12 +203,13 @@ function uglifyWithCopyrights() {
             return false;
         };
     };
+    var minify = composer(uglifyes);
     var input = es.through();
     var output = input
         .pipe(flatmap(function (stream, f) {
-        return stream.pipe(uglify({
-            preserveComments: preserveComments(f),
+        return stream.pipe(minify({
             output: {
+                comments: preserveComments(f),
                 // linux tfs build agent is crashing, does this help?§
                 max_line_len: 3200000
             }

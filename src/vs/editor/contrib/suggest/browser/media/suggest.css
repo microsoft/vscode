@@ -14,16 +14,18 @@
 	width: 430px;
 }
 
+.monaco-editor .suggest-widget > .message,
 .monaco-editor .suggest-widget > .tree,
 .monaco-editor .suggest-widget > .details {
-	width: 428px;
+	width: 100%;
 	border-style: solid;
 	border-width: 1px;
+	box-sizing: border-box;
 }
 
+.monaco-editor.hc-black .suggest-widget > .message,
 .monaco-editor.hc-black .suggest-widget > .tree,
 .monaco-editor.hc-black .suggest-widget > .details {
-	width: 426px;
 	border-width: 2px;
 }
 
@@ -34,29 +36,19 @@
 
 .monaco-editor .suggest-widget.docs-side > .tree,
 .monaco-editor .suggest-widget.docs-side > .details {
-	/* subtract 2px for border, and another 2 for the Chromium zoom issue
-	where the children get slightly bigger width than what is set
-	which makes the docs go below the list  */
-	width: calc(50% - 4px);
+	width: 50%;
+	float: left;
 }
 
-.monaco-editor.hc-black .suggest-widget.docs-side > .tree,
-.monaco-editor.hc-black .suggest-widget.docs-side > .details {
-	/* subtract 4px for border, and another 2 for the Chromium zoom issue
-	where the children get slightly bigger width than what is set
-	which makes the docs go below the list  */
-	width: calc(50% - 6px);
+.monaco-editor .suggest-widget.docs-side.list-right > .tree,
+.monaco-editor .suggest-widget.docs-side.list-right > .details  {
+	float: right;
 }
+
 
 /* Styles for Message element for when widget is loading or is empty */
 .monaco-editor .suggest-widget > .message {
 	padding-left: 22px;
-	border-style: solid;
-	border-width: 1px;
-}
-
-.monaco-editor.hc-black  .suggest-widget > .message {
-	border-width: 2px;
 }
 
 /** Styles for the list element **/
@@ -64,13 +56,7 @@
 	height: 100%;
 }
 
-.monaco-editor .suggest-widget.docs-side > .tree {
-	float: left;
-}
 
-.monaco-editor .suggest-widget.docs-side.list-right > .tree {
-	float: right
-}
 
 /** Styles for each row in the list element **/
 
@@ -103,7 +89,7 @@
 
 /** Icon styles **/
 
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .close,
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore {
 	opacity: 0.6;
 	background-position: center center;
@@ -112,16 +98,17 @@
 	cursor: pointer;
 }
 
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .close {
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close {
 	background-image: url('./close.svg');
 	float: right;
+	margin-right: 5px;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore {
 	background-image: url('./info.svg');
 }
 
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .close:hover,
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close:hover,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore:hover {
 	opacity: 1;
 }
@@ -203,7 +190,6 @@
 
 /** Styles for the docs of the completion item in focus **/
 .monaco-editor .suggest-widget .details {
-	max-height: 216px;
 	display: flex;
 	flex-direction: column;
 	cursor: default;
@@ -211,6 +197,10 @@
 
 .monaco-editor .suggest-widget .details.no-docs {
 	display: none;
+}
+
+.monaco-editor .suggest-widget.docs-below .details {
+	border-top-width: 0px;
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element {
@@ -225,16 +215,17 @@
 	white-space: pre-wrap;
 }
 
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .type {
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .type {
 	flex: 2;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	opacity: 0.7;
 	word-break: break-all;
 	margin: 0;
+	padding: 4px 0 4px 5px;
 }
 
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > p {
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs {
 	margin: 0;
 	padding: 4px 5px;
 }
@@ -246,8 +237,8 @@
 
 /* High Contrast and Dark Theming */
 
-.monaco-editor.vs-dark .suggest-widget .details > .monaco-scrollable-element > .body > .close,
-.monaco-editor.hc-black .suggest-widget .details > .monaco-scrollable-element > .body > .close {
+.monaco-editor.vs-dark .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close,
+.monaco-editor.hc-black .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close {
 	background-image: url('./close-dark.svg');
 }
 

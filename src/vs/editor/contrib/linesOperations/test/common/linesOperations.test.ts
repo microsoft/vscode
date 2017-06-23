@@ -10,9 +10,9 @@ import { Position } from 'vs/editor/common/core/position';
 import { Handler, IModel, DefaultEndOfLine } from 'vs/editor/common/editorCommon';
 import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import { DeleteAllLeftAction, JoinLinesAction, TransposeAction, UpperCaseAction, LowerCaseAction, DeleteAllRightAction, InsertLineBeforeAction, InsertLineAfterAction, IndentLinesAction } from 'vs/editor/contrib/linesOperations/common/linesOperations';
-import { Cursor } from "vs/editor/common/controller/cursor";
-import { Model } from "vs/editor/common/model/model";
-import { CoreEditingCommands } from "vs/editor/common/controller/coreCommands";
+import { Cursor } from 'vs/editor/common/controller/cursor';
+import { Model } from 'vs/editor/common/model/model';
+import { CoreEditingCommands } from 'vs/editor/common/controller/coreCommands';
 
 suite('Editor Contrib - Line Operations', () => {
 	suite('DeleteAllLeftAction', () => {

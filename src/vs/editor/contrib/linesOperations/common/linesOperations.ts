@@ -19,7 +19,7 @@ import { CopyLinesCommand } from './copyLinesCommand';
 import { DeleteLinesCommand } from './deleteLinesCommand';
 import { MoveLinesCommand } from './moveLinesCommand';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
-import { CoreEditingCommands } from "vs/editor/common/controller/coreCommands";
+import { CoreEditingCommands } from 'vs/editor/common/controller/coreCommands';
 
 // copy lines
 
@@ -96,9 +96,10 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 
 		var commands: ICommand[] = [];
 		var selections = editor.getSelections();
+		var autoIndent = editor.getConfiguration().autoIndent;
 
 		for (var i = 0; i < selections.length; i++) {
-			commands.push(new MoveLinesCommand(selections[i], this.down));
+			commands.push(new MoveLinesCommand(selections[i], this.down, autoIndent));
 		}
 
 		editor.pushUndoStop();

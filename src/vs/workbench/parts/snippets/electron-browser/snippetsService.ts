@@ -5,14 +5,14 @@
 'use strict';
 
 import { localize } from 'vs/nls';
-import * as strings from 'vs/base/common/strings';
 import { IModel } from 'vs/editor/common/editorCommon';
-import { ISuggestion, LanguageId } from 'vs/editor/common/modes';
+import { ISuggestSupport, ISuggestResult, ISuggestion, LanguageId } from 'vs/editor/common/modes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/browser/suggest';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Position } from 'vs/editor/common/core/position';
+import { overlap, compare, startsWith } from 'vs/base/common/strings';
 
 export const ISnippetsService = createDecorator<ISnippetsService>('snippetService');
 
@@ -22,7 +22,9 @@ export interface ISnippetsService {
 
 	registerSnippets(languageId: LanguageId, snippets: ISnippet[], owner: string): void;
 
-	visitSnippets(languageId: LanguageId, accept: (snippet: ISnippet) => void): void;
+	visitSnippets(languageId: LanguageId, accept: (snippet: ISnippet) => boolean): void;
+
+	getSnippets(languageId: LanguageId): ISnippet[];
 }
 
 export interface ISnippet {
@@ -33,37 +35,26 @@ export interface ISnippet {
 	extensionName?: string;
 }
 
-interface ISnippetSuggestion extends ISuggestion {
-	disambiguateLabel: string;
-}
-
-class SnippetsService implements ISnippetsService {
+export class SnippetsService implements ISnippetsService {
 
 	_serviceBrand: any;
 
-	private static _defaultDetail = localize('detail.userSnippet', "User Snippet");
-
-	private _snippets = new Map<LanguageId, Map<string, ISnippet[]>>();
+	private readonly _snippets = new Map<LanguageId, Map<string, ISnippet[]>>();
 
 	constructor(
-		@IModeService private _modeService: IModeService
+		@IModeService modeService: IModeService
 	) {
-		setSnippetSuggestSupport({
-			provideCompletionItems: (model, position) => {
-				const suggestions = this._getSnippetCompletions(<any>model, position);
-				return { suggestions };
-			}
-		});
+		setSnippetSuggestSupport(new SnippetSuggestProvider(modeService, this));
 	}
 
-	public registerSnippets(languageId: LanguageId, snippets: ISnippet[], fileName: string): void {
+	registerSnippets(languageId: LanguageId, snippets: ISnippet[], fileName: string): void {
 		if (!this._snippets.has(languageId)) {
 			this._snippets.set(languageId, new Map<string, ISnippet[]>());
 		}
 		this._snippets.get(languageId).set(fileName, snippets);
 	}
 
-	public visitSnippets(languageId: LanguageId, accept: (snippet: ISnippet) => boolean): void {
+	visitSnippets(languageId: LanguageId, accept: (snippet: ISnippet) => boolean): void {
 		const modeSnippets = this._snippets.get(languageId);
 		if (modeSnippets) {
 			modeSnippets.forEach(snippets => {
@@ -73,6 +64,101 @@ class SnippetsService implements ISnippetsService {
 				}
 			});
 		}
+	}
+
+	getSnippets(languageId: LanguageId): ISnippet[] {
+		const modeSnippets = this._snippets.get(languageId);
+		const ret: ISnippet[] = [];
+		if (modeSnippets) {
+			modeSnippets.forEach(snippets => {
+				ret.push(...snippets);
+			});
+		}
+		return ret;
+	}
+}
+
+registerSingleton(ISnippetsService, SnippetsService);
+
+export interface ISimpleModel {
+	getLineContent(lineNumber: number): string;
+}
+
+interface ISnippetSuggestion {
+	suggestion: ISuggestion;
+	snippet: ISnippet;
+}
+
+
+export class SnippetSuggestProvider implements ISuggestSupport {
+
+	constructor(
+		@IModeService private _modeService: IModeService,
+		@ISnippetsService private _snippets: ISnippetsService
+	) {
+		//
+	}
+
+	provideCompletionItems(model: IModel, position: Position): ISuggestResult {
+
+		const languageId = this._getLanguageIdAtPosition(model, position);
+		const snippets = this._snippets.getSnippets(languageId);
+		const items: ISnippetSuggestion[] = [];
+
+		const lowWordUntil = model.getWordUntilPosition(position).word.toLowerCase();
+		const lowLineUntil = model.getLineContent(position.lineNumber).substr(Math.max(0, position.column - 100), position.column - 1).toLowerCase();
+
+		for (const snippet of snippets) {
+
+			const lowPrefix = snippet.prefix.toLowerCase();
+			let overwriteBefore = 0;
+			let accetSnippet = true;
+
+			if (lowWordUntil.length > 0 && startsWith(lowPrefix, lowWordUntil)) {
+				// cheap match on the (none-empty) current word
+				overwriteBefore = lowWordUntil.length;
+				accetSnippet = true;
+
+			} else if (lowLineUntil.length > 0) {
+				// compute overlap between snippet and line on text
+				overwriteBefore = overlap(lowLineUntil, snippet.prefix.toLowerCase());
+				accetSnippet = overwriteBefore > 0 && !model.getWordAtPosition(new Position(position.lineNumber, position.column - overwriteBefore));
+			}
+
+			if (accetSnippet) {
+
+				items.push({
+					snippet,
+					suggestion: {
+						type: 'snippet',
+						label: snippet.prefix,
+						detail: snippet.extensionName || localize('detail.userSnippet', "User Snippet"),
+						documentation: snippet.description,
+						insertText: snippet.codeSnippet,
+						sortText: `${snippet.prefix}-${snippet.extensionName || ''}`,
+						noAutoAccept: true,
+						snippetType: 'textmate',
+						overwriteBefore
+					}
+				});
+			}
+		}
+
+		// dismbiguate suggestions with same labels
+		const suggestions: ISuggestion[] = [];
+		let lastItem: ISnippetSuggestion;
+		for (const item of items.sort(SnippetSuggestProvider._compareSuggestionsByLabel)) {
+			if (lastItem && lastItem.suggestion.label === item.suggestion.label) {
+				// use the disambiguateLabel instead of the actual label
+				lastItem.suggestion.label = localize('snippetSuggest.longLabel', "{0}, {1}", lastItem.suggestion.label, lastItem.snippet.name);
+				item.suggestion.label = localize('snippetSuggest.longLabel', "{0}, {1}", item.suggestion.label, item.snippet.name);
+			}
+			lastItem = item;
+
+			suggestions.push(item.suggestion);
+		}
+
+		return { suggestions };
 	}
 
 	private _getLanguageIdAtPosition(model: IModel, position: Position): LanguageId {
@@ -88,75 +174,9 @@ class SnippetsService implements ISnippetsService {
 		return languageId;
 	}
 
-	private _getSnippetCompletions(model: IModel, position: Position): ISuggestion[] {
-		const languageId = this._getLanguageIdAtPosition(model, position);
-		if (!this._snippets.has(languageId)) {
-			return undefined;
-		}
-
-		const result: ISnippetSuggestion[] = [];
-
-		const word = model.getWordAtPosition(position);
-		const currentWord = word ? word.word.substring(0, position.column - word.startColumn).toLowerCase() : '';
-		const currentFullWord = getNonWhitespacePrefix(model, position).toLowerCase();
-
-		this.visitSnippets(languageId, s => {
-			const prefixLower = s.prefix.toLowerCase();
-
-			let overwriteBefore = 0;
-			if (currentWord.length > 0) {
-				// there is a word -> the prefix should match that
-				if (strings.startsWith(prefixLower, currentWord)) {
-					overwriteBefore = currentWord.length;
-				} else {
-					return true;
-				}
-
-			} else if (currentFullWord.length > currentWord.length) {
-				// there is something -> fine if it matches
-				overwriteBefore = strings.commonPrefixLength(prefixLower, currentFullWord);
-			}
-
-			// store in result
-			result.push({
-				type: 'snippet',
-				label: s.prefix,
-				get disambiguateLabel() { return localize('snippetSuggest.longLabel', "{0}, {1}", s.prefix, s.name); },
-				detail: s.extensionName || SnippetsService._defaultDetail,
-				documentation: s.description,
-				insertText: s.codeSnippet,
-				sortText: `${s.prefix}-${s.extensionName || ''}`,
-				noAutoAccept: true,
-				snippetType: 'textmate',
-				overwriteBefore
-			});
-
-			return true;
-		});
-
-		// dismbiguate suggestions with same labels
-		let lastSuggestion: ISnippetSuggestion;
-		for (const suggestion of result.sort(SnippetsService._compareSuggestionsByLabel)) {
-			if (lastSuggestion && lastSuggestion.label === suggestion.label) {
-				// use the disambiguateLabel instead of the actual label
-				lastSuggestion.label = lastSuggestion.disambiguateLabel;
-				suggestion.label = suggestion.disambiguateLabel;
-			}
-			lastSuggestion = suggestion;
-		}
-
-		return result;
+	private static _compareSuggestionsByLabel(a: ISnippetSuggestion, b: ISnippetSuggestion): number {
+		return compare(a.suggestion.label, b.suggestion.label);
 	}
-
-	private static _compareSuggestionsByLabel(a: ISuggestion, b: ISuggestion): number {
-		return strings.compare(a.label, b.label);
-	}
-}
-
-registerSingleton(ISnippetsService, SnippetsService);
-
-export interface ISimpleModel {
-	getLineContent(lineNumber: number): string;
 }
 
 export function getNonWhitespacePrefix(model: ISimpleModel, position: Position): string {

@@ -5,14 +5,14 @@
 
 'use strict';
 
-import { BoundedLinkedMap, LRUCache, LinkedMap, TrieMap, ResourceMap } from 'vs/base/common/map';
+import { BoundedMap, TrieMap, ResourceMap } from 'vs/base/common/map';
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 
 suite('Map', () => {
 
-	test('LinkedMap - basics', function () {
-		const map = new LinkedMap<string, any>();
+	test('BoundedMap - basics', function () {
+		const map = new BoundedMap<any>();
 
 		assert.equal(map.size, 0);
 
@@ -72,10 +72,38 @@ suite('Map', () => {
 		assert.equal(res, 'bar');
 	});
 
-	test('BoundedLinkedMap - basics', function () {
-		const map = new BoundedLinkedMap<any>();
+	test('BoundedMap - serialization', function () {
+		const map = new BoundedMap<any>(5);
 
-		assert.equal(map.size, 0);
+		map.set('1', 1);
+		map.set('2', '2');
+		map.set('3', true);
+
+		const obj = Object.create(null);
+		map.set('4', obj);
+
+		const date = Date.now();
+		map.set('5', date);
+
+		const mapClone = new BoundedMap<any>(5, 1, map.serialize());
+
+		assert.deepEqual(map.serialize(), mapClone.serialize());
+
+		assert.equal(mapClone.size, 5);
+		assert.equal(mapClone.get('1'), 1);
+		assert.equal(mapClone.get('2'), '2');
+		assert.equal(mapClone.get('3'), true);
+		assert.equal(mapClone.get('4'), obj);
+		assert.equal(mapClone.get('5'), date);
+		assert.ok(!mapClone.get('6'));
+
+		mapClone.set('6', '6');
+		assert.equal(mapClone.size, 5);
+		assert.ok(!mapClone.get('1'));
+	});
+
+	test('BoundedMap - setLimit', function () {
+		const map = new BoundedMap<any>(5);
 
 		map.set('1', 1);
 		map.set('2', '2');
@@ -95,46 +123,45 @@ suite('Map', () => {
 		assert.equal(map.get('5'), date);
 		assert.ok(!map.get('6'));
 
-		map.delete('6');
-		assert.equal(map.size, 5);
-		assert.equal(map.delete('1'), 1);
-		assert.equal(map.delete('2'), '2');
-		assert.equal(map.delete('3'), true);
-		assert.equal(map.delete('4'), obj);
-		assert.equal(map.delete('5'), date);
+		map.setLimit(3);
+
+		assert.equal(map.size, 3);
+		assert.ok(!map.get('1'));
+		assert.ok(!map.get('2'));
+		assert.equal(map.get('3'), true);
+		assert.equal(map.get('4'), obj);
+		assert.equal(map.get('5'), date);
+
+		map.setLimit(0);
 
 		assert.equal(map.size, 0);
-		assert.ok(!map.get('5'));
-		assert.ok(!map.get('4'));
 		assert.ok(!map.get('3'));
-		assert.ok(!map.get('2'));
-		assert.ok(!map.get('1'));
+		assert.ok(!map.get('4'));
+		assert.ok(!map.get('5'));
+
+		map.set('6', 6);
+
+		assert.equal(map.size, 0);
+		assert.ok(!map.get('6'));
+
+		map.setLimit(100);
 
 		map.set('1', 1);
 		map.set('2', '2');
-		assert.ok(map.set('3', true)); // adding an element returns true
-		assert.ok(!map.set('3', true)); // adding it again returns false
+		map.set('3', true);
+		map.set('4', obj);
+		map.set('5', date);
 
-		assert.ok(map.has('1'));
+		assert.equal(map.size, 5);
 		assert.equal(map.get('1'), 1);
 		assert.equal(map.get('2'), '2');
 		assert.equal(map.get('3'), true);
-
-		map.clear();
-
-		assert.equal(map.size, 0);
-		assert.ok(!map.get('1'));
-		assert.ok(!map.get('2'));
-		assert.ok(!map.get('3'));
-		assert.ok(!map.has('1'));
-
-		const res = map.getOrSet('foo', 'bar');
-		assert.equal(map.get('foo'), res);
-		assert.equal(res, 'bar');
+		assert.equal(map.get('4'), obj);
+		assert.equal(map.get('5'), date);
 	});
 
-	test('BoundedLinkedMap - bounded', function () {
-		const map = new BoundedLinkedMap<number>(5);
+	test('BoundedMap - bounded', function () {
+		const map = new BoundedMap<number>(5);
 
 		assert.equal(0, map.size);
 
@@ -202,8 +229,8 @@ suite('Map', () => {
 		assert.equal(map.get('14'), 14);
 	});
 
-	test('BoundedLinkedMap - bounded with ratio', function () {
-		const map = new BoundedLinkedMap<number>(6, 0.5);
+	test('BoundedMap - bounded with ratio', function () {
+		const map = new BoundedMap<number>(6, 0.5);
 
 		assert.equal(0, map.size);
 
@@ -240,37 +267,47 @@ suite('Map', () => {
 		assert.equal(map.get('10'), 10);
 	});
 
-	test('LRUCache', function () {
-		const cache = new LRUCache<number>(3);
+	test('BoundedMap - MRU order', function () {
+		const map = new BoundedMap<number>(3);
 
-		assert.equal(0, cache.size);
+		function peek(key) {
+			const res = map.get(key);
+			if (res) {
+				map.delete(key);
+				map.set(key, res);
+			}
 
-		cache.set('1', 1);
-		cache.set('2', 2);
-		cache.set('3', 3);
+			return res;
+		}
 
-		assert.equal(3, cache.size);
+		assert.equal(0, map.size);
 
-		assert.equal(cache.get('1'), 1);
-		assert.equal(cache.get('2'), 2);
-		assert.equal(cache.get('3'), 3);
+		map.set('1', 1);
+		map.set('2', 2);
+		map.set('3', 3);
 
-		cache.set('4', 4);
+		assert.equal(3, map.size);
 
-		assert.equal(3, cache.size);
-		assert.equal(cache.get('4'), 4); // this changes MRU order
-		assert.equal(cache.get('3'), 3);
-		assert.equal(cache.get('2'), 2);
+		assert.equal(map.get('1'), 1);
+		assert.equal(map.get('2'), 2);
+		assert.equal(map.get('3'), 3);
 
-		cache.set('5', 5);
-		cache.set('6', 6);
+		map.set('4', 4);
 
-		assert.equal(3, cache.size);
-		assert.equal(cache.get('2'), 2);
-		assert.equal(cache.get('5'), 5);
-		assert.equal(cache.get('6'), 6);
-		assert.ok(!cache.has('3'));
-		assert.ok(!cache.has('4'));
+		assert.equal(3, map.size);
+		assert.equal(peek('4'), 4); // this changes MRU order
+		assert.equal(peek('3'), 3);
+		assert.equal(peek('2'), 2);
+
+		map.set('5', 5);
+		map.set('6', 6);
+
+		assert.equal(3, map.size);
+		assert.equal(peek('2'), 2);
+		assert.equal(peek('5'), 5);
+		assert.equal(peek('6'), 6);
+		assert.ok(!map.has('3'));
+		assert.ok(!map.has('4'));
 	});
 
 

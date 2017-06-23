@@ -27,13 +27,21 @@
 	height: calc(100% - 38px);
 }
 
-.extensions-viewlet > .extensions.hidden,
-.extensions-viewlet > .message.hidden {
+.extensions-viewlet > .extensions .extensions-list.hidden,
+.extensions-viewlet > .extensions .message.hidden {
 	display: none;
 	visibility: hidden;
 }
 
-.extensions-viewlet > .message {
+.extensions-viewlet > .extensions .header {
+	padding-right: 12px;
+}
+
+.extensions-viewlet > .extensions .header > .title {
+	flex: 1;
+}
+
+.extensions-viewlet > .extensions .message {
 	padding: 5px 9px 5px 16px;
 	cursor: default;
 }

@@ -20,7 +20,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
@@ -48,7 +48,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	private resource: URI = URI.file(this.environmentService.appKeybindingsPath);
 
 	constructor(
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
+		@ITextModelService private textModelResolverService: ITextModelService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IFileService private fileService: IFileService,
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -215,7 +215,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	private resolveModelReference(): TPromise<IReference<ITextEditorModel>> {
 		return this.fileService.existsFile(this.resource)
 			.then(exists => {
-				const EOL = this.configurationService.getConfiguration({ section: 'files', overrideIdentifier: 'json' })['eol'];
+				const EOL = this.configurationService.getConfiguration('files', { overrideIdentifier: 'json' })['eol'];
 				const result = exists ? TPromise.as(null) : this.fileService.updateContent(this.resource, this.getEmptyContent(EOL), { encoding: 'utf8' });
 				return result.then(() => this.textModelResolverService.createModelReference(this.resource));
 			});

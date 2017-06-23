@@ -23,9 +23,9 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import * as types from 'vs/base/common/types';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { IEditorService } from 'vs/platform/editor/common/editor';
-import { TypeOperations } from "vs/editor/common/controller/cursorTypeOperations";
-import { DeleteOperations } from "vs/editor/common/controller/cursorDeleteOperations";
-import { VerticalRevealType } from "vs/editor/common/view/viewEvents";
+import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
+import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
+import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
 
 const CORE_WEIGHT = KeybindingsRegistry.WEIGHT.editorCore();
 
@@ -815,7 +815,7 @@ export namespace CoreNavigationCommands {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textFocus,
 			primary: KeyCode.Home,
-			mac: { primary: KeyCode.Home, secondary: [KeyMod.CtrlCmd | KeyCode.LeftArrow, KeyMod.WinCtrl | KeyCode.KEY_A] }
+			mac: { primary: KeyCode.Home, secondary: [KeyMod.CtrlCmd | KeyCode.LeftArrow] }
 		}
 	}));
 
@@ -830,6 +830,44 @@ export namespace CoreNavigationCommands {
 			mac: { primary: KeyMod.Shift | KeyCode.Home, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow] }
 		}
 	}));
+
+	export const CursorLineStart: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
+		constructor() {
+			super({
+				id: 'cursorLineStart',
+				precondition: null,
+				kbOpts: {
+					weight: CORE_WEIGHT,
+					kbExpr: EditorContextKeys.textFocus,
+					primary: 0,
+					mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_A }
+				}
+			});
+		}
+
+		public runCoreEditorCommand(cursors: ICursors, args: any): void {
+			cursors.context.model.pushStackElement();
+			cursors.setStates(
+				args.source,
+				CursorChangeReason.Explicit,
+				CursorState.ensureInEditableRange(
+					cursors.context,
+					this._exec(cursors.context, cursors.getAll())
+				)
+			);
+			cursors.reveal(true, RevealTarget.Primary);
+		}
+
+		private _exec(context: CursorContext, cursors: CursorState[]): CursorState[] {
+			let result: CursorState[] = [];
+			for (let i = 0, len = cursors.length; i < len; i++) {
+				const cursor = cursors[i];
+				const lineNumber = cursor.modelState.position.lineNumber;
+				result[i] = CursorState.fromModelState(cursor.modelState.move(false, lineNumber, 1, 0));
+			}
+			return result;
+		}
+	});
 
 	class EndCommand extends CoreEditorCommand {
 
@@ -862,7 +900,7 @@ export namespace CoreNavigationCommands {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textFocus,
 			primary: KeyCode.End,
-			mac: { primary: KeyCode.End, secondary: [KeyMod.CtrlCmd | KeyCode.RightArrow, KeyMod.WinCtrl | KeyCode.KEY_E] }
+			mac: { primary: KeyCode.End, secondary: [KeyMod.CtrlCmd | KeyCode.RightArrow] }
 		}
 	}));
 
@@ -877,6 +915,45 @@ export namespace CoreNavigationCommands {
 			mac: { primary: KeyMod.Shift | KeyCode.End, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow] }
 		}
 	}));
+
+	export const CursorLineEnd: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
+		constructor() {
+			super({
+				id: 'cursorLineEnd',
+				precondition: null,
+				kbOpts: {
+					weight: CORE_WEIGHT,
+					kbExpr: EditorContextKeys.textFocus,
+					primary: 0,
+					mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_E }
+				}
+			});
+		}
+
+		public runCoreEditorCommand(cursors: ICursors, args: any): void {
+			cursors.context.model.pushStackElement();
+			cursors.setStates(
+				args.source,
+				CursorChangeReason.Explicit,
+				CursorState.ensureInEditableRange(
+					cursors.context,
+					this._exec(cursors.context, cursors.getAll())
+				)
+			);
+			cursors.reveal(true, RevealTarget.Primary);
+		}
+
+		private _exec(context: CursorContext, cursors: CursorState[]): CursorState[] {
+			let result: CursorState[] = [];
+			for (let i = 0, len = cursors.length; i < len; i++) {
+				const cursor = cursors[i];
+				const lineNumber = cursor.modelState.position.lineNumber;
+				const maxColumn = context.model.getLineMaxColumn(lineNumber);
+				result[i] = CursorState.fromModelState(cursor.modelState.move(false, lineNumber, maxColumn, 0));
+			}
+			return result;
+		}
+	});
 
 	class TopCommand extends CoreEditorCommand {
 

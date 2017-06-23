@@ -6,6 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 
 export const IConfigurationEditingService = createDecorator<IConfigurationEditingService>('configurationEditingService');
 
@@ -58,7 +59,6 @@ export enum ConfigurationTarget {
 export interface IConfigurationValue {
 	key: string;
 	value: any;
-	overrideIdentifier?: string;
 }
 
 export interface IConfigurationEditingOptions {
@@ -70,6 +70,10 @@ export interface IConfigurationEditingOptions {
 	 * If `true`, do not notifies the error to user by showing the message box. Default is `false`.
 	 */
 	donotNotifyError?: boolean;
+	/**
+	 * Scope of configuration to be written into.
+	 */
+	scopes?: IConfigurationOverrides;
 }
 
 export interface IConfigurationEditingService {

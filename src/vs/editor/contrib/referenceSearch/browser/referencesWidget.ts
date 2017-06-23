@@ -6,11 +6,10 @@
 
 import 'vs/css!./referencesWidget';
 import * as nls from 'vs/nls';
-import { alert } from 'vs/base/browser/ui/aria/aria';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { getPathLabel } from 'vs/base/common/labels';
 import Event, { Emitter } from 'vs/base/common/event';
-import { IDisposable, dispose, Disposables, IReference } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -23,9 +22,8 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { GestureEvent } from 'vs/base/browser/touch';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { LeftRightWidget } from 'vs/base/browser/ui/leftRightWidget/leftRightWidget';
 import * as tree from 'vs/base/parts/tree/browser/tree';
-import { DefaultController, LegacyRenderer } from 'vs/base/parts/tree/browser/treeDefaults';
+import { DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -37,14 +35,15 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { PeekViewWidget, IPeekViewService } from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
-import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { registerColor, activeContrastBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IEnvironmentService } from "vs/platform/environment/common/environment";
-import { ModelDecorationOptions } from "vs/editor/common/model/textModelWithDecorations";
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import URI from 'vs/base/common/uri';
 
 class DecorationsManager implements IDisposable {
 
@@ -166,7 +165,7 @@ class DecorationsManager implements IDisposable {
 class DataSource implements tree.IDataSource {
 
 	constructor(
-		@ITextModelResolverService private _textModelResolverService: ITextModelResolverService
+		@ITextModelService private _textModelResolverService: ITextModelService
 	) {
 		//
 	}
@@ -344,81 +343,120 @@ class Controller extends DefaultController {
 	}
 }
 
-class Renderer extends LegacyRenderer {
-	private _contextService: IWorkspaceContextService;
-	private _themeService: IThemeService;
-	private _environmentService: IEnvironmentService;
+class FileReferencesTemplate {
+
+	readonly file: FileLabel;
+	readonly badge: CountBadge;
+	readonly dispose: () => void;
 
 	constructor(
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		container: HTMLElement,
+		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
+		@optional(IEnvironmentService) private _environmentService: IEnvironmentService,
 		@IThemeService themeService: IThemeService,
-		@optional(IEnvironmentService) environmentService: IEnvironmentService
 	) {
-		super();
+		const parent = document.createElement('div');
+		dom.addClass(parent, 'reference-file');
+		container.appendChild(parent);
 
-		this._contextService = contextService;
-		this._themeService = themeService;
-		this._environmentService = environmentService;
+		this.file = new FileLabel(parent, URI.parse('no:file'), this._contextService, this._environmentService);
+		this.badge = new CountBadge(parent);
+		const styler = attachBadgeStyler(this.badge, themeService);
+		this.dispose = () => styler.dispose();
 	}
 
-	public getHeight(tree: tree.ITree, element: any): number {
+	set(element: FileReferences) {
+		this.file.setFile(element.uri, this._contextService, this._environmentService);
+		const len = element.children.length;
+		this.badge.setCount(len);
+		if (element.failure) {
+			this.badge.setTitleFormat(nls.localize('referencesFailre', "Failed to resolve file."));
+		} else if (len > 1) {
+			this.badge.setTitleFormat(nls.localize('referencesCount', "{0} references", len));
+		} else {
+			this.badge.setTitleFormat(nls.localize('referenceCount', "{0} reference", len));
+		}
+	}
+}
+
+class OneReferenceTemplate {
+
+	readonly before: HTMLSpanElement;
+	readonly inside: HTMLSpanElement;
+	readonly after: HTMLSpanElement;
+
+	constructor(container: HTMLElement) {
+		const parent = document.createElement('div');
+		this.before = document.createElement('span');
+		this.inside = document.createElement('span');
+		this.after = document.createElement('span');
+		dom.addClass(this.inside, 'referenceMatch');
+		dom.addClass(parent, 'reference');
+		parent.appendChild(this.before);
+		parent.appendChild(this.inside);
+		parent.appendChild(this.after);
+		container.appendChild(parent);
+	}
+
+	set(element: OneReference): void {
+		const { before, inside, after } = element.parent.preview.preview(element.range);
+		this.before.innerHTML = strings.escape(before);
+		this.inside.innerHTML = strings.escape(inside);
+		this.after.innerHTML = strings.escape(after);
+	}
+}
+
+class Renderer implements tree.IRenderer {
+
+	private static _ids = {
+		FileReferences: 'FileReferences',
+		OneReference: 'OneReference'
+	};
+
+	constructor(
+		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
+		@IThemeService private _themeService: IThemeService,
+		@optional(IEnvironmentService) private _environmentService: IEnvironmentService,
+	) {
+		//
+	}
+
+	getHeight(tree: tree.ITree, element: FileReferences | OneReference): number {
 		return 22;
 	}
 
-	protected render(tree: tree.ITree, element: FileReferences | OneReference, container: HTMLElement): tree.IElementCallback {
-
-		const toDispose: IDisposable[] = [];
-		dom.clearNode(container);
-
+	getTemplateId(tree: tree.ITree, element: FileReferences | OneReference): string {
 		if (element instanceof FileReferences) {
-			const fileReferencesContainer = $('.reference-file');
-
-			/* tslint:disable:no-unused-expression */
-			new LeftRightWidget(fileReferencesContainer, (left: HTMLElement) => {
-
-				const label = new FileLabel(left, element.uri, this._contextService, this._environmentService);
-				toDispose.push(label);
-				return <IDisposable>null;
-
-			}, (right: HTMLElement) => {
-
-				const len = element.children.length;
-				const badge = new CountBadge(right, { count: len });
-				toDispose.push(attachBadgeStyler(badge, this._themeService));
-
-				if (element.failure) {
-					badge.setTitleFormat(nls.localize('referencesFailre', "Failed to resolve file."));
-				} else if (len > 1) {
-					badge.setTitleFormat(nls.localize('referencesCount', "{0} references", len));
-				} else {
-					badge.setTitleFormat(nls.localize('referenceCount', "{0} reference", len));
-				}
-
-				return null;
-			});
-			/* tslint:enable:no-unused-expression */
-
-			fileReferencesContainer.appendTo(container);
-
+			return Renderer._ids.FileReferences;
 		} else if (element instanceof OneReference) {
-
-			const preview = element.parent.preview.preview(element.range);
-
-			if (!preview) {
-				return undefined;
-			}
-
-			$('.reference').innerHtml(
-				strings.format(
-					'<span>{0}</span><span class="referenceMatch">{1}</span><span>{2}</span>',
-					strings.escape(preview.before),
-					strings.escape(preview.inside),
-					strings.escape(preview.after))).appendTo(container);
+			return Renderer._ids.OneReference;
 		}
+		throw element;
+	}
 
-		return () => {
-			dispose(toDispose);
-		};
+	renderTemplate(tree: tree.ITree, templateId: string, container: HTMLElement) {
+		if (templateId === Renderer._ids.FileReferences) {
+			return new FileReferencesTemplate(container, this._contextService, this._environmentService, this._themeService);
+		} else if (templateId === Renderer._ids.OneReference) {
+			return new OneReferenceTemplate(container);
+		}
+		throw templateId;
+	}
+
+	renderElement(tree: tree.ITree, element: FileReferences | OneReference, templateId: string, templateData: any): void {
+		if (element instanceof FileReferences) {
+			(<FileReferencesTemplate>templateData).set(element);
+		} else if (element instanceof OneReference) {
+			(<OneReferenceTemplate>templateData).set(element);
+		} else {
+			throw templateId;
+		}
+	}
+
+	disposeTemplate(tree: tree.ITree, templateId: string, templateData: FileReferencesTemplate | OneReferenceTemplate): void {
+		if (templateData instanceof FileReferencesTemplate) {
+			templateData.dispose();
+		}
 	}
 }
 
@@ -437,7 +475,7 @@ class AriaProvider implements tree.IAccessibilityProvider {
 
 class VSash {
 
-	private _disposables = new Disposables();
+	private _disposables: IDisposable[] = [];
 	private _sash: Sash;
 	private _ratio: number;
 	private _height: number;
@@ -454,11 +492,11 @@ class VSash {
 		// compute the current widget clientX postion since
 		// the sash works with clientX when dragging
 		let clientX: number;
-		this._disposables.add(this._sash.addListener('start', (e: ISashEvent) => {
+		this._disposables.push(this._sash.addListener('start', (e: ISashEvent) => {
 			clientX = e.startX - (this._width * this.ratio);
 		}));
 
-		this._disposables.add(this._sash.addListener('change', (e: ISashEvent) => {
+		this._disposables.push(this._sash.addListener('change', (e: ISashEvent) => {
 			// compute the new position of the sash and from that
 			// compute the new ratio that we are using
 			let newLeft = e.currentX - clientX;
@@ -473,7 +511,7 @@ class VSash {
 	dispose() {
 		this._sash.dispose();
 		this._onDidChangePercentages.dispose();
-		this._disposables.dispose();
+		dispose(this._disposables);
 	}
 
 	get onDidChangePercentages() {
@@ -536,12 +574,13 @@ export class ReferenceWidget extends PeekViewWidget {
 	constructor(
 		editor: ICodeEditor,
 		public layoutData: LayoutData,
-		private _textModelResolverService: ITextModelResolverService,
+		private _textModelResolverService: ITextModelService,
 		private _contextService: IWorkspaceContextService,
 		private _themeService: IThemeService,
-		private _instantiationService: IInstantiationService
+		private _instantiationService: IInstantiationService,
+		private _environmentService: IEnvironmentService
 	) {
-		super(editor, { showFrame: false, showArrow: true, isResizeable: true });
+		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true });
 
 		this._applyTheme(_themeService.getTheme());
 		this._callOnDispose.push(_themeService.onThemeChange(this._applyTheme.bind(this)));
@@ -642,8 +681,7 @@ export class ReferenceWidget extends PeekViewWidget {
 				dataSource: this._instantiationService.createInstance(DataSource),
 				renderer: this._instantiationService.createInstance(Renderer),
 				controller: new Controller(),
-				// TODO@{Joh,Ben} make this work with the embedded tree
-				// accessibilityProvider: new AriaProvider()
+				accessibilityProvider: new AriaProvider()
 			};
 
 			var options = {
@@ -721,11 +759,8 @@ export class ReferenceWidget extends PeekViewWidget {
 				this._revealReference(element);
 				this._onDidSelectReference.fire({ element, kind: 'show', source: 'tree' });
 			}
-			if (element instanceof OneReference || element instanceof FileReferences) {
-				const msg = element.getAriaMessage();
-				alert(msg);
-			}
 		}));
+
 		this._disposeOnNewModel.push(this._tree.addListener(Controller.Events.SELECTED, (element: any) => {
 			if (element instanceof OneReference) {
 				this._onDidSelectReference.fire({ element, kind: 'goto', source: 'tree' });
@@ -777,7 +812,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		// Update widget header
 		if (reference.uri.scheme !== Schemas.inMemory) {
-			this.setTitle(reference.name, getPathLabel(reference.directory, this._contextService));
+			this.setTitle(reference.name, getPathLabel(reference.directory, this._contextService, this._environmentService));
 		} else {
 			this.setTitle(nls.localize('peekView.alternateTitle', "References"));
 		}

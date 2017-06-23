@@ -27,7 +27,64 @@ import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/co
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { buttonBackground, buttonForeground, badgeForeground, badgeBackground, contrastBorder, errorForeground } from "vs/platform/theme/common/colorRegistry";
+import { buttonBackground, buttonForeground, badgeForeground, badgeBackground, contrastBorder, errorForeground } from 'vs/platform/theme/common/colorRegistry';
+
+export class SettingsHeaderWidget extends Widget implements IViewZone {
+
+	private id: number;
+	private _domNode: HTMLElement;
+
+	private titleContainer: HTMLElement;
+	private messageElement: HTMLElement;
+
+	constructor(private editor: ICodeEditor, private title: string) {
+		super();
+		this.create();
+		this._register(this.editor.onDidChangeConfiguration(() => this.layout()));
+		this._register(this.editor.onDidLayoutChange(() => this.layout()));
+	}
+
+	get domNode(): HTMLElement {
+		return this._domNode;
+	}
+
+	get heightInLines(): number {
+		return 1;
+	}
+
+	get afterLineNumber(): number {
+		return 0;
+	}
+
+	private create() {
+		this._domNode = DOM.$('.settings-header-widget');
+
+		this.titleContainer = DOM.append(this._domNode, DOM.$('.title-container'));
+		DOM.append(this.titleContainer, DOM.$('.title')).textContent = this.title;
+		this.messageElement = DOM.append(this.titleContainer, DOM.$('.message'));
+
+		this.editor.changeViewZones(accessor => {
+			this.id = accessor.addZone(this);
+			this.layout();
+		});
+	}
+
+	public setMessage(message: string): void {
+		this.messageElement.textContent = message;
+	}
+
+	private layout(): void {
+		const configuration = this.editor.getConfiguration();
+		this.titleContainer.style.fontSize = configuration.fontInfo.fontSize + 'px';
+	}
+
+	public dispose() {
+		this.editor.changeViewZones(accessor => {
+			accessor.removeZone(this.id);
+		});
+		super.dispose();
+	}
+}
 
 export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 
@@ -107,15 +164,14 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 		const layoutInfo = this.editor.getLayoutInfo();
 		this._domNode.style.width = layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth + 'px';
 		this.titleContainer.style.lineHeight = configuration.lineHeight + 3 + 'px';
+		this.titleContainer.style.height = configuration.lineHeight + 3 + 'px';
 		this.titleContainer.style.fontSize = configuration.fontInfo.fontSize + 'px';
-		const iconSize = this.getIconSize();
-		this.icon.style.height = `${iconSize}px`;
-		this.icon.style.width = `${iconSize}px`;
+		this.icon.style.minWidth = `${this.getIconSize(16)}px`;
 	}
 
-	private getIconSize(): number {
+	private getIconSize(minSize: number): number {
 		const fontSize = this.editor.getConfiguration().fontInfo.fontSize;
-		return fontSize > 8 ? Math.max(fontSize, 16) : 12;
+		return fontSize > 8 ? Math.max(fontSize, minSize) : 12;
 	}
 
 	private onKeyDown(keyboardEvent: IKeyboardEvent): void {

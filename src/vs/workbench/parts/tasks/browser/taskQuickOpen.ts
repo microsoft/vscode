@@ -10,7 +10,7 @@ import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
-import { Task } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, TaskGroup } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
@@ -18,16 +18,21 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import * as base from './quickOpen';
 
 class TaskEntry extends base.TaskEntry {
-	constructor(taskService: ITaskService, task: Task, highlights: Model.IHighlight[] = []) {
-		super(taskService, task, highlights);
+	constructor(taskService: ITaskService, quickOpenService: IQuickOpenService, task: Task, highlights: Model.IHighlight[] = []) {
+		super(taskService, quickOpenService, task, highlights);
 	}
 
 	public run(mode: QuickOpen.Mode, context: Model.IContext): boolean {
 		if (mode === QuickOpen.Mode.PREVIEW) {
 			return false;
 		}
-		this.taskService.run(this.task);
-		return true;
+		let task = this._task;
+		if (task.group === TaskGroup.Build && ((task.problemMatchers === void 0) || task.problemMatchers.length === 0)) {
+			this.attachProblemMatcher(task).then(task => this.doRun(task));
+			return true;
+		} else {
+			return this.doRun(task);
+		}
 	}
 }
 
@@ -53,8 +58,8 @@ export class QuickOpenHandler extends base.QuickOpenHandler {
 		});
 	}
 
-	protected createEntry(taskService: ITaskService, task: Task, highlights: Model.IHighlight[]): base.TaskEntry {
-		return new TaskEntry(taskService, task, highlights);
+	protected createEntry(task: Task, highlights: Model.IHighlight[]): base.TaskEntry {
+		return new TaskEntry(this.taskService, this.quickOpenService, task, highlights);
 	}
 
 	public getEmptyLabel(searchString: string): string {

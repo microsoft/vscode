@@ -27,14 +27,18 @@ export function makeRandomHexString(length: number): string {
 function generatePipeName(): string {
 	return getPipeName(makeRandomHexString(40));
 }
-
-export function getPipeName(name: string): string {
+function getPipeName(name: string): string {
 	const fullName = 'vscode-' + name;
 	if (process.platform === 'win32') {
 		return '\\\\.\\pipe\\' + fullName + '-sock';
 	}
 
 	// Mac/Unix: use socket file
+	return path.join(os.tmpdir(), fullName + '.sock');
+}
+
+export function getTempFile(name: string): string {
+	const fullName = 'vscode-' + name;
 	return path.join(os.tmpdir(), fullName + '.sock');
 }
 

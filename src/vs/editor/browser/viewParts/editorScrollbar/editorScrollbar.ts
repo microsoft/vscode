@@ -13,7 +13,9 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { getThemeTypeSelector } from "vs/platform/theme/common/themeService";
+import { getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
+import { IMouseEvent } from "vs/base/browser/mouseEvent";
+import { ISimplifiedMouseEvent } from "vs/base/browser/ui/scrollbar/abstractScrollbar";
 
 export class EditorScrollbar extends ViewPart {
 
@@ -32,7 +34,6 @@ export class EditorScrollbar extends ViewPart {
 		const configScrollbarOpts = editor.viewInfo.scrollbar;
 
 		let scrollbarOptions: ScrollableElementCreationOptions = {
-			canUseTranslate3d: editor.canUseTranslate3d,
 			listenOnDomNode: viewDomNode.domNode,
 			className: 'editor-scrollable' + ' ' + getThemeTypeSelector(context.theme.type),
 			useShadows: false,
@@ -110,21 +111,20 @@ export class EditorScrollbar extends ViewPart {
 		return this.scrollbarDomNode;
 	}
 
-	public delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void {
+	public delegateVerticalScrollbarMouseDown(browserEvent: IMouseEvent): void {
 		this.scrollbar.delegateVerticalScrollbarMouseDown(browserEvent);
 	}
 
-	public getVerticalSliderVerticalCenter(): number {
-		return this.scrollbar.getVerticalSliderVerticalCenter();
+	public delegateSliderMouseDown(e: ISimplifiedMouseEvent, onDragFinished: () => void): void {
+		this.scrollbar.delegateSliderMouseDown(e, onDragFinished);
 	}
 
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.viewInfo || e.canUseTranslate3d) {
+		if (e.viewInfo) {
 			const editor = this._context.configuration.editor;
 			let newOpts: ScrollableElementChangeOptions = {
-				canUseTranslate3d: editor.canUseTranslate3d,
 				handleMouseWheel: editor.viewInfo.scrollbar.handleMouseWheel,
 				mouseWheelScrollSensitivity: editor.viewInfo.scrollbar.mouseWheelScrollSensitivity
 			};

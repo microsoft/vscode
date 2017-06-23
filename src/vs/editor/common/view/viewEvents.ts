@@ -9,7 +9,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import * as errors from 'vs/base/common/errors';
-import { IDisposable, Disposable } from "vs/base/common/lifecycle";
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 
 export const enum ViewEventType {
 	ViewConfigurationChanged = 1,
@@ -33,7 +33,7 @@ export class ViewConfigurationChangedEvent {
 
 	public readonly type = ViewEventType.ViewConfigurationChanged;
 
-	public readonly canUseTranslate3d: boolean;
+	public readonly canUseLayerHinting: boolean;
 	public readonly pixelRatio: boolean;
 	public readonly editorClassName: boolean;
 	public readonly lineHeight: boolean;
@@ -46,7 +46,7 @@ export class ViewConfigurationChangedEvent {
 	public readonly wrappingInfo: boolean;
 
 	constructor(source: IConfigurationChangedEvent) {
-		this.canUseTranslate3d = source.canUseTranslate3d;
+		this.canUseLayerHinting = source.canUseLayerHinting;
 		this.pixelRatio = source.pixelRatio;
 		this.editorClassName = source.editorClassName;
 		this.lineHeight = source.lineHeight;

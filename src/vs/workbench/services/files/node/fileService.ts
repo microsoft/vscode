@@ -11,8 +11,8 @@ import os = require('os');
 import crypto = require('crypto');
 import assert = require('assert');
 
-import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveContentOptions, IFileStat, IStreamContent, IFileOperationResult, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent, isEqualOrParent } from 'vs/platform/files/common/files';
-import strings = require('vs/base/common/strings');
+import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveContentOptions, IFileStat, IStreamContent, IFileOperationResult, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent, IFilesConfiguration } from 'vs/platform/files/common/files';
+import { isEqualOrParent } from 'vs/base/common/paths';
 import { ResourceMap } from 'vs/base/common/map';
 import arrays = require('vs/base/common/arrays');
 import baseMime = require('vs/base/common/mime');
@@ -25,6 +25,7 @@ import uri from 'vs/base/common/uri';
 import nls = require('vs/nls');
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 import pfs = require('vs/base/node/pfs');
 import encoding = require('vs/base/node/encoding');
@@ -34,6 +35,8 @@ import { FileWatcher as UnixWatcherService } from 'vs/workbench/services/files/n
 import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/files/node/watcher/win32/watcherService';
 import { toFileChangesEvent, normalize, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
 import Event, { Emitter } from 'vs/base/common/event';
+import { FileWatcher as NsfwWatcherService } from 'vs/workbench/services/files/node/watcher/nsfw/watcherService';
+import { IConfigurationService } from "vs/platform/configuration/common/configuration";
 
 export interface IEncodingOverride {
 	resource: uri;
@@ -43,13 +46,11 @@ export interface IEncodingOverride {
 export interface IFileServiceOptions {
 	tmpDir?: string;
 	errorLogger?: (msg: string) => void;
-	encoding?: string;
-	autoGuessEncoding?: boolean;
-	bom?: string;
 	encodingOverride?: IEncodingOverride[];
 	watcherIgnoredPatterns?: string[];
 	disableWatcher?: boolean;
 	verboseLogging?: boolean;
+	useExperimentalFileWatcher?: boolean;
 }
 
 function etag(stat: fs.Stats): string;
@@ -76,7 +77,6 @@ export class FileService implements IFileService {
 	private static FS_REWATCH_DELAY = 300; // delay to rewatch a file that was renamed or deleted (in ms)
 	private static MAX_DEGREE_OF_PARALLEL_FS_OPS = 10; // degree of parallel fs calls that we accept at the same time
 
-	private basePath: string;
 	private tmpPath: string;
 	private options: IFileServiceOptions;
 
@@ -89,22 +89,12 @@ export class FileService implements IFileService {
 	private fileChangesWatchDelayer: ThrottledDelayer<void>;
 	private undeliveredRawFileChangesEvents: IRawFileChange[];
 
-	constructor(basePath: string, options: IFileServiceOptions) {
+	constructor(
+		private contextService: IWorkspaceContextService,
+		private configurationService: IConfigurationService,
+		options: IFileServiceOptions,
+	) {
 		this.toDispose = [];
-		this.basePath = basePath ? paths.normalize(basePath) : void 0;
-
-		if (this.basePath && this.basePath.indexOf('\\\\') === 0 && strings.endsWith(this.basePath, paths.sep)) {
-			// for some weird reason, node adds a trailing slash to UNC paths
-			// we never ever want trailing slashes as our base path unless
-			// someone opens root ("/").
-			// See also https://github.com/nodejs/io.js/issues/1765
-			this.basePath = strings.rtrim(this.basePath, paths.sep);
-		}
-
-		if (this.basePath && !paths.isAbsolute(basePath)) {
-			throw new Error('basePath has to be an absolute path');
-		}
-
 		this.options = options || Object.create(null);
 		this.tmpPath = this.options.tmpDir || os.tmpdir();
 
@@ -118,11 +108,20 @@ export class FileService implements IFileService {
 			this.options.errorLogger = console.error;
 		}
 
-		if (this.basePath && !this.options.disableWatcher) {
-			if (isWindows) {
-				this.setupWin32WorkspaceWatching();
-			} else {
-				this.setupUnixWorkspaceWatching();
+		if (contextService.hasWorkspace() && !this.options.disableWatcher) {
+
+			// new watcher: use it if setting tells us so or we run in multi-root environment
+			if (this.options.useExperimentalFileWatcher || contextService.getWorkspace2().roots.length > 1) {
+				this.setupNsfwWorkspceWatching();
+			}
+
+			// old watcher
+			else {
+				if (isWindows) {
+					this.setupWin32WorkspaceWatching();
+				} else {
+					this.setupUnixWorkspaceWatching();
+				}
 			}
 		}
 
@@ -146,15 +145,23 @@ export class FileService implements IFileService {
 	}
 
 	private setupWin32WorkspaceWatching(): void {
-		this.toDispose.push(toDisposable(new WindowsWatcherService(this.basePath, this.options.watcherIgnoredPatterns, e => this._onFileChanges.fire(e), this.options.errorLogger, this.options.verboseLogging).startWatching()));
+		this.toDispose.push(toDisposable(new WindowsWatcherService(this.contextService, this.options.watcherIgnoredPatterns, e => this._onFileChanges.fire(e), this.options.errorLogger, this.options.verboseLogging).startWatching()));
 	}
 
 	private setupUnixWorkspaceWatching(): void {
-		this.toDispose.push(toDisposable(new UnixWatcherService(this.basePath, this.options.watcherIgnoredPatterns, e => this._onFileChanges.fire(e), this.options.errorLogger, this.options.verboseLogging).startWatching()));
+		this.toDispose.push(toDisposable(new UnixWatcherService(this.contextService, this.options.watcherIgnoredPatterns, e => this._onFileChanges.fire(e), this.options.errorLogger, this.options.verboseLogging).startWatching()));
+	}
+
+	private setupNsfwWorkspceWatching(): void {
+		this.toDispose.push(toDisposable(new NsfwWatcherService(this.contextService, this.configurationService, e => this._onFileChanges.fire(e), this.options.errorLogger, this.options.verboseLogging).startWatching()));
 	}
 
 	public resolveFile(resource: uri, options?: IResolveFileOptions): TPromise<IFileStat> {
 		return this.resolve(resource, options);
+	}
+
+	public resolveFiles(toResolve: { resource: uri, options?: IResolveFileOptions }[]): TPromise<IFileStat[]> {
+		return TPromise.join(toResolve.map(resourceAndOptions => this.resolve(resourceAndOptions.resource, resourceAndOptions.options)));
 	}
 
 	public existsFile(resource: uri): TPromise<boolean> {
@@ -206,7 +213,7 @@ export class FileService implements IFileService {
 			}
 
 			// 2.) detect mimes
-			const autoGuessEncoding = (options && options.autoGuessEncoding) || (this.options && this.options.autoGuessEncoding);
+			const autoGuessEncoding = (options && options.autoGuessEncoding) || this.configuredAutoGuessEncoding(resource);
 			return detectMimesFromFile(absolutePath, { autoGuessEncoding }).then((detected: IMimeAndEncoding) => {
 				const isText = detected.mimes.indexOf(baseMime.MIME_BINARY) === -1;
 
@@ -231,7 +238,7 @@ export class FileService implements IFileService {
 					} else {
 						preferredEncoding = detected.encoding;
 					}
-				} else if (this.options.encoding === encoding.UTF8_with_bom) {
+				} else if (this.configuredEncoding(resource) === encoding.UTF8_with_bom) {
 					preferredEncoding = encoding.UTF8; // if we did not detect UTF 8 BOM before, this can only be UTF 8 then
 				}
 
@@ -584,7 +591,7 @@ export class FileService implements IFileService {
 		} else if (preferredEncoding) {
 			fileEncoding = preferredEncoding;
 		} else {
-			fileEncoding = this.options.encoding;
+			fileEncoding = this.configuredEncoding(resource);
 		}
 
 		if (!fileEncoding || !encoding.encodingExists(fileEncoding)) {
@@ -592,6 +599,18 @@ export class FileService implements IFileService {
 		}
 
 		return fileEncoding;
+	}
+
+	private configuredAutoGuessEncoding(resource: uri): boolean {
+		const config = this.configurationService.getConfiguration(void 0, { resource }) as IFilesConfiguration;
+
+		return config && config.files && config.files.autoGuessEncoding === true;
+	}
+
+	private configuredEncoding(resource: uri): string {
+		const config = this.configurationService.getConfiguration(void 0, { resource }) as IFilesConfiguration;
+
+		return config && config.files && config.files.encoding;
 	}
 
 	private getEncodingOverride(resource: uri): string {

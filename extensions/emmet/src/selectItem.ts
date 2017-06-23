@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { validate, isStyleSheet } from './util';
+import { validate } from './util';
 import { nextItemHTML, prevItemHTML } from './selectItemHTML';
 import { nextItemStylesheet, prevItemStylesheet } from './selectItemStylesheet';
 import parseStylesheet from '@emmetio/css-parser';
 import parse from '@emmetio/html-matcher';
 import Node from '@emmetio/node';
+import { DocumentStreamReader } from './bufferStream';
+import { isStyleSheet } from 'vscode-emmet-helper';
+
 
 export function fetchSelectItem(direction: string): void {
 	let editor = vscode.window.activeTextEditor;
@@ -31,11 +34,15 @@ export function fetchSelectItem(direction: string): void {
 		parseContent = parse;
 	}
 
-	let rootNode: Node = parseContent(editor.document.getText());
+	let rootNode: Node = parseContent(new DocumentStreamReader(editor.document));
 	let newSelections: vscode.Selection[] = [];
 	editor.selections.forEach(selection => {
-		let updatedSelection = direction === 'next' ? nextItem(selection, editor, rootNode) : prevItem(selection, editor, rootNode);
+		const selectionStart = selection.isReversed ? selection.active : selection.anchor;
+		const selectionEnd = selection.isReversed ? selection.anchor : selection.active;
+
+		let updatedSelection = direction === 'next' ? nextItem(selectionStart, selectionEnd, editor, rootNode) : prevItem(selectionStart, selectionEnd, editor, rootNode);
 		newSelections.push(updatedSelection ? updatedSelection : selection);
 	});
 	editor.selections = newSelections;
+	editor.revealRange(editor.selections[editor.selections.length - 1]);
 }

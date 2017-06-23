@@ -28,8 +28,8 @@ import {
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CommonEditorRegistry } from "vs/editor/common/editorCommonExtensions";
-import { VerticalRevealType } from "vs/editor/common/view/viewEvents";
+import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
 
 let EDITOR_ID = 0;
 
@@ -858,6 +858,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		if (this.model) {
 			this.domElement.setAttribute('data-mode-id', this.model.getLanguageIdentifier().language);
 			this._configuration.setIsDominatedByLongLines(this.model.isDominatedByLongLines());
+			this._configuration.setMaxLineNumber(this.model.getLineCount());
 
 			this.model.onBeforeAttached();
 

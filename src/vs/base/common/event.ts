@@ -257,6 +257,15 @@ export function fromPromise(promise: TPromise<any>): Event<void> {
 	return emitter.event;
 }
 
+export function toPromise<T>(event: Event<T>): TPromise<T> {
+	return new TPromise(complete => {
+		const sub = event(e => {
+			sub.dispose();
+			complete(e);
+		});
+	});
+}
+
 export function delayed<T>(promise: TPromise<Event<T>>): Event<T> {
 	let toCancel: TPromise<any> = null;
 	let listener: IDisposable = null;
@@ -400,11 +409,11 @@ class ChainableEvent<T> implements IChainableEvent<T> {
 
 	constructor(private _event: Event<T>) { }
 
-	map(fn) {
+	map<O>(fn: (i: T) => O): IChainableEvent<O> {
 		return new ChainableEvent(mapEvent(this._event, fn));
 	}
 
-	filter(fn) {
+	filter(fn: (e: T) => boolean): IChainableEvent<T> {
 		return new ChainableEvent(filterEvent(this._event, fn));
 	}
 

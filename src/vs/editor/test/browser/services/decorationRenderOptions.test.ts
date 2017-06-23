@@ -9,7 +9,7 @@ import URI from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
 import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
-import { TestThemeService, TestTheme } from 'vs/workbench/test/workbenchTestServices';
+import { TestTheme, TestThemeService } from "vs/platform/theme/test/common/testThemeService";
 
 const themeServiceMock = new TestThemeService();
 
@@ -67,7 +67,7 @@ suite('Decoration Render Options', () => {
 		var s = new CodeEditorServiceImpl(themeService, styleSheet);
 		s.registerDecorationType('example', options);
 		var sheet = readStyleSheet(styleSheet);
-		assert.equal(sheet, '.monaco-editor .ced-example-0 { background-color: rgb(255, 0, 0); }');
+		assert.equal(sheet, '.monaco-editor .ced-example-0 { background-color: rgb(255, 0, 0); border-color: transparent; box-sizing: border-box; }');
 
 		colors = {
 			editorBackground: '#EE0000',

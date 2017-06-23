@@ -14,9 +14,7 @@ import { ISingleEditOperation } from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
-import { IOutline } from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
-import { ICodeLensData } from 'vs/editor/contrib/codelens/common/codelens';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
 export class ExtHostApiCommands {
@@ -183,7 +181,7 @@ export class ExtHostApiCommands {
 
 		this._register('vscode.openFolder', (uri?: URI, forceNewWindow?: boolean) => {
 			if (!uri) {
-				return this._commands.executeCommand('_files.openFolderPicker', forceNewWindow);
+				return this._commands.executeCommand('_files.pickFolderAndOpen', forceNewWindow);
 			}
 
 			return this._commands.executeCommand('_files.windowOpen', [uri.fsPath], forceNewWindow);
@@ -386,7 +384,7 @@ export class ExtHostApiCommands {
 		const args = {
 			resource
 		};
-		return this._commands.executeCommand<IOutline>('_executeDocumentSymbolProvider', args).then(value => {
+		return this._commands.executeCommand<modes.IOutline>('_executeDocumentSymbolProvider', args).then(value => {
 			if (value && Array.isArray(value.entries)) {
 				return value.entries.map(typeConverters.toSymbolInformation);
 			}
@@ -409,12 +407,12 @@ export class ExtHostApiCommands {
 
 	private _executeCodeLensProvider(resource: URI): Thenable<vscode.CodeLens[]> {
 		const args = { resource };
-		return this._commands.executeCommand<ICodeLensData[]>('_executeCodeLensProvider', args).then(value => {
+		return this._commands.executeCommand<modes.ICodeLensSymbol[]>('_executeCodeLensProvider', args).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(item => {
 					return new types.CodeLens(
-						typeConverters.toRange(item.symbol.range),
-						this._commands.converter.fromInternal(item.symbol.command));
+						typeConverters.toRange(item.range),
+						this._commands.converter.fromInternal(item.command));
 				});
 			}
 			return undefined;

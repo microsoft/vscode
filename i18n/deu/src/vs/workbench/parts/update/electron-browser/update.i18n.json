@@ -15,5 +15,18 @@
 	"license": "Lizenz lesen",
 	"updateAvailable": "{0} wird nach dem Neustart aktualisiert.",
 	"thereIsUpdateAvailable": "Ein Update ist verfügbar.",
-	"noUpdatesAvailable": "Zurzeit sind keine Updates verfügbar."
+	"noUpdatesAvailable": "Zurzeit sind keine Updates verfügbar.",
+	"updateIsReady": "Neue Aktualisierung verfügbar.",
+	"commandPalette": "Befehlspalette...",
+	"settings": "Einstellungen",
+	"keyboardShortcuts": "Tastenkombinationen",
+	"selectTheme.label": "Farbdesign",
+	"themes.selectIconTheme.label": "Dateisymboldesign",
+	"not available": "Aktualisierungen nicht verfügbar",
+	"checkingForUpdates": "Überprüfen auf Updates...",
+	"DownloadUpdate": "Verfügbares Update herunterladen",
+	"DownloadingUpdate": "Das Update wird heruntergeladen...",
+	"InstallingUpdate": "Update wird installiert...",
+	"restartToUpdate": "Für Update neu starten...",
+	"checkForUpdates": "Nach Aktualisierungen suchen..."
 }

@@ -13,10 +13,11 @@ import URI from 'vs/base/common/uri';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorInput, EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-import { workbenchInstantiationService, TestThemeService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import { DelegatingWorkbenchEditorService, WorkbenchEditorService, IEditorPart } from 'vs/workbench/services/editor/browser/editorService';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
-import { ResourceEditorInput } from "vs/workbench/common/editor/resourceEditorInput";
+import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { TestThemeService } from "vs/platform/theme/test/common/testThemeService";
 
 let activeEditor: BaseEditor = <any>{
 	getSelection: function () {
@@ -51,7 +52,7 @@ class TestEditorPart implements IEditorPart {
 		return TPromise.as([]);
 	}
 
-	public closeEditors(position: Position, except?: EditorInput, direction?: Direction): TPromise<void> {
+	public closeEditors(position: Position, filter?: { except?: EditorInput, direction?: Direction, unmodifiedOnly?: boolean }): TPromise<void> {
 		return TPromise.as(null);
 	}
 
@@ -259,7 +260,7 @@ suite('WorkbenchEditorService', () => {
 		}
 		let ed = instantiationService.createInstance(MyEditor, 'my.editor');
 
-		let inp = instantiationService.createInstance(ResourceEditorInput, 'name', 'description', URI.from('my://resource'));
+		let inp = instantiationService.createInstance(ResourceEditorInput, 'name', 'description', URI.parse('my://resource'));
 		let delegate = instantiationService.createInstance(DelegatingWorkbenchEditorService);
 		delegate.setEditorOpenHandler((input, options?) => {
 			assert.strictEqual(input, inp);

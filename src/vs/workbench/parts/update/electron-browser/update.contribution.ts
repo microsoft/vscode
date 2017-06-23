@@ -6,20 +6,31 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { Registry } from 'vs/platform/platform';
+import 'vs/css!./media/update.contribution';
+import { Registry } from 'vs/platform/registry/common/platform';
+import product from 'vs/platform/node/product';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { ShowCurrentReleaseNotesAction, UpdateContribution } from 'vs/workbench/parts/update/electron-browser/update';
 import { ReleaseNotesEditor } from 'vs/workbench/parts/update/electron-browser/releaseNotesEditor';
 import { ReleaseNotesInput } from 'vs/workbench/parts/update/electron-browser/releaseNotesInput';
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { IGlobalActivityRegistry, GlobalActivityExtensions } from 'vs/workbench/browser/activity';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { ShowCurrentReleaseNotesAction, ProductContribution, UpdateContribution, LightUpdateContribution } from './update';
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(UpdateContribution);
+	.registerWorkbenchContribution(ProductContribution);
+
+if (product.quality !== 'stable') {
+	Registry.as<IGlobalActivityRegistry>(GlobalActivityExtensions)
+		.registerActivity(LightUpdateContribution);
+} else {
+	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+		.registerWorkbenchContribution(UpdateContribution);
+}
 
 // Editor
 const editorDescriptor = new EditorDescriptor(
@@ -33,8 +44,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 	.registerEditor(editorDescriptor, [new SyncDescriptor(ReleaseNotesInput)]);
 
 Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions)
-	.registerWorkbenchAction(new SyncActionDescriptor(ShowCurrentReleaseNotesAction, ShowCurrentReleaseNotesAction.ID, ShowCurrentReleaseNotesAction.LABEL), 'Open Release Notes');
-
+	.registerWorkbenchAction(new SyncActionDescriptor(ShowCurrentReleaseNotesAction, ShowCurrentReleaseNotesAction.ID, ShowCurrentReleaseNotesAction.LABEL), 'Show Release Notes');
 
 // Configuration: Update
 const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);

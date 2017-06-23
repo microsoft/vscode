@@ -15,8 +15,7 @@ import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry,
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { Position, IEditor, Direction, IResourceInput, IEditorInput, POSITIONS } from 'vs/platform/editor/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Position, IEditor, Direction, IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorGroupService, GroupArrangement } from 'vs/workbench/services/group/common/groupService';
@@ -414,19 +413,17 @@ export class FocusPreviousGroup extends Action {
 			return TPromise.as(true);
 		}
 
+		const stacks = this.editorGroupService.getStacksModel();
+		const groupCount = stacks.groups.length;
 
-		// Find the next position to the left/top
-		let nextPosition: Position = Position.ONE;
-		if (activeEditor.position === Position.THREE) {
-			nextPosition = Position.TWO;
-		} else if (activeEditor.position === Position.ONE) {
-			// Get the last active position
-			const lastPosition = this.editorGroupService.getStacksModel().groups.length - 1;
-			nextPosition = lastPosition;
+		// Nothing to do if the only group
+		if (groupCount === 1) {
+			return TPromise.as(true);
 		}
 
-		// Focus next position if provided
-		this.editorGroupService.focusGroup(nextPosition);
+		// Nevigate to the previous group or to the last group if the first group is active
+		const newPositionIndex = (activeEditor.position + groupCount - 1) % groupCount;
+		this.editorGroupService.focusGroup(<Position>newPositionIndex);
 
 		return TPromise.as(true);
 	}
@@ -437,41 +434,34 @@ export class FocusNextGroup extends Action {
 	public static ID = 'workbench.action.focusNextGroup';
 	public static LABEL = nls.localize('focusNextGroup', "Focus Next Group");
 
-	private navigateActions: Action[];
-
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(id, label);
-
-		this.navigateActions = [];
-		this.navigateActions[Position.ONE] = instantiationService.createInstance(FocusFirstGroupAction, FocusFirstGroupAction.ID, FocusFirstGroupAction.LABEL);
-		this.navigateActions[Position.TWO] = instantiationService.createInstance(FocusSecondGroupAction, FocusSecondGroupAction.ID, FocusSecondGroupAction.LABEL);
-		this.navigateActions[Position.THREE] = instantiationService.createInstance(FocusThirdGroupAction, FocusThirdGroupAction.ID, FocusThirdGroupAction.LABEL);
 	}
 
 	public run(event?: any): TPromise<any> {
 
-		// Find the next position to the right/bottom to use
-		let nextPosition: Position;
 		const activeEditor = this.editorService.getActiveEditor();
 
-		const lastPosition = POSITIONS[POSITIONS.length - 1];
-		if (!activeEditor || activeEditor.position === lastPosition) {
-			nextPosition = Position.ONE;
-		} else if (activeEditor.position === Position.ONE) {
-			nextPosition = Position.TWO;
-		} else if (activeEditor.position === Position.TWO) {
-			nextPosition = Position.THREE;
+		if (!activeEditor) {
+			return TPromise.as(true);
 		}
 
-		// Run the action for the target next position
-		if (typeof nextPosition === 'number' && this.navigateActions[nextPosition]) {
-			return this.navigateActions[nextPosition].run(event);
+		const stacks = this.editorGroupService.getStacksModel();
+		const groupCount = stacks.groups.length;
+
+		// Nowhere to switch if the only group
+		if (groupCount === 1) {
+			return TPromise.as(true);
 		}
+
+		// Nevigate to the next group or to the first group if the last group is active
+		const newPositionIndex = (activeEditor.position + 1) % groupCount;
+		this.editorGroupService.focusGroup(<Position>newPositionIndex);
 
 		return TPromise.as(true);
 	}
@@ -627,7 +617,7 @@ export class CloseLeftEditorsInGroupAction extends Action {
 	public run(context?: IEditorContext): TPromise<any> {
 		const editor = getTarget(this.editorService, this.groupService, context);
 		if (editor) {
-			return this.editorService.closeEditors(editor.position, editor.input, Direction.LEFT);
+			return this.editorService.closeEditors(editor.position, { except: editor.input, direction: Direction.LEFT });
 		}
 
 		return TPromise.as(false);
@@ -651,7 +641,7 @@ export class CloseRightEditorsInGroupAction extends Action {
 	public run(context?: IEditorContext): TPromise<any> {
 		const editor = getTarget(this.editorService, this.groupService, context);
 		if (editor) {
-			return this.editorService.closeEditors(editor.position, editor.input, Direction.RIGHT);
+			return this.editorService.closeEditors(editor.position, { except: editor.input, direction: Direction.RIGHT });
 		}
 
 		return TPromise.as(false);
@@ -698,6 +688,39 @@ export class CloseAllEditorsAction extends Action {
 			}
 			return undefined;
 		});
+	}
+}
+
+export class CloseUnmodifiedEditorsInGroupAction extends Action {
+
+	public static ID = 'workbench.action.closeUnmodifiedEditors';
+	public static LABEL = nls.localize('closeUnmodifiedEditors', "Close Unmodified Editors in Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
+		super(id, label);
+	}
+
+	public run(context?: IEditorContext): TPromise<any> {
+		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
+
+		// If position is not passed in take the position of the active editor.
+		if (typeof position !== 'number') {
+			const active = this.editorService.getActiveEditor();
+			if (active) {
+				position = active.position;
+			}
+		}
+
+		if (typeof position === 'number') {
+			return this.editorService.closeEditors(position, { unmodifiedOnly: true });
+		}
+
+		return TPromise.as(false);
 	}
 }
 
@@ -758,7 +781,7 @@ export class CloseOtherEditorsInGroupAction extends Action {
 		}
 
 		if (typeof position === 'number' && input) {
-			return this.editorService.closeEditors(position, input);
+			return this.editorService.closeEditors(position, { except: input });
 		}
 
 		return TPromise.as(false);

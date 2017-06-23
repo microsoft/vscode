@@ -20,7 +20,6 @@ import { EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { Colorizer } from 'vs/editor/browser/standalone/colorizer';
 import { View, IOverlayWidgetData, IContentWidgetData } from 'vs/editor/browser/view/viewImpl';
 import { Disposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -33,6 +32,7 @@ import { CoreEditorCommand } from 'vs/editor/common/controller/coreCommands';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder } from 'vs/editor/common/view/editorColorRegistry';
 import { Color } from 'vs/base/common/color';
+import { IMouseEvent } from "vs/base/browser/mouseEvent";
 
 export abstract class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
@@ -98,7 +98,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		this._themeService = themeService;
 
 		this._focusTracker = new CodeEditorWidgetFocusTracker(domElement);
-		this._focusTracker.onChage(() => {
+		this._focusTracker.onChange(() => {
 			let hasFocus = this._focusTracker.hasFocus();
 
 			if (hasFocus) {
@@ -158,18 +158,6 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		super.dispose();
 	}
 
-	public colorizeModelLine(lineNumber: number, model: editorCommon.IModel = this.model): string {
-		if (!model) {
-			return '';
-		}
-		let content = model.getLineContent(lineNumber);
-		model.forceTokenization(lineNumber);
-		let tokens = model.getLineTokens(lineNumber);
-		let inflatedTokens = tokens.inflate();
-		let tabSize = model.getOptions().tabSize;
-		return Colorizer.colorizeLine(content, model.mightContainRTL(), inflatedTokens, tabSize);
-	}
-
 	public createOverviewRuler(cssClassName: string, minimumHeight: number, maximumHeight: number): editorBrowser.IOverviewRuler {
 		return this._view.createOverviewRuler(cssClassName, minimumHeight, maximumHeight);
 	}
@@ -189,7 +177,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		return this.viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
 	}
 
-	public delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void {
+	public delegateVerticalScrollbarMouseDown(browserEvent: IMouseEvent): void {
 		if (!this.hasView) {
 			return;
 		}
@@ -524,7 +512,7 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 	private _domFocusTracker: dom.IFocusTracker;
 
 	private _onChange: Emitter<void> = this._register(new Emitter<void>());
-	public onChage: Event<void> = this._onChange.event;
+	public onChange: Event<void> = this._onChange.event;
 
 	constructor(domElement: HTMLElement) {
 		super();

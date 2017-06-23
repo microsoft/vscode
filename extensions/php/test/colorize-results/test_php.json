@@ -232,7 +232,7 @@
 	},
 	{
 		"c": "\t",
-		"t": "text.html.php meta.embedded.block.php source.php meta.function.php",
+		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -276,7 +276,7 @@
 	},
 	{
 		"c": "(",
-		"t": "text.html.php meta.embedded.block.php source.php meta.function.php punctuation.definition.parameters.begin.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function.php punctuation.definition.parameters.begin.bracket.round.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -287,7 +287,7 @@
 	},
 	{
 		"c": ")",
-		"t": "text.html.php meta.embedded.block.php source.php meta.function.php punctuation.definition.parameters.end.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function.php punctuation.definition.parameters.end.bracket.round.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -507,7 +507,7 @@
 	},
 	{
 		"c": "(",
-		"t": "text.html.php meta.embedded.block.php source.php meta.array.php punctuation.definition.array.begin.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.array.php punctuation.definition.array.begin.bracket.round.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -529,7 +529,7 @@
 	},
 	{
 		"c": "ah",
-		"t": "text.html.php meta.embedded.block.php source.php meta.array.php string.quoted.double.php meta.string-contents.quoted.double.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.array.php string.quoted.double.php",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -573,7 +573,7 @@
 	},
 	{
 		"c": "ac",
-		"t": "text.html.php meta.embedded.block.php source.php meta.array.php string.quoted.double.php meta.string-contents.quoted.double.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.array.php string.quoted.double.php",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -617,7 +617,7 @@
 	},
 	{
 		"c": "ad",
-		"t": "text.html.php meta.embedded.block.php source.php meta.array.php string.quoted.double.php meta.string-contents.quoted.double.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.array.php string.quoted.double.php",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -661,7 +661,7 @@
 	},
 	{
 		"c": "as",
-		"t": "text.html.php meta.embedded.block.php source.php meta.array.php string.quoted.double.php meta.string-contents.quoted.double.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.array.php string.quoted.double.php",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -716,7 +716,7 @@
 	},
 	{
 		"c": "2h",
-		"t": "text.html.php meta.embedded.block.php source.php meta.array.php string.quoted.double.php meta.string-contents.quoted.double.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.array.php string.quoted.double.php",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -760,7 +760,7 @@
 	},
 	{
 		"c": "2c",
-		"t": "text.html.php meta.embedded.block.php source.php meta.array.php string.quoted.double.php meta.string-contents.quoted.double.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.array.php string.quoted.double.php",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -804,7 +804,7 @@
 	},
 	{
 		"c": "2d",
-		"t": "text.html.php meta.embedded.block.php source.php meta.array.php string.quoted.double.php meta.string-contents.quoted.double.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.array.php string.quoted.double.php",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -848,7 +848,7 @@
 	},
 	{
 		"c": "2s",
-		"t": "text.html.php meta.embedded.block.php source.php meta.array.php string.quoted.double.php meta.string-contents.quoted.double.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.array.php string.quoted.double.php",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -870,7 +870,7 @@
 	},
 	{
 		"c": ")",
-		"t": "text.html.php meta.embedded.block.php source.php meta.array.php punctuation.definition.array.end.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.array.php punctuation.definition.array.end.bracket.round.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -903,7 +903,7 @@
 	},
 	{
 		"c": "srand",
-		"t": "text.html.php meta.embedded.block.php source.php support.function.math.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php support.function.math.php",
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
@@ -914,7 +914,7 @@
 	},
 	{
 		"c": "(",
-		"t": "text.html.php meta.embedded.block.php source.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php punctuation.definition.arguments.begin.bracket.round.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -925,7 +925,7 @@
 	},
 	{
 		"c": "time",
-		"t": "text.html.php meta.embedded.block.php source.php support.function.datetime.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php meta.function-call.php support.function.datetime.php",
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
@@ -935,8 +935,30 @@
 		}
 	},
 	{
-		"c": "())",
-		"t": "text.html.php meta.embedded.block.php source.php",
+		"c": "(",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php meta.function-call.php punctuation.definition.arguments.begin.bracket.round.php",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ")",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php meta.function-call.php punctuation.definition.arguments.end.bracket.round.php",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ")",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php punctuation.definition.arguments.end.bracket.round.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -980,7 +1002,7 @@
 	},
 	{
 		"c": "(",
-		"t": "text.html.php meta.embedded.block.php source.php",
+		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.begin.bracket.round.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1199,7 +1221,18 @@
 		}
 	},
 	{
-		"c": ") ",
+		"c": ")",
+		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.end.bracket.round.php",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -1288,7 +1321,7 @@
 	},
 	{
 		"c": "count",
-		"t": "text.html.php meta.embedded.block.php source.php support.function.array.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php support.function.array.php",
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
@@ -1299,7 +1332,7 @@
 	},
 	{
 		"c": "(",
-		"t": "text.html.php meta.embedded.block.php source.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php punctuation.definition.arguments.begin.bracket.round.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1310,7 +1343,7 @@
 	},
 	{
 		"c": "$",
-		"t": "text.html.php meta.embedded.block.php source.php variable.other.php punctuation.definition.variable.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php variable.other.php punctuation.definition.variable.php",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1321,7 +1354,7 @@
 	},
 	{
 		"c": "cards",
-		"t": "text.html.php meta.embedded.block.php source.php variable.other.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php variable.other.php",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1332,7 +1365,7 @@
 	},
 	{
 		"c": ")",
-		"t": "text.html.php meta.embedded.block.php source.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php punctuation.definition.arguments.end.bracket.round.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1408,7 +1441,7 @@
 		}
 	},
 	{
-		"c": " (",
+		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -1419,8 +1452,19 @@
 		}
 	},
 	{
+		"c": "(",
+		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.begin.bracket.round.php",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
 		"c": "rand",
-		"t": "text.html.php meta.embedded.block.php source.php support.function.math.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php support.function.math.php",
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
@@ -1430,8 +1474,19 @@
 		}
 	},
 	{
-		"c": "()",
-		"t": "text.html.php meta.embedded.block.php source.php",
+		"c": "(",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php punctuation.definition.arguments.begin.bracket.round.php",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ")",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php punctuation.definition.arguments.end.bracket.round.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1475,7 +1530,7 @@
 	},
 	{
 		"c": ")",
-		"t": "text.html.php meta.embedded.block.php source.php",
+		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.end.bracket.round.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1519,7 +1574,7 @@
 	},
 	{
 		"c": "(",
-		"t": "text.html.php meta.embedded.block.php source.php",
+		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.begin.bracket.round.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1650,7 +1705,18 @@
 		}
 	},
 	{
-		"c": ") ",
+		"c": ")",
+		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.end.bracket.round.php",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -2157,7 +2223,7 @@
 	},
 	{
 		"c": "srand",
-		"t": "text.html.php meta.embedded.block.php source.php support.function.math.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php support.function.math.php",
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
@@ -2168,7 +2234,7 @@
 	},
 	{
 		"c": "(",
-		"t": "text.html.php meta.embedded.block.php source.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php punctuation.definition.arguments.begin.bracket.round.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2179,7 +2245,7 @@
 	},
 	{
 		"c": "time",
-		"t": "text.html.php meta.embedded.block.php source.php support.function.datetime.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php meta.function-call.php support.function.datetime.php",
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
@@ -2189,8 +2255,30 @@
 		}
 	},
 	{
-		"c": "())",
-		"t": "text.html.php meta.embedded.block.php source.php",
+		"c": "(",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php meta.function-call.php punctuation.definition.arguments.begin.bracket.round.php",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ")",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php meta.function-call.php punctuation.definition.arguments.end.bracket.round.php",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ")",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php punctuation.definition.arguments.end.bracket.round.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2266,7 +2354,7 @@
 		}
 	},
 	{
-		"c": " (",
+		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -2277,8 +2365,19 @@
 		}
 	},
 	{
+		"c": "(",
+		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.begin.bracket.round.php",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
 		"c": "rand",
-		"t": "text.html.php meta.embedded.block.php source.php support.function.math.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php support.function.math.php",
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
@@ -2288,8 +2387,19 @@
 		}
 	},
 	{
-		"c": "()",
-		"t": "text.html.php meta.embedded.block.php source.php",
+		"c": "(",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php punctuation.definition.arguments.begin.bracket.round.php",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ")",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php punctuation.definition.arguments.end.bracket.round.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2322,7 +2432,7 @@
 	},
 	{
 		"c": ")",
-		"t": "text.html.php meta.embedded.block.php source.php",
+		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.end.bracket.round.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2355,7 +2465,7 @@
 	},
 	{
 		"c": "print",
-		"t": "text.html.php meta.embedded.block.php source.php support.function.construct.output.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php support.function.construct.output.php",
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
@@ -2366,7 +2476,7 @@
 	},
 	{
 		"c": "(",
-		"t": "text.html.php meta.embedded.block.php source.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php punctuation.definition.arguments.begin.bracket.round.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2377,7 +2487,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "text.html.php meta.embedded.block.php source.php string.quoted.double.php punctuation.definition.string.begin.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php string.quoted.double.php punctuation.definition.string.begin.php",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -2388,7 +2498,7 @@
 	},
 	{
 		"c": "Starting point for cut cards is: ",
-		"t": "text.html.php meta.embedded.block.php source.php string.quoted.double.php meta.string-contents.quoted.double.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php string.quoted.double.php",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -2399,7 +2509,7 @@
 	},
 	{
 		"c": "$",
-		"t": "text.html.php meta.embedded.block.php source.php string.quoted.double.php meta.string-contents.quoted.double.php variable.other.php punctuation.definition.variable.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php string.quoted.double.php variable.other.php punctuation.definition.variable.php",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -2410,7 +2520,7 @@
 	},
 	{
 		"c": "starting_point",
-		"t": "text.html.php meta.embedded.block.php source.php string.quoted.double.php meta.string-contents.quoted.double.php variable.other.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php string.quoted.double.php variable.other.php",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -2421,7 +2531,7 @@
 	},
 	{
 		"c": "<p>",
-		"t": "text.html.php meta.embedded.block.php source.php string.quoted.double.php meta.string-contents.quoted.double.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php string.quoted.double.php",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -2432,7 +2542,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "text.html.php meta.embedded.block.php source.php string.quoted.double.php punctuation.definition.string.end.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php string.quoted.double.php punctuation.definition.string.end.php",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -2443,7 +2553,7 @@
 	},
 	{
 		"c": ")",
-		"t": "text.html.php meta.embedded.block.php source.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php punctuation.definition.arguments.end.bracket.round.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2519,8 +2629,19 @@
 		}
 	},
 	{
-		"c": " (",
+		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "(",
+		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.begin.bracket.round.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2739,7 +2860,18 @@
 		}
 	},
 	{
-		"c": ") ",
+		"c": ")",
+		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.end.bracket.round.php",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -2783,8 +2915,19 @@
 		}
 	},
 	{
-		"c": " (",
+		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "(",
+		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.begin.bracket.round.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2860,7 +3003,18 @@
 		}
 	},
 	{
-		"c": ") ",
+		"c": ")",
+		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.end.bracket.round.php",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -3004,7 +3158,7 @@
 	},
 	{
 		"c": "print",
-		"t": "text.html.php meta.embedded.block.php source.php support.function.construct.output.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php support.function.construct.output.php",
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
@@ -3015,7 +3169,7 @@
 	},
 	{
 		"c": "(",
-		"t": "text.html.php meta.embedded.block.php source.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php punctuation.definition.arguments.begin.bracket.round.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3026,7 +3180,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "text.html.php meta.embedded.block.php source.php string.quoted.double.php punctuation.definition.string.begin.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php string.quoted.double.php punctuation.definition.string.begin.php",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -3037,7 +3191,7 @@
 	},
 	{
 		"c": "Uncut Point: <strong>",
-		"t": "text.html.php meta.embedded.block.php source.php string.quoted.double.php meta.string-contents.quoted.double.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php string.quoted.double.php",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -3048,7 +3202,7 @@
 	},
 	{
 		"c": "$",
-		"t": "text.html.php meta.embedded.block.php source.php string.quoted.double.php meta.string-contents.quoted.double.php variable.other.php punctuation.definition.variable.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php string.quoted.double.php variable.other.php punctuation.definition.variable.php",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -3059,7 +3213,7 @@
 	},
 	{
 		"c": "deck",
-		"t": "text.html.php meta.embedded.block.php source.php string.quoted.double.php meta.string-contents.quoted.double.php variable.other.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php string.quoted.double.php variable.other.php",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -3070,7 +3224,7 @@
 	},
 	{
 		"c": "[",
-		"t": "text.html.php meta.embedded.block.php source.php string.quoted.double.php meta.string-contents.quoted.double.php punctuation.section.array.begin.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php string.quoted.double.php punctuation.section.array.begin.php",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -3081,7 +3235,7 @@
 	},
 	{
 		"c": "$",
-		"t": "text.html.php meta.embedded.block.php source.php string.quoted.double.php meta.string-contents.quoted.double.php variable.other.index.php punctuation.definition.variable.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php string.quoted.double.php variable.other.index.php punctuation.definition.variable.php",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -3092,7 +3246,7 @@
 	},
 	{
 		"c": "index",
-		"t": "text.html.php meta.embedded.block.php source.php string.quoted.double.php meta.string-contents.quoted.double.php variable.other.index.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php string.quoted.double.php variable.other.index.php",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -3103,7 +3257,7 @@
 	},
 	{
 		"c": "]",
-		"t": "text.html.php meta.embedded.block.php source.php string.quoted.double.php meta.string-contents.quoted.double.php punctuation.section.array.end.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php string.quoted.double.php punctuation.section.array.end.php",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -3114,7 +3268,7 @@
 	},
 	{
 		"c": "</strong> ",
-		"t": "text.html.php meta.embedded.block.php source.php string.quoted.double.php meta.string-contents.quoted.double.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php string.quoted.double.php",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -3125,7 +3279,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "text.html.php meta.embedded.block.php source.php string.quoted.double.php punctuation.definition.string.end.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php string.quoted.double.php punctuation.definition.string.end.php",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -3136,7 +3290,7 @@
 	},
 	{
 		"c": ")",
-		"t": "text.html.php meta.embedded.block.php source.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php punctuation.definition.arguments.end.bracket.round.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3235,7 +3389,7 @@
 	},
 	{
 		"c": "\t",
-		"t": "text.html.php meta.embedded.block.php source.php meta.function.php",
+		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3279,7 +3433,7 @@
 	},
 	{
 		"c": "(",
-		"t": "text.html.php meta.embedded.block.php source.php meta.function.php punctuation.definition.parameters.begin.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function.php punctuation.definition.parameters.begin.bracket.round.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3290,7 +3444,7 @@
 	},
 	{
 		"c": ")",
-		"t": "text.html.php meta.embedded.block.php source.php meta.function.php punctuation.definition.parameters.end.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.function.php punctuation.definition.parameters.end.bracket.round.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

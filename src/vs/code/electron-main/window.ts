@@ -6,23 +6,23 @@
 'use strict';
 
 import * as path from 'path';
-import * as platform from 'vs/base/common/platform';
 import * as objects from 'vs/base/common/objects';
 import { stopProfiling } from 'vs/base/node/profiler';
 import nls = require('vs/nls');
-import { IStorageService } from 'vs/code/electron-main/storage';
+import { IStorageService } from 'vs/platform/storage/node/storage';
 import { shell, screen, BrowserWindow, systemPreferences, app } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
-import { ILogService } from 'vs/code/electron-main/log';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/node/product';
 import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
-import { IWindowSettings, MenuBarVisibility } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState } from 'vs/platform/windows/common/windows';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-
+import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { ICodeWindow } from "vs/platform/windows/electron-main/windows";
 
 export interface IWindowState {
 	width?: number;
@@ -54,90 +54,15 @@ export const defaultWindowState = function (mode = WindowMode.Normal): IWindowSt
 	};
 };
 
-export interface IPath {
-
-	// the workspace spath for a VSCode instance which can be null
-	workspacePath?: string;
-
-	// the file path to open within a VSCode instance
-	filePath?: string;
-
-	// the line number in the file path to open
-	lineNumber?: number;
-
-	// the column number in the file path to open
-	columnNumber?: number;
-
-	// indicator to create the file path in the VSCode instance
-	createFilePath?: boolean;
-}
-
-export interface IWindowConfiguration extends ParsedArgs {
-	appRoot: string;
-	execPath: string;
-
-	userEnv: platform.IProcessEnvironment;
-
-	/**
-	 * The physical keyboard is of ISO type (on OSX).
-	 */
-	isISOKeyboard?: boolean;
-	/**
-	 * Accessibility support is enabled.
-	 */
-	accessibilitySupportEnabled?: boolean;
-	zoomLevel?: number;
-	fullscreen?: boolean;
-	highContrast?: boolean;
-	baseTheme?: string;
-	backgroundColor?: string;
-	accessibilitySupport?: boolean;
-
-	isInitialStartup?: boolean;
-
-	perfStartTime?: number;
-	perfAppReady?: number;
-	perfWindowLoadTime?: number;
-
-	workspacePath?: string;
-
-	filesToOpen?: IPath[];
-	filesToCreate?: IPath[];
-	filesToDiff?: IPath[];
-
-	nodeCachedDataDir: string;
-}
-
-export enum ReadyState {
-
-	/**
-	 * This window has not loaded any HTML yet
-	 */
-	NONE,
-
-	/**
-	 * This window is loading HTML
-	 */
-	LOADING,
-
-	/**
-	 * This window is navigating to another HTML
-	 */
-	NAVIGATING,
-
-	/**
-	 * This window is done loading HTML
-	 */
-	READY
-}
-
-interface IConfiguration {
-	window: {
-		menuBarVisibility: MenuBarVisibility;
+interface IWorkbenchEditorConfiguration {
+	workbench: {
+		editor: {
+			swipeToNavigate: boolean
+		}
 	};
 }
 
-export class VSCodeWindow {
+export class CodeWindow implements ICodeWindow {
 
 	public static themeStorageKey = 'theme';
 	public static themeBackgroundStorageKey = 'themeBackground';
@@ -156,10 +81,10 @@ export class VSCodeWindow {
 	private _isExtensionTestHost: boolean;
 	private windowState: IWindowState;
 	private currentMenuBarVisibility: MenuBarVisibility;
-	private currentWindowMode: WindowMode;
 	private toDispose: IDisposable[];
+	private representedFilename: string;
 
-	private whenReadyCallbacks: TValueCallback<VSCodeWindow>[];
+	private whenReadyCallbacks: TValueCallback<CodeWindow>[];
 
 	private currentConfig: IWindowConfiguration;
 	private pendingLoadConfig: IWindowConfiguration;
@@ -179,11 +104,27 @@ export class VSCodeWindow {
 		this.whenReadyCallbacks = [];
 		this.toDispose = [];
 
+		// create browser window
+		this.createBrowserWindow(config);
+
+		// respect configured menu bar visibility
+		this.onConfigurationUpdated();
+
+		// TODO@joao: hook this up to some initialization routine this causes a race between setting the headers and doing
+		// a request that needs them. chances are low
+		this.setCommonHTTPHeaders();
+
+		// Eventing
+		this.registerListeners();
+	}
+
+	private createBrowserWindow(config: IWindowCreationOptions): void {
+
 		// Load window state
-		this.restoreWindowState(config.state);
+		this.windowState = this.restoreWindowState(config.state);
 
 		// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
-		const isFullscreenOrMaximized = (this.currentWindowMode === WindowMode.Maximized || this.currentWindowMode === WindowMode.Fullscreen);
+		const isFullscreenOrMaximized = (this.windowState.mode === WindowMode.Maximized || this.windowState.mode === WindowMode.Fullscreen);
 
 		const options: Electron.BrowserWindowOptions = {
 			width: this.windowState.width,
@@ -191,8 +132,8 @@ export class VSCodeWindow {
 			x: this.windowState.x,
 			y: this.windowState.y,
 			backgroundColor: this.getBackgroundColor(),
-			minWidth: VSCodeWindow.MIN_WIDTH,
-			minHeight: VSCodeWindow.MIN_HEIGHT,
+			minWidth: CodeWindow.MIN_WIDTH,
+			minHeight: CodeWindow.MIN_HEIGHT,
 			show: !isFullscreenOrMaximized,
 			title: product.nameLong,
 			webPreferences: {
@@ -201,7 +142,7 @@ export class VSCodeWindow {
 			}
 		};
 
-		if (platform.isLinux) {
+		if (isLinux) {
 			options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
 		}
 
@@ -214,7 +155,7 @@ export class VSCodeWindow {
 		}
 
 		let useCustomTitleStyle = false;
-		if (platform.isMacintosh && (!windowConfig || !windowConfig.titleBarStyle || windowConfig.titleBarStyle === 'custom')) {
+		if (isMacintosh && (!windowConfig || !windowConfig.titleBarStyle || windowConfig.titleBarStyle === 'custom')) {
 			const isDev = !this.environmentService.isBuilt || !!config.extensionDevelopmentPath;
 			if (!isDev) {
 				useCustomTitleStyle = true; // not enabled when developing due to https://github.com/electron/electron/issues/3647
@@ -239,7 +180,7 @@ export class VSCodeWindow {
 		}
 
 		// Set relaunch command
-		if (platform.isWindows && product.win32AppUserModelId && typeof this._win.setAppDetails === 'function') {
+		if (isWindows && product.win32AppUserModelId && typeof this._win.setAppDetails === 'function') {
 			this._win.setAppDetails({
 				appId: product.win32AppUserModelId,
 				relaunchCommand: `"${process.execPath}" -n`,
@@ -250,7 +191,7 @@ export class VSCodeWindow {
 		if (isFullscreenOrMaximized) {
 			this._win.maximize();
 
-			if (this.currentWindowMode === WindowMode.Fullscreen) {
+			if (this.windowState.mode === WindowMode.Fullscreen) {
 				this._win.setFullScreen(true);
 			}
 
@@ -260,16 +201,6 @@ export class VSCodeWindow {
 		}
 
 		this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
-
-		// respect configured menu bar visibility
-		this.onConfigurationUpdated();
-
-		// TODO@joao: hook this up to some initialization routine this causes a race between setting the headers and doing
-		// a request that needs them. chances are low
-		this.setCommonHTTPHeaders();
-
-		// Eventing
-		this.registerListeners();
 	}
 
 	private setCommonHTTPHeaders(): void {
@@ -314,6 +245,22 @@ export class VSCodeWindow {
 		return this._win;
 	}
 
+	public setRepresentedFilename(filename: string): void {
+		if (isMacintosh) {
+			this.win.setRepresentedFilename(filename);
+		} else {
+			this.representedFilename = filename;
+		}
+	}
+
+	public getRepresentedFilename(): string {
+		if (isMacintosh) {
+			return this.win.getRepresentedFilename();
+		}
+
+		return this.representedFilename;
+	}
+
 	public focus(): void {
 		if (!this._win) {
 			return;
@@ -331,11 +278,15 @@ export class VSCodeWindow {
 	}
 
 	public get openedWorkspacePath(): string {
-		return this.currentConfig.workspacePath;
+		return this.currentConfig ? this.currentConfig.workspacePath : void 0;
+	}
+
+	public get backupPath(): string {
+		return this.currentConfig ? this.currentConfig.backupPath : void 0;
 	}
 
 	public get openedFilePath(): string {
-		return this.currentConfig.filesToOpen && this.currentConfig.filesToOpen[0] && this.currentConfig.filesToOpen[0].filePath;
+		return this.currentConfig && this.currentConfig.filesToOpen && this.currentConfig.filesToOpen[0] && this.currentConfig.filesToOpen[0].filePath;
 	}
 
 	public setReady(): void {
@@ -347,8 +298,8 @@ export class VSCodeWindow {
 		}
 	}
 
-	public ready(): TPromise<VSCodeWindow> {
-		return new TPromise<VSCodeWindow>((c) => {
+	public ready(): TPromise<CodeWindow> {
+		return new TPromise<CodeWindow>((c) => {
 			if (this._readyState === ReadyState.READY) {
 				return c(this);
 			}
@@ -360,20 +311,6 @@ export class VSCodeWindow {
 
 	public get readyState(): ReadyState {
 		return this._readyState;
-	}
-
-	private registerNavigationListenerOn(command: 'swipe' | 'app-command', back: 'left' | 'browser-backward', forward: 'right' | 'browser-forward', acrossEditors: boolean) {
-		this._win.on(command, (e, cmd) => {
-			if (this.readyState !== ReadyState.READY) {
-				return; // window must be ready
-			}
-
-			if (cmd === back) {
-				this.send('vscode:runAction', acrossEditors ? 'workbench.action.openPreviousRecentlyUsedEditor' : 'workbench.action.navigateBack');
-			} else if (cmd === forward) {
-				this.send('vscode:runAction', acrossEditors ? 'workbench.action.openNextRecentlyUsedEditor' : 'workbench.action.navigateForward');
-			}
-		});
 	}
 
 	private registerListeners(): void {
@@ -389,9 +326,9 @@ export class VSCodeWindow {
 				this.pendingLoadConfig = null;
 			}
 
-			// To prevent flashing, we set the window visible after the page has finished to load but before VSCode is loaded
+			// To prevent flashing, we set the window visible after the page has finished to load but before Code is loaded
 			if (!this._win.isVisible()) {
-				if (this.currentWindowMode === WindowMode.Maximized) {
+				if (this.windowState.mode === WindowMode.Maximized) {
 					this._win.maximize();
 				}
 
@@ -425,17 +362,6 @@ export class VSCodeWindow {
 			this.sendWhenReady('vscode:leaveFullScreen');
 		});
 
-		// React to HC color scheme changes (Windows)
-		if (platform.isWindows) {
-			systemPreferences.on('inverted-color-scheme-changed', () => {
-				if (systemPreferences.isInvertedColorScheme()) {
-					this.sendWhenReady('vscode:enterHighContrast');
-				} else {
-					this.sendWhenReady('vscode:leaveHighContrast');
-				}
-			});
-		}
-
 		// Window Failed to load
 		this._win.webContents.on('did-fail-load', (event: Event, errorCode: string, errorDescription: string) => {
 			console.warn('[electron event]: fail to load, ', errorDescription);
@@ -463,7 +389,7 @@ export class VSCodeWindow {
 		}
 
 		// Swipe command support (macOS)
-		if (platform.isMacintosh) {
+		if (isMacintosh) {
 			const config = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
 			if (config && config.workbench && config.workbench.editor && config.workbench.editor.swipeToNavigate) {
 				this.registerNavigationListenerOn('swipe', 'left', 'right', true);
@@ -472,6 +398,20 @@ export class VSCodeWindow {
 			}
 		}
 	};
+
+	private registerNavigationListenerOn(command: 'swipe' | 'app-command', back: 'left' | 'browser-backward', forward: 'right' | 'browser-forward', acrossEditors: boolean) {
+		this._win.on(command, (e, cmd) => {
+			if (this.readyState !== ReadyState.READY) {
+				return; // window must be ready
+			}
+
+			if (cmd === back) {
+				this.send('vscode:runAction', acrossEditors ? 'workbench.action.openPreviousRecentlyUsedEditor' : 'workbench.action.navigateBack');
+			} else if (cmd === forward) {
+				this.send('vscode:runAction', acrossEditors ? 'workbench.action.openNextRecentlyUsedEditor' : 'workbench.action.navigateForward');
+			}
+		});
+	}
 
 	public load(config: IWindowConfiguration): void {
 
@@ -491,7 +431,7 @@ export class VSCodeWindow {
 		}
 
 		// Make sure to clear any previous edited state
-		if (platform.isMacintosh && this._win.isDocumentEdited()) {
+		if (isMacintosh && this._win.isDocumentEdited()) {
 			this._win.setDocumentEdited(false);
 		}
 
@@ -513,8 +453,7 @@ export class VSCodeWindow {
 		// (--prof-startup) save profile to disk
 		const { profileStartup } = this.environmentService;
 		if (profileStartup) {
-			stopProfiling(profileStartup.dir, profileStartup.prefix)
-				.done(undefined, err => console.error(err));
+			stopProfiling(profileStartup.dir, profileStartup.prefix).done(undefined, err => console.error(err));
 		}
 	}
 
@@ -542,7 +481,6 @@ export class VSCodeWindow {
 	}
 
 	private getUrl(windowConfiguration: IWindowConfiguration): string {
-		let url = require.toUrl('vs/workbench/electron-browser/bootstrap/index.html');
 
 		// Set zoomlevel
 		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
@@ -555,8 +493,11 @@ export class VSCodeWindow {
 		windowConfiguration.fullscreen = this._win.isFullScreen();
 
 		// Set Accessibility Config
-		windowConfiguration.highContrast = platform.isWindows && systemPreferences.isInvertedColorScheme() && (!windowConfig || windowConfig.autoDetectHighContrast);
+		windowConfiguration.highContrast = isWindows && systemPreferences.isInvertedColorScheme() && (!windowConfig || windowConfig.autoDetectHighContrast);
 		windowConfiguration.accessibilitySupport = app.isAccessibilitySupportEnabled();
+
+		// Set Keyboard Config
+		windowConfiguration.isISOKeyboard = KeyboardLayoutMonitor.INSTANCE.isISOKeyboard();
 
 		// Theme
 		windowConfiguration.baseTheme = this.getBaseTheme();
@@ -576,28 +517,29 @@ export class VSCodeWindow {
 			}
 		}
 
-		url += '?config=' + encodeURIComponent(JSON.stringify(config));
-
-		return url;
+		return `${require.toUrl('vs/workbench/electron-browser/bootstrap/index.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
 	}
 
 	private getBaseTheme(): string {
-		if (platform.isWindows && systemPreferences.isInvertedColorScheme()) {
+		if (isWindows && systemPreferences.isInvertedColorScheme()) {
 			return 'hc-black';
 		}
-		const theme = this.storageService.getItem<string>(VSCodeWindow.themeStorageKey, 'vs-dark');
+
+		const theme = this.storageService.getItem<string>(CodeWindow.themeStorageKey, 'vs-dark');
+
 		return theme.split(' ')[0];
 	}
 
 	private getBackgroundColor(): string {
-		if (platform.isWindows && systemPreferences.isInvertedColorScheme()) {
+		if (isWindows && systemPreferences.isInvertedColorScheme()) {
 			return '#000000';
 		}
 
-		let background = this.storageService.getItem<string>(VSCodeWindow.themeBackgroundStorageKey, null);
+		const background = this.storageService.getItem<string>(CodeWindow.themeBackgroundStorageKey, null);
 		if (!background) {
-			let baseTheme = this.getBaseTheme();
-			return baseTheme === 'hc-black' ? '#000000' : (baseTheme === 'vs' ? '#FFFFFF' : (platform.isMacintosh ? '#171717' : '#1E1E1E')); // https://github.com/electron/electron/issues/5150
+			const baseTheme = this.getBaseTheme();
+
+			return baseTheme === 'hc-black' ? '#000000' : (baseTheme === 'vs' ? '#FFFFFF' : (isMacintosh ? '#171717' : '#1E1E1E')); // https://github.com/electron/electron/issues/5150
 		}
 
 		return background;
@@ -625,7 +567,7 @@ export class VSCodeWindow {
 		let mode: WindowMode;
 
 		// get window mode
-		if (!platform.isMacintosh && this._win.isMaximized()) {
+		if (!isMacintosh && this._win.isMaximized()) {
 			mode = WindowMode.Maximized;
 		} else {
 			mode = WindowMode.Normal;
@@ -651,7 +593,7 @@ export class VSCodeWindow {
 		return state;
 	}
 
-	private restoreWindowState(state?: IWindowState): void {
+	private restoreWindowState(state?: IWindowState): IWindowState {
 		if (state) {
 			try {
 				state = this.validateWindowState(state);
@@ -664,8 +606,7 @@ export class VSCodeWindow {
 			state = defaultWindowState();
 		}
 
-		this.windowState = state;
-		this.currentWindowMode = this.windowState.mode;
+		return state;
 	}
 
 	private validateWindowState(state: IWindowState): IWindowState {
@@ -783,7 +724,7 @@ export class VSCodeWindow {
 	}
 
 	public setMenuBarVisibility(visibility: MenuBarVisibility, notify: boolean = true): void {
-		if (platform.isMacintosh) {
+		if (isMacintosh) {
 			return; // ignore for macOS platform
 		}
 
@@ -821,6 +762,39 @@ export class VSCodeWindow {
 				});
 				break;
 		};
+	}
+
+	public onWindowTitleDoubleClick(): void {
+
+		// Respect system settings on mac with regards to title click on windows title
+		if (isMacintosh) {
+			const action = systemPreferences.getUserDefault('AppleActionOnDoubleClick', 'string');
+			switch (action) {
+				case 'Minimize':
+					this.win.minimize();
+					break;
+				case 'None':
+					break;
+				case 'Maximize':
+				default:
+					this.win.maximize();
+			}
+		}
+
+		// Linux/Windows: just toggle maximize/minimized state
+		else {
+			if (this.win.isMaximized()) {
+				this.win.unmaximize();
+			} else {
+				this.win.maximize();
+			}
+		}
+	}
+
+	public close(): void {
+		if (this._win) {
+			this._win.close();
+		}
 	}
 
 	public sendWhenReady(channel: string, ...args: any[]): void {

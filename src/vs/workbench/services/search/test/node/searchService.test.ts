@@ -13,6 +13,9 @@ import { ISearchEngine, IRawSearch, IRawFileMatch, ISerializedFileMatch, ISerial
 import { SearchService as RawSearchService } from 'vs/workbench/services/search/node/rawSearchService';
 import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
 
+const TEST_FOLDER_QUERIES = [
+	{ folder: normalize('/some/where') }
+];
 
 const stats: IUncachedSearchStats = {
 	fromCache: false,
@@ -68,7 +71,7 @@ class TestSearchEngine implements ISearchEngine<IRawFileMatch> {
 suite('SearchService', () => {
 
 	const rawSearch: IRawSearch = {
-		rootFolders: [normalize('/some/where')],
+		folderQueries: TEST_FOLDER_QUERIES,
 		filePattern: 'a'
 	};
 
@@ -153,7 +156,7 @@ suite('SearchService', () => {
 
 		const results = [];
 		return service.doFileSearch(Engine, {
-			rootFolders: [normalize('/some/where')],
+			folderQueries: TEST_FOLDER_QUERIES,
 			filePattern: 'bb',
 			sortByScore: true,
 			maxResults: 2
@@ -176,7 +179,7 @@ suite('SearchService', () => {
 
 		const results = [];
 		return service.doFileSearch(Engine, {
-			rootFolders: [normalize('/some/where')],
+			folderQueries: TEST_FOLDER_QUERIES,
 			filePattern: 'a',
 			sortByScore: true,
 			maxResults: 23
@@ -208,7 +211,7 @@ suite('SearchService', () => {
 
 		const results = [];
 		return service.doFileSearch(Engine, {
-			rootFolders: [normalize('/some/where')],
+			folderQueries: TEST_FOLDER_QUERIES,
 			filePattern: 'b',
 			sortByScore: true,
 			cacheKey: 'x'
@@ -224,7 +227,7 @@ suite('SearchService', () => {
 		}).then(() => {
 			const results = [];
 			return service.doFileSearch(Engine, {
-				rootFolders: [normalize('/some/where')],
+				folderQueries: TEST_FOLDER_QUERIES,
 				filePattern: 'bc',
 				sortByScore: true,
 				cacheKey: 'x'
@@ -249,7 +252,7 @@ suite('SearchService', () => {
 			});
 			const results = [];
 			return service.doFileSearch(Engine, {
-				rootFolders: [normalize('/some/where')],
+				folderQueries: TEST_FOLDER_QUERIES,
 				filePattern: 'bc',
 				sortByScore: true,
 				cacheKey: 'x'

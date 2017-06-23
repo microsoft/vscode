@@ -529,7 +529,7 @@
 	},
 	{
 		"c": " Prevent following the link.",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js comment.line.double-slash.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js comment.line.double-slash.tsx",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -628,7 +628,7 @@
 	},
 	{
 		"c": " Invert the chosen default.",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js comment.line.double-slash.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js comment.line.double-slash.tsx",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -661,7 +661,7 @@
 	},
 	{
 		"c": " This will trigger an intelligent re-render of the component.",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js comment.line.double-slash.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js comment.line.double-slash.tsx",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -1046,7 +1046,7 @@
 	},
 	{
 		"c": " Default to the default message.",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js comment.line.double-slash.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js comment.line.double-slash.tsx",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -1222,7 +1222,7 @@
 	},
 	{
 		"c": " If toggled, show the alternate message.",
-		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js comment.line.double-slash.js",
+		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js comment.line.double-slash.tsx",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",

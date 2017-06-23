@@ -7,6 +7,7 @@ import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
+import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { Variable } from 'vs/workbench/parts/debug/common/debugModel';
 import { IDebugService, IStackFrame } from 'vs/workbench/parts/debug/common/debug';
 import { clipboard } from 'electron';
@@ -62,7 +63,7 @@ export class CopyAllAction extends Action {
 			text += navigator.current().toString();
 		}
 
-		clipboard.writeText(text);
+		clipboard.writeText(removeAnsiEscapeCodes(text));
 		return TPromise.as(null);
 	}
 }

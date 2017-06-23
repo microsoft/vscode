@@ -38,8 +38,10 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, textPreformatForeground, contrastBorder, textBlockQuoteBackground, textBlockQuoteBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils';
+import { UILabelProvider } from 'vs/base/common/keybindingLabels';
+import { OS, OperatingSystem } from 'vs/base/common/platform';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -119,7 +121,6 @@ export class WalkThroughPart extends BaseEditor {
 		this.content.style.outlineStyle = 'none';
 
 		this.scrollbar = new DomScrollableElement(this.content, {
-			canUseTranslate3d: false,
 			horizontal: ScrollbarVisibility.Auto,
 			vertical: ScrollbarVisibility.Auto
 		});
@@ -406,6 +407,8 @@ export class WalkThroughPart extends BaseEditor {
 					}));
 				});
 				this.updateSizeClasses();
+				this.multiCursorModifier();
+				this.contentDisposables.push(this.configurationService.onDidUpdateConfiguration(() => this.multiCursorModifier()));
 				if (input.onReady) {
 					input.onReady(innerContent);
 				}
@@ -416,7 +419,7 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	private getEditorOptions(language: string): IEditorOptions {
-		const config = this.configurationService.getConfiguration<IEditorOptions>({ overrideIdentifier: language, section: 'editor' });
+		const config = this.configurationService.getConfiguration<IEditorOptions>('editor', { overrideIdentifier: language });
 		return {
 			...isObject(config) ? config : Object.create(null),
 			scrollBeyondLastLine: false,
@@ -430,7 +433,7 @@ export class WalkThroughPart extends BaseEditor {
 			overviewRulerLanes: 3,
 			fixedOverflowWidgets: true,
 			lineNumbersMinChars: 1,
-			minimap: false,
+			minimap: { enabled: false },
 		};
 	}
 
@@ -458,6 +461,19 @@ export class WalkThroughPart extends BaseEditor {
 			const command = key.getAttribute('data-command');
 			const keybinding = command && this.keybindingService.lookupKeybinding(command);
 			key.style.display = !keybinding ? 'none' : '';
+		});
+	}
+
+	private multiCursorModifier() {
+		const labels = UILabelProvider.modifierLabels[OS];
+		const setting = this.configurationService.lookup<string>('editor.multiCursorModifier');
+		const modifier = labels[setting.value === 'ctrlCmd' ? (OS === OperatingSystem.Macintosh ? 'metaKey' : 'ctrlKey') : 'altKey'];
+		const keys = this.content.querySelectorAll('.multi-cursor-modifier');
+		Array.prototype.forEach.call(keys, (key: Element) => {
+			while (key.firstChild) {
+				key.removeChild(key.firstChild);
+			}
+			key.appendChild(document.createTextNode(modifier));
 		});
 	}
 
@@ -533,5 +549,35 @@ registerThemingParticipant((theme, collector) => {
 	if (color) {
 		collector.addRule(`.monaco-workbench > .part.editor > .content .walkThroughContent .monaco-editor-background,
 			.monaco-workbench > .part.editor > .content .walkThroughContent .margin-view-overlays { background: ${color}; }`);
+	}
+	const link = theme.getColor(textLinkForeground);
+	if (link) {
+		collector.addRule(`.monaco-workbench > .part.editor > .content .walkThroughContent a { color: ${link}; }`);
+	}
+	const activeLink = theme.getColor(textLinkActiveForeground);
+	if (activeLink) {
+		collector.addRule(`.monaco-workbench > .part.editor > .content .walkThroughContent a:hover,
+			.monaco-workbench > .part.editor > .content .walkThroughContent a:active { color: ${activeLink}; }`);
+	}
+	const focusColor = theme.getColor(focusBorder);
+	if (focusColor) {
+		collector.addRule(`.monaco-workbench > .part.editor > .content .walkThroughContent a:focus { outline-color: ${focusColor}; }`);
+	}
+	const shortcut = theme.getColor(textPreformatForeground);
+	if (shortcut) {
+		collector.addRule(`.monaco-workbench > .part.editor > .content .walkThroughContent code,
+			.monaco-workbench > .part.editor > .content .walkThroughContent .shortcut { color: ${shortcut}; }`);
+	}
+	const border = theme.getColor(contrastBorder);
+	if (border) {
+		collector.addRule(`.monaco-workbench > .part.editor > .content .walkThroughContent .monaco-editor { border-color: ${border}; }`);
+	}
+	const quoteBackground = theme.getColor(textBlockQuoteBackground);
+	if (quoteBackground) {
+		collector.addRule(`.monaco-workbench > .part.editor > .content .walkThroughContent blockquote { background: ${quoteBackground}; }`);
+	}
+	const quoteBorder = theme.getColor(textBlockQuoteBorder);
+	if (quoteBorder) {
+		collector.addRule(`.monaco-workbench > .part.editor > .content .walkThroughContent blockquote { border-color: ${quoteBorder}; }`);
 	}
 });

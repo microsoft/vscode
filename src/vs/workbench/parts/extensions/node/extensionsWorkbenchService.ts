@@ -11,7 +11,6 @@ import * as semver from 'semver';
 import * as path from 'path';
 import Event, { Emitter, chain } from 'vs/base/common/event';
 import { index } from 'vs/base/common/arrays';
-import { LinkedMap as Map } from 'vs/base/common/map';
 import { assign } from 'vs/base/common/objects';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
@@ -513,9 +512,9 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		return this.extensionService.installFromGallery(gallery, promptToInstallDependencies);
 	}
 
-	setEnablement(extension: IExtension, enable: boolean, workspace: boolean = false): TPromise<any> {
+	setEnablement(extension: IExtension, enable: boolean, workspace: boolean = false): TPromise<void> {
 		if (extension.type === LocalExtensionType.System) {
-			return TPromise.wrap(null);
+			return TPromise.wrap<void>(void 0);
 		}
 
 		return this.promptAndSetEnablement(extension, enable, workspace).then(reload => {
@@ -806,21 +805,32 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		const extensionId = match[1];
 
 		this.queryGallery({ names: [extensionId] })
-			.done(result => {
+			.then(result => {
 				if (result.total < 1) {
-					return;
+					return TPromise.as(null);
 				}
 
 				const extension = result.firstPage[0];
-				const promises = [this.open(extension)];
-
-				if (this.local.every(local => local.id !== extension.id)) {
-					promises.push(this.install(extension));
-				}
-
-				TPromise.join(promises)
-					.done(null, error => this.onError(error));
-			});
+				return this.open(extension).then(() => {
+					const message = nls.localize('installConfirmation', "Would you like to install the '{0}' extension?", extension.displayName, extension.publisher);
+					const options = [
+						nls.localize('install', "Install"),
+						nls.localize('cancel', "Cancel")
+					];
+					return this.choiceService.choose(Severity.Info, message, options, 2, false)
+						.then<void>(value => {
+							if (value === 0) {
+								const promises: TPromise<any>[] = [];
+								if (this.local.every(local => local.id !== extension.id)) {
+									promises.push(this.install(extension));
+								}
+								return TPromise.join(promises);
+							}
+							return TPromise.as(null);
+						});
+				});
+			})
+			.done(undefined, error => this.onError(error));
 	}
 
 	dispose(): void {

@@ -9,12 +9,12 @@ import URI from 'vs/base/common/uri';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import nls = require('vs/nls');
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory, EditorInput, IFileEditorInput } from 'vs/workbench/common/editor';
-import { AutoSaveConfiguration, HotExitConfiguration, SUPPORTED_ENCODINGS, IFilesConfiguration } from 'vs/platform/files/common/files';
+import { AutoSaveConfiguration, HotExitConfiguration, SUPPORTED_ENCODINGS } from 'vs/platform/files/common/files';
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { FILE_EDITOR_INPUT_ID, VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import { FileEditorTracker } from 'vs/workbench/parts/files/common/editors/fileEditorTracker';
@@ -105,28 +105,16 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerFileInputFactory(
 
 interface ISerializedFileInput {
 	resource: string;
-	resourceJSON: any;
+	resourceJSON: object;
 	encoding?: string;
 }
 
 // Register Editor Input Factory
 class FileEditorInputFactory implements IEditorInputFactory {
-	private configuredEncoding: string;
 
 	constructor(
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
 	) {
-		this.onConfiguration(configurationService.getConfiguration<IFilesConfiguration>());
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this.configurationService.onDidUpdateConfiguration(e => this.onConfiguration(e.config));
-	}
-
-	private onConfiguration(config: IFilesConfiguration): void {
-		this.configuredEncoding = config.files && config.files.encoding;
 	}
 
 	public serialize(editorInput: EditorInput): string {
@@ -138,7 +126,7 @@ class FileEditorInputFactory implements IEditorInputFactory {
 		};
 
 		const encoding = fileEditorInput.getPreferredEncoding();
-		if (encoding && encoding !== this.configuredEncoding) {
+		if (encoding && encoding !== this.configurationService.lookup('files.encoding', { resource }).value) {
 			fileInput.encoding = encoding;
 		}
 
@@ -271,9 +259,14 @@ configurationRegistry.registerConfiguration({
 			'enumDescriptions': [
 				nls.localize('hotExit.off', 'Disable hot exit.'),
 				nls.localize('hotExit.onExit', 'Hot exit will be triggered when the application is closed, that is when the last window is closed on Windows/Linux or when the workbench.action.quit command is triggered (command palette, keybinding, menu). All windows with backups will be restored upon next launch.'),
-				nls.localize('hotExit.onExitAndWindowClose', 'Hot exit will be triggered when the application is closed, that is when the last window is closed on Windows/Linux or when the workbench.action.quit command is triggered (command palette, keybinding, menu), and also for any window with a folder opened regardless of whether it\'s the last window. All windows without folders opened will be restored upon next launch. To restore folder windows as they were before shutdown set "window.reopenFolders" to "all".')
+				nls.localize('hotExit.onExitAndWindowClose', 'Hot exit will be triggered when the application is closed, that is when the last window is closed on Windows/Linux or when the workbench.action.quit command is triggered (command palette, keybinding, menu), and also for any window with a folder opened regardless of whether it\'s the last window. All windows without folders opened will be restored upon next launch. To restore folder windows as they were before shutdown set "window.restoreWindows" to "all".')
 			],
 			'description': nls.localize('hotExit', "Controls whether unsaved files are remembered between sessions, allowing the save prompt when exiting the editor to be skipped.", HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE)
+		},
+		'files.useExperimentalFileWatcher': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('useExperimentalFileWatcher', "Use the new experimental file watcher.")
 		},
 		'files.defaultLanguage': {
 			'type': 'string',

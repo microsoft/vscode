@@ -68,18 +68,10 @@
 	display: flex;
 }
 
-.keybindings-editor > .keybindings-body .keybindings-list-container .monaco-list-row.keybindings-list-header.focused,
-.keybindings-editor > .keybindings-body .keybindings-list-container .monaco-list-row.keybindings-list-header.selected,
-.keybindings-editor > .keybindings-body .keybindings-list-container .monaco-list-row.keybindings-list-header:hover,
-.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row.keybindings-list-header,
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row.even:not(.focused):not(.selected):not(:hover),
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:not(:focus) .monaco-list-row.focused.even:not(.selected):not(:hover),
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:not(.focused) .monaco-list-row.focused.even:not(.selected):not(:hover) {
 	background-color: rgba(130, 130, 130, 0.04);
-}
-
-.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row:hover {
-	background-color: rgba(128, 128, 128, 0.15);
 }
 
 .keybindings-editor > .keybindings-body .keybindings-list-container .monaco-list-row > .header {

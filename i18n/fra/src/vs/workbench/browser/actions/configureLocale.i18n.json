@@ -7,6 +7,7 @@
 	"configureLocale": "Configurer la langue",
 	"displayLanguage": "Définit le langage affiché par VSCode.",
 	"doc": "Consultez {0} pour connaître la liste des langues prises en charge.",
+	"restart": "Le changement de la valeur nécessite le redémarrage de VS Code.",
 	"fail.createSettings": "Impossible de créer '{0}' ({1}).",
 	"JsonSchema.locale": "Langue d'interface utilisateur (IU) à utiliser."
 }

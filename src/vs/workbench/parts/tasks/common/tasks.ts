@@ -5,23 +5,10 @@
 'use strict';
 
 import * as Types from 'vs/base/common/types';
+import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
-
-export interface CommandOptions {
-	/**
-	 * The current working directory of the executed program or shell.
-	 * If omitted VSCode's current workspace root is used.
-	 */
-	cwd?: string;
-
-	/**
-	 * The environment of the executed program or shell. If omitted
-	 * the parent process' environment is used.
-	 */
-	env?: { [key: string]: string; };
-}
 
 export interface ShellConfiguration {
 	/**
@@ -41,16 +28,148 @@ export namespace ShellConfiguration {
 	}
 }
 
+export interface CommandOptions {
+
+	/**
+	 * The shell to use if the task is a shell command.
+	 */
+	shell?: ShellConfiguration;
+
+	/**
+	 * The current working directory of the executed program or shell.
+	 * If omitted VSCode's current workspace root is used.
+	 */
+	cwd?: string;
+
+	/**
+	 * The environment of the executed program or shell. If omitted
+	 * the parent process' environment is used.
+	 */
+	env?: { [key: string]: string; };
+}
+
+export enum RevealKind {
+	/**
+	 * Always brings the terminal to front if the task is executed.
+	 */
+	Always = 1,
+
+	/**
+	 * Only brings the terminal to front if a problem is detected executing the task
+	 * (e.g. the task couldn't be started because).
+	 */
+	Silent = 2,
+
+	/**
+	 * The terminal never comes to front when the task is executed.
+	 */
+	Never = 3
+}
+
+export namespace RevealKind {
+	export function fromString(value: string): RevealKind {
+		switch (value.toLowerCase()) {
+			case 'always':
+				return RevealKind.Always;
+			case 'silent':
+				return RevealKind.Silent;
+			case 'never':
+				return RevealKind.Never;
+			default:
+				return RevealKind.Always;
+		}
+	}
+}
+
+export enum PanelKind {
+
+	/**
+	 * Shares a panel with other tasks. This is the default.
+	 */
+	Shared = 1,
+
+	/**
+	 * Uses a dedicated panel for this tasks. The panel is not
+	 * shared with other tasks.
+	 */
+	Dedicated = 2,
+
+	/**
+	 * Creates a new panel whenever this task is executed.
+	 */
+	New = 3
+}
+
+export namespace PanelKind {
+	export function fromString(value: string): PanelKind {
+		switch (value.toLowerCase()) {
+			case 'shared':
+				return PanelKind.Shared;
+			case 'dedicated':
+				return PanelKind.Dedicated;
+			case 'new':
+				return PanelKind.New;
+			default:
+				return PanelKind.Shared;
+		}
+	}
+}
+
+export interface PresentationOptions {
+	/**
+	 * Controls whether the task output is reveal in the user interface.
+	 * Defaults to `RevealKind.Always`.
+	 */
+	reveal: RevealKind;
+
+	/**
+	 * Controls whether the command associated with the task is echoed
+	 * in the user interface.
+	 */
+	echo: boolean;
+
+	/**
+	 * Controls whether the panel showing the task output is taking focus.
+	 */
+	focus: boolean;
+
+	/**
+	 * Controls if the task panel is used for this task only (dedicated),
+	 * shared between tasks (shared) or if a new panel is created on
+	 * every task execution (new). Defaults to `TaskInstanceKind.Shared`
+	 */
+	panel: PanelKind;
+}
+
+export enum RuntimeType {
+	Shell = 1,
+	Process = 2
+}
+
+export namespace RuntimeType {
+	export function fromString(value: string): RuntimeType {
+		switch (value.toLowerCase()) {
+			case 'shell':
+				return RuntimeType.Shell;
+			case 'process':
+				return RuntimeType.Process;
+			default:
+				return RuntimeType.Process;
+		}
+	}
+}
+
 export interface CommandConfiguration {
+
+	/**
+	 * The task type
+	 */
+	runtime: RuntimeType;
+
 	/**
 	 * The command to execute
 	 */
 	name: string;
-
-	/**
-	 * Whether the command is a shell command or not
-	 */
-	isShellCommand: boolean | ShellConfiguration;
 
 	/**
 	 * Additional command options.
@@ -68,30 +187,15 @@ export interface CommandConfiguration {
 	taskSelector?: string;
 
 	/**
-	 * Controls whether the executed command is printed to the output windows as well.
+	 * Whether to suppress the task name when merging global args
+	 *
 	 */
-	echo: boolean;
-}
+	suppressTaskName?: boolean;
 
-export enum ShowOutput {
-	Always = 1,
-	Silent = 2,
-	Never = 3
-}
-
-export namespace ShowOutput {
-	export function fromString(value: string): ShowOutput {
-		value = value.toLowerCase();
-		if (value === 'always') {
-			return ShowOutput.Always;
-		} else if (value === 'silent') {
-			return ShowOutput.Silent;
-		} else if (value === 'never') {
-			return ShowOutput.Never;
-		} else {
-			return undefined;
-		}
-	}
+	/**
+	 * Describes how the task is presented in the UI.
+	 */
+	presentation: PresentationOptions;
 }
 
 export namespace TaskGroup {
@@ -103,7 +207,7 @@ export namespace TaskGroup {
 
 	export const Test: 'test' = 'test';
 
-	export function is(value: string): value is TaskGroup {
+	export function is(value: string): value is string {
 		return value === Clean || value === Build || value === RebuildAll || value === Test;
 	}
 }
@@ -118,54 +222,36 @@ export enum TaskSourceKind {
 
 export interface TaskSource {
 	kind: TaskSourceKind;
+	label: string;
 	detail?: string;
 }
 
-/**
- * A task description
- */
-export interface Task {
+export interface TaskIdentifier {
+	_key: string;
+	type: string;
+}
 
-	/**
-	 * The task's internal id
-	 */
-	_id: string;
-
-	/**
-	 * Indicated the source of the task (e.g tasks.json or extension)
-	 */
-	_source: TaskSource;
+export interface ConfigurationProperties {
 
 	/**
 	 * The task's name
 	 */
-	name: string;
+	name?: string;
 
 	/**
-	 * The task's identifier.
+	 * The task's name
 	 */
-	identifier: string;
+	identifier?: string;
 
 	/**
 	 * the task's group;
 	 */
-	group?: TaskGroup;
+	group?: string;
 
 	/**
-	 * The command configuration
+	 * The presentation options
 	 */
-	command: CommandConfiguration;
-
-	/**
-	 * Suppresses the task name when calling the task using the task runner.
-	 */
-	suppressTaskName?: boolean;
-
-	/**
-	 * Additional arguments passed to the command when this target is
-	 * invoked.
-	 */
-	args?: string[];
+	presentation?: PresentationOptions;
 
 	/**
 	 * Whether the task is a background task or not.
@@ -178,12 +264,6 @@ export interface Task {
 	promptOnClose?: boolean;
 
 	/**
-	 * Controls whether the output of the running tasks is shown or not. Default
-	 * value is "always".
-	 */
-	showOutput: ShowOutput;
-
-	/**
 	 * The other tasks this task depends on.
 	 */
 	dependsOn?: string[];
@@ -194,13 +274,110 @@ export interface Task {
 	problemMatchers?: (string | ProblemMatcher)[];
 }
 
+export interface CommonTask {
+
+	/**
+	 * The task's internal id
+	 */
+	_id: string;
+
+	/**
+	 * The cached label.
+	 */
+	_label: string;
+
+	/**
+	 * Indicated the source of the task (e.g tasks.json or extension)
+	 */
+	_source: TaskSource;
+
+	type: string;
+}
+
+export interface CustomTask extends CommonTask, ConfigurationProperties {
+
+	type: 'custom';
+
+	name: string;
+
+	identifier: string;
+
+	/**
+	 * The command configuration
+	 */
+	command: CommandConfiguration;
+}
+
+export namespace CustomTask {
+	export function is(value: any): value is CustomTask {
+		let candidate: CustomTask = value;
+		return candidate && candidate.type === 'custom';
+	}
+}
+
+export interface ConfiguringTask extends CommonTask, ConfigurationProperties {
+
+	configures: TaskIdentifier;
+}
+
+export namespace ConfiguringTask {
+	export function is(value: any): value is ConfiguringTask {
+		let candidate: ConfiguringTask = value;
+		return candidate && candidate.configures && Types.isString(candidate.configures.type) && value.command === void 0;
+	}
+}
+
+export interface ContributedTask extends CommonTask, ConfigurationProperties {
+
+	defines: TaskIdentifier;
+
+	/**
+	 * The command configuration
+	 */
+	command: CommandConfiguration;
+}
+
+export namespace ContributedTask {
+	export function is(value: any): value is ContributedTask {
+		let candidate: ContributedTask = value;
+		return candidate && candidate.defines && Types.isString(candidate.defines.type) && candidate.command !== void 0;
+	}
+}
+
+export type Task = CustomTask | ContributedTask;
+
+export namespace Task {
+	export function getKey(task: Task): string {
+		if (CustomTask.is(task)) {
+			return task.identifier;
+		} else {
+			return task.defines._key;
+		}
+	}
+}
+
+
 export enum ExecutionEngine {
-	Unknown = 0,
-	Terminal = 1,
-	Process = 2
+	Process = 1,
+	Terminal = 2
+}
+
+export namespace ExecutionEngine {
+	export const _default: ExecutionEngine = ExecutionEngine.Terminal;
+}
+
+export enum JsonSchemaVersion {
+	V0_1_0 = 1,
+	V2_0_0 = 2
 }
 
 export interface TaskSet {
 	tasks: Task[];
 	extension?: IExtensionDescription;
+}
+
+export interface TaskTypeDescription {
+	taskType: string;
+	required: string[];
+	properties: IJSONSchemaMap;
 }

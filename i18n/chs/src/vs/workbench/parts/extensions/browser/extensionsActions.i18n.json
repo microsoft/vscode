@@ -22,6 +22,8 @@
 	"disableGloballyAction": "始终",
 	"disableAction": "禁用",
 	"checkForUpdates": "检查更新",
+	"enableAutoUpdate": "启用自动更新扩展",
+	"disableAutoUpdate": "禁用自动更新扩展",
 	"updateAll": "更新所有扩展",
 	"reloadAction": "重新加载",
 	"postUpdateTooltip": "重载以更新",
@@ -44,6 +46,8 @@
 	"showWorkspaceRecommendedExtensions": "显示工作区建议的扩展名",
 	"showRecommendedKeymapExtensions": "显示推荐键映射",
 	"showRecommendedKeymapExtensionsShort": "键映射",
+	"showLanguageExtensions": "显示语言扩展",
+	"showLanguageExtensionsShort": "语言扩展",
 	"configureWorkspaceRecommendedExtensions": "配置建议的扩展(工作区)",
 	"ConfigureWorkspaceRecommendations.noWorkspace": "建议仅在工作区文件夹上可用。",
 	"OpenExtensionsFile.failed": "无法在 \".vscode\" 文件夹({0})内创建 \"extensions.json\" 文件。",
@@ -51,5 +55,8 @@
 	"disableAll": "禁用所有已安装的扩展",
 	"disableAllWorkspace": "禁用此工作区的所有已安装的扩展",
 	"enableAll": "启用所有已安装的扩展",
-	"enableAllWorkspace": "启用此工作区的所有已安装的扩展"
+	"enableAllWorkspace": "启用此工作区的所有已安装的扩展",
+	"extensionButtonProminentBackground": "扩展中突出操作的按钮背景色（比如 安装按钮）。",
+	"extensionButtonProminentForeground": "扩展中突出操作的按钮前景色（比如 安装按钮）。",
+	"extensionButtonProminentHoverBackground": "扩展中突出操作的按钮被悬停时的颜色（比如 安装按钮）。"
 }

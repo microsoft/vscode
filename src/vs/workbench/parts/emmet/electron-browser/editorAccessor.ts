@@ -11,7 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
-import { CoreEditingCommands } from "vs/editor/common/controller/coreCommands";
+import { CoreEditingCommands } from 'vs/editor/common/controller/coreCommands';
 import { SnippetParser, walk, Placeholder, Variable, Text, Marker } from 'vs/editor/contrib/snippet/browser/snippetParser';
 
 import emmet = require('emmet');
@@ -114,13 +114,13 @@ export class EditorAccessor implements emmet.Editor {
 		// string to string conversion that tries to fix the
 		// snippet in-place
 
-		let marker = new SnippetParser(true, false).parse(template);
+		let marker = new SnippetParser().parse(template);
 		let maxIndex = -Number.MIN_VALUE;
 
 		// find highest placeholder index
 		walk(marker, candidate => {
 			if (candidate instanceof Placeholder) {
-				let index = Number(candidate.index);
+				let index = candidate.index;
 				if (index > maxIndex) {
 					maxIndex = index;
 				}
@@ -132,7 +132,7 @@ export class EditorAccessor implements emmet.Editor {
 		walk(marker, candidate => {
 			if (candidate instanceof Placeholder) {
 				if (candidate.isFinalTabstop) {
-					candidate.index = String(++maxIndex);
+					candidate.index = ++maxIndex;
 				}
 			}
 			return true;
@@ -144,14 +144,14 @@ export class EditorAccessor implements emmet.Editor {
 				return SnippetParser.escape(marker.string);
 
 			} else if (marker instanceof Placeholder) {
-				if (marker.defaultValue.length > 0) {
-					return `\${${marker.index}:${marker.defaultValue.map(toSnippetString).join('')}}`;
+				if (marker.children.length > 0) {
+					return `\${${marker.index}:${marker.children.map(toSnippetString).join('')}}`;
 				} else {
 					return `\$${marker.index}`;
 				}
 			} else if (marker instanceof Variable) {
-				if (marker.defaultValue.length > 0) {
-					return `\${${marker.name}:${marker.defaultValue.map(toSnippetString).join('')}}`;
+				if (marker.children.length > 0) {
+					return `\${${marker.name}:${marker.children.map(toSnippetString).join('')}}`;
 				} else {
 					return `\$${marker.name}`;
 				}

@@ -110,7 +110,29 @@
 		}
 	},
 	{
-		"c": "num_candidate_ret=%d:",
+		"c": "num_candidate_ret=",
+		"t": "source.cpp meta.function.c string.quoted.double.cpp",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "%d",
+		"t": "source.cpp meta.function.c string.quoted.double.cpp constant.other.placeholder.c",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": ":",
 		"t": "source.cpp meta.function.c string.quoted.double.cpp",
 		"r": {
 			"dark_plus": "string: #CE9178",
@@ -407,7 +429,18 @@
 		}
 	},
 	{
-		"c": "%d,",
+		"c": "%d",
+		"t": "source.cpp meta.function.c string.quoted.double.cpp constant.other.placeholder.c",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": ",",
 		"t": "source.cpp meta.function.c string.quoted.double.cpp",
 		"r": {
 			"dark_plus": "string: #CE9178",
@@ -1375,8 +1408,41 @@
 		}
 	},
 	{
-		"c": "STYLE=Keramik;TITLE=%s;THEME=%s",
+		"c": "STYLE=Keramik;TITLE=",
 		"t": "source.cpp meta.block.c string.quoted.double.cpp",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "%s",
+		"t": "source.cpp meta.block.c string.quoted.double.cpp constant.other.placeholder.c",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": ";THEME=",
+		"t": "source.cpp meta.block.c string.quoted.double.cpp",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "%s",
+		"t": "source.cpp meta.block.c string.quoted.double.cpp constant.other.placeholder.c",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -1705,7 +1771,51 @@
 		}
 	},
 	{
-		"c": "movw $0x38, %ax; ltr %ax",
+		"c": "movw $0x38, ",
+		"t": "source.cpp meta.block.c meta.function-call.c string.quoted.double.cpp",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "%a",
+		"t": "source.cpp meta.block.c meta.function-call.c string.quoted.double.cpp constant.other.placeholder.c",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "x; ltr ",
+		"t": "source.cpp meta.block.c meta.function-call.c string.quoted.double.cpp",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "%a",
+		"t": "source.cpp meta.block.c meta.function-call.c string.quoted.double.cpp constant.other.placeholder.c",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "x",
 		"t": "source.cpp meta.block.c meta.function-call.c string.quoted.double.cpp",
 		"r": {
 			"dark_plus": "string: #CE9178",

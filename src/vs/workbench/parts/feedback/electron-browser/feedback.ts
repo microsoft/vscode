@@ -17,9 +17,9 @@ import * as dom from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import * as errors from 'vs/base/common/errors';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
-import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from "vs/platform/theme/common/themeService";
-import { attachStylerCallback } from "vs/platform/theme/common/styler";
-import { editorWidgetBackground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, buttonBackground, contrastBorder } from "vs/platform/theme/common/colorRegistry";
+import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { editorWidgetBackground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, buttonBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 export interface IFeedback {
 	feedback: string;
@@ -208,9 +208,11 @@ export class FeedbackDropdown extends Dropdown {
 			$form.style('background-color', colors.editorWidgetBackground);
 			$form.style('box-shadow', colors.widgetShadow ? `0 2px 8px ${colors.widgetShadow}` : null);
 
-			this.feedbackDescriptionInput.style.backgroundColor = colors.inputBackground;
-			this.feedbackDescriptionInput.style.color = colors.inputForeground;
-			this.feedbackDescriptionInput.style.border = `1px solid ${colors.inputBorder || 'transparent'}`;
+			if (this.feedbackDescriptionInput) {
+				this.feedbackDescriptionInput.style.backgroundColor = colors.inputBackground;
+				this.feedbackDescriptionInput.style.color = colors.inputForeground;
+				this.feedbackDescriptionInput.style.border = `1px solid ${colors.inputBorder || 'transparent'}`;
+			}
 
 			$contactUs.style('background-color', colors.editorBackground);
 			$contactUs.style('border', `1px solid ${colors.contrastBorder || 'transparent'}`);

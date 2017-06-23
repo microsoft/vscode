@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
-import os = require('os');
+import * as nls from 'vs/nls';
+import * as os from 'os';
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
@@ -17,6 +17,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
 export class ToggleTerminalAction extends TogglePanelAction {
 
@@ -88,6 +89,27 @@ export class CopyTerminalSelectionAction extends Action {
 		let terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
 			terminalInstance.copySelection();
+		}
+		return TPromise.as(void 0);
+	}
+}
+
+export class SelectAllTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.selectAll';
+	public static LABEL = nls.localize('workbench.action.terminal.selectAll', "Select All");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		let terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance) {
+			terminalInstance.selectAll();
 		}
 		return TPromise.as(void 0);
 	}
@@ -531,5 +553,67 @@ export class DisallowWorkspaceShellTerminalCommand extends Action {
 	public run(event?: any): TPromise<any> {
 		this.terminalService.setWorkspaceShellAllowed(false);
 		return TPromise.as(void 0);
+	}
+}
+
+export class RenameTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.rename';
+	public static LABEL = nls.localize('workbench.action.terminal.rename', "Rename");
+
+	constructor(
+		id: string, label: string,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const terminalInstance = this.terminalService.getActiveInstance();
+		if (!terminalInstance) {
+			return TPromise.as(void 0);
+		}
+		return this.quickOpenService.input({
+			prompt: nls.localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
+		}).then(name => {
+			if (name) {
+				terminalInstance.setTitle(name);
+			}
+		});
+	}
+}
+
+export class FocusTerminalFindWidgetAction extends Action {
+
+	public static ID = 'workbench.action.terminal.focusFindWidget';
+	public static LABEL = nls.localize('workbench.action.terminal.focusFindWidget', "Focus Find Widget");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return this.terminalService.focusFindWidget();
+	}
+}
+
+export class HideTerminalFindWidgetAction extends Action {
+
+	public static ID = 'workbench.action.terminal.hideFindWidget';
+	public static LABEL = nls.localize('workbench.action.terminal.hideFindWidget', "Hide Find Widget");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return TPromise.as(this.terminalService.hideFindWidget());
 	}
 }

@@ -12,6 +12,8 @@ import uri from 'vs/base/common/uri';
 import { toFileChangesEvent, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
 import { IWatcherChannel, WatcherChannelClient } from 'vs/workbench/services/files/node/watcher/unix/watcherIpc';
 import { FileChangesEvent } from 'vs/platform/files/common/files';
+import { IWorkspaceContextService } from "vs/platform/workspace/common/workspace";
+import { normalize } from "path";
 
 export class FileWatcher {
 	private static MAX_RESTARTS = 5;
@@ -20,7 +22,7 @@ export class FileWatcher {
 	private restartCounter: number;
 
 	constructor(
-		private basePath: string,
+		private contextService: IWorkspaceContextService,
 		private ignored: string[],
 		private onFileChanges: (changes: FileChangesEvent) => void,
 		private errorLogger: (msg: string) => void,
@@ -50,7 +52,8 @@ export class FileWatcher {
 		const service = new WatcherChannelClient(channel);
 
 		// Start watching
-		service.watch({ basePath: this.basePath, ignored: this.ignored, verboseLogging: this.verboseLogging }).then(null, (err) => {
+		const basePath: string = normalize(this.contextService.getWorkspace2().roots[0].fsPath);
+		service.watch({ basePath: basePath, ignored: this.ignored, verboseLogging: this.verboseLogging }).then(null, (err) => {
 			if (!(err instanceof Error && err.name === 'Canceled' && err.message === 'Canceled')) {
 				return TPromise.wrapError(err); // the service lib uses the promise cancel error to indicate the process died, we do not want to bubble this up
 			}

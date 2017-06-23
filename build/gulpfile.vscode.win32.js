@@ -40,6 +40,9 @@ function packageInnoSetup(iss, options, cb) {
 
 function buildWin32Setup(arch) {
 	return cb => {
+		const ia32AppId = product.win32AppId;
+		const x64AppId = product.win32x64AppId;
+
 		const definitions = {
 			NameLong: product.nameLong,
 			NameShort: product.nameShort,
@@ -51,8 +54,12 @@ function buildWin32Setup(arch) {
 			RegValueName: product.win32RegValueName,
 			ShellNameShort: product.win32ShellNameShort,
 			AppMutex: product.win32MutexName,
-			AppId: product.win32AppId,
+			Arch: arch,
+			AppId: arch === 'ia32' ? ia32AppId : x64AppId,
+			IncompatibleAppId: arch === 'ia32' ? x64AppId : ia32AppId,
 			AppUserId: product.win32AppUserModelId,
+			ArchitecturesAllowed: arch === 'ia32' ? '' : 'x64',
+			ArchitecturesInstallIn64BitMode: arch === 'ia32' ? '' : 'x64',
 			SourceDir: buildPath(arch),
 			RepoDir: repoPath,
 			OutputDir: setupDir(arch)
@@ -70,9 +77,9 @@ gulp.task('vscode-win32-x64-setup', ['clean-vscode-win32-x64-setup'], buildWin32
 
 function archiveWin32Setup(arch) {
 	return cb => {
-		const args = ['a', '-tzip', zipPath(arch), buildPath(arch), '-r'];
+		const args = ['a', '-tzip', zipPath(arch), '.', '-r'];
 
-		cp.spawn(_7z, args, { stdio: 'inherit' })
+		cp.spawn(_7z, args, { stdio: 'inherit', cwd: buildPath(arch) })
 			.on('error', cb)
 			.on('exit', () => cb(null));
 	};

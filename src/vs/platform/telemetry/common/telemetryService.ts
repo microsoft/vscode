@@ -15,7 +15,7 @@ import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/co
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { cloneAndChange, mixin } from 'vs/base/common/objects';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export interface ITelemetryServiceConfig {
 	appender: ITelemetryAppender;

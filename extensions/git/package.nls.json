@@ -27,7 +27,7 @@
 	"command.push": "Push",
 	"command.pushTo": "Push to...",
 	"command.sync": "Sync",
-	"command.publish": "Publish",
+	"command.publish": "Publish Branch",
 	"command.showOutput": "Show Git Output",
 	"config.enabled": "Whether git is enabled",
 	"config.path": "Path to the git executable",
@@ -40,5 +40,5 @@
 	"config.ignoreLegacyWarning": "Ignores the legacy Git warning",
 	"config.ignoreLimitWarning": "Ignores the warning when there are too many changes in a repository",
 	"config.defaultCloneDirectory": "The default location where to clone a git repository",
-	"config.enableSmartCommit": "Commit all changes when there are not staged changes."
+	"config.enableSmartCommit": "Commit all changes when there are no staged changes."
 }

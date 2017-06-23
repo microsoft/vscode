@@ -28,8 +28,6 @@ import { toResource } from 'vs/workbench/common/editor';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { isEqual } from 'vs/platform/files/common/files';
 import { OS } from 'vs/base/common/platform';
 
 export function isSearchViewletFocussed(viewletService: IViewletService): boolean {
@@ -263,7 +261,6 @@ export class FindInFolderAction extends Action {
 export const findInFolderCommand = (accessor: ServicesAccessor, resource?: URI) => {
 	const listService = accessor.get(IListService);
 	const viewletService = accessor.get(IViewletService);
-	const contextService = accessor.get(IWorkspaceContextService);
 
 	if (!URI.isUri(resource)) {
 		const focused = listService.getFocused() ? listService.getFocused().getFocus() : void 0;
@@ -275,15 +272,9 @@ export const findInFolderCommand = (accessor: ServicesAccessor, resource?: URI) 
 		}
 	}
 
-	if (!URI.isUri(resource) && contextService.hasWorkspace()) {
-		resource = contextService.getWorkspace().resource;
-	}
-
-	if (URI.isUri(resource)) {
-		viewletService.openViewlet(Constants.VIEWLET_ID, true).then((viewlet: SearchViewlet) => {
-			viewlet.searchInFolder(resource);
-		}).done(null, errors.onUnexpectedError);
-	}
+	viewletService.openViewlet(Constants.VIEWLET_ID, true).then((viewlet: SearchViewlet) => {
+		viewlet.searchInFolder(resource);
+	}).done(null, errors.onUnexpectedError);
 };
 
 export class RefreshAction extends Action {
@@ -525,7 +516,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	private hasToOpenFile(): boolean {
 		const file = toResource(this.editorService.getActiveEditorInput(), { filter: 'file' });
 		if (file) {
-			return isEqual(file.fsPath, this.element.parent().resource().fsPath);
+			return paths.isEqual(file.fsPath, this.element.parent().resource().fsPath);
 		}
 		return false;
 	}

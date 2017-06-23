@@ -18,12 +18,12 @@ import { HorizontalRange, RenderingContext, RestrictedRenderingContext } from 'v
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ViewController } from 'vs/editor/browser/view/viewController';
-import { EndOfLinePreference } from "vs/editor/common/editorCommon";
-import { IKeyboardEvent } from "vs/base/browser/keyboardEvent";
-import { PartFingerprints, PartFingerprint, ViewPart } from "vs/editor/browser/view/viewPart";
-import { Margin } from "vs/editor/browser/viewParts/margin/margin";
-import { LineNumbersOverlay } from "vs/editor/browser/viewParts/lineNumbers/lineNumbers";
-import { BareFontInfo } from "vs/editor/common/config/fontInfo";
+import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { PartFingerprints, PartFingerprint, ViewPart } from 'vs/editor/browser/view/viewPart';
+import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
+import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
+import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 
 export interface ITextAreaHandlerHelper {
 	visibleRangeForPositionRelativeToEditor(lineNumber: number, column: number): HorizontalRange;
@@ -108,6 +108,7 @@ export class TextAreaHandler extends ViewPart {
 		this.textArea.setAttribute('wrap', 'off');
 		this.textArea.setAttribute('autocorrect', 'off');
 		this.textArea.setAttribute('autocapitalize', 'off');
+		this.textArea.setAttribute('autocomplete', 'off');
 		this.textArea.setAttribute('spellcheck', 'false');
 		this.textArea.setAttribute('aria-label', conf.viewInfo.ariaLabel);
 		this.textArea.setAttribute('role', 'textbox');
@@ -419,9 +420,7 @@ export class TextAreaHandler extends ViewPart {
 			Configuration.applyFontInfo(ta, this._fontInfo);
 		} else {
 			ta.setFontSize(1);
-			// Chrome does not generate input events in empty textareas that end
-			// up having a line height smaller than 1 screen pixel.
-			ta.setLineHeight(Math.ceil(Math.max(this._pixelRatio, 1 / this._pixelRatio)));
+			ta.setLineHeight(this._fontInfo.lineHeight);
 		}
 
 		ta.setTop(top);

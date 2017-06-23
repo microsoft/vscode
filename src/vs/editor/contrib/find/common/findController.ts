@@ -21,7 +21,7 @@ import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { ModelDecorationOptions } from "vs/editor/common/model/textModelWithDecorations";
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 export const enum FindStartFocusAction {
 	NoFocusChange,
@@ -508,13 +508,13 @@ export class StartFindReplaceAction extends EditorAction {
 		let controller = CommonFindController.get(editor);
 		let currentSelection = editor.getSelection();
 		// we only seed search string from selection when the current selection is single line and not empty.
-		let seedSearchStringFromSelection = currentSelection.isEmpty() ||
-			currentSelection.startLineNumber !== currentSelection.endLineNumber;
+		let seedSearchStringFromSelection = !currentSelection.isEmpty() &&
+			currentSelection.startLineNumber === currentSelection.endLineNumber;
 		let oldSearchString = controller.getState().searchString;
 		// if the existing search string in find widget is empty and we don't seed search string from selection, it means the Find Input
 		// is still empty, so we should focus the Find Input instead of Replace Input.
-		let shouldFocus = !oldSearchString && seedSearchStringFromSelection ?
-			FindStartFocusAction.FocusFindInput : FindStartFocusAction.FocusReplaceInput;
+		let shouldFocus = (!!oldSearchString || seedSearchStringFromSelection) ?
+			FindStartFocusAction.FocusReplaceInput : FindStartFocusAction.FocusFindInput;
 
 		if (controller) {
 			controller.start({
@@ -862,7 +862,7 @@ export class SelectHighlightsAction extends AbstractSelectHighlightsAction {
 	constructor() {
 		super({
 			id: 'editor.action.selectHighlights',
-			label: nls.localize('selectAllOccurencesOfFindMatch', "Select All Occurrences of Find Match"),
+			label: nls.localize('selectAllOccurrencesOfFindMatch', "Select All Occurrences of Find Match"),
 			alias: 'Select All Occurrences of Find Match',
 			precondition: null,
 			kbOpts: {
@@ -1005,10 +1005,10 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 			return null;
 		}
 
-		const hasFindOccurences = DocumentHighlightProviderRegistry.has(model);
+		const hasFindOccurrences = DocumentHighlightProviderRegistry.has(model);
 		if (r.currentMatch) {
 			// This is an empty selection
-			if (hasFindOccurences) {
+			if (hasFindOccurrences) {
 				// Do not interfere with semantic word highlighting in the no selection case
 				return null;
 			}
@@ -1070,7 +1070,7 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 		}
 
 		const model = this.editor.getModel();
-		const hasFindOccurences = DocumentHighlightProviderRegistry.has(model);
+		const hasFindOccurrences = DocumentHighlightProviderRegistry.has(model);
 
 		let allMatches = model.findMatches(this.state.searchText, true, false, this.state.matchCase, this.state.wordSeparators, false).map(m => m.range);
 		allMatches.sort(Range.compareRangesUsingStarts);
@@ -1108,7 +1108,7 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 			return {
 				range: r,
 				// Show in overviewRuler only if model has no semantic highlighting
-				options: (hasFindOccurences ? SelectionHighlighter._SELECTION_HIGHLIGHT : SelectionHighlighter._SELECTION_HIGHLIGHT_OVERVIEW)
+				options: (hasFindOccurrences ? SelectionHighlighter._SELECTION_HIGHLIGHT : SelectionHighlighter._SELECTION_HIGHLIGHT_OVERVIEW)
 			};
 		});
 

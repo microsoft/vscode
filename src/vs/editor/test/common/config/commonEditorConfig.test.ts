@@ -7,8 +7,8 @@
 import * as assert from 'assert';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
-import { IEnvConfiguration } from "vs/editor/common/config/commonEditorConfig";
-import { AccessibilitySupport } from "vs/base/common/platform";
+import { IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
+import { AccessibilitySupport } from 'vs/base/common/platform';
 
 suite('Common Editor Config', () => {
 	test('Zoom Level', () => {
@@ -59,7 +59,6 @@ suite('Common Editor Config', () => {
 				extraEditorClassName: '',
 				outerWidth: 1000,
 				outerHeight: 100,
-				canUseTranslate3d: true,
 				emptySelectionClipboard: true,
 				pixelRatio: 1,
 				zoomLevel: 0,
@@ -89,12 +88,22 @@ suite('Common Editor Config', () => {
 		let config = new TestWrappingConfiguration({
 			wordWrap: <any>true
 		});
-		assertWrapping(config, true, 89);
+		assertWrapping(config, true, 81);
 	});
 
 	test('wordWrap on', () => {
 		let config = new TestWrappingConfiguration({
 			wordWrap: 'on'
+		});
+		assertWrapping(config, true, 81);
+	});
+
+	test('wordWrap on without minimap', () => {
+		let config = new TestWrappingConfiguration({
+			wordWrap: 'on',
+			minimap: {
+				enabled: false
+			}
 		});
 		assertWrapping(config, true, 89);
 	});
@@ -104,7 +113,7 @@ suite('Common Editor Config', () => {
 			wordWrap: 'on',
 			wordWrapColumn: 10
 		});
-		assertWrapping(config, true, 89);
+		assertWrapping(config, true, 81);
 	});
 
 	test('wordWrap off', () => {

@@ -7,27 +7,78 @@
 import nls = require('vs/nls');
 import Filters = require('vs/base/common/filters');
 import { TPromise } from 'vs/base/common/winjs.base';
+import { Action, IAction } from 'vs/base/common/actions';
+import { IStringDictionary } from 'vs/base/common/collections';
+import * as Objects from 'vs/base/common/objects';
+
 import Quickopen = require('vs/workbench/browser/quickopen');
 import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
+import { ProblemMatcherRegistry, NamedProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
 
 import { Task, TaskSourceKind } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
+import { ActionBarContributor, ContributableActionProvider } from 'vs/workbench/browser/actions';
+
+interface ProblemMatcherPickEntry extends IPickOpenEntry {
+	matcher: NamedProblemMatcher;
+}
 
 export class TaskEntry extends Model.QuickOpenEntry {
 
-	constructor(protected taskService: ITaskService, protected task: Task, highlights: Model.IHighlight[] = []) {
+	constructor(protected taskService: ITaskService, protected quickOpenService: IQuickOpenService, protected _task: Task, highlights: Model.IHighlight[] = []) {
 		super(highlights);
-		this.task = task;
 	}
 
 	public getLabel(): string {
-		return this.task.name;
+		return this.task._label;
 	}
 
 	public getAriaLabel(): string {
 		return nls.localize('entryAriaLabel', "{0}, tasks", this.getLabel());
+	}
+
+	public get task(): Task {
+		return this._task;
+	}
+
+	protected attachProblemMatcher(task: Task): TPromise<Task> {
+		let entries: ProblemMatcherPickEntry[] = [];
+		for (let key of ProblemMatcherRegistry.keys()) {
+			let matcher = ProblemMatcherRegistry.get(key);
+			if (matcher.name === matcher.label) {
+				entries.push({ label: matcher.name, matcher: matcher });
+			} else {
+				entries.push({ label: nls.localize('entries', '{0} [${1}]', matcher.label, matcher.name), matcher: matcher });
+			}
+		}
+		if (entries.length > 0) {
+			entries.push({ label: 'Continue without scanning the build output', separator: { border: true }, matcher: undefined });
+			return this.quickOpenService.pick(entries, {
+				placeHolder: nls.localize('selectProblemMatcher', 'Select for which kind of errors and warnings to scan the build output')
+			}).then((selected) => {
+				if (selected && selected.matcher) {
+					let newTask = Objects.deepClone(task);
+					let matcherReference = `$${selected.matcher.name}`;
+					newTask.problemMatchers = [matcherReference];
+					this.taskService.customize(task, { problemMatcher: [matcherReference] }, true);
+					return newTask;
+				} else {
+					return task;
+				}
+			});
+		}
+		return TPromise.as(task);
+	}
+
+	protected doRun(task: Task): boolean {
+		this.taskService.run(task);
+		if (task.command.presentation.focus) {
+			this.quickOpenService.close();
+			return false;
+		}
+		return true;
 	}
 }
 
@@ -44,7 +95,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 
 	constructor(
 		protected quickOpenService: IQuickOpenService,
-		protected taskService: ITaskService,
+		protected taskService: ITaskService
 	) {
 		super();
 
@@ -66,50 +117,117 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 			if (tasks.length === 0) {
 				return new Model.QuickOpenModel(entries);
 			}
-			tasks = tasks.sort((a, b) => {
-				let aKind = a._source.kind;
-				let bKind = b._source.kind;
-				if (aKind === bKind) {
-					return a.name.localeCompare(b.name);
-				}
-				if (aKind === TaskSourceKind.Workspace) {
-					return -1;
-				} else {
-					return +1;
+			let recentlyUsedTasks = this.taskService.getRecentlyUsedTasks();
+			let recent: Task[] = [];
+			let configured: Task[] = [];
+			let detected: Task[] = [];
+			let taskMap: IStringDictionary<Task> = Object.create(null);
+			tasks.forEach(task => taskMap[Task.getKey(task)] = task);
+			recentlyUsedTasks.keys().forEach(key => {
+				let task = taskMap[key];
+				if (task) {
+					recent.push(task);
 				}
 			});
-			let hasWorkspace: boolean = tasks[0]._source.kind === TaskSourceKind.Workspace;
-			let hasExtension: boolean = tasks[tasks.length - 1]._source.kind === TaskSourceKind.Extension;
-			let groupWorkspace = hasWorkspace && hasExtension;
-			let groupExtension = groupWorkspace;
-			let hadWorkspace = false;
 			for (let task of tasks) {
-				let highlights = Filters.matchesContiguousSubString(input, task.name);
-				if (!highlights) {
-					continue;
-				}
-				if (task._source.kind === TaskSourceKind.Workspace && groupWorkspace) {
-					groupWorkspace = false;
-					hadWorkspace = true;
-					entries.push(new TaskGroupEntry(this.createEntry(this.taskService, task, highlights), nls.localize('workspace', 'From Workspace'), false));
-				} else if (task._source.kind === TaskSourceKind.Extension && groupExtension) {
-					groupExtension = false;
-					entries.push(new TaskGroupEntry(this.createEntry(this.taskService, task, highlights), nls.localize('extension', 'From Extensions'), hadWorkspace));
-				} else {
-					entries.push(this.createEntry(this.taskService, task, highlights));
+				if (!recentlyUsedTasks.has(Task.getKey(task))) {
+					if (task._source.kind === TaskSourceKind.Workspace) {
+						configured.push(task);
+					} else {
+						detected.push(task);
+					}
 				}
 			}
-			return new Model.QuickOpenModel(entries);
+			let hasRecentlyUsed: boolean = recent.length > 0;
+			this.fillEntries(entries, input, recent, nls.localize('recentlyUsed', 'recently used tasks'));
+			configured = configured.sort((a, b) => a._label.localeCompare(b._label));
+			let hasConfigured = configured.length > 0;
+			this.fillEntries(entries, input, configured, nls.localize('configured', 'custom tasks'), hasRecentlyUsed);
+			detected = detected.sort((a, b) => a._label.localeCompare(b._label));
+			this.fillEntries(entries, input, detected, nls.localize('detected', 'detected tasks'), hasRecentlyUsed || hasConfigured);
+			return new Model.QuickOpenModel(entries, new ContributableActionProvider());
 		});
+	}
+
+	private fillEntries(entries: Model.QuickOpenEntry[], input: string, tasks: Task[], groupLabel: string, withBorder: boolean = false) {
+		let first = true;
+		for (let task of tasks) {
+			let highlights = Filters.matchesContiguousSubString(input, task._label);
+			if (!highlights) {
+				continue;
+			}
+			if (first) {
+				first = false;
+				entries.push(new TaskGroupEntry(this.createEntry(task, highlights), groupLabel, withBorder));
+			} else {
+				entries.push(this.createEntry(task, highlights));
+			}
+		}
 	}
 
 	protected abstract getTasks(): TPromise<Task[]>;
 
-	protected abstract createEntry(taskService: ITaskService, task: Task, highlights: Model.IHighlight[]): TaskEntry;
+	protected abstract createEntry(task: Task, highlights: Model.IHighlight[]): TaskEntry;
 
 	public getAutoFocus(input: string): QuickOpen.IAutoFocus {
 		return {
 			autoFocusFirstEntry: !!input
 		};
+	}
+}
+
+class CustomizeTaskAction extends Action {
+
+	private static ID = 'workbench.action.tasks.customizeTask';
+	private static LABEL = nls.localize('customizeTask', "Customize Task");
+
+	constructor(private taskService: ITaskService, private quickOpenService: IQuickOpenService, private task: Task) {
+		super(CustomizeTaskAction.ID, CustomizeTaskAction.LABEL);
+		this.updateClass();
+	}
+
+	public updateClass(): void {
+		this.class = 'quick-open-task-configure';
+	}
+
+	public run(context: any): TPromise<any> {
+		return this.taskService.customize(this.task, undefined, true).then(() => {
+			this.quickOpenService.close();
+		});
+	}
+}
+
+export class QuickOpenActionContributor extends ActionBarContributor {
+
+	constructor( @ITaskService private taskService: ITaskService, @IQuickOpenService private quickOpenService: IQuickOpenService) {
+		super();
+	}
+
+	public hasActions(context: any): boolean {
+		let task = this.getTask(context);
+
+		return !!task;
+	}
+
+	public getActions(context: any): IAction[] {
+		let actions: Action[] = [];
+		let task = this.getTask(context);
+		if (task && task._source.kind === TaskSourceKind.Extension) {
+			actions.push(new CustomizeTaskAction(this.taskService, this.quickOpenService, task));
+		}
+		return actions;
+	}
+
+	private getTask(context: any): Task {
+		if (!context) {
+			return undefined;
+		}
+		let element = context.element;
+		if (element instanceof TaskEntry) {
+			return element.task;
+		} else if (element instanceof TaskGroupEntry) {
+			return (element.getEntry() as TaskEntry).task;
+		}
+		return undefined;
 	}
 }

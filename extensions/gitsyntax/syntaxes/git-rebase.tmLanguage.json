@@ -1,4 +1,9 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/textmate/git.tmbundle/blob/master/Syntaxes/Git%20Rebase%20Message.tmLanguage",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
 	"fileTypes": [
 		"git-rebase-todo"
 	],
@@ -30,6 +35,5 @@
 		}
 	],
 	"scopeName": "text.git-rebase",
-	"uuid": "7F1CC209-5F6D-486A-8180-09FA282381A1",
-	"version": "https://github.com/textmate/git.tmbundle/commit/d1db42c2d71948662098183a6df519fb53a7a15b"
+	"uuid": "7F1CC209-5F6D-486A-8180-09FA282381A1"
 }

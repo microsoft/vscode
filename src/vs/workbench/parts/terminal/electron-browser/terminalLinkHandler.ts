@@ -35,7 +35,7 @@ replacing space with nonBreakningSpace or space ASCII code - 32. */
 const lineAndColumnClause = [
 	'((\\S*) on line ((\\d+)(, column (\\d+))?))', // (file path) on line 8, column 13
 	'((\\S*):line ((\\d+)(, column (\\d+))?))', // (file path):line 8, column 13
-	'(([^\\s\\(\\)]*)(\\s?\\((\\d+)(,(\\d+))?)\\))', // (file path)(45), (file path) (45), (file path)(45,18), (file path) (45,18)
+	'(([^\\s\\(\\)]*)(\\s?[\\(\\[](\\d+)(,(\\d+))?)[\\)\\]])', // (file path)(45), (file path) (45), (file path)(45,18), (file path) (45,18)
 	'(([^:\\s\\(\\)<>\'\"\\[\\]]*)(:(\\d+))?(:(\\d+))?)' // (file path):336, (file path):336:9
 ].join('|').replace(/ /g, `[${'\u00A0'} ]`);
 
@@ -71,7 +71,6 @@ export class TerminalLinkHandler {
 		const baseLocalLinkClause = _platform === platform.Platform.Windows ? winLocalLinkClause : unixLocalLinkClause;
 		// Append line and column number regex
 		this._localLinkPattern = new RegExp(`${baseLocalLinkClause}(${lineAndColumnClause})`);
-
 		this._xterm.setHypertextLinkHandler(this._wrapLinkHandler(() => true));
 		this._xterm.setHypertextValidationCallback((uri: string, element: HTMLElement, callback: (isValid: boolean) => void) => {
 			this._validateWebLink(uri, element, callback);
@@ -226,12 +225,15 @@ export class TerminalLinkHandler {
 
 	private _resolvePath(link: string): TPromise<string> {
 		link = this._preprocessPath(link);
-
 		if (!link) {
 			return TPromise.as(void 0);
 		}
 
 		const linkUrl = this.extractLinkUrl(link);
+		if (!linkUrl) {
+			return TPromise.as(void 0);
+		}
+
 		// Open an editor if the path exists
 		return pfs.fileExists(linkUrl).then(isFile => {
 			if (!isFile) {
@@ -292,6 +294,9 @@ export class TerminalLinkHandler {
 	 */
 	public extractLinkUrl(link: string): string {
 		const matches: string[] = this._localLinkRegex.exec(link);
+		if (!matches) {
+			return null;
+		}
 		return matches[1];
 	}
 }

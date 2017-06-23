@@ -176,6 +176,10 @@
 				</dict>
 				<dict>
 					<key>include</key>
+					<string>#fenced_code_block_scss</string>
+				</dict>
+				<dict>
+					<key>include</key>
 					<string>#fenced_code_block_perl6</string>
 				</dict>
 				<dict>
@@ -1914,7 +1918,7 @@
 				<key>fenced_code_block_jade</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)(\s*)([`~]{3,})\s*((jade)(\s+[^`~]*)?$)</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((jade|pug)(\s+[^`~]*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
@@ -2212,6 +2216,57 @@
 								<dict>
 									<key>include</key>
 									<string>source.objc</string>
+								</dict>
+							</array>
+						</dict>
+					</array>
+				</dict>
+				<key>fenced_code_block_scss</key>
+				<dict>
+					<key>begin</key>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((scss)(\s+[^`~]*)?$)</string>
+					<key>name</key>
+					<string>markup.fenced_code.block.markdown</string>
+					<key>end</key>
+					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>fenced_code.block.language.attributes</string>
+						</dict>
+					</dict>
+					<key>endCaptures</key>
+					<dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.markdown</string>
+						</dict>
+					</dict>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>begin</key>
+							<string>(^|\G)(\s*)(.*)</string>
+							<key>while</key>
+							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.css.scss</string>
 								</dict>
 							</array>
 						</dict>

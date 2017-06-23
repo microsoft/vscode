@@ -12,7 +12,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
 import { CoreNavigationCommands, CoreEditorCommand } from 'vs/editor/common/controller/coreCommands';
-import { Configuration } from "vs/editor/browser/config/configuration";
+import { Configuration } from 'vs/editor/browser/config/configuration';
 
 export interface ExecCoreEditorCommandFunc {
 	(editorCommand: CoreEditorCommand, args: any): void;
@@ -102,7 +102,7 @@ export class ViewController {
 	}
 
 	private _hasMulticursorModifier(data: IMouseDispatchData): boolean {
-		switch (this.configuration.editor.multicursorModifier) {
+		switch (this.configuration.editor.multiCursorModifier) {
 			case 'altKey':
 				return data.altKey;
 			case 'ctrlKey':
@@ -114,7 +114,7 @@ export class ViewController {
 	}
 
 	private _hasNonMulticursorModifier(data: IMouseDispatchData): boolean {
-		switch (this.configuration.editor.multicursorModifier) {
+		switch (this.configuration.editor.multiCursorModifier) {
 			case 'altKey':
 				return data.ctrlKey || data.metaKey;
 			case 'ctrlKey':

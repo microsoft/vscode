@@ -21,7 +21,6 @@ declare interface WebviewElement extends HTMLElement {
 	autoSize: 'on';
 	preload: string;
 	contextIsolation: boolean;
-
 	send(channel: string, ...args: any[]);
 	openDevTools(): any;
 }
@@ -44,6 +43,10 @@ MenuRegistry.addCommand({
 
 type ApiThemeClassName = 'vscode-light' | 'vscode-dark' | 'vscode-high-contrast';
 
+export interface WebviewOptions {
+	enableJavascript?: boolean;
+}
+
 export default class Webview {
 
 	private _webview: WebviewElement;
@@ -56,7 +59,8 @@ export default class Webview {
 
 	constructor(
 		private parent: HTMLElement,
-		private _styleElement: Element
+		private _styleElement: Element,
+		private options: WebviewOptions = {}
 	) {
 		this._webview = <any>document.createElement('webview');
 
@@ -70,6 +74,7 @@ export default class Webview {
 		this._webview.setAttribute('disableblinkfeatures', 'Auxclick');
 
 		this._webview.setAttribute('disableguestresize', '');
+		this._webview.setAttribute('webpreferences', 'contextIsolation=yes');
 
 		this._webview.preload = require.toUrl('./webview-pre.js');
 		this._webview.src = require.toUrl('./webview.html');
@@ -158,7 +163,10 @@ export default class Webview {
 	}
 
 	set contents(value: string[]) {
-		this._send('content', value);
+		this._send('content', {
+			contents: value,
+			options: this.options
+		});
 	}
 
 	set baseUrl(value: string) {

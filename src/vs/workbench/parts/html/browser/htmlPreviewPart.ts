@@ -6,7 +6,6 @@
 'use strict';
 
 import { localize } from 'vs/nls';
-import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { Dimension, Builder } from 'vs/base/browser/builder';
@@ -14,12 +13,11 @@ import { empty as EmptyDisposable, IDisposable, dispose, IReference } from 'vs/b
 import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
 import { Position } from 'vs/platform/editor/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { HtmlInput } from 'vs/workbench/parts/html/common/htmlInput';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
 
 import Webview from './webview';
@@ -37,8 +35,6 @@ export class HtmlPreviewPart extends WebviewEditor {
 	private _webviewDisposables: IDisposable[];
 	private _container: HTMLDivElement;
 
-	private _baseUrl: URI;
-
 	private _modelRef: IReference<ITextEditorModel>;
 	public get model(): IModel { return this._modelRef && this._modelRef.object.textEditorModel; }
 	private _modelChangeSubscription = EmptyDisposable;
@@ -48,16 +44,13 @@ export class HtmlPreviewPart extends WebviewEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
+		@ITextModelService private textModelResolverService: ITextModelService,
 		@IThemeService themeService: IThemeService,
-		@IOpenerService private openerService: IOpenerService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IOpenerService private readonly openerService: IOpenerService,
 		@IPartService private partService: IPartService,
 		@IStorageService storageService: IStorageService
 	) {
 		super(HtmlPreviewPart.ID, telemetryService, themeService, storageService);
-
-		this._baseUrl = contextService.toResource('/');
 	}
 
 	dispose(): void {
@@ -81,12 +74,14 @@ export class HtmlPreviewPart extends WebviewEditor {
 
 	private get webview(): Webview {
 		if (!this._webview) {
-			this._webview = new Webview(this._container, this.partService.getContainer(Parts.EDITOR_PART));
-			this._webview.baseUrl = this._baseUrl && this._baseUrl.toString(true);
+			this._webview = new Webview(this._container, this.partService.getContainer(Parts.EDITOR_PART), { enableJavascript: true });
 			if (this.input && this.input instanceof HtmlInput) {
 				const state = this.loadViewState(this.input.getResource());
 				this.scrollYPercentage = state ? state.scrollYPercentage : 0;
 				this.webview.initialScrollProgress = this.scrollYPercentage;
+
+				const resourceUri = this.input.getResource();
+				this.webview.baseUrl = resourceUri.toString(true);
 			}
 
 			this._webviewDisposables = [

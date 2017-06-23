@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OutputChannel, window } from "vscode";
+import { OutputChannel, window } from 'vscode';
 import * as is from './is';
 
 import * as nls from 'vscode-nls';

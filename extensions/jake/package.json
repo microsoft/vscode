@@ -7,6 +7,7 @@
   "engines": {
     "vscode": "*"
   },
+  "enableProposedApi": true,
   "categories": [
     "Other"
   ],
@@ -22,9 +23,7 @@
   },
   "main": "./out/main",
   "activationEvents": [
-    "onCommand:workbench.action.tasks.runTask",
-    "onCommand:workbench.action.tasks.build",
-    "onCommand:workbench.action.tasks.test"
+    "onCommand:workbench.action.tasks.runTask"
   ],
   "contributes": {
     "configuration": {
@@ -42,6 +41,22 @@
           "description": "%config.jake.autoDetect%"
         }
       }
-    }
+    },
+    "taskTypes": [
+      {
+        "type": "jake",
+        "required": ["task"],
+        "properties": {
+          "task": {
+            "type": "string",
+            "description": "The Jake task to customize"
+          },
+          "file": {
+            "type": "string",
+            "description": "The Jake file that provides the task. Can be omitted."
+          }
+        }
+      }
+    ]
   }
 }

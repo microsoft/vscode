@@ -6,5 +6,7 @@
 {
 	"TerminalTaskSystem.unknownError": "Error desconocido durante la ejecución de una tarea. Vea el registro de resultados de la tarea para obtener más detalles.",
 	"TerminalTaskSystem.terminalName": "Tarea - {0}",
-	"TerminalTaskSystem": "No se puede ejecutar un comando shell en una unidad UNC."
+	"reuseTerminal": "Las tareas reutilizarán el terminal, presione cualquier tecla para cerrarlo.",
+	"TerminalTaskSystem": "No se puede ejecutar un comando shell en una unidad UNC.",
+	"unkownProblemMatcher": "No puede resolver el comprobador de problemas {0}. Será omitido."
 }

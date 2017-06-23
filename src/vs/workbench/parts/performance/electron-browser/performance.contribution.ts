@@ -10,16 +10,18 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { ReportPerformanceIssueAction } from 'vs/workbench/electron-browser/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { join } from 'path';
 import { localize } from 'vs/nls';
+import { toPromise, filterEvent } from 'vs/base/common/event';
 import { platform, Platform } from 'vs/base/common/platform';
 import { readdir, stat } from 'vs/base/node/pfs';
 import { release } from 'os';
@@ -105,7 +107,7 @@ class ProfilingHint implements IWorkbenchContribution {
 
 		// Ignore virtual machines and only ask users
 		// to profile with a certain propability
-		if (virtualMachineHint.value() >= .5 || Math.ceil(Math.random() * 50) !== 1) {
+		if (virtualMachineHint.value() >= .5 || Math.ceil(Math.random() * 1000) !== 1) {
 			return;
 		}
 
@@ -149,10 +151,16 @@ class StartupProfiler implements IWorkbenchContribution {
 		@IMessageService private readonly _messageService: IMessageService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 		@IExtensionService extensionService: IExtensionService,
 	) {
-
-		extensionService.onReady().then(() => this._stopProfiling());
+		// wait for everything to be ready
+		TPromise.join<any>([
+			extensionService.onReady(),
+			toPromise(filterEvent(lifecycleService.onDidChangePhase, phase => phase === LifecyclePhase.Running)),
+		]).then(() => {
+			this._stopProfiling();
+		});
 	}
 
 	getId(): string {
@@ -184,7 +192,7 @@ class StartupProfiler implements IWorkbenchContribution {
 					const action = this._instantiationService.createInstance(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL);
 					TPromise.join<any>([
 						this._windowsService.showItemInFolder(join(profileStartup.dir, files[0])),
-						action.run(`:warning: Make sure to **attach** these files: :warning:\n${files.map(file => `-\`${join(profileStartup.dir, file)}\``).join('\n')}`)
+						action.run(`:warning: Make sure to **attach** these files from your *home*-directory: :warning:\n${files.map(file => `-\`${file}\``).join('\n')}`)
 					]).then(() => {
 						// keep window stable until restart is selected
 						this._messageService.confirm({

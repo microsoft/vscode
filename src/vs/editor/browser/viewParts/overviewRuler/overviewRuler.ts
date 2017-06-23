@@ -25,7 +25,6 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 			cssClassName,
 			this._context.viewLayout.getScrollHeight(),
 			this._context.configuration.editor.lineHeight,
-			this._context.configuration.editor.canUseTranslate3d,
 			this._context.configuration.editor.pixelRatio,
 			minimumHeight,
 			maximumHeight,
@@ -46,10 +45,6 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		if (e.lineHeight) {
 			this._overviewRuler.setLineHeight(this._context.configuration.editor.lineHeight, true);
-		}
-
-		if (e.canUseTranslate3d) {
-			this._overviewRuler.setCanUseTranslate3d(this._context.configuration.editor.canUseTranslate3d, true);
 		}
 
 		if (e.pixelRatio) {

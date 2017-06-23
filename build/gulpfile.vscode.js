@@ -30,6 +30,9 @@ const product = require('../product.json');
 const shrinkwrap = require('../npm-shrinkwrap.json');
 const crypto = require('crypto');
 const i18n = require('./lib/i18n');
+const glob = require('glob');
+const os = require('os');
+const cp = require('child_process');
 
 const productDependencies = Object.keys(product.dependencies || {});
 const dependencies = Object.keys(shrinkwrap.dependencies)
@@ -42,8 +45,13 @@ const nodeModules = ['electron', 'original-fs']
 // Build
 
 const builtInExtensions = [
-	{ name: 'ms-vscode.node-debug', version: '1.13.6' },
-	{ name: 'ms-vscode.node-debug2', version: '1.12.4' }
+	{ name: 'ms-vscode.node-debug', version: '1.14.5' },
+	{ name: 'ms-vscode.node-debug2', version: '1.14.1' }
+];
+
+const excludedExtensions = [
+	'vscode-api-tests',
+	'vscode-colorize-tests'
 ];
 
 const vscodeEntryPoints = _.flatten([
@@ -84,6 +92,11 @@ const BUNDLED_FILE_HEADER = [
 	' *--------------------------------------------------------*/'
 ].join('\n');
 
+var languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'];
+if (process.env.VSCODE_QUALITY !== 'stable') {
+	languages = languages.concat(['ptb', 'hun', 'trk']); // Add languages requested by the community to non-stable builds
+}
+
 gulp.task('clean-optimized-vscode', util.rimraf('out-vscode'));
 gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compile-extensions-build'], common.optimizeTask({
 	entryPoints: vscodeEntryPoints,
@@ -91,7 +104,8 @@ gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compil
 	resources: vscodeResources,
 	loaderConfig: common.loaderConfig(nodeModules),
 	header: BUNDLED_FILE_HEADER,
-	out: 'out-vscode'
+	out: 'out-vscode',
+	languages: languages
 }));
 
 
@@ -117,6 +131,8 @@ const config = {
 	darwinIcon: 'resources/darwin/code.icns',
 	darwinBundleIdentifier: product.darwinBundleIdentifier,
 	darwinApplicationCategoryType: 'public.app-category.developer-tools',
+	darwinHelpBookFolder: 'VS Code HelpBook',
+	darwinHelpBookName: 'VS Code HelpBook',
 	darwinBundleDocumentTypes: [{
 		name: product.nameLong + ' document',
 		role: 'Editor',
@@ -158,7 +174,6 @@ gulp.task('electron', ['clean-electron'], getElectron(process.arch));
 gulp.task('electron-ia32', ['clean-electron'], getElectron('ia32'));
 gulp.task('electron-x64', ['clean-electron'], getElectron('x64'));
 
-const languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita', 'ptb'];
 
 /**
  * Compute checksums for some files.
@@ -207,47 +222,49 @@ function packageTask(platform, arch, opts) {
 			'vs/workbench/electron-browser/workbench.main.js',
 			'vs/workbench/electron-browser/workbench.main.css',
 			'vs/workbench/electron-browser/bootstrap/index.html',
-			'vs/workbench/electron-browser/bootstrap/index.js'
+			'vs/workbench/electron-browser/bootstrap/index.js',
+			'vs/workbench/electron-browser/bootstrap/preload.js'
 		]);
 
 		const src = gulp.src(out + '/**', { base: '.' })
 			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + out), 'out'); }))
 			.pipe(util.setExecutableBit(['**/*.sh']));
 
-		const extensionsList = [
-			'extensions/*/**',
-			'!extensions/*/src/**',
-			'!extensions/*/out/**/test/**',
-			'!extensions/*/test/**',
-			'!extensions/*/build/**',
-			'!extensions/**/node_modules/@types/**',
-			'!extensions/*/{client,server}/src/**',
-			'!extensions/*/{client,server}/test/**',
-			'!extensions/*/{client,server}/out/**/test/**',
-			'!extensions/*/{client,server}/out/**/typings/**',
-			'!extensions/**/.vscode/**',
-			'!extensions/**/tsconfig.json',
-			'!extensions/typescript/bin/**',
-			'!extensions/vscode-api-tests/**',
-			'!extensions/vscode-colorize-tests/**',
-			...builtInExtensions.map(e => `!extensions/${e.name}/**`)
-		];
+		const root = path.resolve(path.join(__dirname, '..'));
+		const localExtensionDescriptions = glob.sync('extensions/*/package.json')
+			.map(manifestPath => {
+				const extensionPath = path.dirname(path.join(root, manifestPath));
+				const extensionName = path.basename(extensionPath);
+				return { name: extensionName, path: extensionPath };
+			})
+			.filter(({ name }) => excludedExtensions.indexOf(name) === -1)
+			.filter(({ name }) => builtInExtensions.every(b => b.name !== name));
 
-		const nlsFilter = filter('**/*.nls.json', { restore: true });
-		const extensions = gulp.src(extensionsList, { base: '.' })
-			// TODO@Dirk: this filter / buffer is here to make sure the nls.json files are buffered
-			.pipe(nlsFilter)
-			.pipe(buffer())
-			.pipe(nlsDev.createAdditionalLanguageFiles(languages, path.join(__dirname, '..', 'i18n')))
-			.pipe(nlsFilter.restore);
+		const localExtensions = es.merge(...localExtensionDescriptions.map(extension => {
+			const nlsFilter = filter('**/*.nls.json', { restore: true });
+
+			return ext.fromLocal(extension.path)
+				.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`))
+				// 	// TODO@Dirk: this filter / buffer is here to make sure the nls.json files are buffered
+				.pipe(nlsFilter)
+				.pipe(buffer())
+				.pipe(nlsDev.createAdditionalLanguageFiles(languages, path.join(__dirname, '..', 'i18n')))
+				.pipe(nlsFilter.restore);
+		}));
+
+		const localExtensionDependencies = gulp.src('extensions/node_modules/**', { base: '.' });
 
 		const marketplaceExtensions = es.merge(...builtInExtensions.map(extension => {
-			return ext.src(extension.name, extension.version)
+			return ext.fromMarketplace(extension.name, extension.version)
 				.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
 		}));
 
-		const sources = es.merge(src, extensions, marketplaceExtensions)
-			.pipe(filter(['**', '!**/*.js.map']));
+		const sources = es.merge(
+			src,
+			localExtensions,
+			localExtensionDependencies,
+			marketplaceExtensions
+		).pipe(filter(['**', '!**/*.js.map']));
 
 		let version = packageJson.version;
 		const quality = product.quality;
@@ -274,7 +291,7 @@ function packageTask(platform, arch, opts) {
 
 		const deps = gulp.src(depsSrc, { base: '.', dot: true })
 			.pipe(util.cleanNodeModule('fsevents', ['binding.gyp', 'fsevents.cc', 'build/**', 'src/**', 'test/**'], ['**/*.node']))
-			.pipe(util.cleanNodeModule('oniguruma', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node']))
+			.pipe(util.cleanNodeModule('oniguruma', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node', 'src/*.js']))
 			.pipe(util.cleanNodeModule('windows-mutex', ['binding.gyp', 'build/**', 'src/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('native-keymap', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('jschardet', ['dist/**']))
@@ -282,6 +299,7 @@ function packageTask(platform, arch, opts) {
 			.pipe(util.cleanNodeModule('gc-signals', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node', 'src/index.js']))
 			.pipe(util.cleanNodeModule('v8-profiler', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node', 'src/index.js']))
 			.pipe(util.cleanNodeModule('node-pty', ['binding.gyp', 'build/**', 'src/**', 'tools/**'], ['build/Release/**']))
+			.pipe(util.cleanNodeModule('nsfw', ['binding.gyp', 'build/**', 'src/**', 'openpa/**', 'includes/**'], ['**/*.node', '**/*.a']))
 			.pipe(util.cleanNodeModule('vsda', ['binding.gyp', 'README.md', 'build/**', '*.bat', '*.sh', '*.cpp', '*.h'], ['build/Release/vsda.node']));
 
 		let all = es.merge(
@@ -353,6 +371,53 @@ gulp.task('vscode-linux-ia32-min', ['minify-vscode', 'clean-vscode-linux-ia32'],
 gulp.task('vscode-linux-x64-min', ['minify-vscode', 'clean-vscode-linux-x64'], packageTask('linux', 'x64', { minified: true }));
 gulp.task('vscode-linux-arm-min', ['minify-vscode', 'clean-vscode-linux-arm'], packageTask('linux', 'arm', { minified: true }));
 
+// --- v8 snapshots ---
+
+function snapshotTask(platform, arch) {
+
+	const destination = path.join(path.dirname(root), 'VSCode') + (platform ? '-' + platform : '') + (arch ? '-' + arch : '');
+	const command = path.join(process.cwd(), 'node_modules/.bin/mksnapshot');
+
+	let startupBlobFilepath;
+
+	if (platform === 'darwin') {
+		startupBlobFilepath = path.join(destination, 'Code - OSS.app/Contents/Frameworks/Electron Framework.framework/Resources/snapshot_blob.bin')
+	} else if (platform === 'windows') {
+		startupBlobFilepath = path.join(destination, 'snapshot_blob.bin')
+		// TODO
+		return () => { };
+	} else if (platform === 'linux') {
+		// TODO
+		return () => { };
+	}
+
+	return () => {
+		const inputFile = fs.readFileSync(path.join(destination, 'Code - OSS.app/Contents/Resources/app/out/vs/loader.js'));
+		const wrappedInputFile = `
+		var Monaco_Loader_Init;
+		(function() {
+			var doNotInitLoader = true;
+			${inputFile.toString()};
+			Monaco_Loader_Init = function() {
+				AMDLoader.init();
+				CSSLoaderPlugin.init();
+				NLSLoaderPlugin.init();
+
+				return define;
+			}
+		})();
+		`;
+		const wrappedInputFilepath = path.join(os.tmpdir(), 'wrapped-loader.js');
+		console.log(wrappedInputFilepath);
+		fs.writeFileSync(wrappedInputFilepath, wrappedInputFile);
+
+		cp.execFileSync(command, [wrappedInputFilepath, `--startup_blob`, startupBlobFilepath]);
+	}
+}
+
+gulp.task('vscode-darwin-snapshots', ['vscode-darwin'], snapshotTask('darwin', undefined));
+
+
 // Transifex Localizations
 const vscodeLanguages = [
 	'zh-hans',
@@ -364,7 +429,9 @@ const vscodeLanguages = [
 	'es',
 	'ru',
 	'it',
-	'pt-br'
+	'pt-br',
+	'hu',
+	'tr'
 ];
 const setupDefaultLanguages = [
 	'zh-hans',

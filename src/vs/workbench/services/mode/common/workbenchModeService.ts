@@ -11,11 +11,71 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import mime = require('vs/base/common/mime');
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { IExtensionPointUser, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
+import { IExtensionPointUser, ExtensionMessageCollector, IExtensionPoint, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { ILanguageExtensionPoint, IValidLanguageExtensionPoint } from 'vs/editor/common/services/modeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { languagesExtPoint, ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+
+export const languagesExtPoint: IExtensionPoint<ILanguageExtensionPoint[]> = ExtensionsRegistry.registerExtensionPoint<ILanguageExtensionPoint[]>('languages', [], {
+	description: nls.localize('vscode.extension.contributes.languages', 'Contributes language declarations.'),
+	type: 'array',
+	items: {
+		type: 'object',
+		defaultSnippets: [{ body: { id: '${1:languageId}', aliases: ['${2:label}'], extensions: ['${3:extension}'], configuration: './language-configuration.json' } }],
+		properties: {
+			id: {
+				description: nls.localize('vscode.extension.contributes.languages.id', 'ID of the language.'),
+				type: 'string'
+			},
+			aliases: {
+				description: nls.localize('vscode.extension.contributes.languages.aliases', 'Name aliases for the language.'),
+				type: 'array',
+				items: {
+					type: 'string'
+				}
+			},
+			extensions: {
+				description: nls.localize('vscode.extension.contributes.languages.extensions', 'File extensions associated to the language.'),
+				default: ['.foo'],
+				type: 'array',
+				items: {
+					type: 'string'
+				}
+			},
+			filenames: {
+				description: nls.localize('vscode.extension.contributes.languages.filenames', 'File names associated to the language.'),
+				type: 'array',
+				items: {
+					type: 'string'
+				}
+			},
+			filenamePatterns: {
+				description: nls.localize('vscode.extension.contributes.languages.filenamePatterns', 'File name glob patterns associated to the language.'),
+				type: 'array',
+				items: {
+					type: 'string'
+				}
+			},
+			mimetypes: {
+				description: nls.localize('vscode.extension.contributes.languages.mimetypes', 'Mime types associated to the language.'),
+				type: 'array',
+				items: {
+					type: 'string'
+				}
+			},
+			firstLine: {
+				description: nls.localize('vscode.extension.contributes.languages.firstLine', 'A regular expression matching the first line of a file of the language.'),
+				type: 'string'
+			},
+			configuration: {
+				description: nls.localize('vscode.extension.contributes.languages.configuration', 'A relative path to a file containing configuration options for the language.'),
+				type: 'string',
+				default: './language-configuration.json'
+			}
+		}
+	}
+});
 
 export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 	private _configurationService: IConfigurationService;
@@ -63,7 +123,7 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 
 		});
 
-		this._configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config));
+		this._configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(this._configurationService.getConfiguration<IFilesConfiguration>()));
 
 		this.onDidCreateMode((mode) => {
 			this._extensionService.activateByEvent(`onLanguage:${mode.getId()}`).done(null, onUnexpectedError);

@@ -287,7 +287,7 @@
 	},
 	{
 		"c": "97",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -298,7 +298,7 @@
 	},
 	{
 		"c": "%",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.percentage.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -430,7 +430,7 @@
 	},
 	{
 		"c": "2",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -441,7 +441,7 @@
 	},
 	{
 		"c": "em",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.em.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -705,7 +705,7 @@
 	},
 	{
 		"c": "3",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -716,7 +716,7 @@
 	},
 	{
 		"c": "em",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.em.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -1332,7 +1332,7 @@
 	},
 	{
 		"c": "2",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -1343,7 +1343,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -1365,7 +1365,7 @@
 	},
 	{
 		"c": "3",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -1376,7 +1376,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -1486,7 +1486,7 @@
 	},
 	{
 		"c": "30",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -1497,7 +1497,7 @@
 	},
 	{
 		"c": "em",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.em.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -1849,7 +1849,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -1937,7 +1937,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -1948,7 +1948,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -2157,7 +2157,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -2278,7 +2278,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -2839,7 +2839,7 @@
 	},
 	{
 		"c": "5",
-		"t": "source.css.scss meta.set.variable.scss constant.numeric.scss",
+		"t": "source.css.scss meta.set.variable.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -2850,7 +2850,7 @@
 	},
 	{
 		"c": "em",
-		"t": "source.css.scss meta.set.variable.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.set.variable.scss constant.numeric.css keyword.other.unit.em.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -3059,7 +3059,7 @@
 	},
 	{
 		"c": "6",
-		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -3070,7 +3070,7 @@
 	},
 	{
 		"c": "em",
-		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css keyword.other.unit.em.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -3202,7 +3202,7 @@
 	},
 	{
 		"c": "12",
-		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -3213,7 +3213,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -3279,7 +3279,7 @@
 	},
 	{
 		"c": "30",
-		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -3290,7 +3290,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -3862,7 +3862,7 @@
 	},
 	{
 		"c": "100",
-		"t": "source.css.scss meta.set.variable.scss constant.numeric.scss",
+		"t": "source.css.scss meta.set.variable.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -3895,7 +3895,7 @@
 	},
 	{
 		"c": "100",
-		"t": "source.css.scss meta.set.variable.scss constant.numeric.scss",
+		"t": "source.css.scss meta.set.variable.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -3928,7 +3928,7 @@
 	},
 	{
 		"c": "225",
-		"t": "source.css.scss meta.set.variable.scss constant.numeric.scss",
+		"t": "source.css.scss meta.set.variable.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -3961,7 +3961,7 @@
 	},
 	{
 		"c": "0.25",
-		"t": "source.css.scss meta.set.variable.scss constant.numeric.scss",
+		"t": "source.css.scss meta.set.variable.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -4137,7 +4137,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -4148,7 +4148,7 @@
 	},
 	{
 		"c": "em",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.em.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -4192,7 +4192,7 @@
 	},
 	{
 		"c": "2",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -4203,7 +4203,7 @@
 	},
 	{
 		"c": "em",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.em.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -4258,7 +4258,7 @@
 	},
 	{
 		"c": "3",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -4324,24 +4324,24 @@
 	},
 	{
 		"c": "#",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.color.hex-value.scss punctuation.definition.constant.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.other.color.rgb-value.hex.css punctuation.definition.constant.css",
 		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
-			"hc_black": "constant.numeric: #B5CEA8"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
 		"c": "010203",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.color.hex-value.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.other.color.rgb-value.hex.css",
 		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
-			"hc_black": "constant.numeric: #B5CEA8"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
@@ -4379,24 +4379,24 @@
 	},
 	{
 		"c": "#",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.color.hex-value.scss punctuation.definition.constant.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.other.color.rgb-value.hex.css punctuation.definition.constant.css",
 		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
-			"hc_black": "constant.numeric: #B5CEA8"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
 		"c": "040506",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.color.hex-value.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.other.color.rgb-value.hex.css",
 		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
-			"hc_black": "constant.numeric: #B5CEA8"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
@@ -4577,7 +4577,7 @@
 	},
 	{
 		"c": "3",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -4588,7 +4588,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -4632,7 +4632,7 @@
 	},
 	{
 		"c": "4",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -4643,7 +4643,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -4764,7 +4764,7 @@
 	},
 	{
 		"c": "5",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss string.quoted.double.scss variable.interpolation.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss string.quoted.double.scss variable.interpolation.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -4808,7 +4808,7 @@
 	},
 	{
 		"c": "10",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss string.quoted.double.scss variable.interpolation.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss string.quoted.double.scss variable.interpolation.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -4929,7 +4929,7 @@
 	},
 	{
 		"c": "0",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -4962,7 +4962,7 @@
 	},
 	{
 		"c": "100",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -4973,7 +4973,7 @@
 	},
 	{
 		"c": "%",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.percentage.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -5006,7 +5006,7 @@
 	},
 	{
 		"c": "50",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -5017,7 +5017,7 @@
 	},
 	{
 		"c": "%",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.percentage.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -5149,7 +5149,7 @@
 	},
 	{
 		"c": "0",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -5215,7 +5215,7 @@
 	},
 	{
 		"c": "100",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -5226,7 +5226,7 @@
 	},
 	{
 		"c": "%",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.percentage.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -5292,7 +5292,7 @@
 	},
 	{
 		"c": "50",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -5303,7 +5303,7 @@
 	},
 	{
 		"c": "%",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.percentage.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -5413,7 +5413,7 @@
 	},
 	{
 		"c": "40",
-		"t": "source.css.scss meta.set.variable.scss constant.numeric.scss",
+		"t": "source.css.scss meta.set.variable.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -5424,7 +5424,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.set.variable.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.set.variable.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -5479,7 +5479,7 @@
 	},
 	{
 		"c": "10",
-		"t": "source.css.scss meta.set.variable.scss constant.numeric.scss",
+		"t": "source.css.scss meta.set.variable.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -5490,7 +5490,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.set.variable.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.set.variable.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -5798,7 +5798,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.css.scss meta.property-list.scss meta.at-rule.return.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.at-rule.return.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -5996,7 +5996,7 @@
 	},
 	{
 		"c": "5",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -6722,7 +6722,7 @@
 	},
 	{
 		"c": "300",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -6733,7 +6733,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -6975,7 +6975,7 @@
 	},
 	{
 		"c": "500",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -6986,7 +6986,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -7162,7 +7162,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -7173,7 +7173,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -7195,24 +7195,24 @@
 	},
 	{
 		"c": "#",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.color.hex-value.scss punctuation.definition.constant.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.other.color.rgb-value.hex.css punctuation.definition.constant.css",
 		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
-			"hc_black": "constant.numeric: #B5CEA8"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
 		"c": "f00",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.color.hex-value.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.other.color.rgb-value.hex.css",
 		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
-			"hc_black": "constant.numeric: #B5CEA8"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
@@ -7272,24 +7272,24 @@
 	},
 	{
 		"c": "#",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.color.hex-value.scss punctuation.definition.constant.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.other.color.rgb-value.hex.css punctuation.definition.constant.css",
 		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
-			"hc_black": "constant.numeric: #B5CEA8"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
 		"c": "fdd",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.color.hex-value.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.other.color.rgb-value.hex.css",
 		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
-			"hc_black": "constant.numeric: #B5CEA8"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
@@ -7459,7 +7459,7 @@
 	},
 	{
 		"c": "3",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -7470,7 +7470,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -7756,7 +7756,7 @@
 	},
 	{
 		"c": "2",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -7767,7 +7767,7 @@
 	},
 	{
 		"c": "em",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.em.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -8438,7 +8438,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -8449,7 +8449,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -8823,7 +8823,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -8834,7 +8834,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -9274,7 +9274,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.css.scss meta.property-list.scss meta.at-rule.if.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.at-rule.if.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -9318,7 +9318,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.css.scss meta.property-list.scss meta.at-rule.if.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.at-rule.if.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -9362,7 +9362,7 @@
 	},
 	{
 		"c": "2",
-		"t": "source.css.scss meta.property-list.scss meta.at-rule.if.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.at-rule.if.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -9439,7 +9439,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -9450,7 +9450,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -9560,7 +9560,7 @@
 	},
 	{
 		"c": "5",
-		"t": "source.css.scss meta.property-list.scss meta.at-rule.if.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.at-rule.if.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -9604,7 +9604,7 @@
 	},
 	{
 		"c": "3",
-		"t": "source.css.scss meta.property-list.scss meta.at-rule.if.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.at-rule.if.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -9681,7 +9681,7 @@
 	},
 	{
 		"c": "2",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -9692,7 +9692,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -9857,7 +9857,7 @@
 	},
 	{
 		"c": "3",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -9868,7 +9868,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -10495,7 +10495,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.css.scss meta.at-rule.for.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.for.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -10539,7 +10539,7 @@
 	},
 	{
 		"c": "3",
-		"t": "source.css.scss meta.at-rule.for.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.for.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -10704,7 +10704,7 @@
 	},
 	{
 		"c": "2",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -10715,7 +10715,7 @@
 	},
 	{
 		"c": "em",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.em.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -11298,7 +11298,7 @@
 	},
 	{
 		"c": "6",
-		"t": "source.css.scss meta.at-rule.each.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -11397,7 +11397,7 @@
 	},
 	{
 		"c": "0",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -11562,7 +11562,7 @@
 	},
 	{
 		"c": "2",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -11573,7 +11573,7 @@
 	},
 	{
 		"c": "em",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.em.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -11749,7 +11749,7 @@
 	},
 	{
 		"c": "2",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.set.variable.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -12035,7 +12035,7 @@
 	},
 	{
 		"c": "0",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.for.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.for.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -12387,7 +12387,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.if.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.if.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -12475,7 +12475,7 @@
 	},
 	{
 		"c": "100",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -12486,7 +12486,7 @@
 	},
 	{
 		"c": "%",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css keyword.other.unit.percentage.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -12970,7 +12970,7 @@
 	},
 	{
 		"c": "20",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -12981,7 +12981,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -13135,24 +13135,24 @@
 	},
 	{
 		"c": "#",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss constant.numeric.color.hex-value.scss punctuation.definition.constant.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss constant.other.color.rgb-value.hex.css punctuation.definition.constant.css",
 		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
-			"hc_black": "constant.numeric: #B5CEA8"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
 		"c": "ff0000",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss constant.numeric.color.hex-value.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss constant.other.color.rgb-value.hex.css",
 		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
-			"hc_black": "constant.numeric: #B5CEA8"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
@@ -13333,7 +13333,7 @@
 	},
 	{
 		"c": "4",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -13344,7 +13344,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -13520,7 +13520,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.at-rule.mixin.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.at-rule.mixin.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -13531,7 +13531,7 @@
 	},
 	{
 		"c": "in",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.at-rule.mixin.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.at-rule.mixin.scss constant.numeric.css keyword.other.unit.in.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -14455,7 +14455,7 @@
 	},
 	{
 		"c": "0",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -14466,7 +14466,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -14488,7 +14488,7 @@
 	},
 	{
 		"c": "4",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -14499,7 +14499,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -14521,7 +14521,7 @@
 	},
 	{
 		"c": "5",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -14532,7 +14532,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -14554,24 +14554,24 @@
 	},
 	{
 		"c": "#",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.color.hex-value.scss punctuation.definition.constant.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.other.color.rgb-value.hex.css punctuation.definition.constant.css",
 		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
-			"hc_black": "constant.numeric: #B5CEA8"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
 		"c": "666",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.color.hex-value.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.other.color.rgb-value.hex.css",
 		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
-			"hc_black": "constant.numeric: #B5CEA8"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
@@ -14587,7 +14587,7 @@
 	},
 	{
 		"c": "2",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -14598,7 +14598,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -14620,7 +14620,7 @@
 	},
 	{
 		"c": "6",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -14631,7 +14631,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -14653,7 +14653,7 @@
 	},
 	{
 		"c": "10",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -14664,7 +14664,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -14686,24 +14686,24 @@
 	},
 	{
 		"c": "#",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.color.hex-value.scss punctuation.definition.constant.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.other.color.rgb-value.hex.css punctuation.definition.constant.css",
 		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
-			"hc_black": "constant.numeric: #B5CEA8"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
 		"c": "999",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.color.hex-value.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.other.color.rgb-value.hex.css",
 		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
-			"hc_black": "constant.numeric: #B5CEA8"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
@@ -15148,24 +15148,24 @@
 	},
 	{
 		"c": "#",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss constant.numeric.color.hex-value.scss punctuation.definition.constant.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss constant.other.color.rgb-value.hex.css punctuation.definition.constant.css",
 		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
-			"hc_black": "constant.numeric: #B5CEA8"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
 		"c": "ff0000",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss constant.numeric.color.hex-value.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss constant.other.color.rgb-value.hex.css",
 		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
-			"hc_black": "constant.numeric: #B5CEA8"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
@@ -15181,24 +15181,24 @@
 	},
 	{
 		"c": "#",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss constant.numeric.color.hex-value.scss punctuation.definition.constant.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss constant.other.color.rgb-value.hex.css punctuation.definition.constant.css",
 		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
-			"hc_black": "constant.numeric: #B5CEA8"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
 		"c": "00ff00",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss constant.numeric.color.hex-value.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss constant.other.color.rgb-value.hex.css",
 		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
-			"hc_black": "constant.numeric: #B5CEA8"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
@@ -15214,24 +15214,24 @@
 	},
 	{
 		"c": "#",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss constant.numeric.color.hex-value.scss punctuation.definition.constant.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss constant.other.color.rgb-value.hex.css punctuation.definition.constant.css",
 		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
-			"hc_black": "constant.numeric: #B5CEA8"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
 		"c": "0000ff",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss constant.numeric.color.hex-value.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss constant.other.color.rgb-value.hex.css",
 		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
-			"hc_black": "constant.numeric: #B5CEA8"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
@@ -16479,7 +16479,7 @@
 	},
 	{
 		"c": "4",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -16490,7 +16490,7 @@
 	},
 	{
 		"c": "cm",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.cm.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -16556,7 +16556,7 @@
 	},
 	{
 		"c": "3",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -16567,7 +16567,7 @@
 	},
 	{
 		"c": "cm",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.cm.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -16798,7 +16798,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -16809,7 +16809,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -17084,7 +17084,7 @@
 	},
 	{
 		"c": "0",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -17128,24 +17128,24 @@
 	},
 	{
 		"c": "#",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.color.hex-value.scss punctuation.definition.constant.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.other.color.rgb-value.hex.css punctuation.definition.constant.css",
 		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
-			"hc_black": "constant.numeric: #B5CEA8"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
 		"c": "123",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.color.hex-value.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.other.color.rgb-value.hex.css",
 		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
-			"hc_black": "constant.numeric: #B5CEA8"
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
@@ -17205,7 +17205,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -17656,7 +17656,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -17667,7 +17667,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -17777,7 +17777,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -17788,7 +17788,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss keyword.other.unit.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -18470,7 +18470,7 @@
 	},
 	{
 		"c": "0",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -18569,7 +18569,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -18701,7 +18701,7 @@
 	},
 	{
 		"c": "2",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -18811,7 +18811,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -19009,7 +19009,7 @@
 	},
 	{
 		"c": "0",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -19141,7 +19141,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -19328,7 +19328,7 @@
 	},
 	{
 		"c": "0",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -19460,7 +19460,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -19647,7 +19647,7 @@
 	},
 	{
 		"c": "0",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -19757,7 +19757,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -19966,7 +19966,7 @@
 	},
 	{
 		"c": "0",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -20098,7 +20098,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-value.scss constant.numeric.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",

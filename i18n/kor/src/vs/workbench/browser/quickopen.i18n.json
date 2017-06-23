@@ -6,6 +6,5 @@
 {
 	"noResultsMatching": "일치하는 결과 없음",
 	"noResultsFound2": "결과 없음",
-	"entryAriaLabel": "{0}, 명령",
-	"noCommands": "일치하는 명령 없음"
+	"entryAriaLabel": "{0}, 명령"
 }

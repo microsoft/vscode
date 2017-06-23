@@ -48,7 +48,7 @@ export class LinkDetector {
 				let resource: uri = null;
 				try {
 					resource = (match && !strings.startsWith(match[0], 'http'))
-						&& (match[2] || strings.startsWith(match[0], '/') ? uri.file(match[1]) : this.contextService.toResource(match[1]));
+						&& (match[2] || strings.startsWith(match[1], '/') ? uri.file(match[1]) : this.contextService.toResource(match[1]));
 				} catch (e) { }
 
 				if (!resource) {

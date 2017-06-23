@@ -20,7 +20,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { once } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -74,7 +74,7 @@ export class EditorState {
 
 interface ISerializedFileHistoryEntry {
 	resource?: string;
-	resourceJSON: any;
+	resourceJSON: object;
 }
 
 export abstract class BaseHistoryService {
@@ -695,5 +695,28 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 			return void 0;
 		}).filter(input => !!input);
+	}
+
+	public getLastActiveWorkspaceRoot(): URI {
+		if (!this.contextService.hasWorkspace()) {
+			return void 0;
+		}
+
+		const history = this.getHistory();
+		for (let i = 0; i < history.length; i++) {
+			const input = history[i];
+			if (input instanceof EditorInput) {
+				continue;
+			}
+
+			const resourceInput = input as IResourceInput;
+			const resourceWorkspace = this.contextService.getRoot(resourceInput.resource);
+			if (resourceWorkspace) {
+				return resourceWorkspace;
+			}
+		}
+
+		// fallback to first workspace
+		return this.contextService.getWorkspace2().roots[0];
 	}
 }

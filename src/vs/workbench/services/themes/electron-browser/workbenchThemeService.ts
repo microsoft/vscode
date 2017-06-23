@@ -17,7 +17,7 @@ import { IWorkbenchThemeService, IColorTheme, IFileIconTheme, ExtensionData, ITh
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import errors = require('vs/base/common/errors');
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
@@ -27,7 +27,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import Severity from 'vs/base/common/severity';
-import { ColorThemeData, fromStorageData, fromExtensionTheme } from './colorThemeData';
+import { ColorThemeData, fromStorageData, fromExtensionTheme, createUnloadedTheme } from './colorThemeData';
 import { ITheme, Extensions as ThemingExtensions, IThemingRegistry } from 'vs/platform/theme/common/themeService';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 
@@ -39,7 +39,7 @@ import pfs = require('vs/base/node/pfs');
 import colorThemeSchema = require('vs/workbench/services/themes/common/colorThemeSchema');
 import fileIconThemeSchema = require('vs/workbench/services/themes/common/fileIconThemeSchema');
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { getParseErrorMessage } from "vs/base/common/jsonErrorMessages";
+import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 
 // implementation
 
@@ -51,6 +51,7 @@ const PERSISTED_THEME_STORAGE_KEY = 'colorThemeData';
 const defaultThemeExtensionId = 'vscode-theme-defaults';
 const oldDefaultThemeExtensionId = 'vscode-theme-colorful-defaults';
 
+const DEFAULT_ICON_THEME_SETTING_VALUE = 'vs-seti';
 const fileIconsEnabledClass = 'file-icons-enabled';
 
 const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingContribution);
@@ -228,30 +229,21 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		this.updateColorCustomizations(false);
 
+		// In order to avoid paint flashing for tokens, because
+		// themes are loaded asynchronously, we need to initialize
+		// a color theme document with good defaults until the theme is loaded
 		let themeData = null;
 		let persistedThemeData = this.storageService.get(PERSISTED_THEME_STORAGE_KEY);
 		if (persistedThemeData) {
 			themeData = fromStorageData(persistedThemeData);
 		}
-		if (themeData !== null) {
-			themeData.setCustomColors(this.colorCustomizations);
-			this.updateDynamicCSSRules(themeData);
-			this.applyTheme(themeData, null, true);
-		} else {
-			// In order to avoid paint flashing for tokens, because
-			// themes are loaded asynchronously, we need to initialize
-			// a color theme document with good defaults until the theme is loaded
+		if (!themeData) {
 			let isLightTheme = (Array.prototype.indexOf.call(document.body.classList, 'vs') >= 0);
-
-			let initialTheme = new ColorThemeData();
-			initialTheme.id = isLightTheme ? VS_LIGHT_THEME : VS_DARK_THEME;
-			initialTheme.label = '';
-			initialTheme.settingsId = null;
-			initialTheme.isLoaded = false;
-			initialTheme.tokenColors = [{ settings: {} }];
-			initialTheme.setCustomColors(this.colorCustomizations);
-			this.currentColorTheme = initialTheme;
+			themeData = createUnloadedTheme(isLightTheme ? VS_LIGHT_THEME : VS_DARK_THEME);
 		}
+		themeData.setCustomColors(this.colorCustomizations);
+		this.updateDynamicCSSRules(themeData);
+		this.applyTheme(themeData, null, true);
 
 		themesExtPoint.setHandler((extensions) => {
 			for (let ext of extensions) {
@@ -309,7 +301,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		});
 	}
 
-	private migrate(): TPromise<any> {
+	private migrate(): TPromise<void> {
 		let legacyColorThemeId = this.storageService.get('workbench.theme', StorageScope.GLOBAL, void 0);
 		let legacyIconThemeId = this.storageService.get('workbench.iconTheme', StorageScope.GLOBAL, void 0);
 		if (types.isUndefined(legacyColorThemeId) && types.isUndefined(legacyIconThemeId)) {
@@ -343,7 +335,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		});
 	}
 
-	private initialize(): TPromise<any> {
+	private initialize(): TPromise<IFileIconTheme> {
 
 		this.updateColorCustomizations(false);
 
@@ -929,7 +921,7 @@ class ConfigurationWriter {
 	constructor( @IConfigurationService private configurationService: IConfigurationService, @IConfigurationEditingService private configurationEditingService: IConfigurationEditingService) {
 	}
 
-	public writeConfiguration(key: string, value: any, settingsTarget: ConfigurationTarget): TPromise<any> {
+	public writeConfiguration(key: string, value: any, settingsTarget: ConfigurationTarget): TPromise<void> {
 		let settings = this.configurationService.lookup(key);
 		if (settingsTarget === ConfigurationTarget.USER) {
 			if (value === settings.user) {
@@ -962,8 +954,8 @@ const colorThemeSettingSchema: IJSONSchema = {
 };
 const iconThemeSettingSchema: IJSONSchema = {
 	type: ['string', 'null'],
-	default: null,
-	description: nls.localize('iconTheme', "Specifies the icon theme used in the workbench."),
+	default: DEFAULT_ICON_THEME_SETTING_VALUE,
+	description: nls.localize('iconTheme', "Specifies the icon theme used in the workbench or 'null' to not show any file icons."),
 	enum: [null],
 	enumDescriptions: [nls.localize('noIconThemeDesc', 'No file icons')],
 	errorMessage: nls.localize('iconThemeError', "File icon theme is unknown or not installed.")

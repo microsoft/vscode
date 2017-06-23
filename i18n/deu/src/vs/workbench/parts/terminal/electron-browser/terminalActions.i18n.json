@@ -8,6 +8,7 @@
 	"workbench.action.terminal.kill": "Aktive Terminalinstanz beenden",
 	"workbench.action.terminal.kill.short": "Terminal beenden",
 	"workbench.action.terminal.copySelection": "Auswahl kopieren",
+	"workbench.action.terminal.selectAll": "Alles auswählen",
 	"workbench.action.terminal.new": "Neues integriertes Terminal erstellen",
 	"workbench.action.terminal.new.short": "Neues Terminal",
 	"workbench.action.terminal.focus": "Fokus im Terminal",
@@ -26,5 +27,8 @@
 	"workbench.action.terminal.scrollUp": "Nach oben scrollen (Zeile)",
 	"workbench.action.terminal.scrollUpPage": "Nach oben scrollen (Seite)",
 	"workbench.action.terminal.scrollToTop": "Bildlauf nach oben",
-	"workbench.action.terminal.clear": "Löschen"
+	"workbench.action.terminal.clear": "Löschen",
+	"workbench.action.terminal.allowWorkspaceShell": "Shell-Konfiguration des Arbeitsbereichs zulassen",
+	"workbench.action.terminal.disallowWorkspaceShell": "Verbiete Workspace Shell Konfiguration",
+	"workbench.action.terminal.rename": "Umbenennen"
 }

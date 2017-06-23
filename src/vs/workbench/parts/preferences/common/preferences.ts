@@ -5,7 +5,6 @@
 
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { LinkedMap as Map } from 'vs/base/common/map';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditor } from 'vs/platform/editor/common/editor';
@@ -41,7 +40,7 @@ export interface ISetting {
 export interface IFilterResult {
 	filteredGroups: ISettingsGroup[];
 	allGroups: ISettingsGroup[];
-	matches: Map<string, IRange[]>;
+	matches: IRange[];
 }
 
 export interface IPreferencesEditorModel<T> {

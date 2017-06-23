@@ -416,11 +416,11 @@ export class ModelLine {
 
 	// 	var markers = this._markers;
 
-	// 	var printMarker = (m:ILineMarker) => {
+	// 	var printMarker = (m:LineMarker) => {
 	// 		if (m.stickToPreviousCharacter) {
-	// 			return '|' + m.column;
+	// 			return '|' + m.position.column;
 	// 		}
-	// 		return m.column + '|';
+	// 		return m.position.column + '|';
 	// 	};
 	// 	return '[' + markers.map(printMarker).join(', ') + ']';
 	// }
@@ -739,13 +739,6 @@ export class ModelLine {
 		}
 
 		this._lineNumber = newLineNumber;
-	}
-
-	public deleteLine(): LineMarker[] {
-		if (!this._markers) {
-			return [];
-		}
-		return this._markers;
 	}
 
 	private _indexOfMarkerId(markerId: string): number {

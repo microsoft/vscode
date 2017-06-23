@@ -9,7 +9,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { mockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
-import { Model } from "vs/editor/common/model/model";
+import { Model } from 'vs/editor/common/model/model';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 
 suite('SnippetController2', function () {
@@ -131,7 +131,7 @@ suite('SnippetController2', function () {
 		assertContextKeys(contextKeys, true, false, true);
 		assertSelections(editor, new Selection(1, 1, 1, 7), new Selection(2, 5, 2, 11));
 
-		editor.trigger('test', 'deleteLeft', {});
+		editor.trigger('test', 'cut', {});
 		assertContextKeys(contextKeys, true, false, true);
 		assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5));
 
@@ -148,17 +148,99 @@ suite('SnippetController2', function () {
 		// assertContextKeys(contextKeys, false, false, false);
 	});
 
-	test('insert, insert nested', function () {
+	test('insert, nested snippet', function () {
+		const ctrl = new SnippetController2(editor, contextKeys);
+		ctrl.insert('${1:foobar}$0');
+		assertContextKeys(contextKeys, true, false, true);
+		assertSelections(editor, new Selection(1, 1, 1, 7), new Selection(2, 5, 2, 11));
+
+		ctrl.insert('far$1boo$0');
+		assertSelections(editor, new Selection(1, 4, 1, 4), new Selection(2, 8, 2, 8));
+		assertContextKeys(contextKeys, true, false, true);
+
+		ctrl.next();
+		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
+		assertContextKeys(contextKeys, true, true, true);
+
+		ctrl.next();
+		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
+		assertContextKeys(contextKeys, false, false, false);
+	});
+
+	test('insert, nested plain text', function () {
 		const ctrl = new SnippetController2(editor, contextKeys);
 		ctrl.insert('${1:foobar}$0');
 		assertContextKeys(contextKeys, true, false, true);
 		assertSelections(editor, new Selection(1, 1, 1, 7), new Selection(2, 5, 2, 11));
 
 		ctrl.insert('farboo');
-		assertContextKeys(contextKeys, true, false, true);
 		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
+		assertContextKeys(contextKeys, true, false, true);
+
+		ctrl.next();
+		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
+		assertContextKeys(contextKeys, false, false, false);
+	});
+
+	test('Nested snippets without final placeholder jumps to next outer placeholder, #27898', function () {
+		const ctrl = new SnippetController2(editor, contextKeys);
+
+		ctrl.insert('for(const ${1:element} of ${2:array}) {$0}');
+		assertContextKeys(contextKeys, true, false, true);
+		assertSelections(editor, new Selection(1, 11, 1, 18), new Selection(2, 15, 2, 22));
+
+		ctrl.next();
+		assertContextKeys(contextKeys, true, true, true);
+		assertSelections(editor, new Selection(1, 22, 1, 27), new Selection(2, 26, 2, 31));
+
+		ctrl.insert('document');
+		assertContextKeys(contextKeys, true, true, true);
+		assertSelections(editor, new Selection(1, 30, 1, 30), new Selection(2, 34, 2, 34));
 
 		ctrl.next();
 		assertContextKeys(contextKeys, false, false, false);
 	});
+
+	test('Inconsistent tab stop behaviour with recursive snippets and tab / shift tab, #27543', function () {
+		const ctrl = new SnippetController2(editor, contextKeys);
+		ctrl.insert('1_calize(${1:nl}, \'${2:value}\')$0');
+
+		assertContextKeys(contextKeys, true, false, true);
+		assertSelections(editor, new Selection(1, 10, 1, 12), new Selection(2, 14, 2, 16));
+
+		ctrl.insert('2_calize(${1:nl}, \'${2:value}\')$0');
+
+		assertSelections(editor, new Selection(1, 19, 1, 21), new Selection(2, 23, 2, 25));
+
+		ctrl.next(); // inner `value`
+		assertSelections(editor, new Selection(1, 24, 1, 29), new Selection(2, 28, 2, 33));
+
+		ctrl.next(); // inner `$0`
+		assertSelections(editor, new Selection(1, 31, 1, 31), new Selection(2, 35, 2, 35));
+
+		ctrl.next(); // outer `value`
+		assertSelections(editor, new Selection(1, 34, 1, 39), new Selection(2, 38, 2, 43));
+
+		ctrl.prev(); // inner `$0`
+		assertSelections(editor, new Selection(1, 31, 1, 31), new Selection(2, 35, 2, 35));
+	});
+
+	test('Snippet tabstop selecting content of previously entered variable only works when separated by space, #23728', function () {
+		const ctrl = new SnippetController2(editor, contextKeys);
+
+		model.setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+
+		ctrl.insert('import ${2:${1:module}} from \'${1: module }\'$0');
+
+		assertContextKeys(contextKeys, true, false, true);
+		assertSelections(editor, new Selection(1, 8, 1, 14), new Selection(1, 21, 1, 29));
+
+		ctrl.insert('foo');
+		assertSelections(editor, new Selection(1, 11, 1, 11), new Selection(1, 21, 1, 21));
+
+		ctrl.next(); // ${2:...}
+		assertSelections(editor, new Selection(1, 8, 1, 11));
+	});
+
 });

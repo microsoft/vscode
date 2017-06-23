@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState } from 'vscode';
+import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn } from 'vscode';
 import { Ref, RefType, Git, GitErrorCodes } from './git';
 import { Model, Resource, Status, CommitOptions, WorkingTreeGroup, IndexGroup, MergeGroup } from './model';
 import { toGitUri, fromGitUri } from './uri';
@@ -145,11 +145,18 @@ export class CommandCenter {
 			return;
 		}
 
+		const viewColumn = window.activeTextEditor && window.activeTextEditor.viewColumn || ViewColumn.One;
+
 		if (!left) {
-			return await commands.executeCommand<void>('vscode.open', right);
+			return await commands.executeCommand<void>('vscode.open', right, viewColumn);
 		}
 
-		return await commands.executeCommand<void>('vscode.diff', left, right, title, { preview: true });
+		const opts: TextDocumentShowOptions = {
+			preview: true,
+			viewColumn
+		};
+
+		return await commands.executeCommand<void>('vscode.diff', left, right, title, opts);
 	}
 
 	private getLeftResource(resource: Resource): Uri | undefined {
@@ -289,7 +296,9 @@ export class CommandCenter {
 			return;
 		}
 
-		return await commands.executeCommand<void>('vscode.open', uri);
+		const viewColumn = window.activeTextEditor && window.activeTextEditor.viewColumn || ViewColumn.One;
+
+		return await commands.executeCommand<void>('vscode.open', uri, viewColumn);
 	}
 
 	@command('git.openChange')
@@ -329,7 +338,9 @@ export class CommandCenter {
 			return;
 		}
 
-		return await commands.executeCommand<void>('vscode.open', uriToOpen);
+		const viewColumn = window.activeTextEditor && window.activeTextEditor.viewColumn || ViewColumn.One;
+
+		return await commands.executeCommand<void>('vscode.open', uriToOpen, viewColumn);
 	}
 
 	@command('git.stage')
@@ -774,7 +785,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await this.model.pull(true);
+		await this.model.pullWithRebase();
 	}
 
 	@command('git.push')
@@ -812,7 +823,7 @@ export class CommandCenter {
 			return;
 		}
 
-		this.model.push(pick.label, branchName);
+		this.model.pushTo(pick.label, branchName);
 	}
 
 	@command('git.sync')
@@ -860,7 +871,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await this.model.push(choice, branchName, { setUpstream: true });
+		await this.model.pushTo(choice, branchName, true);
 	}
 
 	@command('git.showOutput')

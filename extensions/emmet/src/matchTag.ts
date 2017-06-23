@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { getNode } from './util';
 import parse from '@emmetio/html-matcher';
 import Node from '@emmetio/node';
+import { DocumentStreamReader } from './bufferStream';
+import { getNode } from './util';
 
 export function matchTag() {
 	let editor = vscode.window.activeTextEditor;
@@ -15,35 +16,30 @@ export function matchTag() {
 		return;
 	}
 
-	let rootNode: Node = parse(editor.document.getText());
+	let rootNode: Node = parse(new DocumentStreamReader(editor.document));
 	let updatedSelections = [];
 	editor.selections.forEach(selection => {
-		let updatedSelection = getUpdatedSelections(editor, editor.document.offsetAt(selection.start), rootNode);
+		let updatedSelection = getUpdatedSelections(editor, selection.start, rootNode);
 		if (updatedSelection) {
 			updatedSelections.push(updatedSelection);
 		}
 	});
 	if (updatedSelections.length > 0) {
 		editor.selections = updatedSelections;
+		editor.revealRange(editor.selections[updatedSelections.length - 1]);
 	}
 }
 
-function getUpdatedSelections(editor: vscode.TextEditor, offset: number, rootNode: Node): vscode.Selection {
-	let currentNode = getNode(rootNode, offset);
+function getUpdatedSelections(editor: vscode.TextEditor, position: vscode.Position, rootNode: Node): vscode.Selection {
+	let currentNode = getNode(rootNode, position, true);
 
 	// If no closing tag or cursor is between open and close tag, then no-op
-	if (!currentNode.close || (currentNode.open.end < offset && currentNode.close.start > offset)) {
+	if (!currentNode.close || (position.isAfter(currentNode.open.end) && position.isBefore(currentNode.close.start))) {
 		return;
 	}
 
-	if (offset <= currentNode.open.end) {
-		let matchingPosition = editor.document.positionAt(currentNode.close.start);
-		return new vscode.Selection(matchingPosition, matchingPosition);
-	} else {
-		let matchingPosition = editor.document.positionAt(currentNode.open.start);
-		return new vscode.Selection(matchingPosition, matchingPosition);
-	}
-
+	let finalPosition = position.isBeforeOrEqual(currentNode.open.end) ? currentNode.close.start : currentNode.open.start;
+	return new vscode.Selection(finalPosition, finalPosition);
 }
 
 

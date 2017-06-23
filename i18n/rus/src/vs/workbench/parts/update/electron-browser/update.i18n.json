@@ -15,5 +15,18 @@
 	"license": "Прочитать условия лицензии",
 	"updateAvailable": "{0} будет обновлен после перезапуска.",
 	"thereIsUpdateAvailable": "Доступно обновление.",
-	"noUpdatesAvailable": "В настоящее время нет доступных обновлений."
+	"noUpdatesAvailable": "В настоящее время нет доступных обновлений.",
+	"updateIsReady": "Доступно новое обновление.",
+	"commandPalette": "Палитра команд...",
+	"settings": "Параметры",
+	"keyboardShortcuts": "Сочетания клавиш",
+	"selectTheme.label": "Цветовая тема",
+	"themes.selectIconTheme.label": "Тема значков файлов",
+	"not available": "Обновления недоступны",
+	"checkingForUpdates": "Идет проверка наличия обновлений...",
+	"DownloadUpdate": "Скачать доступное обновление",
+	"DownloadingUpdate": "Скачивается обновление...",
+	"InstallingUpdate": "Идет установка обновления...",
+	"restartToUpdate": "Перезапустить для обновления...",
+	"checkForUpdates": "Проверить наличие обновлений..."
 }

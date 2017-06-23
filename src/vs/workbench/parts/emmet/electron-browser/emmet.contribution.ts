@@ -7,7 +7,7 @@
 
 import nls = require('vs/nls');
 
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 
 import './actions/expandAbbreviation';
@@ -60,10 +60,10 @@ configurationRegistry.registerConfiguration({
 			'default': null,
 			'description': nls.localize('emmetExtensionsPath', 'Path to a folder containing emmet profiles, snippets and preferences')
 		},
-		'emmet.useModules': {
+		'emmet.useNewEmmet': {
 			'type': 'boolean',
-			'default': false,
-			'description': nls.localize('emmetUseModules', 'Use the new emmet modules for emmet features than the single emmet library.')
+			'default': true,
+			'description': nls.localize('useNewEmmet', 'Try out the new emmet modules (which will eventually replace the old single emmet library) for all emmet features.')
 		}
 	}
 });

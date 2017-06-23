@@ -9,8 +9,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction } from 'vs/base/common/actions';
 import Event from 'vs/base/common/event';
 import { Builder, $ } from 'vs/base/browser/builder';
-import { Registry } from 'vs/platform/platform';
-import { Scope } from 'vs/workbench/browser/actionBarRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Scope } from 'vs/workbench/browser/actions';
 import { IPanel } from 'vs/workbench/common/panel';
 import { CompositePart, ICompositeTitleLabel } from 'vs/workbench/browser/parts/compositePart';
 import { Panel, PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
@@ -26,7 +26,7 @@ import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/acti
 import { ClosePanelAction, PanelAction, ToggleMaximizedPanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER } from 'vs/workbench/common/theme';
-import { activeContrastBorder, focusBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, focusBorder, contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
@@ -61,6 +61,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			themeService,
 			Registry.as<PanelRegistry>(PanelExtensions.Panels),
 			PanelPart.activePanelSettingsKey,
+			Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId(),
 			'panel',
 			'panel',
 			Scope.PANEL,
@@ -194,35 +195,55 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
+	// Panel Background: since panels can host editors, we apply a background rule if the panel background
+	// color is different from the editor background color. This is a bit of a hack though. The better way
+	// would be to have a way to push the background color onto each editor widget itself somehow.
+	const panelBackground = theme.getColor(PANEL_BACKGROUND);
+	if (panelBackground && panelBackground !== theme.getColor(editorBackground)) {
+		collector.addRule(`
+			.monaco-workbench > .part.panel > .content .monaco-editor,
+			.monaco-workbench > .part.panel > .content .monaco-editor .margin,
+			.monaco-workbench > .part.panel > .content .monaco-editor .monaco-editor-background {
+				background-color: ${panelBackground};
+			}
+		`);
+	}
+
 	// Title Active
 	const titleActive = theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND);
 	const titleActiveBorder = theme.getColor(PANEL_ACTIVE_TITLE_BORDER);
-	collector.addRule(`
-		.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label,
-		.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
-			color: ${titleActive};
-			border-bottom-color: ${titleActiveBorder};
-		}
-	`);
+	if (titleActive || titleActiveBorder) {
+		collector.addRule(`
+			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label,
+			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
+				color: ${titleActive};
+				border-bottom-color: ${titleActiveBorder};
+			}
+		`);
+	}
 
 	// Title Inactive
 	const titleInactive = theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND);
-	collector.addRule(`
-		.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
-			color: ${titleInactive};
-		}
-	`);
+	if (titleInactive) {
+		collector.addRule(`
+			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
+				color: ${titleInactive};
+			}
+		`);
+	}
 
 	// Title focus
 	const focusBorderColor = theme.getColor(focusBorder);
-	collector.addRule(`
-		.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:focus {
-			color: ${titleActive};
-			border-bottom-color: ${focusBorderColor} !important;
-			border-bottom: 1px solid;
-			outline: none;
-		}
-	`);
+	if (focusBorderColor) {
+		collector.addRule(`
+			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:focus {
+				color: ${titleActive};
+				border-bottom-color: ${focusBorderColor} !important;
+				border-bottom: 1px solid;
+				outline: none;
+			}
+		`);
+	}
 
 	// Styling with Outline color (e.g. high contrast theme)
 	const outline = theme.getColor(activeContrastBorder);

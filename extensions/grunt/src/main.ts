@@ -34,12 +34,15 @@ export function activate(_context: vscode.ExtensionContext): void {
 			taskProvider.dispose();
 			taskProvider = undefined;
 		} else if (!taskProvider && autoDetect === 'on') {
-			taskProvider = vscode.workspace.registerTaskProvider({
+			taskProvider = vscode.workspace.registerTaskProvider('grunt', {
 				provideTasks: () => {
 					if (!detectorPromise) {
 						detectorPromise = getGruntTasks();
 					}
 					return detectorPromise;
+				},
+				resolveTask(_task: vscode.Task): vscode.Task | undefined {
+					return undefined;
 				}
 			});
 		}
@@ -73,6 +76,39 @@ function exec(command: string, options: cp.ExecOptions): Promise<{ stdout: strin
 	});
 }
 
+let _channel: vscode.OutputChannel;
+function getOutputChannel(): vscode.OutputChannel {
+	if (!_channel) {
+		_channel = vscode.window.createOutputChannel('Grunt Auto Detection');
+	}
+	return _channel;
+}
+
+interface GruntTaskKind extends vscode.TaskKind {
+	task: string;
+	file?: string;
+}
+
+const buildNames: string[] = ['build', 'compile', 'watch'];
+function isBuildTask(name: string): boolean {
+	for (let buildName of buildNames) {
+		if (name.indexOf(buildName) !== -1) {
+			return true;
+		}
+	}
+	return false;
+}
+
+const testNames: string[] = ['test'];
+function isTestTask(name: string): boolean {
+	for (let testName of testNames) {
+		if (name.indexOf(testName) !== -1) {
+			return true;
+		}
+	}
+	return false;
+}
+
 async function getGruntTasks(): Promise<vscode.Task[]> {
 	let workspaceRoot = vscode.workspace.rootPath;
 	let emptyTasks: vscode.Task[] = [];
@@ -95,18 +131,14 @@ async function getGruntTasks(): Promise<vscode.Task[]> {
 	}
 
 	let commandLine = `${command} --help --no-color`;
-	let channel = vscode.window.createOutputChannel('tasks');
 	try {
 		let { stdout, stderr } = await exec(commandLine, { cwd: workspaceRoot });
 		if (stderr) {
-			channel.appendLine(stderr);
-			channel.show(true);
+			getOutputChannel().appendLine(stderr);
+			getOutputChannel().show(true);
 		}
 		let result: vscode.Task[] = [];
 		if (stdout) {
-			let buildTask: { task: vscode.Task | undefined, rank: number } = { task: undefined, rank: 0 };
-			let testTask: { task: vscode.Task | undefined, rank: number } = { task: undefined, rank: 0 };
-
 			// grunt lists tasks as follows (description is wrapped into a new line if too long):
 			// ...
 			// Available tasks
@@ -138,39 +170,36 @@ async function getGruntTasks(): Promise<vscode.Task[]> {
 						let matches = regExp.exec(line);
 						if (matches && matches.length === 2) {
 							let taskName = matches[1];
+							let kind: GruntTaskKind = {
+								type: 'grunt',
+								task: taskName
+							};
 							let task = taskName.indexOf(' ') === -1
-								? new vscode.ShellTask(`grunt: ${taskName}`, `${command} ${taskName}`)
-								: new vscode.ShellTask(`grunt: ${taskName}`, `${command} "${taskName}"`);
-							task.identifier = `grunt.${taskName}`;
+								? new vscode.Task(kind, taskName, new vscode.ShellExecution(`${command} ${taskName}`))
+								: new vscode.Task(kind, taskName, new vscode.ShellExecution(`${command} "${taskName}"`));
 							result.push(task);
 							let lowerCaseTaskName = taskName.toLowerCase();
-							if (lowerCaseTaskName === 'build') {
-								buildTask = { task, rank: 2 };
-							} else if (lowerCaseTaskName.indexOf('build') !== -1 && buildTask.rank < 1) {
-								buildTask = { task, rank: 1 };
-							} else if (lowerCaseTaskName === 'test') {
-								testTask = { task, rank: 2 };
-							} else if (lowerCaseTaskName.indexOf('test') !== -1 && testTask.rank < 1) {
-								testTask = { task, rank: 1 };
+							if (isBuildTask(lowerCaseTaskName)) {
+								task.group = vscode.TaskGroup.Build;
+							} else if (isTestTask(lowerCaseTaskName)) {
+								task.group = vscode.TaskGroup.Test;
 							}
 						}
 					}
 				}
 			}
-			if (buildTask.task) {
-				buildTask.task.group = vscode.TaskGroup.Build;
-			}
-			if (testTask.task) {
-				testTask.task.group = vscode.TaskGroup.Test;
-			}
 		}
 		return result;
 	} catch (err) {
+		let channel = getOutputChannel();
 		if (err.stderr) {
 			channel.appendLine(err.stderr);
-			channel.show(true);
+		}
+		if (err.stdout) {
+			channel.appendLine(err.stdout);
 		}
 		channel.appendLine(localize('execFailed', 'Auto detecting Grunt failed with error: {0}', err.error ? err.error.toString() : 'unknown'));
+		channel.show(true);
 		return emptyTasks;
 	}
 }

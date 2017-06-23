@@ -6,7 +6,7 @@
 
 import * as platform from 'vs/base/common/platform';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
-import { EDITOR_FONT_DEFAULTS } from "vs/editor/common/config/editorOptions";
+import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 
 /**
  * Determined from empirical observations.
@@ -86,7 +86,7 @@ export class BareFontInfo {
 			lineHeight = 8;
 		}
 
-		let letterSpacing = safeParseFloat(opts.letterSpacing, 0);;
+		let letterSpacing = safeParseFloat(opts.letterSpacing, 0);
 		letterSpacing = clamp(letterSpacing, -20, 20);
 
 		let editorZoomLevelMultiplier = 1 + (EditorZoom.getZoomLevel() * 0.1);

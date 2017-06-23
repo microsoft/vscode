@@ -24,6 +24,7 @@ import {
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ICursors, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
+import { ThemeColor } from "vs/platform/theme/common/themeService";
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -65,7 +66,7 @@ export interface IModelDecorationOverviewRulerOptions {
  */
 export interface IModelDecorationOptions {
 	/**
-	 * Customize the growing behaviour of the decoration when typing at the edges of the decoration.
+	 * Customize the growing behavior of the decoration when typing at the edges of the decoration.
 	 * Defaults to TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
 	 */
 	stickiness?: TrackedRangeStickiness;
@@ -925,7 +926,8 @@ export interface ITextModelWithMarkers extends ITextModel {
 }
 
 /**
- * Describes the behaviour of decorations when typing/editing near their edges.
+ * Describes the behavior of decorations when typing/editing near their edges.
+ * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehavior`
  */
 export enum TrackedRangeStickiness {
 	AlwaysGrowsWhenTypingAtEdges = 0,
@@ -1621,10 +1623,6 @@ export interface IEditorContribution {
 	restoreViewState?(state: any): void;
 }
 
-export interface ThemeColor {
-	id: string;
-}
-
 /**
  * @internal
  */
@@ -1687,6 +1685,7 @@ export interface IContentDecorationRenderOptions {
  */
 export interface IDecorationRenderOptions extends IThemeDecorationRenderOptions {
 	isWholeLine?: boolean;
+	rangeBehavior?: TrackedRangeStickiness;
 	overviewRulerLane?: OverviewRulerLane;
 
 	light?: IThemeDecorationRenderOptions;
