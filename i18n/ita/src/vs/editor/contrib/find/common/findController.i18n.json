@@ -14,5 +14,6 @@
 	"addSelectionToPreviousFindMatch": "Aggiungi selezione a risultato ricerca precedente",
 	"moveSelectionToNextFindMatch": "Sposta ultima selezione a risultato ricerca successivo",
 	"moveSelectionToPreviousFindMatch": "Sposta ultima selezione a risultato ricerca precedente",
+	"selectAllOccurrencesOfFindMatch": "Seleziona tutte le occorrenze del risultato ricerca",
 	"changeAll.label": "Cambia tutte le occorrenze"
 }

@@ -12,6 +12,7 @@
 	"focusBorder": "Color de borde de los elementos con foco. Este color solo se usa si un componente no lo invalida.",
 	"contrastBorder": "Un borde adicional alrededor de los elementos para separarlos unos de otros y así mejorar el contraste.",
 	"activeContrastBorder": "Un borde adicional alrededor de los elementos activos para separarlos unos de otros y así mejorar el contraste.",
+	"selectionBackground": "El color de fondo del texto seleccionado en el área de trabajo (por ejemplo, campos de entrada o áreas de texto). Esto no se aplica a las selecciones dentro del editor.",
 	"textSeparatorForeground": "Color para los separadores de texto.",
 	"textLinkForeground": "Color de primer plano para los vínculos en el texto.",
 	"textLinkActiveForeground": "Color de primer plano para los vínculos activos en el texto.",
@@ -78,7 +79,10 @@
 	"mergeCurrentContentBackground": "Fondo del contenido actual en conflictos de combinación alineados.",
 	"mergeIncomingHeaderBackground": "Fondo del encabezado de entrada en conflictos de combinación alineados.",
 	"mergeIncomingContentBackground": "Fondo del contenido de entrada en conflcitos de combinación alineados.",
+	"mergeCommonHeaderBackground": "Fondo del encabezado de ancestros comunes en conflictos de combinación alineados.",
+	"mergeCommonContentBackground": "Fondo del contenido de ancestros comunes en conflictos de combinación alineados.",
 	"mergeBorder": "Color del borde en los encabezados y el divisor en conflictos de combinación alineados.",
 	"overviewRulerCurrentContentForeground": "Primer plano de la regla de visión general actual para conflictos de combinación alineados.",
-	"overviewRulerIncomingContentForeground": "Primer plano de regla de visión general de entrada para conflictos de combinación alineados."
+	"overviewRulerIncomingContentForeground": "Primer plano de regla de visión general de entrada para conflictos de combinación alineados.",
+	"overviewRulerCommonContentForeground": "Primer plano de la regla de visión general de ancestros comunes para conflictos de combinación alineados."
 }

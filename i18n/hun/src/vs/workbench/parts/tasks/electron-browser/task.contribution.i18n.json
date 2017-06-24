@@ -25,6 +25,7 @@
 	"customizeParseErrors": "A jelenlegi feladatkonfigurációban hibák vannak. Feladat egyedivé tétele előtt javítsa a hibákat!",
 	"moreThanOneBuildTask": "Túl sok buildelési feladat van definiálva a tasks.json-ban. Az első lesz végrehajtva.\n",
 	"TaskSystem.activeSame.background": "A feladat már aktív és a háttérben fut. A feladat befejezéséhez használja az `F1 > feladat megszakítása` parancsot! ",
+	"TaskSystem.activeSame.noBackground": "A feladat már aktív. A feladat befejezéséhez használja `F1 > feladat megszakítása` parancsot!",
 	"TaskSystem.active": "Már fut egy feladat. Szakítsa meg, mielőtt egy másik feladatot futtatna.",
 	"TaskSystem.restartFailed": "Nem sikerült a(z) {0} feladat befejezése és újraindítása.",
 	"TaskSystem.configurationErrors": "Hiba: a megadott feladatkonfigurációban validációs hibák vannak, és nem használható. Először javítsa ezeket a hibákat!",

@@ -13,5 +13,7 @@
 	"cancel": "Mégse",
 	"singleDependentError": "Nem sikerült letiltani a(z) '{0}' kiegészítőt: a(z) '{1}' kiegészítő függ tőle.",
 	"twoDependentsError": "Nem sikerült letiltani a(z) '{0}' kiegészítőt: a(z) '{1}' és '{2}' kiegészítők függnek tőle.",
-	"multipleDependentsError": "Nem sikerült letiltani a(z) '{0}' kiegészítőt: a(z) '{1}', '{2}' és más kiegészítők függnek tőle."
+	"multipleDependentsError": "Nem sikerült letiltani a(z) '{0}' kiegészítőt: a(z) '{1}', '{2}' és más kiegészítők függnek tőle.",
+	"installConfirmation": "Szeretné telepíteni a(z) '{0}' kiegészítőt?",
+	"install": "Telepítés"
 }

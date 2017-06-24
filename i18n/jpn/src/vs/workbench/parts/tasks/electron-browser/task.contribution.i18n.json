@@ -24,6 +24,8 @@
 	"TaskServer.noTask": "実行が要求されたタスク {0} が見つかりません。",
 	"customizeParseErrors": "現在のタスクの構成にはエラーがあります。タスクをカスタマイズする前にエラーを修正してください。",
 	"moreThanOneBuildTask": "tasks.json で複数のビルド タスクが定義されています。最初のタスクのみを実行します。\\n",
+	"TaskSystem.activeSame.background": "タスクは既にアクティブおよびバックグランド モードになっています。タスクを終了するには `F1 > タスクの終了` を使用します",
+	"TaskSystem.activeSame.noBackground": "タスクは既にアクティブになっています。タスクを終了するには、`F1 > タスクの終了` を使用します",
 	"TaskSystem.active": "既に実行中のタスクがあります。まずこのタスクを終了してから、別のタスクを実行してください。",
 	"TaskSystem.restartFailed": "タスク {0} を終了して再開できませんでした",
 	"TaskSystem.configurationErrors": "エラー: 指定したタスク構成に検証エラーがあり、使用できません。最初にエラーを修正してください。",
@@ -44,5 +46,7 @@
 	"TestAction.label": "テスト タスクの実行",
 	"quickOpen.task": "タスクの実行",
 	"quickOpen.terminateTask": "タスクの終了",
-	"quickOpen.restartTask": "タスクの再開"
+	"quickOpen.restartTask": "タスクの再開",
+	"quickOpen.buildTask": "ビルド タスク",
+	"quickOpen.testTask": "テスト タスク"
 }

@@ -22,6 +22,7 @@
 	"files": "ファイル",
 	"openRecentPlaceHolderMac": "パスを選択 (Cmd キーを押しながら新しいウィンドウで開く)",
 	"openRecentPlaceHolder": "パスを選択して開く (Ctrl キーを押しながら新しいウィンドウで開く)",
+	"openRecent": "最近開いた項目…",
 	"closeMessages": "通知メッセージを閉じる",
 	"reportIssues": "問題の報告",
 	"reportPerformanceIssue": "パフォーマンスの問題のレポート",
@@ -29,6 +30,10 @@
 	"openDocumentationUrl": "ドキュメント",
 	"openIntroductoryVideosUrl": "紹介ビデオ",
 	"toggleSharedProcess": "共有プロセスを切り替える",
+	"navigateLeft": "左のビュー部分に移動",
+	"navigateRight": "右のビュー部分に移動",
+	"navigateUp": "上のビュー部分に移動",
+	"navigateDown": "下のビュー部分に移動",
 	"increaseViewSize": "現在のビューのサイズの拡大",
 	"decreaseViewSize": "現在のビューのサイズの縮小"
 }
