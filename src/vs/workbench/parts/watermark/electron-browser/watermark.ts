@@ -18,7 +18,6 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { GlobalQuickOpenAction } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { OpenRecentAction } from 'vs/workbench/electron-browser/actions';
 import { GlobalNewUntitledFileAction, OpenFileAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
@@ -37,10 +36,6 @@ interface WatermarkEntry {
 const showCommands: WatermarkEntry = {
 	text: nls.localize('watermark.showCommands', "Show All Commands"),
 	ids: [ShowAllCommandsAction.ID]
-};
-const quickOpen: WatermarkEntry = {
-	text: nls.localize('watermark.quickOpen', "Go to File"),
-	ids: [GlobalQuickOpenAction.ID]
 };
 const openFileNonMacOnly: WatermarkEntry = {
 	text: nls.localize('watermark.openFile', "Open File"),
@@ -92,7 +87,6 @@ const noFolderEntries = [
 
 const folderEntries = [
 	showCommands,
-	quickOpen,
 	findInFiles,
 	startDebugging,
 	toggleTerminal
