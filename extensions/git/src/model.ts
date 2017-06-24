@@ -540,13 +540,13 @@ export class Model implements Disposable {
 				.join(newLineChar);
 
 
-			if(fs.existsSync(ignoreFile)) {
+			if (fs.existsSync(ignoreFile)) {
 				const edit = new WorkspaceEdit();
 				const ignoreFileToWrite = await workspace.openTextDocument(ignoreFile);
 				//Let's check if that entry exists:
 				const gitIgnoreEntries = ignoreFileToWrite.getText();
 
-				if(gitIgnoreEntries.indexOf(textToAppend) === -1) { //Entry doesn't exist let's insert this entry:
+				if (gitIgnoreEntries.indexOf(textToAppend) === -1) { //Entry doesn't exist let's insert this entry:
 					// Append in new line if there is entries in the file:
 					textToAppend = (gitIgnoreEntries.length > 0 ? newLineChar : '') + textToAppend;
 					edit.insert(ignoreFileToWrite.uri, ignoreFileToWrite.lineAt(ignoreFileToWrite.lineCount - 1).range.end, textToAppend);
@@ -554,7 +554,7 @@ export class Model implements Disposable {
 				}
 			}
 			else {
-				await workspace.openTextDocument(Uri.file(ignoreFile).with({scheme:'untitled'})).then((doc) => {
+				await workspace.openTextDocument(Uri.file(ignoreFile).with({ scheme: 'untitled' })).then((doc) => {
 					return window.showTextDocument(doc);
 				}).then((editor) => {
 					const edit = new WorkspaceEdit();
