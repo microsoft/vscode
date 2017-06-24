@@ -781,6 +781,139 @@ declare module monaco {
 declare module monaco.editor {
 
 
+	/**
+	 * Create a new editor under `domElement`.
+	 * `domElement` should be empty (not contain other dom nodes).
+	 * The editor will read the size of `domElement`.
+	 */
+	export function create(domElement: HTMLElement, options?: IEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneCodeEditor;
+
+	/**
+	 * Emitted when an editor is created.
+	 * Creating a diff editor might cause this listener to be invoked with the two editors.
+	 * @event
+	 */
+	export function onDidCreateEditor(listener: (codeEditor: ICodeEditor) => void): IDisposable;
+
+	/**
+	 * Create a new diff editor under `domElement`.
+	 * `domElement` should be empty (not contain other dom nodes).
+	 * The editor will read the size of `domElement`.
+	 */
+	export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneDiffEditor;
+
+	export interface IDiffNavigator {
+		revealFirst: boolean;
+		canNavigate(): boolean;
+		next(): void;
+		previous(): void;
+		dispose(): void;
+	}
+
+	export interface IDiffNavigatorOptions {
+		readonly followsCaret?: boolean;
+		readonly ignoreCharChanges?: boolean;
+		readonly alwaysRevealFirst?: boolean;
+	}
+
+	export function createDiffNavigator(diffEditor: IStandaloneDiffEditor, opts?: IDiffNavigatorOptions): IDiffNavigator;
+
+	/**
+	 * Create a new editor model.
+	 * You can specify the language that should be set for this model or let the language be inferred from the `uri`.
+	 */
+	export function createModel(value: string, language?: string, uri?: Uri): IModel;
+
+	/**
+	 * Change the language for a model.
+	 */
+	export function setModelLanguage(model: IModel, language: string): void;
+
+	/**
+	 * Set the markers for a model.
+	 */
+	export function setModelMarkers(model: IModel, owner: string, markers: IMarkerData[]): void;
+
+	/**
+	 * Get the model that has `uri` if it exists.
+	 */
+	export function getModel(uri: Uri): IModel;
+
+	/**
+	 * Get all the created models.
+	 */
+	export function getModels(): IModel[];
+
+	/**
+	 * Emitted when a model is created.
+	 * @event
+	 */
+	export function onDidCreateModel(listener: (model: IModel) => void): IDisposable;
+
+	/**
+	 * Emitted right before a model is disposed.
+	 * @event
+	 */
+	export function onWillDisposeModel(listener: (model: IModel) => void): IDisposable;
+
+	/**
+	 * Emitted when a different language is set to a model.
+	 * @event
+	 */
+	export function onDidChangeModelLanguage(listener: (e: {
+		readonly model: IModel;
+		readonly oldLanguage: string;
+	}) => void): IDisposable;
+
+	/**
+	 * Create a new web worker that has model syncing capabilities built in.
+	 * Specify an AMD module to load that will `create` an object that will be proxied.
+	 */
+	export function createWebWorker<T>(opts: IWebWorkerOptions): MonacoWebWorker<T>;
+
+	/**
+	 * Colorize the contents of `domNode` using attribute `data-lang`.
+	 */
+	export function colorizeElement(domNode: HTMLElement, options: IColorizerElementOptions): Promise<void>;
+
+	/**
+	 * Colorize `text` using language `languageId`.
+	 */
+	export function colorize(text: string, languageId: string, options: IColorizerOptions): Promise<string>;
+
+	/**
+	 * Colorize a line in a model.
+	 */
+	export function colorizeModelLine(model: IModel, lineNumber: number, tabSize?: number): string;
+
+	/**
+	 * Tokenize `text` using language `languageId`
+	 */
+	export function tokenize(text: string, languageId: string): Token[][];
+
+	/**
+	 * Define a new theme.
+	 */
+	export function defineTheme(themeName: string, themeData: IStandaloneThemeData): void;
+
+	/**
+	 * Switches to a theme.
+	 */
+	export function setTheme(themeName: string): void;
+
+	export type BuiltinTheme = 'vs' | 'vs-dark' | 'hc-black';
+
+	export interface IStandaloneThemeData {
+		base: BuiltinTheme;
+		inherit: boolean;
+		rules: ITokenThemeRule[];
+		colors: IColors;
+	}
+
+	export type IColors = {
+		[colorId: string]: string;
+	};
+
 	export interface ITokenThemeRule {
 		token: string;
 		foreground?: string;
@@ -822,6 +955,60 @@ declare module monaco.editor {
 		 */
 		label?: string;
 	}
+
+	/**
+	 * The options to create an editor.
+	 */
+	export interface IEditorConstructionOptions extends IEditorOptions {
+		/**
+		 * The initial model associated with this code editor.
+		 */
+		model?: IModel;
+		/**
+		 * The initial value of the auto created model in the editor.
+		 * To not create automatically a model, use `model: null`.
+		 */
+		value?: string;
+		/**
+		 * The initial language of the auto created model in the editor.
+		 * To not create automatically a model, use `model: null`.
+		 */
+		language?: string;
+		/**
+		 * Initial theme to be used for rendering.
+		 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+		 * You can create custom themes via `monaco.editor.defineTheme`.
+		 * To switch a theme, use `monaco.editor.setTheme`
+		 */
+		theme?: string;
+	}
+
+	/**
+	 * The options to create a diff editor.
+	 */
+	export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
+		/**
+		 * Initial theme to be used for rendering.
+		 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+		 * You can create custom themes via `monaco.editor.defineTheme`.
+		 * To switch a theme, use `monaco.editor.setTheme`
+		 */
+		theme?: string;
+	}
+
+	export interface IStandaloneCodeEditor extends ICodeEditor {
+		addCommand(keybinding: number, handler: ICommandHandler, context: string): string;
+		createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
+		addAction(descriptor: IActionDescriptor): IDisposable;
+	}
+
+	export interface IStandaloneDiffEditor extends IDiffEditor {
+		addCommand(keybinding: number, handler: ICommandHandler, context: string): string;
+		createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
+		addAction(descriptor: IActionDescriptor): IDisposable;
+		getOriginalEditor(): IStandaloneCodeEditor;
+		getModifiedEditor(): IStandaloneCodeEditor;
+	}
 	export interface ICommandHandler {
 		(...args: any[]): void;
 	}
@@ -830,6 +1017,10 @@ declare module monaco.editor {
 		set(value: T): void;
 		reset(): void;
 		get(): T;
+	}
+
+	export interface IEditorOverrideServices {
+		[index: string]: any;
 	}
 
 	/**
@@ -846,10 +1037,23 @@ declare module monaco.editor {
 		endColumn: number;
 	}
 
+	export interface IColorizerOptions {
+		tabSize?: number;
+	}
+
+	export interface IColorizerElementOptions extends IColorizerOptions {
+		theme?: string;
+		mimeType?: string;
+	}
+
 	export enum ScrollbarVisibility {
 		Auto = 1,
 		Hidden = 2,
 		Visible = 3,
+	}
+
+	export interface ThemeColor {
+		id: string;
 	}
 
 	/**
@@ -3671,6 +3875,328 @@ declare module monaco.languages {
 
 
 	/**
+	 * Register information about a new language.
+	 */
+	export function register(language: ILanguageExtensionPoint): void;
+
+	/**
+	 * Get the information of all the registered languages.
+	 */
+	export function getLanguages(): ILanguageExtensionPoint[];
+
+	/**
+	 * An event emitted when a language is first time needed (e.g. a model has it set).
+	 * @event
+	 */
+	export function onLanguage(languageId: string, callback: () => void): IDisposable;
+
+	/**
+	 * Set the editing configuration for a language.
+	 */
+	export function setLanguageConfiguration(languageId: string, configuration: LanguageConfiguration): IDisposable;
+
+	/**
+	 * A token.
+	 */
+	export interface IToken {
+		startIndex: number;
+		scopes: string;
+	}
+
+	/**
+	 * The result of a line tokenization.
+	 */
+	export interface ILineTokens {
+		/**
+		 * The list of tokens on the line.
+		 */
+		tokens: IToken[];
+		/**
+		 * The tokenization end state.
+		 * A pointer will be held to this and the object should not be modified by the tokenizer after the pointer is returned.
+		 */
+		endState: IState;
+	}
+
+	/**
+	 * A "manual" provider of tokens.
+	 */
+	export interface TokensProvider {
+		/**
+		 * The initial state of a language. Will be the state passed in to tokenize the first line.
+		 */
+		getInitialState(): IState;
+		/**
+		 * Tokenize a line given the state at the beginning of the line.
+		 */
+		tokenize(line: string, state: IState): ILineTokens;
+	}
+
+	/**
+	 * Set the tokens provider for a language (manual implementation).
+	 */
+	export function setTokensProvider(languageId: string, provider: TokensProvider): IDisposable;
+
+	/**
+	 * Set the tokens provider for a language (monarch implementation).
+	 */
+	export function setMonarchTokensProvider(languageId: string, languageDef: IMonarchLanguage): IDisposable;
+
+	/**
+	 * Register a reference provider (used by e.g. reference search).
+	 */
+	export function registerReferenceProvider(languageId: string, provider: ReferenceProvider): IDisposable;
+
+	/**
+	 * Register a rename provider (used by e.g. rename symbol).
+	 */
+	export function registerRenameProvider(languageId: string, provider: RenameProvider): IDisposable;
+
+	/**
+	 * Register a signature help provider (used by e.g. paremeter hints).
+	 */
+	export function registerSignatureHelpProvider(languageId: string, provider: SignatureHelpProvider): IDisposable;
+
+	/**
+	 * Register a hover provider (used by e.g. editor hover).
+	 */
+	export function registerHoverProvider(languageId: string, provider: HoverProvider): IDisposable;
+
+	/**
+	 * Register a document symbol provider (used by e.g. outline).
+	 */
+	export function registerDocumentSymbolProvider(languageId: string, provider: DocumentSymbolProvider): IDisposable;
+
+	/**
+	 * Register a document highlight provider (used by e.g. highlight occurrences).
+	 */
+	export function registerDocumentHighlightProvider(languageId: string, provider: DocumentHighlightProvider): IDisposable;
+
+	/**
+	 * Register a definition provider (used by e.g. go to definition).
+	 */
+	export function registerDefinitionProvider(languageId: string, provider: DefinitionProvider): IDisposable;
+
+	/**
+	 * Register a implementation provider (used by e.g. go to implementation).
+	 */
+	export function registerImplementationProvider(languageId: string, provider: ImplementationProvider): IDisposable;
+
+	/**
+	 * Register a type definition provider (used by e.g. go to type definition).
+	 */
+	export function registerTypeDefinitionProvider(languageId: string, provider: TypeDefinitionProvider): IDisposable;
+
+	/**
+	 * Register a code lens provider (used by e.g. inline code lenses).
+	 */
+	export function registerCodeLensProvider(languageId: string, provider: CodeLensProvider): IDisposable;
+
+	/**
+	 * Register a code action provider (used by e.g. quick fix).
+	 */
+	export function registerCodeActionProvider(languageId: string, provider: CodeActionProvider): IDisposable;
+
+	/**
+	 * Register a formatter that can handle only entire models.
+	 */
+	export function registerDocumentFormattingEditProvider(languageId: string, provider: DocumentFormattingEditProvider): IDisposable;
+
+	/**
+	 * Register a formatter that can handle a range inside a model.
+	 */
+	export function registerDocumentRangeFormattingEditProvider(languageId: string, provider: DocumentRangeFormattingEditProvider): IDisposable;
+
+	/**
+	 * Register a formatter than can do formatting as the user types.
+	 */
+	export function registerOnTypeFormattingEditProvider(languageId: string, provider: OnTypeFormattingEditProvider): IDisposable;
+
+	/**
+	 * Register a link provider that can find links in text.
+	 */
+	export function registerLinkProvider(languageId: string, provider: LinkProvider): IDisposable;
+
+	/**
+	 * Register a completion item provider (use by e.g. suggestions).
+	 */
+	export function registerCompletionItemProvider(languageId: string, provider: CompletionItemProvider): IDisposable;
+
+	/**
+	 * Contains additional diagnostic information about the context in which
+	 * a [code action](#CodeActionProvider.provideCodeActions) is run.
+	 */
+	export interface CodeActionContext {
+		/**
+		 * An array of diagnostics.
+		 *
+		 * @readonly
+		 */
+		readonly markers: editor.IMarkerData[];
+	}
+
+	/**
+	 * The code action interface defines the contract between extensions and
+	 * the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature.
+	 */
+	export interface CodeActionProvider {
+		/**
+		 * Provide commands for the given document and range.
+		 */
+		provideCodeActions(model: editor.IReadOnlyModel, range: Range, context: CodeActionContext, token: CancellationToken): CodeAction[] | Thenable<CodeAction[]>;
+	}
+
+	/**
+	 * Completion item kinds.
+	 */
+	export enum CompletionItemKind {
+		Text = 0,
+		Method = 1,
+		Function = 2,
+		Constructor = 3,
+		Field = 4,
+		Variable = 5,
+		Class = 6,
+		Interface = 7,
+		Module = 8,
+		Property = 9,
+		Unit = 10,
+		Value = 11,
+		Enum = 12,
+		Keyword = 13,
+		Snippet = 14,
+		Color = 15,
+		File = 16,
+		Reference = 17,
+		Folder = 18,
+	}
+
+	/**
+	 * A snippet string is a template which allows to insert text
+	 * and to control the editor cursor when insertion happens.
+	 *
+	 * A snippet can define tab stops and placeholders with `$1`, `$2`
+	 * and `${3:foo}`. `$0` defines the final tab stop, it defaults to
+	 * the end of the snippet. Variables are defined with `$name` and
+	 * `${name:default value}`. The full snippet syntax is documented
+	 * [here](http://code.visualstudio.com/docs/editor/userdefinedsnippets#_creating-your-own-snippets).
+	 */
+	export interface SnippetString {
+		/**
+		 * The snippet string.
+		 */
+		value: string;
+	}
+
+	/**
+	 * A completion item represents a text snippet that is
+	 * proposed to complete text that is being typed.
+	 */
+	export interface CompletionItem {
+		/**
+		 * The label of this completion item. By default
+		 * this is also the text that is inserted when selecting
+		 * this completion.
+		 */
+		label: string;
+		/**
+		 * The kind of this completion item. Based on the kind
+		 * an icon is chosen by the editor.
+		 */
+		kind: CompletionItemKind;
+		/**
+		 * A human-readable string with additional information
+		 * about this item, like type or symbol information.
+		 */
+		detail?: string;
+		/**
+		 * A human-readable string that represents a doc-comment.
+		 */
+		documentation?: string;
+		/**
+		 * A string that should be used when comparing this item
+		 * with other items. When `falsy` the [label](#CompletionItem.label)
+		 * is used.
+		 */
+		sortText?: string;
+		/**
+		 * A string that should be used when filtering a set of
+		 * completion items. When `falsy` the [label](#CompletionItem.label)
+		 * is used.
+		 */
+		filterText?: string;
+		/**
+		 * A string or snippet that should be inserted in a document when selecting
+		 * this completion. When `falsy` the [label](#CompletionItem.label)
+		 * is used.
+		 */
+		insertText?: string | SnippetString;
+		/**
+		 * A range of text that should be replaced by this completion item.
+		 *
+		 * Defaults to a range from the start of the [current word](#TextDocument.getWordRangeAtPosition) to the
+		 * current position.
+		 *
+		 * *Note:* The range must be a [single line](#Range.isSingleLine) and it must
+		 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
+		 */
+		range?: Range;
+		/**
+		 * @deprecated **Deprecated** in favor of `CompletionItem.insertText` and `CompletionItem.range`.
+		 *
+		 * ~~An [edit](#TextEdit) which is applied to a document when selecting
+		 * this completion. When an edit is provided the value of
+		 * [insertText](#CompletionItem.insertText) is ignored.~~
+		 *
+		 * ~~The [range](#Range) of the edit must be single-line and on the same
+		 * line completions were [requested](#CompletionItemProvider.provideCompletionItems) at.~~
+		 */
+		textEdit?: editor.ISingleEditOperation;
+	}
+
+	/**
+	 * Represents a collection of [completion items](#CompletionItem) to be presented
+	 * in the editor.
+	 */
+	export interface CompletionList {
+		/**
+		 * This list it not complete. Further typing should result in recomputing
+		 * this list.
+		 */
+		isIncomplete?: boolean;
+		/**
+		 * The completion items.
+		 */
+		items: CompletionItem[];
+	}
+
+	/**
+	 * The completion item provider interface defines the contract between extensions and
+	 * the [IntelliSense](https://code.visualstudio.com/docs/editor/intellisense).
+	 *
+	 * When computing *complete* completion items is expensive, providers can optionally implement
+	 * the `resolveCompletionItem`-function. In that case it is enough to return completion
+	 * items with a [label](#CompletionItem.label) from the
+	 * [provideCompletionItems](#CompletionItemProvider.provideCompletionItems)-function. Subsequently,
+	 * when a completion item is shown in the UI and gains focus this provider is asked to resolve
+	 * the item, like adding [doc-comment](#CompletionItem.documentation) or [details](#CompletionItem.detail).
+	 */
+	export interface CompletionItemProvider {
+		triggerCharacters?: string[];
+		/**
+		 * Provide completion items for the given position and document.
+		 */
+		provideCompletionItems(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
+		/**
+		 * Given a completion item fill in more data, like [doc-comment](#CompletionItem.documentation)
+		 * or [details](#CompletionItem.detail).
+		 *
+		 * The editor will only resolve a completion item once.
+		 */
+		resolveCompletionItem?(item: CompletionItem, token: CancellationToken): CompletionItem | Thenable<CompletionItem>;
+	}
+
+	/**
 	 * Describes how comments for a language work.
 	 */
 	export interface CommentRule {
@@ -4282,6 +4808,119 @@ declare module monaco.languages {
 		aliases?: string[];
 		mimetypes?: string[];
 		configuration?: string;
+	}
+	/**
+	 * A Monarch language definition
+	 */
+	export interface IMonarchLanguage {
+		/**
+		 * map from string to ILanguageRule[]
+		 */
+		tokenizer: {
+			[name: string]: IMonarchLanguageRule[];
+		};
+		/**
+		 * is the language case insensitive?
+		 */
+		ignoreCase?: boolean;
+		/**
+		 * if no match in the tokenizer assign this token class (default 'source')
+		 */
+		defaultToken?: string;
+		/**
+		 * for example [['{','}','delimiter.curly']]
+		 */
+		brackets?: IMonarchLanguageBracket[];
+		/**
+		 * start symbol in the tokenizer (by default the first entry is used)
+		 */
+		start?: string;
+		/**
+		 * attach this to every token class (by default '.' + name)
+		 */
+		tokenPostfix: string;
+	}
+
+	/**
+	 * A rule is either a regular expression and an action
+	 * 		shorthands: [reg,act] == { regex: reg, action: act}
+	 *		and       : [reg,act,nxt] == { regex: reg, action: act{ next: nxt }}
+	 */
+	export interface IMonarchLanguageRule {
+		/**
+		 * match tokens
+		 */
+		regex?: string | RegExp;
+		/**
+		 * action to take on match
+		 */
+		action?: IMonarchLanguageAction;
+		/**
+		 * or an include rule. include all rules from the included state
+		 */
+		include?: string;
+	}
+
+	/**
+	 * An action is either an array of actions...
+	 * ... or a case statement with guards...
+	 * ... or a basic action with a token value.
+	 */
+	export interface IMonarchLanguageAction {
+		/**
+		 * array of actions for each parenthesized match group
+		 */
+		group?: IMonarchLanguageAction[];
+		/**
+		 * map from string to ILanguageAction
+		 */
+		cases?: Object;
+		/**
+		 * token class (ie. css class) (or "@brackets" or "@rematch")
+		 */
+		token?: string;
+		/**
+		 * the next state to push, or "@push", "@pop", "@popall"
+		 */
+		next?: string;
+		/**
+		 * switch to this state
+		 */
+		switchTo?: string;
+		/**
+		 * go back n characters in the stream
+		 */
+		goBack?: number;
+		/**
+		 * @open or @close
+		 */
+		bracket?: string;
+		/**
+		 * switch to embedded language (useing the mimetype) or get out using "@pop"
+		 */
+		nextEmbedded?: string;
+		/**
+		 * log a message to the browser console window
+		 */
+		log?: string;
+	}
+
+	/**
+	 * This interface can be shortened as an array, ie. ['{','}','delimiter.curly']
+	 */
+	export interface IMonarchLanguageBracket {
+		/**
+		 * open bracket
+		 */
+		open: string;
+		/**
+		 * closeing bracket
+		 */
+		close: string;
+		/**
+		 * token class
+		 */
+		token: string;
 	}
 
 }
