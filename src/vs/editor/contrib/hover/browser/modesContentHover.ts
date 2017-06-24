@@ -20,7 +20,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { getHover } from '../common/hover';
 import { HoverOperation, IHoverComputer } from './hoverOperation';
 import { ContentHoverWidget } from './hoverWidgets';
-import { textToMarkedString, MarkedString } from 'vs/base/common/htmlContent';
+import { textToMarkedString, MarkedString, markedStringsEquals } from 'vs/base/common/htmlContent';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 class ModesContentComputer implements IHoverComputer<Hover[]> {
@@ -194,6 +194,9 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					}
 				}
 				if (filteredMessages.length > 0) {
+					if (hoverContentsEquals(filteredMessages, this._messages)) {
+						return;
+					}
 					this._renderMessages(range, filteredMessages);
 				} else {
 					this.hide();
@@ -282,4 +285,16 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	private static _DECORATION_OPTIONS = ModelDecorationOptions.register({
 		className: 'hoverHighlight'
 	});
+}
+
+function hoverContentsEquals(first: Hover[], second: Hover[]): boolean {
+	if ((!first && second) || (first && !second) || first.length !== second.length) {
+		return false;
+	}
+	for (let i = 0; i < first.length; i++) {
+		if (!markedStringsEquals(first[i].contents, second[i].contents)) {
+			return false;
+		}
+	}
+	return true;
 }
