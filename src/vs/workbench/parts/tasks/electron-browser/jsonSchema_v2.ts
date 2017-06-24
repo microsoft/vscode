@@ -100,9 +100,29 @@ const terminal: IJSONSchema = Objects.deepClone(presentation);
 terminal.deprecationMessage = nls.localize('JsonSchema.tasks.terminal', 'The terminal property is deprecated. Use presentation instead');
 
 const group: IJSONSchema = {
-	type: 'string',
-	enum: ['none', 'clean', 'build', 'rebuildAll', 'test'],
-	default: 'none',
+	oneOf: [
+		{
+			type: 'string',
+			enum: ['none', 'clean', 'build', 'rebuildAll', 'test'],
+			default: 'none',
+		},
+		{
+			type: 'object',
+			properties: {
+				kind: {
+					type: 'string',
+					enum: ['none', 'clean', 'build', 'rebuildAll', 'test'],
+					default: 'none',
+					description: nls.localize('JsonSchema.tasks.group.kind', 'The task\'s execution group.')
+				},
+				isPrimary: {
+					type: 'boolean',
+					default: false,
+					description: nls.localize('JsonSchema.tasks.group.isPrimary', 'Defines if this task is a primary task in a group.')
+				}
+			}
+		}
+	],
 	description: nls.localize('JsonSchema.tasks.group', 'Defines to which execution group this task belongs to. If omitted the task belongs to no group.')
 };
 

@@ -197,6 +197,11 @@ export interface CommandProperties extends BaseCommandProperties {
 	linux?: BaseCommandProperties;
 }
 
+export interface GroupKind {
+	kind?: string;
+	isPrimary?: boolean;
+}
+
 export interface ConfigurationProperties {
 	/**
 	 * The task's name
@@ -227,7 +232,7 @@ export interface ConfigurationProperties {
 	/**
 	 * Defines the group the task belongs too.
 	 */
-	group?: string;
+	group?: string | GroupKind;
 
 	/**
 	 * The other tasks the task depend on
@@ -1007,6 +1012,18 @@ const source: Tasks.TaskSource = {
 
 namespace ConfigurationProperties {
 
+	namespace GroupKind {
+		export function from(this: void, external: GroupKind): [string, boolean] {
+			if (external === void 0 || !Types.isString(external.kind)) {
+				return undefined;
+			}
+			let group: string = external.kind;
+			let primary: boolean = !!external.isPrimary;
+
+			return [group, primary];
+		}
+	}
+
 	const properties: MetaData<Tasks.ConfigurationProperties, any>[] = [
 		{ property: 'name' }, { property: 'identifier' }, { property: 'group' }, { property: 'isBackground' },
 		{ property: 'promptOnClose' }, { property: 'dependsOn' },
@@ -1033,8 +1050,17 @@ namespace ConfigurationProperties {
 		if (external.promptOnClose !== void 0) {
 			result.promptOnClose = !!external.promptOnClose;
 		}
-		if (Tasks.TaskGroup.is(external.group)) {
-			result.group = external.group;
+		if (external.group !== void 0) {
+			if (Types.isString(external.group) && Tasks.TaskGroup.is(external.group)) {
+				result.group = external.group;
+				result.isPrimaryGroupEntry = false;
+			} else {
+				let values = GroupKind.from(external.group);
+				if (values) {
+					result.group = values[0];
+					result.isPrimaryGroupEntry = values[1];
+				}
+			}
 		}
 		if (external.dependsOn !== void 0) {
 			if (Types.isString(external.dependsOn)) {
@@ -1234,6 +1260,7 @@ namespace CustomTask {
 		let resultConfigProps: Tasks.ConfigurationProperties = result;
 
 		assignProperty(resultConfigProps, configuredProps, 'group');
+		assignProperty(resultConfigProps, configuredProps, 'isPrimaryGroupEntry');
 		assignProperty(resultConfigProps, configuredProps, 'isBackground');
 		assignProperty(resultConfigProps, configuredProps, 'dependsOn');
 		assignProperty(resultConfigProps, configuredProps, 'problemMatchers');
@@ -1243,6 +1270,7 @@ namespace CustomTask {
 
 		let contributedConfigProps: Tasks.ConfigurationProperties = contributedTask;
 		fillProperty(resultConfigProps, contributedConfigProps, 'group');
+		fillProperty(resultConfigProps, contributedConfigProps, 'isPrimaryGroupEntry');
 		fillProperty(resultConfigProps, contributedConfigProps, 'isBackground');
 		fillProperty(resultConfigProps, contributedConfigProps, 'dependsOn');
 		fillProperty(resultConfigProps, contributedConfigProps, 'problemMatchers');

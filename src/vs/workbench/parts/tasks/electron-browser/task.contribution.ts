@@ -806,19 +806,6 @@ class TaskService extends EventEmitter implements ITaskService {
 		});
 	}
 
-	private splitTasks(tasks: Task[]): { configured: Task[], detected: Task[] } {
-		let configured: Task[] = [];
-		let detected: Task[] = [];
-		for (let task of tasks) {
-			if (task._source.kind === TaskSourceKind.Workspace) {
-				configured.push(task);
-			} else {
-				detected.push(task);
-			}
-		}
-		return { configured, detected };
-	}
-
 	public customize(task: Task, properties?: { problemMatcher: string | string[] }, openConfig?: boolean): TPromise<void> {
 		if (!ContributedTask.is(task)) {
 			return TPromise.as<void>(undefined);
@@ -1444,6 +1431,16 @@ class TaskService extends EventEmitter implements ITaskService {
 				// Show no build task message.
 				return;
 			}
+			let primaries: Task[] = [];
+			for (let task of tasks) {
+				if (task.isPrimaryGroupEntry) {
+					primaries.push(task);
+				}
+			}
+			if (primaries.length === 1) {
+				this.run(primaries[0]);
+				return;
+			}
 			this.quickOpenService.show('build task ');
 		});
 	}
@@ -1457,9 +1454,18 @@ class TaskService extends EventEmitter implements ITaskService {
 			return;
 		}
 		this.getTasksForGroup(TaskGroup.Test).then((tasks) => {
-			let { configured, detected } = this.splitTasks(tasks);
-			let total = configured.length + detected.length;
-			if (total === 0) {
+			if (tasks.length === 0) {
+				// Show no test task message.
+				return;
+			}
+			let primaries: Task[] = [];
+			for (let task of tasks) {
+				if (task.isPrimaryGroupEntry) {
+					primaries.push(task);
+				}
+			}
+			if (primaries.length === 1) {
+				this.run(primaries[0]);
 				return;
 			}
 			this.quickOpenService.show('test task ');
