@@ -19,7 +19,7 @@ export class HtmlInput extends ResourceEditorInput {
 		name: string,
 		description: string,
 		resource: URI,
-		private options: HtmlInputOptions,
+		public readonly options: HtmlInputOptions,
 		@ITextModelService textModelResolverService: ITextModelService
 	) {
 		super(name, description, resource, textModelResolverService);
