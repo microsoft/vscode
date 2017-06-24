@@ -6,9 +6,11 @@
 
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
+
 import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { ProblemMatcherRegistry } from 'vs/platform/markers/common/problemMatcher';
 
 import { Task, TaskGroup } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
@@ -25,12 +27,14 @@ class TaskEntry extends base.TaskEntry {
 			return false;
 		}
 		let task = this._task;
-		this.taskService.run(task);
-		if (task.command.presentation.focus) {
-			this.quickOpenService.close();
-			return false;
+		if (task.problemMatchers === void 0 || task.problemMatchers.length === 0) {
+			this.attachProblemMatcher(task).then((task) => {
+				this.doRun(task);
+			});
+			return true;
+		} else {
+			return this.doRun(task);
 		}
-		return true;
 	}
 }
 
@@ -47,7 +51,7 @@ export class QuickOpenHandler extends base.QuickOpenHandler {
 	}
 
 	protected getTasks(): TPromise<Task[]> {
-		return this.taskService.getTasksForGroup(TaskGroup.Build);
+		return ProblemMatcherRegistry.onReady().then(() => this.taskService.getTasksForGroup(TaskGroup.Build));
 	}
 
 	protected createEntry(task: Task, highlights: Model.IHighlight[]): base.TaskEntry {

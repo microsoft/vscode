@@ -9,8 +9,15 @@ import parseStylesheet from '@emmetio/css-parser';
 import parse from '@emmetio/html-matcher';
 import Node from '@emmetio/node';
 import { getSyntax, getNode, getInnerRange } from './util';
-import { getExpandOptions, extractAbbreviation, isStyleSheet } from 'vscode-emmet-helper';
+import { getExpandOptions, extractAbbreviation, isStyleSheet, isAbbreviationValid } from 'vscode-emmet-helper';
 import { DocumentStreamReader } from './bufferStream';
+
+interface ExpandAbbreviationInput {
+	syntax: string;
+	abbreviation: string;
+	rangeToReplace: vscode.Range;
+	textToWrap?: string;
+}
 
 export function wrapWithAbbreviation() {
 	let editor = vscode.window.activeTextEditor;
@@ -21,57 +28,43 @@ export function wrapWithAbbreviation() {
 	const newLine = editor.document.eol === vscode.EndOfLine.LF ? '\n' : '\r\n';
 	let syntax = getSyntax(editor.document);
 
-	vscode.window.showInputBox({ prompt: 'Enter Abbreviation' }).then(abbr => {
-		if (!abbr || !abbr.trim()) { return; }
+	vscode.window.showInputBox({ prompt: 'Enter Abbreviation' }).then(abbreviation => {
+		if (!abbreviation || !abbreviation.trim() || !isAbbreviationValid(syntax, abbreviation)) { return; }
 
-		let textToReplaceList: [string, vscode.Range][] = [];
+		let expandAbbrList: ExpandAbbreviationInput[] = [];
 		let firstTextToReplace: string;
 		let allTextToReplaceSame: boolean = true;
+		let preceedingWhiteSpace = '';
 
 		editor.selections.forEach(selection => {
-			let rangeToReplace: vscode.Range = selection;
+			let rangeToReplace: vscode.Range = selection.isReversed ? new vscode.Range(selection.active, selection.anchor) : selection;
 			if (rangeToReplace.isEmpty) {
 				rangeToReplace = new vscode.Range(rangeToReplace.start.line, 0, rangeToReplace.start.line, editor.document.lineAt(rangeToReplace.start.line).text.length);
 			}
-			let textToReplace = editor.document.getText(rangeToReplace);
+			const firstLine = editor.document.lineAt(rangeToReplace.start).text;
+			const matches = firstLine.match(/^(\s*)/);
+			if (matches) {
+				preceedingWhiteSpace = matches[1];
+			}
+			if (rangeToReplace.start.character <= preceedingWhiteSpace.length) {
+				rangeToReplace = new vscode.Range(rangeToReplace.start.line, 0, rangeToReplace.end.line, rangeToReplace.end.character);
+			}
+
+			let textToWrap = newLine;
+			for (let i = rangeToReplace.start.line; i <= rangeToReplace.end.line; i++) {
+				textToWrap += '\t' + editor.document.lineAt(i).text.substr(preceedingWhiteSpace.length) + newLine;
+			}
 
 			if (!firstTextToReplace) {
-				firstTextToReplace = textToReplace;
-			} else if (allTextToReplaceSame && firstTextToReplace !== textToReplace) {
+				firstTextToReplace = textToWrap;
+			} else if (allTextToReplaceSame && firstTextToReplace !== textToWrap) {
 				allTextToReplaceSame = false;
 			}
 
-			textToReplaceList.push([textToReplace, rangeToReplace]);
+			expandAbbrList.push({ syntax, abbreviation, rangeToReplace, textToWrap });
 		});
 
-		if (textToReplaceList.length === 0) {
-			return;
-		}
-
-		// Text to replace at multiple cursors are not the same
-		// `editor.insertSnippet` will have to be called for each instance separately
-		// We will not be able to maintain multiple cursors after snippet insertion
-		if (!allTextToReplaceSame) {
-			textToReplaceList.forEach(([textToReplace, rangeToReplace]) => {
-				let expandedText = expand(abbr, getExpandOptions(syntax, newLine + textToReplace + newLine));
-				if (expandedText) {
-					editor.insertSnippet(new vscode.SnippetString(expandedText), rangeToReplace);
-				}
-			});
-			return;
-		}
-
-		// Text to replace at all cursors are the same
-		// We can pass all ranges to `editor.insertSnippet` in a single call so that 
-		// all cursors are maintained after snippet insertion
-		let expandedText = expand(abbr, getExpandOptions(syntax, newLine + textToReplaceList[0][0] + newLine));
-		let allRanges = textToReplaceList.map(value => {
-			return value[1];
-		});
-		if (expandedText) {
-			editor.insertSnippet(new vscode.SnippetString(expandedText), allRanges);
-		}
-
+		expandAbbreviationInRange(editor, expandAbbrList, syntax, allTextToReplaceSame, preceedingWhiteSpace);
 	});
 }
 
@@ -89,16 +82,19 @@ export function expandAbbreviation(args) {
 	let parseContent = isStyleSheet(syntax) ? parseStylesheet : parse;
 	let rootNode: Node = parseContent(new DocumentStreamReader(editor.document));
 
-	let abbreviationList: [string, vscode.Range][] = [];
+	let abbreviationList: ExpandAbbreviationInput[] = [];
 	let firstAbbreviation: string;
 	let allAbbreviationsSame: boolean = true;
 
 	editor.selections.forEach(selection => {
-		let abbreviationRange: vscode.Range = selection;
+		let rangeToReplace: vscode.Range = selection;
 		let position = selection.isReversed ? selection.anchor : selection.active;
-		let abbreviation = editor.document.getText(abbreviationRange);
-		if (abbreviationRange.isEmpty) {
-			[abbreviationRange, abbreviation] = extractAbbreviation(editor.document, position);
+		let abbreviation = editor.document.getText(rangeToReplace);
+		if (rangeToReplace.isEmpty) {
+			[rangeToReplace, abbreviation] = extractAbbreviation(editor.document, position);
+		}
+		if (!isAbbreviationValid(syntax, abbreviation)) {
+			return;
 		}
 
 		let currentNode = getNode(rootNode, position);
@@ -112,38 +108,10 @@ export function expandAbbreviation(args) {
 			allAbbreviationsSame = false;
 		}
 
-		abbreviationList.push([abbreviation, abbreviationRange]);
+		abbreviationList.push({ syntax, abbreviation, rangeToReplace });
 	});
 
-	if (abbreviationList.length === 0) {
-		return;
-	}
-
-	// Abbreviations at multiple cursors are not the same
-	// `editor.insertSnippet` will have to be called for each abbreviation separately
-	// We will not be able to maintain multiple cursors after snippet insertion
-	if (!allAbbreviationsSame) {
-		abbreviationList.forEach(([abbreviation, abbreviationRange]) => {
-			let expandedText = expand(abbreviation, getExpandOptions(syntax));
-			if (expandedText) {
-				editor.insertSnippet(new vscode.SnippetString(expandedText), abbreviationRange);
-			}
-		});
-		return;
-	}
-
-	// Abbreviations at all cursors are the same
-	// We can pass all ranges to `editor.insertSnippet` in a single call so that 
-	// all cursors are maintained after snippet insertion
-	let expandedText = expand(abbreviationList[0][0], getExpandOptions(syntax));
-	let allRanges = abbreviationList.map(value => {
-		return value[1];
-	});
-	if (expandedText) {
-		editor.insertSnippet(new vscode.SnippetString(expandedText), allRanges);
-	}
-
-
+	expandAbbreviationInRange(editor, abbreviationList, syntax, allAbbreviationsSame);
 }
 
 
@@ -169,4 +137,62 @@ export function isValidLocationForEmmetAbbreviation(currentNode: Node, syntax: s
 	}
 
 	return false;
+}
+
+/**
+ * Expands abbreviations as detailed in expandAbbrList in the editor
+ * @param editor 
+ * @param expandAbbrList 
+ * @param syntax 
+ * @param insertSameSnippet 
+ * @param preceedingWhiteSpace 
+ */
+function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: ExpandAbbreviationInput[], syntax: string, insertSameSnippet: boolean, preceedingWhiteSpace: string = '') {
+	if (!expandAbbrList || expandAbbrList.length === 0) {
+		return;
+	}
+	const newLine = editor.document.eol === vscode.EndOfLine.LF ? '\n' : '\r\n';
+
+	// Snippet to replace at multiple cursors are not the same
+	// `editor.insertSnippet` will have to be called for each instance separately
+	// We will not be able to maintain multiple cursors after snippet insertion
+	if (!insertSameSnippet) {
+		expandAbbrList.forEach((expandAbbrInput: ExpandAbbreviationInput) => {
+			let expandedText = expandAbbr(expandAbbrInput, preceedingWhiteSpace, newLine);
+			if (expandedText) {
+				editor.insertSnippet(new vscode.SnippetString(expandedText), expandAbbrInput.rangeToReplace);
+			}
+		});
+		return;
+	}
+
+	// Snippet to replace at all cursors are the same
+	// We can pass all ranges to `editor.insertSnippet` in a single call so that 
+	// all cursors are maintained after snippet insertion
+	const anyExpandAbbrInput = expandAbbrList[0];
+	let expandedText = expandAbbr(anyExpandAbbrInput, preceedingWhiteSpace, newLine);
+	let allRanges = expandAbbrList.map(value => {
+		return value.rangeToReplace;
+	});
+	if (expandedText) {
+		editor.insertSnippet(new vscode.SnippetString(expandedText), allRanges);
+	}
+}
+
+/**
+ * Expands abbreviation as detailed in given input. 
+ * If there is textToWrap, then given preceedingWhiteSpace is applied
+ */
+function expandAbbr(input: ExpandAbbreviationInput, preceedingWhiteSpace: string, newLine: string): string {
+
+	let expandedText = expand(input.abbreviation, getExpandOptions(input.syntax, input.textToWrap));
+	if (!expandedText) {
+		return;
+	}
+
+	if (!input.textToWrap) {
+		return expandedText;
+	}
+
+	return expandedText.split(newLine).map(line => preceedingWhiteSpace + line).join(newLine);
 }

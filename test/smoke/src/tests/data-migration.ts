@@ -51,10 +51,10 @@ export function testDataMigration() {
 			setupSpectron(this, LATEST_PATH);
 			await app.start();
 
-			assert.ok(await common.getTab('Untitled-1'));
+			assert.ok(await common.getTab('Untitled-1'), 'Untitled-1 tab was not restored after migration.');
 			await common.selectTab('Untitled-1');
 			const editorText = await common.getEditorFirstLinePlainText();
-			assert.equal(editorText, textToType);
+			assert.equal(editorText, textToType, 'Typed editor text does not match to the one after migration.');
 		});
 
 		it('checks if the newly created dirty file is restored migrating from stable to latest', async function () {
@@ -77,10 +77,10 @@ export function testDataMigration() {
 			// Checking latest version for the restored state
 			setupSpectron(this, LATEST_PATH);
 			await app.start();
-			assert.ok(await common.getTab(fileName.split('/')[1]));
+			assert.ok(await common.getTab(fileName.split('/')[1]), `${fileName} was not restored after migration.`);
 			await common.selectTab(fileName.split('/')[1]);
 			const editorText = await common.getEditorFirstLinePlainText();
-			assert.equal(editorText, firstTextPart.concat(secondTextPart));
+			assert.equal(editorText, firstTextPart.concat(secondTextPart), 'Entered text was not correctly restored after migration.');
 
 			// Cleanup
 			await common.removeFile(`${fileName}`);
@@ -97,9 +97,9 @@ export function testDataMigration() {
 
 			setupSpectron(this, LATEST_PATH, [WORKSPACE_PATH]);
 			await app.start();
-			assert.ok(await common.getTab(fileName1));
-			assert.ok(await common.getTab(fileName2));
-			assert.ok(await common.getTab(fileName3));
+			assert.ok(await common.getTab(fileName1), `${fileName1} tab was not restored after migration.`);
+			assert.ok(await common.getTab(fileName2), `${fileName2} tab was not restored after migration.`);
+			assert.ok(await common.getTab(fileName3), `${fileName3} tab was not restored after migration.`);
 		});
 	});
 }

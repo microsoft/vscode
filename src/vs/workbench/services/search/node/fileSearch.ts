@@ -135,7 +135,7 @@ export class FileWalker {
 			if (extraFiles) {
 				extraFiles.forEach(extraFilePath => {
 					const basename = paths.basename(extraFilePath);
-					if (!this.globalExcludePattern || this.globalExcludePattern(extraFilePath, basename)) {
+					if (this.globalExcludePattern && this.globalExcludePattern(extraFilePath, basename)) {
 						return; // excluded
 					}
 

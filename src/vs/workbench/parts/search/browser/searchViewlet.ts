@@ -894,20 +894,14 @@ export class SearchViewlet extends Viewlet {
 		}
 	}
 
-	public searchInFolder(resource?: URI): void {
-		const workspaceRelativePath = this.contextService.toWorkspaceRelativePath(resource);
-		if (!workspaceRelativePath || workspaceRelativePath === '.') {
-			this.inputPatternIncludes.setValue('');
-			this.searchWidget.focus();
-			return;
-		}
-
+	public searchInFolder(resource: URI): void {
+		// Show 'files to include' box
 		if (!this.showsFileTypes()) {
 			this.toggleQueryDetails(true, true);
 		}
 
 		this.inputPatternIncludes.setIsGlobPattern(false);
-		this.inputPatternIncludes.setValue('./' + workspaceRelativePath);
+		this.inputPatternIncludes.setValue(resource.fsPath);
 		this.searchWidget.focus(false);
 	}
 

@@ -13,17 +13,11 @@ import { isValidLocationForEmmetAbbreviation } from './abbreviationActions';
 import { getSyntax, getNode, getInnerRange } from './util';
 
 export class DefaultCompletionItemProvider implements vscode.CompletionItemProvider {
-	private _mappedSyntax = false;
-	constructor(mappedSyntax?: boolean) {
-		if (mappedSyntax) {
-			this._mappedSyntax = mappedSyntax;
-		}
-	}
+
 	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Thenable<vscode.CompletionList> {
 		let syntax = getSyntax(document);
-		if (!this._mappedSyntax) {
-			syntax = this.syntaxHelper(syntax, document, position);
-		}
+		syntax = this.syntaxHelper(syntax, document, position);
+
 		if (!syntax) {
 			return;
 		}

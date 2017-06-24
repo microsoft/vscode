@@ -76,7 +76,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this._isViewportWrapping = conf.editor.wrappingInfo.isViewportWrapping;
 		this._revealHorizontalRightPadding = conf.editor.viewInfo.revealHorizontalRightPadding;
 		this._canUseLayerHinting = conf.editor.canUseLayerHinting;
-		this._viewLineOptions = new ViewLineOptions(conf);
+		this._viewLineOptions = new ViewLineOptions(conf, this._context.theme.type);
 
 		PartFingerprints.write(this.domNode, PartFingerprint.ViewLines);
 		this.domNode.setClassName('view-lines');
@@ -139,7 +139,18 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 			Configuration.applyFontInfo(this.domNode, conf.editor.fontInfo);
 		}
 
-		let newViewLineOptions = new ViewLineOptions(conf);
+		this._onOptionsMaybeChanged();
+
+		if (e.layoutInfo) {
+			this._maxLineWidth = 0;
+		}
+
+		return true;
+	}
+	private _onOptionsMaybeChanged(): boolean {
+		const conf = this._context.configuration;
+
+		let newViewLineOptions = new ViewLineOptions(conf, this._context.theme.type);
 		if (!this._viewLineOptions.equals(newViewLineOptions)) {
 			this._viewLineOptions = newViewLineOptions;
 
@@ -149,13 +160,10 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 				let line = this._visibleLines.getVisibleLine(lineNumber);
 				line.onOptionsChanged(this._viewLineOptions);
 			}
+			return true;
 		}
 
-		if (e.layoutInfo) {
-			this._maxLineWidth = 0;
-		}
-
-		return true;
+		return false;
 	}
 	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		let rendStartLineNumber = this._visibleLines.getStartLineNumber();
@@ -213,6 +221,9 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 	}
 	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return this._visibleLines.onZonesChanged(e);
+	}
+	public onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
+		return this._onOptionsMaybeChanged();
 	}
 
 	// ---- end view event handlers

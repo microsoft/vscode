@@ -33,7 +33,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { IOutputService, IOutputChannel } from 'vs/workbench/parts/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEvents } from 'vs/workbench/parts/tasks/common/problemCollectors';
-import { Task, RevealKind, CommandOptions, ShellConfiguration, CommandType, PanelKind } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, RevealKind, CommandOptions, ShellConfiguration, RuntimeType, PanelKind } from 'vs/workbench/parts/tasks/common/tasks';
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
 	TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType, TaskTerminateResponse
@@ -406,7 +406,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			waitOnExit = nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.');
 		};
 		let shellLaunchConfig: IShellLaunchConfig = undefined;
-		let isShellCommand = task.command.type === CommandType.Shell;
+		let isShellCommand = task.command.runtime === RuntimeType.Shell;
 		if (isShellCommand) {
 			if (Platform.isWindows && ((options.cwd && TPath.isUNC(options.cwd)) || (!options.cwd && TPath.isUNC(process.cwd())))) {
 				throw new TaskError(Severity.Error, nls.localize('TerminalTaskSystem', 'Can\'t execute a shell command on an UNC drive.'), TaskErrors.UnknownError);

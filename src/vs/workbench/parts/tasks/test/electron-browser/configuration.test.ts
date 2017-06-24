@@ -13,7 +13,7 @@ import { ValidationStatus } from 'vs/base/common/parsers';
 import { ProblemMatcher, FileLocationKind, ProblemPattern, ApplyToKind } from 'vs/platform/markers/common/problemMatcher';
 
 import * as Tasks from 'vs/workbench/parts/tasks/common/tasks';
-import { parse, ParseResult, IProblemReporter, ExternalTaskRunnerConfiguration } from 'vs/workbench/parts/tasks/common/taskConfiguration';
+import { parse, ParseResult, IProblemReporter, ExternalTaskRunnerConfiguration, CustomTask } from 'vs/workbench/parts/tasks/node/taskConfiguration';
 
 class ProblemReporter implements IProblemReporter {
 
@@ -56,15 +56,15 @@ class ProblemReporter implements IProblemReporter {
 class ConfiguationBuilder {
 
 	public result: Tasks.Task[];
-	private builders: TaskBuilder[];
+	private builders: CustomTaskBuilder[];
 
 	constructor() {
 		this.result = [];
 		this.builders = [];
 	}
 
-	public task(name: string, command: string): TaskBuilder {
-		let builder = new TaskBuilder(this, name, command);
+	public task(name: string, command: string): CustomTaskBuilder {
+		let builder = new CustomTaskBuilder(this, name, command);
 		this.builders.push(builder);
 		this.result.push(builder.result);
 		return builder;
@@ -114,11 +114,11 @@ class CommandConfigurationBuilder {
 
 	private presentationBuilder: PresentationBuilder;
 
-	constructor(public parent: TaskBuilder, command: string) {
+	constructor(public parent: CustomTaskBuilder, command: string) {
 		this.presentationBuilder = new PresentationBuilder(this);
 		this.result = {
 			name: command,
-			type: Tasks.CommandType.Process,
+			runtime: Tasks.RuntimeType.Process,
 			args: [],
 			options: {
 				cwd: '${workspaceRoot}'
@@ -133,8 +133,8 @@ class CommandConfigurationBuilder {
 		return this;
 	}
 
-	public type(value: Tasks.CommandType): CommandConfigurationBuilder {
-		this.result.type = value;
+	public runtime(value: Tasks.RuntimeType): CommandConfigurationBuilder {
+		this.result.runtime = value;
 		return this;
 	}
 
@@ -168,9 +168,9 @@ class CommandConfigurationBuilder {
 	}
 }
 
-class TaskBuilder {
+class CustomTaskBuilder {
 
-	public result: Tasks.Task;
+	public result: Tasks.CustomTask;
 	private commandBuilder: CommandConfigurationBuilder;
 
 	constructor(public parent: ConfiguationBuilder, name: string, command: string) {
@@ -179,6 +179,7 @@ class TaskBuilder {
 			_id: name,
 			_source: { kind: Tasks.TaskSourceKind.Workspace, label: 'workspace' },
 			_label: name,
+			type: 'custom',
 			identifier: name,
 			name: name,
 			command: this.commandBuilder.result,
@@ -188,22 +189,22 @@ class TaskBuilder {
 		};
 	}
 
-	public identifier(value: string): TaskBuilder {
+	public identifier(value: string): CustomTaskBuilder {
 		this.result.identifier = value;
 		return this;
 	}
 
-	public group(value: Tasks.TaskGroup): TaskBuilder {
+	public group(value: Tasks.TaskGroup): CustomTaskBuilder {
 		this.result.group = value;
 		return this;
 	}
 
-	public isBackground(value: boolean): TaskBuilder {
+	public isBackground(value: boolean): CustomTaskBuilder {
 		this.result.isBackground = value;
 		return this;
 	}
 
-	public promptOnClose(value: boolean): TaskBuilder {
+	public promptOnClose(value: boolean): CustomTaskBuilder {
 		this.result.promptOnClose = value;
 		return this;
 	}
@@ -229,7 +230,7 @@ class ProblemMatcherBuilder {
 
 	public result: ProblemMatcher;
 
-	constructor(public parent: TaskBuilder) {
+	constructor(public parent: CustomTaskBuilder) {
 		this.result = {
 			owner: ProblemMatcherBuilder.DEFAULT_UUID,
 			applyTo: ApplyToKind.allDocuments,
@@ -342,8 +343,8 @@ function testDefaultProblemMatcher(external: ExternalTaskRunnerConfiguration, re
 	let reporter = new ProblemReporter();
 	let result = parse(external, reporter);
 	assert.ok(!reporter.receivedMessage);
-	assert.strictEqual(result.tasks.length, 1);
-	let task = result.tasks[0];
+	assert.strictEqual(result.custom.length, 1);
+	let task = result.custom[0];
 	assert.ok(task);
 	assert.strictEqual(task.problemMatchers.length, resolved);
 }
@@ -401,7 +402,7 @@ class TaskGroupMap {
 
 function assertConfiguration(result: ParseResult, expected: Tasks.Task[]): void {
 	assert.ok(result.validationStatus.isOK());
-	let actual = result.tasks;
+	let actual = result.custom;
 	assert.strictEqual(typeof actual, typeof expected);
 	if (!actual) {
 		return;
@@ -460,7 +461,7 @@ function assertCommandConfiguration(actual: Tasks.CommandConfiguration, expected
 	if (actual && expected) {
 		assertPresentation(actual.presentation, expected.presentation);
 		assert.strictEqual(actual.name, expected.name, 'name');
-		assert.strictEqual(actual.type, expected.type, 'task type');
+		assert.strictEqual(actual.runtime, expected.runtime, 'runtime type');
 		assert.strictEqual(actual.suppressTaskName, expected.suppressTaskName, 'suppressTaskName');
 		assert.strictEqual(actual.taskSelector, expected.taskSelector, 'taskSelector');
 		assert.deepEqual(actual.args, expected.args, 'args');
@@ -558,7 +559,7 @@ suite('Tasks version 0.1.0', () => {
 		builder.task('tsc', 'tsc').
 			group(Tasks.TaskGroup.Build).
 			command().suppressTaskName(true).
-			type(Tasks.CommandType.Shell);
+			runtime(Tasks.RuntimeType.Shell);
 		testConfiguration(
 			{
 				version: '0.1.0',
@@ -753,7 +754,7 @@ suite('Tasks version 0.1.0', () => {
 			task(name, name).
 			group(Tasks.TaskGroup.Build).
 			command().suppressTaskName(true).
-			type(Tasks.CommandType.Shell);
+			runtime(Tasks.RuntimeType.Shell);
 		let external: ExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
@@ -877,7 +878,7 @@ suite('Tasks version 0.1.0', () => {
 				{
 					taskName: 'taskName',
 					isBuildCommand: true
-				}
+				} as CustomTask
 			]
 		};
 		let builder = new ConfiguationBuilder();
@@ -908,7 +909,7 @@ suite('Tasks version 0.1.0', () => {
 				{
 					taskName: 'taskName',
 					isTestCommand: true
-				}
+				} as CustomTask
 			]
 		};
 		let builder = new ConfiguationBuilder();
@@ -942,7 +943,7 @@ suite('Tasks version 0.1.0', () => {
 					echoCommand: true,
 					args: ['--p'],
 					isWatching: true
-				}
+				} as CustomTask
 			]
 		};
 		let builder = new ConfiguationBuilder();
@@ -1166,7 +1167,7 @@ suite('Tasks version 0.1.0', () => {
 				{
 					taskName: 'taskName',
 					isWatching: true
-				}
+				} as CustomTask
 			]
 		};
 		let builder = new ConfiguationBuilder();
@@ -1222,7 +1223,7 @@ suite('Tasks version 0.1.0', () => {
 				{
 					taskName: 'taskName',
 					suppressTaskName: true
-				}
+				} as CustomTask
 			]
 		};
 		let builder = new ConfiguationBuilder();
@@ -1319,12 +1320,12 @@ suite('Tasks version 0.1.0', () => {
 							env: 'env'
 						}
 					}
-				}
+				} as CustomTask
 			]
 		};
 		let builder = new ConfiguationBuilder();
 		builder.task('taskNameOne', 'tsc').command().suppressTaskName(true).
-			type(Tasks.CommandType.Shell).args(['arg']).options({ cwd: 'cwd', env: { env: 'env' } });
+			runtime(Tasks.RuntimeType.Shell).args(['arg']).options({ cwd: 'cwd', env: { env: 'env' } });
 		testConfiguration(external, builder);
 	});
 
@@ -1395,11 +1396,11 @@ suite('Tasks version 0.1.0', () => {
 				{
 					taskName: 'taskNameOne',
 					isShellCommand: true,
-				}
+				} as CustomTask
 			]
 		};
 		let builder = new ConfiguationBuilder();
-		builder.task('taskNameOne', 'tsc').command().type(Tasks.CommandType.Shell).args(['$name']);
+		builder.task('taskNameOne', 'tsc').command().runtime(Tasks.RuntimeType.Shell).args(['$name']);
 		testConfiguration(external, builder);
 	});
 
@@ -1456,7 +1457,7 @@ suite('Tasks version 2.0.0', () => {
 		builder.task('dir', 'dir').
 			group(Tasks.TaskGroup.Build).
 			command().suppressTaskName(true).
-			type(Tasks.CommandType.Shell).
+			runtime(Tasks.RuntimeType.Shell).
 			presentation().echo(true);
 		testConfiguration(external, builder);
 	});
@@ -1490,7 +1491,7 @@ suite('Bugs / regression tests', () => {
 						isBuildCommand: false,
 						showOutput: 'always',
 						echoCommand: true
-					}
+					} as CustomTask
 				]
 			},
 			osx: {
@@ -1508,7 +1509,7 @@ suite('Bugs / regression tests', () => {
 						],
 						isBuildCommand: false,
 						showOutput: 'always'
-					}
+					} as CustomTask
 				]
 			}
 		};

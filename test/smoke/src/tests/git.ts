@@ -31,17 +31,17 @@ export function testGit() {
 			const changesCount = await git.getScmIconChanges();
 			assert.equal(changesCount, 2);
 			await git.openGitViewlet();
-			assert.ok(await git.verifyScmChange('app.js'));
-			assert.ok(await git.verifyScmChange('launch.json'));
+			assert.ok(await git.verifyScmChange('app.js'), 'app.js change does not appear in SCM viewlet.');
+			assert.ok(await git.verifyScmChange('launch.json'), 'launch.json change does not appear in SCM viewlet.');
 		});
 
 		it(`verifies 'app.js' diff viewer changes`, async function () {
 			await git.openGitViewlet();
 			await common.openFile('app.js');
 			const original = await git.getOriginalAppJsBodyVarName();
-			assert.equal(original, 'bodyParser');
+			assert.equal(original, 'bodyParser', 'Original value from diff view is wrong.');
 			const modified = await git.getModifiedAppJsBodyVarName();
-			assert.equal(modified, 'ydobParser');
+			assert.equal(modified, 'ydobParser', 'Modified value from diff view is wrong.');
 		});
 
 		it(`stages 'app.js' changes and checks stage count`, async function () {
@@ -63,7 +63,7 @@ export function testGit() {
 			await common.type('Test commit');
 			await git.pressCommit();
 			const changes = await git.getOutgoingChanges();
-			assert.equal(changes, ' 0↓ 1↑');
+			assert.equal(changes, ' 0↓ 1↑', 'Changes indicator is wrong in a status bar.');
 		});
 	});
 }

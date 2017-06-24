@@ -273,7 +273,9 @@ export const findInFolderCommand = (accessor: ServicesAccessor, resource?: URI) 
 	}
 
 	viewletService.openViewlet(Constants.VIEWLET_ID, true).then((viewlet: SearchViewlet) => {
-		viewlet.searchInFolder(resource);
+		if (resource) {
+			viewlet.searchInFolder(resource);
+		}
 	}).done(null, errors.onUnexpectedError);
 };
 
