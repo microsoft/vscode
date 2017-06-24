@@ -22,6 +22,7 @@ import { HoverOperation, IHoverComputer } from './hoverOperation';
 import { ContentHoverWidget } from './hoverWidgets';
 import { textToMarkedString, MarkedString, markedStringsEquals } from 'vs/base/common/htmlContent';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 class ModesContentComputer implements IHoverComputer<Hover[]> {
 
@@ -135,7 +136,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	private _modeService: IModeService;
 	private _shouldFocus: boolean;
 
-	constructor(editor: ICodeEditor, openerService: IOpenerService, modeService: IModeService) {
+	constructor(editor: ICodeEditor, openerService: IOpenerService, modeService: IModeService, private telemetryService: ITelemetryService) {
 		super(ModesContentHoverWidget.ID, editor);
 
 		this._computer = new ModesContentComputer(this._editor);
@@ -270,6 +271,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		});
 
 		// show
+		this.telemetryService.publicLog('editor.contentHoverWidgetDisplayed');
 		this.showAt(new Position(renderRange.startLineNumber, renderColumn), this._shouldFocus);
 
 		this.updateContents(fragment);
