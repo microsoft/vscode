@@ -145,7 +145,8 @@
 			"name": "Variable",
 			"scope": "variable",
 			"settings": {
-				"fontStyle": ""
+				"fontStyle": "",
+				"foreground": "#F8F8F2"
 			}
 		},
 		{
