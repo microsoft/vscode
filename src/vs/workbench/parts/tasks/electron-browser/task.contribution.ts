@@ -837,14 +837,24 @@ class TaskService extends EventEmitter implements ITaskService {
 			}
 		}
 
-		let value: IConfigurationValue = { key: undefined, value: undefined };
+		let promise: TPromise<void>;
 		if (!fileConfig) {
-			value.key = 'tasks';
-			value.value = {
+			let value = {
 				version: '2.0.0',
 				tasks: [customizes]
 			};
+			let content = [
+				'{',
+				'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
+				'\t// for the documentation about the tasks.json format',
+			].join('\n') + JSON.stringify(value, null, '\t').substr(1);
+			let editorConfig = this.configurationService.getConfiguration<any>();
+			if (editorConfig.editor.insertSpaces) {
+				content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + strings.repeat(' ', s2.length * editorConfig.editor.tabSize));
+			}
+			promise = this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json'), content).then(() => { });
 		} else {
+			let value: IConfigurationValue = { key: undefined, value: undefined };
 			if (Array.isArray(fileConfig.tasks)) {
 				fileConfig.tasks.push(customizes);
 			} else {
@@ -852,8 +862,9 @@ class TaskService extends EventEmitter implements ITaskService {
 			}
 			value.key = 'tasks.tasks';
 			value.value = fileConfig.tasks;
+			promise = this.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, value);
 		};
-		return this.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, value).then(() => {
+		return promise.then(() => {
 			if (openConfig) {
 				let resource = this.contextService.toResource('.vscode/tasks.json');
 				this.editorService.openEditor({
