@@ -250,29 +250,32 @@ declare module 'vscode' {
 		 *
 		 * @param kind The task kind as defined in the 'taskKinds' extension point.
 		 * @param name The task's name. Is presented in the user interface.
+		 * @param source The task's source (e.g. 'gulp', 'npm', ...). Is presented in the user interface.
 		 */
-		constructor(kind: TaskKind, name: string);
+		constructor(kind: TaskKind, name: string, source: string);
 
 		/**
 		 * Creates a new task.
 		 *
 		 * @param kind The task kind as defined in the 'taskKinds' extension point.
 		 * @param name The task's name. Is presented in the user interface.
+		 * @param source The task's source (e.g. 'gulp', 'npm', ...). Is presented in the user interface.
 		 * @param execution The process or shell execution.
 		 */
-		constructor(kind: TaskKind, name: string, execution: ProcessExecution | ShellExecution);
+		constructor(kind: TaskKind, name: string, source: string, execution: ProcessExecution | ShellExecution);
 
 		/**
 		 * Creates a new task.
 		 *
 		 * @param kind The task kind as defined in the 'taskKinds' extension point.
 		 * @param name The task's name. Is presented in the user interface.
+		 * @param source The task's source (e.g. 'gulp', 'npm', ...). Is presented in the user interface.
 		 * @param execution The process or shell execution.
 		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
 		 *  or '$eslint'. Problem matchers can be contributed by an extension using
 		 *  the `problemMatchers` extension point.
 		 */
-		constructor(kind: TaskKind, name: string, execution: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
+		constructor(kind: TaskKind, name: string, source: string, execution: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
 
 		/**
 		 * The task's kind.

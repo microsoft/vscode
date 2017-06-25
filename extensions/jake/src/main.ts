@@ -155,7 +155,7 @@ async function getJakeTasks(): Promise<vscode.Task[]> {
 						type: 'jake',
 						task: taskName
 					};
-					let task = new vscode.Task(kind, taskName, new vscode.ShellExecution(`${jakeCommand} ${taskName}`));
+					let task = new vscode.Task(kind, taskName, 'jake', new vscode.ShellExecution(`${jakeCommand} ${taskName}`));
 					result.push(task);
 					let lowerCaseLine = line.toLowerCase();
 					if (isBuildTask(lowerCaseLine)) {

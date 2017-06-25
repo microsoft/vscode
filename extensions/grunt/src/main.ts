@@ -169,16 +169,17 @@ async function getGruntTasks(): Promise<vscode.Task[]> {
 						let regExp = /^\s*(\S.*\S)  \S/g;
 						let matches = regExp.exec(line);
 						if (matches && matches.length === 2) {
-							let taskName = matches[1];
+							let name = matches[1];
 							let kind: GruntTaskKind = {
 								type: 'grunt',
-								task: taskName
+								task: name
 							};
-							let task = taskName.indexOf(' ') === -1
-								? new vscode.Task(kind, taskName, new vscode.ShellExecution(`${command} ${taskName}`))
-								: new vscode.Task(kind, taskName, new vscode.ShellExecution(`${command} "${taskName}"`));
+							let source = 'grunt';
+							let task = name.indexOf(' ') === -1
+								? new vscode.Task(kind, name, source, new vscode.ShellExecution(`${command} ${name}`))
+								: new vscode.Task(kind, name, source, new vscode.ShellExecution(`${command} "${name}"`));
 							result.push(task);
-							let lowerCaseTaskName = taskName.toLowerCase();
+							let lowerCaseTaskName = name.toLowerCase();
 							if (isBuildTask(lowerCaseTaskName)) {
 								task.group = vscode.TaskGroup.Build;
 							} else if (isTestTask(lowerCaseTaskName)) {

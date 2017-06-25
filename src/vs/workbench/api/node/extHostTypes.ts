@@ -1164,13 +1164,14 @@ export class Task implements vscode.Task {
 	private _presentationOptions: vscode.TaskPresentationOptions;
 
 
-	constructor(kind: vscode.TaskKind, name: string);
-	constructor(kind: vscode.TaskKind, name: string, execution: ProcessExecution | ShellExecution);
-	constructor(kind: vscode.TaskKind, name: string, execution: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
+	constructor(kind: vscode.TaskKind, name: string, source: string);
+	constructor(kind: vscode.TaskKind, name: string, source: string, execution: ProcessExecution | ShellExecution);
+	constructor(kind: vscode.TaskKind, name: string, source: string, execution: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
 
-	constructor(kind: vscode.TaskKind, name: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]) {
+	constructor(kind: vscode.TaskKind, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]) {
 		this.kind = kind;
 		this.name = name;
+		this.source = source;
 		this.execution = execution;
 		if (typeof problemMatchers === 'string') {
 			this._problemMatchers = [problemMatchers];

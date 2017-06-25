@@ -151,7 +151,7 @@ async function getGulpTasks(): Promise<vscode.Task[]> {
 					type: 'gulp',
 					task: line
 				};
-				let task = new vscode.Task(kind, line, new vscode.ShellExecution(`${gulpCommand} ${line}`));
+				let task = new vscode.Task(kind, line, 'gulp', new vscode.ShellExecution(`${gulpCommand} ${line}`));
 				result.push(task);
 				let lowerCaseLine = line.toLowerCase();
 				if (isBuildTask(lowerCaseLine)) {
