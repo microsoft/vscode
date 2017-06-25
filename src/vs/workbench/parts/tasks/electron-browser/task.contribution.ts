@@ -46,6 +46,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ProblemMatcherRegistry } from 'vs/platform/markers/common/problemMatcher';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IProgressService2, IProgressOptions, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -573,7 +574,8 @@ class TaskService extends EventEmitter implements ITaskService {
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
 		@ITerminalService private terminalService: ITerminalService,
 		@IWorkbenchEditorService private workbenchEditorService: IWorkbenchEditorService,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@IProgressService2 private progressService: IProgressService2
 	) {
 
 		super();
@@ -1430,7 +1432,11 @@ class TaskService extends EventEmitter implements ITaskService {
 			this.build();
 			return;
 		}
-		this.getTasksForGroup(TaskGroup.Build).then((tasks) => {
+		let options: IProgressOptions = {
+			location: ProgressLocation.Window,
+			title: nls.localize('TaskService.fetchingBuildTasks', 'Fetching build tasks...')
+		};
+		let promise = this.getTasksForGroup(TaskGroup.Build).then((tasks) => {
 			if (tasks.length === 0) {
 				this.messageService.show(
 					Severity.Info,
@@ -1453,6 +1459,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			}
 			this.quickOpenService.show('build task ');
 		});
+		this.progressService.withProgress(options, () => promise);
 	}
 
 	private runTestCommand(): void {
@@ -1463,7 +1470,11 @@ class TaskService extends EventEmitter implements ITaskService {
 			this.runTest();
 			return;
 		}
-		this.getTasksForGroup(TaskGroup.Test).then((tasks) => {
+		let options: IProgressOptions = {
+			location: ProgressLocation.Window,
+			title: nls.localize('TaskService.fetchingTestTasks', 'Fetching test tasks...')
+		};
+		let promise = this.getTasksForGroup(TaskGroup.Test).then((tasks) => {
 			if (tasks.length === 0) {
 				this.messageService.show(
 					Severity.Info,
@@ -1486,6 +1497,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			}
 			this.quickOpenService.show('test task ');
 		});
+		this.progressService.withProgress(options, () => promise);
 	}
 
 	private runTerminateCommand(): void {
