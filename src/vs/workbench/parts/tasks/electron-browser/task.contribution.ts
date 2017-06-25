@@ -739,7 +739,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		return this.getTaskSets().then((values) => {
 			let runnable = this.createRunnableTask(values, TaskGroup.Build);
 			if (!runnable || !runnable.task) {
-				throw new TaskError(Severity.Info, nls.localize('TaskService.noBuildTask', 'No build task defined. Mark a task with \'isBuildCommand\' in the tasks.json file.'), TaskErrors.NoBuildTask);
+				throw new TaskError(Severity.Info, nls.localize('TaskService.noBuildTask', 'No build task defined. Mark a task with as \'build\' group in the tasks.json file.'), TaskErrors.NoBuildTask);
 			}
 			return this.executeTask(runnable.task, runnable.resolver);
 		}).then(value => value, (error) => {
@@ -1432,7 +1432,13 @@ class TaskService extends EventEmitter implements ITaskService {
 		}
 		this.getTasksForGroup(TaskGroup.Build).then((tasks) => {
 			if (tasks.length === 0) {
-				// Show no build task message.
+				this.messageService.show(
+					Severity.Info,
+					{
+						message: nls.localize('TaskService.noBuildTaskTerminal', 'No Build Task found. Press \'Configure Build Task\' to define one.'),
+						actions: [this.configureBuildTask(), new CloseMessageAction()]
+					}
+				);
 				return;
 			}
 			let primaries: Task[] = [];
@@ -1459,7 +1465,13 @@ class TaskService extends EventEmitter implements ITaskService {
 		}
 		this.getTasksForGroup(TaskGroup.Test).then((tasks) => {
 			if (tasks.length === 0) {
-				// Show no test task message.
+				this.messageService.show(
+					Severity.Info,
+					{
+						message: nls.localize('TaskService.noTestTaskTerminal', 'No Test Task found. Press \'Configure Task Runner\' to define one.'),
+						actions: [this.configureAction(), new CloseMessageAction()]
+					}
+				);
 				return;
 			}
 			let primaries: Task[] = [];
