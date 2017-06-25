@@ -10,7 +10,7 @@ import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, To
 import nls = require('vs/nls');
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory, EditorInput, IFileEditorInput } from 'vs/workbench/common/editor';
@@ -174,6 +174,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'object',
 			'description': nls.localize('exclude', "Configure glob patterns for excluding files and folders."),
 			'default': { '**/.git': true, '**/.svn': true, '**/.hg': true, '**/CVS': true, '**/.DS_Store': true },
+			'scope': ConfigurationScope.FOLDER,
 			'additionalProperties': {
 				'anyOf': [
 					{
