@@ -1,6 +1,0 @@
-Allow configuring of problem matchers for auto detected build tasks
-Run Build > list of build tasks > user selected task with PM > show UI to select problem matcher > open tasks.json
-Task Menu only in insider
-Telemetry for task
-
-Polish task menu.

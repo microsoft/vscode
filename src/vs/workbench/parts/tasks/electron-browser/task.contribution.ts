@@ -64,7 +64,7 @@ import Constants from 'vs/workbench/parts/markers/common/constants';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IConfigurationEditingService, ConfigurationTarget, IConfigurationValue } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -835,8 +835,10 @@ class TaskService extends EventEmitter implements ITaskService {
 			}
 		}
 
+		let value: IConfigurationValue = { key: undefined, value: undefined };
 		if (!fileConfig) {
-			fileConfig = {
+			value.key = 'tasks';
+			value.value = {
 				version: '2.0.0',
 				tasks: [customizes]
 			};
@@ -846,8 +848,10 @@ class TaskService extends EventEmitter implements ITaskService {
 			} else {
 				fileConfig.tasks = [customizes];
 			}
+			value.key = 'tasks.tasks';
+			value.value = fileConfig.tasks;
 		};
-		return this.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'tasks', value: fileConfig }).then(() => {
+		return this.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, value).then(() => {
 			if (openConfig) {
 				let resource = this.contextService.toResource('.vscode/tasks.json');
 				this.editorService.openEditor({
