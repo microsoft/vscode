@@ -276,7 +276,7 @@ export class ConfigurationManager implements IConfigurationManager {
 			return null;
 		}
 
-		const config = this.configurationService.getConfiguration<IGlobalConfig>('launch');
+		const config = this.configurationService.getConfiguration<IGlobalConfig>('launch', { resource: this.contextService.getWorkspace().resource });
 		if (!config || !config.compounds) {
 			return null;
 		}
@@ -285,7 +285,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	public getConfigurationNames(): string[] {
-		const config = this.configurationService.getConfiguration<IGlobalConfig>('launch');
+		const config = this.configurationService.getConfiguration<IGlobalConfig>('launch', { resource: this.contextService.getWorkspace().resource });
 		if (!config || !config.configurations) {
 			return [];
 		} else {
@@ -306,7 +306,7 @@ export class ConfigurationManager implements IConfigurationManager {
 			return null;
 		}
 
-		const config = this.configurationService.getConfiguration<IGlobalConfig>('launch');
+		const config = this.configurationService.getConfiguration<IGlobalConfig>('launch', { resource: this.contextService.getWorkspace().resource });
 		if (!config || !config.configurations) {
 			return null;
 		}
