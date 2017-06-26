@@ -287,6 +287,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._reviewPane = new DiffReview(this);
 		this._containerDomElement.appendChild(this._reviewPane.domNode.domNode);
 		this._containerDomElement.appendChild(this._reviewPane.shadow.domNode);
+		this._containerDomElement.appendChild(this._reviewPane.actionBarContainer.domNode);
 
 		if (options.automaticLayout) {
 			this._measureDomElementToken = window.setInterval(() => this._measureDomElement(false), 100);
@@ -771,7 +772,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 		this._width = dimensions.width;
 		this._height = dimensions.height;
-		this._reviewHeight = this._reviewPane.isVisible() ? Math.floor(0.5 * this._height) : 0;
+		this._reviewHeight = this._reviewPane.isVisible() ? this._height : 0;
 
 		this._doLayout();
 	}

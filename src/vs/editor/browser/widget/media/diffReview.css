@@ -18,6 +18,10 @@
 	user-select: none;
 }
 
+.monaco-diff-editor .diff-review-summary {
+	padding-left: 10px;
+}
+
 .monaco-diff-editor .diff-review-shadow {
 	position: absolute;
 }
@@ -43,4 +47,24 @@
 .monaco-diff-editor .diff-review-spacer {
 	display: inline-block;
 	width: 10px;
+}
+
+.monaco-diff-editor .diff-review-actions {
+	display: inline-block;
+	position: absolute;
+	right: 2px;
+	top: 2px;
+}
+
+.monaco-diff-editor .diff-review-actions .action-label {
+	width: 16px;
+	height: 16px;
+	margin: 2px 0;
+}
+.monaco-diff-editor .action-label.icon.close-diff-review {
+	background: url('close.svg') center center no-repeat;
+}
+.monaco-editor.hc-black .action-label.icon.close-diff-review,
+.monaco-editor.vs-dark .action-label.icon.close-diff-review {
+	background: url('close-inverse.svg') center center no-repeat;
 }
