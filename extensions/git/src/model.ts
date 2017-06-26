@@ -478,9 +478,9 @@ export class Model implements Disposable {
 	}
 
 	@throttle
-	async fetch(): Promise<void> {
+	async fetch(prune?: boolean): Promise<void> {
 		try {
-			await this.run(Operation.Fetch, () => this.repository.fetch());
+			await this.run(Operation.Fetch, () => this.repository.fetch(prune));
 		} catch (err) {
 			// noop
 		}

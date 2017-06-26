@@ -13,6 +13,7 @@ import { throttle } from './decorators';
 export class AutoFetcher {
 
 	private static Period = 3 * 60 * 1000 /* three minutes */;
+	private prune: boolean;
 	private disposables: Disposable[] = [];
 	private timer: NodeJS.Timer;
 
@@ -23,6 +24,8 @@ export class AutoFetcher {
 
 	private onConfiguration(): void {
 		const gitConfig = workspace.getConfiguration('git');
+
+		this.prune = gitConfig.get<boolean>('autofetchPrune', false);
 
 		if (gitConfig.get<boolean>('autofetch') === false) {
 			this.disable();
@@ -47,7 +50,7 @@ export class AutoFetcher {
 	@throttle
 	private async fetch(): Promise<void> {
 		try {
-			await this.model.fetch();
+			await this.model.fetch(this.prune);
 		} catch (err) {
 			if (err.gitErrorCode === GitErrorCodes.AuthenticationFailed) {
 				this.disable();

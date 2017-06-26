@@ -737,9 +737,15 @@ export class Repository {
 		}
 	}
 
-	async fetch(): Promise<void> {
+	async fetch(prune?: boolean): Promise<void> {
+		const args = ['fetch'];
+
+		if (prune) {
+			args.push('-p');
+		}
+
 		try {
-			await this.run(['fetch']);
+			await this.run(args);
 		} catch (err) {
 			if (/No remote repository specified\./.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.NoRemoteRepositorySpecified;

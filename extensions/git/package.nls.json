@@ -37,6 +37,7 @@
 	"config.path": "Path to the git executable",
 	"config.autorefresh": "Whether auto refreshing is enabled",
 	"config.autofetch": "Whether auto fetching is enabled",
+	"config.autofetchPrune": "Whether to remove remote-tracking references that no longer exist on the remote when auto fetching",
 	"config.enableLongCommitWarning": "Whether long commit messages should be warned about",
 	"config.confirmSync": "Confirm before synchronizing git repositories",
 	"config.countBadge": "Controls the git badge counter. `all` counts all changes. `tracked` counts only the tracked changes. `off` turns it off.",
