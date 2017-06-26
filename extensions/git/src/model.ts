@@ -501,6 +501,10 @@ export class Model implements Disposable {
 		await this.run(Operation.Push, () => this.repository.push());
 	}
 
+	async pullFrom(rebase?: boolean, remote?: string, branch?: string): Promise<void> {
+		await this.run(Operation.Pull, () => this.repository.pull(rebase, remote, branch));
+	}
+
 	async pushTo(remote?: string, name?: string, setUpstream: boolean = false): Promise<void> {
 		await this.run(Operation.Push, () => this.repository.push(remote, name, setUpstream));
 	}

@@ -834,6 +834,31 @@ export class CommandCenter {
 		await this.model.pullWithRebase();
 	}
 
+	@command('git.pullFrom')
+	async pullFrom(): Promise<void> {
+		const remotes = this.model.remotes;
+
+		if (remotes.length === 0) {
+			window.showWarningMessage(localize('no remotes to pull', "Your repository has no remotes configured to pull from."));
+			return;
+		}
+
+		const picks = remotes.map(r => ({ label: r.name, description: r.url }));
+		const placeHolder = localize('pick remote pull', "Pick a remote to pull from");
+		const pickRemote = await window.showQuickPick(picks, { placeHolder });
+
+		const pickBranch = await window.showInputBox({
+			prompt: localize('pick pull branch', "Type a branch to pull"),
+			ignoreFocusOut: true
+		});
+
+		if (!pickRemote || !pickBranch) {
+			return;
+		}
+
+		this.model.pullFrom(false, pickRemote.label, pickBranch);
+	}
+
 	@command('git.push')
 	async push(): Promise<void> {
 		const remotes = this.model.remotes;
