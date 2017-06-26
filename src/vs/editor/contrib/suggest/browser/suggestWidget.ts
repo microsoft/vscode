@@ -947,8 +947,9 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		const editorCoords = getDomNodePagePosition(this.editor.getDomNode());
 		const cursorX = editorCoords.left + cursorCoords.left;
 		const cursorY = editorCoords.top + cursorCoords.top + cursorCoords.height;
-		const widgetX = this.element.offsetLeft;
-		const widgetY = this.element.offsetTop;
+		const widgetCoords = getDomNodePagePosition(this.element);
+		const widgetX = widgetCoords.left;
+		const widgetY = widgetCoords.top;
 
 		if (widgetX < cursorX - this.listWidth) {
 			// Widget is too far to the left of cursor, swap list and docs
