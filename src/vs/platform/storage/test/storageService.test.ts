@@ -8,9 +8,9 @@
 import * as assert from 'assert';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { StorageScope } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
-import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
+import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 suite('Workbench StorageSevice', () => {
 	let contextService: IWorkspaceContextService;
@@ -18,7 +18,14 @@ suite('Workbench StorageSevice', () => {
 
 	setup(() => {
 		instantiationService = new TestInstantiationService();
-		contextService = instantiationService.stub(IWorkspaceContextService, new TestContextService());
+		contextService = instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{
+			hasWorkspace: () => {
+				return true;
+			},
+			getWorkspace2: () => {
+				return <IWorkspace>TestWorkspace;
+			}
+		});
 	});
 
 	test('Swap Data with undefined default value', () => {

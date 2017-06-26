@@ -226,7 +226,7 @@ export class ProcessRunnerDetector {
 	}
 
 	private tryDetectGulp(list: boolean): TPromise<DetectorResult> {
-		return this.fileService.resolveFile(this.contextService.toResource('gulpfile.js')).then((stat) => {
+		return this.fileService.resolveFile(this.contextService.toResource('gulpfile.js')).then((stat) => { // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
 			let config = ProcessRunnerDetector.detectorConfig('gulp');
 			let process = new LineProcess('gulp', [config.arg, '--no-color'], true, { cwd: this._cwd });
 			return this.runDetection(process, 'gulp', true, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
@@ -236,7 +236,7 @@ export class ProcessRunnerDetector {
 	}
 
 	private tryDetectGrunt(list: boolean): TPromise<DetectorResult> {
-		return this.fileService.resolveFile(this.contextService.toResource('Gruntfile.js')).then((stat) => {
+		return this.fileService.resolveFile(this.contextService.toResource('Gruntfile.js')).then((stat) => { // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
 			let config = ProcessRunnerDetector.detectorConfig('grunt');
 			let process = new LineProcess('grunt', [config.arg, '--no-color'], true, { cwd: this._cwd });
 			return this.runDetection(process, 'grunt', true, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
@@ -251,10 +251,10 @@ export class ProcessRunnerDetector {
 			let process = new LineProcess('jake', [config.arg], true, { cwd: this._cwd });
 			return this.runDetection(process, 'jake', true, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
 		};
-		return this.fileService.resolveFile(this.contextService.toResource('Jakefile')).then((stat) => {
+		return this.fileService.resolveFile(this.contextService.toResource('Jakefile')).then((stat) => { // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
 			return run();
 		}, (err: any) => {
-			return this.fileService.resolveFile(this.contextService.toResource('Jakefile.js')).then((stat) => {
+			return this.fileService.resolveFile(this.contextService.toResource('Jakefile.js')).then((stat) => { // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
 				return run();
 			}, (err: any): TaskConfig.ExternalTaskRunnerConfiguration => {
 				return null;

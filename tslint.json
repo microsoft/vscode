@@ -116,6 +116,7 @@
 				"target": "**/vs/platform/*/test/common/**",
 				"restrictions": [
 					"assert",
+					"sinon",
 					"vs/nls",
 					"**/vs/base/common/**",
 					"**/vs/platform/*/common/**",
@@ -136,6 +137,7 @@
 				"target": "**/vs/platform/*/test/browser/**",
 				"restrictions": [
 					"assert",
+					"sinon",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/platform/*/{common,browser}/**",
