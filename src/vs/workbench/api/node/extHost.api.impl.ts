@@ -429,6 +429,9 @@ export function createApiFactory(
 			getConfiguration: (section?: string): vscode.WorkspaceConfiguration => {
 				return extHostConfiguration.getConfiguration(section);
 			},
+			getConfiguration2: proposedApiFunction(extension, (section?: string, resource?: vscode.Uri): vscode.WorkspaceConfiguration => {
+				return extHostConfiguration.getConfiguration(section, <URI>resource);
+			}),
 			registerTaskProvider: proposedApiFunction(extension, (type: string, provider: vscode.TaskProvider) => {
 				return extHostTask.registerTaskProvider(extension, provider);
 			})

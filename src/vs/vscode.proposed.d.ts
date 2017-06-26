@@ -353,6 +353,15 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerTaskProvider(type: string, provider: TaskProvider): Disposable;
+
+
+		export function getConfiguration2(section?: string, resource?: Uri): WorkspaceConfiguration2;
+	}
+
+	export interface WorkspaceConfiguration2 extends WorkspaceConfiguration {
+
+		inspect<T>(section: string): { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T, folderValue?: T } | undefined;
+
 	}
 
 	export namespace window {

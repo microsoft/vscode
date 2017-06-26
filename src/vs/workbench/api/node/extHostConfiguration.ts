@@ -5,6 +5,7 @@
 'use strict';
 
 import { mixin } from 'vs/base/common/objects';
+import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import { WorkspaceConfiguration } from 'vscode';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
@@ -46,11 +47,11 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 		this._onDidChangeConfiguration.fire(undefined);
 	}
 
-	getConfiguration(section?: string): WorkspaceConfiguration {
+	getConfiguration(section?: string, resource?: URI): WorkspaceConfiguration {
 
 		const config = section
-			? lookUp(this._configuration.getValue(), section)
-			: this._configuration.getValue();
+			? lookUp(this._configuration.getValue(null, { resource }), section)
+			: this._configuration.getValue(null, { resource });
 
 		const result: WorkspaceConfiguration = {
 			has(key: string): boolean {
@@ -72,7 +73,7 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 					return this._proxy.$removeConfigurationOption(target, key);
 				}
 			},
-			inspect: <T>(key: string): { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T } => {
+			inspect: <T>(key: string): { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T, folderValue?: T } => {
 				key = section ? `${section}.${key}` : key;
 				const config = this._configuration.values()[key];
 				if (config) {
@@ -80,7 +81,8 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 						key,
 						defaultValue: config.default,
 						globalValue: config.user,
-						workspaceValue: config.workspace
+						workspaceValue: config.workspace,
+						folderValue: config.folder
 					};
 				}
 				return undefined;
