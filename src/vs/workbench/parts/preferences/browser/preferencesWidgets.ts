@@ -28,6 +28,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { buttonBackground, buttonForeground, badgeForeground, badgeBackground, contrastBorder, errorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export class SettingsHeaderWidget extends Widget implements IViewZone {
 
@@ -289,6 +290,7 @@ export class SettingsTabsWidget extends Widget {
 export interface SearchOptions extends IInputOptions {
 	navigateByEnter?: boolean;
 	navigateByArrows?: boolean;
+	focusKey?: IContextKey<boolean>;
 }
 
 export class SearchWidget extends Widget {
@@ -332,6 +334,12 @@ export class SearchWidget extends Widget {
 			this.styleCountElementForeground();
 		}));
 		this.inputBox.inputElement.setAttribute('aria-live', 'assertive');
+
+		if (this.options.focusKey) {
+			const focusTracker = this._register(DOM.trackFocus(this.inputBox.inputElement));
+			this._register(focusTracker.addFocusListener(() => this.options.focusKey.set(true)));
+			this._register(focusTracker.addBlurListener(() => this.options.focusKey.set(false)));
+		}
 	}
 
 	private createSearchContainer(searchContainer: HTMLElement) {
@@ -405,18 +413,6 @@ export class SearchWidget extends Widget {
 					handled = true;
 				}
 				break;
-			case KeyCode.UpArrow:
-				if (this.options.navigateByArrows) {
-					this._onNavigate.fire(true);
-				}
-				handled = true;
-				break;
-			case KeyCode.DownArrow:
-				if (this.options.navigateByArrows) {
-					this._onNavigate.fire(false);
-				}
-				handled = true;
-				break;
 			case KeyCode.Escape:
 				this.clear();
 				handled = true;
@@ -426,6 +422,13 @@ export class SearchWidget extends Widget {
 			keyboardEvent.preventDefault();
 			keyboardEvent.stopPropagation();
 		}
+	}
+
+	public dispose(): void {
+		if (this.options.focusKey) {
+			this.options.focusKey.set(false);
+		}
+		super.dispose();
 	}
 }
 
