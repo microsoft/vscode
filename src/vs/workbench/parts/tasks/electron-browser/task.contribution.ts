@@ -1312,7 +1312,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	private hasDetectorSupport(config: TaskConfig.ExternalTaskRunnerConfiguration): boolean {
-		if (!config.command) {
+		if (!config.command || !this.contextService.hasWorkspace()) {
 			return false;
 		}
 		return ProcessRunnerDetector.supports(config.command);
