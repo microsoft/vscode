@@ -15,21 +15,22 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
-// TODO@Sandeep layer breaker: cannot depend on /workbench/ from /platform/
-// tslint:disable-next-line:import-patterns
-import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
-
 function storageService(instantiationService: TestInstantiationService): IStorageService {
 	let service = instantiationService.get(IStorageService);
 	if (!service) {
 		let workspaceContextService = instantiationService.get(IWorkspaceContextService);
 		if (!workspaceContextService) {
-			workspaceContextService = instantiationService.stub(IWorkspaceContextService, new TestContextService());
+			workspaceContextService = instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{
+				hasWorkspace: () => {
+					return true;
+				},
+			});
 		}
 		service = instantiationService.stub(IStorageService, instantiationService.createInstance(StorageService, new InMemoryLocalStorage(), new InMemoryLocalStorage()));
 	}
 	return service;
 }
+
 
 export class TestExtensionEnablementService extends ExtensionEnablementService {
 	constructor(instantiationService: TestInstantiationService) {
