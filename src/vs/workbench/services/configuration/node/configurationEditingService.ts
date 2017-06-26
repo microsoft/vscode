@@ -266,7 +266,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 			const standaloneConfigurationKeys = Object.keys(WORKSPACE_STANDALONE_CONFIGURATIONS);
 			for (let i = 0; i < standaloneConfigurationKeys.length; i++) {
 				const key = standaloneConfigurationKeys[i];
-				const resource = this.contextService.toResource(WORKSPACE_STANDALONE_CONFIGURATIONS[key]);
+				const resource = this.contextService.toResource(WORKSPACE_STANDALONE_CONFIGURATIONS[key]); // TODO@Sandeep (https://github.com/Microsoft/vscode/issues/29456)
 
 				// Check for prefix
 				if (config.key === key) {

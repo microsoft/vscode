@@ -115,7 +115,7 @@ abstract class OpenTaskConfigurationAction extends Action {
 		}
 		let sideBySide = !!(event && (event.ctrlKey || event.metaKey));
 		let configFileCreated = false;
-		return this.fileService.resolveFile(this.contextService.toResource('.vscode/tasks.json')).then((success) => {
+		return this.fileService.resolveFile(this.contextService.toResource('.vscode/tasks.json')).then((success) => { // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
 			return success;
 		}, (err: any) => {
 			;
@@ -166,7 +166,7 @@ abstract class OpenTaskConfigurationAction extends Action {
 						content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + strings.repeat(' ', s2.length * editorConfig.editor.tabSize));
 					}
 					configFileCreated = true;
-					return this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json'), content);
+					return this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json'), content); // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
 				});
 				/* 2.0 version
 				let content = selection.content;
@@ -871,7 +871,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (editorConfig.editor.insertSpaces) {
 				content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + strings.repeat(' ', s2.length * editorConfig.editor.tabSize));
 			}
-			promise = this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json'), content).then(() => { });
+			promise = this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json'), content).then(() => { }); // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
 		} else {
 			let value: IConfigurationValue = { key: undefined, value: undefined };
 			if (Array.isArray(fileConfig.tasks)) {
@@ -885,7 +885,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		};
 		return promise.then(() => {
 			if (openConfig) {
-				let resource = this.contextService.toResource('.vscode/tasks.json');
+				let resource = this.contextService.toResource('.vscode/tasks.json'); // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
 				this.editorService.openEditor({
 					resource: resource,
 					options: {
