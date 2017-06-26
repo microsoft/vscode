@@ -850,6 +850,10 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			this.editor.layoutContentWidget(this);
 			this.telemetryService.publicLog('suggestWidget:collapseDetails', this.editor.getTelemetryData());
 		} else {
+			if (this.state !== State.Open && this.state !== State.Details) {
+				return;
+			}
+
 			this.updateExpandDocsSetting(true);
 			this.showDetails();
 			this.telemetryService.publicLog('suggestWidget:expandDetails', this.editor.getTelemetryData());
@@ -858,13 +862,10 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	}
 
 	showDetails(): void {
-		if (this.state !== State.Open && this.state !== State.Details) {
-			return;
-		}
 		this.expandSideOrBelow();
 
 		show(this.details.element);
-		this.renderDetails();
+		this.details.render(this.list.getFocusedElements()[0]);
 		this.details.element.style.maxHeight = this.maxWidgetHeight + 'px';
 
 		// Reset margin-top that was set as Fix for #26416
@@ -977,14 +978,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		} else {
 			addClass(this.element, 'docs-side');
 			removeClass(this.element, 'docs-below');
-		}
-	}
-
-	private renderDetails(): void {
-		if (this.state === State.Details || this.state === State.Open) {
-			this.details.render(this.list.getFocusedElements()[0]);
-		} else {
-			this.details.render(null);
 		}
 	}
 
