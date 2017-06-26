@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn } from 'vscode';
-import { Ref, RefType, Git, GitErrorCodes } from './git';
+import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
 import { Model, Resource, Status, CommitOptions, WorkingTreeGroup, IndexGroup, MergeGroup } from './model';
 import { toGitUri, fromGitUri } from './uri';
 import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange } from './staging';
@@ -74,6 +74,18 @@ class BranchDeleteItem implements QuickPickItem {
 			return;
 		}
 		await model.deleteBranch(this.branchName, force);
+	}
+}
+
+class MergeItem implements QuickPickItem {
+
+	get label(): string { return this.ref.name || ''; }
+	get description(): string { return this.ref.name || ''; }
+
+	constructor(protected ref: Ref) { }
+
+	async run(model: Model): Promise<void> {
+		await model.merge(this.ref.name! || this.ref.commit!);
 	}
 }
 
@@ -701,7 +713,7 @@ export class CommandCenter {
 			.map(ref => new CheckoutRemoteHeadItem(ref));
 
 		const picks = [...heads, ...tags, ...remoteHeads];
-		const placeHolder = 'Select a ref to checkout';
+		const placeHolder = localize('select a ref to checkout', 'Select a ref to checkout');
 		const choice = await window.showQuickPick<CheckoutItem>(picks, { placeHolder });
 
 		if (!choice) {
@@ -761,6 +773,40 @@ export class CommandCenter {
 			if (pick === yes) {
 				await run(true);
 			}
+		}
+	}
+
+	@command('git.merge')
+	async merge(): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const checkoutType = config.get<string>('checkoutType') || 'all';
+		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
+
+		const heads = this.model.refs.filter(ref => ref.type === RefType.Head)
+			.filter(ref => ref.name || ref.commit)
+			.map(ref => new MergeItem(ref as Branch));
+
+		const remoteHeads = (includeRemotes ? this.model.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
+			.filter(ref => ref.name || ref.commit)
+			.map(ref => new MergeItem(ref as Branch));
+
+		const picks = [...heads, ...remoteHeads];
+		const placeHolder = localize('select a branch to merge from', 'Select a branch to merge from');
+		const choice = await window.showQuickPick<MergeItem>(picks, { placeHolder });
+
+		if (!choice) {
+			return;
+		}
+
+		try {
+			await choice.run(this.model);
+		} catch (err) {
+			if (err.gitErrorCode !== GitErrorCodes.Conflict) {
+				throw err;
+			}
+
+			const message = localize('merge conflicts', "There are merge conflicts. Resolve them before committing.");
+			await window.showWarningMessage(message);
 		}
 	}
 
