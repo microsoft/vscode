@@ -204,10 +204,22 @@ let definitions = Objects.deepClone(commonSchema.definitions);
 let taskDescription: IJSONSchema = definitions.taskDescription;
 taskDescription.properties.isShellCommand = Objects.deepClone(shellCommand);
 taskDescription.properties.dependsOn = dependsOn;
-// definitions.showOutputType.deprecationMessage = nls.localize('JsonSchema.tasks.showOputput.deprecated', 'The property showOutput is deprecated. Use the terminal property instead.');
-// definitions.taskDescription.properties.echoCommand.deprecationMessage = nls.localize('JsonSchema.tasks.echoCommand.deprecated', 'The property echoCommand is deprecated. Use the terminal property instead.');
-// definitions.taskDescription.properties.isBuildCommand.deprecationMessage = nls.localize('JsonSchema.tasks.isBuildCommand.deprecated', 'The property isBuildCommand is deprecated. Use the group property instead.');
-// definitions.taskDescription.properties.isTestCommand.deprecationMessage = nls.localize('JsonSchema.tasks.isTestCommand.deprecated', 'The property isTestCommand is deprecated. Use the group property instead.');
+definitions.showOutputType.deprecationMessage = nls.localize(
+	'JsonSchema.tasks.showOputput.deprecated',
+	'The property showOutput is deprecated. Use the reveal property inside the presentation property instead. See also the 1.14 release notes.'
+);
+definitions.taskDescription.properties.echoCommand.deprecationMessage = nls.localize(
+	'JsonSchema.tasks.echoCommand.deprecated',
+	'The property echoCommand is deprecated. Use the echo property inside the presentation property instead. See also the 1.14 release notes.'
+);
+definitions.taskDescription.properties.isBuildCommand.deprecationMessage = nls.localize(
+	'JsonSchema.tasks.isBuildCommand.deprecated',
+	'The property isBuildCommand is deprecated. Use the group property instead. See also the 1.14 release notes.'
+);
+definitions.taskDescription.properties.isTestCommand.deprecationMessage = nls.localize(
+	'JsonSchema.tasks.isTestCommand.deprecated',
+	'The property isTestCommand is deprecated. Use the group property instead. See also the 1.14 release notes.'
+);
 taskDescription.properties.type = Objects.deepClone(taskType);
 taskDescription.properties.presentation = Objects.deepClone(presentation);
 taskDescription.properties.terminal = terminal;
