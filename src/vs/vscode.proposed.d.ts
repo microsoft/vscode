@@ -192,7 +192,7 @@ declare module 'vscode' {
 	/**
 	 * Options for a shell execution
 	 */
-	export type ShellExecutionOptions = {
+	export interface ShellExecutionOptions {
 		/**
 		 * The shell executable.
 		 */
@@ -333,7 +333,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return an array of tasks
 		 */
-		provideTasks(token: CancellationToken): ProviderResult<Task[]>;
+		provideTasks(token?: CancellationToken): ProviderResult<Task[]>;
 
 		/**
 		 * Resolves a task the has no execution set.
@@ -341,7 +341,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return the resolved task
 		 */
-		resolveTask(task: Task, token: CancellationToken): ProviderResult<Task>;
+		resolveTask(task: Task, token?: CancellationToken): ProviderResult<Task>;
 	}
 
 	export namespace workspace {
