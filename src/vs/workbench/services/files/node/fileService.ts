@@ -237,6 +237,7 @@ export class FileService implements IFileService {
 			// Return early if file not modified since
 			if (options && options.etag && options.etag === model.etag) {
 				return TPromise.wrapError<IStreamContent>(<IFileOperationResult>{
+					message: nls.localize('fileNotModifiedError', "File not modified since"),
 					fileOperationResult: FileOperationResult.FILE_NOT_MODIFIED_SINCE
 				});
 			}
@@ -244,6 +245,7 @@ export class FileService implements IFileService {
 			// Return early if file is too large to load
 			if (types.isNumber(model.size) && model.size > MAX_FILE_SIZE) {
 				return TPromise.wrapError<IStreamContent>(<IFileOperationResult>{
+					message: nls.localize('fileTooLargeError', "File too large to open"),
 					fileOperationResult: FileOperationResult.FILE_TOO_LARGE
 				});
 			}
@@ -471,6 +473,7 @@ export class FileService implements IFileService {
 			// Return early with conflict if target exists and we are not told to overwrite
 			if (exists && !isCaseRename && !overwrite) {
 				return TPromise.wrapError<boolean>(<IFileOperationResult>{
+					message: nls.localize('fileMoveConflict', "Unable to move/copy. File already exists at destination."),
 					fileOperationResult: FileOperationResult.FILE_MOVE_CONFLICT
 				});
 			}
@@ -572,6 +575,7 @@ export class FileService implements IFileService {
 		// Return early if file is too large to load
 		if (types.isNumber(model.size) && model.size > MAX_FILE_SIZE) {
 			return TPromise.wrapError<IStreamContent>(<IFileOperationResult>{
+				message: nls.localize('fileTooLargeError', "File too large to open"),
 				fileOperationResult: FileOperationResult.FILE_TOO_LARGE
 			});
 		}
@@ -679,7 +683,7 @@ export class FileService implements IFileService {
 						// Find out if content length has changed
 						if (options.etag !== etag(stat.size, options.mtime)) {
 							return TPromise.wrapError<boolean>(<IFileOperationResult>{
-								message: 'File Modified Since',
+								message: nls.localize('fileModifiedError', "File Modified Since"),
 								fileOperationResult: FileOperationResult.FILE_MODIFIED_SINCE
 							});
 						}

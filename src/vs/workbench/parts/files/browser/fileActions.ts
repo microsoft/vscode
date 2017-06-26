@@ -25,7 +25,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import labels = require('vs/base/common/labels');
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileService, IFileStat } from 'vs/platform/files/common/files';
+import { IFileService, IFileStat, IFileOperationResult } from 'vs/platform/files/common/files';
 import { toResource, IEditorIdentifier, EditorInput } from 'vs/workbench/common/editor';
 import { FileStat, Model, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
 import { ExplorerView } from 'vs/workbench/parts/files/browser/views/explorerView';
@@ -61,23 +61,61 @@ export interface IFileViewletState {
 	clearEditable(stat: IFileStat): void;
 }
 
-export class BaseFileAction extends Action {
+export class BaseErrorReportingAction extends Action {
+
+	constructor(
+		id: string,
+		label: string,
+		private _messageService: IMessageService
+	) {
+		super(id, label);
+	}
+
+	public get messageService() {
+		return this._messageService;
+	}
+
+	protected onError(error: any): void {
+		const fileOperation = error as IFileOperationResult;
+		if (typeof fileOperation.message === 'string') {
+			error = fileOperation.message;
+		}
+
+		this._messageService.show(Severity.Error, toErrorMessage(error, false));
+	}
+
+	protected onErrorWithRetry(error: any, retry: () => TPromise<any>, extraAction?: Action): void {
+		const actions = [
+			new Action(this.id, nls.localize('retry', "Retry"), null, true, () => retry()),
+			CancelAction
+		];
+
+		if (extraAction) {
+			actions.unshift(extraAction);
+		}
+
+		const errorWithRetry: IMessageWithAction = {
+			actions,
+			message: toErrorMessage(error, false)
+		};
+
+		this._messageService.show(Severity.Error, errorWithRetry);
+	}
+}
+
+export class BaseFileAction extends BaseErrorReportingAction {
 	private _element: FileStat;
 
 	constructor(
 		id: string,
 		label: string,
 		@IFileService private _fileService: IFileService,
-		@IMessageService private _messageService: IMessageService,
+		@IMessageService _messageService: IMessageService,
 		@ITextFileService private _textFileService: ITextFileService
 	) {
-		super(id, label);
+		super(id, label, _messageService);
 
 		this.enabled = false;
-	}
-
-	public get messageService() {
-		return this._messageService;
 	}
 
 	public get fileService() {
@@ -102,32 +140,6 @@ export class BaseFileAction extends Action {
 
 	_updateEnablement(): void {
 		this.enabled = !!(this._fileService && this._isEnabled());
-	}
-
-	protected onError(error: any): void {
-		this._messageService.show(Severity.Error, error);
-	}
-
-	protected onWarning(warning: any): void {
-		this._messageService.show(Severity.Warning, warning);
-	}
-
-	protected onErrorWithRetry(error: any, retry: () => TPromise<any>, extraAction?: Action): void {
-		const actions = [
-			new Action(this.id, nls.localize('retry', "Retry"), null, true, () => retry()),
-			CancelAction
-		];
-
-		if (extraAction) {
-			actions.unshift(extraAction);
-		}
-
-		const errorWithRetry: IMessageWithAction = {
-			actions,
-			message: toErrorMessage(error, false)
-		};
-
-		this._messageService.show(Severity.Error, errorWithRetry);
 	}
 }
 
@@ -860,9 +872,7 @@ export class ImportFileAction extends BaseFileAction {
 									if (filesArray.length === 1) {
 										this.editorService.openEditor({ resource: res.stat.resource, options: { pinned: true } }).done(null, errors.onUnexpectedError);
 									}
-								}, (error: any) => {
-									this.messageService.show(Severity.Error, error);
-								});
+								}, error => this.onError(error));
 							});
 						});
 					});
@@ -1035,15 +1045,9 @@ export class DuplicateFileAction extends BaseFileAction {
 				return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 			}
 			return undefined;
-		}, (error: any) => {
-			this.onError(error);
-		});
+		}, error => this.onError(error));
 
 		return result;
-	}
-
-	public onError(error: any): void {
-		this.messageService.show(Severity.Error, error);
 	}
 
 	private findTarget(): URI {
@@ -1309,25 +1313,23 @@ export class RefreshViewExplorerAction extends Action {
 	}
 }
 
-export abstract class BaseActionWithErrorReporting extends Action {
+export abstract class BaseSaveFileAction extends BaseErrorReportingAction {
 	constructor(
 		id: string,
 		label: string,
-		private messageService: IMessageService
+		messageService: IMessageService
 	) {
-		super(id, label);
+		super(id, label, messageService);
 	}
 
 	public run(context?: any): TPromise<boolean> {
-		return this.doRun(context).then(() => true, (error) => {
-			this.messageService.show(Severity.Error, toErrorMessage(error, false));
-		});
+		return this.doRun(context).then(() => true, error => this.onError(error));
 	}
 
 	protected abstract doRun(context?: any): TPromise<boolean>;
 }
 
-export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
+export abstract class BaseSaveOneFileAction extends BaseSaveFileAction {
 	private resource: URI;
 
 	constructor(
@@ -1434,7 +1436,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 	}
 }
 
-export class SaveFileAction extends BaseSaveFileAction {
+export class SaveFileAction extends BaseSaveOneFileAction {
 
 	public static ID = 'workbench.action.files.save';
 	public static LABEL = nls.localize('save', "Save");
@@ -1444,7 +1446,7 @@ export class SaveFileAction extends BaseSaveFileAction {
 	}
 }
 
-export class SaveFileAsAction extends BaseSaveFileAction {
+export class SaveFileAsAction extends BaseSaveOneFileAction {
 
 	public static ID = 'workbench.action.files.saveAs';
 	public static LABEL = nls.localize('saveAs', "Save As...");
@@ -1454,7 +1456,7 @@ export class SaveFileAsAction extends BaseSaveFileAction {
 	}
 }
 
-export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
+export abstract class BaseSaveAllAction extends BaseSaveFileAction {
 	private toDispose: IDisposable[];
 	private lastIsDirty: boolean;
 
