@@ -415,7 +415,7 @@ function snapshotTask(platform, arch) {
 	}
 }
 
-gulp.task('vscode-darwin-snapshots', ['vscode-darwin'], snapshotTask('darwin', undefined));
+gulp.task('vscode-darwin-snapshots', ['vscode-darwin-min'], snapshotTask('darwin', undefined));
 
 
 // Transifex Localizations
