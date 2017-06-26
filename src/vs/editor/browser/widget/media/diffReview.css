@@ -36,6 +36,10 @@
 	width: 100%;
 }
 
+.monaco-diff-editor .diff-review-cell {
+	display: table-cell;
+}
+
 .monaco-diff-editor .diff-review-spacer {
 	display: inline-block;
 	width: 10px;

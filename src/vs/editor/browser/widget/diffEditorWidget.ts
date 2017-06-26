@@ -907,6 +907,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return result;
 	}
 
+	public doLayout(): void {
+		this._measureDomElement(true);
+	}
+
 	private _doLayout(): void {
 		let splitPoint = this._strategy.layout();
 

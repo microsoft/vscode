@@ -66,7 +66,7 @@ class Diff {
 export class DiffReview extends Disposable {
 
 	private readonly _diffEditor: DiffEditorWidget;
-	private readonly _isVisible: boolean;
+	private _isVisible: boolean;
 	public readonly shadow: FastDomNode<HTMLElement>;
 	public readonly domNode: FastDomNode<HTMLElement>;
 	private readonly _content: FastDomNode<HTMLElement>;
@@ -128,9 +128,25 @@ export class DiffReview extends Disposable {
 				e.preventDefault();
 				this._goToRow(this._getPrevRow());
 			}
+
+			if (
+				e.equals(KeyCode.Escape)
+				|| e.equals(KeyMod.CtrlCmd | KeyCode.Escape)
+				|| e.equals(KeyMod.Alt | KeyCode.Escape)
+			) {
+				e.preventDefault();
+				this.hide();
+			}
 		}));
 		this._diffs = [];
 		this._currentDiff = null;
+	}
+
+	private hide(): void {
+		this._isVisible = false;
+		this._diffEditor.focus();
+		this._diffEditor.doLayout();
+		this._render();
 	}
 
 	private _getPrevRow(): HTMLElement {
@@ -385,9 +401,10 @@ export class DiffReview extends Disposable {
 		const originalModelOpts = originalModel.getOptions();
 		const modifiedModelOpts = modifiedModel.getOptions();
 
-		if (!originalModel || !modifiedModel) {
+		if (!this._isVisible || !originalModel || !modifiedModel) {
 			dom.clearNode(this._content.domNode);
 			this._currentDiff = null;
+			this.scrollbar.scanDomNode();
 			return;
 		}
 
@@ -432,8 +449,14 @@ export class DiffReview extends Disposable {
 
 		let header = document.createElement('div');
 		header.className = 'diff-review-row';
+
+		let cell = document.createElement('div');
+		cell.className = 'diff-review-cell';
+		cell.appendChild(document.createTextNode(`${diffIndex + 1}/${this._diffs.length}: @@ -${minOriginalLine},${maxOriginalLine - minOriginalLine + 1} +${minModifiedLine},${maxModifiedLine - minModifiedLine + 1} @@`));
+		header.setAttribute('aria-label', nls.localize('header', "Difference {0} of {1}: original {2}, {3} lines, modified {4}, {5} lines", (diffIndex + 1), this._diffs.length, minOriginalLine, maxOriginalLine - minOriginalLine + 1, minModifiedLine, maxModifiedLine - minModifiedLine + 1));
+		header.appendChild(cell);
+
 		// @@ -504,7 +517,7 @@
-		header.appendChild(document.createTextNode(`${diffIndex + 1} / ${this._diffs.length}: @@ -${minOriginalLine},${maxOriginalLine - minOriginalLine + 1} +${minModifiedLine},${maxModifiedLine - minModifiedLine + 1} @@`));
 		header.setAttribute('role', 'listitem');
 		container.appendChild(header);
 
@@ -490,6 +513,10 @@ export class DiffReview extends Disposable {
 			row.className = rowClassName;
 			row.setAttribute('role', 'listitem');
 
+			let cell = document.createElement('div');
+			cell.className = 'diff-review-cell';
+			row.appendChild(cell);
+
 			const originalLineNumber = document.createElement('span');
 			originalLineNumber.style.width = (originalOpts.layoutInfo.lineNumbersWidth + 'px');
 			originalLineNumber.style.minWidth = (originalOpts.layoutInfo.lineNumbersWidth + 'px');
@@ -499,7 +526,7 @@ export class DiffReview extends Disposable {
 			} else {
 				originalLineNumber.innerHTML = '&nbsp;';
 			}
-			row.appendChild(originalLineNumber);
+			cell.appendChild(originalLineNumber);
 
 			const modifiedLineNumber = document.createElement('span');
 			modifiedLineNumber.style.width = (10 + modifiedOpts.layoutInfo.lineNumbersWidth + 'px');
@@ -511,21 +538,21 @@ export class DiffReview extends Disposable {
 			} else {
 				modifiedLineNumber.innerHTML = '&nbsp;';
 			}
-			row.appendChild(modifiedLineNumber);
+			cell.appendChild(modifiedLineNumber);
 
 			const spacer = document.createElement('span');
 			spacer.className = spacerClassName;
 			spacer.innerHTML = '&nbsp;&nbsp;';
-			row.appendChild(spacer);
+			cell.appendChild(spacer);
 
 			let lineContent: string;
 			if (modifiedLine !== 0) {
-				row.insertAdjacentHTML('beforeend',
+				cell.insertAdjacentHTML('beforeend',
 					this._renderLine(modifiedModel, modifiedOpts, modifiedModelOpts.tabSize, modifiedLine)
 				);
 				lineContent = modifiedModel.getLineContent(modifiedLine);
 			} else {
-				row.insertAdjacentHTML('beforeend',
+				cell.insertAdjacentHTML('beforeend',
 					this._renderLine(originalModel, originalOpts, originalModelOpts.tabSize, originalLine)
 				);
 				lineContent = originalModel.getLineContent(originalLine);
