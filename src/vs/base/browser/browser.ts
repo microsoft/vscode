@@ -162,29 +162,6 @@ export const isChromev56 = (
 	&& userAgent.indexOf('Edge/') === -1
 );
 
-export const supportsTranslate3d = !isFirefox;
-
-export function canUseTranslate3d(): boolean {
-	if (!supportsTranslate3d) {
-		return false;
-	}
-
-	if (getZoomLevel() !== 0) {
-		return false;
-	}
-
-	// see https://github.com/Microsoft/vscode/issues/24483
-	if (isChromev56) {
-		const pixelRatio = getPixelRatio();
-		if (Math.floor(pixelRatio) !== pixelRatio) {
-			// Not an integer
-			return false;
-		}
-	}
-
-	return true;
-}
-
 export function supportsExecCommand(command: string): boolean {
 	return (
 		(isIE || Platform.isNative)
