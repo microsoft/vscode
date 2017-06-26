@@ -13,7 +13,7 @@ import * as types from 'vs/base/common/types';
 import * as objects from 'vs/base/common/objects';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
-import { IWorkbenchThemeService, IColorTheme, ITokenColorCustomization, ITokenColorizationRule, IFileIconTheme, ExtensionData, IThemeExtensionPoint, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING, CUSTOM_WORKBENCH_COLORS_SETTING, DEPRECATED_CUSTOM_COLORS_SETTING, CUSTOM_EDITOR_COLORS_SETTING } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, IColorTheme, ITokenColorCustomizations, IFileIconTheme, ExtensionData, IThemeExtensionPoint, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING, CUSTOM_WORKBENCH_COLORS_SETTING, DEPRECATED_CUSTOM_COLORS_SETTING, CUSTOM_EDITOR_COLORS_SETTING, CUSTOM_EDITOR_SCOPE_COLORS_SETTING } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -40,7 +40,6 @@ import colorThemeSchema = require('vs/workbench/services/themes/common/colorThem
 import fileIconThemeSchema = require('vs/workbench/services/themes/common/fileIconThemeSchema');
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
-
 // implementation
 
 const DEFAULT_THEME_ID = 'vs-dark vscode-theme-defaults-themes-dark_plus-json';
@@ -181,22 +180,12 @@ const noFileIconTheme: IFileIconTheme = {
 	extensionData: null
 };
 
-const tokenGroupToScopesMap = {
-	comments: 'comment',
-	strings: 'string',
-	keywords: 'keyword',
-	numbers: 'constant.numeric',
-	types: 'entity.name.type',
-	functions: 'entity.name.function',
-	variables: 'variable'
-};
-
 export class WorkbenchThemeService implements IWorkbenchThemeService {
 	_serviceBrand: any;
 
 	private extensionsColorThemes: ColorThemeData[];
 	private colorCustomizations: IColorCustomizations;
-	private tokenColorCustomizations: ITokenColorizationRule[];
+	private tokenColorCustomizations: ITokenColorCustomizations;
 	private numberOfColorCustomizations: number;
 	private currentColorTheme: ColorThemeData;
 	private container: HTMLElement;
@@ -223,7 +212,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		this.container = container;
 		this.extensionsColorThemes = [];
 		this.colorCustomizations = {};
-		this.tokenColorCustomizations = [];
+		this.tokenColorCustomizations = {};
 		this.onFileIconThemeChange = new Emitter<IFileIconTheme>();
 		this.knownIconThemes = [];
 		this.onColorThemeChange = new Emitter<IColorTheme>();
@@ -517,7 +506,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		});
 	}
 
-	private hasCustomizationChanged(newColorCustomizations: IColorCustomizations, newColorIds: string[], newTokenColorCustomizations: ITokenColorizationRule[]): boolean {
+	private hasCustomizationChanged(newColorCustomizations: IColorCustomizations, newColorIds: string[], newTokenColorCustomizations: ITokenColorCustomizations): boolean {
 		if (newColorIds.length !== this.numberOfColorCustomizations) {
 			return true;
 		}
@@ -535,35 +524,6 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return false;
 	}
 
-	private getTokenColorCustomizations(): ITokenColorizationRule[] {
-		let tokenColorCustomizations = this.configurationService.lookup<ITokenColorCustomization>(CUSTOM_EDITOR_COLORS_SETTING).value || {};
-		let rules: ITokenColorizationRule[] = [];
-
-		let value, settings, scope;
-		Object.keys(tokenGroupToScopesMap).forEach(key => {
-			value = tokenColorCustomizations[key];
-			settings = typeof value === 'string'
-				? { foreground: value }
-				: value;
-			scope = tokenGroupToScopesMap[key];
-
-			if (!settings) {
-				return;
-			}
-
-			rules.push({
-				scope,
-				settings
-			});
-		});
-
-		// Put the general customizations such as comments, strings, etc. first so that
-		// they can be overriden by specific customizations like "string.interpolated"
-		const textMateRules: ITokenColorizationRule[] = tokenColorCustomizations['textMateRules'] || [];
-
-		return rules.concat(textMateRules);
-	}
-
 	private updateColorCustomizations(notify = true): void {
 		let newColorCustomizations = this.configurationService.lookup<IColorCustomizations>(CUSTOM_WORKBENCH_COLORS_SETTING).value || {};
 		let newColorIds = Object.keys(newColorCustomizations);
@@ -572,16 +532,16 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			newColorIds = Object.keys(newColorCustomizations);
 		}
 
-		let newRules = this.getTokenColorCustomizations();
+		let newTokenColorCustomizations = this.configurationService.lookup<ITokenColorCustomizations>(CUSTOM_EDITOR_COLORS_SETTING).value || {};
 
-		if (this.hasCustomizationChanged(newColorCustomizations, newColorIds, newRules)) {
+		if (this.hasCustomizationChanged(newColorCustomizations, newColorIds, newTokenColorCustomizations)) {
 			this.colorCustomizations = newColorCustomizations;
-			this.tokenColorCustomizations = newRules;
 			this.numberOfColorCustomizations = newColorIds.length;
+			this.tokenColorCustomizations = newTokenColorCustomizations;
 
 			if (this.currentColorTheme) {
 				this.currentColorTheme.setCustomColors(newColorCustomizations);
-				this.currentColorTheme.setCustomTokenColors(newRules);
+				this.currentColorTheme.setCustomTokenColors(newTokenColorCustomizations);
 				if (notify) {
 					this.updateDynamicCSSRules(this.currentColorTheme);
 					this.onColorThemeChange.fire(this.currentColorTheme);
@@ -1041,6 +1001,40 @@ configurationRegistry.registerConfiguration({
 		[ICON_THEME_SETTING]: iconThemeSettingSchema,
 		[CUSTOM_WORKBENCH_COLORS_SETTING]: colorCustomizationsSchema,
 		[DEPRECATED_CUSTOM_COLORS_SETTING]: deprecatedColorCustomizationsSchema
+	}
+});
+
+const tokenGroupSettings = {
+	anyOf: [
+		{
+			type: 'string',
+			format: 'color'
+		},
+		colorThemeSchema.tokenColorizationSettingSchema
+	]
+};
+
+configurationRegistry.registerConfiguration({
+	id: 'editor',
+	order: 7.2,
+	type: 'object',
+	properties: {
+		[CUSTOM_EDITOR_COLORS_SETTING]: {
+			description: nls.localize('editorColors', "Overrides editor colors and font style from the currently selected color theme."),
+			properties: {
+				comments: tokenGroupSettings,
+				strings: tokenGroupSettings,
+				keywords: tokenGroupSettings,
+				numbers: tokenGroupSettings,
+				types: tokenGroupSettings,
+				functions: tokenGroupSettings,
+				variables: tokenGroupSettings,
+				[CUSTOM_EDITOR_SCOPE_COLORS_SETTING]: {
+					type: 'array',
+					items: colorThemeSchema.tokenColorsSchema
+				}
+			}
+		}
 	}
 });
 

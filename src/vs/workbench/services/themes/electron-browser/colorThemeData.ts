@@ -6,7 +6,7 @@
 import Paths = require('vs/base/common/paths');
 import Json = require('vs/base/common/json');
 import { Color } from 'vs/base/common/color';
-import { ExtensionData, ITokenColorizationRule, IColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { ExtensionData, ITokenColorCustomizations, ITokenColorizationRule, IColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { convertSettings } from 'vs/workbench/services/themes/electron-browser/themeCompatibility';
 import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
@@ -23,6 +23,16 @@ import { WorkbenchThemeService, IColorCustomizations } from "vs/workbench/servic
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 
 let colorRegistry = <IColorRegistry>Registry.as(Extensions.ColorContribution);
+
+const tokenGroupToScopesMap = {
+	comments: 'comment',
+	strings: 'string',
+	keywords: 'keyword',
+	numbers: 'constant.numeric',
+	types: 'entity.name.type',
+	functions: 'entity.name.function',
+	variables: 'variable'
+};
 
 export class ColorThemeData implements IColorTheme {
 
@@ -82,8 +92,32 @@ export class ColorThemeData implements IColorTheme {
 		}
 	}
 
-	public setCustomTokenColors(customTokenColors: ITokenColorizationRule[]) {
-		this.customTokenColors = customTokenColors;
+	public setCustomTokenColors(customTokenColors: ITokenColorCustomizations) {
+		let generalRules: ITokenColorizationRule[] = [];
+
+		let value, settings, scope;
+		Object.keys(tokenGroupToScopesMap).forEach(key => {
+			value = customTokenColors[key];
+			settings = typeof value === 'string'
+				? { foreground: value }
+				: value;
+			scope = tokenGroupToScopesMap[key];
+
+			if (!settings) {
+				return;
+			}
+
+			generalRules.push({
+				scope,
+				settings
+			});
+		});
+
+		const textMateRules: ITokenColorizationRule[] = customTokenColors.textMateRules || [];
+
+		// Put the general customizations such as comments, strings, etc. first so that
+		// they can be overriden by specific customizations like "string.interpolated"
+		this.customTokenColors = generalRules.concat(textMateRules);
 	}
 
 	public ensureLoaded(themeService: WorkbenchThemeService): TPromise<void> {

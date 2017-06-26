@@ -26,18 +26,12 @@ function addSettingMapping(settingId: string, colorId: string) {
 
 export function convertSettings(oldSettings: ITokenColorizationRule[], resultRules: ITokenColorizationRule[], resultColors: IColorMap): void {
 	for (let rule of oldSettings) {
-		resultRules.push(rule); // push the rule
-		if (!rule.scope) { // if it doesn't have a scope...?? why?
+		resultRules.push(rule);
+		if (!rule.scope) {
 			let settings = rule.settings;
 			if (!settings) {
-				rule.settings = {}; // make settings an empty object if it doesn't exist
+				rule.settings = {};
 			} else {
-				// * For each key in settings (foreground, background, fontstyle)
-				// * If the key is in a settingToColorIdMapping, get the color from the setting
-				//   then find all the colorIds mapped to that setting, and set those to the color
-				//   It is not yet clear to me what this looks like in practice
-				// * Remove all keys that aren't foreground or background
-				//   Why remove fontstyle?
 				for (let key in settings) {
 					let mappings = settingToColorIdMapping[key];
 					if (mappings) {
@@ -48,7 +42,7 @@ export function convertSettings(oldSettings: ITokenColorizationRule[], resultRul
 							}
 						}
 					}
-					if (key !== 'foreground' && key !== 'background') {
+					if (key !== 'foreground' && key !== 'background' && key !== 'fontStyle') {
 						delete settings[key];
 					}
 				}
