@@ -957,7 +957,7 @@ export class CodeMenu {
 
 			case UpdateState.UpdateDownloaded:
 				return [new MenuItem({
-					label: nls.localize('miRestartToUpdate', "Restart To Update..."), click: () => {
+					label: nls.localize('miRestartToUpdate', "Restart to Update..."), click: () => {
 						this.reportMenuActionTelemetry('RestartToUpdate');
 						this.updateService.quitAndInstall();
 					}

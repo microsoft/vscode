@@ -354,7 +354,7 @@ export class LightUpdateContribution implements IGlobalActivity {
 				return new Action('update.available', updateAvailableLabel, undefined, false);
 
 			case UpdateState.UpdateDownloaded:
-				return new Action('update.restart', nls.localize('restartToUpdate', "Restart To Update..."), undefined, true, () =>
+				return new Action('update.restart', nls.localize('restartToUpdate', "Restart to Update..."), undefined, true, () =>
 					this.updateService.quitAndInstall());
 
 			default:
