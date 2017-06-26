@@ -13,6 +13,8 @@ import { ScrollEvent, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { RangeMap, IRange, relativeComplement, each } from './rangeMap';
 import { IDelegate, IRenderer } from './list';
 import { RowCache, IRow } from './rowCache';
+import { isWindows } from 'vs/base/common/platform';
+import { canUseTranslate3d } from 'vs/base/browser/browser';
 
 interface IItem<T> {
 	id: string;
@@ -178,7 +180,14 @@ export class ListView<T> implements IDisposable {
 		rangesToInsert.forEach(range => each(range, i => this.insertItemInDOM(this.items[i], i)));
 		rangesToRemove.forEach(range => each(range, i => this.removeItemFromDOM(this.items[i])));
 
-		this.rowsContainer.style.top = `-${renderTop}px`;
+		if (canUseTranslate3d() && !isWindows /* Windows: translate3d breaks subpixel-antialias (ClearType) unless a background is defined */) {
+			const transform = `translate3d(0px, -${renderTop}px, 0px)`;
+			this.rowsContainer.style.transform = transform;
+			this.rowsContainer.style.webkitTransform = transform;
+		} else {
+			this.rowsContainer.style.top = `-${renderTop}px`;
+		}
+
 		this.lastRenderTop = renderTop;
 		this.lastRenderHeight = renderHeight;
 	}

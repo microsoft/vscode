@@ -21,7 +21,6 @@
 
 .monaco-list-rows {
 	position: relative;
-	will-change: top;
 	width: 100%;
 	height: 100%;
 }
