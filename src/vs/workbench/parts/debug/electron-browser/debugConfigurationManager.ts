@@ -285,7 +285,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	public getConfigurationNames(): string[] {
-		const config = this.configurationService.getConfiguration<IGlobalConfig>('launch', { resource: this.contextService.getWorkspace().resource }); // TODO@Isidor (https://github.com/Microsoft/vscode/issues/29245)
+		const config = this.contextService.hasWorkspace() ? this.configurationService.getConfiguration<IGlobalConfig>('launch', { resource: this.contextService.getWorkspace().resource }) : null; // TODO@Isidor (https://github.com/Microsoft/vscode/issues/29245)
 		if (!config || !config.configurations) {
 			return [];
 		} else {
