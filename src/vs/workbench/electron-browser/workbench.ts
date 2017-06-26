@@ -470,7 +470,14 @@ export class Workbench implements IPartService {
 	}
 
 	private openUntitledFile() {
-		return !this.configurationService.lookup('workbench.welcome.enabled').value;
+		const startupEditor = this.configurationService.lookup('workbench.startupEditor');
+		if (!startupEditor.user && !startupEditor.workspace) {
+			const welcomeEnabled = this.configurationService.lookup('workbench.welcome.enabled');
+			if (welcomeEnabled.value !== undefined && welcomeEnabled.value !== null) {
+				return !welcomeEnabled.value;
+			}
+		}
+		return startupEditor.value === 'newUntitledFile';
 	}
 
 	private initServices(): void {
