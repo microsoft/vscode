@@ -93,11 +93,13 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		const newRootCount = this.contextService.hasWorkspace() ? this.contextService.getWorkspace2().roots.length : 0;
 
 		let reload = false;
-		if (this.rootCount <= 1 && newRootCount > 1) {
-			reload = true; // transition: from 1 or 0 folders to 2+
-		} else if (this.rootCount > 1 && newRootCount <= 1) {
-			reload = true; // transition: from 2+ folders to 1 or 0
+		if (this.rootCount === 0 && newRootCount > 0) {
+			reload = true; // transition: from 0 folders to 1+
+		} else if (this.rootCount > 0 && newRootCount === 0) {
+			reload = true; // transition: from 1+ folders to 0
 		}
+
+		this.rootCount = newRootCount;
 
 		if (reload) {
 			this.doConfirm(
@@ -106,8 +108,6 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 				localize('reload', "Reload"),
 				() => this.windowService.reloadWindow()
 			);
-		} else {
-			this.rootCount = newRootCount;
 		}
 	}
 
