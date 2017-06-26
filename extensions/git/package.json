@@ -211,6 +211,11 @@
         "command": "git.showOutput",
         "title": "%command.showOutput%",
         "category": "Git"
+      },
+      {
+        "command": "git.ignore",
+        "title": "%command.ignore%",
+        "category": "Git"
       }
     ],
     "menus": {
@@ -525,6 +530,11 @@
           "command": "git.stage",
           "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == workingTree",
           "group": "inline"
+        },
+        {
+          "command": "git.ignore",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == workingTree",
+          "group": "1_modification@3"
         }
       ],
       "editor/title": [

@@ -5,12 +5,13 @@
 
 'use strict';
 
-import { Uri, Command, EventEmitter, Event, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace } from 'vscode';
+import { Uri, Command, EventEmitter, Event, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit } from 'vscode';
 import { Git, Repository, Ref, Branch, Remote, Commit, GitErrorCodes } from './git';
 import { anyEvent, eventToPromise, filterEvent, EmptyDisposable, combinedDisposable, dispose } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import * as path from 'path';
 import * as nls from 'vscode-nls';
+import * as fs from 'fs';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -211,7 +212,8 @@ export enum Operation {
 	Show = 1 << 13,
 	Stage = 1 << 14,
 	GetCommitTemplate = 1 << 15,
-	DeleteBranch = 1 << 16
+	DeleteBranch = 1 << 16,
+	Ignore = 1 << 17
 }
 
 // function getOperationName(operation: Operation): string {
@@ -523,6 +525,25 @@ export class Model implements Disposable {
 
 	async getCommitTemplate(): Promise<string> {
 		return await this.run(Operation.GetCommitTemplate, async () => this.repository.getCommitTemplate());
+	}
+
+	async ignore(files: Resource[]): Promise<void> {
+		return await this.run(Operation.Ignore, async () => {
+			const ignoreFile = `${this.repository.root}${path.sep}.gitignore`;
+			const textToAppend = files
+				.map(file => path.relative(this.repository.root, file.resourceUri.fsPath).replace(/\\/g, '/'))
+				.join('\n');
+
+			const document = await new Promise(c => fs.exists(ignoreFile, c))
+				? await workspace.openTextDocument(ignoreFile)
+				: await workspace.openTextDocument(Uri.file(ignoreFile).with({ scheme: 'untitled' }));
+
+			await window.showTextDocument(document);
+			const edit = new WorkspaceEdit();
+
+			edit.insert(document.uri, document.lineAt(document.lineCount - 1).range.end, `${textToAppend}\n`);
+			workspace.applyEdit(edit);
+		});
 	}
 
 	private async run<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
