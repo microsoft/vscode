@@ -467,7 +467,7 @@ export class LanguageConfigurationRegistryImpl {
 		let scopedLineText = scopedLineTokens.getLineContent();
 
 		if (lineTokens.getLanguageId(tokenIndexAtBeginning) === lineTokens.getLanguageId(tokenIndexUnderCursor)) {
-			beforeEnterText = lineTokens.getLineContent().substring(0, range.startColumn);
+			beforeEnterText = lineTokens.getLineContent().substring(0, range.startColumn - 1);
 		} else {
 			beforeEnterText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
 		}
