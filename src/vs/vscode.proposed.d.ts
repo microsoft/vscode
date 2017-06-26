@@ -215,7 +215,7 @@ declare module 'vscode' {
 		 * the parent process' environment.
 		 */
 		env?: { [key: string]: string };
-	};
+	}
 
 
 	export class ShellExecution {
