@@ -345,8 +345,8 @@ export class SearchWidget extends Widget {
 	private createSearchContainer(searchContainer: HTMLElement) {
 		this.searchContainer = searchContainer;
 		const searchInput = DOM.append(this.searchContainer, DOM.$('div.settings-search-input'));
-		this.inputBox = this.createInputBox(searchInput);
-		this.inputBox.onDidChange(value => this._onDidChange.fire(value));
+		this.inputBox = this._register(this.createInputBox(searchInput));
+		this._register(this.inputBox.onDidChange(value => this._onDidChange.fire(value)));
 		this.onkeydown(this.inputBox.inputElement, (e) => this._onKeyDown(e));
 	}
 
