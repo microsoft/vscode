@@ -7,7 +7,7 @@
 import { CharacterPairSupport } from 'vs/editor/common/modes/supports/characterPair';
 import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
 import { IOnEnterSupportOptions, OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
-import { IndentRulesSupport } from 'vs/editor/common/modes/supports/indentRules';
+import { IndentRulesSupport, IndentConsts } from 'vs/editor/common/modes/supports/indentRules';
 import { RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
 import Event, { Emitter } from 'vs/base/common/event';
 import { ITokenizedModel } from 'vs/editor/common/editorCommon';
@@ -366,9 +366,9 @@ export class LanguageConfigurationRegistryImpl {
 
 			let previousLine = precedingUnIgnoredLine - 1;
 
-			let previousLineContent = model.getLineContent(previousLine);
-
-			if (indentRulesSupport.shouldIndentNextLine(previousLineContent)) {
+			let previousLineIndentMetadata = indentRulesSupport.getIndentMetadata(model.getLineContent(previousLine));
+			if (!(previousLineIndentMetadata & (IndentConsts.INCREASE_MASK | IndentConsts.DECREASE_MASK)) &&
+				(previousLineIndentMetadata & IndentConsts.INDENT_NEXTLINE_MASK)) {
 				let stopLine = 0;
 				for (let i = previousLine - 1; i > 0; i--) {
 					if (indentRulesSupport.shouldIndentNextLine(model.getLineContent(i))) {
@@ -425,7 +425,6 @@ export class LanguageConfigurationRegistryImpl {
 					action: null
 				};
 			}
-
 		}
 	}
 
