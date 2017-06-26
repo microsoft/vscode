@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-var fs = require('fs');
-var https = require('https');
-var program = require('commander');
-var git = require('simple-git')();
-var child_process = require('child_process');
-var path = require('path');
+const fs = require('fs');
+const https = require('https');
+const program = require('commander');
+const git = require('simple-git')();
+const child_process = require('child_process');
+const path = require('path');
 
-var tempFolder = 'test_data';
-var testRepoUrl = 'https://github.com/Microsoft/vscode-smoketest-express';
-var testRepoLocalDir = path.join(process.cwd(), `${tempFolder}/vscode-smoketest-express`);
-var keybindingsUrl = 'https://raw.githubusercontent.com/Microsoft/vscode-docs/master/scripts/keybindings';
+const tempFolder = 'test_data';
+const testRepoUrl = 'https://github.com/Microsoft/vscode-smoketest-express';
+const testRepoLocalDir = path.join(process.cwd(), `${tempFolder}/vscode-smoketest-express`);
+const keybindingsUrl = 'https://raw.githubusercontent.com/Microsoft/vscode-docs/master/scripts/keybindings';
 
 program
 	.option('-l, --latest <file path>', 'path to the latest VS Code to test')
@@ -43,32 +43,42 @@ if (parseInt(process.version.substr(1)) < 6) {
 
 // Setting up environment variables
 process.env.VSCODE_LATEST_PATH = program.latest;
-if (program.stable) process.env.VSCODE_STABLE_PATH = program.stable;
+if (program.stable) {
+	process.env.VSCODE_STABLE_PATH = program.stable;
+}
 process.env.SMOKETEST_REPO = testRepoLocalDir;
-if (program.stable && program.stable.toLowerCase().startsWith('insiders')) process.env.VSCODE_EDITION = 'insiders';
-
-// Setting up 'vscode-smoketest-express' project
-var os = process.platform;
-if (os === 'darwin') os = 'osx';
-else if (os === 'win32') os = 'win';
-var promises = [];
-
-try {
-	promises.push(getKeybindings(`${keybindingsUrl}/doc.keybindings.${os}.json`, `${tempFolder}/keybindings.json`));
-	promises.push(cleanOrClone(testRepoUrl, testRepoLocalDir));
-
-	Promise.all(promises).then(() => { execute('npm install', testRepoLocalDir).then(() => runTests()); });
-} catch (e) {
-	throw new Error('Error caught running the smoke test: ' + e);
+if (program.stable && program.stable.toLowerCase().startsWith('insiders')) {
+	process.env.VSCODE_EDITION = 'insiders';
 }
 
-function fail(errorMessage) {
+// Setting up 'vscode-smoketest-express' project
+let os = process.platform.toString();
+if (os === 'darwin') {
+	os = 'osx';
+}
+else if (os === 'win32') {
+	os = 'win';
+}
+
+var promises: Promise<any>[] = [];
+
+promises.push(getKeybindings(`${keybindingsUrl}/doc.keybindings.${os}.json`, `${tempFolder}/keybindings.json`));
+promises.push(cleanOrClone(testRepoUrl, testRepoLocalDir));
+
+Promise.all(promises)
+	.then(() => execute('npm install', testRepoLocalDir))
+	.then(() => runTests())
+	.catch(reason => {
+		throw new Error('Error caught running the smoke test: ' + reason);
+	});
+
+function fail(errorMessage): void {
 	console.error(errorMessage);
 	process.exit(1);
 }
 
-function runTests() {
-	console.log('Running tests...')
+function runTests(): void {
+	console.log('Running tests...');
 	const spawn = require('child_process').spawn;
 	var proc = spawn(process.execPath, [
 		'out/mocha-runner.js'
@@ -79,7 +89,9 @@ function runTests() {
 	proc.stderr.on('data', data => {
 		var date = new Date().toLocaleString();
 		fs.appendFile(`${tempFolder}/errors.log`, `${date}: ${data.toString()}`, (err) => {
-			if (err) throw new Error(`Could not write stderr to errors.log with the following error: ${err}`);
+			if (err) {
+				throw new Error(`Could not write stderr to errors.log with the following error: ${err}`);
+			};
 		});
 	});
 	proc.on('exit', (code) => {
@@ -87,7 +99,7 @@ function runTests() {
 	});
 }
 
-function cleanOrClone(repo, dir) {
+function cleanOrClone(repo: string, dir: string): Promise<any> {
 	console.log('Cleaning or cloning test project repository...');
 	return new Promise((res, rej) => {
 		if (!folderExists(dir)) {
@@ -97,47 +109,57 @@ function cleanOrClone(repo, dir) {
 			});
 		} else {
 			git.cwd(dir);
-			git.fetch((err) => {
-				if (err) rej(err);
+			git.fetch(err => {
+				if (err) {
+					rej(err);
+				}
 				resetAndClean();
 			});
 		}
 
 		var resetAndClean = () => {
-			git.reset(['FETCH_HEAD', '--hard'], (err) => {
-				if (err) rej(err);
+			git.reset(['FETCH_HEAD', '--hard'], err => {
+				if (err) {
+					rej(err);
+				}
 
-				git.clean('f', ['-d'], (err) => {
-					if (err) rej(err);
+				git.clean('f', ['-d'], err => {
+					if (err) {
+						rej(err);
+					}
 					console.log('Test project was successfully reset to initial state.');
 					res();
 				});
 			});
-		}
+		};
 	});
 }
 
-function execute(cmd, dir) {
+function execute(cmd, dir): Promise<any> {
 	return new Promise((res, rej) => {
 		console.log(`Running ${cmd}...`);
 		child_process.exec(cmd, { cwd: dir, stdio: [0, 1, 2] }, (error, stdout, stderr) => {
-			if (error) rej(error);
-			if (stderr) console.error(stderr);
+			if (error) {
+				rej(error);
+			}
+			if (stderr) {
+				console.error(stderr);
+			}
 			console.log(stdout);
 			res();
 		});
 	});
 }
 
-function getKeybindings(url, location) {
+function getKeybindings(url: string, location: string): Promise<any> {
 	console.log(`Fetching keybindings from ${url}...`);
 	return new Promise((resolve, reject) => {
 		https.get(url, (res) => {
-			if (res.statusCode != 200) {
+			if (res.statusCode !== 200) {
 				reject(`Failed to obtain key bindings with response code: ${res.statusCode}`);
 			}
 
-			var buffer = [];
+			var buffer: Buffer[] = [];
 			res.on('data', (chunk) => buffer.push(chunk));
 			res.on('end', () => {
 				fs.writeFile(location, Buffer.concat(buffer), 'utf8', () => {
@@ -151,7 +173,7 @@ function getKeybindings(url, location) {
 	});
 }
 
-function folderExists(folder) {
+function folderExists(folder: string): boolean {
 	try {
 		fs.accessSync(folder, 'rw');
 		return true;
@@ -160,7 +182,7 @@ function folderExists(folder) {
 	}
 }
 
-function binaryExists(filePath) {
+function binaryExists(filePath: string): boolean {
 	try {
 		fs.accessSync(filePath, 'x');
 		return true;

@@ -5,7 +5,7 @@
   "scripts": {
     "compile": "tsc",
     "pretest": "tsc",
-    "test": "node src/main.js"
+    "test": "node out/main.js"
   },
   "devDependencies": {
     "@types/mocha": "^2.2.41",
