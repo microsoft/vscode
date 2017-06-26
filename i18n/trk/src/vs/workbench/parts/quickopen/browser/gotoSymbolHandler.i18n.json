@@ -12,7 +12,7 @@
 	"variable": "değişkenler ({0})",
 	"class": "sınıflar ({0})",
 	"interface": "arayüzler ({0})",
-	"namespace": "isim alanları ({0})",
+	"namespace": "isim uzayları ({0})",
 	"package": "paketler ({0})",
 	"modules": "modüller ({0})",
 	"property": "özellikler ({0})",

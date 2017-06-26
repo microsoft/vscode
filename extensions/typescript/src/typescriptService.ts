@@ -76,6 +76,7 @@ export class API {
 export interface ITypescriptServiceClient {
 	normalizePath(resource: Uri): string | null;
 	asUrl(filepath: string): Uri;
+	getWorkspaceRootForResource(resource: Uri): string | undefined;
 
 	warn(message: string, data?: any): void;
 

@@ -10,6 +10,6 @@
 	"TaskSystemDetector.noJakeProgram": "A Jake nincs telepítve a rendszerre. Futtassa az npm install -g jake parancsot a telepítéshez!",
 	"TaskSystemDetector.noGruntProgram": "A Grunt nincs telepítve a rendszerre. Futtassa az npm install -g grunt parancsot a telepítéshez!",
 	"TaskSystemDetector.noProgram": "Az) {0} program nem található. Az üzenet: {1}",
-	"TaskSystemDetector.buildTaskDetected": "'{0}' nevű build feladat észlelve.",
-	"TaskSystemDetector.testTaskDetected": "'{0}' nevű tesztelési feladat észlelve."
+	"TaskSystemDetector.buildTaskDetected": "Felderítésre került a következő buildelési feladat: '{0}'.",
+	"TaskSystemDetector.testTaskDetected": "Felderítésre került a következő tesztelési feladat: '{0}'. "
 }

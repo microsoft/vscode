@@ -306,10 +306,10 @@ export class TypeOperations {
 			normalizeIndentation: (indent) => {
 				return config.normalizeIndentation(indent);
 			}
-		});
+		}, config.autoIndent);
 
 		let lineText = model.getLineContent(range.startLineNumber);
-		let indentation = strings.getLeadingWhitespace(lineText);
+		let indentation = strings.getLeadingWhitespace(lineText).substring(0, range.startColumn - 1);
 		if (ir) {
 			if (/^\s+$/.test(lineText) || indentation === config.normalizeIndentation(ir.beforeEnter)) {
 				return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(ir.afterEnter), keepPosition);

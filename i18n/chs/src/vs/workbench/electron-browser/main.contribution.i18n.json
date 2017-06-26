@@ -15,6 +15,8 @@
 	"enablePreviewFromQuickOpen": "控制 Quick Open 中打开的编辑器是否显示为预览。预览编辑器可以重新使用，直到将其保留(例如，通过双击或编辑)。",
 	"editorOpenPositioning": "控制打开编辑器的位置。选择“左侧”或“右侧”以在当前活动位置的左侧或右侧打开编辑器。选择“第一个”或“最后一个”以从当前活动位置独立打开编辑器。",
 	"revealIfOpen": "控制打开时编辑器是否显示在任何可见组中。如果禁用，编辑器会优先在当前活动编辑器组中打开。如果启用，会显示已打开的编辑器而不是在当前活动编辑器组中再次打开。请注意，有些情况下会忽略此设置，例如强制编辑器在特定组中或在当前活动组的边侧打开时。",
+	"commandHistory": "控制命令面板中保留最近使用命令的数量。设置为 0 则禁用命令历史记录。",
+	"preserveInput": "控制是否在再次打开命令面板时恢复上一次的输入内容。",
 	"closeOnFocusLost": "控制 Quick Open 是否应在失去焦点时自动关闭。",
 	"openDefaultSettings": "控制打开设置时是否打开显示所有默认设置的编辑器。",
 	"sideBarLocation": "控制边栏的位置。它可显示在工作台的左侧或右侧。",
@@ -61,6 +63,7 @@
 	"zenMode.hideActivityBar": "控制打开 Zen 模式是否也会隐藏工作台左侧的活动栏。",
 	"zenMode.restore": "控制如果某窗口已退出 zen 模式，是否应还原到 zen 模式。",
 	"workspaceConfigurationTitle": "工作区",
+	"workspaces.title": "工作区中的文件夹设置",
 	"files.exclude.boolean": "匹配文件路径所依据的 glob 模式。设置为 true 或 false 可启用或禁用该模式。",
 	"workspaces.additionalFolders": "工作区中的文件夹"
 }

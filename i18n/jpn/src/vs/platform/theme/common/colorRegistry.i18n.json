@@ -79,7 +79,10 @@
 	"mergeCurrentContentBackground": "行内マージ競合の現在のコンテンツ背景色。",
 	"mergeIncomingHeaderBackground": "行内マージ競合の入力側ヘッダー背景色。",
 	"mergeIncomingContentBackground": "行内マージ競合の入力側コンテンツ背景色。",
+	"mergeCommonHeaderBackground": "行内マージ競合の共通の祖先ヘッダー背景色。",
+	"mergeCommonContentBackground": "行内マージ競合の共通の祖先コンテンツ背景色。",
 	"mergeBorder": "行内マージ競合のヘッダーとスプリッターの境界線の色。",
 	"overviewRulerCurrentContentForeground": "行内マージ競合の現在の概要ルーラー前景色。",
-	"overviewRulerIncomingContentForeground": "行内マージ競合の入力側の概要ルーラー前景色。"
+	"overviewRulerIncomingContentForeground": "行内マージ競合の入力側の概要ルーラー前景色。",
+	"overviewRulerCommonContentForeground": "行内マージ競合の共通の祖先概要ルーラー前景色。"
 }

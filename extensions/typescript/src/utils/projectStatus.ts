@@ -145,7 +145,12 @@ function createLargeProjectMonitorFromTypeScript(item: ExcludeHintItem, client: 
 							vscode.workspace.openTextDocument(configFileName)
 								.then(vscode.window.showTextDocument);
 						} else {
-							openOrCreateConfigFile(configFileName.match(/tsconfig\.?.*\.json/) !== null);
+							const root = client.getWorkspaceRootForResource(vscode.Uri.file(configFileName));
+							if (root) {
+								openOrCreateConfigFile(
+									configFileName.match(/tsconfig\.?.*\.json/) !== null,
+									root);
+							}
 						}
 					});
 			}

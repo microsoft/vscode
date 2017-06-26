@@ -50,8 +50,11 @@ class SyncedBuffer {
 			}
 		}
 
-		if (workspace.rootPath && this.client.apiVersion.has230Features()) {
-			args.projectRootPath = workspace.rootPath;
+		if (this.client.apiVersion.has230Features()) {
+			const root = this.client.getWorkspaceRootForResource(this.document.uri);
+			if (root) {
+				args.projectRootPath = root;
+			}
 		}
 
 		this.client.execute('open', args, false);

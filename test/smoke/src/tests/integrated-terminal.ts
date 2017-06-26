@@ -34,7 +34,7 @@ export function testIntegratedTerminal() {
 			await common.type(command);
 			await common.enter();
 			await app.wait();
-			assert.ok(await terminal.commandOutputHas('test'));
+			assert.ok(await terminal.commandOutputHas('test'), 'Terminal output does not contain echo.');
 		});
 	});
 }

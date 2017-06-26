@@ -153,7 +153,7 @@ export class FileService implements IFileService {
 	}
 
 	private setupNsfwWorkspceWatching(): void {
-		this.toDispose.push(toDisposable(new NsfwWatcherService(this.contextService, this.options.watcherIgnoredPatterns, e => this._onFileChanges.fire(e), this.options.errorLogger, this.options.verboseLogging).startWatching()));
+		this.toDispose.push(toDisposable(new NsfwWatcherService(this.contextService, this.configurationService, e => this._onFileChanges.fire(e), this.options.errorLogger, this.options.verboseLogging).startWatching()));
 	}
 
 	public resolveFile(resource: uri, options?: IResolveFileOptions): TPromise<IFileStat> {

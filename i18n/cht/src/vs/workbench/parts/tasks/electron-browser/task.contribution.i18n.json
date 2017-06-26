@@ -44,5 +44,7 @@
 	"TestAction.label": "執行測試工作",
 	"quickOpen.task": "執行工作",
 	"quickOpen.terminateTask": "終止工作(&&T)",
-	"quickOpen.restartTask": "重新啟動工作"
+	"quickOpen.restartTask": "重新啟動工作",
+	"quickOpen.buildTask": "建置工作",
+	"quickOpen.testTask": "測試工作"
 }

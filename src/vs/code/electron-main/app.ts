@@ -133,8 +133,8 @@ export class CodeApplication {
 				if (isValidWebviewSource(params.src) && isValidWebviewSource(webPreferences.preloadURL)) {
 					return;
 				}
-				// Otherwise prevent loading
 
+				// Otherwise prevent loading
 				console.error('Prevented webview attach');
 				event.preventDefault();
 			});

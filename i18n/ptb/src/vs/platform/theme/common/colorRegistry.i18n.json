@@ -79,7 +79,10 @@
 	"mergeCurrentContentBackground": "Cor de fundo de conteúdo atual em conflito de mesclagem em linha.",
 	"mergeIncomingHeaderBackground": "Cor de fundo de cabeçalho de entrada em conflito de mesclagem em linha.",
 	"mergeIncomingContentBackground": "Cor de fundo de conteúdo de entrada em conflito de mesclagem em linha.",
+	"mergeCommonHeaderBackground": "Ancestral comum da cor de fundo do cabeçalho em conflitos de mesclagem inline.",
+	"mergeCommonContentBackground": "Ancestral comum da cor de fundo do conteúdo em conflitos de mesclagem inline. ",
 	"mergeBorder": "Cor da borda dos cabeçalhos e separadores estão em conflito de mesclagem em linha.",
 	"overviewRulerCurrentContentForeground": "Cor de fundo de régua de visuaização atual em conflito de mesclagem em linha.",
-	"overviewRulerIncomingContentForeground": "Cor de fundo de régua de visuaização de entrada em conflito de mesclagem em linha."
+	"overviewRulerIncomingContentForeground": "Cor de fundo de régua de visuaização de entrada em conflito de mesclagem em linha.",
+	"overviewRulerCommonContentForeground": "Ancestral comum da cor da régua de visão geral para conflitos de mesclagem inline."
 }

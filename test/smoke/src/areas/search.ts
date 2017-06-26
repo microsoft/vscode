@@ -21,11 +21,19 @@ export class Search {
 	}
 
 	public setReplaceText(text: string): any {
-		return this.spectron.client.setValue('.viewlet .input[title="Replace"]', text);
+		try {
+			return this.spectron.client.setValue('.viewlet .input[title="Replace"]', text);
+		} catch (e) {
+			return Promise.reject('Cannot set replace input in the viewlet: ' + e);
+		}
 	}
 
 	public replaceFirstMatch(): any {
-		return this.spectron.client.click('.monaco-tree-rows.show-twisties .action-label.icon.action-replace-all');
+		try {
+			return this.spectron.client.click('.monaco-tree-rows.show-twisties .action-label.icon.action-replace-all');
+		} catch (e) {
+			return Promise.reject('Cannot replace the search first match: ' + e);
+		}
 	}
 
 	public getResultText(): any {
@@ -33,18 +41,34 @@ export class Search {
 	}
 
 	public toggleSearchDetails(): any {
-		return this.spectron.client.click('.query-details .more');
+		try {
+			return this.spectron.client.click('.query-details .more');
+		} catch (e) {
+			return Promise.reject('Toggling search details failed: ' + e);
+		}
 	}
 
 	public toggleReplace(): any {
-		return this.spectron.client.click('.monaco-button.toggle-replace-button.collapse');
+		try {
+			return this.spectron.client.click('.monaco-button.toggle-replace-button.collapse');
+		} catch (e) {
+			return Promise.reject('Toggling replace failed: ' + e);
+		}
 	}
 
 	public hoverOverResultCount(): any {
-		return this.spectron.waitFor(this.spectron.client.moveToObject, '.monaco-count-badge');
+		try {
+			return this.spectron.waitFor(this.spectron.client.moveToObject, '.monaco-count-badge');
+		} catch (e) {
+			return Promise.reject('Hovering over result count failed: ' + e);
+		}
 	}
 
 	public dismissResult(): any {
-		return this.spectron.client.click('.action-label.icon.action-remove');
+		try {
+			return this.spectron.client.click('.action-label.icon.action-remove');
+		} catch (e) {
+			return Promise.reject('Clicking on dismissing result failed: ' + e);
+		}
 	}
 }

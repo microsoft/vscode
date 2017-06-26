@@ -30,14 +30,13 @@ function configureEnvironment {
 	git config --global user.name "VS Code Agent"
 	git config --global user.email "monacotools@microsoft.com"
 	chown -R testuser $AGENT_BUILDDIRECTORY
-	chown -R testuser /root # to allow 'npm install' to succeed in Express repository
 }
 
 function runTest {
 	pushd test/smoke
 	npm install
 	npm run compile
-	sudo -u testuser xvfb-run -a -s "-screen 0 1024x768x8" node src/main.js --latest "$AGENT_BUILDDIRECTORY/VSCode-linux-ia32/code-insiders"
+	sudo -u testuser -H xvfb-run -a -s "-screen 0 1024x768x8" node src/main.js --latest "$AGENT_BUILDDIRECTORY/VSCode-linux-ia32/code-insiders"
 	popd
 }
 

@@ -1210,7 +1210,7 @@ export class BreakpointsRenderer implements IRenderer {
 	private renderBreakpoint(tree: ITree, breakpoint: debug.IBreakpoint, data: IBreakpointTemplateData): void {
 		this.debugService.getModel().areBreakpointsActivated() ? tree.removeTraits('disabled', [breakpoint]) : tree.addTraits('disabled', [breakpoint]);
 
-		data.name.textContent = getPathLabel(paths.basename(breakpoint.uri.fsPath), this.contextService);
+		data.name.textContent = paths.basename(getPathLabel(breakpoint.uri, this.contextService));
 		data.lineNumber.textContent = breakpoint.lineNumber.toString();
 		if (breakpoint.column) {
 			data.lineNumber.textContent += `:${breakpoint.column}`;

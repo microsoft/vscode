@@ -147,7 +147,6 @@ export class OpenFileHandler extends QuickOpenHandler {
 
 	private doFindResults(searchValue: string, cacheKey?: string, maxSortedResults?: number): TPromise<FileQuickOpenModel> {
 		const query: IQueryOptions = {
-			folderResources: this.contextService.hasWorkspace() ? this.contextService.getWorkspace2().roots : [],
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
 			filePattern: searchValue,
 			cacheKey: cacheKey
@@ -163,7 +162,8 @@ export class OpenFileHandler extends QuickOpenHandler {
 			iconClass = 'file'; // only use a generic file icon if we are forced to use an icon and have no icon theme set otherwise
 		}
 
-		return this.searchService.search(this.queryBuilder.file(query)).then((complete) => {
+		const folderResources = this.contextService.hasWorkspace() ? this.contextService.getWorkspace2().roots : [];
+		return this.searchService.search(this.queryBuilder.file(folderResources, query)).then((complete) => {
 			const results: QuickOpenEntry[] = [];
 			for (let i = 0; i < complete.results.length; i++) {
 				const fileMatch = complete.results[i];
@@ -189,7 +189,6 @@ export class OpenFileHandler extends QuickOpenHandler {
 
 	private cacheQuery(cacheKey: string): ISearchQuery {
 		const options: IQueryOptions = {
-			folderResources: this.contextService.hasWorkspace() ? this.contextService.getWorkspace2().roots : [],
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
 			filePattern: '',
 			cacheKey: cacheKey,
@@ -197,7 +196,8 @@ export class OpenFileHandler extends QuickOpenHandler {
 			sortByScore: true
 		};
 
-		const query = this.queryBuilder.file(options);
+		const folderResources = this.contextService.hasWorkspace() ? this.contextService.getWorkspace2().roots : [];
+		const query = this.queryBuilder.file(folderResources, options);
 		this.searchService.extendQuery(query);
 
 		return query;

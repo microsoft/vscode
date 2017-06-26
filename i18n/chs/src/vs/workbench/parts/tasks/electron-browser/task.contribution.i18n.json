@@ -24,6 +24,8 @@
 	"TaskServer.noTask": "未找到要执行的请求任务 {0}。",
 	"customizeParseErrors": "当前任务配置存在错误。请先更正错误，再自定义任务。",
 	"moreThanOneBuildTask": "当前 tasks.json 中定义了多个生成任务。正在执行第一个。\n",
+	"TaskSystem.activeSame.background": "任务已激活并处于后台模式。若要终止任务，请按“F1”>“终止任务”",
+	"TaskSystem.activeSame.noBackground": "此任务处于活动状态。若要终止任务，请按“F1”>“终止任务”",
 	"TaskSystem.active": "当前已有任务正在运行。请先终止它，然后再执行另一项任务。",
 	"TaskSystem.restartFailed": "未能终止并重启任务 {0}",
 	"TaskSystem.configurationErrors": "错误: 提供的任务配置具有验证错误，无法使用。请首先改正错误。",

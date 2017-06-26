@@ -12,7 +12,7 @@ import scorer = require('vs/base/common/scorer');
 import strings = require('vs/base/common/strings');
 import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
-import { IProgress, LineMatch, FileMatch, ISearchComplete, ISearchProgressItem, QueryType, IFileMatch, ISearchQuery, ISearchConfiguration, ISearchService } from 'vs/platform/search/common/search';
+import { IProgress, LineMatch, FileMatch, ISearchComplete, ISearchProgressItem, QueryType, IFileMatch, ISearchQuery, ISearchConfiguration, ISearchService, getMergedExcludes } from 'vs/platform/search/common/search';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -130,7 +130,7 @@ export class SearchService implements ISearchService {
 					return;
 				}
 
-				if (!this.matches(resource, query.filePattern, query.includePattern, query.excludePattern)) {
+				if (!this.matches(resource, query)) {
 					return; // respect user filters
 				}
 
@@ -152,8 +152,11 @@ export class SearchService implements ISearchService {
 		return localResults;
 	}
 
-	private matches(resource: uri, filePattern: string, includePattern: glob.IExpression, excludePattern: glob.IExpression): boolean {
-		let workspaceRelativePath = this.contextService.toWorkspaceRelativePath(resource);
+	private matches(resource: uri, query: ISearchQuery): boolean {
+		const {
+			filePattern,
+			includePattern,
+		} = query;
 
 		// file pattern
 		if (filePattern) {
@@ -172,20 +175,20 @@ export class SearchService implements ISearchService {
 				return false; // if we match on file patterns, we have to ignore non file resources
 			}
 
-			if (!glob.match(includePattern, workspaceRelativePath || resource.fsPath)) {
+			if (!glob.match(includePattern, resource.fsPath)) {
 				return false;
 			}
 		}
 
 		// excludes
-		if (excludePattern) {
-			if (resource.scheme !== 'file') {
-				return true; // e.g. untitled files can never be excluded with file patterns
-			}
 
-			if (glob.match(excludePattern, workspaceRelativePath || resource.fsPath)) {
-				return false;
-			}
+		const allFolderExcludes = getMergedExcludes(query, /*absolutePaths=*/true);
+		if (resource.scheme !== 'file') {
+			return true; // e.g. untitled files can never be excluded with file patterns
+		}
+
+		if (glob.match(allFolderExcludes, resource.fsPath)) {
+			return false;
 		}
 
 		return true;
@@ -228,7 +231,13 @@ export class DiskSearch {
 		let request: PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>;
 
 		let rawSearch: IRawSearch = {
-			rootFolders: query.folderResources ? query.folderResources.map(r => r.fsPath) : [],
+			folderQueries: query.folderQueries ? query.folderQueries.map(q => {
+				return {
+					excludePattern: q.excludePattern,
+					fileEncoding: q.fileEncoding,
+					folder: q.folder.fsPath
+				};
+			}) : [],
 			extraFiles: query.extraFileResources ? query.extraFileResources.map(r => r.fsPath) : [],
 			filePattern: query.filePattern,
 			excludePattern: query.excludePattern,
@@ -243,7 +252,6 @@ export class DiskSearch {
 
 		if (query.type === QueryType.Text) {
 			rawSearch.contentPattern = query.contentPattern;
-			rawSearch.fileEncoding = query.fileEncoding;
 		}
 
 		if (query.type === QueryType.File) {

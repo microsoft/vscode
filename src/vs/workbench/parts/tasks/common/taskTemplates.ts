@@ -14,7 +14,6 @@ export interface TaskEntry extends IPickOpenEntry {
 	content: string;
 }
 
-/* Version 2.0 templates
 const dotnetBuild: TaskEntry = {
 	id: 'dotnetCore',
 	label: '.NET Core',
@@ -128,8 +127,10 @@ export let templates: TaskEntry[] = [dotnetBuild, msbuild, maven].sort((a, b) =>
 	return (a.sort || a.label).localeCompare(b.sort || b.label);
 });
 templates.push(command);
-*/
 
+
+/** Version 1.0 templates
+ *
 const gulp: TaskEntry = {
 	id: 'gulp',
 	label: 'Gulp',
@@ -345,3 +346,4 @@ export let templates: TaskEntry[] = [gulp, grunt, tscConfig, tscWatch, dotnetBui
 	return (a.sort || a.label).localeCompare(b.sort || b.label);
 });
 templates.push(command);
+*/

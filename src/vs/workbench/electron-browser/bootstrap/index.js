@@ -12,7 +12,7 @@ if (window.location.search.indexOf('prof-startup') >= 0) {
 	profiler.startProfiling('renderer', true);
 }
 
-/*global window,document,define*/
+/*global window,document,define,Monaco_Loader_Init*/
 
 const startTimer = require('../../../base/node/startupTimers').startTimer;
 const path = require('path');
@@ -157,10 +157,7 @@ function main() {
 	// Load the loader and start loading the workbench
 	const rootUrl = uriFromPath(configuration.appRoot) + '/out';
 
-	// In the bundled version the nls plugin is packaged with the loader so the NLS Plugins
-	// loads as soon as the loader loads. To be able to have pseudo translation
-	const loaderTimer = startTimer('load:loader');
-	createScript(rootUrl + '/vs/loader.js', function () {
+	function onLoader() {
 		define('fs', ['original-fs'], function (originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
 		loaderTimer.stop();
 
@@ -211,7 +208,19 @@ function main() {
 					});
 			});
 		});
-	});
+	}
+
+	// In the bundled version the nls plugin is packaged with the loader so the NLS Plugins
+	// loads as soon as the loader loads. To be able to have pseudo translation
+	const loaderTimer = startTimer('load:loader');
+	if (typeof Monaco_Loader_Init === 'function') {
+		//eslint-disable-next-line no-global-assign
+		define = Monaco_Loader_Init();
+		onLoader();
+
+	} else {
+		createScript(rootUrl + '/vs/loader.js', onLoader);
+	}
 }
 
 main();

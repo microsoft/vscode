@@ -14,16 +14,17 @@ var dns = require('dns');
 let app: SpectronApplication;
 let common: CommonActions;
 
-export async function testExtensions() {
-	const network = await networkAttached();
-	if (!network) {
-		return;
-	}
+export function testExtensions() {
 
 	context('Extensions', () => {
 		let extensions: Extensions;
 
 		beforeEach(async function () {
+			const network = await networkAttached();
+			if (!network) {
+				return Promise.reject('There is no network connection for testing extensions.');
+			}
+
 			app = new SpectronApplication(LATEST_PATH, this.currentTest.fullTitle(), (this.currentTest as any).currentRetry(), [WORKSPACE_PATH, `--extensions-dir=${EXTENSIONS_DIR}`]);
 			common = new CommonActions(app);
 			extensions = new Extensions(app, common);
@@ -37,21 +38,23 @@ export async function testExtensions() {
 		});
 
 		it(`installs 'vscode-icons' extension and verifies reload is prompted`, async function () {
+			const name = 'vscode-icons';
 			await extensions.openExtensionsViewlet();
-			await extensions.searchForExtension('vscode-icons');
+			await extensions.searchForExtension(name);
 			await app.wait();
-			await extensions.installFirstResult();
+			await extensions.installExtension(name);
 			await app.wait();
-			assert.ok(await extensions.getFirstReloadText());
+			assert.ok(await extensions.getExtensionReloadText(), 'Reload was not prompted after extension installation.');
 		});
 
 		it(`installs an extension and checks if it works on restart`, async function () {
+			const name = 'vscode-icons';
 			await extensions.openExtensionsViewlet();
-			await extensions.searchForExtension('vscode-icons');
+			await extensions.searchForExtension(name);
 			await app.wait();
-			await extensions.installFirstResult();
+			await extensions.installExtension(name);
 			await app.wait();
-			await extensions.getFirstReloadText();
+			await extensions.getExtensionReloadText();
 
 			await app.stop();
 			await app.wait(); // wait until all resources are released (e.g. locked local storage)

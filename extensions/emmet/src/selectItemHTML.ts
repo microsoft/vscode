@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { getNode, getDeepestNode, findNextWord, findPrevWord } from './util';
+import { getDeepestNode, findNextWord, findPrevWord, getNode } from './util';
 import Node from '@emmetio/node';
 
 export function nextItemHTML(selectionStart: vscode.Position, selectionEnd: vscode.Position, editor: vscode.TextEditor, rootNode: Node): vscode.Selection {

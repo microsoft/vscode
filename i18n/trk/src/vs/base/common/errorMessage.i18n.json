@@ -13,5 +13,6 @@
 	"error.connection.unknown": "Bilinmeyen bir bağlantı hatası oluştu. Artık İnternet'e bağlı değilsiniz veya bağlandığınız sunucu çevrimdışı.",
 	"stackTrace.format": "{0}: {1}",
 	"error.defaultMessage": "Bilinmeyen bir hata oluştu. Daha fazla ayrıntı için lütfen günlüğe başvurun.",
+	"nodeExceptionMessage": "Bir sistem hatası oluştu ({0})",
 	"error.moreErrors": "{0} (toplam {1} hata)"
 }

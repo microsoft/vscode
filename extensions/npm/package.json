@@ -41,6 +41,22 @@
           "description": "%config.npm.autoDetect%"
         }
       }
-    }
+    },
+    "taskTypes": [
+      {
+        "type": "npm",
+        "required": ["script"],
+        "properties": {
+          "script": {
+            "type": "string",
+            "description": "The npm script to customize"
+          },
+          "file": {
+            "type": "string",
+            "description": "The package.json file that provides the task. Can be omitted."
+          }
+        }
+      }
+    ]
   }
 }

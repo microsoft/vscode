@@ -250,7 +250,14 @@ export abstract class EmmetEditorAction extends EditorAction {
 		'editor.emmet.action.selectPreviousItem': 'emmet.selectPrevItem',
 		'editor.emmet.action.selectNextItem': 'emmet.selectNextItem',
 		'editor.emmet.action.splitJoinTag': 'emmet.splitJoinTag',
-		'editor.emmet.action.toggleComment': 'emmet.toggleComment'
+		'editor.emmet.action.toggleComment': 'emmet.toggleComment',
+		'editor.emmet.action.evaluateMath': 'emmet.evaluateMathExpression',
+		'editor.emmet.action.incrementNumberByOneTenth': 'emmet.incrementNumberByOneTenth',
+		'editor.emmet.action.incrementNumberByOne': 'emmet.incrementNumberByOne',
+		'editor.emmet.action.incrementNumberByTen': 'emmet.incrementNumberByTen',
+		'editor.emmet.action.decrementNumberByOneTenth': 'emmet.decrementNumberByOneTenth',
+		'editor.emmet.action.decrementNumberByOne': 'emmet.decrementNumberByOne',
+		'editor.emmet.action.decrementNumberByTen': 'emmet.decrementNumberByTen'
 	};
 
 	protected emmetActionName: string;
@@ -289,8 +296,8 @@ export abstract class EmmetEditorAction extends EditorAction {
 		const telemetryService = accessor.get(ITelemetryService);
 		const commandService = accessor.get(ICommandService);
 
-		let mappedCommand = this.actionMap[this.id];
-		if (mappedCommand && configurationService.getConfiguration<IEmmetConfiguration>().emmet.useNewEmmet) {
+		let mappedCommand = configurationService.getConfiguration<IEmmetConfiguration>().emmet.useNewEmmet ? this.actionMap[this.id] : undefined;
+		if (mappedCommand && mappedCommand !== 'emmet.expandAbbreviation') {
 			return commandService.executeCommand<void>(mappedCommand);
 		}
 
@@ -304,6 +311,11 @@ export abstract class EmmetEditorAction extends EditorAction {
 				grammarContributions,
 				this.emmetActionName
 			);
+
+			if (mappedCommand === 'emmet.expandAbbreviation') {
+				let syntax = editorAccessor.getSyntax();
+				return commandService.executeCommand<void>(mappedCommand, { syntax });
+			}
 
 			if (!editorAccessor.isEmmetEnabledMode()) {
 				this.noExpansionOccurred(editor);

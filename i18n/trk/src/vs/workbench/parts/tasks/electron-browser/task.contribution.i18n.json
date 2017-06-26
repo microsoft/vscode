@@ -25,6 +25,7 @@
 	"customizeParseErrors": "Geçerli görev yapılandırmasında hatalar var. Lütfen, bir görevi özelleştirmeden önce ilk olarak hataları düzeltin.",
 	"moreThanOneBuildTask": "task.json dosyasında tanımlı çok fazla derleme görevi var. İlk görev çalıştırılıyor.\n",
 	"TaskSystem.activeSame.background": "Görev zaten aktif ve arka plan modunda. Görevi sonlandırmak için `F1 > görevi sonlandır`ı kullanın",
+	"TaskSystem.activeSame.noBackground": "Görev zaten aktif. Görevi sonlandırmak için `F1 > görevi sonlandır`ı kullanın",
 	"TaskSystem.active": "Çalışan bir görev zaten var. Bir başkasını çalıştırmadan önce bu görevi sonlandırın.",
 	"TaskSystem.restartFailed": "{0} görevini sonlandırma ve yeniden başlatma başarısız oldu",
 	"TaskSystem.configurationErrors": "Hata: belirtilen görev yapılandırmasında doğrulama hataları var ve kullanılamıyor. Lütfen ilk olarak hataları düzeltin.",

@@ -78,6 +78,7 @@
 	"accessibilitySupport.on": "L'editor sarà definitivamente ottimizzato per l'utilizzo con un'utilità per la lettura dello schermo.",
 	"accessibilitySupport.off": "L'editor non sarà mai ottimizzato per l'utilizzo con un'utilità per la lettura dello schermo.",
 	"accessibilitySupport": "Controlla se l'editor deve essere eseguito in una modalità ottimizzata per le utilità per la lettura dello schermo.",
+	"links": "Controlla se l'editor deve individuare i collegamenti e renderli cliccabili",
 	"sideBySide": "Controlla se l'editor diff mostra le differenze affiancate o incorporate",
 	"ignoreTrimWhitespace": "Controlla se l'editor diff mostra come differenze le modifiche relative a spazi vuoti iniziali e finali",
 	"renderIndicators": "Consente di controllare se l'editor diff mostra gli indicatori +/- per le modifiche aggiunte/rimosse",

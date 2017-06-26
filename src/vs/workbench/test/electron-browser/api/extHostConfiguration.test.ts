@@ -32,6 +32,7 @@ suite('ExtHostConfiguration', function () {
 		return new ExtHostConfiguration(shape, new ExtHostWorkspace(new TestThreadService(), null), {
 			defaults: new ConfigurationModel(contents),
 			user: new ConfigurationModel(contents),
+			workspace: new ConfigurationModel(),
 			folders: Object.create(null)
 		});
 	}
@@ -86,11 +87,12 @@ suite('ExtHostConfiguration', function () {
 	test('inspect', function () {
 		const workspaceUri = URI.file('foo');
 		const folders = Object.create(null);
-		folders[workspaceUri.toString()] = new ConfigurationModel({
+		const workspace = new ConfigurationModel({
 			'editor': {
 				'wordWrap': 'bounded'
 			}
 		}, ['editor.wordWrap']);
+		folders[workspaceUri.toString()] = workspace;
 		const testObject = new ExtHostConfiguration(
 			new class extends MainThreadConfigurationShape { },
 			new ExtHostWorkspace(new TestThreadService(), {
@@ -109,6 +111,7 @@ suite('ExtHostConfiguration', function () {
 						'wordWrap': 'on'
 					}
 				}, ['editor.wordWrap']),
+				workspace,
 				folders
 			}
 		);

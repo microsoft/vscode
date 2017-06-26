@@ -12,6 +12,7 @@
 	"focusBorder": "焦點項目的整體框線色彩。只在沒有任何元件覆寫此色彩時，才會加以使用。",
 	"contrastBorder": "項目周圍的額外框線，可將項目從其他項目中區隔出來以提高對比。",
 	"activeContrastBorder": "使用中項目周圍的額外邊界，可將項目從其他項目中區隔出來以提高對比。",
+	"selectionBackground": "作業區域選取的背景顏色(例如輸入或文字區域)。請注意，這不適用於編輯器中的選取。",
 	"textSeparatorForeground": "文字分隔符號的顏色。",
 	"textLinkForeground": "內文連結的前景色彩",
 	"textLinkActiveForeground": "內文使用連結的前景色彩",
