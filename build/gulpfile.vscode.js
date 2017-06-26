@@ -378,21 +378,22 @@ function snapshotTask(platform, arch) {
 	const destination = path.join(path.dirname(root), 'VSCode') + (platform ? '-' + platform : '') + (arch ? '-' + arch : '');
 	const command = path.join(process.cwd(), 'node_modules/.bin/mksnapshot');
 
+	let loaderInputFilepath;
 	let startupBlobFilepath;
 
 	if (platform === 'darwin') {
+		loaderInputFilepath = fs.readFileSync(path.join(destination, 'Code - OSS.app/Contents/Resources/app/out/vs/loader.js'));
 		startupBlobFilepath = path.join(destination, 'Code - OSS.app/Contents/Frameworks/Electron Framework.framework/Resources/snapshot_blob.bin')
 	} else if (platform === 'windows') {
+		loaderInputFilepath = fs.readFileSync(path.join(destination, 'resources/app/out/vs/loader.js'));
 		startupBlobFilepath = path.join(destination, 'snapshot_blob.bin')
-		// TODO
-		return () => { };
 	} else if (platform === 'linux') {
 		// TODO
 		return () => { };
 	}
 
 	return () => {
-		const inputFile = fs.readFileSync(path.join(destination, 'Code - OSS.app/Contents/Resources/app/out/vs/loader.js'));
+		const inputFile = fs.readFileSync(loaderInputFilepath);
 		const wrappedInputFile = `
 		var Monaco_Loader_Init;
 		(function() {
