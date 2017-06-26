@@ -7,8 +7,8 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
-import objects = require('vs/base/common/objects');
 import URI from 'vs/base/common/uri';
+import objects = require('vs/base/common/objects');
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
 import { EditorInput, IEditorCloseEvent, IEditorRegistry, Extensions, toResource, IEditorGroup } from 'vs/workbench/common/editor';
@@ -29,6 +29,7 @@ import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { getExcludes, ISearchConfiguration } from 'vs/platform/search/common/search';
 import { ParsedExpression, parse, IExpression } from 'vs/base/common/glob';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { getPathLabel } from "vs/base/common/labels";
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -78,12 +79,12 @@ interface ISerializedFileHistoryEntry {
 }
 
 export abstract class BaseHistoryService {
+
 	protected toUnbind: IDisposable[];
+	protected mapRootToExcludes: Map<string, ParsedExpression>;
 
+	private mapRootToExpression: Map<string, IExpression>;
 	private activeEditorListeners: IDisposable[];
-
-	protected excludes: ParsedExpression;
-	private lastKnownExcludesConfig: IExpression;
 
 	constructor(
 		protected editorGroupService: IEditorGroupService,
@@ -94,25 +95,52 @@ export abstract class BaseHistoryService {
 		this.toUnbind = [];
 		this.activeEditorListeners = [];
 
-		// Editor Input Changes
-		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+		this.mapRootToExcludes = new Map<string, ParsedExpression>();
+		this.mapRootToExpression = new Map<string, IExpression>();
 
-		// Configuration Changes
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(() => this.onConfigurationChanged(true)));
-		this.onConfigurationChanged();
+		// Listeners
+		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(() => this.onConfigurationChanged()));
+		this.toUnbind.push(this.contextService.onDidChangeWorkspaceRoots(() => this.onDidChangeWorkspaceRoots()));
+
+		this.updateExcludes(false);
 	}
 
-	private onConfigurationChanged(update?: boolean): void {
-		const excludesConfig = getExcludes(this.configurationService.getConfiguration<ISearchConfiguration>());
-		if (!objects.equals(excludesConfig, this.lastKnownExcludesConfig)) {
-			const configChanged = !!this.lastKnownExcludesConfig;
+	private onConfigurationChanged(): void {
+		this.updateExcludes(true);
+	}
 
-			this.lastKnownExcludesConfig = excludesConfig;
-			this.excludes = parse(excludesConfig, { trimForExclusions: true });
+	private onDidChangeWorkspaceRoots(): void {
+		this.updateExcludes(true);
+	}
 
-			if (configChanged) {
-				this.handleExcludesChange();
-			}
+	private updateExcludes(fromEvent: boolean): void {
+		let changed = false;
+
+		// Parse excludes per workspace
+		if (this.contextService.hasWorkspace()) {
+			this.contextService.getWorkspace2().roots.forEach(root => {
+				const rootExcludes = getExcludes(this.configurationService.getConfiguration<ISearchConfiguration>(void 0, { resource: root }));
+				if (!this.mapRootToExpression.has(root.toString()) || !objects.equals(this.mapRootToExpression.get(root.toString()), rootExcludes)) {
+					changed = true;
+
+					this.mapRootToExcludes.set(root.toString(), parse(rootExcludes, { trimForExclusions: true }));
+					this.mapRootToExpression.set(root.toString(), objects.clone(rootExcludes));
+				}
+			});
+		}
+
+		// Always set for files outside root as well
+		const globalExcludes = getExcludes(this.configurationService.getConfiguration<ISearchConfiguration>());
+		if (!this.mapRootToExpression.has(null) || !objects.equals(this.mapRootToExpression.get(null), globalExcludes)) {
+			changed = true;
+
+			this.mapRootToExcludes.set(null, parse(globalExcludes, { trimForExclusions: true }));
+			this.mapRootToExpression.set(null, objects.clone(globalExcludes));
+		}
+
+		if (fromEvent && changed) {
+			this.handleExcludesChange();
 		}
 	}
 
@@ -394,9 +422,10 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 
 		const resourceInput = input as IResourceInput;
-		const relativePath = this.contextService.toWorkspaceRelativePath(resourceInput.resource);
+		const rootForInput = this.contextService.getRoot(resourceInput.resource);
+		const excludesForInput = this.mapRootToExcludes.get(rootForInput ? rootForInput.toString() : null);
 
-		return !this.excludes(relativePath || resourceInput.resource.fsPath);
+		return !excludesForInput(getPathLabel(resourceInput.resource, this.contextService));
 	}
 
 	protected handleExcludesChange(): void {
