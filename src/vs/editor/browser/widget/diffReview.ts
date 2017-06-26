@@ -431,11 +431,11 @@ export class DiffReview extends Disposable {
 			tdContent.appendChild(spacer);
 
 			if (modifiedLine !== 0) {
-				tdContent.insertAdjacentHTML('beforeEnd',
+				tdContent.insertAdjacentHTML('beforeend',
 					this._renderLine(modifiedModel, modifiedOpts, modifiedModelOpts.tabSize, modifiedLine)
 				);
 			} else {
-				tdContent.insertAdjacentHTML('beforeEnd',
+				tdContent.insertAdjacentHTML('beforeend',
 					this._renderLine(originalModel, originalOpts, originalModelOpts.tabSize, originalLine)
 				);
 			}
