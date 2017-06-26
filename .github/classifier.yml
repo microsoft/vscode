@@ -6,7 +6,7 @@
         accessibility: [],
         api: [],
         css-less-sass: [],
-        debug: [],
+        debug: [ isidorn ],
         editor: [],
         emmet: [ ramya-rao-a ],
         error-list: [],
