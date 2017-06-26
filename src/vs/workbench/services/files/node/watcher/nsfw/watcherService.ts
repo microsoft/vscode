@@ -14,6 +14,7 @@ import { IWatcherChannel, WatcherChannelClient } from 'vs/workbench/services/fil
 import { FileChangesEvent, IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from "vs/platform/configuration/common/configuration";
+import { IDisposable, dispose } from "vs/base/common/lifecycle";
 
 export class FileWatcher {
 	private static MAX_RESTARTS = 5;
@@ -21,6 +22,7 @@ export class FileWatcher {
 	private service: WatcherChannelClient;
 	private isDisposed: boolean;
 	private restartCounter: number;
+	private toDispose: IDisposable[];
 
 	constructor(
 		private contextService: IWorkspaceContextService,
@@ -31,6 +33,7 @@ export class FileWatcher {
 	) {
 		this.isDisposed = false;
 		this.restartCounter = 0;
+		this.toDispose = [];
 	}
 
 	public startWatching(): () => void {
@@ -48,6 +51,7 @@ export class FileWatcher {
 				}
 			}
 		);
+		this.toDispose.push(client);
 
 		// Initialize watcher
 		const channel = getNextTickChannel(client.getChannel<IWatcherChannel>('watcher'));
@@ -78,16 +82,17 @@ export class FileWatcher {
 
 		// Start watching
 		this.updateRoots();
-		this.contextService.onDidChangeWorkspaceRoots(() => this.updateRoots());
-		this.configurationService.onDidUpdateConfiguration(() => this.updateRoots());
+		this.toDispose.push(this.contextService.onDidChangeWorkspaceRoots(() => this.updateRoots()));
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => this.updateRoots()));
 
-		return () => {
-			this.isDisposed = true;
-			client.dispose();
-		};
+		return () => this.dispose();
 	}
 
 	private updateRoots() {
+		if (this.isDisposed) {
+			return;
+		}
+
 		const roots = this.contextService.getWorkspace2().roots;
 		this.service.setRoots(roots.map(root => {
 			// Fetch the root's watcherExclude setting and return it
@@ -114,5 +119,10 @@ export class FileWatcher {
 		if (events.length > 0) {
 			this.onFileChanges(toFileChangesEvent(events));
 		}
+	}
+
+	private dispose(): void {
+		this.isDisposed = true;
+		this.toDispose = dispose(this.toDispose);
 	}
 }
