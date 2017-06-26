@@ -21,11 +21,13 @@ export class MoveLinesCommand implements ICommand {
 
 	private _selectionId: string;
 	private _moveEndPositionDown: boolean;
+	private _moveEndNewIndentLevel: number | undefined;
 
 	constructor(selection: Selection, isMovingDown: boolean, autoIndent: boolean) {
 		this._selection = selection;
 		this._isMovingDown = isMovingDown;
 		this._autoIndent = autoIndent;
+		this._moveEndNewIndentLevel = undefined;
 	}
 
 	public getEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder): void {
@@ -43,8 +45,11 @@ export class MoveLinesCommand implements ICommand {
 		var s = this._selection;
 
 		if (s.startLineNumber < s.endLineNumber && s.endColumn === 1) {
-			this._moveEndPositionDown = true;
-			s = s.setEndPosition(s.endLineNumber - 1, model.getLineMaxColumn(s.endLineNumber - 1));
+			// if we have auto indent turned on, the endColumn may be 1 when doing indentation adjustment.
+			if (!this.isAutoIndent(model, s)) {
+				this._moveEndPositionDown = true;
+				s = s.setEndPosition(s.endLineNumber - 1, model.getLineMaxColumn(s.endLineNumber - 1));
+			}
 		}
 
 		let tabSize = model.getOptions().tabSize;
@@ -133,7 +138,7 @@ export class MoveLinesCommand implements ICommand {
 					// check if the line being moved before matches onEnter rules, if so let's adjust the indentation by onEnter rules.
 					if (ret !== null) {
 						if (ret !== 0) {
-							this.getIndentEditsOfMovingBlock(model, builder, s.startLineNumber, s.endLineNumber, tabSize, insertSpaces, ret);
+							this.getIndentEditsOfMovingBlock(model, builder, s, tabSize, insertSpaces, ret);
 						}
 					} else {
 						// it doesn't match onEnter rules, let's check indentation rules then.
@@ -157,7 +162,7 @@ export class MoveLinesCommand implements ICommand {
 							if (newSpaceCnt !== oldSpaceCnt) {
 								const spaceCntOffset = newSpaceCnt - oldSpaceCnt;
 
-								this.getIndentEditsOfMovingBlock(model, builder, s.startLineNumber, s.endLineNumber, tabSize, insertSpaces, spaceCntOffset);
+								this.getIndentEditsOfMovingBlock(model, builder, s, tabSize, insertSpaces, spaceCntOffset);
 							}
 						}
 					}
@@ -188,7 +193,7 @@ export class MoveLinesCommand implements ICommand {
 					// check if s.startLineNumber - 2 matches onEnter rules, if so adjust the moving block by onEnter rules.
 					if (ret !== null) {
 						if (ret !== 0) {
-							this.getIndentEditsOfMovingBlock(model, builder, s.startLineNumber, s.endLineNumber, tabSize, insertSpaces, ret);
+							this.getIndentEditsOfMovingBlock(model, builder, s, tabSize, insertSpaces, ret);
 						}
 					} else {
 						// it doesn't match any onEnter rule, let's check indentation rules then.
@@ -201,7 +206,7 @@ export class MoveLinesCommand implements ICommand {
 							if (newSpaceCnt !== oldSpaceCnt) {
 								let spaceCntOffset = newSpaceCnt - oldSpaceCnt;
 
-								this.getIndentEditsOfMovingBlock(model, builder, s.startLineNumber, s.endLineNumber, tabSize, insertSpaces, spaceCntOffset);
+								this.getIndentEditsOfMovingBlock(model, builder, s, tabSize, insertSpaces, spaceCntOffset);
 							}
 						}
 					}
@@ -287,8 +292,8 @@ export class MoveLinesCommand implements ICommand {
 		return this._autoIndent && (model.getLanguageIdAtPosition(selection.startLineNumber, 1) === model.getLanguageIdAtPosition(selection.endLineNumber, 1));
 	}
 
-	private getIndentEditsOfMovingBlock(model: ITokenizedModel, builder: IEditOperationBuilder, startLineNumber: number, endLineNumber: number, tabSize: number, insertSpaces: boolean, offset: number) {
-		for (let i = startLineNumber; i <= endLineNumber; i++) {
+	private getIndentEditsOfMovingBlock(model: ITokenizedModel, builder: IEditOperationBuilder, s: Selection, tabSize: number, insertSpaces: boolean, offset: number) {
+		for (let i = s.startLineNumber; i <= s.endLineNumber; i++) {
 			let lineContent = model.getLineContent(i);
 			let originalIndent = strings.getLeadingWhitespace(lineContent);
 			let originalSpacesCnt = IndentUtil.getSpaceCnt(originalIndent, tabSize);
@@ -297,7 +302,14 @@ export class MoveLinesCommand implements ICommand {
 
 			if (newIndent !== originalIndent) {
 				builder.addEditOperation(new Range(i, 1, i, originalIndent.length + 1), newIndent);
+
+				if (i === s.endLineNumber && s.endColumn <= originalIndent.length + 1) {
+					// as users select part of the original indent white spaces
+					// when we adjust the indentation of endLine, we should adjust the cursor position as well.
+					this._moveEndNewIndentLevel = newIndent.length;
+				}
 			}
+
 		}
 	}
 
@@ -306,6 +318,10 @@ export class MoveLinesCommand implements ICommand {
 
 		if (this._moveEndPositionDown) {
 			result = result.setEndPosition(result.endLineNumber + 1, 1);
+		}
+
+		if (this._moveEndNewIndentLevel !== undefined) {
+			result = result.setEndPosition(result.endLineNumber, this._moveEndNewIndentLevel + 1);
 		}
 
 		return result;
