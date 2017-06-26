@@ -296,7 +296,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 		const telemetryService = accessor.get(ITelemetryService);
 		const commandService = accessor.get(ICommandService);
 
-		let mappedCommand = configurationService.getConfiguration<IEmmetConfiguration>().emmet.useNewEmmet ? this.actionMap[this.id] : undefined;
+		let mappedCommand = this.actionMap[this.id];
 		if (mappedCommand && mappedCommand !== 'emmet.expandAbbreviation' && mappedCommand !== 'emmet.wrapWithAbbreviation') {
 			return commandService.executeCommand<void>(mappedCommand);
 		}
@@ -312,7 +312,8 @@ export abstract class EmmetEditorAction extends EditorAction {
 				this.emmetActionName
 			);
 
-			if (mappedCommand === 'emmet.expandAbbreviation' || mappedCommand === 'emmet.wrapWithAbbreviation') {
+			if (configurationService.getConfiguration<IEmmetConfiguration>().emmet.useNewEmmet
+				&& (mappedCommand === 'emmet.expandAbbreviation' || mappedCommand === 'emmet.wrapWithAbbreviation')) {
 				let syntax = editorAccessor.getSyntax();
 				return commandService.executeCommand<void>(mappedCommand, { syntax });
 			}
