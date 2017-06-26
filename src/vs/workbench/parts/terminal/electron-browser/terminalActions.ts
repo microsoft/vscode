@@ -130,7 +130,7 @@ export class DeleteWordTerminalAction extends Action {
 	public run(event?: any): TPromise<any> {
 		let terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
-			terminalInstance.sendText(String.fromCharCode(87 - 64), false);
+			terminalInstance.sendText(String.fromCharCode(87/*w*/ - 64), false);
 		}
 		return TPromise.as(void 0);
 	}
