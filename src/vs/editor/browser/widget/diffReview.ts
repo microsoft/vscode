@@ -5,6 +5,7 @@
 'use strict';
 
 import 'vs/css!./media/diffReview';
+import * as nls from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
@@ -392,6 +393,7 @@ export class DiffReview extends Disposable {
 
 		let container = document.createElement('div');
 		container.className = 'diff-review-table';
+		container.setAttribute('role', 'list');
 		Configuration.applyFontInfoSlow(container, modifiedOpts.fontInfo);
 
 		let minOriginalLine = 0;
@@ -422,7 +424,8 @@ export class DiffReview extends Disposable {
 		let header = document.createElement('div');
 		header.className = 'diff-review-row';
 		// @@ -504,7 +517,7 @@
-		header.appendChild(document.createTextNode(`@@ -${minOriginalLine},${maxOriginalLine - minOriginalLine + 1}, +${minModifiedLine},${maxModifiedLine - minModifiedLine + 1} @@`));
+		header.appendChild(document.createTextNode(`@@ -${minOriginalLine},${maxOriginalLine - minOriginalLine + 1} +${minModifiedLine},${maxModifiedLine - minModifiedLine + 1} @@`));
+		header.setAttribute('role', 'listitem');
 		container.appendChild(header);
 
 		for (let i = 0, len = diffs.length; i < len; i++) {
@@ -441,10 +444,12 @@ export class DiffReview extends Disposable {
 		modifiedOpts: editorOptions.InternalEditorOptions, modifiedModel: editorCommon.IModel, modifiedModelOpts: editorCommon.TextModelResolvedOptions
 	): void {
 
+		const type = diffEntry.getType();
+
 		let rowClassName: string = 'diff-review-row';
 		let lineNumbersExtraClassName: string = '';
 		let spacerClassName: string = 'diff-review-spacer';
-		switch (diffEntry.getType()) {
+		switch (type) {
 			case DiffEntryType.Insert:
 				rowClassName = 'diff-review-row line-insert';
 				lineNumbersExtraClassName = ' char-insert';
@@ -454,6 +459,7 @@ export class DiffReview extends Disposable {
 				rowClassName = 'diff-review-row line-delete';
 				lineNumbersExtraClassName = ' char-delete';
 				spacerClassName = 'diff-review-spacer delete-sign';
+				break;
 		}
 
 		const originalLineStart = diffEntry.originalLineStart;
@@ -473,6 +479,7 @@ export class DiffReview extends Disposable {
 			const row = document.createElement('div');
 			row.style.minWidth = width + 'px';
 			row.className = rowClassName;
+			row.setAttribute('role', 'listitem');
 
 			const originalLineNumber = document.createElement('span');
 			originalLineNumber.style.width = (originalOpts.layoutInfo.lineNumbersWidth + 'px');
@@ -502,15 +509,37 @@ export class DiffReview extends Disposable {
 			spacer.innerHTML = '&nbsp;&nbsp;';
 			row.appendChild(spacer);
 
+			let lineContent: string;
 			if (modifiedLine !== 0) {
 				row.insertAdjacentHTML('beforeend',
 					this._renderLine(modifiedModel, modifiedOpts, modifiedModelOpts.tabSize, modifiedLine)
 				);
+				lineContent = modifiedModel.getLineContent(modifiedLine);
 			} else {
 				row.insertAdjacentHTML('beforeend',
 					this._renderLine(originalModel, originalOpts, originalModelOpts.tabSize, originalLine)
 				);
+				lineContent = originalModel.getLineContent(originalLine);
 			}
+
+			if (lineContent.length === 0) {
+				lineContent = nls.localize('blankLine', "blank");
+			}
+
+			let ariaLabel: string;
+			switch (type) {
+				case DiffEntryType.Equal:
+					ariaLabel = nls.localize('equalLine', "Unchanged original {0}, modified {1}: {2}", originalLine, modifiedLine, lineContent);
+					break;
+				case DiffEntryType.Insert:
+					ariaLabel = nls.localize('insertLine', "Inserted modified {0}: {1}", modifiedLine, lineContent);
+					break;
+				case DiffEntryType.Delete:
+					ariaLabel = nls.localize('deleteLine', "Deleted original {0}: {1}", originalLine, lineContent);
+					break;
+			}
+			row.setAttribute('aria-label', ariaLabel);
+
 			dest.appendChild(row);
 		}
 	}
