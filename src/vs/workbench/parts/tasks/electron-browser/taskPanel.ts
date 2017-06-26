@@ -66,7 +66,7 @@ export class TaskPanel extends Panel {
 }
 
 (<PanelRegistry>Registry.as(Extensions.Panels)).registerPanel(new PanelDescriptor(
-	'vs/workbench/parts/tasks/electron-browser/taskPanel.ts',
+	'vs/workbench/parts/tasks/electron-browser/taskPanel',
 	'TaskPanel',
 	TASK_PANEL_ID,
 	nls.localize('tasks', "Tasks"),
