@@ -22,6 +22,7 @@
 	"command.checkout": "Checkout to...",
 	"command.branch": "Create Branch...",
 	"command.deleteBranch": "Delete Branch...",
+	"command.merge": "Merge Branch...",
 	"command.pull": "Pull",
 	"command.pullRebase": "Pull (Rebase)",
 	"command.push": "Push",

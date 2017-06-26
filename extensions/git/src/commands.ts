@@ -77,6 +77,14 @@ class BranchDeleteItem implements QuickPickItem {
 	}
 }
 
+class MergeItem implements QuickPickItem {
+
+	get label(): string { return this.ref.name || ''; }
+	get description(): string { return this.ref.name || ''; }
+
+	constructor(protected ref: Ref) { }
+}
+
 interface Command {
 	commandId: string;
 	key: string;
@@ -701,7 +709,7 @@ export class CommandCenter {
 			.map(ref => new CheckoutRemoteHeadItem(ref));
 
 		const picks = [...heads, ...tags, ...remoteHeads];
-		const placeHolder = 'Select a ref to checkout';
+		const placeHolder = localize('select a ref to checkout', 'Select a ref to checkout');
 		const choice = await window.showQuickPick<CheckoutItem>(picks, { placeHolder });
 
 		if (!choice) {
@@ -762,6 +770,29 @@ export class CommandCenter {
 				await run(true);
 			}
 		}
+	}
+
+	@command('git.merge')
+	async merge(): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const checkoutType = config.get<string>('checkoutType') || 'all';
+		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
+
+		const heads = this.model.refs.filter(ref => ref.type === RefType.Head)
+			.map(ref => new MergeItem(ref));
+
+		const remoteHeads = (includeRemotes ? this.model.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
+			.map(ref => new MergeItem(ref));
+
+		const picks = [...heads, ...remoteHeads];
+		const placeHolder = localize('select a branch to merge from', 'Select a branch to merge from');
+		const choice = await window.showQuickPick<MergeItem>(picks, { placeHolder });
+
+		if (!choice) {
+			return;
+		}
+
+		await this.model.merge(choice.label);
 	}
 
 	@command('git.pull')

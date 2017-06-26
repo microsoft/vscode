@@ -178,6 +178,11 @@
         "category": "Git"
       },
       {
+        "command": "git.merge",
+        "title": "%command.merge%",
+        "category": "Git"
+      },
+      {
         "command": "git.pull",
         "title": "%command.pull%",
         "category": "Git"

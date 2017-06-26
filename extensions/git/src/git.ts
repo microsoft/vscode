@@ -654,6 +654,11 @@ export class Repository {
 		await this.run(args);
 	}
 
+	async merge(name: string): Promise<void> {
+		const args = ['merge', name];
+		await this.run(args);
+	}
+
 	async clean(paths: string[]): Promise<void> {
 		const pathsByGroup = groupBy(paths, p => path.dirname(p));
 		const groups = Object.keys(pathsByGroup).map(k => pathsByGroup[k]);
