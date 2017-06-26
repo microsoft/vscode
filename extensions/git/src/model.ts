@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, Command, EventEmitter, Event, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, Position } from 'vscode';
+import { Uri, Command, EventEmitter, Event, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit } from 'vscode';
 import { Git, Repository, Ref, Branch, Remote, Commit, GitErrorCodes } from './git';
 import { anyEvent, eventToPromise, filterEvent, EmptyDisposable, combinedDisposable, dispose } from './util';
 import { memoize, throttle, debounce } from './decorators';
@@ -17,8 +17,6 @@ const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
 const localize = nls.loadMessageBundle();
 const iconsRootPath = path.join(path.dirname(__dirname), 'resources', 'icons');
-
-const ignoreFileName = '.gitignore';
 
 function getIconUri(iconName: string, theme: string): Uri {
 	return Uri.file(path.join(iconsRootPath, theme, `${iconName}.svg`));
@@ -530,38 +528,21 @@ export class Model implements Disposable {
 	}
 
 	async ignore(files: Resource[]): Promise<void> {
-		const newLineChar = '\n';
-
 		return await this.run(Operation.Ignore, async () => {
-			const ignoreFile = `${this.repository.root}${path.sep}${ignoreFileName}`;
-
-			let textToAppend = files
+			const ignoreFile = `${this.repository.root}${path.sep}.gitignore`;
+			const textToAppend = files
 				.map(file => path.relative(this.repository.root, file.resourceUri.fsPath).replace(/\\/g, '/'))
-				.join(newLineChar);
+				.join('\n');
 
+			const document = await new Promise(c => fs.exists(ignoreFile, c))
+				? await workspace.openTextDocument(ignoreFile)
+				: await workspace.openTextDocument(Uri.file(ignoreFile).with({ scheme: 'untitled' }));
 
-			if (fs.existsSync(ignoreFile)) {
-				const edit = new WorkspaceEdit();
-				const ignoreFileToWrite = await workspace.openTextDocument(ignoreFile);
-				//Let's check if that entry exists:
-				const gitIgnoreEntries = ignoreFileToWrite.getText();
+			await window.showTextDocument(document);
+			const edit = new WorkspaceEdit();
 
-				if (gitIgnoreEntries.indexOf(textToAppend) === -1) { //Entry doesn't exist let's insert this entry:
-					// Append in new line if there is entries in the file:
-					textToAppend = (gitIgnoreEntries.length > 0 ? newLineChar : '') + textToAppend;
-					edit.insert(ignoreFileToWrite.uri, ignoreFileToWrite.lineAt(ignoreFileToWrite.lineCount - 1).range.end, textToAppend);
-					workspace.applyEdit(edit);
-				}
-			}
-			else {
-				await workspace.openTextDocument(Uri.file(ignoreFile).with({ scheme: 'untitled' })).then((doc) => {
-					return window.showTextDocument(doc);
-				}).then((editor) => {
-					const edit = new WorkspaceEdit();
-					edit.insert(editor.document.uri, new Position(0, 0), textToAppend);
-					workspace.applyEdit(edit);
-				});
-			}
+			edit.insert(document.uri, document.lineAt(document.lineCount - 1).range.end, `${textToAppend}\n`);
+			workspace.applyEdit(edit);
 		});
 	}
 
