@@ -345,8 +345,6 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			query = query.withSortOrder(options.sortOrder);
 		}
 
-		console.log(query.raw);
-
 		return this.queryGallery(query).then(({ galleryExtensions, total }) => {
 			const extensions = galleryExtensions.map(e => toExtension(e, this.extensionsGalleryUrl));
 			const pageSize = query.pageSize;
