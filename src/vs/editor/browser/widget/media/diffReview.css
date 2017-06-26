@@ -17,11 +17,18 @@
 	user-select: none;
 }
 
-.monaco-diff-editor .diff-review table, .monaco-diff-editor .diff-review td, .monaco-diff-editor .diff-review tr {
+.monaco-diff-editor .diff-review table,
+.monaco-diff-editor .diff-review td,
+.monaco-diff-editor .diff-review th,
+.monaco-diff-editor .diff-review tr {
 	padding: 0;
 	margin: 0;
 	border: 0;
 	border-spacing: 0;
+}
+
+.monaco-diff-editor .diff-review th {
+	text-align: left;
 }
 
 .monaco-diff-editor .diff-review table {

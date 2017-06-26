@@ -1,7 +1,7 @@
 /*---------------------------------------------------------------------------------------------
-*  Copyright (c) Microsoft Corporation. All rights reserved.
-*  Licensed under the MIT License. See License.txt in the project root for license information.
-*--------------------------------------------------------------------------------------------*/
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 'use strict';
 
 import 'vs/css!./media/diffReview';
@@ -321,9 +321,43 @@ export class DiffReview extends Disposable {
 		let tbody = document.createElement('tbody');
 		table.appendChild(tbody);
 
+		let minOriginalLine = 0;
+		let maxOriginalLine = 0;
+		let minModifiedLine = 0;
+		let maxModifiedLine = 0;
 		for (let i = 0, len = diffs.length; i < len; i++) {
-			const line = diffs[i];
-			DiffReview._renderSection(tbody, line, originalOpts, originalModel, originalModelOpts, modifiedOpts, modifiedModel, modifiedModelOpts);
+			const diffEntry = diffs[i];
+			const originalLineStart = diffEntry.originalLineStart;
+			const originalLineEnd = diffEntry.originalLineEnd;
+			const modifiedLineStart = diffEntry.modifiedLineStart;
+			const modifiedLineEnd = diffEntry.modifiedLineEnd;
+
+			if (originalLineStart !== 0 && ((minOriginalLine === 0 || originalLineStart < minOriginalLine))) {
+				minOriginalLine = originalLineStart;
+			}
+			if (originalLineEnd !== 0 && ((maxOriginalLine === 0 || originalLineEnd > maxOriginalLine))) {
+				maxOriginalLine = originalLineEnd;
+			}
+			if (modifiedLineStart !== 0 && ((minModifiedLine === 0 || modifiedLineStart < minModifiedLine))) {
+				minModifiedLine = modifiedLineStart;
+			}
+			if (modifiedLineEnd !== 0 && ((maxModifiedLine === 0 || modifiedLineEnd > maxModifiedLine))) {
+				maxModifiedLine = modifiedLineEnd;
+			}
+		}
+
+		let headRow = document.createElement('tr');
+		let header = document.createElement('th');
+		header.colSpan = 3;
+		// @@ -504,7 +517,7 @@
+		header.appendChild(document.createTextNode(`@@ -${minOriginalLine},${maxOriginalLine - minOriginalLine + 1}, +${minModifiedLine},${maxModifiedLine - minModifiedLine + 1} @@`));
+		headRow.appendChild(header);
+
+		tbody.appendChild(headRow);
+
+		for (let i = 0, len = diffs.length; i < len; i++) {
+			const diffEntry = diffs[i];
+			DiffReview._renderSection(tbody, diffEntry, originalOpts, originalModel, originalModelOpts, modifiedOpts, modifiedModel, modifiedModelOpts);
 		}
 
 		dom.clearNode(this._content.domNode);
