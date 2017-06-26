@@ -879,6 +879,18 @@ export class CommandCenter {
 		this.outputChannel.show();
 	}
 
+	@command('git.ignore')
+	async ignore(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		const resources = resourceStates
+			.filter(s => s instanceof Resource) as Resource[];
+
+		if (!resources.length) {
+			return;
+		}
+
+		await this.model.ignore(resources);
+	}
+
 	private createCommand(id: string, key: string, method: Function, skipModelCheck: boolean): (...args: any[]) => any {
 		const result = (...args) => {
 			if (!skipModelCheck && !this.model) {
