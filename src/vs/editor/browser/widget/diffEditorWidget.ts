@@ -327,6 +327,18 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return this._renderIndicators;
 	}
 
+	public hasWidgetFocus(): boolean {
+		return dom.isAncestor(document.activeElement, this._domElement);
+	}
+
+	public diffReviewNext(): void {
+		this._reviewPane.next();
+	}
+
+	public diffReviewPrev(): void {
+		this._reviewPane.prev();
+	}
+
 	private static _getClassName(theme: ITheme, renderSideBySide: boolean): string {
 		let result = 'monaco-diff-editor monaco-editor-background ';
 		if (renderSideBySide) {

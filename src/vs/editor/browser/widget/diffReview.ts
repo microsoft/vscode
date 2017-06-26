@@ -24,6 +24,9 @@ import { editorLineNumbers } from "vs/editor/common/view/editorColorRegistry";
 import { KeyCode, KeyMod } from "vs/base/common/keyCodes";
 import { ActionBar } from "vs/base/browser/ui/actionbar/actionbar";
 import { Action } from "vs/base/common/actions";
+import { editorAction, EditorAction, ServicesAccessor } from "vs/editor/common/editorCommonExtensions";
+import { ContextKeyExpr } from "vs/platform/contextkey/common/contextkey";
+import { ICodeEditorService } from "vs/editor/common/services/codeEditorService";
 
 const DIFF_LINES_PADDING = 3;
 
@@ -164,6 +167,68 @@ export class DiffReview extends Disposable {
 		}));
 		this._diffs = [];
 		this._currentDiff = null;
+	}
+
+	public prev(): void {
+		let index = 0;
+
+		if (!this._isVisible) {
+			this._diffs = this._compute();
+		}
+
+		if (this._isVisible) {
+			let currentIndex = -1;
+			for (let i = 0, len = this._diffs.length; i < len; i++) {
+				if (this._diffs[i] === this._currentDiff) {
+					currentIndex = i;
+					break;
+				}
+			}
+			index = (this._diffs.length + currentIndex - 1);
+		}
+
+		if (this._diffs.length === 0) {
+			// Nothing to do
+			return;
+		}
+
+		index = index % this._diffs.length;
+		this._diffEditor.setPosition(new Position(this._diffs[index].entries[0].modifiedLineStart, 1));
+		this._isVisible = true;
+		this._diffEditor.doLayout();
+		this._render();
+		this._goToRow(this._getNextRow());
+	}
+
+	public next(): void {
+		let index = 0;
+
+		if (!this._isVisible) {
+			this._diffs = this._compute();
+		}
+
+		if (this._isVisible) {
+			let currentIndex = -1;
+			for (let i = 0, len = this._diffs.length; i < len; i++) {
+				if (this._diffs[i] === this._currentDiff) {
+					currentIndex = i;
+					break;
+				}
+			}
+			index = (currentIndex + 1);
+		}
+
+		if (this._diffs.length === 0) {
+			// Nothing to do
+			return;
+		}
+
+		index = index % this._diffs.length;
+		this._diffEditor.setPosition(new Position(this._diffs[index].entries[0].modifiedLineStart, 1));
+		this._isVisible = true;
+		this._diffEditor.doLayout();
+		this._render();
+		this._goToRow(this._getNextRow());
 	}
 
 	private accept(): void {
@@ -676,3 +741,61 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-diff-editor .diff-review-shadow { box-shadow: ${shadow} 0 -6px 6px -6px inset; }`);
 	}
 });
+
+@editorAction
+class DiffReviewNext extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.diffReview.next',
+			label: nls.localize('editor.action.diffReview.next', "Go to Next Difference"),
+			alias: 'Go to Next Difference',
+			precondition: ContextKeyExpr.has('isInDiffEditor'),
+			kbOpts: {
+				kbExpr: null,
+				primary: KeyCode.F7
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+		const diffEditor = findFocusedDiffEditor(accessor);
+		if (diffEditor) {
+			diffEditor.diffReviewNext();
+		}
+	}
+}
+
+@editorAction
+class DiffReviewPrev extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.diffReview.prev',
+			label: nls.localize('editor.action.diffReview.prev', "Go to Previous Difference"),
+			alias: 'Go to Previous Difference',
+			precondition: ContextKeyExpr.has('isInDiffEditor'),
+			kbOpts: {
+				kbExpr: null,
+				primary: KeyMod.Shift | KeyCode.F7
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+		const diffEditor = findFocusedDiffEditor(accessor);
+		if (diffEditor) {
+			diffEditor.diffReviewPrev();
+		}
+	}
+}
+
+function findFocusedDiffEditor(accessor: ServicesAccessor): DiffEditorWidget {
+	const codeEditorService = accessor.get(ICodeEditorService);
+	const diffEditors = codeEditorService.listDiffEditors();
+	for (let i = 0, len = diffEditors.length; i < len; i++) {
+		const diffEditor = <DiffEditorWidget>diffEditors[i];
+		if (diffEditor.hasWidgetFocus()) {
+			return diffEditor;
+		}
+	}
+	return null;
+}
