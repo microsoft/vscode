@@ -61,6 +61,7 @@ import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { Color } from 'vs/base/common/color';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
+import { PreferencesEditor } from "vs/workbench/parts/preferences/browser/preferencesEditor";
 
 export class SearchViewlet extends Viewlet {
 
@@ -1081,11 +1082,12 @@ export class SearchViewlet extends Viewlet {
 					}).on(dom.EventType.CLICK, (e: MouseEvent) => {
 						dom.EventHelper.stop(e, false);
 
-						if (this.contextService.hasWorkspace()) {
-							this.preferencesService.openWorkspaceSettings().done(() => null, errors.onUnexpectedError);
-						} else {
-							this.preferencesService.openGlobalSettings().done(() => null, errors.onUnexpectedError);
-						}
+						let editorPromise = this.contextService.hasWorkspace() ? this.preferencesService.openWorkspaceSettings() : this.preferencesService.openGlobalSettings();
+						editorPromise.done(editor => {
+							if (editor instanceof PreferencesEditor) {
+								editor.focusSearch('.exclude');
+							}
+						}, errors.onUnexpectedError);
 					});
 				}
 
