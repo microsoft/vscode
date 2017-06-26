@@ -17,9 +17,13 @@ function handleDeletions() {
 	});
 }
 
-const watch = process.platform === 'win32'
-	? require('./watch-win32')
-	: require('gulp-watch');
+const useLegacyWatch = process.env['VSCODE_USE_LEGACY_WATCH'];
+
+const watch = !useLegacyWatch ?
+	require('./watch-nsfw')
+	: process.platform === 'win32'
+		? require('./watch-win32')
+		: require('gulp-watch');
 
 module.exports = function () {
 	return watch.apply(null, arguments)
