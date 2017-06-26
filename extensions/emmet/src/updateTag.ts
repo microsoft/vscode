@@ -17,6 +17,9 @@ export function updateTag(tagName: string) {
 	}
 
 	let rootNode: HtmlNode = parse(new DocumentStreamReader(editor.document));
+	if (!rootNode) {
+		return;
+	}
 	let rangesToUpdate = [];
 	editor.selections.reverse().forEach(selection => {
 		rangesToUpdate = rangesToUpdate.concat(getRangesToUpdate(editor, selection, rootNode));

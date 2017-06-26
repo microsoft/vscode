@@ -17,6 +17,9 @@ export function matchTag() {
 	}
 
 	let rootNode: HtmlNode = parse(new DocumentStreamReader(editor.document));
+	if (!rootNode) {
+		return;
+	}
 	let updatedSelections = [];
 	editor.selections.forEach(selection => {
 		let updatedSelection = getUpdatedSelections(editor, selection.start, rootNode);
@@ -38,7 +41,8 @@ function getUpdatedSelections(editor: vscode.TextEditor, position: vscode.Positi
 		return;
 	}
 
-	let finalPosition = position.isBeforeOrEqual(currentNode.open.end) ? currentNode.close.start : currentNode.open.start;
+	// Place cursor inside the close tag if cursor is inside the open tag, else place it inside the open tag
+	let finalPosition = position.isBeforeOrEqual(currentNode.open.end) ? currentNode.close.start.translate(0, 2) : currentNode.open.start.translate(0, 1);
 	return new vscode.Selection(finalPosition, finalPosition);
 }
 

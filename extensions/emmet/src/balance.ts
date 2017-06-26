@@ -30,6 +30,9 @@ function balance(out: boolean) {
 	let getRangeFunction = out ? getRangeToBalanceOut : getRangeToBalanceIn;
 
 	let rootNode: HtmlNode = parse(new DocumentStreamReader(editor.document));
+	if (!rootNode) {
+		return;
+	}
 
 	let newSelections: vscode.Selection[] = [];
 	editor.selections.forEach(selection => {

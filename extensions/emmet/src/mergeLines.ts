@@ -21,7 +21,9 @@ export function mergeLines() {
 	}
 
 	let rootNode: Node = parse(new DocumentStreamReader(editor.document));
-
+	if (!rootNode) {
+		return;
+	}
 	editor.edit(editBuilder => {
 		editor.selections.reverse().forEach(selection => {
 			let [rangeToReplace, textToReplaceWith] = getRangesToReplace(editor.document, selection, rootNode);

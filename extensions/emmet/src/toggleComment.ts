@@ -41,7 +41,9 @@ export function toggleComment() {
 	}
 
 	let rootNode = parseContent(new DocumentStreamReader(editor.document));
-
+	if (!rootNode) {
+		return;
+	}
 	editor.edit(editBuilder => {
 		editor.selections.reverse().forEach(selection => {
 			let [rangesToUnComment, rangeToComment] = toggleCommentInternal(editor.document, selection, rootNode);
