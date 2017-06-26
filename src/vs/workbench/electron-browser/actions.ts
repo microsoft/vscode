@@ -831,7 +831,10 @@ export class ReportIssueAction extends Action {
 Steps to Reproduce:
 
 1.
-2.`
+2.` + (extensions.length ? `
+
+<!-- Launch with \`code --disable-extensions\` to check. -->
+Reproduces without extensions: Yes/No` : '')
 		);
 
 		return `${baseUrl}${queryStringPrefix}body=${body}`;
