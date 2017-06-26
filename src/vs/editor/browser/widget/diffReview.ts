@@ -20,6 +20,7 @@ import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 import { DiffEditorWidget } from "vs/editor/browser/widget/diffEditorWidget";
 import { DomScrollableElement } from "vs/base/browser/ui/scrollbar/scrollableElement";
 import { editorLineNumbers } from "vs/editor/common/view/editorColorRegistry";
+import { KeyCode, KeyMod } from "vs/base/common/keyCodes";
 
 const DIFF_LINES_PADDING = 3;
 
@@ -86,14 +87,85 @@ export class DiffReview extends Disposable {
 		this.scrollbar = this._register(new DomScrollableElement(this._content.domNode, {}));
 		this.domNode.domNode.appendChild(this.scrollbar.getDomNode());
 
-		diffEditor.onDidUpdateDiff(() => {
+		this._register(diffEditor.onDidUpdateDiff(() => {
 			if (!this._isVisible) {
 				return;
 			}
 			this._diffs = this._compute();
 			this._render();
-		});
+		}));
+		this._register(dom.addStandardDisposableListener(this.domNode.domNode, 'click', (e) => {
+			e.preventDefault();
+
+			let row = dom.findParentWithClass(e.target, 'diff-review-row');
+			if (row) {
+				this._goToRow(row);
+			}
+		}));
+		this._register(dom.addStandardDisposableListener(this.domNode.domNode, 'keydown', (e) => {
+			if (
+				e.equals(KeyCode.DownArrow)
+				|| e.equals(KeyMod.CtrlCmd | KeyCode.DownArrow)
+				|| e.equals(KeyMod.Alt | KeyCode.DownArrow)
+			) {
+				e.preventDefault();
+				this._goToRow(this._getNextRow());
+			}
+
+			if (
+				e.equals(KeyCode.UpArrow)
+				|| e.equals(KeyMod.CtrlCmd | KeyCode.UpArrow)
+				|| e.equals(KeyMod.Alt | KeyCode.UpArrow)
+			) {
+				e.preventDefault();
+				this._goToRow(this._getPrevRow());
+			}
+		}));
 		this._diffs = [];
+	}
+
+	private _getPrevRow(): HTMLElement {
+		let current = this._getCurrentFocusedRow();
+		if (!current) {
+			return this._getFirstRow();
+		}
+		if (current.previousElementSibling) {
+			return <HTMLElement>current.previousElementSibling;
+		}
+		return current;
+	}
+
+	private _getNextRow(): HTMLElement {
+		let current = this._getCurrentFocusedRow();
+		if (!current) {
+			return this._getFirstRow();
+		}
+		if (current.nextElementSibling) {
+			return <HTMLElement>current.nextElementSibling;
+		}
+		return current;
+	}
+
+	private _getFirstRow(): HTMLElement {
+		return <HTMLElement>this.domNode.domNode.querySelector('.diff-review-row');
+	}
+
+	private _getCurrentFocusedRow(): HTMLElement {
+		let result = <HTMLElement>document.activeElement;
+		if (result && /diff-review-row/.test(result.className)) {
+			return result;
+		}
+		return null;
+	}
+
+	private _goToRow(row: HTMLElement): void {
+		let prev = this._getCurrentFocusedRow();
+		row.tabIndex = 0;
+		row.focus();
+		if (prev) {
+			prev.tabIndex = -1;
+		}
+		this.scrollbar.scanDomNode();
 	}
 
 	public isVisible(): boolean {
@@ -348,6 +420,7 @@ export class DiffReview extends Disposable {
 		}
 
 		let header = document.createElement('div');
+		header.className = 'diff-review-row';
 		// @@ -504,7 +517,7 @@
 		header.appendChild(document.createTextNode(`@@ -${minOriginalLine},${maxOriginalLine - minOriginalLine + 1}, +${minModifiedLine},${maxModifiedLine - minModifiedLine + 1} @@`));
 		container.appendChild(header);

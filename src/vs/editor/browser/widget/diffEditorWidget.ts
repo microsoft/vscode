@@ -460,6 +460,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 		this._strategy.dispose();
 
+		this._reviewPane.dispose();
+
 		this._onDidDispose.fire();
 
 		super.dispose();
