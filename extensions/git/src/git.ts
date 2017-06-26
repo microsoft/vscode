@@ -270,7 +270,8 @@ export const GitErrorCodes = {
 	CantAccessRemote: 'CantAccessRemote',
 	RepositoryNotFound: 'RepositoryNotFound',
 	RepositoryIsLocked: 'RepositoryIsLocked',
-	BranchNotFullyMerged: 'BranchNotFullyMerged'
+	BranchNotFullyMerged: 'BranchNotFullyMerged',
+	NoRemoteReference: 'NoRemoteReference'
 };
 
 function getGitErrorCode(stderr: string): string | undefined {
@@ -290,6 +291,8 @@ function getGitErrorCode(stderr: string): string | undefined {
 		return GitErrorCodes.CantAccessRemote;
 	} else if (/branch '.+' is not fully merged/.test(stderr)) {
 		return GitErrorCodes.BranchNotFullyMerged;
+	} else if (/Couldn\'t find remote ref/.test(stderr)) {
+		return GitErrorCodes.NoRemoteReference;
 	}
 
 	return void 0;
@@ -748,11 +751,19 @@ export class Repository {
 		}
 	}
 
-	async pull(rebase?: boolean): Promise<void> {
+	async pull(rebase?: boolean, remote?: string, name?: string): Promise<void> {
 		const args = ['pull'];
 
 		if (rebase) {
 			args.push('-r');
+		}
+
+		if (remote) {
+			args.push(remote);
+		}
+
+		if (name) {
+			args.push(name);
 		}
 
 		try {
