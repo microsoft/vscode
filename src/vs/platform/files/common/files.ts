@@ -45,6 +45,7 @@ export interface IFileService {
 
 	/**
 	 * Same as resolveFile but supports resolving mulitple resources in parallel.
+	 * If one of the resolve targets fails to resolve returns a fake IFileStat instead of making the whole call fail.
 	 */
 	resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): TPromise<IFileStat[]>;
 
