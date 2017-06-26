@@ -100,7 +100,10 @@ export class DiffReview extends Disposable {
 		return this._isVisible;
 	}
 
+	private _width: number = 0;
+
 	public layout(top: number, width: number, height: number): void {
+		this._width = width;
 		this.shadow.setTop(top - 6);
 		this.shadow.setWidth(width);
 		this.shadow.setHeight(this._isVisible ? 6 : 0);
@@ -315,11 +318,9 @@ export class DiffReview extends Disposable {
 		const originalModelOpts = originalModel.getOptions();
 		const modifiedModelOpts = modifiedModel.getOptions();
 
-		let table = document.createElement('table');
-		Configuration.applyFontInfoSlow(table, modifiedOpts.fontInfo);
-
-		let tbody = document.createElement('tbody');
-		table.appendChild(tbody);
+		let container = document.createElement('div');
+		container.className = 'diff-review-table';
+		Configuration.applyFontInfoSlow(container, modifiedOpts.fontInfo);
 
 		let minOriginalLine = 0;
 		let maxOriginalLine = 0;
@@ -346,42 +347,38 @@ export class DiffReview extends Disposable {
 			}
 		}
 
-		let headRow = document.createElement('tr');
-		let header = document.createElement('th');
-		header.colSpan = 3;
+		let header = document.createElement('div');
 		// @@ -504,7 +517,7 @@
 		header.appendChild(document.createTextNode(`@@ -${minOriginalLine},${maxOriginalLine - minOriginalLine + 1}, +${minModifiedLine},${maxModifiedLine - minModifiedLine + 1} @@`));
-		headRow.appendChild(header);
-
-		tbody.appendChild(headRow);
+		container.appendChild(header);
 
 		for (let i = 0, len = diffs.length; i < len; i++) {
 			const diffEntry = diffs[i];
-			DiffReview._renderSection(tbody, diffEntry, originalOpts, originalModel, originalModelOpts, modifiedOpts, modifiedModel, modifiedModelOpts);
+			DiffReview._renderSection(container, diffEntry, this._width, originalOpts, originalModel, originalModelOpts, modifiedOpts, modifiedModel, modifiedModelOpts);
 		}
 
 		dom.clearNode(this._content.domNode);
-		this._content.domNode.appendChild(table);
+		this._content.domNode.appendChild(container);
 		this.scrollbar.scanDomNode();
 	}
 
 	private static _renderSection(
-		dest: HTMLElement, diffEntry: DiffEntry,
+		dest: HTMLElement, diffEntry: DiffEntry, width: number,
 		originalOpts: editorOptions.InternalEditorOptions, originalModel: editorCommon.IModel, originalModelOpts: editorCommon.TextModelResolvedOptions,
 		modifiedOpts: editorOptions.InternalEditorOptions, modifiedModel: editorCommon.IModel, modifiedModelOpts: editorCommon.TextModelResolvedOptions
 	): void {
 
-		let rowClassName: string = '';
+		let rowClassName: string = 'diff-review-row';
 		let lineNumbersExtraClassName: string = '';
 		let spacerClassName: string = 'diff-review-spacer';
 		switch (diffEntry.getType()) {
 			case DiffEntryType.Insert:
-				rowClassName = 'line-insert';
+				rowClassName = 'diff-review-row line-insert';
 				lineNumbersExtraClassName = ' char-insert';
 				spacerClassName = 'diff-review-spacer insert-sign';
 				break;
 			case DiffEntryType.Delete:
-				rowClassName = 'line-delete';
+				rowClassName = 'diff-review-row line-delete';
 				lineNumbersExtraClassName = ' char-delete';
 				spacerClassName = 'diff-review-spacer delete-sign';
 		}
@@ -400,47 +397,48 @@ export class DiffReview extends Disposable {
 			const originalLine = (originalLineStart === 0 ? 0 : originalLineStart + i);
 			const modifiedLine = (modifiedLineStart === 0 ? 0 : modifiedLineStart + i);
 
-			const tr = document.createElement('tr');
-			tr.className = rowClassName;
+			const row = document.createElement('div');
+			row.style.minWidth = width + 'px';
+			row.className = rowClassName;
 
-			const tdOriginalLineNumber = document.createElement('td');
-			tdOriginalLineNumber.style.width = (originalOpts.layoutInfo.lineNumbersWidth + 'px');
-			tdOriginalLineNumber.style.minWidth = (originalOpts.layoutInfo.lineNumbersWidth + 'px');
-			tdOriginalLineNumber.className = 'diff-review-line-number' + lineNumbersExtraClassName;
+			const originalLineNumber = document.createElement('span');
+			originalLineNumber.style.width = (originalOpts.layoutInfo.lineNumbersWidth + 'px');
+			originalLineNumber.style.minWidth = (originalOpts.layoutInfo.lineNumbersWidth + 'px');
+			originalLineNumber.className = 'diff-review-line-number' + lineNumbersExtraClassName;
 			if (originalLine !== 0) {
-				tdOriginalLineNumber.appendChild(document.createTextNode(String(originalLine)));
+				originalLineNumber.appendChild(document.createTextNode(String(originalLine)));
+			} else {
+				originalLineNumber.innerHTML = '&nbsp;';
 			}
-			tr.appendChild(tdOriginalLineNumber);
+			row.appendChild(originalLineNumber);
 
-			const tdModifiedLineNumber = document.createElement('td');
-			tdModifiedLineNumber.style.width = (10 + modifiedOpts.layoutInfo.lineNumbersWidth + 'px');
-			tdModifiedLineNumber.style.minWidth = (modifiedOpts.layoutInfo.lineNumbersWidth + 'px');
-			tdModifiedLineNumber.style.paddingRight = '10px';
-			tdModifiedLineNumber.className = 'diff-review-line-number' + lineNumbersExtraClassName;
+			const modifiedLineNumber = document.createElement('span');
+			modifiedLineNumber.style.width = (10 + modifiedOpts.layoutInfo.lineNumbersWidth + 'px');
+			modifiedLineNumber.style.minWidth = (10 + modifiedOpts.layoutInfo.lineNumbersWidth + 'px');
+			modifiedLineNumber.style.paddingRight = '10px';
+			modifiedLineNumber.className = 'diff-review-line-number' + lineNumbersExtraClassName;
 			if (modifiedLine !== 0) {
-				tdModifiedLineNumber.appendChild(document.createTextNode(String(modifiedLine)));
+				modifiedLineNumber.appendChild(document.createTextNode(String(modifiedLine)));
+			} else {
+				modifiedLineNumber.innerHTML = '&nbsp;';
 			}
-			tr.appendChild(tdModifiedLineNumber);
-
-			const tdContent = document.createElement('td');
-			tdContent.className = 'diff-review-content';
+			row.appendChild(modifiedLineNumber);
 
 			const spacer = document.createElement('span');
 			spacer.className = spacerClassName;
 			spacer.innerHTML = '&nbsp;&nbsp;';
-			tdContent.appendChild(spacer);
+			row.appendChild(spacer);
 
 			if (modifiedLine !== 0) {
-				tdContent.insertAdjacentHTML('beforeend',
+				row.insertAdjacentHTML('beforeend',
 					this._renderLine(modifiedModel, modifiedOpts, modifiedModelOpts.tabSize, modifiedLine)
 				);
 			} else {
-				tdContent.insertAdjacentHTML('beforeend',
+				row.insertAdjacentHTML('beforeend',
 					this._renderLine(originalModel, originalOpts, originalModelOpts.tabSize, originalLine)
 				);
 			}
-			tr.appendChild(tdContent);
-			dest.appendChild(tr);
+			dest.appendChild(row);
 		}
 	}
 

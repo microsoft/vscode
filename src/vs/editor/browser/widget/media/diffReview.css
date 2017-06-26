@@ -5,6 +5,7 @@
 
 .monaco-diff-editor .diff-review-line-number {
 	text-align: right;
+	display: inline-block;
 }
 
 .monaco-diff-editor .diff-review {
@@ -17,31 +18,22 @@
 	user-select: none;
 }
 
-.monaco-diff-editor .diff-review table,
-.monaco-diff-editor .diff-review td,
-.monaco-diff-editor .diff-review th,
-.monaco-diff-editor .diff-review tr {
-	padding: 0;
-	margin: 0;
-	border: 0;
-	border-spacing: 0;
-}
-
-.monaco-diff-editor .diff-review th {
-	text-align: left;
-}
-
-.monaco-diff-editor .diff-review table {
-	min-width: 100%;
-}
-
 .monaco-diff-editor .diff-review-shadow {
 	position: absolute;
 }
 
-.monaco-diff-editor .diff-review-content {
+.monaco-diff-editor .diff-review-row {
 	white-space: pre;
-	/* word-break: break-all */
+}
+
+.monaco-diff-editor .diff-review-table {
+	display: table;
+	min-width: 100%;
+}
+
+.monaco-diff-editor .diff-review-row {
+	display: table-row;
+	width: 100%;
 }
 
 .monaco-diff-editor .diff-review-spacer {
