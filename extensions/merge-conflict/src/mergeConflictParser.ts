@@ -102,7 +102,7 @@ export class MergeConflictParser {
 				header: scanned.startHeader.range,
 				decoratorContent: new vscode.Range(
 					scanned.startHeader.rangeIncludingLineBreak.end,
-					MergeConflictParser.shiftBackOneCharacter(document, tokenAfterCurrentBlock.range.start)),
+					MergeConflictParser.shiftBackOneCharacter(document, tokenAfterCurrentBlock.range.start, scanned.startHeader.rangeIncludingLineBreak.end)),
 				// Current content is range between header (shifted for linebreak) and splitter or common ancestors mark start
 				content: new vscode.Range(
 					scanned.startHeader.rangeIncludingLineBreak.end,
@@ -115,7 +115,7 @@ export class MergeConflictParser {
 					header: currentTokenLine.range,
 					decoratorContent: new vscode.Range(
 						currentTokenLine.rangeIncludingLineBreak.end,
-						MergeConflictParser.shiftBackOneCharacter(document, nextTokenLine.range.start)),
+						MergeConflictParser.shiftBackOneCharacter(document, nextTokenLine.range.start, currentTokenLine.rangeIncludingLineBreak.end)),
 					// Each common ancestors block is range between one common ancestors token
 					// (shifted for linebreak) and start of next common ancestors token or splitter
 					content: new vscode.Range(
@@ -129,7 +129,7 @@ export class MergeConflictParser {
 				header: scanned.endFooter.range,
 				decoratorContent: new vscode.Range(
 					scanned.splitter.rangeIncludingLineBreak.end,
-					MergeConflictParser.shiftBackOneCharacter(document, scanned.endFooter.range.start)),
+					MergeConflictParser.shiftBackOneCharacter(document, scanned.endFooter.range.start, scanned.splitter.rangeIncludingLineBreak.end)),
 				// Incoming content is range between splitter (shifted for linebreak) and footer start
 				content: new vscode.Range(
 					scanned.splitter.rangeIncludingLineBreak.end,
@@ -150,7 +150,11 @@ export class MergeConflictParser {
 		return text.includes(startHeaderMarker) && text.includes(endFooterMarker);
 	}
 
-	private static shiftBackOneCharacter(document: vscode.TextDocument, range: vscode.Position): vscode.Position {
+	private static shiftBackOneCharacter(document: vscode.TextDocument, range: vscode.Position, unlessEqual: vscode.Position): vscode.Position {
+		if (range.isEqual(unlessEqual)) {
+			return range;
+		}
+
 		let line = range.line;
 		let character = range.character - 1;
 
