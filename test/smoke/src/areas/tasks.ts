@@ -17,7 +17,19 @@ export class Tasks {
 
 	public async build(): Promise<any> {
 		await this.spectron.command('workbench.action.tasks.build');
-		return this.spectron.wait();  // wait for build to finish
+		await this.spectron.wait(); // wait for build to finish
+
+		// Validate that it has finished
+		let inProgress = true, trial = 0;
+		while (inProgress && trial < 3) {
+			// Determine build status based on the statusbar indicator, don't continue until task has been terminated
+			const hidden = !!await this.spectron.client.getAttribute('.task-statusbar-item-progress', 'aria-hidden');
+			if (hidden) {
+				return Promise.resolve();
+			}
+			await this.spectron.wait();
+			trial++;
+		}
 	}
 
 	public openProblemsView(): Promise<any> {
