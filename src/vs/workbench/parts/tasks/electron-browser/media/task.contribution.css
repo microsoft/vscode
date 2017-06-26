@@ -47,33 +47,33 @@
 	padding: 0 5px 0 0;
 }
 
-.task-statusbar-item-label > .task-statusbar-item-label-counter {
+.task-statusbar-item-label>.task-statusbar-item-label-counter {
 	display: inline-block;
 	vertical-align: top;
 	padding-left: 2px;
 	padding-right: 2px;
 }
 
-.task-statusbar-item-label > .task-statusbar-item-label-error,
-.task-statusbar-item-label > .task-statusbar-item-label-warning,
-.task-statusbar-item-label > .task-statusbar-item-label-info {
+.task-statusbar-item-label>.task-statusbar-item-label-error,
+.task-statusbar-item-label>.task-statusbar-item-label-warning,
+.task-statusbar-item-label>.task-statusbar-item-label-info {
 	display: inline-block;
 	padding-right: 8px;
 	width: 8px;
 	height: 22px;
 }
 
-.task-statusbar-item-label > .task-statusbar-item-label-error {
+.task-statusbar-item-label>.task-statusbar-item-label-error {
 	-webkit-mask: url('status-error.svg') no-repeat 50% 50%;
 	-webkit-mask-size: 11px;
 }
 
-.task-statusbar-item-label > .task-statusbar-item-label-warning {
+.task-statusbar-item-label>.task-statusbar-item-label-warning {
 	-webkit-mask: url('status-warning.svg') no-repeat 50% 50%;
 	-webkit-mask-size: 11px;
 }
 
-.task-statusbar-item-label > .task-statusbar-item-label-info {
+.task-statusbar-item-label>.task-statusbar-item-label-info {
 	-webkit-mask: url('status-info.svg') no-repeat 50% 50%;
 	-webkit-mask-size: 11px;
 }
@@ -85,4 +85,17 @@
 .vs-dark .monaco-workbench .quick-open-task-configure,
 .hc-black .monaco-workbench .quick-open-task-configure {
 	background-image: url('configure-inverse.svg');
+}
+
+
+/*
+ * Task Panel styles
+ */
+
+.message-box-container {
+	padding-left: 20px
+}
+
+.monaco-workbench .task-action {
+	background: url('update.svg') center center no-repeat;
 }
