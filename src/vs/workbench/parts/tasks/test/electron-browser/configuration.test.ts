@@ -1530,4 +1530,30 @@ suite('Bugs / regression tests', () => {
 			testConfiguration(external, builder);
 		}
 	});
+
+	test('Bug 28489', () => {
+		let external = {
+			version: '0.1.0',
+			command: '',
+			isShellCommand: true,
+			args: [''],
+			showOutput: 'always',
+			'tasks': [
+				{
+					taskName: 'build',
+					command: 'bash',
+					args: [
+						'build.sh'
+					]
+				}
+			]
+		};
+		let builder = new ConfiguationBuilder();
+		builder.task('build', 'bash').
+			group(Tasks.TaskGroup.Build).
+			command().suppressTaskName(true).
+			args(['build.sh']).
+			runtime(Tasks.RuntimeType.Shell);
+		testConfiguration(external, builder);
+	});
 });

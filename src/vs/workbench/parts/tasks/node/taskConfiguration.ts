@@ -854,26 +854,28 @@ namespace CommandConfiguration {
 			runtime: undefined,
 			presentation: undefined
 		};
-		fillProperty(target, source, 'name');
+		if (target.name === void 0) {
+			fillProperty(target, source, 'name');
+			fillProperty(target, source, 'taskSelector');
+			fillProperty(target, source, 'suppressTaskName');
+			let args: string[] = source.args ? source.args.slice() : [];
+			if (!target.suppressTaskName) {
+				if (target.taskSelector !== void 0) {
+					args.push(target.taskSelector + taskName);
+				} else {
+					args.push(taskName);
+				}
+			}
+			if (target.args) {
+				args = args.concat(target.args);
+			}
+			target.args = args;
+		}
 		fillProperty(target, source, 'runtime');
-		fillProperty(target, source, 'taskSelector');
-		fillProperty(target, source, 'suppressTaskName');
 
 		target.presentation = PresentationOptions.fillProperties(target.presentation, source.presentation);
 		target.options = CommandOptions.fillProperties(target.options, source.options);
 
-		let args: string[] = source.args ? source.args.slice() : [];
-		if (!target.suppressTaskName) {
-			if (target.taskSelector !== void 0) {
-				args.push(target.taskSelector + taskName);
-			} else {
-				args.push(taskName);
-			}
-		}
-		if (target.args) {
-			args = args.concat(target.args);
-		}
-		target.args = args;
 		return target;
 	}
 
