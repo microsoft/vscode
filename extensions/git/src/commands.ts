@@ -313,13 +313,12 @@ export class CommandCenter {
 		return await commands.executeCommand<void>('vscode.open', uri, viewColumn);
 	}
 
-	@command('git.openOldFile')
-	async openOldFile(arg?: Resource | Uri): Promise<void> {
+	@command('git.openHEADFile')
+	async openHEADFile(arg?: Resource | Uri): Promise<void> {
 		let resource: Resource | undefined = undefined;
 
 		if (arg instanceof Resource) {
 			resource = arg;
-
 		} else if (arg instanceof Uri) {
 			resource = this.getSCMResource(arg);
 		} else {
@@ -329,17 +328,15 @@ export class CommandCenter {
 		if (!resource) {
 			return;
 		}
-		return await this._openOldResource(resource);
-	}
 
-	private async _openOldResource(resource: Resource): Promise<void> {
-		const old = this.getLeftResource(resource);
-		const current = this.getRightResource(resource);
+		const HEAD = this.getLeftResource(resource);
 
-		if (!old) {
-			return await commands.executeCommand<void>('vscode.open', current);
+		if (!HEAD) {
+			window.showWarningMessage(localize('HEAD not available', "HEAD version of '{0}' is not available.", path.basename(resource.resourceUri.fsPath)));
+			return;
 		}
-		return await commands.executeCommand<void>('vscode.open', old);
+
+		return await commands.executeCommand<void>('vscode.open', HEAD);
 	}
 
 	@command('git.openChange')

@@ -60,8 +60,8 @@
         }
       },
       {
-        "command": "git.openOldFile",
-        "title": "%command.openOldFile%",
+        "command": "git.openHEADFile",
+        "title": "%command.openHEADFile%",
         "category": "Git"
       },
       {
@@ -252,7 +252,7 @@
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
-          "command": "git.openOldFile",
+          "command": "git.openHEADFile",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
@@ -523,7 +523,7 @@
           "group": "navigation"
         },
         {
-          "command": "git.openOldFile",
+          "command": "git.openHEADFile",
           "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == index",
           "group": "navigation"
         },
@@ -543,7 +543,7 @@
           "group": "navigation"
         },
         {
-          "command": "git.openOldFile",
+          "command": "git.openHEADFile",
           "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == workingTree",
           "group": "navigation"
         },
