@@ -4,6 +4,7 @@
 	"command.refresh": "Refresh",
 	"command.openChange": "Open Changes",
 	"command.openFile": "Open File",
+	"command.openHEADFile": "Open File (HEAD)",
 	"command.stage": "Stage Changes",
 	"command.stageAll": "Stage All Changes",
 	"command.stageSelectedRanges": "Stage Selected Ranges",

@@ -313,6 +313,32 @@ export class CommandCenter {
 		return await commands.executeCommand<void>('vscode.open', uri, viewColumn);
 	}
 
+	@command('git.openHEADFile')
+	async openHEADFile(arg?: Resource | Uri): Promise<void> {
+		let resource: Resource | undefined = undefined;
+
+		if (arg instanceof Resource) {
+			resource = arg;
+		} else if (arg instanceof Uri) {
+			resource = this.getSCMResource(arg);
+		} else {
+			resource = this.getSCMResource();
+		}
+
+		if (!resource) {
+			return;
+		}
+
+		const HEAD = this.getLeftResource(resource);
+
+		if (!HEAD) {
+			window.showWarningMessage(localize('HEAD not available', "HEAD version of '{0}' is not available.", path.basename(resource.resourceUri.fsPath)));
+			return;
+		}
+
+		return await commands.executeCommand<void>('vscode.open', HEAD);
+	}
+
 	@command('git.openChange')
 	async openChange(arg?: Resource | Uri): Promise<void> {
 		let resource: Resource | undefined = undefined;
@@ -328,7 +354,6 @@ export class CommandCenter {
 		if (!resource) {
 			return;
 		}
-
 		return await this._openResource(resource);
 	}
 
