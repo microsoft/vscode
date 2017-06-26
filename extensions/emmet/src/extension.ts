@@ -31,8 +31,8 @@ export function activate(context: vscode.ExtensionContext) {
 		context.subscriptions.push(provider);
 	});
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.wrapWithAbbreviation', () => {
-		wrapWithAbbreviation();
+	context.subscriptions.push(vscode.commands.registerCommand('emmet.wrapWithAbbreviation', (args) => {
+		wrapWithAbbreviation(args);
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.expandAbbreviation', (args) => {

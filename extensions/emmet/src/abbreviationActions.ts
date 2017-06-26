@@ -8,7 +8,7 @@ import { expand } from '@emmetio/expand-abbreviation';
 import parseStylesheet from '@emmetio/css-parser';
 import parse from '@emmetio/html-matcher';
 import Node from '@emmetio/node';
-import { getSyntax, getNode, getInnerRange } from './util';
+import { getNode, getInnerRange } from './util';
 import { getExpandOptions, extractAbbreviation, isStyleSheet, isAbbreviationValid } from 'vscode-emmet-helper';
 import { DocumentStreamReader } from './bufferStream';
 
@@ -19,14 +19,14 @@ interface ExpandAbbreviationInput {
 	textToWrap?: string;
 }
 
-export function wrapWithAbbreviation() {
-	let editor = vscode.window.activeTextEditor;
-	if (!editor) {
-		vscode.window.showInformationMessage('No editor is active');
+export function wrapWithAbbreviation(args) {
+	const syntax = getSyntaxFromArgs(args);
+	if (!syntax) {
 		return;
 	}
+
+	const editor = vscode.window.activeTextEditor;
 	const newLine = editor.document.eol === vscode.EndOfLine.LF ? '\n' : '\r\n';
-	let syntax = getSyntax(editor.document);
 
 	vscode.window.showInputBox({ prompt: 'Enter Abbreviation' }).then(abbreviation => {
 		if (!abbreviation || !abbreviation.trim() || !isAbbreviationValid(syntax, abbreviation)) { return; }
@@ -69,16 +69,13 @@ export function wrapWithAbbreviation() {
 }
 
 export function expandAbbreviation(args) {
+	const syntax = getSyntaxFromArgs(args);
+	if (!syntax) {
+		return;
+	}
 
-	let editor = vscode.window.activeTextEditor;
-	if (!editor) {
-		vscode.window.showInformationMessage('No editor is active');
-		return;
-	}
-	if (typeof args !== 'object' || !args['syntax']) {
-		return;
-	}
-	let syntax = args['syntax'];
+	const editor = vscode.window.activeTextEditor;
+
 	let parseContent = isStyleSheet(syntax) ? parseStylesheet : parse;
 	let rootNode: Node = parseContent(new DocumentStreamReader(editor.document));
 
@@ -141,11 +138,11 @@ export function isValidLocationForEmmetAbbreviation(currentNode: Node, syntax: s
 
 /**
  * Expands abbreviations as detailed in expandAbbrList in the editor
- * @param editor 
- * @param expandAbbrList 
- * @param syntax 
- * @param insertSameSnippet 
- * @param preceedingWhiteSpace 
+ * @param editor
+ * @param expandAbbrList
+ * @param syntax
+ * @param insertSameSnippet
+ * @param preceedingWhiteSpace
  */
 function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: ExpandAbbreviationInput[], syntax: string, insertSameSnippet: boolean, preceedingWhiteSpace: string = '') {
 	if (!expandAbbrList || expandAbbrList.length === 0) {
@@ -167,7 +164,7 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 	}
 
 	// Snippet to replace at all cursors are the same
-	// We can pass all ranges to `editor.insertSnippet` in a single call so that 
+	// We can pass all ranges to `editor.insertSnippet` in a single call so that
 	// all cursors are maintained after snippet insertion
 	const anyExpandAbbrInput = expandAbbrList[0];
 	let expandedText = expandAbbr(anyExpandAbbrInput, preceedingWhiteSpace, newLine);
@@ -180,7 +177,7 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 }
 
 /**
- * Expands abbreviation as detailed in given input. 
+ * Expands abbreviation as detailed in given input.
  * If there is textToWrap, then given preceedingWhiteSpace is applied
  */
 function expandAbbr(input: ExpandAbbreviationInput, preceedingWhiteSpace: string, newLine: string): string {
@@ -195,4 +192,17 @@ function expandAbbr(input: ExpandAbbreviationInput, preceedingWhiteSpace: string
 	}
 
 	return expandedText.split(newLine).map(line => preceedingWhiteSpace + line).join(newLine);
+}
+
+function getSyntaxFromArgs(args: any): string {
+	let editor = vscode.window.activeTextEditor;
+	if (!editor) {
+		vscode.window.showInformationMessage('No editor is active.');
+		return;
+	}
+	if (typeof args !== 'object' || !args['syntax']) {
+		vscode.window.showInformationMessage('Cannot resolve language at cursor.');
+		return;
+	}
+	return args['syntax'];
 }
