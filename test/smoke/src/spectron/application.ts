@@ -120,7 +120,7 @@ export class SpectronApplication {
 
 				let result;
 				try {
-					result = await func.call(this.client, args);
+					result = await func.call(this.client, args, false);
 				} catch (e) { }
 
 				if (result && result !== '') {
