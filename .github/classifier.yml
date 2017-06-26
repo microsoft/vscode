@@ -12,7 +12,7 @@
         error-list: [],
         extensions: [],
         git: [ joaomoreno ],
-        hot-exit: [],
+        hot-exit: [ Tyriar ],
         html: [],
         i18n: [],
         install-update: [],
