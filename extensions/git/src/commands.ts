@@ -313,6 +313,35 @@ export class CommandCenter {
 		return await commands.executeCommand<void>('vscode.open', uri, viewColumn);
 	}
 
+	@command('git.openOldFile')
+	async openOldFile(arg?: Resource | Uri): Promise<void> {
+		let resource: Resource | undefined = undefined;
+
+		if (arg instanceof Resource) {
+			resource = arg;
+
+		} else if (arg instanceof Uri) {
+			resource = this.getSCMResource(arg);
+		} else {
+			resource = this.getSCMResource();
+		}
+
+		if (!resource) {
+			return;
+		}
+		return await this._openOldResource(resource);
+	}
+
+	private async _openOldResource(resource: Resource): Promise<void> {
+		const old = this.getLeftResource(resource);
+		const current = this.getRightResource(resource);
+
+		if (!old) {
+			return await commands.executeCommand<void>('vscode.open', current);
+		}
+		return await commands.executeCommand<void>('vscode.open', old);
+	}
+
 	@command('git.openChange')
 	async openChange(arg?: Resource | Uri): Promise<void> {
 		let resource: Resource | undefined = undefined;
@@ -328,7 +357,6 @@ export class CommandCenter {
 		if (!resource) {
 			return;
 		}
-
 		return await this._openResource(resource);
 	}
 
