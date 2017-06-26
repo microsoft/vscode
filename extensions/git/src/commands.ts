@@ -810,7 +810,7 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.pullFromRemoteBranch')
+	@command('git.pullFrom')
 	async pullFrom(): Promise<void> {
 		const remotes = this.model.remotes;
 

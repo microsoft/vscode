@@ -751,19 +751,16 @@ export class Repository {
 		}
 	}
 
-	async pull(rebase?: boolean, remote?: string, name?: string): Promise<void> {
+	async pull(rebase?: boolean, remote?: string, branch?: string): Promise<void> {
 		const args = ['pull'];
 
 		if (rebase) {
 			args.push('-r');
 		}
 
-		if (remote) {
+		if (remote && branch) {
 			args.push(remote);
-		}
-
-		if (name) {
-			args.push(name);
+			args.push(branch);
 		}
 
 		try {

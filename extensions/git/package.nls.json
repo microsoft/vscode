@@ -25,7 +25,7 @@
 	"command.merge": "Merge Branch...",
 	"command.pull": "Pull",
 	"command.pullRebase": "Pull (Rebase)",
-	"command.pullFromRemoteBranch": "Pull From...",
+	"command.pullFrom": "Pull from...",
 	"command.push": "Push",
 	"command.pushTo": "Push to...",
 	"command.sync": "Sync",

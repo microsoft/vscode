@@ -193,8 +193,8 @@
         "category": "Git"
       },
       {
-        "command": "git.pullFromRemoteBranch",
-        "title": "%command.pullFromRemoteBranch%",
+        "command": "git.pullFrom",
+        "title": "%command.pullFrom%",
         "category": "Git"
       },
       {
@@ -327,11 +327,15 @@
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
-          "command": "git.pullFromRemoteBranch",
+          "command": "git.pullFrom",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
           "command": "git.pullRebase",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
+          "command": "git.pullFrom",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
@@ -387,8 +391,7 @@
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
-          "command": "git.pullFromRemoteBranch",
-          "group": "1_sync",
+          "command": "git.pullFrom",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
