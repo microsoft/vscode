@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import parse from '@emmetio/html-matcher';
-import Node from '@emmetio/node';
+import { Node } from 'EmmetNode';
 import { DocumentStreamReader } from './bufferStream';
 import { isStyleSheet } from 'vscode-emmet-helper';
 import { getNode } from './util';

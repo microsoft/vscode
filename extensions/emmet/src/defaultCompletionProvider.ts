@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import parseStylesheet from '@emmetio/css-parser';
 import parse from '@emmetio/html-matcher';
-import Node from '@emmetio/node';
+import { Node, HtmlNode } from 'EmmetNode';
 import { DocumentStreamReader } from './bufferStream';
 import { EmmetCompletionItemProvider, isStyleSheet } from 'vscode-emmet-helper';
 import { isValidLocationForEmmetAbbreviation } from './abbreviationActions';
@@ -37,12 +37,14 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 		let rootNode: Node = parseContent(new DocumentStreamReader(document));
 		let currentNode = getNode(rootNode, position);
 
-		if (!isStyleSheet(syntax)
-			&& currentNode
-			&& currentNode.close
-			&& currentNode.name === 'style'
-			&& getInnerRange(currentNode).contains(position)) {
-			return 'css';
+		if (!isStyleSheet(syntax)) {
+			const currentHtmlNode = <HtmlNode>currentNode;
+			if (currentHtmlNode
+				&& currentHtmlNode.close
+				&& currentHtmlNode.name === 'style'
+				&& getInnerRange(currentHtmlNode).contains(position)) {
+				return 'css';
+			}
 		}
 
 		if (!isValidLocationForEmmetAbbreviation(currentNode, syntax, position)) {

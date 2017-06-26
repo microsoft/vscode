@@ -9,7 +9,7 @@ import { nextItemHTML, prevItemHTML } from './selectItemHTML';
 import { nextItemStylesheet, prevItemStylesheet } from './selectItemStylesheet';
 import parseStylesheet from '@emmetio/css-parser';
 import parse from '@emmetio/html-matcher';
-import Node from '@emmetio/node';
+import { Node } from 'EmmetNode';
 import { DocumentStreamReader } from './bufferStream';
 import { isStyleSheet } from 'vscode-emmet-helper';
 

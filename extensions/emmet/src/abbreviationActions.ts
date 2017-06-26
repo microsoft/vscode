@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { expand } from '@emmetio/expand-abbreviation';
 import parseStylesheet from '@emmetio/css-parser';
 import parse from '@emmetio/html-matcher';
-import Node from '@emmetio/node';
+import { Node, HtmlNode, Rule } from 'EmmetNode';
 import { getNode, getInnerRange } from './util';
 import { getExpandOptions, extractAbbreviation, isStyleSheet, isAbbreviationValid } from 'vscode-emmet-helper';
 import { DocumentStreamReader } from './bufferStream';
@@ -125,12 +125,16 @@ export function isValidLocationForEmmetAbbreviation(currentNode: Node, syntax: s
 	}
 
 	if (isStyleSheet(syntax)) {
-		return currentNode.type !== 'rule'
-			|| (currentNode.selectorToken && position.isAfter(currentNode.selectorToken.end));
+		if (currentNode.type !== 'rule') {
+			return true;
+		}
+		const currentCssNode = <Rule>currentNode;
+		return currentCssNode.selectorToken && position.isAfter(currentCssNode.selectorToken.end);
 	}
 
-	if (currentNode.close) {
-		return getInnerRange(currentNode).contains(position);
+	const currentHtmlNode = <HtmlNode>currentNode;
+	if (currentHtmlNode.close) {
+		return getInnerRange(currentHtmlNode).contains(position);
 	}
 
 	return false;

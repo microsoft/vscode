@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { getNodesInBetween, getNode } from './util';
 import parse from '@emmetio/html-matcher';
 import parseStylesheet from '@emmetio/css-parser';
-import Node from '@emmetio/node';
+import { Node, Stylesheet } from 'EmmetNode';
 import { DocumentStreamReader } from './bufferStream';
 import { isStyleSheet } from 'vscode-emmet-helper';
 
@@ -102,7 +102,7 @@ function getRangesToUnCommentHTML(node: Node, document: vscode.TextDocument): vs
 	return rangesToUnComment;
 }
 
-function toggleCommentStylesheet(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Node): [vscode.Range[], vscode.Range] {
+function toggleCommentStylesheet(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Stylesheet): [vscode.Range[], vscode.Range] {
 
 	const selectionStart = selection.isReversed ? selection.active : selection.anchor;
 	const selectionEnd = selection.isReversed ? selection.anchor : selection.active;

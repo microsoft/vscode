@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import parse from '@emmetio/html-matcher';
-import Node from '@emmetio/node';
+import { Node, HtmlNode } from 'EmmetNode';
 import { DocumentStreamReader } from './bufferStream';
 import { isStyleSheet } from 'vscode-emmet-helper';
 
@@ -69,7 +69,7 @@ export function getExcludedModes(): string[] {
  * @param includeNodeBoundary
  */
 export function getNode(root: Node, position: vscode.Position, includeNodeBoundary: boolean = false) {
-	let currentNode: Node = root.firstChild;
+	let currentNode = root.firstChild;
 	let foundNode: Node = null;
 
 	while (currentNode) {
@@ -93,7 +93,7 @@ export function getNode(root: Node, position: vscode.Position, includeNodeBounda
  * Returns inner range of an html node.
  * @param currentNode
  */
-export function getInnerRange(currentNode: Node): vscode.Range {
+export function getInnerRange(currentNode: HtmlNode): vscode.Range {
 	if (!currentNode.close) {
 		return;
 	}
@@ -101,8 +101,8 @@ export function getInnerRange(currentNode: Node): vscode.Range {
 }
 
 export function getOpenCloseRange(document: vscode.TextDocument, position: vscode.Position): [vscode.Range, vscode.Range] {
-	let rootNode: Node = parse(new DocumentStreamReader(document));
-	let nodeToUpdate = getNode(rootNode, position);
+	let rootNode: HtmlNode = parse(new DocumentStreamReader(document));
+	let nodeToUpdate = <HtmlNode>getNode(rootNode, position);
 	let openRange = new vscode.Range(nodeToUpdate.open.start, nodeToUpdate.open.end);
 	let closeRange = null;
 	if (nodeToUpdate.close) {

@@ -5,11 +5,11 @@
 
 import * as vscode from 'vscode';
 import { getDeepestNode, findNextWord, findPrevWord, getNode } from './util';
-import Node from '@emmetio/node';
+import { HtmlNode } from 'EmmetNode';
 
-export function nextItemHTML(selectionStart: vscode.Position, selectionEnd: vscode.Position, editor: vscode.TextEditor, rootNode: Node): vscode.Selection {
-	let currentNode = getNode(rootNode, selectionEnd);
-	let nextNode: Node;
+export function nextItemHTML(selectionStart: vscode.Position, selectionEnd: vscode.Position, editor: vscode.TextEditor, rootNode: HtmlNode): vscode.Selection {
+	let currentNode = <HtmlNode>getNode(rootNode, selectionEnd);
+	let nextNode: HtmlNode;
 
 	if (currentNode.type !== 'comment') {
 		// If cursor is in the tag name, select tag
@@ -49,9 +49,9 @@ export function nextItemHTML(selectionStart: vscode.Position, selectionEnd: vsco
 	return getSelectionFromNode(nextNode, editor.document);
 }
 
-export function prevItemHTML(selectionStart: vscode.Position, selectionEnd: vscode.Position, editor: vscode.TextEditor, rootNode: Node): vscode.Selection {
-	let currentNode = getNode(rootNode, selectionStart);
-	let prevNode: Node;
+export function prevItemHTML(selectionStart: vscode.Position, selectionEnd: vscode.Position, editor: vscode.TextEditor, rootNode: HtmlNode): vscode.Selection {
+	let currentNode = <HtmlNode>getNode(rootNode, selectionStart);
+	let prevNode: HtmlNode;
 
 	if (currentNode.type !== 'comment' && selectionStart.translate(0, -1).isAfter(currentNode.open.start)) {
 
@@ -60,7 +60,7 @@ export function prevItemHTML(selectionStart: vscode.Position, selectionEnd: vsco
 		} else {
 			// Select the child that appears just before the cursor and is not a comment
 			prevNode = currentNode.firstChild;
-			let oldOption: Node;
+			let oldOption: HtmlNode;
 			while (prevNode.nextSibling && selectionStart.isAfterOrEqual(prevNode.nextSibling.end)) {
 				if (prevNode && prevNode.type !== 'comment') {
 					oldOption = prevNode;
@@ -68,7 +68,7 @@ export function prevItemHTML(selectionStart: vscode.Position, selectionEnd: vsco
 				prevNode = prevNode.nextSibling;
 			}
 
-			prevNode = getDeepestNode((prevNode && prevNode.type !== 'comment') ? prevNode : oldOption);
+			prevNode = <HtmlNode>getDeepestNode((prevNode && prevNode.type !== 'comment') ? prevNode : oldOption);
 		}
 	}
 
@@ -76,7 +76,7 @@ export function prevItemHTML(selectionStart: vscode.Position, selectionEnd: vsco
 	while (!prevNode && currentNode) {
 		if (currentNode.previousSibling) {
 			if (currentNode.previousSibling.type !== 'comment') {
-				prevNode = getDeepestNode(currentNode.previousSibling);
+				prevNode = <HtmlNode>getDeepestNode(currentNode.previousSibling);
 			} else {
 				currentNode = currentNode.previousSibling;
 			}
@@ -90,7 +90,7 @@ export function prevItemHTML(selectionStart: vscode.Position, selectionEnd: vsco
 	return attrSelection ? attrSelection : getSelectionFromNode(prevNode, editor.document);
 }
 
-function getSelectionFromNode(node: Node, document: vscode.TextDocument): vscode.Selection {
+function getSelectionFromNode(node: HtmlNode, document: vscode.TextDocument): vscode.Selection {
 	if (node && node.open) {
 		let selectionStart = (<vscode.Position>node.open.start).translate(0, 1);
 		let selectionEnd = selectionStart.translate(0, node.name.length);
@@ -99,7 +99,7 @@ function getSelectionFromNode(node: Node, document: vscode.TextDocument): vscode
 	}
 }
 
-function getNextAttribute(selectionStart: vscode.Position, selectionEnd: vscode.Position, document: vscode.TextDocument, node: Node): vscode.Selection {
+function getNextAttribute(selectionStart: vscode.Position, selectionEnd: vscode.Position, document: vscode.TextDocument, node: HtmlNode): vscode.Selection {
 
 	if (!node.attributes || node.attributes.length === 0 || node.type === 'comment') {
 		return;
@@ -150,7 +150,7 @@ function getNextAttribute(selectionStart: vscode.Position, selectionEnd: vscode.
 	}
 }
 
-function getPrevAttribute(selectionStart: vscode.Position, selectionEnd: vscode.Position, document: vscode.TextDocument, node: Node): vscode.Selection {
+function getPrevAttribute(selectionStart: vscode.Position, selectionEnd: vscode.Position, document: vscode.TextDocument, node: HtmlNode): vscode.Selection {
 
 	if (!node.attributes || node.attributes.length === 0 || node.type === 'comment') {
 		return;
