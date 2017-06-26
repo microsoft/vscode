@@ -1,0 +1,43 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-diff-editor .diff-review-line-number {
+	text-align: right;
+}
+
+.monaco-diff-editor .diff-review {
+	position: absolute;
+	-webkit-user-select: none;
+	-ms-user-select: none;
+	-khtml-user-select: none;
+	-moz-user-select: none;
+	-o-user-select: none;
+	user-select: none;
+}
+
+.monaco-diff-editor .diff-review table, .monaco-diff-editor .diff-review td, .monaco-diff-editor .diff-review tr {
+	padding: 0;
+	margin: 0;
+	border: 0;
+	border-spacing: 0;
+}
+
+.monaco-diff-editor .diff-review table {
+	min-width: 100%;
+}
+
+.monaco-diff-editor .diff-review-shadow {
+	position: absolute;
+}
+
+.monaco-diff-editor .diff-review-content {
+	white-space: pre;
+	/* word-break: break-all */
+}
+
+.monaco-diff-editor .diff-review-spacer {
+	display: inline-block;
+	width: 10px;
+}
