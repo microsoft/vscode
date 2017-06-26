@@ -260,10 +260,6 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._createLeftHandSide();
 		this._createRightHandSide();
 
-		this._reviewPane = new DiffReview(this);
-		this._containerDomElement.appendChild(this._reviewPane.domNode.domNode);
-		this._containerDomElement.appendChild(this._reviewPane.shadow.domNode);
-
 		this._beginUpdateDecorationsTimeout = -1;
 		this._currentlyChangingViewZones = false;
 		this._diffComputationToken = 0;
@@ -287,6 +283,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 		this._createLeftHandSideEditor(options, scopedInstantiationService);
 		this._createRightHandSideEditor(options, scopedInstantiationService);
+
+		this._reviewPane = new DiffReview(this);
+		this._containerDomElement.appendChild(this._reviewPane.domNode.domNode);
+		this._containerDomElement.appendChild(this._reviewPane.shadow.domNode);
 
 		if (options.automaticLayout) {
 			this._measureDomElementToken = window.setInterval(() => this._measureDomElement(false), 100);

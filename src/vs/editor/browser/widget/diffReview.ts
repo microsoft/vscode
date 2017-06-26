@@ -72,6 +72,7 @@ export class DiffReview extends Disposable {
 	private readonly _content: FastDomNode<HTMLElement>;
 	private readonly scrollbar: DomScrollableElement;
 	private _diffs: Diff[];
+	private _currentDiff: Diff;
 
 	constructor(diffEditor: DiffEditorWidget) {
 		super();
@@ -93,6 +94,12 @@ export class DiffReview extends Disposable {
 				return;
 			}
 			this._diffs = this._compute();
+			this._render();
+		}));
+		this._register(diffEditor.getModifiedEditor().onDidChangeCursorPosition(() => {
+			if (!this._isVisible) {
+				return;
+			}
 			this._render();
 		}));
 		this._register(dom.addStandardDisposableListener(this.domNode.domNode, 'click', (e) => {
@@ -123,6 +130,7 @@ export class DiffReview extends Disposable {
 			}
 		}));
 		this._diffs = [];
+		this._currentDiff = null;
 	}
 
 	private _getPrevRow(): HTMLElement {
@@ -354,16 +362,6 @@ export class DiffReview extends Disposable {
 		return r;
 	}
 
-	private _render(): void {
-		const pos = this._diffEditor.getPosition();
-		if (!pos) {
-			return;
-		}
-
-		this._doRender2(this._findDiffIndex(pos));
-		return;
-	}
-
 	private _findDiffIndex(pos: Position): number {
 		const lineNumber = pos.lineNumber;
 		for (let i = 0, len = this._diffs.length; i < len; i++) {
@@ -376,21 +374,32 @@ export class DiffReview extends Disposable {
 		return 0;
 	}
 
-	private _doRender2(index: number): void {
-		const lines = this._diffs[index].entries;
-		const originalModel = this._diffEditor.getOriginalEditor().getModel();
-		const modifiedModel = this._diffEditor.getModifiedEditor().getModel();
+	private _render(): void {
 
-		this._doRender3(lines, originalModel, modifiedModel);
-	}
-
-	private _doRender3(diffs: DiffEntry[], originalModel: editorCommon.IModel, modifiedModel: editorCommon.IModel): void {
 		const originalOpts = this._diffEditor.getOriginalEditor().getConfiguration();
 		const modifiedOpts = this._diffEditor.getModifiedEditor().getConfiguration();
+
+		const originalModel = this._diffEditor.getOriginalEditor().getModel();
+		const modifiedModel = this._diffEditor.getModifiedEditor().getModel();
 
 		const originalModelOpts = originalModel.getOptions();
 		const modifiedModelOpts = modifiedModel.getOptions();
 
+		if (!originalModel || !modifiedModel) {
+			dom.clearNode(this._content.domNode);
+			this._currentDiff = null;
+			return;
+		}
+
+		const pos = this._diffEditor.getPosition();
+		const diffIndex = this._findDiffIndex(pos);
+
+		if (this._diffs[diffIndex] === this._currentDiff) {
+			return;
+		}
+		this._currentDiff = this._diffs[diffIndex];
+
+		const diffs = this._diffs[diffIndex].entries;
 		let container = document.createElement('div');
 		container.className = 'diff-review-table';
 		container.setAttribute('role', 'list');
@@ -424,7 +433,7 @@ export class DiffReview extends Disposable {
 		let header = document.createElement('div');
 		header.className = 'diff-review-row';
 		// @@ -504,7 +517,7 @@
-		header.appendChild(document.createTextNode(`@@ -${minOriginalLine},${maxOriginalLine - minOriginalLine + 1} +${minModifiedLine},${maxModifiedLine - minModifiedLine + 1} @@`));
+		header.appendChild(document.createTextNode(`${diffIndex + 1} / ${this._diffs.length}: @@ -${minOriginalLine},${maxOriginalLine - minOriginalLine + 1} +${minModifiedLine},${maxModifiedLine - minModifiedLine + 1} @@`));
 		header.setAttribute('role', 'listitem');
 		container.appendChild(header);
 
