@@ -42,6 +42,10 @@ export interface ITaskService extends IEventEmitter {
 	terminate(task: string | Task): TPromise<TaskTerminateResponse>;
 	terminateAll(): TPromise<TaskTerminateResponse[]>;
 	tasks(): TPromise<Task[]>;
+	/**
+	 * @param identifier The task's name, label or defined identifier.
+	 */
+	getTask(identifier: string): TPromise<Task>;
 	getTasksForGroup(group: string): TPromise<Task[]>;
 	getRecentlyUsedTasks(): LinkedMap<string, string>;
 

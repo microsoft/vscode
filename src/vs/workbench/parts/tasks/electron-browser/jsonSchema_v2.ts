@@ -139,6 +139,11 @@ const version: IJSONSchema = {
 	description: nls.localize('JsonSchema.version', 'The config\'s version number.')
 };
 
+const identifier: IJSONSchema = {
+	type: 'string',
+	description: nls.localize('JsonSchema.tasks.identifier', 'A user defined identifier to reference the task in launch.json or a dependsOn clause.')
+};
+
 let taskConfiguration: IJSONSchema = {
 	type: 'object',
 	additionalProperties: false,
@@ -152,6 +157,7 @@ let taskConfiguration: IJSONSchema = {
 			description: nls.localize('JsonSchema.tasks.taskName', 'The task\'s name'),
 			deprecationMessage: nls.localize('JsonSchema.tasks.taskName.deprecated', 'The task\'s name property is deprecated. Use the label property instead.')
 		},
+		identifier: Objects.deepClone(identifier),
 		group: Objects.deepClone(group),
 		isBackground: {
 			type: 'boolean',
@@ -204,6 +210,7 @@ let definitions = Objects.deepClone(commonSchema.definitions);
 let taskDescription: IJSONSchema = definitions.taskDescription;
 taskDescription.properties.isShellCommand = Objects.deepClone(shellCommand);
 taskDescription.properties.dependsOn = dependsOn;
+taskDescription.properties.identifier = Objects.deepClone(identifier);
 definitions.showOutputType.deprecationMessage = nls.localize(
 	'JsonSchema.tasks.showOputput.deprecated',
 	'The property showOutput is deprecated. Use the reveal property inside the presentation property instead. See also the 1.14 release notes.'

@@ -855,9 +855,8 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		// run a task before starting a debug session
-		return this.taskService.tasks().then(descriptions => {
-			const filteredTasks = descriptions.filter(task => task.name === taskName);
-			if (filteredTasks.length !== 1) {
+		return this.taskService.getTask(taskName).then(task => {
+			if (!task) {
 				return TPromise.wrapError(errors.create(nls.localize('DebugTaskNotFound', "Could not find the preLaunchTask \'{0}\'.", taskName)));
 			}
 
@@ -872,14 +871,14 @@ export class DebugService implements debug.IDebugService {
 			}
 
 			// no task running, execute the preLaunchTask.
-			const taskPromise = this.taskService.run(filteredTasks[0]).then(result => {
+			const taskPromise = this.taskService.run(task).then(result => {
 				this.lastTaskEvent = null;
 				return result;
 			}, err => {
 				this.lastTaskEvent = null;
 			});
 
-			if (filteredTasks[0].isBackground) {
+			if (task.isBackground) {
 				return new TPromise((c, e) => this.taskService.addOneTimeListener(TaskServiceEvents.Inactive, () => c(null)));
 			}
 

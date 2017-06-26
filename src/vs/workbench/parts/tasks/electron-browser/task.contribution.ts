@@ -681,6 +681,13 @@ class TaskService extends EventEmitter implements ITaskService {
 		return this._providers.delete(handle);
 	}
 
+	public getTask(identifier: string): TPromise<Task> {
+		return this.getTaskSets().then((sets) => {
+			let resolver = this.createResolver(sets);
+			return resolver.resolve(identifier);
+		});
+	}
+
 	public tasks(): TPromise<Task[]> {
 		return this.getTaskSets().then((sets) => {
 			let result: Task[] = [];
@@ -1697,7 +1704,7 @@ schema.definitions = {
 	...schemaVersion1.definitions,
 	...schemaVersion2.definitions,
 };
-schema.oneOf = [...schemaVersion1.oneOf, ...schemaVersion2.oneOf];
+schema.oneOf = [...schemaVersion2.oneOf, ...schemaVersion1.oneOf];
 
 
 let jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
