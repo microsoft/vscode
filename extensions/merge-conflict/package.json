@@ -67,38 +67,6 @@
         "command": "merge-conflict.compare"
       }
     ],
-    "keybindings": [
-      {
-        "command": "merge-conflict.next",
-        "when": "editorTextFocus",
-        "key": "alt+m down"
-      },
-      {
-        "command": "merge-conflict.previous",
-        "when": "editorTextFocus",
-        "key": "alt+m up"
-      },
-      {
-        "command": "merge-conflict.accept.selection",
-        "when": "editorTextFocus",
-        "key": "alt+m enter"
-      },
-      {
-        "command": "merge-conflict.accept.current",
-        "when": "editorTextFocus",
-        "key": "alt+m 1"
-      },
-      {
-        "command": "merge-conflict.accept.incoming",
-        "when": "editorTextFocus",
-        "key": "alt+m 2"
-      },
-      {
-        "command": "merge-conflict.accept.both",
-        "when": "editorTextFocus",
-        "key": "alt+m 3"
-      }
-    ],
     "configuration": {
       "title": "%config.title%",
       "properties": {
