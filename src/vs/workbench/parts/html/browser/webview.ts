@@ -346,7 +346,7 @@ export default class Webview {
 			return true;
 		}
 		if (this._options.svgWhiteList) {
-			return this._options.svgWhiteList.indexOf(uri.authority) >= 0;
+			return this._options.svgWhiteList.indexOf(uri.authority.toLowerCase()) >= 0;
 		}
 		return false;
 	}

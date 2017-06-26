@@ -669,7 +669,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 	get allowedBadgeProviders(): string[] {
 		if (!this._extensionAllowedBadgeProviders) {
-			this._extensionAllowedBadgeProviders = product.extensionAllowedBadgeProviders || [];
+			this._extensionAllowedBadgeProviders = (product.extensionAllowedBadgeProviders || []).map(s => s.toLowerCase());
 		}
 		return this._extensionAllowedBadgeProviders;
 	}
