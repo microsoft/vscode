@@ -368,7 +368,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		const dependenciesToUninstall = this.filterDependents(extension, dependencies, installed);
 		let dependents = this.getDependents(extension, installed).filter(dependent => extension !== dependent && dependenciesToUninstall.indexOf(dependent) === -1);
 		if (dependents.length) {
-			return TPromise.wrapError<void>(this.getDependentsErrorMessage(extension, dependents));
+			return TPromise.wrapError<void>(new Error(this.getDependentsErrorMessage(extension, dependents)));
 		}
 		return TPromise.join([this.uninstallExtension(extension.id), ...dependenciesToUninstall.map(d => this.doUninstall(d.id))]).then(() => null);
 	}

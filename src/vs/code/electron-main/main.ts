@@ -109,7 +109,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 						const msg = 'Running extension tests from the command line is currently only supported if no other instance of Code is running.';
 						console.error(msg);
 						client.dispose();
-						return TPromise.wrapError<Server>(msg);
+						return TPromise.wrapError<Server>(new Error(msg));
 					}
 
 					logService.log('Sending env to running instance...');
@@ -120,7 +120,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 					return allowSetForegroundWindow(service)
 						.then(() => service.start(environmentService.args, process.env))
 						.then(() => client.dispose())
-						.then(() => TPromise.wrapError<Server>('Sent env to running instance. Terminating...'));
+						.then(() => TPromise.wrapError<Server>(new Error('Sent env to running instance. Terminating...')));
 				},
 				err => {
 					if (!retry || platform.isWindows || err.code !== 'ECONNREFUSED') {

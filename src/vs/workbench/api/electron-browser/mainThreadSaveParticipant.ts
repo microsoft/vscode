@@ -210,7 +210,7 @@ class ExtHostSaveParticipant implements INamedSaveParticpant {
 			this._proxy.$participateInSave(editorModel.getResource(), env.reason).then(values => {
 				for (const success of values) {
 					if (!success) {
-						return TPromise.wrapError('listener failed');
+						return TPromise.wrapError(new Error('listener failed'));
 					}
 				}
 				return undefined;

@@ -280,27 +280,32 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		this.activeTaskPromise = null;
 	}
 
-	private handleError(task: Task, error: ErrorData): Promise {
+	private handleError(task: Task, errorData: ErrorData): Promise {
 		let makeVisible = false;
-		if (error.error && !error.terminated) {
+		if (errorData.error && !errorData.terminated) {
 			let args: string = task.command.args ? task.command.args.join(' ') : '';
 			this.log(nls.localize('TaskRunnerSystem.childProcessError', 'Failed to launch external program {0} {1}.', task.command.name, args));
-			this.outputChannel.append(error.error.message);
+			this.outputChannel.append(errorData.error.message);
 			makeVisible = true;
 		}
 
-		if (error.stdout) {
-			this.outputChannel.append(error.stdout);
+		if (errorData.stdout) {
+			this.outputChannel.append(errorData.stdout);
 			makeVisible = true;
 		}
-		if (error.stderr) {
-			this.outputChannel.append(error.stderr);
+		if (errorData.stderr) {
+			this.outputChannel.append(errorData.stderr);
 			makeVisible = true;
 		}
-		makeVisible = this.checkTerminated(task, error) || makeVisible;
+		makeVisible = this.checkTerminated(task, errorData) || makeVisible;
 		if (makeVisible) {
 			this.showOutput();
 		}
+
+		const error: Error & ErrorData = errorData.error || new Error();
+		error.stderr = errorData.stderr;
+		error.stdout = errorData.stdout;
+		error.terminated = errorData.terminated;
 		return Promise.wrapError(error);
 	}
 

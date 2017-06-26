@@ -57,7 +57,7 @@ export function loadReleaseNotes(accessor: ServicesAccessor, version: string): T
 	const match = /^(\d+\.\d+)\./.exec(version);
 
 	if (!match) {
-		return TPromise.wrapError<string>('not found');
+		return TPromise.wrapError<string>(new Error('not found'));
 	}
 
 	const versionLabel = match[1].replace(/\./g, '_');

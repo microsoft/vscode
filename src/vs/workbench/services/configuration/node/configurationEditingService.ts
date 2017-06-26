@@ -27,7 +27,7 @@ import { IConfigurationService, IConfigurationOverrides } from 'vs/platform/conf
 import { keyFromOverrideIdentifier } from 'vs/platform/configuration/common/model';
 import { WORKSPACE_CONFIG_DEFAULT_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IConfigurationEditingService, ConfigurationEditingErrorCode, IConfigurationEditingError, ConfigurationTarget, IConfigurationValue, IConfigurationEditingOptions } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IConfigurationEditingService, ConfigurationEditingErrorCode, ConfigurationEditingError, ConfigurationTarget, IConfigurationValue, IConfigurationEditingOptions } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { IChoiceService, IMessageService, Severity } from 'vs/platform/message/common/message';
@@ -72,7 +72,10 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		return this.queue.queue(() => this.doWriteConfiguration(target, value, options) // queue up writes to prevent race conditions
 			.then(() => null,
 			error => {
-				return options.donotNotifyError ? TPromise.wrapError(error) : this.onError(error, target, value, options.scopes);
+				if (!options.donotNotifyError) {
+					this.onError(error, target, value, options.scopes);
+				}
+				return TPromise.wrapError(error);
 			}));
 	}
 
@@ -108,7 +111,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		return false;
 	}
 
-	private onError(error: IConfigurationEditingError, target: ConfigurationTarget, value: IConfigurationValue, scopes: IConfigurationOverrides): TPromise<IConfigurationEditingError> {
+	private onError(error: ConfigurationEditingError, target: ConfigurationTarget, value: IConfigurationValue, scopes: IConfigurationOverrides): void {
 		switch (error.code) {
 			case ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION:
 				this.onInvalidConfigurationError(error, target);
@@ -119,10 +122,9 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 			default:
 				this.messageService.show(Severity.Error, error.message);
 		}
-		return TPromise.wrapError(error);
 	}
 
-	private onInvalidConfigurationError(error: IConfigurationEditingError, target: ConfigurationTarget): void {
+	private onInvalidConfigurationError(error: ConfigurationEditingError, target: ConfigurationTarget): void {
 		this.choiceService.choose(Severity.Error, error.message, [nls.localize('open', "Open Settings"), nls.localize('close', "Close")], 1)
 			.then(option => {
 				switch (option) {
@@ -132,7 +134,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 			});
 	}
 
-	private onConfigurationFileDirtyError(error: IConfigurationEditingError, target: ConfigurationTarget, value: IConfigurationValue, scopes: IConfigurationOverrides): void {
+	private onConfigurationFileDirtyError(error: ConfigurationEditingError, target: ConfigurationTarget, value: IConfigurationValue, scopes: IConfigurationOverrides): void {
 		this.choiceService.choose(Severity.Error, error.message, [nls.localize('saveAndRetry', "Save Settings and Retry"), nls.localize('open', "Open Settings"), nls.localize('close', "Close")], 2)
 			.then(option => {
 				switch (option) {
@@ -150,14 +152,10 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		this.commandService.executeCommand(ConfigurationTarget.USER === target ? 'workbench.action.openGlobalSettings' : 'workbench.action.openWorkspaceSettings');
 	}
 
-	private wrapError(code: ConfigurationEditingErrorCode, target: ConfigurationTarget): TPromise<any> {
+	private wrapError(code: ConfigurationEditingErrorCode, target: ConfigurationTarget): TPromise<never> {
 		const message = this.toErrorMessage(code, target);
 
-		return TPromise.wrapError<IConfigurationEditingError>({
-			code,
-			message,
-			toString: () => message
-		});
+		return TPromise.wrapError<never>(new ConfigurationEditingError(message, code));
 	}
 
 	private toErrorMessage(error: ConfigurationEditingErrorCode, target: ConfigurationTarget): string {
