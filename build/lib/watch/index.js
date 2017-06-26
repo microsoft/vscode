@@ -17,9 +17,9 @@ function handleDeletions() {
 	});
 }
 
-const disableNewWatcher = process.env['VSCODE_DISABLE_NEW_WATCHER'];
+const useLegacyWatch = process.env['VSCODE_USE_LEGACY_WATCH'];
 
-const watch = !disableNewWatcher ?
+const watch = !useLegacyWatch ?
 	require('./watch-nsfw')
 	: process.platform === 'win32'
 		? require('./watch-win32')
