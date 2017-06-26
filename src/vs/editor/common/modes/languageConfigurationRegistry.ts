@@ -456,7 +456,7 @@ export class LanguageConfigurationRegistryImpl {
 		return null;
 	}
 
-	public getIndentForEnter(model: ITokenizedModel, range: Range, indentConverter: IIndentConverter): { beforeEnter: string, afterEnter: string } {
+	public getIndentForEnter(model: ITokenizedModel, range: Range, indentConverter: IIndentConverter, autoIndent: boolean): { beforeEnter: string, afterEnter: string } {
 		model.forceTokenization(range.startLineNumber);
 		let lineTokens = model.getLineTokens(range.startLineNumber);
 
@@ -487,19 +487,24 @@ export class LanguageConfigurationRegistryImpl {
 			return null;
 		}
 
-		let beforeEnterIndentAction = this.getInheritIndentForLine(model, range.startLineNumber);
+		let beforeEnterResult = beforeEnterText;
 		let beforeEnterIndent = strings.getLeadingWhitespace(beforeEnterText);
 
-		if (indentRulesSupport.shouldDecrease(beforeEnterText)) {
-			if (beforeEnterIndentAction) {
-				beforeEnterIndent = beforeEnterIndentAction.indentation;
-				if (beforeEnterIndentAction.action !== IndentAction.Indent) {
-					beforeEnterIndent = indentConverter.unshiftIndent(beforeEnterIndent);
+		if (!autoIndent) {
+			let beforeEnterIndentAction = this.getInheritIndentForLine(model, range.startLineNumber);
+			let beforeEnterIndent = strings.getLeadingWhitespace(beforeEnterText);
+
+			if (indentRulesSupport.shouldDecrease(beforeEnterText)) {
+				if (beforeEnterIndentAction) {
+					beforeEnterIndent = beforeEnterIndentAction.indentation;
+					if (beforeEnterIndentAction.action !== IndentAction.Indent) {
+						beforeEnterIndent = indentConverter.unshiftIndent(beforeEnterIndent);
+					}
 				}
 			}
-		}
 
-		let beforeEnterResult = beforeEnterIndent + strings.ltrim(strings.ltrim(beforeEnterText, ' '), '\t');
+			beforeEnterResult = beforeEnterIndent + strings.ltrim(strings.ltrim(beforeEnterText, ' '), '\t');
+		}
 
 		let virtualModel: IVirtualModel = {
 			getLineTokens: (lineNumber: number) => {

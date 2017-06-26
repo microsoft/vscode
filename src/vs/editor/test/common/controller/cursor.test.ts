@@ -2274,20 +2274,20 @@ suite('Editor Controller - Indentation Rules', () => {
 		});
 	});
 
-	test('Enter honors decreaseIndentPattern', () => {
+	test('Type honors decreaseIndentPattern', () => {
 		usingCursor({
 			text: [
 				'if (true) {',
-				'\t}'
+				'\t'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
-			moveTo(cursor, 2, 3, false);
-			assertCursor(cursor, new Selection(2, 3, 2, 3));
+			moveTo(cursor, 2, 2, false);
+			assertCursor(cursor, new Selection(2, 2, 2, 2));
 
-			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
-			assertCursor(cursor, new Selection(3, 1, 3, 1));
+			cursorCommand(cursor, H.Type, { text: '}' }, 'keyboard');
+			assertCursor(cursor, new Selection(2, 2, 2, 2));
 			assert.equal(model.getLineContent(2), '}', '001');
 		});
 	});
@@ -2365,46 +2365,6 @@ suite('Editor Controller - Indentation Rules', () => {
 		model.dispose();
 	});
 
-	test('Enter adjusts indentation of current line 1', () => {
-		usingCursor({
-			text: [
-				'if (true) {',
-				'\tif (true) {',
-				'\t\treturn true;',
-				'\t\t}}'
-			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
-		}, (model, cursor) => {
-			moveTo(cursor, 4, 4, false);
-			assertCursor(cursor, new Selection(4, 4, 4, 4));
-
-			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
-			assertCursor(cursor, new Selection(5, 1, 5, 1));
-			assert.equal(model.getLineContent(4), '\t}', '001');
-		});
-	});
-
-	test('Enter adjusts indentation of current line 2', () => {
-		usingCursor({
-			text: [
-				'if (true) {',
-				'\tif (true) {',
-				'\t\treturn true;',
-				'}}'
-			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
-		}, (model, cursor) => {
-			moveTo(cursor, 4, 2, false);
-			assertCursor(cursor, new Selection(4, 2, 4, 2));
-
-			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
-			assertCursor(cursor, new Selection(5, 1, 5, 1));
-			assert.equal(model.getLineContent(4), '\t}', '001');
-		});
-	});
-
 	test('Enter honors intential indent', () => {
 		usingCursor({
 			text: [
@@ -2431,14 +2391,14 @@ suite('Editor Controller - Indentation Rules', () => {
 				'if (true) {',
 				'\tif (true) {',
 				'\t\treturn true;',
-				'\t\t}a}'
+				'\t}a}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
-			moveTo(cursor, 4, 4, false);
-			moveTo(cursor, 4, 5, true);
-			assertCursor(cursor, new Selection(4, 4, 4, 5));
+			moveTo(cursor, 4, 3, false);
+			moveTo(cursor, 4, 4, true);
+			assertCursor(cursor, new Selection(4, 3, 4, 4));
 
 			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
 			assertCursor(cursor, new Selection(5, 1, 5, 1));

@@ -306,7 +306,7 @@ export class TypeOperations {
 			normalizeIndentation: (indent) => {
 				return config.normalizeIndentation(indent);
 			}
-		});
+		}, config.autoIndent);
 
 		let lineText = model.getLineContent(range.startLineNumber);
 		let indentation = strings.getLeadingWhitespace(lineText).substring(0, range.startColumn - 1);
