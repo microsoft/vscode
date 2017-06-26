@@ -56,6 +56,5 @@
 	"LegacyProblemMatcherSchema.watchedBegin": "Uma expressão regular sinalizando que uma tarefa observada é ativada através da observação.",
 	"LegacyProblemMatcherSchema.watchedEnd.deprecated": "Esta propriedade está descontinuada. Ao invés, use a propriedade de observação.",
 	"LegacyProblemMatcherSchema.watchedEnd": "Uma expressão regular sinalizando que uma tarefa observada terminou a execução.",
-	"NamedProblemMatcherSchema.name": "O nome do correspondente do problema.",
 	"ProblemMatcherExtPoint": "Contribui aos correspondentes de problema"
 }

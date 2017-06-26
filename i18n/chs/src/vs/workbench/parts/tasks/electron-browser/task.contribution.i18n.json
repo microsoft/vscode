@@ -19,8 +19,6 @@
 	"manyMarkers": "99+",
 	"tasks": "任务",
 	"TaskSystem.noHotSwap": "更改任务执行引擎需要重启 VS Code。已忽略更改。",
-	"TaskService.noBuildTask": "未定义任何生成任务。使用 \"isBuildCommand\" 在 tasks.json 文件中标记任务。",
-	"TaskService.noTestTask": "未定义任何测试任务。使用 \"isTestCommand\" 在 tasks.json 文件中标记任务。",
 	"TaskServer.noTask": "未找到要执行的请求任务 {0}。",
 	"customizeParseErrors": "当前任务配置存在错误。请先更正错误，再自定义任务。",
 	"moreThanOneBuildTask": "当前 tasks.json 中定义了多个生成任务。正在执行第一个。\n",

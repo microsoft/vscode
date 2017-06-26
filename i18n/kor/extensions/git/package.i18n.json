@@ -44,6 +44,5 @@
 	"config.checkoutType": "`다음으로 체크 아웃...`을 실행할 때 나열되는 분기 유형을 제어합니다. `all`이면 모든 참조를 표시하고, `local`이면 로컬 분기만 표시하고, `tags`이면 태그만 표시하고, `remote`이면 원격 분기만 표시합니다.",
 	"config.ignoreLegacyWarning": "레거시 Git 경고를 무시합니다.",
 	"config.ignoreLimitWarning": "리포지토리에 변경 내용이 너무 많으면 경고를 무시합니다.",
-	"config.defaultCloneDirectory": "git 리포지토리를 복제할 기본 위치",
-	"config.enableSmartCommit": "단계적 변경 사항이 없는 경우 모든 변경 사항을 저장합니다."
+	"config.defaultCloneDirectory": "git 리포지토리를 복제할 기본 위치"
 }

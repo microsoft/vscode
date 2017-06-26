@@ -19,8 +19,6 @@
 	"manyMarkers": "99+",
 	"tasks": "Feladatok",
 	"TaskSystem.noHotSwap": "A feladatvégrehajtó motor megváltoztatása a VS Code újraindítását igényli. A módosítás figyelmen kívül van hagyva.",
-	"TaskService.noBuildTask": "Nincs buildelési feladat definiálva. Jelöljön meg egy feladatot az  'isBuildCommand' tulajdonsággal a tasks.json fájlban.",
-	"TaskService.noTestTask": "Nincs tesztelési feladat definiálva. Jelöljön meg egy feladatot az 'isTestCommand' tulajdonsággal a tasks.json fájlban.",
 	"TaskServer.noTask": "A futtatni kívánt feladat ({0}) nem található.",
 	"customizeParseErrors": "A jelenlegi feladatkonfigurációban hibák vannak. Feladat egyedivé tétele előtt javítsa a hibákat!",
 	"moreThanOneBuildTask": "Túl sok buildelési feladat van definiálva a tasks.json-ban. Az első lesz végrehajtva.\n",

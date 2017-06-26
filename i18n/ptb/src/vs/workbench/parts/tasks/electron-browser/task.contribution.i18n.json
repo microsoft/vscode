@@ -19,8 +19,6 @@
 	"manyMarkers": "99+",
 	"tasks": "Tarefas",
 	"TaskSystem.noHotSwap": "Alterar o mecanismo de execução de tarefa requer reiniciar o VS Code. A alteração será ignorada.",
-	"TaskService.noBuildTask": "Nenhuma tarefa de compilação definida. Marque uma tarefa com 'isBuildCommand' no arquivo tasks.json.",
-	"TaskService.noTestTask": "Nenhuma tarefa de teste definida. Marque uma tarefa com 'isTestCommand' no arquivo tasks.json.",
 	"TaskServer.noTask": "Tarefa {0} requisitada para execução não encontrada.",
 	"customizeParseErrors": "A configuração da tarefa atual tem erros. Por favor, corrija os erros primeiro antes de personalizar uma tarefa.",
 	"moreThanOneBuildTask": "Há muitas tarefas de compilação definidas em tasks.json. Executando a primeira.\n",

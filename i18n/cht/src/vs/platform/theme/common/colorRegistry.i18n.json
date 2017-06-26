@@ -61,7 +61,6 @@
 	"editorForeground": "編輯器的預設前景色彩。",
 	"editorWidgetBackground": "編輯器小工具的背景色彩，例如尋找/取代。",
 	"editorWidgetBorder": "編輯器小工具的邊界色彩。小工具選擇擁有邊界或色彩未被小工具覆寫時，才會使用色彩。",
-	"editorSelection": "編輯器選取範圍的色彩。",
 	"editorInactiveSelection": "非使用中之編輯器選取範圍的色彩。",
 	"editorSelectionHighlight": "選取時，內容相同之區域的色彩。",
 	"editorFindMatch": "符合目前搜尋的色彩。",

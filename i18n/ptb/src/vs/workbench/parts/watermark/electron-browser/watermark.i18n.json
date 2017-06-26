@@ -14,10 +14,6 @@
 	"watermark.toggleTerminal": "Alternar Terminal",
 	"watermark.findInFiles": "Localizar nos Arquivos",
 	"watermark.startDebugging": "Iniciar Depuração",
-	"watermark.selectTheme": "Mudar Tema",
-	"watermark.selectKeymap": "Mudar Mapa de Teclas",
-	"watermark.keybindingsReference": "Referência de Teclado",
-	"watermark.openGlobalKeybindings": "Atalhos de Teclado",
 	"watermark.unboundCommand": "não vinculado",
 	"workbenchConfigurationTitle": "Área de Trabalho",
 	"tips.enabled": "Quando habilitado, mostrará as dicas de marca d'água quando nenhum editor estiver aberto."

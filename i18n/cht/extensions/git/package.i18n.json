@@ -44,6 +44,5 @@
 	"config.checkoutType": "控制在執行 [簽出至...] 時，會列出那些類型的分支。[全部] 會顯示所有參考，[本機] 只會顯示本機分支，[標記] 只會顯示標記，[遠端] 只會顯示遠端分支。",
 	"config.ignoreLegacyWarning": "略過舊的 Git 警告",
 	"config.ignoreLimitWarning": "當儲存庫中有過多變更時，略過警告。",
-	"config.defaultCloneDirectory": "複製 Git 儲存庫的預設位置",
-	"config.enableSmartCommit": "無暫存變更時提交所有變更"
+	"config.defaultCloneDirectory": "複製 Git 儲存庫的預設位置"
 }

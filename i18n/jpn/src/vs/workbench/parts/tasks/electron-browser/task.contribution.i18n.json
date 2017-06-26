@@ -19,8 +19,6 @@
 	"manyMarkers": "99+",
 	"tasks": "タスク",
 	"TaskSystem.noHotSwap": "タスク実行エンジンを変更するには VS Code の再起動が必要です。変更は無視されます。",
-	"TaskService.noBuildTask": "ビルド タスクが定義されていません。tasks.json ファイルでタスクに 'isBuildCommand' というマークを付けてください。",
-	"TaskService.noTestTask": "テスト タスクが定義されていません。tasks.json ファイルでタスクに 'isTestCommand' というマークを付けてください。",
 	"TaskServer.noTask": "実行が要求されたタスク {0} が見つかりません。",
 	"customizeParseErrors": "現在のタスクの構成にはエラーがあります。タスクをカスタマイズする前にエラーを修正してください。",
 	"moreThanOneBuildTask": "tasks.json で複数のビルド タスクが定義されています。最初のタスクのみを実行します。\\n",

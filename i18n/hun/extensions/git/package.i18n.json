@@ -44,6 +44,5 @@
 	"config.checkoutType": "Meghatározza, hogy milyen típusú ágak jelenjenek meg a `Checkout adott helyről... ` parancs futtatása esetén. Az  `all` esetén az összes ref megjelenik, `local` esetén csak a helyi ágak, `tags` esetén csak a címkék, `remote` esetén pedig csak a távoli ágak.",
 	"config.ignoreLegacyWarning": "Régi gittel kapcsolatos figyelmeztetés figyelmen kívül hagyása",
 	"config.ignoreLimitWarning": "Túl sok módosítás esetén megjelenő figyelmeztetés figyelmen kívül hagyása",
-	"config.defaultCloneDirectory": "Git-forráskódtárak klónozásának alapértelmezett helye.",
-	"config.enableSmartCommit": "Összes módosítás beadása (commit), ha nincsenek előjegyzett módosítások."
+	"config.defaultCloneDirectory": "Git-forráskódtárak klónozásának alapértelmezett helye."
 }

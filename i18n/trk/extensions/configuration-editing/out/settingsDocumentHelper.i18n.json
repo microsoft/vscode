@@ -7,7 +7,6 @@
 	"activeEditorShort": "ör. myFile.txt",
 	"activeEditorMedium": "ör. myFolder/myFile.txt",
 	"activeEditorLong": "ör. /Users/Development/myProject/myFolder/myFile.txt",
-	"rootName": "ör. myProject",
 	"rootPath": "ör. /Users/Development/myProject",
 	"appName": "ör. VS Code",
 	"dirty": "değişiklik göstergesi, aktif düzenleyici kaydedilmemiş değişiklikler içeriyorsa",

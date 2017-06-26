@@ -27,6 +27,5 @@
 	"DownloadUpdate": "下载可用更新",
 	"DownloadingUpdate": "正在下载更新...",
 	"InstallingUpdate": "正在安装更新...",
-	"restartToUpdate": "重启以更新...",
 	"checkForUpdates": "检查更新..."
 }
