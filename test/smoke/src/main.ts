@@ -79,8 +79,7 @@ function fail(errorMessage): void {
 
 function runTests(): void {
 	console.log('Running tests...');
-	const spawn = require('child_process').spawn;
-	var proc = spawn(process.execPath, [
+	var proc = child_process.spawn(process.execPath, [
 		'out/mocha-runner.js'
 	]);
 	proc.stdout.on('data', data => {
@@ -101,41 +100,52 @@ function runTests(): void {
 
 function cleanOrClone(repo: string, dir: string): Promise<any> {
 	console.log('Cleaning or cloning test project repository...');
-	return new Promise((res, rej) => {
+
+	return new Promise(async (res, rej) => {
 		if (!folderExists(dir)) {
-			git.clone(repo, dir, () => {
-				console.log('Test repository successfully cloned.');
-				res();
-			});
+			await gitClone(repo, dir);
+			res();
 		} else {
 			git.cwd(dir);
-			git.fetch(err => {
+			git.fetch(async err => {
 				if (err) {
 					rej(err);
 				}
-				resetAndClean();
+				await gitResetAndClean();
+				res();
 			});
 		}
-
-		var resetAndClean = () => {
-			git.reset(['FETCH_HEAD', '--hard'], err => {
-				if (err) {
-					rej(err);
-				}
-
-				git.clean('f', ['-d'], err => {
-					if (err) {
-						rej(err);
-					}
-					console.log('Test project was successfully reset to initial state.');
-					res();
-				});
-			});
-		};
 	});
 }
 
-function execute(cmd, dir): Promise<any> {
+function gitClone(repo: string, dir: string): Promise<any> {
+	return new Promise((res, rej) => {
+		git.clone(repo, dir, () => {
+			console.log('Test repository successfully cloned.');
+			res();
+		});
+	});
+}
+
+function gitResetAndClean(): Promise<any> {
+	return new Promise((res, rej) => {
+		git.reset(['FETCH_HEAD', '--hard'], err => {
+			if (err) {
+				rej(err);
+			}
+
+			git.clean('f', ['-d'], err => {
+				if (err) {
+					rej(err);
+				}
+				console.log('Test project was successfully reset to initial state.');
+				res();
+			});
+		});
+	});
+}
+
+function execute(cmd: string, dir: string): Promise<any> {
 	return new Promise((res, rej) => {
 		console.log(`Running ${cmd}...`);
 		child_process.exec(cmd, { cwd: dir, stdio: [0, 1, 2] }, (error, stdout, stderr) => {
