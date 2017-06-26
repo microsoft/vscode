@@ -816,6 +816,10 @@ class TaskService extends EventEmitter implements ITaskService {
 		});
 	}
 
+	public canCustomize(): boolean {
+		return this.getJsonSchemaVersion() === JsonSchemaVersion.V2_0_0;
+	}
+
 	public customize(task: Task, properties?: { problemMatcher: string | string[] }, openConfig?: boolean): TPromise<void> {
 		if (!ContributedTask.is(task)) {
 			return TPromise.as<void>(undefined);
