@@ -654,9 +654,18 @@ export class Repository {
 		await this.run(args);
 	}
 
-	async merge(name: string): Promise<void> {
-		const args = ['merge', name];
-		await this.run(args);
+	async merge(ref: string): Promise<void> {
+		const args = ['merge', ref];
+
+		try {
+			await this.run(args);
+		} catch (err) {
+			if (/^CONFLICT /m.test(err.stdout || '')) {
+				err.gitErrorCode = GitErrorCodes.Conflict;
+			}
+
+			throw err;
+		}
 	}
 
 	async clean(paths: string[]): Promise<void> {

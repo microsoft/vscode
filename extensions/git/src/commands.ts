@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn } from 'vscode';
-import { Ref, RefType, Git, GitErrorCodes } from './git';
+import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
 import { Model, Resource, Status, CommitOptions, WorkingTreeGroup, IndexGroup, MergeGroup } from './model';
 import { toGitUri, fromGitUri } from './uri';
 import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange } from './staging';
@@ -85,7 +85,7 @@ class MergeItem implements QuickPickItem {
 	constructor(protected ref: Ref) { }
 
 	async run(model: Model): Promise<void> {
-		await model.merge(this.ref.name);
+		await model.merge(this.ref.name! || this.ref.commit!);
 	}
 }
 
@@ -783,10 +783,12 @@ export class CommandCenter {
 		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
 
 		const heads = this.model.refs.filter(ref => ref.type === RefType.Head)
-			.map(ref => new MergeItem(ref));
+			.filter(ref => ref.name || ref.commit)
+			.map(ref => new MergeItem(ref as Branch));
 
 		const remoteHeads = (includeRemotes ? this.model.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
-			.map(ref => new MergeItem(ref));
+			.filter(ref => ref.name || ref.commit)
+			.map(ref => new MergeItem(ref as Branch));
 
 		const picks = [...heads, ...remoteHeads];
 		const placeHolder = localize('select a branch to merge from', 'Select a branch to merge from');
@@ -796,7 +798,16 @@ export class CommandCenter {
 			return;
 		}
 
-		await choice.run(this.model);
+		try {
+			await choice.run(this.model);
+		} catch (err) {
+			if (err.gitErrorCode !== GitErrorCodes.Conflict) {
+				throw err;
+			}
+
+			const message = localize('merge conflicts', "There are merge conflicts. Resolve them before committing.");
+			await window.showWarningMessage(message);
+		}
 	}
 
 	@command('git.pull')

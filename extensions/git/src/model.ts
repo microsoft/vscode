@@ -461,8 +461,8 @@ export class Model implements Disposable {
 		await this.run(Operation.DeleteBranch, () => this.repository.deleteBranch(name, force));
 	}
 
-	async merge(name: string): Promise<void> {
-		await this.run(Operation.Merge, () => this.repository.merge(name));
+	async merge(ref: string): Promise<void> {
+		await this.run(Operation.Merge, () => this.repository.merge(ref));
 	}
 
 	async checkout(treeish: string): Promise<void> {
