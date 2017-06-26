@@ -822,7 +822,7 @@ export class DebugService implements debug.IDebugService {
 					watchExpressionsCount: this.model.getWatchExpressions().length,
 					extensionName: `${adapter.extensionDescription.publisher}.${adapter.extensionDescription.name}`,
 					isBuiltin: adapter.extensionDescription.isBuiltin,
-					launchJsonExists: !!this.configurationService.getConfiguration<debug.IGlobalConfig>('launch')
+					launchJsonExists: this.contextService.getWorkspace() && !!this.configurationService.getConfiguration<debug.IGlobalConfig>('launch', { resource: this.contextService.getWorkspace().resource })
 				});
 			}).then(() => process, (error: any) => {
 				if (error instanceof Error && error.message === 'Canceled') {
