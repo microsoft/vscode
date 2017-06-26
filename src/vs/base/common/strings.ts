@@ -339,11 +339,11 @@ export function compareIgnoreCase(a: string, b: string): number {
 		}
 
 		if (isUpperAsciiLetter(codeA)) {
-			codeA -= 32;
+			codeA += 32;
 		}
 
 		if (isUpperAsciiLetter(codeB)) {
-			codeB -= 32;
+			codeB += 32;
 		}
 
 		const diff = codeA - codeB;
