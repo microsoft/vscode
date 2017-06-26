@@ -14,6 +14,7 @@ import { rtrim, endsWith } from "vs/base/common/strings";
 import { sep } from "vs/base/common/paths";
 
 export class FileWatcher {
+	private isDisposed: boolean;
 
 	constructor(
 		private contextService: IWorkspaceContextService,
@@ -38,15 +39,21 @@ export class FileWatcher {
 		const watcher = new OutOfProcessWin32FolderWatcher(
 			basePath,
 			this.ignored,
-			(events) => this.onRawFileEvents(events),
-			(error) => this.onError(error),
+			events => this.onRawFileEvents(events),
+			error => this.onError(error),
 			this.verboseLogging
 		);
 
-		return () => watcher.dispose();
+		return () => {
+			this.isDisposed = true;
+			watcher.dispose();
+		};
 	}
 
 	private onRawFileEvents(events: IRawFileChange[]): void {
+		if (this.isDisposed) {
+			return;
+		}
 
 		// Emit through broadcast service
 		if (events.length > 0) {
@@ -55,6 +62,8 @@ export class FileWatcher {
 	}
 
 	private onError(error: string): void {
-		this.errorLogger(error);
+		if (!this.isDisposed) {
+			this.errorLogger(error);
+		}
 	}
 }

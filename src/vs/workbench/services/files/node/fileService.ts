@@ -89,6 +89,9 @@ export class FileService implements IFileService {
 	private fileChangesWatchDelayer: ThrottledDelayer<void>;
 	private undeliveredRawFileChangesEvents: IRawFileChange[];
 
+	private activeWorkspaceChangeWatcher: IDisposable;
+	private currentWorkspaceRootsCount: number;
+
 	constructor(
 		private contextService: IWorkspaceContextService,
 		private configurationService: IConfigurationService,
@@ -97,6 +100,7 @@ export class FileService implements IFileService {
 		this.toDispose = [];
 		this.options = options || Object.create(null);
 		this.tmpPath = this.options.tmpDir || os.tmpdir();
+		this.currentWorkspaceRootsCount = contextService.hasWorkspace() ? contextService.getWorkspace2().roots.length : 0;
 
 		this._onFileChanges = new Emitter<FileChangesEvent>();
 		this.toDispose.push(this._onFileChanges);
@@ -108,26 +112,36 @@ export class FileService implements IFileService {
 			this.options.errorLogger = console.error;
 		}
 
-		if (contextService.hasWorkspace() && !this.options.disableWatcher) {
-
-			// new watcher: use it if setting tells us so or we run in multi-root environment
-			if (this.options.useExperimentalFileWatcher || contextService.getWorkspace2().roots.length > 1) {
-				this.setupNsfwWorkspceWatching();
-			}
-
-			// old watcher
-			else {
-				if (isWindows) {
-					this.setupWin32WorkspaceWatching();
-				} else {
-					this.setupUnixWorkspaceWatching();
-				}
-			}
+		if (this.currentWorkspaceRootsCount > 0 && !this.options.disableWatcher) {
+			this.setupWorkspaceWatching();
 		}
 
 		this.activeFileChangesWatchers = new ResourceMap<fs.FSWatcher>();
 		this.fileChangesWatchDelayer = new ThrottledDelayer<void>(FileService.FS_EVENT_DELAY);
 		this.undeliveredRawFileChangesEvents = [];
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.toDispose.push(this.contextService.onDidChangeWorkspaceRoots(() => this.onDidChangeWorkspaceRoots()));
+	}
+
+	private onDidChangeWorkspaceRoots(): void {
+		const newRootCount = this.contextService.hasWorkspace() ? this.contextService.getWorkspace2().roots.length : 0;
+
+		let restartWorkspaceWatcher = false;
+		if (this.currentWorkspaceRootsCount <= 1 && newRootCount > 1) {
+			restartWorkspaceWatcher = true; // transition: from 1 or 0 folders to 2+
+		} else if (this.currentWorkspaceRootsCount > 1 && newRootCount <= 1) {
+			restartWorkspaceWatcher = true; // transition: from 2+ folders to 1 or 0
+		}
+
+		if (restartWorkspaceWatcher) {
+			this.setupWorkspaceWatching();
+		}
+
+		this.currentWorkspaceRootsCount = newRootCount;
 	}
 
 	public get onFileChanges(): Event<FileChangesEvent> {
@@ -144,16 +158,38 @@ export class FileService implements IFileService {
 		}
 	}
 
-	private setupWin32WorkspaceWatching(): void {
-		this.toDispose.push(toDisposable(new WindowsWatcherService(this.contextService, this.options.watcherIgnoredPatterns, e => this._onFileChanges.fire(e), this.options.errorLogger, this.options.verboseLogging).startWatching()));
+	private setupWorkspaceWatching(): void {
+
+		// dispose old if any
+		if (this.activeWorkspaceChangeWatcher) {
+			this.activeWorkspaceChangeWatcher.dispose();
+		}
+
+		// new watcher: use it if setting tells us so or we run in multi-root environment
+		if (this.options.useExperimentalFileWatcher || this.contextService.getWorkspace2().roots.length > 1) {
+			this.activeWorkspaceChangeWatcher = toDisposable(this.setupNsfwWorkspaceWatching().startWatching());
+		}
+
+		// old watcher
+		else {
+			if (isWindows) {
+				this.activeWorkspaceChangeWatcher = toDisposable(this.setupWin32WorkspaceWatching().startWatching());
+			} else {
+				this.activeWorkspaceChangeWatcher = toDisposable(this.setupUnixWorkspaceWatching().startWatching());
+			}
+		}
 	}
 
-	private setupUnixWorkspaceWatching(): void {
-		this.toDispose.push(toDisposable(new UnixWatcherService(this.contextService, this.options.watcherIgnoredPatterns, e => this._onFileChanges.fire(e), this.options.errorLogger, this.options.verboseLogging).startWatching()));
+	private setupWin32WorkspaceWatching(): WindowsWatcherService {
+		return new WindowsWatcherService(this.contextService, this.options.watcherIgnoredPatterns, e => this._onFileChanges.fire(e), this.options.errorLogger, this.options.verboseLogging);
 	}
 
-	private setupNsfwWorkspceWatching(): void {
-		this.toDispose.push(toDisposable(new NsfwWatcherService(this.contextService, this.configurationService, e => this._onFileChanges.fire(e), this.options.errorLogger, this.options.verboseLogging).startWatching()));
+	private setupUnixWorkspaceWatching(): UnixWatcherService {
+		return new UnixWatcherService(this.contextService, this.options.watcherIgnoredPatterns, e => this._onFileChanges.fire(e), this.options.errorLogger, this.options.verboseLogging);
+	}
+
+	private setupNsfwWorkspaceWatching(): NsfwWatcherService {
+		return new NsfwWatcherService(this.contextService, this.configurationService, e => this._onFileChanges.fire(e), this.options.errorLogger, this.options.verboseLogging);
 	}
 
 	public resolveFile(resource: uri, options?: IResolveFileOptions): TPromise<IFileStat> {
@@ -786,6 +822,11 @@ export class FileService implements IFileService {
 
 	public dispose(): void {
 		this.toDispose = dispose(this.toDispose);
+
+		if (this.activeWorkspaceChangeWatcher) {
+			this.activeWorkspaceChangeWatcher.dispose();
+			this.activeWorkspaceChangeWatcher = null;
+		}
 
 		this.activeFileChangesWatchers.forEach(watcher => watcher.close());
 		this.activeFileChangesWatchers.clear();
