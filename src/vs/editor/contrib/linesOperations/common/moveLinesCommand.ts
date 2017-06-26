@@ -8,7 +8,7 @@ import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel } from 'vs/editor/common/editorCommon';
-import { LanguageConfigurationRegistry, IndentConverter } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { LanguageConfigurationRegistry, IIndentConverter } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import * as IndentUtil from 'vs/editor/contrib/indentation/common/indentUtils';
 import { IndentAction } from 'vs/editor/common/modes/languageConfiguration';
@@ -212,7 +212,7 @@ export class MoveLinesCommand implements ICommand {
 		this._selectionId = builder.trackSelection(s);
 	}
 
-	private buildIndentConverter(tabSize: number): IndentConverter {
+	private buildIndentConverter(tabSize: number): IIndentConverter {
 		return {
 			shiftIndent: (indentation) => {
 				let desiredIndentCount = ShiftCommand.shiftIndentCount(indentation, indentation.length + 1, tabSize);
@@ -244,7 +244,7 @@ export class MoveLinesCommand implements ICommand {
 				break;
 			}
 			oneLineAbove--;
-	}
+		}
 
 		if (oneLineAbove < 1 || line > model.getLineCount()) {
 			return null;
