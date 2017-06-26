@@ -115,6 +115,27 @@ export class SelectAllTerminalAction extends Action {
 	}
 }
 
+export class DeleteWordTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.deleteWord';
+	public static LABEL = nls.localize('workbench.action.terminal.deleteWord', "Delete Word");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		let terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance) {
+			terminalInstance.sendText(String.fromCharCode(87 - 64), false);
+		}
+		return TPromise.as(void 0);
+	}
+}
+
 export class CreateNewTerminalAction extends Action {
 
 	public static ID = 'workbench.action.terminal.new';
