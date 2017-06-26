@@ -235,7 +235,17 @@ export class MoveLinesCommand implements ICommand {
 		};
 	}
 
-	private matchEnterRule(model: ITokenizedModel, oneLineAbove: number, line: number, indentConverter: IndentConverter, tabSize: number) {
+	private matchEnterRule(model: ITokenizedModel, oneLineAbove: number, line: number, indentConverter: IIndentConverter, tabSize: number) {
+		while (oneLineAbove >= 1) {
+			// ship empty lines as empty lines just inherit indentation
+			let lineContent = model.getLineContent(oneLineAbove);
+			let nonWhitespaceIdx = strings.lastNonWhitespaceIndex(lineContent);
+			if (nonWhitespaceIdx >= 0) {
+				break;
+			}
+			oneLineAbove--;
+	}
+
 		if (oneLineAbove < 1 || line > model.getLineCount()) {
 			return null;
 		}
