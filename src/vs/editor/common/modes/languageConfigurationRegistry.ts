@@ -592,6 +592,19 @@ export class LanguageConfigurationRegistryImpl {
 		return null;
 	}
 
+	public getIndentMetadata(model: ITokenizedModel, lineNumber: number): number {
+		let indentRulesSupport = this._getIndentRulesSupport(model.getLanguageIdentifier().id);
+		if (!indentRulesSupport) {
+			return null;
+		}
+
+		if (lineNumber < 1 || lineNumber > model.getLineCount()) {
+			return null;
+		}
+
+		return indentRulesSupport.getIndentMetadata(model.getLineContent(lineNumber));
+	}
+
 	// end Indent Rules
 
 	// begin onEnter

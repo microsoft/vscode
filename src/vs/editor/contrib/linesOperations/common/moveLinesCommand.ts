@@ -12,6 +12,7 @@ import { LanguageConfigurationRegistry, IIndentConverter } from 'vs/editor/commo
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import * as IndentUtil from 'vs/editor/contrib/indentation/common/indentUtils';
 import { IndentAction } from 'vs/editor/common/modes/languageConfiguration';
+import { IndentConsts } from 'vs/editor/common/modes/supports/indentRules';
 
 export class MoveLinesCommand implements ICommand {
 
@@ -267,7 +268,7 @@ export class MoveLinesCommand implements ICommand {
 			} else if (enterAction.indentAction === IndentAction.Indent) {
 				enterPrefix = enter.indentation + enterAction.appendText;
 			} else if (enterAction.indentAction === IndentAction.IndentOutdent) {
-				enterPrefix = indentConverter.shiftIndent(enter.indentation) + enterAction.appendText;
+				enterPrefix = enter.indentation;
 			} else if (enterAction.indentAction === IndentAction.Outdent) {
 				enterPrefix = indentConverter.unshiftIndent(enter.indentation) + enterAction.appendText;
 			}
@@ -275,6 +276,10 @@ export class MoveLinesCommand implements ICommand {
 			if (this.trimLeft(movingLineText).indexOf(this.trimLeft(enterPrefix)) >= 0) {
 				let oldIndentation = strings.getLeadingWhitespace(model.getLineContent(line));
 				let newIndentation = strings.getLeadingWhitespace(enterPrefix);
+				let indentMetadataOfMovelingLine = LanguageConfigurationRegistry.getIndentMetadata(model, line);
+				if (indentMetadataOfMovelingLine & IndentConsts.DECREASE_MASK) {
+					newIndentation = indentConverter.unshiftIndent(newIndentation);
+				}
 				let newSpaceCnt = IndentUtil.getSpaceCnt(newIndentation, tabSize);
 				let oldSpaceCnt = IndentUtil.getSpaceCnt(oldIndentation, tabSize);
 				return newSpaceCnt - oldSpaceCnt;
