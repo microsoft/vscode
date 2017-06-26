@@ -6,10 +6,10 @@ import * as vscode from 'vscode';
 import * as interfaces from './interfaces';
 import { DocumentMergeConflict } from './documentMergeConflict';
 
-const startHeaderMarker = '<<<<<<< ';
-const commonAncestorsMarker = '||||||| ';
+const startHeaderMarker = '<<<<<<<';
+const commonAncestorsMarker = '|||||||';
 const splitterMarker = '=======';
-const endFooterMarker = '>>>>>>> ';
+const endFooterMarker = '>>>>>>>';
 
 interface IScanMergedConflict {
 	startHeader: vscode.TextLine;
@@ -107,7 +107,7 @@ export class MergeConflictParser {
 				content: new vscode.Range(
 					scanned.startHeader.rangeIncludingLineBreak.end,
 					tokenAfterCurrentBlock.range.start),
-				name: scanned.startHeader.text.substring(startHeaderMarker.length)
+				name: scanned.startHeader.text.substring(startHeaderMarker.length + 1)
 			},
 			commonAncestors: scanned.commonAncestors.map((currentTokenLine, index, commonAncestors) => {
 				let nextTokenLine = commonAncestors[index + 1] || scanned.splitter;
@@ -121,7 +121,7 @@ export class MergeConflictParser {
 					content: new vscode.Range(
 						currentTokenLine.rangeIncludingLineBreak.end,
 						nextTokenLine.range.start),
-					name: currentTokenLine.text.substring(commonAncestorsMarker.length)
+					name: currentTokenLine.text.substring(commonAncestorsMarker.length + 1)
 				};
 			}),
 			splitter: scanned.splitter.range,
@@ -134,7 +134,7 @@ export class MergeConflictParser {
 				content: new vscode.Range(
 					scanned.splitter.rangeIncludingLineBreak.end,
 					scanned.endFooter.range.start),
-				name: scanned.endFooter.text.substring(endFooterMarker.length)
+				name: scanned.endFooter.text.substring(endFooterMarker.length + 1)
 			},
 			// Entire range is between current header start and incoming header end (including line break)
 			range: new vscode.Range(scanned.startHeader.range.start, scanned.endFooter.rangeIncludingLineBreak.end)
