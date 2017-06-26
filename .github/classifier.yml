@@ -25,6 +25,6 @@
         search: [ roblourens ],
         tasks: [],
         typescript: [],
-        workbench: [],
+        workbench: [ bpasero ],
     }
 }
