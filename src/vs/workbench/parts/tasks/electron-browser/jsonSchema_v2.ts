@@ -245,9 +245,14 @@ definitions.commandConfiguration.properties.isShellCommand = Objects.deepClone(s
 definitions.options.properties.shell = {
 	$ref: '#/definitions/shellConfiguration'
 };
+
 definitions.taskRunnerConfiguration.properties.isShellCommand = Objects.deepClone(shellCommand);
 definitions.taskRunnerConfiguration.properties.type = Objects.deepClone(taskType);
 definitions.taskRunnerConfiguration.properties.version = Objects.deepClone(version);
+let osSpecificTaskRunnerConfiguration = Objects.deepClone(definitions.taskRunnerConfiguration);
+delete osSpecificTaskRunnerConfiguration.properties.tasks;
+osSpecificTaskRunnerConfiguration.additionalProperties = false;
+definitions.osSpecificTaskRunnerConfiguration = osSpecificTaskRunnerConfiguration;
 
 const schema: IJSONSchema = {
 	oneOf: [
@@ -259,15 +264,15 @@ const schema: IJSONSchema = {
 					properties: {
 						version: Objects.deepClone(version),
 						windows: {
-							'$ref': '#/definitions/taskRunnerConfiguration',
+							'$ref': '#/definitions/osSpecificTaskRunnerConfiguration',
 							'description': nls.localize('JsonSchema.windows', 'Windows specific command configuration')
 						},
 						osx: {
-							'$ref': '#/definitions/taskRunnerConfiguration',
+							'$ref': '#/definitions/osSpecificTaskRunnerConfiguration',
 							'description': nls.localize('JsonSchema.mac', 'Mac specific command configuration')
 						},
 						linux: {
-							'$ref': '#/definitions/taskRunnerConfiguration',
+							'$ref': '#/definitions/osSpecificTaskRunnerConfiguration',
 							'description': nls.localize('JsonSchema.linux', 'Linux specific command configuration')
 						}
 					}

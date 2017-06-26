@@ -1649,12 +1649,27 @@ class ConfigurationParser {
 		}
 		context.namedProblemMatchers = ProblemMatcherConverter.namedFrom(fileConfig.declares, context);
 		let globalTasks: Tasks.CustomTask[];
+		let externalGlobalTasks: (ConfiguringTask | CustomTask)[];
 		if (fileConfig.windows && Platform.platform === Platform.Platform.Windows) {
 			globalTasks = TaskParser.from(fileConfig.windows.tasks, globals, context).custom;
+			externalGlobalTasks = fileConfig.windows.tasks;
 		} else if (fileConfig.osx && Platform.platform === Platform.Platform.Mac) {
 			globalTasks = TaskParser.from(fileConfig.osx.tasks, globals, context).custom;
+			externalGlobalTasks = fileConfig.osx.tasks;
 		} else if (fileConfig.linux && Platform.platform === Platform.Platform.Linux) {
 			globalTasks = TaskParser.from(fileConfig.linux.tasks, globals, context).custom;
+			externalGlobalTasks = fileConfig.linux.tasks;
+		}
+		if (context.schemaVersion === Tasks.JsonSchemaVersion.V2_0_0 && globalTasks && globalTasks.length > 0 && externalGlobalTasks && externalGlobalTasks.length > 0) {
+			let taskContent: string[] = [];
+			for (let task of externalGlobalTasks) {
+				taskContent.push(JSON.stringify(task, null, 4));
+			}
+			context.problemReporter.error(
+				nls.localize(
+					'TaskParse.noOsSpecificGlobalTasks',
+					'Task version 2.0.0 doesn\'t support gloabl OS specific tasks. Convert them to a task with a OS specific command. Affected tasks are:\n{0}', taskContent.join('\n'))
+			);
 		}
 
 		let result: TaskParseResult = { custom: undefined, configured: undefined };
