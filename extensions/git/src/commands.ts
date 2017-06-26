@@ -83,6 +83,10 @@ class MergeItem implements QuickPickItem {
 	get description(): string { return this.ref.name || ''; }
 
 	constructor(protected ref: Ref) { }
+
+	async run(model: Model): Promise<void> {
+		await model.merge(this.ref.name);
+	}
 }
 
 interface Command {
@@ -792,7 +796,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await this.model.merge(choice.label);
+		await choice.run(this.model);
 	}
 
 	@command('git.pull')
