@@ -11,7 +11,7 @@
         emmet: [ ramya-rao-a ],
         error-list: [],
         extensions: [],
-        git: [],
+        git: [ joaomoreno ],
         hot-exit: [],
         html: [],
         i18n: [],
