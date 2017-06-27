@@ -828,31 +828,39 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	public customize(task: Task, properties?: { problemMatcher: string | string[] }, openConfig?: boolean): TPromise<void> {
-		if (!ContributedTask.is(task)) {
-			return TPromise.as<void>(undefined);
-		}
 		let configuration = this.getConfiguration();
 		if (configuration.hasParseErrors) {
 			this.messageService.show(Severity.Warning, nls.localize('customizeParseErrors', 'The current task configuration has errors. Please fix the errors first before customizing a task.'));
 			return TPromise.as<void>(undefined);
 		}
 		let fileConfig = configuration.config;
-		let customizes: TaskConfig.ConfiguringTask = {
-		};
-		let identifier: TaskConfig.TaskIdentifier = Objects.assign(Object.create(null), task.defines);
-		delete identifier['_key'];
-		Object.keys(identifier).forEach(key => customizes[key] = identifier[key]);
-
+		let index: number = -1;
+		if (fileConfig) {
+			index = TaskConfig.findTaskIndex(fileConfig, task);
+		}
+		let toCustomize: TaskConfig.CustomTask | TaskConfig.ConfiguringTask;
+		if (index !== void 0 && index !== -1) {
+			toCustomize = fileConfig.tasks[index];
+		} else if (ContributedTask.is(task)) {
+			toCustomize = {
+			};
+			let identifier: TaskConfig.TaskIdentifier = Objects.assign(Object.create(null), task.defines);
+			delete identifier['_key'];
+			Object.keys(identifier).forEach(key => toCustomize[key] = identifier[key]);
+		}
+		if (!toCustomize) {
+			return TPromise.as(undefined);
+		}
 		if (properties) {
 			for (let property of Object.getOwnPropertyNames(properties)) {
 				let value = properties[property];
 				if (value !== void 0 && value !== null) {
-					customizes[property] = value;
+					toCustomize[property] = value;
 				}
 			}
 		} else {
 			if (task.problemMatchers === void 0 || task.problemMatchers.length === 0) {
-				customizes.problemMatcher = [];
+				toCustomize.problemMatcher = [];
 			}
 		}
 
@@ -860,7 +868,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (!fileConfig) {
 			let value = {
 				version: '2.0.0',
-				tasks: [customizes]
+				tasks: [toCustomize]
 			};
 			let content = [
 				'{',
@@ -875,9 +883,13 @@ class TaskService extends EventEmitter implements ITaskService {
 		} else {
 			let value: IConfigurationValue = { key: undefined, value: undefined };
 			if (Array.isArray(fileConfig.tasks)) {
-				fileConfig.tasks.push(customizes);
+				if (index === void 0 || index === -1) {
+					fileConfig.tasks.push(toCustomize);
+				} else {
+					fileConfig.tasks[index] = toCustomize;
+				}
 			} else {
-				fileConfig.tasks = [customizes];
+				fileConfig.tasks = [toCustomize];
 			}
 			value.key = 'tasks.tasks';
 			value.value = fileConfig.tasks;
@@ -1092,18 +1104,18 @@ class TaskService extends EventEmitter implements ITaskService {
 								continue;
 							}
 							if (configurations) {
-								let configuredTask = configurations.byIdentifier[task.defines._key];
-								if (configuredTask) {
-									set.tasks[i] = TaskConfig.createCustomTask(task, configuredTask);
+								let configuringTask = configurations.byIdentifier[task.defines._key];
+								if (configuringTask) {
+									set.tasks[i] = TaskConfig.createCustomTask(task, configuringTask);
 									continue;
 								}
 							}
 							if (legacyTaskConfigurations) {
-								let configuredTask = legacyTaskConfigurations[task.defines._key];
-								if (configuredTask) {
-									set.tasks[i] = TaskConfig.createCustomTask(task, configuredTask);
-									workspaceTasksToDelete.push(configuredTask);
-									set.tasks[i] = configuredTask;
+								let configuringTask = legacyTaskConfigurations[task.defines._key];
+								if (configuringTask) {
+									set.tasks[i] = TaskConfig.createCustomTask(task, configuringTask);
+									workspaceTasksToDelete.push(configuringTask);
+									set.tasks[i] = configuringTask;
 									continue;
 								}
 							}

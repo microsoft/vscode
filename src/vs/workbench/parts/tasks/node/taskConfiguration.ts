@@ -14,7 +14,7 @@ import * as Platform from 'vs/base/common/platform';
 import * as Types from 'vs/base/common/types';
 import * as UUID from 'vs/base/common/uuid';
 
-import { ValidationStatus, IProblemReporter as IProblemReporterBase } from 'vs/base/common/parsers';
+import { ValidationStatus, IProblemReporter as IProblemReporterBase, NullProblemReporter as NullProblemReporterBase } from 'vs/base/common/parsers';
 import {
 	NamedProblemMatcher, ProblemMatcher, ProblemMatcherParser, Config as ProblemMatcherConfig,
 	isNamedProblemMatcher, ProblemMatcherRegistry
@@ -555,7 +555,6 @@ interface ParseContext {
 	uuidMap: UUIDMap;
 	engine: Tasks.ExecutionEngine;
 	schemaVersion: Tasks.JsonSchemaVersion;
-	taskConfigurations: boolean;
 }
 
 
@@ -1249,9 +1248,9 @@ namespace CustomTask {
 		}
 	}
 
-	export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfigurationProperties): Tasks.CustomTask {
+	export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfigurationProperties & { _id: string }): Tasks.CustomTask {
 		let result: Tasks.CustomTask = {
-			_id: contributedTask._id,
+			_id: configuredProps._id,
 			_source: source,
 			_label: configuredProps.name || contributedTask._label,
 			type: 'custom',
@@ -1400,7 +1399,7 @@ namespace TaskParser {
 		return target;
 	}
 
-	function hasUnescapedSpaces(value: string): boolean {
+	function hasUnescapedSpaces(this: void, value: string): boolean {
 		if (Platform.isWindows) {
 			if (value.length >= 2 && value.charAt(0) === '"' && value.charAt(value.length - 1) === '"') {
 				return false;
@@ -1420,6 +1419,21 @@ namespace TaskParser {
 			}
 			return false;
 		}
+	}
+
+	export function quickParse(this: void, externals: (CustomTask | ConfiguringTask)[], context: ParseContext): (Tasks.CustomTask | Tasks.ConfiguringTask)[] {
+		if (!externals) {
+			return undefined;
+		}
+		let result: (Tasks.CustomTask | Tasks.ConfiguringTask)[] = [];
+		for (let external of externals) {
+			if (isCustomTask(external)) {
+				result.push(CustomTask.from(external, context));
+			} else {
+				result.push(ConfiguringTask.from(external, context));
+			}
+		}
+		return result;
 	}
 }
 
@@ -1558,13 +1572,27 @@ export interface IProblemReporter extends IProblemReporterBase {
 	clearOutput(): void;
 }
 
+class NullProblemReporter extends NullProblemReporterBase implements IProblemReporter {
+	clearOutput(): void { };
+}
+
 class UUIDMap {
 
 	private last: IStringDictionary<string | string[]>;
 	private current: IStringDictionary<string | string[]>;
 
-	constructor() {
+	constructor(other?: UUIDMap) {
 		this.current = Object.create(null);
+		if (other) {
+			for (let key of Object.keys(other.current)) {
+				let value = other.current[key];
+				if (Array.isArray(value)) {
+					this.current[key] = value.slice();
+				} else {
+					this.current[key] = value;
+				}
+			}
+		}
 	}
 
 	public start(): void {
@@ -1630,8 +1658,7 @@ class ConfigurationParser {
 			uuidMap: this.uuidMap,
 			namedProblemMatchers: undefined,
 			engine,
-			schemaVersion,
-			taskConfigurations: schemaVersion !== Tasks.JsonSchemaVersion.V0_1_0
+			schemaVersion
 		};
 		let taskParseResult = this.createTaskRunnerConfiguration(fileConfig, context);
 		return {
@@ -1720,12 +1747,41 @@ export function parse(configuration: ExternalTaskRunnerConfiguration, logger: IP
 	}
 }
 
-export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfigurationProperties): Tasks.CustomTask {
+export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfigurationProperties & { _id: string }): Tasks.CustomTask {
 	return CustomTask.createCustomTask(contributedTask, configuredProps);
 }
 
 export function getTaskIdentifier(value: TaskIdentifier): Tasks.TaskIdentifier {
 	return TaskIdentifier.from(value);
+}
+
+export function findTaskIndex(fileConfig: ExternalTaskRunnerConfiguration, task: Tasks.Task): number {
+	if (!fileConfig || !fileConfig.tasks) {
+		return undefined;
+	}
+	if (fileConfig.tasks.length === 0) {
+		return -1;
+	}
+	let localMap = new UUIDMap(uuidMap);
+	let context: ParseContext = {
+		problemReporter: this.problemReporter,
+		uuidMap: localMap,
+		namedProblemMatchers: undefined,
+		engine: ExecutionEngine.from(fileConfig),
+		schemaVersion: JsonSchemaVersion.from(fileConfig)
+	};
+	try {
+		localMap.start();
+		let tasks = TaskParser.quickParse(fileConfig.tasks, context);
+		for (let i = 0; i < tasks.length; i++) {
+			if (task._id === tasks[i]._id) {
+				return i;
+			}
+		}
+		return -1;
+	} finally {
+		localMap.finish();
+	}
 }
 
 /*
