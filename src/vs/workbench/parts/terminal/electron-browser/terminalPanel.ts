@@ -59,7 +59,7 @@ export class TerminalPanel extends Panel {
 		this._terminalContainer = document.createElement('div');
 		dom.addClass(this._terminalContainer, 'terminal-outer-container');
 
-		this._findWidget = new TerminalFindWidget(this._contextViewService, this._terminalService);
+		this._findWidget = this._instantiationService.createInstance(TerminalFindWidget);
 
 		this._parentDomElement.appendChild(this._themeStyleElement);
 		this._parentDomElement.appendChild(this._fontStyleElement);
