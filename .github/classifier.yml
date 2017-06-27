@@ -23,6 +23,7 @@
         markdown: [],
         php: [ roblourens ],
         search: [ roblourens ],
+        snippets: [ jrieken ],
         tasks: [],
         typescript: [],
         workbench: [ bpasero ],
