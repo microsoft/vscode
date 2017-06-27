@@ -20,6 +20,7 @@ const localize = nls.loadMessageBundle();
 
 const httpsRequired = localize('httpsRequired', "Images must use the HTTPS protocol.");
 const svgsNotValid = localize('svgsNotValid', "SVGs are not a valid image source.");
+const embeddedSvgsNotValid = localize('embeddedSvgsNotValid', "Embedded SVGs are not a valid image source.");
 const dataUrlsNotValid = localize('dataUrlsNotValid', "Data URLs are not a valid image source.");
 const relativeUrlRequiresHttpsRepository = localize('relativeUrlRequiresHttpsRepository', "Relative image URLs require a repository with HTTPS protocol in the package.json.");
 
@@ -195,6 +196,7 @@ export class ExtensionLinter {
 					}
 				});
 
+			let svgStart: Diagnostic;
 			tokensAndPositions.filter(tnp => tnp.token.type === 'text' && tnp.token.content)
 				.map(tnp => {
 					const parser = new parse5.SAXParser({ locationInfo: true });
@@ -207,6 +209,18 @@ export class ExtensionLinter {
 									this.addDiagnostics(diagnostics, document, begin, begin + src.value.length, src.value, Context.MARKDOWN, info);
 								}
 							}
+						} else if (name === 'svg') {
+							const begin = tnp.begin + location.startOffset;
+							const end = tnp.begin + location.endOffset;
+							const range = new Range(document.positionAt(begin), document.positionAt(end));
+							svgStart = new Diagnostic(range, embeddedSvgsNotValid, DiagnosticSeverity.Warning);
+							diagnostics.push(svgStart);
+						}
+					});
+					parser.on('endTag', (name, location) => {
+						if (name === 'svg' && svgStart) {
+							const end = tnp.begin + location.endOffset;
+							svgStart.range = new Range(svgStart.range.start, document.positionAt(end));
 						}
 					});
 					parser.write(tnp.token.content);
