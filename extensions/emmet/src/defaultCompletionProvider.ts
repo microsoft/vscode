@@ -10,12 +10,15 @@ import { Node, HtmlNode } from 'EmmetNode';
 import { DocumentStreamReader } from './bufferStream';
 import { EmmetCompletionItemProvider, isStyleSheet } from 'vscode-emmet-helper';
 import { isValidLocationForEmmetAbbreviation } from './abbreviationActions';
-import { getSyntax, getNode, getInnerRange } from './util';
+import { getSyntax, getNode, getInnerRange, getExcludedModes } from './util';
 
 export class DefaultCompletionItemProvider implements vscode.CompletionItemProvider {
 
 	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Thenable<vscode.CompletionList> {
 		let syntax = getSyntax(document);
+		if (getExcludedModes().indexOf(syntax) > -1) {
+			return;
+		}
 		syntax = this.syntaxHelper(syntax, document, position);
 
 		if (!syntax) {
