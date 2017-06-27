@@ -1029,10 +1029,7 @@ configurationRegistry.registerConfiguration({
 				types: tokenGroupSettings,
 				functions: tokenGroupSettings,
 				variables: tokenGroupSettings,
-				[CUSTOM_EDITOR_SCOPE_COLORS_SETTING]: {
-					type: 'array',
-					items: colorThemeSchema.tokenColorsSchema
-				}
+				[CUSTOM_EDITOR_SCOPE_COLORS_SETTING]: colorThemeSchema.tokenColorsSchema
 			}
 		}
 	}
