@@ -392,8 +392,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		this.isAuto = false;
 		this.focusedItem = null;
 		this.storageService = storageService;
-		const storageResult = this.storageService.store('expandSuggestionDocs', expandSuggestionDocsByDefault, StorageScope.GLOBAL);
-		if (storageResult === undefined) {
+		this.storageService.store('expandSuggestionDocs', expandSuggestionDocsByDefault, StorageScope.GLOBAL);
+		if (this.storageService.get('expandSuggestionDocs', StorageScope.GLOBAL) === undefined) {
 			this.storageServiceAvailable = false;
 		}
 
