@@ -18,6 +18,7 @@ import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelS
 import { TextSource, ITextSource, IRawTextSource, RawTextSource } from 'vs/editor/common/model/textSource';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
+import { EditOperation } from "vs/editor/common/core/editOperation";
 
 const USE_MIMINAL_MODEL_LINE = true;
 
@@ -750,6 +751,120 @@ export class TextModel implements editorCommon.ITextModel {
 
 		// only expand range at the end
 		return new Range(startLineNumber, startColumn, endLineNumber, endColumn + 1);
+	}
+
+	public getEdits(other: ITextSource): editorCommon.IIdentifiedSingleEditOperation[] {
+		//find the minimum number of lines to add/remove in order to get this model to look like the passed in text source
+		//implementation of the Wagner–Fischer algorithm
+		interface Operation {
+			type: 'insert' | 'delete' | 'replace';
+			index: number;
+			value?: string;
+			before?: boolean;
+		}
+		interface DistanceEntry {
+			distance: number;
+			operation?: Operation;
+			previous?: DistanceEntry;
+		}
+		let l1 = this._lines.map(line => line.text);
+		let l2 = other.lines;
+		let distanceMatrix: DistanceEntry[][] = [];
+		for (let i = 0; i < l1.length + 1; i++) {
+			let row = [];
+			for (let j = 0; j < l2.length + 1; j++) {
+				row.push({
+					distance: 0,
+				});
+			}
+			distanceMatrix.push(row);
+		}
+
+		for (let i = 0; i <= l1.length; i++) {
+			distanceMatrix[i][0].distance = i;
+			if (i > 0) {
+				distanceMatrix[i][0].operation = {
+					type: 'delete',
+					index: i - 1
+				};
+				distanceMatrix[i][0].previous = distanceMatrix[i - 1][0];
+			}
+		}
+
+		for (let j = 0; j <= l2.length; j++) {
+			distanceMatrix[0][j].distance = j;
+			if (j > 0) {
+				distanceMatrix[0][j].operation = {
+					type: 'insert',
+					index: 0,
+					value: l2[j - 1],
+					before: true,
+				};
+				distanceMatrix[0][j].previous = distanceMatrix[0][j - 1];
+			}
+		}
+
+		for (let j = 1; j <= l2.length; j++) {
+			for (let i = 1; i <= l1.length; i++) {
+				if (l1[i - 1] === l2[j - 1]) {
+					distanceMatrix[i][j].distance = distanceMatrix[i - 1][j - 1].distance;
+					distanceMatrix[i][j].previous = distanceMatrix[i - 1][j - 1];
+				} else {
+					if (distanceMatrix[i - 1][j].distance <= distanceMatrix[i][j - 1].distance &&
+						distanceMatrix[i - 1][j].distance <= distanceMatrix[i - 1][j - 1].distance) {
+						// deletion
+						distanceMatrix[i][j].distance = distanceMatrix[i - 1][j].distance + 1;
+						distanceMatrix[i][j].previous = distanceMatrix[i - 1][j];
+						distanceMatrix[i][j].operation = {
+							type: 'delete',
+							index: i - 1,
+						};
+					} else if (distanceMatrix[i][j - 1].distance <= distanceMatrix[i - 1][j - 1].distance) {
+						//insertion
+						distanceMatrix[i][j].distance = distanceMatrix[i][j - 1].distance + 1;
+						distanceMatrix[i][j].previous = distanceMatrix[i][j - 1];
+						distanceMatrix[i][j].operation = {
+							type: 'insert',
+							index: i - 1,
+							value: l2[j - 1],
+						};
+					} else {
+						//substitution
+						distanceMatrix[i][j].distance = distanceMatrix[i - 1][j - 1].distance + 1;
+						distanceMatrix[i][j].previous = distanceMatrix[i - 1][j - 1];
+						distanceMatrix[i][j].operation = {
+							type: 'replace',
+							index: i - 1,
+							value: l2[j - 1],
+						};
+					}
+				}
+			}
+		}
+
+		let getEdit = (o: Operation): editorCommon.IIdentifiedSingleEditOperation => {
+			let lineNumber = o.index + 1;
+			if (o.type === 'delete') {
+				return EditOperation.delete(new Range(lineNumber, 1, lineNumber + 1, 1));
+			} else if (o.type === 'insert') {
+				return EditOperation.insert(new Position(lineNumber + (o.before ? 0 : 1), 1), o.value + this._EOL);
+			} else if (o.type === 'replace') {
+				return EditOperation.replace(new Range(lineNumber, 1, lineNumber, this._lines[o.index].text.length + 1), o.value);
+			}
+			throw new Error('invalid operation');
+		};
+
+		let result: editorCommon.IIdentifiedSingleEditOperation[] = [];
+
+		let current: DistanceEntry | undefined = distanceMatrix[l1.length][l2.length];
+		while (current) {
+			if (current.operation) {
+				result.unshift(getEdit(current.operation));
+			}
+			current = current.previous;
+		}
+
+		return result;
 	}
 
 	public modifyPosition(rawPosition: IPosition, offset: number): Position {

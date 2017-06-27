@@ -8,8 +8,8 @@ import * as assert from 'assert';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel, ITextModelCreationData } from 'vs/editor/common/model/textModel';
-import { DefaultEndOfLine, TextModelResolvedOptions } from 'vs/editor/common/editorCommon';
-import { RawTextSource } from 'vs/editor/common/model/textSource';
+import { DefaultEndOfLine, TextModelResolvedOptions, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { RawTextSource, TextSource } from 'vs/editor/common/model/textSource';
 
 function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: number, expectedInsertSpaces: boolean, expectedTabSize: number, text: string[], msg?: string): void {
 	var m = TextModel.createFromString(
@@ -992,6 +992,202 @@ suite('TextModel.getLineIndentGuide', () => {
 			[2, '\t\t.bla'],
 			[3, '\t\t\tlabel(for)'],
 			[0, 'include script'],
+		]);
+	});
+});
+
+suite('Get edits', () => {
+	function getEdits(lines1: string[], lines2: string[]): IIdentifiedSingleEditOperation[] {
+		const model = TextModel.createFromString(lines1.join('\n'));
+		const textSource = TextSource.create(lines2.join('\n'), model.getOptions().defaultEOL);
+		return model.getEdits(textSource);
+	}
+
+	test('does insertions in the middle of the document', () => {
+		const edits = getEdits(
+			[
+				'line 1',
+				'line 2',
+				'line 3'
+			], [
+				'line 1',
+				'line 2',
+				'line 5',
+				'line 3'
+			]
+		);
+		assert.equal(edits.length, 1);
+		assert.deepEqual(edits[0], {
+			'identifier': null,
+			'range': {
+				'startLineNumber': 3,
+				'startColumn': 1,
+				'endLineNumber': 3,
+				'endColumn': 1
+			},
+			'text': 'line 5\n',
+			'forceMoveMarkers': true
+		});
+	});
+
+	test('does insertions at the end of the document', () => {
+		const edits = getEdits(
+			[
+				'line 1',
+				'line 2',
+				'line 3'
+			], [
+				'line 1',
+				'line 2',
+				'line 3',
+				'line 4'
+			]
+		);
+		assert.equal(edits.length, 1);
+		assert.deepEqual(edits[0], {
+			'identifier': null,
+			'range': {
+				'startLineNumber': 4,
+				'startColumn': 1,
+				'endLineNumber': 4,
+				'endColumn': 1
+			},
+			'text': 'line 4\n',
+			'forceMoveMarkers': true
+		});
+	});
+
+	test('does insertions at the beginning of the document', () => {
+		const edits = getEdits(
+			[
+				'line 1',
+				'line 2',
+				'line 3'
+			], [
+				'line 0',
+				'line 1',
+				'line 2',
+				'line 3'
+			]
+		);
+		assert.equal(edits.length, 1);
+		assert.deepEqual(edits[0], {
+			'identifier': null,
+			'range': {
+				'startLineNumber': 1,
+				'startColumn': 1,
+				'endLineNumber': 1,
+				'endColumn': 1
+			},
+			'text': 'line 0\n',
+			'forceMoveMarkers': true
+		});
+	});
+
+	test('does replacements', () => {
+		const edits = getEdits(
+			[
+				'line 1',
+				'line 2',
+				'line 3'
+			], [
+				'line 1',
+				'line 7',
+				'line 3'
+			]
+		);
+		assert.equal(edits.length, 1);
+		assert.deepEqual(edits[0], {
+			'identifier': null,
+			'range': {
+				'startLineNumber': 2,
+				'startColumn': 1,
+				'endLineNumber': 2,
+				'endColumn': 7
+			},
+			'text': 'line 7',
+			'forceMoveMarkers': false
+		});
+	});
+
+	test('does deletions', () => {
+		const edits = getEdits(
+			[
+				'line 1',
+				'line 2',
+				'line 3'
+			], [
+				'line 1',
+				'line 3'
+			]
+		);
+		assert.equal(edits.length, 1);
+		assert.deepEqual(edits[0], {
+			'identifier': null,
+			'range': {
+				'startLineNumber': 2,
+				'startColumn': 1,
+				'endLineNumber': 3,
+				'endColumn': 1
+			},
+			'text': null,
+			'forceMoveMarkers': true
+		});
+	});
+
+	test('does insert, replace, and delete', () => {
+		const edits = getEdits(
+			[
+				'line 1',
+				'line 2',
+				'line 3',
+				'line 4',
+				'line 5',
+			], [
+				'line 0', // insert line 0
+				'line 1',
+				'replace line 2', // replace line 2
+				'line 3',
+				// delete line 4
+				'line 5',
+			]
+		);
+
+		assert.equal(edits.length, 3);
+		assert.deepEqual(edits, [
+			{
+				'identifier': null,
+				'range': {
+					'startLineNumber': 1,
+					'startColumn': 1,
+					'endLineNumber': 1,
+					'endColumn': 1
+				},
+				'text': 'line 0\n',
+				'forceMoveMarkers': true
+			},
+			{
+				'identifier': null,
+				'range': {
+					'startLineNumber': 2,
+					'startColumn': 1,
+					'endLineNumber': 2,
+					'endColumn': 7
+				},
+				'text': 'replace line 2',
+				'forceMoveMarkers': false
+			},
+			{
+				'identifier': null,
+				'range': {
+					'startLineNumber': 4,
+					'startColumn': 1,
+					'endLineNumber': 5,
+					'endColumn': 1
+				},
+				'text': null,
+				'forceMoveMarkers': true
+			}
 		]);
 	});
 });

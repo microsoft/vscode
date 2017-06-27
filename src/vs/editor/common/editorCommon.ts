@@ -661,6 +661,12 @@ export interface ITextModel {
 	validateRange(range: IRange): Range;
 
 	/**
+	 * Get a list of edits to change this model to match the other model.
+	 * @internal
+	 */
+	getEdits(other: ITextSource): IIdentifiedSingleEditOperation[];
+
+	/**
 	 * Converts the position to a zero-based offset.
 	 *
 	 * The position will be [adjusted](#TextDocument.validatePosition).

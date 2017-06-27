@@ -15,6 +15,7 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IMarker, IMarkerService } from 'vs/platform/markers/common/markers';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
@@ -371,9 +372,12 @@ export class ModelServiceImpl implements IModelService {
 		if (model.equals(textSource)) {
 			return;
 		}
-
 		// Otherwise update model
-		model.setValueFromTextSource(textSource);
+		model.pushEditOperations(
+			[new Selection(1, 1, 1, 1)],
+			model.getEdits(textSource),
+			(inverseEditOperations: editorCommon.IIdentifiedSingleEditOperation[]) => [new Selection(1, 1, 1, 1)]
+		);
 	}
 
 	public createModel(value: string | IRawTextSource, modeOrPromise: TPromise<IMode> | IMode, resource: URI): editorCommon.IModel {
