@@ -796,6 +796,7 @@ Root: HKCU; Subkey: "SOFTWARE\Classes\Drive\shell\{#RegValueName}\command"; Valu
 function InitializeSetup(): Boolean;
 var
   RegKey: String;
+  ThisArch: String;
   AltArch: String;
 begin
   Result := True;
@@ -803,14 +804,16 @@ begin
 
   if '{#Arch}' = 'ia32' then begin
     Result := not RegKeyExists(HKLM64, RegKey);
-    AltArch := 'x64';
+    ThisArch := '32';
+    AltArch := '64';
   end else begin
     Result := not RegKeyExists(HKLM32, RegKey);
-    AltArch := 'ia32';
+    ThisArch := '64';
+    AltArch := '32';
   end;
 
   if not Result then begin
-    MsgBox('Please uninstall "{#NameShort}" ' + AltArch + ' before installing this package.', mbInformation, MB_OK);
+    MsgBox('Please uninstall {#NameShort} ' + AltArch + ' before installing this ' + ThisArch + ' version.', mbInformation, MB_OK);
   end;
 end;
 
