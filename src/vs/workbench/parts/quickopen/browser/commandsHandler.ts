@@ -606,4 +606,10 @@ export class CommandsHandler extends QuickOpenHandler {
 	public getEmptyLabel(searchString: string): string {
 		return nls.localize('noCommandsMatching', "No commands matching");
 	}
+
+	public onClose(canceled: boolean): void {
+		if (canceled) {
+			lastCommandPaletteInput = void 0; // clear last input when user canceled quick open
+		}
+	}
 }
