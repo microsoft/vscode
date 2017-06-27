@@ -13,6 +13,13 @@ else
 	# fi
 fi
 
+# Check npm version is ^5.0.0
+if [[ $(npm -v) != 5* ]]; then
+	echo VS Code requires npm v5
+	echo Please run npm i -g npm to update
+	exit 1
+fi
+
 ELECTRON_VERSION=$(
 	cat "$ROOT"/package.json |
 	grep electronVersion |
