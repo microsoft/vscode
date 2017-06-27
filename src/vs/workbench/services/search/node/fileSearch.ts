@@ -99,7 +99,7 @@ export class FileWalker {
 					folderExcludeExpression[paths.join(rootFolder, '**/*')] = true;
 				});
 
-			this.folderExcludePatterns.set(folderQuery.folder, glob.parse(folderExcludeExpression));
+			this.folderExcludePatterns.set(folderQuery.folder, glob.parse(folderExcludeExpression, { trimForExclusions: true }));
 		});
 	}
 
