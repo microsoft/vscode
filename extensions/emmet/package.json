@@ -40,21 +40,9 @@
                             "type": "string",
                             "default": "en"
                         },
-                        "locale": {
-                            "type": "string",
-                            "default": "en-US"
-                        },
                         "charset": {
                             "type": "string",
                             "default": "UTF-8"
-                        },
-                        "indentation": {
-                            "type": "string",
-                            "default": "\t"
-                        },
-                        "newline": {
-                            "type": "string",
-                            "default": "\n"
                         }
                     },
                     "default":{},
