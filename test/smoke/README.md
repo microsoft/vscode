@@ -27,8 +27,9 @@ To add new test, `./test/${area}.ts` should be updated. The same instruction-sty
 	"type": "node",
 	"request": "launch",
 	"name": "Launch Smoke Test",
-	"program": "${workspaceRoot}/test/smoke/src/main.js",
+	"program": "${workspaceRoot}/test/smoke/out/main.js",
 	"cwd": "${workspaceRoot}/test/smoke",
+	"timeout": 240000,
 	"port": 9999,
 	"args": [
 		"-l",
@@ -37,6 +38,6 @@ To add new test, `./test/${area}.ts` should be updated. The same instruction-sty
 	"outFiles": [
 		"${cwd}/out/**/*.js"
 	]
-},
+}
 ```
-2. In main.js add `--debug-brk=9999` argument to the place where `src/mocha-runner.js` is spawned.
+2. In main.js add `--debug-brk=9999` as a first argument to the place where `out/mocha-runner.js` is spawned.
