@@ -8,6 +8,7 @@
 import * as nls from 'vs/nls';
 import 'vs/css!./media/update.contribution';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { isMacintosh } from 'vs/base/common/platform';
 import product from 'vs/platform/node/product';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ReleaseNotesEditor } from 'vs/workbench/parts/update/electron-browser/releaseNotesEditor';
@@ -24,7 +25,7 @@ import { ShowCurrentReleaseNotesAction, ProductContribution, UpdateContribution,
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(ProductContribution);
 
-if (product.quality !== 'stable') {
+if (isMacintosh || product.quality !== 'stable') {
 	Registry.as<IGlobalActivityRegistry>(GlobalActivityExtensions)
 		.registerActivity(LightUpdateContribution);
 } else {
