@@ -6,8 +6,6 @@
 
 import 'vs/css!./media/task.contribution';
 import 'vs/workbench/parts/tasks/browser/taskQuickOpen';
-import 'vs/workbench/parts/tasks/browser/terminateQuickOpen';
-import 'vs/workbench/parts/tasks/browser/restartQuickOpen';
 import 'vs/workbench/parts/tasks/browser/buildQuickOpen';
 import 'vs/workbench/parts/tasks/browser/testQuickOpen';
 
@@ -59,7 +57,7 @@ import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } fro
 import { IStatusbarItem, IStatusbarRegistry, Extensions as StatusbarExtensions, StatusbarItemDescriptor, StatusbarAlignment } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import Constants from 'vs/workbench/parts/markers/common/constants';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -1549,13 +1547,14 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (this.inTerminal()) {
 			this.getActiveTasks().then((activeTasks) => {
 				if (activeTasks.length === 0) {
+					this.messageService.show(Severity.Info, nls.localize('TaskService.noTaskRunning', 'No task running.'));
 					return;
 				}
-				if (activeTasks.length === 1) {
-					this.terminate(activeTasks[0]);
-				} else {
-					this.quickOpenService.show('terminate task ');
-				}
+				this.showQuickPick(activeTasks, nls.localize('TaskService.tastToTerminate', 'Select task to terminate')).then(task => {
+					if (task) {
+						this.terminate(task);
+					}
+				});
 			});
 		} else {
 			this.isActive().then((active) => {
@@ -1577,6 +1576,14 @@ class TaskService extends EventEmitter implements ITaskService {
 		}
 	}
 
+	private showQuickPick(tasks: Task[], placeHolder: string): TPromise<Task> {
+		interface TaskQickPickEntry extends IPickOpenEntry {
+			task: Task;
+		}
+		let entries: TaskQickPickEntry[] = tasks.map<TaskQickPickEntry>(task => { return { label: task._label, task }; });
+		return this.quickOpenService.pick(entries, { placeHolder }).then(entry => entry ? entry.task : undefined);
+	}
+
 	private runRestartTaskCommand(accessor: ServicesAccessor, arg: any): void {
 		if (!this.canRunCommand()) {
 			return;
@@ -1584,13 +1591,14 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (this.inTerminal()) {
 			this.getActiveTasks().then((activeTasks) => {
 				if (activeTasks.length === 0) {
+					this.messageService.show(Severity.Info, nls.localize('TaskService.noTaskToRestart', 'No task to restart.'));
 					return;
 				}
-				if (activeTasks.length === 1) {
-					this.restart(activeTasks[0]);
-				} else {
-					this.quickOpenService.show('restart task ');
-				}
+				this.showQuickPick(activeTasks, nls.localize('TaskService.tastToRestart', 'Select the task to restart')).then(task => {
+					if (task) {
+						this.restart(task);
+					}
+				});
 			});
 		} else {
 			this.getActiveTasks().then((activeTasks) => {
@@ -1631,26 +1639,6 @@ quickOpenRegistry.registerQuickOpenHandler(
 		'task ',
 		tasksPickerContextKey,
 		nls.localize('quickOpen.task', "Run Task")
-	)
-);
-
-quickOpenRegistry.registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/tasks/browser/terminateQuickOpen',
-		'QuickOpenHandler',
-		'terminate task ',
-		tasksPickerContextKey,
-		nls.localize('quickOpen.terminateTask', "Terminate Task")
-	)
-);
-
-quickOpenRegistry.registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/tasks/browser/restartQuickOpen',
-		'QuickOpenHandler',
-		'restart task ',
-		tasksPickerContextKey,
-		nls.localize('quickOpen.restartTask', "Restart Task")
 	)
 );
 
