@@ -1153,8 +1153,8 @@ export class ShellExecution implements vscode.ShellExecution {
 
 export class Task implements vscode.Task {
 
-	private _kind: vscode.TaskKind;
-	private _kindKey: string;
+	private _definition: vscode.TaskDefinition;
+	private _definitionKey: string;
 	private _name: string;
 	private _execution: ProcessExecution | ShellExecution;
 	private _problemMatchers: string[];
@@ -1163,13 +1163,8 @@ export class Task implements vscode.Task {
 	private _group: TaskGroup;
 	private _presentationOptions: vscode.TaskPresentationOptions;
 
-
-	constructor(kind: vscode.TaskKind, name: string, source: string);
-	constructor(kind: vscode.TaskKind, name: string, source: string, execution: ProcessExecution | ShellExecution);
-	constructor(kind: vscode.TaskKind, name: string, source: string, execution: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
-
-	constructor(kind: vscode.TaskKind, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]) {
-		this.kind = kind;
+	constructor(definition: vscode.TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]) {
+		this.definition = definition;
 		this.name = name;
 		this.source = source;
 		this.execution = execution;
@@ -1183,25 +1178,25 @@ export class Task implements vscode.Task {
 		this._isBackground = false;
 	}
 
-	get kind(): vscode.TaskKind {
-		return this._kind;
+	get definition(): vscode.TaskDefinition {
+		return this._definition;
 	}
 
-	set kind(value: vscode.TaskKind) {
+	set definition(value: vscode.TaskDefinition) {
 		if (value === void 0 || value === null) {
 			throw illegalArgument('Kind can\'t be undefined or null');
 		}
-		this._kindKey = undefined;
-		this._kind = value;
+		this._definitionKey = undefined;
+		this._definition = value;
 	}
 
-	get kindKey(): string {
-		if (!this._kindKey) {
+	get definitionKey(): string {
+		if (!this._definitionKey) {
 			const hash = crypto.createHash('md5');
-			hash.update(JSON.stringify(this._kind));
-			this._kindKey = hash.digest('hex');
+			hash.update(JSON.stringify(this._definition));
+			this._definitionKey = hash.digest('hex');
 		}
-		return this._kindKey;
+		return this._definitionKey;
 	}
 
 	get name(): string {

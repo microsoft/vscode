@@ -16,17 +16,23 @@ import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/exten
 import * as Tasks from 'vs/workbench/parts/tasks/common/tasks';
 
 
-const taskTypeSchema: IJSONSchema = {
+const taskDefinitionSchema: IJSONSchema = {
 	type: 'object',
 	additionalProperties: false,
 	properties: {
 		type: {
 			type: 'string',
-			description: nls.localize('TaskType.description', 'The actual task type')
+			description: nls.localize('TaskDefinition.description', 'The actual task type')
+		},
+		required: {
+			type: 'array',
+			items: {
+				type: 'string'
+			}
 		},
 		properties: {
 			type: 'object',
-			description: nls.localize('TaskType.properties', 'Additional properties of the task type'),
+			description: nls.localize('TaskDefinition.properties', 'Additional properties of the task type'),
 			additionalProperties: {
 				$ref: 'http://json-schema.org/draft-04/schema#'
 			}
@@ -35,13 +41,13 @@ const taskTypeSchema: IJSONSchema = {
 };
 
 namespace Configuration {
-	export interface TaskTypeDescription {
+	export interface TaskDefinition {
 		type?: string;
 		required?: string[];
 		properties?: IJSONSchemaMap;
 	}
 
-	export function from(value: TaskTypeDescription, messageCollector: ExtensionMessageCollector): Tasks.TaskTypeDescription {
+	export function from(value: TaskDefinition, messageCollector: ExtensionMessageCollector): Tasks.TaskDefinition {
 		if (!value) {
 			return undefined;
 		}
@@ -63,29 +69,29 @@ namespace Configuration {
 }
 
 
-const taskTypesExtPoint = ExtensionsRegistry.registerExtensionPoint<Configuration.TaskTypeDescription[]>('taskTypes', [], {
-	description: nls.localize('TaskTypeExtPoint', 'Contributes task kinds'),
+const taskDefinitionsExtPoint = ExtensionsRegistry.registerExtensionPoint<Configuration.TaskDefinition[]>('taskDefinitions', [], {
+	description: nls.localize('TaskDefinitionExtPoint', 'Contributes task kinds'),
 	type: 'array',
-	items: taskTypeSchema
+	items: taskDefinitionSchema
 });
 
-export interface ITaskTypeRegistry {
+export interface ITaskDefinitionRegistry {
 	onReady(): TPromise<void>;
 
 	exists(key: string): boolean;
-	get(key: string): Tasks.TaskTypeDescription;
-	all(): Tasks.TaskTypeDescription[];
+	get(key: string): Tasks.TaskDefinition;
+	all(): Tasks.TaskDefinition[];
 }
 
-class TaskTypeRegistryImpl implements ITaskTypeRegistry {
+class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 
-	private taskTypes: IStringDictionary<Tasks.TaskTypeDescription>;
+	private taskTypes: IStringDictionary<Tasks.TaskDefinition>;
 	private readyPromise: TPromise<void>;
 
 	constructor() {
 		this.taskTypes = Object.create(null);
 		this.readyPromise = new TPromise<void>((resolve, reject) => {
-			taskTypesExtPoint.setHandler((extensions) => {
+			taskDefinitionsExtPoint.setHandler((extensions) => {
 				try {
 					extensions.forEach(extension => {
 						let taskTypes = extension.value;
@@ -107,7 +113,7 @@ class TaskTypeRegistryImpl implements ITaskTypeRegistry {
 		return this.readyPromise;
 	}
 
-	public get(key: string): Tasks.TaskTypeDescription {
+	public get(key: string): Tasks.TaskDefinition {
 		return this.taskTypes[key];
 	}
 
@@ -115,9 +121,9 @@ class TaskTypeRegistryImpl implements ITaskTypeRegistry {
 		return !!this.taskTypes[key];
 	}
 
-	public all(): Tasks.TaskTypeDescription[] {
+	public all(): Tasks.TaskDefinition[] {
 		return Object.keys(this.taskTypes).map(key => this.taskTypes[key]);
 	}
 }
 
-export const TaskTypeRegistry: ITaskTypeRegistry = new TaskTypeRegistryImpl();
+export const TaskDefinitionRegistry: ITaskDefinitionRegistry = new TaskDefinitionRegistryImpl();

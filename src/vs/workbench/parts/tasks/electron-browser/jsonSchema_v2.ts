@@ -11,7 +11,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import commonSchema from './jsonSchemaCommon';
 
 import { ProblemMatcherRegistry } from 'vs/platform/markers/common/problemMatcher';
-import { TaskTypeRegistry } from '../common/taskTypeRegistry';
+import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry';
 
 function fixReferences(literal: any) {
 	if (Array.isArray(literal)) {
@@ -177,8 +177,8 @@ let taskConfiguration: IJSONSchema = {
 };
 
 let taskDefinitions: IJSONSchema[] = [];
-TaskTypeRegistry.onReady().then(() => {
-	for (let taskType of TaskTypeRegistry.all()) {
+TaskDefinitionRegistry.onReady().then(() => {
+	for (let taskType of TaskDefinitionRegistry.all()) {
 		let schema: IJSONSchema = Objects.deepClone(taskConfiguration);
 		// Since we do this after the schema is assigned we need to patch the refs.
 		schema.properties.type = {

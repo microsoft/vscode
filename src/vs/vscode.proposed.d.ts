@@ -120,13 +120,18 @@ declare module 'vscode' {
 	 * A structure that defines a task kind in the system.
 	 * The value must be JSON-stringifyable.
 	 */
-	export interface TaskKind {
+	export interface TaskDefinition {
 		/**
-		 * The task type as defined by the extension implementing a
-		 * task provider. Examples are 'grunt', 'npm' or 'tsc'.
+		 * The task definition descibing the task provided by an extension.
 		 * Usually a task provider defines more properties to identify
 		 * a task. They need to be defined in the package.json of the
-		 * extension under the 'taskKinds' extension point.
+		 * extension under the 'taskDefinitions' extension point. The npm
+		 * task definition for example looks like this
+		 * ```typescript
+		 * interface NpmTaskDefinition extends TaskDefinition {
+		 *     script: string;
+		 * }
+		 * ```
 		 */
 		readonly type: string;
 	}
@@ -245,29 +250,9 @@ declare module 'vscode' {
 	export class Task {
 
 		/**
-		 * Creates a new task. A task without an exection set is resolved
-		 * before executed.
-		 *
-		 * @param kind The task kind as defined in the 'taskKinds' extension point.
-		 * @param name The task's name. Is presented in the user interface.
-		 * @param source The task's source (e.g. 'gulp', 'npm', ...). Is presented in the user interface.
-		 */
-		constructor(kind: TaskKind, name: string, source: string);
-
-		/**
 		 * Creates a new task.
 		 *
-		 * @param kind The task kind as defined in the 'taskKinds' extension point.
-		 * @param name The task's name. Is presented in the user interface.
-		 * @param source The task's source (e.g. 'gulp', 'npm', ...). Is presented in the user interface.
-		 * @param execution The process or shell execution.
-		 */
-		constructor(kind: TaskKind, name: string, source: string, execution: ProcessExecution | ShellExecution);
-
-		/**
-		 * Creates a new task.
-		 *
-		 * @param kind The task kind as defined in the 'taskKinds' extension point.
+		 * @param definition The task definition as defined in the taskDefintions extension point.
 		 * @param name The task's name. Is presented in the user interface.
 		 * @param source The task's source (e.g. 'gulp', 'npm', ...). Is presented in the user interface.
 		 * @param execution The process or shell execution.
@@ -275,12 +260,12 @@ declare module 'vscode' {
 		 *  or '$eslint'. Problem matchers can be contributed by an extension using
 		 *  the `problemMatchers` extension point.
 		 */
-		constructor(kind: TaskKind, name: string, source: string, execution: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
+		constructor(taskDefinition: TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
 
 		/**
-		 * The task's kind.
+		 * The task's definition.
 		 */
-		kind: TaskKind;
+		definition: TaskDefinition;
 
 		/**
 		 * The task's name

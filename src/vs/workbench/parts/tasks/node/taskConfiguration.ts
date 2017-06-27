@@ -21,7 +21,7 @@ import {
 } from 'vs/platform/markers/common/problemMatcher';
 
 import * as Tasks from '../common/tasks';
-import { TaskTypeRegistry } from '../common/taskTypeRegistry';
+import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry';
 
 /**
  * Defines the problem handling strategy
@@ -1106,7 +1106,7 @@ namespace ConfiguringTask {
 			context.problemReporter.fatal(nls.localize('ConfigurationParser.noTaskType', 'Error: tasks configuration must have a type property. The configuration will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
 			return undefined;
 		}
-		let typeDeclaration = TaskTypeRegistry.get(type);
+		let typeDeclaration = TaskDefinitionRegistry.get(type);
 		let identifier: TaskIdentifier;
 		if (Types.isString(customize)) {
 			if (customize.indexOf(grunt) === 0) {

@@ -84,7 +84,7 @@ function getOutputChannel(): vscode.OutputChannel {
 	return _channel;
 }
 
-interface GruntTaskKind extends vscode.TaskKind {
+interface GruntTaskDefinition extends vscode.TaskDefinition {
 	task: string;
 	file?: string;
 }
@@ -170,7 +170,7 @@ async function getGruntTasks(): Promise<vscode.Task[]> {
 						let matches = regExp.exec(line);
 						if (matches && matches.length === 2) {
 							let name = matches[1];
-							let kind: GruntTaskKind = {
+							let kind: GruntTaskDefinition = {
 								type: 'grunt',
 								task: name
 							};

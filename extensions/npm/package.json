@@ -42,7 +42,7 @@
         }
       }
     },
-    "taskTypes": [
+    "taskDefinitions": [
       {
         "type": "npm",
         "required": ["script"],

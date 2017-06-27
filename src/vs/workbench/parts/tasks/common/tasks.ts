@@ -381,7 +381,7 @@ export interface TaskSet {
 	extension?: IExtensionDescription;
 }
 
-export interface TaskTypeDescription {
+export interface TaskDefinition {
 	taskType: string;
 	required: string[];
 	properties: IJSONSchemaMap;

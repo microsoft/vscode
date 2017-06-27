@@ -458,7 +458,7 @@
         "url": "http://json.schemastore.org/typings"
       }
     ],
-    "taskTypes": [
+    "taskDefinitions": [
       {
         "type": "typescript",
         "required": ["tsconfig"],
