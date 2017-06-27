@@ -124,7 +124,7 @@ export abstract class BaseHistoryService {
 				if (!this.mapRootToExpression.has(root.toString()) || !objects.equals(this.mapRootToExpression.get(root.toString()), rootExcludes)) {
 					changed = true;
 
-					this.mapRootToExcludes.set(root.toString(), parse(rootExcludes, { trimForExclusions: true }));
+					this.mapRootToExcludes.set(root.toString(), parse(rootExcludes));
 					this.mapRootToExpression.set(root.toString(), objects.clone(rootExcludes));
 				}
 			});
@@ -135,7 +135,7 @@ export abstract class BaseHistoryService {
 		if (!this.mapRootToExpression.has(null) || !objects.equals(this.mapRootToExpression.get(null), globalExcludes)) {
 			changed = true;
 
-			this.mapRootToExcludes.set(null, parse(globalExcludes, { trimForExclusions: true }));
+			this.mapRootToExcludes.set(null, parse(globalExcludes));
 			this.mapRootToExpression.set(null, objects.clone(globalExcludes));
 		}
 
