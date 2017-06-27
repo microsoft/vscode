@@ -32,8 +32,8 @@ export class CommonActions {
 		} catch (e) {
 			return Promise.reject('Failed to select settings editor to add a setting.');
 		}
-		await this.spectron.client.keys(['ArrowDown', 'NULL', 'ArrowDown', 'NULL'], false);
 		await this.spectron.wait();
+		await this.spectron.client.keys(['ArrowDown', 'NULL', 'ArrowDown', 'NULL'], false);
 		await this.spectron.client.keys(`"${setting}": "${value}"`);
 		await this.spectron.wait();
 		return this.saveOpenedFile();
