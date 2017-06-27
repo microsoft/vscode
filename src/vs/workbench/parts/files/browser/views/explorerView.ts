@@ -12,13 +12,14 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 import errors = require('vs/base/common/errors');
 import labels = require('vs/base/common/labels');
 import paths = require('vs/base/common/paths');
+import glob = require('vs/base/common/glob');
 import { Action, IAction } from 'vs/base/common/actions';
 import { prepareActions } from 'vs/workbench/browser/actions';
 import { memoize } from 'vs/base/common/decorators';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocussedContext, ExplorerFocussedContext } from 'vs/workbench/parts/files/common/files';
-import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileChange, IFileService } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 import { RefreshViewExplorerAction, NewFolderAction, NewFileAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/browser/views/explorerViewer';
 import { toResource } from 'vs/workbench/common/editor';
@@ -59,8 +60,6 @@ export class ExplorerView extends CollapsibleView {
 
 	private static MEMENTO_LAST_ACTIVE_FILE_RESOURCE = 'explorer.memento.lastActiveFileResource';
 	private static MEMENTO_EXPANDED_FOLDER_RESOURCES = 'explorer.memento.expandedFolderResources';
-
-	private static COMMON_SCM_FOLDERS = ['.git', '.svn', '.hg'];
 
 	public readonly id: string = ExplorerView.ID;
 
@@ -559,17 +558,7 @@ export class ExplorerView extends CollapsibleView {
 	private shouldRefreshFromEvent(e: FileChangesEvent): boolean {
 
 		// Filter to the ones we care
-		e = this.filterToAddRemovedOnWorkspacePath(e, (event, segments) => {
-			if (
-				segments[0] !== ExplorerView.COMMON_SCM_FOLDERS[0] &&
-				segments[0] !== ExplorerView.COMMON_SCM_FOLDERS[1] &&
-				segments[0] !== ExplorerView.COMMON_SCM_FOLDERS[2]
-			) {
-				return true; // we like all things outside common SCM folders
-			}
-
-			return segments.length === 1; // otherwise we only care about the SCM folder itself
-		});
+		e = this.filterToAddRemovedOnWorkspacePath(e);
 
 		// We only ever refresh from files/folders that got added or deleted
 		if (e.gotAdded() || e.gotDeleted()) {
@@ -624,20 +613,21 @@ export class ExplorerView extends CollapsibleView {
 		return false;
 	}
 
-	private filterToAddRemovedOnWorkspacePath(e: FileChangesEvent, fn: (change: IFileChange, workspacePathSegments: string[]) => boolean): FileChangesEvent {
+	private filterToAddRemovedOnWorkspacePath(e: FileChangesEvent): FileChangesEvent {
 		return new FileChangesEvent(e.changes.filter(change => {
 			if (change.type === FileChangeType.UPDATED) {
 				return false; // we only want added / removed
 			}
 
-			const workspacePath = this.contextService.toWorkspaceRelativePath(change.resource);
-			if (!workspacePath) {
-				return false; // not inside workspace
+			// Getting closest root which is not correct in all cases
+			const root = this.contextService.getRoot(change.resource);
+			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(undefined, { resource: root });
+			const excludesConfig = (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
+			if (glob.match(excludesConfig, paths.normalize(paths.relative(root.fsPath, change.resource.fsPath)))) {
+				return false; // hidden through pattern
 			}
 
-			const segments = workspacePath.split(/\//);
-
-			return fn(change, segments);
+			return true;
 		}));
 	}
 
