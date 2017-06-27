@@ -316,6 +316,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('enableDragAndDrop', "Controls if the explorer should allow to move files and folders via drag and drop."),
 			'default': true
+		},
+		'explorer.dirsFirst': {
+			'type': 'boolean',
+			'description': nls.localize('dirsFirst', "Controls if directories should be listed before files."),
+			'default': true
 		}
 	}
 });

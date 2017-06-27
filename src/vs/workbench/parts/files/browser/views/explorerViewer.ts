@@ -524,8 +524,8 @@ export class FileController extends DefaultController {
 	}
 }
 
-// Explorer Sorter
-export class FileSorter implements ISorter {
+// Default Sorter
+export class DefaultSorter implements ISorter {
 
 	public compare(tree: ITree, statA: FileStat, statB: FileStat): number {
 		if (statA.isDirectory && !statB.isDirectory) {
@@ -536,6 +536,31 @@ export class FileSorter implements ISorter {
 			return 1;
 		}
 
+		if (statA instanceof NewStatPlaceholder) {
+			return -1;
+		}
+
+		if (statB instanceof NewStatPlaceholder) {
+			return 1;
+		}
+
+		// Do not sort roots
+		if (statA.isRoot) {
+			return -1;
+		}
+
+		if (statB.isRoot) {
+			return 1;
+		}
+
+		return comparers.compareFileNames(statA.name, statB.name);
+	}
+}
+
+// Through Sorter
+export class ThroughSorter implements ISorter {
+
+	public compare(tree: ITree, statA: FileStat, statB: FileStat): number {
 		if (statA instanceof NewStatPlaceholder) {
 			return -1;
 		}
