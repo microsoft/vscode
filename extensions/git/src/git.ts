@@ -447,7 +447,7 @@ export class GitStatusParser {
 		// space
 		i++;
 
-		if (entry.x === 'R') {
+		if (entry.x === 'R' || entry.x === 'C') {
 			lastIndex = raw.indexOf('\0', i);
 
 			if (lastIndex === -1) {
