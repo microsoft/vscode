@@ -157,7 +157,7 @@ export class CommonActions {
 
 			return span;
 		} catch (e) {
-			return undefined;
+			return Promise.reject('Could not obtain text on the first line of an editor: ' + e);
 		}
 	}
 
