@@ -400,8 +400,7 @@ export function registerCommands(): void {
 
 		if (!options || typeof options !== 'object') {
 			options = {
-				preserveFocus: false,
-				pinned: undefined
+				preserveFocus: false
 			};
 		}
 
