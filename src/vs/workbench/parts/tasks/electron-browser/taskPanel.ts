@@ -17,9 +17,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ConfigureTaskRunnerAction } from 'vs/workbench/parts/tasks/electron-browser/task.contribution';
+import { domElement } from 'vs/workbench/parts/tasks/electron-browser/taskButtons';
 
 const TASK_PANEL_ID = 'workbench.panel.task';
-
 
 export class TaskPanel extends Panel {
 
@@ -46,40 +46,30 @@ export class TaskPanel extends Panel {
 		let container = dom.append(parent.getHTMLElement(), dom.$('.task-panel-container'));
 		this.taskButtons = [];
 		this.createTaskButtons(container);
-
 		return TPromise.as(void 0);
 	}
 
 	private createTaskButtons(parent: HTMLElement): void {
-		this.taskContainer = dom.append(parent, dom.$('.message-box-container'));
-		this.taskButtons.push(dom.append(this.taskContainer, dom.$('button')));
-		this.taskButtons[0].setAttribute('tabindex', '0');
-		this.taskButtons[0].textContent = 'Run task';
-		this.taskButtons[0].addEventListener('click', e => {
+		// Make big html string, with localized names
+		// Use innerHTML to create dom nodes on the builder
+		// Use select/on to add event listeners
+		let builder = new Builder(parent, false);
+		builder = builder.innerHtml(domElement());
+		this.taskContainer = dom.append(parent, builder.child().getHTMLElement());
+		let builder1 = builder.select('button');
+		builder1.item(0).on('click', e => {
 			this.commandService.executeCommand('workbench.action.tasks.runTask');
 		});
-		this.taskButtons.push(dom.append(this.taskContainer, dom.$('button')));
-		this.taskButtons[1].setAttribute('tabindex', '0');
-		this.taskButtons[1].textContent = 'Run build task';
-		this.taskButtons[1].addEventListener('click', e => {
+		builder1.item(1).on('click', e => {
 			this.commandService.executeCommand('workbench.action.tasks.build');
 		});
-		this.taskButtons.push(dom.append(this.taskContainer, dom.$('button')));
-		this.taskButtons[2].setAttribute('tabindex', '0');
-		this.taskButtons[2].textContent = 'Run test task';
-		this.taskButtons[2].addEventListener('click', e => {
+		builder1.item(2).on('click', e => {
 			this.commandService.executeCommand('workbench.action.tasks.test');
 		});
-		this.taskButtons.push(dom.append(this.taskContainer, dom.$('button')));
-		this.taskButtons[3].setAttribute('tabindex', '0');
-		this.taskButtons[3].textContent = 'Terminate task';
-		this.taskButtons[3].addEventListener('click', e => {
+		builder1.item(3).on('click', e => {
 			this.commandService.executeCommand('workbench.action.tasks.terminate');
 		});
-		this.taskButtons.push(dom.append(this.taskContainer, dom.$('button')));
-		this.taskButtons[4].setAttribute('tabindex', '0');
-		this.taskButtons[4].textContent = 'Restart task';
-		this.taskButtons[4].addEventListener('click', e => {
+		builder1.item(4).on('click', e => {
 			this.commandService.executeCommand('workbench.action.tasks.restartTask');
 		});
 	}
@@ -104,10 +94,10 @@ export class TaskPanel extends Panel {
 
 	public setVisible(visible: boolean): TPromise<void> {
 		return super.setVisible(visible);
-	}
+	};
 
 	public focus(): void {
-	}
+	};
 }
 
 (<PanelRegistry>Registry.as(Extensions.Panels)).registerPanel(new PanelDescriptor(
