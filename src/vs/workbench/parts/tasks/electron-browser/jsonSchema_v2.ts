@@ -103,15 +103,12 @@ const group: IJSONSchema = {
 	oneOf: [
 		{
 			type: 'string',
-			enum: ['none', 'clean', 'build', 'rebuildAll', 'test'],
-			default: 'none',
 		},
 		{
 			type: 'object',
 			properties: {
 				kind: {
 					type: 'string',
-					enum: ['none', 'clean', 'build', 'rebuildAll', 'test'],
 					default: 'none',
 					description: nls.localize('JsonSchema.tasks.group.kind', 'The task\'s execution group.')
 				},
@@ -121,9 +118,11 @@ const group: IJSONSchema = {
 					description: nls.localize('JsonSchema.tasks.group.isPrimary', 'Defines if this task is a primary task in a group.')
 				}
 			}
-		}
+		},
 	],
-	description: nls.localize('JsonSchema.tasks.group', 'Defines to which execution group this task belongs to. If omitted the task belongs to no group.')
+	enum: ['none', 'build', 'test', { kind: 'build', isPrimary: true }, { kind: 'test', isPrimary: true }],
+	default: 'none',
+	description: nls.localize('JsonSchema.tasks.group', 'Defines to which execution group this task belongs to. It supports "build" to add it to the build group and "test" to add it to the test group.')
 };
 
 const taskType: IJSONSchema = {
