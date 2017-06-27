@@ -107,8 +107,8 @@ export class WorkspaceStats {
 
 		const folders = workspace ? workspace.roots : this.environmentService.appQuality !== 'stable' && this.findFolders(workbenchOptions);
 		if (folders && folders.length && this.fileService) {
-			return this.fileService.resolveFiles(folders.map(resource => ({ resource }))).then(statses => {
-				const names = (<IFileStat[]>[]).concat(...statses.map(stats => stats.children || [])).map(c => c.name);
+			return this.fileService.resolveFiles(folders.map(resource => ({ resource }))).then(results => {
+				const names = (<IFileStat[]>[]).concat(...results.map(result => result.success ? (result.stat.children || []) : [])).map(c => c.name);
 
 				tags['workspace.language.cs'] = this.searchArray(names, /^.+\.cs$/i);
 				tags['workspace.language.js'] = this.searchArray(names, /^.+\.js$/i);
@@ -229,8 +229,8 @@ export class WorkspaceStats {
 			return workspaceUri.with({ path: `${path !== '/' ? path : ''}/node_modules` });
 		});
 		return this.fileService.resolveFiles(uris.map(resource => ({ resource }))).then(
-			statses => {
-				const names = (<IFileStat[]>[]).concat(...statses.map(stats => stats.children || [])).map(c => c.name);
+			results => {
+				const names = (<IFileStat[]>[]).concat(...results.map(result => result.success ? (result.stat.children || []) : [])).map(c => c.name);
 				const referencesAzure = this.searchArray(names, /azure/i);
 				if (referencesAzure) {
 					tags['node'] = true;

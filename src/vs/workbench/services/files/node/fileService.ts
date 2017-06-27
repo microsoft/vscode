@@ -11,7 +11,7 @@ import os = require('os');
 import crypto = require('crypto');
 import assert = require('assert');
 
-import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent, IFilesConfiguration } from 'vs/platform/files/common/files';
+import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent, IFilesConfiguration } from 'vs/platform/files/common/files';
 import { isEqualOrParent } from 'vs/base/common/paths';
 import { ResourceMap } from 'vs/base/common/map';
 import arrays = require('vs/base/common/arrays');
@@ -196,15 +196,9 @@ export class FileService implements IFileService {
 		return this.resolve(resource, options);
 	}
 
-	public resolveFiles(toResolve: { resource: uri, options?: IResolveFileOptions }[]): TPromise<IFileStat[]> {
-		return TPromise.join(toResolve.map(resourceAndOptions => this.resolve(resourceAndOptions.resource, resourceAndOptions.options).then(undefined, error => ({
-			resource: resourceAndOptions.resource,
-			name: paths.basename(resourceAndOptions.resource.fsPath),
-			mtime: 0,
-			etag: undefined,
-			isDirectory: true,
-			hasChildren: false
-		}))));
+	public resolveFiles(toResolve: { resource: uri, options?: IResolveFileOptions }[]): TPromise<IResolveFileResult[]> {
+		return TPromise.join(toResolve.map(resourceAndOptions => this.resolve(resourceAndOptions.resource, resourceAndOptions.options)
+			.then(stat => ({ stat, success: true }), error => ({ stat: undefined, success: false }))));
 	}
 
 	public existsFile(resource: uri): TPromise<boolean> {
