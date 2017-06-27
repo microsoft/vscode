@@ -17,13 +17,19 @@ function handleDeletions() {
 	});
 }
 
-const useLegacyWatch = process.env['VSCODE_USE_LEGACY_WATCH'];
+let watch = void 0;
 
-const watch = !useLegacyWatch ?
-	require('./watch-nsfw')
-	: process.platform === 'win32'
-		? require('./watch-win32')
-		: require('gulp-watch');
+if (!process.env['VSCODE_USE_LEGACY_WATCH']) {
+	try {
+		watch = require('./watch-nsfw');
+	} catch (err) {
+		console.warn('Could not load NSFW watcher');
+	}
+}
+
+if (!watch) {
+	watch = process.platform === 'win32' ? require('./watch-win32') : require('gulp-watch');
+}
 
 module.exports = function () {
 	return watch.apply(null, arguments)
