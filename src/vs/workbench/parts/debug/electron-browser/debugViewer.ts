@@ -185,7 +185,7 @@ function getSourceName(source: Source, contextService: IWorkspaceContextService,
 		return source.name;
 	}
 
-	return getPathLabel(paths.basename(source.uri.fsPath), contextService, environmentService);
+	return paths.basename(source.uri.fsPath);
 }
 
 export class BaseDebugController extends DefaultController {
