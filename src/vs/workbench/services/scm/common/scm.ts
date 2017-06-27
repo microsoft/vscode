@@ -22,6 +22,7 @@ export const DefaultSCMProviderIdStorageKey = 'settings.workspace.scm.defaultPro
 export interface ISCMResourceDecorations {
 	icon?: URI;
 	iconDark?: URI;
+	tooltip?: string;
 	strikeThrough?: boolean;
 	faded?: boolean;
 }

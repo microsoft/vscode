@@ -4839,6 +4839,12 @@ declare module 'vscode' {
 		readonly faded?: boolean;
 
 		/**
+		 * The title for a specific
+		 * [source control resource state](#SourceControlResourceState).
+		 */
+		readonly tooltip?: string;
+
+		/**
 		 * The light theme decorations.
 		 */
 		readonly light?: SourceControlResourceThemableDecorations;
