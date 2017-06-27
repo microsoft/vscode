@@ -204,11 +204,13 @@ configurationRegistry.registerConfiguration({
 			'enum': Object.keys(SUPPORTED_ENCODINGS),
 			'default': 'utf8',
 			'description': nls.localize('encoding', "The default character set encoding to use when reading and writing files."),
+			'scope': ConfigurationScope.FOLDER
 		},
 		'files.autoGuessEncoding': {
 			'type': 'boolean',
 			'default': false,
-			'description': nls.localize('autoGuessEncoding', "When enabled, will attempt to guess the character set encoding when opening files")
+			'description': nls.localize('autoGuessEncoding', "When enabled, will attempt to guess the character set encoding when opening files"),
+			'scope': ConfigurationScope.FOLDER
 		},
 		'files.eol': {
 			'type': 'string',
@@ -223,13 +225,15 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('trimTrailingWhitespace', "When enabled, will trim trailing whitespace when saving a file."),
-			'overridable': true
+			'overridable': true,
+			'scope': ConfigurationScope.FOLDER
 		},
 		'files.insertFinalNewline': {
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('insertFinalNewline', "When enabled, insert a final new line at the end of the file when saving it."),
-			'overridable': true
+			'overridable': true,
+			'scope': ConfigurationScope.FOLDER
 		},
 		'files.autoSave': {
 			'type': 'string',
@@ -251,7 +255,8 @@ configurationRegistry.registerConfiguration({
 		'files.watcherExclude': {
 			'type': 'object',
 			'default': platform.isWindows /* https://github.com/Microsoft/vscode/issues/23954 */ ? { '**/.git/objects/**': true, '**/.git/subtree-cache/**': true, '**/node_modules/*/**': true } : { '**/.git/objects/**': true, '**/.git/subtree-cache/**': true, '**/node_modules/**': true },
-			'description': nls.localize('watcherExclude', "Configure glob patterns of file paths to exclude from file watching. Changing this setting requires a restart. When you experience Code consuming lots of cpu time on startup, you can exclude large folders to reduce the initial load.")
+			'description': nls.localize('watcherExclude', "Configure glob patterns of file paths to exclude from file watching. Changing this setting requires a restart. When you experience Code consuming lots of cpu time on startup, you can exclude large folders to reduce the initial load."),
+			'scope': ConfigurationScope.FOLDER
 		},
 		'files.hotExit': {
 			'type': 'string',

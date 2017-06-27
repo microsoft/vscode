@@ -9,7 +9,7 @@ import 'vs/css!./media/search.contribution';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import nls = require('vs/nls');
 import { IAction } from 'vs/base/common/actions';
 import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
@@ -329,7 +329,8 @@ configurationRegistry.registerConfiguration({
 						}
 					}
 				]
-			}
+			},
+			'scope': ConfigurationScope.FOLDER
 		},
 		'search.useRipgrep': {
 			'type': 'boolean',
