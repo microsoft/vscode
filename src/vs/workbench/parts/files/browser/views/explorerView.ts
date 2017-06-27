@@ -558,7 +558,7 @@ export class ExplorerView extends CollapsibleView {
 	private shouldRefreshFromEvent(e: FileChangesEvent): boolean {
 
 		// Filter to the ones we care
-		e = this.filterToAddRemovedOnWorkspacePath(e);
+		e = this.filterFileEvents(e);
 
 		// We only ever refresh from files/folders that got added or deleted
 		if (e.gotAdded() || e.gotDeleted()) {
@@ -613,7 +613,7 @@ export class ExplorerView extends CollapsibleView {
 		return false;
 	}
 
-	private filterToAddRemovedOnWorkspacePath(e: FileChangesEvent): FileChangesEvent {
+	private filterFileEvents(e: FileChangesEvent): FileChangesEvent {
 		return new FileChangesEvent(e.changes.filter(change => {
 			if (change.type === FileChangeType.UPDATED) {
 				return false; // we only want added / removed
@@ -621,6 +621,10 @@ export class ExplorerView extends CollapsibleView {
 
 			// Getting closest root which is not correct in all cases
 			const root = this.contextService.getRoot(change.resource);
+			if (!root) {
+				return false;
+			}
+
 			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(undefined, { resource: root });
 			const excludesConfig = (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
 			if (glob.match(excludesConfig, paths.normalize(paths.relative(root.fsPath, change.resource.fsPath)))) {
