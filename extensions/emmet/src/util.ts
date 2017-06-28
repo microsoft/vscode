@@ -25,9 +25,13 @@ export const LANGUAGE_MODES: Object = {
 	'typescriptreact': ['.', '}']
 };
 
-// Explicitly map languages to their parent language to get emmet completion support
+// Explicitly map languages that have built-in grammar in VS Code to their parent language
+// to get emmet completion support
+// For other languages, users will have to use `emmet.includeLanguages` or
+// language specific extensions can provide emmet completion support
 export const MAPPED_MODES: Object = {
-	'handlebars': 'html'
+	'handlebars': 'html',
+	'php': 'html'
 };
 export function validate(allowStylesheet: boolean = true): boolean {
 	let editor = vscode.window.activeTextEditor;
