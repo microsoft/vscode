@@ -22,6 +22,7 @@ import { ISCMService } from 'vs/workbench/services/scm/common/scm';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { StatusUpdater } from './scmActivity';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 
 class OpenSCMViewletAction extends ToggleViewletAction {
 
@@ -81,6 +82,20 @@ const viewletDescriptor = new ViewletDescriptor(
 	'scm',
 	36
 );
+
+// Configuration
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	id: 'editor',
+	order: 5,
+	type: 'object',
+	properties: {
+		'editor.enableDecorators': {
+			'type': 'boolean',
+			'default': true,
+			'description': localize('enableDecorators', "Enables or disables color decorators when changes happen in the editor.")
+		},
+	}
+});
 
 Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets)
 	.registerViewlet(viewletDescriptor);

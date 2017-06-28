@@ -19,6 +19,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import URI from 'vs/base/common/uri';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ISCMService } from 'vs/workbench/services/scm/common/scm';
@@ -214,7 +215,8 @@ export class DirtyDiffDecorator implements ext.IWorkbenchContribution {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.toDispose.push(editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 	}
@@ -227,6 +229,11 @@ export class DirtyDiffDecorator implements ext.IWorkbenchContribution {
 		// HACK: This is the best current way of figuring out whether to draw these decorations
 		// or not. Needs context from the editor, to know whether it is a diff editor, in place editor
 		// etc.
+
+		const enableDecorators = this.configurationService.lookup('editor.enableDecorators').value;
+		if (!enableDecorators) {
+			return;
+		}
 
 		const models = this.editorService.getVisibleEditors()
 
