@@ -27,12 +27,7 @@ class TaskEntry extends base.TaskEntry {
 			return false;
 		}
 		let task = this._task;
-		this.taskService.run(task);
-		if (task.command.presentation.focus) {
-			this.quickOpenService.close();
-			return false;
-		}
-		return true;
+		return this.doRun(task, { attachProblemMatcher: true });
 	}
 }
 

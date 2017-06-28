@@ -57,7 +57,7 @@ export function loadReleaseNotes(accessor: ServicesAccessor, version: string): T
 	const match = /^(\d+\.\d+)\./.exec(version);
 
 	if (!match) {
-		return TPromise.wrapError<string>('not found');
+		return TPromise.wrapError<string>(new Error('not found'));
 	}
 
 	const versionLabel = match[1].replace(/\./g, '_');
@@ -354,7 +354,7 @@ export class LightUpdateContribution implements IGlobalActivity {
 				return new Action('update.available', updateAvailableLabel, undefined, false);
 
 			case UpdateState.UpdateDownloaded:
-				return new Action('update.restart', nls.localize('restartToUpdate', "Restart To Update..."), undefined, true, () =>
+				return new Action('update.restart', nls.localize('restartToUpdate', "Restart to Update..."), undefined, true, () =>
 					this.updateService.quitAndInstall());
 
 			default:

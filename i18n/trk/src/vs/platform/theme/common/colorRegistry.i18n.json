@@ -61,7 +61,6 @@
 	"editorForeground": "Düzenleyici varsayılan ön plan rengi.",
 	"editorWidgetBackground": "Bul/değiştir gibi düzenleyici araçlarının arka plan rengi.",
 	"editorWidgetBorder": "Editör araçlarının kenarlık rengi. Renk, araç bir kenarlığı olmasına karar verdiğinde ve renk hiçbir eklenti tarafından geçersiz kılınmadığında kullanılır.",
-	"editorSelection": "Düzenleyici seçiminin rengi.",
 	"editorInactiveSelection": "Bir pasif düzenleyicideki seçimin rengi.",
 	"editorSelectionHighlight": "Seçimle aynı içeriğe sahip bölgelerin rengi.",
 	"editorFindMatch": "Geçerli arama eşleşmesinin rengi.",

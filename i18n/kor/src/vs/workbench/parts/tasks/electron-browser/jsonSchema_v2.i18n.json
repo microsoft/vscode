@@ -10,7 +10,6 @@
 	"JsonSchema.tasks.group": "이 작업이 속한 실행 그룹을 정의합니다. 생략하면 작업은\n 아무 그룹에도 속하지 않습니다.",
 	"JsonSchema.tasks.type": "작업이 프로세스로 실행되는지 또는 셸 내의 명령으로 실행되는지를 제어합니다. 기본값은 프로세스입니다.",
 	"JsonSchema.version": "구성의 버전 번호입니다.",
-	"JsonSchema.tasks.customize": "사용자 지정할 적용된 작업입니다.",
 	"JsonSchema.windows": "Windows 특정 명령 구성",
 	"JsonSchema.mac": "Mac 특정 명령 구성",
 	"JsonSchema.linux": "Linux 특정 명령 구성"

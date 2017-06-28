@@ -13,5 +13,6 @@
 	"error.connection.unknown": "Ismeretlen csatlakozási hiba történt. Vagy megszakadt az internetkapcsolat, vagy a kiszolgáló vált offline-ná.",
 	"stackTrace.format": "{0}: {1}",
 	"error.defaultMessage": "Ismeretlen hiba történt. Részletek a naplóban.",
+	"nodeExceptionMessage": "Rendszerhiba történt ({0})",
 	"error.moreErrors": "{0} (összesen {1} hiba)"
 }

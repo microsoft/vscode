@@ -33,7 +33,6 @@
 	"openFoldersInNewWindow": "폴더를 새 창에서 열지, 마지막 활성 창과 바꿀지를 제어합니다.\n- default: 응용 프로그램 내에서 [파일] 메뉴 등을 통해 폴더를 선택하는 경우를 제외하고, 폴더는 새 창에서 열립니다.\n- on: 폴더가 새 창에서 열립니다.\n- off: 폴더가 마지막 활성 창을 대체합니다\n이 설정이 무시되는 경우도 있을 수 있습니다(예: -new-window 또는 -reuse-window 명령줄 옵션을 사용할 경우).",
 	"restoreFullscreen": "창이 전체 화면 모드에서 종료된 경우 창을 전체 화면 모드로 복원할지 여부를 제어합니다.",
 	"zoomLevel": "창의 확대/축소 수준을 조정합니다. 원래 크기는 0이고 각 상한 증분(예: 1) 또는 하한 증분(예: -1)은 20% 더 크거나 더 작게 확대/축소하는 것을 나타냅니다. 10진수를 입력하여 확대/축소 수준을 세부적으로 조정할 수도 있습니다.",
-	"title": "활성 편집기를 기반으로 창 제목을 제어합니다. 변수는 컨텍스트를 기반으로 대체됩니다.\n${activeEditorShort}: 예: myFile.txt\n${activeEditorMedium}: 예: myFolder/myFile.txt\n${activeEditorLong}: 예:  /Users/Development/myProject/myFolder/myFile.txt\n${rootName}: 예: myProject\n${rootPath}: 예:  /Users/Development/myProject\n${appName}: 예:  VS Code\n${dirty}: 활성 편집기가 더티인 경우 더티 표시기\n${separator}: 값이 있는 변수로 둘러싸인 경우에만 표시되는 조건부 구분 기호(\" - \")",
 	"window.newWindowDimensions.default": "화면 가운데에서 새 창을 엽니다.",
 	"window.newWindowDimensions.inherit": "마지막 활성 창과 동일한 크기로 새 창을 엽니다.",
 	"window.newWindowDimensions.maximized": "최대화된 새 창을 엽니다.",

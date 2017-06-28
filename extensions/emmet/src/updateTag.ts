@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { getNode } from './util';
 import parse from '@emmetio/html-matcher';
-import Node from '@emmetio/node';
+import { HtmlNode } from 'EmmetNode';
 import { DocumentStreamReader } from './bufferStream';
+import { getNode } from './util';
 
 export function updateTag(tagName: string) {
 	let editor = vscode.window.activeTextEditor;
@@ -16,7 +16,10 @@ export function updateTag(tagName: string) {
 		return;
 	}
 
-	let rootNode: Node = parse(new DocumentStreamReader(editor.document));
+	let rootNode: HtmlNode = parse(new DocumentStreamReader(editor.document));
+	if (!rootNode) {
+		return;
+	}
 	let rangesToUpdate = [];
 	editor.selections.reverse().forEach(selection => {
 		rangesToUpdate = rangesToUpdate.concat(getRangesToUpdate(editor, selection, rootNode));
@@ -29,8 +32,8 @@ export function updateTag(tagName: string) {
 	});
 }
 
-function getRangesToUpdate(editor: vscode.TextEditor, selection: vscode.Selection, rootNode: Node): vscode.Range[] {
-	let nodeToUpdate = getNode(rootNode, selection.start);
+function getRangesToUpdate(editor: vscode.TextEditor, selection: vscode.Selection, rootNode: HtmlNode): vscode.Range[] {
+	let nodeToUpdate = <HtmlNode>getNode(rootNode, selection.start);
 
 	let openStart = (<vscode.Position>nodeToUpdate.open.start).translate(0, 1);
 	let openEnd = openStart.translate(0, nodeToUpdate.name.length);

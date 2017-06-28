@@ -117,14 +117,16 @@
     },
     "configurationDefaults": {
       "[json]": {
-        "editor.quickSuggestions": { "strings": true }
+        "editor.quickSuggestions": {
+          "strings": true
+        }
       }
     }
   },
   "dependencies": {
-    "vscode-extension-telemetry": "^0.0.7",
-    "vscode-languageclient": "^3.1.0-alpha.1",
-    "vscode-nls": "^2.0.2"
+    "vscode-extension-telemetry": "0.0.7",
+    "vscode-languageclient": "3.1.0-alpha.1",
+    "vscode-nls": "2.0.2"
   },
   "devDependencies": {
     "@types/node": "^6.0.51"

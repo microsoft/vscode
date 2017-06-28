@@ -24,7 +24,7 @@ suite('Workbench Memento', () => {
 		let myMemento = new Memento('memento.test');
 
 		// Global
-		let memento = myMemento.getMemento(storage);
+		let memento: any = myMemento.getMemento(storage);
 		memento.foo = [1, 2, 3];
 		let globalMemento = myMemento.getMemento(storage, Scope.GLOBAL);
 		assert.deepEqual(globalMemento, memento);
@@ -79,7 +79,7 @@ suite('Workbench Memento', () => {
 		let myMemento = new Memento('memento.test');
 
 		// Global
-		let memento = myMemento.getMemento(storage, context);
+		let memento: any = myMemento.getMemento(storage, context);
 		memento.foo = [1, 2, 3];
 
 		// Workspace
@@ -144,7 +144,7 @@ suite('Workbench Memento', () => {
 		let myMemento2 = new Memento('memento.test');
 
 		// Global
-		let memento = myMemento.getMemento(storage, context);
+		let memento: any = myMemento.getMemento(storage, context);
 		memento.foo = [1, 2, 3];
 
 		memento = myMemento2.getMemento(storage, context);

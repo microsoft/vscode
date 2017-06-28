@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import nls = require('vs/nls');
 import URI from 'vs/base/common/uri';
 import { Action, IAction } from 'vs/base/common/actions';
@@ -36,9 +36,9 @@ import {
 } from 'vs/workbench/browser/parts/editor/editorActions';
 import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { getQuickNavigateHandler, inQuickOpenContext } from "vs/workbench/browser/parts/quickopen/quickopen";
-import { KeybindingsRegistry } from "vs/platform/keybinding/common/keybindingsRegistry";
-import { ContextKeyExpr } from "vs/platform/contextkey/common/contextkey";
+import { getQuickNavigateHandler, inQuickOpenContext } from 'vs/workbench/browser/parts/quickopen/quickopen';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -94,7 +94,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 
 interface ISerializedUntitledEditorInput {
 	resource: string;
-	resourceJSON: any;
+	resourceJSON: object;
 	modeId: string;
 	encoding: string;
 }

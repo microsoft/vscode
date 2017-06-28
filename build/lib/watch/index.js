@@ -17,9 +17,19 @@ function handleDeletions() {
 	});
 }
 
-const watch = process.platform === 'win32'
-	? require('./watch-win32')
-	: require('gulp-watch');
+let watch = void 0;
+
+if (!process.env['VSCODE_USE_LEGACY_WATCH']) {
+	try {
+		watch = require('./watch-nsfw');
+	} catch (err) {
+		console.warn('Could not load NSFW watcher');
+	}
+}
+
+if (!watch) {
+	watch = process.platform === 'win32' ? require('./watch-win32') : require('gulp-watch');
+}
 
 module.exports = function () {
 	return watch.apply(null, arguments)

@@ -270,7 +270,8 @@ export const GitErrorCodes = {
 	CantAccessRemote: 'CantAccessRemote',
 	RepositoryNotFound: 'RepositoryNotFound',
 	RepositoryIsLocked: 'RepositoryIsLocked',
-	BranchNotFullyMerged: 'BranchNotFullyMerged'
+	BranchNotFullyMerged: 'BranchNotFullyMerged',
+	NoRemoteReference: 'NoRemoteReference'
 };
 
 function getGitErrorCode(stderr: string): string | undefined {
@@ -290,6 +291,8 @@ function getGitErrorCode(stderr: string): string | undefined {
 		return GitErrorCodes.CantAccessRemote;
 	} else if (/branch '.+' is not fully merged/.test(stderr)) {
 		return GitErrorCodes.BranchNotFullyMerged;
+	} else if (/Couldn\'t find remote ref/.test(stderr)) {
+		return GitErrorCodes.NoRemoteReference;
 	}
 
 	return void 0;
@@ -444,7 +447,7 @@ export class GitStatusParser {
 		// space
 		i++;
 
-		if (entry.x === 'R') {
+		if (entry.x === 'R' || entry.x === 'C') {
 			lastIndex = raw.indexOf('\0', i);
 
 			if (lastIndex === -1) {
@@ -654,6 +657,20 @@ export class Repository {
 		await this.run(args);
 	}
 
+	async merge(ref: string): Promise<void> {
+		const args = ['merge', ref];
+
+		try {
+			await this.run(args);
+		} catch (err) {
+			if (/^CONFLICT /m.test(err.stdout || '')) {
+				err.gitErrorCode = GitErrorCodes.Conflict;
+			}
+
+			throw err;
+		}
+	}
+
 	async clean(paths: string[]): Promise<void> {
 		const pathsByGroup = groupBy(paths, p => path.dirname(p));
 		const groups = Object.keys(pathsByGroup).map(k => pathsByGroup[k]);
@@ -734,11 +751,16 @@ export class Repository {
 		}
 	}
 
-	async pull(rebase?: boolean): Promise<void> {
+	async pull(rebase?: boolean, remote?: string, branch?: string): Promise<void> {
 		const args = ['pull'];
 
 		if (rebase) {
 			args.push('-r');
+		}
+
+		if (remote && branch) {
+			args.push(remote);
+			args.push(branch);
 		}
 
 		try {

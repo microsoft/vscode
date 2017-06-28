@@ -17,6 +17,7 @@
 	"typescript.format.enable": "啟用/停用預設 TypeScript 格式器。",
 	"javascript.format.enable": "啟用/停用預設 JavaScript 格式器。",
 	"format.insertSpaceAfterCommaDelimiter": "定義逗號分隔符號後的空格處理。",
+	"format.insertSpaceAfterConstructor": "定義 constructor 關鍵字後空格處理。需要 TypeScript >= 2.3.0。",
 	"format.insertSpaceAfterSemicolonInForStatements": " 定義 for 陳述式內分號後的空格處理。",
 	"format.insertSpaceBeforeAndAfterBinaryOperators": "定義二元運算子後的空格處理。",
 	"format.insertSpaceAfterKeywordsInControlFlowStatements": "定義控制流程陳述式內關鍵字後的空格處理方式。",

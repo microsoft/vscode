@@ -7,7 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import network = require('vs/base/common/network');
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { basename, dirname } from 'vs/base/common/paths';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorInput, EditorOptions, TextEditorOptions, IEditorRegistry, Extensions, SideBySideEditorInput, IFileEditorInput, IFileInputFactory } from 'vs/workbench/common/editor';
@@ -19,7 +19,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import nls = require('vs/nls');
-import { getPathLabel, IWorkspaceProvider } from 'vs/base/common/labels';
+import { getPathLabel } from 'vs/base/common/labels';
 import { ResourceMap } from 'vs/base/common/map';
 import { once } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -129,17 +129,17 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return TPromise.as<IEditor>(null);
 	}
 
-	private toOptions(arg1?: any): EditorOptions {
-		if (!arg1 || arg1 instanceof EditorOptions) {
-			return arg1;
+	private toOptions(options?: IEditorOptions | EditorOptions): EditorOptions {
+		if (!options || options instanceof EditorOptions) {
+			return options as EditorOptions;
 		}
 
-		const textOptions: ITextEditorOptions = arg1;
+		const textOptions: ITextEditorOptions = options;
 		if (!!textOptions.selection) {
-			return TextEditorOptions.create(arg1);
+			return TextEditorOptions.create(options);
 		}
 
-		return EditorOptions.create(arg1);
+		return EditorOptions.create(options);
 	}
 
 	/**
@@ -287,7 +287,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return input;
 	}
 
-	private toDiffLabel(res1: URI, res2: URI, context: IWorkspaceProvider, environment: IEnvironmentService): string {
+	private toDiffLabel(res1: URI, res2: URI, context: IWorkspaceContextService, environment: IEnvironmentService): string {
 		const leftName = getPathLabel(res1.fsPath, context, environment);
 		const rightName = getPathLabel(res2.fsPath, context, environment);
 

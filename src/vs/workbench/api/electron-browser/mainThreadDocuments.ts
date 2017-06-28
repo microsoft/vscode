@@ -190,7 +190,7 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 	$tryOpenDocument(uri: URI): TPromise<any> {
 
 		if (!uri.scheme || !(uri.fsPath || uri.authority)) {
-			return TPromise.wrapError(`Invalid uri. Scheme and authority or path must be set.`);
+			return TPromise.wrapError(new Error(`Invalid uri. Scheme and authority or path must be set.`));
 		}
 
 		let promise: TPromise<boolean>;
@@ -206,11 +206,11 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 
 		return promise.then(success => {
 			if (!success) {
-				return TPromise.wrapError('cannot open ' + uri.toString());
+				return TPromise.wrapError(new Error('cannot open ' + uri.toString()));
 			}
 			return undefined;
 		}, err => {
-			return TPromise.wrapError('cannot open ' + uri.toString() + '. Detail: ' + toErrorMessage(err));
+			return TPromise.wrapError(new Error('cannot open ' + uri.toString() + '. Detail: ' + toErrorMessage(err)));
 		});
 	}
 
@@ -230,7 +230,7 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		let asFileUri = uri.with({ scheme: 'file' });
 		return this._fileService.resolveFile(asFileUri).then(stats => {
 			// don't create a new file ontop of an existing file
-			return TPromise.wrapError<boolean>('file already exists on disk');
+			return TPromise.wrapError<boolean>(new Error('file already exists on disk'));
 		}, err => this._doCreateUntitled(asFileUri).then(resource => !!resource));
 	}
 

@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { getNode, isStyleSheet } from './util';
 import parse from '@emmetio/html-matcher';
-import Node from '@emmetio/node';
+import { HtmlNode } from 'EmmetNode';
 import { DocumentStreamReader } from './bufferStream';
+import { isStyleSheet } from 'vscode-emmet-helper';
+import { getNode } from './util';
 
 export function balanceOut() {
 	balance(true);
@@ -28,7 +29,10 @@ function balance(out: boolean) {
 	}
 	let getRangeFunction = out ? getRangeToBalanceOut : getRangeToBalanceIn;
 
-	let rootNode: Node = parse(new DocumentStreamReader(editor.document));
+	let rootNode: HtmlNode = parse(new DocumentStreamReader(editor.document));
+	if (!rootNode) {
+		return;
+	}
 
 	let newSelections: vscode.Selection[] = [];
 	editor.selections.forEach(selection => {
@@ -40,8 +44,8 @@ function balance(out: boolean) {
 	editor.selections = newSelections;
 }
 
-function getRangeToBalanceOut(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Node): vscode.Selection {
-	let nodeToBalance = getNode(rootNode, selection.start);
+function getRangeToBalanceOut(document: vscode.TextDocument, selection: vscode.Selection, rootNode: HtmlNode): vscode.Selection {
+	let nodeToBalance = <HtmlNode>getNode(rootNode, selection.start);
 	if (!nodeToBalance) {
 		return;
 	}
@@ -61,9 +65,8 @@ function getRangeToBalanceOut(document: vscode.TextDocument, selection: vscode.S
 	return;
 }
 
-function getRangeToBalanceIn(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Node): vscode.Selection {
-	let nodeToBalance: Node = getNode(rootNode, selection.start, true);
-
+function getRangeToBalanceIn(document: vscode.TextDocument, selection: vscode.Selection, rootNode: HtmlNode): vscode.Selection {
+	let nodeToBalance = <HtmlNode>getNode(rootNode, selection.start);
 	if (!nodeToBalance) {
 		return;
 	}

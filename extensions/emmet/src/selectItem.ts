@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { validate, isStyleSheet } from './util';
+import { validate } from './util';
 import { nextItemHTML, prevItemHTML } from './selectItemHTML';
 import { nextItemStylesheet, prevItemStylesheet } from './selectItemStylesheet';
 import parseStylesheet from '@emmetio/css-parser';
 import parse from '@emmetio/html-matcher';
-import Node from '@emmetio/node';
+import { Node } from 'EmmetNode';
 import { DocumentStreamReader } from './bufferStream';
+import { isStyleSheet } from 'vscode-emmet-helper';
+
 
 export function fetchSelectItem(direction: string): void {
 	let editor = vscode.window.activeTextEditor;
@@ -33,6 +35,9 @@ export function fetchSelectItem(direction: string): void {
 	}
 
 	let rootNode: Node = parseContent(new DocumentStreamReader(editor.document));
+	if (!rootNode) {
+		return;
+	}
 	let newSelections: vscode.Selection[] = [];
 	editor.selections.forEach(selection => {
 		const selectionStart = selection.isReversed ? selection.active : selection.anchor;

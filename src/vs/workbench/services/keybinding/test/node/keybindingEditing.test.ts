@@ -9,6 +9,7 @@ import assert = require('assert');
 import os = require('os');
 import path = require('path');
 import fs = require('fs');
+import uri from 'vs/base/common/uri';
 import * as json from 'vs/base/common/json';
 import { OS } from 'vs/base/common/platform';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
@@ -17,7 +18,7 @@ import { KeyCode, SimpleKeybinding, ChordKeybinding } from 'vs/base/common/keyCo
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import extfs = require('vs/base/node/extfs');
 import { TestTextFileService, TestEditorGroupService, TestLifecycleService, TestBackupFileService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
 import uuid = require('vs/base/common/uuid');
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
@@ -41,6 +42,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 interface Modifiers {
 	metaKey?: boolean;
@@ -53,7 +55,7 @@ suite('Keybindings Editing', () => {
 
 	let instantiationService: TestInstantiationService;
 	let testObject: KeybindingsEditingService;
-	let testDir;
+	let testDir: string;
 	let keybindingsFile;
 
 	setup(() => {
@@ -66,14 +68,13 @@ suite('Keybindings Editing', () => {
 			instantiationService.stub(IConfigurationService, ConfigurationService);
 			instantiationService.stub(IConfigurationService, 'getConfiguration', { 'eol': '\n' });
 			instantiationService.stub(IConfigurationService, 'onDidUpdateConfiguration', () => { });
-
 			instantiationService.stub(IWorkspaceContextService, new TestContextService());
 			instantiationService.stub(ILifecycleService, new TestLifecycleService());
 			instantiationService.stub(IEditorGroupService, new TestEditorGroupService());
 			instantiationService.stub(ITelemetryService, NullTelemetryService);
 			instantiationService.stub(IModeService, ModeServiceImpl);
 			instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
-			instantiationService.stub(IFileService, new FileService(testDir, { disableWatcher: true }, new TestContextService()));
+			instantiationService.stub(IFileService, new FileService(new TestContextService(new Workspace(testDir, testDir, [uri.file(testDir)])), new TestConfigurationService(), { disableWatcher: true }));
 			instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 			instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
@@ -110,28 +111,28 @@ suite('Keybindings Editing', () => {
 		fs.writeFileSync(keybindingsFile, ',,,,,,,,,,,,,,');
 		return testObject.editKeybinding('alt+c', aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape } }))
 			.then(() => assert.fail('Should fail with parse errors'),
-			error => assert.equal(error, 'Unable to write keybindings. Please open **Keybindings file** to correct errors/warnings in the file and try again.'));
+			error => assert.equal(error.message, 'Unable to write keybindings. Please open **Keybindings file** to correct errors/warnings in the file and try again.'));
 	});
 
 	test('errors cases - parse errors 2', () => {
 		fs.writeFileSync(keybindingsFile, '[{"key": }]');
 		return testObject.editKeybinding('alt+c', aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape } }))
 			.then(() => assert.fail('Should fail with parse errors'),
-			error => assert.equal(error, 'Unable to write keybindings. Please open **Keybindings file** to correct errors/warnings in the file and try again.'));
+			error => assert.equal(error.message, 'Unable to write keybindings. Please open **Keybindings file** to correct errors/warnings in the file and try again.'));
 	});
 
 	test('errors cases - dirty', () => {
 		instantiationService.stub(ITextFileService, 'isDirty', true);
 		return testObject.editKeybinding('alt+c', aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape } }))
 			.then(() => assert.fail('Should fail with dirty error'),
-			error => assert.equal(error, 'Unable to write because the file is dirty. Please save the **Keybindings** file and try again.'));
+			error => assert.equal(error.message, 'Unable to write because the file is dirty. Please save the **Keybindings** file and try again.'));
 	});
 
 	test('errors cases - did not find an array', () => {
 		fs.writeFileSync(keybindingsFile, '{"key": "alt+c", "command": "hello"}');
 		return testObject.editKeybinding('alt+c', aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape } }))
 			.then(() => assert.fail('Should fail with dirty error'),
-			error => assert.equal(error, 'Unable to write keybindings. **Keybindings file** has an object which is not of type Array. Please open the file to clean up and try again.'));
+			error => assert.equal(error.message, 'Unable to write keybindings. **Keybindings file** has an object which is not of type Array. Please open the file to clean up and try again.'));
 	});
 
 	test('edit a default keybinding to an empty file', () => {

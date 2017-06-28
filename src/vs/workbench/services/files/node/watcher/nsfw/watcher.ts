@@ -10,12 +10,11 @@ import { TPromise } from 'vs/base/common/winjs.base';
 export interface IWatcherRequest {
 	basePath: string;
 	ignored: string[];
-	verboseLogging: boolean;
 }
 
 export interface IWatcherService {
-	setRoots(roots: string[]): TPromise<void>;
-	watch(request: IWatcherRequest): TPromise<void>;
+	initialize(verboseLogging: boolean): TPromise<void>;
+	setRoots(roots: IWatcherRequest[]): TPromise<void>;
 }
 
 export interface IFileWatcher {

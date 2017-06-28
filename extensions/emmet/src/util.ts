@@ -5,10 +5,28 @@
 
 import * as vscode from 'vscode';
 import parse from '@emmetio/html-matcher';
-import Node from '@emmetio/node';
-import * as extract from '@emmetio/extract-abbreviation';
+import { Node, HtmlNode } from 'EmmetNode';
 import { DocumentStreamReader } from './bufferStream';
+import { isStyleSheet } from 'vscode-emmet-helper';
 
+export const LANGUAGE_MODES: Object = {
+	'html': ['!', '.', '}'],
+	'jade': ['!', '.', '}'],
+	'slim': ['!', '.', '}'],
+	'haml': ['!', '.', '}'],
+	'xml': ['.', '}'],
+	'xsl': ['.', '}'],
+	'css': [':'],
+	'scss': [':'],
+	'sass': [':'],
+	'less': [':'],
+	'stylus': [':']
+};
+
+// Explicitly map languages to their parent language to get emmet completion support
+export const MAPPED_MODES: Object = {
+	'handlebars': 'html'
+};
 export function validate(allowStylesheet: boolean = true): boolean {
 	let editor = vscode.window.activeTextEditor;
 	if (!editor) {
@@ -25,74 +43,52 @@ export function getSyntax(document: vscode.TextDocument): string {
 	if (document.languageId === 'jade') {
 		return 'pug';
 	}
-	if (document.languageId === 'javascriptreact' || document.languageId === 'typescriptreact') {
-		return 'jsx';
-	}
 	return document.languageId;
 }
 
-export function isStyleSheet(syntax): boolean {
-	let stylesheetSyntaxes = ['css', 'scss', 'sass', 'less', 'stylus'];
-	return (stylesheetSyntaxes.indexOf(syntax) > -1);
-}
-
-export function getProfile(syntax: string): any {
-	let config = vscode.workspace.getConfiguration('emmet')['syntaxProfiles'] || {};
-	let options = config[syntax];
-	if (!options || typeof options === 'string') {
-		return {};
-	}
-	let newOptions = {};
-	for (let key in options) {
-		switch (key) {
-			case 'tag_case':
-				newOptions['tagCase'] = (options[key] === 'lower' || options[key] === 'upper') ? options[key] : '';
-				break;
-			case 'attr_case':
-				newOptions['attributeCase'] = (options[key] === 'lower' || options[key] === 'upper') ? options[key] : '';
-				break;
-			case 'attr_quotes':
-				newOptions['attributeQuotes'] = options[key];
-				break;
-			case 'tag_nl':
-				newOptions['format'] = (options[key] === 'true' || options[key] === 'false') ? options[key] : 'true';
-				break;
-			case 'indent':
-				newOptions['attrCase'] = (options[key] === 'true' || options[key] === 'false') ? '\t' : options[key];
-				break;
-			case 'inline_break':
-				newOptions['inlineBreak'] = options[key];
-				break;
-			case 'self_closing_tag':
-				if (options[key] === true) {
-					newOptions['selfClosingStyle'] = 'xml'; break;
-				}
-				if (options[key] === false) {
-					newOptions['selfClosingStyle'] = 'html'; break;
-				}
-				newOptions['selfClosingStyle'] = options[key];
-				break;
-			default:
-				newOptions[key] = options[key];
-				break;
+export function getIncludedModes(): any {
+	let finalMappedModes = {};
+	let includeLanguagesConfig = vscode.workspace.getConfiguration('emmet')['includeLanguages'];
+	let includeLanguages = Object.assign({}, MAPPED_MODES, includeLanguagesConfig ? includeLanguagesConfig : {});
+	Object.keys(includeLanguages).forEach(syntax => {
+		if (typeof includeLanguages[syntax] === 'string' && LANGUAGE_MODES[includeLanguages[syntax]]) {
+			finalMappedModes[syntax] = includeLanguages[syntax];
 		}
-	}
-	return newOptions;
+	});
+	return finalMappedModes;
 }
 
-export function getOpenCloseRange(document: vscode.TextDocument, position: vscode.Position): [vscode.Range, vscode.Range] {
-	let rootNode: Node = parse(new DocumentStreamReader(document));
-	let nodeToUpdate = getNode(rootNode, position);
-	let openRange = new vscode.Range(nodeToUpdate.open.start, nodeToUpdate.open.end);
-	let closeRange = null;
-	if (nodeToUpdate.close) {
-		closeRange = new vscode.Range(nodeToUpdate.close.start, nodeToUpdate.close.end);
+export function getMappedSyntax(syntax: string): string {
+	if (!syntax) {
+		return;
 	}
-	return [openRange, closeRange];
+	if (/\b(typescriptreact|javascriptreact|jsx-tags|jsx)\b/.test(syntax)) { // treat tsx like jsx
+		return 'jsx';
+	}
+	if (syntax === 'sass-indented') { // map sass-indented to sass
+		return 'sass';
+	}
+	if (syntax === 'jade') {
+		return 'pug';
+	}
+	if (Object.keys(LANGUAGE_MODES).indexOf(syntax) > -1) {
+		return syntax;
+	}
+	return getIncludedModes()[syntax];
 }
 
+export function getExcludedModes(): string[] {
+	let excludedConfig = vscode.workspace.getConfiguration('emmet')['excludeLanguages'];
+	return Array.isArray(excludedConfig) ? excludedConfig : [];
+}
+/**
+ * Returns node corresponding to given position in the given root node
+ * @param root
+ * @param position
+ * @param includeNodeBoundary
+ */
 export function getNode(root: Node, position: vscode.Position, includeNodeBoundary: boolean = false) {
-	let currentNode: Node = root.firstChild;
+	let currentNode = root.firstChild;
 	let foundNode: Node = null;
 
 	while (currentNode) {
@@ -112,16 +108,26 @@ export function getNode(root: Node, position: vscode.Position, includeNodeBounda
 	return foundNode;
 }
 
-export function extractAbbreviation(position: vscode.Position): [vscode.Range, string] {
-	let editor = vscode.window.activeTextEditor;
-	let currentLine = editor.document.lineAt(position.line).text;
-	let result = extract(currentLine, position.character, true);
-	if (!result) {
-		return [null, ''];
+/**
+ * Returns inner range of an html node.
+ * @param currentNode
+ */
+export function getInnerRange(currentNode: HtmlNode): vscode.Range {
+	if (!currentNode.close) {
+		return;
 	}
+	return new vscode.Range(currentNode.open.end, currentNode.close.start);
+}
 
-	let rangeToReplace = new vscode.Range(position.line, result.location, position.line, result.location + result.abbreviation.length);
-	return [rangeToReplace, result.abbreviation];
+export function getOpenCloseRange(document: vscode.TextDocument, position: vscode.Position): [vscode.Range, vscode.Range] {
+	let rootNode: HtmlNode = parse(new DocumentStreamReader(document));
+	let nodeToUpdate = <HtmlNode>getNode(rootNode, position);
+	let openRange = new vscode.Range(nodeToUpdate.open.start, nodeToUpdate.open.end);
+	let closeRange = null;
+	if (nodeToUpdate.close) {
+		closeRange = new vscode.Range(nodeToUpdate.close.start, nodeToUpdate.close.end);
+	}
+	return [openRange, closeRange];
 }
 
 export function getDeepestNode(node: Node): Node {
@@ -261,3 +267,5 @@ export function sameNodes(node1: Node, node2: Node): boolean {
 	}
 	return (<vscode.Position>node1.start).isEqual(node2.start) && (<vscode.Position>node1.end).isEqual(node2.end);
 }
+
+

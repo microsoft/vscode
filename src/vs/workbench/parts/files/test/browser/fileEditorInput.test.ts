@@ -13,7 +13,7 @@ import { workbenchInstantiationService, TestTextFileService, TestEditorGroupServ
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { FileOperationResult, IFileOperationResult } from 'vs/platform/files/common/files';
+import { FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { Verbosity } from 'vs/platform/editor/common/editor';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -173,10 +173,7 @@ suite('Files - FileEditorInput', () => {
 	test('resolve handles binary files', function (done) {
 		const input = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/updatefile.js'), void 0);
 
-		accessor.textFileService.setResolveTextContentErrorOnce(<IFileOperationResult>{
-			message: 'error',
-			fileOperationResult: FileOperationResult.FILE_IS_BINARY
-		});
+		accessor.textFileService.setResolveTextContentErrorOnce(new FileOperationError('error', FileOperationResult.FILE_IS_BINARY));
 
 		return input.resolve(true).then(resolved => {
 			assert.ok(resolved);

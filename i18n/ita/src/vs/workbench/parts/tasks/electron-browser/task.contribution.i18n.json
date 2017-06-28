@@ -19,8 +19,6 @@
 	"manyMarkers": "Più di 99",
 	"tasks": "Attività",
 	"TaskSystem.noHotSwap": "Per modificare il motore di esecuzione delle attività, è necessario riavviare VS Code. La modifica verrà ignorata.",
-	"TaskService.noBuildTask": "Non è stata definita alcuna attività di Build. Contrassegnare un'attività con 'isBuildCommand' nel file tasks.json .",
-	"TaskService.noTestTask": "Non è stata definita alcuna attività di test. Contrassegnare un'attività con 'isTestCommand' nel file tasks.json .",
 	"TaskServer.noTask": "Attività {0} richiesta per l'esecuzione non trovata",
 	"customizeParseErrors": "La configurazione dell'attività corrente presenta errori. Per favore correggere gli errori prima di personalizzazione un'attività.",
 	"moreThanOneBuildTask": "tasks.json contiene molte attività di compilazione. È in corso l'esecuzione della prima.\n",

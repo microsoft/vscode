@@ -95,7 +95,7 @@ declare module monaco {
 		public static wrap<ValueType>(value: Thenable<ValueType>): Promise<ValueType>;
 		public static wrap<ValueType>(value: ValueType): Promise<ValueType>;
 
-		public static wrapError<ValueType>(error: any): Promise<ValueType>;
+		public static wrapError<ValueType>(error: Error): Promise<ValueType>;
 	}
 
 	export class CancellationTokenSource {
@@ -1050,6 +1050,10 @@ declare module monaco.editor {
 		Auto = 1,
 		Hidden = 2,
 		Visible = 3,
+	}
+
+	export interface ThemeColor {
+		id: string;
 	}
 
 	/**
@@ -2157,10 +2161,6 @@ declare module monaco.editor {
 		 * Restore view state.
 		 */
 		restoreViewState?(state: any): void;
-	}
-
-	export interface ThemeColor {
-		id: string;
 	}
 
 	export interface ICommonCodeEditor extends IEditor {

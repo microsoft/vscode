@@ -6,8 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import platform = require('vs/base/common/platform');
-import types = require('vs/base/common/types');
-import { nativeSep, normalize, isEqualOrParent, isEqual } from 'vs/base/common/paths';
+import { nativeSep, normalize, isEqualOrParent, isEqual, basename, join } from 'vs/base/common/paths';
 import { endsWith, ltrim } from 'vs/base/common/strings';
 
 export interface ILabelProvider {
@@ -18,9 +17,10 @@ export interface ILabelProvider {
 	getLabel(element: any): string;
 }
 
-export interface IWorkspaceProvider {
-	getWorkspace(): {
-		resource: URI;
+export interface IRootProvider {
+	getRoot(resource: URI): URI;
+	getWorkspace2(): {
+		roots: URI[];
 	};
 }
 
@@ -28,49 +28,47 @@ export interface IUserHomeProvider {
 	userHome: string;
 }
 
-export function getPathLabel(resource: URI | string, basePathProvider?: URI | string | IWorkspaceProvider, userHomeProvider?: IUserHomeProvider): string {
-	const absolutePath = getPath(resource);
-	if (!absolutePath) {
+export function getPathLabel(resource: URI | string, rootProvider?: IRootProvider, userHomeProvider?: IUserHomeProvider): string {
+	if (!resource) {
 		return null;
 	}
 
-	const basepath = basePathProvider && getPath(basePathProvider);
+	if (typeof resource === 'string') {
+		resource = URI.file(resource);
+	}
 
-	if (basepath && isEqualOrParent(absolutePath, basepath, !platform.isLinux /* ignorecase */)) {
-		if (isEqual(basepath, absolutePath, !platform.isLinux /* ignorecase */)) {
-			return ''; // no label if pathes are identical
+	// return early if we can resolve a relative path label from the root
+	const baseResource = rootProvider ? rootProvider.getRoot(resource) : null;
+	if (baseResource) {
+		const hasMultipleRoots = rootProvider.getWorkspace2().roots.length > 1;
+
+		let pathLabel: string;
+		if (isEqual(baseResource.fsPath, resource.fsPath, !platform.isLinux /* ignorecase */)) {
+			pathLabel = ''; // no label if pathes are identical
+		} else {
+			pathLabel = normalize(ltrim(resource.fsPath.substr(baseResource.fsPath.length), nativeSep), true);
 		}
 
-		return normalize(ltrim(absolutePath.substr(basepath.length), nativeSep), true);
+		if (hasMultipleRoots) {
+			const rootName = basename(baseResource.fsPath);
+			pathLabel = pathLabel ? join(rootName, pathLabel) : rootName; // always show root basename if there are multiple
+		}
+
+		return pathLabel;
 	}
 
-	if (platform.isWindows && absolutePath && absolutePath[1] === ':') {
-		return normalize(absolutePath.charAt(0).toUpperCase() + absolutePath.slice(1), true); // convert c:\something => C:\something
+	// convert c:\something => C:\something
+	if (platform.isWindows && resource.fsPath && resource.fsPath[1] === ':') {
+		return normalize(resource.fsPath.charAt(0).toUpperCase() + resource.fsPath.slice(1), true);
 	}
 
-	let res = normalize(absolutePath, true);
+	// normalize and tildify (macOS, Linux only)
+	let res = normalize(resource.fsPath, true);
 	if (!platform.isWindows && userHomeProvider) {
 		res = tildify(res, userHomeProvider.userHome);
 	}
 
 	return res;
-}
-
-function getPath(arg1: URI | string | IWorkspaceProvider): string {
-	if (!arg1) {
-		return null;
-	}
-
-	if (typeof arg1 === 'string') {
-		return arg1;
-	}
-
-	if (types.isFunction((<IWorkspaceProvider>arg1).getWorkspace)) {
-		const ws = (<IWorkspaceProvider>arg1).getWorkspace();
-		return ws ? ws.resource.fsPath : void 0;
-	}
-
-	return (<URI>arg1).fsPath;
 }
 
 export function tildify(path: string, userHome: string): string {

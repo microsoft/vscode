@@ -152,10 +152,6 @@ export class ScrollableElement extends Widget {
 		this._verticalScrollbar.delegateSliderMouseDown(e, onDragFinished);
 	}
 
-	public getVerticalSliderVerticalCenter(): number {
-		return this._verticalScrollbar.getVerticalSliderVerticalCenter();
-	}
-
 	public updateState(newState: INewScrollState): void {
 		this._scrollable.updateState(newState);
 	}

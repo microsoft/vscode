@@ -7,7 +7,6 @@
 	"activeEditorShort": "pl.: myFile.txt",
 	"activeEditorMedium": "pl.: myFolder/myFile.txt",
 	"activeEditorLong": "pl.: /Users/Development/myProject/myFolder/myFile.txt",
-	"rootName": "pl.: myProject",
 	"rootPath": "pl.: /Users/Development/myProject",
 	"appName": "pl.: VS Code",
 	"dirty": "módosításjelző, ami akkor jelenik meg, ha az aktív szerkesztőablak tartalma módosítva lett",

@@ -6,11 +6,12 @@
 'use strict';
 
 import * as assert from 'assert';
+import URI from 'vs/base/common/uri';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { MainThreadConfigurationShape } from 'vs/workbench/api/node/extHost.protocol';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ConfigurationTarget, ConfigurationEditingErrorCode, IConfigurationEditingError } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { ConfigurationTarget, ConfigurationEditingErrorCode, ConfigurationEditingError } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { TestThreadService } from './testThreadService';
 
@@ -28,11 +29,12 @@ suite('ExtHostConfiguration', function () {
 		if (!shape) {
 			shape = new class extends MainThreadConfigurationShape { };
 		}
-		return new ExtHostConfiguration(shape, {
+		return new ExtHostConfiguration(shape, new ExtHostWorkspace(new TestThreadService(), null), {
 			defaults: new ConfigurationModel(contents),
 			user: new ConfigurationModel(contents),
+			workspace: new ConfigurationModel(),
 			folders: Object.create(null)
-		}, new ExtHostWorkspace(new TestThreadService(), null));
+		});
 	}
 
 	test('getConfiguration fails regression test 1.7.1 -> 1.8 #15552', function () {
@@ -80,6 +82,207 @@ suite('ExtHostConfiguration', function () {
 
 		assert.ok(config.has('nested'));
 		assert.deepEqual(config.get('nested'), { config1: 42, config2: 'Das Pferd frisst kein Reis.' });
+	});
+
+	test('inspect in no workspace context', function () {
+		const testObject = new ExtHostConfiguration(
+			new class extends MainThreadConfigurationShape { },
+			new ExtHostWorkspace(new TestThreadService(), null),
+			{
+				defaults: new ConfigurationModel({
+					'editor': {
+						'wordWrap': 'off'
+					}
+				}, ['editor.wordWrap']),
+				user: new ConfigurationModel({
+					'editor': {
+						'wordWrap': 'on'
+					}
+				}, ['editor.wordWrap']),
+				workspace: new ConfigurationModel({}, []),
+				folders: Object.create(null)
+			}
+		);
+
+		let actual = testObject.getConfiguration().inspect('editor.wordWrap');
+		assert.equal(actual.defaultValue, 'off');
+		assert.equal(actual.globalValue, 'on');
+		assert.equal(actual.workspaceValue, undefined);
+		assert.ok(Object.keys(actual).indexOf('folderValue') === -1);
+
+		actual = testObject.getConfiguration('editor').inspect('wordWrap');
+		assert.equal(actual.defaultValue, 'off');
+		assert.equal(actual.globalValue, 'on');
+		assert.equal(actual.workspaceValue, undefined);
+		assert.ok(Object.keys(actual).indexOf('folderValue') === -1);
+	});
+
+	test('inspect in single root context', function () {
+		const workspaceUri = URI.file('foo');
+		const folders = Object.create(null);
+		const workspace = new ConfigurationModel({
+			'editor': {
+				'wordWrap': 'bounded'
+			}
+		}, ['editor.wordWrap']);
+		folders[workspaceUri.toString()] = workspace;
+		const testObject = new ExtHostConfiguration(
+			new class extends MainThreadConfigurationShape { },
+			new ExtHostWorkspace(new TestThreadService(), {
+				'id': 'foo',
+				'roots': [URI.file('foo')],
+				'name': 'foo'
+			}),
+			{
+				defaults: new ConfigurationModel({
+					'editor': {
+						'wordWrap': 'off'
+					}
+				}, ['editor.wordWrap']),
+				user: new ConfigurationModel({
+					'editor': {
+						'wordWrap': 'on'
+					}
+				}, ['editor.wordWrap']),
+				workspace,
+				folders
+			}
+		);
+
+		let actual1 = testObject.getConfiguration().inspect('editor.wordWrap');
+		assert.equal(actual1.defaultValue, 'off');
+		assert.equal(actual1.globalValue, 'on');
+		assert.equal(actual1.workspaceValue, 'bounded');
+		assert.ok(Object.keys(actual1).indexOf('folderValue') === -1);
+
+		actual1 = testObject.getConfiguration('editor').inspect('wordWrap');
+		assert.equal(actual1.defaultValue, 'off');
+		assert.equal(actual1.globalValue, 'on');
+		assert.equal(actual1.workspaceValue, 'bounded');
+		assert.ok(Object.keys(actual1).indexOf('folderValue') === -1);
+
+		let actual2 = testObject.getConfiguration2(null, workspaceUri).inspect('editor.wordWrap');
+		assert.equal(actual2.defaultValue, 'off');
+		assert.equal(actual2.globalValue, 'on');
+		assert.equal(actual2.workspaceValue, 'bounded');
+		assert.equal(actual2.folderValue, 'bounded');
+
+		actual2 = testObject.getConfiguration2('editor', workspaceUri).inspect('wordWrap');
+		assert.equal(actual2.defaultValue, 'off');
+		assert.equal(actual2.globalValue, 'on');
+		assert.equal(actual2.workspaceValue, 'bounded');
+		assert.equal(actual2.folderValue, 'bounded');
+	});
+
+	test('inspect in multi root context', function () {
+		const workspace = new ConfigurationModel({
+			'editor': {
+				'wordWrap': 'bounded'
+			}
+		}, ['editor.wordWrap']);
+
+		const firstRoot = URI.file('foo1');
+		const secondRoot = URI.file('foo2');
+		const thirdRoot = URI.file('foo3');
+		const folders = Object.create(null);
+		folders[firstRoot.toString()] = new ConfigurationModel({
+			'editor': {
+				'wordWrap': 'off',
+				'lineNumbers': 'relative'
+			}
+		}, ['editor.wordWrap']);
+		folders[secondRoot.toString()] = new ConfigurationModel({
+			'editor': {
+				'wordWrap': 'on'
+			}
+		}, ['editor.wordWrap']);
+		folders[thirdRoot.toString()] = new ConfigurationModel({}, []);
+
+		const testObject = new ExtHostConfiguration(
+			new class extends MainThreadConfigurationShape { },
+			new ExtHostWorkspace(new TestThreadService(), {
+				'id': 'foo',
+				'roots': [firstRoot, secondRoot],
+				'name': 'foo'
+			}),
+			{
+				defaults: new ConfigurationModel({
+					'editor': {
+						'wordWrap': 'off',
+						'lineNumbers': 'on'
+					}
+				}, ['editor.wordWrap']),
+				user: new ConfigurationModel({
+					'editor': {
+						'wordWrap': 'on'
+					}
+				}, ['editor.wordWrap']),
+				workspace,
+				folders
+			}
+		);
+
+		let actual1 = testObject.getConfiguration().inspect('editor.wordWrap');
+		assert.equal(actual1.defaultValue, 'off');
+		assert.equal(actual1.globalValue, 'on');
+		assert.equal(actual1.workspaceValue, 'off');
+		assert.ok(Object.keys(actual1).indexOf('folderValue') === -1);
+
+		actual1 = testObject.getConfiguration('editor').inspect('wordWrap');
+		assert.equal(actual1.defaultValue, 'off');
+		assert.equal(actual1.globalValue, 'on');
+		assert.equal(actual1.workspaceValue, 'off');
+		assert.ok(Object.keys(actual1).indexOf('folderValue') === -1);
+
+		actual1 = testObject.getConfiguration('editor').inspect('lineNumbers');
+		assert.equal(actual1.defaultValue, 'on');
+		assert.equal(actual1.globalValue, undefined);
+		assert.equal(actual1.workspaceValue, 'relative');
+		assert.ok(Object.keys(actual1).indexOf('folderValue') === -1);
+
+		let actual2 = testObject.getConfiguration2(null, firstRoot).inspect('editor.wordWrap');
+		assert.equal(actual2.defaultValue, 'off');
+		assert.equal(actual2.globalValue, 'on');
+		assert.equal(actual2.workspaceValue, 'bounded');
+		assert.equal(actual2.folderValue, 'off');
+
+		actual2 = testObject.getConfiguration2('editor', firstRoot).inspect('wordWrap');
+		assert.equal(actual2.defaultValue, 'off');
+		assert.equal(actual2.globalValue, 'on');
+		assert.equal(actual2.workspaceValue, 'bounded');
+		assert.equal(actual2.folderValue, 'off');
+
+		actual2 = testObject.getConfiguration2('editor', firstRoot).inspect('lineNumbers');
+		assert.equal(actual2.defaultValue, 'on');
+		assert.equal(actual2.globalValue, undefined);
+		assert.equal(actual2.workspaceValue, undefined);
+		assert.equal(actual2.folderValue, 'relative');
+
+		actual2 = testObject.getConfiguration2(null, secondRoot).inspect('editor.wordWrap');
+		assert.equal(actual2.defaultValue, 'off');
+		assert.equal(actual2.globalValue, 'on');
+		assert.equal(actual2.workspaceValue, 'bounded');
+		assert.equal(actual2.folderValue, 'on');
+
+		actual2 = testObject.getConfiguration2('editor', secondRoot).inspect('wordWrap');
+		assert.equal(actual2.defaultValue, 'off');
+		assert.equal(actual2.globalValue, 'on');
+		assert.equal(actual2.workspaceValue, 'bounded');
+		assert.equal(actual2.folderValue, 'on');
+
+		actual2 = testObject.getConfiguration2(null, thirdRoot).inspect('editor.wordWrap');
+		assert.equal(actual2.defaultValue, 'off');
+		assert.equal(actual2.globalValue, 'on');
+		assert.equal(actual2.workspaceValue, 'bounded');
+		assert.ok(Object.keys(actual2).indexOf('folderValue') !== -1);
+		assert.equal(actual2.folderValue, undefined);
+
+		actual2 = testObject.getConfiguration2('editor', thirdRoot).inspect('wordWrap');
+		assert.equal(actual2.defaultValue, 'off');
+		assert.equal(actual2.globalValue, 'on');
+		assert.equal(actual2.workspaceValue, 'bounded');
+		assert.ok(Object.keys(actual2).indexOf('folderValue') !== -1);
+		assert.equal(actual2.folderValue, undefined);
 	});
 
 	test('getConfiguration vs get', function () {
@@ -169,36 +372,11 @@ suite('ExtHostConfiguration', function () {
 		assert.deepEqual(shape.lastArgs[2], { extensions: ['ts'] });
 	});
 
-	/*
-		test('bogous data, #15834', function () {
-			let oldLogger = console.error;
-			let errorLogged = false;
-
-			// workaround until we have a proper logging story
-			console.error = (message, args) => {
-				errorLogged = true;
-			};
-			let allConfig;
-			try {
-				const shape = new RecordingShape();
-				allConfig = createExtHostConfiguration({
-					['editor.formatOnSave']: createConfigurationValue(true),
-					['editor.formatOnSave.extensions']: createConfigurationValue(['ts'])
-				}, shape);
-			} finally {
-				console.error = oldLogger;
-			}
-			assert.ok(errorLogged);
-			assert.ok(allConfig.getConfiguration('').has('editor.formatOnSave'));
-			assert.ok(!allConfig.getConfiguration('').has('editor.formatOnSave.extensions'));
-		});
-	*/
-
 	test('update/error-state not OK', function () {
 
 		const shape = new class extends MainThreadConfigurationShape {
 			$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): TPromise<any> {
-				return TPromise.wrapError(<IConfigurationEditingError>{ code: ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY, message: 'Unknown Key' }); // something !== OK
+				return TPromise.wrapError(new ConfigurationEditingError('Unknown Key', ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY)); // something !== OK
 			}
 		};
 

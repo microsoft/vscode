@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import { Platform } from 'vs/base/common/platform';
 import { TerminalLinkHandler, LineColumnInfo } from 'vs/workbench/parts/terminal/electron-browser/terminalLinkHandler';
-import { LegacyWorkspace } from 'vs/platform/workspace/common/workspace';
+import { Workspace } from 'vs/platform/workspace/common/workspace';
 import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import URI from 'vs/base/common/uri';
 import * as strings from 'vs/base/common/strings';
@@ -45,9 +45,9 @@ interface LinkFormatInfo {
 	column?: string;
 }
 
-class TestWorkspace extends LegacyWorkspace {
+class TestWorkspace extends Workspace {
 	constructor(private basePath: string) {
-		super(new TestURI(basePath));
+		super(basePath, basePath, [new TestURI(basePath)]);
 	}
 }
 
@@ -97,7 +97,11 @@ suite('Workbench - TerminalLinkHandler', () => {
 					{ urlFormat: '{0}({1},{2})', line: '5', column: '3' },
 					{ urlFormat: '{0} ({1},{2})', line: '5', column: '3' },
 					{ urlFormat: '{0}:{1}', line: '5' },
-					{ urlFormat: '{0}:{1}:{2}', line: '5', column: '3' }
+					{ urlFormat: '{0}:{1}:{2}', line: '5', column: '3' },
+					{ urlFormat: '{0}[{1}]', line: '5' },
+					{ urlFormat: '{0} [{1}]', line: '5' },
+					{ urlFormat: '{0}[{1},{2}]', line: '5', column: '3' },
+					{ urlFormat: '{0} [{1},{2}]', line: '5', column: '3' }
 				];
 
 				linkUrls.forEach(linkUrl => {
@@ -154,7 +158,11 @@ suite('Workbench - TerminalLinkHandler', () => {
 					{ urlFormat: '{0}({1},{2})', line: '5', column: '3' },
 					{ urlFormat: '{0} ({1},{2})', line: '5', column: '3' },
 					{ urlFormat: '{0}:{1}', line: '5' },
-					{ urlFormat: '{0}:{1}:{2}', line: '5', column: '3' }
+					{ urlFormat: '{0}:{1}:{2}', line: '5', column: '3' },
+					{ urlFormat: '{0}[{1}]', line: '5' },
+					{ urlFormat: '{0} [{1}]', line: '5' },
+					{ urlFormat: '{0}[{1},{2}]', line: '5', column: '3' },
+					{ urlFormat: '{0} [{1},{2}]', line: '5', column: '3' }
 				];
 
 				linkUrls.forEach(linkUrl => {

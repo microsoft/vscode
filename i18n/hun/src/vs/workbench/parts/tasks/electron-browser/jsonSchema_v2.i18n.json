@@ -10,7 +10,6 @@
 	"JsonSchema.tasks.group": "Meghatározza a feladat végrehajtási csoportját. Ha nincs megadva, akkor a feladat nem tartozik egyetlen csoportba sem.",
 	"JsonSchema.tasks.type": "Meghatározza, hogy a feladat folyamatként van-e végrehajtva vagy egy parancsként a shellben. Alapértelmetten folyamatként vannak végrehajtva.",
 	"JsonSchema.version": "A konfiguráció verziószáma",
-	"JsonSchema.tasks.customize": "A szolgáltatott feladat, ami testre van szabva.",
 	"JsonSchema.windows": "Windows-specifikus parancskonfiguráció",
 	"JsonSchema.mac": "Mac-specifikus parancskonfiguráció",
 	"JsonSchema.linux": "Linux-specifikus parancskonfiguráció"

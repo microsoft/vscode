@@ -19,7 +19,7 @@ export default class TsConfigProvider extends vscode.Disposable {
 	}
 
 	public async getConfigsForWorkspace(): Promise<Iterable<string>> {
-		if (!vscode.workspace.rootPath) {
+		if (!vscode.workspace.rootPath && !vscode.workspace.workspaceFolders) {
 			return [];
 		}
 		await this.ensureActivated();

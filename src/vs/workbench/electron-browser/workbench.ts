@@ -22,7 +22,7 @@ import errors = require('vs/base/common/errors');
 import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { IOptions } from 'vs/workbench/common/options';
 import { Position as EditorPosition, IResourceDiffInput, IUntitledResourceInput, IEditor } from 'vs/platform/editor/common/editor';
@@ -93,10 +93,11 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { OpenRecentAction, ToggleDevToolsAction, ReloadWindowAction, inRecentFilesPickerContextKey } from "vs/workbench/electron-browser/actions";
-import { KeyMod } from 'vs/base/common/keyCodes';
-import { KeyCode } from 'vs/editor/common/standalone/standaloneBase';
-import { KeybindingsRegistry } from "vs/platform/keybinding/common/keybindingsRegistry";
-import { getQuickNavigateHandler, inQuickOpenContext } from "vs/workbench/browser/parts/quickopen/quickopen";
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { getQuickNavigateHandler, inQuickOpenContext } from 'vs/workbench/browser/parts/quickopen/quickopen';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { WorkspaceEditingService } from 'vs/workbench/services/workspace/node/workspaceEditingService';
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -450,8 +451,8 @@ export class Workbench implements IPartService {
 			}
 		}
 
-		// Empty workbench: some first time users will not have an untiled file; returning users will always have one
-		else if (!this.contextService.hasWorkspace() && this.telemetryService.getExperiments().openUntitledFile && !this.configurationService.lookup('workbench.welcome.enabled').value) {
+		// Empty workbench
+		else if (!this.contextService.hasWorkspace() && this.openUntitledFile()) {
 			if (this.editorPart.hasEditorsToRestore()) {
 				return TPromise.as([]); // do not open any empty untitled file if we have editors to restore
 			}
@@ -466,6 +467,17 @@ export class Workbench implements IPartService {
 		}
 
 		return TPromise.as([]);
+	}
+
+	private openUntitledFile() {
+		const startupEditor = this.configurationService.lookup('workbench.startupEditor');
+		if (!startupEditor.user && !startupEditor.workspace) {
+			const welcomeEnabled = this.configurationService.lookup('workbench.welcome.enabled');
+			if (welcomeEnabled.value !== undefined && welcomeEnabled.value !== null) {
+				return !welcomeEnabled.value;
+			}
+		}
+		return startupEditor.value === 'newUntitledFile';
 	}
 
 	private initServices(): void {
@@ -564,12 +576,14 @@ export class Workbench implements IPartService {
 		this.configurationEditingService = this.instantiationService.createInstance(ConfigurationEditingService);
 		serviceCollection.set(IConfigurationEditingService, this.configurationEditingService);
 
+		// Workspace Editing
+		serviceCollection.set(IWorkspaceEditingService, new SyncDescriptor(WorkspaceEditingService));
+
 		// Keybinding Editing
 		serviceCollection.set(IKeybindingEditingService, this.instantiationService.createInstance(KeybindingsEditingService));
 
 		// Configuration Resolver
-		const workspace = this.contextService.getWorkspace();
-		serviceCollection.set(IConfigurationResolverService, new SyncDescriptor(ConfigurationResolverService, workspace ? workspace.resource : null, process.env));
+		serviceCollection.set(IConfigurationResolverService, new SyncDescriptor(ConfigurationResolverService, process.env));
 
 		// Quick open service (quick open controller)
 		this.quickOpen = this.instantiationService.createInstance(QuickOpenController);
@@ -757,8 +771,8 @@ export class Workbench implements IPartService {
 			this.workbench.removeClass('nosidebar');
 		}
 
-		let promise = TPromise.as<any>(null);
 		// If sidebar becomes hidden, also hide the current active Viewlet if any
+		let promise = TPromise.as<any>(null);
 		if (hidden && this.sidebarPart.getActiveViewlet()) {
 			promise = this.sidebarPart.hideActiveViewlet().then(() => {
 				const activeEditor = this.editorPart.getActiveEditor();

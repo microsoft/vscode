@@ -8,7 +8,6 @@
 	"requirestring": "a(z) `{0}` tulajdonság kötelező és `string` típusúnak kell lennie",
 	"optstring": "a(z) `{0}` tulajdonság elhagyható vagy `string` típusúnak kell lennie",
 	"vscode.extension.contributes.keybindings.command": "A billentyűparancs aktiválása esetén futtatandó parancs azonosítója.",
-	"vscode.extension.contributes.keybindings.key": "Billenty vagy billentyűparancs (különálló billentyűk plusz jellel és sorozatok szóközzel, pl.: Crtl + O és Ctrl+L L)",
 	"vscode.extension.contributes.keybindings.mac": "Mac-specifikus billentyű vagy billentyűsorozat.",
 	"vscode.extension.contributes.keybindings.linux": "Linux-specifikus billentyű vagy billentyűsorozat.",
 	"vscode.extension.contributes.keybindings.win": "Windows-specifikus billentyű vagy billentyűsorozat.",

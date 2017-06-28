@@ -36,7 +36,7 @@ export interface IWorkspaceContextService {
 	/**
 	 * An event which fires on workspace roots change.
 	 */
-	onDidChangeWorkspaceRoots: Event<URI[]>;
+	onDidChangeWorkspaceRoots: Event<void>;
 
 	/**
 	 * Returns the root for the given resource from the workspace.
@@ -69,16 +69,6 @@ export interface ILegacyWorkspace {
 	 * of the workspace on disk.
 	 */
 	resource: URI;
-
-	/**
-	 * the creation date of the workspace if known.
-	 */
-	ctime: number;
-
-	/**
-	 * the name of the workspace
-	 */
-	name?: string;
 }
 
 export interface IWorkspace {
@@ -173,6 +163,10 @@ export class Workspace implements IWorkspace {
 	}
 
 	public getRoot(resource: URI): URI {
+		if (!resource) {
+			return null;
+		}
+
 		return this._rootsMap.findSubstr(resource.fsPath);
 	}
 

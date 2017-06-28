@@ -10,8 +10,8 @@ import { OpenContext, IWindowConfiguration, ReadyState, IPath } from 'vs/platfor
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import Event from 'vs/base/common/event';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { createDecorator } from "vs/platform/instantiation/common/instantiation";
-import { IProcessEnvironment } from "vs/base/common/platform";
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 
 export interface ICodeWindow {
 	id: number;
@@ -49,9 +49,10 @@ export interface IWindowsMainService {
 	reload(win: ICodeWindow, cli?: ParsedArgs): void;
 	open(openConfig: IOpenConfiguration): ICodeWindow[];
 	openExtensionDevelopmentHostWindow(openConfig: IOpenConfiguration): void;
-	openFileFolderPicker(forceNewWindow?: boolean, data?: ITelemetryData): void;
-	openFilePicker(forceNewWindow?: boolean, path?: string, window?: ICodeWindow, data?: ITelemetryData): void;
-	openFolderPicker(forceNewWindow?: boolean, window?: ICodeWindow, data?: ITelemetryData): void;
+	pickFileFolderAndOpen(forceNewWindow?: boolean, data?: ITelemetryData): void;
+	pickFileAndOpen(forceNewWindow?: boolean, path?: string, window?: ICodeWindow, data?: ITelemetryData): void;
+	pickFolderAndOpen(forceNewWindow?: boolean, window?: ICodeWindow, data?: ITelemetryData): void;
+	pickFolder(options?: { buttonLabel: string; title: string; }): TPromise<string[]>;
 	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow;
 	getLastActiveWindow(): ICodeWindow;
 	findWindow(workspacePath: string, filePath?: string, extensionDevelopmentPath?: string): ICodeWindow;

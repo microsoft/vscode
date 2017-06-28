@@ -60,7 +60,6 @@
 	"editorForeground": "Couleur de premier plan par défaut de l'éditeur.",
 	"editorWidgetBackground": "Couleur d'arrière-plan des gadgets de l'éditeur tels que rechercher/remplacer.",
 	"editorWidgetBorder": "Couleur de bordure des widgets de l'éditeur. La couleur est utilisée uniquement si le widget choisit d'avoir une bordure et si la couleur n'est pas remplacée par un widget.",
-	"editorSelection": "Couleur de la sélection de l'éditeur.",
 	"editorInactiveSelection": "Couleur de la sélection dans un éditeur inactif.",
 	"editorSelectionHighlight": "Couleur des régions dont le contenu est identique à la sélection.",
 	"editorFindMatch": "Couleur du résultat de recherche actif.",

@@ -56,6 +56,5 @@
 	"LegacyProblemMatcherSchema.watchedBegin": "Регулярное выражение, сообщающее о том, что отслеживаемая задача начинает выполняться в результате активации отслеживания файлов.",
 	"LegacyProblemMatcherSchema.watchedEnd.deprecated": "Это свойство устарело. Используйте свойство просмотра.",
 	"LegacyProblemMatcherSchema.watchedEnd": "Регулярное выражение, сообщающее о том, что отслеживаемая задача завершает выполнение.",
-	"NamedProblemMatcherSchema.name": "Имя сопоставителя проблем.",
 	"ProblemMatcherExtPoint": "Публикует сопоставители проблем"
 }

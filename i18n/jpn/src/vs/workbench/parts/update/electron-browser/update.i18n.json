@@ -27,6 +27,5 @@
 	"DownloadUpdate": "利用可能な更新プログラムをダウンロードします",
 	"DownloadingUpdate": "更新をダウンロードしています...",
 	"InstallingUpdate": "更新プログラムをインストールしています...",
-	"restartToUpdate": "更新のために再起動します...",
 	"checkForUpdates": "更新の確認..."
 }

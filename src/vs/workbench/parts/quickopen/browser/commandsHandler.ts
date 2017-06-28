@@ -17,7 +17,7 @@ import { QuickOpenEntryGroup, IHighlight, QuickOpenModel, QuickOpenEntry } from 
 import { SyncActionDescriptor, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { QuickOpenHandler, IWorkbenchQuickOpenConfiguration } from 'vs/workbench/browser/quickopen';
 import { IEditorAction, IEditor, isCommonCodeEditor, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { matchesWords, matchesPrefix, matchesContiguousSubString, or } from 'vs/base/common/filters';
@@ -28,12 +28,12 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { editorAction, EditorAction } from 'vs/editor/common/editorCommonExtensions';
-import { IStorageService } from "vs/platform/storage/common/storage";
-import { ILifecycleService } from "vs/platform/lifecycle/common/lifecycle";
-import { once } from "vs/base/common/event";
-import { BoundedMap, ISerializedBoundedLinkedMap } from "vs/base/common/map";
-import { IConfigurationService } from "vs/platform/configuration/common/configuration";
-import { ResolvedKeybinding } from "vs/base/common/keyCodes";
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { once } from 'vs/base/common/event';
+import { BoundedMap, ISerializedBoundedLinkedMap } from 'vs/base/common/map';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 
 export const ALL_COMMANDS_PREFIX = '>';
 
@@ -133,7 +133,7 @@ export class ShowAllCommandsAction extends Action {
 		super(id, label);
 	}
 
-	public run(context?: any): TPromise<any> {
+	public run(context?: any): TPromise<void> {
 		const config = <IWorkbenchQuickOpenConfiguration>this.configurationService.getConfiguration();
 		const restoreInput = config.workbench && config.workbench.commandPalette && config.workbench.commandPalette.preserveInput === true;
 
@@ -163,7 +163,7 @@ export class ClearCommandHistoryAction extends Action {
 		super(id, label);
 	}
 
-	public run(context?: any): TPromise<any> {
+	public run(context?: any): TPromise<void> {
 		const commandHistoryLength = resolveCommandHistory(this.configurationService);
 		if (commandHistoryLength > 0) {
 			commandHistory = new BoundedMap<number>(commandHistoryLength);
@@ -605,5 +605,11 @@ export class CommandsHandler extends QuickOpenHandler {
 
 	public getEmptyLabel(searchString: string): string {
 		return nls.localize('noCommandsMatching', "No commands matching");
+	}
+
+	public onClose(canceled: boolean): void {
+		if (canceled) {
+			lastCommandPaletteInput = void 0; // clear last input when user canceled quick open
+		}
 	}
 }

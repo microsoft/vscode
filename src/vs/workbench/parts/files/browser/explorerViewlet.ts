@@ -20,6 +20,7 @@ import { EmptyView } from 'vs/workbench/parts/files/browser/views/emptyView';
 import { OpenEditorsView } from 'vs/workbench/parts/files/browser/views/openEditorsView';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
@@ -31,6 +32,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewsRegistry, ViewLocation, IViewDescriptor } from 'vs/workbench/parts/views/browser/viewsRegistry';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
 export class ExplorerViewlet extends ComposedViewsViewlet {
 
@@ -50,9 +52,11 @@ export class ExplorerViewlet extends ComposedViewsViewlet {
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IExtensionService extensionService: IExtensionService
 	) {
-		super(VIEWLET_ID, ViewLocation.Explorer, ExplorerViewlet.EXPLORER_VIEWS_STATE, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService);
+		super(VIEWLET_ID, ViewLocation.Explorer, ExplorerViewlet.EXPLORER_VIEWS_STATE, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
 
 		this.viewletState = new FileViewletState();
 		this.viewletVisibleContextKey = ExplorerViewletVisibleContext.bindTo(contextKeyService);
@@ -61,6 +65,7 @@ export class ExplorerViewlet extends ComposedViewsViewlet {
 		this.registerViews();
 		this.onConfigurationUpdated();
 		this._register(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated()));
+		this._register(this.contextService.onDidChangeWorkspaceRoots(e => this.updateTitleArea()));
 	}
 
 	public create(parent: Builder): TPromise<void> {
@@ -105,7 +110,7 @@ export class ExplorerViewlet extends ComposedViewsViewlet {
 	private createExplorerViewDescriptor(): IViewDescriptor {
 		return {
 			id: ExplorerView.ID,
-			name: '',
+			name: this.contextService.getWorkspace2().name,
 			location: ViewLocation.Explorer,
 			ctor: ExplorerView,
 			order: 1

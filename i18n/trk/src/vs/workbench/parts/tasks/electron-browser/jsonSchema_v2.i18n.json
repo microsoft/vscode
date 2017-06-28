@@ -10,7 +10,6 @@
 	"JsonSchema.tasks.group": "Bu görevin ait olduğu çalıştırma grubunu tanımlar. Atlanırsa, görev hiçbir gruba ait olmaz.",
 	"JsonSchema.tasks.type": "Görevin bir işlem olarak veya bir kabukta komut olarak çalıştırılıp çalıştırılmayacağını tanımlar. Varsayılan işlem olarak çalıştırmaktır.",
 	"JsonSchema.version": "Yapılandırmanın sürüm numarası.",
-	"JsonSchema.tasks.customize": "Özelleştirilecek ekleme yapılan görev.",
 	"JsonSchema.windows": "Windows'a özel komut yapılandırması",
 	"JsonSchema.mac": "Mac'e özel komut yapılandırması",
 	"JsonSchema.linux": "Linux'a özel komut yapılandırması"

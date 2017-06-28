@@ -17,27 +17,41 @@ export class Tasks {
 
 	public async build(): Promise<any> {
 		await this.spectron.command('workbench.action.tasks.build');
-		return this.spectron.wait();  // wait for build to finish
+		await this.spectron.wait(); // wait for build to finish
+
+		// Validate that it has finished
+		let inProgress = true, trial = 0;
+		while (inProgress && trial < 3) {
+			// Determine build status based on the statusbar indicator, don't continue until task has been terminated
+			const hidden = !!await this.spectron.client.getAttribute('.task-statusbar-item-progress', 'aria-hidden');
+			if (hidden) {
+				return Promise.resolve();
+			}
+			await this.spectron.wait();
+			trial++;
+		}
 	}
 
 	public openProblemsView(): Promise<any> {
 		return this.spectron.command('workbench.actions.view.problems');
 	}
 
-	public async firstOutputLineEndsWith(fileName: string): Promise<boolean> {
-		await this.spectron.command('workbench.action.toggleFullScreen'); // toggle full screen to prevent output view to be rendered as wrapped
-		const firstLine = await this.spectron.waitFor(this.spectron.client.getText, `${this.outputViewSelector}>:nth-child(2)`);
+	public async outputContains(string: string): Promise<boolean> {
+		const output: string = await this.spectron.waitFor(this.spectron.client.getText, this.outputViewSelector);
 
-		return firstLine.endsWith(fileName);
-	}
+		if (output.indexOf(string) !== -1) {
+			return true;
+		}
 
-	public async getOutputResult(): Promise<any> {
-		await this.spectron.command('workbench.action.toggleFullScreen'); // toggle full screen to prevent output view to be rendered as wrapped
-		return this.spectron.waitFor(this.spectron.client.getText, `${this.outputViewSelector}>:nth-child(5) span.mtk1`);
+		return false;
 	}
 
 	public selectOutputViewType(type: string): Promise<any> {
-		return this.spectron.client.selectByValue(`${this.workbenchPanelSelector} .select-box`, type);
+		try {
+			return this.spectron.client.selectByValue(`${this.workbenchPanelSelector} .select-box`, type);
+		} catch (e) {
+			return Promise.reject(`Failed to select ${type} as workbench panel output.`);
+		}
 	}
 
 	public getOutputViewType(): Promise<any> {
@@ -45,10 +59,18 @@ export class Tasks {
 	}
 
 	public getProblemsViewFirstElementName(): Promise<any> {
-		return this.spectron.waitFor(this.spectron.client.getText, `${this.problemsViewSelector} .label-name`);
+		try {
+			return this.spectron.waitFor(this.spectron.client.getText, `${this.problemsViewSelector} .label-name`);
+		} catch (e) {
+			return Promise.reject('Failed to get problem label from Problems view: ' + e);
+		}
 	}
 
 	public getProblemsViewFirstElementCount(): Promise<any> {
-		return this.spectron.waitFor(this.spectron.client.getText, `${this.problemsViewSelector} .monaco-count-badge`);
+		try {
+			return this.spectron.waitFor(this.spectron.client.getText, `${this.problemsViewSelector} .monaco-count-badge`);
+		} catch (e) {
+			return Promise.reject('Failed to get problem count from Problems view: ' + e);
+		}
 	}
 }

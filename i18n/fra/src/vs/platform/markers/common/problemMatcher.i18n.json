@@ -56,6 +56,5 @@
 	"LegacyProblemMatcherSchema.watchedBegin": "Expression régulière signalant qu'une tâche faisant l'objet d'un suivi commence à s'exécuter via le suivi d'un fichier.",
 	"LegacyProblemMatcherSchema.watchedEnd.deprecated": "Cette propriété est déconseillée. Utilisez la propriété espion à la place.",
 	"LegacyProblemMatcherSchema.watchedEnd": "Expression régulière signalant qu'une tâche faisant l'objet d'un suivi a fini de s'exécuter.",
-	"NamedProblemMatcherSchema.name": "Nom du détecteur de problèmes de correspondance.",
 	"ProblemMatcherExtPoint": "Contribue aux détecteurs de problèmes de correspondance"
 }

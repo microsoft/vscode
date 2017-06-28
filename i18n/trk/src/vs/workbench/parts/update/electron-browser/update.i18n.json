@@ -27,6 +27,5 @@
 	"DownloadUpdate": "Mevcut Güncelleştirmeyi İndir",
 	"DownloadingUpdate": "Güncelleştirme İndiriliyor...",
 	"InstallingUpdate": "Güncelleştirme Yükleniyor...",
-	"restartToUpdate": "Güncelleştirmek için Yeniden Başlatın...",
 	"checkForUpdates": "Güncelleştirmeleri Denetle..."
 }

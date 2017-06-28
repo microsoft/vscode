@@ -7,7 +7,6 @@
 	"activeEditorShort": "예: myFile.txt",
 	"activeEditorMedium": "예: myFolder/myFile.txt",
 	"activeEditorLong": "예: /Users/Development/myProject/myFolder/myFile.txt",
-	"rootName": "예: myProject",
 	"rootPath": "예: /Users/Development/myProject",
 	"appName": "예: VS Code",
 	"dirty": "활성 편집기가 더티인 경우 더티 표시기",

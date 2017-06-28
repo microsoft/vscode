@@ -56,6 +56,5 @@
 	"LegacyProblemMatcherSchema.watchedBegin": "파일 감시를 통해 트리거되는 감시되는 작업이 시작됨을 나타내는 정규식입니다.",
 	"LegacyProblemMatcherSchema.watchedEnd.deprecated": "이 속성은 사용되지 않습니다. 대신 감시 속성을 사용하세요.",
 	"LegacyProblemMatcherSchema.watchedEnd": "감시되는 작업이 종료됨을 나타내는 정규식입니다.",
-	"NamedProblemMatcherSchema.name": "문제 선택기의 이름입니다.",
 	"ProblemMatcherExtPoint": "문제 선택기를 제공합니다."
 }

@@ -22,7 +22,7 @@ export interface ISaveErrorHandler {
 	/**
 	 * Called whenever a save fails.
 	 */
-	onSaveError(error: any, model: ITextFileEditorModel): void;
+	onSaveError(error: Error, model: ITextFileEditorModel): void;
 }
 
 export interface ISaveParticipant {
@@ -30,7 +30,7 @@ export interface ISaveParticipant {
 	/**
 	 * Participate in a save of a model. Allows to change the model before it is being saved to disk.
 	 */
-	participate(model: ITextFileEditorModel, env: { reason: SaveReason }): TPromise<any>;
+	participate(model: ITextFileEditorModel, env: { reason: SaveReason }): void;
 }
 
 /**
@@ -167,7 +167,7 @@ export interface ITextFileEditorModelManager {
 
 	getAll(resource?: URI): ITextFileEditorModel[];
 
-	loadOrCreate(resource: URI, options?: IModelLoadOrCreateOptions): TPromise<ITextEditorModel>;
+	loadOrCreate(resource: URI, options?: IModelLoadOrCreateOptions): TPromise<ITextFileEditorModel>;
 
 	disposeModel(model: ITextFileEditorModel): void;
 }

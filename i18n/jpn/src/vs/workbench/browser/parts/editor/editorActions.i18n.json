@@ -19,6 +19,7 @@
 	"closeEditorsToTheLeft": "左側のエディターを閉じる",
 	"closeEditorsToTheRight": "右側のエディターを閉じる",
 	"closeAllEditors": "すべてのエディターを閉じる",
+	"closeUnmodifiedEditors": "グループ内の未変更のエディターを閉じる",
 	"closeEditorsInOtherGroups": "他のグループ内のエディターを閉じる",
 	"closeOtherEditorsInGroup": "その他のエディターを閉じる",
 	"closeEditorsInGroup": "グループ内のすべてのエディターを閉じる",

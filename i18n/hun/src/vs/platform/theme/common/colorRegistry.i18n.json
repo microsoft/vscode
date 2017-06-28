@@ -61,7 +61,6 @@
 	"editorForeground": "A szerkesztőablak alapértelmezett előtérszíne.",
 	"editorWidgetBackground": "A szerkesztőablak moduljainak háttérszíne, pl. a keresés/cserének.",
 	"editorWidgetBorder": "A szerkesztőablak-modulok keretszíne. A szín csak akkor van használva, ha a modul beállítása alapján rendelkezik kerettel, és a színt nem írja felül a modul.",
-	"editorSelection": "A szerkesztőablakban található kijelölések színe.",
 	"editorInactiveSelection": "Az inaktív szerkesztőablakban található kijelölések színe.",
 	"editorSelectionHighlight": "A kijelöléssel megegyező tartalmú területek színe.",
 	"editorFindMatch": "A keresés jelenlegi találatának színe.",

@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import { CustomConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/model';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 suite('Configuration', () => {
 

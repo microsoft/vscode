@@ -56,6 +56,5 @@
 	"LegacyProblemMatcherSchema.watchedBegin": "Reguláris kifejezés, mely jelzi, hogy a figyeltő feladatok fájlmódosítás miatt éppen műveletet hajtanak végre.",
 	"LegacyProblemMatcherSchema.watchedEnd.deprecated": "Ez a tulajdonság elavult. Használja a watching tulajdonságot helyette.",
 	"LegacyProblemMatcherSchema.watchedEnd": "Reguláros kifejezés, ami jelzi, hogy a figyelő feladat befejezte a végrehajtást.",
-	"NamedProblemMatcherSchema.name": "A problémaillesztő neve.",
 	"ProblemMatcherExtPoint": "Problémaillesztőket szolgáltat."
 }

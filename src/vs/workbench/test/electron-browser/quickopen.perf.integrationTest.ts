@@ -18,7 +18,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import * as minimist from 'minimist';
 import * as path from 'path';
 import { QuickOpenHandler, IQuickOpenRegistry, Extensions } from 'vs/workbench/browser/quickopen';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { SearchService } from 'vs/workbench/services/search/node/searchService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { TestEnvironmentService, TestEditorService, TestEditorGroupService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
@@ -26,7 +26,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { SimpleConfigurationService } from 'vs/editor/browser/standalone/simpleServices';
+import { SimpleConfigurationService } from 'vs/editor/standalone/browser/simpleServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';

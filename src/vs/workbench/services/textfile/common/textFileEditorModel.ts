@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as path from 'vs/base/common/paths';
 import nls = require('vs/nls');
 import Event, { Emitter } from 'vs/base/common/event';
 import { TPromise, TValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
@@ -24,7 +25,7 @@ import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorMo
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IBackupFileService, BACKUP_FILE_RESOLVE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
-import { IFileService, IFileStat, IFileOperationResult, FileOperationResult, IContent, CONTENT_CHANGE_EVENT_BUFFER_DELAY, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
+import { IFileService, IFileStat, FileOperationError, FileOperationResult, IContent, CONTENT_CHANGE_EVENT_BUFFER_DELAY, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -85,7 +86,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@ITextFileService private textFileService: ITextFileService,
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 	) {
 		super(modelService, modeService);
 
@@ -330,7 +331,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.loadWithContent(content);
 	}
 
-	private handleLoadError(error: IFileOperationResult): TPromise<TextFileEditorModel> {
+	private handleLoadError(error: FileOperationError): TPromise<TextFileEditorModel> {
 		const result = error.fileOperationResult;
 
 		// Apply orphaned state based on error code
@@ -669,10 +670,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				diag(`doSave(${versionId}) - after updateContent()`, this.resource, new Date());
 
 				// Telemetry
-				if ((this.contextService.hasWorkspace() && paths.isEqualOrParent(this.resource.fsPath, this.contextService.toResource('.vscode').fsPath)) ||
-					this.resource.fsPath === this.environmentService.appSettingsPath) {
-					// Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data
-					this.telemetryService.publicLog('settingsWritten');
+				if (this.isSettingsFile()) {
+					this.telemetryService.publicLog('settingsWritten'); // Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data
 				} else {
 					this.telemetryService.publicLog('filePUT', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: paths.extname(this.lastResolvedDiskStat.resource.fsPath) });
 				}
@@ -700,7 +699,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				this.inErrorMode = true;
 
 				// Look out for a save conflict
-				if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
+				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
 					this.inConflictMode = true;
 				}
 
@@ -711,6 +710,23 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				this._onDidStateChange.fire(StateChange.SAVE_ERROR);
 			}));
 		}));
+	}
+
+	private isSettingsFile(): boolean {
+
+		// Check for global settings file
+		if (this.resource.fsPath === this.environmentService.appSettingsPath) {
+			return true;
+		}
+
+		// Check for workspace settings file
+		if (this.contextService.hasWorkspace()) {
+			return this.contextService.getWorkspace2().roots.some(root => {
+				return paths.isEqualOrParent(this.resource.fsPath, path.join(root.fsPath, '.vscode'));
+			});
+		}
+
+		return false;
 	}
 
 	private doTouch(): TPromise<void> {

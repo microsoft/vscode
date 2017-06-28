@@ -54,7 +54,7 @@ export function rename(model: IReadOnlyModel, position: Position, newName: strin
 					return undefined;
 				}, err => {
 					onUnexpectedExternalError(err);
-					return TPromise.wrapError<WorkspaceEdit>('provider failed');
+					return TPromise.wrapError<WorkspaceEdit>(new Error('provider failed'));
 				});
 			}
 			return undefined;
@@ -198,7 +198,7 @@ class RenameController implements IEditorContribution {
 
 		return rename(this.editor.getModel(), this.editor.getPosition(), newName).then(result => {
 			if (result.rejectReason) {
-				return TPromise.wrapError<BulkEdit>(result.rejectReason);
+				return TPromise.wrapError<BulkEdit>(new Error(result.rejectReason));
 			}
 			edit.add(result.edits);
 			return edit;

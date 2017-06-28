@@ -80,6 +80,7 @@ suite('Strings', () => {
 		assertCompareIgnoreCase('aa', 'aA');
 		assertCompareIgnoreCase('a', 'aa');
 		assertCompareIgnoreCase('ab', 'aA');
+		assertCompareIgnoreCase('O', '/');
 	});
 
 	test('format', function () {

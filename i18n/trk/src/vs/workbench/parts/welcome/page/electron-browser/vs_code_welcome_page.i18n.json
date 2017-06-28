@@ -31,6 +31,7 @@
 	"welcomePage.colorThemeDescription": "Düzenleyici ve kodlarınız sevdiğiniz şekilde görünsün",
 	"welcomePage.learn": "Öğren",
 	"welcomePage.showCommands": "Tüm komutları bul ve çalıştır",
+	"welcomePage.showCommandsDescription": "Komut Paleti'nden hızlıca komutlara erişin ve arayın ({0})",
 	"welcomePage.interfaceOverview": "Arayüze genel bakış",
 	"welcomePage.interfaceOverviewDescription": "Kullanıcı arayüzünün ana bileşenlerini vurgulayan bir kaplamayı görüntüleyin",
 	"welcomePage.interactivePlayground": "İnteraktif oyun alanı",

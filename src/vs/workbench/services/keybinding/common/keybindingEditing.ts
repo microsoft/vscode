@@ -215,7 +215,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	private resolveModelReference(): TPromise<IReference<ITextEditorModel>> {
 		return this.fileService.existsFile(this.resource)
 			.then(exists => {
-				const EOL = this.configurationService.getConfiguration('files', { language: 'json' })['eol'];
+				const EOL = this.configurationService.getConfiguration('files', { overrideIdentifier: 'json' })['eol'];
 				const result = exists ? TPromise.as(null) : this.fileService.updateContent(this.resource, this.getEmptyContent(EOL), { encoding: 'utf8' });
 				return result.then(() => this.textModelResolverService.createModelReference(this.resource));
 			});
@@ -225,7 +225,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 
 		// Target cannot be dirty if not writing into buffer
 		if (this.textFileService.isDirty(this.resource)) {
-			return TPromise.wrapError<IReference<ITextEditorModel>>(localize('errorKeybindingsFileDirty', "Unable to write because the file is dirty. Please save the **Keybindings** file and try again."));
+			return TPromise.wrapError<IReference<ITextEditorModel>>(new Error(localize('errorKeybindingsFileDirty', "Unable to write because the file is dirty. Please save the **Keybindings** file and try again.")));
 		}
 
 		return this.resolveModelReference()
@@ -235,11 +235,11 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 				if (model.getValue()) {
 					const parsed = this.parse(model);
 					if (parsed.parseErrors.length) {
-						return TPromise.wrapError<IReference<ITextEditorModel>>(localize('parseErrors', "Unable to write keybindings. Please open **Keybindings file** to correct errors/warnings in the file and try again."));
+						return TPromise.wrapError<IReference<ITextEditorModel>>(new Error(localize('parseErrors', "Unable to write keybindings. Please open **Keybindings file** to correct errors/warnings in the file and try again.")));
 					}
 					if (parsed.result) {
 						if (!isArray(parsed.result)) {
-							return TPromise.wrapError<IReference<ITextEditorModel>>(localize('errorInvalidConfiguration', "Unable to write keybindings. **Keybindings file** has an object which is not of type Array. Please open the file to clean up and try again."));
+							return TPromise.wrapError<IReference<ITextEditorModel>>(new Error(localize('errorInvalidConfiguration', "Unable to write keybindings. **Keybindings file** has an object which is not of type Array. Please open the file to clean up and try again.")));
 						}
 					} else {
 						const content = EOL + '[]';

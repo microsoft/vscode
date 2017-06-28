@@ -44,6 +44,5 @@
 	"config.checkoutType": "`Geçiş Yap...` çalıştırılırken listelenecek dal türlerini denetler. `all` tüm başvuruları gösterir, `local` sadece yerel dalları gösterir, `tags` sadece etiketleri gösterir ve `remote` sadece uzak uçbirim dallarını gösterir.",
 	"config.ignoreLegacyWarning": "Eski Git uyarısını görmezden gelir",
 	"config.ignoreLimitWarning": "Bir depoda çok fazla değişiklik var uyarısını görmezden gelir",
-	"config.defaultCloneDirectory": "Bir git deposunun kopyalanacağı varsayılan konum",
-	"config.enableSmartCommit": "Hazırlanan değişiklik yoksa tüm değişiklikleri commit'le."
+	"config.defaultCloneDirectory": "Bir git deposunun kopyalanacağı varsayılan konum"
 }

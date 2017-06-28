@@ -7,6 +7,25 @@
 
 declare module 'vscode' {
 
+	export interface WorkspaceFoldersChangeEvent {
+		readonly addedFolders: Uri[];
+		readonly removedFolders: Uri[];
+	}
+
+	export namespace workspace {
+
+		/**
+		* List of workspace folders or `undefined` when no folder is open. The *first*
+		* element in the array is equal to the [`rootPath`](#workspace.rootPath)
+		*/
+		export let workspaceFolders: Uri[] | undefined;
+
+		/**
+		 * An event that is emitted when a workspace folder is added or removed.
+		 */
+		export const onDidChangeWorkspaceFolders: Event<WorkspaceFoldersChangeEvent>;
+	}
+
 	/**
 	 * Controls the behaviour of the terminal's visibility.
 	 */
@@ -79,7 +98,60 @@ declare module 'vscode' {
 		panel?: TaskPanelKind;
 	}
 
-	export interface ProcessTaskOptions {
+	/**
+	 * A grouping for tasks. The editor by default supports the
+	 * 'Clean', 'Build', 'RebuildAll' and 'Test' group.
+	 */
+	export class TaskGroup {
+
+		/**
+		 * The clean task group;
+		 */
+		public static Clean: TaskGroup;
+
+		/**
+		 * The build task group;
+		 */
+		public static Build: TaskGroup;
+
+		/**
+		 * The rebuild all task group;
+		 */
+		public static RebuildAll: TaskGroup;
+
+		/**
+		 * The test all task group;
+		 */
+		public static Test: TaskGroup;
+
+		private constructor(id: string, label: string);
+	}
+
+
+	/**
+	 * A structure that defines a task kind in the system.
+	 * The value must be JSON-stringifyable.
+	 */
+	export interface TaskDefinition {
+		/**
+		 * The task definition descibing the task provided by an extension.
+		 * Usually a task provider defines more properties to identify
+		 * a task. They need to be defined in the package.json of the
+		 * extension under the 'taskDefinitions' extension point. The npm
+		 * task definition for example looks like this
+		 * ```typescript
+		 * interface NpmTaskDefinition extends TaskDefinition {
+		 *     script: string;
+		 * }
+		 * ```
+		 */
+		readonly type: string;
+	}
+
+	/**
+	 * Options for a process execution
+	 */
+	export interface ProcessExecutionOptions {
 		/**
 		 * The current working directory of the executed program or shell.
 		 * If omitted the tools current workspace root is used.
@@ -94,88 +166,33 @@ declare module 'vscode' {
 		env?: { [key: string]: string };
 	}
 
-	export namespace TaskGroup {
-		/**
-		 * The clean task group
-		 */
-		export const Clean: 'clean';
-		/**
-		 * The build task group. If a task is part of the build task group
-		 * it can be executed via the run build short cut.
-		 */
-		export const Build: 'build';
-		/**
-		 * The rebuild all task group
-		 */
-		export const RebuildAll: 'rebuildAll';
-		/**
-		 * The test task group. If a task is part of the test task group
-		 * it can be executed via the run test short cut.
-		 */
-		export const Test: 'test';
-	}
-
 	/**
-	 * A task that starts an external process.
+	 * The execution of a task happens as a external process
+	 * without shell interaction.
 	 */
-	export class ProcessTask {
+	export class ProcessExecution {
 
 		/**
-		 * Creates a process task.
+		 * Creates a process execution.
 		 *
-		 * @param name the task's name. Is presented in the user interface.
-		 * @param process the process to start.
-		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
-		 *  or '$eslint'. Problem matchers can be contributed by an extension using
-		 *  the `problemMatchers` extension point.
+		 * @param process The process to start.
+		 * @param options Optional options for the started process.
 		 */
-		constructor(name: string, process: string, problemMatchers?: string | string[]);
+		constructor(process: string, options?: ProcessExecutionOptions);
 
 		/**
-		 * Creates a process task.
+		 * Creates a process execution.
 		 *
-		 * @param name the task's name. Is presented in the user interface.
-		 * @param process the process to start.
-		 * @param args arguments to be passed to the process.
-		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
-		 *  or '$eslint'. Problem matchers can be contributed by an extension using
-		 *  the `problemMatchers` extension point.
+		 * @param process The process to start.
+		 * @param args Arguments to be passed to the process.
+		 * @param options Optional options for the started process.
 		 */
-		constructor(name: string, process: string, args: string[], problemMatchers?: string | string[]);
-
-		/**
-		 * Creates a process task.
-		 *
-		 * @param name the task's name. Is presented in the user interface.
-		 * @param process the process to start.
-		 * @param args arguments to be passed to the process.
-		 * @param options additional options for the started process.
-		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
-		 *  or '$eslint'. Problem matchers can be contributed by an extension using
-		 *  the `problemMatchers` extension point.
-		 */
-		constructor(name: string, process: string, args: string[], options: ProcessTaskOptions, problemMatchers?: string | string[]);
-
-		/**
-		 * The task's name
-		 */
-		readonly name: string;
-
-		/**
-		 * The task's identifier. If omitted the internal identifier will
-		 * be `${extensionName}:${name}`
-		 */
-		identifier: string | undefined;
-
-		/**
-		 * Whether the task is a background task or not.
-		 */
-		isBackground: boolean;
+		constructor(process: string, args: string[], options?: ProcessExecutionOptions);
 
 		/**
 		 * The process to be executed.
 		 */
-		readonly process: string;
+		process: string;
 
 		/**
 		 * The arguments passed to the process. Defaults to an empty array.
@@ -183,42 +200,20 @@ declare module 'vscode' {
 		args: string[];
 
 		/**
-		 * A human-readable string describing the source of this
-		 * shell task, e.g. 'gulp' or 'npm'.
-		 */
-		source: string | undefined;
-
-		/**
-		 * The task group this tasks belongs to. See TaskGroup
-		 * for a predefined set of available groups.
-		 * Defaults to undefined meaning that the task doesn't
-		 * belong to any special group.
-		 */
-		group: string | undefined;
-
-		/**
 		 * The process options used when the process is executed.
-		 * Defaults to an empty object literal.
+		 * Defaults to undefined.
 		 */
-		options: ProcessTaskOptions;
-
-		/**
-		 * The presentation options. Defaults to an empty literal.
-		 */
-		presentationOptions: TaskPresentationOptions;
-
-		/**
-		 * The problem matchers attached to the task. Defaults to an empty
-		 * array.
-		 */
-		problemMatchers: string[];
+		options?: ProcessExecutionOptions;
 	}
 
-	export type ShellTaskOptions = {
+	/**
+	 * Options for a shell execution
+	 */
+	export interface ShellExecutionOptions {
 		/**
 		 * The shell executable.
 		 */
-		executable: string;
+		executable?: string;
 
 		/**
 		 * The arguments to be passed to the shell executable used to run the task.
@@ -237,72 +232,62 @@ declare module 'vscode' {
 		 * the parent process' environment.
 		 */
 		env?: { [key: string]: string };
-	} | {
-			/**
-			 * The current working directory of the executed shell.
-			 * If omitted the tools current workspace root is used.
-			 */
-			cwd: string;
+	}
 
-			/**
-			 * The additional environment of the executed shell. If omitted
-			 * the parent process' environment is used. If provided it is merged with
-			 * the parent process' environment.
-			 */
-			env?: { [key: string]: string };
-		} | {
-			/**
-			 * The current working directory of the executed shell.
-			 * If omitted the tools current workspace root is used.
-			 */
-			cwd?: string;
 
-			/**
-			 * The additional environment of the executed shell. If omitted
-			 * the parent process' environment is used. If provided it is merged with
-			 * the parent process' environment.
-			 */
-			env: { [key: string]: string };
-		};
+	export class ShellExecution {
+		/**
+		 * Creates a process execution.
+		 *
+		 * @param commandLine The command line to execute.
+		 * @param options Optional options for the started the shell.
+		 */
+		constructor(commandLine: string, options?: ShellExecutionOptions);
+
+		/**
+		 * The shell command line
+		 */
+		commandLine: string;
+
+		/**
+		 * The shell options used when the command line is executed in a shell.
+		 * Defaults to undefined.
+		 */
+		options?: ShellExecutionOptions;
+	}
 
 	/**
-	 * A task that executes a shell command.
+	 * A task to execute
 	 */
-	export class ShellTask {
+	export class Task {
 
 		/**
-		 * Creates a shell task.
+		 * Creates a new task.
 		 *
-		 * @param name the task's name. Is presented in the user interface.
-		 * @param commandLine the command line to execute.
+		 * @param definition The task definition as defined in the taskDefintions extension point.
+		 * @param name The task's name. Is presented in the user interface.
+		 * @param source The task's source (e.g. 'gulp', 'npm', ...). Is presented in the user interface.
+		 * @param execution The process or shell execution.
 		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
 		 *  or '$eslint'. Problem matchers can be contributed by an extension using
 		 *  the `problemMatchers` extension point.
 		 */
-		constructor(name: string, commandLine: string, problemMatchers?: string | string[]);
+		constructor(taskDefinition: TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
 
 		/**
-		 * Creates a shell task.
-		 *
-		 * @param name the task's name. Is presented in the user interface.
-		 * @param commandLine the command line to execute.
-		 * @param options additional options used when creating the shell.
-		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
-		 *  or '$eslint'. Problem matchers can be contributed by an extension using
-		 *  the `problemMatchers` extension point.
+		 * The task's definition.
 		 */
-		constructor(name: string, commandLine: string, options: ShellTaskOptions, problemMatchers?: string | string[]);
+		definition: TaskDefinition;
 
 		/**
 		 * The task's name
 		 */
-		readonly name: string;
+		name: string;
 
 		/**
-		 * The task's identifier. If omitted the internal identifier will
-		 * be `${extensionName}:${name}`
+		 * The task's execution engine
 		 */
-		identifier: string | undefined;
+		execution: ProcessExecution | ShellExecution;
 
 		/**
 		 * Whether the task is a background task or not.
@@ -310,15 +295,10 @@ declare module 'vscode' {
 		isBackground: boolean;
 
 		/**
-		 * The command line to execute.
-		 */
-		readonly commandLine: string;
-
-		/**
 		 * A human-readable string describing the source of this
 		 * shell task, e.g. 'gulp' or 'npm'.
 		 */
-		source: string | undefined;
+		source?: string;
 
 		/**
 		 * The task group this tasks belongs to. See TaskGroup
@@ -326,13 +306,7 @@ declare module 'vscode' {
 		 * Defaults to undefined meaning that the task doesn't
 		 * belong to any special group.
 		 */
-		group: string | undefined;
-
-		/**
-		 * The shell options used when the shell is executed. Defaults to an
-		 * empty object literal.
-		 */
-		options: ShellTaskOptions;
+		group?: TaskGroup;
 
 		/**
 		 * The presentation options. Defaults to an empty literal.
@@ -346,29 +320,45 @@ declare module 'vscode' {
 		problemMatchers: string[];
 	}
 
-	export type Task = ProcessTask | ShellTask;
-
 	/**
 	 * A task provider allows to add tasks to the task service.
 	 * A task provider is registerd via #workspace.registerTaskProvider.
 	 */
 	export interface TaskProvider {
 		/**
-		 * Provides additional tasks.
+		 * Provides tasks.
 		 * @param token A cancellation token.
-		 * @return a #TaskSet
+		 * @return an array of tasks
 		 */
-		provideTasks(token: CancellationToken): ProviderResult<Task[]>;
+		provideTasks(token?: CancellationToken): ProviderResult<Task[]>;
+
+		/**
+		 * Resolves a task the has no execution set.
+		 * @param task The task to resolve.
+		 * @param token A cancellation token.
+		 * @return the resolved task
+		 */
+		resolveTask(task: Task, token?: CancellationToken): ProviderResult<Task>;
 	}
 
 	export namespace workspace {
 		/**
 		 * Register a task provider.
 		 *
+		 * @param type The task kind type this provider is registered for.
 		 * @param provider A task provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerTaskProvider(provider: TaskProvider): Disposable;
+		export function registerTaskProvider(type: string, provider: TaskProvider): Disposable;
+
+
+		export function getConfiguration2(section?: string, resource?: Uri): WorkspaceConfiguration2;
+	}
+
+	export interface WorkspaceConfiguration2 extends WorkspaceConfiguration {
+
+		inspect<T>(section: string): { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T, folderValue?: T } | undefined;
+
 	}
 
 	export namespace window {
@@ -452,5 +442,68 @@ declare module 'vscode' {
 		 * @param callback The callback that is triggered when data is sent to the terminal.
 		 */
 		onData(callback: (data: string) => any): void;
+	}
+
+	/**
+	 * Namespace for dealing with debug sessions.
+	 */
+	export namespace debug {
+
+		/**
+		 * An [event](#Event) which fires when a debug session has terminated.
+		 */
+		export const onDidTerminateDebugSession: Event<DebugSession>;
+
+		/**
+		 * Create a new debug session based on the given launchConfig.
+		 * @param launchConfig
+		 */
+		export function createDebugSession(launchConfig: DebugConfiguration): Thenable<DebugSession>;
+	}
+
+	/**
+	 * Configuration for a debug session.
+	 */
+	export interface DebugConfiguration {
+		/**
+		 * The type for the debug session.
+		 */
+		type: string;
+
+		/**
+		 * An optional name for the debug session.
+		 */
+		name?: string;
+
+		/**
+		 * The request type of the debug session.
+		 */
+		request: string;
+
+		/**
+		 * Additional debug type specific properties.
+		 */
+		[key: string]: any;
+	}
+
+	/**
+	 * A debug session.
+	 */
+	export interface DebugSession {
+
+		/**
+		 * The debug session's type from the debug configuration.
+		 */
+		readonly type: string;
+
+		/**
+		 * The debug session's name from the debug configuration.
+		 */
+		readonly name: string;
+
+		/**
+		 * Send a custom request to the debug adapter.
+		 */
+		customRequest(command: string, args?: any): Thenable<any>;
 	}
 }

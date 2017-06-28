@@ -8,7 +8,7 @@ import * as strings from 'vs/base/common/strings';
 import * as DOM from 'vs/base/browser/dom';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorRegistry, Extensions as EditorExtensions, EditorInput, EditorOptions, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { BaseEditor, EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorControl, Position, IEditor } from 'vs/platform/editor/common/editor';
