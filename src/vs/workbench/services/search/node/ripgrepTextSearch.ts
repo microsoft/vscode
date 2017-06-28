@@ -440,7 +440,7 @@ function getAbsoluteGlob(folder: string, key: string): string {
 	const absolutePathKey = path.join(folder, key);
 	const root = paths.getRoot(folder);
 	return root.toLowerCase() === 'c:/' ?
-		'/' + strings.ltrim(absolutePathKey, root) :
+		absolutePathKey.replace(/^c:[/\\]/i, '/') :
 		absolutePathKey;
 }
 
