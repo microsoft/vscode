@@ -13,8 +13,8 @@ const $ = dom.$;
 
 export class ColorPickerWidget extends Widget implements IOverlayWidget {
 	private static ID = 'editor.contrib.colorPickerWidget';
-	private static WIDTH = 400;
-	private static HEIGHT = 350;
+	private readonly width = 400;
+	private readonly height = 350;
 
 	private domNode: HTMLElement;
 	private header: ColorPickerHeader;
@@ -24,8 +24,9 @@ export class ColorPickerWidget extends Widget implements IOverlayWidget {
 	public originalColor: string;
 	public selectedColor: string;
 
-	constructor(controller: ColorPickerController, private editor: ICodeEditor) {
+	constructor(controller: ColorPickerController, public editor: ICodeEditor) {
 		super();
+
 		this.domNode = $('editor-widget colorpicker-widget');
 		this.domNode.setAttribute('aria-hidden', 'false');
 		editor.addOverlayWidget(this);
@@ -39,6 +40,9 @@ export class ColorPickerWidget extends Widget implements IOverlayWidget {
 		this.originalColor = color;
 		this.selectedColor = color;
 
+		this.header = new ColorPickerHeader(this);
+		this.body = new ColorPickerBody(this, this.width - 100);
+
 		this.layout();
 		this.visible = true;
 	}
@@ -46,18 +50,30 @@ export class ColorPickerWidget extends Widget implements IOverlayWidget {
 	private layout(): void {
 		let editorLayout = this.editor.getLayoutInfo();
 
-		let top = Math.round((editorLayout.height - ColorPickerWidget.HEIGHT) / 2);
+		let top = Math.round((editorLayout.height - this.height) / 2);
 		this.domNode.style.top = top + 'px';
 
-		let left = Math.round((editorLayout.width - ColorPickerWidget.WIDTH) / 2);
+		let left = Math.round((editorLayout.width - this.width) / 2);
 		this.domNode.style.left = left + 'px';
 
 		this.domNode.style.backgroundColor = 'red';
-		this.domNode.style.width = ColorPickerWidget.WIDTH + 'px';
-		this.domNode.style.height = ColorPickerWidget.HEIGHT + 'px';
+		this.domNode.style.width = this.width + 'px';
+		this.domNode.style.height = this.height + 'px';
+	}
 
-		this.header = new ColorPickerHeader(this);
-		this.body = new ColorPickerBody(this, ColorPickerWidget.WIDTH - 100);
+	public changePrimaryColor(): void {
+
+	}
+	public changeShade(): void {
+
+	}
+	public changeOpacity(): void {
+
+	}
+
+	public changeSelectedColor(color: string): void {
+		this.selectedColor = color;
+		this.layout();
 	}
 
 	public dispose(): void {
