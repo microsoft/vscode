@@ -30,6 +30,7 @@ import {
 	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, CheckForUpdatesAction, DisableAllAction, EnableAllAction,
 	EnableAutoUpdateAction, DisableAutoUpdateAction
 } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { InstallVSIXAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { ExtensionsListView, InstalledExtensionsView, RecommendedExtensionsView } from './extensionsViews';
@@ -223,7 +224,11 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 		return super.setVisible(visible).then(() => {
 			if (isVisibilityChanged) {
 				if (visible) {
-					this.doSearch();
+					if (!this.searchBox.value && this.extensionsWorkbenchService.local.filter(e => e.type === LocalExtensionType.User).length === 0) {
+						this.search('@sort:installs');
+					} else {
+						this.doSearch();
+					}
 				}
 			}
 		});
@@ -286,7 +291,7 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 		this.searchBox.dispatchEvent(event);
 	}
 
-	private triggerSearch(immediate = false, showPopular: boolean = false): void {
+	private triggerSearch(immediate = false): void {
 		this.searchDelayer.trigger(() => this.doSearch(), immediate || !this.searchBox.value ? 0 : 500)
 			.done(null, err => this.onError(err));
 	}
