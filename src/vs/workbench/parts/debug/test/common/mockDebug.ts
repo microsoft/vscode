@@ -162,6 +162,10 @@ export class MockSession implements debug.ISession {
 		return null;
 	}
 
+	public get onDidInitialize(): Event<DebugProtocol.InitializedEvent> {
+		return null;
+	}
+
 	public custom(request: string, args: any): TPromise<DebugProtocol.Response> {
 		return TPromise.as(null);
 	}
