@@ -7,9 +7,14 @@
 
 declare module 'vscode' {
 
+	export interface WorkspaceFoldersChangeEvent {
+		readonly addedFolders: Uri[];
+		readonly removedFolders: Uri[];
+	}
+
 	export namespace workspace {
 
-		export const onDidChangeWorkspaceFolders: Event<Uri[] | undefined>;
+		export const onDidChangeWorkspaceFolders: Event<WorkspaceFoldersChangeEvent>;
 
 		export let workspaceFolders: Uri[] | undefined;
 	}
