@@ -174,7 +174,7 @@ suite('RipgrepParser', () => {
 	});
 });
 
-suite.only('RipgrepParser - etc', () => {
+suite('RipgrepParser - etc', () => {
 	function testGetAbsGlob(params: string[]): void {
 		const [folder, glob, expectedResult] = params;
 		assert.equal(getAbsoluteGlob(folder, glob), expectedResult, JSON.stringify(params));
@@ -186,10 +186,10 @@ suite.only('RipgrepParser - etc', () => {
 		}
 
 		[
-			['C:/foo/bar', 'glob/**', '/foo/bar/glob/**'],
-			['c:/foo/bar', '/glob/**', '/foo/bar/glob/**'],
-			['c:/', 'glob/**', '/glob/**'],
-			['C:\\foo\\bar', 'glob\\**', '/foo\\bar/glob\\**'],
+			['C:/foo/bar', 'glob/**', '/foo\\bar\\glob\\**'],
+			['c:/foo/bar', '/glob/**', '/foo\\bar\\glob\\**'],
+			['c:/', 'glob/**', '/glob\\**'],
+			['C:\\foo\\bar', 'glob\\**', '/foo\\bar\\glob\\**'],
 			['c:\\foo\\bar', 'glob\\**', '/foo\\bar\\glob\\**'],
 			['c:\\', 'glob\\**', '/glob\\**'],
 			['\\\\localhost\\c$\\foo\\bar', 'glob/**', '\\\\localhost\\c$\\foo\\bar\\glob\\**']
