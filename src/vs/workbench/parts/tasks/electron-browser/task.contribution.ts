@@ -1554,7 +1554,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (this.inTerminal()) {
 			this.getActiveTasks().then((activeTasks) => {
 				if (activeTasks.length === 0) {
-					this.messageService.show(Severity.Info, nls.localize('TaskService.noTaskRunning', 'No task running.'));
+					this.messageService.show(Severity.Info, nls.localize('TaskService.noTaskRunning', 'No task is currently running.'));
 					return;
 				}
 				this.showQuickPick(activeTasks, nls.localize('TaskService.tastToTerminate', 'Select task to terminate')).then(task => {
