@@ -432,11 +432,11 @@ function globExprsToRgGlobs(patterns: glob.IExpression, folder: string): IRgGlob
 
 /**
  * Resolves a glob like "node_modules/**" in "/foo/bar" to "/foo/bar/node_modules/**".
- * The root prefix is always replaced with "/", e.g. "C:\foo\bar" -> "/foo\bar". This is
- * because ripgrep isn't taking an absolute path, it's taking a glob where a leading / causes
- * it to match from the cwd, which is the drive root.
+ * Special cases C:/foo paths to write the glob like /foo instead - see https://github.com/BurntSushi/ripgrep/issues/530.
+ *
+ * Exported for testing
  */
-function getAbsoluteGlob(folder: string, key: string): string {
+export function getAbsoluteGlob(folder: string, key: string): string {
 	const absolutePathKey = path.join(folder, key);
 	const root = paths.getRoot(folder);
 	return root.toLowerCase() === 'c:/' ?
