@@ -1458,6 +1458,49 @@ suite('keyboardMapper - LINUX en_uk', () => {
 	});
 });
 
+suite('keyboardMapper - MAC zh_hant', () => {
+
+	let mapper: MacLinuxKeyboardMapper;
+
+	suiteSetup((done) => {
+		createKeyboardMapper(false, 'mac_zh_hant', OperatingSystem.Macintosh).then((_mapper) => {
+			mapper = _mapper;
+			done();
+		}, done);
+	});
+
+	test('mapping', (done) => {
+		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'mac_zh_hant.txt', done);
+	});
+
+	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
+		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Macintosh), expected);
+	}
+
+	test('issue #28237 resolveKeybinding Cmd+C', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyCode.KEY_C,
+			[{
+				label: '⌘C',
+				ariaLabel: 'Command+C',
+				electronAccelerator: 'Cmd+C',
+				userSettingsLabel: 'cmd+c',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: ['meta+[KeyC]', null],
+			}, {
+				label: '⌃⌥⌘C',
+				ariaLabel: 'Control+Alt+Command+C',
+				electronAccelerator: 'Ctrl+Alt+Cmd+C',
+				userSettingsLabel: 'ctrl+alt+cmd+c',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: ['ctrl+alt+meta+[KeyC]', null],
+			}]
+		);
+	});
+});
+
 function _assertKeybindingTranslation(mapper: MacLinuxKeyboardMapper, OS: OperatingSystem, kb: number, _expected: string | string[]): void {
 	let expected: string[];
 	if (typeof _expected === 'string') {
