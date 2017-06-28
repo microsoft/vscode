@@ -104,7 +104,9 @@ class FilesViewerActionContributor extends ActionBarContributor {
 		}
 
 		// Copy File/Folder
-		actions.push(this.instantiationService.createInstance(CopyFileAction, tree, <FileStat>stat));
+		if (!stat.isRoot) {
+			actions.push(this.instantiationService.createInstance(CopyFileAction, tree, <FileStat>stat));
+		}
 
 		// Paste File/Folder
 		if (stat.isDirectory) {
