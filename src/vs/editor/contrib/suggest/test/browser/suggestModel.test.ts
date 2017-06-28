@@ -328,7 +328,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		});
 	});
 
-	test('Intellisense Completion doesn\'t respect space after equal sign (.html file), #29353', function () {
+	test('Intellisense Completion doesn\'t respect space after equal sign (.html file), #29353 [1/2]', function () {
 
 		disposables.push(SuggestRegistry.register({ scheme: 'test' }, alwaysSomethingSupport));
 
@@ -346,6 +346,31 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 				return assertEvent(model.onDidCancel, () => {
 					editor.trigger('keyboard', Handler.Type, { text: '+' });
+				}, event => {
+					assert.equal(event.retrigger, false);
+				});
+			});
+		});
+	});
+
+	test('Intellisense Completion doesn\'t respect space after equal sign (.html file), #29353 [2/2]', function () {
+
+		disposables.push(SuggestRegistry.register({ scheme: 'test' }, alwaysSomethingSupport));
+
+		return withOracle((model, editor) => {
+
+			editor.getModel().setValue('fo');
+			editor.setPosition({ lineNumber: 1, column: 3 });
+
+			return assertEvent(model.onDidSuggest, () => {
+				model.trigger(false);
+			}, event => {
+				assert.equal(event.auto, false);
+				assert.equal(event.isFrozen, false);
+				assert.equal(event.completionModel.items.length, 1);
+
+				return assertEvent(model.onDidCancel, () => {
+					editor.trigger('keyboard', Handler.Type, { text: ' ' });
 				}, event => {
 					assert.equal(event.retrigger, false);
 				});
