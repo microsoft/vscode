@@ -22,13 +22,6 @@ namespace schema {
 		when?: string;
 	}
 
-	export function parseLocation(value: string): ViewLocation {
-		switch (value) {
-			case ViewLocation.Explorer.id: return ViewLocation.Explorer;
-		}
-		return void 0;
-	}
-
 	export function isValidViewDescriptors(viewDescriptors: IUserFriendlyViewDescriptor[], collector: ExtensionMessageCollector): boolean {
 		if (!Array.isArray(viewDescriptors)) {
 			collector.error(localize('requirearray', "views must be an array"));
@@ -93,7 +86,7 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyV
 				return;
 			}
 
-			const location = schema.parseLocation(entry.key);
+			const location = ViewLocation.getContributedViewLocation(entry.key);
 			if (!location) {
 				collector.warn(localize('locationId.invalid', "`{0}` is not a valid view location", entry.key));
 				return;

@@ -20,6 +20,7 @@ import { EmptyView } from 'vs/workbench/parts/files/browser/views/emptyView';
 import { OpenEditorsView } from 'vs/workbench/parts/files/browser/views/openEditorsView';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
@@ -52,9 +53,10 @@ export class ExplorerViewlet extends ComposedViewsViewlet {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@IThemeService themeService: IThemeService,
-		@IContextMenuService contextMenuService: IContextMenuService
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IExtensionService extensionService: IExtensionService
 	) {
-		super(VIEWLET_ID, ViewLocation.Explorer, ExplorerViewlet.EXPLORER_VIEWS_STATE, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService);
+		super(VIEWLET_ID, ViewLocation.Explorer, ExplorerViewlet.EXPLORER_VIEWS_STATE, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
 
 		this.viewletState = new FileViewletState();
 		this.viewletVisibleContextKey = ExplorerViewletVisibleContext.bindTo(contextKeyService);

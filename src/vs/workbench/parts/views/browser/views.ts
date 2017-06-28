@@ -19,6 +19,7 @@ import { Viewlet, ViewletRegistry, Extensions } from 'vs/workbench/browser/viewl
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { AbstractCollapsibleView, CollapsibleState, IView as IBaseView, SplitView, ViewSizing } from 'vs/base/browser/ui/splitview/splitview';
@@ -310,6 +311,7 @@ export class ComposedViewsViewlet extends Viewlet {
 
 	private readonly viewsContextKeys: Set<string> = new Set<string>();
 	private readonly viewsStates: Map<string, IViewState>;
+	private areExtensionsReady: boolean = false;
 
 	constructor(
 		id: string,
@@ -321,7 +323,8 @@ export class ComposedViewsViewlet extends Viewlet {
 		@IThemeService themeService: IThemeService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IContextKeyService protected contextKeyService: IContextKeyService,
-		@IContextMenuService private contextMenuService: IContextMenuService
+		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IExtensionService extensionService: IExtensionService
 	) {
 		super(id, telemetryService, themeService);
 
@@ -332,6 +335,11 @@ export class ComposedViewsViewlet extends Viewlet {
 		this._register(ViewsRegistry.onViewsRegistered(() => this.onViewDescriptorsChanged()));
 		this._register(ViewsRegistry.onViewsDeregistered(() => this.onViewDescriptorsChanged()));
 		this._register(contextKeyService.onDidChangeContext(keys => this.onContextChanged(keys)));
+
+		extensionService.onReady().then(() => {
+			this.areExtensionsReady = true;
+			this.onViewsUpdated();
+		});
 	}
 
 	public create(parent: Builder): TPromise<void> {
@@ -351,14 +359,14 @@ export class ComposedViewsViewlet extends Viewlet {
 
 	public getTitle(): string {
 		let title = Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlet(this.getId()).name;
-		if (this.views.length === 1) {
+		if (this.hasSingleView()) {
 			title += ': ' + this.views[0].name;
 		}
 		return title;
 	}
 
 	public getActions(): IAction[] {
-		if (this.views.length === 1) {
+		if (this.hasSingleView()) {
 			return this.views[0].getActions();
 		}
 		return [];
@@ -366,7 +374,7 @@ export class ComposedViewsViewlet extends Viewlet {
 
 	public getSecondaryActions(): IAction[] {
 		let actions = [];
-		if (this.views.length === 1) {
+		if (this.hasSingleView()) {
 			actions = this.views[0].getSecondaryActions();
 		}
 
@@ -572,10 +580,12 @@ export class ComposedViewsViewlet extends Viewlet {
 	}
 
 	private onViewsUpdated(): TPromise<void> {
-		if (this.views.length === 1) {
-			this.views[0].hideHeader();
-			if (!this.views[0].isExpanded()) {
-				this.views[0].expand();
+		if (this.hasSingleView()) {
+			if (this.views[0]) {
+				this.views[0].hideHeader();
+				if (!this.views[0].isExpanded()) {
+					this.views[0].expand();
+				}
 			}
 		} else {
 			for (const view of this.views) {
@@ -591,6 +601,17 @@ export class ComposedViewsViewlet extends Viewlet {
 		}
 
 		return this.setVisible(this.isVisible());
+	}
+
+	private hasSingleView(): boolean {
+		if (this.views.length > 1) {
+			return false;
+		}
+		if (ViewLocation.getContributedViewLocation(this.location.id) && !this.areExtensionsReady) {
+			// Checks in cache so that view do not jump. See #29609
+			return this.viewsStates.size === 1;
+		}
+		return true;
 	}
 
 	private getViewDescriptorsFromRegistry(): IViewDescriptor[] {
@@ -610,8 +631,10 @@ export class ComposedViewsViewlet extends Viewlet {
 		const viewsStates = {};
 		this.viewsStates.forEach((viewState, id) => {
 			const view = this.getView(id);
-			viewState = view ? this.createViewState(view) : viewState;
-			viewsStates[id] = { size: viewState.size, collapsed: viewState.collapsed, isHidden: viewState.isHidden };
+			if (view) {
+				viewState = view ? this.createViewState(view) : viewState;
+				viewsStates[id] = { size: viewState.size, collapsed: viewState.collapsed, isHidden: viewState.isHidden };
+			}
 		});
 
 		this.storageService.store(this.viewletStateStorageId, JSON.stringify(viewsStates), this.contextService.hasWorkspace() ? StorageScope.WORKSPACE : StorageScope.GLOBAL);
