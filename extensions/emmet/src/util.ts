@@ -62,7 +62,7 @@ export function getMappedSyntax(syntax: string): string {
 	if (!syntax) {
 		return;
 	}
-	if (/\b(typescriptreact|javascriptreact|jsx-tags)\b/.test(syntax)) { // treat tsx like jsx
+	if (/\b(typescriptreact|javascriptreact|jsx-tags|jsx)\b/.test(syntax)) { // treat tsx like jsx
 		return 'jsx';
 	}
 	if (syntax === 'sass-indented') { // map sass-indented to sass

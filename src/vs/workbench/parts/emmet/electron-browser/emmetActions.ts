@@ -314,7 +314,9 @@ export abstract class EmmetEditorAction extends EditorAction {
 
 			if (configurationService.getConfiguration<IEmmetConfiguration>().emmet.useNewEmmet
 				&& (mappedCommand === 'emmet.expandAbbreviation' || mappedCommand === 'emmet.wrapWithAbbreviation')) {
-				return commandService.executeCommand<void>(mappedCommand, editorAccessor.getLanguage());
+				return commandService.executeCommand<void>(mappedCommand, { language: editorAccessor.getSyntax() });
+				// Below is for when disucssion at https://github.com/Microsoft/vscode/issues/29678 is resolved
+				//return commandService.executeCommand<void>(mappedCommand, editorAccessor.getLanguage());
 			}
 
 			if (!editorAccessor.isEmmetEnabledMode()) {
