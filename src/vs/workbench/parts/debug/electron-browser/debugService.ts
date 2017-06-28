@@ -505,10 +505,6 @@ export class DebugService implements debug.IDebugService {
 		this._onDidChangeState.fire(state);
 	}
 
-	public get enabled(): boolean {
-		return this.contextService.hasWorkspace();
-	}
-
 	public focusStackFrameAndEvaluate(stackFrame: debug.IStackFrame, process?: debug.IProcess): TPromise<void> {
 		if (!process) {
 			const processes = this.model.getProcesses();
