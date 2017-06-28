@@ -32,7 +32,8 @@ const MouseEventTypes = [
 	'mouseover',
 	'mousemove',
 	'mouseout',
-	'contextmenu'
+	'contextmenu',
+	'touchstart'
 ];
 
 export interface IListViewOptions {
