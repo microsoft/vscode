@@ -150,12 +150,9 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	private onConfigurationUpdated(): void {
-		// TODO
-		// const workspace = this.contextService.getWorkspace2();
-		// workspace.roots.forEach(root => {
-		// 	const config = this.configurationService.getConfiguration(undefined, { resource: root });
-		// })
-		// this.updateGlobalPatternExclusions(configuration);
+		const resource = this.contextService.hasWorkspace() ? this.contextService.getWorkspace2().roots[0] : undefined;
+		const config = this.configurationService.getConfiguration<ISearchConfiguration>(undefined, { resource });
+		this.updateGlobalPatternExclusions(config);
 	}
 
 	public create(parent: Builder): TPromise<void> {
