@@ -109,7 +109,7 @@ suite('ExtHostWorkspace', function () {
 		let ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', name: 'Test', roots: [] });
 		let sub = ws.onDidChangeWorkspace(e => {
 			assert.throws(() => {
-				e.addedFolders = [];
+				(<any>e).addedFolders = [];
 			});
 			assert.throws(() => {
 				(<any>e.addedFolders)[0] = null;
