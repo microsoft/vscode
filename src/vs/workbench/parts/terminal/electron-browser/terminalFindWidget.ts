@@ -149,6 +149,7 @@ export class TerminalFindWidget extends Widget {
 			className: 'close-fw',
 			onTrigger: () => {
 				this.hide();
+				this._terminalService.getActiveInstance().focus();
 			},
 			onKeyDown: (e) => { }
 		});
