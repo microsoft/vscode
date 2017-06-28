@@ -13,7 +13,7 @@ export function nextItemHTML(selectionStart: vscode.Position, selectionEnd: vsco
 
 	if (currentNode.type !== 'comment') {
 		// If cursor is in the tag name, select tag
-		if (selectionEnd.translate(0, -currentNode.name.length).isBefore(currentNode.open.start)) {
+		if (selectionEnd.isBefore(currentNode.open.start.translate(0, currentNode.name.length))) {
 			return getSelectionFromNode(currentNode, editor.document);
 		}
 
@@ -113,7 +113,7 @@ function getNextAttribute(selectionStart: vscode.Position, selectionEnd: vscode.
 			return new vscode.Selection(attr.start, attr.end);
 		}
 
-		if ((<vscode.Position>attr.value.start).isEqual(attr.value.end)) {
+		if (!attr.value || (<vscode.Position>attr.value.start).isEqual(attr.value.end)) {
 			// No attr value to select
 			continue;
 		}
@@ -163,7 +163,7 @@ function getPrevAttribute(selectionStart: vscode.Position, selectionEnd: vscode.
 			continue;
 		}
 
-		if ((<vscode.Position>attr.value.start).isEqual(attr.value.end) || selectionStart.isBefore(attr.value.start)) {
+		if (!attr.value || (<vscode.Position>attr.value.start).isEqual(attr.value.end) || selectionStart.isBefore(attr.value.start)) {
 			// select full attr
 			return new vscode.Selection(attr.start, attr.end);
 		}
