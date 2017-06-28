@@ -11,7 +11,8 @@ export class ColorPickerBody {
 
 	private domNode: HTMLElement;
 
-	constructor(widget: ColorPickerWidget, width: number) {
+	constructor(private widget: ColorPickerWidget, width: number) {
+
 		const slidersWidth = 25;
 		const padding = 8;
 		const selectionBoxHeight = width - (slidersWidth * 2) - (padding * 4);
@@ -31,6 +32,11 @@ export class ColorPickerBody {
 
 	private drawShadeSelectionBox(widthAndHeight: number): void {
 		let shadeSelectionBox = $('.shadeBox');
+
+		// draw canvas
+		// const pixelRatio = this.widget.editor.getConfiguration().pixelRatio;
+
+
 		shadeSelectionBox.style.backgroundColor = 'black';
 		shadeSelectionBox.style.width = widthAndHeight + 'px';
 		shadeSelectionBox.style.height = widthAndHeight + 'px';

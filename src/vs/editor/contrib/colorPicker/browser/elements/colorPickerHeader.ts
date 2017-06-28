@@ -20,34 +20,26 @@ export class ColorPickerHeader {
 		this.drawOriginalColorBox();
 		this.drawPickedColorBox();
 		this.drawColorValueArea();
-		this.drawColorConversionArea();
 	}
 
 	private drawOriginalColorBox() {
 		let colorBox = $('.original-color');
 		colorBox.style.backgroundColor = this.widget.originalColor;
-		colorBox.style.width = 5 + '%';
+		colorBox.style.width = 10 + '%';
 		dom.append(this.domNode, colorBox);
 	}
 
 	private drawPickedColorBox() {
 		let pickedColorBox = $('.picked-color');
 		pickedColorBox.style.backgroundColor = this.widget.selectedColor;
-		pickedColorBox.style.width = 30 + '%';
+		pickedColorBox.style.width = 40 + '%';
 		dom.append(this.domNode, pickedColorBox);
 	}
 
 	private drawColorValueArea() {
 		let colorCode = $('.color-code');
 		colorCode.style.backgroundColor = 'black';
-		colorCode.style.width = 40 + '%';
+		colorCode.style.width = 50 + '%';
 		dom.append(this.domNode, colorCode);
-	}
-
-	private drawColorConversionArea() {
-		let colorsNode = $('.colors');
-		colorsNode.style.backgroundColor = 'blue';
-		colorsNode.style.width = 25 + '%';
-		dom.append(this.domNode, colorsNode);
 	}
 }

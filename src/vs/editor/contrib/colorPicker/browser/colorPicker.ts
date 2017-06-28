@@ -38,7 +38,7 @@ export class ColorPickerController extends Disposable implements IEditorContribu
 
 	public pickColor(): void {
 		// Convert color from editors to string, pass it to widget
-		this.widget.show('rgb(235, 26, 13)');
+		this.widget.show('#00ab54');
 	}
 }
 
