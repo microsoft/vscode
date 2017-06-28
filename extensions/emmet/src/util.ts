@@ -116,7 +116,7 @@ export function getOpenCloseRange(document: vscode.TextDocument, position: vscod
 }
 
 export function getDeepestNode(node: Node): Node {
-	if (!node || !node.children || node.children.length === 0) {
+	if (!node || !node.children || node.children.length === 0 || !node.children.find(x => x.type !== 'comment')) {
 		return node;
 	}
 	for (let i = node.children.length - 1; i >= 0; i--) {
