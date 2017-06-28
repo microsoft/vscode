@@ -240,10 +240,15 @@ export class ActionItem extends BaseActionItem {
 		super.render(container);
 
 		this.$e = $('a.action-label').appendTo(this.builder);
-		if (this.options.isMenu) {
-			this.$e.attr({ role: 'menuitem' });
+		if (this._action.id === Separator.ID) {
+			// A separator is a presentation item
+			this.$e.attr({ role: 'presentation' });
 		} else {
-			this.$e.attr({ role: 'button' });
+			if (this.options.isMenu) {
+				this.$e.attr({ role: 'menuitem' });
+			} else {
+				this.$e.attr({ role: 'button' });
+			}
 		}
 
 		if (this.options.label && this.options.keybinding) {
@@ -538,6 +543,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			}
 
 			if (!item) {
+				console.log(`hello world`);
 				item = new ActionItem(this.context, action, options);
 			}
 
