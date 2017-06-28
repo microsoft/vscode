@@ -358,9 +358,17 @@ export function createApiFactory(
 			},
 			get workspaceFolders() {
 				assertProposedApi(extension);
+				telemetryService.publicLog('api-getter', {
+					name: 'workspace#workspaceFolders',
+					extension: extension.id
+				});
 				return extHostWorkspace.getRoots();
 			},
 			onDidChangeWorkspaceFolders: proposedApiFunction(extension, (listener, thisArgs?, disposables?) => {
+				telemetryService.publicLog('api-getter', {
+					name: 'workspace#onDidChangeWorkspaceFolders',
+					extension: extension.id
+				});
 				return extHostWorkspace.onDidChangeWorkspace(listener, thisArgs, disposables);
 			}),
 			asRelativePath: (pathOrUri) => {
