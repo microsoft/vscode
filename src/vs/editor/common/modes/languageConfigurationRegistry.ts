@@ -318,7 +318,7 @@ export class LanguageConfigurationRegistryImpl {
 	 *
 	 * This function only return the inherited indent based on above lines, it doesn't check whether current line should decrease or not.
 	 */
-	public getInheritIndentForLine(model: IVirtualModel, lineNumber: number, honorIntentialIndent: boolean = true) {
+	public getInheritIndentForLine(model: IVirtualModel, lineNumber: number, honorIntentialIndent: boolean = true): { indentation: string, action: IndentAction, line?: number } {
 		let indentRulesSupport = this._getIndentRulesSupport(model.getLanguageIdentifier().id);
 		if (!indentRulesSupport) {
 			return null;
@@ -344,12 +344,14 @@ export class LanguageConfigurationRegistryImpl {
 		if (indentRulesSupport.shouldIncrease(precedingUnIgnoredLineContent) || indentRulesSupport.shouldIndentNextLine(precedingUnIgnoredLineContent)) {
 			return {
 				indentation: strings.getLeadingWhitespace(precedingUnIgnoredLineContent),
-				action: IndentAction.Indent
+				action: IndentAction.Indent,
+				line: precedingUnIgnoredLine
 			};
 		} else if (indentRulesSupport.shouldDecrease(precedingUnIgnoredLineContent)) {
 			return {
 				indentation: strings.getLeadingWhitespace(precedingUnIgnoredLineContent),
-				action: null
+				action: null,
+				line: precedingUnIgnoredLine
 			};
 		} else {
 			// precedingUnIgnoredLine can not be ignored.
@@ -360,7 +362,8 @@ export class LanguageConfigurationRegistryImpl {
 			if (precedingUnIgnoredLine === 1) {
 				return {
 					indentation: strings.getLeadingWhitespace(model.getLineContent(precedingUnIgnoredLine)),
-					action: null
+					action: null,
+					line: precedingUnIgnoredLine
 				};
 			}
 
@@ -380,14 +383,16 @@ export class LanguageConfigurationRegistryImpl {
 
 				return {
 					indentation: strings.getLeadingWhitespace(model.getLineContent(stopLine + 1)),
-					action: null
+					action: null,
+					line: stopLine + 1
 				};
 			}
 
 			if (honorIntentialIndent) {
 				return {
 					indentation: strings.getLeadingWhitespace(model.getLineContent(precedingUnIgnoredLine)),
-					action: null
+					action: null,
+					line: precedingUnIgnoredLine
 				};
 			} else {
 				// search from precedingUnIgnoredLine until we find one whose indent is not temporary
@@ -396,7 +401,8 @@ export class LanguageConfigurationRegistryImpl {
 					if (indentRulesSupport.shouldIncrease(lineContent)) {
 						return {
 							indentation: strings.getLeadingWhitespace(lineContent),
-							action: IndentAction.Indent
+							action: IndentAction.Indent,
+							line: i
 						};
 					} else if (indentRulesSupport.shouldIndentNextLine(lineContent)) {
 						let stopLine = 0;
@@ -410,19 +416,22 @@ export class LanguageConfigurationRegistryImpl {
 
 						return {
 							indentation: strings.getLeadingWhitespace(model.getLineContent(stopLine + 1)),
-							action: null
+							action: null,
+							line: stopLine + 1
 						};
 					} else if (indentRulesSupport.shouldDecrease(lineContent)) {
 						return {
 							indentation: strings.getLeadingWhitespace(lineContent),
-							action: null
+							action: null,
+							line: i
 						};
 					}
 				}
 
 				return {
 					indentation: strings.getLeadingWhitespace(model.getLineContent(1)),
-					action: null
+					action: null,
+					line: 1
 				};
 			}
 		}
@@ -438,6 +447,40 @@ export class LanguageConfigurationRegistryImpl {
 		let lineContent = virtualModel.getLineContent(lineNumber);
 
 		if (indent) {
+			let inheritLine = indent.line;
+			if (inheritLine !== undefined) {
+				let onEnterSupport = this._getOnEnterSupport(languageId);
+				let enterResult: EnterAction = null;
+				try {
+					enterResult = onEnterSupport.onEnter('', virtualModel.getLineContent(inheritLine), '');
+				} catch (e) {
+					onUnexpectedError(e);
+				}
+
+				if (enterResult) {
+					let indentation = strings.getLeadingWhitespace(virtualModel.getLineContent(inheritLine));
+
+					if (enterResult.removeText) {
+						indentation = indentation.substring(0, indentation.length - enterResult.removeText);
+					}
+
+					if (
+						(enterResult.indentAction === IndentAction.Indent) ||
+						(enterResult.indentAction === IndentAction.IndentOutdent)
+					) {
+						indentation = indentConverter.shiftIndent(indentation);
+					} else if (enterResult.indentAction === IndentAction.Outdent) {
+						indentation = indentConverter.unshiftIndent(indentation);
+					}
+
+					if (enterResult.appendText) {
+						indentation += enterResult.appendText;
+					}
+
+					return strings.getLeadingWhitespace(indentation);
+				}
+			}
+
 			if (indentRulesSupport.shouldDecrease(lineContent)) {
 				if (indent.action === IndentAction.Indent) {
 					return indent.indentation;
