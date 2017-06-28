@@ -67,8 +67,9 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	private doSetRoots(newRoots: URI[]): TPromise<void> {
 		const workspaceUserConfig = this.configurationService.lookup(workspaceConfigKey).user as IWorkspaceConfiguration || Object.create(null);
 		const master = this.contextService.getWorkspace2().roots[0];
+		const masterKey = master.toString(true /* skip encoding */);
 
-		const currentWorkspaceRoots = this.validateRoots(master, workspaceUserConfig[master.toString()] && workspaceUserConfig[master.toString()].folders);
+		const currentWorkspaceRoots = this.validateRoots(master, workspaceUserConfig[masterKey] && workspaceUserConfig[masterKey].folders);
 		const newWorkspaceRoots = this.validateRoots(master, newRoots);
 
 		// See if there are any changes
@@ -78,11 +79,11 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 		// Apply to config
 		if (newWorkspaceRoots.length) {
-			workspaceUserConfig[master.toString()] = {
+			workspaceUserConfig[masterKey] = {
 				folders: newWorkspaceRoots
 			};
 		} else {
-			delete workspaceUserConfig[master.toString()];
+			delete workspaceUserConfig[masterKey];
 		}
 
 		return this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: workspaceConfigKey, value: workspaceUserConfig }).then(() => void 0);
@@ -94,10 +95,10 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		}
 
 		// Prevent duplicates
-		const validatedRoots = distinct(roots.map(root => root.toString()));
+		const validatedRoots = distinct(roots.map(root => root.toString(true /* skip encoding */)));
 
 		// Make sure we do not set the master folder as root
-		const masterIndex = validatedRoots.indexOf(master.toString());
+		const masterIndex = validatedRoots.indexOf(master.toString(true /* skip encoding */));
 		if (masterIndex >= 0) {
 			validatedRoots.splice(masterIndex, 1);
 		}

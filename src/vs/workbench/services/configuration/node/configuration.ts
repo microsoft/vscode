@@ -202,7 +202,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		let configuredFolders: URI[] = [master];
 		const config = this.getConfiguration<IWorkspaceFoldersConfiguration>('workspace');
 		if (config) {
-			const workspaceConfig = config[master.toString()];
+			const workspaceConfig = config[master.toString(true /* skip encoding */)];
 			if (workspaceConfig) {
 				const additionalFolders = workspaceConfig.folders
 					.map(f => URI.parse(f))
