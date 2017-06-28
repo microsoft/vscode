@@ -27,15 +27,18 @@ export interface ITaskProvider {
 	provideTasks(): TPromise<TaskSet>;
 }
 
+export interface RunOptions {
+	attachProblemMatcher?: boolean;
+}
+
 export interface ITaskService extends IEventEmitter {
 	_serviceBrand: any;
 	configureAction(): Action;
-	openDocumentation(): void;
 	build(): TPromise<ITaskSummary>;
 	rebuild(): TPromise<ITaskSummary>;
 	clean(): TPromise<ITaskSummary>;
 	runTest(): TPromise<ITaskSummary>;
-	run(task: string | Task): TPromise<ITaskSummary>;
+	run(task: string | Task, options?: RunOptions): TPromise<ITaskSummary>;
 	inTerminal(): boolean;
 	isActive(): TPromise<boolean>;
 	getActiveTasks(): TPromise<Task[]>;

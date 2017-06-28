@@ -9,22 +9,15 @@ import Filters = require('vs/base/common/filters');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action, IAction } from 'vs/base/common/actions';
 import { IStringDictionary } from 'vs/base/common/collections';
-import * as Objects from 'vs/base/common/objects';
 
 import Quickopen = require('vs/workbench/browser/quickopen');
 import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');
-import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
-import { ProblemMatcherRegistry, NamedProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
 import { Task, TaskSourceKind } from 'vs/workbench/parts/tasks/common/tasks';
-import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
+import { ITaskService, RunOptions } from 'vs/workbench/parts/tasks/common/taskService';
 import { ActionBarContributor, ContributableActionProvider } from 'vs/workbench/browser/actions';
-
-interface ProblemMatcherPickEntry extends IPickOpenEntry {
-	matcher: NamedProblemMatcher;
-	learnMore?: boolean;
-}
 
 export class TaskEntry extends Model.QuickOpenEntry {
 
@@ -44,53 +37,8 @@ export class TaskEntry extends Model.QuickOpenEntry {
 		return this._task;
 	}
 
-	protected attachProblemMatcher(task: Task): TPromise<Task> {
-		let entries: ProblemMatcherPickEntry[] = [];
-		for (let key of ProblemMatcherRegistry.keys()) {
-			let matcher = ProblemMatcherRegistry.get(key);
-			if (matcher.name === matcher.label) {
-				entries.push({ label: matcher.name, matcher: matcher });
-			} else {
-				entries.push({
-					label: matcher.label,
-					description: `$${matcher.name}`,
-					matcher: matcher
-				});
-			}
-		}
-		if (entries.length > 0) {
-			entries = entries.sort((a, b) => a.label.localeCompare(b.label));
-			entries[0].separator = { border: true };
-			entries.unshift(
-				{ label: nls.localize('continueWithout', 'Continue without scanning the build output'), matcher: undefined },
-				{ label: nls.localize('learnMoreAbout', 'Learn more about scanning the build output'), matcher: undefined, learnMore: true }
-			);
-			return this.quickOpenService.pick(entries, {
-				placeHolder: nls.localize('selectProblemMatcher', 'Select for which kind of errors and warnings to scan the build output')
-			}).then((selected) => {
-				if (selected) {
-					if (selected.learnMore) {
-						this.taskService.openDocumentation();
-						return undefined;
-					} else if (selected.matcher) {
-						let newTask = Objects.deepClone(task);
-						let matcherReference = `$${selected.matcher.name}`;
-						newTask.problemMatchers = [matcherReference];
-						this.taskService.customize(task, { problemMatcher: [matcherReference] }, true);
-						return newTask;
-					} else {
-						return task;
-					}
-				} else {
-					return task;
-				}
-			});
-		}
-		return TPromise.as(task);
-	}
-
-	protected doRun(task: Task): boolean {
-		this.taskService.run(task);
+	protected doRun(task: Task, options?: RunOptions): boolean {
+		this.taskService.run(task, options);
 		if (task.command.presentation.focus) {
 			this.quickOpenService.close();
 			return false;

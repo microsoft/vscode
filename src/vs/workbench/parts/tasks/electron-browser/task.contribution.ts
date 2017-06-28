@@ -6,8 +6,6 @@
 
 import 'vs/css!./media/task.contribution';
 import 'vs/workbench/parts/tasks/browser/taskQuickOpen';
-import 'vs/workbench/parts/tasks/browser/buildQuickOpen';
-import 'vs/workbench/parts/tasks/browser/testQuickOpen';
 
 import * as nls from 'vs/nls';
 
@@ -43,7 +41,7 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ProblemMatcherRegistry } from 'vs/platform/markers/common/problemMatcher';
+import { ProblemMatcherRegistry, NamedProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IProgressService2, IProgressOptions, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -76,7 +74,7 @@ import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
 import { ITaskSystem, ITaskResolver, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskSystemEvents, TaskTerminateResponse } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { Task, CustomTask, ConfiguringTask, ContributedTask, TaskSet, TaskGroup, ExecutionEngine, JsonSchemaVersion, TaskSourceKind, TaskIdentifier } from 'vs/workbench/parts/tasks/common/tasks';
-import { ITaskService, TaskServiceEvents, ITaskProvider, TaskEvent } from 'vs/workbench/parts/tasks/common/taskService';
+import { ITaskService, TaskServiceEvents, ITaskProvider, TaskEvent, RunOptions } from 'vs/workbench/parts/tasks/common/taskService';
 import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
 import * as TaskConfig from '../node/taskConfiguration';
@@ -797,7 +795,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		});
 	}
 
-	public run(task: string | Task): TPromise<ITaskSummary> {
+	public run(task: string | Task, options?: RunOptions): TPromise<ITaskSummary> {
 		return this.getTaskSets().then((values) => {
 			let resolver = this.createResolver(values);
 			let requested: string;
@@ -812,12 +810,71 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (!toExecute) {
 				throw new TaskError(Severity.Info, nls.localize('TaskServer.noTask', 'Requested task {0} to execute not found.', requested), TaskErrors.TaskNotFound);
 			} else {
+				if (options && options.attachProblemMatcher && this.canCustomize() && toExecute.group === TaskGroup.Build && (toExecute.problemMatchers === void 0 || toExecute.problemMatchers.length === 0)) {
+					return this.attachProblemMatcher(toExecute).then((toExecute) => {
+						if (toExecute) {
+							return this.executeTask(toExecute, resolver);
+						} else {
+							return TPromise.as(undefined);
+						}
+					});
+				}
 				return this.executeTask(toExecute, resolver);
 			}
 		}).then(value => value, (error) => {
 			this.handleError(error);
 			return TPromise.wrapError(error);
 		});
+	}
+
+	private attachProblemMatcher(task: Task): TPromise<Task> {
+		interface ProblemMatcherPickEntry extends IPickOpenEntry {
+			matcher: NamedProblemMatcher;
+			learnMore?: boolean;
+		}
+		let entries: ProblemMatcherPickEntry[] = [];
+		for (let key of ProblemMatcherRegistry.keys()) {
+			let matcher = ProblemMatcherRegistry.get(key);
+			if (matcher.name === matcher.label) {
+				entries.push({ label: matcher.name, matcher: matcher });
+			} else {
+				entries.push({
+					label: matcher.label,
+					description: `$${matcher.name}`,
+					matcher: matcher
+				});
+			}
+		}
+		if (entries.length > 0) {
+			entries = entries.sort((a, b) => a.label.localeCompare(b.label));
+			entries[0].separator = { border: true };
+			entries.unshift(
+				{ label: nls.localize('continueWithout', 'Continue without scanning the build output'), matcher: undefined },
+				{ label: nls.localize('learnMoreAbout', 'Learn more about scanning the build output'), matcher: undefined, learnMore: true }
+			);
+			return this.quickOpenService.pick(entries, {
+				placeHolder: nls.localize('selectProblemMatcher', 'Select for which kind of errors and warnings to scan the build output'),
+				autoFocus: { autoFocusFirstEntry: true }
+			}).then((selected) => {
+				if (selected) {
+					if (selected.learnMore) {
+						this.openDocumentation();
+						return undefined;
+					} else if (selected.matcher) {
+						let newTask = Objects.deepClone(task);
+						let matcherReference = `$${selected.matcher.name}`;
+						newTask.problemMatchers = [matcherReference];
+						this.customize(task, { problemMatcher: [matcherReference] }, true);
+						return newTask;
+					} else {
+						return task;
+					}
+				} else {
+					return task;
+				}
+			});
+		}
+		return TPromise.as(task);
 	}
 
 	public getTasksForGroup(group: string): TPromise<Task[]> {
@@ -1464,6 +1521,73 @@ class TaskService extends EventEmitter implements ITaskService {
 		return true;
 	}
 
+	private showQuickPick(tasks: Task[], placeHolder: string, group: boolean = false, sort: boolean = false): TPromise<Task> {
+		if (tasks === void 0 || tasks === null || tasks.length === 0) {
+			return TPromise.as(undefined);
+		}
+		interface TaskQickPickEntry extends IPickOpenEntry {
+			task: Task;
+		}
+		function TaskQickPickEntry(task: Task): TaskQickPickEntry {
+			return { label: task._label, task };
+		}
+		function fillEntries(entries: TaskQickPickEntry[], tasks: Task[], groupLabel: string, withBorder: boolean = false): void {
+			let first = true;
+			for (let task of tasks) {
+				if (first) {
+					first = false;
+					let entry = TaskQickPickEntry(task);
+					entry.separator = { label: groupLabel, border: withBorder };
+					entries.push(entry);
+				} else {
+					entries.push(TaskQickPickEntry(task));
+				}
+			}
+		}
+		let entries: TaskQickPickEntry[];
+		if (group) {
+			entries = [];
+			if (tasks.length === 1) {
+				entries.push(TaskQickPickEntry(tasks[0]));
+			} else {
+				let recentlyUsedTasks = this.getRecentlyUsedTasks();
+				let recent: Task[] = [];
+				let configured: Task[] = [];
+				let detected: Task[] = [];
+				let taskMap: IStringDictionary<Task> = Object.create(null);
+				tasks.forEach(task => taskMap[Task.getKey(task)] = task);
+				recentlyUsedTasks.keys().forEach(key => {
+					let task = taskMap[key];
+					if (task) {
+						recent.push(task);
+					}
+				});
+				for (let task of tasks) {
+					if (!recentlyUsedTasks.has(Task.getKey(task))) {
+						if (task._source.kind === TaskSourceKind.Workspace) {
+							configured.push(task);
+						} else {
+							detected.push(task);
+						}
+					}
+				}
+				let hasRecentlyUsed: boolean = recent.length > 0;
+				fillEntries(entries, recent, nls.localize('recentlyUsed', 'recently used tasks'));
+				configured = configured.sort((a, b) => a._label.localeCompare(b._label));
+				let hasConfigured = configured.length > 0;
+				fillEntries(entries, configured, nls.localize('configured', 'configured tasks'), hasRecentlyUsed);
+				detected = detected.sort((a, b) => a._label.localeCompare(b._label));
+				fillEntries(entries, detected, nls.localize('detected', 'detected tasks'), hasRecentlyUsed || hasConfigured);
+			}
+		} else {
+			entries = tasks.map<TaskQickPickEntry>(task => { return { label: task._label, task }; });
+			if (sort) {
+				entries = entries.sort((a, b) => a.task._label.localeCompare(b.task._label));
+			}
+		}
+		return this.quickOpenService.pick(entries, { placeHolder, autoFocus: { autoFocusFirstEntry: true } }).then(entry => entry ? entry.task : undefined);
+	}
+
 	private runTaskCommand(accessor: ServicesAccessor, arg: any): void {
 		if (!this.canRunCommand()) {
 			return;
@@ -1514,7 +1638,11 @@ class TaskService extends EventEmitter implements ITaskService {
 				this.run(primaries[0]);
 				return;
 			}
-			this.quickOpenService.show('build task ');
+			this.showQuickPick(tasks, nls.localize('TaskService.pickBuildTask', 'Select the build task to run'), true).then((task) => {
+				if (task) {
+					this.run(task, { attachProblemMatcher: true });
+				}
+			});
 		});
 		this.progressService.withProgress(options, () => promise);
 	}
@@ -1552,7 +1680,11 @@ class TaskService extends EventEmitter implements ITaskService {
 				this.run(primaries[0]);
 				return;
 			}
-			this.quickOpenService.show('test task ');
+			this.showQuickPick(tasks, nls.localize('TaskService.pickTestTask', 'Select the test task to run'), true).then((task) => {
+				if (task) {
+					this.run(task);
+				}
+			});
 		});
 		this.progressService.withProgress(options, () => promise);
 	}
@@ -1567,7 +1699,7 @@ class TaskService extends EventEmitter implements ITaskService {
 					this.messageService.show(Severity.Info, nls.localize('TaskService.noTaskRunning', 'No task is currently running.'));
 					return;
 				}
-				this.showQuickPick(activeTasks, nls.localize('TaskService.tastToTerminate', 'Select task to terminate')).then(task => {
+				this.showQuickPick(activeTasks, nls.localize('TaskService.tastToTerminate', 'Select task to terminate'), false, true).then(task => {
 					if (task) {
 						this.terminate(task);
 					}
@@ -1593,14 +1725,6 @@ class TaskService extends EventEmitter implements ITaskService {
 		}
 	}
 
-	private showQuickPick(tasks: Task[], placeHolder: string): TPromise<Task> {
-		interface TaskQickPickEntry extends IPickOpenEntry {
-			task: Task;
-		}
-		let entries: TaskQickPickEntry[] = tasks.map<TaskQickPickEntry>(task => { return { label: task._label, task }; });
-		return this.quickOpenService.pick(entries, { placeHolder }).then(entry => entry ? entry.task : undefined);
-	}
-
 	private runRestartTaskCommand(accessor: ServicesAccessor, arg: any): void {
 		if (!this.canRunCommand()) {
 			return;
@@ -1611,7 +1735,7 @@ class TaskService extends EventEmitter implements ITaskService {
 					this.messageService.show(Severity.Info, nls.localize('TaskService.noTaskToRestart', 'No task to restart.'));
 					return;
 				}
-				this.showQuickPick(activeTasks, nls.localize('TaskService.tastToRestart', 'Select the task to restart')).then(task => {
+				this.showQuickPick(activeTasks, nls.localize('TaskService.tastToRestart', 'Select the task to restart'), false, true).then(task => {
 					if (task) {
 						this.restart(task);
 					}
@@ -1656,26 +1780,6 @@ quickOpenRegistry.registerQuickOpenHandler(
 		'task ',
 		tasksPickerContextKey,
 		nls.localize('quickOpen.task', "Run Task")
-	)
-);
-
-quickOpenRegistry.registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/tasks/browser/buildQuickOpen',
-		'QuickOpenHandler',
-		'build task ',
-		tasksPickerContextKey,
-		nls.localize('quickOpen.buildTask', "Build Task")
-	)
-);
-
-quickOpenRegistry.registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/tasks/browser/testQuickOpen',
-		'QuickOpenHandler',
-		'test task ',
-		tasksPickerContextKey,
-		nls.localize('quickOpen.testTask', "Test Task")
 	)
 );
 
