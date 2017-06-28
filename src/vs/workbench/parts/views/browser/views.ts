@@ -30,8 +30,8 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND } from "vs/workbench/common/theme";
-import { contrastBorder } from "vs/platform/theme/common/colorRegistry";
+import { SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND } from 'vs/workbench/common/theme';
+import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 export interface IViewOptions {
 

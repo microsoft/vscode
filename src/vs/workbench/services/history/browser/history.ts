@@ -28,8 +28,8 @@ import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { getExcludes, ISearchConfiguration } from 'vs/platform/search/common/search';
 import { parse, IExpression } from 'vs/base/common/glob';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { IInstantiationService } from "vs/platform/instantiation/common/instantiation";
-import { ResourceGlobMatcher } from "vs/workbench/common/resources";
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.

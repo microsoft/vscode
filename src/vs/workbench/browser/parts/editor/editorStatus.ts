@@ -45,7 +45,7 @@ import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { getCodeEditor as getEditorWidget } from 'vs/editor/common/services/codeEditorService';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
+import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 
 // TODO@Sandeep layer breaker
 // tslint:disable-next-line:import-patterns

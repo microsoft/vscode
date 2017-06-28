@@ -45,7 +45,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 
 import { ITreeItem } from 'vs/workbench/parts/views/common/views';
-import { ThemeColor } from "vs/platform/theme/common/themeService";
+import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
 export interface IEnvironment {
 	enableProposedApiForAll: boolean;

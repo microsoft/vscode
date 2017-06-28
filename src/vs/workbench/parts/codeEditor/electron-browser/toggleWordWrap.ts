@@ -17,7 +17,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { InternalEditorOptions, EDITOR_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { ITextResourceConfigurationService } from "vs/editor/common/services/resourceConfiguration";
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 
 const transientWordWrapState = 'transientWordWrapState';
 const isWordWrapMinifiedKey = 'isWordWrapMinified';

@@ -15,7 +15,7 @@ import { IVisibleLine } from 'vs/editor/browser/view/viewLayer';
 import { RangeUtil } from 'vs/editor/browser/viewParts/lines/rangeUtil';
 import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { ThemeType, HIGH_CONTRAST } from "vs/platform/theme/common/themeService";
+import { ThemeType, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {

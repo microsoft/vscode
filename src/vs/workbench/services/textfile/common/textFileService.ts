@@ -29,8 +29,8 @@ import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/commo
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ResourceMap } from 'vs/base/common/map';
-import { Schemas } from "vs/base/common/network";
-import { IHistoryService } from "vs/workbench/services/history/common/history";
+import { Schemas } from 'vs/base/common/network';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 export interface IBackupResult {
 	didBackup: boolean;

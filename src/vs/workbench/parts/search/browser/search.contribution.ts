@@ -36,7 +36,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
 import { ListFocusContext } from 'vs/platform/list/browser/listService';
 import { IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/parts/output/common/output';
-import { defaultQuickOpenContextKey } from "vs/workbench/browser/parts/quickopen/quickopen";
+import { defaultQuickOpenContextKey } from 'vs/workbench/browser/parts/quickopen/quickopen';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService);
 replaceContributions();

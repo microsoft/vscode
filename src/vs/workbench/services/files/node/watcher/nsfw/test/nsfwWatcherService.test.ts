@@ -7,7 +7,7 @@
 
 import assert = require('assert');
 import { NsfwWatcherService } from 'vs/workbench/services/files/node/watcher/nsfw/nsfwWatcherService';
-import { IWatcherRequest } from "vs/workbench/services/files/node/watcher/nsfw/watcher";
+import { IWatcherRequest } from 'vs/workbench/services/files/node/watcher/nsfw/watcher';
 
 class TestNsfwWatcherService extends NsfwWatcherService {
 	public normalizeRoots(roots: string[]): string[] {

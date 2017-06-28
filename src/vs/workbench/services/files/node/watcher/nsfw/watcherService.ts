@@ -13,8 +13,8 @@ import { toFileChangesEvent, IRawFileChange } from 'vs/workbench/services/files/
 import { IWatcherChannel, WatcherChannelClient } from 'vs/workbench/services/files/node/watcher/nsfw/watcherIpc';
 import { FileChangesEvent, IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from "vs/platform/configuration/common/configuration";
-import { IDisposable, dispose } from "vs/base/common/lifecycle";
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export class FileWatcher {
 	private static MAX_RESTARTS = 5;

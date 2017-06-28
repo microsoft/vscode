@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import Event, { Emitter } from 'vs/base/common/event';
-import { Disposable } from "vs/base/common/lifecycle";
+import { Disposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';

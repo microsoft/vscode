@@ -36,7 +36,7 @@ import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { once } from 'vs/base/common/functional';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IEnvironmentService } from "vs/platform/environment/common/environment";
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 const $ = dom.$;
 const booleanRegex = /^true|false$/i;

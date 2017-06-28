@@ -9,16 +9,16 @@ import * as paths from 'vs/base/common/paths';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
 import { StrictResourceMap } from 'vs/base/common/map';
-import { distinct, equals } from "vs/base/common/arrays";
+import { distinct, equals } from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
 import * as errors from 'vs/base/common/errors';
 import * as collections from 'vs/base/common/collections';
-import { Disposable } from "vs/base/common/lifecycle";
-import { Schemas } from "vs/base/common/network";
+import { Disposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { readFile } from 'vs/base/node/pfs';
 import * as extfs from 'vs/base/node/extfs';
-import { IWorkspaceContextService, IWorkspace, Workspace, ILegacyWorkspace, LegacyWorkspace } from "vs/platform/workspace/common/workspace";
+import { IWorkspaceContextService, IWorkspace, Workspace, ILegacyWorkspace, LegacyWorkspace } from 'vs/platform/workspace/common/workspace';
 import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -27,11 +27,11 @@ import { ScopedConfigurationModel, FolderConfigurationModel, FolderSettingsModel
 import { IConfigurationServiceEvent, ConfigurationSource, IConfigurationKeys, IConfigurationValue, ConfigurationModel, IConfigurationOverrides, Configuration as BaseConfiguration, IConfigurationValues, IConfigurationData } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceConfigurationService, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME, WORKSPACE_STANDALONE_CONFIGURATIONS, WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
 import { ConfigurationService as GlobalConfigurationService } from 'vs/platform/configuration/node/configurationService';
-import { basename } from "path";
+import { basename } from 'path';
 import nls = require('vs/nls');
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
-import { IConfigurationNode, IConfigurationRegistry, Extensions, editorConfigurationSchemaId, IDefaultConfigurationExtension, validateProperty, ConfigurationScope } from "vs/platform/configuration/common/configurationRegistry";
+import { IConfigurationNode, IConfigurationRegistry, Extensions, editorConfigurationSchemaId, IDefaultConfigurationExtension, validateProperty, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 
 interface IStat {
 	resource: URI;

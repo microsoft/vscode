@@ -18,15 +18,15 @@ import { ColorId, MetadataConsts, FontStyle } from 'vs/editor/common/modes';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
-import { DiffEditorWidget } from "vs/editor/browser/widget/diffEditorWidget";
-import { DomScrollableElement } from "vs/base/browser/ui/scrollbar/scrollableElement";
-import { editorLineNumbers } from "vs/editor/common/view/editorColorRegistry";
-import { KeyCode, KeyMod } from "vs/base/common/keyCodes";
-import { ActionBar } from "vs/base/browser/ui/actionbar/actionbar";
-import { Action } from "vs/base/common/actions";
-import { editorAction, EditorAction, ServicesAccessor } from "vs/editor/common/editorCommonExtensions";
-import { ContextKeyExpr } from "vs/platform/contextkey/common/contextkey";
-import { ICodeEditorService } from "vs/editor/common/services/codeEditorService";
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { editorLineNumbers } from 'vs/editor/common/view/editorColorRegistry';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Action } from 'vs/base/common/actions';
+import { editorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 
 const DIFF_LINES_PADDING = 3;
 

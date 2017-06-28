@@ -10,10 +10,10 @@ import { Action } from 'vs/base/common/actions';
 import nls = require('vs/nls');
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService } from "vs/platform/workspace/common/workspace";
-import { IWorkspaceEditingService } from "vs/workbench/services/workspace/common/workspaceEditing";
-import URI from "vs/base/common/uri";
-import { IViewletService } from "vs/workbench/services/viewlet/browser/viewlet";
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import URI from 'vs/base/common/uri';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 export class OpenFolderAction extends Action {
 

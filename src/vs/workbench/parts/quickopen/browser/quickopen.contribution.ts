@@ -17,9 +17,9 @@ import { ShowAllCommandsAction, ALL_COMMANDS_PREFIX, ClearCommandHistoryAction }
 import { GotoLineAction, GOTO_LINE_PREFIX } from 'vs/workbench/parts/quickopen/browser/gotoLineHandler';
 import { HELP_PREFIX } from 'vs/workbench/parts/quickopen/browser/helpHandler';
 import { VIEW_PICKER_PREFIX, OpenViewPickerAction, QuickOpenViewPickerAction } from 'vs/workbench/parts/quickopen/browser/viewPickerHandler';
-import { inQuickOpenContext, getQuickNavigateHandler } from "vs/workbench/browser/parts/quickopen/quickopen";
-import { ContextKeyExpr } from "vs/platform/contextkey/common/contextkey";
-import { KeybindingsRegistry } from "vs/platform/keybinding/common/keybindingsRegistry";
+import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 // Register Actions
 const registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);

@@ -36,7 +36,7 @@ import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/file
 import { toFileChangesEvent, normalize, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
 import Event, { Emitter } from 'vs/base/common/event';
 import { FileWatcher as NsfwWatcherService } from 'vs/workbench/services/files/node/watcher/nsfw/watcherService';
-import { IConfigurationService } from "vs/platform/configuration/common/configuration";
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IEncodingOverride {
 	resource: uri;

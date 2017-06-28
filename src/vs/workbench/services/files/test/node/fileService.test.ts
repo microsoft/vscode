@@ -19,9 +19,9 @@ import extfs = require('vs/base/node/extfs');
 import encodingLib = require('vs/base/node/encoding');
 import utils = require('vs/workbench/services/files/test/node/utils');
 import { onError } from 'vs/base/test/common/utils';
-import { TestContextService } from "vs/workbench/test/workbenchTestServices";
-import { Workspace } from "vs/platform/workspace/common/workspace";
-import { TestConfigurationService } from "vs/platform/configuration/test/common/testConfigurationService";
+import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
+import { Workspace } from 'vs/platform/workspace/common/workspace';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 suite('FileService', () => {
 	let service: FileService;

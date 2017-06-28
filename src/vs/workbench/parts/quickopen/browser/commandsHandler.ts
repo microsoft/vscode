@@ -28,12 +28,12 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { editorAction, EditorAction } from 'vs/editor/common/editorCommonExtensions';
-import { IStorageService } from "vs/platform/storage/common/storage";
-import { ILifecycleService } from "vs/platform/lifecycle/common/lifecycle";
-import { once } from "vs/base/common/event";
-import { BoundedMap, ISerializedBoundedLinkedMap } from "vs/base/common/map";
-import { IConfigurationService } from "vs/platform/configuration/common/configuration";
-import { ResolvedKeybinding } from "vs/base/common/keyCodes";
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { once } from 'vs/base/common/event';
+import { BoundedMap, ISerializedBoundedLinkedMap } from 'vs/base/common/map';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 
 export const ALL_COMMANDS_PREFIX = '>';
 

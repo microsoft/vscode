@@ -24,7 +24,7 @@ import {
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ICursors, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
-import { ThemeColor } from "vs/platform/theme/common/themeService";
+import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
 /**
  * Vertical Lane in the overview ruler of the editor.

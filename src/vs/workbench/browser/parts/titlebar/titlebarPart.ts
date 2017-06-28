@@ -31,7 +31,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { Verbosity } from 'vs/platform/editor/common/editor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
-import URI from "vs/base/common/uri";
+import URI from 'vs/base/common/uri';
 
 export class TitlebarPart extends Part implements ITitleService {
 

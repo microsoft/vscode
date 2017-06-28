@@ -61,7 +61,7 @@ import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { Color } from 'vs/base/common/color';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
-import { PreferencesEditor } from "vs/workbench/parts/preferences/browser/preferencesEditor";
+import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 
 export class SearchViewlet extends Viewlet {
 

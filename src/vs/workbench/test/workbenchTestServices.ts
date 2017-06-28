@@ -52,8 +52,8 @@ import { RawTextSource, IRawTextSource } from 'vs/editor/common/model/textSource
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { isLinux } from 'vs/base/common/platform';
-import { generateUuid } from "vs/base/common/uuid";
-import { TestThemeService } from "vs/platform/theme/test/common/testThemeService";
+import { generateUuid } from 'vs/base/common/uuid';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);

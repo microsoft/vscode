@@ -18,7 +18,7 @@ import { CloseEditorAction, KeybindingsReferenceAction, OpenDocumentationUrlActi
 import { MessagesVisibleContext } from 'vs/workbench/electron-browser/workbench';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { registerCommands } from 'vs/workbench/electron-browser/commands';
-import { AddRootFolderAction } from "vs/workbench/browser/actions/fileActions";
+import { AddRootFolderAction } from 'vs/workbench/browser/actions/fileActions';
 
 // Contribute Commands
 registerCommands();
