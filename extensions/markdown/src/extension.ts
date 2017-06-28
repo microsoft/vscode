@@ -5,6 +5,8 @@
 
 'use strict';
 
+import * as nls from 'vscode-nls';
+const localize = nls.loadMessageBundle();
 import * as vscode from 'vscode';
 import * as path from 'path';
 import TelemetryReporter from 'vscode-extension-telemetry';
@@ -15,8 +17,6 @@ import { ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from '
 import { MDDocumentContentProvider, getMarkdownUri, isMarkdownFile } from './previewContentProvider';
 import { TableOfContentsProvider } from './tableOfContentsProvider';
 import { Logger } from "./logger";
-import * as nls from 'vscode-nls';
-const localize = nls.loadMessageBundle();
 
 interface IPackageInfo {
 	name: string;
