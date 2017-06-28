@@ -442,7 +442,7 @@
     "xterm": {
       "version": "2.7.0",
       "from": "Tyriar/xterm.js#vscode-release/1.14",
-      "resolved": "git+https://github.com/Tyriar/xterm.js.git#16ed764fcc2253721bafc4f9c9acc19e8518f1c0"
+      "resolved": "git+https://github.com/Tyriar/xterm.js.git#3c35c370949fafcdcce022d5cfb9792ffec63a4a"
     },
     "yauzl": {
       "version": "2.3.1",
