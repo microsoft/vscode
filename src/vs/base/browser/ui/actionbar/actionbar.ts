@@ -543,7 +543,6 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			}
 
 			if (!item) {
-				console.log(`hello world`);
 				item = new ActionItem(this.context, action, options);
 			}
 
