@@ -15,6 +15,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -66,7 +67,8 @@ export class TerminalLinkHandler {
 		private _platform: platform.Platform,
 		@IOpenerService private _openerService: IOpenerService,
 		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
-		@IWorkspaceContextService private _contextService: IWorkspaceContextService
+		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
+		@IConfigurationService private _configurationService: IConfigurationService
 	) {
 		const baseLocalLinkClause = _platform === platform.Platform.Windows ? winLocalLinkClause : unixLocalLinkClause;
 		// Append line and column number regex
@@ -116,8 +118,8 @@ export class TerminalLinkHandler {
 
 	private _wrapLinkHandler(handler: (uri: string) => boolean | void): XtermLinkMatcherHandler {
 		return (event: MouseEvent, uri: string) => {
-			// Require ctrl/cmd on click
-			if (this._platform === platform.Platform.Mac ? !event.metaKey : !event.ctrlKey) {
+			// Require correct modifier on click
+			if (!this._isLinkActivationModifierDown(event)) {
 				event.preventDefault();
 				return false;
 			}
@@ -163,22 +165,35 @@ export class TerminalLinkHandler {
 		callback(true);
 	}
 
+	private _isLinkActivationModifierDown(event: MouseEvent): boolean {
+		const editorConf = this._configurationService.getConfiguration<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
+		if (editorConf.multiCursorModifier === 'ctrlCmd') {
+			return !!event.altKey;
+		}
+		return platform.isMacintosh ? event.metaKey : event.ctrlKey;
+	}
+
+	private _getLinkHoverString(): string {
+		const editorConf = this._configurationService.getConfiguration<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
+		if (editorConf.multiCursorModifier === 'ctrlCmd') {
+			return nls.localize('terminalLinkHandler.followLinkAlt', 'Alt + click to follow link');
+		}
+		if (platform.isMacintosh) {
+			return nls.localize('terminalLinkHandler.followLinkCmd', 'Cmd + click to follow link');
+		}
+		return nls.localize('terminalLinkHandler.followLinkCtrl', 'Ctrl + click to follow link');
+	}
+
 	private _addTooltipEventListeners(element: HTMLElement): void {
 		let timeout = null;
 		let isMessageShowing = false;
 		this._hoverDisposables.push(dom.addDisposableListener(element, dom.EventType.MOUSE_OVER, e => {
-			element.classList.toggle('active', platform.isMacintosh ? e.metaKey : e.ctrlKey);
+			element.classList.toggle('active', this._isLinkActivationModifierDown(e));
 			this._mouseMoveDisposable = dom.addDisposableListener(element, dom.EventType.MOUSE_MOVE, e => {
-				element.classList.toggle('active', platform.isMacintosh ? e.metaKey : e.ctrlKey);
+				element.classList.toggle('active', this._isLinkActivationModifierDown(e));
 			});
 			timeout = setTimeout(() => {
-				let message: string;
-				if (platform.isMacintosh) {
-					message = nls.localize('terminalLinkHandler.followLinkCmd', 'Cmd + click to follow link');
-				} else {
-					message = nls.localize('terminalLinkHandler.followLinkCtrl', 'Ctrl + click to follow link');
-				}
-				this._widgetManager.showMessage(element.offsetLeft, element.offsetTop, message);
+				this._widgetManager.showMessage(element.offsetLeft, element.offsetTop, this._getLinkHoverString());
 				isMessageShowing = true;
 			}, 500);
 		}));
