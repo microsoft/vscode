@@ -1488,14 +1488,6 @@ suite('keyboardMapper - MAC zh_hant', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['meta+[KeyC]', null],
-			}, {
-				label: '⌃⌥⌘C',
-				ariaLabel: 'Control+Alt+Command+C',
-				electronAccelerator: 'Ctrl+Alt+Cmd+C',
-				userSettingsLabel: 'ctrl+alt+cmd+c',
-				isWYSIWYG: true,
-				isChord: false,
-				dispatchParts: ['ctrl+alt+meta+[KeyC]', null],
 			}]
 		);
 	});
