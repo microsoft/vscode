@@ -40,8 +40,8 @@
                 },
                 "emmet.includeLanguages": {
                     "type": "object",
-                    "default": {},
-                    "description": "Enable emmet abbreviations in languages that are not supported by default. Add a mapping here between the language and emmet supported syntax.\n Eg: {\"php\": \"html\"}"
+                    "default": {}, 
+                    "description": "Enable emmet abbreviations in languages that are not supported by default. Add a mapping here between the language and emmet supported language.\n Eg: {\"php\": \"html\", \"javascript\": \"javascriptreact\"}"
                 },
                 "emmet.variables":{
                     "type": "object",

@@ -26,7 +26,9 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 			syntax = this.syntaxHelper(syntax, document, position);
 		}
 
-		if (!syntax || (isSyntaxMapped && vscode.workspace.getConfiguration('emmet')['showExpandedAbbreviation'] !== 'always')) {
+		if (!syntax
+			|| ((isSyntaxMapped || syntax === 'jsx')
+				&& vscode.workspace.getConfiguration('emmet')['showExpandedAbbreviation'] !== 'always')) {
 			return;
 		}
 

@@ -20,7 +20,9 @@ export const LANGUAGE_MODES: Object = {
 	'scss': [':'],
 	'sass': [':'],
 	'less': [':'],
-	'stylus': [':']
+	'stylus': [':'],
+	'javascriptreact': ['.', '}'],
+	'typescriptreact': ['.', '}']
 };
 
 // Explicitly map languages to their parent language to get emmet completion support
