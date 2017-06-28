@@ -341,7 +341,7 @@ export class SearchResult extends Disposable {
 
 	private _fileMatches: ResourceMap<FileMatch>;
 	private _unDisposedFileMatches: ResourceMap<FileMatch>;
-	private _query: IPatternInfo = null;
+	private _query: ISearchQuery = null;
 	private _maxResults: number;
 	private _showHighlights: boolean;
 	private _replacingAll: boolean = false;
@@ -356,7 +356,7 @@ export class SearchResult extends Disposable {
 		this._rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
 	}
 
-	public set query(query: IPatternInfo) {
+	public set query(query: ISearchQuery) {
 		this._query = query;
 	}
 
@@ -372,7 +372,7 @@ export class SearchResult extends Disposable {
 		let changed: FileMatch[] = [];
 		raw.forEach((rawFileMatch) => {
 			if (!this._fileMatches.has(rawFileMatch.resource)) {
-				let fileMatch = this.instantiationService.createInstance(FileMatch, this._query, this._maxResults, this, rawFileMatch);
+				let fileMatch = this.instantiationService.createInstance(FileMatch, this._query.contentPattern, this._maxResults, this, rawFileMatch);
 				this.doAdd(fileMatch);
 				changed.push(fileMatch);
 				let disposable = fileMatch.onChange(() => this.onFileChange(fileMatch));
@@ -566,7 +566,7 @@ export class SearchModel extends Disposable {
 
 		this.searchResult.clear();
 
-		this._searchResult.query = this._searchQuery.contentPattern;
+		this._searchResult.query = this._searchQuery;
 		this._searchResult.maxResults = this._searchQuery.maxResults;
 		this._replacePattern = new ReplacePattern(this._replaceString, this._searchQuery.contentPattern);
 
