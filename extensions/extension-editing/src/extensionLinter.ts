@@ -236,7 +236,7 @@ export class ExtensionLinter {
 		const repo = tree && findNodeAtLocation(tree, ['repository', 'url']);
 		const info: PackageJsonInfo = {
 			isExtension: !!(engine && engine.type === 'string'),
-			hasHttpsRepository: !!(repo && repo.type === 'string' && repo.value && Uri.parse(repo.value).scheme.toLowerCase() === 'https')
+			hasHttpsRepository: !!(repo && repo.type === 'string' && repo.value && parseUri(repo.value).scheme.toLowerCase() === 'https')
 		};
 		const str = folder.toString();
 		const oldInfo = this.folderToPackageJsonInfo[str];
@@ -269,7 +269,7 @@ export class ExtensionLinter {
 	}
 
 	private addDiagnostics(diagnostics: Diagnostic[], document: TextDocument, begin: number, end: number, src: string, context: Context, info: PackageJsonInfo) {
-		const uri = Uri.parse(src);
+		const uri = parseUri(src);
 		const scheme = uri.scheme.toLowerCase();
 
 		if (scheme && scheme !== 'https' && scheme !== 'data') {
@@ -327,4 +327,16 @@ function fileExists(path: string): Promise<boolean> {
 			}
 		});
 	});
+}
+
+function parseUri(src: string) {
+	try {
+		return Uri.parse(src);
+	} catch (err) {
+		try {
+			return Uri.parse(encodeURI(src));
+		} catch (err) {
+			return Uri.parse('');
+		}
+	}
 }
