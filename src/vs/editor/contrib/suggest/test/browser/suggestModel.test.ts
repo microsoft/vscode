@@ -79,7 +79,6 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	const alwaysSomethingSupport: ISuggestSupport = {
 		provideCompletionItems(doc, pos) {
 			return <ISuggestResult>{
-				currentWord: '',
 				incomplete: false,
 				suggestions: [{
 					label: doc.getWordUntilPosition(pos).word,
@@ -324,6 +323,31 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					const [first, second] = event.completionModel.items;
 					assert.equal(first.suggestion.label, 'foo.bar');
 					assert.equal(second.suggestion.label, 'boom');
+				});
+			});
+		});
+	});
+
+	test('Intellisense Completion doesn\'t respect space after equal sign (.html file), #29353', function () {
+
+		disposables.push(SuggestRegistry.register({ scheme: 'test' }, alwaysSomethingSupport));
+
+		return withOracle((model, editor) => {
+
+			editor.getModel().setValue('fo');
+			editor.setPosition({ lineNumber: 1, column: 3 });
+
+			return assertEvent(model.onDidSuggest, () => {
+				model.trigger(false);
+			}, event => {
+				assert.equal(event.auto, false);
+				assert.equal(event.isFrozen, false);
+				assert.equal(event.completionModel.items.length, 1);
+
+				return assertEvent(model.onDidCancel, () => {
+					editor.trigger('keyboard', Handler.Type, { text: '+' });
+				}, event => {
+					assert.equal(event.retrigger, false);
 				});
 			});
 		});

@@ -430,6 +430,13 @@ export class SuggestModel implements IDisposable {
 					this.completionModel.lineContext = oldLineContext;
 					isFrozen = this.completionModel.items.length > 0;
 
+					if (isFrozen && ctx.leadingWord.word.length === 0) {
+						// there were results before but now there aren't
+						// and also we are not on a word anymore -> cancel
+						this.cancel();
+						return;
+					}
+
 				} else {
 					// nothing left
 					this.cancel();
