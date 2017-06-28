@@ -8,7 +8,7 @@ import { expand } from '@emmetio/expand-abbreviation';
 import parseStylesheet from '@emmetio/css-parser';
 import parse from '@emmetio/html-matcher';
 import { Node, HtmlNode, Rule } from 'EmmetNode';
-import { getNode, getInnerRange } from './util';
+import { getNode, getInnerRange, getMappedSyntax } from './util';
 import { getExpandOptions, extractAbbreviation, isStyleSheet, isAbbreviationValid } from 'vscode-emmet-helper';
 import { DocumentStreamReader } from './bufferStream';
 
@@ -204,9 +204,14 @@ function getSyntaxFromArgs(args: any): string {
 		vscode.window.showInformationMessage('No editor is active.');
 		return;
 	}
-	if (typeof args !== 'object' || !args['syntax']) {
+	if (typeof args !== 'object' || !args['language']) {
 		vscode.window.showInformationMessage('Cannot resolve language at cursor.');
 		return;
 	}
-	return args['syntax'];
+	let syntax = getMappedSyntax(args['language']);
+	if (syntax) {
+		return syntax;
+	}
+
+	return getMappedSyntax(args['parentMode']);
 }

@@ -314,8 +314,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 
 			if (configurationService.getConfiguration<IEmmetConfiguration>().emmet.useNewEmmet
 				&& (mappedCommand === 'emmet.expandAbbreviation' || mappedCommand === 'emmet.wrapWithAbbreviation')) {
-				let syntax = editorAccessor.getSyntax();
-				return commandService.executeCommand<void>(mappedCommand, { syntax });
+				return commandService.executeCommand<void>(mappedCommand, editorAccessor.getLanguage());
 			}
 
 			if (!editorAccessor.isEmmetEnabledMode()) {

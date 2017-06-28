@@ -46,16 +46,35 @@ export function getSyntax(document: vscode.TextDocument): string {
 	return document.languageId;
 }
 
-export function getMappedModes(): any {
+export function getIncludedModes(): any {
 	let finalMappedModes = {};
-	let syntaxProfileConfig = vscode.workspace.getConfiguration('emmet')['syntaxProfiles'];
-	let syntaxProfiles = Object.assign({}, MAPPED_MODES, syntaxProfileConfig ? syntaxProfileConfig : {});
-	Object.keys(syntaxProfiles).forEach(syntax => {
-		if (typeof syntaxProfiles[syntax] === 'string' && LANGUAGE_MODES[syntaxProfiles[syntax]]) {
-			finalMappedModes[syntax] = syntaxProfiles[syntax];
+	let includeLanguagesConfig = vscode.workspace.getConfiguration('emmet')['includeLanguages'];
+	let includeLanguages = Object.assign({}, MAPPED_MODES, includeLanguagesConfig ? includeLanguagesConfig : {});
+	Object.keys(includeLanguages).forEach(syntax => {
+		if (typeof includeLanguages[syntax] === 'string' && LANGUAGE_MODES[includeLanguages[syntax]]) {
+			finalMappedModes[syntax] = includeLanguages[syntax];
 		}
 	});
 	return finalMappedModes;
+}
+
+export function getMappedSyntax(syntax: string): string {
+	if (!syntax) {
+		return;
+	}
+	if (/\b(typescriptreact|javascriptreact|jsx-tags)\b/.test(syntax)) { // treat tsx like jsx
+		return 'jsx';
+	}
+	if (syntax === 'sass-indented') { // map sass-indented to sass
+		return 'sass';
+	}
+	if (syntax === 'jade') {
+		return 'pug';
+	}
+	if (Object.keys(LANGUAGE_MODES).indexOf(syntax) > -1) {
+		return syntax;
+	}
+	return getIncludedModes()[syntax];
 }
 
 export function getExcludedModes(): string[] {

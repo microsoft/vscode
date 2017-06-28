@@ -33,6 +33,11 @@
                     "default": true,
                     "description": "Shows possible emmet abbreviations as suggestions"
                 },
+                "emmet.includeLanguages": {
+                    "type": "object",
+                    "default": {},
+                    "description": "Enable emmet abbreviations in languages that are not supported by default. Add a mapping here between the language and emmet supported syntax.\n Eg: {\"php\": \"html\"}"
+                },
                 "emmet.variables":{
                     "type": "object",
                     "properties": {
