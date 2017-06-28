@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import uri from 'vs/base/common/uri';
-import Event from 'vs/base/common/event';
+import Event, { Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 
@@ -163,7 +163,8 @@ export class MockSession implements debug.ISession {
 	}
 
 	public get onDidInitialize(): Event<DebugProtocol.InitializedEvent> {
-		return null;
+		const emitter = new Emitter<DebugProtocol.InitializedEvent>();
+		return emitter.event;;
 	}
 
 	public custom(request: string, args: any): TPromise<DebugProtocol.Response> {
