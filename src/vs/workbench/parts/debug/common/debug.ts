@@ -96,6 +96,7 @@ export interface ISession {
 	disconnect(restart?: boolean, force?: boolean): TPromise<DebugProtocol.DisconnectResponse>;
 	custom(request: string, args: any): TPromise<DebugProtocol.Response>;
 	onDidEvent: Event<DebugProtocol.Event>;
+	onDidInitialize: Event<DebugProtocol.InitializedEvent>;
 	restartFrame(args: DebugProtocol.RestartFrameArguments, threadId: number): TPromise<DebugProtocol.RestartFrameResponse>;
 
 	next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse>;
@@ -111,12 +112,18 @@ export interface ISession {
 	source(args: DebugProtocol.SourceArguments): TPromise<DebugProtocol.SourceResponse>;
 }
 
+export enum ProcessState {
+	INACTIVE,
+	ATTACH,
+	LAUNCH
+}
+
 export interface IProcess extends ITreeElement {
 	name: string;
 	configuration: IConfig;
 	session: ISession;
 	sources: Map<string, Source>;
-	isAttach(): boolean;
+	state: ProcessState;
 	getThread(threadId: number): IThread;
 	getAllThreads(): IThread[];
 	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]>;

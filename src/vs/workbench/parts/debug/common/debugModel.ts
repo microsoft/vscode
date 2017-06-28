@@ -20,7 +20,7 @@ import { ISuggestion } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import {
 	ITreeElement, IExpression, IExpressionContainer, IProcess, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IModel,
-	IConfig, ISession, IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IRawBreakpoint, IExceptionInfo, IReplElement
+	IConfig, ISession, IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IRawBreakpoint, IExceptionInfo, IReplElement, ProcessState
 } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -543,12 +543,14 @@ export class Thread implements IThread {
 
 export class Process implements IProcess {
 
-	private threads: Map<number, Thread>;
 	public sources: Map<string, Source>;
+	private threads: Map<number, Thread>;
+	private inactive = true;
 
 	constructor(public configuration: IConfig, private _session: ISession & ITreeElement) {
 		this.threads = new Map<number, Thread>();
 		this.sources = new Map<string, Source>();
+		this._session.onDidInitialize(() => this.inactive = false);
 	}
 
 	public get session(): ISession {
@@ -559,8 +561,12 @@ export class Process implements IProcess {
 		return this.configuration.name;
 	}
 
-	public isAttach(): boolean {
-		return this.configuration.type === 'attach';
+	public get state(): ProcessState {
+		if (this.inactive) {
+			return ProcessState.INACTIVE;
+		}
+
+		return this.configuration.type === 'attach' ? ProcessState.ATTACH : ProcessState.LAUNCH;
 	}
 
 	public getThread(threadId: number): Thread {
