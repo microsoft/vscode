@@ -265,7 +265,7 @@ export class CodeMenu {
 
 		// Tasks
 		const taskMenu = new Menu();
-		const taskMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mTask', comment: ['&& denotes a mnemonic'] }, "&&Task")), submenu: taskMenu });
+		const taskMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mTask', comment: ['&& denotes a mnemonic'] }, "&&Tasks")), submenu: taskMenu });
 		this.setTaskMenu(taskMenu);
 
 		// Menu Structure
