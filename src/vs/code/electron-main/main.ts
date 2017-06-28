@@ -150,22 +150,22 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	return setup(true);
 }
 
-function quit(accessor: ServicesAccessor, err?: ExpectedError | Error): void {
+function quit(accessor: ServicesAccessor, reason?: ExpectedError | Error): void {
 	const logService = accessor.get(ILogService);
 	const lifecycleService = accessor.get(ILifecycleService);
 
 	let exitCode = 0;
 
-	if (err) {
-		if ((err as ExpectedError).isExpected) {
-			logService.log(err.message);
+	if (reason) {
+		if ((reason as ExpectedError).isExpected) {
+			logService.log(reason.message);
 		} else {
 			exitCode = 1; // signal error to the outside
 
-			if (err.stack) {
-				console.error(err.stack);
+			if (reason.stack) {
+				console.error(reason.stack);
 			} else {
-				console.error('Startup error: ' + err.toString());
+				console.error(`Startup error: ${reason.toString()}`);
 			}
 		}
 	}
