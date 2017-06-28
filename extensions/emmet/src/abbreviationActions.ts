@@ -8,8 +8,8 @@ import { expand } from '@emmetio/expand-abbreviation';
 import parseStylesheet from '@emmetio/css-parser';
 import parse from '@emmetio/html-matcher';
 import { Node, HtmlNode, Rule } from 'EmmetNode';
-import { getNode, getInnerRange, getMappedSyntax } from './util';
-import { getExpandOptions, extractAbbreviation, isStyleSheet, isAbbreviationValid } from 'vscode-emmet-helper';
+import { getNode, getInnerRange, getMappingForIncludedLanguages } from './util';
+import { getExpandOptions, extractAbbreviation, isStyleSheet, isAbbreviationValid, getEmmetMode } from 'vscode-emmet-helper';
 import { DocumentStreamReader } from './bufferStream';
 
 interface ExpandAbbreviationInput {
@@ -208,10 +208,15 @@ function getSyntaxFromArgs(args: any): string {
 		vscode.window.showInformationMessage('Cannot resolve language at cursor.');
 		return;
 	}
-	let syntax = getMappedSyntax(args['language']);
+
+	const mappedModes = getMappingForIncludedLanguages();
+	let language: string = args['language'];
+	let parentMode: string = args['parentMode'];
+
+	let syntax = getEmmetMode(mappedModes[language] ? mappedModes[language] : language);
 	if (syntax) {
 		return syntax;
 	}
 
-	return getMappedSyntax(args['parentMode']);
+	return getEmmetMode(mappedModes[parentMode] ? mappedModes[parentMode] : parentMode);
 }

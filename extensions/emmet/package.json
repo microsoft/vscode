@@ -24,14 +24,19 @@
             "title": "Emmet",
             "properties": {
                 "emmet.showExpandedAbbreviation": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "Shows expanded emmet abbreviations as suggestions"
+                    "type": ["string"],
+                    "enum": [
+                        "never",
+                        "always",
+                        "inDefaultEmmetModesOnly"
+                    ],
+                    "default": "inDefaultEmmetModesOnly",
+                    "description": "Shows expanded emmet abbreviations as suggestions."
                 },
                 "emmet.showAbbreviationSuggestions": {
                     "type": "boolean",
                     "default": true,
-                    "description": "Shows possible emmet abbreviations as suggestions"
+                    "description": "Shows possible emmet abbreviations as suggestions. Not applicable in stylesheets or when emmet.showExpandedAbbreviation is set to \"never\"."
                 },
                 "emmet.includeLanguages": {
                     "type": "object",
@@ -68,6 +73,6 @@
         "@emmetio/html-matcher": "^0.3.1",
         "@emmetio/css-parser": "^0.3.0",
         "@emmetio/math-expression": "^0.1.1",
-        "vscode-emmet-helper":"0.0.11"
+        "vscode-emmet-helper":"0.0.14"
     }
 }

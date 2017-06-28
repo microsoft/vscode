@@ -46,7 +46,7 @@ export function getSyntax(document: vscode.TextDocument): string {
 	return document.languageId;
 }
 
-export function getIncludedModes(): any {
+export function getMappingForIncludedLanguages(): any {
 	let finalMappedModes = {};
 	let includeLanguagesConfig = vscode.workspace.getConfiguration('emmet')['includeLanguages'];
 	let includeLanguages = Object.assign({}, MAPPED_MODES, includeLanguagesConfig ? includeLanguagesConfig : {});
@@ -58,29 +58,8 @@ export function getIncludedModes(): any {
 	return finalMappedModes;
 }
 
-export function getMappedSyntax(syntax: string): string {
-	if (!syntax) {
-		return;
-	}
-	if (/\b(typescriptreact|javascriptreact|jsx-tags|jsx)\b/.test(syntax)) { // treat tsx like jsx
-		return 'jsx';
-	}
-	if (syntax === 'sass-indented') { // map sass-indented to sass
-		return 'sass';
-	}
-	if (syntax === 'jade') {
-		return 'pug';
-	}
-	if (Object.keys(LANGUAGE_MODES).indexOf(syntax) > -1) {
-		return syntax;
-	}
-	return getIncludedModes()[syntax];
-}
 
-export function getExcludedModes(): string[] {
-	let excludedConfig = vscode.workspace.getConfiguration('emmet')['excludeLanguages'];
-	return Array.isArray(excludedConfig) ? excludedConfig : [];
-}
+
 /**
  * Returns node corresponding to given position in the given root node
  * @param root
