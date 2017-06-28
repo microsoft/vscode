@@ -761,17 +761,15 @@ export class ExplorerView extends CollapsibleView {
 				return this.explorerViewer.refresh();
 			}
 
-			// First time refresh: The stat becomes the input of the viewer
+			// Preserve expanded elements if tree input changed.
+			// If it is a brand new tree just expand elements from memento
+			const expanded = this.explorerViewer.getExpandedElements();
+			const statsToExpand = expanded.length ? [this.model.roots[0]].concat(expanded) :
+				targetsToExpand.map(expand => this.model.findFirst(expand));
+
 			// Display roots only when there is more than 1 root
-			return this.explorerViewer.setInput(input).then(() => {
-
-				// Make sure to expand all folders that where expanded in the previous session
-				if (targetsToExpand) {
-					return this.explorerViewer.expandAll(targetsToExpand.map(expand => this.model.findFirst(expand)));
-				}
-
-				return TPromise.as(null);
-			});
+			// Make sure to expand all folders that where expanded in the previous session
+			return this.explorerViewer.setInput(input).then(() => this.explorerViewer.expandAll(statsToExpand));
 		}, (e: any) => TPromise.wrapError(e));
 
 		this.progressService.showWhile(promise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
