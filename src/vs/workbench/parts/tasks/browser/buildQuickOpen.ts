@@ -29,7 +29,9 @@ class TaskEntry extends base.TaskEntry {
 		let task = this._task;
 		if (this.taskService.canCustomize() && task.problemMatchers === void 0 || task.problemMatchers.length === 0) {
 			this.attachProblemMatcher(task).then((task) => {
-				this.doRun(task);
+				if (task) {
+					this.doRun(task);
+				}
 			});
 			return true;
 		} else {

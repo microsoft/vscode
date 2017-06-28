@@ -30,6 +30,7 @@ export interface ITaskProvider {
 export interface ITaskService extends IEventEmitter {
 	_serviceBrand: any;
 	configureAction(): Action;
+	openDocumentation(): void;
 	build(): TPromise<ITaskSummary>;
 	rebuild(): TPromise<ITaskSummary>;
 	clean(): TPromise<ITaskSummary>;

@@ -14,6 +14,7 @@ import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import * as Objects from 'vs/base/common/objects';
+import URI from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Action } from 'vs/base/common/actions';
 import * as Dom from 'vs/base/browser/dom';
@@ -45,6 +46,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { ProblemMatcherRegistry } from 'vs/platform/markers/common/problemMatcher';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IProgressService2, IProgressOptions, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -573,7 +575,8 @@ class TaskService extends EventEmitter implements ITaskService {
 		@ITerminalService private terminalService: ITerminalService,
 		@IWorkbenchEditorService private workbenchEditorService: IWorkbenchEditorService,
 		@IStorageService private storageService: IStorageService,
-		@IProgressService2 private progressService: IProgressService2
+		@IProgressService2 private progressService: IProgressService2,
+		@IOpenerService private openerService: IOpenerService
 	) {
 
 		super();
@@ -740,6 +743,10 @@ class TaskService extends EventEmitter implements ITaskService {
 			values = values.slice(0, 30);
 		}
 		this.storageService.store(TaskService.RecentlyUsedTasks_Key, JSON.stringify(values), StorageScope.WORKSPACE);
+	}
+
+	public openDocumentation(): void {
+		this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?LinkId=733558'));
 	}
 
 	public build(): TPromise<ITaskSummary> {
