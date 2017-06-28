@@ -229,6 +229,11 @@
           "default": false,
           "description": "%format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces%"
         },
+        "typescript.format.insertSpaceAfterTypeAssertion": {
+          "type": "boolean",
+          "default": false,
+          "description": "%format.insertSpaceAfterTypeAssertion%"
+        },
         "typescript.format.placeOpenBraceOnNewLineForFunctions": {
           "type": "boolean",
           "default": false,
