@@ -13,7 +13,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { ITree, IDataSource, ISorter, IAccessibilityProvider, IFilter, IRenderer } from 'vs/base/parts/tree/browser/tree';
-import { Match, SearchResult, FileMatch, FileMatchOrMatch, SearchModel } from 'vs/workbench/parts/search/common/searchModel';
+import { Match, SearchResult, FileMatch, FileMatchOrMatch, SearchModel, FolderMatch } from 'vs/workbench/parts/search/common/searchModel';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Range } from 'vs/editor/common/core/range';
 import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
@@ -28,6 +28,10 @@ export class SearchDataSource implements IDataSource {
 	private static AUTOEXPAND_CHILD_LIMIT = 10;
 
 	public getId(tree: ITree, element: any): string {
+		if (element instanceof FolderMatch) {
+			return element.id();
+		}
+
 		if (element instanceof FileMatch) {
 			return element.id();
 		}
@@ -42,8 +46,10 @@ export class SearchDataSource implements IDataSource {
 	private _getChildren(element: any): any[] {
 		if (element instanceof FileMatch) {
 			return element.matches();
-		} else if (element instanceof SearchResult) {
+		} else if (element instanceof FolderMatch) {
 			return element.matches();
+		} else if (element instanceof SearchResult) {
+			return element.folderMatches();
 		}
 
 		return [];
@@ -54,7 +60,7 @@ export class SearchDataSource implements IDataSource {
 	}
 
 	public hasChildren(tree: ITree, element: any): boolean {
-		return element instanceof FileMatch || element instanceof SearchResult;
+		return element instanceof FileMatch || element instanceof FolderMatch || element instanceof SearchResult;
 	}
 
 	public getParent(tree: ITree, element: any): TPromise<any> {
@@ -63,6 +69,8 @@ export class SearchDataSource implements IDataSource {
 		if (element instanceof Match) {
 			value = element.parent();
 		} else if (element instanceof FileMatch) {
+			value = element.parent();
+		} else if (element instanceof FolderMatch) {
 			value = element.parent();
 		}
 
@@ -78,6 +86,10 @@ export class SearchDataSource implements IDataSource {
 export class SearchSorter implements ISorter {
 
 	public compare(tree: ITree, elementA: FileMatchOrMatch, elementB: FileMatchOrMatch): number {
+		if (elementA instanceof FolderMatch && elementB instanceof FolderMatch) {
+			return elementA.resource().fsPath.localeCompare(elementB.resource().fsPath);
+		}
+
 		if (elementA instanceof FileMatch && elementB instanceof FileMatch) {
 			return elementA.resource().fsPath.localeCompare(elementB.resource().fsPath) || elementA.name().localeCompare(elementB.name());
 		}
@@ -88,6 +100,11 @@ export class SearchSorter implements ISorter {
 
 		return undefined;
 	}
+}
+
+interface IFolderMatchTemplate {
+	label: FileLabel;
+	badge: CountBadge;
 }
 
 interface IFileMatchTemplate {
@@ -107,6 +124,7 @@ interface IMatchTemplate {
 
 export class SearchRenderer extends Disposable implements IRenderer {
 
+	private static FOLDER_MATCH_TEMPLATE_ID = 'folderMatch';
 	private static FILE_MATCH_TEMPLATE_ID = 'fileMatch';
 	private static MATCH_TEMPLATE_ID = 'match';
 
@@ -125,7 +143,9 @@ export class SearchRenderer extends Disposable implements IRenderer {
 	}
 
 	public getTemplateId(tree: ITree, element: any): string {
-		if (element instanceof FileMatch) {
+		if (element instanceof FolderMatch) {
+			return SearchRenderer.FOLDER_MATCH_TEMPLATE_ID;
+		} else if (element instanceof FileMatch) {
 			return SearchRenderer.FILE_MATCH_TEMPLATE_ID;
 		} else if (element instanceof Match) {
 			return SearchRenderer.MATCH_TEMPLATE_ID;
@@ -134,6 +154,10 @@ export class SearchRenderer extends Disposable implements IRenderer {
 	}
 
 	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): any {
+		if (templateId === SearchRenderer.FOLDER_MATCH_TEMPLATE_ID) {
+			return this.renderFolderMatchTemplate(tree, templateId, container);
+		}
+
 		if (templateId === SearchRenderer.FILE_MATCH_TEMPLATE_ID) {
 			return this.renderFileMatchTemplate(tree, templateId, container);
 		}
@@ -146,11 +170,21 @@ export class SearchRenderer extends Disposable implements IRenderer {
 	}
 
 	public renderElement(tree: ITree, element: any, templateId: string, templateData: any): void {
-		if (SearchRenderer.FILE_MATCH_TEMPLATE_ID === templateId) {
+		if (SearchRenderer.FOLDER_MATCH_TEMPLATE_ID === templateId) {
+			this.renderFolderMatch(tree, <FolderMatch>element, <IFolderMatchTemplate>templateData);
+		} else if (SearchRenderer.FILE_MATCH_TEMPLATE_ID === templateId) {
 			this.renderFileMatch(tree, <FileMatch>element, <IFileMatchTemplate>templateData);
 		} else if (SearchRenderer.MATCH_TEMPLATE_ID === templateId) {
 			this.renderMatch(tree, <Match>element, <IMatchTemplate>templateData);
 		}
+	}
+
+	private renderFolderMatchTemplate(tree: ITree, templateId: string, container: HTMLElement): IFolderMatchTemplate {
+		let folderMatchElement = DOM.append(container, DOM.$('.filematch'));
+		const label = this.instantiationService.createInstance(FileLabel, folderMatchElement, void 0);
+		const badge = new CountBadge(DOM.append(folderMatchElement, DOM.$('.badge')));
+		this._register(attachBadgeStyler(badge, this.themeService));
+		return { label, badge };
 	}
 
 	private renderFileMatchTemplate(tree: ITree, templateId: string, container: HTMLElement): IFileMatchTemplate {
@@ -180,6 +214,13 @@ export class SearchRenderer extends Disposable implements IRenderer {
 			after,
 			actions
 		};
+	}
+
+	private renderFolderMatch(tree: ITree, folderMatch: FolderMatch, templateData: IFolderMatchTemplate): void {
+		templateData.label.setFile(folderMatch.resource());
+		let count = folderMatch.count();
+		templateData.badge.setCount(count);
+		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchMatches', "{0} matches found", count) : nls.localize('searchMatch', "{0} match found", count));
 	}
 
 	private renderFileMatch(tree: ITree, fileMatch: FileMatch, templateData: IFileMatchTemplate): void {
@@ -220,6 +261,9 @@ export class SearchRenderer extends Disposable implements IRenderer {
 	}
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
+		if (SearchRenderer.FOLDER_MATCH_TEMPLATE_ID === templateId) {
+			(<IFolderMatchTemplate>templateData).label.dispose();
+		}
 		if (SearchRenderer.FILE_MATCH_TEMPLATE_ID === templateId) {
 			(<IFileMatchTemplate>templateData).label.dispose();
 		}
@@ -232,6 +276,10 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 	}
 
 	public getAriaLabel(tree: ITree, element: FileMatchOrMatch): string {
+		if (element instanceof FolderMatch) {
+			return nls.localize('folderMatchAriaLabel', "{0} matches in folder root {1}, Search result", element.count(), element.name());
+		}
+
 		if (element instanceof FileMatch) {
 			const path = getPathLabel(element.resource(), this.contextService) || element.resource().fsPath;
 
@@ -256,6 +304,6 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 export class SearchFilter implements IFilter {
 
 	public isVisible(tree: ITree, element: any): boolean {
-		return !(element instanceof FileMatch) || element.matches().length > 0;
+		return !(element instanceof FileMatch || element instanceof FolderMatch) || element.matches().length > 0;
 	}
 }
