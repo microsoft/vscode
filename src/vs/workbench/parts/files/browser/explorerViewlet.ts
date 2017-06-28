@@ -6,7 +6,6 @@
 'use strict';
 
 import 'vs/css!./media/explorerviewlet';
-import nls = require('vs/nls');
 import { IActionRunner } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
@@ -64,7 +63,7 @@ export class ExplorerViewlet extends ComposedViewsViewlet {
 		this.registerViews();
 		this.onConfigurationUpdated();
 		this._register(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated()));
-		this._register(this.contextService.onDidChangeWorkspaceRoots(e => this.onWorkspaceRootsChanged()));
+		this._register(this.contextService.onDidChangeWorkspaceRoots(e => this.updateTitleArea()));
 	}
 
 	public create(parent: Builder): TPromise<void> {
@@ -109,7 +108,7 @@ export class ExplorerViewlet extends ComposedViewsViewlet {
 	private createExplorerViewDescriptor(): IViewDescriptor {
 		return {
 			id: ExplorerView.ID,
-			name: this.getExplorerCaption(),
+			name: this.contextService.getWorkspace2().name,
 			location: ViewLocation.Explorer,
 			ctor: ExplorerView,
 			order: 1
@@ -118,19 +117,6 @@ export class ExplorerViewlet extends ComposedViewsViewlet {
 
 	private onConfigurationUpdated(): void {
 		this.openEditorsVisibleContextKey.set(!this.contextService.hasWorkspace() || (<IFilesConfiguration>this.configurationService.getConfiguration()).explorer.openEditors.visible !== 0);
-	}
-
-	private onWorkspaceRootsChanged(): void {
-		if (this.views.length > 0) {
-			const name = this.getExplorerCaption();
-			this.views.filter(v => v.id === ExplorerView.ID).forEach(v => v.name = name);
-			this.updateTitleArea();
-		}
-	}
-
-	private getExplorerCaption(): string {
-		const workspace = this.contextService.getWorkspace2();
-		return workspace.roots.length === 1 ? workspace.name : nls.localize('folders', "Folders");
 	}
 
 	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): IView {

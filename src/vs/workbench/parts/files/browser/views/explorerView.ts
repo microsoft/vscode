@@ -134,12 +134,21 @@ export class ExplorerView extends CollapsibleView {
 		const setHeader = () => {
 			const workspace = this.contextService.getWorkspace2();
 			const title = workspace.roots.map(root => labels.getPathLabel(root.fsPath, void 0, this.environmentService)).join();
-			titleSpan.text(workspace.roots.length === 1 ? workspace.name : nls.localize('folders', "Folders")).title(title);
+			titleSpan.text(this.name).title(title);
 		};
 		this.toDispose.push(this.contextService.onDidChangeWorkspaceRoots(() => setHeader()));
 		setHeader();
 
 		super.renderHeader(container);
+	}
+
+	public get name(): string {
+		const workspace = this.contextService.getWorkspace2();
+		return workspace.roots.length === 1 ? workspace.name : nls.localize('folders', "Folders");
+	}
+
+	public set name(value) {
+		// noop
 	}
 
 	public renderBody(container: HTMLElement): void {
