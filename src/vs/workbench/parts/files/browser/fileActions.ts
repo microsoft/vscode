@@ -962,8 +962,7 @@ export class PasteFileAction extends BaseFileAction {
 		}
 
 		// Check if file was deleted or moved meanwhile
-		const root: FileStat = this.element.root;
-		const exists = root.find(fileToCopy.resource);
+		const exists = fileToCopy.root.find(fileToCopy.resource);
 		if (!exists) {
 			fileToCopy = null;
 			return false;
