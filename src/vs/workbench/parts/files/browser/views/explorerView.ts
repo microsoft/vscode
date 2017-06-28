@@ -40,7 +40,7 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ResourceContextKey } from 'vs/workbench/common/resourceContextKey';
+import { ResourceContextKey, ResourceGlobMatcher } from 'vs/workbench/common/resources';
 import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -75,6 +75,8 @@ export class ExplorerView extends CollapsibleView {
 
 	private filesExplorerFocussedContext: IContextKey<boolean>;
 	private explorerFocussedContext: IContextKey<boolean>;
+
+	private fileEventsFilter: ResourceGlobMatcher;
 
 	private shouldRefresh: boolean;
 
@@ -115,6 +117,15 @@ export class ExplorerView extends CollapsibleView {
 
 		this.filesExplorerFocussedContext = FilesExplorerFocussedContext.bindTo(contextKeyService);
 		this.explorerFocussedContext = ExplorerFocussedContext.bindTo(contextKeyService);
+
+		this.fileEventsFilter = instantiationService.createInstance(ResourceGlobMatcher, root => this.getFileEventsExcludes(root), (expression: glob.IExpression) => glob.parse(expression));
+	}
+
+	private getFileEventsExcludes(root?: URI): glob.IExpression {
+		const scope = root ? { resource: root } : void 0;
+		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(undefined, scope);
+
+		return (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -619,16 +630,12 @@ export class ExplorerView extends CollapsibleView {
 				return false; // we only want added / removed
 			}
 
-			// Getting closest root which is not correct in all cases
-			const root = this.contextService.getRoot(change.resource);
-			if (!root) {
-				return false;
+			if (!this.contextService.isInsideWorkspace(change.resource)) {
+				return false; // exclude changes for resources outside of workspace
 			}
 
-			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(undefined, { resource: root });
-			const excludesConfig = (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
-			if (glob.match(excludesConfig, paths.normalize(paths.relative(root.fsPath, change.resource.fsPath)))) {
-				return false; // hidden through pattern
+			if (this.fileEventsFilter.matches(change.resource)) {
+				return false; // excluded via files.exclude setting
 			}
 
 			return true;
