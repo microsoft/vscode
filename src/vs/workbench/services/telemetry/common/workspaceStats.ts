@@ -5,6 +5,7 @@
 
 'use strict';
 
+import * as crypto from 'crypto';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
@@ -15,6 +16,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IOptions } from 'vs/workbench/common/options';
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
+const SshUrlMatcher = /^([^@:]+@)?([^:]+):(.+)$/;
+const AuthorityMatcher = /^([^@]+@)?([^:]+)(:\d+)?$/;
 const SecondLevelDomainMatcher = /([^@:.]+\.[^@:.]+)(:\d+)?$/;
 const RemoteMatcher = /^\s*url\s*=\s*(.+\S)\s*$/mg;
 const AnyButDot = /[^.]/g;
@@ -78,6 +81,54 @@ export function getDomainsOfRemotes(text: string, whitelist: string[]): string[]
 
 	return elements
 		.map(key => whitemap[key] ? key : key.replace(AnyButDot, 'a'));
+}
+
+function stripPort(authority: string): string {
+	const match = authority.match(AuthorityMatcher);
+	return match ? match[2] : null;
+}
+
+function normalizeRemote(host: string, path: string): string {
+	if (host && path) {
+		return (path.indexOf('/') === 0) ? `${host}${path}` : `${host}/${path}`;
+	}
+	return null;
+}
+
+function extractRemote(url: string): string {
+	if (url.indexOf('://') === -1) {
+		const match = url.match(SshUrlMatcher);
+		if (match) {
+			return normalizeRemote(match[2], match[3]);
+		}
+	}
+	try {
+		const uri = URI.parse(url);
+		if (uri.authority) {
+			return normalizeRemote(stripPort(uri.authority), uri.path);
+		}
+	} catch (e) {
+		// ignore invalid URIs
+	}
+	return null;
+}
+
+export function getRemotes(text: string): string[] {
+	const remotes: string[] = [];
+	let match: RegExpExecArray;
+	while (match = RemoteMatcher.exec(text)) {
+		const remote = extractRemote(match[1]);
+		if (remote) {
+			remotes.push(remote);
+		}
+	}
+	return remotes;
+}
+
+export function getHashedRemotes(text: string): string[] {
+	return getRemotes(text).map(r => {
+		return crypto.createHash('sha1').update(r).digest('hex');
+	});
 }
 
 export class WorkspaceStats {
@@ -222,6 +273,17 @@ export class WorkspaceStats {
 		}, onUnexpectedError);
 	}
 
+	private reportRemotes(workspaceUris: URI[]): void {
+		TPromise.join<string[]>(workspaceUris.map(workspaceUri => {
+			let path = workspaceUri.path;
+			let uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
+			return this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
+				content => getHashedRemotes(content.value),
+				err => [] // ignore missing or binary file
+			);
+		})).then(hashedRemotes => this.telemetryService.publicLog('workspace.hashedRemotes', { remotes: hashedRemotes }), onUnexpectedError);
+	}
+
 	private reportAzureNode(workspaceUris: URI[], tags: Tags): TPromise<Tags> {
 		// TODO: should also work for `node_modules` folders several levels down
 		const uris = workspaceUris.map(workspaceUri => {
@@ -274,7 +336,8 @@ export class WorkspaceStats {
 		const uris = workspace && workspace.roots;
 		if (uris && uris.length && this.fileService) {
 			this.reportRemoteDomains(uris);
+			this.reportRemotes(uris);
 			this.reportAzure(uris);
 		}
-	}
+	};
 }
