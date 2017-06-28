@@ -685,13 +685,13 @@ export class DiffReview extends Disposable {
 			let ariaLabel: string;
 			switch (type) {
 				case DiffEntryType.Equal:
-					ariaLabel = nls.localize('equalLine', "Unchanged original {0}, modified {1}: {2}", originalLine, modifiedLine, lineContent);
+					ariaLabel = nls.localize('equalLine', "original {0}, modified {1}: {2}", originalLine, modifiedLine, lineContent);
 					break;
 				case DiffEntryType.Insert:
-					ariaLabel = nls.localize('insertLine', "Inserted modified {0}: {1}", modifiedLine, lineContent);
+					ariaLabel = nls.localize('insertLine', "+ modified {0}: {1}", modifiedLine, lineContent);
 					break;
 				case DiffEntryType.Delete:
-					ariaLabel = nls.localize('deleteLine', "Deleted original {0}: {1}", originalLine, lineContent);
+					ariaLabel = nls.localize('deleteLine', "- original {0}: {1}", originalLine, lineContent);
 					break;
 			}
 			row.setAttribute('aria-label', ariaLabel);
