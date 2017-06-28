@@ -536,11 +536,11 @@ export class Model implements Disposable {
 		return await this.run(Operation.GetCommitTemplate, async () => this.repository.getCommitTemplate());
 	}
 
-	async ignore(files: Resource[]): Promise<void> {
+	async ignore(files: Uri[]): Promise<void> {
 		return await this.run(Operation.Ignore, async () => {
 			const ignoreFile = `${this.repository.root}${path.sep}.gitignore`;
 			const textToAppend = files
-				.map(file => path.relative(this.repository.root, file.resourceUri.fsPath).replace(/\\/g, '/'))
+				.map(uri => path.relative(this.repository.root, uri.fsPath).replace(/\\/g, '/'))
 				.join('\n');
 
 			const document = await new Promise(c => fs.exists(ignoreFile, c))

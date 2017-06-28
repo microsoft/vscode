@@ -982,14 +982,25 @@ export class CommandCenter {
 
 	@command('git.ignore')
 	async ignore(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		const resources = resourceStates
-			.filter(s => s instanceof Resource) as Resource[];
+		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
+			const uri = window.activeTextEditor && window.activeTextEditor.document.uri;
 
-		if (!resources.length) {
+			if (!uri) {
+				return;
+			}
+
+			return await this.model.ignore([uri]);
+		}
+
+		const uris = resourceStates
+			.filter(s => s instanceof Resource)
+			.map(r => r.resourceUri);
+
+		if (!uris.length) {
 			return;
 		}
 
-		await this.model.ignore(resources);
+		await this.model.ignore(uris);
 	}
 
 	private createCommand(id: string, key: string, method: Function, skipModelCheck: boolean): (...args: any[]) => any {
