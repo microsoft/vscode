@@ -308,6 +308,10 @@ export class MainThreadSCM extends MainThreadSCMShape {
 		this.scmService.input.value = value;
 	}
 
+	$setInputBoxPlaceholder(placeholder: string): void {
+		this.scmService.input.placeholder = placeholder;
+	}
+
 	private onDidChangeProvider(provider: ISCMProvider): void {
 		const handle = Object.keys(this._sourceControls).filter(handle => this._sourceControls[handle] === provider)[0];
 		this._proxy.$onActiveSourceControlChange(handle && parseInt(handle));

@@ -63,6 +63,7 @@ export class GitSCMProvider {
 		private commandCenter: CommandCenter,
 		private statusBarCommands: StatusBarCommands
 	) {
+		scm.inputBox.placeholder = localize('commitMessage', "Message (press {0} to commit)", process.platform === 'darwin' ? 'Cmd+Enter' : 'Ctrl+Enter');
 		this._sourceControl = scm.createSourceControl('git', 'Git');
 		this.disposables.push(this._sourceControl);
 

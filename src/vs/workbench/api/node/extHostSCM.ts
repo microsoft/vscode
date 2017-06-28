@@ -49,6 +49,17 @@ export class ExtHostSCMInputBox {
 		return this._onDidAccept.event;
 	}
 
+	private _placeholder: string = '';
+
+	get placeholder(): string {
+		return this._placeholder;
+	}
+
+	set placeholder(placeholder: string) {
+		this._proxy.$setInputBoxPlaceholder(placeholder);
+		this._placeholder = placeholder;
+	}
+
 	constructor(private _proxy: MainThreadSCMShape) {
 		// noop
 	}

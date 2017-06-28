@@ -4793,6 +4793,11 @@ declare module 'vscode' {
 		 * Setter and getter for the contents of the input box.
 		 */
 		value: string;
+
+		/**
+		 * A string to show as place holder in the input box to guide the user.
+		 */
+		placeholder: string;
 	}
 
 	interface QuickDiffProvider {

@@ -285,15 +285,16 @@ export class SCMViewlet extends Viewlet {
 		this.inputBoxContainer = append(root, $('.scm-editor'));
 
 		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, {
-			placeholder: localize('commitMessage', "Message (press {0} to commit)", platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter'),
 			flexibleHeight: true
 		});
 		this.disposables.push(attachInputBoxStyler(this.inputBox, this.themeService));
 		this.disposables.push(this.inputBox);
 
 		this.inputBox.value = this.scmService.input.value;
+		this.inputBox.setPlaceHolder(this.scmService.input.placeholder);
 		this.inputBox.onDidChange(value => this.scmService.input.value = value, null, this.disposables);
 		this.scmService.input.onDidChange(value => this.inputBox.value = value, null, this.disposables);
+		this.scmService.input.onDidChangePlaceholder(placeholder => this.inputBox.setPlaceHolder(placeholder), null, this.disposables);
 		this.disposables.push(this.inputBox.onDidHeightChange(() => this.layout()));
 
 		chain(domEvent(this.inputBox.inputElement, 'keydown'))

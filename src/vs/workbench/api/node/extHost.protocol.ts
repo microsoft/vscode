@@ -340,6 +340,7 @@ export abstract class MainThreadSCMShape {
 	$unregisterGroup(sourceControlHandle: number, handle: number): void { throw ni(); }
 
 	$setInputBoxValue(value: string): void { throw ni(); }
+	$setInputBoxPlaceholder(placeholder: string): void { throw ni(); }
 }
 
 export type DebugSessionUUID = string;
