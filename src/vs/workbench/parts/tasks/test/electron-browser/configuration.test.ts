@@ -196,6 +196,12 @@ class CustomTaskBuilder {
 
 	public group(value: Tasks.TaskGroup): CustomTaskBuilder {
 		this.result.group = value;
+		this.result.isPrimaryGroupEntry = false;
+		return this;
+	}
+
+	public isPrimary(value: boolean): CustomTaskBuilder {
+		this.result.isPrimaryGroupEntry = value;
 		return this;
 	}
 
@@ -446,8 +452,10 @@ function assertTask(actual: Tasks.Task, expected: Tasks.Task) {
 	assert.strictEqual(actual.name, expected.name, 'name');
 	assertCommandConfiguration(actual.command, expected.command);
 	assert.strictEqual(actual.isBackground, expected.isBackground, 'isBackground');
-	assert.strictEqual(actual.promptOnClose, expected.promptOnClose, 'promptOnClose');
 	assert.strictEqual(typeof actual.problemMatchers, typeof expected.problemMatchers);
+	assert.strictEqual(actual.promptOnClose, expected.promptOnClose, 'promptOnClose');
+	assert.strictEqual(actual.group, expected.group, 'group');
+	assert.strictEqual(actual.isPrimaryGroupEntry, expected.isPrimaryGroupEntry, 'isPrimaryGroupEntry');
 	if (actual.problemMatchers && expected.problemMatchers) {
 		assert.strictEqual(actual.problemMatchers.length, expected.problemMatchers.length);
 		for (let i = 0; i < actual.problemMatchers.length; i++) {
@@ -1461,7 +1469,46 @@ suite('Tasks version 2.0.0', () => {
 			presentation().echo(true);
 		testConfiguration(external, builder);
 	});
-
+	test('Global group none', () => {
+		let external: ExternalTaskRunnerConfiguration = {
+			version: '2.0.0',
+			tasks: [
+				{
+					taskName: 'dir',
+					command: 'dir',
+					type: 'shell',
+					group: 'none'
+				}
+			]
+		};
+		let builder = new ConfiguationBuilder();
+		builder.task('dir', 'dir').
+			command().suppressTaskName(true).
+			runtime(Tasks.RuntimeType.Shell).
+			presentation().echo(true);
+		testConfiguration(external, builder);
+	});
+	test('Global group primary build', () => {
+		let external: ExternalTaskRunnerConfiguration = {
+			version: '2.0.0',
+			tasks: [
+				{
+					taskName: 'dir',
+					command: 'dir',
+					type: 'shell',
+					group: { kind: 'build', isPrimary: true }
+				}
+			]
+		};
+		let builder = new ConfiguationBuilder();
+		builder.task('dir', 'dir').
+			group(Tasks.TaskGroup.Build).
+			isPrimary(true).
+			command().suppressTaskName(true).
+			runtime(Tasks.RuntimeType.Shell).
+			presentation().echo(true);
+		testConfiguration(external, builder);
+	});
 });
 
 suite('Bugs / regression tests', () => {

@@ -312,6 +312,10 @@ export interface BaseTaskRunnerConfiguration {
 	echoCommand?: boolean;
 
 	/**
+	 * The group
+	 */
+	group?: string | GroupKind;
+	/**
 	 * Controls the behavior of the used terminal
 	 */
 	presentation?: PresentationOptions;
@@ -1011,21 +1015,32 @@ const source: Tasks.TaskSource = {
 	detail: '.settins\\tasks.json'
 };
 
-namespace ConfigurationProperties {
-
-	namespace GroupKind {
-		export function from(this: void, external: GroupKind): [string, boolean] {
-			if (external === void 0 || !Types.isString(external.kind)) {
+namespace GroupKind {
+	export function from(this: void, external: string | GroupKind): [string, boolean] {
+		if (external === void 0) {
+			return undefined;
+		}
+		if (Types.isString(external)) {
+			if (Tasks.TaskGroup.is(external)) {
+				return [external, false];
+			} else {
 				return undefined;
 			}
-			let group: string = external.kind;
-			let primary: boolean = !!external.isPrimary;
-
-			return [group, primary];
 		}
+		if (!Types.isString(external.kind) || !Tasks.TaskGroup.is(external.kind)) {
+			return undefined;
+		}
+		let group: string = external.kind;
+		let primary: boolean = !!external.isPrimary;
+
+		return [group, primary];
 	}
+}
+
+namespace ConfigurationProperties {
 
 	const properties: MetaData<Tasks.ConfigurationProperties, any>[] = [
+
 		{ property: 'name' }, { property: 'identifier' }, { property: 'group' }, { property: 'isBackground' },
 		{ property: 'promptOnClose' }, { property: 'dependsOn' },
 		{ property: 'presentation', type: CommandConfiguration.PresentationOptions }, { property: 'problemMatchers' }
@@ -1246,6 +1261,9 @@ namespace CustomTask {
 		if (task.problemMatchers === void 0) {
 			task.problemMatchers = EMPTY_ARRAY;
 		}
+		if (task.group !== void 0 && task.isPrimaryGroupEntry === void 0) {
+			task.isPrimaryGroupEntry = false;
+		}
 	}
 
 	export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfigurationProperties & { _id: string }): Tasks.CustomTask {
@@ -1363,8 +1381,10 @@ namespace TaskParser {
 		}
 		if (defaultBuildTask.rank > -1 && defaultBuildTask.rank < 2) {
 			defaultBuildTask.task.group = Tasks.TaskGroup.Build;
+			defaultBuildTask.task.isPrimaryGroupEntry = false;
 		} else if (defaultTestTask.rank > -1 && defaultTestTask.rank < 2) {
 			defaultTestTask.task.group = Tasks.TaskGroup.Test;
+			defaultTestTask.task.isPrimaryGroupEntry = false;
 		}
 
 		return result;
@@ -1727,6 +1747,13 @@ class ConfigurationParser {
 				isBackground: isBackground,
 				problemMatchers: matchers
 			};
+			let value = GroupKind.from(fileConfig.group);
+			if (value) {
+				task.group = value[0];
+				task.isPrimaryGroupEntry = value[1];
+			} else if (fileConfig.group === 'none') {
+				task.group = undefined;
+			}
 			CustomTask.fillGlobals(task, globals);
 			CustomTask.fillDefaults(task, context);
 			result.custom = [task];

@@ -229,7 +229,7 @@ definitions.taskDescription.properties.isTestCommand.deprecationMessage = nls.lo
 taskDescription.properties.type = Objects.deepClone(taskType);
 taskDescription.properties.presentation = Objects.deepClone(presentation);
 taskDescription.properties.terminal = terminal;
-taskDescription.properties.group = group;
+taskDescription.properties.group = Objects.deepClone(group);
 
 taskDefinitions.push({
 	$ref: '#/definitions/taskDescription'
@@ -247,11 +247,13 @@ definitions.options.properties.shell = {
 
 definitions.taskRunnerConfiguration.properties.isShellCommand = Objects.deepClone(shellCommand);
 definitions.taskRunnerConfiguration.properties.type = Objects.deepClone(taskType);
-definitions.taskRunnerConfiguration.properties.version = Objects.deepClone(version);
+definitions.taskRunnerConfiguration.properties.group = Objects.deepClone(group);
+definitions.taskRunnerConfiguration.properties.presentation = Objects.deepClone(presentation);
 let osSpecificTaskRunnerConfiguration = Objects.deepClone(definitions.taskRunnerConfiguration);
 delete osSpecificTaskRunnerConfiguration.properties.tasks;
 osSpecificTaskRunnerConfiguration.additionalProperties = false;
 definitions.osSpecificTaskRunnerConfiguration = osSpecificTaskRunnerConfiguration;
+definitions.taskRunnerConfiguration.properties.version = Objects.deepClone(version);
 
 const schema: IJSONSchema = {
 	oneOf: [
