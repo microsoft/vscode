@@ -159,7 +159,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 			this.fillEntries(entries, input, recent, nls.localize('recentlyUsed', 'recently used tasks'));
 			configured = configured.sort((a, b) => a._label.localeCompare(b._label));
 			let hasConfigured = configured.length > 0;
-			this.fillEntries(entries, input, configured, nls.localize('configured', 'custom tasks'), hasRecentlyUsed);
+			this.fillEntries(entries, input, configured, nls.localize('configured', 'configured tasks'), hasRecentlyUsed);
 			detected = detected.sort((a, b) => a._label.localeCompare(b._label));
 			this.fillEntries(entries, input, detected, nls.localize('detected', 'detected tasks'), hasRecentlyUsed || hasConfigured);
 			return new Model.QuickOpenModel(entries, new ContributableActionProvider());
@@ -196,7 +196,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 class CustomizeTaskAction extends Action {
 
 	private static ID = 'workbench.action.tasks.customizeTask';
-	private static LABEL = nls.localize('customizeTask', "Customize Task");
+	private static LABEL = nls.localize('customizeTask', "Configure Task");
 
 	constructor(private taskService: ITaskService, private quickOpenService: IQuickOpenService, private task: Task) {
 		super(CustomizeTaskAction.ID, CustomizeTaskAction.LABEL);
