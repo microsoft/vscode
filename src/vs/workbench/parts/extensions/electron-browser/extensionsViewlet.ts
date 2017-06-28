@@ -31,7 +31,7 @@ import {
 	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, CheckForUpdatesAction, DisableAllAction, EnableAllAction,
 	EnableAutoUpdateAction, DisableAutoUpdateAction
 } from 'vs/workbench/parts/extensions/browser/extensionsActions';
-import { LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { LocalExtensionType, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { InstallVSIXAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { ExtensionsListView, InstalledExtensionsView, RecommendedExtensionsView } from './extensionsViews';
@@ -86,6 +86,7 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorInputService: IEditorGroupService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
 		@IMessageService private messageService: IMessageService,
 		@IViewletService private viewletService: IViewletService,
 		@IThemeService themeService: IThemeService,
@@ -199,8 +200,14 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 
 		this.onSearchChange = mapEvent(onSearchInput, e => e.target.value);
 
-		this.searchExtensionsContextKey.set(!!this.searchBox.value);
-		return super.create(new Builder(this.extensionsBox));
+		return this.extensionManagementService.getInstalled(LocalExtensionType.User)
+			.then(installed => {
+				if (installed.length === 0) {
+					this.searchBox.value = '@sort:installs';
+				}
+				this.searchExtensionsContextKey.set(!!this.searchBox.value);
+				return super.create(new Builder(this.extensionsBox));
+			});
 	}
 
 	public updateStyles(): void {
@@ -226,11 +233,7 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 		return super.setVisible(visible).then(() => {
 			if (isVisibilityChanged) {
 				if (visible) {
-					if (!this.searchBox.value && this.extensionsWorkbenchService.local.filter(e => e.type === LocalExtensionType.User).length === 0) {
-						this.search('@sort:installs');
-					} else {
-						this.doSearch();
-					}
+					this.doSearch();
 				}
 			}
 		});
