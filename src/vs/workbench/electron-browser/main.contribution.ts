@@ -83,7 +83,7 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(Decrea
 
 // TODO@Ben multi root
 if (product.quality !== 'stable') {
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL), 'Files: Add Root Folder...', fileCategory);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL), 'Files: Add Folder to Workspace...', fileCategory);
 }
 
 // Developer related actions

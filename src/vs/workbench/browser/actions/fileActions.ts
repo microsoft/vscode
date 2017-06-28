@@ -54,7 +54,7 @@ export class OpenFileFolderAction extends Action {
 export class AddRootFolderAction extends Action {
 
 	static ID = 'workbench.action.addRootFolder';
-	static LABEL = nls.localize('addFolder', "Add Root Folder...");
+	static LABEL = nls.localize('addFolderToWorkspace', "Add Folder to Workspace...");
 
 	constructor(
 		id: string,
@@ -72,7 +72,7 @@ export class AddRootFolderAction extends Action {
 			return this.windowService.pickFolderAndOpen(false /* prefer same window */);
 		}
 
-		return this.windowService.pickFolder({ buttonLabel: nls.localize('add', "Add"), title: nls.localize('addRootFolder', "Add Root Folder") }).then(folders => {
+		return this.windowService.pickFolder({ buttonLabel: nls.localize('add', "Add"), title: nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace") }).then(folders => {
 			return this.workspaceEditingService.addRoots(folders.map(folder => URI.file(folder))).then(() => {
 				return this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true);
 			});
@@ -83,7 +83,7 @@ export class AddRootFolderAction extends Action {
 export class RemoveRootFolderAction extends Action {
 
 	static ID = 'workbench.action.removeRootFolder';
-	static LABEL = nls.localize('removeRootFolder', "Remove Root Folder");
+	static LABEL = nls.localize('removeFolderFromWorkspace', "Remove Folder from Workspace");
 
 	constructor(
 		private rootUri: URI,
