@@ -199,7 +199,7 @@ export interface CommandProperties extends BaseCommandProperties {
 
 export interface GroupKind {
 	kind?: string;
-	isPrimary?: boolean;
+	isDefault?: boolean;
 }
 
 export interface ConfigurationProperties {
@@ -278,12 +278,19 @@ export interface BaseTaskRunnerConfiguration {
 	command?: string;
 
 	/**
+	 * @deprecated Use type instead
+	 *
 	 * Specifies whether the command is a shell command and therefore must
 	 * be executed in a shell interpreter (e.g. cmd.exe, bash, ...).
 	 *
 	 * Defaults to false if omitted.
 	 */
 	isShellCommand?: boolean;
+
+	/**
+	 * The task type
+	 */
+	type?: string;
 
 	/**
 	 * The command options used when the command is executed. Can be omitted.
@@ -1031,9 +1038,9 @@ namespace GroupKind {
 			return undefined;
 		}
 		let group: string = external.kind;
-		let primary: boolean = !!external.isPrimary;
+		let isDefault: boolean = !!external.isDefault;
 
-		return [group, primary];
+		return [group, isDefault];
 	}
 }
 
@@ -1069,12 +1076,12 @@ namespace ConfigurationProperties {
 		if (external.group !== void 0) {
 			if (Types.isString(external.group) && Tasks.TaskGroup.is(external.group)) {
 				result.group = external.group;
-				result.isPrimaryGroupEntry = false;
+				result.isDefaultGroupEntry = false;
 			} else {
 				let values = GroupKind.from(external.group);
 				if (values) {
 					result.group = values[0];
-					result.isPrimaryGroupEntry = values[1];
+					result.isDefaultGroupEntry = values[1];
 				}
 			}
 		}
@@ -1261,8 +1268,8 @@ namespace CustomTask {
 		if (task.problemMatchers === void 0) {
 			task.problemMatchers = EMPTY_ARRAY;
 		}
-		if (task.group !== void 0 && task.isPrimaryGroupEntry === void 0) {
-			task.isPrimaryGroupEntry = false;
+		if (task.group !== void 0 && task.isDefaultGroupEntry === void 0) {
+			task.isDefaultGroupEntry = false;
 		}
 	}
 
@@ -1279,7 +1286,7 @@ namespace CustomTask {
 		let resultConfigProps: Tasks.ConfigurationProperties = result;
 
 		assignProperty(resultConfigProps, configuredProps, 'group');
-		assignProperty(resultConfigProps, configuredProps, 'isPrimaryGroupEntry');
+		assignProperty(resultConfigProps, configuredProps, 'isDefaultGroupEntry');
 		assignProperty(resultConfigProps, configuredProps, 'isBackground');
 		assignProperty(resultConfigProps, configuredProps, 'dependsOn');
 		assignProperty(resultConfigProps, configuredProps, 'problemMatchers');
@@ -1289,7 +1296,7 @@ namespace CustomTask {
 
 		let contributedConfigProps: Tasks.ConfigurationProperties = contributedTask;
 		fillProperty(resultConfigProps, contributedConfigProps, 'group');
-		fillProperty(resultConfigProps, contributedConfigProps, 'isPrimaryGroupEntry');
+		fillProperty(resultConfigProps, contributedConfigProps, 'isDefaultGroupEntry');
 		fillProperty(resultConfigProps, contributedConfigProps, 'isBackground');
 		fillProperty(resultConfigProps, contributedConfigProps, 'dependsOn');
 		fillProperty(resultConfigProps, contributedConfigProps, 'problemMatchers');
@@ -1381,10 +1388,10 @@ namespace TaskParser {
 		}
 		if (defaultBuildTask.rank > -1 && defaultBuildTask.rank < 2) {
 			defaultBuildTask.task.group = Tasks.TaskGroup.Build;
-			defaultBuildTask.task.isPrimaryGroupEntry = false;
+			defaultBuildTask.task.isDefaultGroupEntry = false;
 		} else if (defaultTestTask.rank > -1 && defaultTestTask.rank < 2) {
 			defaultTestTask.task.group = Tasks.TaskGroup.Test;
-			defaultTestTask.task.isPrimaryGroupEntry = false;
+			defaultTestTask.task.isDefaultGroupEntry = false;
 		}
 
 		return result;
@@ -1750,7 +1757,7 @@ class ConfigurationParser {
 			let value = GroupKind.from(fileConfig.group);
 			if (value) {
 				task.group = value[0];
-				task.isPrimaryGroupEntry = value[1];
+				task.isDefaultGroupEntry = value[1];
 			} else if (fileConfig.group === 'none') {
 				task.group = undefined;
 			}

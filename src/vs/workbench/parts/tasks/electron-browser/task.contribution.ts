@@ -1489,7 +1489,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			}
 			let primaries: Task[] = [];
 			for (let task of tasks) {
-				if (task.isPrimaryGroupEntry) {
+				if (task.isDefaultGroupEntry) {
 					primaries.push(task);
 				}
 			}
@@ -1527,7 +1527,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			}
 			let primaries: Task[] = [];
 			for (let task of tasks) {
-				if (task.isPrimaryGroupEntry) {
+				if (task.isDefaultGroupEntry) {
 					primaries.push(task);
 				}
 			}

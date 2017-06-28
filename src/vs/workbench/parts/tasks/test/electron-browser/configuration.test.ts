@@ -196,12 +196,12 @@ class CustomTaskBuilder {
 
 	public group(value: Tasks.TaskGroup): CustomTaskBuilder {
 		this.result.group = value;
-		this.result.isPrimaryGroupEntry = false;
+		this.result.isDefaultGroupEntry = false;
 		return this;
 	}
 
 	public isPrimary(value: boolean): CustomTaskBuilder {
-		this.result.isPrimaryGroupEntry = value;
+		this.result.isDefaultGroupEntry = value;
 		return this;
 	}
 
@@ -455,7 +455,7 @@ function assertTask(actual: Tasks.Task, expected: Tasks.Task) {
 	assert.strictEqual(typeof actual.problemMatchers, typeof expected.problemMatchers);
 	assert.strictEqual(actual.promptOnClose, expected.promptOnClose, 'promptOnClose');
 	assert.strictEqual(actual.group, expected.group, 'group');
-	assert.strictEqual(actual.isPrimaryGroupEntry, expected.isPrimaryGroupEntry, 'isPrimaryGroupEntry');
+	assert.strictEqual(actual.isDefaultGroupEntry, expected.isDefaultGroupEntry, 'isPrimaryGroupEntry');
 	if (actual.problemMatchers && expected.problemMatchers) {
 		assert.strictEqual(actual.problemMatchers.length, expected.problemMatchers.length);
 		for (let i = 0; i < actual.problemMatchers.length; i++) {
@@ -1472,6 +1472,51 @@ suite('Tasks version 2.0.0', () => {
 	test('Global group none', () => {
 		let external: ExternalTaskRunnerConfiguration = {
 			version: '2.0.0',
+			command: 'dir',
+			type: 'shell',
+			group: 'none'
+		};
+		let builder = new ConfiguationBuilder();
+		builder.task('dir', 'dir').
+			command().suppressTaskName(true).
+			runtime(Tasks.RuntimeType.Shell).
+			presentation().echo(true);
+		testConfiguration(external, builder);
+	});
+	test('Global group build', () => {
+		let external: ExternalTaskRunnerConfiguration = {
+			version: '2.0.0',
+			command: 'dir',
+			type: 'shell',
+			group: 'build'
+		};
+		let builder = new ConfiguationBuilder();
+		builder.task('dir', 'dir').
+			group(Tasks.TaskGroup.Build).
+			command().suppressTaskName(true).
+			runtime(Tasks.RuntimeType.Shell).
+			presentation().echo(true);
+		testConfiguration(external, builder);
+	});
+	test('Global group default build', () => {
+		let external: ExternalTaskRunnerConfiguration = {
+			version: '2.0.0',
+			command: 'dir',
+			type: 'shell',
+			group: { kind: 'build', isDefault: true }
+		};
+		let builder = new ConfiguationBuilder();
+		builder.task('dir', 'dir').
+			group(Tasks.TaskGroup.Build).
+			isPrimary(true).
+			command().suppressTaskName(true).
+			runtime(Tasks.RuntimeType.Shell).
+			presentation().echo(true);
+		testConfiguration(external, builder);
+	});
+	test('Local group none', () => {
+		let external: ExternalTaskRunnerConfiguration = {
+			version: '2.0.0',
 			tasks: [
 				{
 					taskName: 'dir',
@@ -1488,7 +1533,7 @@ suite('Tasks version 2.0.0', () => {
 			presentation().echo(true);
 		testConfiguration(external, builder);
 	});
-	test('Global group primary build', () => {
+	test('Local group build', () => {
 		let external: ExternalTaskRunnerConfiguration = {
 			version: '2.0.0',
 			tasks: [
@@ -1496,7 +1541,27 @@ suite('Tasks version 2.0.0', () => {
 					taskName: 'dir',
 					command: 'dir',
 					type: 'shell',
-					group: { kind: 'build', isPrimary: true }
+					group: 'build'
+				}
+			]
+		};
+		let builder = new ConfiguationBuilder();
+		builder.task('dir', 'dir').
+			group(Tasks.TaskGroup.Build).
+			command().suppressTaskName(true).
+			runtime(Tasks.RuntimeType.Shell).
+			presentation().echo(true);
+		testConfiguration(external, builder);
+	});
+	test('Local group default build', () => {
+		let external: ExternalTaskRunnerConfiguration = {
+			version: '2.0.0',
+			tasks: [
+				{
+					taskName: 'dir',
+					command: 'dir',
+					type: 'shell',
+					group: { kind: 'build', isDefault: true }
 				}
 			]
 		};

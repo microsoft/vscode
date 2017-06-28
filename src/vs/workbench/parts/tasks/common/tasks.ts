@@ -251,7 +251,7 @@ export interface ConfigurationProperties {
 	/**
 	 * Whether this task is a primary task in the task group.
 	 */
-	isPrimaryGroupEntry?: boolean;
+	isDefaultGroupEntry?: boolean;
 
 	/**
 	 * The presentation options

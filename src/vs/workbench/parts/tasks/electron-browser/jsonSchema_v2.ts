@@ -112,16 +112,22 @@ const group: IJSONSchema = {
 					default: 'none',
 					description: nls.localize('JsonSchema.tasks.group.kind', 'The task\'s execution group.')
 				},
-				isPrimary: {
+				isDefault: {
 					type: 'boolean',
 					default: false,
-					description: nls.localize('JsonSchema.tasks.group.isPrimary', 'Defines if this task is a primary task in a group.')
+					description: nls.localize('JsonSchema.tasks.group.isDefault', 'Defines if this task is the default task in the group.')
 				}
 			}
 		},
 	],
-	enum: ['none', 'build', 'test', { kind: 'build', isPrimary: true }, { kind: 'test', isPrimary: true }],
-	default: 'none',
+	enum: [{ kind: 'build', isDefault: true }, { kind: 'test', isDefault: true }, 'build', 'test', 'none'],
+	enumDescriptions: [
+		nls.localize('JsonSchema.tasks.group.defaultBuild', 'Marks the tasks as the default build task.'),
+		nls.localize('JsonSchema.tasks.group.defaultTest', 'Marks the tasks as the default test task.'),
+		nls.localize('JsonSchema.tasks.group.build', 'Marks the tasks as a build task accesible through the \'Run Build Task\' command.'),
+		nls.localize('JsonSchema.tasks.group.test', 'Marks the tasks as a test task accesible through the \'Run Test Task\' command.'),
+		nls.localize('JsonSchema.tasks.group.none', 'Assigns the task to no group')
+	],
 	description: nls.localize('JsonSchema.tasks.group', 'Defines to which execution group this task belongs to. It supports "build" to add it to the build group and "test" to add it to the test group.')
 };
 
