@@ -71,16 +71,7 @@ function removeEmbeddedSVGs(documentContent: string): string {
 		allSVGs[i].parentNode.removeChild(allSVGs[i]);
 	}
 
-	// remove all svgs encoded as data uris
-	const allImages = newDocument.documentElement.querySelectorAll('img');
-	for (let i = 0; i < allImages.length; i++) {
-		let source = allImages[i].getAttribute('src');
-		if (source && source.indexOf('data:image/svg') === 0) {
-			allImages[i].parentNode.removeChild(allImages[i]);
-		}
-	}
-	const sanitizedContent = newDocument.documentElement.outerHTML;
-	return sanitizedContent;
+	return newDocument.documentElement.outerHTML;
 }
 
 class NavBar {
