@@ -80,10 +80,13 @@ export class InstallWidget implements IDisposable {
 				installLabel = `${Math.floor(installCount / 1000)}K`;
 			}
 		}
+		else {
+			installLabel = installCount.toLocaleString('en');
+		}
 
 		append(this.container, $('span.octicon.octicon-cloud-download'));
 		const count = append(this.container, $('span.count'));
-		count.textContent = installLabel || String(installCount);
+		count.textContent = installLabel;
 	}
 
 	dispose(): void {
