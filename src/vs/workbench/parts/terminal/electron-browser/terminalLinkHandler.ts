@@ -35,7 +35,7 @@ replacing space with nonBreakningSpace or space ASCII code - 32. */
 const lineAndColumnClause = [
 	'((\\S*) on line ((\\d+)(, column (\\d+))?))', // (file path) on line 8, column 13
 	'((\\S*):line ((\\d+)(, column (\\d+))?))', // (file path):line 8, column 13
-	'(([^\\s\\(\\)]*)(\\s?[\\(\\[](\\d+)(,(\\d+))?)[\\)\\]])', // (file path)(45), (file path) (45), (file path)(45,18), (file path) (45,18)
+	'(([^\\s\\(\\)]*)(\\s?[\\(\\[](\\d+)(,\\s?(\\d+))?)[\\)\\]])', // (file path)(45), (file path) (45), (file path)(45,18), (file path) (45,18), (file path)(45, 18), (file path) (45, 18), also with []
 	'(([^:\\s\\(\\)<>\'\"\\[\\]]*)(:(\\d+))?(:(\\d+))?)' // (file path):336, (file path):336:9
 ].join('|').replace(/ /g, `[${'\u00A0'} ]`);
 
