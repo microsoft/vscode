@@ -6,7 +6,7 @@
 'use strict';
 
 import * as nls from 'vscode-nls';
-const localize = nls.loadMessageBundle();
+const localize = nls.config(process.env.VSCODE_NLS_CONFIG)();
 import * as vscode from 'vscode';
 import * as path from 'path';
 import TelemetryReporter from 'vscode-extension-telemetry';
