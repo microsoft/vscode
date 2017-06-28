@@ -17,7 +17,7 @@ import { ITerminalService, ITerminalFont, TERMINAL_PANEL_ID } from 'vs/workbench
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { TerminalFindWidget } from './terminalFindWidget';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR } from './terminalColorRegistry';
-import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { ColorIdentifier, editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
 import { KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction, SelectAllTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -284,6 +284,15 @@ export class TerminalPanel extends Panel {
 		// if (selectionColor) {
 		// 	css += `.monaco-workbench .panel.integrated-terminal .xterm .xterm-selection div { background-color: ${selectionColor}; }`;
 		// }
+		// Borrow the editor's hover background for now
+		let hoverBackground = theme.getColor(editorHoverBackground);
+		if (hoverBackground) {
+			css += `.monaco-workbench .panel.integrated-terminal .terminal-message-widget { background-color: ${hoverBackground}; }`;
+		}
+		let hoverBorder = theme.getColor(editorHoverBorder);
+		if (hoverBorder) {
+			css += `.monaco-workbench .panel.integrated-terminal .terminal-message-widget { border: 1px solid ${hoverBorder}; }`;
+		}
 
 		this._themeStyleElement.innerHTML = css;
 		this._findWidget.updateTheme(theme);
