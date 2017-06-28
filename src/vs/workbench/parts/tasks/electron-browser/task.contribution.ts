@@ -524,11 +524,17 @@ interface WorkspaceConfigurationResult {
 	hasErrors: boolean;
 }
 
+interface TaskCustomizationTelementryEvent {
+	properties: string[];
+}
+
 class TaskService extends EventEmitter implements ITaskService {
 
 	// private static autoDetectTelemetryName: string = 'taskServer.autoDetect';
 	private static RecentlyUsedTasks_Key = 'workbench.tasks.recentlyUsedTasks';
 	private static RanTaskBefore_Key = 'workbench.tasks.ranTaskBefore';
+
+	private static CustomizationTelemetryEventName: string = 'taskService.customize';
 
 	public _serviceBrand: any;
 	public static SERVICE_ID: string = 'taskService';
@@ -901,6 +907,10 @@ class TaskService extends EventEmitter implements ITaskService {
 			promise = this.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, value);
 		};
 		return promise.then(() => {
+			let event: TaskCustomizationTelementryEvent = {
+				properties: properties ? Object.getOwnPropertyNames(properties) : []
+			};
+			this.telemetryService.publicLog(TaskService.CustomizationTelemetryEventName, event);
 			if (openConfig) {
 				let resource = this.contextService.toResource('.vscode/tasks.json'); // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
 				this.editorService.openEditor({
