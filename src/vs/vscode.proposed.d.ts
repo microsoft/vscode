@@ -14,9 +14,16 @@ declare module 'vscode' {
 
 	export namespace workspace {
 
-		export const onDidChangeWorkspaceFolders: Event<WorkspaceFoldersChangeEvent>;
-
+		/**
+		* List of workspace folders or `undefined` when no folder is open. The *first*
+		* element in the array is equal to the [`rootPath`](#workspace.rootPath)
+		*/
 		export let workspaceFolders: Uri[] | undefined;
+
+		/**
+		 * An event that is emitted when a workspace folder is added or removed.
+		 */
+		export const onDidChangeWorkspaceFolders: Event<WorkspaceFoldersChangeEvent>;
 	}
 
 	/**
