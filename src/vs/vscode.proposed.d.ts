@@ -107,7 +107,6 @@ declare module 'vscode' {
 
 	}
 
->>>>>>> Add documentation for proposed configuration api
 	export namespace window {
 
 		export function sampleFunction(): Thenable<any>;
