@@ -117,7 +117,7 @@ declare module 'vscode' {
 		/**
 		 * The rebuild all task group;
 		 */
-		public static RebuildAll: TaskGroup;
+		public static Rebuild: TaskGroup;
 
 		/**
 		 * The test all task group;
@@ -146,6 +146,11 @@ declare module 'vscode' {
 		 * ```
 		 */
 		readonly type: string;
+
+		/**
+		 * Additional attributes of a concrete task definition.
+		 */
+		[name: string]: any;
 	}
 
 	/**
@@ -298,7 +303,7 @@ declare module 'vscode' {
 		 * A human-readable string describing the source of this
 		 * shell task, e.g. 'gulp' or 'npm'.
 		 */
-		source?: string;
+		source: string;
 
 		/**
 		 * The task group this tasks belongs to. See TaskGroup

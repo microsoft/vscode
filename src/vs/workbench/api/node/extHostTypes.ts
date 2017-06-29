@@ -1040,7 +1040,7 @@ export class TaskGroup implements vscode.TaskGroup {
 
 	public static Build: TaskGroup = new TaskGroup('build', 'Build');
 
-	public static RebuildAll: TaskGroup = new TaskGroup('rebuildAll', 'RebuildAll');
+	public static Rebuild: TaskGroup = new TaskGroup('rebuild', 'Rebuild');
 
 	public static Test: TaskGroup = new TaskGroup('clean', 'Clean');
 
@@ -1248,10 +1248,6 @@ export class Task implements vscode.Task {
 	}
 
 	set source(value: string) {
-		if (value === void 0 || value === null) {
-			this._source = undefined;
-			return;
-		}
 		if (typeof value !== 'string' || value.length === 0) {
 			throw illegalArgument('source must be a string of length > 0');
 		}
