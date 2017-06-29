@@ -68,11 +68,11 @@ declare module 'vscode' {
 	 *
 	 * **Global configuration** comes from User Settings and shadows Defaults.
 	 *
-	 * **Workspace configuration** comes from the `.vscode` folder of the first [workspace folders](#workspace.workspaceFolders)
+	 * **Workspace configuration** comes from the `.vscode` folder under first [workspace folders](#workspace.workspaceFolders)
 	 * and shadows Globals configuration.
 	 *
-	 * **Folder configurations** comes from the `.vscode` folder of the [workspace folders](#workspace.workspaceFolders).
-	 * Requested resource determines which folder configuration to pick. Folder configuration shodows Workspace configuration.
+	 * **Folder configurations** comes from `.vscode` folder under [workspace folders](#workspace.workspaceFolders). Each [workspace folder](#workspace.workspaceFolders)
+	 * has a configuration and the requested resource determines which folder configuration to pick. Folder configuration shodows Workspace configuration.
 	 *
 	 * *Note:* Workspace and Folder configurations contains settings from `launch.json` and `tasks.json` files. Their basename will be
 	 * part of the section identifier. The following snippets shows how to retrieve all configurations
