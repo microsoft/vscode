@@ -15,7 +15,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { INavigator } from 'vs/base/common/iterator';
 import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
-import { SearchResult, Match, FileMatch, FileMatchOrMatch } from 'vs/workbench/parts/search/common/searchModel';
+import { Match, FileMatch, FileMatchOrMatch } from 'vs/workbench/parts/search/common/searchModel';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { CollapseAllAction as TreeCollapseAction } from 'vs/base/parts/tree/browser/treeDefaults';
@@ -405,13 +405,13 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 		}
 
 		let elementToRefresh: any;
-		if (this.element instanceof FileMatch) {
-			let parent: SearchResult = <SearchResult>this.element.parent();
-			parent.remove(<FileMatch>this.element);
-			elementToRefresh = parent;
-		} else {
-			let parent: FileMatch = <FileMatch>this.element.parent();
-			parent.remove(<Match>this.element);
+		let element = this.element;
+		if (element instanceof FileMatch) {
+			elementToRefresh = element.parent();
+			element.parent().remove(element);
+		} else if (element instanceof Match) {
+			let parent = element.parent();
+			parent.remove(element);
 			elementToRefresh = parent.count() === 0 ? parent.parent() : parent;
 		}
 
