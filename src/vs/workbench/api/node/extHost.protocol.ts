@@ -348,6 +348,7 @@ export interface MainThreadSCMShape extends IDisposable {
 	$unregisterGroup(sourceControlHandle: number, handle: number): void;
 
 	$setInputBoxValue(sourceControlHandle: number, value: string): void;
+	$setInputBoxPlaceholder(sourceControlHandle: number, placeholder: string): void;
 }
 
 export type DebugSessionUUID = string;
