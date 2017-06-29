@@ -9,10 +9,14 @@ import { localize } from 'vs/nls';
 
 export function domElement() {
 	return `
+<div>
 <button class="taskButton", tabindex="0">${escape(localize('RunTaskAction.label', "Run task"))}</button>
 <button class="taskButton", tabindex="1">${escape(localize('BuildAction.label', "Run build task"))}</button>
 <button class="taskButton", tabindex="2">${escape(localize('TestAction.label', "Run test task"))}</button>
 <button class="taskButton", tabindex="3">${escape(localize('TerminateAction.label', "Terminate running task"))}</button>
 <button class="taskButton", tabindex="4">${escape(localize('RestartTaskAction.label', "Restart task"))}</button>
+</div>
+<div class="taskMockup" alt="testing">
+</div>
 `;
 };

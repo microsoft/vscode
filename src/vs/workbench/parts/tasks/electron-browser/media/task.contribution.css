@@ -99,3 +99,11 @@
 .monaco-workbench .task-action {
 	background: url('update.svg') center center no-repeat;
 }
+
+.monaco-workbench .task-panel-container .taskMockup {
+	background-image: url('taskPanel-mockup.png');
+	background-position: center center;
+	background-repeat: no-repeat;
+	height: 300px;
+	width: 1500;
+}
