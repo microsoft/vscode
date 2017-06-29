@@ -165,7 +165,7 @@ export class DebugService implements debug.IDebugService {
 		const process = this.model.getProcesses().filter(p => strings.equalsIgnoreCase(p.configuration.type, 'extensionhost')).pop();
 		const session = process ? <RawDebugSession>process.session : null;
 		if (broadcast.channel === EXTENSION_ATTACH_BROADCAST_CHANNEL) {
-			this.rawAttach(session, broadcast.payload.port);
+			setTimeout(() => this.rawAttach(session, broadcast.payload.port), 300);
 			return;
 		}
 
