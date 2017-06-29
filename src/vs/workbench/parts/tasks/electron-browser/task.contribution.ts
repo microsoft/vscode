@@ -378,7 +378,7 @@ class StatusBarItem extends Themable implements IStatusbarItem {
 		});
 
 		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Active, (event: TaskEvent) => {
-			if (event.group !== TaskGroup.Build) {
+			if (this.taskService.inTerminal() && event.group !== TaskGroup.Build) {
 				return;
 			}
 			this.activeCount++;
@@ -398,7 +398,7 @@ class StatusBarItem extends Themable implements IStatusbarItem {
 		}));
 
 		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Inactive, (event: TaskEvent) => {
-			if (event.group !== TaskGroup.Build) {
+			if (this.taskService.inTerminal() && event.group !== TaskGroup.Build) {
 				return;
 			}
 			// Since the exiting of the sub process is communicated async we can't order inactive and terminate events.
@@ -416,7 +416,7 @@ class StatusBarItem extends Themable implements IStatusbarItem {
 		}));
 
 		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Terminated, (event: TaskEvent) => {
-			if (event.group !== TaskGroup.Build) {
+			if (this.taskService.inTerminal() && event.group !== TaskGroup.Build) {
 				return;
 			}
 			if (this.activeCount !== 0) {
