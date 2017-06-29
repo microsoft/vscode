@@ -185,17 +185,35 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
  * If there is textToWrap, then given preceedingWhiteSpace is applied
  */
 function expandAbbr(input: ExpandAbbreviationInput, preceedingWhiteSpace: string, newLine: string): string {
-
+	// Expand the abbreviation
 	let expandedText = expand(input.abbreviation, getExpandOptions(input.syntax, input.textToWrap));
 	if (!expandedText) {
 		return;
 	}
 
+	// If no text to wrap, then return the expanded text	
 	if (!input.textToWrap) {
 		return expandedText;
 	}
 
-	return expandedText.split(newLine).map(line => preceedingWhiteSpace + line).join(newLine);
+	// There was text to wrap, and the final expanded text is multi line
+	// So add the preceedingWhiteSpace to each line
+	if (expandedText.indexOf('\n') > -1) {
+		return expandedText.split(newLine).map(line => preceedingWhiteSpace + line).join(newLine);
+	}
+
+	// There was text to wrap and the final expanded text is single line
+	// This can happen when the abbreviation was for an inline element
+	// Remove the preceeding newLine + tab and the ending newLine, that was added to textToWrap
+	// And re-expand the abbreviation
+	let regex = newLine === '\n' ? /^\n\t(.*)\n$/ : /^\r\n\t(.*)\r\n$/;
+	let matches = input.textToWrap.match(regex);
+	if (matches) {
+		input.textToWrap = matches[1];
+		return expandAbbr(input, preceedingWhiteSpace, newLine);
+	}
+
+	return preceedingWhiteSpace + expandedText;
 }
 
 function getSyntaxFromArgs(args: any): string {
