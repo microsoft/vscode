@@ -147,7 +147,7 @@ export class ExtensionLinter {
 
 			const text = document.getText();
 			const tokens = this.markdownIt.parse(text, {});
-			const tokensAndPositions = (function toTokensAndPositions(tokens: MarkdownIt.Token[], begin = 0, end = text.length): TokenAndPosition[] {
+			const tokensAndPositions = (function toTokensAndPositions(this: ExtensionLinter, tokens: MarkdownIt.Token[], begin = 0, end = text.length): TokenAndPosition[] {
 				const tokensAndPositions = tokens.map<TokenAndPosition>(token => {
 					if (token.map) {
 						const tokenBegin = document.offsetAt(new Position(token.map[0], 0));
@@ -158,22 +158,9 @@ export class ExtensionLinter {
 							end: tokenEnd
 						};
 					}
-					const content = token.type === 'image' && token.attrGet('src') || token.content;
-					if (content) {
-						const tokenBegin = text.indexOf(content, begin);
-						if (tokenBegin !== -1) {
-							const tokenEnd = tokenBegin + content.length;
-							if (tokenEnd <= end) {
-								begin = tokenEnd;
-								return {
-									token,
-									begin: tokenBegin,
-									end: tokenEnd
-								};
-							}
-						}
-					}
-					return {
+					const image = token.type === 'image' && this.locateToken(text, begin, end, token, token.attrGet('src'));
+					const other = image || this.locateToken(text, begin, end, token, token.content);
+					return other || {
 						token,
 						begin,
 						end: begin
@@ -181,9 +168,9 @@ export class ExtensionLinter {
 				});
 				return tokensAndPositions.concat(
 					...tokensAndPositions.filter(tnp => tnp.token.children && tnp.token.children.length)
-						.map(tnp => toTokensAndPositions(tnp.token.children, tnp.begin, tnp.end))
+						.map(tnp => toTokensAndPositions.call(this, tnp.token.children, tnp.begin, tnp.end))
 				);
-			})(tokens);
+			}).call(this, tokens);
 
 			const diagnostics: Diagnostic[] = [];
 
@@ -193,6 +180,12 @@ export class ExtensionLinter {
 					const begin = text.indexOf(src, inp.begin);
 					if (begin !== -1 && begin < inp.end) {
 						this.addDiagnostics(diagnostics, document, begin, begin + src.length, src, Context.MARKDOWN, info);
+					} else {
+						const content = inp.token.content;
+						const begin = text.indexOf(content, inp.begin);
+						if (begin !== -1 && begin < inp.end) {
+							this.addDiagnostics(diagnostics, document, begin, begin + content.length, src, Context.MARKDOWN, info);
+						}
 					}
 				});
 
@@ -229,6 +222,23 @@ export class ExtensionLinter {
 
 			this.diagnosticsCollection.set(document.uri, diagnostics);
 		};
+	}
+
+	private locateToken(text: string, begin: number, end: number, token: MarkdownIt.Token, content: string) {
+		if (content) {
+			const tokenBegin = text.indexOf(content, begin);
+			if (tokenBegin !== -1) {
+				const tokenEnd = tokenBegin + content.length;
+				if (tokenEnd <= end) {
+					begin = tokenEnd;
+					return {
+						token,
+						begin: tokenBegin,
+						end: tokenEnd
+					};
+				}
+			}
+		}
 	}
 
 	private readPackageJsonInfo(folder: Uri, tree: JsonNode) {
