@@ -328,4 +328,26 @@ suite('Editor contrib - Move Lines Command honors Indentation Rules', () => {
 
 		mode.dispose();
 	});
+
+	test('move line should still work as before if there is no indentation rules', () => {
+		testMoveLinesUpWithIndentCommand(
+			null,
+			[
+				'if (true) {',
+				'    var task = new Task(() => {',
+				'        var work = 1234;',
+				'    });',
+				'}'
+			],
+			new Selection(3, 1, 3, 1),
+			[
+				'if (true) {',
+				'        var work = 1234;',
+				'    var task = new Task(() => {',
+				'    });',
+				'}'
+			],
+			new Selection(2, 1, 2, 1)
+		);
+	});
 });
