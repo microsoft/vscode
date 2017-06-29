@@ -31,6 +31,6 @@ node build/tfs/common/installDistro.js --arch=$ARCH
 
 npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-min"
 
-./scripts/test.sh --xvfb --build --reporter dot
+# ./scripts/test.sh --xvfb --build --reporter dot
 
 ./build/tfs/linux/release.sh
