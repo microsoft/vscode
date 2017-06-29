@@ -41,3 +41,6 @@ To add new test, `./test/${area}.ts` should be updated. The same instruction-sty
 }
 ```
 2. In main.js add `--debug-brk=9999` as a first argument to the place where `out/mocha-runner.js` is spawned.
+
+# Screenshots
+Almost on every automated test action it captures a screenshot. These help to determine an issue, if smoke test fails. The normal workflow is that you understand what code is doing and then try to match it up with screenshots obtained from the test.
