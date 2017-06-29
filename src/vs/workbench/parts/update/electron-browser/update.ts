@@ -9,8 +9,6 @@ import nls = require('vs/nls');
 import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, Action } from 'vs/base/common/actions';
-import { mapEvent } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMessageService, CloseAction, Severity } from 'vs/platform/message/common/message';
 import pkg from 'vs/platform/node/package';
@@ -238,18 +236,48 @@ export class ProductContribution implements IWorkbenchContribution {
 	}
 }
 
-class CommandAction extends Action {
+export class UpdateContribution implements IWorkbenchContribution {
+
+	getId() { return 'vs.update'; }
 
 	constructor(
-		commandId: string,
-		label: string,
-		@ICommandService private commandService: ICommandService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IMessageService messageService: IMessageService,
+		@IUpdateService updateService: IUpdateService
 	) {
-		super(`command-action:${commandId}`, label, undefined, true, () => commandService.executeCommand(commandId));
+		updateService.onUpdateReady(update => {
+			const applyUpdateAction = instantiationService.createInstance(ApplyUpdateAction);
+			const releaseNotesAction = instantiationService.createInstance(ShowReleaseNotesAction, false, update.version);
+
+			messageService.show(severity.Info, {
+				message: nls.localize('updateAvailable', "{0} will be updated after it restarts.", product.nameLong),
+				actions: [applyUpdateAction, NotNowAction, releaseNotesAction]
+			});
+		});
+
+		updateService.onUpdateAvailable(update => {
+			const downloadAction = instantiationService.createInstance(DownloadAction, update.version);
+			const releaseNotesAction = instantiationService.createInstance(ShowReleaseNotesAction, false, update.version);
+
+			messageService.show(severity.Info, {
+				message: nls.localize('thereIsUpdateAvailable', "There is an available update."),
+				actions: [downloadAction, NotNowAction, releaseNotesAction]
+			});
+		});
+
+		updateService.onUpdateNotAvailable(explicit => {
+			if (!explicit) {
+				return;
+			}
+
+			messageService.show(severity.Info, nls.localize('noUpdatesAvailable', "There are no updates currently available."));
+		});
+
+		updateService.onError(err => messageService.show(severity.Error, err));
 	}
 }
 
-export class UpdateContribution implements IGlobalActivity {
+export class LightUpdateContribution implements IGlobalActivity {
 
 	private static readonly showCommandsId = 'workbench.action.showCommands';
 	private static readonly openSettingsId = 'workbench.action.openGlobalSettings';
@@ -260,111 +288,48 @@ export class UpdateContribution implements IGlobalActivity {
 	get id() { return 'vs.update'; }
 	get name() { return ''; }
 	get cssClass() { return 'update-activity'; }
-	private disposables: IDisposable[] = [];
 
 	constructor(
-		@IStorageService private storageService: IStorageService,
+		@IStorageService storageService: IStorageService,
 		@ICommandService private commandService: ICommandService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IMessageService private messageService: IMessageService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IMessageService messageService: IMessageService,
 		@IUpdateService private updateService: IUpdateService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IActivityBarService private activityBarService: IActivityBarService
+		@IActivityBarService activityBarService: IActivityBarService
 	) {
-		const onUpdateAvailable = isLinux
-			? mapEvent(updateService.onUpdateAvailable, e => e.version)
-			: mapEvent(updateService.onUpdateReady, e => e.version);
-
-		onUpdateAvailable(this.onUpdateAvailable, this, this.disposables);
-		updateService.onError(this.onError, this, this.disposables);
-		updateService.onUpdateNotAvailable(this.onUpdateNotAvailable, this, this.disposables);
-
-		/*
-		The `update/lastKnownVersion` and `update/updateNotificationTime` storage keys are used in
-		combination to figure out when to show a message to the user that he should update.
-
-		This message should appear if the user has received an update notification but hasn't
-		updated since 5 days.
-		*/
-
-		const currentVersion = product.commit;
-		const lastKnownVersion = this.storageService.get('update/lastKnownVersion', StorageScope.GLOBAL);
-
-		// if current version != stored version, clear both fields
-		if (currentVersion !== lastKnownVersion) {
-			this.storageService.remove('update/lastKnownVersion', StorageScope.GLOBAL);
-			this.storageService.remove('update/updateNotificationTime', StorageScope.GLOBAL);
-		}
-	}
-
-	private onUpdateAvailable(version: string): void {
-		const badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New update available."));
-		this.activityBarService.showGlobalActivity(this.id, badge);
-
-		const currentVersion = product.commit;
-		const currentMillis = new Date().getTime();
-		const lastKnownVersion = this.storageService.get('update/lastKnownVersion', StorageScope.GLOBAL);
-
-		// if version != stored version, save version and date
-		if (currentVersion !== lastKnownVersion) {
-			this.storageService.store('update/lastKnownVersion', currentVersion, StorageScope.GLOBAL);
-			this.storageService.store('update/updateNotificationTime', currentMillis, StorageScope.GLOBAL);
-		}
-
-		const updateNotificationMillis = this.storageService.getInteger('update/updateNotificationTime', StorageScope.GLOBAL, currentMillis);
-		const diffDays = (currentMillis - updateNotificationMillis) / (1000 * 60 * 60 * 24);
-
-		// if 5 days have passed from stored date, show message service
-		if (diffDays > 5) {
-			this.showUpdateNotification(version);
-		}
-	}
-
-	private showUpdateNotification(version: string): void {
-		const releaseNotesAction = this.instantiationService.createInstance(ShowReleaseNotesAction, false, version);
-
+		const addBadge = () => {
+			const badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New update available."));
+			activityBarService.showGlobalActivity(this.id, badge);
+		};
 		if (isLinux) {
-			const downloadAction = this.instantiationService.createInstance(DownloadAction, version);
-
-			this.messageService.show(severity.Info, {
-				message: nls.localize('thereIsUpdateAvailable', "There is an available update."),
-				actions: [downloadAction, NotNowAction, releaseNotesAction]
-			});
+			this.updateService.onUpdateAvailable(() => addBadge());
 		} else {
-			const applyUpdateAction = this.instantiationService.createInstance(ApplyUpdateAction);
-
-			this.messageService.show(severity.Info, {
-				message: nls.localize('updateAvailable', "{0} will be updated after it restarts.", product.nameLong),
-				actions: [applyUpdateAction, NotNowAction, releaseNotesAction]
-			});
-		}
-	}
-
-	private onUpdateNotAvailable(explicit: boolean): void {
-		if (!explicit) {
-			return;
+			this.updateService.onUpdateReady(() => addBadge());
 		}
 
-		this.messageService.show(severity.Info, nls.localize('noUpdatesAvailable', "There are no updates currently available."));
-	}
+		this.updateService.onError(err => messageService.show(severity.Error, err));
 
-	private onError(err: any): void {
-		this.messageService.show(severity.Error, err);
+		this.updateService.onUpdateNotAvailable(explicit => {
+			if (!explicit) {
+				return;
+			}
+
+			messageService.show(severity.Info, nls.localize('noUpdatesAvailable', "There are no updates currently available."));
+		});
 	}
 
 	getActions(): IAction[] {
-		const updateAction = this.getUpdateAction();
-
 		return [
-			new CommandAction(UpdateContribution.showCommandsId, nls.localize('commandPalette', "Command Palette..."), this.commandService),
+			new Action(LightUpdateContribution.showCommandsId, nls.localize('commandPalette', "Command Palette..."), undefined, true, () => this.commandService.executeCommand(LightUpdateContribution.showCommandsId)),
 			new Separator(),
-			new CommandAction(UpdateContribution.openSettingsId, nls.localize('settings', "Settings"), this.commandService),
-			new CommandAction(UpdateContribution.openKeybindingsId, nls.localize('keyboardShortcuts', "Keyboard Shortcuts"), this.commandService),
+			new Action(LightUpdateContribution.openSettingsId, nls.localize('settings', "Settings"), null, true, () => this.commandService.executeCommand(LightUpdateContribution.openSettingsId)),
+			new Action(LightUpdateContribution.openKeybindingsId, nls.localize('keyboardShortcuts', "Keyboard Shortcuts"), null, true, () => this.commandService.executeCommand(LightUpdateContribution.openKeybindingsId)),
 			new Separator(),
-			new CommandAction(UpdateContribution.selectColorThemeId, nls.localize('selectTheme.label', "Color Theme"), this.commandService),
-			new CommandAction(UpdateContribution.selectIconThemeId, nls.localize('themes.selectIconTheme.label', "File Icon Theme"), this.commandService),
+			new Action(LightUpdateContribution.selectColorThemeId, nls.localize('selectTheme.label', "Color Theme"), null, true, () => this.commandService.executeCommand(LightUpdateContribution.selectColorThemeId)),
+			new Action(LightUpdateContribution.selectIconThemeId, nls.localize('themes.selectIconTheme.label', "File Icon Theme"), null, true, () => this.commandService.executeCommand(LightUpdateContribution.selectIconThemeId)),
 			new Separator(),
-			updateAction
+			this.getUpdateAction()
 		];
 	}
 
@@ -396,9 +361,5 @@ export class UpdateContribution implements IGlobalActivity {
 				return new Action('update.check', nls.localize('checkForUpdates', "Check for Updates..."), undefined, this.updateService.state === UpdateState.Idle, () =>
 					this.updateService.checkForUpdates(true));
 		}
-	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
 	}
 }

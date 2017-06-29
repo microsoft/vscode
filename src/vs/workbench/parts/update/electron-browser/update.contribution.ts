@@ -8,6 +8,8 @@
 import * as nls from 'vs/nls';
 import 'vs/css!./media/update.contribution';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { isMacintosh } from 'vs/base/common/platform';
+import product from 'vs/platform/node/product';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ReleaseNotesEditor } from 'vs/workbench/parts/update/electron-browser/releaseNotesEditor';
 import { ReleaseNotesInput } from 'vs/workbench/parts/update/electron-browser/releaseNotesInput';
@@ -18,13 +20,18 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { ShowCurrentReleaseNotesAction, ProductContribution, UpdateContribution } from './update';
+import { ShowCurrentReleaseNotesAction, ProductContribution, UpdateContribution, LightUpdateContribution } from './update';
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(ProductContribution);
 
-Registry.as<IGlobalActivityRegistry>(GlobalActivityExtensions)
-	.registerActivity(UpdateContribution);
+if (isMacintosh || product.quality !== 'stable') {
+	Registry.as<IGlobalActivityRegistry>(GlobalActivityExtensions)
+		.registerActivity(LightUpdateContribution);
+} else {
+	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+		.registerWorkbenchContribution(UpdateContribution);
+}
 
 // Editor
 const editorDescriptor = new EditorDescriptor(
