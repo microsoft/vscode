@@ -1096,16 +1096,17 @@ export class ChangeEncodingAction extends Action {
 
 		return pickActionPromise.then(action => {
 			if (!action) {
-				return undefined;
+				return void 0;
 			}
 
-			const resource = toResource(activeEditor.input, { filter: 'file', supportSideBySide: true });
-			if (!resource) {
-				return TPromise.as(null);
-			}
+			const resource = toResource(activeEditor.input, { filter: ['file', 'untitled'], supportSideBySide: true });
 
 			return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */)
 				.then(() => {
+					if (!resource || resource.scheme !== 'file') {
+						return TPromise.as(null); // encoding detection only possible for file resources
+					}
+
 					return this.fileService.resolveContent(resource, { autoGuessEncoding: true, acceptTextOnly: true }).then(content => content.encoding, err => null);
 				})
 				.then((guessedEncoding: string) => {
