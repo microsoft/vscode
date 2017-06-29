@@ -33,10 +33,81 @@ declare module 'vscode' {
 	}
 
 	export namespace workspace {
-
+		/**
+		 * Get a configuration object.
+		 *
+		 * When a section-identifier is provided only that part of the configuration
+		 * is returned. Dots in the section-identifier are interpreted as child-access,
+		 * like `{ myExt: { setting: { doIt: true }}}` and `getConfiguration('myExt.setting').get('doIt') === true`.
+		 *
+		 * When a resource is provided, only configuration scoped to that resource
+		 * is returned.
+		 *
+		 * If editor is opened with `no folders` then returns the global configuration.
+		 *
+		 * If editor is opened with `folders` then returns the configuration from the folder in which the resource belongs to.
+		 *
+		 * If resource does not belongs to any opened folders, then returns the workspace configuration.
+		 *
+		 * @param section A dot-separated identifier.
+		 * @param resource A resource for which configuration is asked
+		 * @return The full workspace configuration or a subset.
+		 */
 		export function getConfiguration2(section?: string, resource?: Uri): WorkspaceConfiguration2;
 	}
 
+	/**
+	 * Represents the workspace configuration.
+	 *
+	 * The workspace configuration is a merged view of
+	 *
+	 * - Default configuration
+	 * - Global configuration
+	 * - Workspace configuration (if available)
+	 * - Folder configuration of the [resource](#workspace.getConfiguration2) (if requested and available)
+	 *
+	 * **Global configuration** comes from User Settings and shadows Defaults.
+	 *
+	 * **Workspace configuration** comes from the `.vscode` folder of the first [workspace folders](#workspace.workspaceFolders)
+	 * and shadows Globals configuration.
+	 *
+	 * **Folder configurations** comes from the `.vscode` folder of the [workspace folders](#workspace.workspaceFolders).
+	 * Requested resource determines which folder configuration to pick. Folder configuration shodows Workspace configuration.
+	 *
+	 * *Note:* Workspace and Folder configurations contains settings from `launch.json` and `tasks.json` files. Their basename will be
+	 * part of the section identifier. The following snippets shows how to retrieve all configurations
+	 * from `launch.json`:
+	 *
+	 * ```ts
+	 * // launch.json configuration
+	 * const config = workspace.getConfiguration('launch', workspace.workspaceFolders[1]);
+	 *
+	 * // retrieve values
+	 * const values = config.get('configurations');
+	 * ```
+	 */
+	export interface WorkspaceConfiguration2 extends WorkspaceConfiguration {
+
+		/**
+		 * Retrieve all information about a configuration setting. A configuration value
+		 * often consists of a *default* value, a global or installation-wide value,
+		 * a workspace-specific value and a folder-specific value.
+		 *
+		 * The *effective* value (returned by [`get`](#WorkspaceConfiguration.get))
+		 * is computed like this: `defaultValue` overwritten by `globalValue`,
+		 * `globalValue` overwritten by `workspaceValue`. `workspaceValue` overwritten by `folderValue`.
+		 *
+		 * *Note:* The configuration name must denote a leaf in the configuration tree
+		 * (`editor.fontSize` vs `editor`) otherwise no result is returned.
+		 *
+		 * @param section Configuration name, supports _dotted_ names.
+		 * @return Information about a configuration setting or `undefined`.
+		 */
+		inspect<T>(section: string): { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T, folderValue?: T } | undefined;
+
+	}
+
+>>>>>>> Add documentation for proposed configuration api
 	export namespace window {
 
 		export function sampleFunction(): Thenable<any>;
