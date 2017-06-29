@@ -1,14 +1,14 @@
 #!/bin/bash
 set -e
 
+. ./scripts/env.sh
+
 # set agent specific npm cache
 if [ -n "$AGENT_WORKFOLDER" ]
 then
 	export npm_config_cache="$AGENT_WORKFOLDER/npm-cache"
 	echo "Using npm cache: $npm_config_cache"
 fi
-
-. ./build/tfs/common/common.sh
 
 export ARCH="$1"
 export VSCODE_MIXIN_PASSWORD="$2"
