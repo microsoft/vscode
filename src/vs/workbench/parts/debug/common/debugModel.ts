@@ -43,14 +43,12 @@ export abstract class AbstractOutputElement implements IReplElement {
 
 export class OutputElement extends AbstractOutputElement {
 
-	public counter: number;
 
 	constructor(
 		public value: string,
 		public severity: severity,
 	) {
 		super();
-		this.counter = 1;
 	}
 
 	public toString(): string {
@@ -960,22 +958,16 @@ export class Model implements IModel {
 	public appendToRepl(output: string | IExpression, severity: severity): void {
 		if (typeof output === 'string') {
 			const previousOutput = this.replElements.length && (this.replElements[this.replElements.length - 1] as OutputElement);
-			const lastNonEmpty = previousOutput && previousOutput.value.trim() ? previousOutput : this.replElements.length > 1 ? this.replElements[this.replElements.length - 2] : undefined;
 
-			if (lastNonEmpty instanceof OutputElement && severity === lastNonEmpty.severity && lastNonEmpty.value === output.trim() && output.trim() && output.length > 1) {
-				// we got the same output (but not an empty string when trimmed) so we just increment the counter
-				lastNonEmpty.counter++;
-			} else {
-				const toAdd = output.split('\n').map(line => new OutputElement(line, severity));
-				if (previousOutput instanceof OutputElement && severity === previousOutput.severity && toAdd.length) {
-					previousOutput.value += toAdd.shift().value;
-				}
-				if (previousOutput && previousOutput.value === '' && previousOutput.severity !== severity) {
-					// remove potential empty lines between different output types
-					this.replElements.pop();
-				}
-				this.addReplElements(toAdd);
+			const toAdd = output.split('\n').map(line => new OutputElement(line, severity));
+			if (previousOutput instanceof OutputElement && severity === previousOutput.severity && toAdd.length) {
+				previousOutput.value += toAdd.shift().value;
 			}
+			if (previousOutput && previousOutput.value === '' && previousOutput.severity !== severity) {
+				// remove potential empty lines between different output types
+				this.replElements.pop();
+			}
+			this.addReplElements(toAdd);
 		} else {
 			// TODO@Isidor hack, we should introduce a new type which is an output that can fetch children like an expression
 			(<any>output).severity = severity;
