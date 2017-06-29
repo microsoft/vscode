@@ -284,7 +284,7 @@ class LanguageProvider {
 			this.disposables.push(languages.setLanguageConfiguration(modeId, {
 				indentationRules: {
 					// ^(.*\*/)?\s*\}.*$
-					decreaseIndentPattern: /^(.*\*\/)?\s*[\}\]\)].*$/,
+					decreaseIndentPattern: /^((?!.*?\/\*).*\*\/)?\s*[\}\]\)].*$/,
 					// ^.*\{[^}"']*$
 					increaseIndentPattern: /^.*(\{[^}"'`]*|\([^)"'`]*|\[[^\]"'`]*)$/,
 					indentNextLinePattern: /^\s*(for|while|if|else)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$)/
