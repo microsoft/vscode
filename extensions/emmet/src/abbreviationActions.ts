@@ -17,6 +17,7 @@ interface ExpandAbbreviationInput {
 	abbreviation: string;
 	rangeToReplace: vscode.Range;
 	textToWrap?: string;
+	preceedingWhiteSpace?: string;
 }
 
 export function wrapWithAbbreviation(args) {
@@ -34,7 +35,6 @@ export function wrapWithAbbreviation(args) {
 		let expandAbbrList: ExpandAbbreviationInput[] = [];
 		let firstTextToReplace: string;
 		let allTextToReplaceSame: boolean = true;
-		let preceedingWhiteSpace = '';
 
 		editor.selections.forEach(selection => {
 			let rangeToReplace: vscode.Range = selection.isReversed ? new vscode.Range(selection.active, selection.anchor) : selection;
@@ -42,17 +42,26 @@ export function wrapWithAbbreviation(args) {
 				rangeToReplace = new vscode.Range(rangeToReplace.start.line, 0, rangeToReplace.start.line, editor.document.lineAt(rangeToReplace.start.line).text.length);
 			}
 			const firstLine = editor.document.lineAt(rangeToReplace.start).text;
-			const matches = firstLine.match(/^(\s*)/);
-			if (matches) {
-				preceedingWhiteSpace = matches[1];
-			}
-			if (rangeToReplace.start.character <= preceedingWhiteSpace.length) {
-				rangeToReplace = new vscode.Range(rangeToReplace.start.line, 0, rangeToReplace.end.line, rangeToReplace.end.character);
-			}
+			const firstLineTillSelection = firstLine.substr(0, rangeToReplace.start.character);
+			const noTextBeforeSelection = /^\s*$/.test(firstLineTillSelection);
+			let textToWrap = '';
+			let preceedingWhiteSpace = '';
 
-			let textToWrap = newLine;
-			for (let i = rangeToReplace.start.line; i <= rangeToReplace.end.line; i++) {
-				textToWrap += '\t' + editor.document.lineAt(i).text.substr(preceedingWhiteSpace.length) + newLine;
+			if (noTextBeforeSelection) {
+				const matches = firstLine.match(/^(\s*)/);
+				if (matches) {
+					preceedingWhiteSpace = matches[1];
+				}
+				if (rangeToReplace.start.character <= preceedingWhiteSpace.length) {
+					rangeToReplace = new vscode.Range(rangeToReplace.start.line, 0, rangeToReplace.end.line, rangeToReplace.end.character);
+				}
+
+				textToWrap = newLine;
+				for (let i = rangeToReplace.start.line; i <= rangeToReplace.end.line; i++) {
+					textToWrap += '\t' + editor.document.lineAt(i).text.substr(preceedingWhiteSpace.length) + newLine;
+				}
+			} else {
+				textToWrap = editor.document.getText(rangeToReplace);
 			}
 
 			if (!firstTextToReplace) {
@@ -61,10 +70,10 @@ export function wrapWithAbbreviation(args) {
 				allTextToReplaceSame = false;
 			}
 
-			expandAbbrList.push({ syntax, abbreviation, rangeToReplace, textToWrap });
+			expandAbbrList.push({ syntax, abbreviation, rangeToReplace, textToWrap, preceedingWhiteSpace });
 		});
 
-		expandAbbreviationInRange(editor, expandAbbrList, syntax, allTextToReplaceSame, preceedingWhiteSpace);
+		expandAbbreviationInRange(editor, expandAbbrList, allTextToReplaceSame);
 	});
 }
 
@@ -108,7 +117,7 @@ export function expandAbbreviation(args) {
 		abbreviationList.push({ syntax, abbreviation, rangeToReplace });
 	});
 
-	expandAbbreviationInRange(editor, abbreviationList, syntax, allAbbreviationsSame);
+	expandAbbreviationInRange(editor, abbreviationList, allAbbreviationsSame);
 }
 
 
@@ -144,11 +153,9 @@ export function isValidLocationForEmmetAbbreviation(currentNode: Node, syntax: s
  * Expands abbreviations as detailed in expandAbbrList in the editor
  * @param editor
  * @param expandAbbrList
- * @param syntax
  * @param insertSameSnippet
- * @param preceedingWhiteSpace
  */
-function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: ExpandAbbreviationInput[], syntax: string, insertSameSnippet: boolean, preceedingWhiteSpace: string = '') {
+function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: ExpandAbbreviationInput[], insertSameSnippet: boolean) {
 	if (!expandAbbrList || expandAbbrList.length === 0) {
 		return;
 	}
@@ -159,7 +166,7 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 	// We will not be able to maintain multiple cursors after snippet insertion
 	if (!insertSameSnippet) {
 		expandAbbrList.forEach((expandAbbrInput: ExpandAbbreviationInput) => {
-			let expandedText = expandAbbr(expandAbbrInput, preceedingWhiteSpace, newLine);
+			let expandedText = expandAbbr(expandAbbrInput, newLine);
 			if (expandedText) {
 				editor.insertSnippet(new vscode.SnippetString(expandedText), expandAbbrInput.rangeToReplace);
 			}
@@ -171,7 +178,7 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 	// We can pass all ranges to `editor.insertSnippet` in a single call so that
 	// all cursors are maintained after snippet insertion
 	const anyExpandAbbrInput = expandAbbrList[0];
-	let expandedText = expandAbbr(anyExpandAbbrInput, preceedingWhiteSpace, newLine);
+	let expandedText = expandAbbr(anyExpandAbbrInput, newLine);
 	let allRanges = expandAbbrList.map(value => {
 		return value.rangeToReplace;
 	});
@@ -184,7 +191,7 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
  * Expands abbreviation as detailed in given input.
  * If there is textToWrap, then given preceedingWhiteSpace is applied
  */
-function expandAbbr(input: ExpandAbbreviationInput, preceedingWhiteSpace: string, newLine: string): string {
+function expandAbbr(input: ExpandAbbreviationInput, newLine: string): string {
 	// Expand the abbreviation
 	let expandedText = expand(input.abbreviation, getExpandOptions(input.syntax, input.textToWrap));
 	if (!expandedText) {
@@ -199,7 +206,7 @@ function expandAbbr(input: ExpandAbbreviationInput, preceedingWhiteSpace: string
 	// There was text to wrap, and the final expanded text is multi line
 	// So add the preceedingWhiteSpace to each line
 	if (expandedText.indexOf('\n') > -1) {
-		return expandedText.split(newLine).map(line => preceedingWhiteSpace + line).join(newLine);
+		return expandedText.split(newLine).map(line => input.preceedingWhiteSpace + line).join(newLine);
 	}
 
 	// There was text to wrap and the final expanded text is single line
@@ -210,10 +217,10 @@ function expandAbbr(input: ExpandAbbreviationInput, preceedingWhiteSpace: string
 	let matches = input.textToWrap.match(regex);
 	if (matches) {
 		input.textToWrap = matches[1];
-		return expandAbbr(input, preceedingWhiteSpace, newLine);
+		return expandAbbr(input, newLine);
 	}
 
-	return preceedingWhiteSpace + expandedText;
+	return input.preceedingWhiteSpace + expandedText;
 }
 
 function getSyntaxFromArgs(args: any): string {
