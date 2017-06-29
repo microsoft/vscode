@@ -43,14 +43,16 @@ class TerminalDecoder {
 	// See https://en.wikipedia.org/wiki/ANSI_escape_code & http://stackoverflow.com/questions/25189651/how-to-remove-ansi-control-chars-vt100-from-a-java-string &
 	// https://www.npmjs.com/package/strip-ansi
 	private static ANSI_CONTROL_SEQUENCE: RegExp = /\x1b[[()#;?]*(?:\d{1,4}(?:;\d{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
+	private static OPERATING_SYSTEM_COMMAND_SEQUENCE: RegExp = /\x1b[\]](?:.*)(?:\x07|\x1b\\)/g;
 
 	private remaining: string;
 
 	public write(data: string): string[] {
 		let result: string[] = [];
+		data = data.replace(TerminalDecoder.ANSI_CONTROL_SEQUENCE, '').replace(TerminalDecoder.OPERATING_SYSTEM_COMMAND_SEQUENCE, '');
 		let value = this.remaining
-			? this.remaining + data.replace(TerminalDecoder.ANSI_CONTROL_SEQUENCE, '')
-			: data.replace(TerminalDecoder.ANSI_CONTROL_SEQUENCE, '');
+			? this.remaining + data
+			: data;
 
 		if (value.length < 1) {
 			return result;
