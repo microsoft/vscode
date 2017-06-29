@@ -74,7 +74,7 @@ import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
 import { ITaskSystem, ITaskResolver, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskSystemEvents, TaskTerminateResponse } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { Task, CustomTask, ConfiguringTask, ContributedTask, TaskSet, TaskGroup, ExecutionEngine, JsonSchemaVersion, TaskSourceKind, TaskIdentifier } from 'vs/workbench/parts/tasks/common/tasks';
-import { ITaskService, TaskServiceEvents, ITaskProvider, TaskEvent, RunOptions } from 'vs/workbench/parts/tasks/common/taskService';
+import { ITaskService, TaskServiceEvents, ITaskProvider, TaskEvent, RunOptions, CustomizationProperties } from 'vs/workbench/parts/tasks/common/taskService';
 import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
 import * as TaskConfig from '../node/taskConfiguration';
@@ -114,9 +114,9 @@ abstract class OpenTaskConfigurationAction extends Action {
 		let sideBySide = !!(event && (event.ctrlKey || event.metaKey));
 		let configFileCreated = false;
 		return this.fileService.resolveFile(this.contextService.toResource('.vscode/tasks.json')).then((success) => { // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
+
 			return success;
 		}, (err: any) => {
-			;
 			return this.quickOpenService.pick(taskTemplates, { placeHolder: nls.localize('ConfigureTaskRunnerAction.quickPick.template', 'Select a Task Runner') }).then(selection => {
 				if (!selection) {
 					return undefined;
@@ -665,6 +665,14 @@ class TaskService extends EventEmitter implements ITaskService {
 			}
 			this.runTestCommand();
 		});
+
+		CommandsRegistry.registerCommand('workbench.action.tasks.configureDefaultBuildTask', () => {
+			this.runConfigureDefaultBuildTask();
+		});
+
+		CommandsRegistry.registerCommand('workbench.action.tasks.configureDefaultTestTask', () => {
+			this.runConfigureDefaultTestTask();
+		});
 	}
 
 	private showOutput(): void {
@@ -810,7 +818,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (!toExecute) {
 				throw new TaskError(Severity.Info, nls.localize('TaskServer.noTask', 'Requested task {0} to execute not found.', requested), TaskErrors.TaskNotFound);
 			} else {
-				if (options && options.attachProblemMatcher && this.canCustomize() && toExecute.group === TaskGroup.Build && (toExecute.problemMatchers === void 0 || toExecute.problemMatchers.length === 0)) {
+				if (options && options.attachProblemMatcher && this.shouldAttachProblemMatcher(toExecute)) {
 					return this.attachProblemMatcher(toExecute).then((toExecute) => {
 						if (toExecute) {
 							return this.executeTask(toExecute, resolver);
@@ -827,9 +835,24 @@ class TaskService extends EventEmitter implements ITaskService {
 		});
 	}
 
+	private shouldAttachProblemMatcher(task: Task): boolean {
+		if (!this.canCustomize()) {
+			return false;
+		}
+		if (task.problemMatchers !== void 0 && task.problemMatchers.length > 0) {
+			return false;
+		}
+		if (task._source.config === void 0 && ContributedTask.is(task)) {
+			return true;
+		}
+		let configProperties: TaskConfig.ConfigurationProperties = task._source.config.element;
+		return configProperties.problemMatcher === void 0;
+	}
+
 	private attachProblemMatcher(task: Task): TPromise<Task> {
 		interface ProblemMatcherPickEntry extends IPickOpenEntry {
 			matcher: NamedProblemMatcher;
+			never?: boolean;
 			learnMore?: boolean;
 		}
 		let entries: ProblemMatcherPickEntry[] = [];
@@ -849,8 +872,9 @@ class TaskService extends EventEmitter implements ITaskService {
 			entries = entries.sort((a, b) => a.label.localeCompare(b.label));
 			entries[0].separator = { border: true };
 			entries.unshift(
-				{ label: nls.localize('continueWithout', 'Continue without scanning the build output'), matcher: undefined },
-				{ label: nls.localize('learnMoreAbout', 'Learn more about scanning the build output'), matcher: undefined, learnMore: true }
+				{ label: nls.localize('TaskService.attachProblemMatcher.continueWithout', 'Continue without scanning the build output'), matcher: undefined },
+				{ label: nls.localize('TaskService.attachProblemMatcher.never', 'Never scan the build output'), matcher: undefined, never: true },
+				{ label: nls.localize('TaskService.attachProblemMatcher.learnMoreAbout', 'Learn more about scanning the build output'), matcher: undefined, learnMore: true }
 			);
 			return this.quickOpenService.pick(entries, {
 				placeHolder: nls.localize('selectProblemMatcher', 'Select for which kind of errors and warnings to scan the build output'),
@@ -860,6 +884,9 @@ class TaskService extends EventEmitter implements ITaskService {
 					if (selected.learnMore) {
 						this.openDocumentation();
 						return undefined;
+					} else if (selected.never) {
+						this.customize(task, { problemMatcher: [] }, true);
+						return task;
 					} else if (selected.matcher) {
 						let newTask = Objects.deepClone(task);
 						let matcherReference = `$${selected.matcher.name}`;
@@ -895,20 +922,19 @@ class TaskService extends EventEmitter implements ITaskService {
 		return this.getJsonSchemaVersion() === JsonSchemaVersion.V2_0_0;
 	}
 
-	public customize(task: Task, properties?: { problemMatcher: string | string[] }, openConfig?: boolean): TPromise<void> {
+	public customize(task: Task, properties?: CustomizationProperties, openConfig?: boolean): TPromise<void> {
 		let configuration = this.getConfiguration();
 		if (configuration.hasParseErrors) {
 			this.messageService.show(Severity.Warning, nls.localize('customizeParseErrors', 'The current task configuration has errors. Please fix the errors first before customizing a task.'));
 			return TPromise.as<void>(undefined);
 		}
 		let fileConfig = configuration.config;
-		let index: number = -1;
-		if (fileConfig) {
-			index = TaskConfig.findTaskIndex(fileConfig, task);
-		}
+		let index: number;
 		let toCustomize: TaskConfig.CustomTask | TaskConfig.ConfiguringTask;
-		if (index !== void 0 && index !== -1) {
-			toCustomize = fileConfig.tasks[index];
+		let taskConfig = task._source.config;
+		if (taskConfig && taskConfig.element) {
+			index = taskConfig.index;
+			toCustomize = taskConfig.element;
 		} else if (ContributedTask.is(task)) {
 			toCustomize = {
 			};
@@ -950,17 +976,22 @@ class TaskService extends EventEmitter implements ITaskService {
 			promise = this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json'), content).then(() => { }); // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
 		} else {
 			let value: IConfigurationValue = { key: undefined, value: undefined };
-			if (Array.isArray(fileConfig.tasks)) {
-				if (index === void 0 || index === -1) {
+			// We have a global task configuration
+			if (index === -1) {
+				value.key = 'tasks.problemMatchers';
+				value.value = [toCustomize];
+			} else {
+				if (!Array.isArray(fileConfig.tasks)) {
+					fileConfig.tasks = [];
+				}
+				value.key = 'tasks.tasks';
+				value.value = fileConfig.tasks;
+				if (index === void 0) {
 					fileConfig.tasks.push(toCustomize);
 				} else {
 					fileConfig.tasks[index] = toCustomize;
 				}
-			} else {
-				fileConfig.tasks = [toCustomize];
 			}
-			value.key = 'tasks.tasks';
-			value.value = fileConfig.tasks;
 			promise = this.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, value);
 		};
 		return promise.then(() => {
@@ -1494,7 +1525,7 @@ class TaskService extends EventEmitter implements ITaskService {
 					? this.getConfigureAction(buildError.code)
 					: new Action(
 						'workbench.action.tasks.terminate',
-						nls.localize('TerminateAction.label', "Terminate Running Task"),
+						nls.localize('TerminateAction.label', "Terminate Task"),
 						undefined, true, () => { this.runTerminateCommand(); return TPromise.as<void>(undefined); });
 				closeAction.closeFunction = this.messageService.show(buildError.severity, { message: buildError.message, actions: [action, closeAction] });
 			} else {
@@ -1630,6 +1661,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			}
 			let primaries: Task[] = [];
 			for (let task of tasks) {
+				// We only have build tasks here
 				if (task.isDefaultGroupEntry) {
 					primaries.push(task);
 				}
@@ -1672,6 +1704,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			}
 			let primaries: Task[] = [];
 			for (let task of tasks) {
+				// We only have test task here.
 				if (task.isDefaultGroupEntry) {
 					primaries.push(task);
 				}
@@ -1751,6 +1784,71 @@ class TaskService extends EventEmitter implements ITaskService {
 			});
 		}
 	}
+
+	private runConfigureDefaultBuildTask(): void {
+		if (!this.canRunCommand()) {
+			return;
+		}
+		if (this.inTerminal()) {
+			this.tasks().then((tasks => {
+				if (tasks.length === 0) {
+					this.configureBuildTask().run();
+					return;
+				}
+				let defaultTask: Task;
+				for (let task of tasks) {
+					if (task.group === TaskGroup.Build && task.isDefaultGroupEntry) {
+						defaultTask = task;
+						break;
+					}
+				}
+				if (defaultTask) {
+					this.messageService.show(Severity.Info, nls.localize('TaskService.defaultBuildTaskExists', '{0} is already marked as the default build task.', defaultTask._label));
+					return;
+				}
+				this.showQuickPick(tasks, nls.localize('TaskService.pickDefaultBuildTask', 'Select the task to be used as the default build task'), true).then((task) => {
+					if (!task) {
+						return;
+					}
+					this.customize(task, { group: { kind: 'build', isDefault: true } }, true);
+				});
+			}));
+		} else {
+			this.configureBuildTask().run();
+		}
+	}
+
+	private runConfigureDefaultTestTask(): void {
+		if (!this.canRunCommand()) {
+			return;
+		}
+		if (this.inTerminal()) {
+			this.tasks().then((tasks => {
+				if (tasks.length === 0) {
+					this.configureAction().run();
+				}
+				let defaultTask: Task;
+				for (let task of tasks) {
+					if (task.group === TaskGroup.Test && task.isDefaultGroupEntry) {
+						defaultTask = task;
+						break;
+					}
+				}
+				if (defaultTask) {
+					this.messageService.show(Severity.Info, nls.localize('TaskService.defaultTestTaskExists', '{0} is already marked as the default test task.', defaultTask._label));
+					return;
+				}
+				this.showQuickPick(tasks, nls.localize('TaskService.pickDefaultTestTask', 'Select the task to be used as the default test task'), true).then((task) => {
+					if (!task) {
+						return;
+					}
+					this.customize(task, { group: { kind: 'test', isDefault: true } }, true);
+				});
+			}));
+		} else {
+			this.configureAction().run();
+		}
+	}
 }
 
 
@@ -1759,10 +1857,12 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(Config
 
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.showLog', title: { value: nls.localize('ShowLogAction.label', "Show Task Log"), original: 'Show Task Log' }, category: { value: tasksCategory, original: 'Tasks' } });
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.runTask', title: { value: nls.localize('RunTaskAction.label', "Run Task"), original: 'Run Task' }, category: { value: tasksCategory, original: 'Tasks' } });
-MenuRegistry.addCommand({ id: 'workbench.action.tasks.restartTask', title: { value: nls.localize('RestartTaskAction.label', "Restart Task"), original: 'Restart Task' }, category: { value: tasksCategory, original: 'Tasks' } });
-MenuRegistry.addCommand({ id: 'workbench.action.tasks.terminate', title: { value: nls.localize('TerminateAction.label', "Terminate Running Task"), original: 'Terminate Running Task' }, category: { value: tasksCategory, original: 'Tasks' } });
+MenuRegistry.addCommand({ id: 'workbench.action.tasks.restartTask', title: { value: nls.localize('RestartTaskAction.label', "Restart Running Task"), original: 'Restart Running Task' }, category: { value: tasksCategory, original: 'Tasks' } });
+MenuRegistry.addCommand({ id: 'workbench.action.tasks.terminate', title: { value: nls.localize('TerminateAction.label', "Terminate Task"), original: 'Terminate Task' }, category: { value: tasksCategory, original: 'Tasks' } });
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.build', title: { value: nls.localize('BuildAction.label', "Run Build Task"), original: 'Run Build Task' }, category: { value: tasksCategory, original: 'Tasks' } });
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.test', title: { value: nls.localize('TestAction.label', "Run Test Task"), original: 'Run Test Task' }, category: { value: tasksCategory, original: 'Tasks' } });
+MenuRegistry.addCommand({ id: 'workbench.action.tasks.configureDefaultBuildTask', title: { value: nls.localize('ConfigureDefaultBuildTask.label', "Configure Default Build Task"), original: 'Configure Default Build Task' }, category: { value: tasksCategory, original: 'Tasks' } });
+MenuRegistry.addCommand({ id: 'workbench.action.tasks.configureDefaultTestTask', title: { value: nls.localize('ConfigureDefaultTestTask.label', "Configure Default Test Task"), original: 'Configure Default Test Task' }, category: { value: tasksCategory, original: 'Tasks' } });
 // MenuRegistry.addCommand( { id: 'workbench.action.tasks.rebuild', title: nls.localize('RebuildAction.label', 'Run Rebuild Task'), category: tasksCategory });
 // MenuRegistry.addCommand( { id: 'workbench.action.tasks.clean', title: nls.localize('CleanAction.label', 'Run Clean Task'), category: tasksCategory });
 

@@ -224,6 +224,10 @@ export interface TaskSource {
 	kind: TaskSourceKind;
 	label: string;
 	detail?: string;
+	config?: {
+		index: number;
+		element: any;
+	};
 }
 
 export interface TaskIdentifier {

@@ -1118,7 +1118,7 @@ namespace ConfiguringTask {
 		customize: string;
 	}
 
-	export function from(this: void, external: ConfiguringTask, context: ParseContext): Tasks.ConfiguringTask {
+	export function from(this: void, external: ConfiguringTask, context: ParseContext, index: number): Tasks.ConfiguringTask {
 		if (!external) {
 			return undefined;
 		}
@@ -1158,7 +1158,7 @@ namespace ConfiguringTask {
 			type: type,
 			configures: taskIdentifier,
 			_id: taskIdentifier._key,
-			_source: source,
+			_source: Objects.assign({}, source, { config: { index, element: external } }),
 			_label: undefined
 		};
 		let configuration = ConfigurationProperties.from(external, context, true);
@@ -1189,7 +1189,7 @@ namespace ConfiguringTask {
 
 namespace CustomTask {
 
-	export function from(this: void, external: CustomTask, context: ParseContext): Tasks.CustomTask {
+	export function from(this: void, external: CustomTask, context: ParseContext, index: number): Tasks.CustomTask {
 		if (!external) {
 			return undefined;
 		}
@@ -1210,7 +1210,7 @@ namespace CustomTask {
 		let result: Tasks.CustomTask = {
 			type: 'custom',
 			_id: context.uuidMap.getUUID(taskName),
-			_source: source,
+			_source: Objects.assign({}, source, { config: { index, element: external } }),
 			_label: taskName,
 			name: taskName,
 			identifier: taskName,
@@ -1273,10 +1273,10 @@ namespace CustomTask {
 		}
 	}
 
-	export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfigurationProperties & { _id: string }): Tasks.CustomTask {
+	export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfigurationProperties & { _id: string, _source: Tasks.TaskSource }): Tasks.CustomTask {
 		let result: Tasks.CustomTask = {
 			_id: configuredProps._id,
-			_source: source,
+			_source: configuredProps._source,
 			_label: configuredProps.name || contributedTask._label,
 			type: 'custom',
 			command: contributedTask.command,
@@ -1330,9 +1330,10 @@ namespace TaskParser {
 		let defaultTestTask: { task: Tasks.Task; rank: number; } = { task: undefined, rank: -1 };
 		let schema2_0_0: boolean = context.schemaVersion === Tasks.JsonSchemaVersion.V2_0_0;
 
-		for (let external of externals) {
+		for (let index = 0; index < externals.length; index++) {
+			let external = externals[index];
 			if (isCustomTask(external)) {
-				let customTask = CustomTask.from(external, context);
+				let customTask = CustomTask.from(external, context, index);
 				if (customTask) {
 					CustomTask.fillGlobals(customTask, globals);
 					CustomTask.fillDefaults(customTask, context);
@@ -1380,7 +1381,7 @@ namespace TaskParser {
 					result.custom.push(customTask);
 				}
 			} else {
-				let configuredTask = ConfiguringTask.from(external, context);
+				let configuredTask = ConfiguringTask.from(external, context, index);
 				if (configuredTask) {
 					result.configured.push(configuredTask);
 				}
@@ -1453,11 +1454,12 @@ namespace TaskParser {
 			return undefined;
 		}
 		let result: (Tasks.CustomTask | Tasks.ConfiguringTask)[] = [];
-		for (let external of externals) {
+		for (let index = 0; index < externals.length; index++) {
+			let external = externals[index];
 			if (isCustomTask(external)) {
-				result.push(CustomTask.from(external, context));
+				result.push(CustomTask.from(external, context, index));
 			} else {
-				result.push(ConfiguringTask.from(external, context));
+				result.push(ConfiguringTask.from(external, context, index));
 			}
 		}
 		return result;
@@ -1739,7 +1741,7 @@ class ConfigurationParser {
 			let isBackground = fileConfig.isBackground ? !!fileConfig.isBackground : fileConfig.isWatching ? !!fileConfig.isWatching : undefined;
 			let task: Tasks.CustomTask = {
 				_id: context.uuidMap.getUUID(globals.command.name),
-				_source: source,
+				_source: Objects.assign({}, source, { config: { index: -1, element: fileConfig } }),
 				_label: globals.command.name,
 				type: 'custom',
 				name: globals.command.name,
@@ -1781,7 +1783,7 @@ export function parse(configuration: ExternalTaskRunnerConfiguration, logger: IP
 	}
 }
 
-export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfigurationProperties & { _id: string }): Tasks.CustomTask {
+export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfigurationProperties & { _id: string; _source: Tasks.TaskSource }): Tasks.CustomTask {
 	return CustomTask.createCustomTask(contributedTask, configuredProps);
 }
 
