@@ -978,8 +978,17 @@ class TaskService extends EventEmitter implements ITaskService {
 			let value: IConfigurationValue = { key: undefined, value: undefined };
 			// We have a global task configuration
 			if (index === -1) {
-				value.key = 'tasks.problemMatchers';
-				value.value = [toCustomize];
+				if (properties.problemMatcher !== void 0) {
+					fileConfig.problemMatcher = properties.problemMatcher;
+					value.key = 'tasks.problemMatchers';
+					value.value = fileConfig.problemMatcher;
+					promise = this.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, value);
+				} else if (properties.group !== void 0) {
+					fileConfig.group = properties.group;
+					value.key = 'tasks.group';
+					value.value = fileConfig.group;
+					promise = this.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, value);
+				}
 			} else {
 				if (!Array.isArray(fileConfig.tasks)) {
 					fileConfig.tasks = [];
@@ -991,9 +1000,12 @@ class TaskService extends EventEmitter implements ITaskService {
 				} else {
 					fileConfig.tasks[index] = toCustomize;
 				}
+				promise = this.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, value);
 			}
-			promise = this.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, value);
 		};
+		if (!promise) {
+			return TPromise.as(undefined);
+		}
 		return promise.then(() => {
 			let event: TaskCustomizationTelementryEvent = {
 				properties: properties ? Object.getOwnPropertyNames(properties) : []

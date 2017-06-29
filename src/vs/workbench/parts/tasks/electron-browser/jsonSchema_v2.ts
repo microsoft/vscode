@@ -120,7 +120,13 @@ const group: IJSONSchema = {
 			}
 		},
 	],
-	enum: [{ kind: 'build', isDefault: true }, { kind: 'test', isDefault: true }, 'build', 'test', 'none', { kind: 'build', isDefault: false }, { kind: 'test', isDefault: false }],
+	enum: [
+		{ kind: 'build', isDefault: true },
+		{ kind: 'test', isDefault: true },
+		'build',
+		'test',
+		'none'
+	],
 	enumDescriptions: [
 		nls.localize('JsonSchema.tasks.group.defaultBuild', 'Marks the tasks as the default build task.'),
 		nls.localize('JsonSchema.tasks.group.defaultTest', 'Marks the tasks as the default test task.'),
