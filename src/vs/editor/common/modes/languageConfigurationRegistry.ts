@@ -294,7 +294,7 @@ export class LanguageConfigurationRegistryImpl {
 					return resultLineNumber;
 				}
 				let text = model.getLineContent(lastLineNumber);
-				if (indentRulesSupport.shouldIgnore(text) || text === '') {
+				if (indentRulesSupport.shouldIgnore(text) || /^\s+$/.test(text) || text === '') {
 					resultLineNumber = lastLineNumber;
 					continue;
 				}
