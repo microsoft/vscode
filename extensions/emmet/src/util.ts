@@ -10,10 +10,10 @@ import { DocumentStreamReader } from './bufferStream';
 import { isStyleSheet } from 'vscode-emmet-helper';
 
 export const LANGUAGE_MODES: Object = {
-	'html': ['!', '.', '}'],
-	'jade': ['!', '.', '}'],
-	'slim': ['!', '.', '}'],
-	'haml': ['!', '.', '}'],
+	'html': ['!', '.', '}', ':'],
+	'jade': ['!', '.', '}', ':'],
+	'slim': ['!', '.', '}', ':'],
+	'haml': ['!', '.', '}', ':'],
 	'xml': ['.', '}'],
 	'xsl': ['.', '}'],
 	'css': [':'],
