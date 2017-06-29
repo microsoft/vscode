@@ -328,7 +328,7 @@ export class ExplorerView extends CollapsibleView {
 					lastActiveFileResource = URI.parse(this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE]);
 				}
 
-				if (lastActiveFileResource && this.isCreated && this.model.findFirst(lastActiveFileResource)) {
+				if (lastActiveFileResource && this.isCreated && this.model.findClosest(lastActiveFileResource)) {
 					this.editorService.openEditor({ resource: lastActiveFileResource, options: { revealIfVisible: true } }).done(null, errors.onUnexpectedError);
 
 					return refreshPromise;
@@ -606,8 +606,8 @@ export class ExplorerView extends CollapsibleView {
 				}
 
 				// Compute if parent is visible and added file not yet part of it
-				const parentStat = this.model.findFirst(URI.file(parent));
-				if (parentStat && parentStat.isDirectoryResolved && !this.model.findFirst(change.resource)) {
+				const parentStat = this.model.findClosest(URI.file(parent));
+				if (parentStat && parentStat.isDirectoryResolved && !this.model.findClosest(change.resource)) {
 					return true;
 				}
 
@@ -624,7 +624,7 @@ export class ExplorerView extends CollapsibleView {
 					continue; // out of workspace file
 				}
 
-				if (this.model.findFirst(del.resource)) {
+				if (this.model.findClosest(del.resource)) {
 					return true;
 				}
 			}
@@ -765,7 +765,7 @@ export class ExplorerView extends CollapsibleView {
 			// If it is a brand new tree just expand elements from memento
 			const expanded = this.explorerViewer.getExpandedElements();
 			const statsToExpand = expanded.length ? [this.model.roots[0]].concat(expanded) :
-				targetsToExpand.map(expand => this.model.findFirst(expand));
+				targetsToExpand.map(expand => this.model.findClosest(expand));
 
 			// Display roots only when there is more than 1 root
 			// Make sure to expand all folders that where expanded in the previous session
@@ -826,7 +826,7 @@ export class ExplorerView extends CollapsibleView {
 			return TPromise.as(null);
 		}
 
-		const fileStat = this.model.findFirst(resource);
+		const fileStat = this.model.findClosest(resource);
 		if (fileStat) {
 			return this.doSelect(fileStat, reveal);
 		}
