@@ -342,7 +342,6 @@ export class SearchResult extends Disposable {
 	private _fileMatches: ResourceMap<FileMatch>;
 	private _unDisposedFileMatches: ResourceMap<FileMatch>;
 	private _query: ISearchQuery = null;
-	private _maxResults: number;
 	private _showHighlights: boolean;
 	private _replacingAll: boolean = false;
 
@@ -360,10 +359,6 @@ export class SearchResult extends Disposable {
 		this._query = query;
 	}
 
-	public set maxResults(maxResults: number) {
-		this._maxResults = maxResults;
-	}
-
 	public get searchModel(): SearchModel {
 		return this._searchModel;
 	}
@@ -372,7 +367,7 @@ export class SearchResult extends Disposable {
 		let changed: FileMatch[] = [];
 		raw.forEach((rawFileMatch) => {
 			if (!this._fileMatches.has(rawFileMatch.resource)) {
-				let fileMatch = this.instantiationService.createInstance(FileMatch, this._query.contentPattern, this._maxResults, this, rawFileMatch);
+				let fileMatch = this.instantiationService.createInstance(FileMatch, this._query.contentPattern, this._query.maxResults, this, rawFileMatch);
 				this.doAdd(fileMatch);
 				changed.push(fileMatch);
 				let disposable = fileMatch.onChange(() => this.onFileChange(fileMatch));
@@ -567,7 +562,6 @@ export class SearchModel extends Disposable {
 		this.searchResult.clear();
 
 		this._searchResult.query = this._searchQuery;
-		this._searchResult.maxResults = this._searchQuery.maxResults;
 		this._replacePattern = new ReplacePattern(this._replaceString, this._searchQuery.contentPattern);
 
 		const onDone = fromPromise(this.currentRequest);
