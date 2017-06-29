@@ -6,6 +6,8 @@
 'use strict';
 
 import assert = require('assert');
+import platform = require('vs/base/common/platform');
+
 import { NsfwWatcherService } from 'vs/workbench/services/files/node/watcher/nsfw/nsfwWatcherService';
 import { IWatcherRequest } from 'vs/workbench/services/files/node/watcher/nsfw/watcher';
 
@@ -22,6 +24,10 @@ class TestNsfwWatcherService extends NsfwWatcherService {
 suite('NSFW Watcher Service', () => {
 	suite('_normalizeRoots', () => {
 		test('should not impacts roots that don\'t overlap', () => {
+			if (platform.isWindows) {
+				return;
+			}
+
 			const service = new TestNsfwWatcherService();
 			assert.deepEqual(service.normalizeRoots(['/a']), ['/a']);
 			assert.deepEqual(service.normalizeRoots(['/a', '/b']), ['/a', '/b']);
@@ -29,6 +35,10 @@ suite('NSFW Watcher Service', () => {
 		});
 
 		test('should remove sub-folders of other roots', () => {
+			if (platform.isWindows) {
+				return;
+			}
+
 			const service = new TestNsfwWatcherService();
 			assert.deepEqual(service.normalizeRoots(['/a', '/a/b']), ['/a']);
 			assert.deepEqual(service.normalizeRoots(['/a', '/b', '/a/b']), ['/a', '/b']);
