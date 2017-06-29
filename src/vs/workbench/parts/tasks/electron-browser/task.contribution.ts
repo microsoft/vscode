@@ -897,7 +897,7 @@ class TaskService extends EventEmitter implements ITaskService {
 						return task;
 					}
 				} else {
-					return task;
+					return undefined;
 				}
 			});
 		}
