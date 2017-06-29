@@ -537,12 +537,12 @@ export class CodeMenu {
 		let multiCursorModifierLabel: string;
 		if (this.currentMultiCursorModifierSetting === 'ctrlCmd') {
 			// The default has been overwritten
-			multiCursorModifierLabel = nls.localize('miMultiCursorAlt', "Use Alt+Click for Multi-Cursor");
+			multiCursorModifierLabel = nls.localize('miMultiCursorAlt', "Switch to Alt+Click for Multi-Cursor");
 		} else {
 			multiCursorModifierLabel = (
 				isMacintosh
-					? nls.localize('miMultiCursorCmd', "Use Cmd+Click for Multi-Cursor")
-					: nls.localize('miMultiCursorCtrl', "Use Ctrl+Click for Multi-Cursor")
+					? nls.localize('miMultiCursorCmd', "Switch to Cmd+Click for Multi-Cursor")
+					: nls.localize('miMultiCursorCtrl', "Switch to Ctrl+Click for Multi-Cursor")
 			);
 		}
 
