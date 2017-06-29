@@ -23,7 +23,7 @@ if (!process.env['VSCODE_USE_LEGACY_WATCH']) {
 	try {
 		watch = require('./watch-nsfw');
 	} catch (err) {
-		console.warn('Could not load NSFW watcher');
+		console.warn('Could not load NSFW watcher: ' + err.toString());
 	}
 }
 
