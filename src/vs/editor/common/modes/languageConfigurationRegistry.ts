@@ -473,6 +473,10 @@ export class LanguageConfigurationRegistryImpl {
 						indentation = indentConverter.unshiftIndent(indentation);
 					}
 
+					if (indentRulesSupport.shouldDecrease(lineContent)) {
+						indentation = indentConverter.unshiftIndent(indentation);
+					}
+
 					if (enterResult.appendText) {
 						indentation += enterResult.appendText;
 					}

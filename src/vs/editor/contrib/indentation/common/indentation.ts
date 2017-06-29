@@ -462,61 +462,63 @@ export class AutoIndentOnPaste implements IEditorContribution {
 			return;
 		}
 
-		let indentOfFirstLine = LanguageConfigurationRegistry.getGoodIndentForLine(model, model.getLanguageIdentifier().id, startLineNumber, indentConverter);
+		let firstLineText = model.getLineContent(startLineNumber);
+		if (!/\S/.test(firstLineText.substring(0, range.startColumn - 1))) {
+			let indentOfFirstLine = LanguageConfigurationRegistry.getGoodIndentForLine(model, model.getLanguageIdentifier().id, startLineNumber, indentConverter);
 
-		if (indentOfFirstLine !== null) {
-			let firstLineText = model.getLineContent(startLineNumber);
-			let oldIndentation = strings.getLeadingWhitespace(firstLineText);
-			let newSpaceCnt = IndentUtil.getSpaceCnt(indentOfFirstLine, tabSize);
-			let oldSpaceCnt = IndentUtil.getSpaceCnt(oldIndentation, tabSize);
+			if (indentOfFirstLine !== null) {
+				let oldIndentation = strings.getLeadingWhitespace(firstLineText);
+				let newSpaceCnt = IndentUtil.getSpaceCnt(indentOfFirstLine, tabSize);
+				let oldSpaceCnt = IndentUtil.getSpaceCnt(oldIndentation, tabSize);
 
-			if (newSpaceCnt !== oldSpaceCnt) {
-				let newIndent = IndentUtil.generateIndent(newSpaceCnt, tabSize, insertSpaces);
-				textEdits.push({
-					range: new Range(startLineNumber, 1, startLineNumber, oldIndentation.length + 1),
-					text: newIndent
-				});
-				firstLineText = newIndent + firstLineText.substr(oldIndentation.length);
+				if (newSpaceCnt !== oldSpaceCnt) {
+					let newIndent = IndentUtil.generateIndent(newSpaceCnt, tabSize, insertSpaces);
+					textEdits.push({
+						range: new Range(startLineNumber, 1, startLineNumber, oldIndentation.length + 1),
+						text: newIndent
+					});
+					firstLineText = newIndent + firstLineText.substr(oldIndentation.length);
+				}
 			}
+		}
 
-			if (startLineNumber !== range.endLineNumber) {
-				let virtualModel = {
-					getLineTokens: (lineNumber: number) => {
-						return model.getLineTokens(lineNumber);
-					},
-					getLanguageIdentifier: () => {
-						return model.getLanguageIdentifier();
-					},
-					getLanguageIdAtPosition: (lineNumber: number, column: number) => {
-						return model.getLanguageIdAtPosition(lineNumber, column);
-					},
-					getLineContent: (lineNumber) => {
-						if (lineNumber === startLineNumber) {
-							return firstLineText;
-						} else {
-							return model.getLineContent(lineNumber);
-						}
+		if (startLineNumber !== range.endLineNumber) {
+			let virtualModel = {
+				getLineTokens: (lineNumber: number) => {
+					return model.getLineTokens(lineNumber);
+				},
+				getLanguageIdentifier: () => {
+					return model.getLanguageIdentifier();
+				},
+				getLanguageIdAtPosition: (lineNumber: number, column: number) => {
+					return model.getLanguageIdAtPosition(lineNumber, column);
+				},
+				getLineContent: (lineNumber) => {
+					if (lineNumber === startLineNumber) {
+						return firstLineText;
+					} else {
+						return model.getLineContent(lineNumber);
 					}
-				};
-				let indentOfSecondLine = LanguageConfigurationRegistry.getGoodIndentForLine(virtualModel, model.getLanguageIdentifier().id, startLineNumber + 1, indentConverter);
-				let newSpaceCntOfSecondLine = IndentUtil.getSpaceCnt(indentOfSecondLine, tabSize);
-				let oldSpaceCntOfSecondLine = IndentUtil.getSpaceCnt(strings.getLeadingWhitespace(model.getLineContent(startLineNumber + 1)), tabSize);
+				}
+			};
+			let indentOfSecondLine = LanguageConfigurationRegistry.getGoodIndentForLine(virtualModel, model.getLanguageIdentifier().id, startLineNumber + 1, indentConverter);
+			let newSpaceCntOfSecondLine = IndentUtil.getSpaceCnt(indentOfSecondLine, tabSize);
+			let oldSpaceCntOfSecondLine = IndentUtil.getSpaceCnt(strings.getLeadingWhitespace(model.getLineContent(startLineNumber + 1)), tabSize);
 
-				if (newSpaceCntOfSecondLine !== oldSpaceCntOfSecondLine) {
-					let spaceCntOffset = newSpaceCntOfSecondLine - oldSpaceCntOfSecondLine;
-					for (let i = startLineNumber + 1; i <= range.endLineNumber; i++) {
-						let lineContent = model.getLineContent(i);
-						let originalIndent = strings.getLeadingWhitespace(lineContent);
-						let originalSpacesCnt = IndentUtil.getSpaceCnt(originalIndent, tabSize);
-						let newSpacesCnt = originalSpacesCnt + spaceCntOffset;
-						let newIndent = IndentUtil.generateIndent(newSpacesCnt, tabSize, insertSpaces);
+			if (newSpaceCntOfSecondLine !== oldSpaceCntOfSecondLine) {
+				let spaceCntOffset = newSpaceCntOfSecondLine - oldSpaceCntOfSecondLine;
+				for (let i = startLineNumber + 1; i <= range.endLineNumber; i++) {
+					let lineContent = model.getLineContent(i);
+					let originalIndent = strings.getLeadingWhitespace(lineContent);
+					let originalSpacesCnt = IndentUtil.getSpaceCnt(originalIndent, tabSize);
+					let newSpacesCnt = originalSpacesCnt + spaceCntOffset;
+					let newIndent = IndentUtil.generateIndent(newSpacesCnt, tabSize, insertSpaces);
 
-						if (newIndent !== originalIndent) {
-							textEdits.push({
-								range: new Range(i, 1, i, originalIndent.length + 1),
-								text: newIndent
-							});
-						}
+					if (newIndent !== originalIndent) {
+						textEdits.push({
+							range: new Range(i, 1, i, originalIndent.length + 1),
+							text: newIndent
+						});
 					}
 				}
 			}
