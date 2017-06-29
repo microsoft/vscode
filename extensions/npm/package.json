@@ -4,7 +4,6 @@
   "description": "Extension to add task support for npm scripts.",
   "displayName": "Npm support for VSCode",
   "version": "0.0.1",
-  "enableProposedApi": true,
   "engines": {
     "vscode": "0.10.x"
   },

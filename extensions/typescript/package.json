@@ -10,7 +10,6 @@
   "engines": {
     "vscode": "*"
   },
-  "enableProposedApi": true,
   "dependencies": {
     "semver": "4.3.6",
     "vscode-extension-telemetry": "0.0.7",

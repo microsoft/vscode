@@ -440,9 +440,9 @@ export function createApiFactory(
 			getConfiguration2: proposedApiFunction(extension, (section?: string, resource?: vscode.Uri): vscode.WorkspaceConfiguration => {
 				return extHostConfiguration.getConfiguration2(section, <URI>resource);
 			}),
-			registerTaskProvider: proposedApiFunction(extension, (type: string, provider: vscode.TaskProvider) => {
+			registerTaskProvider: (type: string, provider: vscode.TaskProvider) => {
 				return extHostTask.registerTaskProvider(extension, provider);
-			})
+			}
 		};
 
 		// namespace: scm

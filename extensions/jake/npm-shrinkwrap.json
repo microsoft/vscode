@@ -1,0 +1,17 @@
+{
+  "name": "jake",
+  "version": "0.0.1",
+  "dependencies": {
+    "@types/node": {
+      "version": "7.0.32",
+      "from": "@types/node@>=7.0.18 <8.0.0",
+      "resolved": "https://registry.npmjs.org/@types/node/-/node-7.0.32.tgz",
+      "dev": true
+    },
+    "vscode-nls": {
+      "version": "2.0.2",
+      "from": "vscode-nls@>=2.0.2 <3.0.0",
+      "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-2.0.2.tgz"
+    }
+  }
+}
