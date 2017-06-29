@@ -49,7 +49,8 @@ class TerminalDecoder {
 
 	public write(data: string): string[] {
 		let result: string[] = [];
-		data = data.replace(TerminalDecoder.ANSI_CONTROL_SEQUENCE, '').replace(TerminalDecoder.OPERATING_SYSTEM_COMMAND_SEQUENCE, '');
+		data = data.replace(TerminalDecoder.ANSI_CONTROL_SEQUENCE, '');
+		data = data.replace(TerminalDecoder.OPERATING_SYSTEM_COMMAND_SEQUENCE, '');
 		let value = this.remaining
 			? this.remaining + data
 			: data;
