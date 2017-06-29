@@ -255,6 +255,9 @@
 }
 
 .hc-black .monaco-editor .debug-top-stack-frame-line {
-	background: rgba(255, 246, 0, .8);
-	mix-blend-mode: lighten; /* Preserves text selection's contrast */
+	background: rgba(255, 246, 0, 1);
+}
+
+.hc-black .monaco-editor .debug-remove-token-colors {
+	color:black;
 }
