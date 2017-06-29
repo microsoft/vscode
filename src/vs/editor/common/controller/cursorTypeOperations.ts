@@ -312,18 +312,19 @@ export class TypeOperations {
 		let indentation = strings.getLeadingWhitespace(lineText).substring(0, range.startColumn - 1);
 
 		if (ir) {
-			let beforeText = '\n';
 			let isSelectionEmpty = range.isEmpty();
+			let oldEndColumn = CursorColumns.visibleColumnFromColumn2(config, model, range.getEndPosition());
+			if (!config.insertSpaces) {
+				oldEndColumn = Math.ceil(oldEndColumn / config.tabSize) + 1;
+			}
+
+			let beforeText = '\n';
 			if (indentation !== config.normalizeIndentation(ir.beforeEnter)) {
 				beforeText = config.normalizeIndentation(ir.beforeEnter) + lineText.substring(indentation.length, range.startColumn - 1) + '\n';
 				range = new Range(range.startLineNumber, 1, range.endLineNumber, range.endColumn);
 			}
 
 			let newLineContent = model.getLineContent(range.endLineNumber);
-			let oldEndColumn = CursorColumns.visibleColumnFromColumn2(config, model, range.getEndPosition());
-			if (!config.insertSpaces) {
-				oldEndColumn = Math.ceil(oldEndColumn / config.tabSize) + 1;
-			}
 			let firstNonWhitespace = strings.firstNonWhitespaceIndex(newLineContent);
 			if (firstNonWhitespace >= 0) {
 				range = range.setEndPosition(range.endLineNumber, Math.max(range.endColumn, firstNonWhitespace + 1));
