@@ -31,6 +31,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { DirtyFilesTracker } from 'vs/workbench/parts/files/common/dirtyFilesTracker';
+import { SortOrderConfiguration } from 'vs/platform/explorer/common/explorer';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ToggleViewletAction {
@@ -317,10 +318,15 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('enableDragAndDrop', "Controls if the explorer should allow to move files and folders via drag and drop."),
 			'default': true
 		},
-		'explorer.dirsFirst': {
-			'type': 'boolean',
-			'description': nls.localize('dirsFirst', "Controls if directories should be listed before files."),
-			'default': true
+		'explorer.sortOrder': {
+			'type': 'string',
+			'enum': [SortOrderConfiguration.DEFAULT, SortOrderConfiguration.MIXED],
+			'default': SortOrderConfiguration.DEFAULT,
+			'enumDescriptions': [
+				nls.localize('sortOrder.default', 'Files and directories are sorted by their names, in alphabetical order. Directories are displayed before files.'),
+				nls.localize('sortOrder.mixed', 'Files and directories are sorted by their names, in alphabetical order. Files are interwoven with directories.')
+			],
+			'description': nls.localize('sortOrder', "Controls the way of sorting files and directories.")
 		}
 	}
 });

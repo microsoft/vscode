@@ -557,8 +557,8 @@ export class DefaultSorter implements ISorter {
 	}
 }
 
-// Through Sorter
-export class ThroughSorter implements ISorter {
+// Mixed Sorter
+export class MixedSorter implements ISorter {
 
 	public compare(tree: ITree, statA: FileStat, statB: FileStat): number {
 		if (statA instanceof NewStatPlaceholder) {

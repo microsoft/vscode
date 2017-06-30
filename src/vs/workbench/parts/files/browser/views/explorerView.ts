@@ -15,12 +15,12 @@ import paths = require('vs/base/common/paths');
 import { Action, IAction } from 'vs/base/common/actions';
 import { prepareActions } from 'vs/workbench/browser/actions';
 import { memoize } from 'vs/base/common/decorators';
-import { ITree } from 'vs/base/parts/tree/browser/tree';
+import { ITree, ISorter } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocussedContext, ExplorerFocussedContext } from 'vs/workbench/parts/files/common/files';
 import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileChange, IFileService } from 'vs/platform/files/common/files';
 import { RefreshViewExplorerAction, NewFolderAction, NewFileAction } from 'vs/workbench/parts/files/browser/fileActions';
-import { FileDragAndDrop, FileFilter, DefaultSorter, ThroughSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/browser/views/explorerViewer';
+import { FileDragAndDrop, FileFilter, DefaultSorter, MixedSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/browser/views/explorerViewer';
 import { toResource } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -45,6 +45,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { ViewSizing } from 'vs/base/browser/ui/splitview/splitview';
+import { SortOrderConfiguration } from 'vs/platform/explorer/common/explorer';
 
 export interface IExplorerViewOptions extends IViewletViewOptions {
 	viewletState: FileViewletState;
@@ -81,7 +82,7 @@ export class ExplorerView extends CollapsibleView {
 
 	private autoReveal: boolean;
 
-	private dirsFirst: boolean;
+	private sortOrder: string;
 
 	private settings: any;
 
@@ -244,11 +245,11 @@ export class ExplorerView extends CollapsibleView {
 			needsRefresh = this.filter.updateConfiguration();
 		}
 
-		// Check if dirsFirst value changed
-		const configDirsFirst = !configuration || !configuration.explorer || configuration.explorer.dirsFirst;
-		if (this.dirsFirst !== configDirsFirst) {
-			this.dirsFirst = configDirsFirst;
-			const sorter = this.dirsFirst ? new DefaultSorter() : new ThroughSorter();
+		// Check if sortOrder value changed
+		const configSortOrder = configuration && configuration.explorer && configuration.explorer.sortOrder;
+		if (this.sortOrder !== configSortOrder) {
+			this.sortOrder = configSortOrder;
+			const sorter = this.getSorter(this.sortOrder);
 			(<Tree>this.explorerViewer).setSorter(sorter);
 			needsRefresh = true;
 		}
@@ -368,7 +369,7 @@ export class ExplorerView extends CollapsibleView {
 		const dataSource = this.instantiationService.createInstance(FileDataSource);
 		const renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState);
 		const controller = this.instantiationService.createInstance(FileController, this.viewletState);
-		const sorter = !config || !config.explorer || config.explorer.dirsFirst ? new DefaultSorter() : new ThroughSorter();
+		const sorter = this.getSorter(config && config.explorer && config.explorer.sortOrder);
 		this.filter = this.instantiationService.createInstance(FileFilter);
 		const dnd = this.instantiationService.createInstance(FileDragAndDrop);
 		const accessibilityProvider = this.instantiationService.createInstance(FileAccessibilityProvider);
@@ -421,6 +422,15 @@ export class ExplorerView extends CollapsibleView {
 		}));
 
 		return this.explorerViewer;
+	}
+
+	private getSorter(sortOrder: string): ISorter {
+		switch (sortOrder) {
+			case SortOrderConfiguration.MIXED:
+				return new MixedSorter();
+			default:
+				return new DefaultSorter();
+		}
 	}
 
 	public getOptimalWidth(): number {
