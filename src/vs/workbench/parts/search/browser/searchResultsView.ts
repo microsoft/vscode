@@ -79,7 +79,10 @@ export class SearchDataSource implements IDataSource {
 
 	public shouldAutoexpand(tree: ITree, element: any): boolean {
 		const numChildren = this._getChildren(element).length;
-		return numChildren > 0 && numChildren < SearchDataSource.AUTOEXPAND_CHILD_LIMIT;
+		if (numChildren <= 0) {
+			return false;
+		}
+		return numChildren < SearchDataSource.AUTOEXPAND_CHILD_LIMIT || element instanceof FolderMatch;
 	}
 }
 
