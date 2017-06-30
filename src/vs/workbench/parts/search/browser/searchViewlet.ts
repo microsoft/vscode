@@ -893,13 +893,33 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	public searchInFolder(resource: URI): void {
+		let folderPath = null;
+		const workspace = this.contextService.getWorkspace2();
+		if (workspace) {
+			if (workspace.roots.length === 1) {
+				// Fallback to old way for single root workspace
+				folderPath = this.contextService.toWorkspaceRelativePath(resource);
+				if (folderPath && folderPath !== '.') {
+					folderPath = './' + folderPath;
+				}
+			} else {
+				folderPath = resource.fsPath;
+			}
+		}
+
+		if (!folderPath || folderPath === '.') {
+			this.inputPatternIncludes.setValue('');
+			this.searchWidget.focus();
+			return;
+		}
+
 		// Show 'files to include' box
 		if (!this.showsFileTypes()) {
 			this.toggleQueryDetails(true, true);
 		}
 
 		this.inputPatternIncludes.setIsGlobPattern(false);
-		this.inputPatternIncludes.setValue(resource.fsPath);
+		this.inputPatternIncludes.setValue(folderPath);
 		this.searchWidget.focus(false);
 	}
 
