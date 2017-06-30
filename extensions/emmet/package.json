@@ -31,17 +31,17 @@
                         "inMarkupAndStylesheetFilesOnly"
                     ],
                     "default": "inMarkupAndStylesheetFilesOnly",
-                    "description": "Shows expanded emmet abbreviations as suggestions.\nThe option \"inMarkupAndStylesheetFilesOnly\" applies to html, haml, jade, slim, xml, xsl, css, scss, sass, less and stylus.\nThe option \"always\" applies to all parts of the file regardless of markup/css."
+                    "description": "Applicable only when emmet.useNewEmmet is set to true.\nShows expanded emmet abbreviations as suggestions.\nThe option \"inMarkupAndStylesheetFilesOnly\" applies to html, haml, jade, slim, xml, xsl, css, scss, sass, less and stylus.\nThe option \"always\" applies to all parts of the file regardless of markup/css."
                 },
                 "emmet.showAbbreviationSuggestions": {
                     "type": "boolean",
                     "default": true,
-                    "description": "Shows possible emmet abbreviations as suggestions. Not applicable in stylesheets or when emmet.showExpandedAbbreviation is set to \"never\"."
+                    "description": "Applicable only when emmet.useNewEmmet is set to true.\nShows possible emmet abbreviations as suggestions. Not applicable in stylesheets or when emmet.showExpandedAbbreviation is set to \"never\"."
                 },
                 "emmet.includeLanguages": {
                     "type": "object",
                     "default": {},
-                    "description": "Enable emmet abbreviations in languages that are not supported by default. Add a mapping here between the language and emmet supported language.\n Eg: {\"vue-html\": \"html\", \"javascript\": \"javascriptreact\"}"
+                    "description": "Applicable only when emmet.useNewEmmet is set to true.\nEnable emmet abbreviations in languages that are not supported by default. Add a mapping here between the language and emmet supported language.\n Eg: {\"vue-html\": \"html\", \"javascript\": \"javascriptreact\"}"
                 },
                 "emmet.variables":{
                     "type": "object",
@@ -56,7 +56,7 @@
                         }
                     },
                     "default":{},
-                    "description": "Variables to be used in emmet snippets"
+                    "description": "Applicable only when emmet.useNewEmmet is set to true.\nVariables to be used in emmet snippets"
                 }
             }
         }
