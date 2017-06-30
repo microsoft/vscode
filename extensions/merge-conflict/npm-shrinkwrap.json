@@ -2,12 +2,6 @@
   "name": "merge-conflict",
   "version": "0.7.0",
   "dependencies": {
-    "@types/node": {
-      "version": "7.0.33",
-      "from": "@types/node@>=7.0.4 <8.0.0",
-      "resolved": "https://registry.npmjs.org/@types/node/-/node-7.0.33.tgz",
-      "dev": true
-    },
     "applicationinsights": {
       "version": "0.18.0",
       "from": "applicationinsights@0.18.0",
