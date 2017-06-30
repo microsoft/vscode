@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as path from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
@@ -612,6 +613,39 @@ export class FilesFirstSorter implements ISorter {
 		}
 
 		return comparers.compareFileNames(statA.name, statB.name);
+	}
+}
+
+// Type Sorter
+export class TypeSorter implements ISorter {
+
+	public compare(tree: ITree, statA: FileStat, statB: FileStat): number {
+		if (statA.isDirectory && !statB.isDirectory) {
+			return -1;
+		}
+
+		if (statB.isDirectory && !statA.isDirectory) {
+			return 1;
+		}
+
+		if (statA instanceof NewStatPlaceholder) {
+			return -1;
+		}
+
+		if (statB instanceof NewStatPlaceholder) {
+			return 1;
+		}
+
+		// Do not sort roots
+		if (statA.isRoot) {
+			return -1;
+		}
+
+		if (statB.isRoot) {
+			return 1;
+		}
+
+		return comparers.compareFileNames(path.extname(statA.name), path.extname(statB.name));
 	}
 }
 
