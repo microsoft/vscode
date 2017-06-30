@@ -348,7 +348,7 @@ export class FolderMatch extends Disposable {
 
 	public replacingAll: boolean = false;
 
-	constructor(private _resource: URI, private _query: ISearchQuery, private _parent: SearchResult, private _searchModel: SearchModel, @IReplaceService private replaceService: IReplaceService, @ITelemetryService private telemetryService: ITelemetryService,
+	constructor(private _resource: URI, private _index: number, private _query: ISearchQuery, private _parent: SearchResult, private _searchModel: SearchModel, @IReplaceService private replaceService: IReplaceService, @ITelemetryService private telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService) {
 		super();
 		this._fileMatches = new ResourceMap<FileMatch>();
@@ -369,6 +369,10 @@ export class FolderMatch extends Disposable {
 
 	public resource(): URI {
 		return this._resource;
+	}
+
+	public index(): number {
+		return this._index;
 	}
 
 	public name(): string {
@@ -503,8 +507,8 @@ export class SearchResult extends Disposable {
 		this.clear();
 		this._query = query;
 		this._queryWorkspace.roots = (query.folderQueries || []).map((fq) => fq.folder);
-		this._queryWorkspace.roots.forEach((resource) => {
-			let folderMatch = this.instantiationService.createInstance(FolderMatch, resource, query, this, this._searchModel);
+		this._queryWorkspace.roots.forEach((resource, index) => {
+			let folderMatch = this.instantiationService.createInstance(FolderMatch, resource, index, query, this, this._searchModel);
 			this._folderMatches.set(resource, folderMatch);
 			let disposable = folderMatch.onChange((event) => this._onChange.fire(event));
 			folderMatch.onDispose(() => disposable.dispose());

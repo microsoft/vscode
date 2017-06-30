@@ -90,7 +90,7 @@ export class SearchSorter implements ISorter {
 
 	public compare(tree: ITree, elementA: FileMatchOrMatch, elementB: FileMatchOrMatch): number {
 		if (elementA instanceof FolderMatch && elementB instanceof FolderMatch) {
-			return elementA.resource().fsPath.localeCompare(elementB.resource().fsPath);
+			return elementA.index() - elementB.index();
 		}
 
 		if (elementA instanceof FileMatch && elementB instanceof FileMatch) {
