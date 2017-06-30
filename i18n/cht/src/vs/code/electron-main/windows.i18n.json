@@ -13,5 +13,7 @@
 	"appStalled": "視窗已沒有回應",
 	"appStalledDetail": "您可以重新開啟或關閉視窗，或是繼續等候。",
 	"appCrashed": "視窗已損毀",
-	"appCrashedDetail": "很抱歉造成您的不便! 您可以重新開啟視窗，從您離開的地方繼續進行。"
+	"appCrashedDetail": "很抱歉造成您的不便! 您可以重新開啟視窗，從您離開的地方繼續進行。",
+	"openFile": "開啟檔案",
+	"openFolder": "開啟資料夾"
 }

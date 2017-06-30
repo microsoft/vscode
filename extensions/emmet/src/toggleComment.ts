@@ -4,11 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { getNodesInBetween, getNode } from './util';
-import parse from '@emmetio/html-matcher';
-import parseStylesheet from '@emmetio/css-parser';
+import { getNodesInBetween, getNode, parse } from './util';
 import { Node, Stylesheet } from 'EmmetNode';
-import { DocumentStreamReader } from './bufferStream';
 import { isStyleSheet } from 'vscode-emmet-helper';
 
 const startCommentStylesheet = '/*';
@@ -26,24 +23,22 @@ export function toggleComment() {
 	let toggleCommentInternal;
 	let startComment;
 	let endComment;
-	let parseContent;
 
 	if (isStyleSheet(editor.document.languageId)) {
-		parseContent = parseStylesheet;
 		toggleCommentInternal = toggleCommentStylesheet;
 		startComment = startCommentStylesheet;
 		endComment = endCommentStylesheet;
 	} else {
-		parseContent = parse;
 		toggleCommentInternal = toggleCommentHTML;
 		startComment = startCommentHTML;
 		endComment = endCommentHTML;
 	}
 
-	let rootNode = parseContent(new DocumentStreamReader(editor.document));
+	let rootNode = parse(editor.document);
 	if (!rootNode) {
 		return;
 	}
+
 	editor.edit(editBuilder => {
 		editor.selections.reverse().forEach(selection => {
 			let [rangesToUnComment, rangeToComment] = toggleCommentInternal(editor.document, selection, rootNode);

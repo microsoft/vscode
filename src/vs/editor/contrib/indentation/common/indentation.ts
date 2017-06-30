@@ -502,23 +502,25 @@ export class AutoIndentOnPaste implements IEditorContribution {
 				}
 			};
 			let indentOfSecondLine = LanguageConfigurationRegistry.getGoodIndentForLine(virtualModel, model.getLanguageIdentifier().id, startLineNumber + 1, indentConverter);
-			let newSpaceCntOfSecondLine = IndentUtil.getSpaceCnt(indentOfSecondLine, tabSize);
-			let oldSpaceCntOfSecondLine = IndentUtil.getSpaceCnt(strings.getLeadingWhitespace(model.getLineContent(startLineNumber + 1)), tabSize);
+			if (indentOfSecondLine !== null) {
+				let newSpaceCntOfSecondLine = IndentUtil.getSpaceCnt(indentOfSecondLine, tabSize);
+				let oldSpaceCntOfSecondLine = IndentUtil.getSpaceCnt(strings.getLeadingWhitespace(model.getLineContent(startLineNumber + 1)), tabSize);
 
-			if (newSpaceCntOfSecondLine !== oldSpaceCntOfSecondLine) {
-				let spaceCntOffset = newSpaceCntOfSecondLine - oldSpaceCntOfSecondLine;
-				for (let i = startLineNumber + 1; i <= range.endLineNumber; i++) {
-					let lineContent = model.getLineContent(i);
-					let originalIndent = strings.getLeadingWhitespace(lineContent);
-					let originalSpacesCnt = IndentUtil.getSpaceCnt(originalIndent, tabSize);
-					let newSpacesCnt = originalSpacesCnt + spaceCntOffset;
-					let newIndent = IndentUtil.generateIndent(newSpacesCnt, tabSize, insertSpaces);
+				if (newSpaceCntOfSecondLine !== oldSpaceCntOfSecondLine) {
+					let spaceCntOffset = newSpaceCntOfSecondLine - oldSpaceCntOfSecondLine;
+					for (let i = startLineNumber + 1; i <= range.endLineNumber; i++) {
+						let lineContent = model.getLineContent(i);
+						let originalIndent = strings.getLeadingWhitespace(lineContent);
+						let originalSpacesCnt = IndentUtil.getSpaceCnt(originalIndent, tabSize);
+						let newSpacesCnt = originalSpacesCnt + spaceCntOffset;
+						let newIndent = IndentUtil.generateIndent(newSpacesCnt, tabSize, insertSpaces);
 
-					if (newIndent !== originalIndent) {
-						textEdits.push({
-							range: new Range(i, 1, i, originalIndent.length + 1),
-							text: newIndent
-						});
+						if (newIndent !== originalIndent) {
+							textEdits.push({
+								range: new Range(i, 1, i, originalIndent.length + 1),
+								text: newIndent
+							});
+						}
 					}
 				}
 			}

@@ -312,11 +312,8 @@ export class TypeOperations {
 		let indentation = strings.getLeadingWhitespace(lineText).substring(0, range.startColumn - 1);
 
 		if (ir) {
-			let isSelectionEmpty = range.isEmpty();
-			let oldEndColumn = CursorColumns.visibleColumnFromColumn2(config, model, range.getEndPosition());
-			if (!config.insertSpaces) {
-				oldEndColumn = Math.ceil(oldEndColumn / config.tabSize) + 1;
-			}
+			let oldEndViewColumn = CursorColumns.visibleColumnFromColumn2(config, model, range.getEndPosition());
+			let oldEndColumn = range.endColumn;
 
 			let beforeText = '\n';
 			if (indentation !== config.normalizeIndentation(ir.beforeEnter)) {
@@ -335,7 +332,13 @@ export class TypeOperations {
 			if (keepPosition) {
 				return new ReplaceCommandWithoutChangingPosition(range, beforeText + config.normalizeIndentation(ir.afterEnter), true);
 			} else {
-				let offset = isSelectionEmpty ? oldEndColumn - config.normalizeIndentation(ir.afterEnter).length - 1 : 0;
+				let offset = 0;
+				if (oldEndColumn <= firstNonWhitespace + 1) {
+					if (!config.insertSpaces) {
+						oldEndViewColumn = Math.ceil(oldEndViewColumn / config.tabSize);
+					}
+					offset = Math.min(oldEndViewColumn + 1 - config.normalizeIndentation(ir.afterEnter).length - 1, 0);
+				}
 				return new ReplaceCommandWithOffsetCursorState(range, beforeText + config.normalizeIndentation(ir.afterEnter), 0, offset, true);
 			}
 

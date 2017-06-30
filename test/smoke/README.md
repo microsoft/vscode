@@ -1,7 +1,11 @@
 # VS Code Smoke Testing
-The following command is used to run the tests: `npm test -- --latest "path/to/binary"`.
 
-If you want to include 'Data Migration' area tests use  `npm test -- --latest path/to/binary --stable path/to/currentStable` respectively.
+- Run `npm install`
+- Start the tests: `npm test -- --latest "path/to/binary"`.
+
+If you want to include 'Data Migration' area tests use  `npm test -- --latest path/to/binary --stable path/to/currentStable` respectively. 
+
+Detailed prerequisites and running steps are described [in our smoke test wiki](https://github.com/Microsoft/vscode/wiki/Smoke-Test#automated-smoke-test).
 
 # Architecture
 * `main.js` is used to prepare all smoke test dependencies (fetching key bindings and 'Express' repository, running `npm install` there).

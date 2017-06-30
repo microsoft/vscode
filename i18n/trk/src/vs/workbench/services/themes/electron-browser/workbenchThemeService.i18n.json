@@ -23,6 +23,7 @@
 	"error.cannotparseicontheme": "Dosya simgeleri dosyasını ayrıştırma sorunları: {0}",
 	"colorTheme": "Çalışma ekranında kullanılan renk temasını belirtir.",
 	"colorThemeError": "Tema bilinmiyor veya yüklenmemiş.",
+	"iconTheme": "Çalışma ekranında kullanılan simge temasını veya hiçbir dosya simgesi göstermemek için 'null' belirtir.",
 	"noIconThemeDesc": "Dosya simgesi yok",
 	"iconThemeError": "Dosya simgesi teması bilinmiyor veya yüklenmemiş.",
 	"workbenchColors": "Şu an seçili renk temasındaki renkleri geçersiz kılar.",

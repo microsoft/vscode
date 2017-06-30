@@ -2498,27 +2498,218 @@ suite('Editor Controller - Indentation Rules', () => {
 		});
 	});
 
-	// test('Enter supports intentional indentation', () => {
-	// 	usingCursor({
-	// 		text: [
-	// 			'\tif (true) {',
-	// 			'\t\tswitch(true) {',
-	// 			'\t\t\tcase true:',
-	// 			'\t\t\t\tbreak;',
-	// 			'\t\t}',
-	// 			'\t}'
-	// 		],
-	// 		languageIdentifier: mode.getLanguageIdentifier(),
-	// 		modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
-	// 	}, (model, cursor) => {
-	// 		moveTo(cursor, 5, 4, false);
-	// 		assertCursor(cursor, new Selection(5, 4, 5, 4));
+	test('Enter supports intentional indentation', () => {
+		usingCursor({
+			text: [
+				'\tif (true) {',
+				'\t\tswitch(true) {',
+				'\t\t\tcase true:',
+				'\t\t\t\tbreak;',
+				'\t\t}',
+				'\t}'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 5, 4, false);
+			assertCursor(cursor, new Selection(5, 4, 5, 4));
 
-	// 		cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
-	// 		assert.equal(model.getLineContent(5), '\t\t}');
-	// 		assertCursor(cursor, new Selection(6, 3, 6, 3));
-	// 	});
-	// });
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assert.equal(model.getLineContent(5), '\t\t}');
+			assertCursor(cursor, new Selection(6, 3, 6, 3));
+		});
+	});
+
+	test('Enter should not adjust cursor position when press enter in the middle of a line 1', () => {
+		usingCursor({
+			text: [
+				'if (true) {',
+				'\tif (true) {',
+				'\t\treturn true;',
+				'\t}a}'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 3, 9, false);
+			assertCursor(cursor, new Selection(3, 9, 3, 9));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(4, 3, 4, 3));
+			assert.equal(model.getLineContent(4), '\t\t true;', '001');
+		});
+	});
+
+	test('Enter should not adjust cursor position when press enter in the middle of a line 2', () => {
+		usingCursor({
+			text: [
+				'if (true) {',
+				'\tif (true) {',
+				'\t\treturn true;',
+				'\t}a}'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 3, 3, false);
+			assertCursor(cursor, new Selection(3, 3, 3, 3));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(4, 3, 4, 3));
+			assert.equal(model.getLineContent(4), '\t\treturn true;', '001');
+		});
+	});
+
+	test('Enter should not adjust cursor position when press enter in the middle of a line 3', () => {
+		usingCursor({
+			text: [
+				'if (true) {',
+				'  if (true) {',
+				'    return true;',
+				'  }a}'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: true, tabSize: 2, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 3, 11, false);
+			assertCursor(cursor, new Selection(3, 11, 3, 11));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(4, 5, 4, 5));
+			assert.equal(model.getLineContent(4), '     true;', '001');
+		});
+	});
+
+	test('Enter should adjust cursor position when press enter in the middle of leading whitespaces 1', () => {
+		usingCursor({
+			text: [
+				'if (true) {',
+				'\tif (true) {',
+				'\t\treturn true;',
+				'\t}a}'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 3, 2, false);
+			assertCursor(cursor, new Selection(3, 2, 3, 2));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(4, 2, 4, 2));
+			assert.equal(model.getLineContent(4), '\t\treturn true;', '001');
+
+			moveTo(cursor, 4, 1, false);
+			assertCursor(cursor, new Selection(4, 1, 4, 1));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(5, 1, 5, 1));
+			assert.equal(model.getLineContent(5), '\t\treturn true;', '002');
+		});
+	});
+
+	test('Enter should adjust cursor position when press enter in the middle of leading whitespaces 2', () => {
+		usingCursor({
+			text: [
+				'\tif (true) {',
+				'\t\tif (true) {',
+				'\t    \treturn true;',
+				'\t\t}a}'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 3, 4, false);
+			assertCursor(cursor, new Selection(3, 4, 3, 4));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(4, 3, 4, 3));
+			assert.equal(model.getLineContent(4), '\t\t\treturn true;', '001');
+
+			moveTo(cursor, 4, 1, false);
+			assertCursor(cursor, new Selection(4, 1, 4, 1));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(5, 1, 5, 1));
+			assert.equal(model.getLineContent(5), '\t\t\treturn true;', '002');
+		});
+	});
+
+	test('Enter should adjust cursor position when press enter in the middle of leading whitespaces 3', () => {
+		usingCursor({
+			text: [
+				'if (true) {',
+				'  if (true) {',
+				'    return true;',
+				'}a}'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: true, tabSize: 2, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 3, 2, false);
+			assertCursor(cursor, new Selection(3, 2, 3, 2));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(4, 2, 4, 2));
+			assert.equal(model.getLineContent(4), '    return true;', '001');
+
+			moveTo(cursor, 4, 3, false);
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(5, 3, 5, 3));
+			assert.equal(model.getLineContent(5), '    return true;', '002');
+		});
+	});
+
+	test('Enter should adjust cursor position when press enter in the middle of leading whitespaces 4', () => {
+		usingCursor({
+			text: [
+				'if (true) {',
+				'  if (true) {',
+				'\t  return true;',
+				'}a}',
+				'',
+				'if (true) {',
+				'  if (true) {',
+				'\t  return true;',
+				'}a}'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: true, tabSize: 2, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 3, 3, false);
+			assertCursor(cursor, new Selection(3, 3, 3, 3));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(4, 4, 4, 4));
+			assert.equal(model.getLineContent(4), '    return true;', '001');
+
+			moveTo(cursor, 9, 4, false);
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(10, 5, 10, 5));
+			assert.equal(model.getLineContent(10), '    return true;', '001');
+		});
+	});
+
+	test('Enter should adjust cursor position when press enter in the middle of leading whitespaces 5', () => {
+		usingCursor({
+			text: [
+				'if (true) {',
+				'  if (true) {',
+				'    return true;',
+				'    return true;',
+				''
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: true, tabSize: 2, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 3, 5, false);
+			moveTo(cursor, 4, 3, true);
+			assertCursor(cursor, new Selection(3, 5, 4, 3));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(4, 3, 4, 3));
+			assert.equal(model.getLineContent(4), '    return true;', '001');
+		});
+	});
 
 	test('issue Microsoft/monaco-editor#108 part 1/2: Auto indentation on Enter with selection is half broken', () => {
 		usingCursor({

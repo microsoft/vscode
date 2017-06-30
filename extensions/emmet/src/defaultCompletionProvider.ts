@@ -4,13 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import parseStylesheet from '@emmetio/css-parser';
-import parse from '@emmetio/html-matcher';
-import { Node, HtmlNode } from 'EmmetNode';
-import { DocumentStreamReader } from './bufferStream';
+import { HtmlNode } from 'EmmetNode';
 import { EmmetCompletionItemProvider, isStyleSheet, getEmmetMode } from 'vscode-emmet-helper';
 import { isValidLocationForEmmetAbbreviation } from './abbreviationActions';
-import { getNode, getInnerRange, getMappingForIncludedLanguages } from './util';
+import { getNode, getInnerRange, getMappingForIncludedLanguages, parse } from './util';
 
 export class DefaultCompletionItemProvider implements vscode.CompletionItemProvider {
 
@@ -46,8 +43,11 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 		if (!syntax) {
 			return syntax;
 		}
-		let parseContent = isStyleSheet(syntax) ? parseStylesheet : parse;
-		let rootNode: Node = parseContent(new DocumentStreamReader(document));
+		let rootNode = parse(document, false);
+		if (!rootNode) {
+			return;
+		}
+
 		let currentNode = getNode(rootNode, position);
 
 		if (!isStyleSheet(syntax)) {

@@ -291,7 +291,21 @@ export class MoveLinesCommand implements ICommand {
 	}
 
 	private isAutoIndent(model: ITokenizedModel, selection: Selection) {
-		return this._autoIndent && (model.getLanguageIdAtPosition(selection.startLineNumber, 1) === model.getLanguageIdAtPosition(selection.endLineNumber, 1));
+		if (!this._autoIndent) {
+			return false;
+		}
+		let languageAtSelectionStart = model.getLanguageIdAtPosition(selection.startLineNumber, 1);
+		let languageAtSelectionEnd = model.getLanguageIdAtPosition(selection.endLineNumber, 1);
+
+		if (languageAtSelectionStart !== languageAtSelectionEnd) {
+			return false;
+		}
+
+		if (LanguageConfigurationRegistry.getIndentRulesSupport(languageAtSelectionStart) === null) {
+			return false;
+		}
+
+		return true;
 	}
 
 	private getIndentEditsOfMovingBlock(model: ITokenizedModel, builder: IEditOperationBuilder, s: Selection, tabSize: number, insertSpaces: boolean, offset: number) {

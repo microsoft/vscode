@@ -9,7 +9,8 @@ import * as childProcess from 'child_process';
 import { StringDecoder, NodeStringDecoder } from 'string_decoder';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import fs = require('fs');
-import paths = require('path');
+import path = require('path');
+import { isEqualOrParent } from 'vs/base/common/paths';
 import { Readable } from 'stream';
 
 import scorer = require('vs/base/common/scorer');
@@ -95,8 +96,11 @@ export class FileWalker {
 			config.folderQueries
 				.map(rootFolderQuery => rootFolderQuery.folder)
 				.filter(rootFolder => rootFolder !== folderQuery.folder)
-				.forEach(rootFolder => {
-					folderExcludeExpression[paths.join(rootFolder, '**/*')] = true;
+				.forEach(otherRootFolder => {
+					// Exclude nested root folders
+					if (isEqualOrParent(otherRootFolder, folderQuery.folder)) {
+						folderExcludeExpression[path.relative(folderQuery.folder, otherRootFolder)] = true;
+					}
 				});
 
 			this.folderExcludePatterns.set(folderQuery.folder, glob.parse(folderExcludeExpression, { trimForExclusions: true }));
@@ -121,7 +125,7 @@ export class FileWalker {
 				this.resultCount++;
 				onResult({
 					relativePath: this.filePattern,
-					basename: paths.basename(this.filePattern),
+					basename: path.basename(this.filePattern),
 					size
 				});
 
@@ -134,7 +138,7 @@ export class FileWalker {
 			// For each extra file
 			if (extraFiles) {
 				extraFiles.forEach(extraFilePath => {
-					const basename = paths.basename(extraFilePath);
+					const basename = path.basename(extraFilePath);
 					if (this.globalExcludePattern && this.globalExcludePattern(extraFilePath, basename)) {
 						return; // excluded
 					}
@@ -275,7 +279,6 @@ export class FileWalker {
 	 * Public for testing.
 	 */
 	public spawnFindCmd(folderQuery: IFolderSearch) {
-		// Does this actually work for absolute paths for other roots?
 		const excludePattern = this.folderExcludePatterns.get(folderQuery.folder);
 		const basenames = glob.getBasenameTerms(excludePattern);
 		const pathTerms = glob.getPathTerms(excludePattern);
@@ -375,13 +378,13 @@ export class FileWalker {
 
 		// Support relative paths to files from a root resource (ignores excludes)
 		if (relativeFiles.indexOf(this.filePattern) !== -1) {
-			const basename = paths.basename(this.filePattern);
+			const basename = path.basename(this.filePattern);
 			this.matchFile(onResult, { base: base, relativePath: this.filePattern, basename });
 		}
 
 		function add(relativePath: string) {
-			const basename = paths.basename(relativePath);
-			const dirname = paths.dirname(relativePath);
+			const basename = path.basename(relativePath);
+			const dirname = path.dirname(relativePath);
 			let entries = pathToEntries[dirname];
 			if (!entries) {
 				entries = pathToEntries[dirname] = [];
@@ -449,7 +452,7 @@ export class FileWalker {
 					onResult({
 						base: folderQuery.folder,
 						relativePath: this.filePattern,
-						basename: paths.basename(this.filePattern),
+						basename: path.basename(this.filePattern),
 						size
 					});
 				}
@@ -476,7 +479,7 @@ export class FileWalker {
 	}
 
 	private checkFilePatternAbsoluteMatch(clb: (exists: boolean, size?: number) => void): void {
-		if (!this.filePattern || !paths.isAbsolute(this.filePattern)) {
+		if (!this.filePattern || !path.isAbsolute(this.filePattern)) {
 			return clb(false);
 		}
 
@@ -486,11 +489,11 @@ export class FileWalker {
 	}
 
 	private checkFilePatternRelativeMatch(basePath: string, clb: (matchPath: string, size?: number) => void): void {
-		if (!this.filePattern || paths.isAbsolute(this.filePattern)) {
+		if (!this.filePattern || path.isAbsolute(this.filePattern)) {
 			return clb(null);
 		}
 
-		const absolutePath = paths.join(basePath, this.filePattern);
+		const absolutePath = path.join(basePath, this.filePattern);
 
 		return fs.stat(absolutePath, (error, stat) => {
 			return clb(!error && !stat.isDirectory() ? absolutePath : null, stat && stat.size); // only existing files
@@ -517,13 +520,13 @@ export class FileWalker {
 			}
 
 			// Check exclude pattern
-			let currentRelativePath = relativeParentPath ? [relativeParentPath, file].join(paths.sep) : file;
+			let currentRelativePath = relativeParentPath ? [relativeParentPath, file].join(path.sep) : file;
 			if (this.folderExcludePatterns.get(folderQuery.folder)(currentRelativePath, file, () => siblings)) {
 				return clb(null, undefined);
 			}
 
 			// Use lstat to detect links
-			let currentAbsolutePath = [rootFolder, currentRelativePath].join(paths.sep);
+			let currentAbsolutePath = [rootFolder, currentRelativePath].join(path.sep);
 			fs.lstat(currentAbsolutePath, (error, lstat) => {
 				if (error || this.isCanceled || this.isLimitHit) {
 					return clb(null, undefined);

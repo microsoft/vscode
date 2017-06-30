@@ -24,6 +24,7 @@
 	"default": "Alapértelmezett érték",
 	"debuggers": "Hibakeresők ({0})",
 	"debugger name": "Név",
+	"debugger type": "Típus",
 	"views": "Nézetek ({0})",
 	"view id": "Azonosító",
 	"view name": "Név",

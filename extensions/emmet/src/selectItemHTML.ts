@@ -11,6 +11,10 @@ export function nextItemHTML(selectionStart: vscode.Position, selectionEnd: vsco
 	let currentNode = <HtmlNode>getNode(rootNode, selectionEnd);
 	let nextNode: HtmlNode;
 
+	if (!currentNode) {
+		return;
+	}
+
 	if (currentNode.type !== 'comment') {
 		// If cursor is in the tag name, select tag
 		if (selectionEnd.isBefore(currentNode.open.start.translate(0, currentNode.name.length))) {
@@ -52,6 +56,10 @@ export function nextItemHTML(selectionStart: vscode.Position, selectionEnd: vsco
 export function prevItemHTML(selectionStart: vscode.Position, selectionEnd: vscode.Position, editor: vscode.TextEditor, rootNode: HtmlNode): vscode.Selection {
 	let currentNode = <HtmlNode>getNode(rootNode, selectionStart);
 	let prevNode: HtmlNode;
+
+	if (!currentNode) {
+		return;
+	}
 
 	if (currentNode.type !== 'comment' && selectionStart.translate(0, -1).isAfter(currentNode.open.start)) {
 

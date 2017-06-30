@@ -272,7 +272,7 @@ export class LanguageConfigurationRegistryImpl {
 
 	// beigin Indent Rules
 
-	private _getIndentRulesSupport(languageId: LanguageId): IndentRulesSupport {
+	public getIndentRulesSupport(languageId: LanguageId): IndentRulesSupport {
 		let value = this._getRichEditSupport(languageId);
 		if (!value) {
 			return null;
@@ -319,7 +319,7 @@ export class LanguageConfigurationRegistryImpl {
 	 * This function only return the inherited indent based on above lines, it doesn't check whether current line should decrease or not.
 	 */
 	public getInheritIndentForLine(model: IVirtualModel, lineNumber: number, honorIntentialIndent: boolean = true): { indentation: string, action: IndentAction, line?: number } {
-		let indentRulesSupport = this._getIndentRulesSupport(model.getLanguageIdentifier().id);
+		let indentRulesSupport = this.getIndentRulesSupport(model.getLanguageIdentifier().id);
 		if (!indentRulesSupport) {
 			return null;
 		}
@@ -438,7 +438,7 @@ export class LanguageConfigurationRegistryImpl {
 	}
 
 	public getGoodIndentForLine(virtualModel: IVirtualModel, languageId: LanguageId, lineNumber: number, indentConverter: IIndentConverter): string {
-		let indentRulesSupport = this._getIndentRulesSupport(languageId);
+		let indentRulesSupport = this.getIndentRulesSupport(languageId);
 		if (!indentRulesSupport) {
 			return null;
 		}
@@ -527,7 +527,7 @@ export class LanguageConfigurationRegistryImpl {
 			afterEnterText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
 		}
 
-		let indentRulesSupport = this._getIndentRulesSupport(scopedLineTokens.languageId);
+		let indentRulesSupport = this.getIndentRulesSupport(scopedLineTokens.languageId);
 
 		if (!indentRulesSupport) {
 			return null;
@@ -601,7 +601,7 @@ export class LanguageConfigurationRegistryImpl {
 	 */
 	public getIndentActionForType(model: ITokenizedModel, range: Range, ch: string, indentConverter: IIndentConverter): string {
 		let scopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber, range.startColumn);
-		let indentRulesSupport = this._getIndentRulesSupport(scopedLineTokens.languageId);
+		let indentRulesSupport = this.getIndentRulesSupport(scopedLineTokens.languageId);
 		if (!indentRulesSupport) {
 			return null;
 		}
@@ -639,7 +639,7 @@ export class LanguageConfigurationRegistryImpl {
 	}
 
 	public getIndentMetadata(model: ITokenizedModel, lineNumber: number): number {
-		let indentRulesSupport = this._getIndentRulesSupport(model.getLanguageIdentifier().id);
+		let indentRulesSupport = this.getIndentRulesSupport(model.getLanguageIdentifier().id);
 		if (!indentRulesSupport) {
 			return null;
 		}

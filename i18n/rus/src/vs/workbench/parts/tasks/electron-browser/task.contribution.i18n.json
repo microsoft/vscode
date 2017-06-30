@@ -19,6 +19,8 @@
 	"manyMarkers": "99+",
 	"tasks": "Задачи",
 	"TaskSystem.noHotSwap": "Чтобы изменить подсистему выполнения задач, нужно перезапустить VS Code. Изменение игнорируется.",
+	"TaskService.noBuildTask1": "Задача сборки не определена. Отметьте задачу с помощью \"isBuildCommand\" в файле tasks.json.",
+	"TaskService.noTestTask1": "Задача теста не определена. Отметьте задачу с помощью \"isTestCommand\" в файле tasks.json.",
 	"TaskServer.noTask": "Запрошенная задача {0} для выполнения не найдена.",
 	"customizeParseErrors": "В конфигурации текущей задачи есть ошибки. Исправьте ошибки перед изменением задачи.",
 	"moreThanOneBuildTask": "В файле tasks.json определено несколько задач сборки. Выполняется первая задача.\n",
@@ -30,17 +32,14 @@
 	"TaskSystem.terminateTask": "&&Завершить задачу",
 	"TaskSystem.noProcess": "Запущенная задача больше не существует. Если задача породила фоновые процессы, выход из Visual Studio Code может привести к появлению потерянных процессов. Чтобы избежать этого, запустите последний фоновый процесс с флагом ожидания.",
 	"TaskSystem.exitAnyways": "&&Выйти",
-	"TerminateAction.label": "Завершить запущенную задачу",
+	"TerminateAction.label": "Завершить задачу",
 	"TaskSystem.unknownError": "При выполнении задачи произошла ошибка. Подробности см. в журнале задач.",
 	"TaskService.noWorkspace": "Задачи доступны только в папке рабочей области.",
 	"TerminateAction.noProcess": "Запущенный процесс больше не существует. Если задача породила фоновые задачи, выход из Visual Studio Code может привести к появлению потерянных процессов.",
 	"TerminateAction.failed": "Не удалось завершить запущенную задачу",
 	"ShowLogAction.label": "Показать журнал задач",
 	"RunTaskAction.label": "Выполнить задачу",
-	"RestartTaskAction.label": "Перезапустить задачу",
 	"BuildAction.label": "Выполнить задачу сборки",
 	"TestAction.label": "Выполнить задачу тестирования",
-	"quickOpen.task": "Выполнить задачу",
-	"quickOpen.terminateTask": "Завершить задачу",
-	"quickOpen.restartTask": "Перезапустить задачу"
+	"quickOpen.task": "Выполнить задачу"
 }
