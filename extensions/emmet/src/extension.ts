@@ -22,9 +22,9 @@ import { updateExtensionsPath } from 'vscode-emmet-helper';
 
 export function activate(context: vscode.ExtensionContext) {
 	let completionProvider = new DefaultCompletionItemProvider();
-	let exlcludedLanguages = getExcludedModes();
+	let excludedLanguages = getExcludedModes();
 	Object.keys(LANGUAGE_MODES).forEach(language => {
-		if (exlcludedLanguages.indexOf(language) > -1) {
+		if (excludedLanguages.indexOf(language) > -1) {
 			return;
 		}
 		const provider = vscode.languages.registerCompletionItemProvider(language, completionProvider, ...LANGUAGE_MODES[language]);
