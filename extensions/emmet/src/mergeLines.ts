@@ -4,30 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import parse from '@emmetio/html-matcher';
 import { Node } from 'EmmetNode';
-import { DocumentStreamReader } from './bufferStream';
-import { isStyleSheet } from 'vscode-emmet-helper';
-import { getNode } from './util';
+import { getNode, parse, validate } from './util';
 
 export function mergeLines() {
 	let editor = vscode.window.activeTextEditor;
-	if (!editor) {
-		vscode.window.showInformationMessage('No editor is active');
-		return;
-	}
-	if (isStyleSheet(editor.document.languageId)) {
+	if (!validate(false)) {
 		return;
 	}
 
-	let rootNode: Node = parse(new DocumentStreamReader(editor.document));
+	let rootNode = parse(editor.document);
 	if (!rootNode) {
 		return;
 	}
+
 	editor.edit(editBuilder => {
 		editor.selections.reverse().forEach(selection => {
 			let [rangeToReplace, textToReplaceWith] = getRangesToReplace(editor.document, selection, rootNode);
-			editBuilder.replace(rangeToReplace, textToReplaceWith);
+			if (rangeToReplace && textToReplaceWith) {
+				editBuilder.replace(rangeToReplace, textToReplaceWith);
+			}
 		});
 	});
 }
@@ -41,6 +37,10 @@ function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Sel
 	} else {
 		startNodeToUpdate = getNode(rootNode, selection.start, true);
 		endNodeToUpdate = getNode(rootNode, selection.end, true);
+	}
+
+	if (!startNodeToUpdate || !endNodeToUpdate) {
+		return [null, null];
 	}
 
 	let rangeToReplace = new vscode.Range(startNodeToUpdate.start, endNodeToUpdate.end);

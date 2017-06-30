@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import parse from '@emmetio/html-matcher';
+import parseStylesheet from '@emmetio/css-parser';
 import { Node, HtmlNode } from 'EmmetNode';
 import { DocumentStreamReader } from './bufferStream';
 import { isStyleSheet } from 'vscode-emmet-helper';
@@ -33,6 +34,7 @@ export const MAPPED_MODES: Object = {
 	'handlebars': 'html',
 	'php': 'html'
 };
+
 export function validate(allowStylesheet: boolean = true): boolean {
 	let editor = vscode.window.activeTextEditor;
 	if (!editor) {
@@ -64,7 +66,22 @@ export function getMappingForIncludedLanguages(): any {
 	return finalMappedModes;
 }
 
-
+/**
+ * Parses the given document using emmet parsing modules
+ * @param document 
+ */
+export function parse(document: vscode.TextDocument, showError: boolean = true): Node {
+	let parseContent = isStyleSheet(document.languageId) ? parseStylesheet : parse;
+	let rootNode: Node;
+	try {
+		rootNode = parseContent(new DocumentStreamReader(document));
+	} catch (e) {
+		if (showError) {
+			vscode.window.showErrorMessage('Emmet: Failed to parse the file');
+		}
+	}
+	return rootNode;
+}
 
 /**
  * Returns node corresponding to given position in the given root node
@@ -102,17 +119,6 @@ export function getInnerRange(currentNode: HtmlNode): vscode.Range {
 		return;
 	}
 	return new vscode.Range(currentNode.open.end, currentNode.close.start);
-}
-
-export function getOpenCloseRange(document: vscode.TextDocument, position: vscode.Position): [vscode.Range, vscode.Range] {
-	let rootNode: HtmlNode = parse(new DocumentStreamReader(document));
-	let nodeToUpdate = <HtmlNode>getNode(rootNode, position);
-	let openRange = new vscode.Range(nodeToUpdate.open.start, nodeToUpdate.open.end);
-	let closeRange = null;
-	if (nodeToUpdate.close) {
-		closeRange = new vscode.Range(nodeToUpdate.close.start, nodeToUpdate.close.end);
-	}
-	return [openRange, closeRange];
 }
 
 export function getDeepestNode(node: Node): Node {

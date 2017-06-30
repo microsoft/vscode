@@ -5,12 +5,9 @@
 
 import * as vscode from 'vscode';
 import { expand } from '@emmetio/expand-abbreviation';
-import parseStylesheet from '@emmetio/css-parser';
-import parse from '@emmetio/html-matcher';
 import { Node, HtmlNode, Rule } from 'EmmetNode';
-import { getNode, getInnerRange, getMappingForIncludedLanguages } from './util';
+import { getNode, getInnerRange, getMappingForIncludedLanguages, parse, validate } from './util';
 import { getExpandOptions, extractAbbreviation, isStyleSheet, isAbbreviationValid, getEmmetMode } from 'vscode-emmet-helper';
-import { DocumentStreamReader } from './bufferStream';
 
 interface ExpandAbbreviationInput {
 	syntax: string;
@@ -22,7 +19,7 @@ interface ExpandAbbreviationInput {
 
 export function wrapWithAbbreviation(args) {
 	const syntax = getSyntaxFromArgs(args);
-	if (!syntax) {
+	if (!syntax || !validate()) {
 		return;
 	}
 
@@ -79,14 +76,16 @@ export function wrapWithAbbreviation(args) {
 
 export function expandAbbreviation(args) {
 	const syntax = getSyntaxFromArgs(args);
-	if (!syntax) {
+	if (!syntax || !validate()) {
 		return;
 	}
 
 	const editor = vscode.window.activeTextEditor;
 
-	let parseContent = isStyleSheet(syntax) ? parseStylesheet : parse;
-	let rootNode: Node = parseContent(new DocumentStreamReader(editor.document));
+	let rootNode = parse(editor.document);
+	if (!rootNode) {
+		return;
+	}
 
 	let abbreviationList: ExpandAbbreviationInput[] = [];
 	let firstAbbreviation: string;
@@ -100,6 +99,7 @@ export function expandAbbreviation(args) {
 			[rangeToReplace, abbreviation] = extractAbbreviation(editor.document, position);
 		}
 		if (!isAbbreviationValid(syntax, abbreviation)) {
+			vscode.window.showErrorMessage('Emmet: Invalid abbreviation');
 			return;
 		}
 
@@ -193,7 +193,13 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
  */
 function expandAbbr(input: ExpandAbbreviationInput, newLine: string): string {
 	// Expand the abbreviation
-	let expandedText = expand(input.abbreviation, getExpandOptions(input.syntax, input.textToWrap));
+	let expandedText;
+	try {
+		expandedText = expand(input.abbreviation, getExpandOptions(input.syntax, input.textToWrap));
+	} catch (e) {
+		vscode.window.showErrorMessage('Failed to expand abbreviation');
+	}
+
 	if (!expandedText) {
 		return;
 	}
