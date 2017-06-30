@@ -26,6 +26,8 @@ import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/acti
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import * as aria from 'vs/base/browser/ui/aria/aria';
+import * as nls from 'vs/nls';
+import * as browser from 'vs/base/browser/browser';
 
 /**
  * The options to create an editor.
@@ -52,6 +54,13 @@ export interface IEditorConstructionOptions extends IEditorOptions {
 	 * To switch a theme, use `monaco.editor.setTheme`
 	 */
 	theme?: string;
+	/**
+	 * An URL to open when Ctrl+H (Windows and Linux) or Cmd+H (OSX) is pressed in
+	 * the accessibility help dialog in the editor.
+	 *
+	 * Defaults to "https://go.microsoft.com/fwlink/?linkid=852450"
+	 */
+	accessibilityHelpUrl?: string;
 }
 
 /**
@@ -110,6 +119,13 @@ export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeE
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IThemeService themeService: IThemeService
 	) {
+		options = options || {};
+		options.ariaLabel = options.ariaLabel || nls.localize('editorViewAccessibleLabel', "Editor content");
+		options.ariaLabel = options.ariaLabel + ';' + (
+			browser.isIE
+				? nls.localize('accessibilityHelpMessageIE', "Press Ctrl+F1 for Accessibility Options.")
+				: nls.localize('accessibilityHelpMessage', "Press Alt+F1 for Accessibility Options.")
+		);
 		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, themeService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
