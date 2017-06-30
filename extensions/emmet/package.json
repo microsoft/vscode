@@ -28,10 +28,10 @@
                     "enum": [
                         "never",
                         "always",
-                        "inDefaultEmmetModesOnly"
+                        "inMarkupAndStylesheetFilesOnly"
                     ],
-                    "default": "inDefaultEmmetModesOnly",
-                    "description": "Shows expanded emmet abbreviations as suggestions."
+                    "default": "inMarkupAndStylesheetFilesOnly",
+                    "description": "Shows expanded emmet abbreviations as suggestions.\nThe option \"inMarkupAndStylesheetFilesOnly\" applies to html, haml, jade, slim, xml, xsl, css, scss, sass, less and stylus.\nThe option \"always\" applies to all parts of the file regardless of markup/css."
                 },
                 "emmet.showAbbreviationSuggestions": {
                     "type": "boolean",
