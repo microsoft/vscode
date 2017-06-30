@@ -345,19 +345,14 @@ export class FolderMatch extends Disposable {
 
 	private _fileMatches: ResourceMap<FileMatch>;
 	private _unDisposedFileMatches: ResourceMap<FileMatch>;
-	private _query: ISearchQuery = null;
 
 	public replacingAll: boolean = false;
 
-	constructor(private _resource: URI, private _parent: SearchResult, private _searchModel: SearchModel, @IReplaceService private replaceService: IReplaceService, @ITelemetryService private telemetryService: ITelemetryService,
+	constructor(private _resource: URI, private _query: ISearchQuery, private _parent: SearchResult, private _searchModel: SearchModel, @IReplaceService private replaceService: IReplaceService, @ITelemetryService private telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService) {
 		super();
 		this._fileMatches = new ResourceMap<FileMatch>();
 		this._unDisposedFileMatches = new ResourceMap<FileMatch>();
-	}
-
-	public set query(query: ISearchQuery) {
-		this._query = query;
 	}
 
 	public get searchModel(): SearchModel {
@@ -509,8 +504,7 @@ export class SearchResult extends Disposable {
 		this._query = query;
 		this._queryWorkspace.roots = (query.folderQueries || []).map((fq) => fq.folder);
 		this._queryWorkspace.roots.forEach((resource) => {
-			let folderMatch = this.instantiationService.createInstance(FolderMatch, resource, this, this._searchModel);
-			folderMatch.query = query;
+			let folderMatch = this.instantiationService.createInstance(FolderMatch, resource, query, this, this._searchModel);
 			this._folderMatches.set(resource, folderMatch);
 			let disposable = folderMatch.onChange((event) => this._onChange.fire(event));
 			folderMatch.onDispose(() => disposable.dispose());
