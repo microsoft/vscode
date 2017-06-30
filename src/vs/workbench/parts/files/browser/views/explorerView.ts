@@ -20,7 +20,7 @@ import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocussedContext, ExplorerFocussedContext } from 'vs/workbench/parts/files/common/files';
 import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileChange, IFileService } from 'vs/platform/files/common/files';
 import { RefreshViewExplorerAction, NewFolderAction, NewFileAction } from 'vs/workbench/parts/files/browser/fileActions';
-import { FileDragAndDrop, FileFilter, DefaultSorter, MixedSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/browser/views/explorerViewer';
+import { FileDragAndDrop, FileFilter, DefaultSorter, MixedSorter, FilesFirstSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/browser/views/explorerViewer';
 import { toResource } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -428,6 +428,8 @@ export class ExplorerView extends CollapsibleView {
 		switch (sortOrder) {
 			case SortOrderConfiguration.MIXED:
 				return new MixedSorter();
+			case SortOrderConfiguration.FILES_FIRST:
+				return new FilesFirstSorter();
 			default:
 				return new DefaultSorter();
 		}

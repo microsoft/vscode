@@ -320,11 +320,12 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.sortOrder': {
 			'type': 'string',
-			'enum': [SortOrderConfiguration.DEFAULT, SortOrderConfiguration.MIXED],
+			'enum': [SortOrderConfiguration.DEFAULT, SortOrderConfiguration.MIXED, SortOrderConfiguration.FILES_FIRST],
 			'default': SortOrderConfiguration.DEFAULT,
 			'enumDescriptions': [
 				nls.localize('sortOrder.default', 'Files and directories are sorted by their names, in alphabetical order. Directories are displayed before files.'),
-				nls.localize('sortOrder.mixed', 'Files and directories are sorted by their names, in alphabetical order. Files are interwoven with directories.')
+				nls.localize('sortOrder.mixed', 'Files and directories are sorted by their names, in alphabetical order. Files are interwoven with directories.'),
+				nls.localize('sortOrder.filesFirst', 'Files and directories are sorted by their names, in alphabetical order. Files are displayed before directories.'),
 			],
 			'description': nls.localize('sortOrder', "Controls the way of sorting files and directories.")
 		}

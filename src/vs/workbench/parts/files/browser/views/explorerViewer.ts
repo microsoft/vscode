@@ -582,6 +582,39 @@ export class MixedSorter implements ISorter {
 	}
 }
 
+// FilesFirst Sorter
+export class FilesFirstSorter implements ISorter {
+
+	public compare(tree: ITree, statA: FileStat, statB: FileStat): number {
+		if (statA.isDirectory && !statB.isDirectory) {
+			return 1;
+		}
+
+		if (statB.isDirectory && !statA.isDirectory) {
+			return -1;
+		}
+
+		if (statA instanceof NewStatPlaceholder) {
+			return -1;
+		}
+
+		if (statB instanceof NewStatPlaceholder) {
+			return 1;
+		}
+
+		// Do not sort roots
+		if (statA.isRoot) {
+			return -1;
+		}
+
+		if (statB.isRoot) {
+			return 1;
+		}
+
+		return comparers.compareFileNames(statA.name, statB.name);
+	}
+}
+
 // Explorer Filter
 export class FileFilter implements IFilter {
 

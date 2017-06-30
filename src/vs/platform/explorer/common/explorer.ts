@@ -6,5 +6,6 @@
 
 export const SortOrderConfiguration = {
 	DEFAULT: 'default',
-	MIXED: 'mixed'
+	MIXED: 'mixed',
+	FILES_FIRST: 'filesFirst'
 };
