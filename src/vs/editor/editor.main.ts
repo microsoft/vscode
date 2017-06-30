@@ -23,6 +23,7 @@ import { EDITOR_DEFAULTS, WrappingIndent } from 'vs/editor/common/config/editorO
 (<any>EDITOR_DEFAULTS).wrappingIndent = WrappingIndent.None;
 (<any>EDITOR_DEFAULTS.contribInfo).folding = false;
 (<any>EDITOR_DEFAULTS.viewInfo).glyphMargin = false;
+(<any>EDITOR_DEFAULTS).autoIndent = false;
 
 let base = createMonacoBaseAPI();
 for (let prop in base) {
