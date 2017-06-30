@@ -684,7 +684,7 @@ export class TransposeAction extends EditorAction {
 		super({
 			id: 'editor.action.transpose',
 			label: nls.localize('editor.transpose', "Transpose characters around the cursor"),
-			alias: 'Transpose characters around the cursor',
+			alias: 'Transpose characters or selections',
 			precondition: EditorContextKeys.writable
 		});
 	}
