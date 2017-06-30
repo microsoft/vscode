@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as path from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
@@ -645,7 +644,7 @@ export class TypeSorter implements ISorter {
 			return 1;
 		}
 
-		return comparers.compareFileNames(path.extname(statA.name), path.extname(statB.name));
+		return comparers.compareFileNames(paths.extname(statA.name), paths.extname(statB.name));
 	}
 }
 
