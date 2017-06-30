@@ -19,33 +19,29 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
 
-function supportsExecCommand(command: string): boolean {
-	return (
-		(browser.isIE || platform.isNative)
-		&& document.queryCommandSupported(command)
-	);
-}
+const supportsCut = (platform.isNative || document.queryCommandSupported('cut'));
+const supportsCopy = (platform.isNative || document.queryCommandSupported('copy'));
+// IE and Edge have trouble with setting html content in clipboard
+const supportsCopyWithSyntaxHighlighting = (supportsCopy && !browser.isEdgeOrIE);
+// Chrome incorrectly returns true for document.queryCommandSupported('paste')
+// when the paste feature is available but the calling script has insufficient
+// privileges to actually perform the action
+const supportsPaste = (platform.isNative || (!browser.isChrome && document.queryCommandSupported('paste')));
 
-function conditionalEditorAction(testCommand: string) {
-	if (!supportsExecCommand(testCommand)) {
+type ExecCommand = 'cut' | 'copy' | 'paste';
+
+function conditionalEditorAction(condition: boolean) {
+	if (!condition) {
 		return () => { };
 	}
-	return editorAction;
-}
-
-function conditionalCopyWithSyntaxHighlighting() {
-	if (browser.isEdgeOrIE || !supportsExecCommand('copy')) {
-		return () => { };
-	}
-
 	return editorAction;
 }
 
 abstract class ExecCommandAction extends EditorAction {
 
-	private browserCommand: string;
+	private browserCommand: ExecCommand;
 
-	constructor(browserCommand: string, opts: IActionOptions) {
+	constructor(browserCommand: ExecCommand, opts: IActionOptions) {
 		super(opts);
 		this.browserCommand = browserCommand;
 	}
@@ -67,7 +63,7 @@ abstract class ExecCommandAction extends EditorAction {
 	}
 }
 
-@conditionalEditorAction('cut')
+@conditionalEditorAction(supportsCut)
 class ExecCommandCutAction extends ExecCommandAction {
 
 	constructor() {
@@ -78,7 +74,7 @@ class ExecCommandCutAction extends ExecCommandAction {
 		};
 		// Do not bind cut keybindings in the browser,
 		// since browsers do that for us and it avoids security prompts
-		if (browser.isIE) {
+		if (!platform.isNative) {
 			kbOpts = null;
 		}
 		super('cut', {
@@ -105,7 +101,7 @@ class ExecCommandCutAction extends ExecCommandAction {
 	}
 }
 
-@conditionalEditorAction('copy')
+@conditionalEditorAction(supportsCopy)
 class ExecCommandCopyAction extends ExecCommandAction {
 
 	constructor() {
@@ -116,7 +112,7 @@ class ExecCommandCopyAction extends ExecCommandAction {
 		};
 		// Do not bind copy keybindings in the browser,
 		// since browsers do that for us and it avoids security prompts
-		if (!browser.isIE) {
+		if (!platform.isNative) {
 			kbOpts = null;
 		}
 
@@ -144,7 +140,7 @@ class ExecCommandCopyAction extends ExecCommandAction {
 	}
 }
 
-@conditionalEditorAction('paste')
+@conditionalEditorAction(supportsPaste)
 class ExecCommandPasteAction extends ExecCommandAction {
 
 	constructor() {
@@ -155,7 +151,7 @@ class ExecCommandPasteAction extends ExecCommandAction {
 		};
 		// Do not bind paste keybindings in the browser,
 		// since browsers do that for us and it avoids security prompts
-		if (!browser.isIE) {
+		if (!platform.isNative) {
 			kbOpts = null;
 		}
 
@@ -173,7 +169,7 @@ class ExecCommandPasteAction extends ExecCommandAction {
 	}
 }
 
-@conditionalCopyWithSyntaxHighlighting()
+@conditionalEditorAction(supportsCopyWithSyntaxHighlighting)
 class ExecCommandCopyWithSyntaxHighlightingAction extends ExecCommandAction {
 
 	constructor() {
