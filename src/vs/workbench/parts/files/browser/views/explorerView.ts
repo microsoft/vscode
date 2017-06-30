@@ -81,6 +81,8 @@ export class ExplorerView extends CollapsibleView {
 
 	private autoReveal: boolean;
 
+	private dirsFirst: boolean;
+
 	private settings: any;
 
 	constructor(
@@ -240,6 +242,15 @@ export class ExplorerView extends CollapsibleView {
 		let needsRefresh = false;
 		if (this.filter) {
 			needsRefresh = this.filter.updateConfiguration();
+		}
+
+		// Check if dirsFirst value changed
+		const configDirsFirst = !configuration || !configuration.explorer || configuration.explorer.dirsFirst;
+		if (this.dirsFirst !== configDirsFirst) {
+			this.dirsFirst = configDirsFirst;
+			const sorter = this.dirsFirst ? new DefaultSorter() : new ThroughSorter();
+			(<Tree>this.explorerViewer).setSorter(sorter);
+			needsRefresh = true;
 		}
 
 		// Refresh viewer as needed
