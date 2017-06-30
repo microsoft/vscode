@@ -10,19 +10,19 @@ import { DocumentStreamReader } from './bufferStream';
 import { isStyleSheet } from 'vscode-emmet-helper';
 
 export const LANGUAGE_MODES: Object = {
-	'html': ['!', '.', '}', ':'],
-	'jade': ['!', '.', '}', ':'],
-	'slim': ['!', '.', '}', ':'],
-	'haml': ['!', '.', '}', ':'],
-	'xml': ['.', '}'],
-	'xsl': ['.', '}'],
+	'html': ['!', '.', '}', ':', '*', '$'],
+	'jade': ['!', '.', '}', ':', '*', '$'],
+	'slim': ['!', '.', '}', ':', '*', '$'],
+	'haml': ['!', '.', '}', ':', '*', '$'],
+	'xml': ['.', '}', '*', '$'],
+	'xsl': ['.', '}', '*', '$'],
 	'css': [':'],
 	'scss': [':'],
 	'sass': [':'],
 	'less': [':'],
 	'stylus': [':'],
-	'javascriptreact': ['.', '}'],
-	'typescriptreact': ['.', '}']
+	'javascriptreact': ['.', '}', '*', '$'],
+	'typescriptreact': ['.', '}', '*', '$']
 };
 
 // Explicitly map languages that have built-in grammar in VS Code to their parent language
