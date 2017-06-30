@@ -24,6 +24,7 @@
 	"default": "Varsayılan",
 	"debuggers": "Hata Ayıklayıcılar ({0})",
 	"debugger name": "Adı",
+	"debugger type": "Tür",
 	"views": "Görünümler ({0})",
 	"view id": "ID",
 	"view name": "Adı",

@@ -12,6 +12,7 @@
 	"focusBorder": "Couleur de bordure globale des éléments ayant le focus. Cette couleur est utilisée si elle n'est pas remplacée par un composant.",
 	"contrastBorder": "Bordure supplémentaire autour des éléments pour les séparer des autres et obtenir un meilleur contraste.",
 	"activeContrastBorder": "Bordure supplémentaire autour des éléments actifs pour les séparer des autres et obtenir un meilleur contraste.",
+	"selectionBackground": "La couleur d'arrière-plan des sélections de texte dans le banc d'essai (par ex., pour les champs d'entrée ou les zones de texte). Notez que cette couleur ne s'applique pas aux sélections dans l'éditeur et le terminal.",
 	"textSeparatorForeground": "Couleur pour les séparateurs de texte.",
 	"textLinkForeground": "Couleur des liens dans le texte.",
 	"textLinkActiveForeground": "Couleur des liens actifs dans le texte.",
@@ -77,7 +78,10 @@
 	"mergeCurrentContentBackground": "Arrière-plan du contenu actuel dans les conflits de fusion inline.",
 	"mergeIncomingHeaderBackground": "Arrière-plan de l'en-tête entrant dans les conflits de fusion inline.",
 	"mergeIncomingContentBackground": "Arrière-plan du contenu entrant dans les conflits de fusion inline.",
+	"mergeCommonHeaderBackground": "Arrière-plan de l'en-tête de l'ancêtre commun dans les conflits de fusion inline.",
+	"mergeCommonContentBackground": "Arrière-plan du contenu de l'ancêtre commun dans les conflits de fusion inline.",
 	"mergeBorder": "Couleur de bordure des en-têtes et du séparateur dans les conflits de fusion inline.",
 	"overviewRulerCurrentContentForeground": "Premier plan de la règle d'aperçu actuelle pour les conflits de fusion inline.",
-	"overviewRulerIncomingContentForeground": "Premier plan de la règle d'aperçu entrante pour les conflits de fusion inline."
+	"overviewRulerIncomingContentForeground": "Premier plan de la règle d'aperçu entrante pour les conflits de fusion inline.",
+	"overviewRulerCommonContentForeground": "Arrière-plan de la règle d'aperçu de l'ancêtre commun dans les conflits de fusion inline."
 }

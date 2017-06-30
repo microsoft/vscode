@@ -23,6 +23,7 @@
 	"error.cannotparseicontheme": "Hiba a fájlikonokat leíró fájl feldolgozása közben: {0}",
 	"colorTheme": "Meghatározza a munkaterületen használt színtémát.",
 	"colorThemeError": "A téma ismeretlen vagy nincs telepítve.",
+	"iconTheme": "Meghatározza a munkaterületen használt ikontémát. 'null' érték esetén nem jelenik meg egyetlen fájlikon sem.",
 	"noIconThemeDesc": "Nincsenek fájlikonok",
 	"iconThemeError": "A fájlikontéma ismeretlen vagy nincs telepítve.",
 	"workbenchColors": "Felülírja az aktuális színtémában definiált színeket.",

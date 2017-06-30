@@ -6,6 +6,6 @@
 {
 	"entryAriaLabel": "{0}, tareas",
 	"recentlyUsed": "Tareas usadas recientemente",
-	"detected": "tareas detectadas",
-	"customizeTask": "Personalizar tarea"
+	"configured": "tareas configuradas",
+	"detected": "tareas detectadas"
 }

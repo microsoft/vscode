@@ -61,6 +61,8 @@
 	"editorForeground": "Cor de primeiro plano padrão do editor.",
 	"editorWidgetBackground": "Cor de plano de fundo das ferramentas de edição, como pesquisar/substituir.",
 	"editorWidgetBorder": "Cor da borda das ferramentas do editor. A cor é usada somente se a ferramenta escolhe ter uma borda e a cor não é substituída por uma ferramenta.",
+	"editorSelectionBackground": "Cor de seleção do editor.",
+	"editorSelectionForeground": "Cor do texto selecionado para alto contraste.",
 	"editorInactiveSelection": "Cor de seleção em um editor inativo.",
 	"editorSelectionHighlight": "Cor de regiões com o mesmo conteúdo da seleção.",
 	"editorFindMatch": "Cor da correspondência de pesquisa atual.",
