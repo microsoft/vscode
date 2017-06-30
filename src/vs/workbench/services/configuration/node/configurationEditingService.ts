@@ -253,7 +253,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 				if (checkDirty && this.textFileService.isDirty(operation.resource)) {
 					return this.wrapError(ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY, target);
 				}
-				return reference;
+				return TPromise.wrap(reference);
 			});
 	}
 

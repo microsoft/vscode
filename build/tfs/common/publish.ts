@@ -131,9 +131,11 @@ async function doesAssetExist(blobService: azure.BlobService, quality: string, b
 }
 
 async function uploadBlob(blobService: azure.BlobService, quality: string, blobName: string, file: string): Promise<void> {
-	const blobOptions = {
-		contentType: mime.lookup(file),
-		cacheControl: 'max-age=31536000, public'
+	const blobOptions: azure.BlobService.CreateBlockBlobRequestOptions = {
+		contentSettings: {
+			contentType: mime.lookup(file),
+			cacheControl: 'max-age=31536000, public'
+		}
 	};
 
 	await new Promise((c, e) => blobService.createBlockBlobFromLocalFile(quality, blobName, file, blobOptions, err => err ? e(err) : c()));
