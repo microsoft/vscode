@@ -47,13 +47,6 @@ export function validate(allowStylesheet: boolean = true): boolean {
 	return true;
 }
 
-export function getSyntax(document: vscode.TextDocument): string {
-	if (document.languageId === 'jade') {
-		return 'pug';
-	}
-	return document.languageId;
-}
-
 export function getMappingForIncludedLanguages(): any {
 	let finalMappedModes = {};
 	let includeLanguagesConfig = vscode.workspace.getConfiguration('emmet')['includeLanguages'];
