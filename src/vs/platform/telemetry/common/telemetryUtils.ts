@@ -40,16 +40,13 @@ export const NullTelemetryService = {
 };
 
 export function loadExperiments(accessor: ServicesAccessor): ITelemetryExperiments {
-	const storageService = accessor.get(IStorageService);
+	// const storageService = accessor.get(IStorageService);
 	const configurationService = accessor.get(IConfigurationService);
 
-	let {
-		mergeQuickLinks,
-	} = splitExperimentsRandomness(storageService);
+	// let {
+	// } = splitExperimentsRandomness(storageService);
 
-	return applyOverrides({
-		mergeQuickLinks,
-	}, configurationService);
+	return applyOverrides(defaultExperiments, configurationService);
 }
 
 function applyOverrides(experiments: ITelemetryExperiments, configurationService: IConfigurationService): ITelemetryExperiments {
@@ -62,6 +59,7 @@ function applyOverrides(experiments: ITelemetryExperiments, configurationService
 	return experiments;
 }
 
+// tslint:disable-next-line:no-unused-variable
 function splitExperimentsRandomness(storageService: IStorageService): ITelemetryExperiments {
 	const random1 = getExperimentsRandomness(storageService);
 	const [random2, /* showTaskDocumentation */] = splitRandom(random1);
