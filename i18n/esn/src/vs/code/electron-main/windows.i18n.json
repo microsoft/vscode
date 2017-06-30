@@ -14,8 +14,6 @@
 	"appStalledDetail": "Puede volver a abrir la ventana, cerrarla o seguir esperando.",
 	"appCrashed": "La ventana se bloqueó",
 	"appCrashedDetail": "Sentimos las molestias. Puede volver a abrir la ventana para continuar donde se detuvo.",
-	"newWindow": "Nueva ventana",
-	"newWindowDesc": "Abre una ventana nueva.",
-	"recentFolders": "Carpetas recientes",
-	"folderDesc": "{0} {1}"
+	"openFile": "Abrir archivo",
+	"openFolder": "Abrir carpeta"
 }

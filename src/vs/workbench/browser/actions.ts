@@ -5,7 +5,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import types = require('vs/base/common/types');
 import { Action, IAction } from 'vs/base/common/actions';
 import { BaseActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';

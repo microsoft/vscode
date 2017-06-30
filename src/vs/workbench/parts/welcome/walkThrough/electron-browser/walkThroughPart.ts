@@ -40,7 +40,7 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, textPreformatForeground, contrastBorder, textBlockQuoteBackground, textBlockQuoteBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils';
-import { UILabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
+import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
@@ -121,7 +121,6 @@ export class WalkThroughPart extends BaseEditor {
 		this.content.style.outlineStyle = 'none';
 
 		this.scrollbar = new DomScrollableElement(this.content, {
-			canUseTranslate3d: false,
 			horizontal: ScrollbarVisibility.Auto,
 			vertical: ScrollbarVisibility.Auto
 		});
@@ -420,7 +419,7 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	private getEditorOptions(language: string): IEditorOptions {
-		const config = this.configurationService.getConfiguration<IEditorOptions>({ overrideIdentifier: language, section: 'editor' });
+		const config = this.configurationService.getConfiguration<IEditorOptions>('editor', { overrideIdentifier: language });
 		return {
 			...isObject(config) ? config : Object.create(null),
 			scrollBeyondLastLine: false,

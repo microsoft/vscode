@@ -16,7 +16,7 @@ import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { ReportPerformanceIssueAction } from 'vs/workbench/electron-browser/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { join } from 'path';
@@ -107,7 +107,7 @@ class ProfilingHint implements IWorkbenchContribution {
 
 		// Ignore virtual machines and only ask users
 		// to profile with a certain propability
-		if (virtualMachineHint.value() >= .5 || Math.ceil(Math.random() * 50) !== 1) {
+		if (virtualMachineHint.value() >= .5 || Math.ceil(Math.random() * 1000) !== 1) {
 			return;
 		}
 
@@ -192,7 +192,7 @@ class StartupProfiler implements IWorkbenchContribution {
 					const action = this._instantiationService.createInstance(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL);
 					TPromise.join<any>([
 						this._windowsService.showItemInFolder(join(profileStartup.dir, files[0])),
-						action.run(`:warning: Make sure to **attach** these files: :warning:\n${files.map(file => `-\`${join(profileStartup.dir, file)}\``).join('\n')}`)
+						action.run(`:warning: Make sure to **attach** these files from your *home*-directory: :warning:\n${files.map(file => `-\`${file}\``).join('\n')}`)
 					]).then(() => {
 						// keep window stable until restart is selected
 						this._messageService.confirm({

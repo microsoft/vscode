@@ -36,7 +36,7 @@ import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { once } from 'vs/base/common/functional';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IEnvironmentService } from "vs/platform/environment/common/environment";
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 const $ = dom.$;
 const booleanRegex = /^true|false$/i;
@@ -185,7 +185,7 @@ function getSourceName(source: Source, contextService: IWorkspaceContextService,
 		return source.name;
 	}
 
-	return getPathLabel(paths.basename(source.uri.fsPath), contextService, environmentService);
+	return paths.basename(source.uri.fsPath);
 }
 
 export class BaseDebugController extends DefaultController {
@@ -252,6 +252,7 @@ export class CallStackController extends BaseDebugController {
 			return this.showMoreStackFrames(tree, element);
 		}
 		if (element instanceof StackFrame) {
+			super.onLeftClick(tree, element, event);
 			this.focusStackFrame(element, event, event.detail !== 2);
 			return true;
 		}
@@ -354,7 +355,7 @@ export class CallStackDataSource implements IDataSource {
 
 	public getChildren(tree: ITree, element: any): TPromise<any> {
 		if (element instanceof Thread) {
-			return TPromise.as(this.getThreadChildren(element));
+			return this.getThreadChildren(element);
 		}
 		if (element instanceof Model) {
 			return TPromise.as(element.getProcesses());
@@ -364,25 +365,29 @@ export class CallStackDataSource implements IDataSource {
 		return TPromise.as(process.getAllThreads());
 	}
 
-	private getThreadChildren(thread: Thread): any[] {
-		const callStack: any[] = thread.getCallStack();
-		if (!callStack) {
-			return [];
-		}
-		if (callStack.length === 1) {
-			// To reduce flashing of the call stack view simply append the stale call stack
-			// once we have the correct data the tree will refresh and we will no longer display it.
-			return callStack.concat(thread.getStaleCallStack().slice(1));
+	private getThreadChildren(thread: Thread): TPromise<any> {
+		let callStack: any[] = thread.getCallStack();
+		let callStackPromise: TPromise<any> = TPromise.as(null);
+		if (!callStack || !callStack.length) {
+			callStackPromise = thread.fetchCallStack().then(() => callStack = thread.getCallStack());
 		}
 
-		if (thread.stoppedDetails && thread.stoppedDetails.framesErrorMessage) {
-			return callStack.concat([thread.stoppedDetails.framesErrorMessage]);
-		}
-		if (thread.stoppedDetails && thread.stoppedDetails.totalFrames > callStack.length && callStack.length > 1) {
-			return callStack.concat([new ThreadAndProcessIds(thread.process.getId(), thread.threadId)]);
-		}
+		return callStackPromise.then(() => {
+			if (callStack.length === 1) {
+				// To reduce flashing of the call stack view simply append the stale call stack
+				// once we have the correct data the tree will refresh and we will no longer display it.
+				return callStack.concat(thread.getStaleCallStack().slice(1));
+			}
 
-		return callStack;
+			if (thread.stoppedDetails && thread.stoppedDetails.framesErrorMessage) {
+				return callStack.concat([thread.stoppedDetails.framesErrorMessage]);
+			}
+			if (thread.stoppedDetails && thread.stoppedDetails.totalFrames > callStack.length && callStack.length > 1) {
+				return callStack.concat([new ThreadAndProcessIds(thread.process.getId(), thread.threadId)]);
+			}
+
+			return callStack;
+		});
 	}
 
 	public getParent(tree: ITree, element: any): TPromise<any> {
@@ -543,9 +548,9 @@ export class CallStackRenderer implements IRenderer {
 	}
 
 	private renderStackFrame(stackFrame: debug.IStackFrame, data: IStackFrameTemplateData): void {
-		dom.toggleClass(data.stackFrame, 'disabled', stackFrame.source.presenationHint === 'deemphasize');
-		dom.toggleClass(data.stackFrame, 'label', stackFrame.source.presenationHint === 'label');
-		dom.toggleClass(data.stackFrame, 'subtle', stackFrame.source.presenationHint === 'subtle');
+		dom.toggleClass(data.stackFrame, 'disabled', !stackFrame.source.available || stackFrame.source.presentationHint === 'deemphasize');
+		dom.toggleClass(data.stackFrame, 'label', stackFrame.presentationHint === 'label');
+		dom.toggleClass(data.stackFrame, 'subtle', stackFrame.presentationHint === 'subtle');
 
 		data.file.title = stackFrame.source.raw.path || stackFrame.source.name;
 		if (stackFrame.source.raw.origin) {
@@ -1028,7 +1033,7 @@ export class BreakpointsActionProvider implements IActionProvider {
 	}
 
 	public hasActions(tree: ITree, element: any): boolean {
-		return false;;
+		return false;
 	}
 
 	public hasSecondaryActions(tree: ITree, element: any): boolean {
@@ -1174,7 +1179,7 @@ export class BreakpointsRenderer implements IRenderer {
 	}
 
 	private renderExceptionBreakpoint(exceptionBreakpoint: debug.IExceptionBreakpoint, data: IBaseBreakpointTemplateData): void {
-		data.name.textContent = exceptionBreakpoint.label || `${exceptionBreakpoint.filter} exceptions`;;
+		data.name.textContent = exceptionBreakpoint.label || `${exceptionBreakpoint.filter} exceptions`;
 		data.breakpoint.title = data.name.textContent;
 		data.checkbox.checked = exceptionBreakpoint.enabled;
 	}
@@ -1209,7 +1214,7 @@ export class BreakpointsRenderer implements IRenderer {
 	private renderBreakpoint(tree: ITree, breakpoint: debug.IBreakpoint, data: IBreakpointTemplateData): void {
 		this.debugService.getModel().areBreakpointsActivated() ? tree.removeTraits('disabled', [breakpoint]) : tree.addTraits('disabled', [breakpoint]);
 
-		data.name.textContent = getPathLabel(paths.basename(breakpoint.uri.fsPath), this.contextService);
+		data.name.textContent = paths.basename(getPathLabel(breakpoint.uri, this.contextService));
 		data.lineNumber.textContent = breakpoint.lineNumber.toString();
 		if (breakpoint.column) {
 			data.lineNumber.textContent += `:${breakpoint.column}`;

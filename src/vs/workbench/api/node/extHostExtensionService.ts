@@ -15,9 +15,7 @@ import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { createApiFactory, initializeExtensionApi } from 'vs/workbench/api/node/extHost.api.impl';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { MainContext, MainProcessExtensionServiceShape, IEnvironment, IInitData } from './extHost.protocol';
-import { createHash } from 'crypto';
+import { MainContext, MainProcessExtensionServiceShape, IWorkspaceData, IEnvironment, IInitData } from './extHost.protocol';
 
 const hasOwnProperty = Object.hasOwnProperty;
 
@@ -103,14 +101,14 @@ class ExtensionMemento implements IExtensionMemento {
 
 class ExtensionStoragePath {
 
-	private readonly _contextService: IWorkspaceContextService;
+	private readonly _workspace: IWorkspaceData;
 	private readonly _environment: IEnvironment;
 
 	private readonly _ready: TPromise<string>;
 	private _value: string;
 
-	constructor(contextService: IWorkspaceContextService, environment: IEnvironment) {
-		this._contextService = contextService;
+	constructor(workspace: IWorkspaceData, environment: IEnvironment) {
+		this._workspace = workspace;
 		this._environment = environment;
 		this._ready = this._getOrCreateWorkspaceStoragePath().then(value => this._value = value);
 	}
@@ -127,18 +125,10 @@ class ExtensionStoragePath {
 	}
 
 	private _getOrCreateWorkspaceStoragePath(): TPromise<string> {
-
-		const workspace = this._contextService.getWorkspace();
-
-		if (!workspace) {
+		if (!this._workspace) {
 			return TPromise.as(undefined);
 		}
-
-		const storageName = createHash('md5')
-			.update(workspace.resource.fsPath)
-			.update(workspace.uid ? workspace.uid.toString() : '')
-			.digest('hex');
-
+		const storageName = this._workspace.id;
 		const storagePath = join(this._environment.appSettingsHome, 'workspaceStorage', storageName);
 
 		return dirExists(storagePath).then(exists => {
@@ -171,23 +161,21 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 	private _storagePath: ExtensionStoragePath;
 	private _proxy: MainProcessExtensionServiceShape;
 	private _telemetryService: ITelemetryService;
-	private _contextService: IWorkspaceContextService;
 
 	/**
 	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
 	 */
-	constructor(initData: IInitData, threadService: IThreadService, telemetryService: ITelemetryService, contextService: IWorkspaceContextService) {
+	constructor(initData: IInitData, threadService: IThreadService, telemetryService: ITelemetryService) {
 		super(false);
 		this._registry.registerExtensions(initData.extensions);
 		this._threadService = threadService;
 		this._storage = new ExtHostStorage(threadService);
-		this._storagePath = new ExtensionStoragePath(contextService, initData.environment);
+		this._storagePath = new ExtensionStoragePath(initData.workspace, initData.environment);
 		this._proxy = this._threadService.get(MainContext.MainProcessExtensionService);
 		this._telemetryService = telemetryService;
-		this._contextService = contextService;
 
 		// initialize API first
-		const apiFactory = createApiFactory(initData, threadService, this, this._contextService, this._telemetryService);
+		const apiFactory = createApiFactory(initData, threadService, this, this._telemetryService);
 		initializeExtensionApi(this, apiFactory).then(() => this._triggerOnReady());
 	}
 

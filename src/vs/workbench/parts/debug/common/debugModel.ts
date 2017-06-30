@@ -9,6 +9,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { generateUuid } from 'vs/base/common/uuid';
+import * as errors from 'vs/base/common/errors';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { clone } from 'vs/base/common/objects';
 import severity from 'vs/base/common/severity';
 import { isObject, isString } from 'vs/base/common/types';
@@ -18,7 +20,7 @@ import { ISuggestion } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import {
 	ITreeElement, IExpression, IExpressionContainer, IProcess, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IModel,
-	IConfig, ISession, IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IRawBreakpoint, IExceptionInfo, IReplElement
+	IConfig, ISession, IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IRawBreakpoint, IExceptionInfo, IReplElement, ProcessState
 } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -41,14 +43,12 @@ export abstract class AbstractOutputElement implements IReplElement {
 
 export class OutputElement extends AbstractOutputElement {
 
-	public counter: number;
 
 	constructor(
 		public value: string,
 		public severity: severity,
 	) {
 		super();
-		this.counter = 1;
 	}
 
 	public toString(): string {
@@ -333,6 +333,7 @@ export class StackFrame implements IStackFrame {
 		public frameId: number,
 		public source: Source,
 		public name: string,
+		public presentationHint: string,
 		public range: IRange,
 		private index: number
 	) {
@@ -435,22 +436,14 @@ export class Thread implements IThread {
 	 * Only fetches the first stack frame for performance reasons. Calling this method consecutive times
 	 * gets the remainder of the call stack.
 	 */
-	public fetchCallStack(): TPromise<void> {
+	public fetchCallStack(levels = 20): TPromise<void> {
 		if (!this.stopped) {
 			return TPromise.as(null);
 		}
 
-		if (!this.fetchPromise) {
-			this.fetchPromise = this.getCallStackImpl(0, 1).then(callStack => {
-				this.callStack = callStack || [];
-			});
-		} else {
-			this.fetchPromise = this.fetchPromise.then(() => this.getCallStackImpl(this.callStack.length, 20).then(callStackSecondPart => {
-				this.callStack = this.callStack.concat(callStackSecondPart);
-			}));
-		}
-
-		return this.fetchPromise;
+		return this.getCallStackImpl(this.callStack.length, levels).then(callStack => {
+			this.callStack = this.callStack.concat(callStack || []);
+		});
 	}
 
 	private getCallStackImpl(startFrame: number, levels: number): TPromise<IStackFrame[]> {
@@ -464,16 +457,14 @@ export class Thread implements IThread {
 			}
 
 			return response.body.stackFrames.map((rsf, index) => {
-				let source = new Source(rsf.source, rsf.source ? rsf.source.presentationHint : rsf.presentationHint);
+				let source = new Source(rsf.source);
 				if (this.process.sources.has(source.uri.toString())) {
-					const alreadyCreatedSource = this.process.sources.get(source.uri.toString());
-					alreadyCreatedSource.presenationHint = source.presenationHint;
-					source = alreadyCreatedSource;
+					source = this.process.sources.get(source.uri.toString());
 				} else {
 					this.process.sources.set(source.uri.toString(), source);
 				}
 
-				return new StackFrame(this, rsf.id, source, rsf.name, new Range(
+				return new StackFrame(this, rsf.id, source, rsf.name, rsf.presentationHint, new Range(
 					rsf.line,
 					rsf.column,
 					rsf.endLine,
@@ -502,12 +493,18 @@ export class Thread implements IThread {
 				});
 			}
 
-			return session.exceptionInfo({ threadId: this.threadId }).then(exception => ({
-				id: exception.body.exceptionId,
-				description: exception.body.description,
-				breakMode: exception.body.breakMode,
-				details: exception.body.details
-			}));
+			return session.exceptionInfo({ threadId: this.threadId }).then(exception => {
+				if (!exception) {
+					return null;
+				}
+
+				return {
+					id: exception.body.exceptionId,
+					description: exception.body.description,
+					breakMode: exception.body.breakMode,
+					details: exception.body.details
+				};
+			});
 		}
 
 		return TPromise.as(null);
@@ -544,12 +541,14 @@ export class Thread implements IThread {
 
 export class Process implements IProcess {
 
-	private threads: Map<number, Thread>;
 	public sources: Map<string, Source>;
+	private threads: Map<number, Thread>;
+	private inactive = true;
 
 	constructor(public configuration: IConfig, private _session: ISession & ITreeElement) {
 		this.threads = new Map<number, Thread>();
 		this.sources = new Map<string, Source>();
+		this._session.onDidInitialize(() => this.inactive = false);
 	}
 
 	public get session(): ISession {
@@ -560,8 +559,12 @@ export class Process implements IProcess {
 		return this.configuration.name;
 	}
 
-	public isAttach(): boolean {
-		return this.configuration.type === 'attach';
+	public get state(): ProcessState {
+		if (this.inactive) {
+			return ProcessState.INACTIVE;
+		}
+
+		return this.configuration.type === 'attach' ? ProcessState.ATTACH : ProcessState.LAUNCH;
 	}
 
 	public getThread(threadId: number): Thread {
@@ -738,6 +741,7 @@ export class Model implements IModel {
 	private processes: Process[];
 	private toDispose: lifecycle.IDisposable[];
 	private replElements: IReplElement[];
+	private schedulers = new Map<string, RunOnceScheduler>();
 	private _onDidChangeBreakpoints: Emitter<void>;
 	private _onDidChangeCallStack: Emitter<void>;
 	private _onDidChangeWatchExpressions: Emitter<IExpression>;
@@ -805,16 +809,31 @@ export class Model implements IModel {
 
 	public clearThreads(id: string, removeThreads: boolean, reference: number = undefined): void {
 		const process = this.processes.filter(p => p.getId() === id).pop();
+		this.schedulers.forEach(scheduler => scheduler.dispose());
+		this.schedulers.clear();
+
 		if (process) {
 			process.clearThreads(removeThreads, reference);
 			this._onDidChangeCallStack.fire();
 		}
 	}
 
-	public fetchCallStack(thread: IThread): TPromise<void> {
-		return (<Thread>thread).fetchCallStack().then(() => {
-			this._onDidChangeCallStack.fire();
-		});
+	public fetchCallStack(thread: Thread): TPromise<void> {
+		if (thread.process.session.capabilities.supportsDelayedStackTraceLoading) {
+			// For improved performance load the first stack frame and then load the rest async.
+			return thread.fetchCallStack(1).then(() => {
+				if (!this.schedulers.has(thread.getId())) {
+					this.schedulers.set(thread.getId(), new RunOnceScheduler(() => {
+						thread.fetchCallStack(19).done(() => this._onDidChangeCallStack.fire(), errors.onUnexpectedError);
+					}, 420));
+				}
+
+				this.schedulers.get(thread.getId()).schedule();
+				this._onDidChangeCallStack.fire();
+			});
+		}
+
+		return thread.fetchCallStack();
 	}
 
 	public getBreakpoints(): Breakpoint[] {
@@ -939,20 +958,16 @@ export class Model implements IModel {
 	public appendToRepl(output: string | IExpression, severity: severity): void {
 		if (typeof output === 'string') {
 			const previousOutput = this.replElements.length && (this.replElements[this.replElements.length - 1] as OutputElement);
-			if (previousOutput instanceof OutputElement && severity === previousOutput.severity && previousOutput.value === output && output.trim() && output.length > 1) {
-				// we got the same output (but not an empty string when trimmed) so we just increment the counter
-				previousOutput.counter++;
-			} else {
-				const toAdd = output.split('\n').map(line => new OutputElement(line, severity));
-				if (previousOutput instanceof OutputElement && severity === previousOutput.severity && toAdd.length) {
-					previousOutput.value += toAdd.shift().value;
-				}
-				if (previousOutput && previousOutput.value === '' && previousOutput.severity !== severity) {
-					// remove potential empty lines between different output types
-					this.replElements.pop();
-				}
-				this.addReplElements(toAdd);
+
+			const toAdd = output.split('\n').map(line => new OutputElement(line, severity));
+			if (previousOutput instanceof OutputElement && severity === previousOutput.severity && toAdd.length) {
+				previousOutput.value += toAdd.shift().value;
 			}
+			if (previousOutput && previousOutput.value === '' && previousOutput.severity !== severity) {
+				// remove potential empty lines between different output types
+				this.replElements.pop();
+			}
+			this.addReplElements(toAdd);
 		} else {
 			// TODO@Isidor hack, we should introduce a new type which is an output that can fetch children like an expression
 			(<any>output).severity = severity;
@@ -1034,10 +1049,10 @@ export class Model implements IModel {
 		this._onDidChangeWatchExpressions.fire();
 	}
 
-	public deemphasizeSource(uri: uri): void {
+	public sourceIsNotAvailable(uri: uri): void {
 		this.processes.forEach(p => {
 			if (p.sources.has(uri.toString())) {
-				p.sources.get(uri.toString()).presenationHint = 'deemphasize';
+				p.sources.get(uri.toString()).available = false;
 			}
 		});
 		this._onDidChangeCallStack.fire();

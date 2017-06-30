@@ -8,7 +8,7 @@ import * as network from 'vs/base/common/network';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
-import { LinkedMap as Map } from 'vs/base/common/map';
+import { ResourceMap } from 'vs/base/common/map';
 import * as labels from 'vs/base/common/labels';
 import * as strings from 'vs/base/common/strings';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -20,7 +20,7 @@ import { Position as EditorPosition, IEditor } from 'vs/platform/editor/common/e
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IFileService, IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
+import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { IMessageService, Severity, IChoiceService } from 'vs/platform/message/common/message';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -31,7 +31,7 @@ import { SettingsEditorModel, DefaultSettingsEditorModel, DefaultKeybindingsEdit
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DefaultPreferencesEditorInput, PreferencesEditorInput } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { KeybindingsEditorInput } from 'vs/workbench/parts/preferences/browser/keybindingsEditor';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position, IPosition } from 'vs/editor/common/core/position';
@@ -52,7 +52,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	_serviceBrand: any;
 
 	// TODO:@sandy merge these models into editor inputs by extending resource editor model
-	private defaultPreferencesEditorModels: Map<URI, TPromise<IPreferencesEditorModel<any>>>;
+	private defaultPreferencesEditorModels: ResourceMap<TPromise<IPreferencesEditorModel<any>>>;
 	private lastOpenedSettingsInput: PreferencesEditorInput = null;
 
 	constructor(
@@ -67,14 +67,14 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@IStorageService private storageService: IStorageService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
+		@ITextModelService private textModelResolverService: ITextModelService,
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService private modelService: IModelService
 	) {
 		super();
-		this.defaultPreferencesEditorModels = new Map<URI, TPromise<IPreferencesEditorModel<any>>>();
+		this.defaultPreferencesEditorModels = new ResourceMap<TPromise<IPreferencesEditorModel<any>>>();
 		this.editorGroupService.onEditorsChanged(() => {
 			const activeEditorInput = this.editorService.getActiveEditorInput();
 			if (activeEditorInput instanceof PreferencesEditorInput) {
@@ -229,7 +229,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		const resource = this.getEditableSettingsURI(configurationTarget);
 		const editableSettingsEmptyContent = this.getEmptyEditableSettingsContent(configurationTarget);
 		return this.createIfNotExists(resource, editableSettingsEmptyContent)
-			.then(() => this.editorService.createInput({ resource }));
+			.then(() => <EditorInput>this.editorService.createInput({ resource }));
 	}
 
 	private createEditableSettingsEditorModel(configurationTarget: ConfigurationTarget): TPromise<SettingsEditorModel> {
@@ -261,7 +261,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				return URI.file(this.environmentService.appSettingsPath);
 			case ConfigurationTarget.WORKSPACE:
 				if (this.contextService.hasWorkspace()) {
-					return this.contextService.toResource('.vscode/settings.json');
+					return this.contextService.toResource('.vscode/settings.json'); // TODO@Sandeep (https://github.com/Microsoft/vscode/issues/29456)
 				}
 		}
 		return null;
@@ -269,7 +269,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private createIfNotExists(resource: URI, contents: string): TPromise<boolean> {
 		return this.fileService.resolveContent(resource, { acceptTextOnly: true }).then(null, error => {
-			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
+			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
 				return this.fileService.updateContent(resource, contents).then(null, error => {
 					return TPromise.wrapError<boolean>(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", labels.getPathLabel(resource, this.contextService, this.environmentService), error)));
 				});

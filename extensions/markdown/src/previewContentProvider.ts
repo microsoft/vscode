@@ -52,6 +52,7 @@ class MarkdownPreviewConfig {
 	public readonly scrollBeyondLastLine: boolean;
 	public readonly wordWrap: boolean;
 	public readonly previewFrontMatter: string;
+	public readonly lineBreaks: boolean;
 	public readonly doubleClickToSwitchToEditor: boolean;
 	public readonly scrollEditorWithPreview: boolean;
 	public readonly scrollPreviewWithEditorSelection: boolean;
@@ -65,13 +66,19 @@ class MarkdownPreviewConfig {
 	private constructor() {
 		const editorConfig = vscode.workspace.getConfiguration('editor');
 		const markdownConfig = vscode.workspace.getConfiguration('markdown');
+		const markdownEditorConfig = vscode.workspace.getConfiguration('[markdown]');
 
 		this.scrollBeyondLastLine = editorConfig.get<boolean>('scrollBeyondLastLine', false);
+
 		this.wordWrap = editorConfig.get<string>('wordWrap', 'off') !== 'off';
+		if (markdownEditorConfig && markdownEditorConfig['editor.wordWrap']) {
+			this.wordWrap = markdownEditorConfig['editor.wordWrap'] !== 'off';
+		}
 
 		this.previewFrontMatter = markdownConfig.get<string>('previewFrontMatter', 'hide');
 		this.scrollPreviewWithEditorSelection = !!markdownConfig.get<boolean>('preview.scrollPreviewWithEditorSelection', true);
 		this.scrollEditorWithPreview = !!markdownConfig.get<boolean>('preview.scrollEditorWithPreview', true);
+		this.lineBreaks = !!markdownConfig.get<boolean>('preview.breaks', false);
 		this.doubleClickToSwitchToEditor = !!markdownConfig.get<boolean>('preview.doubleClickToSwitchToEditor', true);
 		this.markEditorSelection = !!markdownConfig.get<boolean>('preview.markEditorSelection', true);
 

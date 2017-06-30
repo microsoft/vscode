@@ -67,38 +67,6 @@
         "command": "merge-conflict.compare"
       }
     ],
-    "keybindings": [
-      {
-        "command": "merge-conflict.next",
-        "when": "editorTextFocus",
-        "key": "alt+m down"
-      },
-      {
-        "command": "merge-conflict.previous",
-        "when": "editorTextFocus",
-        "key": "alt+m up"
-      },
-      {
-        "command": "merge-conflict.accept.selection",
-        "when": "editorTextFocus",
-        "key": "alt+m enter"
-      },
-      {
-        "command": "merge-conflict.accept.current",
-        "when": "editorTextFocus",
-        "key": "alt+m 1"
-      },
-      {
-        "command": "merge-conflict.accept.incoming",
-        "when": "editorTextFocus",
-        "key": "alt+m 2"
-      },
-      {
-        "command": "merge-conflict.accept.both",
-        "when": "editorTextFocus",
-        "key": "alt+m 3"
-      }
-    ],
     "configuration": {
       "title": "%config.title%",
       "properties": {
@@ -116,12 +84,10 @@
     }
   },
   "dependencies": {
-    "vscode-extension-telemetry": "^0.0.7",
+    "vscode-extension-telemetry": "0.0.8",
     "vscode-nls": "^2.0.2"
   },
   "devDependencies": {
-    "@types/mocha": "^2.2.41",
-    "@types/node": "^7.0.4",
-    "mocha": "^3.2.0"
+    "@types/node": "^7.0.4"
   }
 }

@@ -10,7 +10,7 @@
 	"multiSelection": "{0} 선택 항목",
 	"endOfLineLineFeed": "LF",
 	"endOfLineCarriageReturnLineFeed": "CRLF",
-	"tabFocusModeEnabled": "Tab으로 포커스 이동",
+	"screenReaderDetectedExtra": "화면 읽기 프로그램을 사용하지 않는 경우 `editor.accessibilitySupport` 설정을 \"off\"로 변경하세요.",
 	"disableTabMode": "접근성 모드 사용 안 함",
 	"gotoLine": "줄 이동",
 	"indentation": "들여쓰기",

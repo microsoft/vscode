@@ -11,7 +11,6 @@ import * as semver from 'semver';
 import * as path from 'path';
 import Event, { Emitter, chain } from 'vs/base/common/event';
 import { index } from 'vs/base/common/arrays';
-import { LinkedMap as Map } from 'vs/base/common/map';
 import { assign } from 'vs/base/common/objects';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
@@ -189,7 +188,7 @@ class Extension implements IExtension {
 			return readFile(uri.fsPath, 'utf8');
 		}
 
-		return TPromise.wrapError<string>('not available');
+		return TPromise.wrapError<string>(new Error('not available'));
 	}
 
 	getChangelog(): TPromise<string> {
@@ -200,7 +199,7 @@ class Extension implements IExtension {
 		const changelogUrl = this.local && this.local.changelogUrl;
 
 		if (!changelogUrl) {
-			return TPromise.wrapError<string>('not available');
+			return TPromise.wrapError<string>(new Error('not available'));
 		}
 
 		const uri = URI.parse(changelogUrl);
@@ -209,7 +208,7 @@ class Extension implements IExtension {
 			return readFile(uri.fsPath, 'utf8');
 		}
 
-		return TPromise.wrapError<string>('not available');
+		return TPromise.wrapError<string>(new Error('not available'));
 	}
 
 	get dependencies(): string[] {
@@ -310,6 +309,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	get onChange(): Event<void> { return this._onChange.event; }
 
 	private _isAutoUpdateEnabled: boolean;
+
+	private _extensionAllowedBadgeProviders: string[];
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -513,9 +514,9 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		return this.extensionService.installFromGallery(gallery, promptToInstallDependencies);
 	}
 
-	setEnablement(extension: IExtension, enable: boolean, workspace: boolean = false): TPromise<any> {
+	setEnablement(extension: IExtension, enable: boolean, workspace: boolean = false): TPromise<void> {
 		if (extension.type === LocalExtensionType.System) {
-			return TPromise.wrap(null);
+			return TPromise.wrap<void>(void 0);
 		}
 
 		return this.promptAndSetEnablement(extension, enable, workspace).then(reload => {
@@ -589,7 +590,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		if (!enable) {
 			let dependents = this.getDependentsAfterDisablement(extension, dependencies, this.local, workspace);
 			if (dependents.length) {
-				return TPromise.wrapError<void>(this.getDependentsErrorMessage(extension, dependents));
+				return TPromise.wrapError<void>(new Error(this.getDependentsErrorMessage(extension, dependents)));
 			}
 		}
 		return TPromise.join([extension, ...dependencies].map(e => this.doSetEnablement(e, enable, workspace)));
@@ -664,6 +665,13 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return TPromise.join([globalElablement, workspaceEnablement]).then(values => values[0] || values[1]);
 		}
 		return globalElablement;
+	}
+
+	get allowedBadgeProviders(): string[] {
+		if (!this._extensionAllowedBadgeProviders) {
+			this._extensionAllowedBadgeProviders = (product.extensionAllowedBadgeProviders || []).map(s => s.toLowerCase());
+		}
+		return this._extensionAllowedBadgeProviders;
 	}
 
 	private onInstallExtension(event: InstallExtensionEvent): void {
@@ -806,21 +814,32 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		const extensionId = match[1];
 
 		this.queryGallery({ names: [extensionId] })
-			.done(result => {
+			.then(result => {
 				if (result.total < 1) {
-					return;
+					return TPromise.as(null);
 				}
 
 				const extension = result.firstPage[0];
-				const promises = [this.open(extension)];
-
-				if (this.local.every(local => local.id !== extension.id)) {
-					promises.push(this.install(extension));
-				}
-
-				TPromise.join(promises)
-					.done(null, error => this.onError(error));
-			});
+				return this.open(extension).then(() => {
+					const message = nls.localize('installConfirmation', "Would you like to install the '{0}' extension?", extension.displayName, extension.publisher);
+					const options = [
+						nls.localize('install', "Install"),
+						nls.localize('cancel', "Cancel")
+					];
+					return this.choiceService.choose(Severity.Info, message, options, 2, false)
+						.then<void>(value => {
+							if (value === 0) {
+								const promises: TPromise<any>[] = [];
+								if (this.local.every(local => local.id !== extension.id)) {
+									promises.push(this.install(extension));
+								}
+								return TPromise.join(promises);
+							}
+							return TPromise.as(null);
+						});
+				});
+			})
+			.done(undefined, error => this.onError(error));
 	}
 
 	dispose(): void {

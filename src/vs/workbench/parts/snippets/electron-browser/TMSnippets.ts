@@ -13,7 +13,7 @@ import { readFile } from 'vs/base/node/pfs';
 import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ISnippetsService, ISnippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { languagesExtPoint } from 'vs/editor/common/services/modeServiceImpl';
+import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { SnippetParser, Marker, Placeholder, Variable, Text, walk } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { EditorSnippetVariableResolver } from 'vs/editor/contrib/snippet/browser/snippetVariables';
@@ -159,7 +159,7 @@ function parseSnippetFile(snippetFileContent: string, extensionName?: string, co
 }
 
 function _rewriteBogousVariables(snippet: ISnippet): boolean {
-	const marker = new SnippetParser(true, false).parse(snippet.codeSnippet, false);
+	const marker = new SnippetParser().parse(snippet.codeSnippet, false);
 
 	let placeholders = new Map<string, number>();
 	let placeholderMax = 0;

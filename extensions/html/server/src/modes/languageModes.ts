@@ -68,7 +68,7 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 	}
 	return {
 		getModeAtPosition(document: TextDocument, position: Position): LanguageMode {
-			let languageId = documentRegions.get(document).getLanguageAtPosition(position);;
+			let languageId = documentRegions.get(document).getLanguageAtPosition(position);
 			if (languageId) {
 				return modes[languageId];
 			}

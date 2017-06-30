@@ -12,7 +12,7 @@ import paths = require('vs/base/common/paths');
 import { Action } from 'vs/base/common/actions';
 import URI from 'vs/base/common/uri';
 import { SaveFileAsAction, RevertFileAction, SaveFileAction } from 'vs/workbench/parts/files/browser/fileActions';
-import { IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService, ISaveErrorHandler, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
@@ -23,7 +23,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { ResourceMap } from 'vs/base/common/map';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -43,7 +43,7 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 	constructor(
 		@IMessageService private messageService: IMessageService,
 		@ITextFileService private textFileService: ITextFileService,
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
+		@ITextModelService private textModelResolverService: ITextModelService,
 		@IModelService private modelService: IModelService,
 		@IModeService private modeService: IModeService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -116,13 +116,13 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 		const resource = model.getResource();
 
 		// Dirty write prevention
-		if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
+		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
 			message = this.instantiationService.createInstance(ResolveSaveConflictMessage, model, null);
 		}
 
 		// Any other save error
 		else {
-			const isReadonly = (<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_READ_ONLY;
+			const isReadonly = (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_READ_ONLY;
 			const actions: Action[] = [];
 
 			// Save As
@@ -240,7 +240,7 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 
 export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: URI) => {
 	const editorService = accessor.get(IWorkbenchEditorService);
-	const resolverService = accessor.get(ITextModelResolverService);
+	const resolverService = accessor.get(ITextModelService);
 
 	const editor = editorService.getActiveEditor();
 	const input = editor.input;
@@ -275,7 +275,7 @@ export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 
 export const revertLocalChangesCommand = (accessor: ServicesAccessor, resource: URI) => {
 	const editorService = accessor.get(IWorkbenchEditorService);
-	const resolverService = accessor.get(ITextModelResolverService);
+	const resolverService = accessor.get(ITextModelService);
 
 	const editor = editorService.getActiveEditor();
 	const input = editor.input;

@@ -12,7 +12,7 @@ import File = require('vinyl');
 import * as Is from 'is';
 import * as xml2js from 'xml2js';
 import * as glob from 'glob';
-import * as http from 'http';
+import * as https from 'https';
 
 var util = require('gulp-util');
 var iconv = require('iconv-lite');
@@ -578,56 +578,6 @@ const editorProject: string = 'vscode-editor',
 	extensionsProject: string = 'vscode-extensions',
 	setupProject: string = 'vscode-setup';
 
-/**
- * Ensure to update those arrays when new resources are pushed to Transifex.
- * Used because Transifex does not have API method to pull all project resources.
- */
-const editorResources: Resource[] = [
-	{ name: 'vs/platform', project: editorProject },
-	{ name: 'vs/editor/contrib', project: editorProject },
-	{ name: 'vs/editor', project: editorProject },
-	{ name: 'vs/base', project: editorProject }
-];
-const workbenchResources: Resource[] = [
-	{ name: 'vs/code', project: workbenchProject },
-	{ name: 'vs/workbench', project: workbenchProject },
-	{ name: 'vs/workbench/parts/cli', project: workbenchProject },
-	{ name: 'vs/workbench/parts/codeEditor', project: workbenchProject },
-	{ name: 'vs/workbench/parts/debug', project: workbenchProject },
-	{ name: 'vs/workbench/parts/emmet', project: workbenchProject },
-	{ name: 'vs/workbench/parts/execution', project: workbenchProject },
-	{ name: 'vs/workbench/parts/explorers', project: workbenchProject },
-	{ name: 'vs/workbench/parts/extensions', project: workbenchProject },
-	{ name: 'vs/workbench/parts/feedback', project: workbenchProject },
-	{ name: 'vs/workbench/parts/files', project: workbenchProject },
-	{ name: 'vs/workbench/parts/html', project: workbenchProject },
-	{ name: 'vs/workbench/parts/markers', project: workbenchProject },
-	{ name: 'vs/workbench/parts/nps', project: workbenchProject },
-	{ name: 'vs/workbench/parts/output', project: workbenchProject },
-	{ name: 'vs/workbench/parts/performance', project: workbenchProject },
-	{ name: 'vs/workbench/parts/preferences', project: workbenchProject },
-	{ name: 'vs/workbench/parts/quickopen', project: workbenchProject },
-	{ name: 'vs/workbench/parts/scm', project: workbenchProject },
-	{ name: 'vs/workbench/parts/search', project: workbenchProject },
-	{ name: 'vs/workbench/parts/snippets', project: workbenchProject },
-	{ name: 'vs/workbench/parts/tasks', project: workbenchProject },
-	{ name: 'vs/workbench/parts/terminal', project: workbenchProject },
-	{ name: 'vs/workbench/parts/themes', project: workbenchProject },
-	{ name: 'vs/workbench/parts/trust', project: workbenchProject },
-	{ name: 'vs/workbench/parts/update', project: workbenchProject },
-	{ name: 'vs/workbench/parts/watermark', project: workbenchProject },
-	{ name: 'vs/workbench/parts/welcome', project: workbenchProject },
-	{ name: 'vs/workbench/services/configuration', project: workbenchProject },
-	{ name: 'vs/workbench/services/editor', project: workbenchProject },
-	{ name: 'vs/workbench/services/files', project: workbenchProject },
-	{ name: 'vs/workbench/services/keybinding', project: workbenchProject },
-	{ name: 'vs/workbench/services/message', project: workbenchProject },
-	{ name: 'vs/workbench/services/mode', project: workbenchProject },
-	{ name: 'vs/workbench/services/textfile', project: workbenchProject },
-	{ name: 'vs/workbench/services/themes', project: workbenchProject },
-	{ name: 'setup_messages', project: workbenchProject }
-];
-
 export function getResource(sourceFile: string): Resource {
 	let resource: string;
 
@@ -708,9 +658,10 @@ function importModuleOrPackageJson(file: File, json: ModuleJsonFormat | PackageJ
 	let extension = extensions[extensionName] ?
 		extensions[extensionName] : extensions[extensionName] = { xlf: new XLF(projectName), processed: 0 };
 
-	if (ModuleJsonFormat.is(json)) {
-		extension.xlf.addFile(originalFilePath, json['keys'], json['messages']);
-	} else {
+	// .nls.json can come with empty array of keys and messages, check for it
+	if (ModuleJsonFormat.is(json) && json.keys.length !== 0) {
+		extension.xlf.addFile(originalFilePath, json.keys, json.messages);
+	} else if (PackageJsonFormat.is(json) && Object.keys(json).length !== 0) {
 		extension.xlf.addFile(originalFilePath, Object.keys(json), messages);
 	}
 
@@ -818,7 +769,7 @@ function tryGetResource(project: string, slug: string, apiHostname: string, cred
 			method: 'GET'
 		};
 
-		const request = http.request(options, (response) => {
+		const request = https.request(options, (response) => {
 			if (response.statusCode === 404) {
 				resolve(false);
 			} else if (response.statusCode === 200) {
@@ -854,7 +805,7 @@ function createResource(project: string, slug: string, xlfFile: File, apiHostnam
 			method: 'POST'
 		};
 
-		let request = http.request(options, (res) => {
+		let request = https.request(options, (res) => {
 			if (res.statusCode === 201) {
 				log(`Resource ${project}/${slug} successfully created on Transifex.`);
 			} else {
@@ -888,7 +839,7 @@ function updateResource(project: string, slug: string, xlfFile: File, apiHostnam
 			method: 'PUT'
 		};
 
-		let request = http.request(options, (res) => {
+		let request = https.request(options, (res) => {
 			if (res.statusCode === 200) {
 				res.setEncoding('utf8');
 
@@ -918,9 +869,11 @@ function obtainProjectResources(projectName: string): Resource[] {
 	let resources: Resource[] = [];
 
 	if (projectName === editorProject) {
-		resources = editorResources;
+		const json = fs.readFileSync('./build/lib/i18n.resources.json', 'utf8');
+		resources = JSON.parse(json).editor;
 	} else if (projectName === workbenchProject) {
-		resources = workbenchResources;
+		const json = fs.readFileSync('./build/lib/i18n.resources.json', 'utf8');
+		resources = JSON.parse(json).workbench;
 	} else if (projectName === extensionsProject) {
 		let extensionsToLocalize: string[] = glob.sync('./extensions/**/*.nls.json').map(extension => extension.split('/')[2]);
 		let resourcesToPull: string[] = [];
@@ -987,7 +940,7 @@ function retrieveResource(language: string, resource: Resource, apiHostname, cre
 			method: 'GET'
 		};
 
-		let request = http.request(options, (res) => {
+		let request = https.request(options, (res) => {
 			let xlfBuffer: Buffer[] = [];
 			res.on('data', (chunk: Buffer) => xlfBuffer.push(chunk));
 			res.on('end', () => {
@@ -1080,7 +1033,9 @@ const encodings: Map<string> = {
 	'esn': 'CP1252',
 	'rus': 'CP1251',
 	'ita': 'CP1252',
-    'ptb': 'CP1252'
+    'ptb': 'CP1252',
+	'hun': 'CP1250',
+	'trk': 'CP1254'
 };
 
 function createIslFile(base: string, originalFilePath: string, messages: Map<string>, language: string): File {

@@ -6,7 +6,6 @@
 
 import 'vs/css!./media/scrollbars';
 
-import * as Browser from 'vs/base/browser/browser';
 import * as DomUtils from 'vs/base/browser/dom';
 import * as Platform from 'vs/base/common/platform';
 import { StandardMouseWheelEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -18,7 +17,7 @@ import { Scrollable, ScrollState, ScrollEvent, INewScrollState, ScrollbarVisibil
 import { Widget } from 'vs/base/browser/ui/widget';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
+import { ScrollbarHost, ISimplifiedMouseEvent } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 import Event, { Emitter } from 'vs/base/common/event';
 
 const HIDE_TIMEOUT = 500;
@@ -141,12 +140,16 @@ export class ScrollableElement extends Widget {
 	 * Delegate a mouse down event to the vertical scrollbar.
 	 * This is to help with clicking somewhere else and having the scrollbar react.
 	 */
-	public delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void {
+	public delegateVerticalScrollbarMouseDown(browserEvent: IMouseEvent): void {
 		this._verticalScrollbar.delegateMouseDown(browserEvent);
 	}
 
-	public getVerticalSliderVerticalCenter(): number {
-		return this._verticalScrollbar.getVerticalSliderVerticalCenter();
+	/**
+	 * Delegate a mouse down event to the vertical scrollbar (directly to the slider!).
+	 * This is to help with clicking somewhere else and having the scrollbar react.
+	 */
+	public delegateSliderMouseDown(e: ISimplifiedMouseEvent, onDragFinished: () => void): void {
+		this._verticalScrollbar.delegateSliderMouseDown(e, onDragFinished);
 	}
 
 	public updateState(newState: INewScrollState): void {
@@ -179,9 +182,6 @@ export class ScrollableElement extends Widget {
 		this._options.handleMouseWheel = massagedOptions.handleMouseWheel;
 		this._options.mouseWheelScrollSensitivity = massagedOptions.mouseWheelScrollSensitivity;
 		this._setListeningToMouseWheel(this._options.handleMouseWheel);
-
-		this._shouldRender = this._horizontalScrollbar.setCanUseTranslate3d(massagedOptions.canUseTranslate3d) || this._shouldRender;
-		this._shouldRender = this._verticalScrollbar.setCanUseTranslate3d(massagedOptions.canUseTranslate3d) || this._shouldRender;
 
 		if (!this._options.lazyRender) {
 			this._render();
@@ -401,7 +401,6 @@ export class DomScrollableElement extends ScrollableElement {
 
 function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableElementResolvedOptions {
 	let result: ScrollableElementResolvedOptions = {
-		canUseTranslate3d: opts.canUseTranslate3d && Browser.supportsTranslate3d,
 		lazyRender: (typeof opts.lazyRender !== 'undefined' ? opts.lazyRender : false),
 		className: (typeof opts.className !== 'undefined' ? opts.className : ''),
 		useShadows: (typeof opts.useShadows !== 'undefined' ? opts.useShadows : true),

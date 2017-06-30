@@ -14,7 +14,6 @@ export interface TaskEntry extends IPickOpenEntry {
 	content: string;
 }
 
-/* Version 2.0 templates
 const dotnetBuild: TaskEntry = {
 	id: 'dotnetCore',
 	label: '.NET Core',
@@ -32,7 +31,7 @@ const dotnetBuild: TaskEntry = {
 		'\t\t\t"command": "dotnet",',
 		'\t\t\t"type": "shell",',
 		'\t\t\t"group": "build",',
-		'\t\t\t"terminal": {',
+		'\t\t\t"presentation": {',
 		'\t\t\t\t"reveal": "silent"',
 		'\t\t\t},',
 		'\t\t\t"problemMatcher": "$msCompile"',
@@ -62,8 +61,8 @@ const msbuild: TaskEntry = {
 		'\t\t\t\t"/t:build"',
 		'\t\t\t],',
 		'\t\t\t"group": "build",',
-		'\t\t\t"terminal": {',
-		'\t\t\t\t// Reveal the terminal only if unrecognized errors occur.',
+		'\t\t\t"presentation": {',
+		'\t\t\t\t// Reveal the output only if unrecognized errors occur.',
 		'\t\t\t\t"reveal": "silent"',
 		'\t\t\t},',
 		'\t\t\t// Use the standard MS compiler pattern to detect errors, warnings and infos',
@@ -128,8 +127,10 @@ export let templates: TaskEntry[] = [dotnetBuild, msbuild, maven].sort((a, b) =>
 	return (a.sort || a.label).localeCompare(b.sort || b.label);
 });
 templates.push(command);
-*/
 
+
+/** Version 1.0 templates
+ *
 const gulp: TaskEntry = {
 	id: 'gulp',
 	label: 'Gulp',
@@ -345,3 +346,4 @@ export let templates: TaskEntry[] = [gulp, grunt, tscConfig, tscWatch, dotnetBui
 	return (a.sort || a.label).localeCompare(b.sort || b.label);
 });
 templates.push(command);
+*/

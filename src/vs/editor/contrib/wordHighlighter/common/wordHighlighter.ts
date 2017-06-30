@@ -32,7 +32,7 @@ export function getOccurrencesAtPosition(model: editorCommon.IReadOnlyModel, pos
 	// until someone response with a good result
 	// (good = none empty array)
 	return sequence(orderedByScore.map(provider => {
-		return () => {
+		return (): TPromise<DocumentHighlight[]> => {
 			if (!foundResult) {
 				return asWinJsPromise((token) => {
 					return provider.provideDocumentHighlights(model, position, token);
@@ -188,8 +188,8 @@ class WordHighlighter {
 		}
 
 		// All the effort below is trying to achieve this:
-		// - when cursor is moved to a word, trigger immediately a findOccurences request
-		// - 250ms later after the last cursor move event, render the occurences
+		// - when cursor is moved to a word, trigger immediately a findOccurrences request
+		// - 250ms later after the last cursor move event, render the occurrences
 		// - no flickering!
 
 		var currentWordRange = new Range(lineNumber, word.startColumn, lineNumber, word.endColumn);

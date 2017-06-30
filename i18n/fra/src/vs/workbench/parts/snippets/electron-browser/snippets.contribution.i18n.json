@@ -11,6 +11,6 @@
 	"snippetSchema.json.default": "Extrait de code vide",
 	"snippetSchema.json": "Configuration de l'extrait de code utilisateur",
 	"snippetSchema.json.prefix": "Préfixe à utiliser durant la sélection de l'extrait de code dans IntelliSense",
-	"snippetSchema.json.body": "Contenu de l'extrait de code. Utilisez '${id}', '${id:label}', '${1:label}' pour les variables, et '$0', '$1' pour les positions du curseur",
+	"snippetSchema.json.body": "Contenu de l'extrait de code. Utilisez '$1', '${1:defaultText}' pour définir les positions du curseur, utilisez '$0' pour la position finale du curseur. Insérez les valeurs de variable avec '${varName}' et '${varName:defaultText}', par ex., 'Il s'agit du fichier : $TM_FILENAME'.",
 	"snippetSchema.json.description": "Description de l'extrait de code."
 }

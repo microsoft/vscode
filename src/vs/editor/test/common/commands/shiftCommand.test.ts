@@ -107,7 +107,7 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 				'123'
 			],
-			new Selection(1, 2, 1, 2)
+			new Selection(1, 1, 1, 2)
 		);
 	});
 
@@ -130,7 +130,7 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 				'123'
 			],
-			new Selection(1, 4, 1, 2)
+			new Selection(1, 4, 1, 1)
 		);
 	});
 
@@ -153,7 +153,7 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 				'123'
 			],
-			new Selection(1, 2, 1, 4)
+			new Selection(1, 1, 1, 4)
 		);
 	});
 
@@ -176,7 +176,7 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 				'123'
 			],
-			new Selection(1, 2, 2, 1)
+			new Selection(1, 1, 2, 1)
 		);
 	});
 
@@ -199,7 +199,7 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 				'123'
 			],
-			new Selection(1, 2, 2, 1)
+			new Selection(1, 1, 2, 1)
 		);
 
 		testShiftCommand(
@@ -312,7 +312,7 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 				'\t123'
 			],
-			new Selection(1, 2, 5, 3)
+			new Selection(1, 1, 5, 3)
 		);
 
 		testShiftCommand(
@@ -333,7 +333,7 @@ suite('Editor Commands - ShiftCommand', () => {
 				'\t',
 				'123'
 			],
-			new Selection(4, 2, 5, 1)
+			new Selection(4, 1, 5, 1)
 		);
 	});
 
@@ -538,7 +538,7 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 				'\t123'
 			],
-			new Selection(1, 2, 5, 5)
+			new Selection(1, 1, 5, 5)
 		);
 	});
 
@@ -703,7 +703,7 @@ suite('Editor Commands - ShiftCommand', () => {
 				'        eleven | 11',
 				'',
 			],
-			new Selection(1, 5, 13, 1)
+			new Selection(1, 1, 13, 1)
 		);
 	});
 
@@ -836,6 +836,28 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 			],
 			new Selection(1, 1, 13, 1)
+		);
+	});
+
+	test('issue Microsoft/monaco-editor#443: Indentation of a single row deletes selected text in some cases', () => {
+		testCommand(
+			[
+				'Hello world!',
+				'another line'
+			],
+			null,
+			new Selection(1, 1, 1, 13),
+			(sel) => new ShiftCommand(sel, {
+				isUnshift: false,
+				tabSize: 4,
+				oneIndent: '\t',
+				useTabStops: true
+			}),
+			[
+				'\tHello world!',
+				'another line'
+			],
+			new Selection(1, 1, 1, 14)
 		);
 	});
 

@@ -865,7 +865,7 @@ export class ReloadAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		if (this.messageService.confirm({ message: this.reloadMessaage, primaryButton: localize('reload', "&&Reload Window") })) {
+		if (this.messageService.confirm({ message: this.reloadMessaage, type: 'question', primaryButton: localize('reload', "&&Reload Window") })) {
 			return this.windowService.reloadWindow();
 		}
 		return TPromise.wrap(null);
@@ -940,7 +940,7 @@ export class ShowDisabledExtensionsAction extends Action {
 	}
 }
 
-export class ClearExtensionsInputAction extends ShowInstalledExtensionsAction {
+export class ClearExtensionsInputAction extends Action {
 
 	static ID = 'workbench.extensions.action.clearExtensionsInput';
 	static LABEL = localize('clearExtensionsInput', "Clear Extensions Input");
@@ -951,16 +951,25 @@ export class ClearExtensionsInputAction extends ShowInstalledExtensionsAction {
 		id: string,
 		label: string,
 		onSearchChange: Event<string>,
-		@IViewletService viewletService: IViewletService,
-		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IViewletService private viewletService: IViewletService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
-		super(id, label, viewletService, extensionsWorkbenchService);
+		super(id, label, 'clear-extensions', true);
 		this.enabled = false;
 		onSearchChange(this.onSearchChange, this, this.disposables);
 	}
 
 	private onSearchChange(value: string): void {
 		this.enabled = !!value;
+	}
+
+	run(): TPromise<void> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search('');
+				viewlet.focus();
+			});
 	}
 
 	dispose(): void {
@@ -1123,7 +1132,7 @@ export class ShowLanguageExtensionsAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('@sort:installs @category:languages ');
+				viewlet.search('@sort:installs category:languages ');
 				viewlet.focus();
 			});
 	}
@@ -1215,7 +1224,7 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends Action {
 	}
 
 	private getOrCreateExtensionsFile(): TPromise<{ created: boolean, extensionsFileResource: URI }> {
-		const extensionsFileResource = URI.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '.vscode', 'extensions.json'));
+		const extensionsFileResource = URI.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '.vscode', 'extensions.json')); // TODO@Sandeep (https://github.com/Microsoft/vscode/issues/29242)
 
 		return this.fileService.resolveContent(extensionsFileResource).then(content => {
 			return { created: false, extensionsFileResource };

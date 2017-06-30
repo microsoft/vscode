@@ -80,6 +80,7 @@ suite('Strings', () => {
 		assertCompareIgnoreCase('aa', 'aA');
 		assertCompareIgnoreCase('a', 'aa');
 		assertCompareIgnoreCase('ab', 'aA');
+		assertCompareIgnoreCase('O', '/');
 	});
 
 	test('format', function () {
@@ -91,6 +92,16 @@ suite('Strings', () => {
 		assert.strictEqual(strings.format('Foo {0} Bar {1}{2}', 'yes', undefined), 'Foo yes Bar undefined{2}');
 		assert.strictEqual(strings.format('Foo {0} Bar {1}{2}', 'yes', 5, false), 'Foo yes Bar 5false');
 		assert.strictEqual(strings.format('Foo {0} Bar. {1}', '(foo)', '.test'), 'Foo (foo) Bar. .test');
+	});
+
+	test('overlap', function () {
+		assert.equal(strings.overlap('foobar', 'arr, I am a priate'), 2);
+		assert.equal(strings.overlap('no', 'overlap'), 1);
+		assert.equal(strings.overlap('no', '0verlap'), 0);
+		assert.equal(strings.overlap('nothing', ''), 0);
+		assert.equal(strings.overlap('', 'nothing'), 0);
+		assert.equal(strings.overlap('full', 'full'), 4);
+		assert.equal(strings.overlap('full', 'fulloverlap'), 4);
 	});
 
 	test('computeLineStarts', function () {

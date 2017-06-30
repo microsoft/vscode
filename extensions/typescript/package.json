@@ -10,11 +10,10 @@
   "engines": {
     "vscode": "*"
   },
-  "enableProposedApi": true,
   "dependencies": {
     "semver": "4.3.6",
-    "vscode-extension-telemetry": "^0.0.7",
-    "vscode-nls": "^2.0.1"
+    "vscode-extension-telemetry": "0.0.8",
+    "vscode-nls": "2.0.1"
   },
   "devDependencies": {
     "@types/node": "^7.0.4",
@@ -174,6 +173,11 @@
           "default": true,
           "description": "%format.insertSpaceAfterCommaDelimiter%"
         },
+        "typescript.format.insertSpaceAfterConstructor": {
+          "type": "boolean",
+          "default": false,
+          "description": "%format.insertSpaceAfterConstructor%"
+        },
         "typescript.format.insertSpaceAfterSemicolonInForStatements": {
           "type": "boolean",
           "default": true,
@@ -224,6 +228,11 @@
           "default": false,
           "description": "%format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces%"
         },
+        "typescript.format.insertSpaceAfterTypeAssertion": {
+          "type": "boolean",
+          "default": false,
+          "description": "%format.insertSpaceAfterTypeAssertion%"
+        },
         "typescript.format.placeOpenBraceOnNewLineForFunctions": {
           "type": "boolean",
           "default": false,
@@ -248,6 +257,11 @@
           "type": "boolean",
           "default": true,
           "description": "%format.insertSpaceAfterCommaDelimiter%"
+        },
+        "javascript.format.insertSpaceAfterConstructor": {
+          "type": "boolean",
+          "default": false,
+          "description": "%format.insertSpaceAfterConstructor%"
         },
         "javascript.format.insertSpaceAfterSemicolonInForStatements": {
           "type": "boolean",
@@ -448,6 +462,18 @@
         "url": "http://json.schemastore.org/typings"
       }
     ],
+    "taskDefinitions": [
+      {
+        "type": "typescript",
+        "required": ["tsconfig"],
+        "properties": {
+          "tsconfig": {
+            "type": "string",
+            "description": "The tsconfig file that defines the TS build"
+          }
+        }
+      }
+    ],
     "problemPatterns": [
       {
         "name": "tsc",
@@ -462,6 +488,7 @@
     "problemMatchers": [
       {
         "name": "tsc",
+        "label": "%typescript.problemMatchers.tsc.label%",
         "owner": "typescript",
         "applyTo": "closedDocuments",
         "fileLocation": [
@@ -472,6 +499,7 @@
       },
       {
         "name": "tsc-watch",
+        "label": "%typescript.problemMatchers.tscWatch.label%",
         "owner": "typescript",
         "applyTo": "closedDocuments",
         "fileLocation": [

@@ -73,6 +73,10 @@ export default class MergeDectorator implements vscode.Disposable {
 			this.decorations['incoming.content'] = vscode.window.createTextEditorDecorationType(
 				this.generateBlockRenderOptions('merge.incomingContentBackground', 'editorOverviewRuler.incomingContentForeground', config)
 			);
+
+			this.decorations['commonAncestors.content'] = vscode.window.createTextEditorDecorationType(
+				this.generateBlockRenderOptions('merge.commonContentBackground', 'editorOverviewRuler.commonContentForeground', config)
+			);
 		}
 
 		if (config.enableDecorations) {
@@ -87,6 +91,15 @@ export default class MergeDectorator implements vscode.Disposable {
 					contentText: ' ' + localize('currentChange', '(Current Change)'),
 					color: new vscode.ThemeColor('descriptionForeground')
 				}
+			});
+
+			this.decorations['commonAncestors.header'] = vscode.window.createTextEditorDecorationType({
+				isWholeLine: this.decorationUsesWholeLine,
+				backgroundColor: new vscode.ThemeColor('merge.commonHeaderBackground'),
+				color: new vscode.ThemeColor('editor.foreground'),
+				outlineStyle: 'solid',
+				outlineWidth: '1pt',
+				outlineColor: new vscode.ThemeColor('merge.border')
 			});
 
 			this.decorations['splitter'] = vscode.window.createTextEditorDecorationType({
@@ -184,13 +197,27 @@ export default class MergeDectorator implements vscode.Disposable {
 
 			conflicts.forEach(conflict => {
 				// TODO, this could be more effective, just call getMatchPositions once with a map of decoration to position
-				pushDecoration('current.content', { range: conflict.current.decoratorContent });
-				pushDecoration('incoming.content', { range: conflict.incoming.decoratorContent });
+				if (!conflict.current.decoratorContent.isEmpty) {
+					pushDecoration('current.content', { range: conflict.current.decoratorContent });
+				}
+				if (!conflict.incoming.decoratorContent.isEmpty) {
+					pushDecoration('incoming.content', { range: conflict.incoming.decoratorContent });
+				}
+
+				conflict.commonAncestors.forEach(commonAncestorsRegion => {
+					if (!commonAncestorsRegion.decoratorContent.isEmpty) {
+						pushDecoration('commonAncestors.content', { range: commonAncestorsRegion.decoratorContent });
+					}
+				});
 
 				if (this.config.enableDecorations) {
 					pushDecoration('current.header', { range: conflict.current.header });
 					pushDecoration('splitter', { range: conflict.splitter });
 					pushDecoration('incoming.header', { range: conflict.incoming.header });
+
+					conflict.commonAncestors.forEach(commonAncestorsRegion => {
+						pushDecoration('commonAncestors.header', { range: commonAncestorsRegion.header });
+					});
 				}
 			});
 

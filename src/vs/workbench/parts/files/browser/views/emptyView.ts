@@ -9,41 +9,39 @@ import * as errors from 'vs/base/common/errors';
 import env = require('vs/base/common/platform');
 import DOM = require('vs/base/browser/dom');
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IActionRunner, IAction } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { $ } from 'vs/base/browser/builder';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CollapsibleView, CollapsibleState } from 'vs/base/browser/ui/splitview/splitview';
+import { CollapsibleView, IViewletViewOptions, IViewOptions } from 'vs/workbench/parts/views/browser/views';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IViewOptions } from 'vs/workbench/parts/views/browser/views';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { ViewSizing } from 'vs/base/browser/ui/splitview/splitview';
 
 export class EmptyView extends CollapsibleView {
 
 	public static ID: string = 'workbench.explorer.emptyView';
-
-	public readonly id: string = EmptyView.ID;
+	public static NAME = nls.localize('noWorkspace', "No Folder Opened");
 
 	private openFolderButton: Button;
-	private actionRunner: IActionRunner;
+
 	constructor(
-		options: IViewOptions,
+		options: IViewletViewOptions,
 		@IThemeService private themeService: IThemeService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextMenuService contextMenuService: IContextMenuService
 	) {
-		super({
-			minimumSize: 5 * 22,
-			ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section"),
-			initialState: options.collapsed ? CollapsibleState.COLLAPSED : CollapsibleState.EXPANDED
-		});
-		this.actionRunner = options.actionRunner;
+		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section"), sizing: ViewSizing.Flexible }, keybindingService, contextMenuService);
 	}
 
 	public renderHeader(container: HTMLElement): void {
 		let titleDiv = $('div.title').appendTo(container);
-		$('span').text(nls.localize('noWorkspace', "No Folder Opened")).appendTo(titleDiv);
+		$('span').text(this.name).appendTo(titleDiv);
 	}
 
 	protected renderBody(container: HTMLElement): void {
@@ -69,7 +67,7 @@ export class EmptyView extends CollapsibleView {
 		});
 	}
 
-	protected layoutBody(size: number): void {
+	layoutBody(size: number): void {
 		// no-op
 	}
 

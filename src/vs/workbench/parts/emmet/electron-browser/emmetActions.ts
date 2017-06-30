@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { EditorAction, ServicesAccessor, IActionOptions, ICommandKeybindingsOptions } from 'vs/editor/common/editorCommonExtensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { grammarsExtPoint, ITMSyntaxExtensionPoint } from 'vs/editor/node/textMate/TMGrammars';
+import { grammarsExtPoint, ITMSyntaxExtensionPoint } from 'vs/workbench/services/textMate/electron-browser/TMGrammars';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EditorAccessor, IGrammarContributions } from 'vs/workbench/parts/emmet/electron-browser/editorAccessor';
@@ -249,7 +249,15 @@ export abstract class EmmetEditorAction extends EditorAction {
 		'editor.emmet.action.mergeLines': 'emmet.mergeLines',
 		'editor.emmet.action.selectPreviousItem': 'emmet.selectPrevItem',
 		'editor.emmet.action.selectNextItem': 'emmet.selectNextItem',
-		'editor.emmet.action.splitJoinTag': 'emmet.splitJoinTag'
+		'editor.emmet.action.splitJoinTag': 'emmet.splitJoinTag',
+		'editor.emmet.action.toggleComment': 'emmet.toggleComment',
+		'editor.emmet.action.evaluateMath': 'emmet.evaluateMathExpression',
+		'editor.emmet.action.incrementNumberByOneTenth': 'emmet.incrementNumberByOneTenth',
+		'editor.emmet.action.incrementNumberByOne': 'emmet.incrementNumberByOne',
+		'editor.emmet.action.incrementNumberByTen': 'emmet.incrementNumberByTen',
+		'editor.emmet.action.decrementNumberByOneTenth': 'emmet.decrementNumberByOneTenth',
+		'editor.emmet.action.decrementNumberByOne': 'emmet.decrementNumberByOne',
+		'editor.emmet.action.decrementNumberByTen': 'emmet.decrementNumberByTen'
 	};
 
 	protected emmetActionName: string;
@@ -284,12 +292,12 @@ export abstract class EmmetEditorAction extends EditorAction {
 		const modeService = accessor.get(IModeService);
 		const messageService = accessor.get(IMessageService);
 		const contextService = accessor.get(IWorkspaceContextService);
-		const workspaceRoot = contextService.getWorkspace() ? contextService.getWorkspace().resource.fsPath : '';
+		const workspaceRoot = contextService.hasWorkspace() ? contextService.getWorkspace().resource.fsPath : ''; // TODO@Ramya (https://github.com/Microsoft/vscode/issues/29244)
 		const telemetryService = accessor.get(ITelemetryService);
 		const commandService = accessor.get(ICommandService);
 
-		let mappedCommand = this.actionMap[this.id];
-		if (mappedCommand && configurationService.getConfiguration<IEmmetConfiguration>().emmet.useNewEmmet) {
+		let mappedCommand = configurationService.getConfiguration<IEmmetConfiguration>().emmet.useNewEmmet ? this.actionMap[this.id] : undefined;
+		if (mappedCommand && mappedCommand !== 'emmet.expandAbbreviation' && mappedCommand !== 'emmet.wrapWithAbbreviation') {
 			return commandService.executeCommand<void>(mappedCommand);
 		}
 
@@ -303,6 +311,10 @@ export abstract class EmmetEditorAction extends EditorAction {
 				grammarContributions,
 				this.emmetActionName
 			);
+
+			if (mappedCommand === 'emmet.expandAbbreviation' || mappedCommand === 'emmet.wrapWithAbbreviation') {
+				return commandService.executeCommand<void>(mappedCommand, editorAccessor.getLanguage());
+			}
 
 			if (!editorAccessor.isEmmetEnabledMode()) {
 				this.noExpansionOccurred(editor);

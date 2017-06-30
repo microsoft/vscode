@@ -6,6 +6,5 @@
 {
 	"noResultsMatching": "Нет соответствующих результатов",
 	"noResultsFound2": "Результаты не найдены",
-	"entryAriaLabel": "{0}, команда",
-	"noCommands": "Нет соответствующих команд"
+	"entryAriaLabel": "{0}, команда"
 }

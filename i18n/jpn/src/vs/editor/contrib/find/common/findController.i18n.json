@@ -14,6 +14,6 @@
 	"addSelectionToPreviousFindMatch": "選んだ項目を前の一致項目に追加する",
 	"moveSelectionToNextFindMatch": "最後に選択した項目を次の一致項目に移動",
 	"moveSelectionToPreviousFindMatch": "最後に選んだ項目を前の一致項目に移動する",
-	"selectAllOccurencesOfFindMatch": "一致するすべての出現箇所を選択します",
+	"selectAllOccurrencesOfFindMatch": "一致するすべての出現箇所を選択します",
 	"changeAll.label": "すべての出現箇所を変更"
 }

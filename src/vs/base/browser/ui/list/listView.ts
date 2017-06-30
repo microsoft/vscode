@@ -32,7 +32,8 @@ const MouseEventTypes = [
 	'mouseover',
 	'mousemove',
 	'mouseout',
-	'contextmenu'
+	'contextmenu',
+	'touchstart'
 ];
 
 export interface IListViewOptions {
@@ -81,7 +82,6 @@ export class ListView<T> implements IDisposable {
 		this.gesture = new Gesture(this.rowsContainer);
 
 		this.scrollableElement = new ScrollableElement(this.rowsContainer, {
-			canUseTranslate3d: false,
 			alwaysConsumeMouseWheel: true,
 			horizontal: ScrollbarVisibility.Hidden,
 			vertical: ScrollbarVisibility.Auto,

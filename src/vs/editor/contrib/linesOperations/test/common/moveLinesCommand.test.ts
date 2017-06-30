@@ -3,17 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
-
 import { Selection } from 'vs/editor/common/core/selection';
 import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/common/moveLinesCommand';
 import { testCommand } from 'vs/editor/test/common/commands/commandTestUtils';
+import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 function testMoveLinesDownCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, null, selection, (sel) => new MoveLinesCommand(sel, true), expectedLines, expectedSelection);
+	testCommand(lines, null, selection, (sel) => new MoveLinesCommand(sel, true, false), expectedLines, expectedSelection);
 }
 
 function testMoveLinesUpCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, null, selection, (sel) => new MoveLinesCommand(sel, false), expectedLines, expectedSelection);
+	testCommand(lines, null, selection, (sel) => new MoveLinesCommand(sel, false, false), expectedLines, expectedSelection);
+}
+
+function testMoveLinesDownWithIndentCommand(languageId: LanguageIdentifier, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
+	testCommand(lines, languageId, selection, (sel) => new MoveLinesCommand(sel, true, true), expectedLines, expectedSelection);
+}
+
+function testMoveLinesUpWithIndentCommand(languageId: LanguageIdentifier, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
+	testCommand(lines, languageId, selection, (sel) => new MoveLinesCommand(sel, false, true), expectedLines, expectedSelection);
 }
 
 suite('Editor Contrib - Move Lines Command', () => {
@@ -248,3 +259,95 @@ suite('Editor Contrib - Move Lines Command', () => {
 	});
 });
 
+class IndentRulesMode extends MockMode {
+	private static _id = new LanguageIdentifier('moveLinesIndentMode', 7);
+	constructor(indentationRules: IndentationRule) {
+		super(IndentRulesMode._id);
+		this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+			indentationRules: indentationRules
+		}));
+	}
+}
+
+suite('Editor contrib - Move Lines Command honors Indentation Rules', () => {
+	let indentRules = {
+		decreaseIndentPattern: /^\s*((?!\S.*\/[*]).*[*]\/\s*)?[})\]]|^\s*(case\b.*|default):\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
+		increaseIndentPattern: /(\{[^}"'`]*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|default):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
+		indentNextLinePattern: /^\s*(for|while|if|else)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$)/,
+		unIndentedLinePattern: /^(?!.*([;{}]|\S:)\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!.*(\{[^}"']*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|default):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!^\s*((?!\S.*\/[*]).*[*]\/\s*)?[})\]]|^\s*(case\b.*|default):\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!^\s*(for|while|if|else)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$))/
+	};
+
+	// https://github.com/Microsoft/vscode/issues/28552#issuecomment-307862797
+	test('first line indentation adjust to 0', () => {
+		let mode = new IndentRulesMode(indentRules);
+
+		testMoveLinesUpWithIndentCommand(
+			mode.getLanguageIdentifier(),
+			[
+				'class X {',
+				'\tz = 2',
+				'}'
+			],
+			new Selection(2, 1, 2, 1),
+			[
+				'z = 2',
+				'class X {',
+				'}'
+			],
+			new Selection(1, 1, 1, 1)
+		);
+
+		mode.dispose();
+	});
+
+	// https://github.com/Microsoft/vscode/issues/28552#issuecomment-307867717
+	test('move lines across block', () => {
+		let mode = new IndentRulesMode(indentRules);
+
+		testMoveLinesDownWithIndentCommand(
+			mode.getLanguageIdentifier(),
+			[
+				'const value = 2;',
+				'const standardLanguageDescriptions = [',
+				'    {',
+				'        diagnosticSource: \'js\',',
+				'    }',
+				'];'
+			],
+			new Selection(1, 1, 1, 1),
+			[
+				'const standardLanguageDescriptions = [',
+				'    const value = 2;',
+				'    {',
+				'        diagnosticSource: \'js\',',
+				'    }',
+				'];'
+			],
+			new Selection(2, 5, 2, 5)
+		);
+
+		mode.dispose();
+	});
+
+	test('move line should still work as before if there is no indentation rules', () => {
+		testMoveLinesUpWithIndentCommand(
+			null,
+			[
+				'if (true) {',
+				'    var task = new Task(() => {',
+				'        var work = 1234;',
+				'    });',
+				'}'
+			],
+			new Selection(3, 1, 3, 1),
+			[
+				'if (true) {',
+				'        var work = 1234;',
+				'    var task = new Task(() => {',
+				'    });',
+				'}'
+			],
+			new Selection(2, 1, 2, 1)
+		);
+	});
+});

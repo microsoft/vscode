@@ -10,14 +10,15 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITerminalService, ITerminalFont, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { TerminalFindWidget } from './terminalFindWidget';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR } from './terminalColorRegistry';
-import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import { ColorIdentifier, editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
+import { KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction, SelectAllTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -34,10 +35,12 @@ export class TerminalPanel extends Panel {
 	private _parentDomElement: HTMLElement;
 	private _terminalContainer: HTMLElement;
 	private _themeStyleElement: HTMLElement;
+	private _findWidget: TerminalFindWidget;
 
 	constructor(
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@IContextMenuService private _contextMenuService: IContextMenuService,
+		@IContextViewService private _contextViewService: IContextViewService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@ITerminalService private _terminalService: ITerminalService,
 		@IThemeService protected themeService: IThemeService,
@@ -55,9 +58,13 @@ export class TerminalPanel extends Panel {
 
 		this._terminalContainer = document.createElement('div');
 		dom.addClass(this._terminalContainer, 'terminal-outer-container');
+
+		this._findWidget = new TerminalFindWidget(this._contextViewService, this._terminalService);
+
 		this._parentDomElement.appendChild(this._themeStyleElement);
 		this._parentDomElement.appendChild(this._fontStyleElement);
 		this._parentDomElement.appendChild(this._terminalContainer);
+		this._parentDomElement.appendChild(this._findWidget.getDomNode());
 
 		this._attachEventListeners();
 
@@ -123,6 +130,7 @@ export class TerminalPanel extends Panel {
 				new Separator(),
 				this._copyContextMenuAction,
 				this._instantiationService.createInstance(TerminalPasteAction, TerminalPasteAction.ID, nls.localize('paste', "Paste")),
+				this._instantiationService.createInstance(SelectAllTerminalAction, SelectAllTerminalAction.ID, nls.localize('selectAll', "Select All")),
 				new Separator(),
 				this._instantiationService.createInstance(ClearTerminalAction, ClearTerminalAction.ID, nls.localize('clear', "Clear"))
 			];
@@ -130,7 +138,8 @@ export class TerminalPanel extends Panel {
 				this._register(a);
 			});
 		}
-		this._copyContextMenuAction.enabled = document.activeElement.classList.contains('xterm') && window.getSelection().toString().length > 0;
+		const activeInstance = this._terminalService.getActiveInstance();
+		this._copyContextMenuAction.enabled = activeInstance && activeInstance.hasSelection();
 		return this._contextMenuActions;
 	}
 
@@ -147,6 +156,14 @@ export class TerminalPanel extends Panel {
 		if (activeInstance) {
 			activeInstance.focus(true);
 		}
+	}
+
+	public focusFindWidget() {
+		this._findWidget.reveal();
+	}
+
+	public hideFindWidget() {
+		this._findWidget.hide();
 	}
 
 	private _attachEventListeners(): void {
@@ -243,13 +260,8 @@ export class TerminalPanel extends Panel {
 		ansiColorIdentifiers.forEach((colorId: ColorIdentifier, index: number) => {
 			if (colorId) { // should not happen, all indices should have a color defined.
 				let color = theme.getColor(colorId);
-				let rgba = color.transparent(0.996);
 				css += `.monaco-workbench .panel.integrated-terminal .xterm .xterm-color-${index} { color: ${color}; }` +
-					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-color-${index}::selection,` +
-					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-color-${index} *::selection { background-color: ${rgba}; }` +
-					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-bg-color-${index} { background-color: ${color}; }` +
-					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-bg-color-${index}::selection,` +
-					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-bg-color-${index} *::selection { color: ${color}; }`;
+					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-bg-color-${index} { background-color: ${color}; }`;
 			}
 		});
 		const bgColor = theme.getColor(TERMINAL_BACKGROUND_COLOR);
@@ -258,10 +270,32 @@ export class TerminalPanel extends Panel {
 		}
 		const fgColor = theme.getColor(TERMINAL_FOREGROUND_COLOR);
 		if (fgColor) {
-			css += `.monaco-workbench .panel.integrated-terminal .xterm { color: ${fgColor}; }`;
+			css += `.monaco-workbench .panel.integrated-terminal .xterm { color: ${fgColor}; }` +
+				`.monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .terminal-cursor,` +
+				`.monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .terminal-cursor { background-color: ${fgColor} }` +
+				`.monaco-workbench .panel.integrated-terminal .xterm:not(.focus):not(:focus) .terminal-cursor { outline-color: ${fgColor}; }` +
+				`.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-bar .terminal-cursor::before,` +
+				`.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-underline .terminal-cursor::before { background-color: ${fgColor}; }` +
+				`.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-bar.focus.xterm-cursor-blink .terminal-cursor::before,` +
+				`.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-underline.focus.xterm-cursor-blink .terminal-cursor::before { background-color: ${fgColor}; }`;
+		}
+		// TODO: Reinstate, see #28397
+		// const selectionColor = theme.getColor(TERMINAL_SELECTION_BACKGROUND_COLOR);
+		// if (selectionColor) {
+		// 	css += `.monaco-workbench .panel.integrated-terminal .xterm .xterm-selection div { background-color: ${selectionColor}; }`;
+		// }
+		// Borrow the editor's hover background for now
+		let hoverBackground = theme.getColor(editorHoverBackground);
+		if (hoverBackground) {
+			css += `.monaco-workbench .panel.integrated-terminal .terminal-message-widget { background-color: ${hoverBackground}; }`;
+		}
+		let hoverBorder = theme.getColor(editorHoverBorder);
+		if (hoverBorder) {
+			css += `.monaco-workbench .panel.integrated-terminal .terminal-message-widget { border: 1px solid ${hoverBorder}; }`;
 		}
 
 		this._themeStyleElement.innerHTML = css;
+		this._findWidget.updateTheme(theme);
 	}
 
 	private _updateFont(): void {

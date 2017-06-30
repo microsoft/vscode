@@ -57,19 +57,20 @@ declare module monaco {
 
 declare module monaco.editor {
 
-#includeAll(vs/editor/browser/standalone/standaloneEditor;modes.=>languages.;editorCommon.=>):
-#include(vs/editor/common/services/standaloneThemeService): BuiltinTheme, IStandaloneThemeData, IColors
+#includeAll(vs/editor/standalone/browser/standaloneEditor;modes.=>languages.;editorCommon.=>):
+#include(vs/editor/standalone/common/standaloneThemeService): BuiltinTheme, IStandaloneThemeData, IColors
 #include(vs/editor/common/modes/supports/tokenization): ITokenThemeRule
 #include(vs/editor/common/services/webWorker): MonacoWebWorker, IWebWorkerOptions
-#include(vs/editor/browser/standalone/standaloneCodeEditor): IEditorConstructionOptions, IDiffEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor
+#include(vs/editor/standalone/browser/standaloneCodeEditor): IEditorConstructionOptions, IDiffEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor
 export interface ICommandHandler {
 	(...args:any[]): void;
 }
 #include(vs/platform/contextkey/common/contextkey): IContextKey
-#include(vs/editor/browser/standalone/standaloneServices): IEditorOverrideServices
+#include(vs/editor/standalone/browser/standaloneServices): IEditorOverrideServices
 #include(vs/platform/markers/common/markers): IMarkerData
-#include(vs/editor/browser/standalone/colorizer): IColorizerOptions, IColorizerElementOptions
+#include(vs/editor/standalone/browser/colorizer): IColorizerOptions, IColorizerElementOptions
 #include(vs/base/common/scrollable): ScrollbarVisibility
+#include(vs/platform/theme/common/themeService): ThemeColor
 #includeAll(vs/editor/common/editorCommon;IMode=>languages.IMode;LanguageIdentifier=>languages.LanguageIdentifier;editorOptions.=>): ISelection, IScrollEvent
 #includeAll(vs/editor/common/model/textModelEvents):
 #includeAll(vs/editor/common/controller/cursorEvents):
@@ -80,11 +81,11 @@ export interface ICommandHandler {
 
 declare module monaco.languages {
 
-#includeAll(vs/editor/browser/standalone/standaloneLanguages;modes.=>;editorCommon.=>editor.;IMarkerData=>editor.IMarkerData):
+#includeAll(vs/editor/standalone/browser/standaloneLanguages;modes.=>;editorCommon.=>editor.;IMarkerData=>editor.IMarkerData):
 #includeAll(vs/editor/common/modes/languageConfiguration):
 #includeAll(vs/editor/common/modes;editorCommon.IRange=>IRange;editorCommon.IPosition=>IPosition;editorCommon.=>editor.):
 #include(vs/editor/common/services/modeService): ILanguageExtensionPoint
-#includeAll(vs/editor/common/modes/monarch/monarchTypes):
+#includeAll(vs/editor/standalone/common/monarch/monarchTypes):
 
 }
 

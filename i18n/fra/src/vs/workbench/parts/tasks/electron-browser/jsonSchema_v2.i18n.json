@@ -7,6 +7,12 @@
 	"JsonSchema.shell": "Spécifie si la commande est une commande d'interpréteur de commandes ou un programme externe. La valeur par défaut est false, en cas d'omission.",
 	"JsonSchema.tasks.dependsOn.string": "Autre tâche dont cette tâche dépend.",
 	"JsonSchema.tasks.dependsOn.array": "Autres tâches dont cette tâche dépend.",
+	"JsonSchema.tasks.type": "Définit si la tâche est exécutée sous forme de processus ou d'une commande d'un interpréteur de commandes. La valeur par défaut est un processus.",
+	"JsonSchema.version": "Numéro de version de la configuration.",
+	"JsonSchema.tasks.taskName": "Nom de la tâche",
+	"JsonSchema.tasks.background": "Spécifie si la tâche exécutée est persistante, et si elle s'exécute en arrière-plan.",
+	"JsonSchema.tasks.promptOnClose": "Spécifie si l'utilisateur est prévenu quand VS Code se ferme avec une tâche en cours d'exécution.",
+	"JsonSchema.tasks.matchers": "Détecteur(s) de problèmes de correspondance à utiliser. Il peut s'agir d'une chaîne ou d'une définition de détecteur de problèmes de correspondance, ou encore d'un tableau de chaînes et de détecteurs de problèmes de correspondance.",
 	"JsonSchema.windows": "Configuration de commande spécifique à Windows",
 	"JsonSchema.mac": "Configuration de commande spécifique à Mac",
 	"JsonSchema.linux": "Configuration de commande spécifique à Linux"

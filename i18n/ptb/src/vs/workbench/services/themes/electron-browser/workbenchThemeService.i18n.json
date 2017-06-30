@@ -23,7 +23,7 @@
 	"error.cannotparseicontheme": "Problemas de análise do arquivo de ícones: {0}",
 	"colorTheme": "Especifica o tema de cores usado no espaço de trabalho.",
 	"colorThemeError": "Tema é desconhecido ou não está instalado.",
-	"iconTheme": "Especifica o tema de ícone usado no espaço de trabalho.",
+	"iconTheme": "Especifica o tema de ícones usado no espaço de trabalho ou 'null' para não mostrar qualquer arquivo de ícones.",
 	"noIconThemeDesc": "Nenhum arquivo de ícones",
 	"iconThemeError": "Arquivo de tema de ícones é desconhecido ou não está instalado.",
 	"workbenchColors": "Substitui as cores do tema do tema de cores atualmente selecionado.",

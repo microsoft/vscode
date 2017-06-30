@@ -10,7 +10,7 @@
 	"multiSelection": "{0} selezioni",
 	"endOfLineLineFeed": "LF",
 	"endOfLineCarriageReturnLineFeed": "CRLF",
-	"tabFocusModeEnabled": "Premere TAB per spostare lo stato attivo",
+	"screenReaderDetectedExtra": "Se non si utilizza un'utilità per la lettura dello schermo, si prega di impostare 'editor.accessibilitySupport' a \"off\".",
 	"disableTabMode": "Disabilita modalità accessibilità",
 	"gotoLine": "Vai alla riga",
 	"indentation": "Rientro",

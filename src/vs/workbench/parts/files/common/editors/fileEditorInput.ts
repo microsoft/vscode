@@ -9,10 +9,10 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import labels = require('vs/base/common/labels');
 import URI from 'vs/base/common/uri';
-import { EncodingMode, ConfirmResult, EditorInput, IFileEditorInput } from 'vs/workbench/common/editor';
+import { EncodingMode, ConfirmResult, EditorInput, IFileEditorInput, ITextEditorModel } from 'vs/workbench/common/editor';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
-import { IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { BINARY_FILE_EDITOR_ID, TEXT_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode, ModelState, TextFileModelChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -21,17 +21,15 @@ import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
 import { Verbosity } from 'vs/platform/editor/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 /**
  * A file editor input is the input type for the file editor of file system resources.
  */
 export class FileEditorInput extends EditorInput implements IFileEditorInput {
-	private resource: URI;
-	private preferredEncoding: string;
 	private forceOpenAsBinary: boolean;
 
-	private textModelReference: TPromise<IReference<TextFileEditorModel>>;
+	private textModelReference: TPromise<IReference<ITextEditorModel>>;
 
 	private name: string;
 	private description: string;
@@ -46,20 +44,17 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	 * An editor input who's contents are retrieved from file services.
 	 */
 	constructor(
-		resource: URI,
-		preferredEncoding: string,
+		private resource: URI,
+		private preferredEncoding: string,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService
+		@ITextModelService private textModelResolverService: ITextModelService
 	) {
 		super();
 
 		this.toUnbind = [];
-
-		this.resource = resource;
-		this.preferredEncoding = preferredEncoding;
 
 		this.registerListeners();
 	}
@@ -217,11 +212,11 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 				this.textModelReference = this.textModelResolverService.createModelReference(this.resource);
 			}
 
-			return this.textModelReference.then(ref => ref.object);
+			return this.textModelReference.then(ref => ref.object as TextFileEditorModel);
 		}, error => {
 
 			// In case of an error that indicates that the file is binary or too large, just return with the binary editor model
-			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
+			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
 				return this.resolveAsBinary();
 			}
 

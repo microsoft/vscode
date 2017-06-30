@@ -7,13 +7,13 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { createRandomFile, deleteFile, cleanUp, pathEquals } from './utils';
+import { createRandomFile, deleteFile, closeAllEditors, pathEquals } from './utils';
 import { join, basename } from 'path';
 import * as fs from 'fs';
 
 suite('workspace-namespace', () => {
 
-	teardown(cleanUp);
+	teardown(closeAllEditors);
 
 
 	test('textDocuments', () => {
@@ -455,7 +455,7 @@ suite('workspace-namespace', () => {
 			assert.equal(res.length, 1);
 			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'far.js');
 		});
-	});
+	}).timeout(60 * 1000); // Increase timeout for search-based test
 
 	// TODO@Joh this test fails randomly
 	// test('findFiles, cancellation', () => {

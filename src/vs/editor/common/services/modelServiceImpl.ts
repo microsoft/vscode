@@ -238,7 +238,7 @@ export class ModelServiceImpl implements IModelService {
 		}
 
 		let newDefaultEOL = DEFAULT_EOL;
-		const eol = config.files && config.files.eol;
+		const eol = config.files && config.files.eol; // TODO@Sandeep (https://github.com/Microsoft/vscode/issues/29119)
 		if (eol === '\r\n') {
 			newDefaultEOL = editorCommon.DefaultEndOfLine.CRLF;
 		} else if (eol === '\n') {
@@ -267,7 +267,7 @@ export class ModelServiceImpl implements IModelService {
 	public getCreationOptions(language: string): editorCommon.ITextModelCreationOptions {
 		let creationOptions = this._modelCreationOptionsByLanguage[language];
 		if (!creationOptions) {
-			creationOptions = ModelServiceImpl._readModelOptions(this._configurationService.getConfiguration({ overrideIdentifier: language }));
+			creationOptions = ModelServiceImpl._readModelOptions(this._configurationService.getConfiguration(null, { overrideIdentifier: language }));
 			this._modelCreationOptionsByLanguage[language] = creationOptions;
 		}
 		return creationOptions;

@@ -21,7 +21,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { ITerminalProcessFactory } from 'vs/workbench/parts/terminal/electron-browser/terminal';
-import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -31,7 +31,9 @@ import { TerminalLinkHandler } from 'vs/workbench/parts/terminal/electron-browse
 import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground } from 'vs/platform/theme/common/colorRegistry';
-import { TPromise } from "vs/base/common/winjs.base";
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -75,6 +77,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _terminalHasTextContextKey: IContextKey<boolean>;
 	private _cols: number;
 	private _rows: number;
+	private _messageTitleListener: (message: { type: string, content: string }) => void;
 
 	private _widgetManager: TerminalWidgetManager;
 	private _linkHandler: TerminalLinkHandler;
@@ -99,7 +102,9 @@ export class TerminalInstance implements ITerminalInstance {
 		@IPanelService private _panelService: IPanelService,
 		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
 		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
-		@IInstantiationService private _instantiationService: IInstantiationService
+		@IInstantiationService private _instantiationService: IInstantiationService,
+		@IClipboardService private _clipboardService: IClipboardService,
+		@IHistoryService private _historyService: IHistoryService
 	) {
 		this._instanceDisposables = [];
 		this._processDisposables = [];
@@ -123,7 +128,7 @@ export class TerminalInstance implements ITerminalInstance {
 		});
 
 		this._initDimensions();
-		this._createProcess(this._contextService.getWorkspace(), this._shellLaunchConfig);
+		this._createProcess(this._historyService.getLastActiveWorkspaceRoot(), this._shellLaunchConfig);
 		this._createXterm();
 
 		// Only attach xterm.js to the DOM if the terminal panel has been opened before.
@@ -160,8 +165,8 @@ export class TerminalInstance implements ITerminalInstance {
 			return null;
 		}
 		const font = this._configHelper.getFont();
-		this._cols = Math.floor(dimension.width / font.charWidth);
-		this._rows = Math.floor(dimension.height / font.charHeight);
+		this._cols = Math.max(Math.floor(dimension.width / font.charWidth), 1);
+		this._rows = Math.max(Math.floor(dimension.height / font.charHeight), 1);
 		return dimension.width;
 	}
 
@@ -323,19 +328,40 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public hasSelection(): boolean {
-		return !document.getSelection().isCollapsed;
+		return this._xterm.hasSelection();
 	}
 
 	public copySelection(): void {
-		if (document.activeElement.classList.contains('xterm')) {
-			document.execCommand('copy');
+		if (this.hasSelection()) {
+			this._clipboardService.writeText(this._xterm.getSelection());
 		} else {
-			this._messageService.show(Severity.Warning, nls.localize('terminal.integrated.copySelection.noSelection', 'Cannot copy terminal selection when terminal does not have focus'));
+			this._messageService.show(Severity.Warning, nls.localize('terminal.integrated.copySelection.noSelection', 'The terminal has no selection to copy'));
 		}
 	}
 
 	public clearSelection(): void {
-		window.getSelection().empty();
+		this._xterm.clearSelection();
+	}
+
+	public selectAll(): void {
+		// Focus here to ensure the terminal context key is set
+		this._xterm.focus();
+		this._xterm.selectAll();
+	}
+
+	public findNext(term: string): boolean {
+		return this._xterm.findNext(term);
+	}
+
+	public findPrevious(term: string): boolean {
+		return this._xterm.findPrevious(term);
+	}
+
+	public notifyFindWidgetFocusChanged(isFocused: boolean): void {
+		// In order to support escape to close the find widget when the terminal
+		// is focused terminalFocus needs to be true when either the terminal or
+		// the find widget are focused.
+		this._terminalFocusContextKey.set(isFocused || document.activeElement === this._xterm.textarea);
 	}
 
 	public dispose(): void {
@@ -439,15 +465,15 @@ export class TerminalInstance implements ITerminalInstance {
 
 	private _refreshSelectionContextKey() {
 		const activePanel = this._panelService.getActivePanel();
-		const isFocused = activePanel && activePanel.getId() === TERMINAL_PANEL_ID;
-		this._terminalHasTextContextKey.set(isFocused && !window.getSelection().isCollapsed);
+		const isActive = activePanel && activePanel.getId() === TERMINAL_PANEL_ID;
+		this._terminalHasTextContextKey.set(isActive && this.hasSelection());
 	}
 
 	private _sanitizeInput(data: any) {
 		return typeof data === 'string' ? data.replace(TerminalInstance.WINDOWS_EOL_REGEX, '\r') : data;
 	}
 
-	protected _getCwd(shell: IShellLaunchConfig, workspace: IWorkspace): string {
+	protected _getCwd(shell: IShellLaunchConfig, root: Uri): string {
 		if (shell.cwd) {
 			return shell.cwd;
 		}
@@ -461,26 +487,26 @@ export class TerminalInstance implements ITerminalInstance {
 			if (customCwd) {
 				if (path.isAbsolute(customCwd)) {
 					cwd = customCwd;
-				} else if (workspace) {
-					cwd = path.normalize(path.join(workspace.resource.fsPath, customCwd));
+				} else if (root) {
+					cwd = path.normalize(path.join(root.fsPath, customCwd));
 				}
 			}
 		}
 
 		// If there was no custom cwd or it was relative with no workspace
 		if (!cwd) {
-			cwd = workspace ? workspace.resource.fsPath : os.homedir();
+			cwd = root ? root.fsPath : os.homedir();
 		}
 
 		return TerminalInstance._sanitizeCwd(cwd);
 	}
 
-	protected _createProcess(workspace: IWorkspace, shell: IShellLaunchConfig): void {
+	protected _createProcess(root: Uri, shell: IShellLaunchConfig): void {
 		const locale = this._configHelper.config.setLocaleVariables ? platform.locale : undefined;
 		if (!shell.executable) {
 			this._configHelper.mergeDefaultShellPathAndArgs(shell);
 		}
-		const env = TerminalInstance.createTerminalEnv(process.env, shell, this._getCwd(shell, workspace), locale, this._cols, this._rows);
+		const env = TerminalInstance.createTerminalEnv(process.env, shell, this._getCwd(shell, root), locale, this._cols, this._rows);
 		this._title = shell.name || '';
 		this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], {
 			env,
@@ -488,12 +514,13 @@ export class TerminalInstance implements ITerminalInstance {
 		});
 		if (!shell.name) {
 			// Only listen for process title changes when a name is not provided
-			this._process.on('message', (message) => {
+			this._messageTitleListener = (message) => {
 				if (message.type === 'title') {
 					this._title = message.content ? message.content : '';
 					this._onTitleChanged.fire(this._title);
 				}
-			});
+			};
+			this._process.on('message', this._messageTitleListener);
 		}
 		this._process.on('message', (message) => {
 			if (message.type === 'pid') {
@@ -525,6 +552,7 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 
 		this._isExiting = true;
+		this._process = null;
 		let exitCodeMessage: string;
 		if (exitCode) {
 			exitCodeMessage = nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode);
@@ -601,7 +629,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 		// Initialize new process
 		const oldTitle = this._title;
-		this._createProcess(this._contextService.getWorkspace(), shell);
+		this._createProcess(this._historyService.getLastActiveWorkspaceRoot(), shell);
 		if (oldTitle !== this._title) {
 			this._onTitleChanged.fire(this._title);
 		}
@@ -755,13 +783,23 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xterm.resize(this._cols, this._rows);
 			this._xterm.element.style.width = terminalWidth + 'px';
 		}
-		if (this._process.connected) {
-			this._process.send({
-				event: 'resize',
-				cols: this._cols,
-				rows: this._rows
-			});
-		}
+		this._processReady.then(() => {
+			if (this._process && this._process.connected) {
+				// The child process could aready be terminated
+				try {
+					this._process.send({
+						event: 'resize',
+						cols: this._cols,
+						rows: this._rows
+					});
+				} catch (error) {
+					// We tried to write to a closed pipe / channel.
+					if (error.code !== 'EPIPE' && error.code !== 'ERR_IPC_CHANNEL_CLOSED') {
+						throw (error);
+					}
+				}
+			}
+		});
 	}
 
 	public enableApiOnData(): void {
@@ -771,6 +809,21 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public static setTerminalProcessFactory(factory: ITerminalProcessFactory): void {
 		this._terminalProcessFactory = factory;
+	}
+
+	public setTitle(title: string): void {
+		const didTitleChange = title !== this._title;
+		this._title = title;
+		if (didTitleChange) {
+			this._onTitleChanged.fire(title);
+		}
+
+		// If the title was not set by the API, unregister the handler that
+		// automatically updates the terminal name
+		if (this._process && this._messageTitleListener) {
+			this._process.removeListener('message', this._messageTitleListener);
+			this._messageTitleListener = null;
+		}
 	}
 }
 

@@ -12,7 +12,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { IOutputChannelIdentifier, OutputEditors, IOutputEvent, IOutputChannel, IOutputService, IOutputDelta, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, MAX_OUTPUT_LENGTH, OUTPUT_SCHEME, OUTPUT_MIME } from 'vs/workbench/parts/output/common/output';
 import { OutputPanel } from 'vs/workbench/parts/output/browser/outputPanel';
@@ -20,7 +20,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { OutputLinkProvider } from 'vs/workbench/parts/output/common/outputLinkProvider';
-import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -101,7 +101,7 @@ export class OutputService implements IOutputService {
 		@IPanelService private panelService: IPanelService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IModelService modelService: IModelService,
-		@ITextModelResolverService textModelResolverService: ITextModelResolverService
+		@ITextModelService textModelResolverService: ITextModelService
 	) {
 		this._onOutput = new Emitter<IOutputEvent>();
 		this._onOutputChannel = new Emitter<string>();
@@ -110,7 +110,7 @@ export class OutputService implements IOutputService {
 		const channels = this.getChannels();
 		this.activeChannelId = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, channels && channels.length > 0 ? channels[0].id : null);
 
-		this._outputLinkDetector = new OutputLinkProvider(contextService, modelService);
+		this._outputLinkDetector = instantiationService.createInstance(OutputLinkProvider);
 
 		this._outputContentProvider = instantiationService.createInstance(OutputContentProvider, this);
 

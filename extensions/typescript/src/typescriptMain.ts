@@ -8,7 +8,7 @@
  * https://github.com/Microsoft/TypeScript-Sublime-Plugin/blob/master/TypeScript%20Indent.tmPreferences
  * ------------------------------------------------------------------------------------------ */
 
-import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, Disposable, Uri, MessageItem, TextEditor, DiagnosticSeverity, TextDocument, SnippetString } from 'vscode';
+import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, Disposable, Uri, MessageItem, TextEditor, DiagnosticSeverity, TextDocument } from 'vscode';
 
 // This must be the first statement otherwise modules might got loaded with
 // the wrong locale.
@@ -38,18 +38,18 @@ import BufferSyncSupport from './features/bufferSyncSupport';
 import CompletionItemProvider from './features/completionItemProvider';
 import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
 import CodeActionProvider from './features/codeActionProvider';
+import RefactorProvider from './features/refactorProvider';
 import ReferenceCodeLensProvider from './features/referencesCodeLensProvider';
 import { JsDocCompletionProvider, TryCompleteJsDocCommand } from './features/jsDocCompletionProvider';
 import { DirectiveCommentCompletionProvider } from './features/directiveCommentCompletionProvider';
 import TypeScriptTaskProviderManager from './features/taskProvider';
-
 import ImplementationCodeLensProvider from './features/implementationsCodeLensProvider';
 
-import * as BuildStatus from './utils/buildStatus';
 import * as ProjectStatus from './utils/projectStatus';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import VersionStatus from './utils/versionStatus';
-import { getContributedTypeScriptServerPlugins, TypeScriptServerPlugin } from "./utils/plugins";
+import { getContributedTypeScriptServerPlugins, TypeScriptServerPlugin } from './utils/plugins';
+import { openOrCreateConfigFile, isImplicitProjectConfigFile } from './utils/tsconfig';
 
 interface LanguageDescription {
 	id: string;
@@ -94,7 +94,7 @@ export function activate(context: ExtensionContext): void {
 		let clientHost: TypeScriptServiceClientHost | undefined;
 		return () => {
 			if (!clientHost) {
-				clientHost = new TypeScriptServiceClientHost(standardLanguageDescriptions, context.storagePath, context.workspaceState, plugins);
+				clientHost = new TypeScriptServiceClientHost(standardLanguageDescriptions, context.workspaceState, plugins);
 				context.subscriptions.push(clientHost);
 
 				const host = clientHost;
@@ -161,14 +161,13 @@ export function activate(context: ExtensionContext): void {
 			break;
 		}
 	}
-
-	BuildStatus.update({ queueLength: 0 });
 }
 
 
 const validateSetting = 'validate.enable';
 
 class LanguageProvider {
+
 	private syntaxDiagnostics: ObjectMap<Diagnostic[]>;
 	private readonly currentDiagnostics: DiagnosticCollection;
 	private readonly bufferSyncSupport: BufferSyncSupport;
@@ -265,7 +264,7 @@ class LanguageProvider {
 		this.disposables.push(languages.registerRenameProvider(selector, new RenameProvider(client)));
 
 		this.disposables.push(languages.registerCodeActionsProvider(selector, new CodeActionProvider(client, this.description.id)));
-
+		this.disposables.push(languages.registerCodeActionsProvider(selector, new RefactorProvider(client, this.description.id)));
 		this.registerVersionDependentProviders();
 
 		this.description.modeIds.forEach(modeId => {
@@ -285,9 +284,10 @@ class LanguageProvider {
 			this.disposables.push(languages.setLanguageConfiguration(modeId, {
 				indentationRules: {
 					// ^(.*\*/)?\s*\}.*$
-					decreaseIndentPattern: /^(.*\*\/)?\s*\}.*$/,
+					decreaseIndentPattern: /^((?!.*?\/\*).*\*\/)?\s*[\}\]\)].*$/,
 					// ^.*\{[^}"']*$
-					increaseIndentPattern: /^.*\{[^}"'`]*$/
+					increaseIndentPattern: /^.*(\{[^}"'`]*|\([^)"'`]*|\[[^\]"'`]*)$/,
+					indentNextLinePattern: /^\s*(for|while|if|else)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$)/
 				},
 				wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
 				onEnterRules: [
@@ -450,13 +450,12 @@ class LanguageProvider {
 class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	private client: TypeScriptServiceClient;
 	private languages: LanguageProvider[] = [];
-	private languagePerId: ObjectMap<LanguageProvider>;
+	private languagePerId: Map<string, LanguageProvider>;
 	private readonly disposables: Disposable[] = [];
 	private readonly versionStatus: VersionStatus;
 
 	constructor(
 		descriptions: LanguageDescription[],
-		storagePath: string | undefined,
 		workspaceState: Memento,
 		plugins: TypeScriptServerPlugin[]
 	) {
@@ -478,13 +477,13 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		this.versionStatus = new VersionStatus();
 		this.disposables.push(this.versionStatus);
 
-		this.client = new TypeScriptServiceClient(this, storagePath, workspaceState, this.versionStatus, plugins, this.disposables);
-		this.languagePerId = Object.create(null);
+		this.client = new TypeScriptServiceClient(this, workspaceState, this.versionStatus, plugins, this.disposables);
+		this.languagePerId = new Map();
 		for (const description of descriptions) {
 			const manager = new LanguageProvider(this.client, description);
 			this.languages.push(manager);
 			this.disposables.push(manager);
-			this.languagePerId[description.id] = manager;
+			this.languagePerId.set(description.id, manager);
 		}
 
 		this.client.onReady().then(() => {
@@ -507,8 +506,12 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 				const manager = new LanguageProvider(this.client, description);
 				this.languages.push(manager);
 				this.disposables.push(manager);
-				this.languagePerId[description.id] = manager;
+				this.languagePerId.set(description.id, manager);
 			}
+		});
+
+		this.client.onTsServerStarted(() => {
+			this.triggerAllDiagnostics();
 		});
 	}
 
@@ -538,7 +541,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		isTypeScriptProject: boolean,
 		resource: Uri
 	): Thenable<TextEditor | undefined> | undefined {
-		const rootPath = workspace.rootPath;
+		const rootPath = this.client.getWorkspaceRootForResource(resource);
 		if (!rootPath) {
 			window.showInformationMessage(
 				localize(
@@ -564,7 +567,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 			}
 
 			const { configFileName } = res.body;
-			if (configFileName && configFileName.indexOf('/dev/null/') !== 0) {
+			if (configFileName && !isImplicitProjectConfigFile(configFileName)) {
 				return workspace.openTextDocument(configFileName)
 					.then(doc =>
 						window.showTextDocument(doc, window.activeTextEditor ? window.activeTextEditor.viewColumn : undefined));
@@ -585,22 +588,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 				}).then(selected => {
 					switch (selected && selected.id) {
 						case ProjectConfigAction.CreateConfig:
-							const configFile = Uri.file(path.join(rootPath, isTypeScriptProject ? 'tsconfig.json' : 'jsconfig.json'));
-							const col = window.activeTextEditor ? window.activeTextEditor.viewColumn : undefined;
-							return workspace.openTextDocument(configFile)
-								.then(doc => {
-									return window.showTextDocument(doc, col);
-								}, _ => {
-									return workspace.openTextDocument(configFile.with({ scheme: 'untitled' }))
-										.then(doc => window.showTextDocument(doc, col))
-										.then(editor => {
-											if (editor.document.getText().length === 0) {
-												return editor.insertSnippet(new SnippetString('{\n\t$0\n}'))
-													.then(_ => editor);
-											}
-											return editor;
-										});
-								});
+							return openOrCreateConfigFile(isTypeScriptProject, rootPath);
 
 						case ProjectConfigAction.LearnMore:
 							if (isTypeScriptProject) {
@@ -629,13 +617,17 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	}
 
 	private triggerAllDiagnostics() {
-		Object.keys(this.languagePerId).forEach(key => this.languagePerId[key].triggerAllDiagnostics());
+		for (const language of this.languagePerId.values()) {
+			language.triggerAllDiagnostics();
+		}
 	}
 
 	/* internal */ populateService(): void {
 		// See https://github.com/Microsoft/TypeScript/issues/5530
-		workspace.saveAll(false).then(_ => {
-			Object.keys(this.languagePerId).forEach(key => this.languagePerId[key].reInitialize());
+		workspace.saveAll(false).then(() => {
+			for (const language of this.languagePerId.values()) {
+				language.reInitialize();
+			}
 		});
 	}
 
@@ -659,11 +651,6 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 				}
 			});
 		}
-		/*
-		if (Is.defined(body.queueLength)) {
-			BuildStatus.update({ queueLength: body.queueLength });
-		}
-		*/
 	}
 
 	/* internal */ configFileDiagnosticsReceived(event: Proto.ConfigFileDiagnosticEvent): void {

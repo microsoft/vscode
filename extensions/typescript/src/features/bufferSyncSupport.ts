@@ -50,8 +50,11 @@ class SyncedBuffer {
 			}
 		}
 
-		if (workspace.rootPath && this.client.apiVersion.has230Features()) {
-			args.projectRootPath = workspace.rootPath;
+		if (this.client.apiVersion.has230Features()) {
+			const root = this.client.getWorkspaceRootForResource(this.document.uri);
+			if (root) {
+				args.projectRootPath = root;
+			}
 		}
 
 		this.client.execute('open', args, false);
@@ -104,9 +107,9 @@ export default class BufferSyncSupport {
 	private readonly modeIds: Set<string>;
 	private readonly diagnostics: Diagnostics;
 	private readonly disposables: Disposable[] = [];
-	private readonly syncedBuffers: ObjectMap<SyncedBuffer>;
+	private readonly syncedBuffers: Map<string, SyncedBuffer>;
 
-	private pendingDiagnostics: { [key: string]: number; };
+	private pendingDiagnostics = new Map<string, number>();
 	private readonly diagnosticDelayer: Delayer<any>;
 	private checkGlobalTSCVersion: boolean;
 
@@ -116,10 +119,9 @@ export default class BufferSyncSupport {
 		this.diagnostics = diagnostics;
 		this._validate = validate;
 
-		this.pendingDiagnostics = Object.create(null);
 		this.diagnosticDelayer = new Delayer<any>(300);
 
-		this.syncedBuffers = Object.create(null);
+		this.syncedBuffers = new Map<string, SyncedBuffer>();
 
 		const tsConfig = workspace.getConfiguration('typescript');
 		this.checkGlobalTSCVersion = client.checkGlobalTSCVersion && this.modeIds.has('typescript') && tsConfig.get(checkTscVersionSettingKey, true);
@@ -129,7 +131,6 @@ export default class BufferSyncSupport {
 		workspace.onDidOpenTextDocument(this.onDidOpenTextDocument, this, this.disposables);
 		workspace.onDidCloseTextDocument(this.onDidCloseTextDocument, this, this.disposables);
 		workspace.onDidChangeTextDocument(this.onDidChangeTextDocument, this, this.disposables);
-		workspace.onDidSaveTextDocument(this.onDidSaveTextDocument, this, this.disposables);
 		workspace.textDocuments.forEach(this.onDidOpenTextDocument, this);
 	}
 
@@ -142,13 +143,13 @@ export default class BufferSyncSupport {
 	}
 
 	public handles(file: string): boolean {
-		return !!this.syncedBuffers[file];
+		return this.syncedBuffers.has(file);
 	}
 
 	public reOpenDocuments(): void {
-		Object.keys(this.syncedBuffers).forEach(key => {
-			this.syncedBuffers[key].open();
-		});
+		for (const buffer of this.syncedBuffers.values()) {
+			buffer.open();
+		}
 	}
 
 	public dispose(): void {
@@ -164,13 +165,13 @@ export default class BufferSyncSupport {
 		if (!this.modeIds.has(document.languageId)) {
 			return;
 		}
-		let resource = document.uri;
-		let filepath = this.client.normalizePath(resource);
+		const resource = document.uri;
+		const filepath = this.client.normalizePath(resource);
 		if (!filepath) {
 			return;
 		}
-		let syncedBuffer = new SyncedBuffer(document, filepath, this, this.client);
-		this.syncedBuffers[filepath] = syncedBuffer;
+		const syncedBuffer = new SyncedBuffer(document, filepath, this, this.client);
+		this.syncedBuffers.set(filepath, syncedBuffer);
 		syncedBuffer.open();
 		this.requestDiagnostic(filepath);
 		if (document.languageId === 'typescript' || document.languageId === 'typescriptreact') {
@@ -183,12 +184,12 @@ export default class BufferSyncSupport {
 		if (!filepath) {
 			return;
 		}
-		let syncedBuffer = this.syncedBuffers[filepath];
+		const syncedBuffer = this.syncedBuffers.get(filepath);
 		if (!syncedBuffer) {
 			return;
 		}
 		this.diagnostics.delete(filepath);
-		delete this.syncedBuffers[filepath];
+		this.syncedBuffers.delete(filepath);
 		syncedBuffer.close();
 		if (!fs.existsSync(filepath)) {
 			this.requestAllDiagnostics();
@@ -200,41 +201,32 @@ export default class BufferSyncSupport {
 		if (!filepath) {
 			return;
 		}
-		let syncedBuffer = this.syncedBuffers[filepath];
+		let syncedBuffer = this.syncedBuffers.get(filepath);
 		if (!syncedBuffer) {
 			return;
 		}
 		syncedBuffer.onContentChanged(e.contentChanges);
 	}
 
-	private onDidSaveTextDocument(document: TextDocument): void {
-		let filepath = this.client.normalizePath(document.uri);
-		if (!filepath) {
-			return;
-		}
-		let syncedBuffer = this.syncedBuffers[filepath];
-		if (!syncedBuffer) {
-			return;
-		}
-	}
-
 	public requestAllDiagnostics() {
 		if (!this._validate) {
 			return;
 		}
-		Object.keys(this.syncedBuffers).forEach(filePath => this.pendingDiagnostics[filePath] = Date.now());
+		for (const filePath of this.syncedBuffers.keys()) {
+			this.pendingDiagnostics.set(filePath, Date.now());
+		}
 		this.diagnosticDelayer.trigger(() => {
 			this.sendPendingDiagnostics();
 		}, 200);
 	}
 
 	public requestDiagnostic(file: string): void {
-		if (!this._validate || this.client.experimentalAutoBuild) {
+		if (!this._validate) {
 			return;
 		}
 
-		this.pendingDiagnostics[file] = Date.now();
-		let buffer = this.syncedBuffers[file];
+		this.pendingDiagnostics.set(file, Date.now());
+		const buffer = this.syncedBuffers.get(file);
 		let delay = 300;
 		if (buffer) {
 			let lineCount = buffer.lineCount;
@@ -249,10 +241,10 @@ export default class BufferSyncSupport {
 		if (!this._validate) {
 			return;
 		}
-		let files = Object.keys(this.pendingDiagnostics).map((key) => {
+		let files = Array.from(this.pendingDiagnostics.entries()).map(([key, value]) => {
 			return {
 				file: key,
-				time: this.pendingDiagnostics[key]
+				time: value
 			};
 		}).sort((a, b) => {
 			return a.time - b.time;
@@ -261,18 +253,20 @@ export default class BufferSyncSupport {
 		});
 
 		// Add all open TS buffers to the geterr request. They might be visible
-		Object.keys(this.syncedBuffers).forEach((file) => {
-			if (!this.pendingDiagnostics[file]) {
+		for (const file of this.syncedBuffers.keys()) {
+			if (!this.pendingDiagnostics.get(file)) {
 				files.push(file);
 			}
-		});
+		}
 
-		let args: Proto.GeterrRequestArgs = {
-			delay: 0,
-			files: files
-		};
-		this.client.execute('geterr', args, false);
-		this.pendingDiagnostics = Object.create(null);
+		if (files.length) {
+			const args: Proto.GeterrRequestArgs = {
+				delay: 0,
+				files: files
+			};
+			this.client.execute('geterr', args, false);
+		}
+		this.pendingDiagnostics.clear();
 	}
 
 	private checkTSCVersion() {

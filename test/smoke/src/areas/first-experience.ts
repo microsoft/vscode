@@ -15,7 +15,7 @@ export class FirstExperience {
 		if (el.status === 0) {
 			return el;
 		}
-		
+
 		return undefined;
 	}
 }

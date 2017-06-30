@@ -27,10 +27,8 @@ step "Publish archive" {
   exec { & node build/tfs/common/publish.js $Quality "$global:assetPlatform-archive" archive "VSCode-win32-$global:arch-$Version.zip" $Version true $Zip }
 }
 
-if ($arch -eq "ia32") {
-  step "Publish setup package" {
-    exec { & node build/tfs/common/publish.js $Quality "$global:assetPlatform" setup "VSCodeSetup-$global:arch-$Version.exe" $Version true $Exe }
-  }
+step "Publish setup package" {
+  exec { & node build/tfs/common/publish.js $Quality "$global:assetPlatform" setup "VSCodeSetup-$global:arch-$Version.exe" $Version true $Exe }
 }
 
 done

@@ -9,7 +9,7 @@ import { EditorInput, ITextEditorModel } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import { IReference } from 'vs/base/common/lifecycle';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 
 /**
@@ -29,7 +29,7 @@ export class ResourceEditorInput extends EditorInput {
 		name: string,
 		description: string,
 		resource: URI,
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService
+		@ITextModelService private textModelResolverService: ITextModelService
 	) {
 		super();
 
@@ -86,7 +86,7 @@ export class ResourceEditorInput extends EditorInput {
 			if (!(model instanceof ResourceEditorModel)) {
 				ref.dispose();
 				this.modelReference = null;
-				return TPromise.wrapError<ITextEditorModel>(`Unexpected model for ResourceInput: ${this.resource}`); // TODO@Ben eventually also files should be supported, but we guard due to the dangerous dispose of the model in dispose()
+				return TPromise.wrapError<ITextEditorModel>(new Error(`Unexpected model for ResourceInput: ${this.resource}`)); // TODO@Ben eventually also files should be supported, but we guard due to the dangerous dispose of the model in dispose()
 			}
 
 			return model;

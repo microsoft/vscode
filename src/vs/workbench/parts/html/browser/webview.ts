@@ -21,9 +21,9 @@ declare interface WebviewElement extends HTMLElement {
 	autoSize: 'on';
 	preload: string;
 	contextIsolation: boolean;
-
 	send(channel: string, ...args: any[]);
 	openDevTools(): any;
+	getWebContents(): any;
 }
 
 CommandsRegistry.registerCommand('_webview.openDevTools', function () {
@@ -44,11 +44,18 @@ MenuRegistry.addCommand({
 
 type ApiThemeClassName = 'vscode-light' | 'vscode-dark' | 'vscode-high-contrast';
 
+export interface WebviewOptions {
+	allowScripts?: boolean;
+	allowSvgs?: boolean;
+	svgWhiteList?: string[];
+}
+
 export default class Webview {
+	private static index: number = 0;
 
 	private _webview: WebviewElement;
 	private _ready: TPromise<this>;
-	private _disposables: IDisposable[];
+	private _disposables: IDisposable[] = [];
 	private _onDidClickLink = new Emitter<URI>();
 	private _onDidLoadContent = new Emitter<{ stats: any }>();
 
@@ -56,7 +63,8 @@ export default class Webview {
 
 	constructor(
 		private parent: HTMLElement,
-		private _styleElement: Element
+		private _styleElement: Element,
+		private _options: WebviewOptions = {}
 	) {
 		this._webview = <any>document.createElement('webview');
 
@@ -70,6 +78,8 @@ export default class Webview {
 		this._webview.setAttribute('disableblinkfeatures', 'Auxclick');
 
 		this._webview.setAttribute('disableguestresize', '');
+		this._webview.setAttribute('webpreferences', 'contextIsolation=yes');
+		this._webview.setAttribute('partition', `webview-${Webview.index++}`);
 
 		this._webview.preload = require.toUrl('./webview-pre.js');
 		this._webview.src = require.toUrl('./webview.html');
@@ -86,7 +96,45 @@ export default class Webview {
 			});
 		});
 
-		this._disposables = [
+		let loaded = false;
+		const subscription = addDisposableListener(this._webview, 'did-start-loading', () => {
+			if (loaded) {
+				return;
+			}
+			loaded = true;
+
+			const contents = this._webview.getWebContents();
+			if (!contents) {
+				return;
+			}
+
+			contents.session.webRequest.onBeforeRequest((details, callback) => {
+				if (!this._options.allowSvgs && details.url.indexOf('.svg') > 0) {
+					const uri = URI.parse(details.url);
+					if (uri && !uri.scheme.match(/file/i) && (uri.path as any).endsWith('.svg') && !this.isAllowedSvg(uri)) {
+						return callback({ cancel: true });
+					}
+				}
+				return callback({});
+			});
+
+			contents.session.webRequest.onHeadersReceived((details, callback) => {
+				if (!this._options.allowSvgs) {
+					const contentType: string[] = (details.responseHeaders['content-type'] || details.responseHeaders['Content-Type']) as any;
+					if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
+						const uri = URI.parse(details.url);
+						if (uri && !this.isAllowedSvg(uri)) {
+							return callback({ cancel: true });
+						}
+					}
+				}
+				return callback({ cancel: false, responseHeaders: details.responseHeaders });
+			});
+		});
+
+		this._disposables.push(subscription);
+
+		this._disposables.push(
 			addDisposableListener(this._webview, 'console-message', function (e: { level: number; message: string; line: number; sourceId: string; }) {
 				console.log(`[Embedded Page] ${e.message}`);
 			}),
@@ -117,8 +165,7 @@ export default class Webview {
 					}
 					return;
 				}
-			})
-		];
+			}));
 
 		if (parent) {
 			parent.appendChild(this._webview);
@@ -157,8 +204,15 @@ export default class Webview {
 		this._send('initial-scroll-position', value);
 	}
 
+	set options(value: WebviewOptions) {
+		this._options = value;
+	}
+
 	set contents(value: string[]) {
-		this._send('content', value);
+		this._send('content', {
+			contents: value,
+			options: this._options
+		});
 	}
 
 	set baseUrl(value: string) {
@@ -285,5 +339,15 @@ export default class Webview {
 				}
 			});
 		});
+	}
+
+	private isAllowedSvg(uri: URI): boolean {
+		if (this._options.allowSvgs) {
+			return true;
+		}
+		if (this._options.svgWhiteList) {
+			return this._options.svgWhiteList.indexOf(uri.authority.toLowerCase()) >= 0;
+		}
+		return false;
 	}
 }

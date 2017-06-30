@@ -7,13 +7,6 @@
 	"defaultConfigurations.title": "Переопределения конфигурации по умолчанию",
 	"overrideSettings.description": "Настройка переопределяемых параметров редактора для языка {0}.",
 	"overrideSettings.defaultDescription": "Настройка параметров редактора, переопределяемых для языка.",
-	"vscode.extension.contributes.configuration": "Добавляет параметры конфигурации.",
-	"vscode.extension.contributes.configuration.title": "Краткая сводка параметров. Эта метка будет использоваться в файле параметров в качестве разделяющего комментария.",
-	"vscode.extension.contributes.configuration.properties": "Описание свойств конфигурации.",
 	"config.property.languageDefault": "Невозможно зарегистрировать \"{0}\". Оно соответствует шаблону свойства '\\\\[.*\\\\]$' для описания параметров редактора, определяемых языком. Используйте участие configurationDefaults.",
-	"config.property.duplicate": "Невозможно зарегистрировать \"{0}\". Это свойство уже зарегистрировано.",
-	"invalid.properties": "configuration.properties должно быть объектом",
-	"invalid.type": "Если тип configuration.type задан, то он должен иметь значение object",
-	"invalid.title": "configuration.title должно быть строкой",
-	"vscode.extension.contributes.defaultConfiguration": "Предоставляет параметры конфигурации редактора по умолчанию в соответствии с языком."
+	"config.property.duplicate": "Невозможно зарегистрировать \"{0}\". Это свойство уже зарегистрировано."
 }

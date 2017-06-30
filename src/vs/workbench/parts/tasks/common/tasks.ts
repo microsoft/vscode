@@ -5,6 +5,7 @@
 'use strict';
 
 import * as Types from 'vs/base/common/types';
+import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
@@ -80,33 +81,80 @@ export namespace RevealKind {
 	}
 }
 
-export interface TerminalBehavior {
+export enum PanelKind {
+
 	/**
-	 * Controls whether the terminal executing a task is brought to front or not.
+	 * Shares a panel with other tasks. This is the default.
+	 */
+	Shared = 1,
+
+	/**
+	 * Uses a dedicated panel for this tasks. The panel is not
+	 * shared with other tasks.
+	 */
+	Dedicated = 2,
+
+	/**
+	 * Creates a new panel whenever this task is executed.
+	 */
+	New = 3
+}
+
+export namespace PanelKind {
+	export function fromString(value: string): PanelKind {
+		switch (value.toLowerCase()) {
+			case 'shared':
+				return PanelKind.Shared;
+			case 'dedicated':
+				return PanelKind.Dedicated;
+			case 'new':
+				return PanelKind.New;
+			default:
+				return PanelKind.Shared;
+		}
+	}
+}
+
+export interface PresentationOptions {
+	/**
+	 * Controls whether the task output is reveal in the user interface.
 	 * Defaults to `RevealKind.Always`.
 	 */
 	reveal: RevealKind;
 
 	/**
-	 * Controls whether the executed command is printed to the output window or terminal as well.
+	 * Controls whether the command associated with the task is echoed
+	 * in the user interface.
 	 */
 	echo: boolean;
+
+	/**
+	 * Controls whether the panel showing the task output is taking focus.
+	 */
+	focus: boolean;
+
+	/**
+	 * Controls if the task panel is used for this task only (dedicated),
+	 * shared between tasks (shared) or if a new panel is created on
+	 * every task execution (new). Defaults to `TaskInstanceKind.Shared`
+	 */
+	panel: PanelKind;
 }
 
-export enum CommandType {
+export enum RuntimeType {
 	Shell = 1,
 	Process = 2
 }
 
-export namespace CommandType {
-	export function fromString(value: string): CommandType {
+export namespace RuntimeType {
+	export function fromString(value: string): RuntimeType {
 		switch (value.toLowerCase()) {
 			case 'shell':
-				return CommandType.Shell;
+				return RuntimeType.Shell;
 			case 'process':
-				return CommandType.Process;
+				return RuntimeType.Process;
 			default:
-				return CommandType.Process;
+				return RuntimeType.Process;
 		}
 	}
 }
@@ -116,7 +164,7 @@ export interface CommandConfiguration {
 	/**
 	 * The task type
 	 */
-	type: CommandType;
+	runtime: RuntimeType;
 
 	/**
 	 * The command to execute
@@ -145,9 +193,9 @@ export interface CommandConfiguration {
 	suppressTaskName?: boolean;
 
 	/**
-	 * Describes how the terminal is supposed to behave.
+	 * Describes how the task is presented in the UI.
 	 */
-	terminalBehavior: TerminalBehavior;
+	presentation: PresentationOptions;
 }
 
 export namespace TaskGroup {
@@ -155,16 +203,16 @@ export namespace TaskGroup {
 
 	export const Build: 'build' = 'build';
 
-	export const RebuildAll: 'rebuildAll' = 'rebuildAll';
+	export const Rebuild: 'rebuild' = 'rebuild';
 
 	export const Test: 'test' = 'test';
 
 	export function is(value: string): value is string {
-		return value === Clean || value === Build || value === RebuildAll || value === Test;
+		return value === Clean || value === Build || value === Rebuild || value === Test;
 	}
 }
 
-export type TaskGroup = 'clean' | 'build' | 'rebuildAll' | 'test';
+export type TaskGroup = 'clean' | 'build' | 'rebuild' | 'test';
 
 export enum TaskSourceKind {
 	Workspace = 1,
@@ -176,42 +224,28 @@ export interface TaskSource {
 	kind: TaskSourceKind;
 	label: string;
 	detail?: string;
+	config?: {
+		index: number;
+		element: any;
+	};
 }
 
-/**
- * A task description
- */
-export interface Task {
+export interface TaskIdentifier {
+	_key: string;
+	type: string;
+}
 
-	/**
-	 * The task's internal id
-	 */
-	_id: string;
-
-	/**
-	 * The cached label.
-	 */
-	_label: string;
-
-	/**
-	 * Indicated the source of the task (e.g tasks.json or extension)
-	 */
-	_source: TaskSource;
+export interface ConfigurationProperties {
 
 	/**
 	 * The task's name
 	 */
-	name: string;
+	name?: string;
 
 	/**
-	 * The task's identifier.
+	 * The task's name
 	 */
-	identifier: string;
-
-	/**
-	 * The id of the customized task
-	 */
-	customize?: string;
+	identifier?: string;
 
 	/**
 	 * the task's group;
@@ -219,9 +253,14 @@ export interface Task {
 	group?: string;
 
 	/**
-	 * The command configuration
+	 * Whether this task is a primary task in the task group.
 	 */
-	command: CommandConfiguration;
+	isDefaultGroupEntry?: boolean;
+
+	/**
+	 * The presentation options
+	 */
+	presentation?: PresentationOptions;
 
 	/**
 	 * Whether the task is a background task or not.
@@ -244,9 +283,96 @@ export interface Task {
 	problemMatchers?: (string | ProblemMatcher)[];
 }
 
+export interface CommonTask {
+
+	/**
+	 * The task's internal id
+	 */
+	_id: string;
+
+	/**
+	 * The cached label.
+	 */
+	_label: string;
+
+	/**
+	 * Indicated the source of the task (e.g tasks.json or extension)
+	 */
+	_source: TaskSource;
+
+	type: string;
+}
+
+export interface CustomTask extends CommonTask, ConfigurationProperties {
+
+	type: 'custom';
+
+	name: string;
+
+	identifier: string;
+
+	/**
+	 * The command configuration
+	 */
+	command: CommandConfiguration;
+}
+
+export namespace CustomTask {
+	export function is(value: any): value is CustomTask {
+		let candidate: CustomTask = value;
+		return candidate && candidate.type === 'custom';
+	}
+}
+
+export interface ConfiguringTask extends CommonTask, ConfigurationProperties {
+
+	configures: TaskIdentifier;
+}
+
+export namespace ConfiguringTask {
+	export function is(value: any): value is ConfiguringTask {
+		let candidate: ConfiguringTask = value;
+		return candidate && candidate.configures && Types.isString(candidate.configures.type) && value.command === void 0;
+	}
+}
+
+export interface ContributedTask extends CommonTask, ConfigurationProperties {
+
+	defines: TaskIdentifier;
+
+	/**
+	 * The command configuration
+	 */
+	command: CommandConfiguration;
+}
+
+export namespace ContributedTask {
+	export function is(value: any): value is ContributedTask {
+		let candidate: ContributedTask = value;
+		return candidate && candidate.defines && Types.isString(candidate.defines.type) && candidate.command !== void 0;
+	}
+}
+
+export type Task = CustomTask | ContributedTask;
+
+export namespace Task {
+	export function getKey(task: Task): string {
+		if (CustomTask.is(task)) {
+			return task.identifier;
+		} else {
+			return task.defines._key;
+		}
+	}
+}
+
+
 export enum ExecutionEngine {
 	Process = 1,
 	Terminal = 2
+}
+
+export namespace ExecutionEngine {
+	export const _default: ExecutionEngine = ExecutionEngine.Terminal;
 }
 
 export enum JsonSchemaVersion {
@@ -257,4 +383,10 @@ export enum JsonSchemaVersion {
 export interface TaskSet {
 	tasks: Task[];
 	extension?: IExtensionDescription;
+}
+
+export interface TaskDefinition {
+	taskType: string;
+	required: string[];
+	properties: IJSONSchemaMap;
 }

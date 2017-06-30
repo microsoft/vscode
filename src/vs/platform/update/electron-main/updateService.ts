@@ -16,7 +16,7 @@ import { fromEventEmitter } from 'vs/base/node/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Win32AutoUpdaterImpl } from './auto-updater.win32';
 import { LinuxAutoUpdaterImpl } from './auto-updater.linux';
-import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
+import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IRequestService } from 'vs/platform/request/node/request';
 import product from 'vs/platform/node/product';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -44,8 +44,8 @@ export class UpdateService implements IUpdateService {
 	private _onUpdateNotAvailable = new Emitter<boolean>();
 	get onUpdateNotAvailable(): Event<boolean> { return this._onUpdateNotAvailable.event; }
 
-	private _onUpdateReady = new Emitter<IUpdate>();
-	get onUpdateReady(): Event<IUpdate> { return this._onUpdateReady.event; }
+	private _onUpdateReady = new Emitter<IRawUpdate>();
+	get onUpdateReady(): Event<IRawUpdate> { return this._onUpdateReady.event; }
 
 	private _onStateChange = new Emitter<State>();
 	get onStateChange(): Event<State> { return this._onStateChange.event; }
@@ -180,7 +180,7 @@ export class UpdateService implements IUpdateService {
 				this.telemetryService.publicLog('update:available', { explicit, version: update.version, currentVersion: product.commit });
 
 			} else {
-				const data: IUpdate = {
+				const data: IRawUpdate = {
 					releaseNotes: update.releaseNotes,
 					version: update.version,
 					date: update.date
@@ -221,9 +221,21 @@ export class UpdateService implements IUpdateService {
 			return null;
 		}
 
-		const platform = process.platform === 'linux' ? `linux-${process.arch}` : process.platform;
+		const platform = this.getUpdatePlatform();
 
 		return `${product.updateUrl}/api/update/${platform}/${channel}/${product.commit}`;
+	}
+
+	private getUpdatePlatform(): string {
+		if (process.platform === 'linux') {
+			return `linux-${process.arch}`;
+		}
+
+		if (process.platform === 'win32' && process.arch === 'x64') {
+			return 'win32-x64';
+		}
+
+		return process.platform;
 	}
 
 	quitAndInstall(): TPromise<void> {

@@ -4,26 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { isStyleSheet, getNode } from './util';
-import parse from '@emmetio/html-matcher';
-import Node from '@emmetio/node';
+import { Node } from 'EmmetNode';
+import { getNode, parse, validate } from './util';
 
 export function mergeLines() {
 	let editor = vscode.window.activeTextEditor;
-	if (!editor) {
-		vscode.window.showInformationMessage('No editor is active');
-		return;
-	}
-	if (isStyleSheet(editor.document.languageId)) {
+	if (!validate(false)) {
 		return;
 	}
 
-	let rootNode: Node = parse(editor.document.getText());
+	let rootNode = parse(editor.document);
+	if (!rootNode) {
+		return;
+	}
 
 	editor.edit(editBuilder => {
 		editor.selections.reverse().forEach(selection => {
 			let [rangeToReplace, textToReplaceWith] = getRangesToReplace(editor.document, selection, rootNode);
-			editBuilder.replace(rangeToReplace, textToReplaceWith);
+			if (rangeToReplace && textToReplaceWith) {
+				editBuilder.replace(rangeToReplace, textToReplaceWith);
+			}
 		});
 	});
 }
@@ -33,13 +33,17 @@ function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Sel
 	let endNodeToUpdate: Node;
 
 	if (selection.isEmpty) {
-		startNodeToUpdate = endNodeToUpdate = getNode(rootNode, document.offsetAt(selection.start));
+		startNodeToUpdate = endNodeToUpdate = getNode(rootNode, selection.start);
 	} else {
-		startNodeToUpdate = getNode(rootNode, document.offsetAt(selection.start), true);
-		endNodeToUpdate = getNode(rootNode, document.offsetAt(selection.end), true);
+		startNodeToUpdate = getNode(rootNode, selection.start, true);
+		endNodeToUpdate = getNode(rootNode, selection.end, true);
 	}
 
-	let rangeToReplace = new vscode.Range(document.positionAt(startNodeToUpdate.start), document.positionAt(endNodeToUpdate.end));
+	if (!startNodeToUpdate || !endNodeToUpdate) {
+		return [null, null];
+	}
+
+	let rangeToReplace = new vscode.Range(startNodeToUpdate.start, endNodeToUpdate.end);
 	let textToReplaceWith = document.getText(rangeToReplace).replace(/\r\n|\n/g, '').replace(/>\s*</g, '><');
 
 	return [rangeToReplace, textToReplaceWith];

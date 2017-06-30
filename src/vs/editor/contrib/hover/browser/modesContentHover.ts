@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/css!vs/base/browser/ui/progressbar/progressbar';
 import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';

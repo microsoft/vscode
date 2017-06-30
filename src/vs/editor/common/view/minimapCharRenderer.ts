@@ -253,7 +253,7 @@ export class MinimapCharRenderer {
 		const deltaG = color.g - backgroundG;
 		const deltaB = color.b - backgroundB;
 
-		const colorR = backgroundR + deltaR * c;;
+		const colorR = backgroundR + deltaR * c;
 		const colorG = backgroundG + deltaG * c;
 		const colorB = backgroundB + deltaB * c;
 
@@ -325,7 +325,7 @@ export class MinimapCharRenderer {
 		const deltaG = color.g - backgroundG;
 		const deltaB = color.b - backgroundB;
 
-		const colorR = backgroundR + deltaR * c;;
+		const colorR = backgroundR + deltaR * c;
 		const colorG = backgroundG + deltaG * c;
 		const colorB = backgroundB + deltaB * c;
 

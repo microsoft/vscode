@@ -10,9 +10,9 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModel } from 'vs/editor/common/editorCommon';
 import JSONContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 
 const schemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
@@ -21,7 +21,7 @@ export class PreferencesContentProvider implements IWorkbenchContribution {
 
 	constructor(
 		@IModelService private modelService: IModelService,
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
+		@ITextModelService private textModelResolverService: ITextModelService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IModeService private modeService: IModeService
 	) {

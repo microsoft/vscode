@@ -26,12 +26,13 @@
 	"command.undoCommit": "Annuler la dernière validation",
 	"command.checkout": "Extraire vers...",
 	"command.branch": "Créer une branche...",
+	"command.deleteBranch": "Supprimer la branche...",
 	"command.pull": "Pull",
 	"command.pullRebase": "Pull (rebaser)",
 	"command.push": "Push",
 	"command.pushTo": "Transfert (Push) vers...",
 	"command.sync": "Synchroniser",
-	"command.publish": "Publier",
+	"command.publish": "Publier la branche",
 	"command.showOutput": "Afficher la sortie Git",
 	"config.enabled": "Indique si git est activé",
 	"config.path": "Chemin d'accès à l'exécutable git",
@@ -42,5 +43,6 @@
 	"config.countBadge": "Contrôle le compteur de badges Git. La valeur 'toutes' compte toutes les modifications. La valeur 'suivies' compte uniquement les modifications suivies. La valeur 'désactivé' désactive le compteur.",
 	"config.checkoutType": "Contrôle le type des branches répertoriées pendant l'exécution de 'Extraire vers...'. La valeur 'toutes' montre toutes les références, la valeur 'locales' montre uniquement les branches locales, la valeur 'balises' montre uniquement les balises et la valeur 'distantes' montre uniquement les branches distantes.",
 	"config.ignoreLegacyWarning": "Ignore l'avertissement Git hérité",
-	"config.ignoreLimitWarning": "Ignore l'avertissement quand il y a trop de modifications dans un dépôt"
+	"config.ignoreLimitWarning": "Ignore l'avertissement quand il y a trop de modifications dans un dépôt",
+	"config.defaultCloneDirectory": "Emplacement par défaut où cloner un dépôt git"
 }

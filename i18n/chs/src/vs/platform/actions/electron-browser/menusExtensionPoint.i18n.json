@@ -21,6 +21,8 @@
 	"menus.scmTitle": "源代码管理标题菜单",
 	"menus.resourceGroupContext": "源代码管理资源组上下文菜单",
 	"menus.resourceStateContext": "源代码管理资源状态上下文菜单",
+	"view.viewTitle": "提供的视图的标题菜单",
+	"view.itemContext": "提供的视图中的项目的上下文菜单",
 	"nonempty": "应为非空值。",
 	"opticon": "可以省略属性“图标”或者它必须是一个字符串或类似“{dark, light}”的文本",
 	"requireStringOrObject": "属性“{0}”为必需且其类型必须为“字符串”或“对象”",

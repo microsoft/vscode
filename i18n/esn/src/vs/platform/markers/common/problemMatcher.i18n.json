@@ -56,6 +56,5 @@
 	"LegacyProblemMatcherSchema.watchedBegin": "Expresión regular que señala que una tarea inspeccionada comienza a ejecutarse desencadenada a través de la inspección de archivos.",
 	"LegacyProblemMatcherSchema.watchedEnd.deprecated": "This property is deprecated. Use the watching property instead.",
 	"LegacyProblemMatcherSchema.watchedEnd": "Expresión regular que señala que una tarea inspeccionada termina de ejecutarse.",
-	"NamedProblemMatcherSchema.name": "Nombre del buscador de coincidencias de problemas.",
 	"ProblemMatcherExtPoint": "Aporta buscadores de coincidencias de problemas"
 }

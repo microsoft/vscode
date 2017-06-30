@@ -13,7 +13,19 @@
 	"read the release notes": "Вас приветствует {0} v{1}! Вы хотите прочитать заметки о выпуске?",
 	"licenseChanged": "Условия использования лицензии изменились, ознакомьтесь с ними.",
 	"license": "Прочитать условия лицензии",
-	"updateAvailable": "{0} будет обновлен после перезапуска.",
+	"updateIsReady": "Доступно новое обновление.",
 	"thereIsUpdateAvailable": "Доступно обновление.",
-	"noUpdatesAvailable": "В настоящее время нет доступных обновлений."
+	"updateAvailable": "{0} будет обновлен после перезапуска.",
+	"noUpdatesAvailable": "В настоящее время нет доступных обновлений.",
+	"commandPalette": "Палитра команд...",
+	"settings": "Параметры",
+	"keyboardShortcuts": "Сочетания клавиш",
+	"selectTheme.label": "Цветовая тема",
+	"themes.selectIconTheme.label": "Тема значков файлов",
+	"not available": "Обновления недоступны",
+	"checkingForUpdates": "Идет проверка наличия обновлений...",
+	"DownloadUpdate": "Скачать доступное обновление",
+	"DownloadingUpdate": "Скачивается обновление...",
+	"InstallingUpdate": "Идет установка обновления...",
+	"checkForUpdates": "Проверить наличие обновлений..."
 }

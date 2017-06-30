@@ -15,8 +15,7 @@ import { ExtHostThreadService } from 'vs/workbench/services/thread/common/extHos
 import { QueryType, ISearchQuery } from 'vs/platform/search/common/search';
 import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
 import { RemoteTelemetryService } from 'vs/workbench/api/node/extHostTelemetry';
-import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IInitData, IEnvironment, MainContext } from 'vs/workbench/api/node/extHost.protocol';
+import { IInitData, IEnvironment, IWorkspaceData, MainContext } from 'vs/workbench/api/node/extHost.protocol';
 import * as errors from 'vs/base/common/errors';
 
 const nativeExit = process.exit.bind(process);
@@ -35,18 +34,19 @@ interface ITestRunner {
 export class ExtensionHostMain {
 
 	private _isTerminating: boolean = false;
-	private _contextService: IWorkspaceContextService;
 	private _diskSearch: DiskSearch;
+	private _workspace: IWorkspaceData;
 	private _environment: IEnvironment;
 	private _extensionService: ExtHostExtensionService;
 
 	constructor(remoteCom: IRemoteCom, initData: IInitData) {
-		// services
 		this._environment = initData.environment;
-		this._contextService = new WorkspaceContextService(initData.contextService.workspace);
+		this._workspace = initData.workspace;
+
+		// services
 		const threadService = new ExtHostThreadService(remoteCom);
 		const telemetryService = new RemoteTelemetryService('pluginHostTelemetry', threadService);
-		this._extensionService = new ExtHostExtensionService(initData, threadService, telemetryService, this._contextService);
+		this._extensionService = new ExtHostExtensionService(initData, threadService, telemetryService);
 
 		// Error forwarding
 		const mainThreadErrors = threadService.get(MainContext.MainThreadErrors);
@@ -100,12 +100,9 @@ export class ExtensionHostMain {
 	}
 
 	private handleWorkspaceContainsEagerExtensions(): TPromise<void> {
-		let workspace = this._contextService.getWorkspace();
-		if (!workspace || !workspace.resource) {
+		if (!this._workspace || this._workspace.roots.length === 0) {
 			return TPromise.as(null);
 		}
-
-		const folderPath = workspace.resource.fsPath;
 
 		const desiredFilesMap: {
 			[filename: string]: boolean;
@@ -135,7 +132,7 @@ export class ExtensionHostMain {
 				}
 
 				const query: ISearchQuery = {
-					folderResources: [workspace.resource],
+					folderQueries: this._workspace.roots.map(root => ({ folder: root })),
 					type: QueryType.File,
 					maxResults: 1,
 					includePattern: { [p]: true }
@@ -143,7 +140,16 @@ export class ExtensionHostMain {
 
 				return this._diskSearch.search(query).then(result => result.results.length ? p : undefined);
 			} else {
-				return pfs.exists(join(folderPath, p)).then(exists => exists ? p : undefined);
+				// find exact path
+				return new TPromise<string>(async resolve => {
+					for (const { fsPath } of this._workspace.roots) {
+						if (await pfs.exists(join(fsPath, p))) {
+							resolve(p);
+							return;
+						}
+					}
+					resolve(undefined);
+				});
 			}
 		});
 
@@ -194,7 +200,7 @@ export class ExtensionHostMain {
 			this.gracefulExit(1 /* ERROR */);
 		}
 
-		return TPromise.wrapError<void>(requireError ? requireError.toString() : nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", this._environment.extensionTestsPath));
+		return TPromise.wrapError<void>(new Error(requireError ? requireError.toString() : nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", this._environment.extensionTestsPath)));
 	}
 
 	private gracefulExit(code: number): void {

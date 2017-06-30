@@ -7,6 +7,7 @@
 	"debugAdapterBinNotFound": "Die ausführbare Datei \"{0}\" des Debugadapters ist nicht vorhanden.",
 	"debugAdapterCannotDetermineExecutable": "Die ausführbare Datei \"{0}\" des Debugadapters kann nicht bestimmt werden.",
 	"debugType": "Der Typ der Konfiguration.",
+	"debugTypeNotRecognised": "Dieser Debugging-Typ wurde nicht erkannt. Bitte installieren und aktivieren Sie die dazugehörige Debugging-Erweiterung.",
 	"node2NotSupported": "\"node2\" wird nicht mehr unterstützt, verwenden Sie stattdessen \"node\", und legen Sie das Attribut \"protocol\" auf \"inspector\" fest.",
 	"debugName": "Der Name der Konfiguration. Er wird im Dropdownmenü der Startkonfiguration angezeigt.",
 	"debugRequest": "Der Anforderungstyp der Konfiguration. Der Wert kann \"launch\" oder \"attach\" sein.",

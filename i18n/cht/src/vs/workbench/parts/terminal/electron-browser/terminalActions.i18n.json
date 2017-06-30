@@ -8,6 +8,7 @@
 	"workbench.action.terminal.kill": "終止使用中的終端機執行個體",
 	"workbench.action.terminal.kill.short": "終止終端機",
 	"workbench.action.terminal.copySelection": "複製選取項目",
+	"workbench.action.terminal.selectAll": "全選",
 	"workbench.action.terminal.new": "建立新的整合式終端機",
 	"workbench.action.terminal.new.short": "新增終端機",
 	"workbench.action.terminal.focus": "聚焦終端機",
@@ -26,5 +27,10 @@
 	"workbench.action.terminal.scrollUp": "向上捲動 (行)",
 	"workbench.action.terminal.scrollUpPage": "向上捲動 (頁)",
 	"workbench.action.terminal.scrollToTop": "捲動至頂端",
-	"workbench.action.terminal.clear": "清除"
+	"workbench.action.terminal.clear": "清除",
+	"workbench.action.terminal.allowWorkspaceShell": "允許工作區外觀配置",
+	"workbench.action.terminal.disallowWorkspaceShell": "不允許工作區外觀設置",
+	"workbench.action.terminal.rename": "重新命名",
+	"workbench.action.terminal.rename.prompt": "輸入終端機名稱",
+	"workbench.action.terminal.hideFindWidget": "隱藏尋找小工具"
 }

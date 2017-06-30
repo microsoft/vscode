@@ -7,7 +7,7 @@
 import 'vs/css!./welcomeOverlay';
 import { $, Builder } from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';

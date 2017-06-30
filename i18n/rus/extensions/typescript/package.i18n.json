@@ -13,7 +13,6 @@
 	"typescript.check.tscVersion": "Проверка отличия компилятора TypeScript глобальной установки (например, tsc) от используемой языковой службы TypeScript.",
 	"typescript.tsserver.log": "Включает ведение журнала для сервера TS. Этот журнал можно использовать для диагностики проблем сервера TS. В журнале могут содержаться пути к файлам, исходный код и другие сведения из вашего проекта, в том числе носящие конфиденциальный характер.",
 	"typescript.tsserver.trace": "Включает трассировку сообщений, отправляемых на сервер TS. Эту трассировку можно использовать для диагностики проблем сервера TS. Трассировка может содержать пути к файлам, исходный код и другие сведения из вашего проекта, в том числе конфиденциальные данные.",
-	"typescript.tsserver.experimentalAutoBuild": "Включает экспериментальную автосборку. Требуется версия 1.9 dev или версия 2.x tsserver и перезапуск VS Code после изменения.",
 	"typescript.validate.enable": "Включение или отключение проверки TypeScript.",
 	"typescript.format.enable": "Включение или отключение модуля форматирования TypeScript по умолчанию.",
 	"javascript.format.enable": "Включение или отключение модуля форматирования JavaScript по умолчанию.",
@@ -33,8 +32,16 @@
 	"javascript.validate.enable": "Включение или отключение проверки JavaScript.",
 	"typescript.goToProjectConfig.title": "Перейти к конфигурации проекта",
 	"javascript.goToProjectConfig.title": "Перейти к конфигурации проекта",
+	"javascript.referencesCodeLens.enabled": "Включить/отключить ссылки CodeLens для файлов JavaScript.",
+	"typescript.referencesCodeLens.enabled": "Включить/отключить ссылки CodeLens для файлов TypeScript. Требуется TypeScript версии 2.0.6 или более поздней версии.",
 	"typescript.implementationsCodeLens.enabled": "Включить или отключить CodeLens для реализаций. Требуется TypeScript >= 2.2.0.",
+	"typescript.openTsServerLog.title": "Открыть журнал сервера TS",
+	"typescript.restartTsServer": "Перезапустить сервер TS",
 	"typescript.selectTypeScriptVersion.title": "Выберите версию TypeScript.",
 	"jsDocCompletion.enabled": "Включить или отключить JSDoc коментарии",
-	"javascript.implicitProjectConfig.checkJs": "Включает/отключает семантическую проверку файлов JavaScript. Этот параметр может переопределяться в файле jsconfig.json или tsconfig.json. Требуется TypeScript 2.3.1 или более поздней версии."
+	"javascript.implicitProjectConfig.checkJs": "Включает/отключает семантическую проверку файлов JavaScript. Этот параметр может переопределяться в файле jsconfig.json или tsconfig.json. Требуется TypeScript 2.3.1 или более поздней версии.",
+	"typescript.npm": "Указывает путь к исполняемому файлу NPM, используемому для автоматического получения типа. Требуется TypeScript версии 2.3.4 или более поздней версии.",
+	"typescript.check.npmIsInstalled": "Проверяет, установлен ли NPM для автоматического получения типов.",
+	"javascript.nameSuggestions": "Включить/отключить использование уникальных имен из файла в списках предложений JavaScript.",
+	"typescript.tsc.autoDetect": "Включает или отключает автоматическое определние заданий tsc."
 }

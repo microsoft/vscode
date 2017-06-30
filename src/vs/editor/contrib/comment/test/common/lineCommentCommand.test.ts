@@ -544,13 +544,13 @@ suite('Editor Contrib - Line Comment As Block Comment', () => {
 			],
 			new Selection(1, 1, 1, 1),
 			[
-				'(first)',
+				'( first )',
 				'\tsecond line',
 				'third line',
 				'fourth line',
 				'fifth'
 			],
-			new Selection(1, 2, 1, 2)
+			new Selection(1, 3, 1, 3)
 		);
 	});
 
@@ -586,13 +586,13 @@ suite('Editor Contrib - Line Comment As Block Comment', () => {
 			],
 			new Selection(1, 1, 1, 1),
 			[
-				'(first)',
+				'( first )',
 				'\tsecond line',
 				'third line',
 				'fourth line',
 				'fifth'
 			],
-			new Selection(1, 2, 1, 2)
+			new Selection(1, 3, 1, 3)
 		);
 	});
 
@@ -607,13 +607,13 @@ suite('Editor Contrib - Line Comment As Block Comment', () => {
 			],
 			new Selection(3, 2, 1, 3),
 			[
-				'(first',
+				'( first',
 				'\tsecond line',
-				'third line)',
+				'third line )',
 				'fourth line',
 				'fifth'
 			],
-			new Selection(1, 4, 3, 2)
+			new Selection(1, 5, 3, 2)
 		);
 
 		testLineCommentCommand(
@@ -655,7 +655,7 @@ suite('Editor Contrib - Line Comment As Block Comment 2', () => {
 			],
 			new Selection(1, 1, 1, 1),
 			[
-				'\t\t<!@#first\t    #@!>',
+				'\t\t<!@# first\t     #@!>',
 				'\t\tsecond line',
 				'\tthird line',
 				'fourth line',
@@ -809,8 +809,8 @@ suite('Editor Contrib - Line Comment As Block Comment 2', () => {
 			],
 			new Selection(1, 1, 3, 1),
 			[
-				'     <!@#asd qwe',
-				'     asd qwe#@!>',
+				'     <!@# asd qwe',
+				'     asd qwe #@!>',
 				''
 			],
 			new Selection(1, 1, 3, 1)
@@ -927,13 +927,13 @@ suite('Editor Contrib - Line Comment in mixed modes', () => {
 			[
 				'import React from \'react\';',
 				'const Loader = () => (',
-				'  {/*<div>*/}',
+				'  {/* <div> */}',
 				'    Loading...',
 				'  </div>',
 				');',
 				'export default Loader;'
 			],
-			new Selection(3, 7, 3, 7),
+			new Selection(3, 8, 3, 8),
 		);
 	});
 

@@ -21,10 +21,6 @@ export interface IGit {
 	version: string;
 }
 
-export interface PushOptions {
-	setUpstream?: boolean;
-}
-
 export interface IFileStatus {
 	x: string;
 	y: string;
@@ -159,6 +155,12 @@ export interface IExecutionResult {
 }
 
 async function exec(child: cp.ChildProcess, options: any = {}): Promise<IExecutionResult> {
+	if (!child.stdout || !child.stderr) {
+		throw new GitError({
+			message: 'Failed to get stdout or stderr from git process.'
+		});
+	}
+
 	const disposables: IDisposable[] = [];
 
 	const once = (ee: NodeJS.EventEmitter, name: string, fn: Function) => {
@@ -274,7 +276,8 @@ export const GitErrorCodes = {
 	CantAccessRemote: 'CantAccessRemote',
 	RepositoryNotFound: 'RepositoryNotFound',
 	RepositoryIsLocked: 'RepositoryIsLocked',
-	BranchNotFullyMerged: 'BranchNotFullyMerged'
+	BranchNotFullyMerged: 'BranchNotFullyMerged',
+	NoRemoteReference: 'NoRemoteReference'
 };
 
 function getGitErrorCode(stderr: string): string | undefined {
@@ -294,6 +297,8 @@ function getGitErrorCode(stderr: string): string | undefined {
 		return GitErrorCodes.CantAccessRemote;
 	} else if (/branch '.+' is not fully merged/.test(stderr)) {
 		return GitErrorCodes.BranchNotFullyMerged;
+	} else if (/Couldn\'t find remote ref/.test(stderr)) {
+		return GitErrorCodes.NoRemoteReference;
 	}
 
 	return void 0;
@@ -448,7 +453,7 @@ export class GitStatusParser {
 		// space
 		i++;
 
-		if (entry.x === 'R') {
+		if (entry.x === 'R' || entry.x === 'C') {
 			lastIndex = raw.indexOf('\0', i);
 
 			if (lastIndex === -1) {
@@ -658,6 +663,20 @@ export class Repository {
 		await this.run(args);
 	}
 
+	async merge(ref: string): Promise<void> {
+		const args = ['merge', ref];
+
+		try {
+			await this.run(args);
+		} catch (err) {
+			if (/^CONFLICT /m.test(err.stdout || '')) {
+				err.gitErrorCode = GitErrorCodes.Conflict;
+			}
+
+			throw err;
+		}
+	}
+
 	async clean(paths: string[]): Promise<void> {
 		const pathsByGroup = groupBy(paths, p => path.dirname(p));
 		const groups = Object.keys(pathsByGroup).map(k => pathsByGroup[k]);
@@ -738,11 +757,16 @@ export class Repository {
 		}
 	}
 
-	async pull(rebase?: boolean): Promise<void> {
+	async pull(rebase?: boolean, remote?: string, branch?: string): Promise<void> {
 		const args = ['pull'];
 
 		if (rebase) {
 			args.push('-r');
+		}
+
+		if (remote && branch) {
+			args.push(remote);
+			args.push(branch);
 		}
 
 		try {
@@ -762,10 +786,10 @@ export class Repository {
 		}
 	}
 
-	async push(remote?: string, name?: string, options?: PushOptions): Promise<void> {
+	async push(remote?: string, name?: string, setUpstream: boolean = false): Promise<void> {
 		const args = ['push'];
 
-		if (options && options.setUpstream) {
+		if (setUpstream) {
 			args.push('-u');
 		}
 

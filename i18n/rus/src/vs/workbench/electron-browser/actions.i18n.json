@@ -6,9 +6,6 @@
 {
 	"closeActiveEditor": "Закрыть редактор",
 	"closeWindow": "Закрыть окно",
-	"switchWindow": "Переключить окно",
-	"switchWindowPlaceHolder": "Выберите окно",
-	"current": "Текущее окно",
 	"closeFolder": "Закрыть папку",
 	"noFolderOpened": "В настоящий момент в этом экземпляре нет открытой папки, которую можно было бы закрыть.",
 	"newWindow": "Новое окно",
@@ -20,7 +17,7 @@
 	"zoomReset": "Сбросить масштаб",
 	"appPerf": "Производительность запуска",
 	"reloadWindow": "Перезагрузить окно",
-	"openRecent": "Открыть последний",
+	"current": "Текущее окно",
 	"folders": "папки",
 	"files": "файлы",
 	"openRecentPlaceHolderMac": "Выбрать путь (удерживайте клавишу CMD, чтобы открыть в новом окне)",
@@ -32,10 +29,6 @@
 	"openDocumentationUrl": "Документация",
 	"openIntroductoryVideosUrl": "Вступительные видео",
 	"toggleSharedProcess": "Переключить общий процесс",
-	"navigateLeft": "Перейти к части представления слева",
-	"navigateRight": "Перейти к части представления справа",
-	"navigateUp": "Перейти к части представления вверху",
-	"navigateDown": "Перейти к части представления внизу",
 	"increaseViewSize": "Увеличить размер текущего представления",
 	"decreaseViewSize": "Уменьшить размер текущего представления"
 }

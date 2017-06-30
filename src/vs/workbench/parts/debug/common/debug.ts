@@ -96,6 +96,7 @@ export interface ISession {
 	disconnect(restart?: boolean, force?: boolean): TPromise<DebugProtocol.DisconnectResponse>;
 	custom(request: string, args: any): TPromise<DebugProtocol.Response>;
 	onDidEvent: Event<DebugProtocol.Event>;
+	onDidInitialize: Event<DebugProtocol.InitializedEvent>;
 	restartFrame(args: DebugProtocol.RestartFrameArguments, threadId: number): TPromise<DebugProtocol.RestartFrameResponse>;
 
 	next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse>;
@@ -111,12 +112,18 @@ export interface ISession {
 	source(args: DebugProtocol.SourceArguments): TPromise<DebugProtocol.SourceResponse>;
 }
 
+export enum ProcessState {
+	INACTIVE,
+	ATTACH,
+	LAUNCH
+}
+
 export interface IProcess extends ITreeElement {
 	name: string;
 	configuration: IConfig;
 	session: ISession;
 	sources: Map<string, Source>;
-	isAttach(): boolean;
+	state: ProcessState;
 	getThread(threadId: number): IThread;
 	getAllThreads(): IThread[];
 	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]>;
@@ -184,6 +191,7 @@ export interface IScope extends IExpressionContainer {
 export interface IStackFrame extends ITreeElement {
 	thread: IThread;
 	name: string;
+	presentationHint: string;
 	frameId: number;
 	range: IRange;
 	source: Source;
@@ -432,6 +440,11 @@ export interface IDebugService {
 	onDidChangeState: Event<State>;
 
 	/**
+	 * Allows to register on end process events.
+	 */
+	onDidEndProcess: Event<IProcess>;
+
+	/**
 	 * Gets the current configuration manager.
 	 */
 	getConfigurationManager(): IConfigurationManager;
@@ -526,7 +539,7 @@ export interface IDebugService {
 	/**
 	 * Creates a new debug process. Depending on the configuration will either 'launch' or 'attach'.
 	 */
-	createProcess(config: IConfig): TPromise<any>;
+	createProcess(config: IConfig): TPromise<IProcess>;
 
 	/**
 	 * Restarts a process or creates a new one if there is no active session.
@@ -539,9 +552,9 @@ export interface IDebugService {
 	stopProcess(process: IProcess): TPromise<any>;
 
 	/**
-	 * Deemphasizes all sources with the passed uri. Source will appear as grayed out in callstack view.
+	 * Makes unavailable all sources with the passed uri. Source will appear as grayed out in callstack view.
 	 */
-	deemphasizeSource(uri: uri): void;
+	sourceIsNotAvailable(uri: uri): void;
 
 	/**
 	 * Gets the current debug model.

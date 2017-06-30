@@ -26,8 +26,9 @@ function renderBody(body: string): string {
 	return `<!DOCTYPE html>
 		<html>
 			<head>
+				<base href="https://code.visualstudio.com/raw/">
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src http: https: data:; media-src http: https: data:; script-src 'none'; style-src file: http: https: 'unsafe-inline'; child-src 'none'; frame-src 'none';">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'none'; style-src file: https: 'unsafe-inline'; child-src 'none'; frame-src 'none';">
 				<link rel="stylesheet" type="text/css" href="${require.toUrl('./media/markdown.css')}">
 			</head>
 			<body>${body}</body>
@@ -94,7 +95,6 @@ export class ReleaseNotesEditor extends WebviewEditor {
 			.then(renderBody)
 			.then<void>(body => {
 				this.webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART));
-				this.webview.baseUrl = `https://code.visualstudio.com/raw/`;
 
 				if (this.input && this.input instanceof ReleaseNotesInput) {
 					const state = this.loadViewState(this.input.version);

@@ -14,6 +14,6 @@
 	"addSelectionToPreviousFindMatch": "Agregar selección hasta la anterior coincidencia de búsqueda",
 	"moveSelectionToNextFindMatch": "Mover última selección hasta la siguiente coincidencia de búsqueda",
 	"moveSelectionToPreviousFindMatch": "Mover última selección hasta la anterior coincidencia de búsqueda",
-	"selectAllOccurencesOfFindMatch": "Seleccionar todas las repeticiones de coincidencia de búsqueda",
+	"selectAllOccurrencesOfFindMatch": "Seleccionar todas las repeticiones de coincidencia de búsqueda",
 	"changeAll.label": "Cambiar todas las ocurrencias"
 }

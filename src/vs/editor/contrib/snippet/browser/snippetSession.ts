@@ -173,9 +173,9 @@ export class OneSnippet {
 				// through the placeholders in the correct order
 				for (const nestedPlaceholder of nested._snippet.placeholders) {
 					if (nestedPlaceholder.isFinalTabstop) {
-						nestedPlaceholder.index = `${placeholder.index}.${nested._snippet.placeholders.length}`;
+						nestedPlaceholder.index = placeholder.index + (nested._snippet.placeholders.length / 10);
 					} else {
-						nestedPlaceholder.index = `${placeholder.index}.${nestedPlaceholder.index}`;
+						nestedPlaceholder.index = placeholder.index + (nestedPlaceholder.index / 10);
 					}
 				}
 				this._snippet.replace(placeholder, nested._snippet.children);
@@ -296,7 +296,7 @@ export class SnippetSession {
 			// store snippets with the index of their originating selection.
 			// that ensures the primiary cursor stays primary despite not being
 			// the one with lowest start position
-			edits[idx] = EditOperation.replaceMove(snippetSelection, snippet.text);
+			edits[idx] = EditOperation.replace(snippetSelection, snippet.text);
 			snippets[idx] = new OneSnippet(editor, snippet, offset);
 		}
 

@@ -12,7 +12,7 @@ import * as Labels from 'vs/base/common/labels';
 import * as Platform from 'vs/base/common/platform';
 import { Action } from 'vs/base/common/actions';
 
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';

@@ -7,333 +7,104 @@
 
 declare module 'vscode' {
 
-	/**
-	 * Controls the behaviour of the terminal's visibility.
-	 */
-	export enum TaskRevealKind {
-		/**
-		 * Always brings the terminal to front if the task is executed.
-		 */
-		Always = 1,
-
-		/**
-		 * Only brings the terminal to front if a problem is detected executing the task
-		 * (e.g. the task couldn't be started because).
-		 */
-		Silent = 2,
-
-		/**
-		 * The terminal never comes to front when the task is executed.
-		 */
-		Never = 3
+	export interface WorkspaceFoldersChangeEvent {
+		readonly addedFolders: Uri[];
+		readonly removedFolders: Uri[];
 	}
 
-	/**
-	 * Controls terminal specific behavior.
-	 */
-	export interface TaskTerminalBehavior {
-		/**
-		 * Controls whether the terminal executing a task is brought to front or not.
-		 * Defaults to `RevealKind.Always`.
-		 */
-		reveal?: TaskRevealKind;
+	export namespace workspace {
 
 		/**
-		 * Controls whether the command is echoed in the terminal or not.
+		* List of workspace folders or `undefined` when no folder is open. The *first*
+		* element in the array is equal to the [`rootPath`](#workspace.rootPath)
+		*/
+		export let workspaceFolders: Uri[] | undefined;
+
+		/**
+		 * An event that is emitted when a workspace folder is added or removed.
 		 */
-		echo?: boolean;
+		export const onDidChangeWorkspaceFolders: Event<WorkspaceFoldersChangeEvent>;
 	}
 
-	export interface ProcessTaskOptions {
-		/**
-		 * The current working directory of the executed program or shell.
-		 * If omitted the tools current workspace root is used.
-		 */
-		cwd?: string;
+	export interface WorkspaceConfiguration2 extends WorkspaceConfiguration {
 
-		/**
-		 * The additional environment of the executed program or shell. If omitted
-		 * the parent process' environment is used. If provided it is merged with
-		 * the parent process' environment.
-		 */
-		env?: { [key: string]: string };
-	}
+		inspect<T>(section: string): { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T, folderValue?: T } | undefined;
 
-	export namespace TaskGroup {
-		/**
-		 * The clean task group
-		 */
-		export const Clean: 'clean';
-		/**
-		 * The build task group. If a task is part of the build task group
-		 * it can be executed via the run build short cut.
-		 */
-		export const Build: 'build';
-		/**
-		 * The rebuild all task group
-		 */
-		export const RebuildAll: 'rebuildAll';
-		/**
-		 * The test task group. If a task is part of the test task group
-		 * it can be executed via the run test short cut.
-		 */
-		export const Test: 'test';
-	}
-
-	/**
-	 * A task that starts an external process.
-	 */
-	export class ProcessTask {
-
-		/**
-		 * Creates a process task.
-		 *
-		 * @param name the task's name. Is presented in the user interface.
-		 * @param process the process to start.
-		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
-		 *  or '$eslint'. Problem matchers can be contributed by an extension using
-		 *  the `problemMatchers` extension point.
-		 */
-		constructor(name: string, process: string, problemMatchers?: string | string[]);
-
-		/**
-		 * Creates a process task.
-		 *
-		 * @param name the task's name. Is presented in the user interface.
-		 * @param process the process to start.
-		 * @param args arguments to be passed to the process.
-		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
-		 *  or '$eslint'. Problem matchers can be contributed by an extension using
-		 *  the `problemMatchers` extension point.
-		 */
-		constructor(name: string, process: string, args: string[], problemMatchers?: string | string[]);
-
-		/**
-		 * Creates a process task.
-		 *
-		 * @param name the task's name. Is presented in the user interface.
-		 * @param process the process to start.
-		 * @param args arguments to be passed to the process.
-		 * @param options additional options for the started process.
-		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
-		 *  or '$eslint'. Problem matchers can be contributed by an extension using
-		 *  the `problemMatchers` extension point.
-		 */
-		constructor(name: string, process: string, args: string[], options: ProcessTaskOptions, problemMatchers?: string | string[]);
-
-		/**
-		 * The task's name
-		 */
-		readonly name: string;
-
-		/**
-		 * The task's identifier. If omitted the internal identifier will
-		 * be `${extensionName}:${name}`
-		 */
-		identifier: string | undefined;
-
-		/**
-		 * Whether the task is a background task or not.
-		 */
-		isBackground: boolean;
-
-		/**
-		 * The process to be executed.
-		 */
-		readonly process: string;
-
-		/**
-		 * The arguments passed to the process. Defaults to an empty array.
-		 */
-		args: string[];
-
-		/**
-		 * A human-readable string describing the source of this
-		 * shell task, e.g. 'gulp' or 'npm'.
-		 */
-		source: string | undefined;
-
-		/**
-		 * The task group this tasks belongs to. See TaskGroup
-		 * for a predefined set of available groups.
-		 * Defaults to undefined meaning that the task doesn't
-		 * belong to any special group.
-		 */
-		group: string | undefined;
-
-		/**
-		 * The process options used when the process is executed.
-		 * Defaults to an empty object literal.
-		 */
-		options: ProcessTaskOptions;
-
-		/**
-		 * The terminal behavior. Defaults to an empty object literal.
-		 */
-		terminalBehavior: TaskTerminalBehavior;
-
-		/**
-		 * The problem matchers attached to the task. Defaults to an empty
-		 * array.
-		 */
-		problemMatchers: string[];
-	}
-
-	export type ShellTaskOptions = {
-		/**
-		 * The shell executable.
-		 */
-		executable: string;
-
-		/**
-		 * The arguments to be passed to the shell executable used to run the task.
-		 */
-		shellArgs?: string[];
-
-		/**
-		 * The current working directory of the executed shell.
-		 * If omitted the tools current workspace root is used.
-		 */
-		cwd?: string;
-
-		/**
-		 * The additional environment of the executed shell. If omitted
-		 * the parent process' environment is used. If provided it is merged with
-		 * the parent process' environment.
-		 */
-		env?: { [key: string]: string };
-	} | {
-			/**
-			 * The current working directory of the executed shell.
-			 * If omitted the tools current workspace root is used.
-			 */
-			cwd: string;
-
-			/**
-			 * The additional environment of the executed shell. If omitted
-			 * the parent process' environment is used. If provided it is merged with
-			 * the parent process' environment.
-			 */
-			env?: { [key: string]: string };
-		} | {
-			/**
-			 * The current working directory of the executed shell.
-			 * If omitted the tools current workspace root is used.
-			 */
-			cwd?: string;
-
-			/**
-			 * The additional environment of the executed shell. If omitted
-			 * the parent process' environment is used. If provided it is merged with
-			 * the parent process' environment.
-			 */
-			env: { [key: string]: string };
-		};
-
-	/**
-	 * A task that executes a shell command.
-	 */
-	export class ShellTask {
-
-		/**
-		 * Creates a shell task.
-		 *
-		 * @param name the task's name. Is presented in the user interface.
-		 * @param commandLine the command line to execute.
-		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
-		 *  or '$eslint'. Problem matchers can be contributed by an extension using
-		 *  the `problemMatchers` extension point.
-		 */
-		constructor(name: string, commandLine: string, problemMatchers?: string | string[]);
-
-		/**
-		 * Creates a shell task.
-		 *
-		 * @param name the task's name. Is presented in the user interface.
-		 * @param commandLine the command line to execute.
-		 * @param options additional options used when creating the shell.
-		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
-		 *  or '$eslint'. Problem matchers can be contributed by an extension using
-		 *  the `problemMatchers` extension point.
-		 */
-		constructor(name: string, commandLine: string, options: ShellTaskOptions, problemMatchers?: string | string[]);
-
-		/**
-		 * The task's name
-		 */
-		readonly name: string;
-
-		/**
-		 * The task's identifier. If omitted the internal identifier will
-		 * be `${extensionName}:${name}`
-		 */
-		identifier: string | undefined;
-
-		/**
-		 * Whether the task is a background task or not.
-		 */
-		isBackground: boolean;
-
-		/**
-		 * The command line to execute.
-		 */
-		readonly commandLine: string;
-
-		/**
-		 * A human-readable string describing the source of this
-		 * shell task, e.g. 'gulp' or 'npm'.
-		 */
-		source: string | undefined;
-
-		/**
-		 * The task group this tasks belongs to. See TaskGroup
-		 * for a predefined set of available groups.
-		 * Defaults to undefined meaning that the task doesn't
-		 * belong to any special group.
-		 */
-		group: string | undefined;
-
-		/**
-		 * The shell options used when the shell is executed. Defaults to an
-		 * empty object literal.
-		 */
-		options: ShellTaskOptions;
-
-		/**
-		 * The terminal behavior. Defaults to an empty object literal.
-		 */
-		terminalBehavior: TaskTerminalBehavior;
-
-		/**
-		 * The problem matchers attached to the task. Defaults to an empty
-		 * array.
-		 */
-		problemMatchers: string[];
-	}
-
-	export type Task = ProcessTask | ShellTask;
-
-	/**
-	 * A task provider allows to add tasks to the task service.
-	 * A task provider is registerd via #workspace.registerTaskProvider.
-	 */
-	export interface TaskProvider {
-		/**
-		 * Provides additional tasks.
-		 * @param token A cancellation token.
-		 * @return a #TaskSet
-		 */
-		provideTasks(token: CancellationToken): ProviderResult<Task[]>;
 	}
 
 	export namespace workspace {
 		/**
-		 * Register a task provider.
+		 * Get a configuration object.
 		 *
-		 * @param provider A task provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 * When a section-identifier is provided only that part of the configuration
+		 * is returned. Dots in the section-identifier are interpreted as child-access,
+		 * like `{ myExt: { setting: { doIt: true }}}` and `getConfiguration('myExt.setting').get('doIt') === true`.
+		 *
+		 * When a resource is provided, only configuration scoped to that resource
+		 * is returned.
+		 *
+		 * If editor is opened with `no folders` then returns the global configuration.
+		 *
+		 * If editor is opened with `folders` then returns the configuration from the folder in which the resource belongs to.
+		 *
+		 * If resource does not belongs to any opened folders, then returns the workspace configuration.
+		 *
+		 * @param section A dot-separated identifier.
+		 * @param resource A resource for which configuration is asked
+		 * @return The full workspace configuration or a subset.
 		 */
-		export function registerTaskProvider(provider: TaskProvider): Disposable;
+		export function getConfiguration2(section?: string, resource?: Uri): WorkspaceConfiguration2;
+	}
+
+	/**
+	 * Represents the workspace configuration.
+	 *
+	 * The workspace configuration is a merged view of
+	 *
+	 * - Default configuration
+	 * - Global configuration
+	 * - Workspace configuration (if available)
+	 * - Folder configuration of the [resource](#workspace.getConfiguration2) (if requested and available)
+	 *
+	 * **Global configuration** comes from User Settings and shadows Defaults.
+	 *
+	 * **Workspace configuration** comes from the `.vscode` folder under first [workspace folders](#workspace.workspaceFolders)
+	 * and shadows Globals configuration.
+	 *
+	 * **Folder configurations** comes from `.vscode` folder under [workspace folders](#workspace.workspaceFolders). Each [workspace folder](#workspace.workspaceFolders)
+	 * has a configuration and the requested resource determines which folder configuration to pick. Folder configuration shodows Workspace configuration.
+	 *
+	 * *Note:* Workspace and Folder configurations contains settings from `launch.json` and `tasks.json` files. Their basename will be
+	 * part of the section identifier. The following snippets shows how to retrieve all configurations
+	 * from `launch.json`:
+	 *
+	 * ```ts
+	 * // launch.json configuration
+	 * const config = workspace.getConfiguration('launch', workspace.workspaceFolders[1]);
+	 *
+	 * // retrieve values
+	 * const values = config.get('configurations');
+	 * ```
+	 */
+	export interface WorkspaceConfiguration2 extends WorkspaceConfiguration {
+
+		/**
+		 * Retrieve all information about a configuration setting. A configuration value
+		 * often consists of a *default* value, a global or installation-wide value,
+		 * a workspace-specific value and a folder-specific value.
+		 *
+		 * The *effective* value (returned by [`get`](#WorkspaceConfiguration.get))
+		 * is computed like this: `defaultValue` overwritten by `globalValue`,
+		 * `globalValue` overwritten by `workspaceValue`. `workspaceValue` overwritten by `folderValue`.
+		 *
+		 * *Note:* The configuration name must denote a leaf in the configuration tree
+		 * (`editor.fontSize` vs `editor`) otherwise no result is returned.
+		 *
+		 * @param section Configuration name, supports _dotted_ names.
+		 * @return Information about a configuration setting or `undefined`.
+		 */
+		inspect<T>(section: string): { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T, folderValue?: T } | undefined;
+
 	}
 
 	export namespace window {
@@ -417,5 +188,68 @@ declare module 'vscode' {
 		 * @param callback The callback that is triggered when data is sent to the terminal.
 		 */
 		onData(callback: (data: string) => any): void;
+	}
+
+	/**
+	 * Namespace for dealing with debug sessions.
+	 */
+	export namespace debug {
+
+		/**
+		 * An [event](#Event) which fires when a debug session has terminated.
+		 */
+		export const onDidTerminateDebugSession: Event<DebugSession>;
+
+		/**
+		 * Create a new debug session based on the given launchConfig.
+		 * @param launchConfig
+		 */
+		export function createDebugSession(launchConfig: DebugConfiguration): Thenable<DebugSession>;
+	}
+
+	/**
+	 * Configuration for a debug session.
+	 */
+	export interface DebugConfiguration {
+		/**
+		 * The type for the debug session.
+		 */
+		type: string;
+
+		/**
+		 * An optional name for the debug session.
+		 */
+		name?: string;
+
+		/**
+		 * The request type of the debug session.
+		 */
+		request: string;
+
+		/**
+		 * Additional debug type specific properties.
+		 */
+		[key: string]: any;
+	}
+
+	/**
+	 * A debug session.
+	 */
+	export interface DebugSession {
+
+		/**
+		 * The debug session's type from the debug configuration.
+		 */
+		readonly type: string;
+
+		/**
+		 * The debug session's name from the debug configuration.
+		 */
+		readonly name: string;
+
+		/**
+		 * Send a custom request to the debug adapter.
+		 */
+		customRequest(command: string, args?: any): Thenable<any>;
 	}
 }

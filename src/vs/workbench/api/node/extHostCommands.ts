@@ -104,7 +104,7 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 	$executeContributedCommand<T>(id: string, ...args: any[]): Thenable<T> {
 		let command = this._commands.get(id);
 		if (!command) {
-			return TPromise.wrapError<T>(`Contributed command '${id}' does not exist.`);
+			return TPromise.wrapError<T>(new Error(`Contributed command '${id}' does not exist.`));
 		}
 
 		let { callback, thisArg, description } = command;
@@ -114,7 +114,7 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 				try {
 					validateConstraint(args[i], description.args[i].constraint);
 				} catch (err) {
-					return TPromise.wrapError<T>(`Running the contributed command:'${id}' failed. Illegal argument '${description.args[i].name}' - ${description.args[i].description}`);
+					return TPromise.wrapError<T>(new Error(`Running the contributed command:'${id}' failed. Illegal argument '${description.args[i].name}' - ${description.args[i].description}`));
 				}
 			}
 		}
@@ -131,7 +131,7 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 			// } catch (err) {
 			// 	//
 			// }
-			return TPromise.wrapError<T>(`Running the contributed command:'${id}' failed.`);
+			return TPromise.wrapError<T>(new Error(`Running the contributed command:'${id}' failed.`));
 		}
 	}
 
@@ -218,7 +218,7 @@ export class CommandsConverter {
 		}
 	}
 
-	private _executeConvertedCommand(...args: any[]) {
+	private _executeConvertedCommand<R>(...args: any[]): Thenable<R> {
 		const actualCmd = this._heap.get<vscode.Command>(args[0]);
 		return this._commands.executeCommand(actualCmd.command, ...actualCmd.arguments);
 	}

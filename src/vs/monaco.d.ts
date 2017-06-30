@@ -95,7 +95,7 @@ declare module monaco {
 		public static wrap<ValueType>(value: Thenable<ValueType>): Promise<ValueType>;
 		public static wrap<ValueType>(value: ValueType): Promise<ValueType>;
 
-		public static wrapError<ValueType>(error: any): Promise<ValueType>;
+		public static wrapError<ValueType>(error: Error): Promise<ValueType>;
 	}
 
 	export class CancellationTokenSource {
@@ -1050,6 +1050,10 @@ declare module monaco.editor {
 		Auto = 1,
 		Hidden = 2,
 		Visible = 3,
+	}
+
+	export interface ThemeColor {
+		id: string;
 	}
 
 	/**
@@ -2159,10 +2163,6 @@ declare module monaco.editor {
 		restoreViewState?(state: any): void;
 	}
 
-	export interface ThemeColor {
-		id: string;
-	}
-
 	export interface ICommonCodeEditor extends IEditor {
 		/**
 		 * An event emitted when the content of the current model has changed.
@@ -2656,6 +2656,11 @@ declare module monaco.editor {
 		 */
 		enabled?: boolean;
 		/**
+		 * Control the rendering of the minimap slider.
+		 * Defaults to 'mouseover'.
+		 */
+		showSlider?: 'always' | 'mouseover';
+		/**
 		 * Render the actual text on a line (as opposed to color blocks).
 		 * Defaults to true.
 		 */
@@ -2788,10 +2793,11 @@ declare module monaco.editor {
 		 */
 		fontLigatures?: boolean;
 		/**
-		 * Disable the use of `translate3d`.
+		 * Disable the use of `will-change` for the editor margin and lines layers.
+		 * The usage of `will-change` acts as a hint for browsers to create an extra layer.
 		 * Defaults to false.
 		 */
-		disableTranslate3d?: boolean;
+		disableLayerHinting?: boolean;
 		/**
 		 * Disable the optimizations for monospace fonts.
 		 * Defaults to false.
@@ -2868,6 +2874,11 @@ declare module monaco.editor {
 		 */
 		hover?: boolean;
 		/**
+		 * Enable detecting links and making them clickable.
+		 * Defaults to true.
+		 */
+		links?: boolean;
+		/**
 		 * Enable custom contextmenu.
 		 * Defaults to true.
 		 */
@@ -2915,6 +2926,11 @@ declare module monaco.editor {
 		 * Defaults to true.
 		 */
 		autoClosingBrackets?: boolean;
+		/**
+		 * Enable auto indentation adjustment.
+		 * Defaults to false.
+		 */
+		autoIndent?: boolean;
 		/**
 		 * Enable format on type.
 		 * Defaults to false.
@@ -3177,6 +3193,7 @@ declare module monaco.editor {
 
 	export interface InternalEditorMinimapOptions {
 		readonly enabled: boolean;
+		readonly showSlider: 'always' | 'mouseover';
 		readonly renderCharacters: boolean;
 		readonly maxColumn: number;
 	}
@@ -3231,6 +3248,7 @@ declare module monaco.editor {
 	export interface EditorContribOptions {
 		readonly selectionClipboard: boolean;
 		readonly hover: boolean;
+		readonly links: boolean;
 		readonly contextmenu: boolean;
 		readonly quickSuggestions: boolean | {
 			other: boolean;
@@ -3263,7 +3281,7 @@ declare module monaco.editor {
 	 */
 	export class InternalEditorOptions {
 		readonly _internalEditorOptionsBrand: void;
-		readonly canUseTranslate3d: boolean;
+		readonly canUseLayerHinting: boolean;
 		readonly pixelRatio: number;
 		readonly editorClassName: string;
 		readonly lineHeight: number;
@@ -3271,6 +3289,7 @@ declare module monaco.editor {
 		readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 		readonly wordSeparators: string;
 		readonly autoClosingBrackets: boolean;
+		readonly autoIndent: boolean;
 		readonly useTabStops: boolean;
 		readonly tabFocusMode: boolean;
 		readonly dragAndDrop: boolean;
@@ -3394,7 +3413,7 @@ declare module monaco.editor {
 	 * An event describing that the configuration of the editor has changed.
 	 */
 	export interface IConfigurationChangedEvent {
-		readonly canUseTranslate3d: boolean;
+		readonly canUseLayerHinting: boolean;
 		readonly pixelRatio: boolean;
 		readonly editorClassName: boolean;
 		readonly lineHeight: boolean;
@@ -3403,6 +3422,7 @@ declare module monaco.editor {
 		readonly multiCursorModifier: boolean;
 		readonly wordSeparators: boolean;
 		readonly autoClosingBrackets: boolean;
+		readonly autoIndent: boolean;
 		readonly useTabStops: boolean;
 		readonly tabFocusMode: boolean;
 		readonly dragAndDrop: boolean;
@@ -3948,7 +3968,7 @@ declare module monaco.languages {
 	export function registerDocumentSymbolProvider(languageId: string, provider: DocumentSymbolProvider): IDisposable;
 
 	/**
-	 * Register a document highlight provider (used by e.g. highlight occurences).
+	 * Register a document highlight provider (used by e.g. highlight occurrences).
 	 */
 	export function registerDocumentHighlightProvider(languageId: string, provider: DocumentHighlightProvider): IDisposable;
 

@@ -8,18 +8,20 @@ import nls = require('vs/nls');
 import Filters = require('vs/base/common/filters');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action, IAction } from 'vs/base/common/actions';
+import { IStringDictionary } from 'vs/base/common/collections';
+
 import Quickopen = require('vs/workbench/browser/quickopen');
 import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
 import { Task, TaskSourceKind } from 'vs/workbench/parts/tasks/common/tasks';
-import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
+import { ITaskService, RunOptions } from 'vs/workbench/parts/tasks/common/taskService';
 import { ActionBarContributor, ContributableActionProvider } from 'vs/workbench/browser/actions';
 
 export class TaskEntry extends Model.QuickOpenEntry {
 
-	constructor(protected taskService: ITaskService, protected _task: Task, highlights: Model.IHighlight[] = []) {
+	constructor(protected taskService: ITaskService, protected quickOpenService: IQuickOpenService, protected _task: Task, highlights: Model.IHighlight[] = []) {
 		super(highlights);
 	}
 
@@ -33,6 +35,15 @@ export class TaskEntry extends Model.QuickOpenEntry {
 
 	public get task(): Task {
 		return this._task;
+	}
+
+	protected doRun(task: Task, options?: RunOptions): boolean {
+		this.taskService.run(task, options);
+		if (task.command.presentation.focus) {
+			this.quickOpenService.close();
+			return false;
+		}
+		return true;
 	}
 }
 
@@ -49,7 +60,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 
 	constructor(
 		protected quickOpenService: IQuickOpenService,
-		protected taskService: ITaskService,
+		protected taskService: ITaskService
 	) {
 		super();
 
@@ -71,52 +82,57 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 			if (tasks.length === 0) {
 				return new Model.QuickOpenModel(entries);
 			}
-			tasks = tasks.sort((a, b) => {
-				let aKind = a._source.kind;
-				let bKind = b._source.kind;
-				if (aKind === bKind) {
-					if (aKind === TaskSourceKind.Extension) {
-						let compare = a._source.label.localeCompare(b._source.label);
-						if (compare !== 0) {
-							return compare;
-						}
-					}
-					return a._label.localeCompare(b._label);
-				}
-				if (aKind === TaskSourceKind.Workspace) {
-					return -1;
-				} else {
-					return +1;
+			let recentlyUsedTasks = this.taskService.getRecentlyUsedTasks();
+			let recent: Task[] = [];
+			let configured: Task[] = [];
+			let detected: Task[] = [];
+			let taskMap: IStringDictionary<Task> = Object.create(null);
+			tasks.forEach(task => taskMap[Task.getKey(task)] = task);
+			recentlyUsedTasks.keys().forEach(key => {
+				let task = taskMap[key];
+				if (task) {
+					recent.push(task);
 				}
 			});
-			let hasWorkspace: boolean = tasks[0]._source.kind === TaskSourceKind.Workspace;
-			let hasExtension: boolean = tasks[tasks.length - 1]._source.kind === TaskSourceKind.Extension;
-			let groupWorkspace = hasWorkspace && hasExtension;
-			let groupExtension = groupWorkspace;
-			let hadWorkspace = false;
 			for (let task of tasks) {
-				let highlights = Filters.matchesContiguousSubString(input, task._label);
-				if (!highlights) {
-					continue;
-				}
-				if (task._source.kind === TaskSourceKind.Workspace && groupWorkspace) {
-					groupWorkspace = false;
-					hadWorkspace = true;
-					entries.push(new TaskGroupEntry(this.createEntry(this.taskService, task, highlights), nls.localize('configured', 'Configured Tasks'), false));
-				} else if (task._source.kind === TaskSourceKind.Extension && groupExtension) {
-					groupExtension = false;
-					entries.push(new TaskGroupEntry(this.createEntry(this.taskService, task, highlights), nls.localize('detected', 'Detected Tasks'), hadWorkspace));
-				} else {
-					entries.push(this.createEntry(this.taskService, task, highlights));
+				if (!recentlyUsedTasks.has(Task.getKey(task))) {
+					if (task._source.kind === TaskSourceKind.Workspace) {
+						configured.push(task);
+					} else {
+						detected.push(task);
+					}
 				}
 			}
+			let hasRecentlyUsed: boolean = recent.length > 0;
+			this.fillEntries(entries, input, recent, nls.localize('recentlyUsed', 'recently used tasks'));
+			configured = configured.sort((a, b) => a._label.localeCompare(b._label));
+			let hasConfigured = configured.length > 0;
+			this.fillEntries(entries, input, configured, nls.localize('configured', 'configured tasks'), hasRecentlyUsed);
+			detected = detected.sort((a, b) => a._label.localeCompare(b._label));
+			this.fillEntries(entries, input, detected, nls.localize('detected', 'detected tasks'), hasRecentlyUsed || hasConfigured);
 			return new Model.QuickOpenModel(entries, new ContributableActionProvider());
 		});
 	}
 
+	private fillEntries(entries: Model.QuickOpenEntry[], input: string, tasks: Task[], groupLabel: string, withBorder: boolean = false) {
+		let first = true;
+		for (let task of tasks) {
+			let highlights = Filters.matchesContiguousSubString(input, task._label);
+			if (!highlights) {
+				continue;
+			}
+			if (first) {
+				first = false;
+				entries.push(new TaskGroupEntry(this.createEntry(task, highlights), groupLabel, withBorder));
+			} else {
+				entries.push(this.createEntry(task, highlights));
+			}
+		}
+	}
+
 	protected abstract getTasks(): TPromise<Task[]>;
 
-	protected abstract createEntry(taskService: ITaskService, task: Task, highlights: Model.IHighlight[]): TaskEntry;
+	protected abstract createEntry(task: Task, highlights: Model.IHighlight[]): TaskEntry;
 
 	public getAutoFocus(input: string): QuickOpen.IAutoFocus {
 		return {
@@ -128,7 +144,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 class CustomizeTaskAction extends Action {
 
 	private static ID = 'workbench.action.tasks.customizeTask';
-	private static LABEL = nls.localize('customizeTask', "Customize Task");
+	private static LABEL = nls.localize('customizeTask', "Configure Task");
 
 	constructor(private taskService: ITaskService, private quickOpenService: IQuickOpenService, private task: Task) {
 		super(CustomizeTaskAction.ID, CustomizeTaskAction.LABEL);
@@ -140,7 +156,7 @@ class CustomizeTaskAction extends Action {
 	}
 
 	public run(context: any): TPromise<any> {
-		return this.taskService.customize(this.task, true).then(() => {
+		return this.taskService.customize(this.task, undefined, true).then(() => {
 			this.quickOpenService.close();
 		});
 	}

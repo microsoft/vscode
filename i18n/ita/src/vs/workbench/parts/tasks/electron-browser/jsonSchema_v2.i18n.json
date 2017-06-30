@@ -7,6 +7,12 @@
 	"JsonSchema.shell": "Specifica se il comando è un comando della shell o un programma esterno. Se omesso, viene usato il valore predefinito false.",
 	"JsonSchema.tasks.dependsOn.string": "Altra attività da cui dipende questa attività.",
 	"JsonSchema.tasks.dependsOn.array": "Altre attività da cui dipende questa attività.",
+	"JsonSchema.tasks.type": "Definisce se l'attività viene eseguita come un processo o come un comando all'interno di una shell. L'impostazione predefinita è processo.",
+	"JsonSchema.version": "Numero di versione della configurazione",
+	"JsonSchema.tasks.taskName": "Nome dell'attività",
+	"JsonSchema.tasks.background": "Indica se l'attività eseguita viene mantenuta attiva ed è in esecuzione in background.",
+	"JsonSchema.tasks.promptOnClose": "Indica se viene visualizzato un prompt utente quando Visual Studio Code viene chiuso con un'attività in esecuzione.",
+	"JsonSchema.tasks.matchers": "Matcher problemi da usare. Può essere una stringa oppure una definizione di matcher problemi oppure una matrice di stringhe e matcher problemi.",
 	"JsonSchema.windows": "Configurazione dei comandi specifica di Windows",
 	"JsonSchema.mac": "Configurazione dei comandi specifica di Mac",
 	"JsonSchema.linux": "Configurazione dei comandi specifica di Linux"

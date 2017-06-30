@@ -7,6 +7,12 @@
 	"JsonSchema.shell": "指定此命令是殼層命令或外部程式。如果省略，預設為 False。",
 	"JsonSchema.tasks.dependsOn.string": "此工作相依的另一個工作。",
 	"JsonSchema.tasks.dependsOn.array": "此工作相依的其他工作。",
+	"JsonSchema.tasks.type": "定義工作是作為處理序或殼層中的命令執行。預設為處理序。",
+	"JsonSchema.version": "組態版本號碼",
+	"JsonSchema.tasks.taskName": "工作的名稱",
+	"JsonSchema.tasks.background": "執行的工作是否保持運作且正在背景執行。",
+	"JsonSchema.tasks.promptOnClose": "是否在 VS Code 有執行中工作的狀態下關閉時提示使用者。",
+	"JsonSchema.tasks.matchers": "要使用的問題比對器。可以是字串或問題比對器定義，或是字串和問題比對器陣列。",
 	"JsonSchema.windows": "Windows 特定命令組態",
 	"JsonSchema.mac": "Mac 特定命令組態",
 	"JsonSchema.linux": "Linux 特定命令組態"

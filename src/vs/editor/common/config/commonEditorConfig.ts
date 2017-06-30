@@ -9,8 +9,8 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import { Extensions, IConfigurationRegistry, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/platform';
+import { Extensions, IConfigurationRegistry, IConfigurationNode, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
@@ -55,7 +55,6 @@ export interface IEnvConfiguration {
 	extraEditorClassName: string;
 	outerWidth: number;
 	outerHeight: number;
-	canUseTranslate3d: boolean;
 	emptySelectionClipboard: boolean;
 	pixelRatio: number;
 	zoomLevel: number;
@@ -76,7 +75,12 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	constructor(options: editorOptions.IEditorOptions) {
 		super();
 
+		// Do a "deep clone of sorts" on the incoming options
 		this._rawOptions = objects.mixin({}, options || {});
+		this._rawOptions.scrollbar = objects.mixin({}, this._rawOptions.scrollbar || {});
+		this._rawOptions.minimap = objects.mixin({}, this._rawOptions.minimap || {});
+		this._rawOptions.find = objects.mixin({}, this._rawOptions.find || {});
+
 		this._validatedOptions = editorOptions.EditorOptionsValidator.validate(this._rawOptions, EDITOR_DEFAULTS);
 		this.editor = null;
 		this._isDominatedByLongLines = false;
@@ -120,7 +124,6 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			extraEditorClassName: partialEnv.extraEditorClassName,
 			isDominatedByLongLines: this._isDominatedByLongLines,
 			lineNumbersDigitCount: this._lineNumbersDigitCount,
-			canUseTranslate3d: partialEnv.canUseTranslate3d,
 			emptySelectionClipboard: partialEnv.emptySelectionClipboard,
 			pixelRatio: partialEnv.pixelRatio,
 			tabFocusMode: TabFocus.getTabFocusMode(),
@@ -170,6 +173,7 @@ const editorConfiguration: IConfigurationNode = {
 	'type': 'object',
 	'title': nls.localize('editorConfigurationTitle', "Editor"),
 	'overridable': true,
+	'scope': ConfigurationScope.FOLDER,
 	'properties': {
 		'editor.fontFamily': {
 			'type': 'string',
@@ -248,6 +252,12 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.enabled,
 			'description': nls.localize('minimap.enabled', "Controls if the minimap is shown")
+		},
+		'editor.minimap.showSlider': {
+			'type': 'string',
+			'enum': ['always', 'mouseover'],
+			'default': EDITOR_DEFAULTS.viewInfo.minimap.showSlider,
+			'description': nls.localize('minimap.showSlider', "Controls whether the minimap slider is automatically hidden.")
 		},
 		'editor.minimap.renderCharacters': {
 			'type': 'boolean',
@@ -375,7 +385,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.parameterHints': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.parameterHints,
-			'description': nls.localize('parameterHints', "Enables parameter hints")
+			'description': nls.localize('parameterHints', "Enables pop-up that shows parameter documentation and type information as you type")
 		},
 		'editor.autoClosingBrackets': {
 			'type': 'boolean',
@@ -391,6 +401,11 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.formatOnPaste,
 			'description': nls.localize('formatOnPaste', "Controls if the editor should automatically format the pasted content. A formatter must be available and the formatter should be able to format a range in a document.")
+		},
+		'editor.autoIndent': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.autoIndent,
+			'description': nls.localize('autoIndent', "Controls if the editor should automatically adjust the indentation when users type, paste or move lines. Indentation rules of the language must be available. ")
 		},
 		'editor.suggestOnTriggerCharacters': {
 			'type': 'boolean',
@@ -561,6 +576,11 @@ const editorConfiguration: IConfigurationNode = {
 			],
 			'default': EDITOR_DEFAULTS.accessibilitySupport,
 			'description': nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers.")
+		},
+		'editor.links': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.contribInfo.links,
+			'description': nls.localize('links', "Controls whether the editor should detect links and make them clickable")
 		},
 		'diffEditor.renderSideBySide': {
 			'type': 'boolean',

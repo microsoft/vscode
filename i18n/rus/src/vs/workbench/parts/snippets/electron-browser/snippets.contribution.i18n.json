@@ -11,6 +11,6 @@
 	"snippetSchema.json.default": "Пустой фрагмент",
 	"snippetSchema.json": "Настройка фрагмента пользователя",
 	"snippetSchema.json.prefix": "Префикс, используемый при выборе фрагмента в Intellisense.",
-	"snippetSchema.json.body": "Содержимое фрагмента. Используйте \"${id}\", \"${id:label}\", \"${1:label}\" для переменных и \"$0\", \"$1\" для положений курсора",
+	"snippetSchema.json.body": "Содержимое фрагмента. Используйте '$1', '${1:defaultText}' для определения положения курсора и '$0' для определения конечного положения курсора. Для вставки переменных используйте синтаксис '${varName}' и '${varName:defaultText}', например, \"Это файл: $TM_FILENAME\".",
 	"snippetSchema.json.description": "Описание фрагмента."
 }

@@ -16,7 +16,8 @@
 		"onLanguage:markdown",
 		"onCommand:markdown.showPreview",
 		"onCommand:markdown.showPreviewToSide",
-		"onCommand:markdown.showSource"
+		"onCommand:markdown.showSource",
+		"onCommand:markdown.showPreviewSecuritySelector"
 	],
 	"contributes": {
 		"languages": [
@@ -79,25 +80,42 @@
 		"menus": {
 			"editor/title": [
 				{
-					"when": "editorLangId == markdown",
 					"command": "markdown.showPreviewToSide",
+					"when": "editorLangId == markdown",
 					"alt": "markdown.showPreview",
 					"group": "navigation"
 				},
 				{
-					"when": "resourceScheme == markdown",
 					"command": "markdown.showSource",
+					"when": "resourceScheme == markdown",
 					"group": "navigation"
 				},
 				{
-					"when": "resourceScheme == markdown",
-					"command": "markdown.showPreviewSecuritySelector"
+					"command": "markdown.showPreviewSecuritySelector",
+					"when": "resourceScheme == markdown"
 				}
 			],
 			"explorer/context": [
 				{
-					"when": "resourceLangId == markdown",
 					"command": "markdown.showPreview",
+					"when": "resourceLangId == markdown",
+					"group": "navigation"
+				}
+			],
+			"commandPalette": [
+				{
+					"command": "markdown.showPreview",
+					"when": "editorLangId == markdown",
+					"group": "navigation"
+				},
+				{
+					"command": "markdown.showPreviewToSide",
+					"when": "editorLangId == markdown",
+					"group": "navigation"
+				},
+				{
+					"command": "markdown.showSource",
+					"when": "resourceScheme == markdown",
 					"group": "navigation"
 				}
 			]
@@ -107,13 +125,13 @@
 				"command": "markdown.showPreview",
 				"key": "shift+ctrl+v",
 				"mac": "shift+cmd+v",
-				"when": "editorFocus"
+				"when": "editorLangId == markdown"
 			},
 			{
 				"command": "markdown.showPreviewToSide",
 				"key": "ctrl+k v",
 				"mac": "cmd+k v",
-				"when": "editorFocus"
+				"when": "editorLangId == markdown"
 			}
 		],
 		"snippets": [
@@ -141,9 +159,14 @@
 					"default": "hide",
 					"description": "%markdown.previewFrontMatter.dec%"
 				},
+				"markdown.preview.breaks": {
+					"type": "boolean",
+					"default": false,
+					"description": "%markdown.preview.breaks.desc%"
+				},
 				"markdown.preview.fontFamily": {
 					"type": "string",
-					"default": "system-ui, 'Segoe WPC', 'Segoe UI', 'HelveticaNeue-Light', 'Ubuntu', 'Droid Sans', sans-serif",
+					"default": "-apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', 'HelveticaNeue-Light', 'Ubuntu', 'Droid Sans', sans-serif",
 					"description": "%markdown.preview.fontFamily.desc%"
 				},
 				"markdown.preview.fontSize": {
@@ -204,11 +227,11 @@
 		"update-grammar": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ./syntaxes/gulpfile.js"
 	},
 	"dependencies": {
-		"highlight.js": "^9.11.0",
-		"markdown-it": "^8.3.1",
+		"highlight.js": "9.5.0",
+		"markdown-it": "8.2.2",
 		"markdown-it-named-headers": "0.0.4",
-		"vscode-extension-telemetry": "^0.0.7",
-		"vscode-nls": "^2.0.2"
+		"vscode-extension-telemetry": "0.0.8",
+		"vscode-nls": "2.0.2"
 	},
 	"devDependencies": {
 		"@types/node": "^7.0.4",

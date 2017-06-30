@@ -234,22 +234,22 @@ namespace schema {
 			},
 			icon: {
 				description: localize('vscode.extension.contributes.commandType.icon', '(Optional) Icon which is used to represent the command in the UI. Either a file path or a themable configuration'),
-				anyOf: [
-					'string',
-					{
-						type: 'object',
-						properties: {
-							light: {
-								description: localize('vscode.extension.contributes.commandType.icon.light', 'Icon path when a light theme is used'),
-								type: 'string'
-							},
-							dark: {
-								description: localize('vscode.extension.contributes.commandType.icon.dark', 'Icon path when a dark theme is used'),
-								type: 'string'
-							}
+				anyOf: [{
+					type: 'string'
+				},
+				{
+					type: 'object',
+					properties: {
+						light: {
+							description: localize('vscode.extension.contributes.commandType.icon.light', 'Icon path when a light theme is used'),
+							type: 'string'
+						},
+						dark: {
+							description: localize('vscode.extension.contributes.commandType.icon.dark', 'Icon path when a dark theme is used'),
+							type: 'string'
 						}
 					}
-				]
+				}]
 			}
 		}
 	};

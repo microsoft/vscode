@@ -14,6 +14,6 @@
 	"addSelectionToPreviousFindMatch": "将选择内容添加到上一查找匹配项",
 	"moveSelectionToNextFindMatch": "将上次选择移动到下一个查找匹配项",
 	"moveSelectionToPreviousFindMatch": "将上个选择内容移动到上一查找匹配项",
-	"selectAllOccurencesOfFindMatch": "选择所有找到的查找匹配项",
+	"selectAllOccurrencesOfFindMatch": "选择所有找到的查找匹配项",
 	"changeAll.label": "更改所有匹配项"
 }

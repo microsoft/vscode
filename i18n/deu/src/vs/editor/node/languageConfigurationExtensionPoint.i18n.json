@@ -15,5 +15,9 @@
 	"schema.brackets": "Definiert die Klammersymbole, die den Einzug vergrößern oder verkleinern.",
 	"schema.autoClosingPairs": "Definiert die Klammerpaare. Wenn eine öffnende Klammer eingegeben wird, wird die schließende Klammer automatisch eingefügt.",
 	"schema.autoClosingPairs.notIn": "Definiert eine Liste von Bereichen, in denen die automatischen Paare deaktiviert sind.",
-	"schema.surroundingPairs": "Definiert die Klammerpaare, in die eine ausgewählte Zeichenfolge eingeschlossen werden kann."
+	"schema.surroundingPairs": "Definiert die Klammerpaare, in die eine ausgewählte Zeichenfolge eingeschlossen werden kann.",
+	"schema.wordPattern": "Die Worddefinition für die Sprache.",
+	"schema.wordPattern.pattern": "RegExp Muster für Wortübereinstimmungen.",
+	"schema.wordPattern.flags": "RegExp Kennzeichen für Wortübereinstimmungen",
+	"schema.wordPattern.flags.errorMessage": "Muss mit dem Muster `/^([gimuy]+)$/` übereinstimmen."
 }
