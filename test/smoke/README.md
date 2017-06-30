@@ -1,5 +1,7 @@
 # VS Code Smoke Testing
-The following command is used to run the tests: `npm test -- --latest "path/to/binary"`.
+
+- Run `npm install`
+- Start the tests: `npm test -- --latest "path/to/binary"`.
 
 If you want to include 'Data Migration' area tests use  `npm test -- --latest path/to/binary --stable path/to/currentStable` respectively.
 
