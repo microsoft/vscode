@@ -166,7 +166,7 @@ export class CommonActions {
 				retry++;
 
 				if (retry < trials) {
-					this.spectron.wait();
+					await this.spectron.wait();
 				} else {
 					error = e;
 				}
