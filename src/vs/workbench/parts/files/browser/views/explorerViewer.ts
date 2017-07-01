@@ -644,7 +644,7 @@ export class TypeSorter implements ISorter {
 			return 1;
 		}
 
-		return comparers.compareFileNames(paths.extname(statA.name), paths.extname(statB.name));
+		return comparers.compareFileExtensions(statA.name, statB.name);
 	}
 }
 
