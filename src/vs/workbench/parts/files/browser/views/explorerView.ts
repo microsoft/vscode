@@ -673,7 +673,7 @@ export class ExplorerView extends CollapsibleView {
 						continue; // out of workspace file
 					}
 
-					if (this.model.findFirst(upd.resource)) {
+					if (this.model.findClosest(upd.resource)) {
 						return true;
 					}
 				}
