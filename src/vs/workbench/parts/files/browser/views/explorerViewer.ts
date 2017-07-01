@@ -648,6 +648,43 @@ export class TypeSorter implements ISorter {
 	}
 }
 
+// Last modified date Sorter
+export class ModifiedSorter implements ISorter {
+
+	public compare(tree: ITree, statA: FileStat, statB: FileStat): number {
+		if (statA.isDirectory && !statB.isDirectory) {
+			return -1;
+		}
+
+		if (statB.isDirectory && !statA.isDirectory) {
+			return 1;
+		}
+
+		if (statA instanceof NewStatPlaceholder) {
+			return -1;
+		}
+
+		if (statB instanceof NewStatPlaceholder) {
+			return 1;
+		}
+
+		// Do not sort roots
+		if (statA.isRoot) {
+			return -1;
+		}
+
+		if (statB.isRoot) {
+			return 1;
+		}
+
+		if (statA.mtime === statB.mtime) {
+			return 0;
+		}
+
+		return statA.mtime < statB.mtime ? -1 : 1;
+	}
+}
+
 // Explorer Filter
 export class FileFilter implements IFilter {
 

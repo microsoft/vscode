@@ -8,5 +8,6 @@ export const SortOrderConfiguration = {
 	DEFAULT: 'default',
 	MIXED: 'mixed',
 	FILES_FIRST: 'filesFirst',
-	TYPE: 'type'
+	TYPE: 'type',
+	MODIFIED: 'modified'
 };

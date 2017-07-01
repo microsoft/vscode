@@ -20,7 +20,7 @@ import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocussedContext, ExplorerFocussedContext } from 'vs/workbench/parts/files/common/files';
 import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileChange, IFileService } from 'vs/platform/files/common/files';
 import { RefreshViewExplorerAction, NewFolderAction, NewFileAction } from 'vs/workbench/parts/files/browser/fileActions';
-import { FileDragAndDrop, FileFilter, DefaultSorter, MixedSorter, FilesFirstSorter, TypeSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/browser/views/explorerViewer';
+import { FileDragAndDrop, FileFilter, DefaultSorter, MixedSorter, FilesFirstSorter, TypeSorter, ModifiedSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/browser/views/explorerViewer';
 import { toResource } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -432,6 +432,8 @@ export class ExplorerView extends CollapsibleView {
 				return new FilesFirstSorter();
 			case SortOrderConfiguration.TYPE:
 				return new TypeSorter();
+			case SortOrderConfiguration.MODIFIED:
+				return new ModifiedSorter();
 			default:
 				return new DefaultSorter();
 		}
@@ -585,7 +587,7 @@ export class ExplorerView extends CollapsibleView {
 	private shouldRefreshFromEvent(e: FileChangesEvent): boolean {
 
 		// Filter to the ones we care
-		e = this.filterToAddRemovedOnWorkspacePath(e, (event, segments) => {
+		e = this.filterToWorkspacePath(e, (event, segments) => {
 			if (
 				segments[0] !== ExplorerView.COMMON_SCM_FOLDERS[0] &&
 				segments[0] !== ExplorerView.COMMON_SCM_FOLDERS[1] &&
@@ -597,14 +599,12 @@ export class ExplorerView extends CollapsibleView {
 			return segments.length === 1; // otherwise we only care about the SCM folder itself
 		});
 
-		// We only ever refresh from files/folders that got added or deleted
-		if (e.gotAdded() || e.gotDeleted()) {
-			const added = e.getAdded();
-			const deleted = e.getDeleted();
+		if (!this.isCreated) {
+			return false;
+		}
 
-			if (!this.isCreated) {
-				return false;
-			}
+		if (e.gotAdded()) {
+			const added = e.getAdded();
 
 			// Check added: Refresh if added file/folder is not part of resolved root and parent is part of it
 			const ignoredPaths: { [fsPath: string]: boolean } = <{ [fsPath: string]: boolean }>{};
@@ -633,6 +633,10 @@ export class ExplorerView extends CollapsibleView {
 					ignoredPaths[parent] = true;
 				}
 			}
+		}
+
+		if (e.gotDeleted()) {
+			const deleted = e.getDeleted();
 
 			// Check deleted: Refresh if deleted file/folder part of resolved root
 			for (let j = 0; j < deleted.length; j++) {
@@ -647,15 +651,31 @@ export class ExplorerView extends CollapsibleView {
 			}
 		}
 
+		if (e.gotUpdated()) {
+			// Check updated only if sortOrder === MODIFIED
+			const config = this.configurationService.getConfiguration<IFilesConfiguration>();
+			if (config && config.explorer && config.explorer.sortOrder === SortOrderConfiguration.MODIFIED) {
+				const updated = e.getUpdated();
+
+				// Check updated: Refresh if updated file/folder part of resolved root
+				for (let j = 0; j < updated.length; j++) {
+					const upd = updated[j];
+					if (!this.contextService.isInsideWorkspace(upd.resource)) {
+						continue; // out of workspace file
+					}
+
+					if (this.model.findFirst(upd.resource)) {
+						return true;
+					}
+				}
+			}
+		}
+
 		return false;
 	}
 
-	private filterToAddRemovedOnWorkspacePath(e: FileChangesEvent, fn: (change: IFileChange, workspacePathSegments: string[]) => boolean): FileChangesEvent {
+	private filterToWorkspacePath(e: FileChangesEvent, fn: (change: IFileChange, workspacePathSegments: string[]) => boolean): FileChangesEvent {
 		return new FileChangesEvent(e.changes.filter(change => {
-			if (change.type === FileChangeType.UPDATED) {
-				return false; // we only want added / removed
-			}
-
 			const workspacePath = this.contextService.toWorkspaceRelativePath(change.resource);
 			if (!workspacePath) {
 				return false; // not inside workspace
