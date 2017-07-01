@@ -21,16 +21,7 @@ import { LANGUAGE_MODES, getMappingForIncludedLanguages } from './util';
 import { updateExtensionsPath } from 'vscode-emmet-helper';
 
 export function activate(context: vscode.ExtensionContext) {
-	let completionProvider = new DefaultCompletionItemProvider();
-	Object.keys(LANGUAGE_MODES).forEach(language => {
-		const provider = vscode.languages.registerCompletionItemProvider(language, completionProvider, ...LANGUAGE_MODES[language]);
-		context.subscriptions.push(provider);
-	});
-	let includedLanguages = getMappingForIncludedLanguages();
-	Object.keys(includedLanguages).forEach(language => {
-		const provider = vscode.languages.registerCompletionItemProvider(language, completionProvider, ...LANGUAGE_MODES[includedLanguages[language]]);
-		context.subscriptions.push(provider);
-	});
+	registerCompletionProviders(context);
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.wrapWithAbbreviation', (args) => {
 		wrapWithAbbreviation(args);
@@ -123,7 +114,29 @@ export function activate(context: vscode.ExtensionContext) {
 	updateExtensionsPath();
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
 		updateExtensionsPath();
+		registerCompletionProviders(context);
 	}));
+}
+
+/**
+ * Holds any registered completion providers by their language strings
+ */
+const registeredCompletionProviders: string[] = [];
+
+export function registerCompletionProviders(context: vscode.ExtensionContext) {
+	let completionProvider = new DefaultCompletionItemProvider();
+	Object.keys(LANGUAGE_MODES).forEach(language => {
+		const provider = vscode.languages.registerCompletionItemProvider(language, completionProvider, ...LANGUAGE_MODES[language]);
+		context.subscriptions.push(provider);
+	});
+
+	let includedLanguages = getMappingForIncludedLanguages();
+	Object.keys(includedLanguages).forEach(language => {
+		if(registeredCompletionProviders.includes(language)) return;
+		const provider = vscode.languages.registerCompletionItemProvider(language, completionProvider, ...LANGUAGE_MODES[includedLanguages[language]]);
+		context.subscriptions.push(provider);
+		registeredCompletionProviders.push(language);
+	});
 }
 
 export function deactivate() {
