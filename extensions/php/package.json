@@ -27,6 +27,7 @@
 					"PHP",
 					"php"
 				],
+        "firstLine": "^#!/.*\\bphp\\b",
 				"mimetypes": [
 					"application/x-php"
 				],
@@ -114,7 +115,7 @@
 	"scripts": {
 		"compile": "gulp compile-extension:php",
 		"watch": "gulp watch-extension:php",
-		"update-grammar": "node ../../build/npm/update-grammar.js atom/language-php grammars/php.cson ./syntaxes/php.tmLanguage.json"
+		"update-grammar": "node ./build/update-grammar.js"
 	},
 	"devDependencies": {
 		"@types/node": "^7.0.4"

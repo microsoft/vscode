@@ -4,18 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditStack } from 'vs/editor/common/model/editStack';
 import { ILineEdit, LineMarker, ModelLine, MarkersTracker } from 'vs/editor/common/model/modelLine';
-import { TextModelWithDecorations } from 'vs/editor/common/model/textModelWithDecorations';
+import { TextModelWithDecorations, ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import * as strings from 'vs/base/common/strings';
+import * as arrays from 'vs/base/common/arrays';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { ITextSource, IRawTextSource, RawTextSource } from 'vs/editor/common/model/textSource';
 import { TextModel } from 'vs/editor/common/model/textModel';
+import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 
 export interface IValidatedEditOperation {
 	sortIndex: number;
@@ -34,14 +36,14 @@ interface IIdentifiedLineEdit extends ILineEdit {
 export class EditableTextModel extends TextModelWithDecorations implements editorCommon.IEditableTextModel {
 
 	public static createFromString(text: string, options: editorCommon.ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, languageIdentifier: LanguageIdentifier = null): EditableTextModel {
-		return new EditableTextModel([], RawTextSource.fromString(text), options, languageIdentifier);
+		return new EditableTextModel(RawTextSource.fromString(text), options, languageIdentifier);
 	}
 
-	public onDidChangeRawContent(listener: (e: editorCommon.IModelContentChangedEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ModelRawContentChanged, listener);
+	public onDidChangeRawContent(listener: (e: textModelEvents.ModelRawContentChangedEvent) => void): IDisposable {
+		return this._eventEmitter.addListener(textModelEvents.TextModelEventType.ModelRawContentChanged2, listener);
 	}
-	public onDidChangeContent(listener: (e: editorCommon.IModelContentChangedEvent2) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ModelContentChanged2, listener);
+	public onDidChangeContent(listener: (e: textModelEvents.IModelContentChangedEvent) => void): IDisposable {
+		return this._eventEmitter.addListener(textModelEvents.TextModelEventType.ModelContentChanged, listener);
 	}
 
 	private _commandManager: EditStack;
@@ -56,9 +58,8 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 	private _trimAutoWhitespaceLines: number[];
 
-	constructor(allowedEventTypes: string[], rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions, languageIdentifier: LanguageIdentifier) {
-		allowedEventTypes.push(editorCommon.EventType.ModelRawContentChanged);
-		super(allowedEventTypes, rawTextSource, creationOptions, languageIdentifier);
+	constructor(rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions, languageIdentifier: LanguageIdentifier) {
+		super(rawTextSource, creationOptions, languageIdentifier);
 
 		this._commandManager = new EditStack(this);
 
@@ -91,10 +92,10 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 	public pushEditOperations(beforeCursorState: Selection[], editOperations: editorCommon.IIdentifiedSingleEditOperation[], cursorStateComputer: editorCommon.ICursorStateComputer): Selection[] {
 		try {
-			this._beginDeferredEmit();
+			this._eventEmitter.beginDeferredEmit();
 			return this._pushEditOperations(beforeCursorState, editOperations, cursorStateComputer);
 		} finally {
-			this._endDeferredEmit();
+			this._eventEmitter.endDeferredEmit();
 		}
 	}
 
@@ -273,12 +274,12 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 	public applyEdits(rawOperations: editorCommon.IIdentifiedSingleEditOperation[]): editorCommon.IIdentifiedSingleEditOperation[] {
 		try {
-			this._beginDeferredEmit();
+			this._eventEmitter.beginDeferredEmit();
 			let markersTracker = this._acquireMarkersTracker();
 			return this._applyEdits(markersTracker, rawOperations);
 		} finally {
 			this._releaseMarkersTracker();
-			this._endDeferredEmit();
+			this._eventEmitter.endDeferredEmit();
 		}
 	}
 
@@ -289,10 +290,14 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 		let mightContainRTL = this._mightContainRTL;
 		let mightContainNonBasicASCII = this._mightContainNonBasicASCII;
+		let canReduceOperations = true;
 
 		let operations: IValidatedEditOperation[] = [];
 		for (let i = 0; i < rawOperations.length; i++) {
 			let op = rawOperations[i];
+			if (canReduceOperations && op._isTracked) {
+				canReduceOperations = false;
+			}
 			let validatedRange = this.validateRange(op.range);
 			if (!mightContainRTL && op.text) {
 				// check if the new inserted text contains RTL
@@ -325,7 +330,9 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			}
 		}
 
-		operations = this._reduceOperations(operations);
+		if (canReduceOperations) {
+			operations = this._reduceOperations(operations);
+		}
 
 		let editableRange = this.getEditableRange();
 		let editableRangeStart = editableRange.getStartPosition();
@@ -465,11 +472,11 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		// Sort operations descending
 		operations.sort(EditableTextModel._sortOpsDescending);
 
-		let contentChangedEvents: editorCommon.IModelContentChangedEvent[] = [];
-		let contentChanged2Events: editorCommon.IModelContentChangedEvent2[] = [];
+		let rawContentChanges: textModelEvents.ModelRawChange[] = [];
+		let contentChanges: textModelEvents.IModelContentChange[] = [];
 		let lineEditsQueue: IIdentifiedLineEdit[] = [];
 
-		let queueLineEdit = (lineEdit: IIdentifiedLineEdit) => {
+		const queueLineEdit = (lineEdit: IIdentifiedLineEdit) => {
 			if (lineEdit.startColumn === lineEdit.endColumn && lineEdit.text.length === 0) {
 				// empty edit => ignore it
 				return;
@@ -477,7 +484,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			lineEditsQueue.push(lineEdit);
 		};
 
-		let flushLineEdits = () => {
+		const flushLineEdits = () => {
 			if (lineEditsQueue.length === 0) {
 				return;
 			}
@@ -489,7 +496,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			let currentLineNumberStart = 0;
 
 			for (let i = 1, len = lineEditsQueue.length; i < len; i++) {
-				let lineNumber = lineEditsQueue[i].lineNumber;
+				const lineNumber = lineEditsQueue[i].lineNumber;
 
 				if (lineNumber === currentLineNumber) {
 					continue;
@@ -501,7 +508,9 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 					// update prefix sum
 					this._lineStarts.changeValue(currentLineNumber - 1, this._lines[currentLineNumber - 1].text.length + this._EOL.length);
 				}
-				contentChangedEvents.push(this._createLineChangedEvent(currentLineNumber));
+				rawContentChanges.push(
+					new textModelEvents.ModelRawLineChanged(currentLineNumber, this._lines[currentLineNumber - 1].text)
+				);
 
 				currentLineNumber = lineNumber;
 				currentLineNumberStart = i;
@@ -513,7 +522,9 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				// update prefix sum
 				this._lineStarts.changeValue(currentLineNumber - 1, this._lines[currentLineNumber - 1].text.length + this._EOL.length);
 			}
-			contentChangedEvents.push(this._createLineChangedEvent(currentLineNumber));
+			rawContentChanges.push(
+				new textModelEvents.ModelRawLineChanged(currentLineNumber, this._lines[currentLineNumber - 1].text)
+			);
 
 			lineEditsQueue = [];
 		};
@@ -523,7 +534,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		let totalLinesCountDelta = 0;
 
 		for (let i = 0, len = operations.length; i < len; i++) {
-			let op = operations[i];
+			const op = operations[i];
 
 			// console.log();
 			// console.log('-------------------');
@@ -531,26 +542,26 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			// console.log('op: ', op);
 			// console.log('<<<\n' + this._lines.map(l => l.text).join('\n') + '\n>>>');
 
-			let startLineNumber = op.range.startLineNumber;
-			let startColumn = op.range.startColumn;
-			let endLineNumber = op.range.endLineNumber;
-			let endColumn = op.range.endColumn;
+			const startLineNumber = op.range.startLineNumber;
+			const startColumn = op.range.startColumn;
+			const endLineNumber = op.range.endLineNumber;
+			const endColumn = op.range.endColumn;
 
 			if (startLineNumber === endLineNumber && startColumn === endColumn && (!op.lines || op.lines.length === 0)) {
 				// no-op
 				continue;
 			}
 
-			let deletingLinesCnt = endLineNumber - startLineNumber;
-			let insertingLinesCnt = (op.lines ? op.lines.length - 1 : 0);
-			let editingLinesCnt = Math.min(deletingLinesCnt, insertingLinesCnt);
+			const deletingLinesCnt = endLineNumber - startLineNumber;
+			const insertingLinesCnt = (op.lines ? op.lines.length - 1 : 0);
+			const editingLinesCnt = Math.min(deletingLinesCnt, insertingLinesCnt);
 
 			totalLinesCountDelta += (insertingLinesCnt - deletingLinesCnt);
 
 			// Iterating descending to overlap with previous op
 			// in case there are common lines being edited in both
 			for (let j = editingLinesCnt; j >= 0; j--) {
-				let editLineNumber = startLineNumber + j;
+				const editLineNumber = startLineNumber + j;
 
 				queueLineEdit({
 					lineNumber: editLineNumber,
@@ -567,19 +578,22 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				// Flush any pending line edits
 				flushLineEdits();
 
-				let spliceStartLineNumber = startLineNumber + editingLinesCnt;
-				let spliceStartColumn = this.getLineMaxColumn(spliceStartLineNumber);
+				const spliceStartLineNumber = startLineNumber + editingLinesCnt;
+				const spliceStartColumn = this.getLineMaxColumn(spliceStartLineNumber);
 
-				let endLineRemains = this._lines[endLineNumber - 1].split(markersTracker, endColumn, false, tabSize);
+				const endLineRemains = this._lines[endLineNumber - 1].split(markersTracker, endColumn, false, tabSize);
 				this._invalidateLine(spliceStartLineNumber - 1);
 
-				let spliceCnt = endLineNumber - spliceStartLineNumber;
+				const spliceCnt = endLineNumber - spliceStartLineNumber;
 
 				// Collect all these markers
 				let markersOnDeletedLines: LineMarker[] = [];
 				for (let j = 0; j < spliceCnt; j++) {
-					let deleteLineIndex = spliceStartLineNumber + j;
-					markersOnDeletedLines = markersOnDeletedLines.concat(this._lines[deleteLineIndex].deleteLine());
+					const deleteLineIndex = spliceStartLineNumber + j;
+					const deleteLineMarkers = this._lines[deleteLineIndex].getMarkers();
+					if (deleteLineMarkers) {
+						markersOnDeletedLines = markersOnDeletedLines.concat(deleteLineMarkers);
+					}
 				}
 
 				this._lines.splice(spliceStartLineNumber, spliceCnt);
@@ -596,15 +610,19 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				}
 
 				// Update deleted markers
-				let deletedMarkersPosition = new Position(spliceStartLineNumber, spliceStartColumn);
+				const deletedMarkersPosition = new Position(spliceStartLineNumber, spliceStartColumn);
 				for (let j = 0, lenJ = markersOnDeletedLines.length; j < lenJ; j++) {
 					markersOnDeletedLines[j].updatePosition(markersTracker, deletedMarkersPosition);
 				}
 
 				this._lines[spliceStartLineNumber - 1].addMarkers(markersOnDeletedLines);
-				contentChangedEvents.push(this._createLineChangedEvent(spliceStartLineNumber));
+				rawContentChanges.push(
+					new textModelEvents.ModelRawLineChanged(spliceStartLineNumber, this._lines[spliceStartLineNumber - 1].text)
+				);
 
-				contentChangedEvents.push(this._createLinesDeletedEvent(spliceStartLineNumber + 1, spliceStartLineNumber + spliceCnt));
+				rawContentChanges.push(
+					new textModelEvents.ModelRawLinesDeleted(spliceStartLineNumber + 1, spliceStartLineNumber + spliceCnt)
+				);
 			}
 
 			if (editingLinesCnt < insertingLinesCnt) {
@@ -613,7 +631,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				// Flush any pending line edits
 				flushLineEdits();
 
-				let spliceLineNumber = startLineNumber + editingLinesCnt;
+				const spliceLineNumber = startLineNumber + editingLinesCnt;
 				let spliceColumn = (spliceLineNumber === startLineNumber ? startColumn : 1);
 				if (op.lines) {
 					spliceColumn += op.lines[editingLinesCnt].length;
@@ -625,18 +643,22 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 					// update prefix sum
 					this._lineStarts.changeValue(spliceLineNumber - 1, this._lines[spliceLineNumber - 1].text.length + this._EOL.length);
 				}
-				contentChangedEvents.push(this._createLineChangedEvent(spliceLineNumber));
+				rawContentChanges.push(
+					new textModelEvents.ModelRawLineChanged(spliceLineNumber, this._lines[spliceLineNumber - 1].text)
+				);
 				this._invalidateLine(spliceLineNumber - 1);
 
 				// Lines in the middle
+				let newLines: ModelLine[] = [];
 				let newLinesContent: string[] = [];
 				let newLinesLengths = new Uint32Array(insertingLinesCnt - editingLinesCnt);
 				for (let j = editingLinesCnt + 1; j <= insertingLinesCnt; j++) {
 					let newLineNumber = startLineNumber + j;
-					this._lines.splice(newLineNumber - 1, 0, new ModelLine(newLineNumber, op.lines[j], tabSize));
+					newLines.push(new ModelLine(newLineNumber, op.lines[j], tabSize));
 					newLinesContent.push(op.lines[j]);
 					newLinesLengths[j - editingLinesCnt - 1] = op.lines[j].length + this._EOL.length;
 				}
+				this._lines = arrays.arrayInsert(this._lines, startLineNumber + editingLinesCnt, newLines);
 				newLinesContent[newLinesContent.length - 1] += leftoverLine.text;
 				if (this._lineStarts) {
 					// update prefix sum
@@ -649,17 +671,15 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 					// update prefix sum
 					this._lineStarts.changeValue(startLineNumber + insertingLinesCnt - 1, this._lines[startLineNumber + insertingLinesCnt - 1].text.length + this._EOL.length);
 				}
-				contentChangedEvents.push(this._createLinesInsertedEvent(spliceLineNumber + 1, startLineNumber + insertingLinesCnt, newLinesContent.join('\n')));
+				rawContentChanges.push(
+					new textModelEvents.ModelRawLinesInserted(spliceLineNumber + 1, startLineNumber + insertingLinesCnt, newLinesContent.join('\n'))
+				);
 			}
 
-			contentChanged2Events.push({
+			contentChanges.push({
 				range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 				rangeLength: op.rangeLength,
-				text: op.lines ? op.lines.join(this.getEOL()) : '',
-				eol: this._EOL,
-				versionId: -1,
-				isUndoing: this._isUndoing,
-				isRedoing: this._isRedoing
+				text: op.lines ? op.lines.join(this.getEOL()) : ''
 			});
 
 			// console.log('AFTER:');
@@ -678,30 +698,25 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			this._lines[lineNumber - 1].updateLineNumber(markersTracker, lineNumber);
 		}
 
-		if (contentChangedEvents.length !== 0 || contentChanged2Events.length !== 0) {
-			if (contentChangedEvents.length === 0) {
-				// Fabricate a fake line changed event to get an event out
-				// This most likely occurs when there edit operations are no-ops
-				contentChangedEvents.push(this._createLineChangedEvent(minTouchedLineNumber));
-			}
+		if (rawContentChanges.length !== 0 || contentChanges.length !== 0) {
+			this._increaseVersionId();
 
-			let versionBumps = Math.max(contentChangedEvents.length, contentChanged2Events.length);
-			let finalVersionId = this.getVersionId() + versionBumps;
-			this._setVersionId(finalVersionId);
+			this._emitModelRawContentChangedEvent(new textModelEvents.ModelRawContentChangedEvent(
+				rawContentChanges,
+				this.getVersionId(),
+				this._isUndoing,
+				this._isRedoing
+			));
 
-			for (let i = contentChangedEvents.length - 1, versionId = finalVersionId; i >= 0; i-- , versionId--) {
-				contentChangedEvents[i].versionId = versionId;
-			}
-			for (let i = contentChanged2Events.length - 1, versionId = finalVersionId; i >= 0; i-- , versionId--) {
-				contentChanged2Events[i].versionId = versionId;
-			}
-
-			for (let i = 0, len = contentChangedEvents.length; i < len; i++) {
-				this.emit(editorCommon.EventType.ModelRawContentChanged, contentChangedEvents[i]);
-			}
-			for (let i = 0, len = contentChanged2Events.length; i < len; i++) {
-				this.emit(editorCommon.EventType.ModelContentChanged2, contentChanged2Events[i]);
-			}
+			const e: textModelEvents.IModelContentChangedEvent = {
+				changes: contentChanges,
+				eol: this._EOL,
+				versionId: this.getVersionId(),
+				isUndoing: this._isUndoing,
+				isRedoing: this._isRedoing,
+				isFlush: false
+			};
+			this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelContentChanged, e);
 		}
 
 		// this._assertLineNumbersOK();
@@ -753,12 +768,12 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 	public undo(): Selection[] {
 		try {
-			this._beginDeferredEmit();
+			this._eventEmitter.beginDeferredEmit();
 			this._acquireMarkersTracker();
 			return this._undo();
 		} finally {
 			this._releaseMarkersTracker();
-			this._endDeferredEmit();
+			this._eventEmitter.endDeferredEmit();
 		}
 	}
 
@@ -778,16 +793,16 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 	public redo(): Selection[] {
 		try {
-			this._beginDeferredEmit();
+			this._eventEmitter.beginDeferredEmit();
 			this._acquireMarkersTracker();
 			return this._redo();
 		} finally {
 			this._releaseMarkersTracker();
-			this._endDeferredEmit();
+			this._eventEmitter.endDeferredEmit();
 		}
 	}
 
-	public setEditableRange(range: editorCommon.IRange): void {
+	public setEditableRange(range: IRange): void {
 		this._commandManager.clear();
 
 		if (!this._hasEditableRange && !range) {
@@ -804,12 +819,14 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 			if (range) {
 				this._hasEditableRange = true;
-				this._editableRangeId = changeAccessor.addDecoration(range, {
-					stickiness: editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
-				});
+				this._editableRangeId = changeAccessor.addDecoration(range, EditableTextModel._DECORATION_OPTION);
 			}
 		});
 	}
+
+	private static _DECORATION_OPTION = ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+	});
 
 	public hasEditableRange(): boolean {
 		return this._hasEditableRange;
@@ -821,39 +838,5 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		} else {
 			return this.getFullModelRange();
 		}
-	}
-
-	private _createLineChangedEvent(lineNumber: number): editorCommon.IModelContentChangedLineChangedEvent {
-		return {
-			changeType: editorCommon.EventType.ModelRawContentChangedLineChanged,
-			lineNumber: lineNumber,
-			detail: this._lines[lineNumber - 1].text,
-			versionId: -1,
-			isUndoing: this._isUndoing,
-			isRedoing: this._isRedoing
-		};
-	}
-
-	private _createLinesDeletedEvent(fromLineNumber: number, toLineNumber: number): editorCommon.IModelContentChangedLinesDeletedEvent {
-		return {
-			changeType: editorCommon.EventType.ModelRawContentChangedLinesDeleted,
-			fromLineNumber: fromLineNumber,
-			toLineNumber: toLineNumber,
-			versionId: -1,
-			isUndoing: this._isUndoing,
-			isRedoing: this._isRedoing
-		};
-	}
-
-	private _createLinesInsertedEvent(fromLineNumber: number, toLineNumber: number, newLinesContent: string): editorCommon.IModelContentChangedLinesInsertedEvent {
-		return {
-			changeType: editorCommon.EventType.ModelRawContentChangedLinesInserted,
-			fromLineNumber: fromLineNumber,
-			toLineNumber: toLineNumber,
-			detail: newLinesContent,
-			versionId: -1,
-			isUndoing: this._isUndoing,
-			isRedoing: this._isRedoing
-		};
 	}
 }

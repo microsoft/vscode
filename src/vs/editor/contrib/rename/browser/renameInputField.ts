@@ -11,15 +11,15 @@ import { canceled } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
-import { IPosition, IRange } from 'vs/editor/common/editorCommon';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { IThemeService, ITheme } from "vs/platform/theme/common/themeService";
-import { inputBackground, inputBorder, inputForeground } from "vs/platform/theme/common/colorRegistry";
+import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { inputBackground, inputBorder, inputForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { Position } from 'vs/editor/common/core/position';
 
 export default class RenameInputField implements IContentWidget, IDisposable {
 
 	private _editor: ICodeEditor;
-	private _position: IPosition;
+	private _position: Position;
 	private _domNode: HTMLElement;
 	private _inputField: HTMLInputElement;
 	private _visible: boolean;
@@ -78,14 +78,17 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 
 		const background = theme.getColor(inputBackground);
 		const foreground = theme.getColor(inputForeground);
+		const widgetShadowColor = theme.getColor(widgetShadow);
 		const border = theme.getColor(inputBorder);
 
 		this._inputField.style.backgroundColor = background ? background.toString() : null;
 		this._inputField.style.color = foreground ? foreground.toString() : null;
 
-		this._inputField.style.borderWidth = border ? '1px' : null;
-		this._inputField.style.borderStyle = border ? 'solid' : null;
-		this._inputField.style.borderColor = border ? border.toString() : null;
+		this._inputField.style.borderWidth = border ? '1px' : '0px';
+		this._inputField.style.borderStyle = border ? 'solid' : 'none';
+		this._inputField.style.borderColor = border ? border.toString() : 'none';
+
+		this._domNode.style.boxShadow = widgetShadowColor ? ` 0 2px 8px ${widgetShadowColor}` : null;
 	}
 
 	private updateFont(): void {
@@ -120,9 +123,9 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 		}
 	}
 
-	public getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number): TPromise<string> {
+	public getInput(where: Range, value: string, selectionStart: number, selectionEnd: number): TPromise<string> {
 
-		this._position = { lineNumber: where.startLineNumber, column: where.startColumn };
+		this._position = new Position(where.startLineNumber, where.startColumn);
 		this._inputField.value = value;
 		this._inputField.setAttribute('selectionStart', selectionStart.toString());
 		this._inputField.setAttribute('selectionEnd', selectionEnd.toString());
@@ -148,7 +151,7 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 			this._currentAcceptInput = () => {
 				if (this._inputField.value.trim().length === 0 || this._inputField.value === value) {
 					// empty or whitespace only or not changed
-					this._currentCancelInput();
+					this.cancelInput();
 					return;
 				}
 
@@ -159,12 +162,12 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 
 			let onCursorChanged = () => {
 				if (!Range.containsPosition(where, this._editor.getPosition())) {
-					this._currentCancelInput();
+					this.cancelInput();
 				}
 			};
 
 			disposeOnDone.push(this._editor.onDidChangeCursorSelection(onCursorChanged));
-			disposeOnDone.push(this._editor.onDidBlurEditor(this._currentCancelInput));
+			disposeOnDone.push(this._editor.onDidBlurEditor(() => this.cancelInput()));
 
 			this._show();
 
@@ -173,7 +176,7 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 			return newValue;
 		}, err => {
 			always();
-			return TPromise.wrapError(err);
+			return TPromise.wrapError<string>(err);
 		});
 	}
 

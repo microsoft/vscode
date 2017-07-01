@@ -24,7 +24,9 @@ export class ExtHostQuickOpen extends ExtHostQuickOpenShape {
 		this._proxy = threadService.get(MainContext.MainThreadQuickOpen);
 	}
 
-	showQuickPick(itemsOrItemsPromise: Item[] | Thenable<Item[]>, options?: QuickPickOptions, token: CancellationToken = CancellationToken.None): Thenable<Item> {
+	showQuickPick(itemsOrItemsPromise: string[] | Thenable<string[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<string | undefined>;
+	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Thenable<QuickPickItem[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<QuickPickItem | undefined>;
+	showQuickPick(itemsOrItemsPromise: Item[] | Thenable<Item[]>, options?: QuickPickOptions, token: CancellationToken = CancellationToken.None): Thenable<Item | undefined> {
 
 		// clear state from last invocation
 		this._onDidSelectItem = undefined;
@@ -91,7 +93,7 @@ export class ExtHostQuickOpen extends ExtHostQuickOpenShape {
 				return TPromise.wrapError(err);
 			});
 		});
-		return wireCancellationToken(token, promise, true);
+		return wireCancellationToken<Item>(token, promise, true);
 	}
 
 	$onItemSelected(handle: number): void {

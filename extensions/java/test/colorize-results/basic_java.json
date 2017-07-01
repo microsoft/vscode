@@ -221,13 +221,13 @@
 	},
 	{
 		"c": "*",
-		"t": "source.java meta.import.java storage.modifier.import.java",
+		"t": "source.java meta.import.java storage.modifier.import.java variable.language.wildcard.java",
 		"r": {
-			"dark_plus": "storage.modifier.import.java: #D4D4D4",
-			"light_plus": "storage.modifier.import.java: #000000",
-			"dark_vs": "storage.modifier.import.java: #D4D4D4",
-			"light_vs": "storage.modifier.import.java: #000000",
-			"hc_black": "storage.modifier.import.java: #D4D4D4"
+			"dark_plus": "variable.language.wildcard.java: #D4D4D4",
+			"light_plus": "variable.language.wildcard.java: #000000",
+			"dark_vs": "variable.language.wildcard.java: #D4D4D4",
+			"light_vs": "variable.language.wildcard.java: #000000",
+			"hc_black": "variable.language.wildcard.java: #D4D4D4"
 		}
 	},
 	{
@@ -337,7 +337,7 @@
 			"light_plus": "entity.name.type: #267F99",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "entity.name.type: #4EC9B0"
 		}
 	},
 	{
@@ -353,7 +353,7 @@
 	},
 	{
 		"c": "{",
-		"t": "source.java meta.class.java meta.class.body.java punctuation.section.class.begin.java",
+		"t": "source.java meta.class.java punctuation.section.class.begin.bracket.curly.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -397,24 +397,35 @@
 	},
 	{
 		"c": "String",
-		"t": "source.java meta.class.java meta.class.body.java storage.type.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.definition.variable.java storage.type.java",
 		"r": {
 			"dark_plus": "storage.type.java: #4EC9B0",
 			"light_plus": "storage.type.java: #267F99",
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+			"hc_black": "storage.type.java: #4EC9B0"
 		}
 	},
 	{
-		"c": " aString",
-		"t": "source.java meta.class.java meta.class.body.java",
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.definition.variable.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "aString",
+		"t": "source.java meta.class.java meta.class.body.java meta.definition.variable.java variable.other.definition.java",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -429,19 +440,19 @@
 		}
 	},
 	{
-		"c": "\t",
-		"t": "source.java meta.class.java meta.class.body.java",
+		"c": "\t/**",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.javadoc.java punctuation.definition.comment.java",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
 		}
 	},
 	{
-		"c": "/**",
-		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc punctuation.definition.comment.begin.javadoc",
+		"c": "\t * <p>Note:</p> Hello",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.javadoc.java",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -452,7 +463,7 @@
 	},
 	{
 		"c": "\t * ",
-		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.javadoc.java",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -462,107 +473,8 @@
 		}
 	},
 	{
-		"c": "<",
-		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html meta.tag.block.any.html punctuation.definition.tag.begin.html",
-		"r": {
-			"dark_plus": "punctuation.definition.tag: #808080",
-			"light_plus": "punctuation.definition.tag: #800000",
-			"dark_vs": "punctuation.definition.tag: #808080",
-			"light_vs": "punctuation.definition.tag: #800000",
-			"hc_black": "punctuation.definition.tag: #808080"
-		}
-	},
-	{
-		"c": "p",
-		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html meta.tag.block.any.html entity.name.tag.block.any.html",
-		"r": {
-			"dark_plus": "entity.name.tag: #569CD6",
-			"light_plus": "entity.name.tag: #800000",
-			"dark_vs": "entity.name.tag: #569CD6",
-			"light_vs": "entity.name.tag: #800000",
-			"hc_black": "entity.name.tag: #569CD6"
-		}
-	},
-	{
-		"c": ">",
-		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html meta.tag.block.any.html punctuation.definition.tag.end.html",
-		"r": {
-			"dark_plus": "punctuation.definition.tag: #808080",
-			"light_plus": "punctuation.definition.tag: #800000",
-			"dark_vs": "punctuation.definition.tag: #808080",
-			"light_vs": "punctuation.definition.tag: #800000",
-			"hc_black": "punctuation.definition.tag: #808080"
-		}
-	},
-	{
-		"c": "Note:",
-		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html",
-		"r": {
-			"dark_plus": "comment: #608B4E",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
-		}
-	},
-	{
-		"c": "</",
-		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html meta.tag.block.any.html punctuation.definition.tag.begin.html",
-		"r": {
-			"dark_plus": "punctuation.definition.tag: #808080",
-			"light_plus": "punctuation.definition.tag: #800000",
-			"dark_vs": "punctuation.definition.tag: #808080",
-			"light_vs": "punctuation.definition.tag: #800000",
-			"hc_black": "punctuation.definition.tag: #808080"
-		}
-	},
-	{
-		"c": "p",
-		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html meta.tag.block.any.html entity.name.tag.block.any.html",
-		"r": {
-			"dark_plus": "entity.name.tag: #569CD6",
-			"light_plus": "entity.name.tag: #800000",
-			"dark_vs": "entity.name.tag: #569CD6",
-			"light_vs": "entity.name.tag: #800000",
-			"hc_black": "entity.name.tag: #569CD6"
-		}
-	},
-	{
-		"c": ">",
-		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html meta.tag.block.any.html punctuation.definition.tag.end.html",
-		"r": {
-			"dark_plus": "punctuation.definition.tag: #808080",
-			"light_plus": "punctuation.definition.tag: #800000",
-			"dark_vs": "punctuation.definition.tag: #808080",
-			"light_vs": "punctuation.definition.tag: #800000",
-			"hc_black": "punctuation.definition.tag: #808080"
-		}
-	},
-	{
-		"c": " Hello",
-		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html",
-		"r": {
-			"dark_plus": "comment: #608B4E",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
-		}
-	},
-	{
-		"c": "\t * ",
-		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html",
-		"r": {
-			"dark_plus": "comment: #608B4E",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
-		}
-	},
-	{
-		"c": "@",
-		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html meta.documentation.tag.param.javadoc keyword.other.documentation.param.javadoc punctuation.definition.keyword.javadoc",
+		"c": "@param",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.javadoc.java keyword.other.documentation.javadoc.java",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -572,30 +484,30 @@
 		}
 	},
 	{
-		"c": "param",
-		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html meta.documentation.tag.param.javadoc keyword.other.documentation.param.javadoc",
-		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
-		}
-	},
-	{
-		"c": " args",
-		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html meta.documentation.tag.param.javadoc",
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.javadoc.java",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
 			"dark_vs": "comment: #608B4E",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "args",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.javadoc.java variable.parameter.java",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
 		"c": "\t ",
-		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html meta.documentation.tag.param.javadoc",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.javadoc.java",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -606,7 +518,7 @@
 	},
 	{
 		"c": "*/",
-		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc punctuation.definition.comment.end.javadoc",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.javadoc.java punctuation.definition.comment.java",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -650,18 +562,18 @@
 	},
 	{
 		"c": "void",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.return-type.java storage.type.primitive.array.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.return-type.java storage.type.primitive.java",
 		"r": {
-			"dark_plus": "storage.type.primitive.array.java: #4EC9B0",
-			"light_plus": "storage.type.primitive.array.java: #267F99",
+			"dark_plus": "storage.type.primitive.java: #4EC9B0",
+			"light_plus": "storage.type.primitive.java: #267F99",
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+			"hc_black": "storage.type.primitive.java: #4EC9B0"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.return-type.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -678,12 +590,12 @@
 			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.identifier.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.identifier.java punctuation.definition.parameters.begin.bracket.round.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -694,13 +606,13 @@
 	},
 	{
 		"c": "int",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.identifier.java storage.type.primitive.array.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.identifier.java storage.type.primitive.java",
 		"r": {
-			"dark_plus": "storage.type.primitive.array.java: #4EC9B0",
-			"light_plus": "storage.type.primitive.array.java: #267F99",
+			"dark_plus": "storage.type.primitive.java: #4EC9B0",
+			"light_plus": "storage.type.primitive.java: #267F99",
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+			"hc_black": "storage.type.primitive.java: #4EC9B0"
 		}
 	},
 	{
@@ -722,12 +634,12 @@
 			"light_plus": "variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.identifier.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.identifier.java punctuation.definition.parameters.end.bracket.round.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -749,7 +661,7 @@
 	},
 	{
 		"c": "{",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java punctuation.section.method.begin.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java punctuation.section.method.begin.bracket.curly.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -771,18 +683,40 @@
 	},
 	{
 		"c": "double",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java storage.type.primitive.array.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java storage.type.primitive.java",
 		"r": {
-			"dark_plus": "storage.type.primitive.array.java: #4EC9B0",
-			"light_plus": "storage.type.primitive.array.java: #267F99",
+			"dark_plus": "storage.type.primitive.java: #4EC9B0",
+			"light_plus": "storage.type.primitive.java: #267F99",
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+			"hc_black": "storage.type.primitive.java: #4EC9B0"
 		}
 	},
 	{
-		"c": " b ",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "b",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java variable.other.definition.java",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -793,7 +727,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java keyword.operator.assignment.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java keyword.operator.assignment.java",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -804,7 +738,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -815,7 +749,7 @@
 	},
 	{
 		"c": "0.0",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java constant.numeric.float.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java constant.numeric.decimal.java",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -848,18 +782,40 @@
 	},
 	{
 		"c": "double",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java storage.type.primitive.array.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java storage.type.primitive.java",
 		"r": {
-			"dark_plus": "storage.type.primitive.array.java: #4EC9B0",
-			"light_plus": "storage.type.primitive.array.java: #267F99",
+			"dark_plus": "storage.type.primitive.java: #4EC9B0",
+			"light_plus": "storage.type.primitive.java: #267F99",
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+			"hc_black": "storage.type.primitive.java: #4EC9B0"
 		}
 	},
 	{
-		"c": " c ",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "c",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java variable.other.definition.java",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -870,7 +826,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java keyword.operator.assignment.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java keyword.operator.assignment.java",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -881,7 +837,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -892,7 +848,7 @@
 	},
 	{
 		"c": "10e3",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java constant.numeric.float.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java constant.numeric.decimal.java",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -925,18 +881,40 @@
 	},
 	{
 		"c": "long",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java storage.type.primitive.array.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java storage.type.primitive.java",
 		"r": {
-			"dark_plus": "storage.type.primitive.array.java: #4EC9B0",
-			"light_plus": "storage.type.primitive.array.java: #267F99",
+			"dark_plus": "storage.type.primitive.java: #4EC9B0",
+			"light_plus": "storage.type.primitive.java: #267F99",
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+			"hc_black": "storage.type.primitive.java: #4EC9B0"
 		}
 	},
 	{
-		"c": " l ",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "l",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java variable.other.definition.java",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -947,7 +925,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java keyword.operator.assignment.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java keyword.operator.assignment.java",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -958,7 +936,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -969,7 +947,7 @@
 	},
 	{
 		"c": "134l",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java constant.numeric.integer.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java constant.numeric.decimal.java",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -1002,7 +980,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java punctuation.section.method.end.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java punctuation.section.method.end.bracket.curly.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1085,12 +1063,12 @@
 			"light_plus": "storage.type.annotation.java: #267F99",
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+			"hc_black": "storage.type.annotation.java: #4EC9B0"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.java meta.class.java meta.class.body.java meta.declaration.annotation.java punctuation.definition.annotation-arguments.begin.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.declaration.annotation.java punctuation.definition.annotation-arguments.begin.bracket.round.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1178,7 +1156,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.java meta.class.java meta.class.body.java meta.declaration.annotation.java punctuation.definition.annotation-arguments.end.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.declaration.annotation.java punctuation.definition.annotation-arguments.end.bracket.round.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1222,18 +1200,18 @@
 	},
 	{
 		"c": "long",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.return-type.java storage.type.primitive.array.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.return-type.java storage.type.primitive.java",
 		"r": {
-			"dark_plus": "storage.type.primitive.array.java: #4EC9B0",
-			"light_plus": "storage.type.primitive.array.java: #267F99",
+			"dark_plus": "storage.type.primitive.java: #4EC9B0",
+			"light_plus": "storage.type.primitive.java: #267F99",
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+			"hc_black": "storage.type.primitive.java: #4EC9B0"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.return-type.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1250,12 +1228,12 @@
 			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.identifier.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.identifier.java punctuation.definition.parameters.begin.bracket.round.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1266,13 +1244,13 @@
 	},
 	{
 		"c": "long",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.identifier.java storage.type.primitive.array.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.identifier.java storage.type.primitive.java",
 		"r": {
-			"dark_plus": "storage.type.primitive.array.java: #4EC9B0",
-			"light_plus": "storage.type.primitive.array.java: #267F99",
+			"dark_plus": "storage.type.primitive.java: #4EC9B0",
+			"light_plus": "storage.type.primitive.java: #267F99",
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+			"hc_black": "storage.type.primitive.java: #4EC9B0"
 		}
 	},
 	{
@@ -1294,12 +1272,12 @@
 			"light_plus": "variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.identifier.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.identifier.java punctuation.definition.parameters.end.bracket.round.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1310,7 +1288,7 @@
 	},
 	{
 		"c": "{",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java punctuation.section.method.begin.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java punctuation.section.method.begin.bracket.curly.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1338,51 +1316,7 @@
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #569CD6"
-		}
-	},
-	{
-		"c": " (",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "int",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java storage.type.primitive.array.java",
-		"r": {
-			"dark_plus": "storage.type.primitive.array.java: #4EC9B0",
-			"light_plus": "storage.type.primitive.array.java: #267F99",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
-		}
-	},
-	{
-		"c": " i ",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "=",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java keyword.operator.assignment.java",
-		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4"
+			"hc_black": "keyword.control: #C586C0"
 		}
 	},
 	{
@@ -1397,8 +1331,85 @@
 		}
 	},
 	{
+		"c": "(",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java punctuation.bracket.round.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "int",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java storage.type.primitive.java",
+		"r": {
+			"dark_plus": "storage.type.primitive.java: #4EC9B0",
+			"light_plus": "storage.type.primitive.java: #267F99",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type.primitive.java: #4EC9B0"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "i",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java variable.other.definition.java",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java keyword.operator.assignment.java",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
 		"c": "0",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java constant.numeric.integer.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java constant.numeric.decimal.java",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -1453,7 +1464,7 @@
 	},
 	{
 		"c": "9",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java constant.numeric.integer.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java constant.numeric.decimal.java",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -1496,7 +1507,18 @@
 		}
 	},
 	{
-		"c": ") ",
+		"c": ")",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java punctuation.bracket.round.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
 		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -1508,7 +1530,7 @@
 	},
 	{
 		"c": "{",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java punctuation.section.block.begin.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java punctuation.section.block.begin.bracket.curly.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1530,51 +1552,40 @@
 	},
 	{
 		"c": "System",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java storage.type.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java variable.other.object.java",
 		"r": {
-			"dark_plus": "storage.type.java: #4EC9B0",
-			"light_plus": "storage.type.java: #267F99",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
 		"c": ".",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java keyword.operator.dereference.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java punctuation.separator.period.java",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "out",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java variable.other.object.property.java",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
 		"c": ".",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java keyword.operator.dereference.java",
-		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4"
-		}
-	},
-	{
-		"c": "println",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.method-call.java meta.method.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.method-call.java punctuation.separator.period.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1584,8 +1595,19 @@
 		}
 	},
 	{
+		"c": "println",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.method-call.java entity.name.function.java",
+		"r": {
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.function: #DCDCAA"
+		}
+	},
+	{
 		"c": "(",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.method-call.java punctuation.definition.method-parameters.begin.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.method-call.java punctuation.definition.parameters.begin.bracket.round.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1662,7 +1684,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.method-call.java punctuation.definition.method-parameters.end.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.method-call.java punctuation.definition.parameters.end.bracket.round.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1695,7 +1717,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java punctuation.section.block.end.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java punctuation.section.block.end.bracket.curly.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1723,7 +1745,7 @@
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #569CD6"
+			"hc_black": "keyword.control: #C586C0"
 		}
 	},
 	{
@@ -1739,7 +1761,7 @@
 	},
 	{
 		"c": "10",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java constant.numeric.integer.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java constant.numeric.decimal.java",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -1772,7 +1794,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java punctuation.section.method.end.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java punctuation.section.method.end.bracket.curly.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1833,7 +1855,7 @@
 			"light_plus": "storage.type.annotation.java: #267F99",
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+			"hc_black": "storage.type.annotation.java: #4EC9B0"
 		}
 	},
 	{
@@ -1871,18 +1893,18 @@
 	},
 	{
 		"c": "void",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.return-type.java storage.type.primitive.array.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.return-type.java storage.type.primitive.java",
 		"r": {
-			"dark_plus": "storage.type.primitive.array.java: #4EC9B0",
-			"light_plus": "storage.type.primitive.array.java: #267F99",
+			"dark_plus": "storage.type.primitive.java: #4EC9B0",
+			"light_plus": "storage.type.primitive.java: #267F99",
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+			"hc_black": "storage.type.primitive.java: #4EC9B0"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.return-type.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1899,12 +1921,23 @@
 			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
+			"hc_black": "entity.name.function: #DCDCAA"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.identifier.java punctuation.definition.parameters.begin.bracket.round.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
-		"c": "()",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.identifier.java",
+		"c": ")",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.identifier.java punctuation.definition.parameters.end.bracket.round.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1926,7 +1959,7 @@
 	},
 	{
 		"c": "{",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java punctuation.section.method.begin.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java punctuation.section.method.begin.bracket.curly.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1948,18 +1981,40 @@
 	},
 	{
 		"c": "int",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java storage.type.primitive.array.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java storage.type.primitive.java",
 		"r": {
-			"dark_plus": "storage.type.primitive.array.java: #4EC9B0",
-			"light_plus": "storage.type.primitive.array.java: #267F99",
+			"dark_plus": "storage.type.primitive.java: #4EC9B0",
+			"light_plus": "storage.type.primitive.java: #267F99",
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+			"hc_black": "storage.type.primitive.java: #4EC9B0"
 		}
 	},
 	{
-		"c": " hex ",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "hex",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java variable.other.definition.java",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1970,7 +2025,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java keyword.operator.assignment.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java keyword.operator.assignment.java",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1981,7 +2036,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1992,7 +2047,7 @@
 	},
 	{
 		"c": "0x5",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java constant.numeric.hex.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java constant.numeric.hex.java",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -2024,41 +2079,74 @@
 		}
 	},
 	{
-		"c": "Vector<",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java storage.type.generic.java",
-		"r": {
-			"dark_plus": "storage.type.generic.java: #4EC9B0",
-			"light_plus": "storage.type.generic.java: #267F99",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
-		}
-	},
-	{
-		"c": "Number",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java storage.type.generic.java storage.type.java",
+		"c": "Vector",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java storage.type.java",
 		"r": {
 			"dark_plus": "storage.type.java: #4EC9B0",
 			"light_plus": "storage.type.java: #267F99",
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+			"hc_black": "storage.type.java: #4EC9B0"
 		}
 	},
 	{
-		"c": ">",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java storage.type.generic.java",
+		"c": "<",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java punctuation.bracket.angle.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "Number",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java storage.type.generic.java",
 		"r": {
 			"dark_plus": "storage.type.generic.java: #4EC9B0",
 			"light_plus": "storage.type.generic.java: #267F99",
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+			"hc_black": "storage.type.generic.java: #4EC9B0"
 		}
 	},
 	{
-		"c": " v ",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"c": ">",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java punctuation.bracket.angle.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "v",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java variable.other.definition.java",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2069,7 +2157,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java keyword.operator.assignment.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java keyword.operator.assignment.java",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -2080,7 +2168,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2091,18 +2179,18 @@
 	},
 	{
 		"c": "new",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java keyword.control.new.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java keyword.control.new.java",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #569CD6"
+			"hc_black": "keyword.control: #C586C0"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2113,18 +2201,29 @@
 	},
 	{
 		"c": "Vector",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java storage.type.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java meta.function-call.java entity.name.function.java",
 		"r": {
-			"dark_plus": "storage.type.java: #4EC9B0",
-			"light_plus": "storage.type.java: #267F99",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
-		"c": "()",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"c": "(",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java meta.function-call.java punctuation.definition.parameters.begin.bracket.round.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.definition.variable.java meta.function-call.java punctuation.definition.parameters.end.bracket.round.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2157,7 +2256,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.java meta.class.java meta.class.body.java meta.method.java punctuation.section.method.end.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java punctuation.section.method.end.bracket.curly.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2168,7 +2267,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.java meta.class.java punctuation.section.class.end.java",
+		"t": "source.java meta.class.java punctuation.section.class.end.bracket.curly.java",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

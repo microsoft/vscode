@@ -33,7 +33,7 @@ export declare class Promise {
 	// commented out to speed up adoption of TPromise
 	// static timeout(delay:number):Promise;
 
-	static wrapError(error: any): Promise;
+	static wrapError(error: Error): Promise;
 	// static is(value: any): value is Thenable<any>;
 	// static addEventListener(type: string, fn: EventCallback): void;
 
@@ -53,6 +53,18 @@ export interface TValueCallback<T> {
 
 export interface TProgressCallback<T> {
 	(progress: T): void;
+}
+
+interface IPromiseErrorDetail {
+	parent: TPromise<any>;
+	error: any;
+	id: number;
+	handler: Function;
+	exception: Error;
+}
+
+interface IPromiseError {
+	detail: IPromiseErrorDetail;
 }
 
 /**
@@ -94,7 +106,12 @@ export declare class TPromise<V> {
 	public static wrap<ValueType>(value: Thenable<ValueType>): TPromise<ValueType>;
 	public static wrap<ValueType>(value: ValueType): TPromise<ValueType>;
 
-	public static wrapError<ValueType>(error: any): TPromise<ValueType>;
+	public static wrapError<ValueType>(error: Error): TPromise<ValueType>;
+
+	/**
+	 * @internal
+	 */
+	public static addEventListener(event: 'error', promiseErrorHandler: (e: IPromiseError) => void);
 }
 
 // --- Generic promise with generic progress value
@@ -117,5 +134,5 @@ export declare class PPromise<C, P> extends TPromise<C> {
 	public static join<C, P>(promises: PPromise<C, P>[]): PPromise<C, P[]>;
 	public static join<C, P>(promises: { [n: string]: PPromise<C, P> }): PPromise<{ [n: string]: C }, P>;
 	public static any<C, P>(promises: PPromise<C, P>[]): PPromise<{ key: string; value: PPromise<C, P>; }, P>;
-	public static wrapError<V>(error: any): TPromise<V>;
+	public static wrapError<V>(error: Error): TPromise<V>;
 }

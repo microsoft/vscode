@@ -13,17 +13,17 @@ import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import WorkbenchEditorService = require('vs/workbench/services/editor/common/editorService');
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
 import { Model } from 'vs/editor/common/model/model';
-import { mockCodeEditor, MockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
+import { mockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
-import { Cursor } from 'vs/editor/common/controller/cursor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { CoreNavigationCommands } from 'vs/editor/common/controller/coreCommands';
 
 suite('Editor - Range decorations', () => {
 
@@ -32,7 +32,6 @@ suite('Editor - Range decorations', () => {
 	let modelService: IModelService;
 	let modeService: IModeService;
 	let codeEditor: editorCommon.ICommonCodeEditor;
-	let cursor: Cursor;
 	let model: Model;
 	let text: string;
 	let testObject: RangeHighlightDecorations;
@@ -46,7 +45,6 @@ suite('Editor - Range decorations', () => {
 		text = 'LINE1' + '\n' + 'LINE2' + '\n' + 'LINE3' + '\n' + 'LINE4' + '\r\n' + 'LINE5';
 		model = aModel(URI.file('some_file'));
 		codeEditor = mockCodeEditor([], { model });
-		cursor = (<MockCodeEditor>codeEditor).getCursor();
 		mockEditorService(codeEditor.getModel().uri);
 
 		instantiationService.stub(WorkbenchEditorService.IWorkbenchEditorService, 'getActiveEditor', { getControl: () => { return codeEditor; } });
@@ -60,7 +58,7 @@ suite('Editor - Range decorations', () => {
 	});
 
 	test('highlight range for the resource if it is an active editor', function () {
-		let range: editorCommon.IRange = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
+		let range: IRange = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
 		testObject.highlightRange({ resource: model.uri, range });
 
 		let actuals = rangeHighlightDecorations(model);
@@ -79,7 +77,7 @@ suite('Editor - Range decorations', () => {
 
 	test('highlight range for the resource removes previous highlight', function () {
 		testObject.highlightRange({ resource: model.uri, range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 } });
-		let range: editorCommon.IRange = { startLineNumber: 2, startColumn: 2, endLineNumber: 4, endColumn: 3 };
+		let range: IRange = { startLineNumber: 2, startColumn: 2, endLineNumber: 4, endColumn: 3 };
 		testObject.highlightRange({ resource: model.uri, range });
 
 		let actuals = rangeHighlightDecorations(model);
@@ -91,7 +89,7 @@ suite('Editor - Range decorations', () => {
 		testObject.highlightRange({ resource: model.uri, range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 } });
 
 		let anotherModel = prepareActiveEditor('anotherModel');
-		let range: editorCommon.IRange = { startLineNumber: 2, startColumn: 2, endLineNumber: 4, endColumn: 3 };
+		let range: IRange = { startLineNumber: 2, startColumn: 2, endLineNumber: 4, endColumn: 3 };
 		testObject.highlightRange({ resource: anotherModel.uri, range });
 
 		let actuals = rangeHighlightDecorations(model);
@@ -110,7 +108,7 @@ suite('Editor - Range decorations', () => {
 
 	test('highlight is removed on cursor position change', function () {
 		testObject.highlightRange({ resource: model.uri, range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 } });
-		cursor.trigger('mouse', editorCommon.Handler.MoveTo, {
+		codeEditor.trigger('mouse', CoreNavigationCommands.MoveTo.id, {
 			position: new Position(2, 1)
 		});
 
@@ -127,7 +125,7 @@ suite('Editor - Range decorations', () => {
 	});
 
 	test('previous highlight is not removed if not active editor', function () {
-		let range: editorCommon.IRange = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
+		let range: IRange = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
 		testObject.highlightRange({ resource: model.uri, range });
 
 		let model1 = aModel(URI.file('some model'));
@@ -157,8 +155,8 @@ suite('Editor - Range decorations', () => {
 		instantiationService.stub(WorkbenchEditorService.IWorkbenchEditorService, 'getActiveEditorInput', editorInput);
 	}
 
-	function rangeHighlightDecorations(m: Model): editorCommon.IRange[] {
-		let rangeHighlights: editorCommon.IRange[] = [];
+	function rangeHighlightDecorations(m: Model): IRange[] {
+		let rangeHighlights: IRange[] = [];
 
 		for (let dec of m.getAllDecorations()) {
 			if (dec.options.className === 'rangeHighlight') {

@@ -6,6 +6,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
+import * as collections from 'vs/base/common/collections';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
@@ -34,9 +35,12 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts, Position as SidebarPosition } from 'vs/workbench/services/part/common/partService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import * as os from 'os';
 import { webFrame } from 'electron';
+import { getPathLabel } from 'vs/base/common/labels';
+import { IViewlet } from 'vs/workbench/common/viewlet';
+import { IPanel } from 'vs/workbench/common/panel';
 
 // --- actions
 
@@ -53,13 +57,13 @@ export class CloseEditorAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): TPromise<void> {
 		const activeEditor = this.editorService.getActiveEditor();
 		if (activeEditor) {
 			return this.editorService.closeEditor(activeEditor.position, activeEditor.input);
 		}
 
-		return TPromise.as(false);
+		return TPromise.as(null);
 	}
 }
 
@@ -76,37 +80,6 @@ export class CloseWindowAction extends Action {
 		this.windowService.getWindow().close();
 
 		return TPromise.as(true);
-	}
-}
-
-export class SwitchWindow extends Action {
-
-	static ID = 'workbench.action.switchWindow';
-	static LABEL = nls.localize('switchWindow', "Switch Window");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWindowsService private windowsService: IWindowsService,
-		@IWindowService private windowService: IWindowService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
-	) {
-		super(id, label);
-	}
-
-	run(): TPromise<void> {
-		const currentWindowId = this.windowService.getCurrentWindowId();
-
-		return this.windowsService.getWindows().then(workspaces => {
-			const placeHolder = nls.localize('switchWindowPlaceHolder', "Select a window");
-			const picks = workspaces.map(w => ({
-				label: w.title,
-				description: (currentWindowId === w.id) ? nls.localize('current', "Current Window") : void 0,
-				run: () => this.windowsService.showWindow(w.id)
-			}));
-
-			this.quickOpenService.pick(picks, { placeHolder });
-		});
 	}
 }
 
@@ -184,7 +157,7 @@ export class ToggleMenuBarAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): TPromise<void> {
 		let currentVisibilityValue = this.configurationService.lookup<MenuBarVisibility>(ToggleMenuBarAction.menuBarVisibilityKey).value;
 		if (typeof currentVisibilityValue !== 'string') {
 			currentVisibilityValue = 'default';
@@ -197,9 +170,7 @@ export class ToggleMenuBarAction extends Action {
 			newVisibilityValue = 'default';
 		}
 
-		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ToggleMenuBarAction.menuBarVisibilityKey, value: newVisibilityValue }).then(null, error => {
-			this.messageService.show(Severity.Error, error);
-		});
+		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ToggleMenuBarAction.menuBarVisibilityKey, value: newVisibilityValue });
 
 		return TPromise.as(null);
 	}
@@ -242,10 +213,13 @@ export abstract class BaseZoomAction extends Action {
 		const applyZoom = () => {
 			webFrame.setZoomLevel(level);
 			browser.setZoomFactor(webFrame.getZoomFactor());
-			browser.setZoomLevel(level); // Ensure others can listen to zoom level changes
+			// See https://github.com/Microsoft/vscode/issues/26151
+			// Cannot be trusted because the webFrame might take some time
+			// until it really applies the new zoom level
+			browser.setZoomLevel(webFrame.getZoomLevel(), /*isTrusted*/false);
 		};
 
-		this.configurationEditingService.writeConfiguration(target, { key: BaseZoomAction.SETTING_KEY, value: level }).done(() => applyZoom(), error => applyZoom());
+		this.configurationEditingService.writeConfiguration(target, { key: BaseZoomAction.SETTING_KEY, value: level }, { donotNotifyError: true }).done(() => applyZoom(), error => applyZoom());
 	}
 }
 
@@ -583,21 +557,110 @@ export class ReloadWindowAction extends Action {
 	}
 }
 
-export class OpenRecentAction extends Action {
-
-	public static ID = 'workbench.action.openRecent';
-	public static LABEL = nls.localize('openRecent', "Open Recent");
+export abstract class BaseSwitchWindow extends Action {
 
 	constructor(
 		id: string,
 		label: string,
-		@IWindowsService private windowsService: IWindowsService,
-		@IWindowService private windowService: IWindowService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		private windowsService: IWindowsService,
+		private windowService: IWindowService,
+		private quickOpenService: IQuickOpenService,
+		private keybindingService: IKeybindingService
 	) {
 		super(id, label);
 	}
+
+	protected abstract isQuickNavigate(): boolean;
+
+	public run(): TPromise<void> {
+		const currentWindowId = this.windowService.getCurrentWindowId();
+
+		return this.windowsService.getWindows().then(workspaces => {
+			const placeHolder = nls.localize('switchWindowPlaceHolder', "Select a window to switch to");
+			const picks = workspaces.map(win => ({
+				resource: win.filename ? URI.file(win.filename) : win.path,
+				isFolder: !win.filename && !!win.path,
+				label: win.title,
+				description: (currentWindowId === win.id) ? nls.localize('current', "Current Window") : void 0,
+				run: () => {
+					setTimeout(() => {
+						// Bug: somehow when not running this code in a timeout, it is not possible to use this picker
+						// with quick navigate keys (not able to trigger quick navigate once running it once).
+						this.windowsService.showWindow(win.id).done(null, errors.onUnexpectedError);
+					});
+				}
+			} as IFilePickOpenEntry));
+
+			this.quickOpenService.pick(picks, {
+				contextKey: 'inWindowsPicker',
+				autoFocus: { autoFocusFirstEntry: true },
+				placeHolder,
+				quickNavigateConfiguration: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : void 0
+			});
+		});
+	}
+}
+
+export class SwitchWindow extends BaseSwitchWindow {
+
+	static ID = 'workbench.action.switchWindow';
+	static LABEL = nls.localize('switchWindow', "Switch Window...");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService windowsService: IWindowsService,
+		@IWindowService windowService: IWindowService,
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IKeybindingService keybindingService: IKeybindingService
+	) {
+		super(id, label, windowsService, windowService, quickOpenService, keybindingService);
+	}
+
+	protected isQuickNavigate(): boolean {
+		return false;
+	}
+}
+
+export class QuickSwitchWindow extends BaseSwitchWindow {
+
+	static ID = 'workbench.action.quickSwitchWindow';
+	static LABEL = nls.localize('quickSwitchWindow', "Quick Switch Window...");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService windowsService: IWindowsService,
+		@IWindowService windowService: IWindowService,
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IKeybindingService keybindingService: IKeybindingService
+	) {
+		super(id, label, windowsService, windowService, quickOpenService, keybindingService);
+	}
+
+	protected isQuickNavigate(): boolean {
+		return true;
+	}
+}
+
+export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
+
+export abstract class BaseOpenRecentAction extends Action {
+
+	constructor(
+		id: string,
+		label: string,
+		private windowsService: IWindowsService,
+		private windowService: IWindowService,
+		private quickOpenService: IQuickOpenService,
+		private contextService: IWorkspaceContextService,
+		private environmentService: IEnvironmentService,
+		private keybindingService: IKeybindingService
+	) {
+		super(id, label);
+	}
+
+	protected abstract isQuickNavigate(): boolean;
 
 	public run(): TPromise<void> {
 		return this.windowService.getRecentlyOpen()
@@ -605,14 +668,21 @@ export class OpenRecentAction extends Action {
 	}
 
 	private openRecent(recentFiles: string[], recentFolders: string[]): void {
-		function toPick(path: string, separator: ISeparator, isFolder: boolean): IFilePickOpenEntry {
+
+		function toPick(path: string, separator: ISeparator, isFolder: boolean, environmentService: IEnvironmentService): IFilePickOpenEntry {
 			return {
 				resource: URI.file(path),
 				isFolder,
 				label: paths.basename(path),
-				description: paths.dirname(path),
+				description: getPathLabel(paths.dirname(path), null, environmentService),
 				separator,
-				run: context => runPick(path, context)
+				run: context => {
+					setTimeout(() => {
+						// Bug: somehow when not running this code in a timeout, it is not possible to use this picker
+						// with quick navigate keys (not able to trigger quick navigate once running it once).
+						runPick(path, context);
+					});
+				}
 			};
 		}
 
@@ -621,16 +691,64 @@ export class OpenRecentAction extends Action {
 			this.windowsService.openWindow([path], { forceNewWindow });
 		};
 
-		const folderPicks: IFilePickOpenEntry[] = recentFolders.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('folders', "folders") } : void 0, true));
-		const filePicks: IFilePickOpenEntry[] = recentFiles.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0, false));
+		const folderPicks: IFilePickOpenEntry[] = recentFolders.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('folders', "folders") } : void 0, true, this.environmentService));
+		const filePicks: IFilePickOpenEntry[] = recentFiles.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0, false, this.environmentService));
 
 		const hasWorkspace = this.contextService.hasWorkspace();
 
 		this.quickOpenService.pick(folderPicks.concat(...filePicks), {
+			contextKey: inRecentFilesPickerContextKey,
 			autoFocus: { autoFocusFirstEntry: !hasWorkspace, autoFocusSecondEntry: hasWorkspace },
 			placeHolder: isMacintosh ? nls.localize('openRecentPlaceHolderMac', "Select a path (hold Cmd-key to open in new window)") : nls.localize('openRecentPlaceHolder', "Select a path to open (hold Ctrl-key to open in new window)"),
-			matchOnDescription: true
+			matchOnDescription: true,
+			quickNavigateConfiguration: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : void 0
 		}).done(null, errors.onUnexpectedError);
+	}
+}
+
+export class OpenRecentAction extends BaseOpenRecentAction {
+
+	public static ID = 'workbench.action.openRecent';
+	public static LABEL = nls.localize('openRecent', "Open Recent...");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService windowsService: IWindowsService,
+		@IWindowService windowService: IWindowService,
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IKeybindingService keybindingService: IKeybindingService
+	) {
+		super(id, label, windowsService, windowService, quickOpenService, contextService, environmentService, keybindingService);
+	}
+
+	protected isQuickNavigate(): boolean {
+		return false;
+	}
+}
+
+export class QuickOpenRecentAction extends BaseOpenRecentAction {
+
+	public static ID = 'workbench.action.quickOpenRecent';
+	public static LABEL = nls.localize('quickOpenRecent', "Quick Open Recent...");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService windowsService: IWindowsService,
+		@IWindowService windowService: IWindowService,
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IKeybindingService keybindingService: IKeybindingService
+	) {
+		super(id, label, windowsService, windowService, quickOpenService, contextService, environmentService, keybindingService);
+	}
+
+	protected isQuickNavigate(): boolean {
+		return true;
 	}
 }
 
@@ -713,32 +831,47 @@ export class ReportIssueAction extends Action {
 Steps to Reproduce:
 
 1.
-2.`
+2.` + (extensions.length ? `
+
+<!-- Launch with \`code --disable-extensions\` to check. -->
+Reproduces without extensions: Yes/No` : '')
 		);
 
 		return `${baseUrl}${queryStringPrefix}body=${body}`;
 	}
 
 	private generateExtensionTable(extensions: ILocalExtension[]): string {
+		const { nonThemes, themes } = collections.groupBy(extensions, ext => {
+			const manifestKeys = ext.manifest.contributes ? Object.keys(ext.manifest.contributes) : [];
+			const onlyTheme = !ext.manifest.activationEvents && manifestKeys.length === 1 && manifestKeys[0] === 'themes';
+			return onlyTheme ? 'themes' : 'nonThemes';
+		});
+
+		const themeExclusionStr = (themes && themes.length) ? `\n(${themes.length} theme extensions excluded)` : '';
+		extensions = nonThemes || [];
+
 		if (!extensions.length) {
-			return 'none';
+			return 'none' + themeExclusionStr;
 		}
 
-		let tableHeader = `|Extension|Author|Version|
-|---|---|---|`;
+		let tableHeader = `Extension|Author (truncated)|Version
+---|---|---`;
 		const table = extensions.map(e => {
-			return `|${e.manifest.name}|${e.manifest.publisher}|${e.manifest.version}|`;
+			return `${e.manifest.name}|${e.manifest.publisher.substr(0, 3)}|${e.manifest.version}`;
 		}).join('\n');
 
 		const extensionTable = `
 
-${tableHeader}\n${table};
+${tableHeader}
+${table}
+${themeExclusionStr}
 
 `;
+
 		// 2000 chars is browsers de-facto limit for URLs, 400 chars are allowed for other string parts of the issue URL
 		// http://stackoverflow.com/questions/417142/what-is-the-maximum-length-of-a-url-in-different-browsers
 		if (encodeURIComponent(extensionTable).length > 1600) {
-			return 'the listing exceeds the lower minimum of browsers\' URL characters limit';
+			return 'the listing length exceeds browsers\' URL characters limit';
 		}
 
 		return extensionTable;
@@ -928,6 +1061,27 @@ export class OpenIntroductoryVideosUrlAction extends Action {
 	}
 }
 
+export class OpenTipsAndTricksUrlAction extends Action {
+
+	public static ID = 'workbench.action.openTipsAndTricksUrl';
+	public static LABEL = nls.localize('openTipsAndTricksUrl', "Tips and Tricks");
+
+	private static URL = product.tipsAndTricksUrl;
+	public static AVAILABLE = !!OpenTipsAndTricksUrlAction.URL;
+
+	constructor(
+		id: string,
+		label: string
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<void> {
+		window.open(OpenTipsAndTricksUrlAction.URL);
+		return null;
+	}
+}
+
 export class ToggleSharedProcessAction extends Action {
 
 	static ID = 'workbench.action.toggleSharedProcess';
@@ -983,37 +1137,39 @@ export abstract class BaseNavigationAction extends Action {
 		return TPromise.as(false);
 	}
 
-	protected navigateOnEditorFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean> {
+	protected navigateOnEditorFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean | IViewlet | IPanel> {
 		return TPromise.as(true);
 	}
 
-	protected navigateOnPanelFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean> {
+	protected navigateOnPanelFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean | IPanel> {
 		return TPromise.as(true);
 	}
 
-	protected navigateOnSidebarFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean> {
+	protected navigateOnSidebarFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean | IViewlet> {
 		return TPromise.as(true);
 	}
 
-	protected navigateToPanel(): TPromise<any> {
+	protected navigateToPanel(): TPromise<IPanel | boolean> {
 		if (!this.partService.isVisible(Parts.PANEL_PART)) {
 			return TPromise.as(false);
 		}
 
 		const activePanelId = this.panelService.getActivePanel().getId();
+
 		return this.panelService.openPanel(activePanelId, true);
 	}
 
-	protected navigateToSidebar(): TPromise<any> {
+	protected navigateToSidebar(): TPromise<IViewlet | boolean> {
 		if (!this.partService.isVisible(Parts.SIDEBAR_PART)) {
 			return TPromise.as(false);
 		}
 
 		const activeViewletId = this.viewletService.getActiveViewlet().getId();
+
 		return this.viewletService.openViewlet(activeViewletId, true);
 	}
 
-	protected navigateAcrossEditorGroup(direction): TPromise<any> {
+	protected navigateAcrossEditorGroup(direction): TPromise<boolean> {
 		const model = this.groupService.getStacksModel();
 		const currentPosition = model.positionOfGroup(model.activeGroup);
 		const nextPosition = direction === Direction.Next ? currentPosition + 1 : currentPosition - 1;
@@ -1023,25 +1179,29 @@ export abstract class BaseNavigationAction extends Action {
 		}
 
 		this.groupService.focusGroup(nextPosition);
+
 		return TPromise.as(true);
 	}
 
-	protected navigateToLastActiveGroup(): TPromise<any> {
+	protected navigateToLastActiveGroup(): TPromise<boolean> {
 		const model = this.groupService.getStacksModel();
 		const lastActiveGroup = model.activeGroup;
 		this.groupService.focusGroup(lastActiveGroup);
+
 		return TPromise.as(true);
 	}
 
-	protected navigateToFirstEditorGroup(): TPromise<any> {
+	protected navigateToFirstEditorGroup(): TPromise<boolean> {
 		this.groupService.focusGroup(0);
+
 		return TPromise.as(true);
 	}
 
-	protected navigateToLastEditorGroup(): TPromise<any> {
+	protected navigateToLastEditorGroup(): TPromise<boolean> {
 		const model = this.groupService.getStacksModel();
 		const lastEditorGroupPosition = model.groups.length - 1;
 		this.groupService.focusGroup(lastEditorGroupPosition);
+
 		return TPromise.as(true);
 	}
 }
@@ -1049,7 +1209,7 @@ export abstract class BaseNavigationAction extends Action {
 export class NavigateLeftAction extends BaseNavigationAction {
 
 	public static ID = 'workbench.action.navigateLeft';
-	public static LABEL = nls.localize('navigateLeft', "Move to the View on the Left");
+	public static LABEL = nls.localize('navigateLeft', "Navigate to the View on the Left");
 
 	constructor(
 		id: string,
@@ -1062,7 +1222,7 @@ export class NavigateLeftAction extends BaseNavigationAction {
 		super(id, label, groupService, panelService, partService, viewletService);
 	}
 
-	protected navigateOnEditorFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
+	protected navigateOnEditorFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean | IViewlet> {
 		if (!isEditorGroupVertical) {
 			if (isSidebarPositionLeft) {
 				return this.navigateToSidebar();
@@ -1078,10 +1238,11 @@ export class NavigateLeftAction extends BaseNavigationAction {
 			});
 	}
 
-	protected navigateOnPanelFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
+	protected navigateOnPanelFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean | IViewlet> {
 		if (isSidebarPositionLeft) {
 			return this.navigateToSidebar();
 		}
+
 		return TPromise.as(false);
 	}
 
@@ -1089,9 +1250,11 @@ export class NavigateLeftAction extends BaseNavigationAction {
 		if (isSidebarPositionLeft) {
 			return TPromise.as(false);
 		}
+
 		if (isEditorGroupVertical) {
 			return this.navigateToLastEditorGroup();
 		}
+
 		return this.navigateToLastActiveGroup();
 	}
 }
@@ -1099,7 +1262,7 @@ export class NavigateLeftAction extends BaseNavigationAction {
 export class NavigateRightAction extends BaseNavigationAction {
 
 	public static ID = 'workbench.action.navigateRight';
-	public static LABEL = nls.localize('navigateRight', "Move to the View on the Right");
+	public static LABEL = nls.localize('navigateRight', "Navigate to the View on the Right");
 
 	constructor(
 		id: string,
@@ -1112,13 +1275,14 @@ export class NavigateRightAction extends BaseNavigationAction {
 		super(id, label, groupService, panelService, partService, viewletService);
 	}
 
-	protected navigateOnEditorFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
+	protected navigateOnEditorFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean | IViewlet> {
 		if (!isEditorGroupVertical) {
 			if (!isSidebarPositionLeft) {
 				return this.navigateToSidebar();
 			}
 			return TPromise.as(false);
 		}
+
 		return this.navigateAcrossEditorGroup(Direction.Next)
 			.then(didNavigate => {
 				if (!didNavigate && !isSidebarPositionLeft) {
@@ -1128,10 +1292,11 @@ export class NavigateRightAction extends BaseNavigationAction {
 			});
 	}
 
-	protected navigateOnPanelFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
+	protected navigateOnPanelFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean | IViewlet> {
 		if (!isSidebarPositionLeft) {
 			return this.navigateToSidebar();
 		}
+
 		return TPromise.as(false);
 	}
 
@@ -1139,9 +1304,11 @@ export class NavigateRightAction extends BaseNavigationAction {
 		if (!isSidebarPositionLeft) {
 			return TPromise.as(false);
 		}
+
 		if (isEditorGroupVertical) {
 			return this.navigateToFirstEditorGroup();
 		}
+
 		return this.navigateToLastActiveGroup();
 	}
 }
@@ -1149,7 +1316,7 @@ export class NavigateRightAction extends BaseNavigationAction {
 export class NavigateUpAction extends BaseNavigationAction {
 
 	public static ID = 'workbench.action.navigateUp';
-	public static LABEL = nls.localize('navigateUp', "Move to the View Above");
+	public static LABEL = nls.localize('navigateUp', "Navigate to the View Above");
 
 	constructor(
 		id: string,
@@ -1180,7 +1347,7 @@ export class NavigateUpAction extends BaseNavigationAction {
 export class NavigateDownAction extends BaseNavigationAction {
 
 	public static ID = 'workbench.action.navigateDown';
-	public static LABEL = nls.localize('navigateDown', "Move to the View Below");
+	public static LABEL = nls.localize('navigateDown', "Navigate to the View Below");
 
 	constructor(
 		id: string,
@@ -1193,10 +1360,11 @@ export class NavigateDownAction extends BaseNavigationAction {
 		super(id, label, groupService, panelService, partService, viewletService);
 	}
 
-	protected navigateOnEditorFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
+	protected navigateOnEditorFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean | IPanel> {
 		if (isEditorGroupVertical) {
 			return this.navigateToPanel();
 		}
+
 		return this.navigateAcrossEditorGroup(Direction.Next)
 			.then(didNavigate => {
 				if (didNavigate) {

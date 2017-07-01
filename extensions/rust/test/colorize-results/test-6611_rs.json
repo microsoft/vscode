@@ -11,7 +11,7 @@
 		}
 	},
 	{
-		"c": " Foo",
+		"c": " ",
 		"t": "source.rust",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -19,6 +19,17 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "Foo",
+		"t": "source.rust entity.name.type.rust",
+		"r": {
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0"
 		}
 	},
 	{
@@ -55,7 +66,7 @@
 		}
 	},
 	{
-		"c": " A: B",
+		"c": " ",
 		"t": "source.rust",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -63,6 +74,39 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "A",
+		"t": "source.rust entity.name.type.rust",
+		"r": {
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0"
+		}
+	},
+	{
+		"c": ": ",
+		"t": "source.rust",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "B",
+		"t": "source.rust entity.name.type.rust",
+		"r": {
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0"
 		}
 	},
 	{
@@ -88,7 +132,7 @@
 		}
 	},
 	{
-		"c": " Foo",
+		"c": " ",
 		"t": "source.rust",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -96,6 +140,17 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "Foo",
+		"t": "source.rust entity.name.type.rust",
+		"r": {
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0"
 		}
 	},
 	{
@@ -132,7 +187,7 @@
 		}
 	},
 	{
-		"c": " C",
+		"c": " ",
 		"t": "source.rust",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -140,6 +195,17 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "C",
+		"t": "source.rust entity.name.type.rust",
+		"r": {
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0"
 		}
 	},
 	{
@@ -165,7 +231,7 @@
 		}
 	},
 	{
-		"c": " A: B",
+		"c": " ",
 		"t": "source.rust",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -173,6 +239,39 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "A",
+		"t": "source.rust entity.name.type.rust",
+		"r": {
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0"
+		}
+	},
+	{
+		"c": ": ",
+		"t": "source.rust",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "B",
+		"t": "source.rust entity.name.type.rust",
+		"r": {
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0"
 		}
 	},
 	{
@@ -198,7 +297,7 @@
 		}
 	},
 	{
-		"c": " Foo",
+		"c": " ",
 		"t": "source.rust",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -206,6 +305,17 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "Foo",
+		"t": "source.rust entity.name.type.rust",
+		"r": {
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0"
 		}
 	},
 	{
@@ -242,7 +352,7 @@
 		}
 	},
 	{
-		"c": " C",
+		"c": " ",
 		"t": "source.rust",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -250,6 +360,17 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "C",
+		"t": "source.rust entity.name.type.rust",
+		"r": {
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0"
 		}
 	},
 	{
@@ -304,7 +425,7 @@
 			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
@@ -414,7 +535,7 @@
 			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
@@ -513,7 +634,7 @@
 			"light_plus": "entity.name.type: #267F99",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "entity.name.type: #4EC9B0"
 		}
 	},
 	{
@@ -601,7 +722,7 @@
 			"light_plus": "entity.name.type: #267F99",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "entity.name.type: #4EC9B0"
 		}
 	},
 	{

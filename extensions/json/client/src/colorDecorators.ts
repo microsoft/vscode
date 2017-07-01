@@ -110,7 +110,7 @@ export function activateColorDecorations(decoratorProvider: (uri: string) => The
 						let range = ranges[i];
 						let text = document.getText(range);
 						let value = <string>JSON.parse(text);
-						let color = hex2rgba(value);
+						let color = hex2CSSColor(value);
 						if (color) {
 							decorations.push(<DecorationOptions>{
 								range: range,
@@ -131,24 +131,33 @@ export function activateColorDecorations(decoratorProvider: (uri: string) => The
 	return Disposable.from(...disposables);
 }
 
-const CharCode_Hash = 35;
+const colorPattern = /^#[0-9A-Fa-f]{3,8}$/;
 
-function hex2rgba(hex: string): string {
-	if (!hex) {
+function hex2CSSColor(hex: string): string {
+	if (!hex || !colorPattern.test(hex)) {
 		return null;
 	}
 
-	if (hex.length === 7 && hex.charCodeAt(0) === CharCode_Hash) {
-		// #RRGGBB format
+	if (hex.length === 4 || hex.length === 7) {
+		// #RGB or #RRGGBB format
 		return hex;
 	}
-	if (hex.length === 9 && hex.charCodeAt(0) === CharCode_Hash) {
+	if (hex.length === 5) {
+		// #RGBA format
+		let val = parseInt(hex.substr(1), 16);
+		let r = (val >> 12) & 0xF;
+		let g = (val >> 8) & 0xF;
+		let b = (val >> 4) & 0xF;
+		let a = val & 0xF;
+		return `rgba(${r + r * 16}, ${g + g * 16}, ${b + b + 16}, ${+(a / 16).toFixed(2)})`;
+	}
+	if (hex.length === 9) {
 		// #RRGGBBAA format
-		var val = parseInt(hex.substr(1), 16);
-		var r = (val >> 24) & 255;
-		var g = (val >> 16) & 255;
-		var b = (val >> 8) & 255;
-		var a = val & 255;
+		let val = parseInt(hex.substr(1), 16);
+		let r = (val >> 24) & 0xFF;
+		let g = (val >> 16) & 0xFF;
+		let b = (val >> 8) & 0xFF;
+		let a = val & 0xFF;
 		return `rgba(${r}, ${g}, ${b}, ${+(a / 255).toFixed(2)})`;
 	}
 	return null;

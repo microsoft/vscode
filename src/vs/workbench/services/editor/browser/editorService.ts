@@ -7,21 +7,22 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import network = require('vs/base/common/network');
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { basename, dirname } from 'vs/base/common/paths';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorInput, EditorOptions, IFileEditorInput, TextEditorOptions, IEditorRegistry, Extensions, SideBySideEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, TextEditorOptions, IEditorRegistry, Extensions, SideBySideEditorInput, IFileEditorInput, IFileInputFactory } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledEditorService, UNTITLED_SCHEMA } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IWorkbenchEditorService, IResourceInputType } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorInput, IEditorOptions, ITextEditorOptions, Position, Direction, IEditor, IResourceInput, IResourceDiffInput, IResourceSideBySideInput } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IEditorOptions, ITextEditorOptions, Position, Direction, IEditor, IResourceInput, IResourceDiffInput, IResourceSideBySideInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { AsyncDescriptor0 } from 'vs/platform/instantiation/common/descriptors';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import nls = require('vs/nls');
-import { getPathLabel, IWorkspaceProvider } from 'vs/base/common/labels';
+import { getPathLabel } from 'vs/base/common/labels';
+import { ResourceMap } from 'vs/base/common/map';
+import { once } from 'vs/base/common/event';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export interface IEditorPart {
 	openEditor(input?: IEditorInput, options?: IEditorOptions | ITextEditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
@@ -29,28 +30,33 @@ export interface IEditorPart {
 	openEditors(editors: { input: IEditorInput, position: Position, options?: IEditorOptions | ITextEditorOptions }[]): TPromise<BaseEditor[]>;
 	replaceEditors(editors: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: IEditorOptions | ITextEditorOptions }[], position?: Position): TPromise<BaseEditor[]>;
 	closeEditor(position: Position, input: IEditorInput): TPromise<void>;
-	closeEditors(position: Position, except?: IEditorInput, direction?: Direction): TPromise<void>;
+	closeEditors(position: Position, filter?: { except?: IEditorInput, direction?: Direction, unmodifiedOnly?: boolean }): TPromise<void>;
 	closeAllEditors(except?: Position): TPromise<void>;
 	getActiveEditor(): BaseEditor;
 	getVisibleEditors(): IEditor[];
 	getActiveEditorInput(): IEditorInput;
 }
 
+type ICachedEditorInput = ResourceEditorInput | IFileEditorInput;
+
 export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 	public _serviceBrand: any;
 
+	private static CACHE: ResourceMap<ICachedEditorInput> = new ResourceMap<ICachedEditorInput>();
+
 	private editorPart: IEditorPart | IWorkbenchEditorService;
-	private fileInputDescriptor: AsyncDescriptor0<IFileEditorInput>;
+	private fileInputFactory: IFileInputFactory;
 
 	constructor(
 		editorPart: IEditorPart | IWorkbenchEditorService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@IInstantiationService private instantiationService?: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		this.editorPart = editorPart;
-		this.fileInputDescriptor = Registry.as<IEditorRegistry>(Extensions.Editors).getDefaultFileInput();
+		this.fileInputFactory = Registry.as<IEditorRegistry>(Extensions.Editors).getFileInputFactory();
 	}
 
 	public getActiveEditor(): IEditor {
@@ -115,26 +121,25 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 		// Untyped Text Editor Support (required for code that uses this service below workbench level)
 		const textInput = <IResourceInputType>input;
-		return this.createInput(textInput).then(typedInput => {
-			if (typedInput) {
-				return this.doOpenEditor(typedInput, TextEditorOptions.from(textInput), arg2);
-			}
+		const typedInput = this.createInput(textInput);
+		if (typedInput) {
+			return this.doOpenEditor(typedInput, TextEditorOptions.from(textInput), arg2);
+		}
 
-			return TPromise.as<IEditor>(null);
-		});
+		return TPromise.as<IEditor>(null);
 	}
 
-	private toOptions(arg1?: any): EditorOptions {
-		if (!arg1 || arg1 instanceof EditorOptions) {
-			return arg1;
+	private toOptions(options?: IEditorOptions | EditorOptions): EditorOptions {
+		if (!options || options instanceof EditorOptions) {
+			return options as EditorOptions;
 		}
 
-		const textOptions: ITextEditorOptions = arg1;
+		const textOptions: ITextEditorOptions = options;
 		if (!!textOptions.selection) {
-			return TextEditorOptions.create(arg1);
+			return TextEditorOptions.create(options);
 		}
 
-		return EditorOptions.create(arg1);
+		return EditorOptions.create(options);
 	}
 
 	/**
@@ -149,39 +154,36 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	public openEditors(editors: { input: IResourceInputType, position: Position }[]): TPromise<IEditor[]>;
 	public openEditors(editors: { input: IEditorInput, position: Position, options?: IEditorOptions }[]): TPromise<IEditor[]>;
 	public openEditors(editors: any[]): TPromise<IEditor[]> {
-		return TPromise.join(editors.map(editor => this.createInput(editor.input))).then(inputs => {
-			const typedInputs: { input: IEditorInput, position: Position, options?: EditorOptions }[] = inputs.map((input, index) => {
-				const options = editors[index].input instanceof EditorInput ? this.toOptions(editors[index].options) : TextEditorOptions.from(editors[index].input);
+		const inputs = editors.map(editor => this.createInput(editor.input));
+		const typedInputs: { input: IEditorInput, position: Position, options?: EditorOptions }[] = inputs.map((input, index) => {
+			const options = editors[index].input instanceof EditorInput ? this.toOptions(editors[index].options) : TextEditorOptions.from(editors[index].input);
 
-				return {
-					input,
-					options,
-					position: editors[index].position
-				};
-			});
-
-			return this.editorPart.openEditors(typedInputs);
+			return {
+				input,
+				options,
+				position: editors[index].position
+			};
 		});
+
+		return this.editorPart.openEditors(typedInputs);
 	}
 
-	public replaceEditors(editors: { toReplace: IResourceInputType, replaceWith: IResourceInputType }[], position?: Position): TPromise<BaseEditor[]>;
-	public replaceEditors(editors: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: IEditorOptions }[], position?: Position): TPromise<BaseEditor[]>;
-	public replaceEditors(editors: any[], position?: Position): TPromise<BaseEditor[]> {
-		return TPromise.join(editors.map(editor => this.createInput(editor.toReplace))).then(toReplaceInputs => {
-			return TPromise.join(editors.map(editor => this.createInput(editor.replaceWith))).then(replaceWithInputs => {
-				const typedReplacements: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: EditorOptions }[] = editors.map((editor, index) => {
-					const options = editor.toReplace instanceof EditorInput ? this.toOptions(editor.options) : TextEditorOptions.from(editor.replaceWith);
+	public replaceEditors(editors: { toReplace: IResourceInputType, replaceWith: IResourceInputType }[], position?: Position): TPromise<IEditor[]>;
+	public replaceEditors(editors: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: IEditorOptions }[], position?: Position): TPromise<IEditor[]>;
+	public replaceEditors(editors: any[], position?: Position): TPromise<IEditor[]> {
+		const toReplaceInputs = editors.map(editor => this.createInput(editor.toReplace));
+		const replaceWithInputs = editors.map(editor => this.createInput(editor.replaceWith));
+		const typedReplacements: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: EditorOptions }[] = editors.map((editor, index) => {
+			const options = editor.toReplace instanceof EditorInput ? this.toOptions(editor.options) : TextEditorOptions.from(editor.replaceWith);
 
-					return {
-						toReplace: toReplaceInputs[index],
-						replaceWith: replaceWithInputs[index],
-						options
-					};
-				});
-
-				return this.editorPart.replaceEditors(typedReplacements, position);
-			});
+			return {
+				toReplace: toReplaceInputs[index],
+				replaceWith: replaceWithInputs[index],
+				options
+			};
 		});
+
+		return this.editorPart.replaceEditors(typedReplacements, position);
 	}
 
 	public closeEditor(position: Position, input: IEditorInput): TPromise<void> {
@@ -192,86 +194,105 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return this.editorPart.closeEditor(position, input);
 	}
 
-	public closeEditors(position: Position, except?: IEditorInput, direction?: Direction): TPromise<void> {
-		return this.editorPart.closeEditors(position, except, direction);
+	public closeEditors(position: Position, filter?: { except?: IEditorInput, direction?: Direction, unmodifiedOnly?: boolean }): TPromise<void> {
+		return this.editorPart.closeEditors(position, filter);
 	}
 
 	public closeAllEditors(except?: Position): TPromise<void> {
 		return this.editorPart.closeAllEditors(except);
 	}
 
-	public createInput(input: IEditorInput): TPromise<EditorInput>;
-	public createInput(input: IResourceInputType): TPromise<EditorInput>;
-	public createInput(input: any): TPromise<IEditorInput> {
+	public createInput(input: IEditorInput): EditorInput;
+	public createInput(input: IResourceInputType): EditorInput;
+	public createInput(input: any): IEditorInput {
 
 		// Workbench Input Support
 		if (input instanceof EditorInput) {
-			return TPromise.as<EditorInput>(input);
+			return input;
 		}
 
 		// Side by Side Support
 		const resourceSideBySideInput = <IResourceSideBySideInput>input;
 		if (resourceSideBySideInput.masterResource && resourceSideBySideInput.detailResource) {
-			return this.createInput({ resource: resourceSideBySideInput.masterResource }).then(masterInput => {
-				return this.createInput({ resource: resourceSideBySideInput.detailResource }).then(detailInput => {
-					return new SideBySideEditorInput(resourceSideBySideInput.label || masterInput.getName(), typeof resourceSideBySideInput.description === 'string' ? resourceSideBySideInput.description : masterInput.getDescription(), detailInput, masterInput);
-				});
-			});
+			const masterInput = this.createInput({ resource: resourceSideBySideInput.masterResource });
+			const detailInput = this.createInput({ resource: resourceSideBySideInput.detailResource });
+
+			return new SideBySideEditorInput(resourceSideBySideInput.label || masterInput.getName(), typeof resourceSideBySideInput.description === 'string' ? resourceSideBySideInput.description : masterInput.getDescription(), detailInput, masterInput);
 		}
 
 		// Diff Editor Support
 		const resourceDiffInput = <IResourceDiffInput>input;
 		if (resourceDiffInput.leftResource && resourceDiffInput.rightResource) {
-			return this.createInput({ resource: resourceDiffInput.leftResource }).then(leftInput => {
-				return this.createInput({ resource: resourceDiffInput.rightResource }).then(rightInput => {
-					const label = resourceDiffInput.label || toDiffLabel(resourceDiffInput.leftResource, resourceDiffInput.rightResource, this.workspaceContextService);
+			const leftInput = this.createInput({ resource: resourceDiffInput.leftResource });
+			const rightInput = this.createInput({ resource: resourceDiffInput.rightResource });
+			const label = resourceDiffInput.label || this.toDiffLabel(resourceDiffInput.leftResource, resourceDiffInput.rightResource, this.workspaceContextService, this.environmentService);
 
-					return new DiffEditorInput(label, resourceDiffInput.description, leftInput, rightInput);
-				});
-			});
+			return new DiffEditorInput(label, resourceDiffInput.description, leftInput, rightInput);
 		}
-
-		// Base Text Editor Support for inmemory resources
-		const resourceInput = <IResourceInput>input;
 
 		// Untitled file support
-		if (resourceInput.resource instanceof URI && (resourceInput.resource.scheme === UntitledEditorInput.SCHEMA)) {
-			return TPromise.as<EditorInput>(this.untitledEditorService.createOrGet(resourceInput.resource));
+		const untitledInput = <IUntitledResourceInput>input;
+		if (!untitledInput.resource || typeof untitledInput.filePath === 'string' || (untitledInput.resource instanceof URI && untitledInput.resource.scheme === UNTITLED_SCHEMA)) {
+			return this.untitledEditorService.createOrGet(untitledInput.filePath ? URI.file(untitledInput.filePath) : untitledInput.resource, untitledInput.language, untitledInput.contents, untitledInput.encoding);
 		}
 
-		// Base Text Editor Support for file resources
-		else if (this.fileInputDescriptor && resourceInput.resource instanceof URI && resourceInput.resource.scheme === network.Schemas.file) {
-			return this.createFileInput(resourceInput.resource, resourceInput.encoding);
+		const resourceInput = <IResourceInput>input;
+
+		// Files support
+		if (resourceInput.resource instanceof URI && resourceInput.resource.scheme === network.Schemas.file) {
+			return this.createOrGet(resourceInput.resource, this.instantiationService, resourceInput.label, resourceInput.description, resourceInput.encoding);
 		}
 
-		// Treat an URI as ResourceEditorInput
+		// Any other resource
 		else if (resourceInput.resource instanceof URI) {
-			return TPromise.as(this.instantiationService.createInstance(
-				ResourceEditorInput,
-				resourceInput.label || basename(resourceInput.resource.fsPath),
-				typeof resourceInput.description === 'string' ? resourceInput.description : dirname(resourceInput.resource.fsPath),
-				resourceInput.resource
-			));
+			const label = resourceInput.label || basename(resourceInput.resource.fsPath);
+			let description: string;
+			if (typeof resourceInput.description === 'string') {
+				description = resourceInput.description;
+			} else if (resourceInput.resource.scheme === network.Schemas.file) {
+				description = dirname(resourceInput.resource.fsPath);
+			}
+
+			return this.createOrGet(resourceInput.resource, this.instantiationService, label, description);
 		}
 
-		return TPromise.as<EditorInput>(null);
+		return null;
 	}
 
-	private createFileInput(resource: URI, encoding?: string): TPromise<IFileEditorInput> {
-		return this.instantiationService.createInstance(this.fileInputDescriptor).then(typedFileInput => {
-			typedFileInput.setResource(resource);
-			typedFileInput.setPreferredEncoding(encoding);
+	private createOrGet(resource: URI, instantiationService: IInstantiationService, label: string, description: string, encoding?: string): ICachedEditorInput {
+		if (WorkbenchEditorService.CACHE.has(resource)) {
+			const input = WorkbenchEditorService.CACHE.get(resource);
+			if (input instanceof ResourceEditorInput) {
+				input.setName(label);
+				input.setDescription(description);
+			} else {
+				input.setPreferredEncoding(encoding);
+			}
 
-			return typedFileInput;
+			return input;
+		}
+
+		let input: ICachedEditorInput;
+		if (resource.scheme === network.Schemas.file) {
+			input = this.fileInputFactory.createFileInput(resource, encoding, instantiationService);
+		} else {
+			input = instantiationService.createInstance(ResourceEditorInput, label, description, resource);
+		}
+
+		WorkbenchEditorService.CACHE.set(resource, input);
+		once(input.onDispose)(() => {
+			WorkbenchEditorService.CACHE.delete(resource);
 		});
+
+		return input;
 	}
-}
 
-function toDiffLabel(res1: URI, res2: URI, context: IWorkspaceProvider): string {
-	const leftName = getPathLabel(res1.fsPath, context);
-	const rightName = getPathLabel(res2.fsPath, context);
+	private toDiffLabel(res1: URI, res2: URI, context: IWorkspaceContextService, environment: IEnvironmentService): string {
+		const leftName = getPathLabel(res1.fsPath, context, environment);
+		const rightName = getPathLabel(res2.fsPath, context, environment);
 
-	return nls.localize('compareLabels', "{0} ↔ {1}", leftName, rightName);
+		return nls.localize('compareLabels', "{0} ↔ {1}", leftName, rightName);
+	}
 }
 
 export interface IEditorOpenHandler {
@@ -297,13 +318,15 @@ export class DelegatingWorkbenchEditorService extends WorkbenchEditorService {
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		super(
 			editorService,
 			untitledEditorService,
 			workspaceContextService,
-			instantiationService
+			instantiationService,
+			environmentService
 		);
 	}
 

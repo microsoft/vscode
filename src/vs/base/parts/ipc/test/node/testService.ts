@@ -45,7 +45,7 @@ export class TestService implements ITestService {
 			this._data += this._data;
 		}
 		const self = this;
-		return new PPromise((complete, error, progress) => {
+		return new PPromise<any, any[]>((complete, error, progress) => {
 			let j = 0;
 			function send() {
 				if (j >= batches) {
@@ -97,7 +97,7 @@ export class TestServiceClient implements ITestService {
 	get onMarco(): Event<IMarcoPoloEvent> { return this._onMarco; };
 
 	constructor(private channel: ITestChannel) {
-		this._onMarco = eventFromCall(channel, 'event:marco');
+		this._onMarco = eventFromCall<IMarcoPoloEvent>(channel, 'event:marco');
 	}
 
 	marco(): TPromise<string> {

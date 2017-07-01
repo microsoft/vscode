@@ -27,8 +27,12 @@ export interface IProductConfiguration {
 	extensionTips: { [id: string]: string; };
 	extensionImportantTips: { [id: string]: { name: string; pattern: string; }; };
 	extensionKeywords: { [extension: string]: string[]; };
+	extensionAllowedBadgeProviders: string[];
 	keymapExtensionTips: string[];
-	crashReporter: Electron.CrashReporterStartOptions;
+	crashReporter: {
+		companyName: string;
+		productName: string;
+	};
 	welcomePage: string;
 	enableTelemetry: boolean;
 	aiConfig: {
@@ -44,15 +48,31 @@ export interface IProductConfiguration {
 	keyboardShortcutsUrlLinux: string;
 	keyboardShortcutsUrlWin: string;
 	introductoryVideosUrl: string;
+	tipsAndTricksUrl: string;
 	twitterUrl: string;
 	requestFeatureUrl: string;
 	reportIssueUrl: string;
 	licenseUrl: string;
 	privacyStatementUrl: string;
 	npsSurveyUrl: string;
+	surveys: ISurveyData[];
 	checksums: { [path: string]: string; };
 	checksumFailMoreInfoUrl: string;
-	extraNodeModules: string[];
+	hockeyApp: {
+		'win32-ia32': string;
+		'win32-x64': string;
+		'linux-ia32': string;
+		'linux-x64': string;
+		'darwin': string;
+	};
+}
+
+export interface ISurveyData {
+	surveyId: string;
+	surveyUrl: string;
+	languageId: string;
+	editCount: number;
+	userProbability: number;
 }
 
 const rootPath = path.dirname(uri.parse(require.toUrl('')).fsPath);

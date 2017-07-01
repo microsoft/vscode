@@ -57,6 +57,14 @@ export interface IIPCOptions {
 	debugBrk?: number;
 
 	/**
+	 * See https://github.com/Microsoft/vscode/issues/27665
+	 * Allows to pass in fresh execArgv to the forked process such that it doesn't inherit them from `process.execArgv`.
+	 * e.g. Launching the extension host process with `--debug-brk=xxx` and then forking a process from the extension host
+	 * results in the forked process inheriting `--debug-brk=xxx`.
+	 */
+	freshExecArgv?: boolean;
+
+	/**
 	 * Enables our createQueuedSender helper for this Client. Uses a queue when the internal Node.js queue is
 	 * full of messages - see notes on that method.
 	 */
@@ -87,7 +95,7 @@ export class Client implements IChannelClient, IDisposable {
 
 	protected request(channelName: string, name: string, arg: any): Promise {
 		if (!this.disposeDelayer) {
-			return Promise.wrapError('disposed');
+			return Promise.wrapError(new Error('disposed'));
 		}
 
 		this.disposeDelayer.cancel();
@@ -123,6 +131,10 @@ export class Client implements IChannelClient, IDisposable {
 
 			if (this.options && this.options.env) {
 				forkOpts.env = assign(forkOpts.env, this.options.env);
+			}
+
+			if (this.options && this.options.freshExecArgv) {
+				forkOpts.execArgv = [];
 			}
 
 			if (this.options && typeof this.options.debug === 'number') {

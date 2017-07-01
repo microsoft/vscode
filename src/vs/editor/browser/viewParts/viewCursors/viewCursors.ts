@@ -6,8 +6,6 @@
 'use strict';
 
 import 'vs/css!./viewCursors';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { Position } from 'vs/editor/common/core/position';
 import { IViewCursorRenderData, ViewCursor } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
@@ -18,14 +16,15 @@ import { TimeoutTimer, IntervalTimer } from 'vs/base/common/async';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorCursor } from 'vs/editor/common/view/editorColorRegistry';
+import { TextEditorCursorBlinkingStyle, TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 
 export class ViewCursors extends ViewPart {
 
 	static BLINK_INTERVAL = 500;
 
 	private _readOnly: boolean;
-	private _cursorBlinking: editorCommon.TextEditorCursorBlinkingStyle;
-	private _cursorStyle: editorCommon.TextEditorCursorStyle;
+	private _cursorBlinking: TextEditorCursorBlinkingStyle;
+	private _cursorStyle: TextEditorCursorStyle;
 	private _selectionIsEmpty: boolean;
 
 	private _isVisible: boolean;
@@ -55,9 +54,11 @@ export class ViewCursors extends ViewPart {
 		this._renderData = [];
 
 		this._domNode = createFastDomNode(document.createElement('div'));
+		this._domNode.setAttribute('role', 'presentation');
+		this._domNode.setAttribute('aria-hidden', 'true');
 		this._updateDomClassName();
 
-		this._domNode.domNode.appendChild(this._primaryCursor.getDomNode());
+		this._domNode.appendChild(this._primaryCursor.getDomNode());
 
 		this._startCursorBlinkAnimation = new TimeoutTimer();
 		this._cursorFlatBlinkInterval = new IntervalTimer();
@@ -74,8 +75,8 @@ export class ViewCursors extends ViewPart {
 		this._cursorFlatBlinkInterval.dispose();
 	}
 
-	public getDomNode(): HTMLElement {
-		return this._domNode.domNode;
+	public getDomNode(): FastDomNode<HTMLElement> {
+		return this._domNode;
 	}
 
 	// --- begin event handlers
@@ -85,16 +86,14 @@ export class ViewCursors extends ViewPart {
 		if (e.readOnly) {
 			this._readOnly = this._context.configuration.editor.readOnly;
 		}
-		if (e.viewInfo.cursorBlinking) {
+		if (e.viewInfo) {
 			this._cursorBlinking = this._context.configuration.editor.viewInfo.cursorBlinking;
-		}
-		if (e.viewInfo.cursorStyle) {
 			this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
 		}
 
 		this._primaryCursor.onConfigurationChanged(e);
 		this._updateBlinking();
-		if (e.viewInfo.cursorStyle || e.viewInfo.cursorBlinking) {
+		if (e.viewInfo) {
 			this._updateDomClassName();
 		}
 		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
@@ -102,52 +101,53 @@ export class ViewCursors extends ViewPart {
 		}
 		return true;
 	}
-	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
-		this._primaryCursor.onCursorPositionChanged(e.position, e.isInEditableRange);
+	private _onCursorPositionChanged(position: Position, secondaryPositions: Position[], isInEditableRange: boolean): void {
+		this._primaryCursor.onCursorPositionChanged(position, isInEditableRange);
 		this._updateBlinking();
 
-		if (this._secondaryCursors.length < e.secondaryPositions.length) {
+		if (this._secondaryCursors.length < secondaryPositions.length) {
 			// Create new cursors
-			let addCnt = e.secondaryPositions.length - this._secondaryCursors.length;
+			let addCnt = secondaryPositions.length - this._secondaryCursors.length;
 			for (let i = 0; i < addCnt; i++) {
 				let newCursor = new ViewCursor(this._context, true);
-				this._primaryCursor.getDomNode().parentNode.insertBefore(newCursor.getDomNode(), this._primaryCursor.getDomNode().nextSibling);
+				this._domNode.domNode.insertBefore(newCursor.getDomNode().domNode, this._primaryCursor.getDomNode().domNode.nextSibling);
 				this._secondaryCursors.push(newCursor);
 			}
-		} else if (this._secondaryCursors.length > e.secondaryPositions.length) {
+		} else if (this._secondaryCursors.length > secondaryPositions.length) {
 			// Remove some cursors
-			let removeCnt = this._secondaryCursors.length - e.secondaryPositions.length;
+			let removeCnt = this._secondaryCursors.length - secondaryPositions.length;
 			for (let i = 0; i < removeCnt; i++) {
-				this._secondaryCursors[0].getDomNode().parentNode.removeChild(this._secondaryCursors[0].getDomNode());
+				this._domNode.removeChild(this._secondaryCursors[0].getDomNode());
 				this._secondaryCursors.splice(0, 1);
 			}
 		}
 
-		for (let i = 0; i < e.secondaryPositions.length; i++) {
-			this._secondaryCursors[i].onCursorPositionChanged(e.secondaryPositions[i], e.isInEditableRange);
+		for (let i = 0; i < secondaryPositions.length; i++) {
+			this._secondaryCursors[i].onCursorPositionChanged(secondaryPositions[i], isInEditableRange);
 		}
 
-		return true;
 	}
-	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
-		let selectionIsEmpty = e.selection.isEmpty();
+	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+		let positions: Position[] = [];
+		for (let i = 0, len = e.selections.length; i < len; i++) {
+			positions[i] = e.selections[i].getPosition();
+		}
+		this._onCursorPositionChanged(positions[0], positions.slice(1), e.isInEditableRange);
+
+		const selectionIsEmpty = e.selections[0].isEmpty();
 		if (this._selectionIsEmpty !== selectionIsEmpty) {
 			this._selectionIsEmpty = selectionIsEmpty;
 			this._updateDomClassName();
 		}
-		return false;
+
+		return true;
 	}
+
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		// true for inline decorations that can end up relayouting text
-		return true;//e.inlineDecorationsChanged;
+		return true;
 	}
 	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		this._primaryCursor.onFlushed();
-		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
-			let domNode = this._secondaryCursors[i].getDomNode();
-			domNode.parentNode.removeChild(domNode);
-		}
-		this._secondaryCursors = [];
 		return true;
 	}
 	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
@@ -198,12 +198,12 @@ export class ViewCursors extends ViewPart {
 
 	// ---- blinking logic
 
-	private _getCursorBlinking(): editorCommon.TextEditorCursorBlinkingStyle {
+	private _getCursorBlinking(): TextEditorCursorBlinkingStyle {
 		if (!this._editorHasFocus) {
-			return editorCommon.TextEditorCursorBlinkingStyle.Hidden;
+			return TextEditorCursorBlinkingStyle.Hidden;
 		}
 		if (this._readOnly || !this._primaryCursor.getIsInEditableRange()) {
-			return editorCommon.TextEditorCursorBlinkingStyle.Solid;
+			return TextEditorCursorBlinkingStyle.Solid;
 		}
 		return this._cursorBlinking;
 	}
@@ -215,8 +215,8 @@ export class ViewCursors extends ViewPart {
 		let blinkingStyle = this._getCursorBlinking();
 
 		// hidden and solid are special as they involve no animations
-		let isHidden = (blinkingStyle === editorCommon.TextEditorCursorBlinkingStyle.Hidden);
-		let isSolid = (blinkingStyle === editorCommon.TextEditorCursorBlinkingStyle.Solid);
+		let isHidden = (blinkingStyle === TextEditorCursorBlinkingStyle.Hidden);
+		let isSolid = (blinkingStyle === TextEditorCursorBlinkingStyle.Solid);
 
 		if (isHidden) {
 			this._hide();
@@ -228,7 +228,7 @@ export class ViewCursors extends ViewPart {
 		this._updateDomClassName();
 
 		if (!isHidden && !isSolid) {
-			if (blinkingStyle === editorCommon.TextEditorCursorBlinkingStyle.Blink) {
+			if (blinkingStyle === TextEditorCursorBlinkingStyle.Blink) {
 				// flat blinking is handled by JavaScript to save battery life due to Chromium step timing issue https://bugs.chromium.org/p/chromium/issues/detail?id=361587
 				this._cursorFlatBlinkInterval.cancelAndSet(() => {
 					if (this._isVisible) {
@@ -252,27 +252,27 @@ export class ViewCursors extends ViewPart {
 	}
 
 	private _getClassName(): string {
-		let result = ClassNames.VIEW_CURSORS_LAYER;
+		let result = 'cursors-layer';
 		if (!this._selectionIsEmpty) {
 			result += ' has-selection';
 		}
 		switch (this._cursorStyle) {
-			case editorCommon.TextEditorCursorStyle.Line:
+			case TextEditorCursorStyle.Line:
 				result += ' cursor-line-style';
 				break;
-			case editorCommon.TextEditorCursorStyle.Block:
+			case TextEditorCursorStyle.Block:
 				result += ' cursor-block-style';
 				break;
-			case editorCommon.TextEditorCursorStyle.Underline:
+			case TextEditorCursorStyle.Underline:
 				result += ' cursor-underline-style';
 				break;
-			case editorCommon.TextEditorCursorStyle.LineThin:
+			case TextEditorCursorStyle.LineThin:
 				result += ' cursor-line-thin-style';
 				break;
-			case editorCommon.TextEditorCursorStyle.BlockOutline:
+			case TextEditorCursorStyle.BlockOutline:
 				result += ' cursor-block-outline-style';
 				break;
-			case editorCommon.TextEditorCursorStyle.UnderlineThin:
+			case TextEditorCursorStyle.UnderlineThin:
 				result += ' cursor-underline-thin-style';
 				break;
 			default:
@@ -280,19 +280,19 @@ export class ViewCursors extends ViewPart {
 		}
 		if (this._blinkingEnabled) {
 			switch (this._getCursorBlinking()) {
-				case editorCommon.TextEditorCursorBlinkingStyle.Blink:
+				case TextEditorCursorBlinkingStyle.Blink:
 					result += ' cursor-blink';
 					break;
-				case editorCommon.TextEditorCursorBlinkingStyle.Smooth:
+				case TextEditorCursorBlinkingStyle.Smooth:
 					result += ' cursor-smooth';
 					break;
-				case editorCommon.TextEditorCursorBlinkingStyle.Phase:
+				case TextEditorCursorBlinkingStyle.Phase:
 					result += ' cursor-phase';
 					break;
-				case editorCommon.TextEditorCursorBlinkingStyle.Expand:
+				case TextEditorCursorBlinkingStyle.Expand:
 					result += ' cursor-expand';
 					break;
-				case editorCommon.TextEditorCursorBlinkingStyle.Solid:
+				case TextEditorCursorBlinkingStyle.Solid:
 					result += ' cursor-solid';
 					break;
 				default:
@@ -349,9 +349,9 @@ registerThemingParticipant((theme, collector) => {
 	let caret = theme.getColor(editorCursor);
 	if (caret) {
 		let oppositeCaret = caret.opposite();
-		collector.addRule(`.monaco-editor.${theme.selector} .cursor { background-color: ${caret}; border-color: ${caret}; color: ${oppositeCaret}; }`);
+		collector.addRule(`.monaco-editor .cursor { background-color: ${caret}; border-color: ${caret}; color: ${oppositeCaret}; }`);
 		if (theme.type === 'hc') {
-			collector.addRule(`.monaco-editor.${theme.selector} .cursors-layer.has-selection .cursor { border-left: 1px solid ${oppositeCaret}; border-right: 1px solid ${oppositeCaret}; }`);
+			collector.addRule(`.monaco-editor .cursors-layer.has-selection .cursor { border-left: 1px solid ${oppositeCaret}; border-right: 1px solid ${oppositeCaret}; }`);
 		}
 	}
 

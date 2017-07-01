@@ -5,12 +5,16 @@
 
 /* Activity Bar */
 .monaco-workbench > .activitybar .monaco-action-bar .action-label.debug {
-	background-image: url('debug.svg');
+	-webkit-mask: url('debug-dark.svg') no-repeat 50% 50%;
 }
 
 .monaco-editor .debug-top-stack-frame-line,
 .monaco-editor .debug-top-stack-frame-exception-line {
 	background: rgba(255, 255, 102, 0.45);
+}
+
+.monaco-editor .debug-top-stack-frame-range {
+	background: #ffeca0;
 }
 
 .monaco-editor .debug-top-stack-frame-column::before {
@@ -19,6 +23,10 @@
 
 .monaco-editor .debug-focused-stack-frame-line {
 	background: rgba(206, 231, 206, 0.45);
+}
+
+.monaco-editor .debug-focused-stack-frame-range {
+	background: rgba(206, 231, 206, 1);
 }
 
 .monaco-editor .debug-breakpoint-hint-glyph {
@@ -155,6 +163,18 @@
 	color: #B5CEA8;
 }
 
+.hc-black .monaco-workbench  .monaco-tree-row:not(.selected) .expression .value.number {
+	color: #89d185;
+}
+
+.hc-black .monaco-workbench  .monaco-tree-row:not(.selected) .expression .value.boolean {
+	color: #75bdfe;
+}
+
+.hc-black .monaco-workbench  .monaco-tree-row:not(.selected) .expression .value.string {
+	color: #f48771;
+}
+
 .vs-dark .monaco-workbench  .monaco-tree-row:not(.selected) .expression .value.boolean {
 	color: #4E94CE;
 }
@@ -177,9 +197,17 @@
 	background: rgba(122, 189, 122, 0.3);
 }
 
+.monaco-editor.vs-dark .debug-focused-stack-frame-range {
+	background: rgba(122, 189, 122, 0.5);
+}
+
 .monaco-editor.vs-dark .debug-top-stack-frame-line,
 .monaco-editor.vs-dark .debug-top-stack-frame-exception-line {
 	background-color: rgba(255, 255, 0, 0.2)
+}
+
+.monaco-editor.vs-dark .debug-top-stack-frame-range {
+	background-color: rgba(255, 255, 0, 0.3)
 }
 
 .monaco-editor.vs-dark .debug-breakpoint-glyph,
@@ -218,11 +246,18 @@
 
 /* High Contrast Theming */
 
+.monaco-editor.hc-black .debug-focused-stack-frame-line {
+	background: rgba(206, 231, 206, 1);
+}
+
 .hc-black .monaco-workbench .monaco-tree-row:not(.selected) .expression .name {
 	color: inherit;
 }
 
 .hc-black .monaco-editor .debug-top-stack-frame-line {
-	background: rgba(255, 246, 0, .8);
-	mix-blend-mode: lighten; /* Preserves text selection's contrast */
+	background: rgba(255, 246, 0, 1);
+}
+
+.hc-black .monaco-editor .debug-remove-token-colors {
+	color:black;
 }

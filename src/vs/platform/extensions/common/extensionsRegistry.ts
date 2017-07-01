@@ -10,26 +10,34 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import Severity from 'vs/base/common/severity';
 import { IMessage, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);
 
 export class ExtensionMessageCollector {
 
-	private _messageHandler: (msg: IMessage) => void;
-	private _source: string;
+	private readonly _messageHandler: (msg: IMessage) => void;
+	private readonly _extension: IExtensionDescription;
+	private readonly _extensionPointId: string;
 
-	constructor(messageHandler: (msg: IMessage) => void, source: string) {
+	constructor(
+		messageHandler: (msg: IMessage) => void,
+		extension: IExtensionDescription,
+		extensionPointId: string
+	) {
 		this._messageHandler = messageHandler;
-		this._source = source;
+		this._extension = extension;
+		this._extensionPointId = extensionPointId;
 	}
 
 	private _msg(type: Severity, message: string): void {
 		this._messageHandler({
 			type: type,
 			message: message,
-			source: this._source
+			source: this._extension.extensionFolderPath,
+			extensionId: this._extension.id,
+			extensionPointId: this._extensionPointId
 		});
 	}
 
@@ -139,7 +147,7 @@ const schema: IJSONSchema = {
 			uniqueItems: true,
 			items: {
 				type: 'string',
-				enum: ['Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Other', 'Keymaps', 'Formatters', 'Extension Packs']
+				enum: ['Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Other', 'Keymaps', 'Formatters', 'Extension Packs', 'SCM Providers']
 			}
 		},
 		galleryBanner: {
@@ -174,7 +182,38 @@ const schema: IJSONSchema = {
 			type: 'array',
 			items: {
 				type: 'string',
-				defaultSnippets: [{ label: 'onLanguage', body: 'onLanguage:${1:languageId}' }, { label: 'onCommand', body: 'onCommand:${2:commandId}' }, { label: 'onDebug', body: 'onDebug:${3:type}' }, { label: 'workspaceContains', body: 'workspaceContains:${4:fileName}' }],
+				defaultSnippets: [
+					{
+						label: 'onLanguage',
+						description: nls.localize('vscode.extension.activationEvents.onLanguage', 'An activation event emitted whenever a file that resolves to the specified language gets opened.'),
+						body: 'onLanguage:${1:languageId}'
+					},
+					{
+						label: 'onCommand',
+						description: nls.localize('vscode.extension.activationEvents.onCommand', 'An activation event emitted whenever the specified command gets invoked.'),
+						body: 'onCommand:${2:commandId}'
+					},
+					{
+						label: 'onDebug',
+						description: nls.localize('vscode.extension.activationEvents.onDebug', 'An activation event emitted whenever a debug session of the specified type is started.'),
+						body: 'onDebug:${3:type}'
+					},
+					{
+						label: 'workspaceContains',
+						description: nls.localize('vscode.extension.activationEvents.workspaceContains', 'An activation event emitted whenever a folder is opened that contains at least a file matching the specified glob pattern.'),
+						body: 'workspaceContains:${4:filePattern}'
+					},
+					{
+						label: 'onView',
+						body: 'onView:${5:viewId}',
+						description: nls.localize('vscode.extension.activationEvents.onView', 'An activation event emitted whenever the specified view is expanded.'),
+					},
+					{
+						label: '*',
+						description: nls.localize('vscode.extension.activationEvents.star', 'An activation event emitted on VS Code startup. To ensure a great end user experience, please use this activation event in your extension only when no other activation events combination works in your use-case.'),
+						body: '*'
+					}
+				],
 			}
 		},
 		badges: {

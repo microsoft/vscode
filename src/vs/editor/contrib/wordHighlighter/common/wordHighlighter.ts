@@ -15,12 +15,13 @@ import { CommonEditorRegistry, commonEditorContribution } from 'vs/editor/common
 import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
-
-import { registerColor, editorSelectionHighlight, highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorSelectionHighlight, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
-export const editorWordHighlight = registerColor('editorWordHighlight', { dark: '#575757B8', light: '#57575740', hc: null }, nls.localize('wordHighlight', 'Background color of a symbol during read-access, like reading a variable.'));
-export const editorWordHighlightStrong = registerColor('editorWordHighlightStrong', { dark: '#004972B8', light: '#0e639c40', hc: null }, nls.localize('wordHighlightStrong', 'Background color of a symbol during write-access, like writing to a variable.'));
+export const editorWordHighlight = registerColor('editor.wordHighlightBackground', { dark: '#575757B8', light: '#57575740', hc: null }, nls.localize('wordHighlight', 'Background color of a symbol during read-access, like reading a variable.'));
+export const editorWordHighlightStrong = registerColor('editor.wordHighlightStrongBackground', { dark: '#004972B8', light: '#0e639c40', hc: null }, nls.localize('wordHighlightStrong', 'Background color of a symbol during write-access, like writing to a variable.'));
 
 export function getOccurrencesAtPosition(model: editorCommon.IReadOnlyModel, position: Position): TPromise<DocumentHighlight[]> {
 
@@ -31,7 +32,7 @@ export function getOccurrencesAtPosition(model: editorCommon.IReadOnlyModel, pos
 	// until someone response with a good result
 	// (good = none empty array)
 	return sequence(orderedByScore.map(provider => {
-		return () => {
+		return (): TPromise<DocumentHighlight[]> => {
 			if (!foundResult) {
 				return asWinJsPromise((token) => {
 					return provider.provideDocumentHighlights(model, position, token);
@@ -76,7 +77,14 @@ class WordHighlighter {
 		this.occurrencesHighlight = this.editor.getConfiguration().contribInfo.occurrencesHighlight;
 		this.model = this.editor.getModel();
 		this.toUnhook = [];
-		this.toUnhook.push(editor.onDidChangeCursorPosition((e: editorCommon.ICursorPositionChangedEvent) => {
+		this.toUnhook.push(editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
+
+			if (!this.occurrencesHighlight) {
+				// Early exit if nothing needs to be done!
+				// Leave some form of early exit check here if you wish to continue being a cursor position change listener ;)
+				return;
+			}
+
 			this._onPositionChanged(e);
 		}));
 		this.toUnhook.push(editor.onDidChangeModel((e) => {
@@ -136,7 +144,7 @@ class WordHighlighter {
 		}
 	}
 
-	private _onPositionChanged(e: editorCommon.ICursorPositionChangedEvent): void {
+	private _onPositionChanged(e: ICursorPositionChangedEvent): void {
 
 		// disabled
 		if (!this.occurrencesHighlight) {
@@ -145,7 +153,7 @@ class WordHighlighter {
 		}
 
 		// ignore typing & other
-		if (e.reason !== editorCommon.CursorChangeReason.Explicit) {
+		if (e.reason !== CursorChangeReason.Explicit) {
 			this._stopAll();
 			return;
 		}
@@ -180,8 +188,8 @@ class WordHighlighter {
 		}
 
 		// All the effort below is trying to achieve this:
-		// - when cursor is moved to a word, trigger immediately a findOccurences request
-		// - 250ms later after the last cursor move event, render the occurences
+		// - when cursor is moved to a word, trigger immediately a findOccurrences request
+		// - 250ms later after the last cursor move event, render the occurrences
 		// - no flickering!
 
 		var currentWordRange = new Range(lineNumber, word.startColumn, lineNumber, word.endColumn);
@@ -262,33 +270,54 @@ class WordHighlighter {
 		var decorations: editorCommon.IModelDeltaDecoration[] = [];
 		for (var i = 0, len = this.workerRequestValue.length; i < len; i++) {
 			var info = this.workerRequestValue[i];
-			var color = '#A0A0A0';
-
-			let className: string;
-			if (info.kind === DocumentHighlightKind.Write) {
-				className = 'wordHighlightStrong';
-			} else if (info.kind === DocumentHighlightKind.Text) {
-				className = 'selectionHighlight';
-			} else {
-				className = 'wordHighlight';
-			}
-
 			decorations.push({
 				range: info.range,
-				options: {
-					stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-					className: className,
-					overviewRuler: {
-						color: color,
-						darkColor: color,
-						position: editorCommon.OverviewRulerLane.Center
-					}
-				}
+				options: WordHighlighter._getDecorationOptions(info.kind)
 			});
 		}
 
 		this._decorationIds = this.editor.deltaDecorations(this._decorationIds, decorations);
 	}
+
+	private static _getDecorationOptions(kind: DocumentHighlightKind): ModelDecorationOptions {
+		if (kind === DocumentHighlightKind.Write) {
+			return this._WRITE_OPTIONS;
+		} else if (kind === DocumentHighlightKind.Text) {
+			return this._TEXT_OPTIONS;
+		} else {
+			return this._REGULAR_OPTIONS;
+		}
+	}
+
+	private static _WRITE_OPTIONS = ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		className: 'wordHighlightStrong',
+		overviewRuler: {
+			color: '#A0A0A0',
+			darkColor: '#A0A0A0',
+			position: editorCommon.OverviewRulerLane.Center
+		}
+	});
+
+	private static _TEXT_OPTIONS = ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		className: 'selectionHighlight',
+		overviewRuler: {
+			color: '#A0A0A0',
+			darkColor: '#A0A0A0',
+			position: editorCommon.OverviewRulerLane.Center
+		}
+	});
+
+	private static _REGULAR_OPTIONS = ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		className: 'wordHighlight',
+		overviewRuler: {
+			color: '#A0A0A0',
+			darkColor: '#A0A0A0',
+			position: editorCommon.OverviewRulerLane.Center
+		}
+	});
 
 	public dispose(): void {
 		this._stopAll();
@@ -319,22 +348,22 @@ class WordHighlighterContribution implements editorCommon.IEditorContribution {
 registerThemingParticipant((theme, collector) => {
 	let selectionHighlight = theme.getColor(editorSelectionHighlight);
 	if (selectionHighlight) {
-		collector.addRule(`.monaco-editor.${theme.selector} .focused .selectionHighlight { background-color: ${selectionHighlight}; }`);
-		collector.addRule(`.monaco-editor.${theme.selector} .selectionHighlight { background-color: ${selectionHighlight.transparent(0.5)}; }`);
+		collector.addRule(`.monaco-editor .focused .selectionHighlight { background-color: ${selectionHighlight}; }`);
+		collector.addRule(`.monaco-editor .selectionHighlight { background-color: ${selectionHighlight.transparent(0.5)}; }`);
 	}
 	let wordHighlight = theme.getColor(editorWordHighlight);
 	if (wordHighlight) {
-		collector.addRule(`.monaco-editor.${theme.selector} .wordHighlight { background-color: ${wordHighlight}; }`);
+		collector.addRule(`.monaco-editor .wordHighlight { background-color: ${wordHighlight}; }`);
 	}
 	let wordHighlightStrong = theme.getColor(editorWordHighlightStrong);
 	if (wordHighlightStrong) {
-		collector.addRule(`.monaco-editor.${theme.selector} .wordHighlightStrong { background-color: ${wordHighlightStrong}; }`);
+		collector.addRule(`.monaco-editor .wordHighlightStrong { background-color: ${wordHighlightStrong}; }`);
 	}
-	let hcOutline = theme.getColor(highContrastOutline);
+	let hcOutline = theme.getColor(activeContrastBorder);
 	if (hcOutline) {
-		collector.addRule(`.monaco-editor.${theme.selector} .selectionHighlight { border: 1px dotted ${hcOutline}; box-sizing: border-box; }`);
-		collector.addRule(`.monaco-editor.${theme.selector} .wordHighlight { border: 1px dashed ${hcOutline}; box-sizing: border-box; }`);
-		collector.addRule(`.monaco-editor.${theme.selector} .wordHighlightStrong { border: 1px dashed ${hcOutline}; box-sizing: border-box; }`);
+		collector.addRule(`.monaco-editor .selectionHighlight { border: 1px dotted ${hcOutline}; box-sizing: border-box; }`);
+		collector.addRule(`.monaco-editor .wordHighlight { border: 1px dashed ${hcOutline}; box-sizing: border-box; }`);
+		collector.addRule(`.monaco-editor .wordHighlightStrong { border: 1px dashed ${hcOutline}; box-sizing: border-box; }`);
 	}
 
 });

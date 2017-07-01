@@ -76,7 +76,7 @@ class EventCounter {
 	}
 
 	public listen(emitter: ee.IEventEmitter, event: string, fn: (e) => void = null): () => void {
-		let r = emitter.addListener2(event, (e) => {
+		let r = emitter.addListener(event, (e) => {
 			this._count++;
 			if (fn) {
 				fn(e);
@@ -289,42 +289,6 @@ suite('TreeModel', () => {
 			return model.refresh(SAMPLE.AB.children[0], false);
 		}).done(() => {
 			assert.equal(counter.count, 6);
-			done();
-		});
-	});
-
-	test('refreshAll(...) refreshes the elements and descendants', (done) => {
-		model.setInput(SAMPLE.AB).then(() => {
-			model.expand(SAMPLE.AB.children[0]);
-			model.expand(SAMPLE.AB.children[2]);
-
-			counter.listen(model, 'refreshing'); // 3
-			counter.listen(model, 'refreshed'); // 3
-			counter.listen(model, 'item:refresh'); // 7
-			counter.listen(model, 'item:childrenRefreshing'); // 2
-			counter.listen(model, 'item:childrenRefreshed'); // 2
-
-			return model.refreshAll([SAMPLE.AB.children[0], SAMPLE.AB.children[1], SAMPLE.AB.children[2]]);
-		}).done(() => {
-			assert.equal(counter.count, 17);
-			done();
-		});
-	});
-
-	test('refreshAll(..., false) refreshes the elements', (done) => {
-		model.setInput(SAMPLE.AB).then(() => {
-			model.expand(SAMPLE.AB.children[0]);
-			model.expand(SAMPLE.AB.children[2]);
-
-			counter.listen(model, 'refreshing'); // 3
-			counter.listen(model, 'refreshed'); // 3
-			counter.listen(model, 'item:refresh'); // 3
-			counter.listen(model, 'item:childrenRefreshing'); // 2
-			counter.listen(model, 'item:childrenRefreshed'); // 2
-
-			return model.refreshAll([SAMPLE.AB.children[0], SAMPLE.AB.children[1], SAMPLE.AB.children[2]], false);
-		}).done(() => {
-			assert.equal(counter.count, 13);
 			done();
 		});
 	});
@@ -556,6 +520,15 @@ suite('TreeModel - TreeNavigator', () => {
 			done();
 		});
 	});
+
+	test('last()', () => {
+		return model.setInput(SAMPLE.AB).then(() => {
+			return model.expandAll([{ id: 'a' }, { id: 'c' }]).then(() => {
+				const nav = model.getNavigator();
+				assert.equal(nav.last().id, 'cb');
+			});
+		});
+	});
 });
 
 suite('TreeModel - Expansion', () => {
@@ -646,12 +619,12 @@ suite('TreeModel - Expansion', () => {
 		model.setInput(SAMPLE.DEEP2).done(() => {
 			assert(!model.isExpanded(SAMPLE.DEEP2.children[0]));
 			model.toggleExpansion(SAMPLE.DEEP2.children[0], true).done(() => {
-				model.addOneTimeDisposableListener('item:expanded', () => {
+				model.addOneTimeListener('item:expanded', () => {
 					assert(model.isExpanded(SAMPLE.DEEP2.children[0]));
 					assert(model.isExpanded(SAMPLE.DEEP2.children[0].children[0]));
 
 					model.toggleExpansion(SAMPLE.DEEP2.children[0], true).done(() => {
-						model.addOneTimeDisposableListener('item:collapsed', () => {
+						model.addOneTimeListener('item:collapsed', () => {
 							assert(!model.isExpanded(SAMPLE.DEEP2.children[0]));
 
 							model.toggleExpansion(SAMPLE.DEEP2.children[0]).done(() => {
@@ -676,8 +649,8 @@ suite('TreeModel - Expansion', () => {
 					assert(model.isExpanded(SAMPLE.DEEP2.children[0].children[0]));
 
 					model.collapseAll().done(() => {
-						model.addOneTimeDisposableListener('item:collapsed', () => {
-							model.addOneTimeDisposableListener('item:collapsed', () => {
+						model.addOneTimeListener('item:collapsed', () => {
+							model.addOneTimeListener('item:collapsed', () => {
 								assert(!model.isExpanded(SAMPLE.DEEP2.children[0]));
 
 								model.expand(SAMPLE.DEEP2.children[0]).done(() => {
@@ -1377,7 +1350,7 @@ suite('TreeModel - Dynamic data model', () => {
 			model.collapse('father');
 
 			var times = 0;
-			var listener = dataModel.addListener2('getChildren', (element) => {
+			var listener = dataModel.addListener('getChildren', (element) => {
 				times++;
 				assert.equal(element, 'grandfather');
 			});
@@ -1386,7 +1359,7 @@ suite('TreeModel - Dynamic data model', () => {
 				assert.equal(times, 1);
 				listener.dispose();
 
-				listener = dataModel.addListener2('getChildren', (element) => {
+				listener = dataModel.addListener('getChildren', (element) => {
 					times++;
 					assert.equal(element, 'father');
 				});
@@ -1426,8 +1399,8 @@ suite('TreeModel - Dynamic data model', () => {
 
 			var getTimes = 0;
 			var gotTimes = 0;
-			var getListener = dataModel.addListener2('getChildren', (element) => { getTimes++; });
-			var gotListener = dataModel.addListener2('gotChildren', (element) => { gotTimes++; });
+			var getListener = dataModel.addListener('getChildren', (element) => { getTimes++; });
+			var gotListener = dataModel.addListener('gotChildren', (element) => { gotTimes++; });
 
 			var p1 = model.refresh('father');
 			assert.equal(getTimes, 1);
@@ -1474,10 +1447,10 @@ suite('TreeModel - Dynamic data model', () => {
 			counter.listen(model, 'item:refresh', (e) => { refreshTimes++; });
 
 			var getTimes = 0;
-			var getListener = dataModel.addListener2('getChildren', (element) => { getTimes++; });
+			var getListener = dataModel.addListener('getChildren', (element) => { getTimes++; });
 
 			var gotTimes = 0;
-			var gotListener = dataModel.addListener2('gotChildren', (element) => { gotTimes++; });
+			var gotListener = dataModel.addListener('gotChildren', (element) => { gotTimes++; });
 
 			var p1, p2;
 
@@ -1554,8 +1527,8 @@ suite('TreeModel - Dynamic data model', () => {
 
 			var getTimes = 0;
 			var gotTimes = 0;
-			var getListener = dataModel.addListener2('getChildren', (element) => { getTimes++; });
-			var gotListener = dataModel.addListener2('gotChildren', (element) => { gotTimes++; });
+			var getListener = dataModel.addListener('getChildren', (element) => { getTimes++; });
+			var gotListener = dataModel.addListener('gotChildren', (element) => { gotTimes++; });
 
 			var p1, p2;
 

@@ -7,12 +7,13 @@ import assert = require('assert');
 import uri from 'vs/base/common/uri';
 import platform = require('vs/base/common/platform');
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IConfigurationService, getConfigurationValue } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, getConfigurationValue, IConfigurationOverrides, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/node/configurationResolverService';
-import { TestEnvironmentService, TestEditorService, } from 'vs/workbench/test/workbenchTestServices';
+import { TestEnvironmentService, TestEditorService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 suite('Configuration Resolver Service', () => {
 	let configurationResolverService: IConfigurationResolverService;
@@ -20,10 +21,11 @@ suite('Configuration Resolver Service', () => {
 	let mockCommandService: MockCommandService;
 	let editorService: TestEditorService;
 
+
 	setup(() => {
 		mockCommandService = new MockCommandService();
 		editorService = new TestEditorService();
-		configurationResolverService = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, editorService, TestEnvironmentService, new TestConfigurationService(), mockCommandService);
+		configurationResolverService = new ConfigurationResolverService(envVariables, editorService, TestEnvironmentService, new TestConfigurationService(), mockCommandService, new TestContextService(testWorkspace(uri.parse('file:///VSCode/workspaceLocation'))));
 	});
 
 	teardown(() => {
@@ -84,7 +86,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
+		let service = new ConfigurationResolverService(envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService, new TestContextService(testWorkspace(uri.parse('file:///VSCode/workspaceLocation'))));
 		assert.strictEqual(service.resolve('abc ${config:editor.fontFamily} xyz'), 'abc foo xyz');
 	});
 
@@ -101,7 +103,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
+		let service = new ConfigurationResolverService(envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService, new TestContextService(testWorkspace(uri.parse('file:///VSCode/workspaceLocation'))));
 		assert.strictEqual(service.resolve('abc ${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} xyz'), 'abc foo bar xyz');
 	});
 
@@ -118,7 +120,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
+		let service = new ConfigurationResolverService(envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService, new TestContextService(testWorkspace(uri.parse('file:///VSCode/workspaceLocation'))));
 		if (platform.isWindows) {
 			assert.strictEqual(service.resolve('abc ${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} xyz'), 'abc foo \\VSCode\\workspaceLocation bar bar xyz');
 		} else {
@@ -139,7 +141,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
+		let service = new ConfigurationResolverService(envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService, new TestContextService(testWorkspace(uri.parse('file:///VSCode/workspaceLocation'))));
 		if (platform.isWindows) {
 			assert.strictEqual(service.resolve('abc ${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} xyz'), 'abc foo \\VSCode\\workspaceLocation bar  bar xyz');
 		} else {
@@ -160,7 +162,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
+		let service = new ConfigurationResolverService(envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService, new TestContextService(testWorkspace(uri.parse('file:///VSCode/workspaceLocation'))));
 		if (platform.isWindows) {
 			assert.strictEqual(service.resolve('abc ${config:editor.fontFamily} ${workspaceRoot} ${env:key1} xyz'), 'abc foo \\VSCode\\workspaceLocation Value for Key1 xyz');
 		} else {
@@ -181,7 +183,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
+		let service = new ConfigurationResolverService(envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService, new TestContextService(testWorkspace(uri.parse('file:///VSCode/workspaceLocation'))));
 		if (platform.isWindows) {
 			assert.strictEqual(service.resolve('${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} ${workspaceRoot} - ${workspaceRoot} ${env:key1} - ${env:key2}'), 'foo bar \\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation Value for Key1 - Value for Key2');
 		} else {
@@ -215,7 +217,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
+		let service = new ConfigurationResolverService(envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService, new TestContextService(testWorkspace(uri.parse('file:///VSCode/workspaceLocation'))));
 		assert.strictEqual(service.resolve('abc ${config:editor.fontFamily} ${config:editor.lineNumbers} ${config:editor.insertSpaces} xyz'), 'abc foo 123 false xyz');
 	});
 
@@ -227,7 +229,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
+		let service = new ConfigurationResolverService(envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService, new TestContextService(testWorkspace(uri.parse('file:///VSCode/workspaceLocation'))));
 		assert.strictEqual(service.resolve('abc ${config:editor[\'abc\'.substr(0)]} xyz'), 'abc  xyz');
 	});
 
@@ -237,7 +239,7 @@ suite('Configuration Resolver Service', () => {
 			editor: {}
 		});
 
-		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
+		let service = new ConfigurationResolverService(envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService, new TestContextService(testWorkspace(uri.parse('file:///VSCode/workspaceLocation'))));
 		assert.strictEqual(service.resolve('abc ${config:editor.abc} xyz'), 'abc  xyz');
 		assert.strictEqual(service.resolve('abc ${config:editor.abc.def} xyz'), 'abc  xyz');
 		assert.strictEqual(service.resolve('abc ${config:panel} xyz'), 'abc  xyz');
@@ -250,7 +252,7 @@ suite('Configuration Resolver Service', () => {
 			editor: {}
 		});
 
-		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
+		let service = new ConfigurationResolverService(envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService, new TestContextService(testWorkspace(uri.parse('file:///VSCode/workspaceLocation'))));
 		assert.strictEqual(service.resolve('abc ${config:editor.__proto__} xyz'), 'abc  xyz');
 		assert.strictEqual(service.resolve('abc ${config:editor.toString} xyz'), 'abc  xyz');
 	});
@@ -263,7 +265,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
+		let service = new ConfigurationResolverService(envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService, new TestContextService(testWorkspace(uri.parse('file:///VSCode/workspaceLocation'))));
 		assert.strictEqual(service.resolve('abc ${config:} xyz'), 'abc ${config:} xyz');
 		assert.strictEqual(service.resolve('abc ${config:editor..fontFamily} xyz'), 'abc  xyz');
 		assert.strictEqual(service.resolve('abc ${config:editor.none.none2} xyz'), 'abc  xyz');
@@ -340,9 +342,11 @@ class MockConfigurationService implements IConfigurationService {
 	public serviceId = IConfigurationService;
 	public constructor(private configuration: any = {}) { }
 	public reloadConfiguration<T>(section?: string): TPromise<T> { return TPromise.as(this.getConfiguration()); }
-	public lookup(key: string) { return { value: getConfigurationValue(this.getConfiguration(), key), default: getConfigurationValue(this.getConfiguration(), key), user: getConfigurationValue(this.getConfiguration(), key) }; }
-	public keys() { return { default: [], user: [] }; }
+	public lookup<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> { return { value: getConfigurationValue<T>(this.getConfiguration(), key), default: getConfigurationValue<T>(this.getConfiguration(), key), user: getConfigurationValue<T>(this.getConfiguration(), key), workspace: void 0, folder: void 0 }; }
+	public keys() { return { default: [], user: [], workspace: [] }; }
+	public values() { return {}; }
 	public getConfiguration(): any { return this.configuration; }
+	public getConfigurationData(): any { return null; }
 	public onDidUpdateConfiguration() { return { dispose() { } }; }
 }
 

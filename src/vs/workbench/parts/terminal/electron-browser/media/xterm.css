@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench .panel.integrated-terminal .xterm {
-	background-color: transparent!important;
 	position: relative;
 	height: 100%;
+	user-select: none;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm:focus {
@@ -52,47 +52,14 @@
 
 .monaco-workbench .panel.integrated-terminal .xterm a {
 	color: inherit;
-	cursor: text;
+	cursor: inherit;
 	text-decoration: none;
 }
-
-.monaco-workbench .panel.integrated-terminal.ctrlcmd-held .xterm a:hover {
-	cursor: pointer;
-	text-decoration: underline;
-}
-
-.monaco-workbench .panel.integrated-terminal.ctrlcmd-held .xterm a.xterm-invalid-link:hover {
-	cursor: text;
-	text-decoration: none;
-}
-
-.monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .reverse-video,
-.monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .reverse-video { color: #CCC; }
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .reverse-video,
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .reverse-video { color: #1e1e1e; }
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .reverse-video,
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .reverse-video { color: #000; }
-
-.monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .terminal-cursor,
-.monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .terminal-cursor { background-color: #333; }
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .terminal-cursor,
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .terminal-cursor { background-color: #CCC; }
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .terminal-cursor,
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .terminal-cursor { background-color: #FFF; }
 
 .monaco-workbench .panel.integrated-terminal .xterm:not(.focus):not(:focus) .terminal-cursor {
 	background-color: transparent;
-	outline: 1px solid #333;
-	outline-offset: -1px;
-}
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:not(.focus):not(:focus) .terminal-cursor {
-	background-color: transparent;
-	outline: 1px solid #CCC;
-	outline-offset: -1px;
-}
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm:not(.focus):not(:focus) .terminal-cursor {
-	background-color: transparent;
-	outline: 1px solid #FFF;
+	outline-width: 1px;
+	outline-style: solid;
 	outline-offset: -1px;
 }
 
@@ -111,15 +78,6 @@
 	content: "";
 	display: block;
 	position: absolute;
-	background-color: #333;
-}
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-bar .terminal-cursor::before,
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-underline .terminal-cursor::before {
-	background-color: #CCC;
-}
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-bar .terminal-cursor::before,
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-underline .terminal-cursor::before {
-	background-color: #fff;
 }
 .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-bar .terminal-cursor::before {
 	top: 0;
@@ -135,26 +93,15 @@
 }
 .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-bar.focus.xterm-cursor-blink.xterm-cursor-blink-on .terminal-cursor::before,
 .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-underline.focus.xterm-cursor-blink.xterm-cursor-blink-on .terminal-cursor::before {
-	background-color: transparent;
-}
-.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-bar.focus.xterm-cursor-blink .terminal-cursor::before,
-.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-underline.focus.xterm-cursor-blink .terminal-cursor::before {
-	background-color: #333;
-}
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-bar.focus.xterm-cursor-blink .terminal-cursor::before,
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-underline.focus.xterm-cursor-blink .terminal-cursor::before {
-	background-color: #ccc;
-}
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-bar.focus.xterm-cursor-blink .terminal-cursor::before,
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-underline.focus.xterm-cursor-blink .terminal-cursor::before {
-	background-color: #fff;
+	background-color: transparent !important;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-viewport {
 	overflow-y: scroll;
 }
 
-.terminal .xterm-wide-char {
+.terminal .xterm-wide-char,
+.terminal .xterm-normal-char  {
 	display: inline-block;
 }
 
@@ -179,6 +126,28 @@
 	position: absolute;
 	left: -9999em;
 }
+
+.monaco-workbench .panel.integrated-terminal .xterm.enable-mouse-events {
+	/* When mouse events are enabled (eg. tmux), revert to the standard pointer cursor */
+	cursor: default;
+}
+
+.monaco-workbench .panel.integrated-terminal .xterm .xterm-selection {
+	position: absolute;
+	left: 0;
+	bottom: 0;
+	z-index: 1;
+	opacity: 0.3;
+	pointer-events: none;
+}
+
+.monaco-workbench .panel.integrated-terminal .xterm .xterm-selection div {
+	position: absolute;
+}
+/* TODO: Remove in favor of theme keys, see #28397*/
+.monaco-workbench .panel.integrated-terminal .xterm .xterm-selection div { background-color: #000; }
+.vs-dark .monaco-workbench .panel.integrated-terminal .xterm .xterm-selection div { background-color: #FFF; }
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm .xterm-selection div { background-color: #FFF; }
 
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-bold {
 	font-weight: bold;
@@ -209,23 +178,6 @@
 
 .terminal .composition-view.active {
 	display: block;
-}
-
-/* Base selection colors */
-
-.monaco-workbench .panel.integrated-terminal .xterm ::selection {
-	color: #FFF;
-	background-color: rgba(51, 51, 51, 0.996);
-}
-
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm ::selection {
-	color: #1e1e1e;
-	background-color: rgba(204, 204, 204, 0.996);
-}
-
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm ::selection {
-	color: #000;
-	background-color: rgba(255, 255, 255, 0.996);
 }
 
 /* Terminal colors 16-255 */

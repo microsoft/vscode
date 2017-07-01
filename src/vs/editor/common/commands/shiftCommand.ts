@@ -7,7 +7,7 @@
 import * as strings from 'vs/base/common/strings';
 import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
+import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel } from 'vs/editor/common/editorCommon';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { CharCode } from 'vs/base/common/charCode';
@@ -45,11 +45,21 @@ export class ShiftCommand implements ICommand {
 	private _selection: Selection;
 	private _selectionId: string;
 	private _useLastEditRangeForCursorEndPosition: boolean;
+	private _selectionStartColumnStaysPut: boolean;
 
 	constructor(range: Selection, opts: IShiftCommandOpts) {
 		this._opts = opts;
 		this._selection = range;
 		this._useLastEditRangeForCursorEndPosition = false;
+		this._selectionStartColumnStaysPut = false;
+	}
+
+	private _addEditOperation(builder: IEditOperationBuilder, range: Range, text: string) {
+		if (this._useLastEditRangeForCursorEndPosition) {
+			builder.addTrackedEditOperation(range, text);
+		} else {
+			builder.addEditOperation(range, text);
+		}
 	}
 
 	public getEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder): void {
@@ -147,7 +157,11 @@ export class ShiftCommand implements ICommand {
 					indents[j] = indents[j - 1] + oneIndent;
 				}
 
-				builder.addEditOperation(new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), indents[desiredIndentCount]);
+				this._addEditOperation(builder, new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), indents[desiredIndentCount]);
+				if (lineNumber === startLine) {
+					// Force the startColumn to stay put because we're inserting after it
+					this._selectionStartColumnStaysPut = (this._selection.startColumn <= indentationEndIndex + 1);
+				}
 			}
 		} else {
 
@@ -186,9 +200,13 @@ export class ShiftCommand implements ICommand {
 						}
 					}
 
-					builder.addEditOperation(new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), '');
+					this._addEditOperation(builder, new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), '');
 				} else {
-					builder.addEditOperation(new Range(lineNumber, 1, lineNumber, 1), oneIndent);
+					this._addEditOperation(builder, new Range(lineNumber, 1, lineNumber, 1), oneIndent);
+					if (lineNumber === startLine) {
+						// Force the startColumn to stay put because we're inserting after it
+						this._selectionStartColumnStaysPut = (this._selection.startColumn === 1);
+					}
 				}
 			}
 		}
@@ -201,6 +219,22 @@ export class ShiftCommand implements ICommand {
 			let lastOp = helper.getInverseEditOperations()[0];
 			return new Selection(lastOp.range.endLineNumber, lastOp.range.endColumn, lastOp.range.endLineNumber, lastOp.range.endColumn);
 		}
-		return helper.getTrackedSelection(this._selectionId);
+		const result = helper.getTrackedSelection(this._selectionId);
+
+		if (this._selectionStartColumnStaysPut) {
+			// The selection start should not move
+			let initialStartColumn = this._selection.startColumn;
+			let resultStartColumn = result.startColumn;
+			if (resultStartColumn <= initialStartColumn) {
+				return result;
+			}
+
+			if (result.getDirection() === SelectionDirection.LTR) {
+				return new Selection(result.startLineNumber, initialStartColumn, result.endLineNumber, result.endColumn);
+			}
+			return new Selection(result.endLineNumber, result.endColumn, result.startLineNumber, initialStartColumn);
+		}
+
+		return result;
 	}
 }

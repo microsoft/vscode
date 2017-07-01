@@ -58,7 +58,7 @@ class ConfigAwareContextValuesContainer extends Context {
 		super(id, null);
 
 		this._emitter = emitter;
-		this._subscription = configurationService.onDidUpdateConfiguration(e => this._updateConfigurationContext(e.config));
+		this._subscription = configurationService.onDidUpdateConfiguration(e => this._updateConfigurationContext(configurationService.getConfiguration()));
 		this._updateConfigurationContext(configurationService.getConfiguration());
 	}
 

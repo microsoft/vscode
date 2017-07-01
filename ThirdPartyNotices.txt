@@ -1,5 +1,3 @@
-===================BEGIN GENERATOR LOG
-===================END GENERATOR LOG
 microsoft-vscode
 
 THIRD-PARTY SOFTWARE NOTICES AND INFORMATION
@@ -7,64 +5,62 @@ Do Not Translate or Localize
 
 This project incorporates components from the projects listed below. The original copyright notices and the licenses under which Microsoft received such components are set forth below. Microsoft reserves all rights not expressly granted herein, whether by implication, estoppel or otherwise.
 
-1.	atom/language-c version 0.51.3 (https://github.com/atom/language-c)
+1.	atom/language-c (https://github.com/atom/language-c)
 2.	atom/language-clojure (https://github.com/atom/language-clojure)
 3.	atom/language-coffee-script (https://github.com/atom/language-coffee-script)
 4.	atom/language-css (https://github.com/atom/language-css)
-5.	atom/language-objective-c (https://github.com/atom/language-objective-c)
-6.	atom/language-sass version 0.52.0 (https://github.com/atom/language-sass)
-7.	atom/language-xml (https://github.com/atom/language-xml)
-8.	Benvie/JavaScriptNext.tmLanguage (https://github.com/Benvie/JavaScriptNext.tmLanguage)
-9.	chjj-marked version 0.3.2 (https://github.com/npmcomponent/chjj-marked)
-10.	chriskempson/tomorrow-theme (https://github.com/chriskempson/tomorrow-theme)
-11.	Colorsublime-Themes version 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes)
-12.	daaain/Handlebars (https://github.com/daaain/Handlebars)
-13.	davidrios/jade-tmbundle (https://github.com/davidrios/jade-tmbundle)
-14.	definitelytyped (https://github.com/DefinitelyTyped/DefinitelyTyped)
-15.	demyte/language-cshtml (https://github.com/demyte/language-cshtml)
-16.	dotnet/csharp-tmLanguage version 0.1.0 (https://github.com/dotnet/csharp-tmLanguage)
-17.	freebroccolo/atom-language-swift (https://github.com/freebroccolo/atom-language-swift)
-18.	HTML 5.1 W3C Working Draft version 08 October 2015 (http://www.w3.org/TR/2015/WD-html51-20151008/)
-19.	Ionic documentation version 1.2.4 (https://github.com/driftyco/ionic-site)
-20.	ionide/ionide-fsgrammar (https://github.com/ionide/ionide-fsgrammar)
-21.	js-beautify version 1.6.8 (https://github.com/beautify-web/js-beautify)
-22.	Jxck/assert version 1.0.0 (https://github.com/Jxck/assert)
-23.	language-docker (https://github.com/docker/docker)
-24.	language-go version 0.39.0 (https://github.com/atom/language-go)
-25.	language-less (https://github.com/atom/language-less)
-26.	language-php (https://github.com/atom/language-php)
-27.	language-rust version 0.4.9 (https://github.com/zargony/atom-language-rust)
-28.	MagicStack/MagicPython (https://github.com/MagicStack/MagicPython)
-29.	Microsoft/TypeScript-TmLanguage version 0.0.1 (https://github.com/Microsoft/TypeScript-TmLanguage)
-30.	octicons-code version 3.1.0 (https://octicons.github.com)
-31.	octicons-font version 3.1.0 (https://octicons.github.com)
-32.	seti-ui version 0.1.0 (https://github.com/jesseweed/seti-ui)
-33.	shaders-tmLanguage version 0.1.0 (https://github.com/tgjones/shaders-tmLanguage)
-34.	string_scorer version 0.1.20 (https://github.com/joshaven/string_score)
-35.	sublimehq/Packages (https://github.com/sublimehq/Packages)
-36.	SublimeText/PowerShell (https://github.com/SublimeText/PowerShell)
-37.	textmate/asp.vb.net.tmbundle (https://github.com/textmate/asp.vb.net.tmbundle)
-38.	textmate/c.tmbundle (https://github.com/textmate/c.tmbundle)
-39.	textmate/diff.tmbundle (https://github.com/textmate/diff.tmbundle)
-40.	textmate/git.tmbundle (https://github.com/textmate/git.tmbundle)
-41.	textmate/groovy.tmbundle (https://github.com/textmate/groovy.tmbundle)
-42.	textmate/html.tmbundle (https://github.com/textmate/html.tmbundle)
-43.	textmate/ini.tmbundle (https://github.com/textmate/ini.tmbundle)
-44.	textmate/java.tmbundle (https://github.com/textmate/java.tmbundle)
-45.	textmate/javadoc.tmbundle (https://github.com/textmate/javadoc.tmbundle)
-46.	textmate/javascript.tmbundle (https://github.com/textmate/javascript.tmbundle)
-47.	textmate/lua.tmbundle (https://github.com/textmate/lua.tmbundle)
-48.	textmate/make.tmbundle (https://github.com/textmate/make.tmbundle)
-49.	textmate/markdown.tmbundle (https://github.com/textmate/markdown.tmbundle)
-50.	textmate/perl.tmbundle (https://github.com/textmate/perl.tmbundle)
-51.	textmate/r.tmbundle (https://github.com/textmate/r.tmbundle)
-52.	textmate/ruby.tmbundle (https://github.com/textmate/ruby.tmbundle)
-53.	textmate/shellscript.tmbundle (https://github.com/textmate/shellscript.tmbundle)
-54.	textmate/sql.tmbundle (https://github.com/textmate/sql.tmbundle)
-55.	textmate/yaml.tmbundle (https://github.com/textmate/yaml.tmbundle)
-56.	typescript-legacy version 1.5 (https://github.com/Microsoft/TypeScript)
-57.	TypeScript-TmLanguage version 0.1.8 (https://github.com/Microsoft/TypeScript-TmLanguage)
-58.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
+5.	atom/language-java (https://github.com/atom/language-java)
+6.	atom/language-objective-c (https://github.com/atom/language-objective-c)
+7.	atom/language-sass version 0.52.0 (https://github.com/atom/language-sass)
+8.	atom/language-xml (https://github.com/atom/language-xml)
+9.	Benvie/JavaScriptNext.tmLanguage (https://github.com/Benvie/JavaScriptNext.tmLanguage)
+10.	chjj-marked version 0.3.6 (https://github.com/npmcomponent/chjj-marked)
+11.	chriskempson/tomorrow-theme (https://github.com/chriskempson/tomorrow-theme)
+12.	Colorsublime-Themes version 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes)
+13.	daaain/Handlebars (https://github.com/daaain/Handlebars)
+14.	davidrios/jade-tmbundle (https://github.com/davidrios/jade-tmbundle)
+15.	definitelytyped (https://github.com/DefinitelyTyped/DefinitelyTyped)
+16.	demyte/language-cshtml (https://github.com/demyte/language-cshtml)
+17.	dotnet/csharp-tmLanguage version 0.1.0 (https://github.com/dotnet/csharp-tmLanguage)
+18.	freebroccolo/atom-language-swift (https://github.com/freebroccolo/atom-language-swift)
+19.	HTML 5.1 W3C Working Draft version 08 October 2015 (http://www.w3.org/TR/2015/WD-html51-20151008/)
+20.	Ionic documentation version 1.2.4 (https://github.com/ionic-team/ionic-site)
+21.	ionide/ionide-fsgrammar (https://github.com/ionide/ionide-fsgrammar)
+22.	js-beautify version 1.6.8 (https://github.com/beautify-web/js-beautify)
+23.	Jxck/assert version 1.0.0 (https://github.com/Jxck/assert)
+24.	language-docker (https://github.com/moby/moby)
+25.	language-go version 0.39.0 (https://github.com/atom/language-go)
+26.	language-less (https://github.com/atom/language-less)
+27.	language-php (https://github.com/atom/language-php)
+28.	language-rust version 0.4.9 (https://github.com/zargony/atom-language-rust)
+29.	MagicStack/MagicPython (https://github.com/MagicStack/MagicPython)
+30.	Microsoft/TypeScript-TmLanguage version 0.0.1 (https://github.com/Microsoft/TypeScript-TmLanguage)
+31.	octicons-code version 3.1.0 (https://octicons.github.com)
+32.	octicons-font version 3.1.0 (https://octicons.github.com)
+33.	seti-ui version 0.1.0 (https://github.com/jesseweed/seti-ui)
+34.	shaders-tmLanguage version 0.1.0 (https://github.com/tgjones/shaders-tmLanguage)
+35.	string_scorer version 0.1.20 (https://github.com/joshaven/string_score)
+36.	sublimehq/Packages (https://github.com/sublimehq/Packages)
+37.	SublimeText/PowerShell (https://github.com/SublimeText/PowerShell)
+38.	textmate/asp.vb.net.tmbundle (https://github.com/textmate/asp.vb.net.tmbundle)
+39.	textmate/c.tmbundle (https://github.com/textmate/c.tmbundle)
+40.	textmate/diff.tmbundle (https://github.com/textmate/diff.tmbundle)
+41.	textmate/git.tmbundle (https://github.com/textmate/git.tmbundle)
+42.	textmate/groovy.tmbundle (https://github.com/textmate/groovy.tmbundle)
+43.	textmate/html.tmbundle (https://github.com/textmate/html.tmbundle)
+44.	textmate/ini.tmbundle (https://github.com/textmate/ini.tmbundle)
+45.	textmate/javascript.tmbundle (https://github.com/textmate/javascript.tmbundle)
+46.	textmate/lua.tmbundle (https://github.com/textmate/lua.tmbundle)
+47.	textmate/make.tmbundle (https://github.com/textmate/make.tmbundle)
+48.	textmate/markdown.tmbundle (https://github.com/textmate/markdown.tmbundle)
+49.	textmate/perl.tmbundle (https://github.com/textmate/perl.tmbundle)
+50.	textmate/r.tmbundle (https://github.com/textmate/r.tmbundle)
+51.	textmate/ruby.tmbundle (https://github.com/textmate/ruby.tmbundle)
+52.	textmate/shellscript.tmbundle (https://github.com/textmate/shellscript.tmbundle)
+53.	textmate/sql.tmbundle (https://github.com/textmate/sql.tmbundle)
+54.	textmate/yaml.tmbundle (https://github.com/textmate/yaml.tmbundle)
+55.	TypeScript-TmLanguage version 0.1.8 (https://github.com/Microsoft/TypeScript-TmLanguage)
+56.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
 
 
 %% atom/language-c NOTICES AND INFORMATION BEGIN HERE
@@ -247,6 +243,43 @@ express or implied warranty, and with no claim as to its
 suitability for any purpose.
 =========================================
 END OF atom/language-css NOTICES AND INFORMATION
+
+%% atom/language-java NOTICES AND INFORMATION BEGIN HERE
+=========================================
+The MIT License (MIT)
+
+Copyright (c) 2014 GitHub Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+This package was derived from a TextMate bundle located at
+https://github.com/textmate/java.tmbundle and distributed under the following
+license, located in `README.mdown`:
+
+Permission to copy, use, modify, sell and distribute this
+software is granted. This software is provided "as is" without
+express or implied warranty, and with no claim as to its
+suitability for any purpose.
+=========================================
+END OF atom/language-java NOTICES AND INFORMATION
 
 %% atom/language-objective-c NOTICES AND INFORMATION BEGIN HERE
 =========================================
@@ -1138,7 +1171,7 @@ END OF language-rust NOTICES AND INFORMATION
 =========================================
 The MIT License
 
-Copyright (c) 2015 MagicStack Inc.  http://magic.io
+Copyright (c) 2015-present MagicStack Inc.  http://magic.io
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -1703,42 +1736,6 @@ to the base-name name of the original file, and an extension of txt, html, or si
 =========================================
 END OF textmate/ini.tmbundle NOTICES AND INFORMATION
 
-%% textmate/java.tmbundle NOTICES AND INFORMATION BEGIN HERE
-=========================================
-Copyright (c) textmate-java.tmbundle project authors
-
-If not otherwise specified (see below), files in this repository fall under the following license:
-
-Permission to copy, use, modify, sell and distribute this
-software is granted. This software is provided "as is" without
-express or implied warranty, and with no claim as to its
-suitability for any purpose.
-
-An exception is made for files in readable text which contain their own license information,
-or files where an accompanying file exists (in the same directory) with a "-license" suffix added
-to the base-name name of the original file, and an extension of txt, html, or similar. For example
-"tidy" is accompanied by "tidy-license.txt".
-=========================================
-END OF textmate/java.tmbundle NOTICES AND INFORMATION
-
-%% textmate/javadoc.tmbundle NOTICES AND INFORMATION BEGIN HERE
-=========================================
-Copyright (c) textmate-javadoc.tmbundle project authors
-
-If not otherwise specified (see below), files in this repository fall under the following license:
-
-Permission to copy, use, modify, sell and distribute this
-software is granted. This software is provided "as is" without
-express or implied warranty, and with no claim as to its
-suitability for any purpose.
-
-An exception is made for files in readable text which contain their own license information,
-or files where an accompanying file exists (in the same directory) with a "-license" suffix added
-to the base-name name of the original file, and an extension of txt, html, or similar. For example
-"tidy" is accompanied by "tidy-license.txt".
-=========================================
-END OF textmate/javadoc.tmbundle NOTICES AND INFORMATION
-
 %% textmate/javascript.tmbundle NOTICES AND INFORMATION BEGIN HERE
 =========================================
 Copyright (c) textmate-javascript.tmbundle project authors
@@ -1918,68 +1915,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 =========================================
 END OF textmate/yaml.tmbundle NOTICES AND INFORMATION
-
-%% typescript-legacy NOTICES AND INFORMATION BEGIN HERE
-=========================================
-Copyright (c) Microsoft Corporation. All rights reserved.
-
-Apache License
-
-Version 2.0, January 2004
-
-http://www.apache.org/licenses/
-
-TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
-
-1. Definitions.
-
-"License" shall mean the terms and conditions for use, reproduction, and distribution as defined by Sections 1 through 9 of this document.
-
-"Licensor" shall mean the copyright owner or entity authorized by the copyright owner that is granting the License.
-
-"Legal Entity" shall mean the union of the acting entity and all other entities that control, are controlled by, or are under common control with that entity. For the purposes of this definition, "control" means (i) the power, direct or indirect, to cause the direction or management of such entity, whether by contract or otherwise, or (ii) ownership of fifty percent (50%) or more of the outstanding shares, or (iii) beneficial ownership of such entity.
-
-"You" (or "Your") shall mean an individual or Legal Entity exercising permissions granted by this License.
-
-"Source" form shall mean the preferred form for making modifications, including but not limited to software source code, documentation source, and configuration files.
-
-"Object" form shall mean any form resulting from mechanical transformation or translation of a Source form, including but not limited to compiled object code, generated documentation, and conversions to other media types.
-
-"Work" shall mean the work of authorship, whether in Source or Object form, made available under the License, as indicated by a copyright notice that is included in or attached to the work (an example is provided in the Appendix below).
-
-"Derivative Works" shall mean any work, whether in Source or Object form, that is based on (or derived from) the Work and for which the editorial revisions, annotations, elaborations, or other modifications represent, as a whole, an original work of authorship. For the purposes of this License, Derivative Works shall not include works that remain separable from, or merely link (or bind by name) to the interfaces of, the Work and Derivative Works thereof.
-
-"Contribution" shall mean any work of authorship, including the original version of the Work and any modifications or additions to that Work or Derivative Works thereof, that is intentionally submitted to Licensor for inclusion in the Work by the copyright owner or by an individual or Legal Entity authorized to submit on behalf of the copyright owner. For the purposes of this definition, "submitted" means any form of electronic, verbal, or written communication sent to the Licensor or its representatives, including but not limited to communication on electronic mailing lists, source code control systems, and issue tracking systems that are managed by, or on behalf of, the Licensor for the purpose of discussing and improving the Work, but excluding communication that is conspicuously marked or otherwise designated in writing by the copyright owner as "Not a Contribution."
-
-"Contributor" shall mean Licensor and any individual or Legal Entity on behalf of whom a Contribution has been received by Licensor and subsequently incorporated within the Work.
-
-2. Grant of Copyright License. Subject to the terms and conditions of this License, each Contributor hereby grants to You a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable copyright license to reproduce, prepare Derivative Works of, publicly display, publicly perform, sublicense, and distribute the Work and such Derivative Works in Source or Object form.
-
-3. Grant of Patent License. Subject to the terms and conditions of this License, each Contributor hereby grants to You a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable (except as stated in this section) patent license to make, have made, use, offer to sell, sell, import, and otherwise transfer the Work, where such license applies only to those patent claims licensable by such Contributor that are necessarily infringed by their Contribution(s) alone or by combination of their Contribution(s) with the Work to which such Contribution(s) was submitted. If You institute patent litigation against any entity (including a cross-claim or counterclaim in a lawsuit) alleging that the Work or a Contribution incorporated within the Work constitutes direct or contributory patent infringement, then any patent licenses granted to You under this License for that Work shall terminate as of the date such litigation is filed.
-
-4. Redistribution. You may reproduce and distribute copies of the Work or Derivative Works thereof in any medium, with or without modifications, and in Source or Object form, provided that You meet the following conditions:
-
-You must give any other recipients of the Work or Derivative Works a copy of this License; and
-
-You must cause any modified files to carry prominent notices stating that You changed the files; and
-
-You must retain, in the Source form of any Derivative Works that You distribute, all copyright, patent, trademark, and attribution notices from the Source form of the Work, excluding those notices that do not pertain to any part of the Derivative Works; and
-
-If the Work includes a "NOTICE" text file as part of its distribution, then any Derivative Works that You distribute must include a readable copy of the attribution notices contained within such NOTICE file, excluding those notices that do not pertain to any part of the Derivative Works, in at least one of the following places: within a NOTICE text file distributed as part of the Derivative Works; within the Source form or documentation, if provided along with the Derivative Works; or, within a display generated by the Derivative Works, if and wherever such third-party notices normally appear. The contents of the NOTICE file are for informational purposes only and do not modify the License. You may add Your own attribution notices within Derivative Works that You distribute, alongside or as an addendum to the NOTICE text from the Work, provided that such additional attribution notices cannot be construed as modifying the License. You may add Your own copyright statement to Your modifications and may provide additional or different license terms and conditions for use, reproduction, or distribution of Your modifications, or for any such Derivative Works as a whole, provided Your use, reproduction, and distribution of the Work otherwise complies with the conditions stated in this License.
-
-5. Submission of Contributions. Unless You explicitly state otherwise, any Contribution intentionally submitted for inclusion in the Work by You to the Licensor shall be under the terms and conditions of this License, without any additional terms or conditions. Notwithstanding the above, nothing herein shall supersede or modify the terms of any separate license agreement you may have executed with Licensor regarding such Contributions.
-
-6. Trademarks. This License does not grant permission to use the trade names, trademarks, service marks, or product names of the Licensor, except as required for reasonable and customary use in describing the origin of the Work and reproducing the content of the NOTICE file.
-
-7. Disclaimer of Warranty. Unless required by applicable law or agreed to in writing, Licensor provides the Work (and each Contributor provides its Contributions) on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied, including, without limitation, any warranties or conditions of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A PARTICULAR PURPOSE. You are solely responsible for determining the appropriateness of using or redistributing the Work and assume any risks associated with Your exercise of permissions under this License.
-
-8. Limitation of Liability. In no event and under no legal theory, whether in tort (including negligence), contract, or otherwise, unless required by applicable law (such as deliberate and grossly negligent acts) or agreed to in writing, shall any Contributor be liable to You for damages, including any direct, indirect, special, incidental, or consequential damages of any character arising as a result of this License or out of the use or inability to use the Work (including but not limited to damages for loss of goodwill, work stoppage, computer failure or malfunction, or any and all other commercial damages or losses), even if such Contributor has been advised of the possibility of such damages.
-
-9. Accepting Warranty or Additional Liability. While redistributing the Work or Derivative Works thereof, You may choose to offer, and charge a fee for, acceptance of support, warranty, indemnity, or other liability obligations and/or rights consistent with this License. However, in accepting such obligations, You may act only on Your own behalf and on Your sole responsibility, not on behalf of any other Contributor, and only if You agree to indemnify, defend, and hold each Contributor harmless for any liability incurred by, or claims asserted against, such Contributor by reason of your accepting any such warranty or additional liability.
-
-END OF TERMS AND CONDITIONS
-=========================================
-END OF typescript-legacy NOTICES AND INFORMATION
 
 %% TypeScript-TmLanguage NOTICES AND INFORMATION BEGIN HERE
 =========================================

@@ -10,15 +10,14 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { RawContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ISnippetsService, getNonWhitespacePrefix, ISnippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsService';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { endsWith } from 'vs/base/common/strings';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CommonEditorRegistry, commonEditorContribution, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
-import { SnippetController, CONTEXT_SNIPPET_MODE } from 'vs/editor/contrib/snippet/common/snippetController';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { IConfigurationRegistry, Extensions as ConfigExt } from 'vs/platform/configuration/common/configurationRegistry';
-
-import EditorContextKeys = editorCommon.EditorContextKeys;
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 @commonEditorContribution
 export class TabCompletionController implements editorCommon.IEditorContribution {
@@ -30,7 +29,7 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 		return editor.getContribution<TabCompletionController>(TabCompletionController.ID);
 	}
 
-	private _snippetController: SnippetController;
+	private _snippetController: SnippetController2;
 	private _cursorChangeSubscription: IDisposable;
 	private _currentSnippets: ISnippet[] = [];
 
@@ -39,7 +38,7 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ISnippetsService snippetService: ISnippetsService
 	) {
-		this._snippetController = SnippetController.get(editor);
+		this._snippetController = SnippetController2.get(editor);
 		const hasSnippets = TabCompletionController.ContextKey.bindTo(contextKeyService);
 		this._cursorChangeSubscription = editor.onDidChangeCursorSelection(e => {
 
@@ -77,7 +76,7 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 	performSnippetCompletions(): void {
 		if (this._currentSnippets.length === 1) {
 			const snippet = this._currentSnippets[0];
-			this._snippetController.insertSnippet(snippet.codeSnippet, snippet.prefix.length, 0);
+			this._snippetController.insert(snippet.codeSnippet, snippet.prefix.length, 0);
 			// } else {
 			// todo@joh - show suggest widget with proposals
 		}
@@ -97,9 +96,9 @@ CommonEditorRegistry.registerEditorCommand(new TabCompletionCommand({
 	kbOpts: {
 		weight: KeybindingsRegistry.WEIGHT.editorContrib(),
 		kbExpr: ContextKeyExpr.and(
-			EditorContextKeys.TextFocus,
-			EditorContextKeys.TabDoesNotMoveFocus,
-			CONTEXT_SNIPPET_MODE.toNegated(),
+			EditorContextKeys.textFocus,
+			EditorContextKeys.tabDoesNotMoveFocus,
+			SnippetController2.InSnippetMode.toNegated(),
 			ContextKeyExpr.has('config.editor.tabCompletion')
 		),
 		primary: KeyCode.Tab

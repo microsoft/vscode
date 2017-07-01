@@ -9,7 +9,12 @@ import { IEventEmitter, EventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as Events from 'vs/base/common/events';
 import Event, { Emitter } from 'vs/base/common/event';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+
+export interface ITelemetryData {
+	from?: string;
+	target?: string;
+	[key: string]: any;
+}
 
 export interface IAction extends IDisposable {
 	id: string;

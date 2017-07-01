@@ -37,6 +37,8 @@ export interface TelemetryEvent {
 	// How the task got trigger. Is either shortcut or command
 	trigger: string;
 
+	runner: 'terminal' | 'output';
+
 	// The command triggered
 	command: string;
 
@@ -79,6 +81,7 @@ export interface ITaskExecuteResult {
 export namespace TaskSystemEvents {
 	export let Active: string = 'active';
 	export let Inactive: string = 'inactive';
+	export let Terminated: string = 'terminated';
 }
 
 export enum TaskType {
@@ -90,10 +93,15 @@ export interface TaskEvent {
 	taskId?: string;
 	taskName?: string;
 	type?: TaskType;
+	group?: string;
 }
 
 export interface ITaskResolver {
 	resolve(identifier: string): Task;
+}
+
+export interface TaskTerminateResponse extends TerminateResponse {
+	task: Task | undefined;
 }
 
 export interface ITaskSystem extends IEventEmitter {
@@ -102,6 +110,6 @@ export interface ITaskSystem extends IEventEmitter {
 	isActiveSync(): boolean;
 	getActiveTasks(): Task[];
 	canAutoTerminate(): boolean;
-	terminate(id: string): TPromise<TerminateResponse>;
-	terminateAll(): TPromise<TerminateResponse>;
+	terminate(id: string): TPromise<TaskTerminateResponse>;
+	terminateAll(): TPromise<TaskTerminateResponse[]>;
 }

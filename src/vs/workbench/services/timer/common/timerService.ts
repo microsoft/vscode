@@ -30,8 +30,10 @@ export interface IStartupMetrics {
 		ellapsedWorkbench: number;
 		ellapsedTimersToTimersComputed: number;
 	};
+	timers2: { [name: string]: number };
 	platform: string;
 	release: string;
+	arch: string;
 	totalmem: number;
 	freemem: number;
 	meminfo: IMemoryInfo;

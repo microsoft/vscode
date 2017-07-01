@@ -14,6 +14,8 @@ import _ = require('vs/base/parts/tree/browser/tree');
 import { INavigator, MappedNavigator } from 'vs/base/common/iterator';
 import Event, { Emitter } from 'vs/base/common/event';
 import Lifecycle = require('vs/base/common/lifecycle');
+import { Color } from 'vs/base/common/color';
+import { mixin } from 'vs/base/common/objects';
 
 export class TreeContext implements _.ITreeContext {
 
@@ -39,7 +41,7 @@ export class TreeContext implements _.ITreeContext {
 		}
 
 		this.dataSource = configuration.dataSource;
-		this.renderer = configuration.renderer || new TreeDefaults.LegacyRenderer();
+		this.renderer = configuration.renderer;
 		this.controller = configuration.controller || new TreeDefaults.DefaultController({ clickBehavior: TreeDefaults.ClickBehavior.ON_MOUSE_UP, keyboardSupport: typeof options.keyboardSupport !== 'boolean' || options.keyboardSupport });
 		this.dnd = configuration.dnd || new TreeDefaults.DefaultDragAndDrop();
 		this.filter = configuration.filter || new TreeDefaults.DefaultFilter();
@@ -47,6 +49,17 @@ export class TreeContext implements _.ITreeContext {
 		this.accessibilityProvider = configuration.accessibilityProvider || new TreeDefaults.DefaultAccessibilityProvider();
 	}
 }
+
+const defaultStyles: _.ITreeStyles = {
+	listFocusBackground: Color.fromHex('#073655'),
+	listActiveSelectionBackground: Color.fromHex('#0E639C'),
+	listActiveSelectionForeground: Color.fromHex('#FFFFFF'),
+	listFocusAndSelectionBackground: Color.fromHex('#094771'),
+	listFocusAndSelectionForeground: Color.fromHex('#FFFFFF'),
+	listInactiveSelectionBackground: Color.fromHex('#3F3F46'),
+	listHoverBackground: Color.fromHex('#2A2D2E'),
+	listDropBackground: Color.fromHex('#383B3D')
+};
 
 export class Tree extends Events.EventEmitter implements _.ITree {
 
@@ -76,6 +89,7 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		this.container = container;
 		this.configuration = configuration;
 		this.options = options;
+		mixin(this.options, defaultStyles, false);
 
 		this.options.twistiePixels = typeof this.options.twistiePixels === 'number' ? this.options.twistiePixels : 32;
 		this.options.showTwistie = this.options.showTwistie === false ? false : true;
@@ -90,10 +104,14 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 
 		this.view.setModel(this.model);
 
-		this.addEmitter2(this.model);
-		this.addEmitter2(this.view);
+		this.addEmitter(this.model);
+		this.addEmitter(this.view);
 
-		this.toDispose.push(this.model.addListener2('highlight', () => this._onHighlightChange.fire()));
+		this.toDispose.push(this.model.addListener('highlight', () => this._onHighlightChange.fire()));
+	}
+
+	public style(styles: _.ITreeStyles): void {
+		this.view.applyStyles(styles);
 	}
 
 	get onDOMFocus(): Event<void> {
@@ -150,10 +168,6 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 
 	public refresh(element: any = null, recursive = true): WinJS.Promise {
 		return this.model.refresh(element, recursive);
-	}
-
-	public refreshAll(elements: any[], recursive = true): WinJS.Promise {
-		return this.model.refreshAll(elements, recursive);
 	}
 
 	public expand(element: any): WinJS.Promise {
@@ -309,16 +323,16 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		this.model.focusFirstChild(eventPayload);
 	}
 
-	public focusFirst(eventPayload?: any): void {
-		this.model.focusFirst(eventPayload);
+	public focusFirst(eventPayload?: any, from?: any): void {
+		this.model.focusFirst(eventPayload, from);
 	}
 
 	public focusNth(index: number, eventPayload?: any): void {
 		this.model.focusNth(index, eventPayload);
 	}
 
-	public focusLast(eventPayload?: any): void {
-		this.model.focusLast(eventPayload);
+	public focusLast(eventPayload?: any, from?: any): void {
+		this.model.focusLast(eventPayload, from);
 	}
 
 	public focusNextPage(eventPayload?: any): void {

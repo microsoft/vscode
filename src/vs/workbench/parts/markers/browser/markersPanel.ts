@@ -6,7 +6,6 @@
 import 'vs/css!./media/markers';
 
 import * as errors from 'vs/base/common/errors';
-import * as Set from 'vs/base/common/set';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';
@@ -32,11 +31,14 @@ import { CollapseAllAction, FilterAction, FilterInputBoxActionItem } from 'vs/wo
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Messages from 'vs/workbench/parts/markers/common/messages';
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
-import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
+import { ContributableActionProvider } from 'vs/workbench/browser/actions';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { isEqual } from 'vs/platform/files/common/files';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import FileResultsNavigation from 'vs/workbench/parts/files/browser/fileResultsNavigation';
+import { debounceEvent } from 'vs/base/common/event';
+import { attachListStyler } from 'vs/platform/theme/common/styler';
 
 export class MarkersPanel extends Panel {
 
@@ -50,7 +52,7 @@ export class MarkersPanel extends Panel {
 	private hasToAutoReveal: boolean;
 
 	private tree: Tree.ITree;
-	private autoExpanded: Set.ArraySet<string>;
+	private autoExpanded: Set<string>;
 	private rangeHighlightDecorations: RangeHighlightDecorations;
 
 	private actions: IAction[];
@@ -78,7 +80,7 @@ export class MarkersPanel extends Panel {
 		super(Constants.MARKERS_PANEL_ID, telemetryService, themeService);
 		this.toDispose = [];
 		this.delayedRefresh = new Delayer<void>(500);
-		this.autoExpanded = new Set.ArraySet<string>();
+		this.autoExpanded = new Set<string>();
 		this.markerFocusContextKey = Constants.MarkerFocusContextKey.bindTo(contextKeyService);
 	}
 
@@ -145,6 +147,32 @@ export class MarkersPanel extends Panel {
 		return this.actions;
 	}
 
+	public openFileAtElement(element: any, preserveFocus: boolean, sideByside: boolean, pinned: boolean): boolean {
+		if (element instanceof Marker) {
+			const marker: Marker = element;
+			this.telemetryService.publicLog('problems.marker.opened', { source: marker.marker.source });
+			this.editorService.openEditor({
+				resource: marker.resource,
+				options: {
+					selection: marker.range,
+					preserveFocus,
+					pinned,
+					revealIfVisible: true
+				},
+			}, sideByside).done(editor => {
+				if (editor && preserveFocus) {
+					this.rangeHighlightDecorations.highlightRange(marker, <ICommonCodeEditor>editor.getControl());
+				} else {
+					this.rangeHighlightDecorations.removeHighlightRange();
+				}
+			}, errors.onUnexpectedError);
+			return true;
+		} else {
+			this.rangeHighlightDecorations.removeHighlightRange();
+		}
+		return false;
+	}
+
 	private refreshPanel(): TPromise<any> {
 		this.collapseAllAction.enabled = this.markersModel.hasFilteredResources();
 		dom.toggleClass(this.treeContainer, 'hidden', !this.markersModel.hasFilteredResources());
@@ -159,7 +187,7 @@ export class MarkersPanel extends Panel {
 
 	public updateFilter(filter: string) {
 		this.markersModel.update(new FilterOptions(filter));
-		this.autoExpanded = new Set.ArraySet<string>();
+		this.autoExpanded = new Set<string>();
 		this.refreshPanel();
 		this.autoReveal();
 	}
@@ -175,7 +203,7 @@ export class MarkersPanel extends Panel {
 		dom.addClass(this.treeContainer, 'show-file-icons');
 		var actionProvider = this.instantiationService.createInstance(ContributableActionProvider);
 		var renderer = this.instantiationService.createInstance(Viewer.Renderer, this.getActionRunner(), actionProvider);
-		let controller = this.instantiationService.createInstance(Controller, this.rangeHighlightDecorations, actionProvider);
+		let controller = this.instantiationService.createInstance(Controller);
 		this.tree = new TreeImpl.Tree(this.treeContainer, {
 			dataSource: new Viewer.DataSource(),
 			renderer,
@@ -189,14 +217,15 @@ export class MarkersPanel extends Panel {
 				keyboardSupport: false
 			});
 
-		this._register(this.tree.addListener2('focus', (e: { focus: any }) => {
+		this._register(attachListStyler(this.tree, this.themeService));
+
+		this._register(this.tree.addListener('focus', (e: { focus: any }) => {
 			this.markerFocusContextKey.set(e.focus instanceof Marker);
 		}));
 
-		this._register(this.tree.addListener2('selection', event => {
-			if (event && event.payload && event.payload.origin === 'keyboard') {
-				controller.openFileAtElement(this.tree.getFocus(), false, false, true);
-			}
+		const fileResultsNavigation = this._register(new FileResultsNavigation(this.tree));
+		this._register(debounceEvent(fileResultsNavigation.openFile, (last, event) => event, 75, true)(options => {
+			this.openFileAtElement(options.element, options.editorOptions.preserveFocus, options.editorOptions.pinned, options.sideBySide);
 		}));
 
 		const focusTracker = this._register(dom.trackFocus(this.tree.getHTMLElement()));
@@ -220,10 +249,10 @@ export class MarkersPanel extends Panel {
 	}
 
 	private createListeners(): void {
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationsUpdated(e.config)));
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationsUpdated(this.configurationService.getConfiguration<IProblemsConfiguration>())));
 		this.toDispose.push(this.markerService.onMarkerChanged(this.onMarkerChanged, this));
 		this.toDispose.push(this.editorGroupService.onEditorsChanged(this.onEditorsChanged, this));
-		this.toDispose.push(this.tree.addListener2('selection', () => this.onSelected()));
+		this.toDispose.push(this.tree.addListener('selection', () => this.onSelected()));
 	}
 
 	private onMarkerChanged(changedResources: URI[]) {
@@ -274,7 +303,7 @@ export class MarkersPanel extends Panel {
 		bulkUpdater.done();
 		for (const resource of resources) {
 			if (!this.markersModel.hasResource(resource)) {
-				this.autoExpanded.unset(resource.toString());
+				this.autoExpanded.delete(resource.toString());
 			}
 		}
 	}
@@ -296,9 +325,9 @@ export class MarkersPanel extends Panel {
 	private autoExpand(): void {
 		for (const resource of this.markersModel.filteredResources) {
 			const resourceUri = resource.uri.toString();
-			if (!this.autoExpanded.contains(resourceUri)) {
+			if (!this.autoExpanded.has(resourceUri)) {
 				this.tree.expand(resource).done(null, errors.onUnexpectedError);
-				this.autoExpanded.set(resourceUri);
+				this.autoExpanded.add(resourceUri);
 			}
 		}
 	}
@@ -345,7 +374,7 @@ export class MarkersPanel extends Panel {
 		let selectedElement = this.tree.getSelection();
 		if (selectedElement && selectedElement.length > 0) {
 			if (selectedElement[0] instanceof Marker) {
-				if (isEqual(resource.uri, selectedElement[0].marker.resource)) {
+				if (resource.uri.toString() === selectedElement[0].marker.resource.toString()) {
 					return true;
 				}
 			}

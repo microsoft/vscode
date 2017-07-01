@@ -81,6 +81,11 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		return this._label;
 	}
 
+	set label(label: string) {
+		this._label = label;
+		this._proxy.$updateGroupLabel(this._sourceControlHandle, this._handle, label);
+	}
+
 	private _hideWhenEmpty: boolean | undefined = undefined;
 
 	get hideWhenEmpty(): boolean | undefined {
@@ -115,8 +120,9 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 			}
 
 			const strikeThrough = r.decorations && !!r.decorations.strikeThrough;
+			const faded = r.decorations && !!r.decorations.faded;
 
-			return [handle, sourceUri, command, icons, strikeThrough] as SCMRawResource;
+			return [handle, sourceUri, command, icons, strikeThrough, faded] as SCMRawResource;
 		});
 
 		this._proxy.$updateGroupResourceStates(this._sourceControlHandle, this._handle, rawResources);
@@ -317,7 +323,10 @@ export class ExtHostSCM {
 			return TPromise.as(null);
 		}
 
-		return asWinJsPromise(token => sourceControl.quickDiffProvider.provideOriginalResource(uri, token));
+		return asWinJsPromise(token => {
+			const result = sourceControl.quickDiffProvider.provideOriginalResource(uri, token);
+			return result && URI.parse(result.toString());
+		});
 	}
 
 	$onActiveSourceControlChange(handle: number): TPromise<void> {

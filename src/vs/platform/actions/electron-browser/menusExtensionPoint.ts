@@ -38,6 +38,8 @@ namespace schema {
 			case 'scm/title': return MenuId.SCMTitle;
 			case 'scm/resourceGroup/context': return MenuId.SCMResourceGroupContext;
 			case 'scm/resourceState/context': return MenuId.SCMResourceContext;
+			case 'view/title': return MenuId.ViewTitle;
+			case 'view/item/context': return MenuId.ViewItemContext;
 		}
 
 		return void 0;
@@ -45,7 +47,7 @@ namespace schema {
 
 	export function isValidMenuItems(menu: IUserFriendlyMenuItem[], collector: ExtensionMessageCollector): boolean {
 		if (!Array.isArray(menu)) {
-			collector.error(localize('requirearry', "menu items must be an arry"));
+			collector.error(localize('requirearray', "menu items must be an array"));
 			return false;
 		}
 
@@ -141,6 +143,16 @@ namespace schema {
 				description: localize('menus.resourceStateContext', "The Source Control resource state context menu"),
 				type: 'array',
 				items: menuItem
+			},
+			'view/title': {
+				description: localize('view.viewTitle', "The contributed view title menu"),
+				type: 'array',
+				items: menuItem
+			},
+			'view/item/context': {
+				description: localize('view.itemContext', "The contributed view item context menu"),
+				type: 'array',
+				items: menuItem
 			}
 		}
 	};
@@ -222,22 +234,22 @@ namespace schema {
 			},
 			icon: {
 				description: localize('vscode.extension.contributes.commandType.icon', '(Optional) Icon which is used to represent the command in the UI. Either a file path or a themable configuration'),
-				anyOf: [
-					'string',
-					{
-						type: 'object',
-						properties: {
-							light: {
-								description: localize('vscode.extension.contributes.commandType.icon.light', 'Icon path when a light theme is used'),
-								type: 'string'
-							},
-							dark: {
-								description: localize('vscode.extension.contributes.commandType.icon.dark', 'Icon path when a dark theme is used'),
-								type: 'string'
-							}
+				anyOf: [{
+					type: 'string'
+				},
+				{
+					type: 'object',
+					properties: {
+						light: {
+							description: localize('vscode.extension.contributes.commandType.icon.light', 'Icon path when a light theme is used'),
+							type: 'string'
+						},
+						dark: {
+							description: localize('vscode.extension.contributes.commandType.icon.dark', 'Icon path when a dark theme is used'),
+							type: 'string'
 						}
 					}
-				]
+				}]
 			}
 		}
 	};
@@ -275,7 +287,7 @@ ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.I
 				const light = join(extension.description.extensionFolderPath, icon.light);
 				const dark = join(extension.description.extensionFolderPath, icon.dark);
 				createCSSRule(`.icon.${iconClass}`, `background-image: url("${URI.file(light).toString()}")`);
-				createCSSRule(`.vs-dark .icon.${iconClass}, hc-black .icon.${iconClass}`, `background-image: url("${URI.file(dark).toString()}")`);
+				createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: url("${URI.file(dark).toString()}")`);
 			}
 		}
 

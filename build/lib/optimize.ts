@@ -11,6 +11,8 @@ import * as sourcemaps from 'gulp-sourcemaps';
 import * as filter from 'gulp-filter';
 import * as minifyCSS from 'gulp-cssnano';
 import * as uglify from 'gulp-uglify';
+import * as composer from 'gulp-uglify/composer';
+import * as uglifyes from 'uglify-es';
 import * as es from 'event-stream';
 import * as concat from 'gulp-concat';
 import * as VinylFile from 'vinyl';
@@ -158,6 +160,10 @@ export interface IOptimizeTaskOpts {
 	 * (out folder name)
 	 */
 	out: string;
+	/**
+	 * (languages to process)
+	 */
+	languages: string[];
 }
 export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStream {
 	const entryPoints = opts.entryPoints;
@@ -228,7 +234,8 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 				includeContent: true
 			}))
 			.pipe(i18n.processNlsFiles({
-				fileHeader: bundledFileHeader
+				fileHeader: bundledFileHeader,
+				languages: opts.languages
 			}))
 			.pipe(gulp.dest(out));
 	};
@@ -271,12 +278,13 @@ function uglifyWithCopyrights(): NodeJS.ReadWriteStream {
 		};
 	};
 
+	const minify = composer(uglifyes);
 	const input = es.through();
 	const output = input
 		.pipe(flatmap((stream, f) => {
-			return stream.pipe(uglify({
-				preserveComments: preserveComments(<FileWithCopyright>f),
+			return stream.pipe(minify({
 				output: {
+					comments: preserveComments(<FileWithCopyright>f),
 					// linux tfs build agent is crashing, does this help?§
 					max_line_len: 3200000
 				}

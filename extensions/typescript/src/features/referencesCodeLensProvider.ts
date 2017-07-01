@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { CodeLens, CancellationToken, TextDocument, Range, Location } from 'vscode';
+import { CodeLens, CancellationToken, TextDocument, Range, Location, ProviderResult, workspace } from 'vscode';
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 
@@ -17,9 +15,22 @@ const localize = nls.loadMessageBundle();
 
 export default class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvider {
 	public constructor(
-		client: ITypescriptServiceClient
+		client: ITypescriptServiceClient,
+		private readonly language: string
 	) {
-		super(client, 'referencesCodeLens.enabled');
+		super(client);
+	}
+
+	public updateConfiguration(): void {
+		const config = workspace.getConfiguration(this.language);
+		this.setEnabled(config.get('referencesCodeLens.enabled', false));
+	}
+
+	provideCodeLenses(document: TextDocument, token: CancellationToken): ProviderResult<CodeLens[]> {
+		if (!this.client.apiVersion.has206Features()) {
+			return [];
+		}
+		return super.provideCodeLenses(document, token);
 	}
 
 	resolveCodeLens(inputCodeLens: CodeLens, token: CancellationToken): Promise<CodeLens> {
@@ -49,7 +60,7 @@ export default class TypeScriptReferencesCodeLensProvider extends TypeScriptBase
 				title: locations.length === 1
 					? localize('oneReferenceLabel', '1 reference')
 					: localize('manyReferenceLabel', '{0} references', locations.length),
-				command: 'editor.action.showReferences',
+				command: locations.length ? 'editor.action.showReferences' : '',
 				arguments: [codeLens.document, codeLens.range.start, locations]
 			};
 			return codeLens;

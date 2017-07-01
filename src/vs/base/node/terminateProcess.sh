@@ -1,7 +1,7 @@
 #!/bin/bash
 
 terminateTree() {
-    for cpid in $(pgrep -P $1); do
+    for cpid in $(/usr/bin/pgrep -P $1); do
         terminateTree $cpid
     done
     kill -9 $1 > /dev/null 2>&1

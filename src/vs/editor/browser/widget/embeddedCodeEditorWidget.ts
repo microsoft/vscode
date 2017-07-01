@@ -8,26 +8,28 @@ import * as objects from 'vs/base/common/objects';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICodeEditorWidgetCreationOptions, IConfigurationChangedEvent, IEditorOptions } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
+import { IConfigurationChangedEvent, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class EmbeddedCodeEditorWidget extends CodeEditor {
 
 	private _parentEditor: ICodeEditor;
-	private _overwriteOptions: ICodeEditorWidgetCreationOptions;
+	private _overwriteOptions: IEditorOptions;
 
 	constructor(
 		domElement: HTMLElement,
-		options: ICodeEditorWidgetCreationOptions,
+		options: IEditorOptions,
 		parentEditor: ICodeEditor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(domElement, parentEditor.getRawConfiguration(), instantiationService, codeEditorService, commandService, contextKeyService);
+		super(domElement, parentEditor.getRawConfiguration(), instantiationService, codeEditorService, commandService, contextKeyService, themeService);
 
 		this._parentEditor = parentEditor;
 		this._overwriteOptions = options;
@@ -35,7 +37,7 @@ export class EmbeddedCodeEditorWidget extends CodeEditor {
 		// Overwrite parent's options
 		super.updateOptions(this._overwriteOptions);
 
-		this._lifetimeDispose.push(parentEditor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => this._onParentConfigurationChanged(e)));
+		this._register(parentEditor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => this._onParentConfigurationChanged(e)));
 	}
 
 	public getParentEditor(): ICodeEditor {

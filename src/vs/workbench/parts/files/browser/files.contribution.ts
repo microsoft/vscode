@@ -9,12 +9,12 @@ import URI from 'vs/base/common/uri';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import nls = require('vs/nls');
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { Registry } from 'vs/platform/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory, EditorInput, IFileEditorInput } from 'vs/workbench/common/editor';
-import { AutoSaveConfiguration, HotExitConfiguration, SUPPORTED_ENCODINGS, IFilesConfiguration } from 'vs/platform/files/common/files';
+import { AutoSaveConfiguration, HotExitConfiguration, SUPPORTED_ENCODINGS } from 'vs/platform/files/common/files';
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { FILE_EDITOR_INPUT_ID, VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import { FileEditorTracker } from 'vs/workbench/parts/files/common/editors/fileEditorTracker';
@@ -23,7 +23,7 @@ import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEdi
 import { TextFileEditor } from 'vs/workbench/parts/files/browser/editors/textFileEditor';
 import { BinaryFileEditor } from 'vs/workbench/parts/files/browser/editors/binaryFileEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { SyncDescriptor, AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -96,37 +96,25 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	]
 );
 
-// Register default file input handler
-// Note: because of service injection, the descriptor needs to have the exact count
-// of arguments as the FileEditorInput constructor. Otherwise when creating an
-// instance through the instantiation service he will inject the services wrong!
-const descriptor = new AsyncDescriptor<IFileEditorInput>('vs/workbench/parts/files/common/editors/fileEditorInput', 'FileEditorInput', /* DO NOT REMOVE */ void 0, /* DO NOT REMOVE */ void 0);
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerDefaultFileInput(descriptor);
+// Register default file input factory
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerFileInputFactory({
+	createFileInput: (resource, encoding, instantiationService): IFileEditorInput => {
+		return instantiationService.createInstance(FileEditorInput, resource, encoding);
+	}
+});
 
 interface ISerializedFileInput {
 	resource: string;
-	resourceJSON: any;
+	resourceJSON: object;
 	encoding?: string;
 }
 
 // Register Editor Input Factory
 class FileEditorInputFactory implements IEditorInputFactory {
-	private configuredEncoding: string;
 
 	constructor(
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
 	) {
-		this.onConfiguration(configurationService.getConfiguration<IFilesConfiguration>());
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this.configurationService.onDidUpdateConfiguration(e => this.onConfiguration(e.config));
-	}
-
-	private onConfiguration(config: IFilesConfiguration): void {
-		this.configuredEncoding = config.files && config.files.encoding;
 	}
 
 	public serialize(editorInput: EditorInput): string {
@@ -138,17 +126,21 @@ class FileEditorInputFactory implements IEditorInputFactory {
 		};
 
 		const encoding = fileEditorInput.getPreferredEncoding();
-		if (encoding && encoding !== this.configuredEncoding) {
+		if (encoding && encoding !== this.configurationService.lookup('files.encoding', { resource }).value) {
 			fileInput.encoding = encoding;
 		}
 
 		return JSON.stringify(fileInput);
 	}
 
-	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
-		const fileInput: ISerializedFileInput = JSON.parse(serializedEditorInput);
+	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): FileEditorInput {
+		return instantiationService.invokeFunction<FileEditorInput>(accessor => {
+			const fileInput: ISerializedFileInput = JSON.parse(serializedEditorInput);
+			const resource = !!fileInput.resourceJSON ? URI.revive(fileInput.resourceJSON) : URI.parse(fileInput.resource);
+			const encoding = fileInput.encoding;
 
-		return instantiationService.createInstance(FileEditorInput, !!fileInput.resourceJSON ? URI.revive(fileInput.resourceJSON) : URI.parse(fileInput.resource), fileInput.encoding);
+			return accessor.get(IWorkbenchEditorService).createInput({ resource, encoding }) as FileEditorInput;
+		});
 	}
 }
 
@@ -182,6 +174,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'object',
 			'description': nls.localize('exclude', "Configure glob patterns for excluding files and folders."),
 			'default': { '**/.git': true, '**/.svn': true, '**/.hg': true, '**/CVS': true, '**/.DS_Store': true },
+			'scope': ConfigurationScope.FOLDER,
 			'additionalProperties': {
 				'anyOf': [
 					{
@@ -211,11 +204,13 @@ configurationRegistry.registerConfiguration({
 			'enum': Object.keys(SUPPORTED_ENCODINGS),
 			'default': 'utf8',
 			'description': nls.localize('encoding', "The default character set encoding to use when reading and writing files."),
+			'scope': ConfigurationScope.FOLDER
 		},
 		'files.autoGuessEncoding': {
 			'type': 'boolean',
 			'default': false,
-			'description': nls.localize('autoGuessEncoding', "When enabled, will attempt to guess the character set encoding when opening files")
+			'description': nls.localize('autoGuessEncoding', "When enabled, will attempt to guess the character set encoding when opening files"),
+			'scope': ConfigurationScope.FOLDER
 		},
 		'files.eol': {
 			'type': 'string',
@@ -224,19 +219,21 @@ configurationRegistry.registerConfiguration({
 				'\r\n'
 			],
 			'default': (platform.isLinux || platform.isMacintosh) ? '\n' : '\r\n',
-			'description': nls.localize('eol', "The default end of line character."),
+			'description': nls.localize('eol', "The default end of line character. Use \\n for LF and \\r\\n for CRLF."),
 		},
 		'files.trimTrailingWhitespace': {
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('trimTrailingWhitespace', "When enabled, will trim trailing whitespace when saving a file."),
-			'overridable': true
+			'overridable': true,
+			'scope': ConfigurationScope.FOLDER
 		},
 		'files.insertFinalNewline': {
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('insertFinalNewline', "When enabled, insert a final new line at the end of the file when saving it."),
-			'overridable': true
+			'overridable': true,
+			'scope': ConfigurationScope.FOLDER
 		},
 		'files.autoSave': {
 			'type': 'string',
@@ -257,8 +254,9 @@ configurationRegistry.registerConfiguration({
 		},
 		'files.watcherExclude': {
 			'type': 'object',
-			'default': { '**/.git/objects/**': true, '**/node_modules/**': true },
-			'description': nls.localize('watcherExclude', "Configure glob patterns of file paths to exclude from file watching. Changing this setting requires a restart. When you experience Code consuming lots of cpu time on startup, you can exclude large folders to reduce the initial load.")
+			'default': platform.isWindows /* https://github.com/Microsoft/vscode/issues/23954 */ ? { '**/.git/objects/**': true, '**/.git/subtree-cache/**': true, '**/node_modules/*/**': true } : { '**/.git/objects/**': true, '**/.git/subtree-cache/**': true, '**/node_modules/**': true },
+			'description': nls.localize('watcherExclude', "Configure glob patterns of file paths to exclude from file watching. Patterns must match on absolute paths (i.e. prefix with ** or the full path to match properly). Changing this setting requires a restart. When you experience Code consuming lots of cpu time on startup, you can exclude large folders to reduce the initial load."),
+			'scope': ConfigurationScope.FOLDER
 		},
 		'files.hotExit': {
 			'type': 'string',
@@ -266,10 +264,15 @@ configurationRegistry.registerConfiguration({
 			'default': HotExitConfiguration.ON_EXIT,
 			'enumDescriptions': [
 				nls.localize('hotExit.off', 'Disable hot exit.'),
-				nls.localize('hotExit.onExit', 'Hot exit will be triggered when the application is closed, that is when the last window is closed on Windows/Linux or when the workbench.action.quit command is triggered (command pallete, keybinding, menu). All windows with backups will be restored upon next launch.'),
-				nls.localize('hotExit.onExitAndWindowClose', 'Hot exit will be triggered when the application is closed, that is when the last window is closed on Windows/Linux or when the workbench.action.quit command is triggered (command pallete, keybinding, menu), and also for any window with a folder opened regardless of whether it\'s the last window. All windows without folders opened will be restored upon next launch. To restore folder windows as they were before shutdown set "window.reopenFolders" to "all".')
+				nls.localize('hotExit.onExit', 'Hot exit will be triggered when the application is closed, that is when the last window is closed on Windows/Linux or when the workbench.action.quit command is triggered (command palette, keybinding, menu). All windows with backups will be restored upon next launch.'),
+				nls.localize('hotExit.onExitAndWindowClose', 'Hot exit will be triggered when the application is closed, that is when the last window is closed on Windows/Linux or when the workbench.action.quit command is triggered (command palette, keybinding, menu), and also for any window with a folder opened regardless of whether it\'s the last window. All windows without folders opened will be restored upon next launch. To restore folder windows as they were before shutdown set "window.restoreWindows" to "all".')
 			],
 			'description': nls.localize('hotExit', "Controls whether unsaved files are remembered between sessions, allowing the save prompt when exiting the editor to be skipped.", HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE)
+		},
+		'files.useExperimentalFileWatcher': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('useExperimentalFileWatcher', "Use the new experimental file watcher.")
 		},
 		'files.defaultLanguage': {
 			'type': 'string',

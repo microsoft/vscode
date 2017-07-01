@@ -6,13 +6,17 @@
 'use strict';
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { EditorContextKeys, ICommonCodeEditor, IModel } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IModel } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Selection } from 'vs/editor/common/core/selection';
 import { editorCommand, ServicesAccessor, EditorCommand, ICommandOptions } from 'vs/editor/common/editorCommonExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { WordNavigationType, WordOperations, getMapForWordSeparators, WordCharacterClassifier } from 'vs/editor/common/controller/cursorWordOperations';
+import { WordNavigationType, WordOperations } from 'vs/editor/common/controller/cursorWordOperations';
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
+import { getMapForWordSeparators, WordCharacterClassifier } from 'vs/editor/common/controller/wordCharacterClassifier';
+import { CursorState } from 'vs/editor/common/controller/cursorCommon';
+import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 
 export interface MoveWordOptions extends ICommandOptions {
 	inSelectionMode: boolean;
@@ -42,7 +46,7 @@ export abstract class MoveWordCommand extends EditorCommand {
 			return this._moveTo(sel, outPosition, this._inSelectionMode);
 		});
 
-		editor.setSelections(result);
+		editor._getCursors().setStates('moveWordCommand', CursorChangeReason.NotSet, result.map(r => CursorState.fromModelSelection(r)));
 		if (result.length === 1) {
 			const pos = new Position(result[0].positionLineNumber, result[0].positionColumn);
 			editor.revealPosition(pos, false, true);
@@ -93,7 +97,7 @@ export class CursorWordStartLeft extends WordLeftCommand {
 			id: 'cursorWordStartLeft',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
 				mac: { primary: KeyMod.Alt | KeyCode.LeftArrow }
 			}
@@ -134,7 +138,7 @@ export class CursorWordStartLeftSelect extends WordLeftCommand {
 			id: 'cursorWordStartLeftSelect',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow,
 				mac: { primary: KeyMod.Alt | KeyMod.Shift | KeyCode.LeftArrow }
 			}
@@ -187,7 +191,7 @@ export class CursorWordEndRight extends WordRightCommand {
 			id: 'cursorWordEndRight',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.RightArrow,
 				mac: { primary: KeyMod.Alt | KeyCode.RightArrow }
 			}
@@ -228,7 +232,7 @@ export class CursorWordEndRightSelect extends WordRightCommand {
 			id: 'cursorWordEndRightSelect',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow,
 				mac: { primary: KeyMod.Alt | KeyMod.Shift | KeyCode.RightArrow }
 			}
@@ -274,7 +278,9 @@ export abstract class DeleteWordCommand extends EditorCommand {
 			return new ReplaceCommand(deleteRange, '');
 		});
 
+		editor.pushUndoStop();
 		editor.executeCommands(this.id, commands);
+		editor.pushUndoStop();
 	}
 
 	protected abstract _delete(wordSeparators: WordCharacterClassifier, model: IModel, selection: Selection, whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType): Range;
@@ -309,7 +315,7 @@ export class DeleteWordStartLeft extends DeleteWordLeftCommand {
 			whitespaceHeuristics: false,
 			wordNavigationType: WordNavigationType.WordStart,
 			id: 'deleteWordStartLeft',
-			precondition: EditorContextKeys.Writable
+			precondition: EditorContextKeys.writable
 		});
 	}
 }
@@ -321,7 +327,7 @@ export class DeleteWordEndLeft extends DeleteWordLeftCommand {
 			whitespaceHeuristics: false,
 			wordNavigationType: WordNavigationType.WordEnd,
 			id: 'deleteWordEndLeft',
-			precondition: EditorContextKeys.Writable
+			precondition: EditorContextKeys.writable
 		});
 	}
 }
@@ -333,9 +339,9 @@ export class DeleteWordLeft extends DeleteWordLeftCommand {
 			whitespaceHeuristics: true,
 			wordNavigationType: WordNavigationType.WordStart,
 			id: 'deleteWordLeft',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 				mac: { primary: KeyMod.Alt | KeyCode.Backspace }
 			}
@@ -350,7 +356,7 @@ export class DeleteWordStartRight extends DeleteWordRightCommand {
 			whitespaceHeuristics: false,
 			wordNavigationType: WordNavigationType.WordStart,
 			id: 'deleteWordStartRight',
-			precondition: EditorContextKeys.Writable
+			precondition: EditorContextKeys.writable
 		});
 	}
 }
@@ -362,7 +368,7 @@ export class DeleteWordEndRight extends DeleteWordRightCommand {
 			whitespaceHeuristics: false,
 			wordNavigationType: WordNavigationType.WordEnd,
 			id: 'deleteWordEndRight',
-			precondition: EditorContextKeys.Writable
+			precondition: EditorContextKeys.writable
 		});
 	}
 }
@@ -374,9 +380,9 @@ export class DeleteWordRight extends DeleteWordRightCommand {
 			whitespaceHeuristics: true,
 			wordNavigationType: WordNavigationType.WordEnd,
 			id: 'deleteWordRight',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.Delete,
 				mac: { primary: KeyMod.Alt | KeyCode.Delete }
 			}

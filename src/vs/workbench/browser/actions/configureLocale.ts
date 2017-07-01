@@ -12,7 +12,7 @@ import * as Labels from 'vs/base/common/labels';
 import * as Platform from 'vs/base/common/platform';
 import { Action } from 'vs/base/common/actions';
 
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -32,7 +32,7 @@ class ConfigureLocaleAction extends Action {
 		'{',
 		`\t// ${nls.localize('displayLanguage', 'Defines VSCode\'s display language.')}`,
 		`\t// ${nls.localize('doc', 'See {0} for a list of supported languages.', 'https://go.microsoft.com/fwlink/?LinkId=761051')}`,
-		`\t// ${nls.localize('restart', 'Changing the value requires to restart VSCode.')}`,
+		`\t// ${nls.localize('restart', 'Changing the value requires restarting VSCode.')}`,
 		`\t"locale":"${Platform.language}"`,
 		'}'
 	].join('\n');

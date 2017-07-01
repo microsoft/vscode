@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { ReferenceProvider, Location, TextDocument, Position, Range, CancellationToken } from 'vscode';
 
 import * as Proto from '../protocol';
@@ -43,8 +41,7 @@ export default class TypeScriptReferenceSupport implements ReferenceProvider {
 				result.push(location);
 			}
 			return result;
-		}, (err) => {
-			this.client.error(`'references' request failed with error.`, err);
+		}, () => {
 			return [];
 		});
 	}

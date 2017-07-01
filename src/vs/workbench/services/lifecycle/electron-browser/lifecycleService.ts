@@ -7,30 +7,61 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { ILifecycleService, ShutdownEvent, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMessageService } from 'vs/platform/message/common/message';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { ipcRenderer as ipc } from 'electron';
 import Event, { Emitter } from 'vs/base/common/event';
 
 export class LifecycleService implements ILifecycleService {
 
+	private static readonly _lastShutdownReasonKey = 'lifecyle.lastShutdownReason';
+
 	public _serviceBrand: any;
 
-	private _onWillShutdown = new Emitter<ShutdownEvent>();
-	private _onShutdown = new Emitter<ShutdownReason>();
+	private readonly _onDidChangePhase = new Emitter<LifecyclePhase>();
+	private readonly _onWillShutdown = new Emitter<ShutdownEvent>();
+	private readonly _onShutdown = new Emitter<ShutdownReason>();
+	private readonly _startupKind: StartupKind;
 
-	private _willShutdown: boolean;
+	private _phase: LifecyclePhase = LifecyclePhase.Starting;
 
 	constructor(
-		@IMessageService private messageService: IMessageService,
-		@IWindowIPCService private windowService: IWindowIPCService
+		@IMessageService private _messageService: IMessageService,
+		@IWindowIPCService private _windowService: IWindowIPCService,
+		@IStorageService private _storageService: IStorageService
 	) {
-		this.registerListeners();
+		this._registerListeners();
+
+		const lastShutdownReason = this._storageService.getInteger(LifecycleService._lastShutdownReasonKey, StorageScope.WORKSPACE);
+		this._storageService.remove(LifecycleService._lastShutdownReasonKey, StorageScope.WORKSPACE);
+		if (lastShutdownReason === ShutdownReason.RELOAD) {
+			this._startupKind = StartupKind.ReloadedWindow;
+		} else if (lastShutdownReason === ShutdownReason.LOAD) {
+			this._startupKind = StartupKind.ReopenedWindow;
+		} else {
+			this._startupKind = StartupKind.NewWindow;
+		}
 	}
 
-	public get willShutdown(): boolean {
-		return this._willShutdown;
+	public get phase(): LifecyclePhase {
+		return this._phase;
+	}
+
+	public set phase(value: LifecyclePhase) {
+		if (this._phase !== value) {
+			this._phase = value;
+			this._onDidChangePhase.fire(value);
+		}
+	}
+
+	public get startupKind(): StartupKind {
+		return this._startupKind;
+	}
+
+	public get onDidChangePhase(): Event<LifecyclePhase> {
+		return this._onDidChangePhase.event;
 	}
 
 	public get onWillShutdown(): Event<ShutdownEvent> {
@@ -41,17 +72,19 @@ export class LifecycleService implements ILifecycleService {
 		return this._onShutdown.event;
 	}
 
-	private registerListeners(): void {
-		const windowId = this.windowService.getWindowId();
+	private _registerListeners(): void {
+		const windowId = this._windowService.getWindowId();
 
 		// Main side indicates that window is about to unload, check for vetos
 		ipc.on('vscode:beforeUnload', (event, reply: { okChannel: string, cancelChannel: string, reason: ShutdownReason }) => {
-			this._willShutdown = true;
+			this.phase = LifecyclePhase.ShuttingDown;
+			this._storageService.store(LifecycleService._lastShutdownReasonKey, JSON.stringify(reply.reason), StorageScope.WORKSPACE);
 
 			// trigger onWillShutdown events and veto collecting
 			this.onBeforeUnload(reply.reason).done(veto => {
 				if (veto) {
-					this._willShutdown = false; // reset this flag since the shutdown has been vetoed!
+					this._storageService.remove(LifecycleService._lastShutdownReasonKey, StorageScope.WORKSPACE);
+					this.phase = LifecyclePhase.Running; // reset this flag since the shutdown has been vetoed!
 					ipc.send(reply.cancelChannel, windowId);
 				} else {
 					this._onShutdown.fire(reply.reason);
@@ -92,7 +125,7 @@ export class LifecycleService implements ILifecycleService {
 					}
 				}, err => {
 					// error, treated like a veto, done
-					this.messageService.show(Severity.Error, toErrorMessage(err));
+					this._messageService.show(Severity.Error, toErrorMessage(err));
 					lazyValue = true;
 				}));
 			}

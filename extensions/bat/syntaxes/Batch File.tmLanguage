@@ -74,20 +74,6 @@
                     <key>1</key>
                     <dict>
                         <key>name</key>
-                        <string>variable.parameter.loop.begin.shell</string>
-                    </dict>
-                </dict>
-                <key>name</key>
-                <string>variable.parameter.loop.dosbatch</string>
-                <key>match</key>
-                <string>(?i)(%%)(~(?:f|d|p|n|x|s|a|t|z|\$[^:]*:)*)?[a-z]</string>
-            </dict>
-            <dict>
-                <key>captures</key>
-                <dict>
-                    <key>1</key>
-                    <dict>
-                        <key>name</key>
                         <string>variable.other.parsetime.begin.shell</string>
                     </dict>
                     <key>2</key>
@@ -99,7 +85,21 @@
                 <key>name</key>
                 <string>variable.other.parsetime.dosbatch</string>
                 <key>match</key>
-                <string>(%)[^%]+(%)</string>
+                <string>(%)[^%]+(%)|(%%)[^%]+(%%)</string>
+            </dict>
+            <dict>
+                <key>captures</key>
+                <dict>
+                    <key>1</key>
+                    <dict>
+                        <key>name</key>
+                        <string>variable.parameter.loop.begin.shell</string>
+                    </dict>
+                </dict>
+                <key>name</key>
+                <string>variable.parameter.loop.dosbatch</string>
+                <key>match</key>
+                <string>(?i)(%%)(~(?:f|d|p|n|x|s|a|t|z|\$[^:]*:)*)?[a-z]</string>
             </dict>
             <dict>
                 <key>captures</key>

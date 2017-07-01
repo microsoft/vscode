@@ -10,7 +10,7 @@ import assert = require('assert');
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { FileWalker } from 'vs/workbench/services/search/node/fileSearch';
-import { ISerializedFileMatch, IRawSearch } from 'vs/workbench/services/search/node/search';
+import { ISerializedFileMatch, IRawSearch, IFolderSearch } from 'vs/workbench/services/search/node/search';
 import { Engine as TextSearchEngine } from 'vs/workbench/services/search/node/textSearch';
 import { RipgrepEngine } from 'vs/workbench/services/search/node/ripgrepTextSearch';
 import { TextSearchWorkerProvider } from 'vs/workbench/services/search/node/textSearchWorkerProvider';
@@ -19,14 +19,17 @@ function countAll(matches: ISerializedFileMatch[]): number {
 	return matches.reduce((acc, m) => acc + m.numMatches, 0);
 }
 
-function rootfolders() {
-	return [path.normalize(require.toUrl('./fixtures'))];
+const TEST_ROOT_FOLDER = path.normalize(require.toUrl('./fixtures'));
+function rootFolderQueries(): IFolderSearch[] {
+	return [
+		{ folder: TEST_ROOT_FOLDER }
+	];
 }
 
 const textSearchWorkerProvider = new TextSearchWorkerProvider();
 
 function doLegacySearchTest(config: IRawSearch, expectedResultCount: number | Function): TPromise<void> {
-	return new TPromise<void>(resolve => {
+	return new TPromise<void>((resolve, reject) => {
 		let engine = new TextSearchEngine(config, new FileWalker(config), textSearchWorkerProvider);
 
 		let c = 0;
@@ -35,19 +38,24 @@ function doLegacySearchTest(config: IRawSearch, expectedResultCount: number | Fu
 				c += countAll(result);
 			}
 		}, () => { }, (error) => {
-			assert.ok(!error);
-			if (typeof expectedResultCount === 'function') {
-				assert(expectedResultCount(c));
-			} else {
-				assert.equal(c, expectedResultCount);
+			try {
+				assert.ok(!error);
+				if (typeof expectedResultCount === 'function') {
+					assert(expectedResultCount(c));
+				} else {
+					assert.equal(c, expectedResultCount);
+				}
+			} catch (e) {
+				reject(e);
 			}
+
 			resolve(undefined);
 		});
 	});
 }
 
 function doRipgrepSearchTest(config: IRawSearch, expectedResultCount: number): TPromise<void> {
-	return new TPromise<void>(resolve => {
+	return new TPromise<void>((resolve, reject) => {
 		let engine = new RipgrepEngine(config);
 
 		let c = 0;
@@ -56,8 +64,17 @@ function doRipgrepSearchTest(config: IRawSearch, expectedResultCount: number): T
 				c += result.numMatches;
 			}
 		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(c, expectedResultCount);
+			try {
+				assert.ok(!error);
+				if (typeof expectedResultCount === 'function') {
+					assert(expectedResultCount(c));
+				} else {
+					assert.equal(c, expectedResultCount);
+				}
+			} catch (e) {
+				reject(e);
+			}
+
 			resolve(undefined);
 		});
 	});
@@ -71,8 +88,10 @@ function doSearchTest(config: IRawSearch, expectedResultCount: number, done) {
 
 suite('Search-integration', () => {
 	test('Text: GameOfLife', function (done: () => void) {
+		this.timeout(1000 * 60); // increase timeout for this one test
+
 		let config = {
-			rootFolders: rootfolders(),
+			folderQueries: rootFolderQueries(),
 			filePattern: '*.js',
 			contentPattern: { pattern: 'GameOfLife', modifiers: 'i' },
 		};
@@ -81,8 +100,10 @@ suite('Search-integration', () => {
 	});
 
 	test('Text: GameOfLife (RegExp)', function (done: () => void) {
+		this.timeout(1000 * 60); // increase timeout for this one test
+
 		let config = {
-			rootFolders: rootfolders(),
+			folderQueries: rootFolderQueries(),
 			filePattern: '*.js',
 			contentPattern: { pattern: 'Game.?fL\\w?fe', isRegExp: true }
 		};
@@ -90,9 +111,23 @@ suite('Search-integration', () => {
 		doSearchTest(config, 4, done);
 	});
 
-	test('Text: GameOfLife (Word Match, Case Sensitive)', function (done: () => void) {
+	test('Text: GameOfLife (RegExp to EOL)', function (done: () => void) {
+		this.timeout(1000 * 60); // increase timeout for this one test
+
 		let config = {
-			rootFolders: rootfolders(),
+			folderQueries: rootFolderQueries(),
+			filePattern: '*.js',
+			contentPattern: { pattern: 'GameOfLife.*', isRegExp: true }
+		};
+
+		doSearchTest(config, 4, done);
+	});
+
+	test('Text: GameOfLife (Word Match, Case Sensitive)', function (done: () => void) {
+		this.timeout(1000 * 60); // increase timeout for this one test
+
+		let config = {
+			folderQueries: rootFolderQueries(),
 			filePattern: '*.js',
 			contentPattern: { pattern: 'GameOfLife', isWordMatch: true, isCaseSensitive: true }
 		};
@@ -100,9 +135,35 @@ suite('Search-integration', () => {
 		doSearchTest(config, 4, done);
 	});
 
-	test('Text: Helvetica (UTF 16)', function (done: () => void) {
+	test('Text: GameOfLife (Word Match, Spaces)', function (done: () => void) {
+		this.timeout(1000 * 60); // increase timeout for this one test
+
 		let config = {
-			rootFolders: rootfolders(),
+			folderQueries: rootFolderQueries(),
+			filePattern: '*.js',
+			contentPattern: { pattern: ' GameOfLife ', isWordMatch: true }
+		};
+
+		doSearchTest(config, 1, done);
+	});
+
+	test('Text: GameOfLife (Word Match, Punctuation and Spaces)', function (done: () => void) {
+		this.timeout(1000 * 60); // increase timeout for this one test
+
+		let config = {
+			folderQueries: rootFolderQueries(),
+			filePattern: '*.js',
+			contentPattern: { pattern: ', as =', isWordMatch: true }
+		};
+
+		doSearchTest(config, 1, done);
+	});
+
+	test('Text: Helvetica (UTF 16)', function (done: () => void) {
+		this.timeout(1000 * 60); // increase timeout for this one test
+
+		let config = {
+			folderQueries: rootFolderQueries(),
 			filePattern: '*.css',
 			contentPattern: { pattern: 'Helvetica', modifiers: 'i' }
 		};
@@ -111,8 +172,10 @@ suite('Search-integration', () => {
 	});
 
 	test('Text: e', function (done: () => void) {
+		this.timeout(1000 * 60); // increase timeout for this one test
+
 		let config = {
-			rootFolders: rootfolders(),
+			folderQueries: rootFolderQueries(),
 			filePattern: '*.*',
 			contentPattern: { pattern: 'e', modifiers: 'i' }
 		};
@@ -121,8 +184,10 @@ suite('Search-integration', () => {
 	});
 
 	test('Text: e (with excludes)', function (done: () => void) {
+		this.timeout(1000 * 60); // increase timeout for this one test
+
 		let config: any = {
-			rootFolders: rootfolders(),
+			folderQueries: rootFolderQueries(),
 			filePattern: '*.*',
 			contentPattern: { pattern: 'e', modifiers: 'i' },
 			excludePattern: { '**/examples': true }
@@ -132,8 +197,10 @@ suite('Search-integration', () => {
 	});
 
 	test('Text: e (with includes)', function (done: () => void) {
+		this.timeout(1000 * 60); // increase timeout for this one test
+
 		let config: any = {
-			rootFolders: rootfolders(),
+			folderQueries: rootFolderQueries(),
 			filePattern: '*.*',
 			contentPattern: { pattern: 'e', modifiers: 'i' },
 			includePattern: { '**/examples/**': true }
@@ -143,8 +210,10 @@ suite('Search-integration', () => {
 	});
 
 	test('Text: e (with includes and exclude)', function (done: () => void) {
+		this.timeout(1000 * 60); // increase timeout for this one test
+
 		let config: any = {
-			rootFolders: rootfolders(),
+			folderQueries: rootFolderQueries(),
 			filePattern: '*.*',
 			contentPattern: { pattern: 'e', modifiers: 'i' },
 			includePattern: { '**/examples/**': true },
@@ -155,9 +224,11 @@ suite('Search-integration', () => {
 	});
 
 	test('Text: a (capped)', function (done: () => void) {
+		this.timeout(1000 * 60); // increase timeout for this one test
+
 		const maxResults = 520;
 		let config = {
-			rootFolders: rootfolders(),
+			folderQueries: rootFolderQueries(),
 			filePattern: '*.*',
 			contentPattern: { pattern: 'a', modifiers: 'i' },
 			maxResults
@@ -171,8 +242,10 @@ suite('Search-integration', () => {
 	});
 
 	test('Text: a (no results)', function (done: () => void) {
+		this.timeout(1000 * 60); // increase timeout for this one test
+
 		let config = {
-			rootFolders: rootfolders(),
+			folderQueries: rootFolderQueries(),
 			filePattern: '*.*',
 			contentPattern: { pattern: 'ahsogehtdas', modifiers: 'i' }
 		};
@@ -181,8 +254,10 @@ suite('Search-integration', () => {
 	});
 
 	test('Text: -size', function (done: () => void) {
+		this.timeout(1000 * 60); // increase timeout for this one test
+
 		let config = {
-			rootFolders: rootfolders(),
+			folderQueries: rootFolderQueries(),
 			filePattern: '*.css',
 			contentPattern: { pattern: '-size', modifiers: 'i' }
 		};

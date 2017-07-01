@@ -8,10 +8,14 @@ import Severity from 'vs/base/common/severity';
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
 import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
-import { IPosition, ISelection, IRange, IDecorationOptions, EndOfLineSequence } from 'vs/editor/common/editorCommon';
+import { IDecorationOptions, EndOfLineSequence } from 'vs/editor/common/editorCommon';
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
+import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
+import { IPosition } from 'vs/editor/common/core/position';
+import { IRange } from 'vs/editor/common/core/range';
+import { ISelection } from 'vs/editor/common/core/selection';
 
 export interface PositionLike {
 	line: number;
@@ -200,6 +204,9 @@ export namespace SymbolKind {
 	_fromMapping[types.SymbolKind.Null] = modes.SymbolKind.Null;
 	_fromMapping[types.SymbolKind.EnumMember] = modes.SymbolKind.EnumMember;
 	_fromMapping[types.SymbolKind.Struct] = modes.SymbolKind.Struct;
+	_fromMapping[types.SymbolKind.Event] = modes.SymbolKind.Event;
+	_fromMapping[types.SymbolKind.Operator] = modes.SymbolKind.Operator;
+	_fromMapping[types.SymbolKind.TypeParameter] = modes.SymbolKind.TypeParameter;
 
 	export function from(kind: vscode.SymbolKind): modes.SymbolKind {
 		return _fromMapping[kind] || modes.SymbolKind.Property;
@@ -287,6 +294,9 @@ export const CompletionItemKind = {
 			case types.CompletionItemKind.File: return 'file';
 			case types.CompletionItemKind.Reference: return 'reference';
 			case types.CompletionItemKind.Folder: return 'folder';
+			case types.CompletionItemKind.Event: return 'event';
+			case types.CompletionItemKind.Operator: return 'operator';
+			case types.CompletionItemKind.TypeParameter: return 'type-parameter';
 		}
 		return 'property';
 	},
@@ -396,3 +406,12 @@ export namespace EndOfLine {
 	}
 }
 
+export namespace ProgressLocation {
+	export function from(loc: vscode.ProgressLocation): MainProgressLocation {
+		switch (loc) {
+			case types.ProgressLocation.SourceControl: return MainProgressLocation.Scm;
+			case types.ProgressLocation.Window: return MainProgressLocation.Window;
+		}
+		return undefined;
+	}
+}

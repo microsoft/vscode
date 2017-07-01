@@ -31,7 +31,9 @@ export class ExtHostMessageService {
 		this._proxy = threadService.get(MainContext.MainThreadMessageService);
 	}
 
-	showMessage(severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | string | vscode.MessageItem, rest: (string | vscode.MessageItem)[]): Thenable<string | vscode.MessageItem> {
+	showMessage(severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | string, rest: string[]): Thenable<string | undefined>;
+	showMessage(severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | vscode.MessageItem, rest: vscode.MessageItem[]): Thenable<vscode.MessageItem | undefined>;
+	showMessage(severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | string | vscode.MessageItem, rest: (string | vscode.MessageItem)[]): Thenable<string | vscode.MessageItem | undefined> {
 		const { options, items } = parseMessageArguments(optionsOrFirstItem, rest);
 		const commands: { title: string; isCloseAffordance: boolean; handle: number; }[] = [];
 
@@ -40,7 +42,7 @@ export class ExtHostMessageService {
 			if (typeof command === 'string') {
 				commands.push({ title: command, handle, isCloseAffordance: false });
 			} else if (typeof command === 'object') {
-				let {title, isCloseAffordance} = command;
+				let { title, isCloseAffordance } = command;
 				commands.push({ title, isCloseAffordance, handle });
 			} else {
 				console.warn('Invalid message item:', command);

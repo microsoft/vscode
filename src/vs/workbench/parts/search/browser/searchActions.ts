@@ -22,14 +22,12 @@ import { CollapseAllAction as TreeCollapseAction } from 'vs/base/parts/tree/brow
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ResolvedKeybinding, KeyCode, KeyMod, createKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { toResource } from 'vs/workbench/common/editor';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { isEqual } from 'vs/platform/files/common/files';
 import { OS } from 'vs/base/common/platform';
 
 export function isSearchViewletFocussed(viewletService: IViewletService): boolean {
@@ -263,7 +261,6 @@ export class FindInFolderAction extends Action {
 export const findInFolderCommand = (accessor: ServicesAccessor, resource?: URI) => {
 	const listService = accessor.get(IListService);
 	const viewletService = accessor.get(IViewletService);
-	const contextService = accessor.get(IWorkspaceContextService);
 
 	if (!URI.isUri(resource)) {
 		const focused = listService.getFocused() ? listService.getFocused().getFocus() : void 0;
@@ -275,15 +272,11 @@ export const findInFolderCommand = (accessor: ServicesAccessor, resource?: URI) 
 		}
 	}
 
-	if (!URI.isUri(resource) && contextService.hasWorkspace()) {
-		resource = contextService.getWorkspace().resource;
-	}
-
-	if (URI.isUri(resource)) {
-		viewletService.openViewlet(Constants.VIEWLET_ID, true).then((viewlet: SearchViewlet) => {
+	viewletService.openViewlet(Constants.VIEWLET_ID, true).then((viewlet: SearchViewlet) => {
+		if (resource) {
 			viewlet.searchInFolder(resource);
-		}).done(null, errors.onUnexpectedError);
-	}
+		}
+	}).done(null, errors.onUnexpectedError);
 };
 
 export class RefreshAction extends Action {
@@ -431,15 +424,11 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 
 export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 
-	public static get KEY_BINDING(): number {
-		return KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter;
-	}
-
 	constructor(private viewer: ITree, private fileMatch: FileMatch, private viewlet: SearchViewlet,
 		@IReplaceService private replaceService: IReplaceService,
-		@IKeybindingService keyBindingService2: IKeybindingService,
+		@IKeybindingService keyBindingService: IKeybindingService,
 		@ITelemetryService private telemetryService: ITelemetryService) {
-		super('file-action-replace-all', appendKeyBindingLabel(nls.localize('file.replaceAll.label', "Replace All"), ReplaceAllAction.KEY_BINDING, keyBindingService2), 'action-replace-all');
+		super(Constants.ReplaceAllInFileActionId, appendKeyBindingLabel(nls.localize('file.replaceAll.label', "Replace All"), keyBindingService.lookupKeybinding(Constants.ReplaceAllInFileActionId), keyBindingService), 'action-replace-all');
 	}
 
 	public run(): TPromise<any> {
@@ -457,16 +446,12 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 
 export class ReplaceAction extends AbstractSearchAndReplaceAction {
 
-	public static get KEY_BINDING(): number {
-		return KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.KEY_1;
-	}
-
 	constructor(private viewer: ITree, private element: Match, private viewlet: SearchViewlet,
 		@IReplaceService private replaceService: IReplaceService,
-		@IKeybindingService keyBindingService2: IKeybindingService,
+		@IKeybindingService keyBindingService: IKeybindingService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@ITelemetryService private telemetryService: ITelemetryService) {
-		super('action-replace', appendKeyBindingLabel(nls.localize('match.replace.label', "Replace"), ReplaceAction.KEY_BINDING, keyBindingService2), 'action-replace');
+		super(Constants.ReplaceActionId, appendKeyBindingLabel(nls.localize('match.replace.label', "Replace"), keyBindingService.lookupKeybinding(Constants.ReplaceActionId), keyBindingService), 'action-replace');
 	}
 
 	public run(): TPromise<any> {
@@ -533,7 +518,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	private hasToOpenFile(): boolean {
 		const file = toResource(this.editorService.getActiveEditorInput(), { filter: 'file' });
 		if (file) {
-			return isEqual(file.fsPath, this.element.parent().resource().fsPath);
+			return paths.isEqual(file.fsPath, this.element.parent().resource().fsPath);
 		}
 		return false;
 	}

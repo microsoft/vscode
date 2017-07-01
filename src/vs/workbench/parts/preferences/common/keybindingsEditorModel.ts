@@ -9,9 +9,9 @@ import { distinct } from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
 import { OperatingSystem, language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
 import { IMatch, IFilter, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from 'vs/base/common/filters';
-import { Registry } from 'vs/platform/platform';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { AriaLabelProvider, UserSettingsLabelProvider, UILabelProvider, ModifierLabels as ModLabels } from 'vs/platform/keybinding/common/keybindingLabels';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
+import { AriaLabelProvider, UserSettingsLabelProvider, UILabelProvider, ModifierLabels as ModLabels } from 'vs/base/common/keybindingLabels';
 import { CommonEditorRegistry, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { MenuRegistry, ILocalizedString, SyncActionDescriptor, ICommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
@@ -288,18 +288,19 @@ class KeybindingItemMatches {
 	}
 
 	private filterAndSort(matches: IMatch[]): IMatch[] {
-		return distinct(matches, (a => a.start + '.' + a.end)).filter(match => !matches.some(m => !(m.start === match.start && m.end === match.end) && (m.start <= match.start && m.end >= match.end))).sort((a, b) => a.start - b.start);;
+		return distinct(matches, (a => a.start + '.' + a.end)).filter(match => !matches.some(m => !(m.start === match.start && m.end === match.end) && (m.start <= match.start && m.end >= match.end))).sort((a, b) => a.start - b.start);
 	}
 
 	private matchesKeybinding(keybinding: ResolvedKeybinding, searchValue: string, words: string[]): KeybindingMatches {
+		const [firstPart, chordPart] = keybinding.getParts();
+
 		if (strings.compareIgnoreCase(searchValue, keybinding.getAriaLabel()) === 0 || strings.compareIgnoreCase(searchValue, keybinding.getLabel()) === 0) {
 			return {
-				firstPart: { metaKey: true, altKey: true, shiftKey: true, ctrlKey: true, keyCode: true },
-				chordPart: { metaKey: true, altKey: true, shiftKey: true, ctrlKey: true, keyCode: true }
+				firstPart: this.createCompleteMatch(firstPart),
+				chordPart: this.createCompleteMatch(chordPart)
 			};
 		}
 
-		const [firstPart, chordPart] = keybinding.getParts();
 		let firstPartMatch: KeybindingMatch = {};
 		let chordPartMatch: KeybindingMatch = {};
 
@@ -354,7 +355,7 @@ class KeybindingItemMatches {
 		return this.hasAnyMatch(firstPartMatch) || this.hasAnyMatch(chordPartMatch) ? { firstPart: firstPartMatch, chordPart: chordPartMatch } : null;
 	}
 
-	private matchPart(part: ResolvedKeybinding, match: KeybindingMatch, word: string): boolean {
+	private matchPart(part: ResolvedKeybindingPart, match: KeybindingMatch, word: string): boolean {
 		let matched = false;
 		if (this.matchesMetaModifier(part, word)) {
 			matched = true;
@@ -379,11 +380,11 @@ class KeybindingItemMatches {
 		return matched;
 	}
 
-	private matchesKeyCode(keybinding: ResolvedKeybinding, word: string): boolean {
+	private matchesKeyCode(keybinding: ResolvedKeybindingPart, word: string): boolean {
 		if (!keybinding) {
 			return false;
 		}
-		const ariaLabel = keybinding.getAriaLabelWithoutModifiers();
+		const ariaLabel = keybinding.keyAriaLabel;
 		if (ariaLabel.length === 1 || word.length === 1) {
 			if (strings.compareIgnoreCase(ariaLabel, word) === 0) {
 				return true;
@@ -396,11 +397,11 @@ class KeybindingItemMatches {
 		return false;
 	}
 
-	private matchesMetaModifier(keybinding: ResolvedKeybinding, word: string): boolean {
+	private matchesMetaModifier(keybinding: ResolvedKeybindingPart, word: string): boolean {
 		if (!keybinding) {
 			return false;
 		}
-		if (!keybinding.hasMetaModifier()) {
+		if (!keybinding.metaKey) {
 			return false;
 		}
 		return this.wordMatchesMetaModifier(word);
@@ -422,11 +423,11 @@ class KeybindingItemMatches {
 		return false;
 	}
 
-	private matchesCtrlModifier(keybinding: ResolvedKeybinding, word: string): boolean {
+	private matchesCtrlModifier(keybinding: ResolvedKeybindingPart, word: string): boolean {
 		if (!keybinding) {
 			return false;
 		}
-		if (!keybinding.hasCtrlModifier()) {
+		if (!keybinding.ctrlKey) {
 			return false;
 		}
 		return this.wordMatchesCtrlModifier(word);
@@ -445,11 +446,11 @@ class KeybindingItemMatches {
 		return false;
 	}
 
-	private matchesShiftModifier(keybinding: ResolvedKeybinding, word: string): boolean {
+	private matchesShiftModifier(keybinding: ResolvedKeybindingPart, word: string): boolean {
 		if (!keybinding) {
 			return false;
 		}
-		if (!keybinding.hasShiftModifier()) {
+		if (!keybinding.shiftKey) {
 			return false;
 		}
 		return this.wordMatchesShiftModifier(word);
@@ -468,11 +469,11 @@ class KeybindingItemMatches {
 		return false;
 	}
 
-	private matchesAltModifier(keybinding: ResolvedKeybinding, word: string): boolean {
+	private matchesAltModifier(keybinding: ResolvedKeybindingPart, word: string): boolean {
 		if (!keybinding) {
 			return false;
 		}
-		if (!keybinding.hasAltModifier()) {
+		if (!keybinding.altKey) {
 			return false;
 		}
 		return this.wordMatchesAltModifier(word);
@@ -488,6 +489,9 @@ class KeybindingItemMatches {
 		if (matchesPrefix(this.modifierLabels.user.altKey, word)) {
 			return true;
 		}
+		if (matchesPrefix(localize('option', "option"), word)) {
+			return true;
+		}
 		return false;
 	}
 
@@ -499,26 +503,46 @@ class KeybindingItemMatches {
 			keybindingMatch.keyCode;
 	}
 
-	private isCompleteMatch(part: ResolvedKeybinding, match: KeybindingMatch): boolean {
+	private isCompleteMatch(part: ResolvedKeybindingPart, match: KeybindingMatch): boolean {
 		if (!part) {
 			return true;
 		}
 		if (!match.keyCode) {
 			return false;
 		}
-		if (part.hasMetaModifier() && !match.metaKey) {
+		if (part.metaKey && !match.metaKey) {
 			return false;
 		}
-		if (part.hasAltModifier() && !match.altKey) {
+		if (part.altKey && !match.altKey) {
 			return false;
 		}
-		if (part.hasCtrlModifier() && !match.ctrlKey) {
+		if (part.ctrlKey && !match.ctrlKey) {
 			return false;
 		}
-		if (part.hasShiftModifier() && !match.shiftKey) {
+		if (part.shiftKey && !match.shiftKey) {
 			return false;
 		}
 		return true;
+	}
+
+	private createCompleteMatch(part: ResolvedKeybindingPart): KeybindingMatch {
+		let match: KeybindingMatch = {};
+		if (part) {
+			match.keyCode = true;
+			if (part.metaKey) {
+				match.metaKey = true;
+			}
+			if (part.altKey) {
+				match.altKey = true;
+			}
+			if (part.ctrlKey) {
+				match.ctrlKey = true;
+			}
+			if (part.shiftKey) {
+				match.shiftKey = true;
+			}
+		}
+		return match;
 	}
 
 	private isModifier(word: string): boolean {

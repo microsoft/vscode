@@ -5,26 +5,27 @@
 'use strict';
 
 import * as assert from 'assert';
-import { WorkspaceConfigModel, ScopedConfigModel, WorkspaceSettingsConfigModel } from 'vs/workbench/services/configuration/common/configurationModels';
+import { FolderConfigurationModel, ScopedConfigurationModel, FolderSettingsModel } from 'vs/workbench/services/configuration/common/configurationModels';
+import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 
 suite('ConfigurationService - Model', () => {
 
 	test('Test scoped configs are undefined', () => {
-		const settingsConfig = new WorkspaceSettingsConfigModel(JSON.stringify({
+		const settingsConfig = new FolderSettingsModel(JSON.stringify({
 			awesome: true
 		}));
 
-		const testObject = new WorkspaceConfigModel(settingsConfig, []);
+		const testObject = new FolderConfigurationModel(settingsConfig, [], ConfigurationScope.WORKSPACE);
 
 		assert.equal(testObject.getContentsFor('task'), undefined);
 	});
 
 	test('Test consolidate (settings and tasks)', () => {
-		const settingsConfig = new WorkspaceSettingsConfigModel(JSON.stringify({
+		const settingsConfig = new FolderSettingsModel(JSON.stringify({
 			awesome: true
 		}));
 
-		const tasksConfig = new ScopedConfigModel(JSON.stringify({
+		const tasksConfig = new ScopedConfigurationModel(JSON.stringify({
 			awesome: false
 		}), '', 'tasks');
 
@@ -35,15 +36,15 @@ suite('ConfigurationService - Model', () => {
 			}
 		};
 
-		assert.deepEqual(new WorkspaceConfigModel(settingsConfig, [tasksConfig]).contents, expected);
+		assert.deepEqual(new FolderConfigurationModel(settingsConfig, [tasksConfig], ConfigurationScope.WORKSPACE).contents, expected);
 	});
 
 	test('Test consolidate (settings and launch)', () => {
-		const settingsConfig = new WorkspaceSettingsConfigModel(JSON.stringify({
+		const settingsConfig = new FolderSettingsModel(JSON.stringify({
 			awesome: true
 		}));
 
-		const launchConfig = new ScopedConfigModel(JSON.stringify({
+		const launchConfig = new ScopedConfigurationModel(JSON.stringify({
 			awesome: false
 		}), '', 'launch');
 
@@ -54,11 +55,11 @@ suite('ConfigurationService - Model', () => {
 			}
 		};
 
-		assert.deepEqual(new WorkspaceConfigModel(settingsConfig, [launchConfig]).contents, expected);
+		assert.deepEqual(new FolderConfigurationModel(settingsConfig, [launchConfig], ConfigurationScope.WORKSPACE).contents, expected);
 	});
 
 	test('Test consolidate (settings and launch and tasks) - launch/tasks wins over settings file', () => {
-		const settingsConfig = new WorkspaceSettingsConfigModel(JSON.stringify({
+		const settingsConfig = new FolderSettingsModel(JSON.stringify({
 			awesome: true,
 			launch: {
 				launchConfig: 'defined',
@@ -70,11 +71,11 @@ suite('ConfigurationService - Model', () => {
 			}
 		}));
 
-		const tasksConfig = new ScopedConfigModel(JSON.stringify({
+		const tasksConfig = new ScopedConfigurationModel(JSON.stringify({
 			taskConfig: 'overwritten',
 		}), '', 'tasks');
 
-		const launchConfig = new ScopedConfigModel(JSON.stringify({
+		const launchConfig = new ScopedConfigurationModel(JSON.stringify({
 			launchConfig: 'overwritten',
 		}), '', 'launch');
 
@@ -90,7 +91,7 @@ suite('ConfigurationService - Model', () => {
 			}
 		};
 
-		assert.deepEqual(new WorkspaceConfigModel(settingsConfig, [launchConfig, tasksConfig]).contents, expected);
-		assert.deepEqual(new WorkspaceConfigModel(settingsConfig, [tasksConfig, launchConfig]).contents, expected);
+		assert.deepEqual(new FolderConfigurationModel(settingsConfig, [launchConfig, tasksConfig], ConfigurationScope.WORKSPACE).contents, expected);
+		assert.deepEqual(new FolderConfigurationModel(settingsConfig, [tasksConfig, launchConfig], ConfigurationScope.WORKSPACE).contents, expected);
 	});
 });

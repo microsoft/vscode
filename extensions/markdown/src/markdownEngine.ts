@@ -20,6 +20,8 @@ interface MarkdownIt {
 	parse(text: string, env: any): IToken[];
 
 	utils: any;
+
+	set(options: any): MarkdownIt;
 }
 
 const FrontMatterRegex = /^---\s*[^]*?(-{3}|\.{3})\s*/;
@@ -79,6 +81,7 @@ export class MarkdownEngine {
 			this.addLinkNormalizer(this.md);
 			this.addLinkValidator(this.md);
 		}
+		this.md.set({ breaks: vscode.workspace.getConfiguration('markdown').get('preview.breaks', false) });
 		return this.md;
 	}
 
@@ -87,7 +90,6 @@ export class MarkdownEngine {
 		const frontMatterMatch = FrontMatterRegex.exec(text);
 		if (frontMatterMatch) {
 			const frontMatter = frontMatterMatch[0];
-
 			offset = frontMatter.split(/\r\n|\n|\r/g).length - 1;
 			text = text.substr(frontMatter.length);
 		}
@@ -107,7 +109,7 @@ export class MarkdownEngine {
 	}
 
 	public parse(document: vscode.Uri, source: string): IToken[] {
-		const {text, offset} = this.stripFrontmatter(source);
+		const { text, offset } = this.stripFrontmatter(source);
 		this.currentDocument = document;
 		return this.engine.parse(text, {}).map(token => {
 			if (token.map) {
@@ -125,6 +127,7 @@ export class MarkdownEngine {
 				token.attrSet('data-line', this.firstLine + token.map[0]);
 				token.attrJoin('class', 'code-line');
 			}
+
 			if (original) {
 				return original(tokens, idx, options, env, self);
 			} else {

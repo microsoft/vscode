@@ -38,12 +38,17 @@ class MockKeybindingContextKey<T> implements IContextKey<T> {
 }
 
 export class MockContextKeyService implements IContextKeyService {
+
 	public _serviceBrand: any;
+	private _keys = new Map<string, IContextKey<any>>();
 
-	public dispose(): void { }
-
+	public dispose(): void {
+		//
+	}
 	public createKey<T>(key: string, defaultValue: T): IContextKey<T> {
-		return new MockKeybindingContextKey(key, defaultValue);
+		let ret = new MockKeybindingContextKey(key, defaultValue);
+		this._keys.set(key, ret);
+		return ret;
 	}
 	public contextMatchesRules(rules: ContextKeyExpr): boolean {
 		return false;
@@ -52,7 +57,9 @@ export class MockContextKeyService implements IContextKeyService {
 		return Event.None;
 	}
 	public getContextKeyValue(key: string) {
-		return;
+		if (this._keys.has(key)) {
+			return this._keys.get(key).get();
+		}
 	}
 	public getContext(domNode: HTMLElement): any {
 		return null;

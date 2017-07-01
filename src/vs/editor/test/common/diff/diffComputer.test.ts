@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
 import { IChange, ICharChange, ILineChange } from 'vs/editor/common/editorCommon';
 
-function extractCharChangeRepresentation(change, expectedChange): ICharChange {
+function extractCharChangeRepresentation(change: ICharChange, expectedChange: ICharChange): ICharChange {
 	var hasOriginal = expectedChange && expectedChange.originalStartLineNumber > 0;
 	var hasModified = expectedChange && expectedChange.modifiedStartLineNumber > 0;
 	return {
@@ -24,7 +24,7 @@ function extractCharChangeRepresentation(change, expectedChange): ICharChange {
 	};
 }
 
-function extractLineChangeRepresentation(change, expectedChange): IChange | ILineChange {
+function extractLineChangeRepresentation(change: ILineChange, expectedChange: ILineChange): IChange | ILineChange {
 	if (change.charChanges) {
 		let charChanges: ICharChange[] = [];
 		for (let i = 0; i < change.charChanges.length; i++) {
@@ -61,12 +61,12 @@ function assertDiff(originalLines: string[], modifiedLines: string[], expectedCh
 
 	var extracted = [];
 	for (var i = 0; i < changes.length; i++) {
-		extracted.push(extractLineChangeRepresentation(changes[i], i < expectedChanges.length ? expectedChanges[i] : null));
+		extracted.push(extractLineChangeRepresentation(changes[i], <ILineChange>(i < expectedChanges.length ? expectedChanges[i] : null)));
 	}
 	assert.deepEqual(extracted, expectedChanges);
 }
 
-function createLineDeletion(startLineNumber, endLineNumber, modifiedLineNumber): IChange {
+function createLineDeletion(startLineNumber: number, endLineNumber: number, modifiedLineNumber: number): IChange {
 	return {
 		originalStartLineNumber: startLineNumber,
 		originalEndLineNumber: endLineNumber,
@@ -75,7 +75,7 @@ function createLineDeletion(startLineNumber, endLineNumber, modifiedLineNumber):
 	};
 }
 
-function createLineInsertion(startLineNumber, endLineNumber, originalLineNumber): IChange {
+function createLineInsertion(startLineNumber: number, endLineNumber: number, originalLineNumber: number): IChange {
 	return {
 		originalStartLineNumber: originalLineNumber,
 		originalEndLineNumber: 0,
@@ -84,7 +84,7 @@ function createLineInsertion(startLineNumber, endLineNumber, originalLineNumber)
 	};
 }
 
-function createLineChange(originalStartLineNumber, originalEndLineNumber, modifiedStartLineNumber, modifiedEndLineNumber, charChanges): ILineChange {
+function createLineChange(originalStartLineNumber: number, originalEndLineNumber: number, modifiedStartLineNumber: number, modifiedEndLineNumber: number, charChanges: ICharChange[]): ILineChange {
 	return {
 		originalStartLineNumber: originalStartLineNumber,
 		originalEndLineNumber: originalEndLineNumber,
@@ -94,7 +94,7 @@ function createLineChange(originalStartLineNumber, originalEndLineNumber, modifi
 	};
 }
 
-function createCharInsertion(startLineNumber, startColumn, endLineNumber, endColumn) {
+function createCharInsertion(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number) {
 	return {
 		originalStartLineNumber: 0,
 		originalStartColumn: 0,
@@ -107,7 +107,7 @@ function createCharInsertion(startLineNumber, startColumn, endLineNumber, endCol
 	};
 }
 
-function createCharDeletion(startLineNumber, startColumn, endLineNumber, endColumn) {
+function createCharDeletion(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number) {
 	return {
 		originalStartLineNumber: startLineNumber,
 		originalStartColumn: startColumn,
@@ -120,8 +120,10 @@ function createCharDeletion(startLineNumber, startColumn, endLineNumber, endColu
 	};
 }
 
-function createCharChange(originalStartLineNumber, originalStartColumn, originalEndLineNumber, originalEndColumn,
-	modifiedStartLineNumber, modifiedStartColumn, modifiedEndLineNumber, modifiedEndColumn) {
+function createCharChange(
+	originalStartLineNumber: number, originalStartColumn: number, originalEndLineNumber: number, originalEndColumn: number,
+	modifiedStartLineNumber: number, modifiedStartColumn: number, modifiedEndLineNumber: number, modifiedEndColumn: number
+) {
 	return {
 		originalStartLineNumber: originalStartLineNumber,
 		originalStartColumn: originalStartColumn,

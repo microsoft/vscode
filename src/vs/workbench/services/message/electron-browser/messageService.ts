@@ -26,17 +26,24 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 	}
 
 	public confirm(confirmation: IConfirmation): boolean {
-		if (!confirmation.primaryButton) {
-			confirmation.primaryButton = nls.localize({ key: 'yesButton', comment: ['&& denotes a mnemonic'] }, "&&Yes");
+
+		const buttons: string[] = [];
+		if (confirmation.primaryButton) {
+			buttons.push(confirmation.primaryButton);
+		} else {
+			buttons.push(nls.localize({ key: 'yesButton', comment: ['&& denotes a mnemonic'] }, "&&Yes"));
 		}
-		if (!confirmation.secondaryButton) {
-			confirmation.secondaryButton = nls.localize('cancelButton', "Cancel");
+
+		if (confirmation.secondaryButton) {
+			buttons.push(confirmation.secondaryButton);
+		} else if (typeof confirmation.secondaryButton === 'undefined') {
+			buttons.push(nls.localize('cancelButton', "Cancel"));
 		}
 
 		let opts: Electron.ShowMessageBoxOptions = {
 			title: confirmation.title,
 			message: confirmation.message,
-			buttons: [confirmation.primaryButton, confirmation.secondaryButton],
+			buttons,
 			defaultId: 0,
 			cancelId: 1
 		};
@@ -54,15 +61,15 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 		return result === 0 ? true : false;
 	}
 
-	public choose(severity: Severity, message: string, options: string[], modal: boolean = false): TPromise<number> {
+	public choose(severity: Severity, message: string, options: string[], cancelId: number, modal: boolean = false): TPromise<number> {
 		if (modal) {
 			const type: 'none' | 'info' | 'error' | 'question' | 'warning' = severity === Severity.Info ? 'question' : severity === Severity.Error ? 'error' : severity === Severity.Warning ? 'warning' : 'none';
-			return TPromise.wrap(this.showMessageBox({ message, buttons: options, type }));
+			return TPromise.wrap(this.showMessageBox({ message, buttons: options, type, cancelId }));
 		}
 
 		let onCancel: () => void = null;
 
-		const promise = new TPromise((c, e) => {
+		const promise = new TPromise<number>((c, e) => {
 			const callback = (index: number) => () => {
 				c(index);
 				return TPromise.as(true);

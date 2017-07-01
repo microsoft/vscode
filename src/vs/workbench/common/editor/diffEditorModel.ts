@@ -6,16 +6,17 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorModel } from 'vs/workbench/common/editor';
+import { IEditorModel } from 'vs/platform/editor/common/editor';
 
 /**
  * The base editor model for the diff editor. It is made up of two editor models, the original version
  * and the modified version.
  */
 export class DiffEditorModel extends EditorModel {
-	protected _originalModel: EditorModel;
-	protected _modifiedModel: EditorModel;
+	protected _originalModel: IEditorModel;
+	protected _modifiedModel: IEditorModel;
 
-	constructor(originalModel: EditorModel, modifiedModel: EditorModel) {
+	constructor(originalModel: IEditorModel, modifiedModel: IEditorModel) {
 		super();
 
 		this._originalModel = originalModel;
@@ -23,15 +24,15 @@ export class DiffEditorModel extends EditorModel {
 	}
 
 	public get originalModel(): EditorModel {
-		return this._originalModel;
+		return this._originalModel as EditorModel;
 	}
 
 	public get modifiedModel(): EditorModel {
-		return this._modifiedModel;
+		return this._modifiedModel as EditorModel;
 	}
 
 	public load(): TPromise<EditorModel> {
-		return TPromise.join<EditorModel>([
+		return TPromise.join([
 			this._originalModel.load(),
 			this._modifiedModel.load()
 		]).then(() => {
@@ -40,7 +41,7 @@ export class DiffEditorModel extends EditorModel {
 	}
 
 	public isResolved(): boolean {
-		return this._originalModel.isResolved() && this._modifiedModel.isResolved();
+		return this.originalModel.isResolved() && this.modifiedModel.isResolved();
 	}
 
 	public dispose(): void {

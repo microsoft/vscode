@@ -33,6 +33,67 @@ suite('Arrays', () => {
 		assert.equal(array[idx], 1);
 	});
 
+	test('stableSort', function () {
+		let counter = 0;
+		let data = arrays.fill(10000, () => ({ n: 1, m: counter++ }));
+
+		arrays.mergeSort(data, (a, b) => a.n - b.n);
+
+		let lastM = -1;
+		for (const element of data) {
+			assert.ok(lastM < element.m);
+			lastM = element.m;
+		}
+	});
+
+	test('mergeSort', function () {
+		let data = arrays.mergeSort([6, 5, 3, 1, 8, 7, 2, 4], (a, b) => a - b);
+		assert.deepEqual(data, [1, 2, 3, 4, 5, 6, 7, 8]);
+	});
+
+	test('mergeSort, is stable', function () {
+
+		let numbers = arrays.mergeSort([33, 22, 11, 4, 99, 1], (a, b) => 0);
+		assert.deepEqual(numbers, [33, 22, 11, 4, 99, 1]);
+	});
+
+	test('mergeSort, many random numbers', function () {
+
+		function compare(a: number, b: number) {
+			if (a < b) {
+				return -1;
+			} else if (a > b) {
+				return 1;
+			} else {
+				return 0;
+			}
+		}
+
+		function assertSorted(array: number[]) {
+			let last = array[0];
+			for (let i = 1; i < array.length; i++) {
+				let n = array[i];
+				if (last > n) {
+					assert.fail(array.slice(i - 10, i + 10));
+				}
+			}
+		}
+		const MAX = 101;
+		const data: number[][] = [];
+		for (let i = 1; i < MAX; i++) {
+			let array: number[] = [];
+			for (let j = 0; j < 10 + i; j++) {
+				array.push(Math.random() * 10e8 | 0);
+			}
+			data.push(array);
+		}
+
+		for (const array of data) {
+			arrays.mergeSort(array, compare);
+			assertSorted(array);
+		}
+	});
+
 	test('delta', function () {
 		function compare(a: number, b: number): number {
 			return a - b;

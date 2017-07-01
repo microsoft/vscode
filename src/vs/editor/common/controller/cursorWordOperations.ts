@@ -6,8 +6,7 @@
 
 import { SingleCursorState, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
 import { Position } from 'vs/editor/common/core/position';
-import { CharCode } from 'vs/base/common/charCode';
-import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
+import { WordCharacterClassifier, WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
 import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -33,45 +32,10 @@ const enum WordType {
 	Separator = 2
 }
 
-export const enum WordCharacterClass {
-	Regular = 0,
-	Whitespace = 1,
-	WordSeparator = 2
-}
-
 export const enum WordNavigationType {
 	WordStart = 0,
 	WordEnd = 1
 }
-
-export class WordCharacterClassifier extends CharacterClassifier<WordCharacterClass> {
-
-	constructor(wordSeparators: string) {
-		super(WordCharacterClass.Regular);
-
-		for (let i = 0, len = wordSeparators.length; i < len; i++) {
-			this.set(wordSeparators.charCodeAt(i), WordCharacterClass.WordSeparator);
-		}
-
-		this.set(CharCode.Space, WordCharacterClass.Whitespace);
-		this.set(CharCode.Tab, WordCharacterClass.Whitespace);
-	}
-
-}
-
-function once<R>(computeFn: (input: string) => R): (input: string) => R {
-	let cache: { [key: string]: R; } = {}; // TODO@Alex unbounded cache
-	return (input: string): R => {
-		if (!cache.hasOwnProperty(input)) {
-			cache[input] = computeFn(input);
-		}
-		return cache[input];
-	};
-}
-
-export const getMapForWordSeparators = once<WordCharacterClassifier>(
-	(input) => new WordCharacterClassifier(input)
-);
 
 export class WordOperations {
 
@@ -293,16 +257,11 @@ export class WordOperations {
 			if (prevWordOnLine) {
 				column = prevWordOnLine.start + 1;
 			} else {
-				if (column > 1 || lineNumber === 1) {
+				if (column > 1) {
 					column = 1;
 				} else {
 					lineNumber--;
-					prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, model.getLineMaxColumn(lineNumber)));
-					if (prevWordOnLine) {
-						column = prevWordOnLine.start + 1;
-					} else {
-						column = 1;
-					}
+					column = model.getLineMaxColumn(lineNumber);
 				}
 			}
 		} else {
@@ -312,16 +271,11 @@ export class WordOperations {
 			if (prevWordOnLine) {
 				column = prevWordOnLine.end + 1;
 			} else {
-				if (column > 1 || lineNumber === 1) {
+				if (column > 1) {
 					column = 1;
 				} else {
 					lineNumber--;
-					prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, model.getLineMaxColumn(lineNumber)));
-					if (prevWordOnLine) {
-						column = prevWordOnLine.end + 1;
-					} else {
-						column = 1;
-					}
+					column = model.getLineMaxColumn(lineNumber);
 				}
 			}
 		}

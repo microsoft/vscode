@@ -49,6 +49,14 @@ export interface IProblemReporter {
 	status: ValidationStatus;
 }
 
+export class NullProblemReporter implements IProblemReporter {
+	info(message: string): void { };
+	warn(message: string): void { };
+	error(message: string): void { };
+	fatal(message: string): void { };
+	status: ValidationStatus = new ValidationStatus();
+}
+
 export abstract class Parser {
 
 	private _problemReporter: IProblemReporter;

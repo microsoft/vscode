@@ -48,10 +48,17 @@ suite('Strings', () => {
 
 	test('compareIgnoreCase', function () {
 
-		function assertCompareIgnoreCase(a: string, b: string): void {
+		function assertCompareIgnoreCase(a: string, b: string, recurse = true): void {
 			let actual = strings.compareIgnoreCase(a, b);
+			actual = actual > 0 ? 1 : actual < 0 ? -1 : actual;
+
 			let expected = strings.compare(a.toLowerCase(), b.toLowerCase());
+			expected = expected > 0 ? 1 : expected < 0 ? -1 : expected;
 			assert.equal(actual, expected, `${a} <> ${b}`);
+
+			if (recurse) {
+				assertCompareIgnoreCase(b, a, false);
+			}
 		}
 
 		assertCompareIgnoreCase('', '');
@@ -63,6 +70,17 @@ suite('Strings', () => {
 		assertCompareIgnoreCase('Code', 'code');
 		assertCompareIgnoreCase('Code', 'cöde');
 
+		assertCompareIgnoreCase('B', 'a');
+		assertCompareIgnoreCase('a', 'B');
+		assertCompareIgnoreCase('b', 'a');
+		assertCompareIgnoreCase('a', 'b');
+
+		assertCompareIgnoreCase('aa', 'ab');
+		assertCompareIgnoreCase('aa', 'aB');
+		assertCompareIgnoreCase('aa', 'aA');
+		assertCompareIgnoreCase('a', 'aa');
+		assertCompareIgnoreCase('ab', 'aA');
+		assertCompareIgnoreCase('O', '/');
 	});
 
 	test('format', function () {
@@ -74,6 +92,16 @@ suite('Strings', () => {
 		assert.strictEqual(strings.format('Foo {0} Bar {1}{2}', 'yes', undefined), 'Foo yes Bar undefined{2}');
 		assert.strictEqual(strings.format('Foo {0} Bar {1}{2}', 'yes', 5, false), 'Foo yes Bar 5false');
 		assert.strictEqual(strings.format('Foo {0} Bar. {1}', '(foo)', '.test'), 'Foo (foo) Bar. .test');
+	});
+
+	test('overlap', function () {
+		assert.equal(strings.overlap('foobar', 'arr, I am a priate'), 2);
+		assert.equal(strings.overlap('no', 'overlap'), 1);
+		assert.equal(strings.overlap('no', '0verlap'), 0);
+		assert.equal(strings.overlap('nothing', ''), 0);
+		assert.equal(strings.overlap('', 'nothing'), 0);
+		assert.equal(strings.overlap('full', 'full'), 4);
+		assert.equal(strings.overlap('full', 'fulloverlap'), 4);
 	});
 
 	test('computeLineStarts', function () {
@@ -214,6 +242,24 @@ suite('Strings', () => {
 		assert.equal(strings.containsRTL('זוהי עובדה מבוססת שדעתו'), true);
 	});
 
+	test('containsEmoji', () => {
+		assert.equal(strings.containsEmoji('a'), false);
+		assert.equal(strings.containsEmoji(''), false);
+		assert.equal(strings.containsEmoji(strings.UTF8_BOM_CHARACTER + 'a'), false);
+		assert.equal(strings.containsEmoji('hello world!'), false);
+		assert.equal(strings.containsEmoji('هناك حقيقة مثبتة منذ زمن طويل'), false);
+		assert.equal(strings.containsEmoji('זוהי עובדה מבוססת שדעתו'), false);
+
+		assert.equal(strings.containsEmoji('a📚📚b'), true);
+		assert.equal(strings.containsEmoji('1F600 # 😀 grinning face'), true);
+		assert.equal(strings.containsEmoji('1F47E # 👾 alien monster'), true);
+		assert.equal(strings.containsEmoji('1F467 1F3FD # 👧🏽 girl: medium skin tone'), true);
+		assert.equal(strings.containsEmoji('26EA # ⛪ church'), true);
+		assert.equal(strings.containsEmoji('231B # ⌛ hourglass'), true);
+		assert.equal(strings.containsEmoji('2702 # ✂ scissors'), true);
+		assert.equal(strings.containsEmoji('1F1F7 1F1F4  # 🇷🇴 Romania'), true);
+	});
+
 	// test('containsRTL speed', () => {
 	// 	var SIZE = 1000000;
 	// 	var REPEAT = 10;
@@ -261,5 +307,45 @@ suite('Strings', () => {
 		assertIsBasicASCII(String.fromCharCode(127), false);
 		assertIsBasicASCII('ü', false);
 		assertIsBasicASCII('a📚📚b', false);
+	});
+
+	test('createRegExp', () => {
+		// Empty
+		assert.throws(() => strings.createRegExp('', false));
+
+		// Escapes appropriately
+		assert.equal(strings.createRegExp('abc', false).source, 'abc');
+		assert.equal(strings.createRegExp('([^ ,.]*)', false).source, '\\(\\[\\^ ,\\.\\]\\*\\)');
+		assert.equal(strings.createRegExp('([^ ,.]*)', true).source, '([^ ,.]*)');
+
+		// Whole word
+		assert.equal(strings.createRegExp('abc', false, { wholeWord: true }).source, '\\babc\\b');
+		assert.equal(strings.createRegExp('abc', true, { wholeWord: true }).source, '\\babc\\b');
+		assert.equal(strings.createRegExp(' abc', true, { wholeWord: true }).source, ' abc\\b');
+		assert.equal(strings.createRegExp('abc ', true, { wholeWord: true }).source, '\\babc ');
+		assert.equal(strings.createRegExp(' abc ', true, { wholeWord: true }).source, ' abc ');
+
+		const regExpWithoutFlags = strings.createRegExp('abc', true);
+		assert(!regExpWithoutFlags.global);
+		assert(regExpWithoutFlags.ignoreCase);
+		assert(!regExpWithoutFlags.multiline);
+
+		const regExpWithFlags = strings.createRegExp('abc', true, { global: true, matchCase: true, multiline: true });
+		assert(regExpWithFlags.global);
+		assert(!regExpWithFlags.ignoreCase);
+		assert(regExpWithFlags.multiline);
+	});
+
+	test('getLeadingWhitespace', () => {
+		assert.equal(strings.getLeadingWhitespace('  foo'), '  ');
+		assert.equal(strings.getLeadingWhitespace('  foo', 2), '');
+		assert.equal(strings.getLeadingWhitespace('  foo', 1, 1), '');
+		assert.equal(strings.getLeadingWhitespace('  foo', 0, 1), ' ');
+		assert.equal(strings.getLeadingWhitespace('  '), '  ');
+		assert.equal(strings.getLeadingWhitespace('  ', 1), ' ');
+		assert.equal(strings.getLeadingWhitespace('  ', 0, 1), ' ');
+		assert.equal(strings.getLeadingWhitespace('\t\tfunction foo(){', 0, 1), '\t');
+		assert.equal(strings.getLeadingWhitespace('\t\tfunction foo(){', 0, 2), '\t\t');
+
 	});
 });

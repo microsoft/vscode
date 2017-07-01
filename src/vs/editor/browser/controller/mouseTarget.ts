@@ -6,8 +6,7 @@
 
 import { Position } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
-import { EditorLayoutInfo, MouseTargetType } from 'vs/editor/common/editorCommon';
-import { ClassNames, IMouseTarget, IViewZoneData } from 'vs/editor/browser/editorBrowser';
+import { MouseTargetType, IMouseTarget } from 'vs/editor/browser/editorBrowser';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
 import { EditorMouseEvent, PageCoordinates, ClientCoordinates, EditorPagePosition } from 'vs/editor/browser/editorDom';
@@ -15,6 +14,16 @@ import * as browser from 'vs/base/browser/browser';
 import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
+import { ViewLine } from 'vs/editor/browser/viewParts/lines/viewLine';
+
+export interface IViewZoneData {
+	viewZoneId: number;
+	positionBefore: Position;
+	positionAfter: Position;
+	position: Position;
+	afterLineNumber: number;
+}
 
 interface IETextRange {
 	boundingHeight: number;
@@ -219,7 +228,7 @@ class HitTestContext {
 
 	public getZoneAtCoord(mouseVerticalOffset: number): IViewZoneData {
 		// The target is either a view zone or the empty space after the last view-line
-		let viewZoneWhitespace = this._viewHelper.getWhitespaceAtVerticalOffset(mouseVerticalOffset);
+		let viewZoneWhitespace = this._context.viewLayout.getWhitespaceAtVerticalOffset(mouseVerticalOffset);
 
 		if (viewZoneWhitespace) {
 			let viewZoneMiddle = viewZoneWhitespace.verticalOffset + viewZoneWhitespace.height / 2,
@@ -259,7 +268,7 @@ class HitTestContext {
 	}
 
 	public getFullLineRangeAtCoord(mouseVerticalOffset: number): { range: EditorRange; isAfterLines: boolean; } {
-		if (this._viewHelper.isAfterLines(mouseVerticalOffset)) {
+		if (this._context.viewLayout.isAfterLines(mouseVerticalOffset)) {
 			// Below the last line
 			let lineNumber = this._context.model.getLineCount();
 			let maxLineColumn = this._context.model.getLineMaxColumn(lineNumber);
@@ -269,7 +278,7 @@ class HitTestContext {
 			};
 		}
 
-		let lineNumber = this._viewHelper.getLineNumberAtVerticalOffset(mouseVerticalOffset);
+		let lineNumber = this._context.viewLayout.getLineNumberAtVerticalOffset(mouseVerticalOffset);
 		let maxLineColumn = this._context.model.getLineMaxColumn(lineNumber);
 		return {
 			range: new EditorRange(lineNumber, 1, lineNumber, maxLineColumn),
@@ -278,15 +287,15 @@ class HitTestContext {
 	}
 
 	public getLineNumberAtVerticalOffset(mouseVerticalOffset: number): number {
-		return this._viewHelper.getLineNumberAtVerticalOffset(mouseVerticalOffset);
+		return this._context.viewLayout.getLineNumberAtVerticalOffset(mouseVerticalOffset);
 	}
 
 	public isAfterLines(mouseVerticalOffset: number): boolean {
-		return this._viewHelper.isAfterLines(mouseVerticalOffset);
+		return this._context.viewLayout.isAfterLines(mouseVerticalOffset);
 	}
 
 	public getVerticalOffsetForLineNumber(lineNumber: number): number {
-		return this._viewHelper.getVerticalOffsetForLineNumber(lineNumber);
+		return this._context.viewLayout.getVerticalOffsetForLineNumber(lineNumber);
 	}
 
 	public findAttribute(element: Element, attr: string): string {
@@ -319,11 +328,11 @@ class HitTestContext {
 	}
 
 	public getScrollTop(): number {
-		return this._viewHelper.getScrollTop();
+		return this._context.viewLayout.getScrollTop();
 	}
 
 	public getScrollLeft(): number {
-		return this._viewHelper.getScrollLeft();
+		return this._context.viewLayout.getScrollLeft();
 	}
 }
 
@@ -640,7 +649,7 @@ export class MouseTargetFactory {
 
 	public getMouseColumn(editorPos: EditorPagePosition, pos: PageCoordinates): number {
 		let layoutInfo = this._context.configuration.editor.layoutInfo;
-		let mouseContentHorizontalOffset = this._viewHelper.getScrollLeft() + pos.x - editorPos.x - layoutInfo.contentLeft;
+		let mouseContentHorizontalOffset = this._context.viewLayout.getScrollLeft() + pos.x - editorPos.x - layoutInfo.contentLeft;
 		return MouseTargetFactory._getMouseColumn(mouseContentHorizontalOffset, this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth);
 	}
 
@@ -759,7 +768,7 @@ export class MouseTargetFactory {
 			let parent3 = parent2 ? parent2.parentNode : null; // expected to be the view line div
 			let parent3ClassName = parent3 && parent3.nodeType === parent3.ELEMENT_NODE ? (<HTMLElement>parent3).className : null;
 
-			if (parent3ClassName === ClassNames.VIEW_LINE) {
+			if (parent3ClassName === ViewLine.CLASS_NAME) {
 				let p = ctx.getPositionFromDOMInfo(<HTMLElement>parent1, range.startOffset);
 				return {
 					position: p,
@@ -774,7 +783,7 @@ export class MouseTargetFactory {
 			let parent2 = parent1 ? parent1.parentNode : null; // expected to be the view line div
 			let parent2ClassName = parent2 && parent2.nodeType === parent2.ELEMENT_NODE ? (<HTMLElement>parent2).className : null;
 
-			if (parent2ClassName === ClassNames.VIEW_LINE) {
+			if (parent2ClassName === ViewLine.CLASS_NAME) {
 				let p = ctx.getPositionFromDOMInfo(<HTMLElement>startContainer, (<HTMLElement>startContainer).textContent.length);
 				return {
 					position: p,
@@ -804,7 +813,7 @@ export class MouseTargetFactory {
 			let parent3 = parent2 ? parent2.parentNode : null; // expected to be the view line div
 			let parent3ClassName = parent3 && parent3.nodeType === parent3.ELEMENT_NODE ? (<HTMLElement>parent3).className : null;
 
-			if (parent3ClassName === ClassNames.VIEW_LINE) {
+			if (parent3ClassName === ViewLine.CLASS_NAME) {
 				let p = ctx.getPositionFromDOMInfo(<HTMLElement>hitResult.offsetNode.parentNode, hitResult.offset);
 				return {
 					position: p,
@@ -850,7 +859,7 @@ export class MouseTargetFactory {
 
 		let parent2ClassName = parent2 && parent2.nodeType === parent2.ELEMENT_NODE ? (<HTMLElement>parent2).className : '';
 
-		if (parent2ClassName === ClassNames.VIEW_LINE) {
+		if (parent2ClassName === ViewLine.CLASS_NAME) {
 			let rangeToContainEntireSpan = textRange.duplicate();
 			rangeToContainEntireSpan.moveToElementText(parentElement);
 			rangeToContainEntireSpan.setEndPoint('EndToStart', textRange);

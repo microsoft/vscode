@@ -6,7 +6,8 @@
 
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
-import { ICommand, ICommonCodeEditor, EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { ICommand, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { editorAction, IActionOptions, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
 import { BlockCommentCommand } from './blockCommentCommand';
 import { LineCommentCommand, Type } from './lineCommentCommand';
@@ -34,7 +35,9 @@ abstract class CommentLineAction extends EditorAction {
 			commands.push(new LineCommentCommand(selections[i], opts.tabSize, this._type));
 		}
 
+		editor.pushUndoStop();
 		editor.executeCommands(this.id, commands);
+		editor.pushUndoStop();
 	}
 
 }
@@ -46,9 +49,9 @@ class ToggleCommentLineAction extends CommentLineAction {
 			id: 'editor.action.commentLine',
 			label: nls.localize('comment.line', "Toggle Line Comment"),
 			alias: 'Toggle Line Comment',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.US_SLASH
 			}
 		});
@@ -62,9 +65,9 @@ class AddLineCommentAction extends CommentLineAction {
 			id: 'editor.action.addCommentLine',
 			label: nls.localize('comment.line.add', "Add Line Comment"),
 			alias: 'Add Line Comment',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C)
 			}
 		});
@@ -78,9 +81,9 @@ class RemoveLineCommentAction extends CommentLineAction {
 			id: 'editor.action.removeCommentLine',
 			label: nls.localize('comment.line.remove', "Remove Line Comment"),
 			alias: 'Remove Line Comment',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U)
 			}
 		});
@@ -95,9 +98,9 @@ class BlockCommentAction extends EditorAction {
 			id: 'editor.action.blockComment',
 			label: nls.localize('comment.block', "Toggle Block Comment"),
 			alias: 'Toggle Block Comment',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_A,
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_A }
 			}
@@ -112,6 +115,8 @@ class BlockCommentAction extends EditorAction {
 			commands.push(new BlockCommentCommand(selections[i]));
 		}
 
+		editor.pushUndoStop();
 		editor.executeCommands(this.id, commands);
+		editor.pushUndoStop();
 	}
 }

@@ -69,12 +69,12 @@ suite('CommandService', function () {
 
 		let service = new CommandService(new InstantiationService(), new class extends SimpleExtensionService {
 			activateByEvent(activationEvent: string): TPromise<void> {
-				return TPromise.wrapError<void>('bad_activate');
+				return TPromise.wrapError<void>(new Error('bad_activate'));
 			}
 		});
 
 		return service.executeCommand('foo').then(() => assert.ok(false), err => {
-			assert.equal(err, 'bad_activate');
+			assert.equal(err.message, 'bad_activate');
 		});
 	});
 
@@ -86,7 +86,7 @@ suite('CommandService', function () {
 		let resolve: Function;
 		let service = new CommandService(new InstantiationService(), new class extends SimpleExtensionService {
 			onReady() {
-				return new TPromise(_resolve => { resolve = _resolve; });
+				return new TPromise<boolean>(_resolve => { resolve = _resolve; });
 			}
 		});
 

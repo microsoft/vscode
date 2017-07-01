@@ -11,17 +11,17 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { TokenIterator } from 'vs/editor/common/model/tokenIterator';
 import { ITokenizationSupport, IState, TokenizationRegistry, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { NULL_LANGUAGE_IDENTIFIER, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { BracketsUtils, RichEditBrackets, RichEditBracket } from 'vs/editor/common/modes/supports/richEditBrackets';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { LineTokens, LineToken } from 'vs/editor/common/core/lineTokens';
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { ITextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
+import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 
 class ModelTokensChangedEventBuilder {
 
@@ -48,7 +48,7 @@ class ModelTokensChangedEventBuilder {
 		}
 	}
 
-	public build(): editorCommon.IModelTokensChangedEvent {
+	public build(): textModelEvents.IModelTokensChangedEvent {
 		if (this._ranges.length === 0) {
 			return null;
 		}
@@ -71,10 +71,8 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 	private _revalidateTokensTimeout: number;
 
-	constructor(allowedEventTypes: string[], rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions, languageIdentifier: LanguageIdentifier) {
-		allowedEventTypes.push(editorCommon.EventType.ModelTokensChanged);
-		allowedEventTypes.push(editorCommon.EventType.ModelLanguageChanged);
-		super(allowedEventTypes, rawTextSource, creationOptions);
+	constructor(rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions, languageIdentifier: LanguageIdentifier) {
+		super(rawTextSource, creationOptions);
 
 		this._languageIdentifier = languageIdentifier || NULL_LANGUAGE_IDENTIFIER;
 		this._tokenizationListener = TokenizationRegistry.onDidChange((e) => {
@@ -160,7 +158,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		if (!this._isDisposing) {
 			let e = eventBuilder.build();
 			if (e) {
-				this.emit(editorCommon.EventType.ModelTokensChanged, e);
+				this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelTokensChanged, e);
 			}
 		}
 
@@ -203,7 +201,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			return;
 		}
 
-		let e: editorCommon.IModelLanguageChangedEvent = {
+		let e: textModelEvents.IModelLanguageChangedEvent = {
 			oldLanguage: this._languageIdentifier.language,
 			newLanguage: languageIdentifier.language
 		};
@@ -388,21 +386,21 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		this._invalidLineStartIndex = Math.max(this._invalidLineStartIndex, endLineIndex + 1);
 	}
 
-	private emitModelTokensChangedEvent(e: editorCommon.IModelTokensChangedEvent): void {
+	private emitModelTokensChangedEvent(e: textModelEvents.IModelTokensChangedEvent): void {
 		if (!this._isDisposing) {
-			this.emit(editorCommon.EventType.ModelTokensChanged, e);
+			this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelTokensChanged, e);
 		}
 	}
 
-	private _emitModelModeChangedEvent(e: editorCommon.IModelLanguageChangedEvent): void {
+	private _emitModelModeChangedEvent(e: textModelEvents.IModelLanguageChangedEvent): void {
 		if (!this._isDisposing) {
-			this.emit(editorCommon.EventType.ModelLanguageChanged, e);
+			this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelLanguageChanged, e);
 		}
 	}
 
 	// Having tokens allows implementing additional helper methods
 
-	public getWordAtPosition(_position: editorCommon.IPosition): editorCommon.IWordAtPosition {
+	public getWordAtPosition(_position: IPosition): editorCommon.IWordAtPosition {
 		this._assertNotDisposed();
 		let position = this.validatePosition(_position);
 		let lineContent = this.getLineContent(position.lineNumber);
@@ -443,7 +441,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return result;
 	}
 
-	public getWordUntilPosition(position: editorCommon.IPosition): editorCommon.IWordAtPosition {
+	public getWordUntilPosition(position: IPosition): editorCommon.IWordAtPosition {
 		var wordAtPosition = this.getWordAtPosition(position);
 		if (!wordAtPosition) {
 			return {
@@ -459,14 +457,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		};
 	}
 
-	public tokenIterator(position: editorCommon.IPosition, callback: (it: TokenIterator) => any): any {
-		var iter = new TokenIterator(this, this.validatePosition(position));
-		var result = callback(iter);
-		iter._invalidate();
-		return result;
-	}
-
-	public findMatchingBracketUp(_bracket: string, _position: editorCommon.IPosition): Range {
+	public findMatchingBracketUp(_bracket: string, _position: IPosition): Range {
 		let bracket = _bracket.toLowerCase();
 		let position = this.validatePosition(_position);
 
@@ -487,7 +478,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return this._findMatchingBracketUp(data, position);
 	}
 
-	public matchBracket(position: editorCommon.IPosition): [Range, Range] {
+	public matchBracket(position: IPosition): [Range, Range] {
 		return this._matchBracket(this.validatePosition(position));
 	}
 
@@ -711,7 +702,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return null;
 	}
 
-	public findPrevBracket(_position: editorCommon.IPosition): editorCommon.IFoundBracket {
+	public findPrevBracket(_position: IPosition): editorCommon.IFoundBracket {
 		const position = this.validatePosition(_position);
 
 		let languageId: LanguageId = -1;
@@ -754,7 +745,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return null;
 	}
 
-	public findNextBracket(_position: editorCommon.IPosition): editorCommon.IFoundBracket {
+	public findNextBracket(_position: IPosition): editorCommon.IFoundBracket {
 		const position = this.validatePosition(_position);
 
 		let languageId: LanguageId = -1;

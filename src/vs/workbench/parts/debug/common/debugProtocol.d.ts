@@ -121,8 +121,10 @@ declare module DebugProtocol {
 	export interface TerminatedEvent extends Event {
 		// event: 'terminated';
 		body?: {
-			/** A debug adapter may set 'restart' to true to request that the front end restarts the session. */
-			restart?: boolean;
+			/** A debug adapter may set 'restart' to true (or to an arbitrary object) to request that the front end restarts the session.
+				The value is not interpreted by the client and passed unmodified as an attribute '__restart' to the launchRequest.
+			*/
+			restart?: any;
 		};
 	}
 
@@ -329,10 +331,13 @@ declare module DebugProtocol {
 		arguments?: DisconnectArguments;
 	}
 
-	/** Arguments for 'disconnect' request.
-		The disconnect request has no standardized attributes.
-	*/
+	/** Arguments for 'disconnect' request. */
 	export interface DisconnectArguments {
+		/** Indicates whether the debuggee should be terminated when the debugger is disconnected.
+			If unspecified, the debug adapter is free to do whatever it thinks is best.
+			A client can only rely on this attribute being properly honored if a debug adapter returns true for the 'supportTerminateDebuggee' capability.
+		*/
+		terminateDebuggee?: boolean;
 	}
 
 	/** Response to 'disconnect' request. This is just an acknowledgement, so no body field is required. */
@@ -981,6 +986,10 @@ declare module DebugProtocol {
 		supportsValueFormattingOptions?: boolean;
 		/** The debug adapter supports the exceptionInfo request. */
 		supportsExceptionInfoRequest?: boolean;
+		/** The debug adapter supports the 'terminateDebuggee' attribute on the 'disconnect' request. */
+		supportTerminateDebuggee?: boolean;
+		/** The debug adapter supports the delayed loading of parts of the stack, which requires that both the 'startFrame' and 'levels' arguments and the 'totalFrames' result of the 'StackTrace' request are supported. */
+		supportsDelayedStackTraceLoading?: boolean;
 	}
 
 	/** An ExceptionBreakpointsFilter is shown in the UI as an option for configuring how exceptions are dealt with. */
@@ -1116,8 +1125,8 @@ declare module DebugProtocol {
 		endColumn?: number;
 		/** The module associated with this frame, if any. */
 		moduleId?: number | string;
-		/** An optional hint for how to present this frame in the UI. A value of 'label' can be used to indicate that the frame is an artificial frame that is used as a visual label or separator. */
-		presentationHint?: 'normal' | 'label';
+		/** An optional hint for how to present this frame in the UI. A value of 'label' can be used to indicate that the frame is an artificial frame that is used as a visual label or separator. A value of 'subtle' can be used to change the appearance of a frame in a 'subtle' way. */
+		presentationHint?: 'normal' | 'label' | 'subtle';
 	}
 
 	/** A Scope is a named container for variables. Optionally a scope can map to a source or a range within a source. */
@@ -1298,6 +1307,8 @@ declare module DebugProtocol {
 		line?: boolean;
 		/** Displays the module of the stack frame. */
 		module?: boolean;
+		/** Includes all stack frames, including those the debug adapter might otherwise hide. */
+		includeAll?: boolean;
 	}
 
 	/** An ExceptionOptions assigns configuration options to a set of exceptions. */

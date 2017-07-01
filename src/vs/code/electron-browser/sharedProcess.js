@@ -3,16 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Warning: Do not use the `let` declarator in this file, it breaks our minification
-
 'use strict';
 
-/*global window,document,define*/
-
 const path = require('path');
-const electron = require('electron');
-const remote = electron.remote;
-const ipc = electron.ipcRenderer;
 
 function assign(destination, source) {
 	return Object.keys(source)
@@ -83,12 +76,10 @@ function main() {
 
 		window.MonacoEnvironment = {};
 
-		const nodeCachedDataErrors = window.MonacoEnvironment.nodeCachedDataErrors = [];
 		require.config({
 			baseUrl: rootUrl,
 			'vs/nls': nlsConfig,
 			nodeCachedDataDir: configuration.nodeCachedDataDir,
-			onNodeCachedDataError: function (err) { nodeCachedDataErrors.push(err) },
 			nodeModules: [/*BUILD->INSERT_NODE_MODULES*/]
 		});
 

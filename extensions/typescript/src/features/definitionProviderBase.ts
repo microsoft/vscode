@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { TextDocument, Position, Range, CancellationToken, Location } from 'vscode';
 
 import * as Proto from '../protocol';
@@ -42,8 +40,7 @@ export default class TypeScriptDefinitionProviderBase {
 					return new Location(resource, new Range(location.start.line - 1, location.start.offset - 1, location.end.line - 1, location.end.offset - 1));
 				}
 			}).filter(x => x !== null) as Location[];
-		}, (error) => {
-			this.client.error(`'${definitionType}' request failed with error.`, error);
+		}, () => {
 			return [];
 		});
 	}
