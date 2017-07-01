@@ -19,6 +19,8 @@
 	"manyMarkers": "99",
 	"tasks": "Tâches",
 	"TaskSystem.noHotSwap": "Le changement du moteur d'exécution de tâches nécessite le redémarrage de VS Code. Changement ignoré.",
+	"TaskService.noBuildTask1": "Aucune tâche de build définie. Marquez une tâche avec 'isBuildCommand' dans le fichier tasks.json.",
+	"TaskService.noTestTask1": "Aucune tâche de test définie. Marquez une tâche avec 'isTestCommand' dans le fichier tasks.json.",
 	"TaskServer.noTask": "La tâche {0} à exécuter est introuvable.",
 	"customizeParseErrors": "La configuration de tâche actuelle contient des erreurs. Corrigez-les avant de personnaliser une tâche. ",
 	"moreThanOneBuildTask": "De nombreuses tâches de génération sont définies dans le fichier tasks.json. Exécution de la première.\n",
@@ -30,17 +32,14 @@
 	"TaskSystem.terminateTask": "&&Terminer la tâche",
 	"TaskSystem.noProcess": "La tâche lancée n'existe plus. Si la tâche a engendré des processus en arrière-plan, la sortie de VS Code risque de donner lieu à des processus orphelins. Pour éviter ce problème, démarrez le dernier processus en arrière-plan avec un indicateur d'attente.",
 	"TaskSystem.exitAnyways": "&&Quitter quand même",
-	"TerminateAction.label": "Terminer l'exécution de la tâche",
+	"TerminateAction.label": "Terminer la tâche",
 	"TaskSystem.unknownError": "Une erreur s'est produite durant l'exécution d'une tâche. Pour plus d'informations, consultez le journal des tâches.",
 	"TaskService.noWorkspace": "Les tâches ne sont disponibles que dans un dossier d'espace de travail.",
 	"TerminateAction.noProcess": "Le processus lancé n'existe plus. Si la tâche a engendré des tâches en arrière-plan, la sortie de VS Code risque de donner lieu à des processus orphelins.",
 	"TerminateAction.failed": "Échec de la fin de l'exécution de la tâche",
 	"ShowLogAction.label": "Afficher le journal des tâches",
 	"RunTaskAction.label": "Exécuter la tâche",
-	"RestartTaskAction.label": "Redémarrer la tâche",
 	"BuildAction.label": "Exécuter la tâche de génération",
 	"TestAction.label": "Exécuter la tâche de test",
-	"quickOpen.task": "Exécuter la tâche",
-	"quickOpen.terminateTask": "&&Terminer la tâche",
-	"quickOpen.restartTask": "Redémarrer la tâche"
+	"quickOpen.task": "Exécuter la tâche"
 }

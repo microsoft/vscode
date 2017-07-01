@@ -25,7 +25,6 @@
 	"files.autoSave.onWindowChange": "Eine geänderte Datei wird automatisch gespeichert, wenn das Fenster den Fokus verliert.",
 	"autoSave": "Steuert die automatische Speicherung geänderter Dateien. Zulässige Werte: \"{0}\", \"{1}\", \"{2}\" (Editor verliert den Fokus), \"{3}\" (Fenster verliert den Fokus). Wenn diese Angabe auf \"{4}\" festgelegt ist, können Sie die Verzögerung in \"files.autoSaveDelay\" konfigurieren.",
 	"autoSaveDelay": "Steuert die Verzögerung in Millisekunden, nach der eine geänderte Datei automatisch gespeichert wird. Nur gültig, wenn \"files.autoSave\" auf \"{0}\" festgelegt ist.",
-	"watcherExclude": "Konfigurieren Sie Globmuster von Dateipfaden, die aus der Dateiüberwachung ausgeschlossen werden sollen. Das Ändern dieser Einstellung erfordert einen Neustart. Wenn Ihr Code beim Starten viel CPU-Zeit benötigt, können Sie große Ordner ausschließen, um die Anfangslast zu verringern.",
 	"hotExit.off": "Hot Exit deaktivieren.",
 	"hotExit.onExit": "Hot Exit wird beim Schließen der Anwendung ausgelöst, d. h. wenn unter Windows/Linux das letzte Fenster geschlossen wird oder wenn der Befehl \"workbench.action.quit\" ausgelöst wird (Befehlspalette, Tastenzuordnung, Menü). Alle Fenster mit Sicherungen werden beim nächsten Start wiederhergestellt.",
 	"hotExit": "Steuert, ob nicht gespeicherten Dateien zwischen den Sitzungen beibehlten werden, die Aufforderung zum Speichern wird beim Beenden des Editors übersprungen.",

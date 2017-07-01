@@ -37,7 +37,7 @@ import { Color } from 'vs/base/common/color';
 import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
-import { DiffReview } from "vs/editor/browser/widget/diffReview";
+import { DiffReview } from 'vs/editor/browser/widget/diffReview';
 
 interface IEditorDiffDecorations {
 	decorations: editorCommon.IModelDeltaDecoration[];
@@ -976,7 +976,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		let computedRepresentableSize = Math.max(0, computedAvailableSize - 2 * 0);
 		let computedRatio = scrollHeight > 0 ? (computedRepresentableSize / scrollHeight) : 0;
 
-		let computedSliderSize = Math.max(1, Math.floor(layoutInfo.contentHeight * computedRatio));
+		let computedSliderSize = Math.max(0, Math.floor(layoutInfo.contentHeight * computedRatio));
 		let computedSliderPosition = Math.floor(scrollTop * computedRatio);
 
 		return {

@@ -13,10 +13,10 @@
 	"read the release notes": "Üdvözöljük a {0} v{1} verziójában. Szeretné megtekinteni a kiadási jegyzéket?",
 	"licenseChanged": "A licencfeltételek változtak. Olvassa végig!",
 	"license": "Licenc elolvasása",
-	"updateAvailable": "A {0} frissül az újraindítás után.",
-	"thereIsUpdateAvailable": "Van elérhető frissítés.",
-	"noUpdatesAvailable": "Jelenleg nincs elérhető frissítés.",
 	"updateIsReady": "Új frissítés érhető el.",
+	"thereIsUpdateAvailable": "Van elérhető frissítés.",
+	"updateAvailable": "A {0} frissül az újraindítás után.",
+	"noUpdatesAvailable": "Jelenleg nincs elérhető frissítés.",
 	"commandPalette": "Parancskatalógus...",
 	"settings": "Beállítások",
 	"keyboardShortcuts": "Billentyűparancsok",
@@ -27,5 +27,6 @@
 	"DownloadUpdate": "Elérhető frissítés letöltése",
 	"DownloadingUpdate": "Frissítés letöltése...",
 	"InstallingUpdate": "Frissítés telepítése...",
+	"restartToUpdate": "Újraindítás a frissítéshez...",
 	"checkForUpdates": "Frissítések keresése..."
 }

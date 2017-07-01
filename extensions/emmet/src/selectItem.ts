@@ -4,13 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { validate } from './util';
+import { validate, parse } from './util';
 import { nextItemHTML, prevItemHTML } from './selectItemHTML';
 import { nextItemStylesheet, prevItemStylesheet } from './selectItemStylesheet';
-import parseStylesheet from '@emmetio/css-parser';
-import parse from '@emmetio/html-matcher';
-import { Node } from 'EmmetNode';
-import { DocumentStreamReader } from './bufferStream';
 import { isStyleSheet } from 'vscode-emmet-helper';
 
 
@@ -22,22 +18,20 @@ export function fetchSelectItem(direction: string): void {
 
 	let nextItem;
 	let prevItem;
-	let parseContent;
 
 	if (isStyleSheet(editor.document.languageId)) {
 		nextItem = nextItemStylesheet;
 		prevItem = prevItemStylesheet;
-		parseContent = parseStylesheet;
 	} else {
 		nextItem = nextItemHTML;
 		prevItem = prevItemHTML;
-		parseContent = parse;
 	}
 
-	let rootNode: Node = parseContent(new DocumentStreamReader(editor.document));
+	let rootNode = parse(editor.document);
 	if (!rootNode) {
 		return;
 	}
+
 	let newSelections: vscode.Selection[] = [];
 	editor.selections.forEach(selection => {
 		const selectionStart = selection.isReversed ? selection.active : selection.anchor;

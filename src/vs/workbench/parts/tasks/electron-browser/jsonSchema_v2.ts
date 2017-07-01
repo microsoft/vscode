@@ -11,7 +11,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import commonSchema from './jsonSchemaCommon';
 
 import { ProblemMatcherRegistry } from 'vs/platform/markers/common/problemMatcher';
-import { TaskTypeRegistry } from '../common/taskTypeRegistry';
+import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry';
 
 function fixReferences(literal: any) {
 	if (Array.isArray(literal)) {
@@ -103,27 +103,38 @@ const group: IJSONSchema = {
 	oneOf: [
 		{
 			type: 'string',
-			enum: ['none', 'clean', 'build', 'rebuildAll', 'test'],
-			default: 'none',
 		},
 		{
 			type: 'object',
 			properties: {
 				kind: {
 					type: 'string',
-					enum: ['none', 'clean', 'build', 'rebuildAll', 'test'],
 					default: 'none',
 					description: nls.localize('JsonSchema.tasks.group.kind', 'The task\'s execution group.')
 				},
-				isPrimary: {
+				isDefault: {
 					type: 'boolean',
 					default: false,
-					description: nls.localize('JsonSchema.tasks.group.isPrimary', 'Defines if this task is a primary task in a group.')
+					description: nls.localize('JsonSchema.tasks.group.isDefault', 'Defines if this task is the default task in the group.')
 				}
 			}
-		}
+		},
 	],
-	description: nls.localize('JsonSchema.tasks.group', 'Defines to which execution group this task belongs to. If omitted the task belongs to no group.')
+	enum: [
+		{ kind: 'build', isDefault: true },
+		{ kind: 'test', isDefault: true },
+		'build',
+		'test',
+		'none'
+	],
+	enumDescriptions: [
+		nls.localize('JsonSchema.tasks.group.defaultBuild', 'Marks the tasks as the default build task.'),
+		nls.localize('JsonSchema.tasks.group.defaultTest', 'Marks the tasks as the default test task.'),
+		nls.localize('JsonSchema.tasks.group.build', 'Marks the tasks as a build task accesible through the \'Run Build Task\' command.'),
+		nls.localize('JsonSchema.tasks.group.test', 'Marks the tasks as a test task accesible through the \'Run Test Task\' command.'),
+		nls.localize('JsonSchema.tasks.group.none', 'Assigns the task to no group')
+	],
+	description: nls.localize('JsonSchema.tasks.group', 'Defines to which execution group this task belongs to. It supports "build" to add it to the build group and "test" to add it to the test group.')
 };
 
 const taskType: IJSONSchema = {
@@ -178,8 +189,8 @@ let taskConfiguration: IJSONSchema = {
 };
 
 let taskDefinitions: IJSONSchema[] = [];
-TaskTypeRegistry.onReady().then(() => {
-	for (let taskType of TaskTypeRegistry.all()) {
+TaskDefinitionRegistry.onReady().then(() => {
+	for (let taskType of TaskDefinitionRegistry.all()) {
 		let schema: IJSONSchema = Objects.deepClone(taskConfiguration);
 		// Since we do this after the schema is assigned we need to patch the refs.
 		schema.properties.type = {
@@ -230,7 +241,7 @@ definitions.taskDescription.properties.isTestCommand.deprecationMessage = nls.lo
 taskDescription.properties.type = Objects.deepClone(taskType);
 taskDescription.properties.presentation = Objects.deepClone(presentation);
 taskDescription.properties.terminal = terminal;
-taskDescription.properties.group = group;
+taskDescription.properties.group = Objects.deepClone(group);
 
 taskDefinitions.push({
 	$ref: '#/definitions/taskDescription'
@@ -248,11 +259,13 @@ definitions.options.properties.shell = {
 
 definitions.taskRunnerConfiguration.properties.isShellCommand = Objects.deepClone(shellCommand);
 definitions.taskRunnerConfiguration.properties.type = Objects.deepClone(taskType);
-definitions.taskRunnerConfiguration.properties.version = Objects.deepClone(version);
+definitions.taskRunnerConfiguration.properties.group = Objects.deepClone(group);
+definitions.taskRunnerConfiguration.properties.presentation = Objects.deepClone(presentation);
 let osSpecificTaskRunnerConfiguration = Objects.deepClone(definitions.taskRunnerConfiguration);
 delete osSpecificTaskRunnerConfiguration.properties.tasks;
 osSpecificTaskRunnerConfiguration.additionalProperties = false;
 definitions.osSpecificTaskRunnerConfiguration = osSpecificTaskRunnerConfiguration;
+definitions.taskRunnerConfiguration.properties.version = Objects.deepClone(version);
 
 const schema: IJSONSchema = {
 	oneOf: [

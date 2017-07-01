@@ -47,7 +47,7 @@ export interface IFileService {
 	 * Same as resolveFile but supports resolving mulitple resources in parallel.
 	 * If one of the resolve targets fails to resolve returns a fake IFileStat instead of making the whole call fail.
 	 */
-	resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): TPromise<IFileStat[]>;
+	resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): TPromise<IResolveFileResult[]>;
 
 	/**
 	 *Finds out if a file identified by the resource exists.
@@ -388,6 +388,11 @@ export interface IFileStat extends IBaseStat {
 	 * The size of the file if known.
 	 */
 	size?: number;
+}
+
+export interface IResolveFileResult {
+	stat: IFileStat;
+	success: boolean;
 }
 
 /**

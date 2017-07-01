@@ -56,5 +56,7 @@
 	"LegacyProblemMatcherSchema.watchedBegin": "Ein regulärer Ausdruck, der signalisiert, dass die Ausführung eines überwachten Tasks (ausgelöst durch die Dateiüberwachung) beginnt.",
 	"LegacyProblemMatcherSchema.watchedEnd.deprecated": "Diese Eigenschaft ist veraltet. Verwenden Sie stattdessen die Überwachungseigenschaft.",
 	"LegacyProblemMatcherSchema.watchedEnd": "Ein regulärer Ausdruck, der signalisiert, dass die Ausführung eines überwachten Tasks beendet wird.",
-	"ProblemMatcherExtPoint": "Trägt Problemabgleicher bei"
+	"ProblemMatcherExtPoint": "Trägt Problemabgleicher bei",
+	"lessCompile": "LESS Probleme",
+	"go": "Go Probleme"
 }

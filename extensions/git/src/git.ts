@@ -155,6 +155,12 @@ export interface IExecutionResult {
 }
 
 async function exec(child: cp.ChildProcess, options: any = {}): Promise<IExecutionResult> {
+	if (!child.stdout || !child.stderr) {
+		throw new GitError({
+			message: 'Failed to get stdout or stderr from git process.'
+		});
+	}
+
 	const disposables: IDisposable[] = [];
 
 	const once = (ee: NodeJS.EventEmitter, name: string, fn: Function) => {
@@ -447,7 +453,7 @@ export class GitStatusParser {
 		// space
 		i++;
 
-		if (entry.x === 'R') {
+		if (entry.x === 'R' || entry.x === 'C') {
 			lastIndex = raw.indexOf('\0', i);
 
 			if (lastIndex === -1) {

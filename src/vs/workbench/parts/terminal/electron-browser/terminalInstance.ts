@@ -33,7 +33,7 @@ import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platf
 import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground } from 'vs/platform/theme/common/colorRegistry';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IHistoryService } from "vs/workbench/services/history/common/history";
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;

@@ -35,12 +35,12 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts, Position as SidebarPosition } from 'vs/workbench/services/part/common/partService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IKeybindingService } from "vs/platform/keybinding/common/keybinding";
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import * as os from 'os';
 import { webFrame } from 'electron';
-import { getPathLabel } from "vs/base/common/labels";
-import { IViewlet } from "vs/workbench/common/viewlet";
-import { IPanel } from "vs/workbench/common/panel";
+import { getPathLabel } from 'vs/base/common/labels';
+import { IViewlet } from 'vs/workbench/common/viewlet';
+import { IPanel } from 'vs/workbench/common/panel';
 
 // --- actions
 

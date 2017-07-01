@@ -24,12 +24,14 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { append, $, addStandardDisposableListener, EventType, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, ExtensionState } from '../common/extensions';
 import {
 	ShowInstalledExtensionsAction, ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowPopularExtensionsAction, ShowDisabledExtensionsAction,
 	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, CheckForUpdatesAction, DisableAllAction, EnableAllAction,
 	EnableAutoUpdateAction, DisableAutoUpdateAction
 } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { LocalExtensionType, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { InstallVSIXAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { ExtensionsListView, InstalledExtensionsView, RecommendedExtensionsView } from './extensionsViews';
@@ -84,6 +86,7 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorInputService: IEditorGroupService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
 		@IMessageService private messageService: IMessageService,
 		@IViewletService private viewletService: IViewletService,
 		@IThemeService themeService: IThemeService,
@@ -91,9 +94,10 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 		@IStorageService storageService: IStorageService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IContextMenuService contextMenuService: IContextMenuService
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IExtensionService extensionService: IExtensionService
 	) {
-		super(VIEWLET_ID, ViewLocation.Extensions, `${VIEWLET_ID}.state`, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService);
+		super(VIEWLET_ID, ViewLocation.Extensions, `${VIEWLET_ID}.state`, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
 
 		this.registerViews();
 		this.searchDelayer = new ThrottledDelayer(500);
@@ -196,8 +200,14 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 
 		this.onSearchChange = mapEvent(onSearchInput, e => e.target.value);
 
-		this.searchExtensionsContextKey.set(!!this.searchBox.value);
-		return super.create(new Builder(this.extensionsBox));
+		return this.extensionManagementService.getInstalled(LocalExtensionType.User)
+			.then(installed => {
+				if (installed.length === 0) {
+					this.searchBox.value = '@sort:installs';
+				}
+				this.searchExtensionsContextKey.set(!!this.searchBox.value);
+				return super.create(new Builder(this.extensionsBox));
+			});
 	}
 
 	public updateStyles(): void {
@@ -286,7 +296,7 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 		this.searchBox.dispatchEvent(event);
 	}
 
-	private triggerSearch(immediate = false, showPopular: boolean = false): void {
+	private triggerSearch(immediate = false): void {
 		this.searchDelayer.trigger(() => this.doSearch(), immediate || !this.searchBox.value ? 0 : 500)
 			.done(null, err => this.onError(err));
 	}

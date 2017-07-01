@@ -14,7 +14,7 @@ import { IWindowsService, IWindowService, IWindowConfiguration } from 'vs/platfo
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceContextService } from "vs/platform/workspace/common/workspace";
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 interface IConfiguration extends IWindowConfiguration {
 	update: { channel: string; };

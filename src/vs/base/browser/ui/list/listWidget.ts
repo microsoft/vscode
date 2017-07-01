@@ -348,6 +348,7 @@ class MouseController<T> implements IDisposable {
 		this.disposables.push(view.addListener('mousedown', e => this.onMouseDown(e)));
 		this.disposables.push(view.addListener('click', e => this.onPointer(e)));
 		this.disposables.push(view.addListener('dblclick', e => this.onDoubleClick(e)));
+		this.disposables.push(view.addListener('touchstart', e => this.onMouseDown(e)));
 		this.disposables.push(view.addListener(TouchEventType.Tap, e => this.onPointer(e)));
 	}
 

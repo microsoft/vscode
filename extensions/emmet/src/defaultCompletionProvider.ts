@@ -4,21 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import parseStylesheet from '@emmetio/css-parser';
-import parse from '@emmetio/html-matcher';
-import { Node, HtmlNode } from 'EmmetNode';
-import { DocumentStreamReader } from './bufferStream';
-import { EmmetCompletionItemProvider, isStyleSheet } from 'vscode-emmet-helper';
+import { HtmlNode } from 'EmmetNode';
+import { EmmetCompletionItemProvider, isStyleSheet, getEmmetMode } from 'vscode-emmet-helper';
 import { isValidLocationForEmmetAbbreviation } from './abbreviationActions';
-import { getSyntax, getNode, getInnerRange } from './util';
+import { getNode, getInnerRange, getMappingForIncludedLanguages, parse } from './util';
 
 export class DefaultCompletionItemProvider implements vscode.CompletionItemProvider {
 
 	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Thenable<vscode.CompletionList> {
-		let syntax = getSyntax(document);
-		syntax = this.syntaxHelper(syntax, document, position);
+		const mappedLanguages = getMappingForIncludedLanguages();
 
-		if (!syntax) {
+		let isSyntaxMapped = mappedLanguages[document.languageId] ? true : false;
+		let syntax = getEmmetMode(isSyntaxMapped ? mappedLanguages[document.languageId] : document.languageId);
+
+		if (document.languageId === 'html' || isStyleSheet(document.languageId)) {
+			// Document can be html/css parsed
+			// Use syntaxHelper to parse file, validate location and update sytnax if needed
+			syntax = this.syntaxHelper(syntax, document, position);
+		}
+
+		if (!syntax
+			|| ((isSyntaxMapped || syntax === 'jsx')
+				&& vscode.workspace.getConfiguration('emmet')['showExpandedAbbreviation'] !== 'always')) {
 			return;
 		}
 
@@ -27,14 +34,20 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 	}
 
 	/**
-	 * Checks whether given position is valid for emmet abbreviation and returns appropriate syntax
+	 * Parses given document to check whether given position is valid for emmet abbreviation and returns appropriate syntax
 	 * @param syntax string language mode of current document
 	 * @param document vscode.Textdocument
 	 * @param position vscode.Position position of the abbreviation that needs to be expanded
 	 */
 	private syntaxHelper(syntax: string, document: vscode.TextDocument, position: vscode.Position): string {
-		let parseContent = isStyleSheet(syntax) ? parseStylesheet : parse;
-		let rootNode: Node = parseContent(new DocumentStreamReader(document));
+		if (!syntax) {
+			return syntax;
+		}
+		let rootNode = parse(document, false);
+		if (!rootNode) {
+			return;
+		}
+
 		let currentNode = getNode(rootNode, position);
 
 		if (!isStyleSheet(syntax)) {

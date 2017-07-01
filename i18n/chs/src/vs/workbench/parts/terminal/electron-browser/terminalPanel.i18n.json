@@ -7,5 +7,6 @@
 	"copy": "复制",
 	"createNewTerminal": "新的终端",
 	"paste": "粘贴",
+	"selectAll": "全选",
 	"clear": "清除"
 }

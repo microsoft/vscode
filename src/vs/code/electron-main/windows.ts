@@ -28,7 +28,7 @@ import { ITelemetryService, ITelemetryData } from 'vs/platform/telemetry/common/
 import { isEqual, isEqualOrParent } from 'vs/base/common/paths';
 import { IWindowsMainService, IOpenConfiguration } from "vs/platform/windows/electron-main/windows";
 import { IHistoryMainService } from "vs/platform/history/electron-main/historyMainService";
-import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from "vs/base/common/platform";
+import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { TPromise } from "vs/base/common/winjs.base";
 
 

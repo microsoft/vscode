@@ -84,7 +84,7 @@ function getOutputChannel(): vscode.OutputChannel {
 	return _channel;
 }
 
-interface GulpTaskKind extends vscode.TaskKind {
+interface GulpTaskDefinition extends vscode.TaskDefinition {
 	task: string;
 	file?: string;
 }
@@ -147,7 +147,7 @@ async function getGulpTasks(): Promise<vscode.Task[]> {
 				if (line.length === 0) {
 					continue;
 				}
-				let kind: GulpTaskKind = {
+				let kind: GulpTaskDefinition = {
 					type: 'gulp',
 					task: line
 				};

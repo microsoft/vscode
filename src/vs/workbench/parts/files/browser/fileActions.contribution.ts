@@ -24,7 +24,7 @@ import { copyFocusedFilesExplorerViewItem, revealInOSFocusedFilesExplorerItem, o
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IEnvironmentService } from "vs/platform/environment/common/environment";
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { explorerItemToFileResource, ExplorerFocusCondition, FilesExplorerFocusCondition } from 'vs/workbench/parts/files/common/files';
 
 class FilesViewerActionContributor extends ActionBarContributor {
@@ -104,7 +104,9 @@ class FilesViewerActionContributor extends ActionBarContributor {
 		}
 
 		// Copy File/Folder
-		actions.push(this.instantiationService.createInstance(CopyFileAction, tree, <FileStat>stat));
+		if (!stat.isRoot) {
+			actions.push(this.instantiationService.createInstance(CopyFileAction, tree, <FileStat>stat));
+		}
 
 		// Paste File/Folder
 		if (stat.isDirectory) {

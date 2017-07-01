@@ -12,7 +12,7 @@ import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
 import * as types from 'vs/base/common/types';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import { realpathSync } from "vs/base/node/extfs";
+import { realpathSync } from 'vs/base/node/extfs';
 
 export function validatePaths(args: ParsedArgs): ParsedArgs {
 

@@ -4,22 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import parse from '@emmetio/html-matcher';
 import { HtmlNode } from 'EmmetNode';
-import { DocumentStreamReader } from './bufferStream';
-import { getNode } from './util';
+import { getNode, parse, validate } from './util';
 
 export function updateTag(tagName: string) {
 	let editor = vscode.window.activeTextEditor;
-	if (!editor) {
-		vscode.window.showInformationMessage('No editor is active');
+	if (!validate(false)) {
 		return;
 	}
-
-	let rootNode: HtmlNode = parse(new DocumentStreamReader(editor.document));
+	let rootNode = <HtmlNode>parse(editor.document);
 	if (!rootNode) {
 		return;
 	}
+
 	let rangesToUpdate = [];
 	editor.selections.reverse().forEach(selection => {
 		rangesToUpdate = rangesToUpdate.concat(getRangesToUpdate(editor, selection, rootNode));
@@ -34,14 +31,17 @@ export function updateTag(tagName: string) {
 
 function getRangesToUpdate(editor: vscode.TextEditor, selection: vscode.Selection, rootNode: HtmlNode): vscode.Range[] {
 	let nodeToUpdate = <HtmlNode>getNode(rootNode, selection.start);
+	if (!nodeToUpdate) {
+		return [];
+	}
 
-	let openStart = (<vscode.Position>nodeToUpdate.open.start).translate(0, 1);
+	let openStart = nodeToUpdate.open.start.translate(0, 1);
 	let openEnd = openStart.translate(0, nodeToUpdate.name.length);
 
 	let ranges = [new vscode.Range(openStart, openEnd)];
 	if (nodeToUpdate.close) {
-		let closeStart = (<vscode.Position>nodeToUpdate.close.start).translate(0, 2);
-		let closeEnd = (<vscode.Position>nodeToUpdate.close.end).translate(0, -1);
+		let closeStart = nodeToUpdate.close.start.translate(0, 2);
+		let closeEnd = nodeToUpdate.close.end.translate(0, -1);
 		ranges.push(new vscode.Range(closeStart, closeEnd));
 	}
 	return ranges;

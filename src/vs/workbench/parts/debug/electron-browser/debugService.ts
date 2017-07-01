@@ -165,7 +165,7 @@ export class DebugService implements debug.IDebugService {
 		const process = this.model.getProcesses().filter(p => strings.equalsIgnoreCase(p.configuration.type, 'extensionhost')).pop();
 		const session = process ? <RawDebugSession>process.session : null;
 		if (broadcast.channel === EXTENSION_ATTACH_BROADCAST_CHANNEL) {
-			this.rawAttach(session, broadcast.payload.port);
+			setTimeout(() => this.rawAttach(session, broadcast.payload.port), 300);
 			return;
 		}
 
@@ -503,10 +503,6 @@ export class DebugService implements debug.IDebugService {
 			this.debugState.set(stateLabel.toLowerCase());
 		}
 		this._onDidChangeState.fire(state);
-	}
-
-	public get enabled(): boolean {
-		return this.contextService.hasWorkspace();
 	}
 
 	public focusStackFrameAndEvaluate(stackFrame: debug.IStackFrame, process?: debug.IProcess): TPromise<void> {
@@ -861,7 +857,7 @@ export class DebugService implements debug.IDebugService {
 			}
 
 			// task is already running - nothing to do.
-			if (this.lastTaskEvent && this.lastTaskEvent.taskName === taskName) {
+			if (this.lastTaskEvent && (this.lastTaskEvent.taskName === taskName || this.lastTaskEvent.taskId === task._id)) {
 				return TPromise.as(null);
 			}
 
@@ -964,7 +960,7 @@ export class DebugService implements debug.IDebugService {
 		});
 
 		this.model.removeProcess(session.getId());
-		if (process) {
+		if (process && process.state !== debug.ProcessState.INACTIVE) {
 			this._onDidEndProcess.fire(process);
 		}
 

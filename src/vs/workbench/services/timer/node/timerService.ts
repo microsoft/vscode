@@ -68,6 +68,7 @@ export class TimerService implements ITimerService {
 		let cpus: { count: number; speed: number; model: string; };
 		let platform: string;
 		let release: string;
+		let arch: string;
 		let loadavg: number[];
 		let meminfo: IMemoryInfo;
 		let isVMLikelyhood: number;
@@ -77,6 +78,7 @@ export class TimerService implements ITimerService {
 			freemem = os.freemem();
 			platform = os.platform();
 			release = os.release();
+			arch = os.arch();
 			loadavg = os.loadavg();
 			meminfo = process.getProcessMemoryInfo();
 
@@ -112,6 +114,7 @@ export class TimerService implements ITimerService {
 			timers2,
 			platform,
 			release,
+			arch,
 			totalmem,
 			freemem,
 			meminfo,

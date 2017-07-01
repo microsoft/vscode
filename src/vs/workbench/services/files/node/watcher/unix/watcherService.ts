@@ -12,8 +12,8 @@ import uri from 'vs/base/common/uri';
 import { toFileChangesEvent, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
 import { IWatcherChannel, WatcherChannelClient } from 'vs/workbench/services/files/node/watcher/unix/watcherIpc';
 import { FileChangesEvent } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService } from "vs/platform/workspace/common/workspace";
-import { normalize } from "path";
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { normalize } from 'path';
 
 export class FileWatcher {
 	private static MAX_RESTARTS = 5;

@@ -13,7 +13,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/node/configurationResolverService';
 import { TestEnvironmentService, TestEditorService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { testWorkspace } from "vs/platform/workspace/test/common/testWorkspace";
+import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 suite('Configuration Resolver Service', () => {
 	let configurationResolverService: IConfigurationResolverService;

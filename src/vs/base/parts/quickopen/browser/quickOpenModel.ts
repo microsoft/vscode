@@ -21,9 +21,9 @@ import { ActionBar, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import DOM = require('vs/base/browser/dom');
 import { IQuickOpenStyles } from 'vs/base/parts/quickopen/browser/quickOpenWidget';
-import { KeybindingLabel } from "vs/base/browser/ui/keybindingLabel/keybindingLabel";
-import { OS } from "vs/base/common/platform";
-import { ResolvedKeybinding } from "vs/base/common/keyCodes";
+import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
+import { OS } from 'vs/base/common/platform';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 
 export interface IContext {
 	event: any;

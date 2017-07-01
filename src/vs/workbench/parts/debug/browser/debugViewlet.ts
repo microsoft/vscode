@@ -14,6 +14,7 @@ import { IDebugService, VIEWLET_ID, State } from 'vs/workbench/parts/debug/commo
 import { StartAction, ToggleReplAction, ConfigureAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { StartDebugActionItem } from 'vs/workbench/parts/debug/browser/debugActionItems';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -38,9 +39,10 @@ export class DebugViewlet extends ComposedViewsViewlet {
 		@IStorageService storageService: IStorageService,
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IContextMenuService contextMenuService: IContextMenuService
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IExtensionService extensionService: IExtensionService
 	) {
-		super(VIEWLET_ID, ViewLocation.Debug, `${VIEWLET_ID}.state`, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService);
+		super(VIEWLET_ID, ViewLocation.Debug, `${VIEWLET_ID}.state`, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
 
 		this.progressRunner = null;
 

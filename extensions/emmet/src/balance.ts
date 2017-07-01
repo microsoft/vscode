@@ -4,11 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import parse from '@emmetio/html-matcher';
 import { HtmlNode } from 'EmmetNode';
-import { DocumentStreamReader } from './bufferStream';
-import { isStyleSheet } from 'vscode-emmet-helper';
-import { getNode } from './util';
+import { getNode, parse, validate } from './util';
 
 export function balanceOut() {
 	balance(true);
@@ -20,20 +17,16 @@ export function balanceIn() {
 
 function balance(out: boolean) {
 	let editor = vscode.window.activeTextEditor;
-	if (!editor) {
-		vscode.window.showInformationMessage('No editor is active');
+	if (!validate(false)) {
 		return;
 	}
-	if (isStyleSheet(editor.document.languageId)) {
-		return;
-	}
-	let getRangeFunction = out ? getRangeToBalanceOut : getRangeToBalanceIn;
 
-	let rootNode: HtmlNode = parse(new DocumentStreamReader(editor.document));
+	let rootNode = <HtmlNode>parse(editor.document);
 	if (!rootNode) {
 		return;
 	}
 
+	let getRangeFunction = out ? getRangeToBalanceOut : getRangeToBalanceIn;
 	let newSelections: vscode.Selection[] = [];
 	editor.selections.forEach(selection => {
 		let range = getRangeFunction(editor.document, selection, rootNode);

@@ -60,6 +60,7 @@
 	"editorForeground": "Standardvordergrundfarbe des Editors.",
 	"editorWidgetBackground": "Hintergrundfarbe von Editor-Widgets wie zum Beispiel Suchen/Ersetzen.",
 	"editorWidgetBorder": "Rahmenfarbe von Editorwigdets. Die Farbe wird nur verwendet, wenn für das Widget ein Rahmen verwendet wird und die Farbe nicht von einem Widget überschrieben wird.",
+	"editorSelectionForeground": "Farbe des gewählten Text für einen hohen Kontrast",
 	"editorInactiveSelection": "Farbe der Auswahl in einem inaktiven Editor.",
 	"editorSelectionHighlight": "Farbe für Bereiche, deren Inhalt der Auswahl entspricht.",
 	"editorFindMatch": "Farbe des aktuellen Suchergebnisses.",

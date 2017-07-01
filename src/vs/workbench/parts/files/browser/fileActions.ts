@@ -962,8 +962,7 @@ export class PasteFileAction extends BaseFileAction {
 		}
 
 		// Check if file was deleted or moved meanwhile
-		const root: FileStat = this.element.root;
-		const exists = root.find(fileToCopy.resource);
+		const exists = fileToCopy.root.find(fileToCopy.resource);
 		if (!exists) {
 			fileToCopy = null;
 			return false;
@@ -1271,11 +1270,7 @@ export class CompareResourcesAction extends Action {
 		// Check if file was deleted or moved meanwhile (explorer only)
 		if (this.tree) {
 			const input: FileStat | Model = this.tree.getInput();
-			if (input instanceof Model) {
-				return false;
-			}
-
-			const exists = input.find(globalResourceToCompare);
+			const exists = input instanceof Model ? input.findClosest(globalResourceToCompare) : input.find(globalResourceToCompare);
 			if (!exists) {
 				globalResourceToCompare = null;
 				return false;

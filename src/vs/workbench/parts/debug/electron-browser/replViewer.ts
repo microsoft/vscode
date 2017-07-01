@@ -62,7 +62,6 @@ interface IExpressionTemplateData {
 
 interface IValueOutputTemplateData {
 	container: HTMLElement;
-	counter: HTMLElement;
 	value: HTMLElement;
 }
 
@@ -178,7 +177,6 @@ export class ReplExpressionsRenderer implements IRenderer {
 			let expression = dom.append(container, $('.output.expression'));
 
 			data.container = container;
-			data.counter = dom.append(expression, $('div.counter'));
 			data.value = dom.append(expression, $('span.value'));
 
 			return data;
@@ -223,15 +221,6 @@ export class ReplExpressionsRenderer implements IRenderer {
 	}
 
 	private renderOutputValue(output: OutputElement, templateData: IValueOutputTemplateData): void {
-
-		// counter
-		if (output.counter > 1) {
-			templateData.counter.textContent = String(output.counter);
-			templateData.counter.className = (output.severity === severity.Warning) ? 'counter warn' : (output.severity === severity.Error) ? 'counter error' : 'counter info';
-		} else {
-			templateData.counter.textContent = '';
-			templateData.counter.className = 'counter';
-		}
 
 		// value
 		dom.clearNode(templateData.value);

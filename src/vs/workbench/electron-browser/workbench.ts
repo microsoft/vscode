@@ -94,10 +94,10 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { OpenRecentAction, ToggleDevToolsAction, ReloadWindowAction, inRecentFilesPickerContextKey } from "vs/workbench/electron-browser/actions";
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { KeybindingsRegistry } from "vs/platform/keybinding/common/keybindingsRegistry";
-import { getQuickNavigateHandler, inQuickOpenContext } from "vs/workbench/browser/parts/quickopen/quickopen";
-import { IWorkspaceEditingService } from "vs/workbench/services/workspace/common/workspaceEditing";
-import { WorkspaceEditingService } from "vs/workbench/services/workspace/node/workspaceEditingService";
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { getQuickNavigateHandler, inQuickOpenContext } from 'vs/workbench/browser/parts/quickopen/quickopen';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { WorkspaceEditingService } from 'vs/workbench/services/workspace/node/workspaceEditingService';
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);

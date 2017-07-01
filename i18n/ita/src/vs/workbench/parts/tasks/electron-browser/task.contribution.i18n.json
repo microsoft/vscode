@@ -19,6 +19,8 @@
 	"manyMarkers": "Più di 99",
 	"tasks": "Attività",
 	"TaskSystem.noHotSwap": "Per modificare il motore di esecuzione delle attività, è necessario riavviare VS Code. La modifica verrà ignorata.",
+	"TaskService.noBuildTask1": "Non è stata definita alcuna attività di compilazione. Contrassegnare un'attività con 'isBuildCommand' nel file tasks.json.",
+	"TaskService.noTestTask1": "Non è stata definita alcuna attività di test. Contrassegnare un'attività con 'isTestCommand' nel file tasks.json.",
 	"TaskServer.noTask": "Attività {0} richiesta per l'esecuzione non trovata",
 	"customizeParseErrors": "La configurazione dell'attività corrente presenta errori. Per favore correggere gli errori prima di personalizzazione un'attività.",
 	"moreThanOneBuildTask": "tasks.json contiene molte attività di compilazione. È in corso l'esecuzione della prima.\n",
@@ -30,17 +32,14 @@
 	"TaskSystem.terminateTask": "&&Termina attività",
 	"TaskSystem.noProcess": "L'attività avviata non esiste più. Se l'attività implica la generazione di processi in background, uscendo da Visual Studio Code potrebbero essere presenti processi orfani. Per evitarlo, avviare l'ultimo processo in background con un flag di attesa.",
 	"TaskSystem.exitAnyways": "&&Esci comunque",
-	"TerminateAction.label": "Termina attività in esecuzione",
+	"TerminateAction.label": "Termina attività",
 	"TaskSystem.unknownError": "Si è verificato un errore durante l'esecuzione di un'attività. Per dettagli, vedere il log attività.",
 	"TaskService.noWorkspace": "Le attività sono disponibili solo per una cartella dell'area di lavoro.",
 	"TerminateAction.noProcess": "Il processo avviato non esiste più. Se l'attività implica la generazione di attività in background, uscendo da Visual Studio Code potrebbero essere presenti processi orfani.",
 	"TerminateAction.failed": "Non è stato possibile terminare l'attività in esecuzione",
 	"ShowLogAction.label": "Mostra log attività",
 	"RunTaskAction.label": "Esegui attività",
-	"RestartTaskAction.label": "Riavvia attività",
 	"BuildAction.label": "Esegui attività di compilazione",
 	"TestAction.label": "Esegui attività di test",
-	"quickOpen.task": "Esegui attività",
-	"quickOpen.terminateTask": "&&Termina attività",
-	"quickOpen.restartTask": "Riavvia attività"
+	"quickOpen.task": "Esegui attività"
 }

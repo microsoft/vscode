@@ -29,7 +29,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { IHistoryService } from "vs/workbench/services/history/common/history";
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 export class TextFileService extends AbstractTextFileService {
 

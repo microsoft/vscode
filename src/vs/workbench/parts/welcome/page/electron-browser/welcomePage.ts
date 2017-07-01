@@ -38,7 +38,7 @@ import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/com
 import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils';
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
-import { IStorageService } from "vs/platform/storage/common/storage";
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 used();
 

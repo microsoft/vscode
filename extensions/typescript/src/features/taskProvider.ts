@@ -22,7 +22,7 @@ const exists = (file: string): Promise<boolean> =>
 	});
 
 
-interface TypeScriptTaskIdentifier extends vscode.TaskKind {
+interface TypeScriptTaskDefinition extends vscode.TaskDefinition {
 	tsconfig: string;
 }
 
@@ -53,7 +53,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 
 		return projects.map(configFile => {
 			const configFileName = path.relative(rootPath, configFile);
-			const identifier: TypeScriptTaskIdentifier = { type: 'typescript', tsconfig: configFileName };
+			const identifier: TypeScriptTaskDefinition = { type: 'typescript', tsconfig: configFileName };
 			const buildTask = new vscode.Task(identifier, `build ${configFileName}`, 'tsc', new vscode.ShellExecution(`${command} -p "${configFile}"`), '$tsc');
 			buildTask.group = vscode.TaskGroup.Build;
 			return buildTask;

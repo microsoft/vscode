@@ -8,10 +8,10 @@
 import { IRawFileChange, toFileChangesEvent } from 'vs/workbench/services/files/node/watcher/common';
 import { OutOfProcessWin32FolderWatcher } from 'vs/workbench/services/files/node/watcher/win32/csharpWatcherService';
 import { FileChangesEvent } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService } from "vs/platform/workspace/common/workspace";
-import { normalize } from "path";
-import { rtrim, endsWith } from "vs/base/common/strings";
-import { sep } from "vs/base/common/paths";
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { normalize } from 'path';
+import { rtrim, endsWith } from 'vs/base/common/strings';
+import { sep } from 'vs/base/common/paths';
 
 export class FileWatcher {
 	private isDisposed: boolean;

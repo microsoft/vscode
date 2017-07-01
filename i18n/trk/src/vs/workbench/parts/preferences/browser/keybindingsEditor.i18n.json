@@ -8,7 +8,7 @@
 	"SearchKeybindings.AriaLabel": "Tuş bağlarını ara",
 	"SearchKeybindings.Placeholder": "Tuş bağlarını ara",
 	"sortByPrecedene": "Önceliğe Göre Sırala",
-	"header-message": "Gelişmiş özelleştirmeler için açın ve düzenleyin",
+	"header-message": "Gelişmiş özelleştirmeler için açın ve düzenleyin:",
 	"keybindings-file-name": "keybindings.json",
 	"keybindingsLabel": "Tuş bağları",
 	"changeLabel": "Tuş Bağını Değiştir",
