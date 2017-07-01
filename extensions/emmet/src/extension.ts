@@ -123,7 +123,7 @@ export function activate(context: vscode.ExtensionContext) {
  */
 const registeredCompletionProviders: string[] = [];
 
-export function registerCompletionProviders(context: vscode.ExtensionContext) {
+function registerCompletionProviders(context: vscode.ExtensionContext) {
 	let completionProvider = new DefaultCompletionItemProvider();
 	Object.keys(LANGUAGE_MODES).forEach(language => {
 		const provider = vscode.languages.registerCompletionItemProvider(language, completionProvider, ...LANGUAGE_MODES[language]);
