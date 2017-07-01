@@ -681,7 +681,7 @@ export class ModifiedSorter implements ISorter {
 			return 0;
 		}
 
-		return statA.mtime < statB.mtime ? -1 : 1;
+		return statA.mtime < statB.mtime ? 1 : -1;
 	}
 }
 
