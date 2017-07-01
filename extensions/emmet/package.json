@@ -24,7 +24,9 @@
             "title": "Emmet",
             "properties": {
                 "emmet.showExpandedAbbreviation": {
-                    "type": ["string"],
+                    "type": [
+                        "string"
+                    ],
                     "enum": [
                         "never",
                         "always",
@@ -43,7 +45,7 @@
                     "default": {},
                     "description": "Applicable only when emmet.useNewEmmet is set to true.\nEnable emmet abbreviations in languages that are not supported by default. Add a mapping here between the language and emmet supported language.\n Eg: {\"vue-html\": \"html\", \"javascript\": \"javascriptreact\"}"
                 },
-                "emmet.variables":{
+                "emmet.variables": {
                     "type": "object",
                     "properties": {
                         "lang": {
@@ -55,7 +57,7 @@
                             "default": "UTF-8"
                         }
                     },
-                    "default":{},
+                    "default": {},
                     "description": "Applicable only when emmet.useNewEmmet is set to true.\nVariables to be used in emmet snippets"
                 }
             }
@@ -73,6 +75,6 @@
         "@emmetio/html-matcher": "^0.3.1",
         "@emmetio/css-parser": "^0.3.0",
         "@emmetio/math-expression": "^0.1.1",
-        "vscode-emmet-helper":"0.0.18"
+        "vscode-emmet-helper": "0.0.18"
     }
 }

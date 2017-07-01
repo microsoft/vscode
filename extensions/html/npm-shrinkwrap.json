@@ -1,41 +1,54 @@
 {
   "name": "html",
   "version": "0.1.0",
+  "lockfileVersion": 1,
   "dependencies": {
+    "@types/mocha": {
+      "version": "2.2.41",
+      "resolved": "https://registry.npmjs.org/@types/mocha/-/mocha-2.2.41.tgz",
+      "integrity": "sha1-4nzwgXFT658nE7LT9saPHhw8pgg=",
+      "dev": true
+    },
+    "@types/node": {
+      "version": "6.0.79",
+      "resolved": "https://registry.npmjs.org/@types/node/-/node-6.0.79.tgz",
+      "integrity": "sha1-Xv59Sm2MRTx+nq9V2TH0oi+sUWk=",
+      "dev": true
+    },
     "applicationinsights": {
       "version": "0.18.0",
-      "from": "applicationinsights@0.18.0",
-      "resolved": "https://registry.npmjs.org/applicationinsights/-/applicationinsights-0.18.0.tgz"
+      "resolved": "https://registry.npmjs.org/applicationinsights/-/applicationinsights-0.18.0.tgz",
+      "integrity": "sha1-Fi67SKODQIvE3kTbMrQXMH9Fu8E="
     },
     "vscode-extension-telemetry": {
-      "version": "0.0.7",
-      "from": "vscode-extension-telemetry@>=0.0.8 <0.0.9",
-      "resolved": "https://registry.npmjs.org/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.8.tgz"
+      "version": "0.0.8",
+      "resolved": "https://registry.npmjs.org/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.8.tgz",
+      "integrity": "sha1-ImG/+Ya2aQpvH3RqRaxb0fhdKeA="
     },
     "vscode-jsonrpc": {
       "version": "3.1.0-alpha.1",
-      "from": "vscode-jsonrpc@>=3.1.0-alpha.1 <4.0.0",
-      "resolved": "https://registry.npmjs.org/vscode-jsonrpc/-/vscode-jsonrpc-3.1.0-alpha.1.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-jsonrpc/-/vscode-jsonrpc-3.1.0-alpha.1.tgz",
+      "integrity": "sha1-Lyltedp+8aRPSDnqOEfjkebxmhw="
     },
     "vscode-languageclient": {
       "version": "3.1.0-alpha.1",
-      "from": "vscode-languageclient@next",
-      "resolved": "https://registry.npmjs.org/vscode-languageclient/-/vscode-languageclient-3.1.0-alpha.1.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-languageclient/-/vscode-languageclient-3.1.0-alpha.1.tgz",
+      "integrity": "sha1-SKlTw0gccGKzw+Ztb7uDmk+uixU="
     },
     "vscode-languageserver-types": {
       "version": "3.0.3",
-      "from": "vscode-languageserver-types@>=3.0.2-beta.5 <4.0.0",
-      "resolved": "https://registry.npmjs.org/vscode-languageserver-types/-/vscode-languageserver-types-3.0.3.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-languageserver-types/-/vscode-languageserver-types-3.0.3.tgz",
+      "integrity": "sha1-MDsqMHwglS/1wfWmCPPJEUYCjUc="
     },
     "vscode-nls": {
       "version": "2.0.2",
-      "from": "vscode-nls@>=2.0.2 <3.0.0",
-      "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-2.0.2.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-2.0.2.tgz",
+      "integrity": "sha1-gIUiOAhEuK0VNJmvXDsDkhrqAto="
     },
     "winreg": {
       "version": "1.2.3",
-      "from": "winreg@1.2.3",
-      "resolved": "https://registry.npmjs.org/winreg/-/winreg-1.2.3.tgz"
+      "resolved": "https://registry.npmjs.org/winreg/-/winreg-1.2.3.tgz",
+      "integrity": "sha1-k60RayaW2ofVj3JlqPzqUlSpZdU="
     }
   }
 }
