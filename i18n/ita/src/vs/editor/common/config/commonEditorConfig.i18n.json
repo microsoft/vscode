@@ -46,6 +46,7 @@
 	"autoClosingBrackets": "Controlla se l'editor deve chiudere automaticamente le parentesi quadre dopo che sono state aperte",
 	"formatOnType": "Controlla se l'editor deve formattare automaticamente la riga dopo la digitazione",
 	"formatOnPaste": "Controlla se l'editor deve formattare automaticamente il contenuto incollato. Deve essere disponibile un formattatore che deve essere in grado di formattare un intervallo in un documento.",
+	"autoIndent": "Controlla se l'editor deve correggere automaticamente l'indentazione mentre l'utente digita, incolla o sposta delle righe. Devono essere disponibili le regole di indentazione del linguaggio.",
 	"suggestOnTriggerCharacters": "Controlla se i suggerimenti devono essere visualizzati automaticamente durante la digitazione dei caratteri trigger",
 	"acceptSuggestionOnEnter": "Controlla se i suggerimenti devono essere accettati con 'INVIO' in aggiunta a 'TAB'. In questo modo è possibile evitare ambiguità tra l'inserimento di nuove righe e l'accettazione di suggerimenti. Il valore 'smart' indica di accettare un suggerimento con 'INVIO' quando comporta una modifica al testo",
 	"acceptSuggestionOnCommitCharacter": "Controlla se accettare i suggerimenti con i caratteri di commit. Ad esempio, in JavaScript il punto e virgola (';') può essere un carattere di commit che accetta un suggerimento e digita tale carattere.",

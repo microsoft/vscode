@@ -9,6 +9,7 @@
 	"command.refresh": "Aggiorna",
 	"command.openChange": "Apri modifiche",
 	"command.openFile": "Apri file",
+	"command.openHEADFile": "Apri File (HEAD)",
 	"command.stage": "Prepara modifiche per commit",
 	"command.stageAll": "Prepara tutte le modifiche per commit",
 	"command.stageSelectedRanges": "Prepara per il commit intervalli selezionati",

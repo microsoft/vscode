@@ -56,5 +56,15 @@
 	"LegacyProblemMatcherSchema.watchedBegin": "Espressione regolare con cui viene segnalato l'avvio dell'esecuzione di un'attività controllata attivato tramite il controllo dei file.",
 	"LegacyProblemMatcherSchema.watchedEnd.deprecated": "Questa proprietà è deprecata. In alternativa, usare la proprietà watching.",
 	"LegacyProblemMatcherSchema.watchedEnd": "Espressione regolare con cui viene segnalato il termine dell'esecuzione di un'attività controllata.",
-	"ProblemMatcherExtPoint": "Aggiunge come contributo i matcher problemi"
+	"NamedProblemMatcherSchema.name": "Nome del matcher problemi utilizzato per riferirsi ad esso.",
+	"NamedProblemMatcherSchema.label": "Un'etichetta leggibile del matcher problemi.",
+	"ProblemMatcherExtPoint": "Aggiunge come contributo i matcher problemi",
+	"msCompile": "Problemi del compilatore di Microsoft",
+	"lessCompile": "Problemi Less",
+	"gulp-tsc": "Problemi TSC Gulp",
+	"jshint": "Problemi JSHint",
+	"jshint-stylish": "Problemi di stile di JSHint",
+	"eslint-compact": "Problemi di compattazione di ESLint",
+	"eslint-stylish": "Problemi di stile di ESLint",
+	"go": "Problemi di Go"
 }

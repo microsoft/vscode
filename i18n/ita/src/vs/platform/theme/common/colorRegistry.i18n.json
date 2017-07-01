@@ -61,6 +61,8 @@
 	"editorForeground": "Colore primo piano predefinito dell'editor.",
 	"editorWidgetBackground": "Colore di sfondo dei widget dell'editor, ad esempio Trova/Sostituisci.",
 	"editorWidgetBorder": "Colore bordo dei widget dell'editor. Il colore viene utilizzato solo se il widget sceglie di avere un bordo e se il colore non è sottoposto a override da un widget.",
+	"editorSelectionBackground": "Colore della selezione dell'editor.",
+	"editorSelectionForeground": "Colore del testo selezionato per il contrasto elevato.",
 	"editorInactiveSelection": "Colore della selezione in un editor inattivo.",
 	"editorSelectionHighlight": "Colore delle aree con lo stesso contenuto della selezione.",
 	"editorFindMatch": "Colore della corrispondenza di ricerca corrente.",

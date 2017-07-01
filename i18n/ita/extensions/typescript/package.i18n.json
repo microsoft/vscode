@@ -17,6 +17,7 @@
 	"typescript.format.enable": "Abilita/Disabilita il formattatore TypeScript predefinito.",
 	"javascript.format.enable": "Abilita/Disabilita il formattatore JavaScript predefinito.",
 	"format.insertSpaceAfterCommaDelimiter": "Consente di definire la gestione dello spazio dopo una virgola di delimitazione6",
+	"format.insertSpaceAfterConstructor": "Definisce la gestione dello spazio dopo la parola chiave constructor. Richiede TypeScript >= 2.3.0.",
 	"format.insertSpaceAfterSemicolonInForStatements": " Consente di definire la gestione dello spazio dopo un punto e virgola in un'istruzione for.",
 	"format.insertSpaceBeforeAndAfterBinaryOperators": "Consente di definire la gestione dello spazio dopo un operatore binario.",
 	"format.insertSpaceAfterKeywordsInControlFlowStatements": "Consente di definire la gestione dello spazio dopo le parole chiave in un'istruzione del flusso di controllo.",
