@@ -24,9 +24,9 @@ import { append, $, addClass, removeClass, finalHandler, join } from 'vs/base/br
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionGalleryService, IExtensionManifest, IKeyBinding, IView } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies } from 'vs/workbench/parts/extensions/common/extensions';
 import { Renderer, DataSource, Controller } from 'vs/workbench/parts/extensions/browser/dependenciesViewer';
@@ -36,7 +36,7 @@ import { RatingsWidget, InstallWidget } from 'vs/workbench/parts/extensions/brow
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, BuiltinStatusLabelAction, ReloadAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
-import WebView from 'vs/workbench/parts/html/browser/webview';
+import WebView, { KEYBINDING_CONTEXT_WEBVIEW_FOCUS } from 'vs/workbench/parts/html/browser/webview';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -49,6 +49,11 @@ import { IPartService, Parts } from 'vs/workbench/services/part/common/partServi
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { Command } from 'vs/editor/common/editorCommonExtensions';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 function renderBody(body: string): string {
 	return `<!DOCTYPE html>
@@ -161,6 +166,7 @@ export class ExtensionEditor extends BaseEditor {
 	private contentDisposables: IDisposable[] = [];
 	private transientDisposables: IDisposable[] = [];
 	private disposables: IDisposable[];
+	private activeWebview: WebView;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -174,7 +180,9 @@ export class ExtensionEditor extends BaseEditor {
 		@IMessageService private messageService: IMessageService,
 		@IOpenerService private openerService: IOpenerService,
 		@IListService private listService: IListService,
-		@IPartService private partService: IPartService
+		@IPartService private partService: IPartService,
+		@IContextViewService private contextViewService: IContextViewService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService);
 		this._highlight = null;
@@ -319,9 +327,16 @@ export class ExtensionEditor extends BaseEditor {
 		super.changePosition(position);
 	}
 
+	showFind(): void {
+		if (this.activeWebview) {
+			this.activeWebview.showFind();
+		}
+	}
+
 	private onNavbarChange(extension: IExtension, id: string): void {
 		this.contentDisposables = dispose(this.contentDisposables);
 		this.content.innerHTML = '';
+		this.activeWebview = null;
 		switch (id) {
 			case NavbarSection.Readme: return this.openReadme();
 			case NavbarSection.Contributions: return this.openContributions();
@@ -338,21 +353,21 @@ export class ExtensionEditor extends BaseEditor {
 			.then<void>(body => {
 				const allowedBadgeProviders = this.extensionsWorkbenchService.allowedBadgeProviders;
 				const webViewOptions = allowedBadgeProviders.length > 0 ? { allowScripts: false, allowSvgs: false, svgWhiteList: allowedBadgeProviders } : undefined;
-				const webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), webViewOptions);
-				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, webview);
+				this.activeWebview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this.contextViewService, this.contextKeyService, webViewOptions);
+				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, this.activeWebview);
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
 
-				webview.style(this.themeService.getTheme());
-				webview.contents = [body];
+				this.activeWebview.style(this.themeService.getTheme());
+				this.activeWebview.contents = [body];
 
-				webview.onDidClickLink(link => {
+				this.activeWebview.onDidClickLink(link => {
 					// Whitelist supported schemes for links
 					if (link && ['http', 'https', 'mailto'].indexOf(link.scheme) >= 0) {
 						this.openerService.open(link);
 					}
 				}, null, this.contentDisposables);
-				this.themeService.onThemeChange(theme => webview.style(theme), null, this.contentDisposables);
-				this.contentDisposables.push(webview);
+				this.themeService.onThemeChange(theme => this.activeWebview.style(theme), null, this.contentDisposables);
+				this.contentDisposables.push(this.activeWebview);
 			})
 			.then(null, () => {
 				const p = append(this.content, $('p.nocontent'));
@@ -769,3 +784,28 @@ export class ExtensionEditor extends BaseEditor {
 		super.dispose();
 	}
 }
+
+class StartWebViewEditorFindCommand extends Command {
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const extensionEditor = this.getExtensionEditor(accessor);
+		if (extensionEditor) {
+			extensionEditor.showFind();
+		}
+	}
+
+	private getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor {
+		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as ExtensionEditor;
+		if (activeEditor instanceof ExtensionEditor) {
+			return activeEditor;
+		}
+		return null;
+	}
+}
+const command = new StartWebViewEditorFindCommand({
+	id: 'editor.action.webview.find',
+	precondition: KEYBINDING_CONTEXT_WEBVIEW_FOCUS,
+	kbOpts: {
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_F
+	}
+});
+KeybindingsRegistry.registerCommandAndKeybindingRule(command.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));

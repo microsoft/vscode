@@ -15,6 +15,9 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme, LIGHT, DARK } from 'vs/platform/theme/common/themeService';
+import { WebviewFindWidget } from './webviewFindWidget';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { ContextKeyExpr, IContextKey, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 declare interface WebviewElement extends HTMLElement {
 	src: string;
@@ -24,6 +27,29 @@ declare interface WebviewElement extends HTMLElement {
 	send(channel: string, ...args: any[]);
 	openDevTools(): any;
 	getWebContents(): any;
+	findInPage(value: string, options?: WebviewElementFindInPageOptions);
+	stopFindInPage(action: string);
+}
+
+export class StopFindInPageActions {
+	static clearSelection = 'clearSelection';
+	static keepSelection = 'keepSelection';
+	static activateSelection = 'activateSelection';
+}
+
+export interface WebviewElementFindInPageOptions {
+	forward?: boolean;
+	findNext?: boolean;
+	matchCase?: boolean;
+	wordStart?: boolean;
+	medialCapitalAsWordStart?: boolean;
+}
+
+export interface FoundInPageResults {
+	requestId: number;
+	activeMatchOrdinal: number;
+	matches: number;
+	selectionArea: any;
 }
 
 CommandsRegistry.registerCommand('_webview.openDevTools', function () {
@@ -50,6 +76,13 @@ export interface WebviewOptions {
 	svgWhiteList?: string[];
 }
 
+/**  A context key that is set when an html preview has focus. */
+// export const KEYBINDING_CONTEXT_HTML_PREVIEW_FOCUS = new RawContextKey<boolean>('htmlPreviewFocus', undefined);
+export const KEYBINDING_CONTEXT_WEBVIEW_FOCUS = new RawContextKey<boolean>('webviewFocus', true);
+/**  A context key that is set when an html preview does not have focus. */
+export const KEYBINDING_CONTEXT_WEBVIEW_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_WEBVIEW_FOCUS.toNegated();
+
+
 export default class Webview {
 	private static index: number = 0;
 
@@ -60,12 +93,22 @@ export default class Webview {
 	private _onDidLoadContent = new Emitter<{ stats: any }>();
 
 	private _onDidScroll = new Emitter<{ scrollYPercentage: number }>();
+	private _onFoundInPageResults = new Emitter<FoundInPageResults>();
+
+	private _webviewFindWidget: WebviewFindWidget;
+	private _contextKey: IContextKey<boolean>;
 
 	constructor(
 		private parent: HTMLElement,
 		private _styleElement: Element,
-		private _options: WebviewOptions = {}
+		@IContextViewService private _contextViewService: IContextViewService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		private _options: WebviewOptions = {},
 	) {
+		if (contextKeyService) {
+			this._contextKey = KEYBINDING_CONTEXT_WEBVIEW_FOCUS.bindTo(contextKeyService);
+		}
+
 		this._webview = <any>document.createElement('webview');
 
 		this._webview.style.width = '100%';
@@ -87,7 +130,7 @@ export default class Webview {
 		this._ready = new TPromise<this>(resolve => {
 			const subscription = addDisposableListener(this._webview, 'ipc-message', (event) => {
 				if (event.channel === 'webview-ready') {
-					// console.info('[PID Webview] ' + event.args[0]);
+					// console.info('[PID Webview] ' event.args[0]);
 					addClass(this._webview, 'ready'); // can be found by debug command
 
 					subscription.dispose();
@@ -165,9 +208,29 @@ export default class Webview {
 					}
 					return;
 				}
-			}));
+			}),
+			addDisposableListener(this._webview, 'focus', (event: KeyboardEvent) => {
+				if (this._contextKey !== null) {
+					console.log('focus webview');
+					this._contextKey.set(true);
+				}
+			}),
+			addDisposableListener(this._webview, 'blur', (event: KeyboardEvent) => {
+				if (this._contextKey !== null) {
+					console.log('blur webview');
+					this._contextKey.reset();
+				}
+			}),
+			addDisposableListener(this._webview, 'found-in-page', (event) => {
+				this._onFoundInPageResults.fire(event.result);
+			})
+		);
+
+		this._webviewFindWidget = new WebviewFindWidget(this._contextViewService, this);
+		this._disposables.push(this._webviewFindWidget);
 
 		if (parent) {
+			parent.appendChild(this._webviewFindWidget.getDomNode());
 			parent.appendChild(this._webview);
 		}
 	}
@@ -192,6 +255,10 @@ export default class Webview {
 
 	get onDidScroll(): Event<{ scrollYPercentage: number }> {
 		return this._onDidScroll.event;
+	}
+
+	get onFindResults(): Event<FoundInPageResults> {
+		return this._onFoundInPageResults.event;
 	}
 
 	private _send(channel: string, ...args: any[]): void {
@@ -312,6 +379,8 @@ export default class Webview {
 		}
 
 		this._send('styles', value, activeTheme);
+
+		this._webviewFindWidget.updateTheme(theme);
 	}
 
 	public layout(): void {
@@ -349,5 +418,34 @@ export default class Webview {
 			return this._options.svgWhiteList.indexOf(uri.authority.toLowerCase()) >= 0;
 		}
 		return false;
+	}
+
+	/**
+	 * Webviews expose a stateful find API.
+	 * Successive calls to find will move forward or backward through onFindResults
+	 * depending on the supplied options.
+	 *
+	 * @param {string} value The string to search for. Empty strings are ignored.
+	 * @param {WebviewElementFindInPageOptions} [options]
+	 *
+	 * @memberOf Webview
+	 */
+	public find(value: string, options?: WebviewElementFindInPageOptions): void {
+		// Searching with an empty value will throw an exception
+		if (value) {
+			this._webview.findInPage(value, options);
+		}
+	}
+
+	public stopFind(keepSelection?: boolean): void {
+		this._webview.stopFindInPage(keepSelection ? StopFindInPageActions.keepSelection : StopFindInPageActions.clearSelection);
+	}
+
+	public showFind() {
+		this._webviewFindWidget.reveal();
+	}
+
+	public hideFind() {
+		this._webviewFindWidget.hide();
 	}
 }
