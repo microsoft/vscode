@@ -29,7 +29,7 @@ export abstract class BaseWebviewEditor extends BaseEditor {
 		id: string,
 		telemetryService: ITelemetryService,
 		themeService: IThemeService,
-		private storageService: IStorageService,
+		private storageService: IStorageService
 	) {
 		super(id, telemetryService, themeService);
 	}
