@@ -36,7 +36,7 @@ import { RatingsWidget, InstallWidget } from 'vs/workbench/parts/extensions/brow
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, BuiltinStatusLabelAction, ReloadAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
-import WebView, { KEYBINDING_CONTEXT_WEBVIEW_FOCUS } from 'vs/workbench/parts/html/browser/webview';
+import WebView from 'vs/workbench/parts/html/browser/webview';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -50,10 +50,15 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Command } from 'vs/editor/common/editorCommonExtensions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+
+/**  A context key that is set when an extension editor webview has focus. */
+export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS = new RawContextKey<boolean>('extensionEditorWebviewFocus', undefined);
+/**  A context key that is set when an extension editor webview not have focus. */
+export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS.toNegated();
 
 function renderBody(body: string): string {
 	return `<!DOCTYPE html>
@@ -162,6 +167,7 @@ export class ExtensionEditor extends BaseEditor {
 	private extensionManifest: Cache<IExtensionManifest>;
 	private extensionDependencies: Cache<IExtensionDependencies>;
 
+	private contextKey: IContextKey<boolean>;
 	private layoutParticipants: ILayoutParticipant[] = [];
 	private contentDisposables: IDisposable[] = [];
 	private transientDisposables: IDisposable[] = [];
@@ -192,6 +198,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.extensionChangelog = null;
 		this.extensionManifest = null;
 		this.extensionDependencies = null;
+		this.contextKey = KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS.bindTo(contextKeyService);
 	}
 
 	createEditor(parent: Builder): void {
@@ -353,7 +360,7 @@ export class ExtensionEditor extends BaseEditor {
 			.then<void>(body => {
 				const allowedBadgeProviders = this.extensionsWorkbenchService.allowedBadgeProviders;
 				const webViewOptions = allowedBadgeProviders.length > 0 ? { allowScripts: false, allowSvgs: false, svgWhiteList: allowedBadgeProviders } : undefined;
-				this.activeWebview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this.contextViewService, this.contextKeyService, webViewOptions);
+				this.activeWebview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this.contextViewService, this.contextKey, webViewOptions);
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, this.activeWebview);
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
 
@@ -785,7 +792,7 @@ export class ExtensionEditor extends BaseEditor {
 	}
 }
 
-class StartWebViewEditorFindCommand extends Command {
+class StartExtensionEditorFindCommand extends Command {
 	public runCommand(accessor: ServicesAccessor, args: any): void {
 		const extensionEditor = this.getExtensionEditor(accessor);
 		if (extensionEditor) {
@@ -801,9 +808,9 @@ class StartWebViewEditorFindCommand extends Command {
 		return null;
 	}
 }
-const command = new StartWebViewEditorFindCommand({
-	id: 'editor.action.webview.find',
-	precondition: KEYBINDING_CONTEXT_WEBVIEW_FOCUS,
+const command = new StartExtensionEditorFindCommand({
+	id: 'editor.action.extensioneditor.find',
+	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS,
 	kbOpts: {
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_F
 	}

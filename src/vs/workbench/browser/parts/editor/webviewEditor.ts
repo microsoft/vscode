@@ -4,21 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import URI from 'vs/base/common/uri';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Scope } from 'vs/workbench/common/memento';
-
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Command } from 'vs/editor/common/editorCommonExtensions';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-
-import WebView, { KEYBINDING_CONTEXT_WEBVIEW_FOCUS } from 'vs/workbench/parts/html/browser/webview';
-import { Builder } from 'vs/base/browser/builder';
 
 export interface HtmlPreviewEditorViewState {
 	scrollYPercentage: number;
@@ -33,13 +23,7 @@ interface HtmlPreviewEditorViewStates {
 /**
  * This class is only intended to be subclassed and not instantiated.
  */
-export abstract class WebviewEditor extends BaseEditor {
-
-	protected _webviewFocusContextKey: IContextKey<boolean>;
-	protected _webview: WebView;
-	protected content: HTMLElement;
-
-	static class: string = 'htmlPreviewPart';
+export abstract class BaseWebviewEditor extends BaseEditor {
 
 	constructor(
 		id: string,
@@ -48,7 +32,6 @@ export abstract class WebviewEditor extends BaseEditor {
 		private storageService: IStorageService,
 	) {
 		super(id, telemetryService, themeService);
-		this.onThemeChange = this.onThemeChanged.bind(this);
 	}
 
 	private get viewStateStorageKey(): string {
@@ -85,47 +68,4 @@ export abstract class WebviewEditor extends BaseEditor {
 		}
 		return null;
 	}
-
-	public showFind() {
-		if (this._webview) {
-			this._webview.showFind();
-		}
-	}
-
-	protected onThemeChanged(themeId: ITheme) {
-		if (this._webview) {
-			this._webview.style(themeId);
-		}
-	}
-
-	public get isWebviewEditor() {
-		return true;
-	}
-
-	protected abstract createEditor(parent: Builder);
 }
-
-class StartWebViewEditorFindCommand extends Command {
-	public runCommand(accessor: ServicesAccessor, args: any): void {
-		const webViewEditor = this.getWebViewEditor(accessor);
-		if (webViewEditor) {
-			webViewEditor.showFind();
-		}
-	}
-
-	private getWebViewEditor(accessor: ServicesAccessor): WebviewEditor {
-		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as WebviewEditor;
-		if (activeEditor.isWebviewEditor) {
-			return activeEditor;
-		}
-		return null;
-	}
-}
-const command = new StartWebViewEditorFindCommand({
-	id: 'editor.action.webview.find',
-	precondition: KEYBINDING_CONTEXT_WEBVIEW_FOCUS,
-	kbOpts: {
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_F
-	}
-});
-KeybindingsRegistry.registerCommandAndKeybindingRule(command.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));

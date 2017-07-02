@@ -19,7 +19,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
-import { WebviewEditor } from 'vs/workbench/browser/parts/editor/WebviewEditor';
+import { WebviewEditor } from 'vs/workbench/parts/html/browser/WebviewEditor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -52,9 +52,9 @@ export class ReleaseNotesEditor extends WebviewEditor {
 		@IPartService private partService: IPartService,
 		@IStorageService storageService: IStorageService,
 		@IContextViewService private _contextViewService: IContextViewService,
-		@IContextKeyService private _contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(ReleaseNotesEditor.ID, telemetryService, themeService, storageService);
+		super(ReleaseNotesEditor.ID, telemetryService, themeService, storageService, contextKeyService);
 	}
 
 	createEditor(parent: Builder): void {
@@ -95,7 +95,7 @@ export class ReleaseNotesEditor extends WebviewEditor {
 			})
 			.then(renderBody)
 			.then<void>(body => {
-				this._webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this._contextViewService, this._contextKeyService);
+				this._webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this._contextViewService, this.contextKey);
 
 				if (this.input && this.input instanceof ReleaseNotesInput) {
 					const state = this.loadViewState(this.input.version);

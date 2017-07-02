@@ -24,7 +24,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 import Webview, { WebviewOptions } from './webview';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { WebviewEditor } from 'vs/workbench/browser/parts/editor/webviewEditor';
+import { WebviewEditor } from './webviewEditor';
 
 
 /**
@@ -33,6 +33,7 @@ import { WebviewEditor } from 'vs/workbench/browser/parts/editor/webviewEditor';
 export class HtmlPreviewPart extends WebviewEditor {
 
 	static ID: string = 'workbench.editor.htmlPreviewPart';
+	static class: string = 'htmlPreviewPart';
 
 	private _webviewDisposables: IDisposable[];
 
@@ -51,9 +52,9 @@ export class HtmlPreviewPart extends WebviewEditor {
 		@IPartService private partService: IPartService,
 		@IStorageService storageService: IStorageService,
 		@IContextViewService private _contextViewService: IContextViewService,
-		@IContextKeyService private _contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(HtmlPreviewPart.ID, telemetryService, themeService, storageService);
+		super(HtmlPreviewPart.ID, telemetryService, themeService, storageService, contextKeyService);
 	}
 
 	dispose(): void {
@@ -83,7 +84,7 @@ export class HtmlPreviewPart extends WebviewEditor {
 				webviewOptions = this.input.options;
 			}
 
-			this._webview = new Webview(this.content, this.partService.getContainer(Parts.EDITOR_PART), this._contextViewService, this._contextKeyService, webviewOptions);
+			this._webview = new Webview(this.content, this.partService.getContainer(Parts.EDITOR_PART), this._contextViewService, this.contextKey, webviewOptions);
 			if (this.input && this.input instanceof HtmlInput) {
 				const state = this.loadViewState(this.input.getResource());
 				this.scrollYPercentage = state ? state.scrollYPercentage : 0;
@@ -126,8 +127,7 @@ export class HtmlPreviewPart extends WebviewEditor {
 			this._webviewDisposables = dispose(this._webviewDisposables);
 			this._webview = undefined;
 		} else {
-			this._themeChangeSubscription = this.themeService.onThemeChange(this.onThemeChanged);
-			this.onThemeChanged(this.themeService.getTheme());
+			this._themeChangeSubscription = this.themeService.onThemeChange(this.onThemeChange);
 
 			if (this._hasValidModel()) {
 				this._modelChangeSubscription = this.model.onDidChangeContent(() => this.webview.contents = this.model.getLinesContent());

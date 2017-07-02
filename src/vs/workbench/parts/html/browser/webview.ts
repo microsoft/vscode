@@ -17,7 +17,7 @@ import { editorBackground, editorForeground } from 'vs/platform/theme/common/col
 import { ITheme, LIGHT, DARK } from 'vs/platform/theme/common/themeService';
 import { WebviewFindWidget } from './webviewFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { ContextKeyExpr, IContextKey, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 declare interface WebviewElement extends HTMLElement {
 	src: string;
@@ -76,13 +76,6 @@ export interface WebviewOptions {
 	svgWhiteList?: string[];
 }
 
-/**  A context key that is set when an html preview has focus. */
-// export const KEYBINDING_CONTEXT_HTML_PREVIEW_FOCUS = new RawContextKey<boolean>('htmlPreviewFocus', undefined);
-export const KEYBINDING_CONTEXT_WEBVIEW_FOCUS = new RawContextKey<boolean>('webviewFocus', true);
-/**  A context key that is set when an html preview does not have focus. */
-export const KEYBINDING_CONTEXT_WEBVIEW_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_WEBVIEW_FOCUS.toNegated();
-
-
 export default class Webview {
 	private static index: number = 0;
 
@@ -96,19 +89,14 @@ export default class Webview {
 	private _onFoundInPageResults = new Emitter<FoundInPageResults>();
 
 	private _webviewFindWidget: WebviewFindWidget;
-	private _contextKey: IContextKey<boolean>;
 
 	constructor(
 		private parent: HTMLElement,
 		private _styleElement: Element,
 		@IContextViewService private _contextViewService: IContextViewService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		private _contextKey: IContextKey<boolean>,
 		private _options: WebviewOptions = {},
 	) {
-		if (contextKeyService) {
-			this._contextKey = KEYBINDING_CONTEXT_WEBVIEW_FOCUS.bindTo(contextKeyService);
-		}
-
 		this._webview = <any>document.createElement('webview');
 
 		this._webview.style.width = '100%';
@@ -209,15 +197,13 @@ export default class Webview {
 					return;
 				}
 			}),
-			addDisposableListener(this._webview, 'focus', (event: KeyboardEvent) => {
-				if (this._contextKey !== null) {
-					console.log('focus webview');
+			addDisposableListener(this._webview, 'focus', () => {
+				if (this._contextKey) {
 					this._contextKey.set(true);
 				}
 			}),
-			addDisposableListener(this._webview, 'blur', (event: KeyboardEvent) => {
-				if (this._contextKey !== null) {
-					console.log('blur webview');
+			addDisposableListener(this._webview, 'blur', () => {
+				if (this._contextKey) {
 					this._contextKey.reset();
 				}
 			}),
