@@ -857,7 +857,7 @@ export class DebugService implements debug.IDebugService {
 			}
 
 			// task is already running - nothing to do.
-			if (this.lastTaskEvent && (this.lastTaskEvent.taskName === taskName || this.lastTaskEvent.taskId === task._id)) {
+			if (this.lastTaskEvent && this.lastTaskEvent.taskId === task._id) {
 				return TPromise.as(null);
 			}
 
