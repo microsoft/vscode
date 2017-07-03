@@ -16,7 +16,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory, EditorInput, IFileEditorInput } from 'vs/workbench/common/editor';
 import { AutoSaveConfiguration, HotExitConfiguration, SUPPORTED_ENCODINGS } from 'vs/platform/files/common/files';
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { FILE_EDITOR_INPUT_ID, VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
+import { FILE_EDITOR_INPUT_ID, VIEWLET_ID, SortOrderConfiguration } from 'vs/workbench/parts/files/common/files';
 import { FileEditorTracker } from 'vs/workbench/parts/files/common/editors/fileEditorTracker';
 import { SaveErrorHandler } from 'vs/workbench/parts/files/browser/saveErrorHandler';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
@@ -31,7 +31,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { DirtyFilesTracker } from 'vs/workbench/parts/files/common/dirtyFilesTracker';
-import { SortOrderConfiguration } from 'vs/platform/explorer/common/explorer';
+
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ToggleViewletAction {

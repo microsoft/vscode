@@ -364,10 +364,6 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		return this.model.hasTrait(trait, element);
 	}
 
-	public setSorter(sorter: _.ISorter): void {
-		this.context.sorter = sorter;
-	}
-
 	getNavigator(fromElement?: any, subTreeOnly?: boolean): INavigator<any> {
 		return new MappedNavigator(this.model.getNavigator(fromElement, subTreeOnly), i => i && i.getElement());
 	}

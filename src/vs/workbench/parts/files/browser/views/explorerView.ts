@@ -16,12 +16,12 @@ import glob = require('vs/base/common/glob');
 import { Action, IAction } from 'vs/base/common/actions';
 import { prepareActions } from 'vs/workbench/browser/actions';
 import { memoize } from 'vs/base/common/decorators';
-import { ITree, ISorter } from 'vs/base/parts/tree/browser/tree';
+import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocussedContext, ExplorerFocussedContext } from 'vs/workbench/parts/files/common/files';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocussedContext, ExplorerFocussedContext, SortOrderConfiguration, SortOrder } from 'vs/workbench/parts/files/common/files';
 import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 import { RefreshViewExplorerAction, NewFolderAction, NewFileAction } from 'vs/workbench/parts/files/browser/fileActions';
-import { FileDragAndDrop, FileFilter, DefaultSorter, MixedSorter, FilesFirstSorter, TypeSorter, ModifiedSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/browser/views/explorerViewer';
+import { FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/browser/views/explorerViewer';
 import { toResource } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -46,7 +46,6 @@ import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { ViewSizing } from 'vs/base/browser/ui/splitview/splitview';
-import { SortOrderConfiguration } from 'vs/platform/explorer/common/explorer';
 
 export interface IExplorerViewOptions extends IViewletViewOptions {
 	viewletState: FileViewletState;
@@ -83,7 +82,7 @@ export class ExplorerView extends CollapsibleView {
 
 	private autoReveal: boolean;
 
-	private sortOrder: string;
+	private sortOrder: SortOrder;
 
 	private settings: any;
 
@@ -264,12 +263,9 @@ export class ExplorerView extends CollapsibleView {
 			needsRefresh = this.filter.updateConfiguration();
 		}
 
-		// Check if sortOrder value changed
-		const configSortOrder = configuration && configuration.explorer && configuration.explorer.sortOrder;
+		const configSortOrder = configuration && configuration.explorer && configuration.explorer.sortOrder || 'default';
 		if (this.sortOrder !== configSortOrder) {
 			this.sortOrder = configSortOrder;
-			const sorter = this.getSorter(this.sortOrder);
-			(<Tree>this.explorerViewer).setSorter(sorter);
 			needsRefresh = true;
 		}
 
@@ -384,11 +380,10 @@ export class ExplorerView extends CollapsibleView {
 	}
 
 	public createViewer(container: Builder): ITree {
-		const config = this.configurationService.getConfiguration<IFilesConfiguration>();
 		const dataSource = this.instantiationService.createInstance(FileDataSource);
 		const renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState);
 		const controller = this.instantiationService.createInstance(FileController, this.viewletState);
-		const sorter = this.getSorter(config && config.explorer && config.explorer.sortOrder);
+		const sorter = this.instantiationService.createInstance(FileSorter);
 		this.filter = this.instantiationService.createInstance(FileFilter);
 		const dnd = this.instantiationService.createInstance(FileDragAndDrop);
 		const accessibilityProvider = this.instantiationService.createInstance(FileAccessibilityProvider);
@@ -441,21 +436,6 @@ export class ExplorerView extends CollapsibleView {
 		}));
 
 		return this.explorerViewer;
-	}
-
-	private getSorter(sortOrder: string): ISorter {
-		switch (sortOrder) {
-			case SortOrderConfiguration.MIXED:
-				return new MixedSorter();
-			case SortOrderConfiguration.FILES_FIRST:
-				return new FilesFirstSorter();
-			case SortOrderConfiguration.TYPE:
-				return new TypeSorter();
-			case SortOrderConfiguration.MODIFIED:
-				return new ModifiedSorter();
-			default:
-				return new DefaultSorter();
-		}
 	}
 
 	public getOptimalWidth(): number {
@@ -660,22 +640,18 @@ export class ExplorerView extends CollapsibleView {
 			}
 		}
 
-		if (e.gotUpdated()) {
-			// Check updated only if sortOrder === MODIFIED
-			const config = this.configurationService.getConfiguration<IFilesConfiguration>();
-			if (config && config.explorer && config.explorer.sortOrder === SortOrderConfiguration.MODIFIED) {
-				const updated = e.getUpdated();
+		if (this.sortOrder === SortOrderConfiguration.MODIFIED && e.gotUpdated()) {
+			const updated = e.getUpdated();
 
-				// Check updated: Refresh if updated file/folder part of resolved root
-				for (let j = 0; j < updated.length; j++) {
-					const upd = updated[j];
-					if (!this.contextService.isInsideWorkspace(upd.resource)) {
-						continue; // out of workspace file
-					}
+			// Check updated: Refresh if updated file/folder part of resolved root
+			for (let j = 0; j < updated.length; j++) {
+				const upd = updated[j];
+				if (!this.contextService.isInsideWorkspace(upd.resource)) {
+					continue; // out of workspace file
+				}
 
-					if (this.model.findClosest(upd.resource)) {
-						return true;
-					}
+				if (this.model.findClosest(upd.resource)) {
+					return true;
 				}
 			}
 		}
