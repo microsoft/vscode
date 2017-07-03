@@ -6,7 +6,7 @@
         accessibility: [],
         api: [],
         css-less-sass: [],
-        debug: [ isidorn ],
+        debug: [ weinand ],
         editor: [],
         editor-brackets: [],
         editor-clipboard: [],
