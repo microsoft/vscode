@@ -8,6 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+import { remote } from 'electron';
 
 export class WindowService implements IWindowService {
 
@@ -98,4 +99,15 @@ export class WindowService implements IWindowService {
 		return this.windowsService.setDocumentEdited(this.windowId, flag);
 	}
 
+	showMessageBox(options: Electron.ShowMessageBoxOptions): number {
+		return remote.dialog.showMessageBox(remote.getCurrentWindow(), options);
+	}
+
+	showSaveDialog(options: Electron.SaveDialogOptions, callback?: (fileName: string) => void): string {
+		if (callback) {
+			return remote.dialog.showSaveDialog(remote.getCurrentWindow(), options, callback);
+		}
+
+		return remote.dialog.showSaveDialog(remote.getCurrentWindow(), options); // https://github.com/electron/electron/issues/4936
+	}
 }

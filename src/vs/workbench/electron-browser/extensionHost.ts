@@ -19,7 +19,6 @@ import { ILifecycleService, ShutdownEvent } from 'vs/platform/lifecycle/common/l
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { ChildProcess, fork } from 'child_process';
 import { ipcRenderer as ipc } from 'electron';
 import product from 'vs/platform/node/product';
@@ -35,6 +34,7 @@ import { IInitData, IWorkspaceData } from 'vs/workbench/api/node/extHost.protoco
 import { MainProcessExtensionService } from 'vs/workbench/api/electron-browser/mainThreadExtensionService';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { ICrashReporterService } from 'vs/workbench/services/crashReporter/common/crashReporterService';
+import { IBroadcastService } from "vs/platform/broadcast/electron-browser/broadcastService";
 
 export const EXTENSION_LOG_BROADCAST_CHANNEL = 'vscode:extensionLog';
 export const EXTENSION_ATTACH_BROADCAST_CHANNEL = 'vscode:extensionAttach';
@@ -91,7 +91,7 @@ export class ExtensionHostProcessWorker {
 		@IMessageService private messageService: IMessageService,
 		@IWindowsService private windowsService: IWindowsService,
 		@IWindowService private windowService: IWindowService,
-		@IWindowIPCService private windowIpcService: IWindowIPCService,
+		@IBroadcastService private broadcastService: IBroadcastService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -122,7 +122,7 @@ export class ExtensionHostProcessWorker {
 					AMD_ENTRYPOINT: 'vs/workbench/node/extensionHostProcess',
 					PIPE_LOGGING: 'true',
 					VERBOSE_LOGGING: true,
-					VSCODE_WINDOW_ID: String(this.windowIpcService.getWindowId()),
+					VSCODE_WINDOW_ID: String(this.windowService.getCurrentWindowId()),
 					VSCODE_IPC_HOOK_EXTHOST: hook,
 					ELECTRON_NO_ASAR: '1'
 				}),
@@ -185,7 +185,7 @@ export class ExtensionHostProcessWorker {
 
 			// Notify debugger that we are ready to attach to the process if we run a development extension
 			if (this.isExtensionDevelopmentHost && port) {
-				this.windowIpcService.broadcast({
+				this.broadcastService.broadcast({
 					channel: EXTENSION_ATTACH_BROADCAST_CHANNEL,
 					payload: { port }
 				}, this.environmentService.extensionDevelopmentPath /* target */);
@@ -327,7 +327,7 @@ export class ExtensionHostProcessWorker {
 
 		// Broadcast to other windows if we are in development mode
 		else if (!this.environmentService.isBuilt || this.isExtensionDevelopmentHost) {
-			this.windowIpcService.broadcast({
+			this.broadcastService.broadcast({
 				channel: EXTENSION_LOG_BROADCAST_CHANNEL,
 				payload: logEntry
 			}, this.environmentService.extensionDevelopmentPath /* target */);
@@ -370,7 +370,7 @@ export class ExtensionHostProcessWorker {
 
 			// Expected development extension termination: When the extension host goes down we also shutdown the window
 			else if (!this.isExtensionDevelopmentTestFromCli) {
-				this.windowIpcService.getWindow().close();
+				this.windowService.closeWindow();
 			}
 
 			// When CLI testing make sure to exit with proper exit code
@@ -394,7 +394,7 @@ export class ExtensionHostProcessWorker {
 		// If the extension development host was started without debugger attached we need
 		// to communicate this back to the main side to terminate the debug session
 		if (this.isExtensionDevelopmentHost && !this.isExtensionDevelopmentTestFromCli && !this.isExtensionDevelopmentDebug) {
-			this.windowIpcService.broadcast({
+			this.broadcastService.broadcast({
 				channel: EXTENSION_TERMINATE_BROADCAST_CHANNEL,
 				payload: true
 			}, this.environmentService.extensionDevelopmentPath /* target */);

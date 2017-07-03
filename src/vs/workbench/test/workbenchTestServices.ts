@@ -912,6 +912,14 @@ export class TestWindowService implements IWindowService {
 	onWindowTitleDoubleClick(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
+	showMessageBox(options: Electron.ShowMessageBoxOptions): number {
+		return 0;
+	}
+
+	showSaveDialog(options: Electron.SaveDialogOptions, callback?: (fileName: string) => void): string {
+		return void 0;
+	}
 }
 
 export class TestLifecycleService implements ILifecycleService {

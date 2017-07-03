@@ -25,7 +25,7 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
@@ -48,8 +48,8 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWindowIPCService, IBroadcast } from 'vs/workbench/services/window/electron-browser/windowService';
 import { ILogEntry, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from 'vs/workbench/electron-browser/extensionHost';
+import { IBroadcastService, IBroadcast } from "vs/platform/broadcast/electron-browser/broadcastService";
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -91,7 +91,8 @@ export class DebugService implements debug.IDebugService {
 		@IMessageService private messageService: IMessageService,
 		@IPartService private partService: IPartService,
 		@IWindowsService private windowsService: IWindowsService,
-		@IWindowIPCService private windowService: IWindowIPCService,
+		@IWindowService private windowService: IWindowService,
+		@IBroadcastService private broadcastService: IBroadcastService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -144,7 +145,7 @@ export class DebugService implements debug.IDebugService {
 		lifecycleService.onShutdown(this.store, this);
 		lifecycleService.onShutdown(this.dispose, this);
 
-		this.toDispose.push(this.windowService.onBroadcast(this.onBroadcast, this));
+		this.toDispose.push(this.broadcastService.onBroadcast(this.onBroadcast, this));
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration((event) => {
 			if (event.sourceConfig) {
 				const names = this.configurationManager.getConfigurationNames();
@@ -276,7 +277,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.focusStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
 		if (thread.stoppedDetails) {
-			this.windowService.getWindow().focus();
+			this.windowService.focusWindow();
 			aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", thread.stoppedDetails.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.range.startLineNumber));
 		}
 

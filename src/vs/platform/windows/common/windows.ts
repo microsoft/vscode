@@ -95,6 +95,8 @@ export interface IWindowService {
 	maximizeWindow(): TPromise<void>;
 	unmaximizeWindow(): TPromise<void>;
 	onWindowTitleDoubleClick(): TPromise<void>;
+	showMessageBox(options: Electron.ShowMessageBoxOptions): number;
+	showSaveDialog(options: Electron.SaveDialogOptions, callback?: (fileName: string) => void): string;
 }
 
 export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden';
