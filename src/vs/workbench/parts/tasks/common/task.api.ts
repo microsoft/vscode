@@ -209,5 +209,5 @@ export interface ProblemMatcher {
 	/**
 	 * A background monitor for tasks that are running in the background.
 	 */
-	backgound?: BackgroundMonitor;
+	background?: BackgroundMonitor;
 }
