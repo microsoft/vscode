@@ -12,8 +12,8 @@
   },
   "dependencies": {
     "semver": "4.3.6",
-    "vscode-extension-telemetry": "^0.0.6",
-    "vscode-nls": "^2.0.1"
+    "vscode-extension-telemetry": "0.0.8",
+    "vscode-nls": "2.0.1"
   },
   "devDependencies": {
     "@types/node": "^7.0.4",
@@ -21,7 +21,7 @@
   },
   "scripts": {
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript ./tsconfig.json",
-    "update-grammars": "node ./build/update-grammars.js"
+    "update-grammar": "node ./build/update-grammars.js"
   },
   "activationEvents": [
     "onLanguage:javascript",
@@ -35,11 +35,9 @@
     "onCommand:javascript.goToProjectConfig",
     "onCommand:typescript.goToProjectConfig",
     "onCommand:typescript.openTsServerLog",
-    "workspaceContains:jsconfig.json",
-    "workspaceContains:tsconfig.json"
+    "onCommand:workbench.action.tasks.runTask"
   ],
   "main": "./out/typescriptMain",
-  "enableProposedApi": true,
   "contributes": {
     "languages": [
       {
@@ -105,6 +103,25 @@
           "default": true,
           "description": "%typescript.check.tscVersion%"
         },
+        "typescript.npm": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "%typescript.npm%",
+          "isExecutable": true
+        },
+        "typescript.check.npmIsInstalled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.check.npmIsInstalled%"
+        },
+        "javascript.referencesCodeLens.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "%javascript.referencesCodeLens.enabled%"
+        },
         "typescript.referencesCodeLens.enabled": {
           "type": "boolean",
           "default": false,
@@ -156,6 +173,11 @@
           "default": true,
           "description": "%format.insertSpaceAfterCommaDelimiter%"
         },
+        "typescript.format.insertSpaceAfterConstructor": {
+          "type": "boolean",
+          "default": false,
+          "description": "%format.insertSpaceAfterConstructor%"
+        },
         "typescript.format.insertSpaceAfterSemicolonInForStatements": {
           "type": "boolean",
           "default": true,
@@ -206,6 +228,11 @@
           "default": false,
           "description": "%format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces%"
         },
+        "typescript.format.insertSpaceAfterTypeAssertion": {
+          "type": "boolean",
+          "default": false,
+          "description": "%format.insertSpaceAfterTypeAssertion%"
+        },
         "typescript.format.placeOpenBraceOnNewLineForFunctions": {
           "type": "boolean",
           "default": false,
@@ -230,6 +257,11 @@
           "type": "boolean",
           "default": true,
           "description": "%format.insertSpaceAfterCommaDelimiter%"
+        },
+        "javascript.format.insertSpaceAfterConstructor": {
+          "type": "boolean",
+          "default": false,
+          "description": "%format.insertSpaceAfterConstructor%"
         },
         "javascript.format.insertSpaceAfterSemicolonInForStatements": {
           "type": "boolean",
@@ -295,6 +327,25 @@
           "type": "boolean",
           "default": true,
           "description": "%jsDocCompletion.enabled%"
+        },
+        "javascript.implicitProjectConfig.checkJs": {
+          "type": "boolean",
+          "default": false,
+          "description": "%javascript.implicitProjectConfig.checkJs%"
+        },
+        "javascript.nameSuggestions": {
+          "type": "boolean",
+          "default": true,
+          "description": "%javascript.nameSuggestions%"
+        },
+        "typescript.tsc.autoDetect": {
+          "type": "string",
+          "default": "on",
+          "enum": [
+            "on",
+            "off"
+          ],
+          "description": "%typescript.tsc.autoDetect%"
         }
       }
     },
@@ -327,6 +378,11 @@
       {
         "command": "typescript.openTsServerLog",
         "title": "%typescript.openTsServerLog.title%",
+        "category": "TypeScript"
+      },
+      {
+        "command": "typescript.restartTsServer",
+        "title": "%typescript.restartTsServer%",
         "category": "TypeScript"
       }
     ],
@@ -393,7 +449,7 @@
         "fileMatch": "tsconfig.json",
         "url": "./schemas/tsconfig.schema.json"
       },
-       {
+      {
         "fileMatch": "tsconfig.*.json",
         "url": "http://json.schemastore.org/tsconfig"
       },
@@ -404,6 +460,18 @@
       {
         "fileMatch": "typings.json",
         "url": "http://json.schemastore.org/typings"
+      }
+    ],
+    "taskDefinitions": [
+      {
+        "type": "typescript",
+        "required": ["tsconfig"],
+        "properties": {
+          "tsconfig": {
+            "type": "string",
+            "description": "The tsconfig file that defines the TS build"
+          }
+        }
       }
     ],
     "problemPatterns": [
@@ -420,18 +488,26 @@
     "problemMatchers": [
       {
         "name": "tsc",
+        "label": "%typescript.problemMatchers.tsc.label%",
         "owner": "typescript",
         "applyTo": "closedDocuments",
-        "fileLocation": ["relative", "${cwd}"],
-	      "pattern": "$tsc"
+        "fileLocation": [
+          "relative",
+          "${cwd}"
+        ],
+        "pattern": "$tsc"
       },
       {
         "name": "tsc-watch",
+        "label": "%typescript.problemMatchers.tscWatch.label%",
         "owner": "typescript",
         "applyTo": "closedDocuments",
-        "fileLocation": ["relative", "${cwd}"],
+        "fileLocation": [
+          "relative",
+          "${cwd}"
+        ],
         "pattern": "$tsc",
-        "watching": {
+        "background": {
           "activeOnStart": true,
           "beginsPattern": {
             "regexp": "^\\s*(?:message TS6032:|\\d{1,2}:\\d{1,2}:\\d{1,2}(?: AM| PM)? -) File change detected\\. Starting incremental compilation\\.\\.\\."

@@ -15,13 +15,12 @@
 	color: inherit;
 }
 
-/* -------------------- Editor, inputarea and background -------------------- */
+/* -------------------- Editor -------------------- */
 
 .monaco-editor {
 	position: relative;
 	overflow: visible;
 	-webkit-text-size-adjust: 100%;
-	-ms-high-contrast-adjust: none;
 	-webkit-font-feature-settings: "liga" off, "calt" off;
 	font-feature-settings: "liga" off, "calt" off;
 }
@@ -29,69 +28,6 @@
 	-webkit-font-feature-settings: "liga" on, "calt" on;
 	font-feature-settings: "liga" on, "calt" on;
 }
-.monaco-editor .inputarea {
-	/*Chrome cannot handle typing in a 0x0 textarea*/
-	width: 1px;
-	height: 1px;
-	min-width: 0;
-	min-height: 0;
-	margin: 0;
-	padding: 0;
-	position: absolute;
-	outline: none !important;
-	resize: none;
-	border: none;
-	overflow: hidden;
-}
-/*.monaco-editor .inputarea {
-	position: fixed !important;
-	width: 800px !important;
-	height: 200px !important;
-	top: initial !important;
-	left: initial !important;
-	bottom: 0 !important;
-	right: 0 !important;
-}*/
-.monaco-editor.ff .inputarea,
-.monaco-editor.ie .inputarea {
-	width: 0;
-	height: 0;
-}
-.monaco-editor.ime-input .inputarea {
-	z-index: 10;
-}
-
-.monaco-editor,
-.monaco-editor .inputarea {
-	color: #333;
-	/*
-	 * WORKAROUND:
-	 * Because of bug https://monacotools.visualstudio.com/DefaultCollection/Monaco/_workitems/edit/13254
-	 * we are *not* using the color white (or #ffffff, rgba(255,255,255)) but something very close to white.
-	 */
-	background: #fffffe;
-}
-.monaco-editor.ime-input .inputarea {
-	background: rgba(255, 255, 255, 0.85);
-}
-
-.monaco-editor.vs-dark,
-.monaco-editor.vs-dark .inputarea,
-.monaco-editor.vs-dark .zone-widget .monaco-editor {
-	color: #BBB;
-	background: #1E1E1E;
-}
-.monaco-editor.vs-dark.ime-input .inputarea {
-	background: rgba(0, 0, 0, 0.65);
-}
-
-.monaco-editor.hc-black,
-.monaco-editor.hc-black .inputarea,
-.monaco-editor.hc-black .zone-widget .monaco-editor {
-	color: #fff;
-	background: #000;
-}
-
 
 /* -------------------- Misc -------------------- */
 
@@ -104,13 +40,3 @@
 	position: absolute;
 	top: 0;
 }
-
-/* -------------------- Squigglies -------------------- */
-
-.monaco-editor.vs		.redsquiggly,
-.monaco-editor.vs-dark	.redsquiggly { background: url("red-squiggly.svg") repeat-x bottom left; }
-.monaco-editor.hc-black .redsquiggly { border-bottom: 4px double #E47777; opacity: 0.8; }
-
-.monaco-editor.vs		.greensquiggly,
-.monaco-editor.vs-dark	.greensquiggly { background: url("green-squiggly.svg") repeat-x bottom left; }
-.monaco-editor.hc-black .greensquiggly { border-bottom: 4px double #71B771; opacity: 0.8; }

@@ -6,20 +6,23 @@
 'use strict';
 
 import * as assert from 'assert';
-import { IConfigurationService, getConfigurationValue } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, getConfigurationValue, IConfigurationValue, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { Platform } from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
-import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
+import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 
 
 class MockConfigurationService implements IConfigurationService {
 	public _serviceBrand: any;
+	public serviceId = IConfigurationService;
 	public constructor(private configuration: any = {}) { }
 	public reloadConfiguration<T>(section?: string): TPromise<T> { return TPromise.as(this.getConfiguration()); }
-	public lookup(key: string) { return { value: getConfigurationValue(this.getConfiguration(), key), default: getConfigurationValue(this.getConfiguration(), key), user: getConfigurationValue(this.getConfiguration(), key) }; }
+	public lookup<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> { return { value: getConfigurationValue<T>(this.getConfiguration(), key), default: getConfigurationValue<T>(this.getConfiguration(), key), user: getConfigurationValue<T>(this.getConfiguration(), key), workspace: void 0, folder: void 0 }; }
+	public keys() { return { default: [], user: [], workspace: [] }; }
+	public values() { return {}; }
 	public getConfiguration(): any { return this.configuration; }
-	public keys() { return { default: [], user: [] }; }
+	public getConfigurationData(): any { return null; }
 	public onDidUpdateConfiguration() { return { dispose() { } }; }
 }
 
@@ -97,7 +100,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 		});
 		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
-		assert.equal(configHelper.getFont().fontSize, `${DefaultConfig.editor.fontSize}px`, 'The default editor font size should be used when editor.fontSize is 0 and terminal.integrated.fontSize not set');
+		assert.equal(configHelper.getFont().fontSize, `${EDITOR_FONT_DEFAULTS.fontSize}px`, 'The default editor font size should be used when editor.fontSize is 0 and terminal.integrated.fontSize not set');
 
 		configurationService = new MockConfigurationService({
 			editor: {
@@ -113,7 +116,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 		});
 		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
-		assert.equal(configHelper.getFont().fontSize, `${DefaultConfig.editor.fontSize}px`, 'The default editor font size should be used when editor.fontSize is < 0 and terminal.integrated.fontSize not set');
+		assert.equal(configHelper.getFont().fontSize, `${EDITOR_FONT_DEFAULTS.fontSize}px`, 'The default editor font size should be used when editor.fontSize is < 0 and terminal.integrated.fontSize not set');
 	});
 
 	test('TerminalConfigHelper - getFont lineHeight', function () {

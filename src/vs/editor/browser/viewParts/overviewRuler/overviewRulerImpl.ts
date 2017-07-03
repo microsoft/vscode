@@ -5,11 +5,11 @@
 'use strict';
 
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { OverviewRulerPosition, OverviewRulerLane, OverviewRulerZone, ColorZone, ThemeType } from 'vs/editor/common/editorCommon';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import * as browser from 'vs/base/browser/browser';
-import { OverviewZoneManager } from 'vs/editor/common/view/overviewZoneManager';
+import { OverviewRulerLane } from 'vs/editor/common/editorCommon';
+import { OverviewZoneManager, ColorZone, OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { Color } from 'vs/base/common/color';
+import { OverviewRulerPosition } from 'vs/editor/common/config/editorOptions';
+import { ThemeType, LIGHT } from 'vs/platform/theme/common/themeService';
 
 export class OverviewRulerImpl {
 
@@ -17,46 +17,38 @@ export class OverviewRulerImpl {
 	private _domNode: FastDomNode<HTMLCanvasElement>;
 	private _lanesCount: number;
 	private _zoneManager: OverviewZoneManager;
-	private _canUseTranslate3d: boolean;
 	private _background: Color;
 
-	private _zoomListener: IDisposable;
-
-	constructor(canvasLeftOffset: number, cssClassName: string, scrollHeight: number, lineHeight: number, canUseTranslate3d: boolean, minimumHeight: number, maximumHeight: number, getVerticalOffsetForLine: (lineNumber: number) => number) {
+	constructor(
+		canvasLeftOffset: number, cssClassName: string, scrollHeight: number, lineHeight: number,
+		pixelRatio: number, minimumHeight: number, maximumHeight: number,
+		getVerticalOffsetForLine: (lineNumber: number) => number
+	) {
 		this._canvasLeftOffset = canvasLeftOffset;
 
 		this._domNode = createFastDomNode(document.createElement('canvas'));
 
 		this._domNode.setClassName(cssClassName);
 		this._domNode.setPosition('absolute');
+		this._domNode.setLayerHinting(true);
 
 		this._lanesCount = 3;
 
-		this._canUseTranslate3d = canUseTranslate3d;
 		this._background = null;
 
 		this._zoneManager = new OverviewZoneManager(getVerticalOffsetForLine);
 		this._zoneManager.setMinimumHeight(minimumHeight);
 		this._zoneManager.setMaximumHeight(maximumHeight);
-		this._zoneManager.setThemeType(ThemeType.Light);
+		this._zoneManager.setThemeType(LIGHT);
 		this._zoneManager.setDOMWidth(0);
 		this._zoneManager.setDOMHeight(0);
 		this._zoneManager.setOuterHeight(scrollHeight);
 		this._zoneManager.setLineHeight(lineHeight);
 
-		this._zoomListener = browser.onDidChangeZoomLevel(() => {
-			this._zoneManager.setPixelRatio(browser.getPixelRatio());
-			this._domNode.setWidth(this._zoneManager.getDOMWidth());
-			this._domNode.setHeight(this._zoneManager.getDOMHeight());
-			this._domNode.domNode.width = this._zoneManager.getCanvasWidth();
-			this._domNode.domNode.height = this._zoneManager.getCanvasHeight();
-			this.render(true);
-		});
-		this._zoneManager.setPixelRatio(browser.getPixelRatio());
+		this._zoneManager.setPixelRatio(pixelRatio);
 	}
 
 	public dispose(): void {
-		this._zoomListener.dispose();
 		this._zoneManager = null;
 	}
 
@@ -134,8 +126,12 @@ export class OverviewRulerImpl {
 		}
 	}
 
-	public setCanUseTranslate3d(canUseTranslate3d: boolean, render: boolean): void {
-		this._canUseTranslate3d = canUseTranslate3d;
+	public setPixelRatio(pixelRatio: number, render: boolean): void {
+		this._zoneManager.setPixelRatio(pixelRatio);
+		this._domNode.setWidth(this._zoneManager.getDOMWidth());
+		this._domNode.setHeight(this._zoneManager.getDOMHeight());
+		this._domNode.domNode.width = this._zoneManager.getCanvasWidth();
+		this._domNode.domNode.height = this._zoneManager.getCanvasHeight();
 		if (render) {
 			this.render(true);
 		}
@@ -151,11 +147,6 @@ export class OverviewRulerImpl {
 	public render(forceRender: boolean): boolean {
 		if (this._zoneManager.getOuterHeight() === 0) {
 			return false;
-		}
-		if (this._canUseTranslate3d) {
-			this._domNode.setTransform('translate3d(0px, 0px, 0px)');
-		} else {
-			this._domNode.setTransform('');
 		}
 
 		const width = this._zoneManager.getCanvasWidth();

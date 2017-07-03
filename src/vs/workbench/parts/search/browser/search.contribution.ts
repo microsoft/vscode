@@ -6,16 +6,16 @@
 'use strict';
 
 import 'vs/css!./media/search.contribution';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import nls = require('vs/nls');
 import { IAction } from 'vs/base/common/actions';
 import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor } from 'vs/workbench/browser/actionBarRegistry';
+import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor } from 'vs/workbench/browser/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -35,8 +35,8 @@ import { ISearchWorkbenchService, SearchWorkbenchService } from 'vs/workbench/pa
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
 import { ListFocusContext } from 'vs/platform/list/browser/listService';
-
 import { IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/parts/output/common/output';
+import { defaultQuickOpenContextKey } from 'vs/workbench/browser/parts/quickopen/quickopen';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService);
 replaceContributions();
@@ -274,6 +274,7 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerDefaultQu
 		'vs/workbench/parts/search/browser/openAnythingHandler',
 		'OpenAnythingHandler',
 		'',
+		defaultQuickOpenContextKey,
 		nls.localize('openAnythingHandlerDescription', "Go to File")
 	)
 );
@@ -283,6 +284,7 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 		'vs/workbench/parts/search/browser/openAnythingHandler',
 		'OpenSymbolHandler',
 		ALL_SYMBOLS_PREFIX,
+		'inWorkspaceSymbolsPicker',
 		[
 			{
 				prefix: ALL_SYMBOLS_PREFIX,
@@ -327,7 +329,8 @@ configurationRegistry.registerConfiguration({
 						}
 					}
 				]
-			}
+			},
+			'scope': ConfigurationScope.FOLDER
 		},
 		'search.useRipgrep': {
 			'type': 'boolean',

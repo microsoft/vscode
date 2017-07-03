@@ -30,6 +30,9 @@ function getUniqueUserId(): string {
 }
 
 function getNixIPCHandle(userDataPath: string, type: string): string {
+	if (process.env['XDG_RUNTIME_DIR']) {
+		return path.join(process.env['XDG_RUNTIME_DIR'], `${pkg.name}-${pkg.version}-${type}.sock`);
+	}
 	return path.join(userDataPath, `${pkg.version}-${type}.sock`);
 }
 
@@ -99,6 +102,8 @@ export class EnvironmentService implements IEnvironmentService {
 	get extensionTestsPath(): string { return this._args.extensionTestsPath ? path.normalize(this._args.extensionTestsPath) : this._args.extensionTestsPath; }
 
 	get disableExtensions(): boolean { return this._args['disable-extensions']; }
+
+	get skipGettingStarted(): boolean { return this._args['skip-getting-started']; }
 
 	@memoize
 	get debugExtensionHost(): { port: number; break: boolean; } { return parseExtensionHostPort(this._args, this.isBuilt); }

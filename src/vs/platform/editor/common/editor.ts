@@ -9,7 +9,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IEditorViewState } from 'vs/editor/common/editorCommon';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
 
@@ -90,6 +89,11 @@ export interface IUntitledResourceInput extends IBaseResourceInput {
 	 * Optional contents of the untitled resource.
 	 */
 	contents?: string;
+
+	/**
+	 * Optional encoding of the untitled resource.
+	 */
+	encoding?: string;
 }
 
 export interface IResourceDiffInput extends IBaseResourceInput {
@@ -249,6 +253,11 @@ export interface IEditorOptions {
 	revealIfVisible?: boolean;
 
 	/**
+	 * Will reveal the editor if it is already opened (even when not visible) in any of the opened editor groups.
+	 */
+	revealIfOpened?: boolean;
+
+	/**
 	 * An editor that is pinned remains in the editor stack even when another editor is being opened.
 	 * An editor that is not pinned will always get replaced by another editor that is not pinned.
 	 */
@@ -281,7 +290,7 @@ export interface ITextEditorOptions extends IEditorOptions {
 	/**
 	 * Text editor view state.
 	 */
-	viewState?: IEditorViewState;
+	viewState?: object;
 
 	/**
 	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.

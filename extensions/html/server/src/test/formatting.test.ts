@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as path from 'path'
-import * as fs from 'fs'
+import * as path from 'path';
+import * as fs from 'fs';
 
 import * as assert from 'assert';
 import { getLanguageModes } from '../modes/languageModes';
@@ -15,7 +15,7 @@ import { format } from '../modes/formatting';
 
 suite('HTML Embedded Formatting', () => {
 
-	function assertFormat(value: string, expected: string, options?: any, formatOptions?: FormattingOptions): void {
+	function assertFormat(value: string, expected: string, options?: any, formatOptions?: FormattingOptions, message?: string): void {
 		var languageModes = getLanguageModes({ css: true, javascript: true });
 		if (options) {
 			languageModes.getAllModes().forEach(m => m.configure(options));
@@ -41,13 +41,13 @@ suite('HTML Embedded Formatting', () => {
 		let result = format(languageModes, document, range, formatOptions, { css: true, javascript: true });
 
 		let actual = applyEdits(document, result);
-		assert.equal(actual, expected);
+		assert.equal(actual, expected, message);
 	}
 
 	function assertFormatWithFixture(fixtureName: string, expectedPath: string, options?: any, formatOptions?: FormattingOptions): void {
 		let input = fs.readFileSync(path.join(__dirname, 'fixtures', 'inputs', fixtureName)).toString();
 		let expected = fs.readFileSync(path.join(__dirname, 'fixtures', 'expected', expectedPath)).toString();
-		assertFormat(input, expected, options, formatOptions);
+		assertFormat(input, expected, options, formatOptions, expectedPath);
 	}
 
 	test('HTML only', function (): any {
@@ -64,22 +64,21 @@ suite('HTML Embedded Formatting', () => {
 		assertFormat('<html><head>\n  <script>\nvar x=4;\nconsole.log("Hi");\n</script></head></html>', '<html>\n\n<head>\n  <script>\n    var x = 4;\n    console.log("Hi");\n\n  </script>\n</head>\n\n</html>');
 
 		assertFormat('<html><head>\n  |<script>\nvar x=5;\n</script>|</head></html>', '<html><head>\n  <script>\n    var x = 5;\n\n  </script></head></html>');
-		assertFormat('<html><head>\n  <script>\n|var x=6;|\n</script></head></html>', '<html><head>\n  <script>\n  var x = 6;\n</script></head></html>');
 	});
 
-	test('HTLM & Scripts - Fixtures', function() {
+	test('HTLM & Scripts - Fixtures', function () {
 		assertFormatWithFixture('19813.html', '19813.html');
 		assertFormatWithFixture('19813.html', '19813-4spaces.html', void 0, FormattingOptions.create(4, true));
 		assertFormatWithFixture('19813.html', '19813-tab.html', void 0, FormattingOptions.create(1, false));
 		assertFormatWithFixture('21634.html', '21634.html');
-	})
+	});
 
 	test('Script end tag', function (): any {
 		assertFormat('<html>\n<head>\n  <script>\nvar x  =  0;\n</script></head></html>', '<html>\n\n<head>\n  <script>\n    var x = 0;\n\n  </script>\n</head>\n\n</html>');
 	});
 
 	test('HTML & Multiple Scripts', function (): any {
-		assertFormat('<html><head>\n<script>\nif(x){\nbar(); }\n</script><script>\nfunction(x){}\n</script></head></html>', '<html>\n\n<head>\n  <script>\n    if (x) {\n      bar();\n    }\n\n  </script>\n  <script>\n    function(x) { }\n\n  </script>\n</head>\n\n</html>');
+		assertFormat('<html><head>\n<script>\nif(x){\nbar(); }\n</script><script>\nfunction(x){    }\n</script></head></html>', '<html>\n\n<head>\n  <script>\n    if (x) {\n      bar();\n    }\n\n  </script>\n  <script>\n    function(x) {}\n\n  </script>\n</head>\n\n</html>');
 	});
 
 	test('HTML & Styles', function (): any {
@@ -99,15 +98,16 @@ suite('HTML Embedded Formatting', () => {
 		assertFormat('<html><head><script>\nvar x=1;\n</script></head></html>', '<html>\n\n<head>\n  <script>\n    var x = 1;\n\n  </script>\n</head>\n\n</html>\n', options);
 	});
 
-});
+	test('Inside script', function (): any {
+		assertFormat('<html><head>\n  <script>\n|var x=6;|\n</script></head></html>', '<html><head>\n  <script>\n  var x = 6;\n</script></head></html>');
+		assertFormat('<html><head>\n  <script>\n|var x=6;\nvar y=  9;|\n</script></head></html>', '<html><head>\n  <script>\n  var x = 6;\n  var y = 9;\n</script></head></html>');
+	});
 
-function pushAll<T>(to: T[], from: T[]) {
-	if (from) {
-		for (var i = 0; i < from.length; i++) {
-			to.push(from[i]);
-		}
-	}
-}
+	test('Range after new line', function (): any {
+		assertFormat('<html><head>\n  |<script>\nvar x=6;\n</script>\n|</head></html>', '<html><head>\n  <script>\n    var x = 6;\n\n  </script>\n</head></html>');
+	});
+
+});
 
 function applyEdits(document: TextDocument, edits: TextEdit[]): string {
 	let text = document.getText();

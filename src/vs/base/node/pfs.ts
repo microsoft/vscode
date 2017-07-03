@@ -72,7 +72,7 @@ export function rimraf(path: string): TPromise<void> {
 }
 
 export function realpath(path: string): TPromise<string> {
-	return nfcall(fs.realpath, path, null);
+	return nfcall(extfs.realpath, path);
 }
 
 export function stat(path: string): TPromise<fs.Stats> {

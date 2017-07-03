@@ -10,8 +10,8 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { Widget } from 'vs/base/browser/ui/widget';
 import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
-import { Color } from "vs/base/common/color";
-import { clone } from "vs/base/common/objects";
+import { Color } from 'vs/base/common/color';
+import { clone } from 'vs/base/common/objects';
 
 export interface ISelectBoxStyles {
 	selectBackground?: Color;
@@ -103,18 +103,18 @@ export class SelectBox extends Widget {
 		container.appendChild(this.selectElement);
 		this.setOptions(this.options, this.selected);
 
-		this._applyStyles();
+		this.applyStyles();
 	}
 
-	public style(styles: ISelectBoxStyles) {
+	public style(styles: ISelectBoxStyles): void {
 		this.selectBackground = styles.selectBackground;
 		this.selectForeground = styles.selectForeground;
 		this.selectBorder = styles.selectBorder;
 
-		this._applyStyles();
+		this.applyStyles();
 	}
 
-	protected _applyStyles() {
+	protected applyStyles(): void {
 		if (this.selectElement) {
 			const background = this.selectBackground ? this.selectBackground.toString() : null;
 			const foreground = this.selectForeground ? this.selectForeground.toString() : null;

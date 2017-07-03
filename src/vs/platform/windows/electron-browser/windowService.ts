@@ -22,16 +22,20 @@ export class WindowService implements IWindowService {
 		return this.windowId;
 	}
 
-	openFileFolderPicker(forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
-		return this.windowsService.openFileFolderPicker(this.windowId, forceNewWindow, data);
+	pickFileFolderAndOpen(forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
+		return this.windowsService.pickFileFolderAndOpen(this.windowId, forceNewWindow, data);
 	}
 
-	openFilePicker(forceNewWindow?: boolean, path?: string, data?: ITelemetryData): TPromise<void> {
-		return this.windowsService.openFilePicker(this.windowId, forceNewWindow, path, data);
+	pickFileAndOpen(forceNewWindow?: boolean, path?: string, data?: ITelemetryData): TPromise<void> {
+		return this.windowsService.pickFileAndOpen(this.windowId, forceNewWindow, path, data);
 	}
 
-	openFolderPicker(forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
-		return this.windowsService.openFolderPicker(this.windowId, forceNewWindow, data);
+	pickFolderAndOpen(forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
+		return this.windowsService.pickFolderAndOpen(this.windowId, forceNewWindow, data);
+	}
+
+	pickFolder(options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
+		return this.windowsService.pickFolder(options);
 	}
 
 	reloadWindow(): TPromise<void> {
@@ -88,6 +92,10 @@ export class WindowService implements IWindowService {
 
 	unmaximizeWindow(): TPromise<void> {
 		return this.windowsService.unmaximizeWindow(this.windowId);
+	}
+
+	onWindowTitleDoubleClick(): TPromise<void> {
+		return this.windowsService.onWindowTitleDoubleClick(this.windowId);
 	}
 
 	setDocumentEdited(flag: boolean): TPromise<void> {

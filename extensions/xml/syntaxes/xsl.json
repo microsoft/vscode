@@ -1,4 +1,9 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/atom/language-xml/blob/master/grammars/xsl.cson",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
 	"scopeName": "text.xml.xsl",
 	"name": "XSL",
 	"fileTypes": [
@@ -88,6 +93,5 @@
 			},
 			"name": "string.quoted.single.xml"
 		}
-	},
-	"version": "https://github.com/atom/language-xml/commit/507de2ee7daca60cf02e9e21fbeb92bbae73e280"
+	}
 }

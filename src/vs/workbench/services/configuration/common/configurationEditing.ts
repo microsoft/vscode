@@ -6,6 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 
 export const IConfigurationEditingService = createDecorator<IConfigurationEditingService>('configurationEditingService');
 
@@ -37,9 +38,10 @@ export enum ConfigurationEditingErrorCode {
 	ERROR_INVALID_CONFIGURATION
 }
 
-export interface IConfigurationEditingError {
-	code: ConfigurationEditingErrorCode;
-	message: string;
+export class ConfigurationEditingError extends Error {
+	constructor(message: string, public code: ConfigurationEditingErrorCode) {
+		super(message);
+	}
 }
 
 export enum ConfigurationTarget {
@@ -58,7 +60,21 @@ export enum ConfigurationTarget {
 export interface IConfigurationValue {
 	key: string;
 	value: any;
-	overrideIdentifier?: string;
+}
+
+export interface IConfigurationEditingOptions {
+	/**
+	 * If `true`, do not saves the configuration. Default is `false`.
+	 */
+	donotSave?: boolean;
+	/**
+	 * If `true`, do not notifies the error to user by showing the message box. Default is `false`.
+	 */
+	donotNotifyError?: boolean;
+	/**
+	 * Scope of configuration to be written into.
+	 */
+	scopes?: IConfigurationOverrides;
 }
 
 export interface IConfigurationEditingService {
@@ -69,5 +85,5 @@ export interface IConfigurationEditingService {
 	 * Allows to write the configuration value to either the user or workspace configuration file and save it if asked to save.
 	 * The returned promise will be in error state in any of the error cases from [ConfigurationEditingErrorCode](#ConfigurationEditingErrorCode)
 	 */
-	writeConfiguration(target: ConfigurationTarget, value: IConfigurationValue, save?: boolean): TPromise<void>;
+	writeConfiguration(target: ConfigurationTarget, value: IConfigurationValue, options?: IConfigurationEditingOptions): TPromise<void>;
 }

@@ -7,31 +7,26 @@
 
 import { app, ipcMain as ipc, BrowserWindow } from 'electron';
 import * as platform from 'vs/base/common/platform';
-import { OpenContext } from 'vs/code/common/windows';
-import { IWindowsMainService, WindowsManager } from 'vs/code/electron-main/windows';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { WindowsManager } from 'vs/code/electron-main/windows';
+import { IWindowsService, OpenContext } from 'vs/platform/windows/common/windows';
 import { WindowsChannel } from 'vs/platform/windows/common/windowsIpc';
 import { WindowsService } from 'vs/platform/windows/electron-main/windowsService';
-import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
-import { VSCodeMenu } from 'vs/code/electron-main/menus';
-import { getShellEnvironment } from 'vs/code/electron-main/shellEnv';
+import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
+import { CodeMenu } from 'vs/code/electron-main/menus';
+import { getShellEnvironment } from 'vs/code/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { UpdateChannel } from 'vs/platform/update/common/updateIpc';
 import { UpdateService } from 'vs/platform/update/electron-main/updateService';
 import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron-main';
 import { Server, connect, Client } from 'vs/base/parts/ipc/node/ipc.net';
-import { AskpassChannel } from 'vs/workbench/parts/git/common/gitIpc';
-import { GitAskpassService } from 'vs/workbench/parts/git/electron-main/askpassService';
 import { SharedProcess } from 'vs/code/electron-main/sharedProcess';
 import { Mutex } from 'windows-mutex';
 import { LaunchService, LaunchChannel, ILaunchService } from './launch';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ILogService } from 'vs/code/electron-main/log';
-import { IStorageService } from 'vs/code/electron-main/storage';
-import { IBackupMainService } from 'vs/platform/backup/common/backup';
-import { BackupChannel } from 'vs/platform/backup/common/backupIpc';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IStorageService } from 'vs/platform/storage/node/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IURLService } from 'vs/platform/url/common/url';
@@ -48,8 +43,16 @@ import { ProxyAuthHandler } from './auth';
 import { IDisposable, dispose } from "vs/base/common/lifecycle";
 import { ConfigurationService } from "vs/platform/configuration/node/configurationService";
 import { TPromise } from "vs/base/common/winjs.base";
+import { IWindowsMainService } from "vs/platform/windows/electron-main/windows";
+import { IHistoryMainService } from "vs/platform/history/electron-main/historyMainService";
+import { isUndefinedOrNull } from 'vs/base/common/types';
+import { CodeWindow } from "vs/code/electron-main/window";
+import { isParent } from 'vs/platform/files/common/files';
+import { isEqual } from 'vs/base/common/paths';
+import { KeyboardLayoutMonitor } from "vs/code/electron-main/keyboard";
+import URI from 'vs/base/common/uri';
 
-export class VSCodeApplication {
+export class CodeApplication {
 	private toDispose: IDisposable[];
 	private windowsMainService: IWindowsMainService;
 
@@ -66,7 +69,8 @@ export class VSCodeApplication {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IConfigurationService private configurationService: ConfigurationService<any>,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@IHistoryMainService private historyService: IHistoryMainService
 	) {
 		this.toDispose = [mainIpcServer, configurationService];
 
@@ -103,6 +107,75 @@ export class VSCodeApplication {
 			this.dispose();
 		});
 
+		app.on('accessibility-support-changed', (event: Event, accessibilitySupportEnabled: boolean) => {
+			if (this.windowsMainService) {
+				this.windowsMainService.sendToAll('vscode:accessibilitySupportChanged', accessibilitySupportEnabled);
+			}
+		});
+
+		app.on('activate', (event: Event, hasVisibleWindows: boolean) => {
+			this.logService.log('App#activate');
+
+			// Mac only event: open new window when we get activated
+			if (!hasVisibleWindows && this.windowsMainService) {
+				this.windowsMainService.openNewWindow(OpenContext.DOCK);
+			}
+		});
+
+		const isValidWebviewSource = (source: string) =>
+			!source || (URI.parse(source.toLowerCase()).toString() as any).startsWith(URI.file(this.environmentService.appRoot.toLowerCase()).toString());
+
+		app.on('web-contents-created', (event, contents) => {
+			contents.on('will-attach-webview', (event, webPreferences, params) => {
+				delete webPreferences.preload;
+				webPreferences.nodeIntegration = false;
+
+				// Verify URLs being loaded
+				if (isValidWebviewSource(params.src) && isValidWebviewSource(webPreferences.preloadURL)) {
+					return;
+				}
+
+				// Otherwise prevent loading
+				console.error('Prevented webview attach');
+				event.preventDefault();
+			});
+
+			contents.on('will-navigate', event => {
+				console.error('Prevented webcontent navigation');
+				event.preventDefault();
+			});
+		});
+
+		let macOpenFiles: string[] = [];
+		let runningTimeout: number = null;
+		app.on('open-file', (event: Event, path: string) => {
+			this.logService.log('App#open-file: ', path);
+			event.preventDefault();
+
+			// Keep in array because more might come!
+			macOpenFiles.push(path);
+
+			// Clear previous handler if any
+			if (runningTimeout !== null) {
+				clearTimeout(runningTimeout);
+				runningTimeout = null;
+			}
+
+			// Handle paths delayed in case more are coming!
+			runningTimeout = setTimeout(() => {
+				if (this.windowsMainService) {
+					this.windowsMainService.open({
+						context: OpenContext.DOCK /* can also be opening from finder while app is running */,
+						cli: this.environmentService.args,
+						pathsToOpen: macOpenFiles,
+						preferNewWindow: true /* dropping on the dock or opening from finder prefers to open in a new window */
+					});
+					macOpenFiles = [];
+					runningTimeout = null;
+				}
+			}, 100);
+		});
+
 		ipc.on('vscode:exit', (event, code: number) => {
 			this.logService.log('IPC#vscode:exit', code);
 
@@ -116,14 +189,59 @@ export class VSCodeApplication {
 		});
 
 		ipc.on('vscode:fetchShellEnv', (event, windowId) => {
-			const win = BrowserWindow.fromId(windowId);
+			const { webContents } = BrowserWindow.fromId(windowId);
 			getShellEnvironment().then(shellEnv => {
-				win.webContents.send('vscode:acceptShellEnv', shellEnv);
+				if (!webContents.isDestroyed()) {
+					webContents.send('vscode:acceptShellEnv', shellEnv);
+				}
 			}, err => {
-				win.webContents.send('vscode:acceptShellEnv', {});
+				if (!webContents.isDestroyed()) {
+					webContents.send('vscode:acceptShellEnv', {});
+				}
 				console.error('Error fetching shell env', err);
 			});
 		});
+
+		ipc.on('vscode:broadcast', (event, windowId: number, target: string, broadcast: { channel: string; payload: any; }) => {
+			if (this.windowsMainService && broadcast.channel && !isUndefinedOrNull(broadcast.payload)) {
+				this.logService.log('IPC#vscode:broadcast', target, broadcast.channel, broadcast.payload);
+
+				// Handle specific events on main side
+				this.onBroadcast(broadcast.channel, broadcast.payload);
+
+				// Send to windows
+				if (target) {
+					const otherWindowsWithTarget = this.windowsMainService.getWindows().filter(w => w.id !== windowId && typeof w.openedWorkspacePath === 'string');
+					const directTargetMatch = otherWindowsWithTarget.filter(w => isEqual(target, w.openedWorkspacePath, !platform.isLinux /* ignorecase */));
+					const parentTargetMatch = otherWindowsWithTarget.filter(w => isParent(target, w.openedWorkspacePath, !platform.isLinux /* ignorecase */));
+
+					const targetWindow = directTargetMatch.length ? directTargetMatch[0] : parentTargetMatch[0]; // prefer direct match over parent match
+					if (targetWindow) {
+						targetWindow.send('vscode:broadcast', broadcast);
+					}
+				} else {
+					this.windowsMainService.sendToAll('vscode:broadcast', broadcast, [windowId]);
+				}
+			}
+		});
+
+		// Keyboard layout changes
+		KeyboardLayoutMonitor.INSTANCE.onDidChangeKeyboardLayout(isISOKeyboard => {
+			if (this.windowsMainService) {
+				this.windowsMainService.sendToAll('vscode:keyboardLayoutChanged', isISOKeyboard);
+			}
+		});
+	}
+
+	private onBroadcast(event: string, payload: any): void {
+
+		// Theme changes
+		if (event === 'vscode:changeColorTheme' && typeof payload === 'string') {
+			let data = JSON.parse(payload);
+
+			this.storageService.setItem(CodeWindow.themeStorageKey, data.id);
+			this.storageService.setItem(CodeWindow.themeBackgroundStorageKey, data.background);
+		}
 	}
 
 	public startup(): void {
@@ -139,19 +257,13 @@ export class VSCodeApplication {
 			app.setAppUserModelId(product.win32AppUserModelId);
 		}
 
-		// Register Main IPC connections
-		const askpassService = new GitAskpassService();
-		const askpassChannel = new AskpassChannel(askpassService);
-		this.mainIpcServer.registerChannel('askpass', askpassChannel);
-
 		// Create Electron IPC Server
 		this.electronIpcServer = new ElectronIPCServer();
 
 		// Spawn shared process
 		this.sharedProcess = new SharedProcess(this.environmentService, this.userEnv);
 		this.toDispose.push(this.sharedProcess);
-		this.sharedProcessClient = this.sharedProcess.whenReady()
-			.then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
+		this.sharedProcessClient = this.sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
 
 		// Services
 		const appInstantiationService = this.initServices();
@@ -221,10 +333,6 @@ export class VSCodeApplication {
 		const urlChannel = appInstantiationService.createInstance(URLChannel, urlService);
 		this.electronIpcServer.registerChannel('url', urlChannel);
 
-		const backupService = accessor.get(IBackupMainService);
-		const backupChannel = appInstantiationService.createInstance(BackupChannel, backupService);
-		this.electronIpcServer.registerChannel('backup', backupChannel);
-
 		const windowsService = accessor.get(IWindowsService);
 		const windowsChannel = new WindowsChannel(windowsService);
 		this.electronIpcServer.registerChannel('windows', windowsChannel);
@@ -264,11 +372,11 @@ export class VSCodeApplication {
 		}
 
 		// Install Menu
-		appInstantiationService.createInstance(VSCodeMenu);
+		appInstantiationService.createInstance(CodeMenu);
 
 		// Jump List
-		this.windowsMainService.updateWindowsJumpList();
-		this.windowsMainService.onRecentPathsChange(() => this.windowsMainService.updateWindowsJumpList());
+		this.historyService.updateWindowsJumpList();
+		this.historyService.onRecentPathsChange(() => this.historyService.updateWindowsJumpList());
 
 		// Start shared process here
 		this.sharedProcess.spawn();

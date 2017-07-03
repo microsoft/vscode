@@ -56,125 +56,139 @@ export function isInDOM(node: Node): boolean {
 	return false;
 }
 
-let lastStart: number, lastEnd: number;
+const _manualClassList = new class {
 
-function _findClassName(node: HTMLElement, className: string): void {
+	private _lastStart: number;
+	private _lastEnd: number;
 
-	let classes = node.className;
-	if (!classes) {
-		lastStart = -1;
-		return;
-	}
+	private _findClassName(node: HTMLElement, className: string): void {
 
-	className = className.trim();
-
-	let classesLen = classes.length,
-		classLen = className.length;
-
-	if (classLen === 0) {
-		lastStart = -1;
-		return;
-	}
-
-	if (classesLen < classLen) {
-		lastStart = -1;
-		return;
-	}
-
-	if (classes === className) {
-		lastStart = 0;
-		lastEnd = classesLen;
-		return;
-	}
-
-	let idx = -1,
-		idxEnd: number;
-
-	while ((idx = classes.indexOf(className, idx + 1)) >= 0) {
-
-		idxEnd = idx + classLen;
-
-		// a class that is followed by another class
-		if ((idx === 0 || classes.charCodeAt(idx - 1) === CharCode.Space) && classes.charCodeAt(idxEnd) === CharCode.Space) {
-			lastStart = idx;
-			lastEnd = idxEnd + 1;
+		let classes = node.className;
+		if (!classes) {
+			this._lastStart = -1;
 			return;
 		}
 
-		// last class
-		if (idx > 0 && classes.charCodeAt(idx - 1) === CharCode.Space && idxEnd === classesLen) {
-			lastStart = idx - 1;
-			lastEnd = idxEnd;
+		className = className.trim();
+
+		let classesLen = classes.length,
+			classLen = className.length;
+
+		if (classLen === 0) {
+			this._lastStart = -1;
 			return;
 		}
 
-		// equal - duplicate of cmp above
-		if (idx === 0 && idxEnd === classesLen) {
-			lastStart = 0;
-			lastEnd = idxEnd;
+		if (classesLen < classLen) {
+			this._lastStart = -1;
 			return;
 		}
+
+		if (classes === className) {
+			this._lastStart = 0;
+			this._lastEnd = classesLen;
+			return;
+		}
+
+		let idx = -1,
+			idxEnd: number;
+
+		while ((idx = classes.indexOf(className, idx + 1)) >= 0) {
+
+			idxEnd = idx + classLen;
+
+			// a class that is followed by another class
+			if ((idx === 0 || classes.charCodeAt(idx - 1) === CharCode.Space) && classes.charCodeAt(idxEnd) === CharCode.Space) {
+				this._lastStart = idx;
+				this._lastEnd = idxEnd + 1;
+				return;
+			}
+
+			// last class
+			if (idx > 0 && classes.charCodeAt(idx - 1) === CharCode.Space && idxEnd === classesLen) {
+				this._lastStart = idx - 1;
+				this._lastEnd = idxEnd;
+				return;
+			}
+
+			// equal - duplicate of cmp above
+			if (idx === 0 && idxEnd === classesLen) {
+				this._lastStart = 0;
+				this._lastEnd = idxEnd;
+				return;
+			}
+		}
+
+		this._lastStart = -1;
 	}
 
-	lastStart = -1;
-}
+	hasClass(node: HTMLElement, className: string): boolean {
+		this._findClassName(node, className);
+		return this._lastStart !== -1;
+	}
 
-/**
- * @param node a dom node
- * @param className a class name
- * @return true if the className attribute of the provided node contains the provided className
- */
-export function hasClass(node: HTMLElement, className: string): boolean {
-	_findClassName(node, className);
-	return lastStart !== -1;
-}
-
-/**
- * Adds the provided className to the provided node. This is a no-op
- * if the class is already set.
- * @param node a dom node
- * @param className a class name
- */
-export function addClass(node: HTMLElement, className: string): void {
-	if (!node.className) { // doesn't have it for sure
-		node.className = className;
-	} else {
-		_findClassName(node, className); // see if it's already there
-		if (lastStart === -1) {
-			node.className = node.className + ' ' + className;
+	addClass(node: HTMLElement, className: string): void {
+		if (!node.className) { // doesn't have it for sure
+			node.className = className;
+		} else {
+			this._findClassName(node, className); // see if it's already there
+			if (this._lastStart === -1) {
+				node.className = node.className + ' ' + className;
+			}
 		}
 	}
-}
 
-/**
- * Removes the className for the provided node. This is a no-op
- * if the class isn't present.
- * @param node a dom node
- * @param className a class name
- */
-export function removeClass(node: HTMLElement, className: string): void {
-	_findClassName(node, className);
-	if (lastStart === -1) {
-		return; // Prevent styles invalidation if not necessary
-	} else {
-		node.className = node.className.substring(0, lastStart) + node.className.substring(lastEnd);
+	removeClass(node: HTMLElement, className: string): void {
+		this._findClassName(node, className);
+		if (this._lastStart === -1) {
+			return; // Prevent styles invalidation if not necessary
+		} else {
+			node.className = node.className.substring(0, this._lastStart) + node.className.substring(this._lastEnd);
+		}
 	}
-}
 
-/**
- * @param node a dom node
- * @param className a class name
- * @param shouldHaveIt
- */
-export function toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void {
-	_findClassName(node, className);
-	if (lastStart !== -1 && (shouldHaveIt === void 0 || !shouldHaveIt)) {
-		removeClass(node, className);
+	toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void {
+		this._findClassName(node, className);
+		if (this._lastStart !== -1 && (shouldHaveIt === void 0 || !shouldHaveIt)) {
+			this.removeClass(node, className);
+		}
+		if (this._lastStart === -1 && (shouldHaveIt === void 0 || shouldHaveIt)) {
+			this.addClass(node, className);
+		}
 	}
-	if (lastStart === -1 && (shouldHaveIt === void 0 || shouldHaveIt)) {
-		addClass(node, className);
+};
+
+const _nativeClassList = new class {
+	hasClass(node: HTMLElement, className: string): boolean {
+		return className && node.classList && node.classList.contains(className);
 	}
-}
+
+	addClass(node: HTMLElement, className: string): void {
+		if (className && node.classList) {
+			node.classList.add(className);
+		}
+	}
+
+	removeClass(node: HTMLElement, className: string): void {
+		if (className && node.classList) {
+			node.classList.remove(className);
+		}
+	}
+
+	toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void {
+		if (node.classList) {
+			node.classList.toggle(className, shouldHaveIt);
+		}
+	}
+};
+
+// In IE11 there is only partial support for `classList` which makes us keep our
+// custom implementation. Otherwise use the native implementation, see: http://caniuse.com/#search=classlist
+const _classList = browser.isIE ? _manualClassList : _nativeClassList;
+export const hasClass: (node: HTMLElement, className: string) => boolean = _classList.hasClass.bind(_classList);
+export const addClass: (node: HTMLElement, className: string) => void = _classList.addClass.bind(_classList);
+export const removeClass: (node: HTMLElement, className: string) => void = _classList.removeClass.bind(_classList);
+export const toggleClass: (node: HTMLElement, className: string, shouldHaveIt?: boolean) => void = _classList.toggleClass.bind(_classList);
 
 class DomListener implements IDisposable {
 
@@ -696,7 +710,7 @@ export function createCSSRule(selector: string, cssText: string, style: HTMLStyl
 		return;
 	}
 
-	(<any>style.sheet).insertRule(selector + '{' + cssText + '}', 0);
+	(<CSSStyleSheet>style.sheet).insertRule(selector + '{' + cssText + '}', 0);
 }
 
 export function getCSSRule(selector: string, style: HTMLStyleElement = sharedStyle): any {
@@ -725,8 +739,7 @@ export function removeCSSRulesContainingSelector(ruleName: string, style = share
 	let toDelete: number[] = [];
 	for (let i = 0; i < rules.length; i++) {
 		let rule = rules[i];
-		let normalizedSelectorText = rule.selectorText.replace(/::/gi, ':');
-		if (normalizedSelectorText.indexOf(ruleName) !== -1) {
+		if (rule.selectorText.indexOf(ruleName) !== -1) {
 			toDelete.push(i);
 		}
 	}
@@ -1027,4 +1040,17 @@ export function domContentLoaded(): TPromise<any> {
 			window.addEventListener('DOMContentLoaded', c, false);
 		}
 	});
+}
+
+/**
+ * Find a value usable for a dom node size such that the likelihood that it would be
+ * displayed with constant screen pixels size is as high as possible.
+ *
+ * e.g. We would desire for the cursors to be 2px (CSS px) wide. Under a devicePixelRatio
+ * of 1.25, the cursor will be 2.5 screen pixels wide. Depending on how the dom node aligns/"snaps"
+ * with the screen pixels, it will sometimes be rendered with 2 screen pixels, and sometimes with 3 screen pixels.
+ */
+export function computeScreenAwareSize(cssPx: number): number {
+	const screenPx = window.devicePixelRatio * cssPx;
+	return Math.max(1, Math.floor(screenPx)) / window.devicePixelRatio;
 }

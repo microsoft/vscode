@@ -9,8 +9,11 @@ import URI from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
 import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
+import { TestTheme, TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
-suite('Browser Services - EditorLayoutProvider', () => {
+const themeServiceMock = new TestThemeService();
+
+suite('Decoration Render Options', () => {
 	var options: IDecorationRenderOptions = {
 		gutterIconPath: URI.parse('https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png'),
 		gutterIconSize: 'contain',
@@ -18,12 +21,12 @@ suite('Browser Services - EditorLayoutProvider', () => {
 		borderColor: 'yellow'
 	};
 	test('register and resolve decoration type', () => {
-		var s = new CodeEditorServiceImpl();
+		var s = new CodeEditorServiceImpl(themeServiceMock);
 		s.registerDecorationType('example', options);
 		assert.notEqual(s.resolveDecorationOptions('example', false), undefined);
 	});
 	test('remove decoration type', () => {
-		var s = new CodeEditorServiceImpl();
+		var s = new CodeEditorServiceImpl(themeServiceMock);
 		s.registerDecorationType('example', options);
 		assert.notEqual(s.resolveDecorationOptions('example', false), undefined);
 		s.removeDecorationType('example');
@@ -32,14 +35,14 @@ suite('Browser Services - EditorLayoutProvider', () => {
 
 	function readStyleSheet(styleSheet: HTMLStyleElement): string {
 		if ((<any>styleSheet.sheet).rules) {
-			return Array.prototype.map.call((<any>styleSheet.sheet).rules, r => r.cssText).join('\n');
+			return Array.prototype.map.call((<any>styleSheet.sheet).rules, (r: { cssText: string }) => r.cssText).join('\n');
 		}
 		return styleSheet.sheet.toString();
 	}
 
 	test('css properties', () => {
 		var styleSheet = dom.createStyleSheet();
-		var s = new CodeEditorServiceImpl(styleSheet);
+		var s = new CodeEditorServiceImpl(themeServiceMock, styleSheet);
 		s.registerDecorationType('example', options);
 		var sheet = readStyleSheet(styleSheet);
 		assert(
@@ -50,11 +53,76 @@ suite('Browser Services - EditorLayoutProvider', () => {
 		assert(sheet.indexOf('background-color: red;') > 0);
 	});
 
+	test('theme color', () => {
+		var options: IDecorationRenderOptions = {
+			backgroundColor: { id: 'editorBackground' },
+			borderColor: { id: 'editorBorder' },
+		};
+		var colors: { [key: string]: string } = {
+			editorBackground: '#FF0000'
+		};
+
+		var styleSheet = dom.createStyleSheet();
+		let themeService = new TestThemeService(new TestTheme(colors));
+		var s = new CodeEditorServiceImpl(themeService, styleSheet);
+		s.registerDecorationType('example', options);
+		var sheet = readStyleSheet(styleSheet);
+		assert.equal(sheet, '.monaco-editor .ced-example-0 { background-color: rgb(255, 0, 0); border-color: transparent; box-sizing: border-box; }');
+
+		colors = {
+			editorBackground: '#EE0000',
+			editorBorder: '#00FFFF'
+		};
+		themeService.setTheme(new TestTheme(colors));
+		sheet = readStyleSheet(styleSheet);
+		assert.equal(sheet, '.monaco-editor .ced-example-0 { background-color: rgb(238, 0, 0); border-color: rgb(0, 255, 255); box-sizing: border-box; }');
+
+		s.removeDecorationType('example');
+		sheet = readStyleSheet(styleSheet);
+		assert.equal(sheet, '');
+
+	});
+
+	test('theme overrides', () => {
+		var options: IDecorationRenderOptions = {
+			color: { id: 'editorBackground' },
+			light: {
+				color: '#FF00FF'
+			},
+			dark: {
+				color: '#000000',
+				after: {
+					color: { id: 'infoForeground' }
+				}
+			}
+		};
+		var colors: { [key: string]: string } = {
+			editorBackground: '#FF0000',
+			infoForeground: '#444444'
+		};
+
+		var styleSheet = dom.createStyleSheet();
+		let themeService = new TestThemeService(new TestTheme(colors));
+		var s = new CodeEditorServiceImpl(themeService, styleSheet);
+		s.registerDecorationType('example', options);
+		var sheet = readStyleSheet(styleSheet);
+		let expected =
+			'.vs-dark.monaco-editor .ced-example-4::after, .hc-black.monaco-editor .ced-example-4::after { color: rgb(68, 68, 68) !important; }\n' +
+			'.vs-dark.monaco-editor .ced-example-1, .hc-black.monaco-editor .ced-example-1 { color: rgb(0, 0, 0) !important; }\n' +
+			'.vs.monaco-editor .ced-example-1 { color: rgb(255, 0, 255) !important; }\n' +
+			'.monaco-editor .ced-example-1 { color: rgb(255, 0, 0) !important; }';
+		assert.equal(sheet, expected);
+
+		s.removeDecorationType('example');
+		sheet = readStyleSheet(styleSheet);
+		assert.equal(sheet, '');
+	});
+
 	test('css properties, gutterIconPaths', () => {
 		var styleSheet = dom.createStyleSheet();
 
 		// unix file path (used as string)
-		var s = new CodeEditorServiceImpl(styleSheet);
+		var s = new CodeEditorServiceImpl(themeServiceMock, styleSheet);
 		s.registerDecorationType('example', { gutterIconPath: '/Users/foo/bar.png' });
 		var sheet = readStyleSheet(styleSheet);//.innerHTML || styleSheet.sheet.toString();
 		assert(
@@ -63,7 +131,7 @@ suite('Browser Services - EditorLayoutProvider', () => {
 		);
 
 		// windows file path (used as string)
-		s = new CodeEditorServiceImpl(styleSheet);
+		s = new CodeEditorServiceImpl(themeServiceMock, styleSheet);
 		s.registerDecorationType('example', { gutterIconPath: 'c:\\files\\miles\\more.png' });
 		sheet = readStyleSheet(styleSheet);
 		// TODO@Alex test fails
@@ -73,7 +141,7 @@ suite('Browser Services - EditorLayoutProvider', () => {
 		// );
 
 		// URI, only minimal encoding
-		s = new CodeEditorServiceImpl(styleSheet);
+		s = new CodeEditorServiceImpl(themeServiceMock, styleSheet);
 		s.registerDecorationType('example', { gutterIconPath: URI.parse('data:image/svg+xml;base64,PHN2ZyB4b+') });
 		sheet = readStyleSheet(styleSheet);
 		assert(
@@ -82,7 +150,7 @@ suite('Browser Services - EditorLayoutProvider', () => {
 		);
 
 		// single quote must always be escaped/encoded
-		s = new CodeEditorServiceImpl(styleSheet);
+		s = new CodeEditorServiceImpl(themeServiceMock, styleSheet);
 		s.registerDecorationType('example', { gutterIconPath: '/Users/foo/b\'ar.png' });
 		sheet = readStyleSheet(styleSheet);
 		assert(
@@ -90,7 +158,7 @@ suite('Browser Services - EditorLayoutProvider', () => {
 			|| sheet.indexOf('background: url("file:///Users/foo/b%27ar.png") center center no-repeat;') > 0
 		);
 
-		s = new CodeEditorServiceImpl(styleSheet);
+		s = new CodeEditorServiceImpl(themeServiceMock, styleSheet);
 		s.registerDecorationType('example', { gutterIconPath: URI.parse('http://test/pa\'th') });
 		sheet = readStyleSheet(styleSheet);
 		assert(

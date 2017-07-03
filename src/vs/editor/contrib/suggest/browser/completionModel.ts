@@ -7,7 +7,7 @@
 
 import { fuzzyScore } from 'vs/base/common/filters';
 import { ISuggestSupport } from 'vs/editor/common/modes';
-import { ISuggestionItem } from './suggest';
+import { ISuggestionItem, SnippetConfig } from './suggest';
 
 export interface ICompletionItem extends ISuggestionItem {
 	matches?: number[];
@@ -29,18 +29,25 @@ export class LineContext {
 
 export class CompletionModel {
 
-	private _lineContext: LineContext;
-	private _column: number;
-	private _items: ISuggestionItem[];
+	private readonly _column: number;
+	private readonly _items: ISuggestionItem[];
+	private readonly _snippetCompareFn = CompletionModel._compareCompletionItems;
 
+	private _lineContext: LineContext;
 	private _filteredItems: ICompletionItem[];
 	private _isIncomplete: boolean;
 	private _stats: ICompletionStats;
 
-	constructor(items: ISuggestionItem[], column: number, lineContext: LineContext) {
+	constructor(items: ISuggestionItem[], column: number, lineContext: LineContext, snippetConfig?: SnippetConfig) {
 		this._items = items;
 		this._column = column;
 		this._lineContext = lineContext;
+
+		if (snippetConfig === 'top') {
+			this._snippetCompareFn = CompletionModel._compareCompletionItemsSnippetsUp;
+		} else if (snippetConfig === 'bottom') {
+			this._snippetCompareFn = CompletionModel._compareCompletionItemsSnippetsDown;
+		}
 	}
 
 	get lineContext(): LineContext {
@@ -117,20 +124,40 @@ export class CompletionModel {
 				word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
 			}
 
-			let match = fuzzyScore(word, suggestion.label);
-			if (match) {
-				item.score = match[0];
-				item.matches = match[1];
-			} else {
-				if (typeof suggestion.filterText === 'string') {
-					match = fuzzyScore(word, suggestion.filterText);
-				}
+			if (wordLen === 0) {
+				// when there is nothing to score against, don't
+				// event try to do. Use a const rank and rely on
+				// the fallback-sort using the initial sort order.
+				// use a score of `-100` because that is out of the
+				// bound of values `fuzzyScore` will return
+				item.score = -100;
+
+			} else if (typeof suggestion.filterText === 'string') {
+				// when there is a `filterText` it must match the `word`.
+				// if it matches we check with the label to compute highlights
+				// and if that doesn't yield a result we have no highlights,
+				// despite having the match
+				let match = fuzzyScore(word, suggestion.filterText, suggestion.overwriteBefore);
 				if (!match) {
 					continue;
 				}
 				item.score = match[0];
-				item.matches = []; // don't use the filterText-matches
+				item.matches = [];
+				match = fuzzyScore(word, suggestion.label, suggestion.overwriteBefore);
+				if (match) {
+					item.matches = match[1];
+				}
+			} else {
+				// by default match `word` against the `label`
+				let match = fuzzyScore(word, suggestion.label, suggestion.overwriteBefore);
+				if (match) {
+					item.score = match[0];
+					item.matches = match[1];
+				} else {
+					continue;
+				}
 			}
+
 			item.idx = i;
 
 			this._filteredItems.push(item);
@@ -143,10 +170,10 @@ export class CompletionModel {
 			}
 		}
 
-		this._filteredItems.sort(CompletionModel._compareCompletionItems);
+		this._filteredItems.sort(this._snippetCompareFn);
 	}
 
-	private static _compareCompletionItems(a: ICompletionItem, b: ICompletionItem) {
+	private static _compareCompletionItems(a: ICompletionItem, b: ICompletionItem): number {
 		if (a.score > b.score) {
 			return -1;
 		} else if (a.score < b.score) {
@@ -158,5 +185,27 @@ export class CompletionModel {
 		} else {
 			return 0;
 		}
+	}
+
+	private static _compareCompletionItemsSnippetsDown(a: ICompletionItem, b: ICompletionItem): number {
+		if (a.suggestion.type !== b.suggestion.type) {
+			if (a.suggestion.type === 'snippet') {
+				return 1;
+			} else if (b.suggestion.type === 'snippet') {
+				return -1;
+			}
+		}
+		return CompletionModel._compareCompletionItems(a, b);
+	}
+
+	private static _compareCompletionItemsSnippetsUp(a: ICompletionItem, b: ICompletionItem): number {
+		if (a.suggestion.type !== b.suggestion.type) {
+			if (a.suggestion.type === 'snippet') {
+				return -1;
+			} else if (b.suggestion.type === 'snippet') {
+				return 1;
+			}
+		}
+		return CompletionModel._compareCompletionItems(a, b);
 	}
 }

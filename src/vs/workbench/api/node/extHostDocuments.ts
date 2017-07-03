@@ -19,7 +19,7 @@ import { TextSource } from 'vs/editor/common/model/textSource';
 import { MainContext, MainThreadDocumentsShape, ExtHostDocumentsShape } from './extHost.protocol';
 import { ExtHostDocumentData, setWordDefinitionFor } from './extHostDocumentData';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
-import { IModelChangedEvent } from 'vs/editor/common/model/mirrorModel2';
+import { IModelChangedEvent } from 'vs/editor/common/model/mirrorModel';
 
 export class ExtHostDocuments extends ExtHostDocumentsShape {
 
@@ -94,7 +94,7 @@ export class ExtHostDocuments extends ExtHostDocumentsShape {
 				return this._documentsAndEditors.getDocument(uri.toString());
 			}, err => {
 				this._documentLoader.delete(uri.toString());
-				return TPromise.wrapError(err);
+				return TPromise.wrapError<ExtHostDocumentData>(err);
 			});
 			this._documentLoader.set(uri.toString(), promise);
 		}
@@ -154,7 +154,7 @@ export class ExtHostDocuments extends ExtHostDocumentsShape {
 	public $provideTextDocumentContent(handle: number, uri: URI): TPromise<string> {
 		const provider = this._documentContentProviders.get(handle);
 		if (!provider) {
-			return TPromise.wrapError<string>(`unsupported uri-scheme: ${uri.scheme}`);
+			return TPromise.wrapError<string>(new Error(`unsupported uri-scheme: ${uri.scheme}`));
 		}
 		return asWinJsPromise(token => provider.provideTextDocumentContent(uri, token));
 	}
@@ -171,18 +171,17 @@ export class ExtHostDocuments extends ExtHostDocumentsShape {
 
 	public $acceptModelSaved(strURL: string): void {
 		let data = this._documentsAndEditors.getDocument(strURL);
-		data._acceptIsDirty(false);
+		this.$acceptDirtyStateChanged(strURL, false);
 		this._onDidSaveDocument.fire(data.document);
 	}
 
-	public $acceptModelDirty(strURL: string): void {
-		let document = this._documentsAndEditors.getDocument(strURL);
-		document._acceptIsDirty(true);
-	}
-
-	public $acceptModelReverted(strURL: string): void {
-		let document = this._documentsAndEditors.getDocument(strURL);
-		document._acceptIsDirty(false);
+	public $acceptDirtyStateChanged(strURL: string, isDirty: boolean): void {
+		let data = this._documentsAndEditors.getDocument(strURL);
+		data._acceptIsDirty(isDirty);
+		this._onDidChangeDocument.fire({
+			document: data.document,
+			contentChanges: []
+		});
 	}
 
 	public $acceptModelChanged(strURL: string, events: IModelChangedEvent, isDirty: boolean): void {

@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Progress, CancellationToken } from 'vscode';
+import { Progress, ProgressOptions, CancellationToken } from 'vscode';
 import { MainThreadProgressShape } from './extHost.protocol';
+import { ProgressLocation } from './extHostTypeConverters';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IProgressStep } from 'vs/platform/progress/common/progress';
 
 export class ExtHostProgress {
 
@@ -17,23 +19,18 @@ export class ExtHostProgress {
 		this._proxy = proxy;
 	}
 
-	withWindowProgress<R>(extension: IExtensionDescription, title: string, task: (progress: Progress<string>, token: CancellationToken) => Thenable<R>): Thenable<R> {
+	withProgress<R>(extension: IExtensionDescription, options: ProgressOptions, task: (progress: Progress<IProgressStep>, token: CancellationToken) => Thenable<R>): Thenable<R> {
 		const handle = this._handles++;
-		this._proxy.$startWindow(handle, title);
+		const { title, location } = options;
+		this._proxy.$startProgress(handle, { location: ProgressLocation.from(location), title, tooltip: extension.name });
 		return this._withProgress(handle, task);
 	}
 
-	withScmProgress<R>(extension: IExtensionDescription, task: (progress: Progress<number>) => Thenable<R>): Thenable<R> {
-		const handle = this._handles++;
-		this._proxy.$startScm(handle);
-		return this._withProgress(handle, task);
-	}
-
-	private _withProgress<R>(handle: number, task: (progress: Progress<any>, token: CancellationToken) => Thenable<R>): Thenable<R> {
+	private _withProgress<R>(handle: number, task: (progress: Progress<IProgressStep>, token: CancellationToken) => Thenable<R>): Thenable<R> {
 
 		const progress = {
-			report: (message: string) => {
-				this._proxy.$progressReport(handle, message);
+			report: (p: IProgressStep) => {
+				this._proxy.$progressReport(handle, p);
 			}
 		};
 
@@ -50,3 +47,4 @@ export class ExtHostProgress {
 		return p;
 	}
 }
+

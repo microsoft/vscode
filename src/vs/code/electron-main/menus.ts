@@ -9,27 +9,19 @@ import * as nls from 'vs/nls';
 import { isMacintosh, isLinux, isWindows, language } from 'vs/base/common/platform';
 import * as arrays from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ipcMain as ipc, app, shell, dialog, Menu, MenuItem } from 'electron';
-import { OpenContext } from 'vs/code/common/windows';
-import { IWindowsMainService } from 'vs/code/electron-main/windows';
-import { VSCodeWindow } from 'vs/code/electron-main/window';
+import { ipcMain as ipc, app, shell, dialog, Menu, MenuItem, BrowserWindow } from 'electron';
+import { OpenContext } from 'vs/platform/windows/common/windows';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStorageService } from 'vs/code/electron-main/storage';
 import { IFilesConfiguration, AutoSaveConfiguration } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService, State as UpdateState } from 'vs/platform/update/common/update';
 import product from 'vs/platform/node/product';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import Event, { Emitter, once } from 'vs/base/common/event';
-import { ConfigWatcher } from 'vs/base/node/config';
-import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
-
-interface IKeybinding {
-	id: string;
-	label: string;
-	isNative: boolean;
-}
+import { tildify } from 'vs/base/common/labels';
+import { KeybindingsResolver } from "vs/code/electron-main/keyboard";
+import { IWindowsMainService } from "vs/platform/windows/electron-main/windows";
+import { IHistoryMainService } from "vs/platform/history/electron-main/historyMainService";
 
 interface IExtensionViewlet {
 	id: string;
@@ -37,6 +29,9 @@ interface IExtensionViewlet {
 }
 
 interface IConfiguration extends IFilesConfiguration {
+	window: {
+		enableMenuBarMnemonics: boolean;
+	};
 	workbench: {
 		sideBar: {
 			location: 'left' | 'right';
@@ -48,111 +43,23 @@ interface IConfiguration extends IFilesConfiguration {
 			visible: boolean;
 		}
 	};
-}
-
-class KeybindingsResolver {
-
-	private static lastKnownKeybindingsMapStorageKey = 'lastKnownKeybindings';
-
-	private commandIds: Set<string>;
-	private keybindings: { [commandId: string]: IKeybinding };
-	private keybindingsWatcher: ConfigWatcher<IUserFriendlyKeybinding[]>;
-
-	private _onKeybindingsChanged = new Emitter<void>();
-	onKeybindingsChanged: Event<void> = this._onKeybindingsChanged.event;
-
-	constructor(
-		@IStorageService private storageService: IStorageService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IWindowsMainService private windowsService: IWindowsMainService
-	) {
-		this.commandIds = new Set<string>();
-		this.keybindings = this.storageService.getItem<{ [id: string]: string; }>(KeybindingsResolver.lastKnownKeybindingsMapStorageKey) || Object.create(null);
-		this.keybindingsWatcher = new ConfigWatcher<IUserFriendlyKeybinding[]>(environmentService.appKeybindingsPath, { changeBufferDelay: 100 });
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-
-		// Resolve keybindings when any first window is loaded
-		const onceOnWindowReady = once(this.windowsService.onWindowReady);
-		onceOnWindowReady(win => this.resolveKeybindings(win));
-
-		// Listen to resolved keybindings from window
-		ipc.on('vscode:keybindingsResolved', (event, rawKeybindings: string) => {
-			let keybindings: IKeybinding[] = [];
-			try {
-				keybindings = JSON.parse(rawKeybindings);
-			} catch (error) {
-				// Should not happen
-			}
-
-			// Fill hash map of resolved keybindings and check for changes
-			let keybindingsChanged = false;
-			let keybindingsCount = 0;
-			const resolvedKeybindings: { [commandId: string]: IKeybinding } = Object.create(null);
-			keybindings.forEach(keybinding => {
-				keybindingsCount++;
-
-				resolvedKeybindings[keybinding.id] = keybinding;
-
-				if (!this.keybindings[keybinding.id] || keybinding.label !== this.keybindings[keybinding.id].label) {
-					keybindingsChanged = true;
-				}
-			});
-
-			// A keybinding might have been unassigned, so we have to account for that too
-			if (Object.keys(this.keybindings).length !== keybindingsCount) {
-				keybindingsChanged = true;
-			}
-
-			if (keybindingsChanged) {
-				this.keybindings = resolvedKeybindings;
-				this.storageService.setItem(KeybindingsResolver.lastKnownKeybindingsMapStorageKey, this.keybindings); // keep to restore instantly after restart
-
-				this._onKeybindingsChanged.fire();
-			}
-		});
-
-		// Resolve keybindings again when keybindings.json changes
-		this.keybindingsWatcher.onDidUpdateConfiguration(() => this.resolveKeybindings());
-
-		// Resolve keybindings when window reloads because an installed extension could have an impact
-		this.windowsService.onWindowReload(() => this.resolveKeybindings());
-	}
-
-	private resolveKeybindings(win: VSCodeWindow = this.windowsService.getLastActiveWindow()): void {
-		if (this.commandIds.size && win) {
-			const commandIds = [];
-			this.commandIds.forEach(id => commandIds.push(id));
-			win.sendWhenReady('vscode:resolveKeybindings', JSON.stringify(commandIds));
-		}
-	}
-
-	public getKeybinding(commandId: string): IKeybinding {
-		if (!commandId) {
-			return void 0;
-		}
-
-		if (!this.commandIds.has(commandId)) {
-			this.commandIds.add(commandId);
-		}
-
-		return this.keybindings[commandId];
-	}
+	editor: {
+		multiCursorModifier: 'ctrlCmd' | 'alt'
+	};
 }
 
 const telemetryFrom = 'menu';
 
-export class VSCodeMenu {
+export class CodeMenu {
 
 	private static MAX_MENU_RECENT_ENTRIES = 10;
 
 	private currentAutoSaveSetting: string;
+	private currentMultiCursorModifierSetting: string;
 	private currentSidebarLocation: 'left' | 'right';
 	private currentStatusbarVisible: boolean;
 	private currentActivityBarVisible: boolean;
+	private currentEnableMenuBarMnemonics: boolean;
 
 	private isQuitting: boolean;
 	private appMenuInstalled: boolean;
@@ -169,7 +76,8 @@ export class VSCodeMenu {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWindowsMainService private windowsService: IWindowsMainService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IHistoryMainService private historyService: IHistoryMainService
 	) {
 		this.extensionViewlets = [];
 
@@ -192,7 +100,7 @@ export class VSCodeMenu {
 
 		// Listen to some events from window service
 		this.windowsService.onPathsOpen(paths => this.updateMenu());
-		this.windowsService.onRecentPathsChange(paths => this.updateMenu());
+		this.historyService.onRecentPathsChange(paths => this.updateMenu());
 		this.windowsService.onWindowClose(_ => this.onClose(this.windowsService.getWindowCount()));
 
 		// Listen to extension viewlets
@@ -211,7 +119,7 @@ export class VSCodeMenu {
 		});
 
 		// Update when auto save config changes
-		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config, true /* update menu if changed */));
+		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IConfiguration>(), true /* update menu if changed */));
 
 		// Listen to update service
 		this.updateService.onStateChange(() => this.updateMenu());
@@ -225,6 +133,12 @@ export class VSCodeMenu {
 		const newAutoSaveSetting = config && config.files && config.files.autoSave;
 		if (newAutoSaveSetting !== this.currentAutoSaveSetting) {
 			this.currentAutoSaveSetting = newAutoSaveSetting;
+			updateMenu = true;
+		}
+
+		const newMultiCursorModifierSetting = config && config.editor && config.editor.multiCursorModifier;
+		if (newMultiCursorModifierSetting !== this.currentMultiCursorModifierSetting) {
+			this.currentMultiCursorModifierSetting = newMultiCursorModifierSetting;
 			updateMenu = true;
 		}
 
@@ -249,6 +163,15 @@ export class VSCodeMenu {
 		}
 		if (newActivityBarVisible !== this.currentActivityBarVisible) {
 			this.currentActivityBarVisible = newActivityBarVisible;
+			updateMenu = true;
+		}
+
+		let newEnableMenuBarMnemonics = config && config.window && config.window.enableMenuBarMnemonics;
+		if (typeof newEnableMenuBarMnemonics !== 'boolean') {
+			newEnableMenuBarMnemonics = true;
+		}
+		if (newEnableMenuBarMnemonics !== this.currentEnableMenuBarMnemonics) {
+			this.currentEnableMenuBarMnemonics = newEnableMenuBarMnemonics;
 			updateMenu = true;
 		}
 
@@ -298,32 +221,32 @@ export class VSCodeMenu {
 
 		// File
 		const fileMenu = new Menu();
-		const fileMenuItem = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'mFile', comment: ['&& denotes a mnemonic'] }, "&&File")), submenu: fileMenu });
+		const fileMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mFile', comment: ['&& denotes a mnemonic'] }, "&&File")), submenu: fileMenu });
 		this.setFileMenu(fileMenu);
 
 		// Edit
 		const editMenu = new Menu();
-		const editMenuItem = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'mEdit', comment: ['&& denotes a mnemonic'] }, "&&Edit")), submenu: editMenu });
+		const editMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mEdit', comment: ['&& denotes a mnemonic'] }, "&&Edit")), submenu: editMenu });
 		this.setEditMenu(editMenu);
 
 		// Selection
 		const selectionMenu = new Menu();
-		const selectionMenuItem = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'mSelection', comment: ['&& denotes a mnemonic'] }, "&&Selection")), submenu: selectionMenu });
+		const selectionMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mSelection', comment: ['&& denotes a mnemonic'] }, "&&Selection")), submenu: selectionMenu });
 		this.setSelectionMenu(selectionMenu);
 
 		// View
 		const viewMenu = new Menu();
-		const viewMenuItem = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'mView', comment: ['&& denotes a mnemonic'] }, "&&View")), submenu: viewMenu });
+		const viewMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mView', comment: ['&& denotes a mnemonic'] }, "&&View")), submenu: viewMenu });
 		this.setViewMenu(viewMenu);
 
 		// Goto
 		const gotoMenu = new Menu();
-		const gotoMenuItem = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'mGoto', comment: ['&& denotes a mnemonic'] }, "&&Go")), submenu: gotoMenu });
+		const gotoMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mGoto', comment: ['&& denotes a mnemonic'] }, "&&Go")), submenu: gotoMenu });
 		this.setGotoMenu(gotoMenu);
 
 		// Debug
 		const debugMenu = new Menu();
-		const debugMenuItem = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'mDebug', comment: ['&& denotes a mnemonic'] }, "&&Debug")), submenu: debugMenu });
+		const debugMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mDebug', comment: ['&& denotes a mnemonic'] }, "&&Debug")), submenu: debugMenu });
 		this.setDebugMenu(debugMenu);
 
 
@@ -331,14 +254,19 @@ export class VSCodeMenu {
 		let macWindowMenuItem: Electron.MenuItem;
 		if (isMacintosh) {
 			const windowMenu = new Menu();
-			macWindowMenuItem = new MenuItem({ label: mnemonicLabel(nls.localize('mWindow', "Window")), submenu: windowMenu, role: 'window' });
+			macWindowMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize('mWindow', "Window")), submenu: windowMenu, role: 'window' });
 			this.setMacWindowMenu(windowMenu);
 		}
 
 		// Help
 		const helpMenu = new Menu();
-		const helpMenuItem = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'mHelp', comment: ['&& denotes a mnemonic'] }, "&&Help")), submenu: helpMenu, role: 'help' });
+		const helpMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mHelp', comment: ['&& denotes a mnemonic'] }, "&&Help")), submenu: helpMenu, role: 'help' });
 		this.setHelpMenu(helpMenu);
+
+		// Tasks
+		const taskMenu = new Menu();
+		const taskMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mTask', comment: ['&& denotes a mnemonic'] }, "&&Tasks")), submenu: taskMenu });
+		this.setTaskMenu(taskMenu);
 
 		// Menu Structure
 		if (macApplicationMenuItem) {
@@ -351,6 +279,7 @@ export class VSCodeMenu {
 		menubar.append(viewMenuItem);
 		menubar.append(gotoMenuItem);
 		menubar.append(debugMenuItem);
+		menubar.append(taskMenuItem);
 
 		if (macWindowMenuItem) {
 			menubar.append(macWindowMenuItem);
@@ -365,7 +294,7 @@ export class VSCodeMenu {
 			this.appMenuInstalled = true;
 
 			const dockMenu = new Menu();
-			dockMenu.append(new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window")), click: () => this.windowsService.openNewWindow(OpenContext.DOCK) }));
+			dockMenu.append(new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window")), click: () => this.windowsService.openNewWindow(OpenContext.DOCK) }));
 
 			app.dock.setMenu(dockMenu);
 		}
@@ -375,6 +304,8 @@ export class VSCodeMenu {
 		const about = new MenuItem({ label: nls.localize('mAbout', "About {0}", product.nameLong), role: 'about' });
 		const checkForUpdates = this.getUpdateMenuItems();
 		const preferences = this.getPreferencesMenu();
+		const servicesMenu = new Menu();
+		const services = new MenuItem({ label: nls.localize('mServices', "Services"), role: 'services', submenu: servicesMenu });
 		const hide = new MenuItem({ label: nls.localize('mHide', "Hide {0}", product.nameLong), role: 'hide', accelerator: 'Command+H' });
 		const hideOthers = new MenuItem({ label: nls.localize('mHideOthers', "Hide Others"), role: 'hideothers', accelerator: 'Command+Alt+H' });
 		const showAll = new MenuItem({ label: nls.localize('mShowAll', "Show All"), role: 'unhide' });
@@ -385,6 +316,8 @@ export class VSCodeMenu {
 		actions.push(...[
 			__separator__(),
 			preferences,
+			__separator__(),
+			services,
 			__separator__(),
 			hide,
 			hideOthers,
@@ -401,42 +334,45 @@ export class VSCodeMenu {
 
 		let newFile: Electron.MenuItem;
 		if (hasNoWindows) {
-			newFile = new MenuItem(this.likeAction('workbench.action.files.newUntitledFile', { label: mnemonicLabel(nls.localize({ key: 'miNewFile', comment: ['&& denotes a mnemonic'] }, "&&New File")), click: () => this.windowsService.openNewWindow(OpenContext.MENU) }));
+			newFile = new MenuItem(this.likeAction('workbench.action.files.newUntitledFile', { label: this.mnemonicLabel(nls.localize({ key: 'miNewFile', comment: ['&& denotes a mnemonic'] }, "&&New File")), click: () => this.windowsService.openNewWindow(OpenContext.MENU) }));
 		} else {
 			newFile = this.createMenuItem(nls.localize({ key: 'miNewFile', comment: ['&& denotes a mnemonic'] }, "&&New File"), 'workbench.action.files.newUntitledFile');
 		}
 
-		const open = new MenuItem(this.likeAction('workbench.action.files.openFileFolder', { label: mnemonicLabel(nls.localize({ key: 'miOpen', comment: ['&& denotes a mnemonic'] }, "&&Open...")), click: (menuItem, win, event) => this.windowsService.openFileFolderPicker(this.isOptionClick(event), { from: telemetryFrom }) }));
-		const openFolder = new MenuItem(this.likeAction('workbench.action.files.openFolder', { label: mnemonicLabel(nls.localize({ key: 'miOpenFolder', comment: ['&& denotes a mnemonic'] }, "Open &&Folder...")), click: (menuItem, win, event) => this.windowsService.openFolderPicker(this.isOptionClick(event), undefined, { from: telemetryFrom }) }));
+		const open = new MenuItem(this.likeAction('workbench.action.files.openFileFolder', { label: this.mnemonicLabel(nls.localize({ key: 'miOpen', comment: ['&& denotes a mnemonic'] }, "&&Open...")), click: (menuItem, win, event) => this.windowsService.pickFileFolderAndOpen(this.isOptionClick(event), { from: telemetryFrom }) }));
+		const openFolder = new MenuItem(this.likeAction('workbench.action.files.openFolder', { label: this.mnemonicLabel(nls.localize({ key: 'miOpenFolder', comment: ['&& denotes a mnemonic'] }, "Open &&Folder...")), click: (menuItem, win, event) => this.windowsService.pickFolderAndOpen(this.isOptionClick(event), undefined, { from: telemetryFrom }) }));
 
 		let openFile: Electron.MenuItem;
 		if (hasNoWindows) {
-			openFile = new MenuItem(this.likeAction('workbench.action.files.openFile', { label: mnemonicLabel(nls.localize({ key: 'miOpenFile', comment: ['&& denotes a mnemonic'] }, "&&Open File...")), click: (menuItem, win, event) => this.windowsService.openFilePicker(this.isOptionClick(event), undefined, undefined, { from: telemetryFrom }) }));
+			openFile = new MenuItem(this.likeAction('workbench.action.files.openFile', { label: this.mnemonicLabel(nls.localize({ key: 'miOpenFile', comment: ['&& denotes a mnemonic'] }, "&&Open File...")), click: (menuItem, win, event) => this.windowsService.pickFileAndOpen(this.isOptionClick(event), undefined, undefined, { from: telemetryFrom }) }));
 		} else {
 			openFile = this.createMenuItem(nls.localize({ key: 'miOpenFile', comment: ['&& denotes a mnemonic'] }, "&&Open File..."), ['workbench.action.files.openFile', 'workbench.action.files.openFileInNewWindow']);
 		}
 
 		const openRecentMenu = new Menu();
 		this.setOpenRecentMenu(openRecentMenu);
-		const openRecent = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miOpenRecent', comment: ['&& denotes a mnemonic'] }, "Open &&Recent")), submenu: openRecentMenu, enabled: openRecentMenu.items.length > 0 });
+		const openRecent = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miOpenRecent', comment: ['&& denotes a mnemonic'] }, "Open &&Recent")), submenu: openRecentMenu, enabled: openRecentMenu.items.length > 0 });
+
+		const isMultiRootEnabled = (product.quality !== 'stable'); // TODO@Ben multi root
+		const addFolder = this.createMenuItem(nls.localize({ key: 'miAddFolderToWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Add Folder to Workspace..."), 'workbench.action.addRootFolder', this.windowsService.getWindowCount() > 0);
 
 		const saveFile = this.createMenuItem(nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "&&Save"), 'workbench.action.files.save', this.windowsService.getWindowCount() > 0);
 		const saveFileAs = this.createMenuItem(nls.localize({ key: 'miSaveAs', comment: ['&& denotes a mnemonic'] }, "Save &&As..."), 'workbench.action.files.saveAs', this.windowsService.getWindowCount() > 0);
 		const saveAllFiles = this.createMenuItem(nls.localize({ key: 'miSaveAll', comment: ['&& denotes a mnemonic'] }, "Save A&&ll"), 'workbench.action.files.saveAll', this.windowsService.getWindowCount() > 0);
 
 		const autoSaveEnabled = [AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE].some(s => this.currentAutoSaveSetting === s);
-		const autoSave = new MenuItem(this.likeAction('vscode.toggleAutoSave', { label: mnemonicLabel(nls.localize('miAutoSave', "Auto Save")), type: 'checkbox', checked: autoSaveEnabled, enabled: this.windowsService.getWindowCount() > 0, click: () => this.windowsService.sendToFocused('vscode.toggleAutoSave') }, false));
+		const autoSave = new MenuItem(this.likeAction('vscode.toggleAutoSave', { label: this.mnemonicLabel(nls.localize('miAutoSave', "Auto Save")), type: 'checkbox', checked: autoSaveEnabled, enabled: this.windowsService.getWindowCount() > 0, click: () => this.windowsService.sendToFocused('vscode.toggleAutoSave') }, false));
 
 		const preferences = this.getPreferencesMenu();
 
-		const newWindow = new MenuItem(this.likeAction('workbench.action.newWindow', { label: mnemonicLabel(nls.localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window")), click: () => this.windowsService.openNewWindow(OpenContext.MENU) }));
+		const newWindow = new MenuItem(this.likeAction('workbench.action.newWindow', { label: this.mnemonicLabel(nls.localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window")), click: () => this.windowsService.openNewWindow(OpenContext.MENU) }));
 		const revertFile = this.createMenuItem(nls.localize({ key: 'miRevert', comment: ['&& denotes a mnemonic'] }, "Re&&vert File"), 'workbench.action.files.revert', this.windowsService.getWindowCount() > 0);
-		const closeWindow = new MenuItem(this.likeAction('workbench.action.closeWindow', { label: mnemonicLabel(nls.localize({ key: 'miCloseWindow', comment: ['&& denotes a mnemonic'] }, "Clos&&e Window")), click: () => this.windowsService.getLastActiveWindow().win.close(), enabled: this.windowsService.getWindowCount() > 0 }));
+		const closeWindow = new MenuItem(this.likeAction('workbench.action.closeWindow', { label: this.mnemonicLabel(nls.localize({ key: 'miCloseWindow', comment: ['&& denotes a mnemonic'] }, "Clos&&e Window")), click: () => this.windowsService.getLastActiveWindow().win.close(), enabled: this.windowsService.getWindowCount() > 0 }));
 
 		const closeFolder = this.createMenuItem(nls.localize({ key: 'miCloseFolder', comment: ['&& denotes a mnemonic'] }, "Close &&Folder"), 'workbench.action.closeFolder');
 		const closeEditor = this.createMenuItem(nls.localize({ key: 'miCloseEditor', comment: ['&& denotes a mnemonic'] }, "&&Close Editor"), 'workbench.action.closeActiveEditor');
 
-		const exit = new MenuItem(this.likeAction('workbench.action.quit', { label: mnemonicLabel(nls.localize({ key: 'miExit', comment: ['&& denotes a mnemonic'] }, "E&&xit")), click: () => this.windowsService.quit() }));
+		const exit = new MenuItem(this.likeAction('workbench.action.quit', { label: this.mnemonicLabel(nls.localize({ key: 'miExit', comment: ['&& denotes a mnemonic'] }, "E&&xit")), click: () => this.windowsService.quit() }));
 
 		arrays.coalesce([
 			newFile,
@@ -446,6 +382,8 @@ export class VSCodeMenu {
 			!isMacintosh ? openFile : null,
 			!isMacintosh ? openFolder : null,
 			openRecent,
+			isMultiRootEnabled ? __separator__() : null,
+			isMultiRootEnabled ? addFolder : null,
 			__separator__(),
 			saveFile,
 			saveFileAs,
@@ -458,7 +396,7 @@ export class VSCodeMenu {
 			revertFile,
 			closeEditor,
 			closeFolder,
-			!isMacintosh ? closeWindow : null,
+			closeWindow,
 			!isMacintosh ? __separator__() : null,
 			!isMacintosh ? exit : null
 		]).forEach(item => fileMenu.append(item));
@@ -483,19 +421,19 @@ export class VSCodeMenu {
 		preferencesMenu.append(colorThemeSelection);
 		preferencesMenu.append(iconThemeSelection);
 
-		return new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences")), submenu: preferencesMenu });
+		return new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences")), submenu: preferencesMenu });
 	}
 
 	private setOpenRecentMenu(openRecentMenu: Electron.Menu): void {
 		openRecentMenu.append(this.createMenuItem(nls.localize({ key: 'miReopenClosedEditor', comment: ['&& denotes a mnemonic'] }, "&&Reopen Closed Editor"), 'workbench.action.reopenClosedEditor'));
 
-		const { folders, files } = this.windowsService.getRecentPathsList();
+		const { folders, files } = this.historyService.getRecentPathsList();
 
 		// Folders
 		if (folders.length > 0) {
 			openRecentMenu.append(__separator__());
 
-			for (let i = 0; i < VSCodeMenu.MAX_MENU_RECENT_ENTRIES && i < folders.length; i++) {
+			for (let i = 0; i < CodeMenu.MAX_MENU_RECENT_ENTRIES && i < folders.length; i++) {
 				openRecentMenu.append(this.createOpenRecentMenuItem(folders[i], 'openRecentFolder'));
 			}
 		}
@@ -504,29 +442,26 @@ export class VSCodeMenu {
 		if (files.length > 0) {
 			openRecentMenu.append(__separator__());
 
-			for (let i = 0; i < VSCodeMenu.MAX_MENU_RECENT_ENTRIES && i < files.length; i++) {
+			for (let i = 0; i < CodeMenu.MAX_MENU_RECENT_ENTRIES && i < files.length; i++) {
 				openRecentMenu.append(this.createOpenRecentMenuItem(files[i], 'openRecentFile'));
 			}
 		}
 
 		if (folders.length || files.length) {
 			openRecentMenu.append(__separator__());
+			openRecentMenu.append(this.createMenuItem(nls.localize({ key: 'miMore', comment: ['&& denotes a mnemonic'] }, "&&More..."), 'workbench.action.openRecent'));
+			openRecentMenu.append(__separator__());
 			openRecentMenu.append(this.createMenuItem(nls.localize({ key: 'miClearRecentOpen', comment: ['&& denotes a mnemonic'] }, "&&Clear Recent Files"), 'workbench.action.clearRecentFiles'));
 		}
 	}
 
 	private createOpenRecentMenuItem(path: string, commandId: string): Electron.MenuItem {
-		let label = path;
-		if ((isMacintosh || isLinux) && path.indexOf(this.environmentService.userHome) === 0) {
-			label = `~${path.substr(this.environmentService.userHome.length)}`;
-		}
-
 		return new MenuItem(this.likeAction(commandId, {
-			label: unMnemonicLabel(label), click: (menuItem, win, event) => {
+			label: this.unmnemonicLabel(tildify(path, this.environmentService.userHome)), click: (menuItem, win, event) => {
 				const openInNewWindow = this.isOptionClick(event);
-				const success = !!this.windowsService.open({ context: OpenContext.MENU, cli: this.environmentService.args, pathsToOpen: [path], forceNewWindow: openInNewWindow });
+				const success = this.windowsService.open({ context: OpenContext.MENU, cli: this.environmentService.args, pathsToOpen: [path], forceNewWindow: openInNewWindow }).length > 0;
 				if (!success) {
-					this.windowsService.removeFromRecentPathsList(path);
+					this.historyService.removeFromRecentPathsList(path);
 				}
 			}
 		}, false));
@@ -538,7 +473,7 @@ export class VSCodeMenu {
 
 	private createRoleMenuItem(label: string, commandId: string, role: Electron.MenuItemRole): Electron.MenuItem {
 		const options: Electron.MenuItemOptions = {
-			label: mnemonicLabel(label),
+			label: this.mnemonicLabel(label),
 			role,
 			enabled: true
 		};
@@ -599,6 +534,19 @@ export class VSCodeMenu {
 	}
 
 	private setSelectionMenu(winLinuxEditMenu: Electron.Menu): void {
+		let multiCursorModifierLabel: string;
+		if (this.currentMultiCursorModifierSetting === 'ctrlCmd') {
+			// The default has been overwritten
+			multiCursorModifierLabel = nls.localize('miMultiCursorAlt', "Switch to Alt+Click for Multi-Cursor");
+		} else {
+			multiCursorModifierLabel = (
+				isMacintosh
+					? nls.localize('miMultiCursorCmd', "Switch to Cmd+Click for Multi-Cursor")
+					: nls.localize('miMultiCursorCtrl', "Switch to Ctrl+Click for Multi-Cursor")
+			);
+		}
+
+		const multicursorModifier = this.createMenuItem(multiCursorModifierLabel, 'workbench.action.toggleMultiCursorModifier');
 		const insertCursorAbove = this.createMenuItem(nls.localize({ key: 'miInsertCursorAbove', comment: ['&& denotes a mnemonic'] }, "&&Add Cursor Above"), 'editor.action.insertCursorAbove');
 		const insertCursorBelow = this.createMenuItem(nls.localize({ key: 'miInsertCursorBelow', comment: ['&& denotes a mnemonic'] }, "A&&dd Cursor Below"), 'editor.action.insertCursorBelow');
 		const insertCursorAtEndOfEachLineSelected = this.createMenuItem(nls.localize({ key: 'miInsertCursorAtEndOfEachLineSelected', comment: ['&& denotes a mnemonic'] }, "Add C&&ursors to Line Ends"), 'editor.action.insertCursorAtEndOfEachLineSelected');
@@ -630,6 +578,7 @@ export class VSCodeMenu {
 			moveLinesUp,
 			moveLinesDown,
 			__separator__(),
+			multicursorModifier,
 			insertCursorAbove,
 			insertCursorBelow,
 			insertCursorAtEndOfEachLineSelected,
@@ -642,8 +591,7 @@ export class VSCodeMenu {
 	private setViewMenu(viewMenu: Electron.Menu): void {
 		const explorer = this.createMenuItem(nls.localize({ key: 'miViewExplorer', comment: ['&& denotes a mnemonic'] }, "&&Explorer"), 'workbench.view.explorer');
 		const search = this.createMenuItem(nls.localize({ key: 'miViewSearch', comment: ['&& denotes a mnemonic'] }, "&&Search"), 'workbench.view.search');
-		const git = this.createMenuItem(nls.localize({ key: 'miViewGit', comment: ['&& denotes a mnemonic'] }, "&&Git"), 'workbench.view.git');
-		// const scm = this.createMenuItem(nls.localize({ key: 'miViewSCM', comment: ['&& denotes a mnemonic'] }, "S&&CM"), 'workbench.view.scm');
+		const scm = this.createMenuItem(nls.localize({ key: 'miViewSCM', comment: ['&& denotes a mnemonic'] }, "S&&CM"), 'workbench.view.scm');
 		const debug = this.createMenuItem(nls.localize({ key: 'miViewDebug', comment: ['&& denotes a mnemonic'] }, "&&Debug"), 'workbench.view.debug');
 		const extensions = this.createMenuItem(nls.localize({ key: 'miViewExtensions', comment: ['&& denotes a mnemonic'] }, "E&&xtensions"), 'workbench.view.extensions');
 		const output = this.createMenuItem(nls.localize({ key: 'miToggleOutput', comment: ['&& denotes a mnemonic'] }, "&&Output"), 'workbench.action.output.toggleOutput');
@@ -659,12 +607,12 @@ export class VSCodeMenu {
 				additionalViewletsMenu.append(this.createMenuItem(viewlet.label, viewlet.id));
 			});
 
-			additionalViewlets = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miAdditionalViews', comment: ['&& denotes a mnemonic'] }, "Additional &&Views")), submenu: additionalViewletsMenu, enabled: true });
+			additionalViewlets = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miAdditionalViews', comment: ['&& denotes a mnemonic'] }, "Additional &&Views")), submenu: additionalViewletsMenu, enabled: true });
 		}
 
 		const commands = this.createMenuItem(nls.localize({ key: 'miCommandPalette', comment: ['&& denotes a mnemonic'] }, "&&Command Palette..."), 'workbench.action.showCommands');
 
-		const fullscreen = new MenuItem(this.withKeybinding('workbench.action.toggleFullScreen', { label: mnemonicLabel(nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "Toggle &&Full Screen")), click: () => this.windowsService.getLastActiveWindow().toggleFullScreen(), enabled: this.windowsService.getWindowCount() > 0 }));
+		const fullscreen = new MenuItem(this.withKeybinding('workbench.action.toggleFullScreen', { label: this.mnemonicLabel(nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "Toggle &&Full Screen")), click: () => this.windowsService.getLastActiveWindow().toggleFullScreen(), enabled: this.windowsService.getWindowCount() > 0 }));
 		const toggleZenMode = this.createMenuItem(nls.localize('miToggleZenMode', "Toggle Zen Mode"), 'workbench.action.toggleZenMode', this.windowsService.getWindowCount() > 0);
 		const toggleMenuBar = this.createMenuItem(nls.localize({ key: 'miToggleMenuBar', comment: ['&& denotes a mnemonic'] }, "Toggle Menu &&Bar"), 'workbench.action.toggleMenuBar');
 		const splitEditor = this.createMenuItem(nls.localize({ key: 'miSplitEditor', comment: ['&& denotes a mnemonic'] }, "Split &&Editor"), 'workbench.action.splitEditor');
@@ -711,8 +659,7 @@ export class VSCodeMenu {
 			__separator__(),
 			explorer,
 			search,
-			git,
-			// scm,
+			scm,
 			debug,
 			extensions,
 			additionalViewlets,
@@ -763,7 +710,7 @@ export class VSCodeMenu {
 			previousEditorInGroup
 		].forEach(item => switchEditorMenu.append(item));
 
-		const switchEditor = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miSwitchEditor', comment: ['&& denotes a mnemonic'] }, "Switch &&Editor")), submenu: switchEditorMenu, enabled: true });
+		const switchEditor = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miSwitchEditor', comment: ['&& denotes a mnemonic'] }, "Switch &&Editor")), submenu: switchEditorMenu, enabled: true });
 
 		const switchGroupMenu = new Menu();
 
@@ -782,12 +729,14 @@ export class VSCodeMenu {
 			previousGroup
 		].forEach(item => switchGroupMenu.append(item));
 
-		const switchGroup = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miSwitchGroup', comment: ['&& denotes a mnemonic'] }, "Switch &&Group")), submenu: switchGroupMenu, enabled: true });
+		const switchGroup = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miSwitchGroup', comment: ['&& denotes a mnemonic'] }, "Switch &&Group")), submenu: switchGroupMenu, enabled: true });
 
 		const gotoFile = this.createMenuItem(nls.localize({ key: 'miGotoFile', comment: ['&& denotes a mnemonic'] }, "Go to &&File..."), 'workbench.action.quickOpen');
 		const gotoSymbolInFile = this.createMenuItem(nls.localize({ key: 'miGotoSymbolInFile', comment: ['&& denotes a mnemonic'] }, "Go to &&Symbol in File..."), 'workbench.action.gotoSymbol');
 		const gotoSymbolInWorkspace = this.createMenuItem(nls.localize({ key: 'miGotoSymbolInWorkspace', comment: ['&& denotes a mnemonic'] }, "Go to Symbol in &&Workspace..."), 'workbench.action.showAllSymbols');
 		const gotoDefinition = this.createMenuItem(nls.localize({ key: 'miGotoDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Definition"), 'editor.action.goToDeclaration');
+		const gotoTypeDefinition = this.createMenuItem(nls.localize({ key: 'miGotoTypeDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Type Definition"), 'editor.action.goToTypeDefinition');
+		const goToImplementation = this.createMenuItem(nls.localize({ key: 'miGotoImplementation', comment: ['&& denotes a mnemonic'] }, "Go to &&Implementation"), 'editor.action.goToImplementation');
 		const gotoLine = this.createMenuItem(nls.localize({ key: 'miGotoLine', comment: ['&& denotes a mnemonic'] }, "Go to &&Line..."), 'workbench.action.gotoLine');
 
 		[
@@ -801,6 +750,8 @@ export class VSCodeMenu {
 			gotoSymbolInFile,
 			gotoSymbolInWorkspace,
 			gotoDefinition,
+			gotoTypeDefinition,
+			goToImplementation,
 			gotoLine
 		].forEach(item => gotoMenu.append(item));
 	}
@@ -824,7 +775,8 @@ export class VSCodeMenu {
 		breakpointsMenu.append(this.createMenuItem(nls.localize({ key: 'miConditionalBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&Conditional Breakpoint..."), 'editor.debug.action.conditionalBreakpoint'));
 		breakpointsMenu.append(this.createMenuItem(nls.localize({ key: 'miColumnBreakpoint', comment: ['&& denotes a mnemonic'] }, "C&&olumn Breakpoint"), 'editor.debug.action.toggleColumnBreakpoint'));
 		breakpointsMenu.append(this.createMenuItem(nls.localize({ key: 'miFunctionBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&Function Breakpoint..."), 'workbench.debug.viewlet.action.addFunctionBreakpointAction'));
-		const newBreakpoints = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miNewBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&New Breakpoint")), submenu: breakpointsMenu });
+		const newBreakpoints = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miNewBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&New Breakpoint")), submenu: breakpointsMenu });
+		const enableAllBreakpoints = this.createMenuItem(nls.localize({ key: 'miEnableAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Enable All Breakpoints"), 'workbench.debug.viewlet.action.enableAllBreakpoints');
 		const disableAllBreakpoints = this.createMenuItem(nls.localize({ key: 'miDisableAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Disable A&&ll Breakpoints"), 'workbench.debug.viewlet.action.disableAllBreakpoints');
 		const removeAllBreakpoints = this.createMenuItem(nls.localize({ key: 'miRemoveAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Remove &&All Breakpoints"), 'workbench.debug.viewlet.action.removeAllBreakpoints');
 
@@ -845,6 +797,7 @@ export class VSCodeMenu {
 			__separator__(),
 			toggleBreakpoint,
 			newBreakpoints,
+			enableAllBreakpoints,
 			disableAllBreakpoints,
 			removeAllBreakpoints,
 			__separator__(),
@@ -855,12 +808,14 @@ export class VSCodeMenu {
 
 	private setMacWindowMenu(macWindowMenu: Electron.Menu): void {
 		const minimize = new MenuItem({ label: nls.localize('mMinimize', "Minimize"), role: 'minimize', accelerator: 'Command+M', enabled: this.windowsService.getWindowCount() > 0 });
-		const close = new MenuItem({ label: nls.localize('mClose', "Close"), role: 'close', accelerator: 'Command+W', enabled: this.windowsService.getWindowCount() > 0 });
+		const zoom = new MenuItem({ label: nls.localize('mZoom', "Zoom"), role: 'zoom', enabled: this.windowsService.getWindowCount() > 0 });
 		const bringAllToFront = new MenuItem({ label: nls.localize('mBringToFront', "Bring All to Front"), role: 'front', enabled: this.windowsService.getWindowCount() > 0 });
+		const switchWindow = this.createMenuItem(nls.localize({ key: 'miSwitchWindow', comment: ['&& denotes a mnemonic'] }, "Switch &&Window..."), 'workbench.action.switchWindow', this.windowsService.getWindowCount() > 0);
 
 		[
 			minimize,
-			close,
+			zoom,
+			switchWindow,
 			__separator__(),
 			bringAllToFront
 		].forEach(item => macWindowMenu.append(item));
@@ -880,16 +835,16 @@ export class VSCodeMenu {
 
 	private setHelpMenu(helpMenu: Electron.Menu): void {
 		const toggleDevToolsItem = new MenuItem(this.likeAction('workbench.action.toggleDevTools', {
-			label: mnemonicLabel(nls.localize({ key: 'miToggleDevTools', comment: ['&& denotes a mnemonic'] }, "&&Toggle Developer Tools")),
+			label: this.mnemonicLabel(nls.localize({ key: 'miToggleDevTools', comment: ['&& denotes a mnemonic'] }, "&&Toggle Developer Tools")),
 			click: () => this.toggleDevTools(),
 			enabled: (this.windowsService.getWindowCount() > 0)
 		}));
 
 		const showAccessibilityOptions = new MenuItem(this.likeAction('accessibilityOptions', {
-			label: mnemonicLabel(nls.localize({ key: 'miAccessibilityOptions', comment: ['&& denotes a mnemonic'] }, "Accessibility &&Options")),
+			label: this.mnemonicLabel(nls.localize({ key: 'miAccessibilityOptions', comment: ['&& denotes a mnemonic'] }, "Accessibility &&Options")),
 			accelerator: null,
 			click: () => {
-				this.windowsService.openAccessibilityOptions();
+				this.openAccessibilityOptions();
 			}
 		}, false));
 
@@ -900,25 +855,27 @@ export class VSCodeMenu {
 			if (this.windowsService.getWindowCount() > 0) {
 				reportIssuesItem = this.createMenuItem(label, 'workbench.action.reportIssues');
 			} else {
-				reportIssuesItem = new MenuItem({ label: mnemonicLabel(label), click: () => this.openUrl(product.reportIssueUrl, 'openReportIssues') });
+				reportIssuesItem = new MenuItem({ label: this.mnemonicLabel(label), click: () => this.openUrl(product.reportIssueUrl, 'openReportIssues') });
 			}
 		}
 
 		const keyboardShortcutsUrl = isLinux ? product.keyboardShortcutsUrlLinux : isMacintosh ? product.keyboardShortcutsUrlMac : product.keyboardShortcutsUrlWin;
 		arrays.coalesce([
-			new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miWelcome', comment: ['&& denotes a mnemonic'] }, "&&Welcome")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'workbench.action.showWelcomePage') }),
-			product.documentationUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miDocumentation', comment: ['&& denotes a mnemonic'] }, "&&Documentation")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'workbench.action.openDocumentationUrl') }) : null,
-			product.releaseNotesUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'update.showCurrentReleaseNotes') }) : null,
+			new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miWelcome', comment: ['&& denotes a mnemonic'] }, "&&Welcome")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'workbench.action.showWelcomePage') }),
+			new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miInteractivePlayground', comment: ['&& denotes a mnemonic'] }, "&&Interactive Playground")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'workbench.action.showInteractivePlayground') }),
+			product.documentationUrl ? new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miDocumentation', comment: ['&& denotes a mnemonic'] }, "&&Documentation")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'workbench.action.openDocumentationUrl') }) : null,
+			product.releaseNotesUrl ? new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'update.showCurrentReleaseNotes') }) : null,
 			__separator__(),
-			keyboardShortcutsUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miKeyboardShortcuts', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts Reference")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'workbench.action.keybindingsReference') }) : null,
-			product.introductoryVideosUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miIntroductoryVideos', comment: ['&& denotes a mnemonic'] }, "Introductory &&Videos")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'workbench.action.openIntroductoryVideosUrl') }) : null,
+			keyboardShortcutsUrl ? new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miKeyboardShortcuts', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts Reference")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'workbench.action.keybindingsReference') }) : null,
+			product.introductoryVideosUrl ? new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miIntroductoryVideos', comment: ['&& denotes a mnemonic'] }, "Introductory &&Videos")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'workbench.action.openIntroductoryVideosUrl') }) : null,
+			product.tipsAndTricksUrl ? new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miTipsAndTricks', comment: ['&& denotes a mnemonic'] }, "&&Tips and Tricks")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'workbench.action.openTipsAndTricksUrl') }) : null,
 			(product.introductoryVideosUrl || keyboardShortcutsUrl) ? __separator__() : null,
-			product.twitterUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miTwitter', comment: ['&& denotes a mnemonic'] }, "&&Join us on Twitter")), click: () => this.openUrl(product.twitterUrl, 'openTwitterUrl') }) : null,
-			product.requestFeatureUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miUserVoice', comment: ['&& denotes a mnemonic'] }, "&&Search Feature Requests")), click: () => this.openUrl(product.requestFeatureUrl, 'openUserVoiceUrl') }) : null,
+			product.twitterUrl ? new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miTwitter', comment: ['&& denotes a mnemonic'] }, "&&Join us on Twitter")), click: () => this.openUrl(product.twitterUrl, 'openTwitterUrl') }) : null,
+			product.requestFeatureUrl ? new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miUserVoice', comment: ['&& denotes a mnemonic'] }, "&&Search Feature Requests")), click: () => this.openUrl(product.requestFeatureUrl, 'openUserVoiceUrl') }) : null,
 			reportIssuesItem,
 			(product.twitterUrl || product.requestFeatureUrl || product.reportIssueUrl) ? __separator__() : null,
 			product.licenseUrl ? new MenuItem({
-				label: mnemonicLabel(nls.localize({ key: 'miLicense', comment: ['&& denotes a mnemonic'] }, "View &&License")), click: () => {
+				label: this.mnemonicLabel(nls.localize({ key: 'miLicense', comment: ['&& denotes a mnemonic'] }, "View &&License")), click: () => {
 					if (language) {
 						const queryArgChar = product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
 						this.openUrl(`${product.licenseUrl}${queryArgChar}lang=${language}`, 'openLicenseUrl');
@@ -928,7 +885,7 @@ export class VSCodeMenu {
 				}
 			}) : null,
 			product.privacyStatementUrl ? new MenuItem({
-				label: mnemonicLabel(nls.localize({ key: 'miPrivacyStatement', comment: ['&& denotes a mnemonic'] }, "&&Privacy Statement")), click: () => {
+				label: this.mnemonicLabel(nls.localize({ key: 'miPrivacyStatement', comment: ['&& denotes a mnemonic'] }, "&&Privacy Statement")), click: () => {
 					if (language) {
 						const queryArgChar = product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
 						this.openUrl(`${product.privacyStatementUrl}${queryArgChar}lang=${language}`, 'openPrivacyStatement');
@@ -950,8 +907,51 @@ export class VSCodeMenu {
 			}
 
 			helpMenu.append(__separator__());
-			helpMenu.append(new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About")), click: () => this.openAboutDialog() }));
+			helpMenu.append(new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About")), click: () => this.openAboutDialog() }));
 		}
+	}
+
+	private setTaskMenu(taskMenu: Electron.Menu): void {
+		const runTask = this.createMenuItem(nls.localize({ key: 'miRunTask', comment: ['&& denotes a mnemonic'] }, "&&Run Task..."), 'workbench.action.tasks.runTask');
+		const restartTask = this.createMenuItem(nls.localize({ key: 'miRestartTask', comment: ['&& denotes a mnemonic'] }, "R&&estart Running Task..."), 'workbench.action.tasks.restartTask');
+		const terminateTask = this.createMenuItem(nls.localize({ key: 'miTerminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task..."), 'workbench.action.tasks.terminate');
+		const buildTask = this.createMenuItem(nls.localize({ key: 'miBuildTask', comment: ['&& denotes a mnemonic'] }, "Run &&Build Task..."), 'workbench.action.tasks.build');
+		// const testTask = this.createMenuItem(nls.localize({ key: 'miTestTask', comment: ['&& denotes a mnemonic'] }, "Run Test T&&ask..."), 'workbench.action.tasks.test');
+		// const showTaskLog = this.createMenuItem(nls.localize({ key: 'miShowTaskLog', comment: ['&& denotes a mnemonic'] }, "&&Show Task Log"), 'workbench.action.tasks.showLog');
+		const configureTask = this.createMenuItem(nls.localize({ key: 'miConfigureTask', comment: ['&& denotes a mnemonic'] }, "&&Configure Tasks"), 'workbench.action.tasks.configureTaskRunner');
+		const configureBuildTask = this.createMenuItem(nls.localize({ key: 'miConfigureBuildTask', comment: ['&& denotes a mnemonic'] }, "Configure De&&fault Build Task"), 'workbench.action.tasks.configureDefaultBuildTask');
+		// const configureTestTask = this.createMenuItem(nls.localize({ key: 'miConfigureTestTask', comment: ['&& denotes a mnemonic'] }, "Configure Defau&&lt Test Task"), 'workbench.action.tasks.configureDefaultTestTask');
+
+		[
+			//__separator__(),
+			runTask,
+			buildTask,
+			// testTask,
+			__separator__(),
+			terminateTask,
+			restartTask,
+			__separator__(),
+			//showTaskLog,
+			configureTask,
+			configureBuildTask
+			// configureTestTask
+		].forEach(item => taskMenu.append(item));
+	}
+
+	private openAccessibilityOptions(): void {
+		let win = new BrowserWindow({
+			alwaysOnTop: true,
+			skipTaskbar: true,
+			resizable: false,
+			width: 450,
+			height: 300,
+			show: true,
+			title: nls.localize('accessibilityOptionsWindowTitle', "Accessibility Options")
+		});
+
+		win.setMenuBarVisibility(false);
+
+		win.loadURL('chrome://accessibility');
 	}
 
 	private getUpdateMenuItems(): Electron.MenuItem[] {
@@ -961,7 +961,7 @@ export class VSCodeMenu {
 
 			case UpdateState.UpdateDownloaded:
 				return [new MenuItem({
-					label: nls.localize('miRestartToUpdate', "Restart To Update..."), click: () => {
+					label: nls.localize('miRestartToUpdate', "Restart to Update..."), click: () => {
 						this.reportMenuActionTelemetry('RestartToUpdate');
 						this.updateService.quitAndInstall();
 					}
@@ -987,7 +987,7 @@ export class VSCodeMenu {
 
 			default:
 				const result = [new MenuItem({
-					label: nls.localize('miCheckForUpdates', "Check For Updates..."), click: () => setTimeout(() => {
+					label: nls.localize('miCheckForUpdates', "Check for Updates..."), click: () => setTimeout(() => {
 						this.reportMenuActionTelemetry('CheckForUpdate');
 						this.updateService.checkForUpdates(true);
 					}, 0)
@@ -1000,7 +1000,7 @@ export class VSCodeMenu {
 	private createMenuItem(label: string, commandId: string | string[], enabled?: boolean, checked?: boolean): Electron.MenuItem;
 	private createMenuItem(label: string, click: () => void, enabled?: boolean, checked?: boolean): Electron.MenuItem;
 	private createMenuItem(arg1: string, arg2: any, arg3?: boolean, arg4?: boolean): Electron.MenuItem {
-		const label = mnemonicLabel(arg1);
+		const label = this.mnemonicLabel(arg1);
 		const click: () => void = (typeof arg2 === 'function') ? arg2 : (menuItem, win, event) => {
 			let commandId = arg2;
 			if (Array.isArray(arg2)) {
@@ -1033,7 +1033,7 @@ export class VSCodeMenu {
 
 	private createDevToolsAwareMenuItem(label: string, commandId: string, devToolsFocusedFn: (contents: Electron.WebContents) => void): Electron.MenuItem {
 		return new MenuItem(this.withKeybinding(commandId, {
-			label: mnemonicLabel(label),
+			label: this.mnemonicLabel(label),
 			enabled: this.windowsService.getWindowCount() > 0,
 			click: () => {
 				const windowInFocus = this.windowsService.getFocusedWindow();
@@ -1064,11 +1064,11 @@ export class VSCodeMenu {
 			// the keybinding is not native so we cannot show it as part of the accelerator of
 			// the menu item. we fallback to a different strategy so that we always display it
 			else {
-				const bindingIndex = options.label.indexOf('(');
+				const bindingIndex = options.label.indexOf('[');
 				if (bindingIndex >= 0) {
-					options.label = `${options.label.substr(0, bindingIndex)} (${binding.label})`;
+					options.label = `${options.label.substr(0, bindingIndex)} [${binding.label}]`;
 				} else {
-					options.label = `${options.label} (${binding.label})`;
+					options.label = `${options.label} [${binding.label}]`;
 				}
 			}
 		}
@@ -1128,24 +1128,24 @@ export class VSCodeMenu {
 	private reportMenuActionTelemetry(id: string): void {
 		this.telemetryService.publicLog('workbenchActionExecuted', { id, from: telemetryFrom });
 	}
+
+	private mnemonicLabel(label: string): string {
+		if (isMacintosh || !this.currentEnableMenuBarMnemonics) {
+			return label.replace(/\(&&\w\)|&&/g, ''); // no mnemonic support on mac
+		}
+
+		return label.replace(/&&/g, '&');
+	}
+
+	private unmnemonicLabel(label: string): string {
+		if (isMacintosh || !this.currentEnableMenuBarMnemonics) {
+			return label; // no mnemonic support on mac
+		}
+
+		return label.replace(/&/g, '&&');
+	}
 }
 
 function __separator__(): Electron.MenuItem {
 	return new MenuItem({ type: 'separator' });
-}
-
-function mnemonicLabel(label: string): string {
-	if (isMacintosh) {
-		return label.replace(/\(&&\w\)|&&/g, ''); // no mnemonic support on mac
-	}
-
-	return label.replace(/&&/g, '&');
-}
-
-function unMnemonicLabel(label: string): string {
-	if (isMacintosh) {
-		return label; // no mnemonic support on mac
-	}
-
-	return label.replace(/&/g, '&&');
 }

@@ -6,14 +6,14 @@
 
 import URI from 'vs/base/common/uri';
 import {
-	EventType, IModel, ITextModelCreationOptions, IModelDecorationsChangedEvent,
-	IModelOptionsChangedEvent, IModelLanguageChangedEvent
+	IModel, ITextModelCreationOptions
 } from 'vs/editor/common/editorCommon';
 import { EditableTextModel } from 'vs/editor/common/model/editableTextModel';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IRawTextSource, RawTextSource } from 'vs/editor/common/model/textSource';
+import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 
 // The hierarchy is:
 // Model -> EditableTextModel -> TextModelWithDecorations -> TextModelWithTrackedRanges -> TextModelWithMarkers -> TextModelWithTokens -> TextModel
@@ -22,17 +22,17 @@ var MODEL_ID = 0;
 
 export class Model extends EditableTextModel implements IModel {
 
-	public onDidChangeDecorations(listener: (e: IModelDecorationsChangedEvent) => void): IDisposable {
-		return this._eventEmitter.addListener(EventType.ModelDecorationsChanged, listener);
+	public onDidChangeDecorations(listener: (e: textModelEvents.IModelDecorationsChangedEvent) => void): IDisposable {
+		return this._eventEmitter.addListener(textModelEvents.TextModelEventType.ModelDecorationsChanged, listener);
 	}
-	public onDidChangeOptions(listener: (e: IModelOptionsChangedEvent) => void): IDisposable {
-		return this._eventEmitter.addListener(EventType.ModelOptionsChanged, listener);
+	public onDidChangeOptions(listener: (e: textModelEvents.IModelOptionsChangedEvent) => void): IDisposable {
+		return this._eventEmitter.addListener(textModelEvents.TextModelEventType.ModelOptionsChanged, listener);
 	}
 	public onWillDispose(listener: () => void): IDisposable {
-		return this._eventEmitter.addListener(EventType.ModelDispose, listener);
+		return this._eventEmitter.addListener(textModelEvents.TextModelEventType.ModelDispose, listener);
 	}
-	public onDidChangeLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable {
-		return this._eventEmitter.addListener(EventType.ModelLanguageChanged, listener);
+	public onDidChangeLanguage(listener: (e: textModelEvents.IModelLanguageChangedEvent) => void): IDisposable {
+		return this._eventEmitter.addListener(textModelEvents.TextModelEventType.ModelLanguageChanged, listener);
 	}
 
 	public static createFromString(text: string, options: ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, languageIdentifier: LanguageIdentifier = null, uri: URI = null): Model {
@@ -66,7 +66,7 @@ export class Model extends EditableTextModel implements IModel {
 
 	public dispose(): void {
 		this._isDisposing = true;
-		this._eventEmitter.emit(EventType.ModelDispose);
+		this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelDispose);
 		super.dispose();
 		this._isDisposing = false;
 	}

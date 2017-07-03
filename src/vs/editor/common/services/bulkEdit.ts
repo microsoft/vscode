@@ -10,12 +10,12 @@ import { IStringDictionary, forEach, values, groupBy, size } from 'vs/base/commo
 import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IFileService, IFileChange } from 'vs/platform/files/common/files';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IIdentifiedSingleEditOperation, IModel, IRange, ISelection, EndOfLineSequence, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { Range, IRange } from 'vs/editor/common/core/range';
+import { Selection, ISelection } from 'vs/editor/common/core/selection';
+import { IIdentifiedSingleEditOperation, IModel, EndOfLineSequence, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 
 export interface IResourceEdit {
@@ -92,13 +92,13 @@ class EditTask implements IDisposable {
 
 		if (edit.range || edit.newText) {
 			// create edit operation
-			let range: IRange;
+			let range: Range;
 			if (!edit.range) {
 				range = this._model.getFullModelRange();
 			} else {
-				range = edit.range;
+				range = Range.lift(edit.range);
 			}
-			this._edits.push(EditOperation.replaceMove(Range.lift(range), edit.newText));
+			this._edits.push(EditOperation.replaceMove(range, edit.newText));
 		}
 	}
 
@@ -183,7 +183,7 @@ class SourceModelEditTask extends EditTask {
 
 class BulkEditModel implements IDisposable {
 
-	private _textModelResolverService: ITextModelResolverService;
+	private _textModelResolverService: ITextModelService;
 	private _numberOfResourcesToModify: number = 0;
 	private _numberOfChanges: number = 0;
 	private _edits: IStringDictionary<IResourceEdit[]> = Object.create(null);
@@ -192,7 +192,7 @@ class BulkEditModel implements IDisposable {
 	private _sourceSelections: Selection[];
 	private _sourceModelTask: SourceModelEditTask;
 
-	constructor(textModelResolverService: ITextModelResolverService, sourceModel: URI, sourceSelections: Selection[], edits: IResourceEdit[], private progress: IProgressRunner = null) {
+	constructor(textModelResolverService: ITextModelService, sourceModel: URI, sourceSelections: Selection[], edits: IResourceEdit[], private progress: IProgressRunner = null) {
 		this._textModelResolverService = textModelResolverService;
 		this._sourceModel = sourceModel;
 		this._sourceSelections = sourceSelections;
@@ -274,7 +274,7 @@ class BulkEditModel implements IDisposable {
 		return r;
 	}
 
-	private applyTask(task): void {
+	private applyTask(task: EditTask): void {
 		task.apply();
 		if (this.progress) {
 			this.progress.worked(1);
@@ -287,20 +287,20 @@ class BulkEditModel implements IDisposable {
 }
 
 export interface BulkEdit {
-	progress(progress: IProgressRunner);
+	progress(progress: IProgressRunner): void;
 	add(edit: IResourceEdit[]): void;
 	finish(): TPromise<ISelection>;
 	ariaMessage(): string;
 }
 
-export function bulkEdit(textModelResolverService: ITextModelResolverService, editor: ICommonCodeEditor, edits: IResourceEdit[], fileService?: IFileService, progress: IProgressRunner = null): TPromise<any> {
+export function bulkEdit(textModelResolverService: ITextModelService, editor: ICommonCodeEditor, edits: IResourceEdit[], fileService?: IFileService, progress: IProgressRunner = null): TPromise<any> {
 	let bulk = createBulkEdit(textModelResolverService, editor, fileService);
 	bulk.add(edits);
 	bulk.progress(progress);
 	return bulk.finish();
 }
 
-export function createBulkEdit(textModelResolverService: ITextModelResolverService, editor?: ICommonCodeEditor, fileService?: IFileService): BulkEdit {
+export function createBulkEdit(textModelResolverService: ITextModelService, editor?: ICommonCodeEditor, fileService?: IFileService): BulkEdit {
 
 	let all: IResourceEdit[] = [];
 	let recording = new ChangeRecorder(fileService).start();
@@ -338,7 +338,7 @@ export function createBulkEdit(textModelResolverService: ITextModelResolverServi
 
 		let concurrentEdits = getConcurrentEdits();
 		if (concurrentEdits) {
-			return TPromise.wrapError(concurrentEdits);
+			return TPromise.wrapError<ISelection>(new Error(concurrentEdits));
 		}
 
 		let uri: URI;

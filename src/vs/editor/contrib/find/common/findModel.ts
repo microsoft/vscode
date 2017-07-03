@@ -19,6 +19,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Constants } from 'vs/editor/common/core/uint';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 
 export const ToggleCaseSensitiveKeybinding: IKeybindings = {
 	primary: KeyMod.Alt | KeyCode.KEY_C,
@@ -31,6 +32,10 @@ export const ToggleWholeWordKeybinding: IKeybindings = {
 export const ToggleRegexKeybinding: IKeybindings = {
 	primary: KeyMod.Alt | KeyCode.KEY_R,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R }
+};
+export const ToggleSearchScopeKeybinding: IKeybindings = {
+	primary: KeyMod.Alt | KeyCode.KEY_L,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_L }
 };
 export const ShowPreviousFindTermKeybinding: IKeybindings = {
 	primary: KeyMod.Alt | KeyCode.UpArrow
@@ -54,6 +59,7 @@ export const FIND_IDS = {
 	ToggleCaseSensitiveCommand: 'toggleFindCaseSensitive',
 	ToggleWholeWordCommand: 'toggleFindWholeWord',
 	ToggleRegexCommand: 'toggleFindRegex',
+	ToggleSearchScopeCommand: 'toggleFindInSelection',
 	ReplaceOneAction: 'editor.action.replaceOne',
 	ReplaceAllAction: 'editor.action.replaceAll',
 	SelectAllMatchesAction: 'editor.action.selectAllMatches',
@@ -86,11 +92,11 @@ export class FindModelBoundToEditorModel {
 		this._updateDecorationsScheduler = new RunOnceScheduler(() => this.research(false), 100);
 		this._toDispose.push(this._updateDecorationsScheduler);
 
-		this._toDispose.push(this._editor.onDidChangeCursorPosition((e: editorCommon.ICursorPositionChangedEvent) => {
+		this._toDispose.push(this._editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
 			if (
-				e.reason === editorCommon.CursorChangeReason.Explicit
-				|| e.reason === editorCommon.CursorChangeReason.Undo
-				|| e.reason === editorCommon.CursorChangeReason.Redo
+				e.reason === CursorChangeReason.Explicit
+				|| e.reason === CursorChangeReason.Undo
+				|| e.reason === CursorChangeReason.Redo
 			) {
 				this._decorations.setStartPosition(this._editor.getPosition());
 			}
@@ -229,7 +235,7 @@ export class FindModelBoundToEditorModel {
 
 		let position = new Position(lineNumber, column);
 
-		let prevMatch = model.findPreviousMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord, false);
+		let prevMatch = model.findPreviousMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord ? this._editor.getConfiguration().wordSeparators : null, false);
 
 		if (prevMatch && prevMatch.range.isEmpty() && prevMatch.range.getStartPosition().equals(position)) {
 			// Looks like we're stuck at this position, unacceptable!
@@ -251,7 +257,7 @@ export class FindModelBoundToEditorModel {
 			}
 
 			position = new Position(lineNumber, column);
-			prevMatch = model.findPreviousMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord, false);
+			prevMatch = model.findPreviousMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord ? this._editor.getConfiguration().wordSeparators : null, false);
 		}
 
 		if (!prevMatch) {
@@ -271,13 +277,13 @@ export class FindModelBoundToEditorModel {
 	}
 
 	private _moveToNextMatch(after: Position): void {
-		let nextMatch = this._getNextMatch(after, false);
+		let nextMatch = this._getNextMatch(after, false, true);
 		if (nextMatch) {
 			this._setCurrentFindMatch(nextMatch.range);
 		}
 	}
 
-	private _getNextMatch(after: Position, captureMatches: boolean, isRecursed: boolean = false): editorCommon.FindMatch {
+	private _getNextMatch(after: Position, captureMatches: boolean, forceMove: boolean, isRecursed: boolean = false): editorCommon.FindMatch {
 		if (this._cannotFind()) {
 			return null;
 		}
@@ -300,9 +306,9 @@ export class FindModelBoundToEditorModel {
 
 		let position = new Position(lineNumber, column);
 
-		let nextMatch = model.findNextMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord, captureMatches);
+		let nextMatch = model.findNextMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord ? this._editor.getConfiguration().wordSeparators : null, captureMatches);
 
-		if (nextMatch && nextMatch.range.isEmpty() && nextMatch.range.getStartPosition().equals(position)) {
+		if (forceMove && nextMatch && nextMatch.range.isEmpty() && nextMatch.range.getStartPosition().equals(position)) {
 			// Looks like we're stuck at this position, unacceptable!
 
 			let isUsingLineStops = this._state.isRegex && (
@@ -322,7 +328,7 @@ export class FindModelBoundToEditorModel {
 			}
 
 			position = new Position(lineNumber, column);
-			nextMatch = model.findNextMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord, captureMatches);
+			nextMatch = model.findNextMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord ? this._editor.getConfiguration().wordSeparators : null, captureMatches);
 		}
 
 		if (!nextMatch) {
@@ -331,7 +337,7 @@ export class FindModelBoundToEditorModel {
 		}
 
 		if (!isRecursed && !searchRange.containsRange(nextMatch.range)) {
-			return this._getNextMatch(nextMatch.range.getEndPosition(), captureMatches, true);
+			return this._getNextMatch(nextMatch.range.getEndPosition(), captureMatches, forceMove, true);
 		}
 
 		return nextMatch;
@@ -355,7 +361,7 @@ export class FindModelBoundToEditorModel {
 
 		let replacePattern = this._getReplacePattern();
 		let selection = this._editor.getSelection();
-		let nextMatch = this._getNextMatch(selection.getStartPosition(), replacePattern.hasReplacementPatterns);
+		let nextMatch = this._getNextMatch(selection.getStartPosition(), replacePattern.hasReplacementPatterns, false);
 		if (nextMatch) {
 			if (selection.equalsRange(nextMatch.range)) {
 				// selection sits on a find match => replace it!
@@ -376,7 +382,7 @@ export class FindModelBoundToEditorModel {
 
 	private _findMatches(findScope: Range, captureMatches: boolean, limitResultCount: number): editorCommon.FindMatch[] {
 		let searchRange = FindModelBoundToEditorModel._getSearchRange(this._editor.getModel(), this._state.isReplaceRevealed, findScope);
-		return this._editor.getModel().findMatches(this._state.searchString, searchRange, this._state.isRegex, this._state.matchCase, this._state.wholeWord, captureMatches, limitResultCount);
+		return this._editor.getModel().findMatches(this._state.searchString, searchRange, this._state.isRegex, this._state.matchCase, this._state.wholeWord ? this._editor.getConfiguration().wordSeparators : null, captureMatches, limitResultCount);
 	}
 
 	public replaceAll(): void {
@@ -397,7 +403,7 @@ export class FindModelBoundToEditorModel {
 	}
 
 	private _largeReplaceAll(): void {
-		const searchParams = new SearchParams(this._state.searchString, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
+		const searchParams = new SearchParams(this._state.searchString, this._state.isRegex, this._state.matchCase, this._state.wholeWord ? this._editor.getConfiguration().wordSeparators : null);
 		const searchData = searchParams.parseSearchRequest();
 		if (!searchData) {
 			return;
@@ -462,7 +468,9 @@ export class FindModelBoundToEditorModel {
 	private _executeEditorCommand(source: string, command: editorCommon.ICommand): void {
 		try {
 			this._ignoreModelContentChanged = true;
+			this._editor.pushUndoStop();
 			this._editor.executeCommand(source, command);
+			this._editor.pushUndoStop();
 		} finally {
 			this._ignoreModelContentChanged = false;
 		}

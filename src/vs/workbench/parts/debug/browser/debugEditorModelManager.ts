@@ -9,10 +9,11 @@ import * as objects from 'vs/base/common/objects';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { Constants } from 'vs/editor/common/core/uint';
 import { Range } from 'vs/editor/common/core/range';
-import { IModel, TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationsChangedEvent, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
+import { IModel, TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDebugService, IBreakpoint, IRawBreakpoint, State } from 'vs/workbench/parts/debug/common/debug';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelEvents';
 
 interface IDebugEditorModelData {
 	model: IModel;
@@ -121,8 +122,8 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		}
 
 		// only show decorations for the currently focussed thread.
-		const columnUntilEOLRange = new Range(stackFrame.lineNumber, stackFrame.column, stackFrame.lineNumber, Constants.MAX_SAFE_SMALL_INTEGER);
-		const range = new Range(stackFrame.lineNumber, stackFrame.column, stackFrame.lineNumber, stackFrame.column + 1);
+		const columnUntilEOLRange = new Range(stackFrame.range.startLineNumber, stackFrame.range.startColumn, stackFrame.range.startLineNumber, Constants.MAX_SAFE_SMALL_INTEGER);
+		const range = new Range(stackFrame.range.startLineNumber, stackFrame.range.startColumn, stackFrame.range.startLineNumber, stackFrame.range.startColumn + 1);
 
 		// compute how to decorate the editor. Different decorations are used if this is a top stack frame, focussed stack frame,
 		// an exception or a stack frame that did not change the line number (we only decorate the columns, not the whole line).
@@ -143,10 +144,16 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 					options: DebugEditorModelManager.TOP_STACK_FRAME_DECORATION,
 					range: columnUntilEOLRange
 				});
+				if (stackFrame.range.endLineNumber && stackFrame.range.endColumn) {
+					result.push({
+						options: { className: 'debug-top-stack-frame-range' },
+						range: stackFrame.range
+					});
+				}
 
 				if (this.modelDataMap.has(modelUriStr)) {
 					const modelData = this.modelDataMap.get(modelUriStr);
-					if (modelData.topStackFrameRange && modelData.topStackFrameRange.startLineNumber === stackFrame.lineNumber && modelData.topStackFrameRange.startColumn !== stackFrame.column) {
+					if (modelData.topStackFrameRange && modelData.topStackFrameRange.startLineNumber === stackFrame.range.startLineNumber && modelData.topStackFrameRange.startColumn !== stackFrame.range.startColumn) {
 						result.push({
 							options: DebugEditorModelManager.TOP_STACK_FRAME_INLINE_DECORATION,
 							range: columnUntilEOLRange
@@ -160,6 +167,12 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 				options: DebugEditorModelManager.FOCUSED_STACK_FRAME_MARGIN,
 				range
 			});
+			if (stackFrame.range.endLineNumber && stackFrame.range.endColumn) {
+				result.push({
+					options: { className: 'debug-focused-stack-frame-range' },
+					range: stackFrame.range
+				});
+			}
 
 			result.push({
 				options: DebugEditorModelManager.FOCUSED_STACK_FRAME_DECORATION,
@@ -348,12 +361,14 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private static TOP_STACK_FRAME_DECORATION: IModelDecorationOptions = {
 		isWholeLine: true,
+		inlineClassName: 'debug-remove-token-colors',
 		className: 'debug-top-stack-frame-line',
 		stickiness
 	};
 
 	private static TOP_STACK_FRAME_EXCEPTION_DECORATION: IModelDecorationOptions = {
 		isWholeLine: true,
+		inlineClassName: 'debug-remove-token-colors',
 		className: 'debug-top-stack-frame-exception-line',
 		stickiness
 	};
@@ -364,6 +379,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private static FOCUSED_STACK_FRAME_DECORATION: IModelDecorationOptions = {
 		isWholeLine: true,
+		inlineClassName: 'debug-remove-token-colors',
 		className: 'debug-focused-stack-frame-line',
 		stickiness
 	};

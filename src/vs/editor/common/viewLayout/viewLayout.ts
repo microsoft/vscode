@@ -8,35 +8,34 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Scrollable, ScrollState, ScrollEvent, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { LinesLayout } from 'vs/editor/common/viewLayout/linesLayout';
-import { IViewLayout } from 'vs/editor/common/viewModel/viewModel';
+import { IViewLayout, IViewWhitespaceViewportData, Viewport } from 'vs/editor/common/viewModel/viewModel';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { ViewEventDispatcher } from 'vs/editor/common/view/viewEventDispatcher';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
+import Event from 'vs/base/common/event';
+import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 
-export class LayoutProvider extends Disposable implements IViewLayout {
+export class ViewLayout extends Disposable implements IViewLayout {
 
 	static LINES_HORIZONTAL_EXTRA_PX = 30;
 
-	private _configuration: editorCommon.IConfiguration;
-	private _privateViewEventBus: ViewEventDispatcher;
-	private _linesLayout: LinesLayout;
-	private _scrollable: Scrollable;
+	private readonly _configuration: editorCommon.IConfiguration;
+	private readonly _linesLayout: LinesLayout;
 
-	constructor(configuration: editorCommon.IConfiguration, lineCount: number, privateViewEventBus: ViewEventDispatcher) {
+	public readonly scrollable: Scrollable;
+	public readonly onDidScroll: Event<ScrollEvent>;
+
+	constructor(configuration: editorCommon.IConfiguration, lineCount: number) {
 		super();
 
 		this._configuration = configuration;
-		this._privateViewEventBus = privateViewEventBus;
 		this._linesLayout = new LinesLayout(lineCount, this._configuration.editor.lineHeight);
 
-		this._scrollable = this._register(new Scrollable());
-		this._scrollable.updateState({
+		this.scrollable = this._register(new Scrollable());
+		this.scrollable.updateState({
 			width: configuration.editor.layoutInfo.contentWidth,
 			height: configuration.editor.layoutInfo.contentHeight
 		});
-		this._register(this._scrollable.onScroll((e: ScrollEvent) => {
-			this._privateViewEventBus.emit(new viewEvents.ViewScrollChangedEvent(e));
-		}));
+		this.onDidScroll = this.scrollable.onScroll;
 
 		this._updateHeight();
 	}
@@ -46,7 +45,7 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 	}
 
 	public getScrollable(): Scrollable {
-		return this._scrollable;
+		return this.scrollable;
 	}
 
 	public onHeightMaybeChanged(): void {
@@ -55,12 +54,12 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 
 	// ---- begin view event handlers
 
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): void {
+	public onConfigurationChanged(e: IConfigurationChangedEvent): void {
 		if (e.lineHeight) {
 			this._linesLayout.setLineHeight(this._configuration.editor.lineHeight);
 		}
 		if (e.layoutInfo) {
-			this._scrollable.updateState({
+			this.scrollable.updateState({
 				width: this._configuration.editor.layoutInfo.contentWidth,
 				height: this._configuration.editor.layoutInfo.contentHeight
 			});
@@ -71,12 +70,12 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 		this._linesLayout.onFlushed(lineCount);
 		this._updateHeight();
 	}
-	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): void {
-		this._linesLayout.onLinesDeleted(e.fromLineNumber, e.toLineNumber);
+	public onLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
+		this._linesLayout.onLinesDeleted(fromLineNumber, toLineNumber);
 		this._updateHeight();
 	}
-	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): void {
-		this._linesLayout.onLinesInserted(e.fromLineNumber, e.toLineNumber);
+	public onLinesInserted(fromLineNumber: number, toLineNumber: number): void {
+		this._linesLayout.onLinesInserted(fromLineNumber, toLineNumber);
 		this._updateHeight();
 	}
 
@@ -87,7 +86,7 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 			// horizontal scrollbar not visible
 			return 0;
 		}
-		if (scrollState.width <= scrollState.scrollWidth) {
+		if (scrollState.width >= scrollState.scrollWidth) {
 			// horizontal scrollbar not visible
 			return 0;
 		}
@@ -95,7 +94,7 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 	}
 
 	private _getTotalHeight(): number {
-		const scrollState = this._scrollable.getState();
+		const scrollState = this.scrollable.getState();
 
 		let result = this._linesLayout.getLinesTotalHeight();
 		if (this._configuration.editor.viewInfo.scrollBeyondLastLine) {
@@ -108,16 +107,16 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 	}
 
 	private _updateHeight(): void {
-		this._scrollable.updateState({
+		this.scrollable.updateState({
 			scrollHeight: this._getTotalHeight()
 		});
 	}
 
 	// ---- Layouting logic
 
-	public getCurrentViewport(): editorCommon.Viewport {
-		const scrollState = this._scrollable.getState();
-		return new editorCommon.Viewport(
+	public getCurrentViewport(): Viewport {
+		const scrollState = this.scrollable.getState();
+		return new Viewport(
 			scrollState.scrollTop,
 			scrollState.scrollLeft,
 			scrollState.width,
@@ -128,14 +127,14 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 	private _computeScrollWidth(maxLineWidth: number, viewportWidth: number): number {
 		let isViewportWrapping = this._configuration.editor.wrappingInfo.isViewportWrapping;
 		if (!isViewportWrapping) {
-			return Math.max(maxLineWidth + LayoutProvider.LINES_HORIZONTAL_EXTRA_PX, viewportWidth);
+			return Math.max(maxLineWidth + ViewLayout.LINES_HORIZONTAL_EXTRA_PX, viewportWidth);
 		}
 		return Math.max(maxLineWidth, viewportWidth);
 	}
 
 	public onMaxLineWidthChanged(maxLineWidth: number): void {
 		let newScrollWidth = this._computeScrollWidth(maxLineWidth, this.getCurrentViewport().width);
-		this._scrollable.updateState({
+		this.scrollable.updateState({
 			scrollWidth: newScrollWidth
 		});
 
@@ -146,7 +145,7 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 	// ---- view state
 
 	public saveState(): editorCommon.IViewState {
-		const scrollState = this._scrollable.getState();
+		const scrollState = this.scrollable.getState();
 		let scrollTop = scrollState.scrollTop;
 		let firstLineNumberInViewport = this._linesLayout.getLineNumberAtOrAfterVerticalOffset(scrollTop);
 		let whitespaceAboveFirstLine = this._linesLayout.getWhitespaceAccumulatedHeightBeforeLineNumber(firstLineNumberInViewport);
@@ -162,7 +161,7 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 		if (typeof state.scrollTopWithoutViewZones === 'number' && !this._linesLayout.hasWhitespace()) {
 			restoreScrollTop = state.scrollTopWithoutViewZones;
 		}
-		this._scrollable.updateState({
+		this.scrollable.updateState({
 			scrollLeft: state.scrollLeft,
 			scrollTop: restoreScrollTop
 		});
@@ -189,18 +188,29 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 		return this._linesLayout.getLineNumberAtOrAfterVerticalOffset(verticalOffset);
 	}
 
-	public getWhitespaceAtVerticalOffset(verticalOffset: number): editorCommon.IViewWhitespaceViewportData {
+	public getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData {
 		return this._linesLayout.getWhitespaceAtVerticalOffset(verticalOffset);
 	}
 	public getLinesViewportData(): IPartialViewLinesViewportData {
 		const visibleBox = this.getCurrentViewport();
 		return this._linesLayout.getLinesViewportData(visibleBox.top, visibleBox.top + visibleBox.height);
 	}
-	public getWhitespaceViewportData(): editorCommon.IViewWhitespaceViewportData[] {
+	public getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData {
+		// do some minimal validations on scrollTop
+		const scrollState = this.scrollable.getState();
+		if (scrollTop + scrollState.height > scrollState.scrollHeight) {
+			scrollTop = scrollState.scrollHeight - scrollState.height;
+		}
+		if (scrollTop < 0) {
+			scrollTop = 0;
+		}
+		return this._linesLayout.getLinesViewportData(scrollTop, scrollTop + scrollState.height);
+	}
+	public getWhitespaceViewportData(): IViewWhitespaceViewportData[] {
 		const visibleBox = this.getCurrentViewport();
 		return this._linesLayout.getWhitespaceViewportData(visibleBox.top, visibleBox.top + visibleBox.height);
 	}
-	public getWhitespaces(): editorCommon.IEditorWhitespace[] {
+	public getWhitespaces(): IEditorWhitespace[] {
 		return this._linesLayout.getWhitespaces();
 	}
 
@@ -208,23 +218,23 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 
 
 	public getScrollWidth(): number {
-		const scrollState = this._scrollable.getState();
+		const scrollState = this.scrollable.getState();
 		return scrollState.scrollWidth;
 	}
 	public getScrollLeft(): number {
-		const scrollState = this._scrollable.getState();
+		const scrollState = this.scrollable.getState();
 		return scrollState.scrollLeft;
 	}
 	public getScrollHeight(): number {
-		const scrollState = this._scrollable.getState();
+		const scrollState = this.scrollable.getState();
 		return scrollState.scrollHeight;
 	}
 	public getScrollTop(): number {
-		const scrollState = this._scrollable.getState();
+		const scrollState = this.scrollable.getState();
 		return scrollState.scrollTop;
 	}
 
 	public setScrollPosition(position: editorCommon.INewScrollPosition): void {
-		this._scrollable.updateState(position);
+		this.scrollable.updateState(position);
 	}
 }

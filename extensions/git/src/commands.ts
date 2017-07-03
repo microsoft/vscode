@@ -5,11 +5,11 @@
 
 'use strict';
 
-import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState } from 'vscode';
-import { Ref, RefType, Git } from './git';
+import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn } from 'vscode';
+import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
 import { Model, Resource, Status, CommitOptions, WorkingTreeGroup, IndexGroup, MergeGroup } from './model';
 import { toGitUri, fromGitUri } from './uri';
-import * as staging from './staging';
+import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange } from './staging';
 import * as path from 'path';
 import * as os from 'os';
 import TelemetryReporter from 'vscode-extension-telemetry';
@@ -57,6 +57,35 @@ class CheckoutRemoteHeadItem extends CheckoutItem {
 
 		const match = /^[^/]+\/(.*)$/.exec(this.ref.name);
 		return match ? match[1] : this.ref.name;
+	}
+}
+
+class BranchDeleteItem implements QuickPickItem {
+
+	private get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
+	get branchName(): string | undefined { return this.ref.name; }
+	get label(): string { return this.branchName || ''; }
+	get description(): string { return this.shortCommit; }
+
+	constructor(private ref: Ref) { }
+
+	async run(model: Model, force?: boolean): Promise<void> {
+		if (!this.branchName) {
+			return;
+		}
+		await model.deleteBranch(this.branchName, force);
+	}
+}
+
+class MergeItem implements QuickPickItem {
+
+	get label(): string { return this.ref.name || ''; }
+	get description(): string { return this.ref.name || ''; }
+
+	constructor(protected ref: Ref) { }
+
+	async run(model: Model): Promise<void> {
+		await model.merge(this.ref.name! || this.ref.commit!);
 	}
 }
 
@@ -128,11 +157,18 @@ export class CommandCenter {
 			return;
 		}
 
+		const viewColumn = window.activeTextEditor && window.activeTextEditor.viewColumn || ViewColumn.One;
+
 		if (!left) {
-			return await commands.executeCommand<void>('vscode.open', right);
+			return await commands.executeCommand<void>('vscode.open', right, viewColumn);
 		}
 
-		return await commands.executeCommand<void>('vscode.diff', left, right, title);
+		const opts: TextDocumentShowOptions = {
+			preview: true,
+			viewColumn
+		};
+
+		return await commands.executeCommand<void>('vscode.diff', left, right, title, opts);
 	}
 
 	private getLeftResource(resource: Resource): Uri | undefined {
@@ -202,9 +238,12 @@ export class CommandCenter {
 			return;
 		}
 
+		const config = workspace.getConfiguration('git');
+		const value = config.get<string>('defaultCloneDirectory') || os.homedir();
+
 		const parentPath = await window.showInputBox({
 			prompt: localize('parent', "Parent Directory"),
-			value: os.homedir(),
+			value,
 			ignoreFocusOut: true
 		});
 
@@ -243,48 +282,107 @@ export class CommandCenter {
 	}
 
 	@command('git.openFile')
-	async openFile(resource?: Resource): Promise<void> {
+	async openFile(arg?: Resource | Uri): Promise<void> {
+		let uri: Uri | undefined;
+
+		if (arg instanceof Uri) {
+			if (arg.scheme === 'git') {
+				uri = Uri.file(fromGitUri(arg).path);
+			} else if (arg.scheme === 'file') {
+				uri = arg;
+			}
+		} else {
+			let resource = arg;
+
+			if (!(resource instanceof Resource)) {
+				// can happen when called from a keybinding
+				resource = this.getSCMResource();
+			}
+
+			if (resource) {
+				uri = resource.resourceUri;
+			}
+		}
+
+		if (!uri) {
+			return;
+		}
+
+		const viewColumn = window.activeTextEditor && window.activeTextEditor.viewColumn || ViewColumn.One;
+
+		return await commands.executeCommand<void>('vscode.open', uri, viewColumn);
+	}
+
+	@command('git.openHEADFile')
+	async openHEADFile(arg?: Resource | Uri): Promise<void> {
+		let resource: Resource | undefined = undefined;
+
+		if (arg instanceof Resource) {
+			resource = arg;
+		} else if (arg instanceof Uri) {
+			resource = this.getSCMResource(arg);
+		} else {
+			resource = this.getSCMResource();
+		}
+
 		if (!resource) {
 			return;
 		}
 
-		return await commands.executeCommand<void>('vscode.open', resource.resourceUri);
+		const HEAD = this.getLeftResource(resource);
+
+		if (!HEAD) {
+			window.showWarningMessage(localize('HEAD not available', "HEAD version of '{0}' is not available.", path.basename(resource.resourceUri.fsPath)));
+			return;
+		}
+
+		return await commands.executeCommand<void>('vscode.open', HEAD);
 	}
 
 	@command('git.openChange')
-	async openChange(resource?: Resource): Promise<void> {
+	async openChange(arg?: Resource | Uri): Promise<void> {
+		let resource: Resource | undefined = undefined;
+
+		if (arg instanceof Resource) {
+			resource = arg;
+		} else if (arg instanceof Uri) {
+			resource = this.getSCMResource(arg);
+		} else {
+			resource = this.getSCMResource();
+		}
+
 		if (!resource) {
 			return;
 		}
-
 		return await this._openResource(resource);
 	}
 
 	@command('git.openFileFromUri')
 	async openFileFromUri(uri?: Uri): Promise<void> {
 		const resource = this.getSCMResource(uri);
+		let uriToOpen: Uri | undefined;
 
-		if (!resource) {
+		if (resource) {
+			uriToOpen = resource.resourceUri;
+		} else if (uri && uri.scheme === 'git') {
+			const { path } = fromGitUri(uri);
+			uriToOpen = Uri.file(path);
+		} else if (uri && uri.scheme === 'file') {
+			uriToOpen = uri;
+		}
+
+		if (!uriToOpen) {
 			return;
 		}
 
-		return await commands.executeCommand<void>('vscode.open', resource.resourceUri);
-	}
+		const viewColumn = window.activeTextEditor && window.activeTextEditor.viewColumn || ViewColumn.One;
 
-	@command('git.openChangeFromUri')
-	async openChangeFromUri(uri?: Uri): Promise<void> {
-		const resource = this.getSCMResource(uri);
-
-		if (!resource) {
-			return;
-		}
-
-		return await this._openResource(resource);
+		return await commands.executeCommand<void>('vscode.open', uriToOpen, viewColumn);
 	}
 
 	@command('git.stage')
 	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		if (resourceStates.length === 0) {
+		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
 			const resource = this.getSCMResource();
 
 			if (!resource) {
@@ -326,20 +424,17 @@ export class CommandCenter {
 
 		const originalUri = toGitUri(modifiedUri, '~');
 		const originalDocument = await workspace.openTextDocument(originalUri);
-		const selections = textEditor.selections;
-		const selectedDiffs = diffs.filter(diff => {
-			const modifiedRange = diff.modifiedEndLineNumber === 0
-				? new Range(modifiedDocument.lineAt(diff.modifiedStartLineNumber - 1).range.end, modifiedDocument.lineAt(diff.modifiedStartLineNumber).range.start)
-				: new Range(modifiedDocument.lineAt(diff.modifiedStartLineNumber - 1).range.start, modifiedDocument.lineAt(diff.modifiedEndLineNumber - 1).range.end);
-
-			return selections.some(selection => !!selection.intersection(modifiedRange));
-		});
+		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
+		const selectedDiffs = diffs
+			.map(diff => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, diff, range), null))
+			.filter(d => !!d) as LineChange[];
 
 		if (!selectedDiffs.length) {
 			return;
 		}
 
-		const result = staging.applyChanges(originalDocument, modifiedDocument, selectedDiffs);
+		const result = applyLineChanges(originalDocument, modifiedDocument, selectedDiffs);
+
 		await this.model.stage(modifiedUri, result);
 	}
 
@@ -382,7 +477,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const result = staging.applyChanges(originalDocument, modifiedDocument, selectedDiffs);
+		const result = applyLineChanges(originalDocument, modifiedDocument, selectedDiffs);
 		const edit = new WorkspaceEdit();
 		edit.replace(modifiedUri, new Range(new Position(0, 0), modifiedDocument.lineAt(modifiedDocument.lineCount - 1).range.end), result);
 		workspace.applyEdit(edit);
@@ -390,7 +485,7 @@ export class CommandCenter {
 
 	@command('git.unstage')
 	async unstage(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		if (resourceStates.length === 0) {
+		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
 			const resource = this.getSCMResource();
 
 			if (!resource) {
@@ -426,39 +521,36 @@ export class CommandCenter {
 		const modifiedDocument = textEditor.document;
 		const modifiedUri = modifiedDocument.uri;
 
-		if (modifiedUri.scheme !== 'git' || modifiedUri.query !== '') {
+		if (modifiedUri.scheme !== 'git') {
+			return;
+		}
+
+		const { ref } = fromGitUri(modifiedUri);
+
+		if (ref !== '') {
 			return;
 		}
 
 		const originalUri = toGitUri(modifiedUri, 'HEAD');
 		const originalDocument = await workspace.openTextDocument(originalUri);
-		const selections = textEditor.selections;
-		const selectedDiffs = diffs.filter(diff => {
-			const modifiedRange = diff.modifiedEndLineNumber === 0
-				? new Range(diff.modifiedStartLineNumber - 1, 0, diff.modifiedStartLineNumber - 1, 0)
-				: new Range(modifiedDocument.lineAt(diff.modifiedStartLineNumber - 1).range.start, modifiedDocument.lineAt(diff.modifiedEndLineNumber - 1).range.end);
-
-			return selections.some(selection => !!selection.intersection(modifiedRange));
-		});
+		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
+		const selectedDiffs = diffs
+			.map(diff => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, diff, range), null))
+			.filter(d => !!d) as LineChange[];
 
 		if (!selectedDiffs.length) {
 			return;
 		}
 
-		const invertedDiffs = selectedDiffs.map(c => ({
-			modifiedStartLineNumber: c.originalStartLineNumber,
-			modifiedEndLineNumber: c.originalEndLineNumber,
-			originalStartLineNumber: c.modifiedStartLineNumber,
-			originalEndLineNumber: c.modifiedEndLineNumber
-		}));
+		const invertedDiffs = selectedDiffs.map(invertLineChange);
+		const result = applyLineChanges(modifiedDocument, originalDocument, invertedDiffs);
 
-		const result = staging.applyChanges(modifiedDocument, originalDocument, invertedDiffs);
 		await this.model.stage(modifiedUri, result);
 	}
 
 	@command('git.clean')
 	async clean(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		if (resourceStates.length === 0) {
+		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
 			const resource = this.getSCMResource();
 
 			if (!resource) {
@@ -491,8 +583,8 @@ export class CommandCenter {
 
 	@command('git.cleanAll')
 	async cleanAll(): Promise<void> {
-		const message = localize('confirm discard all', "Are you sure you want to discard ALL changes?");
-		const yes = localize('discard', "Discard Changes");
+		const message = localize('confirm discard all', "Are you sure you want to discard ALL changes? This is IRREVERSIBLE!");
+		const yes = localize('discardAll', "Discard ALL Changes");
 		const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
 		if (pick !== yes) {
@@ -503,18 +595,39 @@ export class CommandCenter {
 	}
 
 	private async smartCommit(
-		getCommitMessage: () => Promise<string>,
+		getCommitMessage: () => Promise<string | undefined>,
 		opts?: CommitOptions
 	): Promise<boolean> {
+		const config = workspace.getConfiguration('git');
+		const enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
+		const noStagedChanges = this.model.indexGroup.resources.length === 0;
+		const noUnstagedChanges = this.model.workingTreeGroup.resources.length === 0;
+
+		// no changes, and the user has not configured to commit all in this case
+		if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit) {
+
+			// prompt the user if we want to commit all or not
+			const message = localize('no staged changes', "There are no staged changes to commit.\n\nWould you like to automatically stage all your changes and commit them directly?");
+			const yes = localize('yes', "Yes");
+			const always = localize('always', "Always");
+			const pick = await window.showWarningMessage(message, { modal: true }, yes, always);
+
+			if (pick === always) {
+				config.update('enableSmartCommit', true, true);
+			} else if (pick !== yes) {
+				return false; // do not commit on cancel
+			}
+		}
+
 		if (!opts) {
-			opts = { all: this.model.indexGroup.resources.length === 0 };
+			opts = { all: noStagedChanges };
 		}
 
 		if (
 			// no changes
-			(this.model.indexGroup.resources.length === 0 && this.model.workingTreeGroup.resources.length === 0)
+			(noStagedChanges && noUnstagedChanges)
 			// or no staged changes and not `all`
-			|| (!opts.all && this.model.indexGroup.resources.length === 0)
+			|| (!opts.all && noStagedChanges)
 		) {
 			window.showInformationMessage(localize('no changes', "There are no changes to commit."));
 			return false;
@@ -560,6 +673,10 @@ export class CommandCenter {
 
 	@command('git.commitWithInput')
 	async commitWithInput(): Promise<void> {
+		if (!scm.inputBox.value) {
+			return;
+		}
+
 		const didCommit = await this.smartCommit(async () => scm.inputBox.value);
 
 		if (didCommit) {
@@ -601,7 +718,11 @@ export class CommandCenter {
 	}
 
 	@command('git.checkout')
-	async checkout(): Promise<void> {
+	async checkout(treeish: string): Promise<void> {
+		if (typeof treeish === 'string') {
+			return await this.model.checkout(treeish);
+		}
+
 		const config = workspace.getConfiguration('git');
 		const checkoutType = config.get<string>('checkoutType') || 'all';
 		const includeTags = checkoutType === 'all' || checkoutType === 'tags';
@@ -617,7 +738,7 @@ export class CommandCenter {
 			.map(ref => new CheckoutRemoteHeadItem(ref));
 
 		const picks = [...heads, ...tags, ...remoteHeads];
-		const placeHolder = 'Select a ref to checkout';
+		const placeHolder = localize('select a ref to checkout', 'Select a ref to checkout');
 		const choice = await window.showQuickPick<CheckoutItem>(picks, { placeHolder });
 
 		if (!choice) {
@@ -643,6 +764,107 @@ export class CommandCenter {
 		await this.model.branch(name);
 	}
 
+	@command('git.deleteBranch')
+	async deleteBranch(name: string, force?: boolean): Promise<void> {
+		let run: (force?: boolean) => Promise<void>;
+		if (typeof name === 'string') {
+			run = force => this.model.deleteBranch(name, force);
+		} else {
+			const currentHead = this.model.HEAD && this.model.HEAD.name;
+			const heads = this.model.refs.filter(ref => ref.type === RefType.Head && ref.name !== currentHead)
+				.map(ref => new BranchDeleteItem(ref));
+
+			const placeHolder = localize('select branch to delete', 'Select a branch to delete');
+			const choice = await window.showQuickPick<BranchDeleteItem>(heads, { placeHolder });
+
+			if (!choice || !choice.branchName) {
+				return;
+			}
+			name = choice.branchName;
+			run = force => choice.run(this.model, force);
+		}
+
+		try {
+			await run(force);
+		} catch (err) {
+			if (err.gitErrorCode !== GitErrorCodes.BranchNotFullyMerged) {
+				throw err;
+			}
+
+			const message = localize('confirm force delete branch', "The branch '{0}' is not fully merged. Delete anyway?", name);
+			const yes = localize('delete branch', "Delete Branch");
+			const pick = await window.showWarningMessage(message, yes);
+
+			if (pick === yes) {
+				await run(true);
+			}
+		}
+	}
+
+	@command('git.merge')
+	async merge(): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const checkoutType = config.get<string>('checkoutType') || 'all';
+		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
+
+		const heads = this.model.refs.filter(ref => ref.type === RefType.Head)
+			.filter(ref => ref.name || ref.commit)
+			.map(ref => new MergeItem(ref as Branch));
+
+		const remoteHeads = (includeRemotes ? this.model.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
+			.filter(ref => ref.name || ref.commit)
+			.map(ref => new MergeItem(ref as Branch));
+
+		const picks = [...heads, ...remoteHeads];
+		const placeHolder = localize('select a branch to merge from', 'Select a branch to merge from');
+		const choice = await window.showQuickPick<MergeItem>(picks, { placeHolder });
+
+		if (!choice) {
+			return;
+		}
+
+		try {
+			await choice.run(this.model);
+		} catch (err) {
+			if (err.gitErrorCode !== GitErrorCodes.Conflict) {
+				throw err;
+			}
+
+			const message = localize('merge conflicts', "There are merge conflicts. Resolve them before committing.");
+			await window.showWarningMessage(message);
+		}
+	}
+
+	@command('git.pullFrom')
+	async pullFrom(): Promise<void> {
+		const remotes = this.model.remotes;
+
+		if (remotes.length === 0) {
+			window.showWarningMessage(localize('no remotes to pull', "Your repository has no remotes configured to pull from."));
+			return;
+		}
+
+		const picks = remotes.map(r => ({ label: r.name, description: r.url }));
+		const placeHolder = localize('pick remote pull repo', "Pick a remote to pull the branch from");
+		const pick = await window.showQuickPick(picks, { placeHolder });
+
+		if (!pick) {
+			return;
+		}
+
+		const branchName = await window.showInputBox({
+			placeHolder: localize('branch name', "Branch name"),
+			prompt: localize('provide branch name', "Please provide a branch name"),
+			ignoreFocusOut: true
+		});
+
+		if (!branchName) {
+			return;
+		}
+
+		this.model.pull(false, pick.label, branchName);
+	}
+
 	@command('git.pull')
 	async pull(): Promise<void> {
 		const remotes = this.model.remotes;
@@ -664,7 +886,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await this.model.pull(true);
+		await this.model.pullWithRebase();
 	}
 
 	@command('git.push')
@@ -702,7 +924,7 @@ export class CommandCenter {
 			return;
 		}
 
-		this.model.push(pick.label, branchName);
+		this.model.pushTo(pick.label, branchName);
 	}
 
 	@command('git.sync')
@@ -750,12 +972,35 @@ export class CommandCenter {
 			return;
 		}
 
-		await this.model.push(choice, branchName, { setUpstream: true });
+		await this.model.pushTo(choice, branchName, true);
 	}
 
 	@command('git.showOutput')
 	showOutput(): void {
 		this.outputChannel.show();
+	}
+
+	@command('git.ignore')
+	async ignore(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
+			const uri = window.activeTextEditor && window.activeTextEditor.document.uri;
+
+			if (!uri) {
+				return;
+			}
+
+			return await this.model.ignore([uri]);
+		}
+
+		const uris = resourceStates
+			.filter(s => s instanceof Resource)
+			.map(r => r.resourceUri);
+
+		if (!uris.length) {
+			return;
+		}
+
+		await this.model.ignore(uris);
 	}
 
 	private createCommand(id: string, key: string, method: Function, skipModelCheck: boolean): (...args: any[]) => any {
@@ -773,8 +1018,11 @@ export class CommandCenter {
 				let message: string;
 
 				switch (err.gitErrorCode) {
-					case 'DirtyWorkTree':
+					case GitErrorCodes.DirtyWorkTree:
 						message = localize('clean repo', "Please clean your repository working tree before checkout.");
+						break;
+					case GitErrorCodes.PushRejected:
+						message = localize('cant push', "Can't push refs to remote. Run 'Pull' first to integrate your changes.");
 						break;
 					default:
 						const hint = (err.stderr || err.message || String(err))

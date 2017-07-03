@@ -114,11 +114,11 @@ class SyncStatusBar {
 					text += `${HEAD.behind}↓ ${HEAD.ahead}↑`;
 				}
 				command = 'git.sync';
-				tooltip = localize('sync changes', "Synchronize changes");
+				tooltip = localize('sync changes', "Synchronize Changes");
 			} else {
 				icon = '$(cloud-upload)';
 				command = 'git.publish';
-				tooltip = localize('publish changes', "Publish changes");
+				tooltip = localize('publish changes', "Publish Changes");
 			}
 		} else {
 			command = '';
@@ -126,9 +126,9 @@ class SyncStatusBar {
 		}
 
 		if (this.state.isSyncRunning) {
-			text = '';
+			icon = '$(sync~spin)';
 			command = '';
-			tooltip = localize('syncing changes', "Synchronizing changes...");
+			tooltip = localize('syncing changes', "Synchronizing Changes...");
 		}
 
 		return {

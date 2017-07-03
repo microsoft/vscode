@@ -20,7 +20,8 @@ import { ITree, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { IEditorOptions, IReadOnlyModel, EditorContextKeys, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { IReadOnlyModel, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Position } from 'vs/editor/common/core/position';
 import * as modes from 'vs/editor/common/modes';
 import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
@@ -37,10 +38,12 @@ import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { ReplHistory } from 'vs/workbench/parts/debug/common/replHistory';
 import { Panel } from 'vs/workbench/browser/panel';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { attachListStyler } from "vs/platform/theme/common/styler";
+import { attachListStyler } from 'vs/platform/theme/common/styler';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { clipboard } from 'electron';
 
 const $ = dom.$;
 
@@ -57,6 +60,7 @@ export interface IPrivateReplService {
 	_serviceBrand: any;
 	navigateHistory(previous: boolean): void;
 	acceptReplInput(): void;
+	getVisibleContent(): string;
 }
 
 export class Repl extends Panel implements IPrivateReplService {
@@ -87,7 +91,7 @@ export class Repl extends Panel implements IPrivateReplService {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService,
 		@IPanelService private panelService: IPanelService,
-		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
+		@IThemeService protected themeService: IThemeService,
 		@IModelService private modelService: IModelService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IListService private listService: IListService
@@ -103,7 +107,6 @@ export class Repl extends Panel implements IPrivateReplService {
 		this.toDispose.push(this.debugService.getModel().onDidChangeReplElements(() => {
 			this.refreshReplElements(this.debugService.getModel().getReplElements().length === 0);
 		}));
-		this.toDispose.push(this.themeService.onDidColorThemeChange(e => this.replInput.updateOptions(this.getReplInputOptions()))); // TODO@theme this should be done from the editor itself and not from the outside
 		this.toDispose.push(this.panelService.onDidPanelOpen(panel => this.refreshReplElements(true)));
 	}
 
@@ -229,6 +232,20 @@ export class Repl extends Panel implements IPrivateReplService {
 		this.layout(this.dimension);
 	}
 
+	public getVisibleContent(): string {
+		let text = '';
+		const navigator = this.tree.getNavigator();
+		// skip first navigator element - the root node
+		while (navigator.next()) {
+			if (text) {
+				text += `\n`;
+			}
+			text += navigator.current().toString();
+		}
+
+		return text;
+	}
+
 	public layout(dimension: Dimension): void {
 		this.dimension = dimension;
 		if (this.tree) {
@@ -261,7 +278,12 @@ export class Repl extends Panel implements IPrivateReplService {
 	}
 
 	public shutdown(): void {
-		this.storageService.store(HISTORY_STORAGE_KEY, JSON.stringify(Repl.HISTORY.save()), StorageScope.WORKSPACE);
+		const replHistory = Repl.HISTORY.save();
+		if (replHistory.length) {
+			this.storageService.store(HISTORY_STORAGE_KEY, JSON.stringify(replHistory), StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
+		}
 	}
 
 	private getReplInputOptions(): IEditorOptions {
@@ -278,14 +300,17 @@ export class Repl extends Panel implements IPrivateReplService {
 			},
 			lineDecorationsWidth: 0,
 			scrollBeyondLastLine: false,
-			theme: this.themeService.getColorTheme().id,
 			renderLineHighlight: 'none',
-			fixedOverflowWidgets: true
+			fixedOverflowWidgets: true,
+			acceptSuggestionOnEnter: 'smart',
+			minimap: {
+				enabled: false
+			}
 		};
 	}
 
 	public dispose(): void {
-		this.replInput.destroy();
+		this.replInput.dispose();
 		this.toDispose = lifecycle.dispose(this.toDispose);
 		super.dispose();
 	}
@@ -301,7 +326,7 @@ class ReplHistoryPreviousAction extends EditorAction {
 			alias: 'History Previous',
 			precondition: debug.CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.TextFocus, debug.CONTEXT_ON_FIRST_DEBUG_REPL_LINE),
+				kbExpr: ContextKeyExpr.and(EditorContextKeys.textFocus, debug.CONTEXT_ON_FIRST_DEBUG_REPL_LINE),
 				primary: KeyCode.UpArrow,
 				weight: 50
 			},
@@ -326,7 +351,7 @@ class ReplHistoryNextAction extends EditorAction {
 			alias: 'History Next',
 			precondition: debug.CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.TextFocus, debug.CONTEXT_ON_LAST_DEBUG_REPL_LINE),
+				kbExpr: ContextKeyExpr.and(EditorContextKeys.textFocus, debug.CONTEXT_ON_LAST_DEBUG_REPL_LINE),
 				primary: KeyCode.DownArrow,
 				weight: 50
 			},
@@ -351,7 +376,7 @@ class AcceptReplInputAction extends EditorAction {
 			alias: 'REPL Accept Input',
 			precondition: debug.CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyCode.Enter
 			}
 		});
@@ -370,7 +395,24 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	handler: x => x.acceptSelectedSuggestion(),
 	kbOpts: {
 		weight: 50,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.RightArrow
 	}
 }));
+
+@editorAction
+export class ReplCopyAllAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'repl.action.copyAll',
+			label: nls.localize('actions.repl.copyAll', "Debug: Console Copy All"),
+			alias: 'Debug Console Copy All',
+			precondition: debug.CONTEXT_IN_DEBUG_REPL,
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void | TPromise<void> {
+		clipboard.writeText(accessor.get(IPrivateReplService).getVisibleContent());
+	}
+}

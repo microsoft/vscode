@@ -10,13 +10,15 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 export abstract class TerminalService implements ITerminalService {
 	public _serviceBrand: any;
 
+	protected _isShuttingDown: boolean;
 	protected _terminalFocusContextKey: IContextKey<boolean>;
+	protected _findWidgetVisible: IContextKey<boolean>;
 	protected _terminalContainer: HTMLElement;
 	protected _onInstancesChanged: Emitter<string>;
 	protected _onInstanceDisposed: Emitter<ITerminalInstance>;
@@ -42,12 +44,13 @@ export abstract class TerminalService implements ITerminalService {
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IConfigurationService private _configurationService: IConfigurationService,
-		@IPanelService private _panelService: IPanelService,
+		@IPanelService protected _panelService: IPanelService,
 		@IPartService private _partService: IPartService,
 		@ILifecycleService lifecycleService: ILifecycleService
 	) {
 		this._terminalInstances = [];
 		this._activeTerminalInstanceIndex = 0;
+		this._isShuttingDown = false;
 
 		this._onActiveInstanceChanged = new Emitter<string>();
 		this._onInstanceDisposed = new Emitter<ITerminalInstance>();
@@ -59,6 +62,7 @@ export abstract class TerminalService implements ITerminalService {
 		this._configurationService.onDidUpdateConfiguration(() => this.updateConfig());
 		lifecycleService.onWillShutdown(event => event.veto(this._onWillShutdown()));
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
+		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
 		this.onInstanceDisposed((terminalInstance) => { this._removeInstance(terminalInstance); });
 	}
 
@@ -82,6 +86,7 @@ export abstract class TerminalService implements ITerminalService {
 		}
 
 		// Dispose all terminal instances and don't veto
+		this._isShuttingDown = true;
 		this.terminalInstances.forEach(instance => {
 			instance.dispose();
 		});
@@ -105,7 +110,10 @@ export abstract class TerminalService implements ITerminalService {
 				this.getActiveInstance().focus(true);
 			}
 		}
-		if (this.terminalInstances.length === 0) {
+		// Hide the panel if there are no more instances, provided that VS Code is not shutting
+		// down. When shutting down the panel is locked in place so that it is restored upon next
+		// launch.
+		if (this.terminalInstances.length === 0 && !this._isShuttingDown) {
 			this.hidePanel();
 		}
 		this._onInstancesChanged.fire();
@@ -194,6 +202,9 @@ export abstract class TerminalService implements ITerminalService {
 		}
 	}
 
+	public abstract focusFindWidget(): TPromise<void>;
+	public abstract hideFindWidget(): void;
+
 	private _getIndexFromId(terminalId: number): number {
 		let terminalIndex = -1;
 		this.terminalInstances.forEach((terminalInstance, i) => {
@@ -209,5 +220,9 @@ export abstract class TerminalService implements ITerminalService {
 
 	public updateConfig(): void {
 		this.terminalInstances.forEach(instance => instance.updateConfig());
+	}
+
+	public setWorkspaceShellAllowed(isAllowed: boolean): void {
+		this.configHelper.setWorkspaceShellAllowed(isAllowed);
 	}
 }

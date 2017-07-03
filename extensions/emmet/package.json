@@ -1,0 +1,78 @@
+{
+    "name": "emmet",
+    "displayName": "emmet",
+    "description": "Emmet support for VS Code",
+    "version": "0.0.1",
+    "publisher": "vscode",
+    "engines": {
+        "vscode": "^1.13.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Microsoft/vscode-emmet"
+    },
+    "activationEvents": [
+        "*"
+    ],
+    "main": "./out/extension",
+    "contributes": {
+        "configuration": {
+            "type": "object",
+            "title": "Emmet",
+            "properties": {
+                "emmet.showExpandedAbbreviation": {
+                    "type": ["string"],
+                    "enum": [
+                        "never",
+                        "always",
+                        "inMarkupAndStylesheetFilesOnly"
+                    ],
+                    "default": "inMarkupAndStylesheetFilesOnly",
+                    "description": "Applicable only when emmet.useNewEmmet is set to true.\nShows expanded emmet abbreviations as suggestions.\nThe option \"inMarkupAndStylesheetFilesOnly\" applies to html, haml, jade, slim, xml, xsl, css, scss, sass, less and stylus.\nThe option \"always\" applies to all parts of the file regardless of markup/css."
+                },
+                "emmet.showAbbreviationSuggestions": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Applicable only when emmet.useNewEmmet is set to true.\nShows possible emmet abbreviations as suggestions. Not applicable in stylesheets or when emmet.showExpandedAbbreviation is set to \"never\"."
+                },
+                "emmet.includeLanguages": {
+                    "type": "object",
+                    "default": {},
+                    "description": "Applicable only when emmet.useNewEmmet is set to true.\nEnable emmet abbreviations in languages that are not supported by default. Add a mapping here between the language and emmet supported language.\n Eg: {\"vue-html\": \"html\", \"javascript\": \"javascriptreact\"}"
+                },
+                "emmet.variables":{
+                    "type": "object",
+                    "properties": {
+                        "lang": {
+                            "type": "string",
+                            "default": "en"
+                        },
+                        "charset": {
+                            "type": "string",
+                            "default": "UTF-8"
+                        }
+                    },
+                    "default":{},
+                    "description": "Applicable only when emmet.useNewEmmet is set to true.\nVariables to be used in emmet snippets"
+                }
+            }
+        }
+    },
+    "scripts": {
+        "compile": "gulp compile-extension:emmet"
+    },
+    "devDependencies": {
+        "@types/node": "^7.0.4"
+    },
+    "dependencies": {
+        "@emmetio/expand-abbreviation": "^0.5.8",
+        "@emmetio/extract-abbreviation": "^0.1.1",
+        "@emmetio/html-matcher": "^0.3.1",
+        "@emmetio/css-parser": "^0.3.0",
+        "@emmetio/math-expression": "^0.1.1",
+        "vscode-emmet-helper":"0.0.18"
+    }
+}

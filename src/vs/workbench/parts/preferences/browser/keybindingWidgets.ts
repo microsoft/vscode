@@ -21,16 +21,18 @@ import { Dimension } from 'vs/base/browser/builder';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { editorWidgetBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 
 class KeybindingInputWidget extends Widget {
 
-	public readonly inputBox: InputBox;
+	private readonly inputBox: InputBox;
 
 	private _acceptChords: boolean;
 	private _firstPart: ResolvedKeybinding;
 	private _chordPart: ResolvedKeybinding;
+	private _inputValue: string;
 
 	private _onKeybinding = this._register(new Emitter<[ResolvedKeybinding, ResolvedKeybinding]>());
 	public readonly onKeybinding: Event<[ResolvedKeybinding, ResolvedKeybinding]> = this._onKeybinding.event;
@@ -41,6 +43,9 @@ class KeybindingInputWidget extends Widget {
 	private _onEscape = this._register(new Emitter<void>());
 	public readonly onEscape: Event<void> = this._onEscape.event;
 
+	private _onBlur = this._register(new Emitter<void>());
+	public readonly onBlur: Event<void> = this._onBlur.event;
+
 	constructor(parent: HTMLElement, private options: IInputOptions,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IKeybindingService private keybindingService: IKeybindingService,
@@ -50,9 +55,25 @@ class KeybindingInputWidget extends Widget {
 		this.inputBox = this._register(new InputBox(parent, this.contextViewService, this.options));
 		this._register(attachInputBoxStyler(this.inputBox, themeService));
 		this.onkeydown(this.inputBox.inputElement, e => this._onKeyDown(e));
+		this.onblur(this.inputBox.inputElement, (e) => this._onBlur.fire());
+
+		this.oninput(this.inputBox.inputElement, (e) => {
+			// Prevent other characters from showing up
+			this.setInputValue(this._inputValue);
+		});
+
 		this._acceptChords = true;
 		this._firstPart = null;
 		this._chordPart = null;
+	}
+
+	public setInputValue(value: string): void {
+		this._inputValue = value;
+		this.inputBox.value = this._inputValue;
+	}
+
+	public focus(): void {
+		this.inputBox.focus();
 	}
 
 	public reset() {
@@ -106,7 +127,7 @@ class KeybindingInputWidget extends Widget {
 		if (this._chordPart) {
 			value = value + ' ' + this._chordPart.getUserSettingsLabel();
 		}
-		this.inputBox.value = value;
+		this.setInputValue(value);
 
 		this.inputBox.inputElement.title = info;
 		this._onKeybinding.fire([this._firstPart, this._chordPart]);
@@ -128,8 +149,11 @@ export class DefineKeybindingWidget extends Widget {
 
 	private _onHide = this._register(new Emitter<void>());
 
-	constructor(parent: HTMLElement, @IKeybindingService private keybindingService: IKeybindingService,
-		@IInstantiationService private instantiationService: IInstantiationService
+	constructor(
+		parent: HTMLElement,
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IThemeService private themeService: IThemeService
 	) {
 		super();
 		this.create();
@@ -144,16 +168,16 @@ export class DefineKeybindingWidget extends Widget {
 
 	define(): TPromise<string> {
 		this._keybindingInputWidget.reset();
-		return new TPromise((c, e) => {
+		return new TPromise<string>((c, e) => {
 			if (!this._isVisible) {
 				this._isVisible = true;
 				this._domNode.setDisplay('block');
 
 				this._firstPart = null;
 				this._chordPart = null;
-				this._keybindingInputWidget.inputBox.value = '';
+				this._keybindingInputWidget.setInputValue('');
 				dom.clearNode(this._outputNode);
-				this._keybindingInputWidget.inputBox.focus();
+				this._keybindingInputWidget.focus();
 			}
 			const disposable = this._onHide.event(() => {
 				if (this._firstPart) {
@@ -186,11 +210,21 @@ export class DefineKeybindingWidget extends Widget {
 		this._domNode.setHeight(DefineKeybindingWidget.HEIGHT);
 		dom.append(this._domNode.domNode, dom.$('.message', null, nls.localize('defineKeybinding.initial', "Press desired key combination and ENTER. ESCAPE to cancel.")));
 
+		this._register(attachStylerCallback(this.themeService, { editorWidgetBackground, widgetShadow }, colors => {
+			this._domNode.domNode.style.backgroundColor = colors.editorWidgetBackground;
+
+			if (colors.widgetShadow) {
+				this._domNode.domNode.style.boxShadow = `0 2px 8px ${colors.widgetShadow}`;
+			} else {
+				this._domNode.domNode.style.boxShadow = null;
+			}
+		}));
+
 		this._keybindingInputWidget = this._register(this.instantiationService.createInstance(KeybindingInputWidget, this._domNode.domNode, {}));
 		this._register(this._keybindingInputWidget.onKeybinding(keybinding => this.printKeybinding(keybinding)));
 		this._register(this._keybindingInputWidget.onEnter(() => this.hide()));
 		this._register(this._keybindingInputWidget.onEscape(() => this.onCancel()));
-		this._register(dom.addDisposableListener(this._keybindingInputWidget.inputBox.inputElement, 'blur', e => this.onCancel()));
+		this._register(this._keybindingInputWidget.onBlur(() => this.onCancel()));
 
 		this._outputNode = dom.append(this._domNode.domNode, dom.$('.output'));
 	}

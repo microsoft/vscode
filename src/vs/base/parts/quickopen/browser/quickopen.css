@@ -36,7 +36,7 @@
 }
 
 .quick-open-widget .quick-open-tree {
-	line-height: 1.8em;
+	line-height: 22px;
 }
 
 .quick-open-widget .quick-open-tree .monaco-tree-row  > .content > .sub-content {
@@ -69,12 +69,6 @@
 	flex-shrink: 0;
 }
 
-.quick-open-widget .quick-open-tree .quick-open-entry .quick-open-help-entry-label {
-	float: left;
-	min-width: 16px;
-	text-align: center;
-}
-
 .quick-open-widget .quick-open-tree .quick-open-entry .monaco-highlighted-label span {
 	opacity: 1;
 }
@@ -93,6 +87,14 @@
 	text-overflow: ellipsis;
 }
 
+.quick-open-widget .quick-open-tree .content.has-group-label .quick-open-entry-keybinding {
+	margin-right: 8px;
+}
+
+.quick-open-widget .quick-open-tree .quick-open-entry-keybinding .monaco-kbkey {
+	vertical-align: text-bottom;
+}
+
 .quick-open-widget .quick-open-tree .results-group {
 	margin-right: 18px;
 }
@@ -101,11 +103,6 @@
 .quick-open-widget .quick-open-tree .monaco-tree-row:hover:not(.highlighted) > .content.has-actions > .results-group,
 .quick-open-widget .quick-open-tree .focused .monaco-tree-row.focused > .content.has-actions > .results-group {
 	margin-right: 0px;
-}
-
-.vs .quick-open-widget .quick-open-tree .results-group,
-.vs-dark .quick-open-widget .quick-open-tree .results-group {
-	opacity: 0.6;
 }
 
 .quick-open-widget .quick-open-tree .results-group-separator {
@@ -132,7 +129,7 @@
 }
 
 .monaco-tree .monaco-tree-row > .content.actions > .primary-action-bar {
-	line-height: 1em;
+	line-height: 22px;
 }
 
 .monaco-tree .monaco-tree-row > .content.actions > .primary-action-bar {
@@ -160,51 +157,6 @@
 	height: 16px;
 }
 
-/* Theming */
-
-.quick-open-widget {
-	box-shadow: 0 5px 8px #A8A8A8;
-}
-
-.vs-dark .quick-open-widget {
-	box-shadow: 0 5px 8px #000;
-}
-
-.hc-black .quick-open-widget {
-	box-shadow: none;
-}
-
-.quick-open-widget .quick-open-tree .results-group,
-.quick-open-widget .quick-open-tree .quick-open-entry .quick-open-help-entry-label {
-	color: #007ACC;
-}
-
-.vs-dark .quick-open-widget .quick-open-tree .results-group,
-.vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-help-entry-label {
-	color: #0097FB;
-}
-
-.hc-black .quick-open-widget .quick-open-tree .results-group {
-	color: white;
-}
-
-.quick-open-widget .quick-open-tree .results-group-separator {
-	border-top-color: #CCCEDB;
-}
-
-.vs-dark .quick-open-widget .quick-open-tree .results-group-separator {
-	border-top-color: #3F3F46;
-}
-
-.hc-black .quick-open-widget .quick-open-tree .results-group-separator {
-	border-top-color: white;
-}
-
 .quick-open-widget .quick-open-tree .monaco-highlighted-label .highlight {
-	color: #007ACC;
 	font-weight: bold;
-}
-
-.vs-dark .quick-open-widget .quick-open-tree .monaco-highlighted-label .highlight {
-	color: #0097FB;
 }

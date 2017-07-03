@@ -27,13 +27,21 @@
 	height: calc(100% - 38px);
 }
 
-.extensions-viewlet > .extensions.hidden,
-.extensions-viewlet > .message.hidden {
+.extensions-viewlet > .extensions .extensions-list.hidden,
+.extensions-viewlet > .extensions .message.hidden {
 	display: none;
 	visibility: hidden;
 }
 
-.extensions-viewlet > .message {
+.extensions-viewlet > .extensions .header {
+	padding-right: 12px;
+}
+
+.extensions-viewlet > .extensions .header > .title {
+	flex: 1;
+}
+
+.extensions-viewlet > .extensions .message {
 	padding: 5px 9px 5px 16px;
 	cursor: default;
 }
@@ -82,10 +90,11 @@
 .extensions-viewlet > .extensions .extension > .details > .header-container > .header {
 	display: flex;
 	align-items: baseline;
-	flex-wrap: wrap;
+	flex-wrap: nowrap;
 	overflow: hidden;
 	flex: 1;
 	min-width: 0;
+
 }
 
 .extensions-viewlet > .extensions .extension > .details > .header-container > .header > .name {
@@ -96,7 +105,7 @@
 }
 
 .extensions-viewlet > .extensions .extension > .details > .header-container > .header > .version {
-	opacity: 0.6;
+	opacity: 0.85;
 	font-size: 80%;
 	padding-left: 6px;
 	flex: 1;
@@ -120,12 +129,6 @@
 .extensions-viewlet.narrow > .extensions .extension > .details > .header-container > .header > .ratings,
 .extensions-viewlet.narrow > .extensions .extension > .details > .header-container > .header > .install-count {
 	display: none;
-}
-
-.extensions-viewlet > .extensions .extension > .details > .header-container .extension-status {
-	width: 8px;
-	height: 8px;
-	margin-left: 6px;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .footer {
@@ -155,7 +158,7 @@
 
 .extensions-viewlet > .extensions .extension.disabled > .icon,
 .extensions-viewlet > .extensions .extension.disabled > .details > .header-container,
-.extensions-viewlet > .extensions .extension.disabled > .details > .description,
+.extensions-viewlet > .extensions .extension.disabled > .details > .description
 .extensions-viewlet > .extensions .extension.disabled > .details > .footer > .author {
 	opacity: 0.5;
 }

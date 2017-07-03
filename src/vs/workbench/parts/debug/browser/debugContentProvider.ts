@@ -10,14 +10,14 @@ import { guessMimeTypes, MIME_TEXT } from 'vs/base/common/mime';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { DEBUG_SCHEME, IDebugService } from 'vs/workbench/parts/debug/common/debug';
 
 export class DebugContentProvider implements IWorkbenchContribution, ITextModelContentProvider {
 
 	constructor(
-		@ITextModelResolverService textModelResolverService: ITextModelResolverService,
+		@ITextModelService textModelResolverService: ITextModelService,
 		@IDebugService private debugService: IDebugService,
 		@IModelService private modelService: IModelService,
 		@IModeService private modeService: IModeService
@@ -33,7 +33,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		const process = this.debugService.getViewModel().focusedProcess;
 
 		if (!process) {
-			return TPromise.wrapError(localize('unable', "Unable to resolve the resource without a debug session"));
+			return TPromise.wrapError<IModel>(new Error(localize('unable', "Unable to resolve the resource without a debug session")));
 		}
 		const source = process.sources.get(resource.toString());
 		let rawSource: DebugProtocol.Source;
@@ -51,7 +51,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 
 			return model;
 		}, (err: DebugProtocol.ErrorResponse) => {
-			this.debugService.deemphasizeSource(resource);
+			this.debugService.sourceIsNotAvailable(resource);
 			const modePromise = this.modeService.getOrCreateMode(MIME_TEXT);
 			const model = this.modelService.createModel(err.message, modePromise, resource);
 

@@ -11,7 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import {
 	ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged,
 	ModelRawLinesDeleted, ModelRawLinesInserted
-} from 'vs/editor/common/editorCommon';
+} from 'vs/editor/common/model/textModelEvents';
 import { Model } from 'vs/editor/common/model/model';
 
 // --------- utils

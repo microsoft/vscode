@@ -17,9 +17,9 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardTokenType } from 'vs/editor/common/modes';
 import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/model/wordHelper';
-import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { IDecorationOptions, IModelDecorationOptions, MouseTargetType, IModelDeltaDecoration, TrackedRangeStickiness, IPosition, Handler } from 'vs/editor/common/editorCommon';
+import { IDecorationOptions, IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -35,7 +35,10 @@ import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWid
 import { ExceptionWidget } from 'vs/workbench/parts/debug/browser/exceptionWidget';
 import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { IThemeService } from "vs/platform/theme/common/themeService";
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { Position } from 'vs/editor/common/core/position';
+import { CoreEditingCommands } from 'vs/editor/common/controller/coreCommands';
+import { first } from 'vs/base/common/arrays';
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;
@@ -58,7 +61,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private breakpointHintDecoration: string[];
 	private breakpointWidget: BreakpointWidget;
 	private breakpointWidgetVisible: IContextKey<boolean>;
-	private wordToLineNumbersMap: Map<string, IPosition[]>;
+	private wordToLineNumbersMap: Map<string, Position[]>;
 
 	private exceptionWidget: ExceptionWidget;
 
@@ -360,15 +363,20 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			return;
 		}
 
-		// First call stack frame is the frame where exception has been thrown
-		const exceptionSf = callStack[0];
+		// First call stack frame that is available is the frame where exception has been thrown
+		const exceptionSf = first(callStack, sf => sf.source && sf.source.available, undefined);
+		if (!exceptionSf) {
+			this.closeExceptionWidget();
+			return;
+		}
+
 		const sameUri = exceptionSf.source.uri.toString() === model.uri.toString();
 		if (this.exceptionWidget && !sameUri) {
 			this.closeExceptionWidget();
 		} else if (sameUri) {
 			focusedSf.thread.exceptionInfo.then(exceptionInfo => {
-				if (exceptionInfo) {
-					this.showExceptionWidget(exceptionInfo, exceptionSf.lineNumber, exceptionSf.column);
+				if (exceptionInfo && exceptionSf.range.startLineNumber && exceptionSf.range.startColumn) {
+					this.showExceptionWidget(exceptionInfo, exceptionSf.range.startLineNumber, exceptionSf.range.startColumn);
 				}
 			});
 		}
@@ -404,7 +412,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	public addLaunchConfiguration(): TPromise<any> {
 		this.telemetryService.publicLog('debug/addLaunchConfiguration');
-		let configurationsArrayPosition: IPosition;
+		let configurationsArrayPosition: Position;
 		const model = this.editor.getModel();
 		let depthInArray = 0;
 		let lastProperty: string;
@@ -429,11 +437,11 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			return this.commandService.executeCommand('editor.action.triggerSuggest');
 		}
 
-		const insertLine = (position: IPosition): TPromise<any> => {
+		const insertLine = (position: Position): TPromise<any> => {
 			// Check if there are more characters on a line after a "configurations": [, if yes enter a newline
 			if (this.editor.getModel().getLineLastNonWhitespaceColumn(position.lineNumber) > position.column) {
 				this.editor.setPosition(position);
-				this.editor.trigger(this.getId(), Handler.LineBreakInsert, undefined);
+				CoreEditingCommands.LineBreakInsert.runEditorCommand(null, this.editor, null);
 			}
 			// Check if there is already an empty line to insert suggest, if yes just place the cursor
 			if (this.editor.getModel().getLineLastNonWhitespaceColumn(position.lineNumber + 1) === 0) {
@@ -466,11 +474,11 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		this.removeInlineValuesScheduler.cancel();
 
-		stackFrame.getMostSpecificScopes(new Range(stackFrame.lineNumber, stackFrame.column, stackFrame.lineNumber, stackFrame.column))
+		stackFrame.getMostSpecificScopes(stackFrame.range)
 			// Get all top level children in the scope chain
 			.then(scopes => TPromise.join(scopes.map(scope => scope.getChildren()
 				.then(children => {
-					let range = new Range(0, 0, stackFrame.lineNumber, stackFrame.column);
+					let range = new Range(0, 0, stackFrame.range.startLineNumber, stackFrame.range.startColumn);
 					if (scope.range) {
 						range = range.setStartPosition(scope.range.startLineNumber, scope.range.startColumn);
 					}
@@ -558,9 +566,9 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		};
 	}
 
-	private getWordToPositionsMap(): Map<string, IPosition[]> {
+	private getWordToPositionsMap(): Map<string, Position[]> {
 		if (!this.wordToLineNumbersMap) {
-			this.wordToLineNumbersMap = new Map<string, IPosition[]>();
+			this.wordToLineNumbersMap = new Map<string, Position[]>();
 			const model = this.editor.getModel();
 			// For every word in every line, map its ranges for fast lookup
 			for (let lineNumber = 1, len = model.getLineCount(); lineNumber <= len; ++lineNumber) {
@@ -587,7 +595,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 								this.wordToLineNumbersMap.set(word, []);
 							}
 
-							this.wordToLineNumbersMap.get(word).push({ lineNumber, column: token.startOffset });
+							this.wordToLineNumbersMap.get(word).push(new Position(lineNumber, token.startOffset));
 						}
 					}
 				}

@@ -5,26 +5,35 @@
 
 'use strict';
 
-import 'vs/editor/browser/editor.all';
-import 'vs/editor/contrib/quickOpen/browser/quickOutline';
-import 'vs/editor/contrib/quickOpen/browser/gotoLine';
-import 'vs/editor/contrib/quickOpen/browser/quickCommand';
-import 'vs/editor/contrib/inspectTokens/browser/inspectTokens';
+import 'vs/editor/editor.all';
+import 'vs/editor/standalone/browser/inspectTokens/inspectTokens';
+import 'vs/editor/standalone/browser/iPadShowKeyboard/iPadShowKeyboard';
+import 'vs/editor/standalone/browser/quickOpen/quickOutline';
+import 'vs/editor/standalone/browser/quickOpen/gotoLine';
+import 'vs/editor/standalone/browser/quickOpen/quickCommand';
+import 'vs/editor/standalone/browser/toggleHighContrast/toggleHighContrast';
 
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
-import { createMonacoEditorAPI } from 'vs/editor/browser/standalone/standaloneEditor';
-import { createMonacoLanguagesAPI } from 'vs/editor/browser/standalone/standaloneLanguages';
-import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
+import { createMonacoEditorAPI } from 'vs/editor/standalone/browser/standaloneEditor';
+import { createMonacoLanguagesAPI } from 'vs/editor/standalone/browser/standaloneLanguages';
+import { EDITOR_DEFAULTS, WrappingIndent } from 'vs/editor/common/config/editorOptions';
 
 // Set defaults for standalone editor
-DefaultConfig.editor.wrappingIndent = 'none';
-DefaultConfig.editor.folding = false;
-DefaultConfig.editor.glyphMargin = false;
+(<any>EDITOR_DEFAULTS).wrappingIndent = WrappingIndent.None;
+(<any>EDITOR_DEFAULTS.contribInfo).folding = false;
+(<any>EDITOR_DEFAULTS.viewInfo).glyphMargin = false;
+
+let base = createMonacoBaseAPI();
+for (let prop in base) {
+	if (base.hasOwnProperty(prop)) {
+		exports[prop] = base[prop];
+	}
+}
+exports.editor = createMonacoEditorAPI();
+exports.languages = createMonacoLanguagesAPI();
 
 var global: any = self;
-global.monaco = createMonacoBaseAPI();
-global.monaco.editor = createMonacoEditorAPI();
-global.monaco.languages = createMonacoLanguagesAPI();
+global.monaco = exports;
 
 if (typeof global.require !== 'undefined' && typeof global.require.config === 'function') {
 	global.require.config({

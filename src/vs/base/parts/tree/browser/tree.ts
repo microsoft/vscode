@@ -12,8 +12,8 @@ import Keyboard = require('vs/base/browser/keyboardEvent');
 import { INavigator } from 'vs/base/common/iterator';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import Event from 'vs/base/common/event';
-import { IAction, IActionItem } from "vs/base/common/actions";
-import { Color } from "vs/base/common/color";
+import { IAction, IActionItem } from 'vs/base/common/actions';
+import { Color } from 'vs/base/common/color';
 
 export interface ITree extends Events.IEventEmitter {
 
@@ -75,11 +75,6 @@ export interface ITree extends Events.IEventEmitter {
 	 * Provide no arguments and it will refresh the input element.
 	 */
 	refresh(element?: any, recursive?: boolean): WinJS.Promise;
-
-	/**
-	 * Refreshes all given elements.
-	 */
-	refreshAll(elements: any[], recursive?: boolean): WinJS.Promise;
 
 	/**
 	 * Expands an element.
@@ -283,9 +278,10 @@ export interface ITree extends Events.IEventEmitter {
 	focusFirstChild(eventPayload?: any): void;
 
 	/**
-	 * Focuses the second element, in visible order.
+	 * Focuses the second element, in visible order. Will focus the first
+	 * child from the provided element's parent if any.
 	 */
-	focusFirst(eventPayload?: any): void;
+	focusFirst(eventPayload?: any, from?: any): void;
 
 	/**
 	 * Focuses the nth element, in visible order.
@@ -293,9 +289,10 @@ export interface ITree extends Events.IEventEmitter {
 	focusNth(index: number, eventPayload?: any): void;
 
 	/**
-	 * Focuses the last element, in visible order.
+	 * Focuses the last element, in visible order. Will focus the last
+	 * child from the provided element's parent if any.
 	 */
-	focusLast(eventPayload?: any): void;
+	focusLast(eventPayload?: any, from?: any): void;
 
 	/**
 	 * Focuses the element at the end of the next page, in visible order.
@@ -431,6 +428,18 @@ export interface IAccessibilityProvider {
 	 * See also: https://www.w3.org/TR/wai-aria/states_and_properties#aria-label
 	 */
 	getAriaLabel(tree: ITree, element: any): string;
+
+	/**
+	 * Given an element in the tree return its aria-posinset. Should be between 1 and aria-setsize
+	 * https://www.w3.org/TR/wai-aria/states_and_properties#aria-posinset
+	 */
+	getPosInSet?(tree: ITree, element: any): string;
+
+	/**
+	 * Return the aria-setsize of the tree.
+	 * https://www.w3.org/TR/wai-aria/states_and_properties#aria-setsize
+	 */
+	getSetSize?(): string;
 }
 
 export /* abstract */ class ContextMenuEvent {
@@ -562,7 +571,7 @@ export const DRAG_OVER_ACCEPT: IDragOverReaction = { accept: true };
 export const DRAG_OVER_ACCEPT_BUBBLE_UP: IDragOverReaction = { accept: true, bubble: DragOverBubble.BUBBLE_UP };
 export const DRAG_OVER_ACCEPT_BUBBLE_DOWN = (autoExpand = false) => ({ accept: true, bubble: DragOverBubble.BUBBLE_DOWN, autoExpand });
 export const DRAG_OVER_ACCEPT_BUBBLE_UP_COPY: IDragOverReaction = { accept: true, bubble: DragOverBubble.BUBBLE_UP, effect: DragOverEffect.COPY };
-export const DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY = (autoExpand = false) => ({ accept: true, bubble: DragOverBubble.BUBBLE_DOWN, effect: DragOverEffect.COPY });
+export const DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY = (autoExpand = false) => ({ accept: true, bubble: DragOverBubble.BUBBLE_DOWN, effect: DragOverEffect.COPY, autoExpand });
 
 export interface IDragAndDropData {
 	update(event: Mouse.DragMouseEvent): void;
@@ -665,12 +674,15 @@ export interface ITreeOptions extends ITreeStyles {
 
 export interface ITreeStyles {
 	listFocusBackground?: Color;
+	listFocusForeground?: Color;
 	listActiveSelectionBackground?: Color;
 	listActiveSelectionForeground?: Color;
 	listFocusAndSelectionBackground?: Color;
 	listFocusAndSelectionForeground?: Color;
 	listInactiveSelectionBackground?: Color;
+	listInactiveSelectionForeground?: Color;
 	listHoverBackground?: Color;
+	listHoverForeground?: Color;
 	listDropBackground?: Color;
 	listFocusOutline?: Color;
 }

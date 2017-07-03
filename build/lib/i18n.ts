@@ -12,7 +12,7 @@ import File = require('vinyl');
 import * as Is from 'is';
 import * as xml2js from 'xml2js';
 import * as glob from 'glob';
-import * as http from 'http';
+import * as https from 'https';
 
 var util = require('gulp-util');
 var iconv = require('iconv-lite');
@@ -140,23 +140,23 @@ class TextModel {
 }
 
 export class XLF {
-    private buffer: string[];
+	private buffer: string[];
 	private files: Map<Item[]>;
 
-    constructor(public project: string) {
-        this.buffer = [];
+	constructor(public project: string) {
+		this.buffer = [];
 		this.files = Object.create(null);
 	}
 
-    public toString(): string {
-        this.appendHeader();
+	public toString(): string {
+		this.appendHeader();
 
 		for (let file in this.files) {
 			this.appendNewLine(`<file original="${file}" source-language="en" datatype="plaintext"><body>`, 2);
 			for (let item of this.files[file]) {
 				this.addStringItem(item);
 			}
-       		this.appendNewLine('</body></file>', 2);
+			this.appendNewLine('</body></file>', 2);
 		}
 
 		this.appendFooter();
@@ -190,43 +190,43 @@ export class XLF {
 		}
 	}
 
-    private addStringItem(item: Item): void {
-        if (!item.id || !item.message) {
-            throw new Error('No item ID or value specified.');
-        }
+	private addStringItem(item: Item): void {
+		if (!item.id || !item.message) {
+			throw new Error('No item ID or value specified.');
+		}
 
-        this.appendNewLine(`<trans-unit id="${item.id}">`, 4);
-        this.appendNewLine(`<source xml:lang="en">${item.message}</source>`, 6);
+		this.appendNewLine(`<trans-unit id="${item.id}">`, 4);
+		this.appendNewLine(`<source xml:lang="en">${item.message}</source>`, 6);
 
-        if (item.comment) {
-            this.appendNewLine(`<note>${item.comment}</note>`, 6);
-        }
+		if (item.comment) {
+			this.appendNewLine(`<note>${item.comment}</note>`, 6);
+		}
 
-        this.appendNewLine('</trans-unit>', 4);
+		this.appendNewLine('</trans-unit>', 4);
 	}
 
-    private appendHeader(): void {
-        this.appendNewLine('<?xml version="1.0" encoding="utf-8"?>', 0);
-        this.appendNewLine('<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">', 0);
+	private appendHeader(): void {
+		this.appendNewLine('<?xml version="1.0" encoding="utf-8"?>', 0);
+		this.appendNewLine('<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">', 0);
 	}
 
-    private appendFooter(): void {
-        this.appendNewLine('</xliff>', 0);
-    }
+	private appendFooter(): void {
+		this.appendNewLine('</xliff>', 0);
+	}
 
-    private appendNewLine(content: string, indent?: number): void {
-        let line = new Line(indent);
-        line.append(content);
-        this.buffer.push(line.toString());
-    }
+	private appendNewLine(content: string, indent?: number): void {
+		let line = new Line(indent);
+		line.append(content);
+		this.buffer.push(line.toString());
+	}
 
-	static parse = function(xlfString: string) : Promise<ParsedXLF[]> {
+	static parse = function (xlfString: string): Promise<ParsedXLF[]> {
 		return new Promise((resolve, reject) => {
 			let parser = new xml2js.Parser();
 
 			let files: { messages: Map<string>, originalFilePath: string, language: string }[] = [];
 
-			parser.parseString(xlfString, function(err, result) {
+			parser.parseString(xlfString, function (err, result) {
 				if (err) {
 					reject(`Failed to parse XLIFF string. ${err}`);
 				}
@@ -271,18 +271,6 @@ export class XLF {
 		});
 	};
 }
-
-const vscodeLanguages: string[] = [
-	'chs',
-	'cht',
-	'jpn',
-	'kor',
-	'deu',
-	'fra',
-	'esn',
-	'rus',
-	'ita'
-];
 
 const iso639_3_to_2: Map<string> = {
 	'chs': 'zh-cn',
@@ -372,7 +360,7 @@ function stripComments(content: string): string {
 			// A line comment. If it ends in \r?\n then keep it.
 			let length = m4.length;
 			if (length > 2 && m4[length - 1] === '\n') {
-				return m4[length - 2] === '\r' ? '\r\n': '\n';
+				return m4[length - 2] === '\r' ? '\r\n' : '\n';
 			} else {
 				return '';
 			}
@@ -384,11 +372,11 @@ function stripComments(content: string): string {
 	return result;
 }
 
-function escapeCharacters(value:string):string {
-	var result:string[] = [];
+function escapeCharacters(value: string): string {
+	var result: string[] = [];
 	for (var i = 0; i < value.length; i++) {
 		var ch = value.charAt(i);
-		switch(ch) {
+		switch (ch) {
 			case '\'':
 				result.push('\\\'');
 				break;
@@ -420,7 +408,7 @@ function escapeCharacters(value:string):string {
 	return result.join('');
 }
 
-function processCoreBundleFormat(fileHeader:string, json: BundledFormat, emitter: any) {
+function processCoreBundleFormat(fileHeader: string, languages: string[], json: BundledFormat, emitter: any) {
 	let keysSection = json.keys;
 	let messageSection = json.messages;
 	let bundleSection = json.bundles;
@@ -450,8 +438,13 @@ function processCoreBundleFormat(fileHeader:string, json: BundledFormat, emitter
 	});
 
 	let languageDirectory = path.join(__dirname, '..', '..', 'i18n');
-	let languages = sortLanguages(fs.readdirSync(languageDirectory).filter((item) => fs.statSync(path.join(languageDirectory, item)).isDirectory()));
-	languages.forEach((language) => {
+	let languageDirs;
+	if (languages) {
+		languageDirs = sortLanguages(languages);
+	} else {
+		languageDirs = sortLanguages(fs.readdirSync(languageDirectory).filter((item) => fs.statSync(path.join(languageDirectory, item)).isDirectory()));
+	}
+	languageDirs.forEach((language) => {
 		if (!language.iso639_2) {
 			return;
 		}
@@ -511,19 +504,20 @@ function processCoreBundleFormat(fileHeader:string, json: BundledFormat, emitter
 					return;
 				}
 				messages.forEach((message, index) => {
-					contents.push(`\t\t"${escapeCharacters(message)}${index < messages.length ? '",': '"'}`);
+					contents.push(`\t\t"${escapeCharacters(message)}${index < messages.length ? '",' : '"'}`);
 				});
 				contents.push(index < modules.length - 1 ? '\t],' : '\t]');
 			});
 			contents.push('});');
-			emitter.emit('data', new File( { path: bundle + '.nls.' + language.iso639_2 + '.js', contents: new Buffer(contents.join('\n'), 'utf-8') }));
+			emitter.emit('data', new File({ path: bundle + '.nls.' + language.iso639_2 + '.js', contents: new Buffer(contents.join('\n'), 'utf-8') }));
 		});
 	});
 	Object.keys(statistics).forEach(key => {
 		let value = statistics[key];
 		log(`${key} has ${value} untranslated strings.`);
 	});
-	vscodeLanguages.forEach(language => {
+	languageDirs.forEach(dir => {
+		const language = dir.name;
 		let iso639_2 = iso639_3_to_2[language];
 		if (!iso639_2) {
 			log(`\tCouldn't find iso639 2 mapping for language ${language}. Using default language instead.`);
@@ -536,8 +530,8 @@ function processCoreBundleFormat(fileHeader:string, json: BundledFormat, emitter
 	});
 }
 
-export function processNlsFiles(opts:{fileHeader:string;}): ThroughStream {
-	return through(function(file: File) {
+export function processNlsFiles(opts: { fileHeader: string; languages: string[] }): ThroughStream {
+	return through(function (file: File) {
 		let fileName = path.basename(file.path);
 		if (fileName === 'nls.metadata.json') {
 			let json = null;
@@ -547,7 +541,7 @@ export function processNlsFiles(opts:{fileHeader:string;}): ThroughStream {
 				this.emit('error', `Failed to read component file: ${file.relative}`);
 			}
 			if (BundledFormat.is(json)) {
-				processCoreBundleFormat(opts.fileHeader, json, this);
+				processCoreBundleFormat(opts.fileHeader, opts.languages, json, this);
 			}
 		}
 		this.emit('data', file);
@@ -584,81 +578,30 @@ const editorProject: string = 'vscode-editor',
 	extensionsProject: string = 'vscode-extensions',
 	setupProject: string = 'vscode-setup';
 
-/**
- * Ensure to update those arrays when new resources are pushed to Transifex.
- * Used because Transifex does not have API method to pull all project resources.
- */
-const editorResources: Resource[] = [
-	{ name: 'vs/platform', project: editorProject },
-	{ name: 'vs/editor/contrib', project: editorProject },
-	{ name: 'vs/editor', project: editorProject },
-	{ name: 'vs/base', project: editorProject },
-	{ name: 'vs/code', project: workbenchProject }
-];
-const workbenchResources: Resource[] = [
-	{ name: 'vs/workbench', project: workbenchProject },
-	{ name: 'vs/workbench/parts/cli', project: workbenchProject },
-	{ name: 'vs/workbench/parts/codeEditor', project: workbenchProject },
-	{ name: 'vs/workbench/parts/debug', project: workbenchProject },
-	{ name: 'vs/workbench/parts/emmet', project: workbenchProject },
-	{ name: 'vs/workbench/parts/execution', project: workbenchProject },
-	{ name: 'vs/workbench/parts/explorers', project: workbenchProject },
-	{ name: 'vs/workbench/parts/extensions', project: workbenchProject },
-	{ name: 'vs/workbench/parts/feedback', project: workbenchProject },
-	{ name: 'vs/workbench/parts/files', project: workbenchProject },
-	{ name: 'vs/workbench/parts/git', project: workbenchProject },
-	{ name: 'vs/workbench/parts/html', project: workbenchProject },
-	{ name: 'vs/workbench/parts/markers', project: workbenchProject },
-	{ name: 'vs/workbench/parts/nps', project: workbenchProject },
-	{ name: 'vs/workbench/parts/output', project: workbenchProject },
-	{ name: 'vs/workbench/parts/performance', project: workbenchProject },
-	{ name: 'vs/workbench/parts/preferences', project: workbenchProject },
-	{ name: 'vs/workbench/parts/quickopen', project: workbenchProject },
-	{ name: 'vs/workbench/parts/scm', project: workbenchProject },
-	{ name: 'vs/workbench/parts/search', project: workbenchProject },
-	{ name: 'vs/workbench/parts/snippets', project: workbenchProject },
-	{ name: 'vs/workbench/parts/tasks', project: workbenchProject },
-	{ name: 'vs/workbench/parts/terminal', project: workbenchProject },
-	{ name: 'vs/workbench/parts/themes', project: workbenchProject },
-	{ name: 'vs/workbench/parts/trust', project: workbenchProject },
-	{ name: 'vs/workbench/parts/update', project: workbenchProject },
-	{ name: 'vs/workbench/parts/watermark', project: workbenchProject },
-	{ name: 'vs/workbench/parts/welcome', project: workbenchProject },
-	{ name: 'vs/workbench/services/configuration', project: workbenchProject },
-	{ name: 'vs/workbench/services/editor', project: workbenchProject },
-	{ name: 'vs/workbench/services/files', project: workbenchProject },
-	{ name: 'vs/workbench/services/keybinding', project: workbenchProject },
-	{ name: 'vs/workbench/services/message', project: workbenchProject },
-	{ name: 'vs/workbench/services/mode', project: workbenchProject },
-	{ name: 'vs/workbench/services/textfile', project: workbenchProject },
-	{ name: 'vs/workbench/services/themes', project: workbenchProject },
-	{ name: 'setup_messages', project: workbenchProject }
-];
-
 export function getResource(sourceFile: string): Resource {
 	let resource: string;
 
-	if (sourceFile.startsWith('vs/platform')) {
+	if (/^vs\/platform/.test(sourceFile)) {
 		return { name: 'vs/platform', project: editorProject };
-	} else if (sourceFile.startsWith('vs/editor/contrib')) {
+	} else if (/^vs\/editor\/contrib/.test(sourceFile)) {
 		return { name: 'vs/editor/contrib', project: editorProject };
-	} else if (sourceFile.startsWith('vs/editor')) {
+	} else if (/^vs\/editor/.test(sourceFile)) {
 		return { name: 'vs/editor', project: editorProject };
-	} else if (sourceFile.startsWith('vs/base')) {
+	} else if (/^vs\/base/.test(sourceFile)) {
 		return { name: 'vs/base', project: editorProject };
- 	} else if (sourceFile.startsWith('vs/code')) {
+	} else if (/^vs\/code/.test(sourceFile)) {
 		return { name: 'vs/code', project: workbenchProject };
-	} else if (sourceFile.startsWith('vs/workbench/parts')) {
+	} else if (/^vs\/workbench\/parts/.test(sourceFile)) {
 		resource = sourceFile.split('/', 4).join('/');
 		return { name: resource, project: workbenchProject };
-	} else if (sourceFile.startsWith('vs/workbench/services')) {
+	} else if (/^vs\/workbench\/services/.test(sourceFile)) {
 		resource = sourceFile.split('/', 4).join('/');
 		return { name: resource, project: workbenchProject };
-	} else if (sourceFile.startsWith('vs/workbench')) {
+	} else if (/^vs\/workbench/.test(sourceFile)) {
 		return { name: 'vs/workbench', project: workbenchProject };
 	}
 
-	throw new Error (`Could not identify the XLF bundle for ${sourceFile}`);
+	throw new Error(`Could not identify the XLF bundle for ${sourceFile}`);
 }
 
 
@@ -682,7 +625,7 @@ function importBundleJson(file: File, json: BundledFormat, stream: ThroughStream
 
 	for (let resource in bundleXlfs) {
 		const newFilePath = `${bundleXlfs[resource].project}/${resource.replace(/\//g, '_')}.xlf`;
-		const xlfFile = new File({ path: newFilePath, contents: new Buffer(bundleXlfs[resource].toString(), 'utf-8')});
+		const xlfFile = new File({ path: newFilePath, contents: new Buffer(bundleXlfs[resource].toString(), 'utf-8') });
 		stream.emit('data', xlfFile);
 	}
 }
@@ -715,16 +658,17 @@ function importModuleOrPackageJson(file: File, json: ModuleJsonFormat | PackageJ
 	let extension = extensions[extensionName] ?
 		extensions[extensionName] : extensions[extensionName] = { xlf: new XLF(projectName), processed: 0 };
 
-	if (ModuleJsonFormat.is(json)) {
-		extension.xlf.addFile(originalFilePath, json['keys'], json['messages']);
-	} else {
+	// .nls.json can come with empty array of keys and messages, check for it
+	if (ModuleJsonFormat.is(json) && json.keys.length !== 0) {
+		extension.xlf.addFile(originalFilePath, json.keys, json.messages);
+	} else if (PackageJsonFormat.is(json) && Object.keys(json).length !== 0) {
 		extension.xlf.addFile(originalFilePath, Object.keys(json), messages);
 	}
 
 	// Check if XLF is populated with file nodes to emit it
 	if (++extensions[extensionName].processed === localizationFilesCount) {
 		const newFilePath = path.join(projectName, extensionName + '.xlf');
-		const xlfFile = new File({ path: newFilePath, contents: new Buffer(extension.xlf.toString(), 'utf-8')});
+		const xlfFile = new File({ path: newFilePath, contents: new Buffer(extension.xlf.toString(), 'utf-8') });
 		stream.emit('data', xlfFile);
 	}
 }
@@ -775,12 +719,12 @@ function importIsl(file: File, stream: ThroughStream) {
 		}
 	});
 
-	const originalPath = file.path.substring(file.cwd.length+1, file.path.split('.')[0].length).replace(/\\/g, '/');
+	const originalPath = file.path.substring(file.cwd.length + 1, file.path.split('.')[0].length).replace(/\\/g, '/');
 	xlf.addFile(originalPath, keys, messages);
 
 	// Emit only upon all ISL files combined into single XLF instance
 	const newFilePath = path.join(projectName, resourceFile);
-	const xlfFile = new File({ path: newFilePath, contents: new Buffer(xlf.toString(), 'utf-8')});
+	const xlfFile = new File({ path: newFilePath, contents: new Buffer(xlf.toString(), 'utf-8') });
 	stream.emit('data', xlfFile);
 }
 
@@ -788,7 +732,7 @@ export function pushXlfFiles(apiHostname: string, username: string, password: st
 	let tryGetPromises = [];
 	let updateCreatePromises = [];
 
-	return through(function(file: File) {
+	return through(function (file: File) {
 		const project = path.dirname(file.relative);
 		const fileName = path.basename(file.path);
 		const slug = fileName.substr(0, fileName.length - '.xlf'.length);
@@ -806,7 +750,7 @@ export function pushXlfFiles(apiHostname: string, username: string, password: st
 			updateCreatePromises.push(promise);
 		});
 
-	}, function() {
+	}, function () {
 		// End the pipe only after all the communication with Transifex API happened
 		Promise.all(tryGetPromises).then(() => {
 			Promise.all(updateCreatePromises).then(() => {
@@ -825,7 +769,7 @@ function tryGetResource(project: string, slug: string, apiHostname: string, cred
 			method: 'GET'
 		};
 
-		const request = http.request(options, (response) => {
+		const request = https.request(options, (response) => {
 			if (response.statusCode === 404) {
 				resolve(false);
 			} else if (response.statusCode === 200) {
@@ -861,7 +805,7 @@ function createResource(project: string, slug: string, xlfFile: File, apiHostnam
 			method: 'POST'
 		};
 
-		let request = http.request(options, (res) => {
+		let request = https.request(options, (res) => {
 			if (res.statusCode === 201) {
 				log(`Resource ${project}/${slug} successfully created on Transifex.`);
 			} else {
@@ -881,7 +825,7 @@ function createResource(project: string, slug: string, xlfFile: File, apiHostnam
  * The following link provides information about how Transifex handles updates of a resource file:
  * https://dev.befoolish.co/tx-docs/public/projects/updating-content#what-happens-when-you-update-files
  */
-function updateResource(project: string, slug: string, xlfFile: File, apiHostname: string, credentials: string) : Promise<any> {
+function updateResource(project: string, slug: string, xlfFile: File, apiHostname: string, credentials: string): Promise<any> {
 	return new Promise((resolve, reject) => {
 		const data = JSON.stringify({ content: xlfFile.contents.toString() });
 		const options = {
@@ -895,7 +839,7 @@ function updateResource(project: string, slug: string, xlfFile: File, apiHostnam
 			method: 'PUT'
 		};
 
-		let request = http.request(options, (res) => {
+		let request = https.request(options, (res) => {
 			if (res.statusCode === 200) {
 				res.setEncoding('utf8');
 
@@ -925,9 +869,11 @@ function obtainProjectResources(projectName: string): Resource[] {
 	let resources: Resource[] = [];
 
 	if (projectName === editorProject) {
-		resources = editorResources;
+		const json = fs.readFileSync('./build/lib/i18n.resources.json', 'utf8');
+		resources = JSON.parse(json).editor;
 	} else if (projectName === workbenchProject) {
-		resources = workbenchResources;
+		const json = fs.readFileSync('./build/lib/i18n.resources.json', 'utf8');
+		resources = JSON.parse(json).workbench;
 	} else if (projectName === extensionsProject) {
 		let extensionsToLocalize: string[] = glob.sync('./extensions/**/*.nls.json').map(extension => extension.split('/')[2]);
 		let resourcesToPull: string[] = [];
@@ -957,7 +903,7 @@ export function pullXlfFiles(projectName: string, apiHostname: string, username:
 	let expectedTranslationsCount = languages.length * resources.length;
 	let translationsRetrieved = 0, called = false;
 
-	return readable(function(count, callback) {
+	return readable(function (count, callback) {
 		// Mark end of stream when all resources were retrieved
 		if (translationsRetrieved === expectedTranslationsCount) {
 			return this.emit('end');
@@ -968,8 +914,8 @@ export function pullXlfFiles(projectName: string, apiHostname: string, username:
 			const stream = this;
 
 			// Retrieve XLF files from main projects
-			languages.map(function(language) {
-				resources.map(function(resource) {
+			languages.map(function (language) {
+				resources.map(function (resource) {
 					retrieveResource(language, resource, apiHostname, credentials).then((file: File) => {
 						stream.emit('data', file);
 						translationsRetrieved++;
@@ -994,15 +940,15 @@ function retrieveResource(language: string, resource: Resource, apiHostname, cre
 			method: 'GET'
 		};
 
-		let request = http.request(options, (res) => {
-				let xlfBuffer: Buffer[] = [];
-				res.on('data', (chunk) => xlfBuffer.push(chunk));
-				res.on('end', () => {
-					if (res.statusCode === 200) {
-						resolve(new File({ contents: Buffer.concat(xlfBuffer), path: `${project}/${iso639_2_to_3[language]}/${slug}.xlf` }));
-					}
-					reject(`${slug} in ${project} returned no data. Response code: ${res.statusCode}.`);
-				});
+		let request = https.request(options, (res) => {
+			let xlfBuffer: Buffer[] = [];
+			res.on('data', (chunk: Buffer) => xlfBuffer.push(chunk));
+			res.on('end', () => {
+				if (res.statusCode === 200) {
+					resolve(new File({ contents: Buffer.concat(xlfBuffer), path: `${project}/${iso639_2_to_3[language]}/${slug}.xlf` }));
+				}
+				reject(`${slug} in ${project} returned no data. Response code: ${res.statusCode}.`);
+			});
 		});
 		request.on('error', (err) => {
 			reject(`Failed to query resource ${slug} with the following error: ${err}`);
@@ -1014,17 +960,17 @@ function retrieveResource(language: string, resource: Resource, apiHostname, cre
 export function prepareJsonFiles(): ThroughStream {
 	let parsePromises: Promise<ParsedXLF[]>[] = [];
 
-	return through(function(xlf: File) {
+	return through(function (xlf: File) {
 		let stream = this;
 		let parsePromise = XLF.parse(xlf.contents.toString());
 		parsePromises.push(parsePromise);
 		parsePromise.then(
-			function(resolvedFiles) {
+			function (resolvedFiles) {
 				resolvedFiles.forEach(file => {
 					let messages = file.messages, translatedFile;
 
 					// ISL file path always starts with 'build/'
-					if (file.originalFilePath.startsWith('build/')) {
+					if (/^build\//.test(file.originalFilePath)) {
 						const defaultLanguages = { 'zh-hans': true, 'zh-hant': true, 'ko': true };
 						if (path.basename(file.originalFilePath) === 'Default' && !defaultLanguages[file.language]) {
 							return;
@@ -1038,11 +984,11 @@ export function prepareJsonFiles(): ThroughStream {
 					stream.emit('data', translatedFile);
 				});
 			},
-			function(rejectReason) {
+			function (rejectReason) {
 				throw new Error(`XLF parsing error: ${rejectReason}`);
 			}
 		);
-	}, function() {
+	}, function () {
 		Promise.all(parsePromises)
 			.then(() => { this.emit('end'); })
 			.catch(reason => { throw new Error(reason); });
@@ -1086,7 +1032,10 @@ const encodings: Map<string> = {
 	'fra': 'CP1252',
 	'esn': 'CP1252',
 	'rus': 'CP1251',
-	'ita': 'CP1252'
+	'ita': 'CP1252',
+    'ptb': 'CP1252',
+	'hun': 'CP1250',
+	'trk': 'CP1254'
 };
 
 function createIslFile(base: string, originalFilePath: string, messages: Map<string>, language: string): File {
@@ -1162,6 +1111,6 @@ function encodeEntities(value: string): string {
 	return result.join('');
 }
 
-function decodeEntities(value:string): string {
+function decodeEntities(value: string): string {
 	return value.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 }

@@ -6,9 +6,11 @@
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { clipboard } from 'electron';
+import { ITree } from 'vs/base/parts/tree/browser/tree';
+import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { Variable } from 'vs/workbench/parts/debug/common/debugModel';
 import { IDebugService, IStackFrame } from 'vs/workbench/parts/debug/common/debug';
+import { clipboard } from 'electron';
 
 export class CopyValueAction extends Action {
 	static ID = 'workbench.debug.viewlet.action.copyValue';
@@ -38,6 +40,30 @@ export class CopyAction extends Action {
 
 	public run(): TPromise<any> {
 		clipboard.writeText(window.getSelection().toString());
+		return TPromise.as(null);
+	}
+}
+
+export class CopyAllAction extends Action {
+	static ID = 'workbench.debug.action.copyAll';
+	static LABEL = nls.localize('copyAll', "Copy All");
+
+	constructor(id: string, label: string, private tree: ITree) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let text = '';
+		const navigator = this.tree.getNavigator();
+		// skip first navigator element - the root node
+		while (navigator.next()) {
+			if (text) {
+				text += `\n`;
+			}
+			text += navigator.current().toString();
+		}
+
+		clipboard.writeText(removeAnsiEscapeCodes(text));
 		return TPromise.as(null);
 	}
 }

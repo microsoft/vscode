@@ -7,7 +7,7 @@
 
 import { localize } from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IWindowsMainService } from 'vs/code/electron-main/windows';
+import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { fromEventEmitter } from 'vs/base/node/event';
 import { BrowserWindow, app } from 'electron';
 

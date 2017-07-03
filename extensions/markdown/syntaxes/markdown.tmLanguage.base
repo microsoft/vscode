@@ -416,7 +416,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>begin</key>
-					<string>(^|\G)(\s*)([`~]{3,})\s*(?=[^`~]*)?$</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*(?=([^`~]*)?$)</string>
 					<key>end</key>
 					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
 					<key>beginCaptures</key>
@@ -1118,7 +1118,7 @@
 						</dict>
 					</dict>
 					<key>match</key>
-					<string>(\[)((?&lt;square&gt;[^\[\]\\]|\\.|\[\g&lt;square&gt;*+\])*+)(\])[ ]?(\[)([^\]]*+)(\])</string>
+					<string>(\[)((?&lt;square&gt;[^\[\]\\]|\\.|\[\g&lt;square&gt;*+\])*+)(\])(\[)([^\]]*+)(\])</string>
 					<key>name</key>
 					<string>meta.link.reference.markdown</string>
 				</dict>

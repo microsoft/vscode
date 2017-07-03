@@ -8,7 +8,7 @@ import { SimpleKeybinding, KeyCode, KeybindingType, createKeybinding, Keybinding
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export interface IKeybindingItem {
 	keybinding: Keybinding;
@@ -180,6 +180,8 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 			|| keyCode === KeyCode.US_DOT
 			|| keyCode === KeyCode.US_SLASH
 			|| keyCode === KeyCode.US_BACKTICK
+			|| keyCode === KeyCode.ABNT_C1
+			|| keyCode === KeyCode.ABNT_C2
 			|| keyCode === KeyCode.US_OPEN_SQUARE_BRACKET
 			|| keyCode === KeyCode.US_BACKSLASH
 			|| keyCode === KeyCode.US_CLOSE_SQUARE_BRACKET

@@ -12,6 +12,7 @@ import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 
 export interface IPartOptions {
 	hasTitle?: boolean;
+	borderWidth?: () => number;
 }
 
 /**
@@ -129,6 +130,10 @@ export class PartLayout {
 
 		// Content Size: Width (Fill), Height (Variable)
 		const contentSize = new Dimension(width, height - titleSize.height);
+
+		if (this.options && typeof this.options.borderWidth === 'function') {
+			contentSize.width -= this.options.borderWidth(); // adjust for border size
+		}
 
 		sizes.push(titleSize);
 		sizes.push(contentSize);

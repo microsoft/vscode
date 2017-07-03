@@ -1,4 +1,10 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/atom/language-coffee-script/blob/master/grammars/coffeescript.cson",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
+	"version": "https://github.com/atom/language-coffee-script/commit/087e41aeef03b52615ef5c9e159a4b98e813f8a6",
 	"scopeName": "source.coffee",
 	"name": "CoffeeScript",
 	"fileTypes": [
@@ -110,10 +116,10 @@
 				}
 			},
 			"name": "string.quoted.script.coffee",
+			"contentName": "source.embedded.js",
 			"patterns": [
 				{
-					"match": "(xh{2}|[0-2][0-7]{0,2}|3[0-6][0-7]|37[0-7]?|[4-7][0-7]?|.)",
-					"name": "constant.character.escape.coffee"
+					"include": "source.js"
 				}
 			]
 		},
@@ -183,7 +189,7 @@
 			"name": "string.regexp.coffee"
 		},
 		{
-			"match": "\\b(?<![\\.\\$])(break|by|catch|continue|else|finally|for|in|of|if|return|switch|then|throw|try|unless|when|while|until|loop|do|(?<=for)\\s+own)(?!\\s*:)\\b",
+			"match": "\\b(?<![\\.\\$])(break|by|catch|continue|else|finally|for|in|of|if|return|switch|then|throw|try|unless|when|while|until|loop|do|export|import|default|from|as|yield|async|await|(?<=for)\\s+own)(?!\\s*:)\\b",
 			"name": "keyword.control.coffee"
 		},
 		{
@@ -191,7 +197,7 @@
 			"name": "keyword.operator.coffee"
 		},
 		{
-			"match": "\\b(?<![\\.\\$])(case|default|function|var|void|with|const|let|enum|export|import|native|__hasProp|__extends|__slice|__bind|__indexOf|implements|interface|package|private|protected|public|static|yield)(?!\\s*:)\\b",
+			"match": "\\b(?<![\\.\\$])(case|function|var|void|with|const|let|enum|native|__hasProp|__extends|__slice|__bind|__indexOf|implements|interface|package|private|protected|public|static)(?!\\s*:)\\b",
 			"name": "keyword.reserved.coffee"
 		},
 		{
@@ -443,7 +449,7 @@
 									"name": "punctuation.definition.escape.backslash.coffee"
 								}
 							},
-							"match": "(\\\\)(x\\h{2}|[0-2][0-7]{0,2}|3[0-6][0-7]|37[0-7]?|[4-7][0-7]?|.)",
+							"match": "(\\\\)(x[0-9A-Fa-f]{2}|[0-2][0-7]{0,2}|3[0-6][0-7]|37[0-7]?|[4-7][0-7]?|.)",
 							"name": "constant.character.escape.backslash.coffee"
 						},
 						{
@@ -524,7 +530,7 @@
 									"name": "punctuation.definition.escape.backslash.coffee"
 								}
 							},
-							"match": "(\\\\)(x\\h{2}|[0-2][0-7]{0,2}|3[0-6][0-7]?|37[0-7]?|[4-7][0-7]?|.)",
+							"match": "(\\\\)(x[0-9A-Fa-f]{2}|[0-2][0-7]{0,2}|3[0-6][0-7]?|37[0-7]?|[4-7][0-7]?|.)",
 							"name": "constant.character.escape.backslash.coffee"
 						}
 					]
@@ -551,7 +557,7 @@
 					"name": "constant.character.character-class.regexp"
 				},
 				{
-					"match": "\\\\([0-7]{3}|x\\h\\h|u\\h\\h\\h\\h)",
+					"match": "\\\\([0-7]{3}|x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4})",
 					"name": "constant.character.numeric.regexp"
 				},
 				{
@@ -667,7 +673,7 @@
 									"name": "constant.character.escape.backslash.regexp"
 								}
 							},
-							"match": "(?:.|(\\\\(?:[0-7]{3}|x\\h\\h|u\\h\\h\\h\\h))|(\\\\c[A-Z])|(\\\\.))\\-(?:[^\\]\\\\]|(\\\\(?:[0-7]{3}|x\\h\\h|u\\h\\h\\h\\h))|(\\\\c[A-Z])|(\\\\.))",
+							"match": "(?:.|(\\\\(?:[0-7]{3}|x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4}))|(\\\\c[A-Z])|(\\\\.))\\-(?:[^\\]\\\\]|(\\\\(?:[0-7]{3}|x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4}))|(\\\\c[A-Z])|(\\\\.))",
 							"name": "constant.other.character-class.range.regexp"
 						},
 						{
@@ -686,6 +692,5 @@
 				}
 			]
 		}
-	},
-	"version": "https://github.com/atom/language-coffee-script/commit/966587ed53c26944cbee0666a6d6fafd68d19b97"
+	}
 }

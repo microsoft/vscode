@@ -56,13 +56,27 @@ export class Progress<T> implements IProgress<T> {
 	}
 }
 
+export enum ProgressLocation {
+	Scm = 1,
+	Window = 10,
+}
+
+export interface IProgressOptions {
+	location: ProgressLocation;
+	title?: string;
+	tooltip?: string;
+}
+
+export interface IProgressStep {
+	message?: string;
+	percentage?: number;
+}
+
 export const IProgressService2 = createDecorator<IProgressService2>('progressService2');
 
 export interface IProgressService2 {
 
 	_serviceBrand: any;
 
-	withWindowProgress(title: string, task: (progress: IProgress<string>) => TPromise<any>): void;
-
-	withViewletProgress(viewletId: string, task: (progress: IProgress<number>) => TPromise<any>): void;
+	withProgress(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => TPromise<any>): void;
 }

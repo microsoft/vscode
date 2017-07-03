@@ -19,8 +19,8 @@ export class ExtensionContentSecurityPolicyArbiter implements ContentSecurityPol
 		private globalState: vscode.Memento
 	) { }
 
-	public isEnhancedSecurityDisableForWorkspace(): boolean {
-		return this.globalState.get<boolean>(this.key + vscode.workspace.rootPath, false);
+	public isEnhancedSecurityDisableForWorkspace(rootPath: string): boolean {
+		return this.globalState.get<boolean>(this.key + rootPath, false);
 	}
 
 	public addTrustedWorkspace(rootPath: string): Thenable<void> {
@@ -57,16 +57,11 @@ export class PreviewSecuritySelector {
 
 		let sourceUri: vscode.Uri | null = null;
 		if (resource) {
-			sourceUri = vscode.Uri.parse(decodeURIComponent(resource));
+			sourceUri = getMarkdownUri(vscode.Uri.parse(resource));
 		}
 
 		if (!sourceUri && vscode.window.activeTextEditor) {
-			const activeDocument = vscode.window.activeTextEditor.document;
-			if (activeDocument.uri.scheme === 'markdown') {
-				sourceUri = activeDocument.uri;
-			} else {
-				sourceUri = getMarkdownUri(activeDocument.uri);
-			}
+			sourceUri = getMarkdownUri(vscode.window.activeTextEditor.document.uri);
 		}
 
 		vscode.window.showQuickPick<PreviewSecurityPickItem>(
@@ -77,7 +72,7 @@ export class PreviewSecuritySelector {
 						'preview.showPreviewSecuritySelector.disallowScriptsForWorkspaceTitle',
 						'Disable script execution in markdown previews for this workspace'),
 					description: '',
-					detail: this.cspArbiter.isEnhancedSecurityDisableForWorkspace()
+					detail: this.cspArbiter.isEnhancedSecurityDisableForWorkspace(workspacePath)
 						? ''
 						: localize('preview.showPreviewSecuritySelector.currentSelection', 'Current setting')
 				}, {
@@ -86,7 +81,7 @@ export class PreviewSecuritySelector {
 						'preview.showPreviewSecuritySelector.allowScriptsForWorkspaceTitle',
 						'Enable script execution in markdown previews for this workspace'),
 					description: '',
-					detail: this.cspArbiter.isEnhancedSecurityDisableForWorkspace()
+					detail: this.cspArbiter.isEnhancedSecurityDisableForWorkspace(workspacePath)
 						? localize('preview.showPreviewSecuritySelector.currentSelection', 'Current setting')
 						: ''
 				},

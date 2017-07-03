@@ -25,6 +25,8 @@ import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ISCMService, ISCMProvider, ISCMResourceGroup, ISCMResource } from 'vs/workbench/services/scm/common/scm';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -37,12 +39,12 @@ import { IAction, IActionItem, ActionRunner } from 'vs/base/common/actions';
 import { MenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
 import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IThemeService, LIGHT } from "vs/platform/theme/common/themeService";
+import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { comparePaths } from 'vs/base/common/comparers';
 import { isSCMResource } from './scmUtil';
-import { attachInputBoxStyler, attachListStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import Severity from 'vs/base/common/severity';
 
 // TODO@Joao
@@ -80,6 +82,7 @@ interface ResourceGroupTemplate {
 	name: HTMLElement;
 	count: CountBadge;
 	actionBar: ActionBar;
+	dispose: () => void;
 }
 
 class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGroupTemplate> {
@@ -89,7 +92,8 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 
 	constructor(
 		private scmMenus: SCMMenus,
-		private actionItemProvider: IActionItemProvider
+		private actionItemProvider: IActionItemProvider,
+		private themeService: IThemeService
 	) { }
 
 	renderTemplate(container: HTMLElement): ResourceGroupTemplate {
@@ -99,8 +103,14 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 		const actionBar = new ActionBar(actionsContainer, { actionItemProvider: this.actionItemProvider });
 		const countContainer = append(element, $('.count'));
 		const count = new CountBadge(countContainer);
+		const styler = attachBadgeStyler(count, this.themeService);
 
-		return { name, count, actionBar };
+		return {
+			name, count, actionBar, dispose: () => {
+				actionBar.dispose();
+				styler.dispose();
+			}
+		};
 	}
 
 	renderElement(group: ISCMResourceGroup, index: number, template: ResourceGroupTemplate): void {
@@ -112,11 +122,12 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 	}
 
 	disposeTemplate(template: ResourceGroupTemplate): void {
-
+		template.dispose();
 	}
 }
 
 interface ResourceTemplate {
+	element: HTMLElement;
 	name: HTMLElement;
 	fileLabel: FileLabel;
 	decorationIcon: HTMLElement;
@@ -170,7 +181,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 
 		const decorationIcon = append(element, $('.decoration-icon'));
 
-		return { name, fileLabel, decorationIcon, actionBar };
+		return { element, name, fileLabel, decorationIcon, actionBar };
 	}
 
 	renderElement(resource: ISCMResource, index: number, template: ResourceTemplate): void {
@@ -179,6 +190,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		template.actionBar.context = resource;
 		template.actionBar.push(this.scmMenus.getResourceActions(resource));
 		toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
+		toggleClass(template.element, 'faded', resource.decorations.faded);
 
 		const theme = this.themeService.getTheme();
 		const icon = theme.type === LIGHT ? resource.decorations.icon : resource.decorations.iconDark;
@@ -233,7 +245,9 @@ export class SCMViewlet extends Viewlet {
 		@IThemeService protected themeService: IThemeService,
 		@IMenuService private menuService: IMenuService,
 		@IModelService private modelService: IModelService,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private commandService: ICommandService,
+		@IEditorGroupService private groupService: IEditorGroupService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(VIEWLET_ID, telemetryService, themeService);
 
@@ -293,7 +307,7 @@ export class SCMViewlet extends Viewlet {
 		const actionItemProvider = action => this.getActionItem(action);
 
 		const renderers = [
-			new ResourceGroupRenderer(this.menus, actionItemProvider),
+			new ResourceGroupRenderer(this.menus, actionItemProvider, this.themeService),
 			this.instantiationService.createInstance(ResourceRenderer, this.menus, actionItemProvider, () => this.getSelectedResources()),
 		];
 
@@ -309,6 +323,11 @@ export class SCMViewlet extends Viewlet {
 			.map(e => e.elements[0])
 			.filter(e => !!e && isSCMResource(e))
 			.on(this.open, this, this.disposables);
+
+		chain(this.list.onPin)
+			.map(e => e.elements[0])
+			.filter(e => !!e && isSCMResource(e))
+			.on(this.pin, this, this.disposables);
 
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
 		this.disposables.push(this.list);
@@ -394,6 +413,12 @@ export class SCMViewlet extends Viewlet {
 
 		this.commandService.executeCommand(e.command.id, ...e.command.arguments)
 			.done(undefined, onUnexpectedError);
+	}
+
+	private pin(): void {
+		const activeEditor = this.editorService.getActiveEditor();
+		const activeEditorInput = this.editorService.getActiveEditorInput();
+		this.groupService.pinEditor(activeEditor.position, activeEditorInput);
 	}
 
 	getTitle(): string {

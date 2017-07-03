@@ -9,7 +9,7 @@ import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
 import scorer = require('vs/base/common/scorer');
-import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration } from 'vs/base/parts/quickopen/common/quickOpen';
+import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenModel, QuickOpenEntryGroup, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -165,9 +165,9 @@ export class ViewPickerHandler extends QuickOpenHandler {
 		return viewEntries;
 	}
 
-	public getAutoFocus(searchValue: string, quickNavigateConfiguration: IQuickNavigateConfiguration): IAutoFocus {
+	public getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
 		return {
-			autoFocusFirstEntry: !!searchValue || !!quickNavigateConfiguration
+			autoFocusFirstEntry: !!searchValue || !!context.quickNavigateConfiguration
 		};
 	}
 }
@@ -200,7 +200,7 @@ export class QuickOpenViewPickerAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): TPromise<boolean> {
 		const keys = this.keybindingService.lookupKeybindings(this.id);
 
 		this.quickOpenService.show(VIEW_PICKER_PREFIX, { quickNavigateConfiguration: { keybindings: keys } });

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { localize } from 'vs/nls';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import Event, { fromEventEmitter } from 'vs/base/common/event';
 import { basename, dirname } from 'vs/base/common/paths';
@@ -12,10 +13,10 @@ import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Range } from 'vs/editor/common/core/range';
-import { IPosition, IRange } from 'vs/editor/common/editorCommon';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { Location } from 'vs/editor/common/modes';
-import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { Position } from 'vs/editor/common/core/position';
 
 export class OneReference {
 
@@ -60,6 +61,13 @@ export class OneReference {
 	public set range(value: IRange) {
 		this._range = value;
 		this._eventBus.emit('ref/changed', this);
+	}
+
+	public getAriaMessage(): string {
+		return localize(
+			'aria.oneReference', "symbol in {0} on line {1} at column {2}",
+			basename(this.uri.fsPath), this.range.startLineNumber, this.range.startColumn
+		);
 	}
 }
 
@@ -143,7 +151,16 @@ export class FileReferences implements IDisposable {
 		return this._loadFailure;
 	}
 
-	public resolve(textModelResolverService: ITextModelResolverService): TPromise<FileReferences> {
+	getAriaMessage(): string {
+		const len = this.children.length;
+		if (len === 1) {
+			return localize('aria.fileReferences.1', "1 symbol in {0}, full path {1}", basename(this.uri.fsPath), this.uri.fsPath);
+		} else {
+			return localize('aria.fileReferences.N', "{0} symbols in {1}, full path {2}", len, basename(this.uri.fsPath), this.uri.fsPath);
+		}
+	}
+
+	public resolve(textModelResolverService: ITextModelService): TPromise<FileReferences> {
 
 		if (this._resolved) {
 			return TPromise.as(this);
@@ -222,6 +239,18 @@ export class ReferencesModel implements IDisposable {
 		return this._groups;
 	}
 
+	getAriaMessage(): string {
+		if (this.empty) {
+			return localize('aria.result.0', "No results found");
+		} else if (this.references.length === 1) {
+			return localize('aria.result.1', "Found 1 symbol in {0}", this.references[0].uri.fsPath);
+		} else if (this.groups.length === 1) {
+			return localize('aria.result.n1', "Found {0} symbols in {1}", this.references.length, this.groups[0].uri.fsPath);
+		} else {
+			return localize('aria.result.nm', "Found {0} symbols in {1} files", this.references.length, this.groups.length);
+		}
+	}
+
 	public nextReference(reference: OneReference): OneReference {
 
 		var idx = reference.parent.children.indexOf(reference),
@@ -238,7 +267,7 @@ export class ReferencesModel implements IDisposable {
 		return reference.parent.parent.groups[idx].children[0];
 	}
 
-	public nearestReference(resource: URI, position: IPosition): OneReference {
+	public nearestReference(resource: URI, position: Position): OneReference {
 
 		const nearest = this._references.map((ref, idx) => {
 			return {

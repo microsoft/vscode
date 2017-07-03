@@ -26,15 +26,15 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Themable } from "vs/workbench/common/theme";
-import { IThemeService } from "vs/platform/theme/common/themeService";
-import { registerColor, highContrastBorder } from "vs/platform/theme/common/colorRegistry";
-import { localize } from "vs/nls";
+import { Themable } from 'vs/workbench/common/theme';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { registerColor, contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { localize } from 'vs/nls';
 
 const $ = builder.$;
 const DEBUG_ACTIONS_WIDGET_POSITION_KEY = 'debug.actionswidgetposition';
 
-export const debugToolBarBackground = registerColor('debugToolBarBackground', {
+export const debugToolBarBackground = registerColor('debugToolBar.background', {
 	dark: '#333333',
 	light: '#F3F3F3',
 	hc: '#000000'
@@ -114,7 +114,9 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 			const mouseClickEvent = new StandardMouseEvent(event);
 			if (mouseClickEvent.detail === 2) {
 				// double click on debug bar centers it again #8250
-				this.setXCoordinate(0.5 * window.innerWidth);
+				const widgetWidth = this.$el.getHTMLElement().clientWidth;
+				this.setXCoordinate(0.5 * window.innerWidth - 0.5 * widgetWidth);
+				this.storePosition();
 			}
 		});
 
@@ -129,8 +131,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 				// Reduce x by width of drag handle to reduce jarring #16604
 				this.setXCoordinate(mouseMoveEvent.posx - 14);
 			}).once('mouseup', (e: MouseEvent) => {
-				const mouseMoveEvent = new StandardMouseEvent(e);
-				this.storageService.store(DEBUG_ACTIONS_WIDGET_POSITION_KEY, mouseMoveEvent.posx / window.innerWidth, StorageScope.WORKSPACE);
+				this.storePosition();
 				this.dragArea.removeClass('dragged');
 				$window.off('mousemove');
 			});
@@ -140,14 +141,25 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		this.toDispose.push(browser.onDidChangeZoomLevel(() => this.positionDebugWidget()));
 	}
 
+	private storePosition(): void {
+		const position = parseFloat(this.$el.getComputedStyle().left) / window.innerWidth;
+		this.storageService.store(DEBUG_ACTIONS_WIDGET_POSITION_KEY, position, StorageScope.WORKSPACE);
+		this.telemetryService.publicLog(DEBUG_ACTIONS_WIDGET_POSITION_KEY, { position });
+	}
+
 	protected updateStyles(): void {
 		super.updateStyles();
 
 		if (this.$el) {
 			this.$el.style('background-color', this.getColor(debugToolBarBackground));
-			this.$el.style('border-style', this.isHighContrastTheme ? 'solid' : null);
-			this.$el.style('border-width', this.isHighContrastTheme ? '1px' : null);
-			this.$el.style('border-color', this.isHighContrastTheme ? this.getColor(highContrastBorder) : null);
+
+			const widgetShadowColor = this.getColor(widgetShadow);
+			this.$el.style('box-shadow', widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : null);
+
+			const contrastBorderColor = this.getColor(contrastBorder);
+			this.$el.style('border-style', contrastBorderColor ? 'solid' : null);
+			this.$el.style('border-width', contrastBorderColor ? '1px' : null);
+			this.$el.style('border-color', contrastBorderColor);
 		}
 	}
 
@@ -161,11 +173,12 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		if (!this.isVisible) {
 			return;
 		}
+		const widgetWidth = this.$el.getHTMLElement().clientWidth;
 		if (x === undefined) {
-			x = parseFloat(this.storageService.get(DEBUG_ACTIONS_WIDGET_POSITION_KEY, StorageScope.WORKSPACE, '0.5')) * window.innerWidth;
+			const positionPercentage = this.storageService.get(DEBUG_ACTIONS_WIDGET_POSITION_KEY, StorageScope.WORKSPACE);
+			x = positionPercentage !== undefined ? parseFloat(positionPercentage) * window.innerWidth : (0.5 * window.innerWidth - 0.5 * widgetWidth);
 		}
 
-		const widgetWidth = this.$el.getHTMLElement().clientWidth;
 		x = Math.max(0, Math.min(x, window.innerWidth - widgetWidth)); // do not allow the widget to overflow on the right
 		this.$el.style('left', `${x}px`);
 	}

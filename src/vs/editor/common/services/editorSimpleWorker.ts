@@ -9,12 +9,12 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
 import { stringDiff } from 'vs/base/common/diff/diff';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Position } from 'vs/editor/common/core/position';
-import { MirrorModel2, IModelChangedEvent } from 'vs/editor/common/model/mirrorModel2';
+import { Position, IPosition } from 'vs/editor/common/core/position';
+import { MirrorModel as BaseMirrorModel, IModelChangedEvent } from 'vs/editor/common/model/mirrorModel';
 import { IInplaceReplaceSupportResult, ILink, ISuggestResult, ISuggestion, TextEdit } from 'vs/editor/common/modes';
 import { computeLinks } from 'vs/editor/common/modes/linkComputer';
 import { BasicInplaceReplace } from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
@@ -56,18 +56,33 @@ export interface ICommonModel {
 	getLinesContent(): string[];
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
-	getWordUntilPosition(position: editorCommon.IPosition, wordDefinition: RegExp): editorCommon.IWordAtPosition;
+	getWordUntilPosition(position: IPosition, wordDefinition: RegExp): editorCommon.IWordAtPosition;
 	getAllUniqueWords(wordDefinition: RegExp, skipWordOnce?: string): string[];
-	getValueInRange(range: editorCommon.IRange): string;
-	getWordAtPosition(position: editorCommon.IPosition, wordDefinition: RegExp): Range;
-	offsetAt(position: editorCommon.IPosition): number;
-	positionAt(offset: number): editorCommon.IPosition;
+	getValueInRange(range: IRange): string;
+	getWordAtPosition(position: IPosition, wordDefinition: RegExp): Range;
+	offsetAt(position: IPosition): number;
+	positionAt(offset: number): IPosition;
+}
+
+/**
+ * Range of a word inside a model.
+ * @internal
+ */
+interface IWordRange {
+	/**
+	 * The index where the word starts.
+	 */
+	readonly start: number;
+	/**
+	 * The index where the word ends.
+	 */
+	readonly end: number;
 }
 
 /**
  * @internal
  */
-class MirrorModel extends MirrorModel2 implements ICommonModel {
+class MirrorModel extends BaseMirrorModel implements ICommonModel {
 
 	public get uri(): URI {
 		return this._uri;
@@ -97,7 +112,7 @@ class MirrorModel extends MirrorModel2 implements ICommonModel {
 		return this._lines[lineNumber - 1];
 	}
 
-	public getWordAtPosition(position: editorCommon.IPosition, wordDefinition: RegExp): Range {
+	public getWordAtPosition(position: IPosition, wordDefinition: RegExp): Range {
 
 		let wordAtText = getWordAtText(
 			position.column,
@@ -113,7 +128,7 @@ class MirrorModel extends MirrorModel2 implements ICommonModel {
 		return null;
 	}
 
-	public getWordUntilPosition(position: editorCommon.IPosition, wordDefinition: RegExp): editorCommon.IWordAtPosition {
+	public getWordUntilPosition(position: IPosition, wordDefinition: RegExp): editorCommon.IWordAtPosition {
 		var wordAtPosition = this.getWordAtPosition(position, wordDefinition);
 		if (!wordAtPosition) {
 			return {
@@ -155,9 +170,8 @@ class MirrorModel extends MirrorModel2 implements ICommonModel {
 		});
 	}
 
-	// TODO@Joh, TODO@Alex - remove these and make sure the super-things work
-	private _wordenize(content: string, wordDefinition: RegExp): editorCommon.IWordRange[] {
-		const result: editorCommon.IWordRange[] = [];
+	private _wordenize(content: string, wordDefinition: RegExp): IWordRange[] {
+		const result: IWordRange[] = [];
 		let match: RegExpExecArray;
 
 		wordDefinition.lastIndex = 0; // reset lastIndex just to be sure
@@ -172,7 +186,7 @@ class MirrorModel extends MirrorModel2 implements ICommonModel {
 		return result;
 	}
 
-	public getValueInRange(range: editorCommon.IRange): string {
+	public getValueInRange(range: IRange): string {
 		range = this._validateRange(range);
 
 		if (range.startLineNumber === range.endLineNumber) {
@@ -193,13 +207,13 @@ class MirrorModel extends MirrorModel2 implements ICommonModel {
 		return resultLines.join(lineEnding);
 	}
 
-	public offsetAt(position: editorCommon.IPosition): number {
+	public offsetAt(position: IPosition): number {
 		position = this._validatePosition(position);
 		this._ensureLineStarts();
 		return this._lineStarts.getAccumulatedValue(position.lineNumber - 2) + (position.column - 1);
 	}
 
-	public positionAt(offset: number): editorCommon.IPosition {
+	public positionAt(offset: number): IPosition {
 		offset = Math.floor(offset);
 		offset = Math.max(0, offset);
 
@@ -214,7 +228,7 @@ class MirrorModel extends MirrorModel2 implements ICommonModel {
 		};
 	}
 
-	private _validateRange(range: editorCommon.IRange): editorCommon.IRange {
+	private _validateRange(range: IRange): IRange {
 
 		const start = this._validatePosition({ lineNumber: range.startLineNumber, column: range.startColumn });
 		const end = this._validatePosition({ lineNumber: range.endLineNumber, column: range.endColumn });
@@ -235,7 +249,7 @@ class MirrorModel extends MirrorModel2 implements ICommonModel {
 		return range;
 	}
 
-	private _validatePosition(position: editorCommon.IPosition): editorCommon.IPosition {
+	private _validatePosition(position: IPosition): IPosition {
 		if (!Position.isIPosition(position)) {
 			throw new Error('bad position');
 		}
@@ -328,7 +342,7 @@ export abstract class BaseEditorSimpleWorker {
 
 	private static _diffLimit = 10000;
 
-	public computeMoreMinimalEdits(modelUrl: string, edits: TextEdit[], ranges: editorCommon.IRange[]): TPromise<TextEdit[]> {
+	public computeMoreMinimalEdits(modelUrl: string, edits: TextEdit[], ranges: IRange[]): TPromise<TextEdit[]> {
 		const model = this._getModel(modelUrl);
 		if (!model) {
 			return TPromise.as(edits);
@@ -400,7 +414,7 @@ export abstract class BaseEditorSimpleWorker {
 
 	// ---- BEGIN suggest --------------------------------------------------------------------------
 
-	public textualSuggest(modelUrl: string, position: editorCommon.IPosition, wordDef: string, wordDefFlags: string): TPromise<ISuggestResult> {
+	public textualSuggest(modelUrl: string, position: IPosition, wordDef: string, wordDefFlags: string): TPromise<ISuggestResult> {
 		const model = this._getModel(modelUrl);
 		if (model) {
 			const suggestions: ISuggestion[] = [];
@@ -426,7 +440,7 @@ export abstract class BaseEditorSimpleWorker {
 
 	// ---- END suggest --------------------------------------------------------------------------
 
-	public navigateValueSet(modelUrl: string, range: editorCommon.IRange, up: boolean, wordDef: string, wordDefFlags: string): TPromise<IInplaceReplaceSupportResult> {
+	public navigateValueSet(modelUrl: string, range: IRange, up: boolean, wordDef: string, wordDefFlags: string): TPromise<IInplaceReplaceSupportResult> {
 		let model = this._getModel(modelUrl);
 		if (!model) {
 			return null;
@@ -460,7 +474,7 @@ export abstract class BaseEditorSimpleWorker {
 	public loadForeignModule(moduleId: string, createData: any): TPromise<string[]> {
 		return new TPromise<any>((c, e) => {
 			// Use the global require to be sure to get the global config
-			(<any>self).require([moduleId], (foreignModule) => {
+			(<any>self).require([moduleId], (foreignModule: { create: (ctx: IWorkerContext, createData: any) => any; }) => {
 				let ctx: IWorkerContext = {
 					getMirrorModels: (): IMirrorModel[] => {
 						return this._getModels();

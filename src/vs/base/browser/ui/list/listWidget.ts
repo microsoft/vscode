@@ -18,8 +18,8 @@ import Event, { Emitter, EventBufferer, chain, mapEvent, fromCallback, any } fro
 import { domEvent } from 'vs/base/browser/event';
 import { IDelegate, IRenderer, IListEvent, IListMouseEvent, IListContextMenuEvent } from './list';
 import { ListView, IListViewOptions } from './listView';
-import { Color } from "vs/base/common/color";
-import { mixin } from "vs/base/common/objects";
+import { Color } from 'vs/base/common/color';
+import { mixin } from 'vs/base/common/objects';
 
 export interface IIdentityProvider<T> {
 	(element: T): string;
@@ -183,6 +183,32 @@ class FocusTrait<T> extends Trait<T> {
 	}
 }
 
+class Aria<T> implements IRenderer<T, HTMLElement>, ISpliceable<T> {
+
+	private length = 0;
+
+	get templateId(): string {
+		return 'aria';
+	}
+
+	splice(start: number, deleteCount: number, elements: T[]): void {
+		this.length += elements.length - deleteCount;
+	}
+
+	renderTemplate(container: HTMLElement): HTMLElement {
+		return container;
+	}
+
+	renderElement(element: T, index: number, container: HTMLElement): void {
+		container.setAttribute('aria-setsize', `${this.length}`);
+		container.setAttribute('aria-posinset', `${index + 1}`);
+	}
+
+	disposeTemplate(container: HTMLElement): void {
+		// noop
+	}
+}
+
 /**
  * The TraitSpliceable is used as a util class to be able
  * to preserve traits across splice calls, given an identity
@@ -321,6 +347,8 @@ class MouseController<T> implements IDisposable {
 		this.disposables = [];
 		this.disposables.push(view.addListener('mousedown', e => this.onMouseDown(e)));
 		this.disposables.push(view.addListener('click', e => this.onPointer(e)));
+		this.disposables.push(view.addListener('dblclick', e => this.onDoubleClick(e)));
+		this.disposables.push(view.addListener('touchstart', e => this.onMouseDown(e)));
 		this.disposables.push(view.addListener(TouchEventType.Tap, e => this.onPointer(e)));
 	}
 
@@ -360,6 +388,19 @@ class MouseController<T> implements IDisposable {
 		const focus = this.list.getFocus();
 		this.list.setSelection(focus);
 		this.list.open(focus);
+	}
+
+	private onDoubleClick(e: IListMouseEvent<T>): void {
+		e.preventDefault();
+		e.stopPropagation();
+
+		if (isSelectionChangeEvent(e)) {
+			return;
+		}
+
+		const focus = this.list.getFocus();
+		this.list.setSelection(focus);
+		this.list.pin(focus);
 	}
 
 	private changeSelection(e: IListMouseEvent<T>, reference: number | undefined): void {
@@ -405,13 +446,16 @@ export interface IListOptions<T> extends IListViewOptions, IMouseControllerOptio
 
 export interface IListStyles {
 	listFocusBackground?: Color;
+	listFocusForeground?: Color;
 	listActiveSelectionBackground?: Color;
 	listActiveSelectionForeground?: Color;
 	listFocusAndSelectionBackground?: Color;
 	listFocusAndSelectionForeground?: Color;
 	listInactiveSelectionBackground?: Color;
+	listInactiveSelectionForeground?: Color;
 	listInactiveFocusBackground?: Color;
 	listHoverBackground?: Color;
+	listHoverForeground?: Color;
 	listDropBackground?: Color;
 	listFocusOutline?: Color;
 	listInactiveFocusOutline?: Color;
@@ -571,6 +615,11 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return mapEvent(this._onOpen.event, indexes => this.toListEvent({ indexes }));
 	}
 
+	private _onPin = new Emitter<number[]>();
+	@memoize get onPin(): Event<IListEvent<T>> {
+		return mapEvent(this._onPin.event, indexes => this.toListEvent({ indexes }));
+	}
+
 	private _onDOMFocus = new Emitter<void>();
 	get onDOMFocus(): Event<void> { return this._onDOMFocus.event; }
 
@@ -586,12 +635,14 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		renderers: IRenderer<T, any>[],
 		options: IListOptions<T> = DefaultOptions
 	) {
+		const aria = new Aria();
 		this.focus = new FocusTrait(i => this.getElementDomId(i));
 		this.selection = new Trait('selected');
+
 		this.eventBufferer = new EventBufferer();
 		mixin(options, defaultStyles, false);
 
-		renderers = renderers.map(r => new PipelineRenderer(r.templateId, [this.focus.renderer, this.selection.renderer, r]));
+		renderers = renderers.map(r => new PipelineRenderer(r.templateId, [aria, this.focus.renderer, this.selection.renderer, r]));
 
 		this.view = new ListView(container, delegate, renderers, options);
 		this.view.domNode.setAttribute('role', 'tree');
@@ -601,6 +652,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.styleElement = DOM.createStyleSheet(this.view.domNode);
 
 		this.spliceable = new CombinedSpliceable([
+			aria,
 			new TraitSpliceable(this.focus, this.view, options.identityProvider),
 			new TraitSpliceable(this.selection, this.view, options.identityProvider),
 			this.view
@@ -810,45 +862,77 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this._onOpen.fire(indexes);
 	}
 
+	pin(indexes: number[]): void {
+		this._onPin.fire(indexes);
+	}
+
 	style(styles: IListStyles): void {
-		let content = '';
+		const content: string[] = [];
+
 		if (styles.listFocusBackground) {
-			content += `.monaco-list.${this.idPrefix}:focus .monaco-list-row.focused { background-color: ${styles.listFocusBackground}; }`;
+			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.focused { background-color: ${styles.listFocusBackground}; }`);
 		}
+
+		if (styles.listFocusForeground) {
+			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.focused { color: ${styles.listFocusForeground}; }`);
+		}
+
 		if (styles.listActiveSelectionBackground) {
-			content += `.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected { background-color: ${styles.listActiveSelectionBackground}; }`;
+			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected { background-color: ${styles.listActiveSelectionBackground}; }`);
+			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected:hover { background-color: ${styles.listActiveSelectionBackground}; }`); // overwrite :hover style in this case!
 		}
+
 		if (styles.listActiveSelectionForeground) {
-			content += `.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected { color: ${styles.listActiveSelectionForeground}; }`;
+			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected { color: ${styles.listActiveSelectionForeground}; }`);
 		}
+
 		if (styles.listFocusAndSelectionBackground) {
-			content += `.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected.focused { background-color: ${styles.listFocusAndSelectionBackground}; }`;
+			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected.focused { background-color: ${styles.listFocusAndSelectionBackground}; }`);
 		}
+
 		if (styles.listFocusAndSelectionForeground) {
-			content += `.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected.focused { color: ${styles.listFocusAndSelectionForeground}; }`;
+			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected.focused { color: ${styles.listFocusAndSelectionForeground}; }`);
 		}
+
 		if (styles.listInactiveFocusBackground) {
-			content += `.monaco-list.${this.idPrefix} .monaco-list-row.focused { background-color:  ${styles.listInactiveFocusBackground}; }`;
+			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row.focused { background-color:  ${styles.listInactiveFocusBackground}; }`);
+			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row.focused:hover { background-color:  ${styles.listInactiveFocusBackground}; }`); // overwrite :hover style in this case!
 		}
+
 		if (styles.listInactiveSelectionBackground) {
-			content += `.monaco-list.${this.idPrefix} .monaco-list-row.selected { background-color:  ${styles.listInactiveSelectionBackground}; }`;
+			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row.selected { background-color:  ${styles.listInactiveSelectionBackground}; }`);
+			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row.selected:hover { background-color:  ${styles.listInactiveSelectionBackground}; }`); // overwrite :hover style in this case!
 		}
+
+		if (styles.listInactiveSelectionForeground) {
+			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row.selected { color: ${styles.listInactiveSelectionForeground}; }`);
+		}
+
 		if (styles.listHoverBackground) {
-			content += `.monaco-list.${this.idPrefix} .monaco-list-row:hover { background-color:  ${styles.listHoverBackground}; }`;
+			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row:hover { background-color:  ${styles.listHoverBackground}; }`);
 		}
+
+		if (styles.listHoverForeground) {
+			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row:hover { color:  ${styles.listHoverForeground}; }`);
+		}
+
 		if (styles.listSelectionOutline) {
-			content += `.monaco-list.${this.idPrefix} .monaco-list-row.selected { outline: 1px dotted ${styles.listSelectionOutline}; }`;
+			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row.selected { outline: 1px dotted ${styles.listSelectionOutline}; outline-offset: -1px; }`);
 		}
+
 		if (styles.listFocusOutline) {
-			content += `.monaco-list.${this.idPrefix}:focus .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }`;
+			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }`);
 		}
+
 		if (styles.listInactiveFocusOutline) {
-			content += `.monaco-list.${this.idPrefix} .monaco-list-row.focused { outline: 1px dotted ${styles.listInactiveFocusOutline}; outline-offset: -1px; }`;
+			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row.focused { outline: 1px dotted ${styles.listInactiveFocusOutline}; outline-offset: -1px; }`);
 		}
+
 		if (styles.listHoverOutline) {
-			content += `.monaco-list.${this.idPrefix} .monaco-list-row:hover { outline: 1px dashed ${styles.listHoverOutline}; outline-offset: -1px; }`;
+			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row:hover { outline: 1px dashed ${styles.listHoverOutline}; outline-offset: -1px; }`);
 		}
-		this.styleElement.innerHTML = content;
+
+		this.styleElement.innerHTML = content.join('\n');
 	}
 
 	private toListEvent({ indexes }: ITraitChangeEvent) {

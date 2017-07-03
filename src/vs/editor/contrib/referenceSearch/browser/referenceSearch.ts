@@ -13,7 +13,7 @@ import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction, CommonEditorRegistry, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
@@ -23,9 +23,7 @@ import { ReferencesController, RequestOptions, ctxReferenceSearchVisible } from 
 import { ReferencesModel } from './referencesModel';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
-
-import ModeContextKeys = editorCommon.ModeContextKeys;
-import EditorContextKeys = editorCommon.EditorContextKeys;
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 const defaultReferenceSearchOptions: RequestOptions = {
 	getMetaTitle(model) {
@@ -65,11 +63,11 @@ export class ReferenceAction extends EditorAction {
 			label: nls.localize('references.action.label', "Find All References"),
 			alias: 'Find All References',
 			precondition: ContextKeyExpr.and(
-				ModeContextKeys.hasReferenceProvider,
+				EditorContextKeys.hasReferenceProvider,
 				PeekContext.notInPeekEditor,
-				ModeContextKeys.isInEmbeddedEditor.toNegated()),
+				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.Shift | KeyCode.F12
 			},
 			menuOpts: {
@@ -91,7 +89,7 @@ export class ReferenceAction extends EditorAction {
 	}
 }
 
-let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resource: URI, position: editorCommon.IPosition) => {
+let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resource: URI, position: IPosition) => {
 
 	if (!(resource instanceof URI)) {
 		throw new Error('illegal argument, uri');
@@ -118,7 +116,7 @@ let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 	});
 };
 
-let showReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resource: URI, position: editorCommon.IPosition, references: Location[]) => {
+let showReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resource: URI, position: IPosition, references: Location[]) => {
 	if (!(resource instanceof URI)) {
 		throw new Error('illegal argument, uri expected');
 	}
@@ -160,8 +158,8 @@ CommandsRegistry.registerCommand('editor.action.showReferences', {
 	}
 });
 
-function closeActiveReferenceSearch(accessor, args) {
-	var outerEditor = getOuterEditor(accessor, args);
+function closeActiveReferenceSearch(accessor: ServicesAccessor, args: any) {
+	var outerEditor = getOuterEditor(accessor);
 	if (!outerEditor) {
 		return;
 	}

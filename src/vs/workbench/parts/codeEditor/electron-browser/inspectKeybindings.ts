@@ -10,7 +10,7 @@ import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/e
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IUntitledResourceInput } from "vs/platform/editor/common/editor";
+import { IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 
 @editorAction
 class InspectKeyMap extends EditorAction {
@@ -18,8 +18,8 @@ class InspectKeyMap extends EditorAction {
 	constructor() {
 		super({
 			id: 'workbench.action.inspectKeyMappings',
-			label: nls.localize('workbench.action.inspectKeyMap', "Developer: Inspect Key Mapppings"),
-			alias: 'Developer: Inspect Key Mapppings',
+			label: nls.localize('workbench.action.inspectKeyMap', "Developer: Inspect Key Mappings"),
+			alias: 'Developer: Inspect Key Mappings',
 			precondition: null
 		});
 	}

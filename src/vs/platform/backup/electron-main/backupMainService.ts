@@ -13,7 +13,6 @@ import { IBackupWorkspacesFormat, IBackupMainService } from 'vs/platform/backup/
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 export class BackupMainService implements IBackupMainService {
 
@@ -23,7 +22,6 @@ export class BackupMainService implements IBackupMainService {
 	protected workspacesJsonPath: string;
 
 	private backups: IBackupWorkspacesFormat;
-	private mapWindowToBackupFolder: { [windowId: number]: string; };
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -31,7 +29,6 @@ export class BackupMainService implements IBackupMainService {
 	) {
 		this.backupHome = environmentService.backupHome;
 		this.workspacesJsonPath = environmentService.backupWorkspacesPath;
-		this.mapWindowToBackupFolder = Object.create(null);
 
 		this.loadSync();
 	}
@@ -50,22 +47,16 @@ export class BackupMainService implements IBackupMainService {
 		return this.backups.emptyWorkspaces.slice(0); // return a copy
 	}
 
-	public getBackupPath(windowId: number): TPromise<string> {
-		if (!this.mapWindowToBackupFolder[windowId]) {
-			throw new Error(`Unknown backup workspace for window ${windowId}`);
-		}
+	public registerWindowForBackupsSync(windowId: number, isEmptyWorkspace: boolean, backupFolder?: string, workspacePath?: string): string {
 
-		return TPromise.as(path.join(this.backupHome, this.mapWindowToBackupFolder[windowId]));
-	}
-
-	public registerWindowForBackupsSync(windowId: number, isEmptyWorkspace: boolean, backupFolder?: string, workspacePath?: string): void {
 		// Generate a new folder if this is a new empty workspace
 		if (isEmptyWorkspace && !backupFolder) {
 			backupFolder = this.getRandomEmptyWorkspaceId();
 		}
 
-		this.mapWindowToBackupFolder[windowId] = isEmptyWorkspace ? backupFolder : this.getWorkspaceHash(workspacePath);
 		this.pushBackupPathsSync(isEmptyWorkspace ? backupFolder : workspacePath, isEmptyWorkspace);
+
+		return path.join(this.backupHome, isEmptyWorkspace ? backupFolder : this.getWorkspaceHash(workspacePath));
 	}
 
 	private pushBackupPathsSync(workspaceIdentifier: string, isEmptyWorkspace: boolean): string {

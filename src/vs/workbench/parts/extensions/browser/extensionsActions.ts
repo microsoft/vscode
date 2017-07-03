@@ -31,13 +31,17 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IExtensionService, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import URI from 'vs/base/common/uri';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, registerColor, foreground } from 'vs/platform/theme/common/colorRegistry';
+import { Color } from 'vs/base/common/color';
 
 export class InstallAction extends Action {
 
 	private static InstallLabel = localize('installAction', "Install");
 	private static InstallingLabel = localize('installing', "Installing");
 
-	private static Class = 'extension-action install';
+	private static Class = 'extension-action prominent install';
 	private static InstallingClass = 'extension-action install installing';
 
 	private disposables: IDisposable[] = [];
@@ -152,7 +156,7 @@ export class UninstallAction extends Action {
 
 export class CombinedInstallAction extends Action {
 
-	private static NoExtensionClass = 'extension-action install no-extension';
+	private static NoExtensionClass = 'extension-action prominent install no-extension';
 	private installAction: InstallAction;
 	private uninstallAction: UninstallAction;
 	private disposables: IDisposable[] = [];
@@ -223,7 +227,7 @@ export class CombinedInstallAction extends Action {
 
 export class UpdateAction extends Action {
 
-	private static EnabledClass = 'extension-action update';
+	private static EnabledClass = 'extension-action prominent update';
 	private static DisabledClass = `${UpdateAction.EnabledClass} disabled`;
 	private static Label = localize('updateAction', "Update");
 
@@ -309,7 +313,8 @@ export class DropDownMenuActionItem extends ActionItem {
 		const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 10 };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => TPromise.wrap(actions)
+			getActions: () => TPromise.wrap(actions),
+			actionRunner: this.actionRunner
 		});
 	}
 
@@ -475,7 +480,7 @@ export class EnableGloballyAction extends Action implements IExtensionAction {
 export class EnableAction extends Action {
 
 	static ID = 'extensions.enable';
-	private static EnabledClass = 'extension-action enable';
+	private static EnabledClass = 'extension-action prominent enable';
 	private static DisabledClass = `${EnableAction.EnabledClass} disabled`;
 
 	private disposables: IDisposable[] = [];
@@ -680,6 +685,59 @@ export class CheckForUpdatesAction extends Action {
 	}
 }
 
+export class ToggleAutoUpdateAction extends Action {
+
+	constructor(
+		id: string,
+		label: string,
+		private autoUpdateValue: boolean,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(id, label, '', true);
+		this.updateEnablement();
+		configurationService.onDidUpdateConfiguration(() => this.updateEnablement());
+	}
+
+	private updateEnablement(): void {
+		this.enabled = this.extensionsWorkbenchService.isAutoUpdateEnabled !== this.autoUpdateValue;
+	}
+
+	run(): TPromise<any> {
+		return this.extensionsWorkbenchService.setAutoUpdate(this.autoUpdateValue);
+	}
+}
+
+export class EnableAutoUpdateAction extends ToggleAutoUpdateAction {
+
+	static ID = 'workbench.extensions.action.enableAutoUpdate';
+	static LABEL = localize('enableAutoUpdate', "Enable Auto Updating Extensions");
+
+	constructor(
+		id = EnableAutoUpdateAction.ID,
+		label = EnableAutoUpdateAction.LABEL,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(id, label, true, configurationService, extensionsWorkbenchService);
+	}
+}
+
+export class DisableAutoUpdateAction extends ToggleAutoUpdateAction {
+
+	static ID = 'workbench.extensions.action.disableAutoUpdate';
+	static LABEL = localize('disableAutoUpdate', "Disable Auto Updating Extensions");
+
+	constructor(
+		id = EnableAutoUpdateAction.ID,
+		label = EnableAutoUpdateAction.LABEL,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(id, label, false, configurationService, extensionsWorkbenchService);
+	}
+}
+
 export class UpdateAllAction extends Action {
 
 	static ID = 'workbench.extensions.action.updateAllExtensions';
@@ -807,7 +865,7 @@ export class ReloadAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		if (this.messageService.confirm({ message: this.reloadMessaage, primaryButton: localize('reload', "&&Reload Window") })) {
+		if (this.messageService.confirm({ message: this.reloadMessaage, type: 'question', primaryButton: localize('reload', "&&Reload Window") })) {
 			return this.windowService.reloadWindow();
 		}
 		return TPromise.wrap(null);
@@ -882,7 +940,7 @@ export class ShowDisabledExtensionsAction extends Action {
 	}
 }
 
-export class ClearExtensionsInputAction extends ShowInstalledExtensionsAction {
+export class ClearExtensionsInputAction extends Action {
 
 	static ID = 'workbench.extensions.action.clearExtensionsInput';
 	static LABEL = localize('clearExtensionsInput', "Clear Extensions Input");
@@ -893,16 +951,25 @@ export class ClearExtensionsInputAction extends ShowInstalledExtensionsAction {
 		id: string,
 		label: string,
 		onSearchChange: Event<string>,
-		@IViewletService viewletService: IViewletService,
-		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IViewletService private viewletService: IViewletService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
-		super(id, label, viewletService, extensionsWorkbenchService);
+		super(id, label, 'clear-extensions', true);
 		this.enabled = false;
 		onSearchChange(this.onSearchChange, this, this.disposables);
 	}
 
 	private onSearchChange(value: string): void {
 		this.enabled = !!value;
+	}
+
+	run(): TPromise<void> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search('');
+				viewlet.focus();
+			});
 	}
 
 	dispose(): void {
@@ -1047,6 +1114,34 @@ export class ShowRecommendedKeymapExtensionsAction extends Action {
 	}
 }
 
+export class ShowLanguageExtensionsAction extends Action {
+
+	static ID = 'workbench.extensions.action.showLanguageExtensions';
+	static LABEL = localize('showLanguageExtensions', "Show Language Extensions");
+	static SHORT_LABEL = localize('showLanguageExtensionsShort', "Language Extensions");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label, null, true);
+	}
+
+	run(): TPromise<void> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search('@sort:installs category:languages ');
+				viewlet.focus();
+			});
+	}
+
+	protected isEnabled(): boolean {
+		return true;
+	}
+}
+
 export class ChangeSortAction extends Action {
 
 	private query: Query;
@@ -1129,7 +1224,7 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends Action {
 	}
 
 	private getOrCreateExtensionsFile(): TPromise<{ created: boolean, extensionsFileResource: URI }> {
-		const extensionsFileResource = URI.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '.vscode', 'extensions.json'));
+		const extensionsFileResource = URI.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '.vscode', 'extensions.json')); // TODO@Sandeep (https://github.com/Microsoft/vscode/issues/29242)
 
 		return this.fileService.resolveContent(extensionsFileResource).then(content => {
 			return { created: false, extensionsFileResource };
@@ -1301,4 +1396,64 @@ CommandsRegistry.registerCommand('workbench.extensions.action.showLanguageExtens
 			viewlet.search(`ext:${fileExtension.replace(/^\./, '')}`);
 			viewlet.focus();
 		});
+});
+
+export const extensionButtonProminentBackground = registerColor('extensionButton.prominentBackground', {
+	dark: '#327e36',
+	light: '#327e36',
+	hc: null
+}, localize('extensionButtonProminentBackground', "Button background color for actions extension that stand out (e.g. install button)."));
+
+export const extensionButtonProminentForeground = registerColor('extensionButton.prominentForeground', {
+	dark: Color.white,
+	light: Color.white,
+	hc: null
+}, localize('extensionButtonProminentForeground', "Button foreground color for actions extension that stand out (e.g. install button)."));
+
+export const extensionButtonProminentHoverBackground = registerColor('extensionButton.prominentHoverBackground', {
+	dark: '#28632b',
+	light: '#28632b',
+	hc: null
+}, localize('extensionButtonProminentHoverBackground', "Button background hover color for actions extension that stand out (e.g. install button)."));
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	const foregroundColor = theme.getColor(foreground);
+	if (foregroundColor) {
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.built-in-status { border-color: ${foregroundColor}; }`);
+	}
+
+	const buttonBackgroundColor = theme.getColor(buttonBackground);
+	if (buttonBackgroundColor) {
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action { background-color: ${buttonBackgroundColor}; }`);
+	}
+
+	const buttonForegroundColor = theme.getColor(buttonForeground);
+	if (buttonForegroundColor) {
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action { color: ${buttonForegroundColor}; }`);
+	}
+
+	const buttonHoverBackgroundColor = theme.getColor(buttonHoverBackground);
+	if (buttonHoverBackgroundColor) {
+		collector.addRule(`.monaco-action-bar .action-item:hover .action-label.extension-action { background-color: ${buttonHoverBackgroundColor}; }`);
+	}
+
+	const contrastBorderColor = theme.getColor(contrastBorder);
+	if (contrastBorderColor) {
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action { border: 1px solid ${contrastBorderColor}; }`);
+	}
+
+	const extensionButtonProminentBackgroundColor = theme.getColor(extensionButtonProminentBackground);
+	if (extensionButtonProminentBackground) {
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.prominent { background-color: ${extensionButtonProminentBackgroundColor}; }`);
+	}
+
+	const extensionButtonProminentForegroundColor = theme.getColor(extensionButtonProminentForeground);
+	if (extensionButtonProminentForeground) {
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.prominent { color: ${extensionButtonProminentForegroundColor}; }`);
+	}
+
+	const extensionButtonProminentHoverBackgroundColor = theme.getColor(extensionButtonProminentHoverBackground);
+	if (extensionButtonProminentHoverBackground) {
+		collector.addRule(`.monaco-action-bar .action-item:hover .action-label.extension-action.prominent { background-color: ${extensionButtonProminentHoverBackgroundColor}; }`);
+	}
 });

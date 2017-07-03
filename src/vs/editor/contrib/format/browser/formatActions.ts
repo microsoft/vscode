@@ -21,9 +21,8 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 import { Range } from 'vs/editor/common/core/range';
 import { alert } from 'vs/base/browser/ui/aria/aria';
-
-import ModeContextKeys = editorCommon.ModeContextKeys;
-import EditorContextKeys = editorCommon.EditorContextKeys;
+import { EditorState, CodeEditorStateFlag } from 'vs/editor/common/core/editorState';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 
 function alertFormattingEdits(edits: editorCommon.ISingleEditOperation[]): void {
@@ -236,7 +235,7 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 
 		const model = this.editor.getModel();
 		const { tabSize, insertSpaces } = model.getOptions();
-		const state = this.editor.captureState(editorCommon.CodeEditorStateFlag.Value, editorCommon.CodeEditorStateFlag.Position);
+		const state = new EditorState(this.editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
 
 		getDocumentRangeFormattingEdits(model, range, { tabSize, insertSpaces }).then(edits => {
 			return this.workerService.computeMoreMinimalEdits(model.uri, edits, []);
@@ -271,7 +270,7 @@ export abstract class AbstractFormatAction extends EditorAction {
 		}
 
 		// Capture the state of the editor
-		const state = editor.captureState(editorCommon.CodeEditorStateFlag.Value, editorCommon.CodeEditorStateFlag.Position);
+		const state = new EditorState(editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
 
 		// Receive formatted value from worker
 		return formattingPromise.then(edits => workerService.computeMoreMinimalEdits(editor.getModel().uri, edits, editor.getSelections())).then(edits => {
@@ -297,9 +296,9 @@ export class FormatDocumentAction extends AbstractFormatAction {
 			id: 'editor.action.formatDocument',
 			label: nls.localize('formatDocument.label', "Format Document"),
 			alias: 'Format Document',
-			precondition: ContextKeyExpr.and(EditorContextKeys.Writable, ModeContextKeys.hasDocumentFormattingProvider),
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasDocumentFormattingProvider),
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
 				// secondary: [KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_D)],
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I }
@@ -326,9 +325,9 @@ export class FormatSelectionAction extends AbstractFormatAction {
 			id: 'editor.action.formatSelection',
 			label: nls.localize('formatSelection.label', "Format Selection"),
 			alias: 'Format Code',
-			precondition: ContextKeyExpr.and(EditorContextKeys.Writable, ModeContextKeys.hasDocumentSelectionFormattingProvider, EditorContextKeys.HasNonEmptySelection),
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasDocumentSelectionFormattingProvider, EditorContextKeys.hasNonEmptySelection),
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_F)
 			},
 			menuOpts: {

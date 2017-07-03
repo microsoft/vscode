@@ -5,7 +5,7 @@
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import { ReplaceService, ReplacePreviewContentProvider } from 'vs/workbench/parts/search/browser/replaceService';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 
 export function registerContributions(): void {

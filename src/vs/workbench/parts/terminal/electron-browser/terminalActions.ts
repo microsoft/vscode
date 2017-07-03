@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
-import os = require('os');
+import * as nls from 'vs/nls';
+import * as os from 'os';
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
@@ -15,8 +15,9 @@ import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { attachSelectBoxStyler } from "vs/platform/theme/common/styler";
-import { IThemeService } from "vs/platform/theme/common/themeService";
+import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
 export class ToggleTerminalAction extends TogglePanelAction {
 
@@ -88,6 +89,27 @@ export class CopyTerminalSelectionAction extends Action {
 		let terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
 			terminalInstance.copySelection();
+		}
+		return TPromise.as(void 0);
+	}
+}
+
+export class SelectAllTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.selectAll';
+	public static LABEL = nls.localize('workbench.action.terminal.selectAll', "Select All");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		let terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance) {
+			terminalInstance.selectAll();
 		}
 		return TPromise.as(void 0);
 	}
@@ -259,18 +281,19 @@ export class RunSelectedTextInTerminalAction extends Action {
 			return TPromise.as(void 0);
 		}
 		let editor = this.codeEditorService.getFocusedCodeEditor();
-		if (editor) {
-			let selection = editor.getSelection();
-			let text: string;
-			if (selection.isEmpty()) {
-				text = editor.getModel().getLineContent(selection.selectionStartLineNumber).trim();
-			} else {
-				let endOfLinePreference = os.EOL === '\n' ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
-				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
-			}
-			instance.sendText(text, true);
+		if (!editor) {
+			return TPromise.as(void 0);
 		}
-		return TPromise.as(void 0);
+		let selection = editor.getSelection();
+		let text: string;
+		if (selection.isEmpty()) {
+			text = editor.getModel().getLineContent(selection.selectionStartLineNumber).trim();
+		} else {
+			let endOfLinePreference = os.EOL === '\n' ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
+			text = editor.getModel().getValueInRange(selection, endOfLinePreference);
+		}
+		instance.sendText(text, true);
+		return this.terminalService.showPanel();
 	}
 }
 
@@ -294,15 +317,16 @@ export class RunActiveFileInTerminalAction extends Action {
 			return TPromise.as(void 0);
 		}
 		const editor = this.codeEditorService.getFocusedCodeEditor();
-		if (editor) {
-			const uri = editor.getModel().uri;
-			if (uri.scheme === 'file') {
-				instance.sendText(uri.fsPath, true);
-			} else {
-				this.messageService.show(Severity.Warning, nls.localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
-			}
+		if (!editor) {
+			return TPromise.as(void 0);
 		}
-		return TPromise.as(void 0);
+		const uri = editor.getModel().uri;
+		if (uri.scheme !== 'file') {
+			this.messageService.show(Severity.Warning, nls.localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
+			return TPromise.as(void 0);
+		}
+		instance.sendText(uri.fsPath, true);
+		return this.terminalService.showPanel();
 	}
 }
 
@@ -493,5 +517,103 @@ export class ClearTerminalAction extends Action {
 			terminalInstance.clear();
 		}
 		return TPromise.as(void 0);
+	}
+}
+
+export class AllowWorkspaceShellTerminalCommand extends Action {
+
+	public static ID = 'workbench.action.terminal.allowWorkspaceShell';
+	public static LABEL = nls.localize('workbench.action.terminal.allowWorkspaceShell', "Allow Workspace Shell Configuration");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		this.terminalService.setWorkspaceShellAllowed(true);
+		return TPromise.as(void 0);
+	}
+}
+
+export class DisallowWorkspaceShellTerminalCommand extends Action {
+
+	public static ID = 'workbench.action.terminal.disallowWorkspaceShell';
+	public static LABEL = nls.localize('workbench.action.terminal.disallowWorkspaceShell', "Disallow Workspace Shell Configuration");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		this.terminalService.setWorkspaceShellAllowed(false);
+		return TPromise.as(void 0);
+	}
+}
+
+export class RenameTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.rename';
+	public static LABEL = nls.localize('workbench.action.terminal.rename', "Rename");
+
+	constructor(
+		id: string, label: string,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const terminalInstance = this.terminalService.getActiveInstance();
+		if (!terminalInstance) {
+			return TPromise.as(void 0);
+		}
+		return this.quickOpenService.input({
+			prompt: nls.localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
+		}).then(name => {
+			if (name) {
+				terminalInstance.setTitle(name);
+			}
+		});
+	}
+}
+
+export class FocusTerminalFindWidgetAction extends Action {
+
+	public static ID = 'workbench.action.terminal.focusFindWidget';
+	public static LABEL = nls.localize('workbench.action.terminal.focusFindWidget', "Focus Find Widget");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return this.terminalService.focusFindWidget();
+	}
+}
+
+export class HideTerminalFindWidgetAction extends Action {
+
+	public static ID = 'workbench.action.terminal.hideFindWidget';
+	public static LABEL = nls.localize('workbench.action.terminal.hideFindWidget', "Hide Find Widget");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return TPromise.as(this.terminalService.hideFindWidget());
 	}
 }

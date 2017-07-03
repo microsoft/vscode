@@ -14,9 +14,8 @@ import { ISingleEditOperation } from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
-import { IOutline } from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
-import { ICodeLensData } from 'vs/editor/contrib/codelens/common/codelens';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
 export class ExtHostApiCommands {
 
@@ -162,11 +161,12 @@ export class ExtHostApiCommands {
 			returns: 'A promise that resolves to an array of DocumentLink-instances.'
 		});
 
-		this._register('vscode.previewHtml', (uri: URI, position?: vscode.ViewColumn, label?: string) => {
+		this._register('vscode.previewHtml', (uri: URI, position?: vscode.ViewColumn, label?: string, options?: any) => {
 			return this._commands.executeCommand('_workbench.previewHtml',
 				uri,
 				typeof position === 'number' && typeConverters.fromViewColumn(position),
-				label);
+				label,
+				options);
 		}, {
 				description: `
 					Render the html of the resource in an editor view.
@@ -176,13 +176,14 @@ export class ExtHostApiCommands {
 				args: [
 					{ name: 'uri', description: 'Uri of the resource to preview.', constraint: value => value instanceof URI || typeof value === 'string' },
 					{ name: 'column', description: '(optional) Column in which to preview.', constraint: value => typeof value === 'undefined' || (typeof value === 'number' && typeof types.ViewColumn[value] === 'string') },
-					{ name: 'label', description: '(optional) An human readable string that is used as title for the preview.', constraint: v => typeof v === 'string' || typeof v === 'undefined' }
+					{ name: 'label', description: '(optional) An human readable string that is used as title for the preview.', constraint: v => typeof v === 'string' || typeof v === 'undefined' },
+					{ name: 'options', description: '(optional) Options for controlling webview environment.', constraint: v => typeof v === 'object' || typeof v === 'undefined' }
 				]
 			});
 
 		this._register('vscode.openFolder', (uri?: URI, forceNewWindow?: boolean) => {
 			if (!uri) {
-				return this._commands.executeCommand('_files.openFolderPicker', forceNewWindow);
+				return this._commands.executeCommand('_files.pickFolderAndOpen', forceNewWindow);
 			}
 
 			return this._commands.executeCommand('_files.windowOpen', [uri.fsPath], forceNewWindow);
@@ -203,14 +204,30 @@ export class ExtHostApiCommands {
 				]
 			});
 
-		this._register('vscode.diff', (left: URI, right: URI, label: string) => {
-			return this._commands.executeCommand('_workbench.diff', [left, right, label]);
+		this._register('vscode.diff', (left: URI, right: URI, label: string, options?: vscode.TextDocumentShowOptions) => {
+
+			let editorOptions: IEditorOptions;
+			if (options) {
+				editorOptions = {
+					pinned: !options.preview,
+					preserveFocus: options.preserveFocus
+				};
+			}
+
+			return this._commands.executeCommand('_workbench.diff', [
+				left, right,
+				label,
+				undefined,
+				editorOptions,
+				options ? typeConverters.fromViewColumn(options.viewColumn) : undefined
+			]);
 		}, {
 				description: 'Opens the provided resources in the diff editor to compare their contents.',
 				args: [
 					{ name: 'left', description: 'Left-hand side resource of the diff editor', constraint: URI },
 					{ name: 'right', description: 'Right-hand side resource of the diff editor', constraint: URI },
-					{ name: 'title', description: '(optional) Human readable title for the diff editor', constraint: v => v === void 0 || typeof v === 'string' }
+					{ name: 'title', description: '(optional) Human readable title for the diff editor', constraint: v => v === void 0 || typeof v === 'string' },
+					{ name: 'options', description: '(optional) Editor options, see vscode.TextDocumentShowOptions' }
 				]
 			});
 
@@ -326,7 +343,7 @@ export class ExtHostApiCommands {
 				return undefined;
 			}
 			if (value.rejectReason) {
-				return TPromise.wrapError(value.rejectReason);
+				return TPromise.wrapError<types.WorkspaceEdit>(new Error(value.rejectReason));
 			}
 			let workspaceEdit = new types.WorkspaceEdit();
 			for (let edit of value.edits) {
@@ -369,7 +386,7 @@ export class ExtHostApiCommands {
 		const args = {
 			resource
 		};
-		return this._commands.executeCommand<IOutline>('_executeDocumentSymbolProvider', args).then(value => {
+		return this._commands.executeCommand<modes.IOutline>('_executeDocumentSymbolProvider', args).then(value => {
 			if (value && Array.isArray(value.entries)) {
 				return value.entries.map(typeConverters.toSymbolInformation);
 			}
@@ -392,12 +409,12 @@ export class ExtHostApiCommands {
 
 	private _executeCodeLensProvider(resource: URI): Thenable<vscode.CodeLens[]> {
 		const args = { resource };
-		return this._commands.executeCommand<ICodeLensData[]>('_executeCodeLensProvider', args).then(value => {
+		return this._commands.executeCommand<modes.ICodeLensSymbol[]>('_executeCodeLensProvider', args).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(item => {
 					return new types.CodeLens(
-						typeConverters.toRange(item.symbol.range),
-						this._commands.converter.fromInternal(item.symbol.command));
+						typeConverters.toRange(item.range),
+						this._commands.converter.fromInternal(item.command));
 				});
 			}
 			return undefined;

@@ -12,6 +12,7 @@ import Severity from 'vs/base/common/severity';
 import * as vscode from 'vscode';
 import { MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape } from './extHost.protocol';
 import { DiagnosticSeverity } from './extHostTypes';
+import { mergeSort } from 'vs/base/common/arrays';
 
 export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
@@ -74,13 +75,10 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 			toSync = [];
 			let lastUri: vscode.Uri;
 
-			// ensure stable-sort: keep the original
-			// index for otherwise equal items
-			const sortedTuples = first
-				.map((tuple, idx) => ({ tuple, idx }))
-				.sort(DiagnosticCollection._compareIndexedTuplesByUri);
+			// ensure stable-sort
+			mergeSort(first, DiagnosticCollection._compareIndexedTuplesByUri);
 
-			for (const { tuple } of sortedTuples) {
+			for (const tuple of first) {
 				const [uri, diagnostics] = tuple;
 				if (!lastUri || uri.toString() !== lastUri.toString()) {
 					if (lastUri && this._data.get(lastUri.toString()).length === 0) {
@@ -208,14 +206,10 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		}
 	}
 
-	private static _compareIndexedTuplesByUri(a: { tuple: [vscode.Uri, vscode.Diagnostic[]]; idx: number }, b: { tuple: [vscode.Uri, vscode.Diagnostic[]]; idx: number }): number {
-		if (a.tuple[0].toString() < b.tuple[0].toString()) {
+	private static _compareIndexedTuplesByUri(a: [vscode.Uri, vscode.Diagnostic[]], b: [vscode.Uri, vscode.Diagnostic[]]): number {
+		if (a[0].toString() < b[0].toString()) {
 			return -1;
-		} else if (a.tuple[0].toString() > b.tuple[0].toString()) {
-			return 1;
-		} else if (a.idx < b.idx) {
-			return -1;
-		} else if (a.idx > b.idx) {
+		} else if (a[0].toString() > b[0].toString()) {
 			return 1;
 		} else {
 			return 0;

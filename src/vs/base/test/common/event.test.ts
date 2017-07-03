@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import Event, { Emitter, fromEventEmitter, debounceEvent, EventBufferer, once, fromPromise, stopwatch, buffer, EventMultiplexer } from 'vs/base/common/event';
+import Event, { Emitter, fromEventEmitter, debounceEvent, EventBufferer, once, fromPromise, stopwatch, buffer, echo, EventMultiplexer } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import Errors = require('vs/base/common/errors');
@@ -416,6 +416,67 @@ suite('Event utils', () => {
 
 			bufferedEvent(num => result.push(num));
 			assert.deepEqual(result, [-2, -1, 0, 1, 2, 3]);
+		});
+	});
+
+	suite('echo', () => {
+
+		test('should echo events', () => {
+			const result = [];
+			const emitter = new Emitter<number>();
+			const event = emitter.event;
+			const echoEvent = echo(event);
+
+			emitter.fire(1);
+			emitter.fire(2);
+			emitter.fire(3);
+			assert.deepEqual(result, []);
+
+			const listener = echoEvent(num => result.push(num));
+			assert.deepEqual(result, [1, 2, 3]);
+
+			emitter.fire(4);
+			assert.deepEqual(result, [1, 2, 3, 4]);
+
+			listener.dispose();
+			emitter.fire(5);
+			assert.deepEqual(result, [1, 2, 3, 4]);
+		});
+
+		test('should echo events for every listener', () => {
+			const result1 = [];
+			const result2 = [];
+			const emitter = new Emitter<number>();
+			const event = emitter.event;
+			const echoEvent = echo(event);
+
+			emitter.fire(1);
+			emitter.fire(2);
+			emitter.fire(3);
+			assert.deepEqual(result1, []);
+			assert.deepEqual(result2, []);
+
+			const listener1 = echoEvent(num => result1.push(num));
+			assert.deepEqual(result1, [1, 2, 3]);
+			assert.deepEqual(result2, []);
+
+			emitter.fire(4);
+			assert.deepEqual(result1, [1, 2, 3, 4]);
+			assert.deepEqual(result2, []);
+
+			const listener2 = echoEvent(num => result2.push(num));
+			assert.deepEqual(result1, [1, 2, 3, 4]);
+			assert.deepEqual(result2, [1, 2, 3, 4]);
+
+			emitter.fire(5);
+			assert.deepEqual(result1, [1, 2, 3, 4, 5]);
+			assert.deepEqual(result2, [1, 2, 3, 4, 5]);
+
+			listener1.dispose();
+			listener2.dispose();
+			emitter.fire(6);
+			assert.deepEqual(result1, [1, 2, 3, 4, 5]);
+			assert.deepEqual(result2, [1, 2, 3, 4, 5]);
 		});
 	});
 

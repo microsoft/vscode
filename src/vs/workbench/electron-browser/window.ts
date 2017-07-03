@@ -25,31 +25,26 @@ import { toResource } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService, IResourceInputType } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService } from 'vs/platform/message/common/message';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IWindowsService, IWindowService, IWindowSettings } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, IWindowSettings, IWindowConfiguration, IPath, IOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IPath, IOpenFileRequest, IWindowConfiguration } from 'vs/workbench/electron-browser/common';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
-import { Registry } from 'vs/platform/platform';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchThemeService, VS_HC_THEME, VS_DARK_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import * as browser from 'vs/base/browser/browser';
-import { ReloadWindowAction, ToggleDevToolsAction, ShowStartupPerformance, OpenRecentAction, ToggleSharedProcessAction } from 'vs/workbench/electron-browser/actions';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { Position, IResourceInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
+import { Position, IResourceInput, IUntitledResourceInput, IEditor } from 'vs/platform/editor/common/editor';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { Themable, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 
 import { remote, ipcRenderer as ipc, webFrame } from 'electron';
-import { highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 const dialog = remote.dialog;
 
@@ -90,7 +85,8 @@ export class ElectronWindow extends Themable {
 		@IViewletService private viewletService: IViewletService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		super(themeService);
 
@@ -103,14 +99,12 @@ export class ElectronWindow extends Themable {
 
 	private registerListeners(): void {
 
-		// React to editor input changes (Mac only)
-		if (platform.platform === platform.Platform.Mac) {
-			this.editorGroupService.onEditorsChanged(() => {
-				const file = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
+		// React to editor input changes
+		this.editorGroupService.onEditorsChanged(() => {
+			const file = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 
-				this.titleService.setRepresentedFilename(file ? file.fsPath : '');
-			});
-		}
+			this.titleService.setRepresentedFilename(file ? file.fsPath : '');
+		});
 
 		let draggedExternalResources: URI[];
 		let dropOverlay: Builder;
@@ -134,17 +128,17 @@ export class ElectronWindow extends Themable {
 				// Find out if folders are dragged and show the appropiate feedback then
 				this.includesFolder(draggedExternalResources).done(includesFolder => {
 					if (includesFolder) {
-						const useOutline = this.isHighContrastTheme;
+						const activeContrastBorderColor = this.getColor(activeContrastBorder);
 						dropOverlay = $(window.document.getElementById(this.partService.getWorkbenchElementId()))
 							.div({
 								id: 'monaco-workbench-drop-overlay'
 							})
 							.style({
 								backgroundColor: this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND),
-								outlineColor: useOutline ? this.getColor(highContrastOutline) : null,
-								outlineOffset: useOutline ? '-2px' : null,
-								outlineStyle: useOutline ? 'dashed' : null,
-								outlineWidth: useOutline ? '2px' : null
+								outlineColor: activeContrastBorderColor,
+								outlineOffset: activeContrastBorderColor ? '-2px' : null,
+								outlineStyle: activeContrastBorderColor ? 'dashed' : null,
+								outlineWidth: activeContrastBorderColor ? '2px' : null
 							})
 							.on(DOM.EventType.DROP, (e: DragEvent) => {
 								DOM.EventHelper.stop(e, true);
@@ -156,7 +150,8 @@ export class ElectronWindow extends Themable {
 								if (draggedExternalResources.length > 20) {
 									doOpen = this.messageService.confirm({
 										message: nls.localize('confirmOpen', "Are you sure you want to open {0} folders?", draggedExternalResources.length),
-										primaryButton: nls.localize({ key: 'confirmOpenButton', comment: ['&& denotes a mnemonic'] }, "&&Open")
+										primaryButton: nls.localize({ key: 'confirmOpenButton', comment: ['&& denotes a mnemonic'] }, "&&Open"),
+										type: 'question'
 									});
 								}
 
@@ -213,7 +208,11 @@ export class ElectronWindow extends Themable {
 
 		// Support runAction event
 		ipc.on('vscode:runAction', (event, actionId: string) => {
-			this.commandService.executeCommand(actionId, { from: 'menu' }).done(undefined, err => this.messageService.show(Severity.Error, err));
+			this.commandService.executeCommand(actionId, { from: 'menu' }).done(_ => {
+				this.telemetryService.publicLog('commandExecuted', { id: actionId, from: 'menu' });
+			}, err => {
+				this.messageService.show(Severity.Error, err);
+			});
 		});
 
 		// Support resolve keybindings event
@@ -297,14 +296,19 @@ export class ElectronWindow extends Themable {
 		});
 
 		// keyboard layout changed event
-		ipc.on('vscode:keyboardLayoutChanged', () => {
-			KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
+		ipc.on('vscode:keyboardLayoutChanged', (event, isISOKeyboard: boolean) => {
+			KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged(isISOKeyboard);
+		});
+
+		// keyboard layout changed event
+		ipc.on('vscode:accessibilitySupportChanged', (event, accessibilitySupportEnabled: boolean) => {
+			browser.setAccessibilitySupport(accessibilitySupportEnabled ? platform.AccessibilitySupport.Enabled : platform.AccessibilitySupport.Disabled);
 		});
 
 		// Configuration changes
 		let previousConfiguredZoomLevel: number;
 		this.configurationService.onDidUpdateConfiguration(e => {
-			const windowConfig: IWindowConfiguration = e.config;
+			const windowConfig: IWindowConfiguration = this.configurationService.getConfiguration<IWindowConfiguration>();
 
 			let newZoomLevel = 0;
 			if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {
@@ -321,7 +325,10 @@ export class ElectronWindow extends Themable {
 			if (webFrame.getZoomLevel() !== newZoomLevel) {
 				webFrame.setZoomLevel(newZoomLevel);
 				browser.setZoomFactor(webFrame.getZoomFactor());
-				browser.setZoomLevel(webFrame.getZoomLevel()); // Ensure others can listen to zoom level changes
+				// See https://github.com/Microsoft/vscode/issues/26151
+				// Cannot be trusted because the webFrame might take some time
+				// until it really applies the new zoom level
+				browser.setZoomLevel(webFrame.getZoomLevel(), /*isTrusted*/false);
 			}
 		});
 
@@ -334,26 +341,12 @@ export class ElectronWindow extends Themable {
 					e.stopPropagation();
 
 					this.contextMenuService.showContextMenu({
-						getAnchor: () => target,
-						getActions: () => TPromise.as(TextInputActions),
-						getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id)
+						getAnchor: () => e,
+						getActions: () => TPromise.as(TextInputActions)
 					});
 				}
 			}
 		});
-
-		// Developer related actions
-		const developerCategory = nls.localize('developer', "Developer");
-		const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
-		const isDeveloping = !this.environmentService.isBuilt || this.environmentService.isExtensionDevelopment;
-		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL, isDeveloping ? { primary: KeyMod.CtrlCmd | KeyCode.KEY_R } : void 0), 'Reload Window');
-		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleDevToolsAction, ToggleDevToolsAction.ID, ToggleDevToolsAction.LABEL, isDeveloping ? { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_I } } : void 0), 'Developer: Toggle Developer Tools', developerCategory);
-		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowStartupPerformance, ShowStartupPerformance.ID, ShowStartupPerformance.LABEL), 'Developer: Startup Performance', developerCategory);
-		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSharedProcessAction, ToggleSharedProcessAction.ID, ToggleSharedProcessAction.LABEL), 'Developer: Toggle Shared Process', developerCategory);
-
-		// Action registered here to prevent a keybinding conflict with reload window
-		const fileCategory = nls.localize('file', "File");
-		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenRecentAction, OpenRecentAction.ID, OpenRecentAction.LABEL, { primary: isDeveloping ? null : KeyMod.CtrlCmd | KeyCode.KEY_R, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_R } }), 'File: Open Recent', fileCategory);
 	}
 
 	private resolveKeybindings(actionIds: string[]): TPromise<{ id: string; label: string, isNative: boolean; }[]> {
@@ -402,8 +395,9 @@ export class ElectronWindow extends Themable {
 		}
 	}
 
-	private openResources(resources: (IResourceInput | IUntitledResourceInput)[], diffMode: boolean): TPromise<any> {
-		return this.partService.joinCreation().then(() => {
+	private openResources(resources: (IResourceInput | IUntitledResourceInput)[], diffMode: boolean): TPromise<IEditor | IEditor[]> {
+		return this.partService.joinCreation().then((): TPromise<IEditor | IEditor[]> => {
+
 
 			// In diffMode we open 2 resources as diff
 			if (diffMode && resources.length === 2) {
@@ -461,7 +455,7 @@ export class ElectronWindow extends Themable {
 			newAutoSaveValue = AutoSaveConfiguration.AFTER_DELAY;
 		}
 
-		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ElectronWindow.AUTO_SAVE_SETTING, value: newAutoSaveValue }).done(null, error => this.messageService.show(Severity.Error, error));
+		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ElectronWindow.AUTO_SAVE_SETTING, value: newAutoSaveValue });
 	}
 
 	private includesFolder(resources: URI[]): TPromise<boolean> {

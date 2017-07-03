@@ -6,9 +6,9 @@
 
 import * as assert from 'assert';
 import {
-	SyntaxKind, createScanner, parse, getLocation, Node, ParseError, parseTree, ParseErrorCode,
-	getParseErrorMessage, ParseOptions, Segment, findNodeAtLocation, getNodeValue, ScanError
+	SyntaxKind, createScanner, parse, getLocation, Node, ParseError, parseTree, ParseErrorCode, ParseOptions, Segment, findNodeAtLocation, getNodeValue, ScanError
 } from 'vs/base/common/json';
+import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 
 function assertKinds(text: string, ...kinds: SyntaxKind[]): void {
 	var scanner = createScanner(text);

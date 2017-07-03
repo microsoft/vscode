@@ -21,9 +21,11 @@ import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import * as platform from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE } from 'vs/editor/common/config/defaultConfig';
+import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 import { IRawTextSource, TextSource, RawTextSource } from 'vs/editor/common/model/textSource';
+import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
+import { ClassName } from 'vs/editor/common/model/textModelWithDecorations';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -120,14 +122,14 @@ class ModelMarkerHandler {
 				break;
 			case Severity.Warning:
 			case Severity.Info:
-				className = editorCommon.ClassName.EditorWarningDecoration;
+				className = ClassName.EditorWarningDecoration;
 				color = 'rgba(18,136,18,0.7)';
 				darkColor = 'rgba(18,136,18,0.7)';
 				hcColor = 'rgba(50,255,50,1)';
 				break;
 			case Severity.Error:
 			default:
-				className = editorCommon.ClassName.EditorErrorDecoration;
+				className = ClassName.EditorErrorDecoration;
 				color = 'rgba(255,18,18,0.7)';
 				darkColor = 'rgba(255,18,18,0.7)';
 				hcColor = 'rgba(255,50,50,1)';
@@ -155,6 +157,7 @@ class ModelMarkerHandler {
 			stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 			className,
 			hoverMessage,
+			showIfCollapsed: true,
 			overviewRuler: {
 				color,
 				darkColor,
@@ -221,7 +224,7 @@ export class ModelServiceImpl implements IModelService {
 	}
 
 	private static _readModelOptions(config: IRawConfig): editorCommon.ITextModelCreationOptions {
-		let tabSize = DEFAULT_INDENTATION.tabSize;
+		let tabSize = EDITOR_MODEL_DEFAULTS.tabSize;
 		if (config.editor && typeof config.editor.tabSize !== 'undefined') {
 			let parsedTabSize = parseInt(config.editor.tabSize, 10);
 			if (!isNaN(parsedTabSize)) {
@@ -229,25 +232,25 @@ export class ModelServiceImpl implements IModelService {
 			}
 		}
 
-		let insertSpaces = DEFAULT_INDENTATION.insertSpaces;
+		let insertSpaces = EDITOR_MODEL_DEFAULTS.insertSpaces;
 		if (config.editor && typeof config.editor.insertSpaces !== 'undefined') {
 			insertSpaces = (config.editor.insertSpaces === 'false' ? false : Boolean(config.editor.insertSpaces));
 		}
 
 		let newDefaultEOL = DEFAULT_EOL;
-		const eol = config.files && config.files.eol;
+		const eol = config.files && config.files.eol; // TODO@Sandeep (https://github.com/Microsoft/vscode/issues/29119)
 		if (eol === '\r\n') {
 			newDefaultEOL = editorCommon.DefaultEndOfLine.CRLF;
 		} else if (eol === '\n') {
 			newDefaultEOL = editorCommon.DefaultEndOfLine.LF;
 		}
 
-		let trimAutoWhitespace = DEFAULT_TRIM_AUTO_WHITESPACE;
+		let trimAutoWhitespace = EDITOR_MODEL_DEFAULTS.trimAutoWhitespace;
 		if (config.editor && typeof config.editor.trimAutoWhitespace !== 'undefined') {
 			trimAutoWhitespace = (config.editor.trimAutoWhitespace === 'false' ? false : Boolean(config.editor.trimAutoWhitespace));
 		}
 
-		let detectIndentation = DEFAULT_INDENTATION.detectIndentation;
+		let detectIndentation = EDITOR_MODEL_DEFAULTS.detectIndentation;
 		if (config.editor && typeof config.editor.detectIndentation !== 'undefined') {
 			detectIndentation = (config.editor.detectIndentation === 'false' ? false : Boolean(config.editor.detectIndentation));
 		}
@@ -264,7 +267,7 @@ export class ModelServiceImpl implements IModelService {
 	public getCreationOptions(language: string): editorCommon.ITextModelCreationOptions {
 		let creationOptions = this._modelCreationOptionsByLanguage[language];
 		if (!creationOptions) {
-			creationOptions = ModelServiceImpl._readModelOptions(this._configurationService.getConfiguration({ overrideIdentifier: language }));
+			creationOptions = ModelServiceImpl._readModelOptions(this._configurationService.getConfiguration(null, { overrideIdentifier: language }));
 			this._modelCreationOptionsByLanguage[language] = creationOptions;
 		}
 		return creationOptions;
@@ -468,7 +471,7 @@ export class ModelServiceImpl implements IModelService {
 		// First look for dispose
 		for (let i = 0, len = events.length; i < len; i++) {
 			let e = events[i];
-			if (e.type === editorCommon.EventType.ModelDispose) {
+			if (e.type === textModelEvents.TextModelEventType.ModelDispose) {
 				this._onModelDisposing(modelData.model);
 				// no more processing since model got disposed
 				return;
@@ -478,9 +481,9 @@ export class ModelServiceImpl implements IModelService {
 		// Second, look for mode change
 		for (let i = 0, len = events.length; i < len; i++) {
 			let e = events[i];
-			if (e.type === editorCommon.EventType.ModelLanguageChanged) {
+			if (e.type === textModelEvents.TextModelEventType.ModelLanguageChanged) {
 				const model = modelData.model;
-				const oldModeId = (<editorCommon.IModelLanguageChangedEvent>e.data).oldLanguage;
+				const oldModeId = (<textModelEvents.IModelLanguageChangedEvent>e.data).oldLanguage;
 				const newModeId = model.getLanguageIdentifier().language;
 				const oldOptions = this.getCreationOptions(oldModeId);
 				const newOptions = this.getCreationOptions(newModeId);

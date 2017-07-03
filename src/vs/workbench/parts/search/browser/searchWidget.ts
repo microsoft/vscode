@@ -21,14 +21,14 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Builder } from 'vs/base/browser/builder';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { isSearchViewletFocussed, appendKeyBindingLabel } from 'vs/workbench/parts/search/browser/searchActions';
 import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/common/findController';
 import { HistoryNavigator } from 'vs/base/common/history';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
-import { attachInputBoxStyler, attachFindInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachFindInputBoxStyler, attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 export interface ISearchWidgetOptions {
 	value?: string;
@@ -110,8 +110,14 @@ export class SearchWidget extends Widget {
 	private _onReplaceAll = this._register(new Emitter<void>());
 	public onReplaceAll: Event<void> = this._onReplaceAll.event;
 
-	constructor(container: Builder, private contextViewService: IContextViewService, private themeService: IThemeService, options: ISearchWidgetOptions = Object.create(null),
-		private keyBindingService: IContextKeyService, private keyBindingService2: IKeybindingService, private instantiationService: IInstantiationService) {
+	constructor(
+		container: Builder,
+		options: ISearchWidgetOptions,
+		@IContextViewService private contextViewService: IContextViewService,
+		@IThemeService private themeService: IThemeService,
+		@IContextKeyService private keyBindingService: IContextKeyService,
+		@IKeybindingService private keyBindingService2: IKeybindingService,
+	) {
 		super();
 		this.searchHistory = new HistoryNavigator<string>();
 		this.replaceActive = Constants.ReplaceActiveKey.bindTo(this.keyBindingService);
@@ -202,6 +208,10 @@ export class SearchWidget extends Widget {
 
 	private renderToggleReplaceButton(parent: HTMLElement): void {
 		this.toggleReplaceButton = this._register(new Button(parent));
+		attachButtonStyler(this.toggleReplaceButton, this.themeService, {
+			buttonBackground: SIDE_BAR_BACKGROUND,
+			buttonHoverBackground: SIDE_BAR_BACKGROUND
+		});
 		this.toggleReplaceButton.icon = 'toggle-replace-button collapse';
 		this.toggleReplaceButton.addListener('click', () => this.onToggleReplaceButton());
 		this.toggleReplaceButton.getElement().title = nls.localize('search.replace.toggle.button.title', "Toggle Replace");

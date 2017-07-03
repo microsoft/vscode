@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as themes from 'vs/platform/theme/common/themes';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { OverviewRulerImpl } from 'vs/editor/browser/viewParts/overviewRuler/overviewRulerImpl';
@@ -14,32 +13,23 @@ import { Position } from 'vs/editor/common/core/position';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-
-function getThemeType(themeId: string): editorCommon.ThemeType {
-	if (themes.isHighContrastTheme(themeId)) {
-		return editorCommon.ThemeType.HighContrast;
-	}
-	if (themes.isLightTheme(themeId)) {
-		return editorCommon.ThemeType.Light;
-	}
-	return editorCommon.ThemeType.Dark;
-}
+import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
+import { editorOverviewRulerBorder, editorCursor } from 'vs/editor/common/view/editorColorRegistry';
+import { Color } from 'vs/base/common/color';
+import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
 export class DecorationsOverviewRuler extends ViewPart {
 
 	static MIN_DECORATION_HEIGHT = 6;
 	static MAX_DECORATION_HEIGHT = 60;
 
-	private static _CURSOR_COLOR = 'rgba(0, 0, 102, 0.8)';
-	private static _CURSOR_COLOR_DARK = 'rgba(152, 152, 152, 0.8)';
-
-	private static _BORDER_COLOR = 'rgba(127,127,127,0.3)';
-
 	private readonly _tokensColorTrackerListener: IDisposable;
 
 	private _overviewRuler: OverviewRulerImpl;
 
 	private _renderBorder: boolean;
+	private _borderColor: string;
+	private _cursorColor: string;
 
 	private _shouldUpdateDecorations: boolean;
 	private _shouldUpdateCursorPosition: boolean;
@@ -47,27 +37,27 @@ export class DecorationsOverviewRuler extends ViewPart {
 	private _hideCursor: boolean;
 	private _cursorPositions: Position[];
 
-	private _zonesFromDecorations: editorCommon.OverviewRulerZone[];
-	private _zonesFromCursors: editorCommon.OverviewRulerZone[];
+	private _zonesFromDecorations: OverviewRulerZone[];
+	private _zonesFromCursors: OverviewRulerZone[];
 
-	constructor(context: ViewContext, scrollHeight: number, getVerticalOffsetForLine: (lineNumber: number) => number) {
+	constructor(context: ViewContext) {
 		super(context);
 		this._overviewRuler = new OverviewRulerImpl(
 			1,
 			'decorationsOverviewRuler',
-			scrollHeight,
+			this._context.viewLayout.getScrollHeight(),
 			this._context.configuration.editor.lineHeight,
-			this._context.configuration.editor.viewInfo.canUseTranslate3d,
+			this._context.configuration.editor.pixelRatio,
 			DecorationsOverviewRuler.MIN_DECORATION_HEIGHT,
 			DecorationsOverviewRuler.MAX_DECORATION_HEIGHT,
-			getVerticalOffsetForLine
+			(lineNumber: number) => this._context.viewLayout.getVerticalOffsetForLineNumber(lineNumber)
 		);
 		this._overviewRuler.setLanesCount(this._context.configuration.editor.viewInfo.overviewRulerLanes, false);
-		let theme = this._context.configuration.editor.viewInfo.theme;
-		this._overviewRuler.setThemeType(getThemeType(theme), false);
 		this._overviewRuler.setLayout(this._context.configuration.editor.layoutInfo.overviewRuler, false);
 
 		this._renderBorder = this._context.configuration.editor.viewInfo.overviewRulerBorder;
+
+		this._updateColors();
 
 		this._updateBackground(false);
 		this._tokensColorTrackerListener = TokenizationRegistry.onDidChange((e) => {
@@ -103,57 +93,38 @@ export class DecorationsOverviewRuler extends ViewPart {
 		let prevLanesCount = this._overviewRuler.getLanesCount();
 		let newLanesCount = this._context.configuration.editor.viewInfo.overviewRulerLanes;
 
-		let shouldRender = false;
+		if (prevLanesCount !== newLanesCount) {
+			this._overviewRuler.setLanesCount(newLanesCount, false);
+		}
 
 		if (e.lineHeight) {
 			this._overviewRuler.setLineHeight(this._context.configuration.editor.lineHeight, false);
-			shouldRender = true;
 		}
 
-		if (e.viewInfo.canUseTranslate3d) {
-			this._overviewRuler.setCanUseTranslate3d(this._context.configuration.editor.viewInfo.canUseTranslate3d, false);
-			shouldRender = true;
+		if (e.pixelRatio) {
+			this._overviewRuler.setPixelRatio(this._context.configuration.editor.pixelRatio, false);
 		}
 
-		if (prevLanesCount !== newLanesCount) {
-			this._overviewRuler.setLanesCount(newLanesCount, false);
-			shouldRender = true;
-		}
-
-		if (e.viewInfo.overviewRulerBorder) {
+		if (e.viewInfo) {
 			this._renderBorder = this._context.configuration.editor.viewInfo.overviewRulerBorder;
-			shouldRender = true;
-		}
-
-		if (e.viewInfo.hideCursorInOverviewRuler) {
 			this._hideCursor = this._context.configuration.editor.viewInfo.hideCursorInOverviewRuler;
 			this._shouldUpdateCursorPosition = true;
-			shouldRender = true;
-		}
-
-		if (e.viewInfo.theme) {
-			let theme = this._context.configuration.editor.viewInfo.theme;
-			this._overviewRuler.setThemeType(getThemeType(theme), false);
-			shouldRender = true;
-		}
-
-		if (e.viewInfo.minimap) {
 			this._updateBackground(false);
-			shouldRender = true;
 		}
 
 		if (e.layoutInfo) {
 			this._overviewRuler.setLayout(this._context.configuration.editor.layoutInfo.overviewRuler, false);
-			shouldRender = true;
 		}
 
-		return shouldRender;
+		return true;
 	}
 
-	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
+	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		this._shouldUpdateCursorPosition = true;
-		this._cursorPositions = [e.position];
-		this._cursorPositions = this._cursorPositions.concat(e.secondaryPositions);
+		this._cursorPositions = [];
+		for (let i = 0, len = e.selections.length; i < len; i++) {
+			this._cursorPositions[i] = e.selections[i].getPosition();
+		}
 		return true;
 	}
 
@@ -177,47 +148,72 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return true;
 	}
 
+	public onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
+		this._updateColors();
+		this._shouldUpdateDecorations = true;
+		this._shouldUpdateCursorPosition = true;
+		return true;
+	}
+
 	// ---- end view event handlers
 
 	public getDomNode(): HTMLElement {
 		return this._overviewRuler.getDomNode();
 	}
 
-	private _createZonesFromDecorations(): editorCommon.OverviewRulerZone[] {
+	private _updateColors() {
+		let borderColor = this._context.theme.getColor(editorOverviewRulerBorder);
+		this._borderColor = borderColor ? borderColor.toString() : null;
+
+		let cursorColor = this._context.theme.getColor(editorCursor);
+		this._cursorColor = cursorColor ? cursorColor.transparent(0.7).toString() : null;
+
+		this._overviewRuler.setThemeType(this._context.theme.type, false);
+	}
+
+	private _createZonesFromDecorations(): OverviewRulerZone[] {
 		let decorations = this._context.model.getAllOverviewRulerDecorations();
-		let zones: editorCommon.OverviewRulerZone[] = [];
+		let zones: OverviewRulerZone[] = [];
 
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			let dec = decorations[i];
 			let overviewRuler = dec.source.options.overviewRuler;
-			zones.push(new editorCommon.OverviewRulerZone(
+			zones.push(new OverviewRulerZone(
 				dec.range.startLineNumber,
 				dec.range.endLineNumber,
 				overviewRuler.position,
 				0,
-				overviewRuler.color,
-				overviewRuler.darkColor,
-				overviewRuler.hcColor
+				this.resolveRulerColor(overviewRuler.color),
+				this.resolveRulerColor(overviewRuler.darkColor),
+				this.resolveRulerColor(overviewRuler.hcColor)
 			));
 		}
 
 		return zones;
 	}
 
-	private _createZonesFromCursors(): editorCommon.OverviewRulerZone[] {
-		let zones: editorCommon.OverviewRulerZone[] = [];
+	private resolveRulerColor(color: string | ThemeColor): string {
+		if (editorCommon.isThemeColor(color)) {
+			let c = this._context.theme.getColor(color.id) || Color.transparent;
+			return c.toString();
+		}
+		return color;
+	}
+
+	private _createZonesFromCursors(): OverviewRulerZone[] {
+		let zones: OverviewRulerZone[] = [];
 
 		for (let i = 0, len = this._cursorPositions.length; i < len; i++) {
 			let cursor = this._cursorPositions[i];
 
-			zones.push(new editorCommon.OverviewRulerZone(
+			zones.push(new OverviewRulerZone(
 				cursor.lineNumber,
 				cursor.lineNumber,
 				editorCommon.OverviewRulerLane.Full,
 				2,
-				DecorationsOverviewRuler._CURSOR_COLOR,
-				DecorationsOverviewRuler._CURSOR_COLOR_DARK,
-				DecorationsOverviewRuler._CURSOR_COLOR_DARK
+				this._cursorColor,
+				this._cursorColor,
+				this._cursorColor
 			));
 		}
 
@@ -245,7 +241,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 				}
 			}
 
-			let allZones: editorCommon.OverviewRulerZone[] = [];
+			let allZones: OverviewRulerZone[] = [];
 			allZones = allZones.concat(this._zonesFromCursors);
 			allZones = allZones.concat(this._zonesFromDecorations);
 
@@ -254,11 +250,11 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 		let hasRendered = this._overviewRuler.render(false);
 
-		if (hasRendered && this._renderBorder && this._overviewRuler.getLanesCount() > 0 && (this._zonesFromDecorations.length > 0 || this._zonesFromCursors.length > 0)) {
+		if (hasRendered && this._renderBorder && this._borderColor && this._overviewRuler.getLanesCount() > 0 && (this._zonesFromDecorations.length > 0 || this._zonesFromCursors.length > 0)) {
 			let ctx2 = this._overviewRuler.getDomNode().getContext('2d');
 			ctx2.beginPath();
 			ctx2.lineWidth = 1;
-			ctx2.strokeStyle = DecorationsOverviewRuler._BORDER_COLOR;
+			ctx2.strokeStyle = this._borderColor;
 			ctx2.moveTo(0, 0);
 			ctx2.lineTo(0, this._overviewRuler.getPixelHeight());
 			ctx2.stroke();

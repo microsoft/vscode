@@ -1,0 +1,26 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.custom-view-tree-node-item {
+	display: flex;
+	height: 22px;
+	line-height: 22px;
+}
+
+.custom-view-tree-node-item > .custom-view-tree-node-item-icon {
+	background-size: 16px;
+	background-position: left center;
+	background-repeat: no-repeat;
+	padding-right: 6px;
+	width: 16px;
+	height: 22px;
+	-webkit-font-smoothing: antialiased;
+}
+
+.custom-view-tree-node-item > .custom-view-tree-node-item-label {
+	flex: 1;
+	text-overflow: ellipsis;
+	overflow: hidden;
+}

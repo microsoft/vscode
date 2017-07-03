@@ -7,12 +7,13 @@ import * as nls from 'vs/nls';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as dom from 'vs/base/browser/dom';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { DefaultController, ICancelableEvent, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
-import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
+import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
@@ -21,12 +22,13 @@ import { IDebugService, IExpression, IExpressionContainer } from 'vs/workbench/p
 import { Expression } from 'vs/workbench/parts/debug/common/debugModel';
 import { VariablesRenderer, renderExpressionValue, VariablesDataSource } from 'vs/workbench/parts/debug/electron-browser/debugViewer';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { attachListStyler } from "vs/platform/theme/common/styler";
-import { IThemeService } from "vs/platform/theme/common/themeService";
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { attachListStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
 
 const $ = dom.$;
 const MAX_ELEMENTS_SHOWN = 18;
-const MAX_VALUE_RENDER_LENGTH_IN_HOVER = 4096;
 
 export class DebugHoverWidget implements IContentWidget {
 
@@ -45,6 +47,7 @@ export class DebugHoverWidget implements IContentWidget {
 	private valueContainer: HTMLElement;
 	private stoleFocus: boolean;
 	private toDispose: lifecycle.IDisposable[];
+	private scrollbar: DomScrollableElement;
 
 	constructor(
 		private editor: ICodeEditor,
@@ -57,9 +60,12 @@ export class DebugHoverWidget implements IContentWidget {
 		this.create(instantiationService);
 		this.registerListeners();
 
-		this.valueContainer = dom.append(this.domNode, $('.value'));
+		this.valueContainer = $('.value');
 		this.valueContainer.tabIndex = 0;
 		this.valueContainer.setAttribute('role', 'tooltip');
+		this.scrollbar = new DomScrollableElement(this.valueContainer, { horizontal: ScrollbarVisibility.Hidden });
+		this.domNode.appendChild(this.scrollbar.getDomNode());
+		this.toDispose.push(this.scrollbar);
 
 		this._isVisible = false;
 		this.showAtPosition = null;
@@ -88,6 +94,14 @@ export class DebugHoverWidget implements IContentWidget {
 
 		this.toDispose.push(attachListStyler(this.tree, this.themeService));
 		this.toDispose.push(this.listService.register(this.tree));
+		this.toDispose.push(attachStylerCallback(this.themeService, { editorHoverBackground, editorHoverBorder }, colors => {
+			this.domNode.style.backgroundColor = colors.editorHoverBackground;
+			if (colors.editorHoverBorder) {
+				this.domNode.style.border = `1px solid ${colors.editorHoverBorder}`;
+			} else {
+				this.domNode.style.border = null;
+			}
+		}));
 	}
 
 	private registerListeners(): void {
@@ -240,9 +254,9 @@ export class DebugHoverWidget implements IContentWidget {
 			this.valueContainer.hidden = false;
 			renderExpressionValue(expression, this.valueContainer, {
 				showChanged: false,
-				maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_HOVER,
 				preserveWhitespace: true
 			});
+			this.scrollbar.scanDomNode();
 			this.valueContainer.title = '';
 			this.editor.layoutContentWidget(this);
 			if (focus) {
@@ -255,6 +269,7 @@ export class DebugHoverWidget implements IContentWidget {
 
 		this.valueContainer.hidden = true;
 		this.complexValueContainer.hidden = false;
+		this.scrollbar.scanDomNode();
 
 		return this.tree.setInput(expression).then(() => {
 			this.complexValueTitle.textContent = expression.value;

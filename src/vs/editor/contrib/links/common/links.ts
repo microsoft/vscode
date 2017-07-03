@@ -8,8 +8,8 @@
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Range } from 'vs/editor/common/core/range';
-import { IReadOnlyModel, IRange } from 'vs/editor/common/editorCommon';
+import { Range, IRange } from 'vs/editor/common/core/range';
+import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
 import { ILink, LinkProvider, LinkProviderRegistry } from 'vs/editor/common/modes';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -38,7 +38,7 @@ export class Link implements ILink {
 			try {
 				return TPromise.as(URI.parse(this._link.url));
 			} catch (e) {
-				return TPromise.wrapError('invalid');
+				return TPromise.wrapError<URI>(new Error('invalid'));
 			}
 		}
 
@@ -50,11 +50,11 @@ export class Link implements ILink {
 					return this.resolve();
 				}
 
-				return TPromise.wrapError('missing');
+				return TPromise.wrapError<URI>(new Error('missing'));
 			});
 		}
 
-		return TPromise.wrapError('missing');
+		return TPromise.wrapError<URI>(new Error('missing'));
 	}
 }
 

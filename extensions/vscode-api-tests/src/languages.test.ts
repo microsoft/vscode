@@ -14,7 +14,7 @@ import {
 
 suite('languages namespace tests', () => {
 
-	test('diagnostics & CodeActionProvider', function (done) {
+	test('diagnostics & CodeActionProvider', function () {
 
 		class D2 extends Diagnostic {
 			customProp = { complex() { } };
@@ -54,20 +54,15 @@ suite('languages namespace tests', () => {
 		let r4 = languages.createDiagnosticCollection();
 		r4.set(uri, [diag2]);
 
-		workspace.openTextDocument(uri).then(doc => {
+		return workspace.openTextDocument(uri).then(doc => {
 			return commands.executeCommand('vscode.executeCodeActionProvider', uri, new Range(0, 0, 0, 10));
 		}).then(commands => {
-			try {
-				assert.ok(ran);
-				Disposable.from(r1, r2, r3, r4).dispose();
-				done();
-			} catch (e) {
-				done(e);
-			}
-		}, done);
+			assert.ok(ran);
+			Disposable.from(r1, r2, r3, r4).dispose();
+		});
 	});
 
-	test('completions with document filters', function (done) {
+	test('completions with document filters', function () {
 		let ran = false;
 		let uri = Uri.file(join(workspace.rootPath || '', './bower.json'));
 
@@ -82,17 +77,13 @@ suite('languages namespace tests', () => {
 			}
 		});
 
-		workspace.openTextDocument(uri).then(doc => {
+		return workspace.openTextDocument(uri).then(doc => {
 			return commands.executeCommand('vscode.executeCompletionItemProvider', uri, new Position(1, 0));
 		}).then((result: CompletionList) => {
-			try {
-				assert.equal(result.items[0].label, 'foo');
-				assert.ok(ran);
-				Disposable.from(r1).dispose();
-				done();
-			} catch (e) {
-				done(e);
-			}
-		}, done);
+			r1.dispose();
+			assert.ok(ran);
+			console.log(result.items);
+			assert.equal(result.items[0].label, 'foo');
+		});
 	});
 });

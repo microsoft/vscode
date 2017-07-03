@@ -17,7 +17,7 @@ import {
 	DeleteWordLeft, DeleteWordStartLeft, DeleteWordEndLeft,
 	DeleteWordRight, DeleteWordStartRight, DeleteWordEndRight
 } from 'vs/editor/contrib/wordOperations/common/wordOperations';
-import { EditorCommand } from 'vs/editor/common/config/config';
+import { EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 
 suite('WordOperations', () => {
 
@@ -552,6 +552,35 @@ suite('WordOperations', () => {
 		});
 	});
 
+	test('issue #24947', () => {
+		withMockCodeEditor([
+			'{',
+			'}'
+		], {}, (editor, _) => {
+			const model = editor.getModel();
+			editor.setPosition(new Position(2, 1));
+			deleteWordLeft(editor); assert.equal(model.getLineContent(1), '{}');
+		});
+
+		withMockCodeEditor([
+			'{',
+			'}'
+		], {}, (editor, _) => {
+			const model = editor.getModel();
+			editor.setPosition(new Position(2, 1));
+			deleteWordStartLeft(editor); assert.equal(model.getLineContent(1), '{}');
+		});
+
+		withMockCodeEditor([
+			'{',
+			'}'
+		], {}, (editor, _) => {
+			const model = editor.getModel();
+			editor.setPosition(new Position(2, 1));
+			deleteWordEndLeft(editor); assert.equal(model.getLineContent(1), '{}');
+		});
+	});
+
 	test('issue #832: deleteWordRight', () => {
 		withMockCodeEditor([
 			'   /* Just some text a+= 3 +5-3 */  '
@@ -669,7 +698,7 @@ suite('WordOperations', () => {
 		], {}, (editor, _) => {
 			const model = editor.getModel();
 			editor.setPosition(new Position(2, 1));
-			deleteWordLeft(editor); assert.equal(model.getLineContent(1), 'A line with text   And another one', '001');
+			deleteWordLeft(editor); assert.equal(model.getLineContent(1), 'A line with text.   And another one', '001');
 		});
 	});
 });

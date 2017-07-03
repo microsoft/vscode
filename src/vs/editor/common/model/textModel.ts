@@ -6,17 +6,18 @@
 
 import { OrderGuaranteeEventEmitter, BulkListenerCallback } from 'vs/base/common/eventEmitter';
 import * as strings from 'vs/base/common/strings';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { Position, IPosition } from 'vs/editor/common/core/position';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ModelLine } from 'vs/editor/common/model/modelLine';
 import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
-import { DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE } from 'vs/editor/common/config/defaultConfig';
+import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { IndentRange, computeRanges } from 'vs/editor/common/model/indentRanges';
 import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { TextSource, ITextSource, IRawTextSource, RawTextSource } from 'vs/editor/common/model/textSource';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 
 const LIMIT_FIND_COUNT = 999;
 export const LONG_LINE_BOUNDARY = 10000;
@@ -31,11 +32,11 @@ export class TextModel implements editorCommon.ITextModel {
 	private static MODEL_TOKENIZATION_LIMIT = 20 * 1024 * 1024; // 20 MB
 
 	public static DEFAULT_CREATION_OPTIONS: editorCommon.ITextModelCreationOptions = {
-		tabSize: DEFAULT_INDENTATION.tabSize,
-		insertSpaces: DEFAULT_INDENTATION.insertSpaces,
+		tabSize: EDITOR_MODEL_DEFAULTS.tabSize,
+		insertSpaces: EDITOR_MODEL_DEFAULTS.insertSpaces,
 		detectIndentation: false,
 		defaultEOL: editorCommon.DefaultEndOfLine.LF,
-		trimAutoWhitespace: DEFAULT_TRIM_AUTO_WHITESPACE,
+		trimAutoWhitespace: EDITOR_MODEL_DEFAULTS.trimAutoWhitespace,
 	};
 
 	public static createFromString(text: string, options: editorCommon.ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS): TextModel {
@@ -158,7 +159,7 @@ export class TextModel implements editorCommon.ITextModel {
 			}
 		}
 
-		this._eventEmitter.emit(editorCommon.EventType.ModelOptionsChanged, e);
+		this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelOptionsChanged, e);
 	}
 
 	public detectIndentation(defaultInsertSpaces: boolean, defaultTabSize: number): void {
@@ -256,7 +257,7 @@ export class TextModel implements editorCommon.ITextModel {
 		}
 	}
 
-	public getOffsetAt(rawPosition: editorCommon.IPosition): number {
+	public getOffsetAt(rawPosition: IPosition): number {
 		this._assertNotDisposed();
 		let position = this._validatePosition(rawPosition.lineNumber, rawPosition.column, false);
 		this._ensureLineStarts();
@@ -305,7 +306,7 @@ export class TextModel implements editorCommon.ITextModel {
 	}
 
 	private _emitContentChanged2(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeLength: number, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean): void {
-		const e: editorCommon.IModelContentChangedEvent = {
+		const e: textModelEvents.IModelContentChangedEvent = {
 			changes: [{
 				range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 				rangeLength: rangeLength,
@@ -318,7 +319,7 @@ export class TextModel implements editorCommon.ITextModel {
 			isFlush: isFlush
 		};
 		if (!this._isDisposing) {
-			this._eventEmitter.emit(editorCommon.EventType.ModelContentChanged, e);
+			this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelContentChanged, e);
 		}
 	}
 
@@ -370,9 +371,9 @@ export class TextModel implements editorCommon.ITextModel {
 		this._resetValue(newValue);
 
 		this._emitModelRawContentChangedEvent(
-			new editorCommon.ModelRawContentChangedEvent(
+			new textModelEvents.ModelRawContentChangedEvent(
 				[
-					new editorCommon.ModelRawFlush()
+					new textModelEvents.ModelRawFlush()
 				],
 				this._versionId,
 				false,
@@ -407,41 +408,7 @@ export class TextModel implements editorCommon.ITextModel {
 		return fullModelValue;
 	}
 
-	public getEmptiedValueInRange(rawRange: editorCommon.IRange, fillCharacter: string = '', eol: editorCommon.EndOfLinePreference = editorCommon.EndOfLinePreference.TextDefined): string {
-		this._assertNotDisposed();
-		var range = this.validateRange(rawRange);
-
-		if (range.isEmpty()) {
-			return '';
-		}
-
-		if (range.startLineNumber === range.endLineNumber) {
-			return this._repeatCharacter(fillCharacter, range.endColumn - range.startColumn);
-		}
-
-		var lineEnding = this._getEndOfLine(eol),
-			startLineIndex = range.startLineNumber - 1,
-			endLineIndex = range.endLineNumber - 1,
-			resultLines: string[] = [];
-
-		resultLines.push(this._repeatCharacter(fillCharacter, this._lines[startLineIndex].text.length - range.startColumn + 1));
-		for (var i = startLineIndex + 1; i < endLineIndex; i++) {
-			resultLines.push(this._repeatCharacter(fillCharacter, this._lines[i].text.length));
-		}
-		resultLines.push(this._repeatCharacter(fillCharacter, range.endColumn - 1));
-
-		return resultLines.join(lineEnding);
-	}
-
-	private _repeatCharacter(fillCharacter: string, count: number): string {
-		var r = '';
-		for (var i = 0; i < count; i++) {
-			r += fillCharacter;
-		}
-		return r;
-	}
-
-	public getValueInRange(rawRange: editorCommon.IRange, eol: editorCommon.EndOfLinePreference = editorCommon.EndOfLinePreference.TextDefined): string {
+	public getValueInRange(rawRange: IRange, eol: editorCommon.EndOfLinePreference = editorCommon.EndOfLinePreference.TextDefined): string {
 		this._assertNotDisposed();
 		var range = this.validateRange(rawRange);
 
@@ -467,7 +434,7 @@ export class TextModel implements editorCommon.ITextModel {
 		return resultLines.join(lineEnding);
 	}
 
-	public getValueLengthInRange(rawRange: editorCommon.IRange, eol: editorCommon.EndOfLinePreference = editorCommon.EndOfLinePreference.TextDefined): number {
+	public getValueLengthInRange(rawRange: IRange, eol: editorCommon.EndOfLinePreference = editorCommon.EndOfLinePreference.TextDefined): number {
 		this._assertNotDisposed();
 		var range = this.validateRange(rawRange);
 
@@ -619,9 +586,9 @@ export class TextModel implements editorCommon.ITextModel {
 		this._increaseVersionId();
 
 		this._emitModelRawContentChangedEvent(
-			new editorCommon.ModelRawContentChangedEvent(
+			new textModelEvents.ModelRawContentChangedEvent(
 				[
-					new editorCommon.ModelRawFlush()
+					new textModelEvents.ModelRawEOLChanged()
 				],
 				this._versionId,
 				false,
@@ -720,12 +687,12 @@ export class TextModel implements editorCommon.ITextModel {
 		return new Position(lineNumber, column);
 	}
 
-	public validatePosition(position: editorCommon.IPosition): Position {
+	public validatePosition(position: IPosition): Position {
 		this._assertNotDisposed();
 		return this._validatePosition(position.lineNumber, position.column, true);
 	}
 
-	public validateRange(_range: editorCommon.IRange): Range {
+	public validateRange(_range: IRange): Range {
 		this._assertNotDisposed();
 		const start = this._validatePosition(_range.startLineNumber, _range.startColumn, false);
 		const end = this._validatePosition(_range.endLineNumber, _range.endColumn, false);
@@ -767,7 +734,7 @@ export class TextModel implements editorCommon.ITextModel {
 		return new Range(startLineNumber, startColumn, endLineNumber, endColumn + 1);
 	}
 
-	public modifyPosition(rawPosition: editorCommon.IPosition, offset: number): Position {
+	public modifyPosition(rawPosition: IPosition, offset: number): Position {
 		this._assertNotDisposed();
 		return this.getPositionAt(this.getOffsetAt(rawPosition) + offset);
 	}
@@ -778,12 +745,12 @@ export class TextModel implements editorCommon.ITextModel {
 		return new Range(1, 1, lineCount, this.getLineMaxColumn(lineCount));
 	}
 
-	protected _emitModelRawContentChangedEvent(e: editorCommon.ModelRawContentChangedEvent): void {
+	protected _emitModelRawContentChangedEvent(e: textModelEvents.ModelRawContentChangedEvent): void {
 		if (this._isDisposing) {
 			// Do not confuse listeners by emitting any event after disposing
 			return;
 		}
-		this._eventEmitter.emit(editorCommon.EventType.ModelRawContentChanged2, e);
+		this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelRawContentChanged2, e);
 	}
 
 	private _constructLines(textSource: ITextSource): void {
@@ -815,7 +782,7 @@ export class TextModel implements editorCommon.ITextModel {
 		throw new Error('Unknown EOL preference');
 	}
 
-	public findMatches(searchString: string, rawSearchScope: any, isRegex: boolean, matchCase: boolean, wholeWord: boolean, captureMatches: boolean, limitResultCount: number = LIMIT_FIND_COUNT): editorCommon.FindMatch[] {
+	public findMatches(searchString: string, rawSearchScope: any, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean, limitResultCount: number = LIMIT_FIND_COUNT): editorCommon.FindMatch[] {
 		this._assertNotDisposed();
 
 		let searchRange: Range;
@@ -825,18 +792,18 @@ export class TextModel implements editorCommon.ITextModel {
 			searchRange = this.getFullModelRange();
 		}
 
-		return TextModelSearch.findMatches(this, new SearchParams(searchString, isRegex, matchCase, wholeWord), searchRange, captureMatches, limitResultCount);
+		return TextModelSearch.findMatches(this, new SearchParams(searchString, isRegex, matchCase, wordSeparators), searchRange, captureMatches, limitResultCount);
 	}
 
-	public findNextMatch(searchString: string, rawSearchStart: editorCommon.IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean, captureMatches: boolean): editorCommon.FindMatch {
+	public findNextMatch(searchString: string, rawSearchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean): editorCommon.FindMatch {
 		this._assertNotDisposed();
 		const searchStart = this.validatePosition(rawSearchStart);
-		return TextModelSearch.findNextMatch(this, new SearchParams(searchString, isRegex, matchCase, wholeWord), searchStart, captureMatches);
+		return TextModelSearch.findNextMatch(this, new SearchParams(searchString, isRegex, matchCase, wordSeparators), searchStart, captureMatches);
 	}
 
-	public findPreviousMatch(searchString: string, rawSearchStart: editorCommon.IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean, captureMatches: boolean): editorCommon.FindMatch {
+	public findPreviousMatch(searchString: string, rawSearchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean): editorCommon.FindMatch {
 		this._assertNotDisposed();
 		const searchStart = this.validatePosition(rawSearchStart);
-		return TextModelSearch.findPreviousMatch(this, new SearchParams(searchString, isRegex, matchCase, wholeWord), searchStart, captureMatches);
+		return TextModelSearch.findPreviousMatch(this, new SearchParams(searchString, isRegex, matchCase, wordSeparators), searchStart, captureMatches);
 	}
 }

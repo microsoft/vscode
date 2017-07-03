@@ -74,10 +74,9 @@ export interface ITheme {
 	label: string;
 }
 
-export interface ITreeExplorer {
-	treeExplorerNodeProviderId: string;
-	treeLabel: string;
-	icon: string;
+export interface IView {
+	id: string;
+	name: string;
 }
 
 export interface IExtensionContributions {
@@ -91,7 +90,7 @@ export interface IExtensionContributions {
 	menus?: { [context: string]: IMenu[] };
 	snippets?: ISnippet[];
 	themes?: ITheme[];
-	explorer?: ITreeExplorer;
+	views?: { [location: string]: IView[] };
 }
 
 export interface IExtensionManifest {

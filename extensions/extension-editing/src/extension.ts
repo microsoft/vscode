@@ -8,6 +8,7 @@
 import * as vscode from 'vscode';
 import * as ts from 'typescript';
 import { PackageDocument } from './packageDocumentHelper';
+import { ExtensionLinter } from './extensionLinter';
 
 export function activate(context: vscode.ExtensionContext) {
 	const registration = vscode.languages.registerDocumentLinkProvider({ language: 'typescript', pattern: '**/vscode.d.ts' }, _linkProvider);
@@ -15,6 +16,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 	//package.json suggestions
 	context.subscriptions.push(registerPackageDocumentCompletions());
+
+	context.subscriptions.push(new ExtensionLinter(context));
 }
 
 const _linkProvider = new class implements vscode.DocumentLinkProvider {
@@ -74,7 +77,7 @@ namespace ast {
 		const spans: number[] = [];
 
 		ts.forEachChild(sourceFile, function visit(node: ts.Node) {
-			const declIdent = (<ts.Declaration>node).name;
+			const declIdent = (<ts.NamedDeclaration>node).name;
 			if (declIdent && declIdent.kind === ts.SyntaxKind.Identifier) {
 				identifiers.push((<ts.Identifier>declIdent).text);
 				spans.push(node.pos, node.end);

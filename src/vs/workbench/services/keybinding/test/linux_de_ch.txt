@@ -349,7 +349,6 @@ isUSStandard: false
 |                                |       |                         ] |   1 |                           |                                |                           |                                |         |
 |               Shift+Alt+Digit9 |   )   |               Shift+Alt+9 |     |               Shift+Alt+9 |                    shift+alt+9 |               Shift+Alt+9 |             shift+alt+[Digit9] |         |
 |          Ctrl+Shift+Alt+Digit9 |   ±   |          Ctrl+Shift+Alt+9 |     |          Ctrl+Shift+Alt+9 |               ctrl+shift+alt+9 |          Ctrl+Shift+Alt+9 |        ctrl+shift+alt+[Digit9] |         |
-|                                |       |          Ctrl+Shift+Alt+] |   1 |                           |                                |                           |                                |         |
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |                         Digit0 |   0   |                         0 |     |                         0 |                              0 |                         0 |                       [Digit0] |         |
 |                    Ctrl+Digit0 |   0   |                    Ctrl+0 |     |                    Ctrl+0 |                         ctrl+0 |                    Ctrl+0 |                  ctrl+[Digit0] |         |
@@ -392,7 +391,7 @@ isUSStandard: false
 |                Alt+BracketLeft |   ü   |                           |     |                     Alt+ü |              alt+[BracketLeft] |                      null |              alt+[BracketLeft] |    NO   |
 |           Ctrl+Alt+BracketLeft |   [   |                         [ |     |                Ctrl+Alt+ü |         ctrl+alt+[BracketLeft] |                      null |         ctrl+alt+[BracketLeft] |    NO   |
 |          Shift+Alt+BracketLeft |   è   |                           |     |               Shift+Alt+ü |        shift+alt+[BracketLeft] |                      null |        shift+alt+[BracketLeft] |    NO   |
-|     Ctrl+Shift+Alt+BracketLeft |   ˚   |          Ctrl+Shift+Alt+[ |     |          Ctrl+Shift+Alt+ü |   ctrl+shift+alt+[BracketLeft] |                      null |   ctrl+shift+alt+[BracketLeft] |    NO   |
+|     Ctrl+Shift+Alt+BracketLeft |   ˚   |                           |     |          Ctrl+Shift+Alt+ü |   ctrl+shift+alt+[BracketLeft] |                      null |   ctrl+shift+alt+[BracketLeft] |    NO   |
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |                   BracketRight |   ¨   |                           |     |                         ¨ |                 [BracketRight] |                      null |                 [BracketRight] |    NO   |
 |              Ctrl+BracketRight |   ¨   |                           |     |                    Ctrl+¨ |            ctrl+[BracketRight] |                      null |            ctrl+[BracketRight] |    NO   |
@@ -401,7 +400,7 @@ isUSStandard: false
 |               Alt+BracketRight |   ¨   |                           |     |                     Alt+¨ |             alt+[BracketRight] |                      null |             alt+[BracketRight] |    NO   |
 |          Ctrl+Alt+BracketRight |   ]   |                         ] |   2 |                Ctrl+Alt+¨ |        ctrl+alt+[BracketRight] |                      null |        ctrl+alt+[BracketRight] |    NO   |
 |         Shift+Alt+BracketRight |   !   |                           |     |               Shift+Alt+¨ |       shift+alt+[BracketRight] |                      null |       shift+alt+[BracketRight] |    NO   |
-|    Ctrl+Shift+Alt+BracketRight |   ¯   |          Ctrl+Shift+Alt+] |   2 |          Ctrl+Shift+Alt+¨ |  ctrl+shift+alt+[BracketRight] |                      null |  ctrl+shift+alt+[BracketRight] |    NO   |
+|    Ctrl+Shift+Alt+BracketRight |   ¯   |                           |     |          Ctrl+Shift+Alt+¨ |  ctrl+shift+alt+[BracketRight] |                      null |  ctrl+shift+alt+[BracketRight] |    NO   |
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |       HW Code combination      |  Key  |    KeyCode combination    | Pri |          UI label         |         User settings          |    Electron accelerator   |       Dispatching string       | WYSIWYG |
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -506,7 +505,7 @@ isUSStandard: false
 |              Alt+IntlBackslash |   <   |               Shift+Alt+, |     |                     Alt+< |            alt+[IntlBackslash] |                      null |            alt+[IntlBackslash] |    NO   |
 |         Ctrl+Alt+IntlBackslash |   \   |                         \ |     |                Ctrl+Alt+< |       ctrl+alt+[IntlBackslash] |                      null |       ctrl+alt+[IntlBackslash] |    NO   |
 |        Shift+Alt+IntlBackslash |   >   |               Shift+Alt+. |     |               Shift+Alt+< |      shift+alt+[IntlBackslash] |                      null |      shift+alt+[IntlBackslash] |    NO   |
-|   Ctrl+Shift+Alt+IntlBackslash |   ¦   |          Ctrl+Shift+Alt+\ |     |          Ctrl+Shift+Alt+< | ctrl+shift+alt+[IntlBackslash] |                      null | ctrl+shift+alt+[IntlBackslash] |    NO   |
+|   Ctrl+Shift+Alt+IntlBackslash |   ¦   |          Ctrl+Shift+Alt+. |     |          Ctrl+Shift+Alt+< | ctrl+shift+alt+[IntlBackslash] |                      null | ctrl+shift+alt+[IntlBackslash] |    NO   |
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |                         IntlRo |  ---  |                           |     |                      null |                       [IntlRo] |                      null |                       [IntlRo] |    NO   |
 |                    Ctrl+IntlRo |  ---  |                           |     |                      null |                  ctrl+[IntlRo] |                      null |                  ctrl+[IntlRo] |    NO   |

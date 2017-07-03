@@ -11,10 +11,13 @@ import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorRuler } from 'vs/editor/common/view/editorColorRegistry';
+import * as dom from 'vs/base/browser/dom';
 
 export class Rulers extends ViewPart {
 
-	public domNode: HTMLElement;
+	public domNode: FastDomNode<HTMLElement>;
 	private _renderedRulers: FastDomNode<HTMLElement>[];
 	private _rulers: number[];
 	private _height: number;
@@ -22,8 +25,10 @@ export class Rulers extends ViewPart {
 
 	constructor(context: ViewContext) {
 		super(context);
-		this.domNode = document.createElement('div');
-		this.domNode.className = 'view-rulers';
+		this.domNode = createFastDomNode<HTMLElement>(document.createElement('div'));
+		this.domNode.setAttribute('role', 'presentation');
+		this.domNode.setAttribute('aria-hidden', 'true');
+		this.domNode.setClassName('view-rulers');
 		this._renderedRulers = [];
 		this._rulers = this._context.configuration.editor.viewInfo.rulers;
 		this._height = this._context.configuration.editor.layoutInfo.contentHeight;
@@ -37,7 +42,7 @@ export class Rulers extends ViewPart {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.viewInfo.rulers || e.layoutInfo || e.fontInfo) {
+		if (e.viewInfo || e.layoutInfo || e.fontInfo) {
 			this._rulers = this._context.configuration.editor.viewInfo.rulers;
 			this._height = this._context.configuration.editor.layoutInfo.contentHeight;
 			this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
@@ -46,7 +51,7 @@ export class Rulers extends ViewPart {
 		return false;
 	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return super.onScrollChanged(e) || e.scrollHeightChanged;
+		return e.scrollHeightChanged;
 	}
 
 	// --- end event handlers
@@ -65,12 +70,13 @@ export class Rulers extends ViewPart {
 		}
 
 		if (currentCount < desiredCount) {
-			// Add more rulers
+			const rulerWidth = dom.computeScreenAwareSize(1);
 			let addCount = desiredCount - currentCount;
 			while (addCount > 0) {
 				let node = createFastDomNode(document.createElement('div'));
 				node.setClassName('view-ruler');
-				this.domNode.appendChild(node.domNode);
+				node.setWidth(rulerWidth);
+				this.domNode.appendChild(node);
 				this._renderedRulers.push(node);
 				addCount--;
 			}
@@ -80,7 +86,7 @@ export class Rulers extends ViewPart {
 		let removeCount = currentCount - desiredCount;
 		while (removeCount > 0) {
 			let node = this._renderedRulers.pop();
-			this.domNode.removeChild(node.domNode);
+			this.domNode.removeChild(node);
 			removeCount--;
 		}
 	}
@@ -97,3 +103,10 @@ export class Rulers extends ViewPart {
 		}
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let rulerColor = theme.getColor(editorRuler);
+	if (rulerColor) {
+		collector.addRule(`.monaco-editor .view-ruler { background-color: ${rulerColor}; }`);
+	}
+});

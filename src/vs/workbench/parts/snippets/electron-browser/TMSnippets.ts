@@ -13,8 +13,10 @@ import { readFile } from 'vs/base/node/pfs';
 import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ISnippetsService, ISnippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { languagesExtPoint } from 'vs/editor/common/services/modeServiceImpl';
+import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { SnippetParser, Marker, Placeholder, Variable, Text, walk } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { EditorSnippetVariableResolver } from 'vs/editor/contrib/snippet/browser/snippetVariables';
 
 interface ISnippetsExtensionPoint {
 	language: string;
@@ -79,19 +81,29 @@ export class MainProcessTextMateSnippet implements IWorkbenchContribution {
 		let modeId = snippet.language;
 		let languageIdentifier = this._modeService.getLanguageIdentifier(modeId);
 		if (languageIdentifier) {
-			readAndRegisterSnippets(this._snippetService, languageIdentifier, normalizedAbsolutePath, extensionName);
+			readAndRegisterSnippets(this._snippetService, languageIdentifier, normalizedAbsolutePath, extensionName, collector);
 		}
 	}
 }
 
-export function readAndRegisterSnippets(snippetService: ISnippetsService, languageIdentifier: LanguageIdentifier, filePath: string, extensionName?: string): TPromise<void> {
+export function readAndRegisterSnippets(
+	snippetService: ISnippetsService, languageIdentifier: LanguageIdentifier, filePath: string,
+	extensionName?: string, collector?: ExtensionMessageCollector
+): TPromise<void> {
+
 	return readFile(filePath).then(fileContents => {
-		let snippets = parseSnippetFile(fileContents.toString(), extensionName);
+		let snippets = parseSnippetFile(fileContents.toString(), extensionName, collector);
 		snippetService.registerSnippets(languageIdentifier.id, snippets, filePath);
+	}, err => {
+		if (err && err.code === 'ENOENT') {
+			snippetService.registerSnippets(languageIdentifier.id, [], filePath);
+		} else {
+			throw err;
+		}
 	});
 }
 
-function parseSnippetFile(snippetFileContent: string, extensionName?: string): ISnippet[] {
+function parseSnippetFile(snippetFileContent: string, extensionName?: string, collector?: ExtensionMessageCollector): ISnippet[] {
 	let snippetsObj = parse(snippetFileContent);
 	if (!snippetsObj || typeof snippetsObj !== 'object') {
 		return [];
@@ -102,21 +114,34 @@ function parseSnippetFile(snippetFileContent: string, extensionName?: string): I
 
 	let processSnippet = (snippet: any, name: string) => {
 		let prefix = snippet['prefix'];
-		let bodyStringOrArray = snippet['body'];
+		let body = <string | string[]>snippet['body'];
 
-		if (Array.isArray(bodyStringOrArray)) {
-			bodyStringOrArray = bodyStringOrArray.join('\n');
+		if (Array.isArray(body)) {
+			body = body.join('\n');
 		}
 
-		if (typeof prefix === 'string' && typeof bodyStringOrArray === 'string') {
-			result.push({
-				name,
-				extensionName,
-				prefix,
-				description: snippet['description'] || name,
-				codeSnippet: bodyStringOrArray
-			});
+		if (typeof prefix !== 'string' || typeof body !== 'string') {
+			return;
 		}
+
+		snippet = {
+			name,
+			extensionName,
+			prefix,
+			description: snippet['description'] || name,
+			codeSnippet: body
+		};
+
+		const didRewrite = _rewriteBogousVariables(snippet);
+		if (didRewrite && collector) {
+			collector.warn(nls.localize(
+				'badVariableUse',
+				"The \"{0}\"-snippet very likely confuses snippet-variables and snippet-placeholders. See https://code.visualstudio.com/docs/editor/userdefinedsnippets#_snippet-syntax for more details.",
+				name
+			));
+		}
+
+		result.push(snippet);
 	};
 
 	topLevelProperties.forEach(topLevelProperty => {
@@ -131,4 +156,50 @@ function parseSnippetFile(snippetFileContent: string, extensionName?: string): I
 		}
 	});
 	return result;
+}
+
+function _rewriteBogousVariables(snippet: ISnippet): boolean {
+	const marker = new SnippetParser().parse(snippet.codeSnippet, false);
+
+	let placeholders = new Map<string, number>();
+	let placeholderMax = 0;
+	walk(marker, candidate => {
+		if (candidate instanceof Placeholder) {
+			placeholderMax = Math.max(placeholderMax, Number(candidate.index));
+		}
+		return true;
+	});
+
+	function fixBogousVariables(marker: Marker): string {
+		if (marker instanceof Text) {
+			return SnippetParser.escape(marker.string);
+
+		} else if (marker instanceof Placeholder) {
+			if (marker.children.length > 0) {
+				return `\${${marker.index}:${marker.children.map(fixBogousVariables).join('')}}`;
+			} else {
+				return `\$${marker.index}`;
+			}
+		} else if (marker instanceof Variable) {
+			if (marker.children.length === 0 && !EditorSnippetVariableResolver.VariableNames[marker.name]) {
+				// a 'variable' without a default value and not being one of our supported
+				// variables is automatically turing into a placeholder. This is to restore
+				// a bug we had before. So `${foo}` becomes `${N:foo}`
+				let index = placeholders.has(marker.name) ? placeholders.get(marker.name) : ++placeholderMax;
+				placeholders.set(marker.name, index);
+				return `\${${index++}:${marker.name}}`;
+
+			} else if (marker.children.length > 0) {
+				return `\${${marker.name}:${marker.children.map(fixBogousVariables).join('')}}`;
+			} else {
+				return `\$${marker.name}`;
+			}
+		} else {
+			throw new Error('unexpected marker: ' + marker);
+		}
+	}
+
+	const placeholderCountBefore = placeholderMax;
+	snippet.codeSnippet = marker.map(fixBogousVariables).join('');
+	return placeholderCountBefore !== placeholderMax;
 }

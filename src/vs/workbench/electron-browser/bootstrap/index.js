@@ -12,8 +12,9 @@ if (window.location.search.indexOf('prof-startup') >= 0) {
 	profiler.startProfiling('renderer', true);
 }
 
-/*global window,document,define*/
+/*global window,document,define,Monaco_Loader_Init*/
 
+const startTimer = require('../../../base/node/startupTimers').startTimer;
 const path = require('path');
 const electron = require('electron');
 const remote = electron.remote;
@@ -22,8 +23,8 @@ const ipc = electron.ipcRenderer;
 process.lazyEnv = new Promise(function (resolve) {
 	const handle = setTimeout(function () {
 		resolve();
-		console.warn('renderer did not receive lazyEnv in time')
-	}, 2000);
+		console.warn('renderer did not receive lazyEnv in time');
+	}, 10000);
 	ipc.once('vscode:acceptShellEnv', function (event, shellEnv) {
 		clearTimeout(handle);
 		assign(process.env, shellEnv);
@@ -106,14 +107,14 @@ function registerListeners(enableDeveloperTools) {
 		window.addEventListener('keydown', listener);
 	}
 
-	process.on('uncaughtException', function (error) { onError(error, enableDeveloperTools) });
+	process.on('uncaughtException', function (error) { onError(error, enableDeveloperTools); });
 
 	return function () {
 		if (listener) {
 			window.removeEventListener('keydown', listener);
 			listener = void 0;
 		}
-	}
+	};
 }
 
 function main() {
@@ -148,7 +149,7 @@ function main() {
 
 	// disable pinch zoom & apply zoom level early to avoid glitches
 	const zoomLevel = configuration.zoomLevel;
-	webFrame.setZoomLevelLimits(1, 1);
+	webFrame.setVisualZoomLevelLimits(1, 1);
 	if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
 		webFrame.setZoomLevel(zoomLevel);
 	}
@@ -156,20 +157,19 @@ function main() {
 	// Load the loader and start loading the workbench
 	const rootUrl = uriFromPath(configuration.appRoot) + '/out';
 
-	// In the bundled version the nls plugin is packaged with the loader so the NLS Plugins
-	// loads as soon as the loader loads. To be able to have pseudo translation
-	createScript(rootUrl + '/vs/loader.js', function () {
+	function onLoader() {
 		define('fs', ['original-fs'], function (originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
+		loaderTimer.stop();
 
 		window.MonacoEnvironment = {};
 
-		const nodeCachedDataErrors = window.MonacoEnvironment.nodeCachedDataErrors = [];
+		const onNodeCachedData = window.MonacoEnvironment.onNodeCachedData = [];
 		require.config({
 			baseUrl: rootUrl,
 			'vs/nls': nlsConfig,
 			recordStats: !!configuration.performance,
 			nodeCachedDataDir: configuration.nodeCachedDataDir,
-			onNodeCachedDataError: function (err) { nodeCachedDataErrors.push(err) },
+			onNodeCachedData: function () { onNodeCachedData.push(arguments); },
 			nodeModules: [/*BUILD->INSERT_NODE_MODULES*/]
 		});
 
@@ -189,11 +189,13 @@ function main() {
 			beforeLoadWorkbenchMain: Date.now()
 		};
 
+		const workbenchMainTimer = startTimer('load:workbench.main');
 		require([
 			'vs/workbench/electron-browser/workbench.main',
 			'vs/nls!vs/workbench/electron-browser/workbench.main',
 			'vs/css!vs/workbench/electron-browser/workbench.main'
 		], function () {
+			workbenchMainTimer.stop();
 			timers.afterLoadWorkbenchMain = Date.now();
 
 			process.lazyEnv.then(function () {
@@ -206,7 +208,19 @@ function main() {
 					});
 			});
 		});
-	});
+	}
+
+	// In the bundled version the nls plugin is packaged with the loader so the NLS Plugins
+	// loads as soon as the loader loads. To be able to have pseudo translation
+	const loaderTimer = startTimer('load:loader');
+	if (typeof Monaco_Loader_Init === 'function') {
+		//eslint-disable-next-line no-global-assign
+		define = Monaco_Loader_Init();
+		onLoader();
+
+	} else {
+		createScript(rootUrl + '/vs/loader.js', onLoader);
+	}
 }
 
 main();

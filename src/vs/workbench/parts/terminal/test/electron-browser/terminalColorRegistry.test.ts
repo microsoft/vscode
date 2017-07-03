@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import { Extensions as ThemeingExtensions, IColorRegistry } from 'vs/platform/theme/common/colorRegistry';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { ansiColorIdentifiers, registerColors } from 'vs/workbench/parts/terminal/electron-browser/terminalColorRegistry';
 import { ITheme, ThemeType } from 'vs/platform/theme/common/themeService';
 
@@ -20,7 +20,7 @@ function getMockTheme(type: ThemeType): ITheme {
 		label: '',
 		type: type,
 		getColor: (colorId) => themingRegistry.resolveDefaultColor(colorId, theme),
-		isDefault: () => true
+		defines: () => true
 	};
 	return theme;
 }

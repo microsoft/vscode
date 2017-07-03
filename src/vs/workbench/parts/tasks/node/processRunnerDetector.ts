@@ -20,7 +20,8 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
-import * as TaskConfig from '../common/taskConfiguration';
+import * as Tasks from '../common/tasks';
+import * as TaskConfig from './taskConfiguration';
 
 let build: string = 'build';
 let test: string = 'test';
@@ -155,8 +156,7 @@ export class ProcessRunnerDetector {
 		this.taskConfiguration = config;
 		this._stderr = [];
 		this._stdout = [];
-		const workspace = this.contextService.getWorkspace();
-		this._cwd = workspace ? Paths.normalize(workspace.resource.fsPath, true) : '';
+		this._cwd = this.contextService.hasWorkspace() ? Paths.normalize(this.contextService.getWorkspace().resource.fsPath, true) : '';
 	}
 
 	public get stderr(): string[] {
@@ -225,8 +225,8 @@ export class ProcessRunnerDetector {
 		return result;
 	}
 
-	private tryDetectGulp(list: boolean): TPromise<{ config: TaskConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
-		return this.fileService.resolveFile(this.contextService.toResource('gulpfile.js')).then((stat) => {
+	private tryDetectGulp(list: boolean): TPromise<DetectorResult> {
+		return this.fileService.resolveFile(this.contextService.toResource('gulpfile.js')).then((stat) => { // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
 			let config = ProcessRunnerDetector.detectorConfig('gulp');
 			let process = new LineProcess('gulp', [config.arg, '--no-color'], true, { cwd: this._cwd });
 			return this.runDetection(process, 'gulp', true, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
@@ -235,8 +235,8 @@ export class ProcessRunnerDetector {
 		});
 	}
 
-	private tryDetectGrunt(list: boolean): TPromise<{ config: TaskConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
-		return this.fileService.resolveFile(this.contextService.toResource('Gruntfile.js')).then((stat) => {
+	private tryDetectGrunt(list: boolean): TPromise<DetectorResult> {
+		return this.fileService.resolveFile(this.contextService.toResource('Gruntfile.js')).then((stat) => { // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
 			let config = ProcessRunnerDetector.detectorConfig('grunt');
 			let process = new LineProcess('grunt', [config.arg, '--no-color'], true, { cwd: this._cwd });
 			return this.runDetection(process, 'grunt', true, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
@@ -245,16 +245,16 @@ export class ProcessRunnerDetector {
 		});
 	}
 
-	private tryDetectJake(list: boolean): TPromise<{ config: TaskConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
+	private tryDetectJake(list: boolean): TPromise<DetectorResult> {
 		let run = () => {
 			let config = ProcessRunnerDetector.detectorConfig('jake');
 			let process = new LineProcess('jake', [config.arg], true, { cwd: this._cwd });
 			return this.runDetection(process, 'jake', true, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
 		};
-		return this.fileService.resolveFile(this.contextService.toResource('Jakefile')).then((stat) => {
+		return this.fileService.resolveFile(this.contextService.toResource('Jakefile')).then((stat) => { // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
 			return run();
 		}, (err: any) => {
-			return this.fileService.resolveFile(this.contextService.toResource('Jakefile.js')).then((stat) => {
+			return this.fileService.resolveFile(this.contextService.toResource('Jakefile.js')).then((stat) => { // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
 				return run();
 			}, (err: any): TaskConfig.ExternalTaskRunnerConfiguration => {
 				return null;
@@ -314,15 +314,13 @@ export class ProcessRunnerDetector {
 		});
 	}
 
-	private createTaskDescriptions(tasks: string[], problemMatchers: string[], list: boolean): TaskConfig.TaskDescription[] {
-		let taskConfigs: TaskConfig.TaskDescription[] = [];
+	private createTaskDescriptions(tasks: string[], problemMatchers: string[], list: boolean): TaskConfig.CustomTask[] {
+		let taskConfigs: TaskConfig.CustomTask[] = [];
 		if (list) {
 			tasks.forEach((task) => {
 				taskConfigs.push({
 					taskName: task,
-					identifier: task,
-					args: [],
-					isWatching: false
+					args: []
 				});
 			});
 		} else {
@@ -339,10 +337,8 @@ export class ProcessRunnerDetector {
 				this._stdout.push(nls.localize('TaskSystemDetector.buildTaskDetected', 'Build task named \'{0}\' detected.', name));
 				taskConfigs.push({
 					taskName: name,
-					identifier: name,
 					args: [],
-					isBuildCommand: true,
-					isWatching: false,
+					group: Tasks.TaskGroup.Build,
 					problemMatcher: problemMatchers
 				});
 			}
@@ -351,9 +347,8 @@ export class ProcessRunnerDetector {
 				this._stdout.push(nls.localize('TaskSystemDetector.testTaskDetected', 'Test task named \'{0}\' detected.', name));
 				taskConfigs.push({
 					taskName: name,
-					identifier: name,
 					args: [],
-					isTestCommand: true
+					group: Tasks.TaskGroup.Test,
 				});
 			}
 		}

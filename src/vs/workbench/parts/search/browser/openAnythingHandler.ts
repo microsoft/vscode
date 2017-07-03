@@ -13,7 +13,6 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 import types = require('vs/base/common/types');
 import { isWindows } from 'vs/base/common/platform';
 import strings = require('vs/base/common/strings');
-import { IRange } from 'vs/editor/common/editorCommon';
 import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
@@ -78,6 +77,7 @@ interface ITelemetryData {
 
 // OpenSymbolHandler is used from an extension and must be in the main bundle file so it can load
 export import OpenSymbolHandler = openSymbolHandler.OpenSymbolHandler;
+import { IRange } from 'vs/editor/common/core/range';
 
 export class OpenAnythingHandler extends QuickOpenHandler {
 
@@ -116,7 +116,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	}
 
 	private registerListeners(): void {
-		this.configurationService.onDidUpdateConfiguration(e => this.updateHandlers(e.config));
+		this.configurationService.onDidUpdateConfiguration(e => this.updateHandlers(this.configurationService.getConfiguration<IWorkbenchSearchConfiguration>()));
 	}
 
 	private updateHandlers(configuration: IWorkbenchSearchConfiguration): void {
@@ -161,13 +161,12 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			const resultPromises: TPromise<QuickOpenModel | FileQuickOpenModel>[] = [];
 
 			// File Results
-			resultPromises.push(this.openFileHandler.getResults(searchValue, OpenAnythingHandler.MAX_DISPLAYED_RESULTS));
+			const filePromise = this.openFileHandler.getResults(searchValue, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);
+			resultPromises.push(filePromise);
 
 			// Symbol Results (unless disabled or a range or absolute path is specified)
 			if (this.includeSymbols && !searchWithRange) {
 				resultPromises.push(this.openSymbolHandler.getResults(searchValue));
-			} else {
-				resultPromises.push(TPromise.as(new QuickOpenModel())); // We need this empty promise because we are using the throttler below!
 			}
 
 			// Join and sort unified
@@ -179,8 +178,8 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 					return TPromise.as<QuickOpenModel>(new QuickOpenModel());
 				}
 
-				// Combine file results and symbol results (if any)
-				const mergedResults = [...results[0].entries, ...results[1].entries];
+				// Combine results.
+				const mergedResults = [].concat(...results.map(r => r.entries));
 
 				// Sort
 				const unsortedResultTime = Date.now();
@@ -199,24 +198,19 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 					}
 				});
 
-				let fileSearchStats: ISearchStats;
-				if (results[0] instanceof FileQuickOpenModel) {
-					fileSearchStats = (<FileQuickOpenModel>results[0]).stats;
-				} else if (results[1] instanceof FileQuickOpenModel) {
-					fileSearchStats = (<FileQuickOpenModel>results[1]).stats;
-				}
-
 				const duration = new Date().getTime() - startTime;
-				const data = this.createTimerEventData(startTime, {
-					searchLength: searchValue.length,
-					unsortedResultTime,
-					sortedResultTime,
-					resultCount: mergedResults.length,
-					symbols: { fromCache: false },
-					files: fileSearchStats
-				});
+				filePromise.then(fileModel => {
+					const data = this.createTimerEventData(startTime, {
+						searchLength: searchValue.length,
+						unsortedResultTime,
+						sortedResultTime,
+						resultCount: mergedResults.length,
+						symbols: { fromCache: false },
+						files: fileModel.stats,
+					});
 
-				this.telemetryService.publicLog('openAnything', objects.assign(data, { duration }));
+					this.telemetryService.publicLog('openAnything', objects.assign(data, { duration }));
+				});
 
 				return TPromise.as<QuickOpenModel>(new QuickOpenModel(viewResults));
 			}, (error: Error) => {
@@ -338,7 +332,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			sortedResultDuration: telemetry.sortedResultTime - startTime,
 			resultCount: telemetry.resultCount,
 			symbols: telemetry.symbols,
-			files: this.createFileEventData(startTime, telemetry.files)
+			files: telemetry.files && this.createFileEventData(startTime, telemetry.files)
 		};
 	}
 

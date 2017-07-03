@@ -7,7 +7,6 @@
   "engines": {
     "vscode": "*"
   },
-  "enableProposedApi": true,
   "categories": [
     "Other"
   ],
@@ -23,9 +22,7 @@
   },
   "main": "./out/main",
   "activationEvents": [
-    "onCommand:workbench.action.tasks.runTask",
-    "onCommand:workbench.action.tasks.build",
-    "onCommand:workbench.action.tasks.test"
+    "onCommand:workbench.action.tasks.runTask"
   ],
   "contributes": {
     "configuration": {
@@ -43,6 +40,22 @@
           "description": "%config.gulp.autoDetect%"
         }
       }
-    }
+    },
+    "taskDefinitions": [
+      {
+        "type": "gulp",
+        "required": ["task"],
+        "properties": {
+          "task": {
+            "type": "string",
+            "description": "The Gulp task to customize"
+          },
+          "file": {
+            "type": "string",
+            "description": "The Gulp file that provides the task. Can be omitted."
+          }
+        }
+      }
+    ]
   }
 }

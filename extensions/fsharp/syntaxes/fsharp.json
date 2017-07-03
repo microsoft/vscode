@@ -1,4 +1,9 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/ionide/ionide-fsgrammar/blob/master/grammar/fsharp.json",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
 	"name": "fsharp",
 	"scopeName": "source.fsharp",
 	"fileTypes": [
@@ -17,9 +22,6 @@
 			"include": "#structure"
 		},
 		{
-			"include": "#attributes"
-		},
-		{
 			"include": "#strings"
 		},
 		{
@@ -30,6 +32,9 @@
 		},
 		{
 			"include": "#definition"
+		},
+		{
+			"include": "#attributes"
 		},
 		{
 			"include": "#method_calls"
@@ -59,7 +64,7 @@
 				{
 					"name": "function.anonymous",
 					"begin": "\\b(fun)\\b",
-					"end": "[(->)\\n]",
+					"end": "(->)",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.other.function-definition.fsharp"
@@ -139,7 +144,7 @@
 			"patterns": [
 				{
 					"name": "binding.fsharp",
-					"begin": "\\b(val mutable|val|let mutable|let inline|let|member|static member|override|let!)(\\s+rec|mutable)?(\\s+private|internal|public)?\\s+(\\([^\\s-]*\\)|[_[:alpha:]]([_[:alpha:]0-9,\\.]|(?<=,)\\s)*)",
+					"begin": "\\b(val mutable|val|let mutable|let inline|let|member|static member|override|let!)(\\s+rec|mutable)?(\\s+\\[\\<.*\\>\\])?\\s*(private|internal|public)?\\s+(\\([^\\s-]*\\)|[_[:alpha:]]([_[:alpha:]0-9,\\._]|(?<=,)\\s)*)",
 					"end": "((``.*``)|(with)|=|$)",
 					"beginCaptures": {
 						"1": {
@@ -149,9 +154,12 @@
 							"name": "keyword.other.function-recursive.fsharp"
 						},
 						"3": {
-							"name": "keyword.other.access.fsharp"
+							"name": "support.function.attribute.fsharp"
 						},
 						"4": {
+							"name": "keyword.other.access.fsharp"
+						},
+						"5": {
 							"name": "variable.other.binding.fsharp"
 						}
 					},
@@ -178,7 +186,7 @@
 			"patterns": [
 				{
 					"name": "keyword.other.fsharp",
-					"match": "\\b(function|yield!|yield|class|match|delegate|of|new|in|as|if|then|else|elif|for|begin|end|inherit|do|let\\!|return\\!|return|interface|with|abstract|member|try|finally|and|when|use|use\\!|struct|while)\\b"
+					"match": "\\b(function|yield!|yield|class|match|delegate|of|new|in|as|if|then|else|elif|for|begin|end|inherit|do|let\\!|return\\!|return|interface|with|abstract|member|try|finally|and|when|use|use\\!|struct|while|mutable)\\b"
 				},
 				{
 					"name": "meta.preprocessor.fsharp",
@@ -195,7 +203,7 @@
 			"patterns": [
 				{
 					"name": "entity.name.section.fsharp",
-					"begin": "\\b(namespace|module)(\\s+public|internal|private)?\\s+([[:alpha:]][[:alpha:]0-9'_. ]*)",
+					"begin": "\\b(namespace|module)\\s*(public|internal|private)?\\s+([[:alpha:]][[:alpha:]0-9'_. ]*)",
 					"end": "(\\s|$)",
 					"beginCaptures": {
 						"1": {
@@ -389,7 +397,7 @@
 			"patterns": [
 				{
 					"name": "record.fsharp",
-					"match": "(type)[\\s]+(private|internal|public)?[\\s]*([[:alpha:]0-9'<>^:,. ]+)[\\s]*(\\([[:alpha:]0-9'<>^:,. ]+\\))?[\\s]*((with)|(as [[:alpha:]0-9']+)|(=)|(\\(\\)))",
+					"match": "(type)[\\s]+(private|internal|public)?[\\s]*([[:alpha:]0-9'<>^:,._ ]+)[\\s]*(\\([[:alpha:]0-9'<>^:,._ ]+\\))?[\\s]*((with)|(as [[:alpha:]0-9']+)|(=)|(\\(\\)))",
 					"captures": {
 						"1": {
 							"name": "keyword.other.fsharp"
@@ -453,6 +461,5 @@
 				}
 			]
 		}
-	},
-	"version": "https://github.com/ionide/ionide-fsgrammar/commit/edb05603ec3f2eb3c633f92df1649e82fe870545"
+	}
 }

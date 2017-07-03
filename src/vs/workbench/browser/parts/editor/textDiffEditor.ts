@@ -14,24 +14,23 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import types = require('vs/base/common/types');
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/editorCommon';
+import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 import { TextEditorOptions, TextDiffEditorOptions, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID, IFileEditorInput } from 'vs/workbench/common/editor';
-import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { DiffNavigator } from 'vs/editor/contrib/diffNavigator/common/diffNavigator';
+import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
 import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -52,9 +51,9 @@ export class TextDiffEditor extends BaseTextEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
+		@IThemeService themeService: IThemeService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IModeService modeService: IModeService,
 		@ITextFileService textFileService: ITextFileService
@@ -216,11 +215,6 @@ export class TextDiffEditor extends BaseTextEditor {
 			objects.mixin(editorConfiguration, configuration.diffEditor);
 		}
 
-		const language = this.getLanguage();
-		if (language) {
-			objects.assign(editorConfiguration, this.configurationService.getConfiguration<IEditorConfiguration>({ overrideIdentifier: language, section: 'diffEditor' }));
-		}
-
 		return editorConfiguration;
 	}
 
@@ -249,7 +243,7 @@ export class TextDiffEditor extends BaseTextEditor {
 		if (input instanceof DiffEditorInput) {
 			const modifiedInput = input.modifiedInput;
 
-			return modifiedInput instanceof StringEditorInput || modifiedInput instanceof ResourceEditorInput;
+			return modifiedInput instanceof ResourceEditorInput;
 		}
 
 		return false;
@@ -263,7 +257,7 @@ export class TextDiffEditor extends BaseTextEditor {
 			return errors.some(e => this.isFileBinaryError(e));
 		}
 
-		return (<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY;
+		return (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY;
 	}
 
 	public clearInput(): void {
@@ -366,7 +360,7 @@ class ToggleEditorModeAction extends Action {
 		return ToggleEditorModeAction.isInlineMode(this.editor) ? ToggleEditorModeAction.SIDEBYSIDE_LABEL : ToggleEditorModeAction.INLINE_LABEL;
 	}
 
-	public run(): TPromise<any> {
+	public run(): TPromise<boolean> {
 		const inlineModeActive = ToggleEditorModeAction.isInlineMode(this.editor);
 
 		const control = this.editor.getControl();
