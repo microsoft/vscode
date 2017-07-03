@@ -1181,9 +1181,9 @@ export class WindowsManager implements IWindowsMainService {
 		this.fileDialog.pickAndOpen({ pickFolders: true, forceNewWindow, window, title: nls.localize('openFolder', "Open Folder") }, 'openFolder', data);
 	}
 
-	public pickFolder(options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
+	public pickFolder(window?: CodeWindow, options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
 		return new TPromise((c, e) => {
-			this.fileDialog.getFileOrFolderPaths({ pickFolders: true, buttonLabel: options && options.buttonLabel }, folders => {
+			this.fileDialog.getFileOrFolderPaths({ pickFolders: true, window, buttonLabel: options && options.buttonLabel }, folders => {
 				c(folders || []);
 			});
 		});

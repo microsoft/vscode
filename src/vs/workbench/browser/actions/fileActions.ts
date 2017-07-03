@@ -73,6 +73,10 @@ export class AddRootFolderAction extends Action {
 		}
 
 		return this.windowService.pickFolder({ buttonLabel: nls.localize('add', "Add"), title: nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace") }).then(folders => {
+			if (!folders.length) {
+				return TPromise.as(null);
+			}
+
 			return this.workspaceEditingService.addRoots(folders.map(folder => URI.file(folder))).then(() => {
 				return this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true);
 			});

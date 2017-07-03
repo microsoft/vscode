@@ -35,7 +35,7 @@ export class WindowService implements IWindowService {
 	}
 
 	pickFolder(options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
-		return this.windowsService.pickFolder(options);
+		return this.windowsService.pickFolder(this.windowId, options);
 	}
 
 	reloadWindow(): TPromise<void> {
@@ -64,14 +64,6 @@ export class WindowService implements IWindowService {
 
 	setRepresentedFilename(fileName: string): TPromise<void> {
 		return this.windowsService.setRepresentedFilename(this.windowId, fileName);
-	}
-
-	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void> {
-		return this.windowsService.addToRecentlyOpen(paths);
-	}
-
-	removeFromRecentlyOpen(paths: string[]): TPromise<void> {
-		return this.windowsService.removeFromRecentlyOpen(paths);
 	}
 
 	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }> {

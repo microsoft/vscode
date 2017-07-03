@@ -23,7 +23,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { once } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { getExcludes, ISearchConfiguration } from 'vs/platform/search/common/search';
 import { parse, IExpression } from 'vs/base/common/glob';
@@ -166,7 +166,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IFileService private fileService: IFileService,
-		@IWindowService private windowService: IWindowService,
+		@IWindowsService private windowService: IWindowsService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 	) {
 		super(editorGroupService, editorService);

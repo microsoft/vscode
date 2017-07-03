@@ -24,7 +24,7 @@ export interface IWindowsService {
 	pickFileFolderAndOpen(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void>;
 	pickFileAndOpen(windowId: number, forceNewWindow?: boolean, path?: string, data?: ITelemetryData): TPromise<void>;
 	pickFolderAndOpen(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void>;
-	pickFolder(options?: { buttonLabel: string; title: string; }): TPromise<string[]>;
+	pickFolder(windowId: number, options?: { buttonLabel: string; title: string; }): TPromise<string[]>;
 	reloadWindow(windowId: number): TPromise<void>;
 	openDevTools(windowId: number): TPromise<void>;
 	toggleDevTools(windowId: number): TPromise<void>;
@@ -86,8 +86,6 @@ export interface IWindowService {
 	closeFolder(): TPromise<void>;
 	toggleFullScreen(): TPromise<void>;
 	setRepresentedFilename(fileName: string): TPromise<void>;
-	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void>;
-	removeFromRecentlyOpen(paths: string[]): TPromise<void>;
 	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }>;
 	focusWindow(): TPromise<void>;
 	closeWindow(): TPromise<void>;

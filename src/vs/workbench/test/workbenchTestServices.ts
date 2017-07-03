@@ -881,14 +881,6 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
-	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
-	removeFromRecentlyOpen(paths: string[]): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
 	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }> {
 		return TPromise.as(void 0);
 	}
@@ -980,7 +972,7 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
-	pickFolder(options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
+	pickFolder(windowId: number, options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
 		return TPromise.as([]);
 	}
 
