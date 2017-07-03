@@ -526,7 +526,7 @@ export class SearchResult extends Disposable {
 		// Split up raw into a list per folder so we can do a batch add per folder.
 		let rawPerFolder = new ResourceMap<IFileMatch[]>();
 		this._folderMatches.forEach((folderMatch) => rawPerFolder.set(folderMatch.resource(), []));
-		allRaw.forEach((rawFileMatch) => {
+		allRaw.forEach(rawFileMatch => {
 			let folderMatch = this.getFolderMatch(rawFileMatch.resource);
 			rawPerFolder.get(folderMatch.resource()).push(rawFileMatch);
 		});
