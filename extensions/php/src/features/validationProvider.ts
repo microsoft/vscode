@@ -189,10 +189,11 @@ export default class PHPValidationProvider {
 			// This tells us how we need to transform our file paths.
 			if (this.shellExecutable.toLowerCase().indexOf('bash.exe') !== -1) {
 				let inspectString = this.shellExecutable + ' --version';
+				let that = this;
 				cp.exec(inspectString, function (error, stdout, stderr) {
 					console.log('Inspecting bash.exe shell executable version', inspectString, stdout);
 					if (stdout.toLowerCase().indexOf('msys') !== -1) {
-						this.isMsys = true;
+						that.isMsys = true;
 					}
 				});
 			}
