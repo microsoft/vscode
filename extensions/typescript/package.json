@@ -465,7 +465,9 @@
     "taskDefinitions": [
       {
         "type": "typescript",
-        "required": ["tsconfig"],
+        "required": [
+          "tsconfig"
+        ],
         "properties": {
           "tsconfig": {
             "type": "string",

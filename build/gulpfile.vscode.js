@@ -27,7 +27,7 @@ const root = path.dirname(__dirname);
 const commit = util.getVersion(root);
 const packageJson = require('../package.json');
 const product = require('../product.json');
-const shrinkwrap = require('../npm-shrinkwrap.json');
+const packageLock = require('../package-lock.json');
 const crypto = require('crypto');
 const i18n = require('./lib/i18n');
 const glob = require('glob');
@@ -35,7 +35,7 @@ const os = require('os');
 const cp = require('child_process');
 
 const productDependencies = Object.keys(product.dependencies || {});
-const dependencies = Object.keys(shrinkwrap.dependencies)
+const dependencies = Object.keys(packageLock.dependencies)
 	.concat(productDependencies); // additional dependencies from our product configuration
 const baseModules = Object.keys(process.binding('natives')).filter(n => !/^_|\//.test(n));
 const nodeModules = ['electron', 'original-fs']

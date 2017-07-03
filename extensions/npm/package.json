@@ -44,7 +44,9 @@
     "taskDefinitions": [
       {
         "type": "npm",
-        "required": ["script"],
+        "required": [
+          "script"
+        ],
         "properties": {
           "script": {
             "type": "string",
