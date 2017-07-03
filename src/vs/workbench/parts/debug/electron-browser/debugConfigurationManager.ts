@@ -276,7 +276,7 @@ export class ConfigurationManager implements IConfigurationManager {
 			return null;
 		}
 
-		const config = this.configurationService.getConfiguration<IGlobalConfig>('launch', { resource: this.contextService.getWorkspace().resource }); // TODO@Isidor (https://github.com/Microsoft/vscode/issues/29245)
+		const config = this.configurationService.getConfiguration<IGlobalConfig>('launch', { resource: this.contextService.getLegacyWorkspace().resource }); // TODO@Isidor (https://github.com/Microsoft/vscode/issues/29245)
 		if (!config || !config.compounds) {
 			return null;
 		}
@@ -285,7 +285,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	public getConfigurationNames(): string[] {
-		const config = this.contextService.hasWorkspace() ? this.configurationService.getConfiguration<IGlobalConfig>('launch', { resource: this.contextService.getWorkspace().resource }) : null; // TODO@Isidor (https://github.com/Microsoft/vscode/issues/29245)
+		const config = this.contextService.hasWorkspace() ? this.configurationService.getConfiguration<IGlobalConfig>('launch', { resource: this.contextService.getLegacyWorkspace().resource }) : null; // TODO@Isidor (https://github.com/Microsoft/vscode/issues/29245)
 		if (!config || !config.configurations) {
 			return [];
 		} else {
@@ -306,7 +306,7 @@ export class ConfigurationManager implements IConfigurationManager {
 			return null;
 		}
 
-		const config = this.configurationService.getConfiguration<IGlobalConfig>('launch', { resource: this.contextService.getWorkspace().resource }); // TODO@Isidor (https://github.com/Microsoft/vscode/issues/29245)
+		const config = this.configurationService.getConfiguration<IGlobalConfig>('launch', { resource: this.contextService.getLegacyWorkspace().resource }); // TODO@Isidor (https://github.com/Microsoft/vscode/issues/29245)
 		if (!config || !config.configurations) {
 			return null;
 		}
@@ -342,7 +342,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	public get configFileUri(): uri {
-		return uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '/.vscode/launch.json')); // TODO@Isidor (https://github.com/Microsoft/vscode/issues/29245)
+		return uri.file(paths.join(this.contextService.getLegacyWorkspace().resource.fsPath, '/.vscode/launch.json')); // TODO@Isidor (https://github.com/Microsoft/vscode/issues/29245)
 	}
 
 	public openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {

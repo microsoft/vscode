@@ -107,7 +107,7 @@ export class ResourceGlobMatcher {
 
 		// Add excludes per workspaces that got added
 		if (this.contextService.hasWorkspace()) {
-			this.contextService.getWorkspace2().roots.forEach(root => {
+			this.contextService.getWorkspace().roots.forEach(root => {
 				const rootExcludes = this.globFn(root);
 				if (!this.mapRootToExpressionConfig.has(root.toString()) || !objects.equals(this.mapRootToExpressionConfig.get(root.toString()), rootExcludes)) {
 					changed = true;

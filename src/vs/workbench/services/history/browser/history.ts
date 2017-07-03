@@ -703,6 +703,6 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 
 		// fallback to first workspace
-		return this.contextService.getWorkspace2().roots[0];
+		return this.contextService.getWorkspace().roots[0];
 	}
 }

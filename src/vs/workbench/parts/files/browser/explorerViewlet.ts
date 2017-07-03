@@ -110,7 +110,7 @@ export class ExplorerViewlet extends ComposedViewsViewlet {
 	private createExplorerViewDescriptor(): IViewDescriptor {
 		return {
 			id: ExplorerView.ID,
-			name: this.contextService.getWorkspace2().name,
+			name: this.contextService.getWorkspace().name,
 			location: ViewLocation.Explorer,
 			ctor: ExplorerView,
 			order: 1

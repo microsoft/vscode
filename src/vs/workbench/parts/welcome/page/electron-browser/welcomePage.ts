@@ -222,7 +222,7 @@ class WelcomePage {
 
 		recentlyOpened.then(({ folders }) => {
 			if (this.contextService.hasWorkspace()) {
-				const currents = this.contextService.getWorkspace2().roots;
+				const currents = this.contextService.getWorkspace().roots;
 				folders = folders.filter(folder => !currents.some(current => this.pathEquals(folder, current.fsPath)));
 			}
 			if (!folders.length) {

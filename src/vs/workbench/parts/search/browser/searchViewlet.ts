@@ -150,7 +150,7 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	private onConfigurationUpdated(): void {
-		const resource = this.contextService.hasWorkspace() ? this.contextService.getWorkspace2().roots[0] : undefined;
+		const resource = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots[0] : undefined;
 		const config = this.configurationService.getConfiguration<ISearchConfiguration>(undefined, { resource });
 		this.updateGlobalPatternExclusions(config);
 	}
@@ -894,7 +894,7 @@ export class SearchViewlet extends Viewlet {
 
 	public searchInFolder(resource: URI): void {
 		let folderPath = null;
-		const workspace = this.contextService.getWorkspace2();
+		const workspace = this.contextService.getWorkspace();
 		if (workspace) {
 			if (workspace.roots.length === 1) {
 				// Fallback to old way for single root workspace
@@ -976,7 +976,7 @@ export class SearchViewlet extends Viewlet {
 			searchPaths
 		};
 
-		const folderResources = this.contextService.hasWorkspace() ? this.contextService.getWorkspace2().roots : [];
+		const folderResources = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots : [];
 		this.onQueryTriggered(this.queryBuilder.text(content, folderResources, options), excludePatternText, includePatternText);
 
 		if (!preserveFocus) {

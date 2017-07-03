@@ -288,7 +288,7 @@ export class ExtensionHostProcessWorker {
 					enableProposedApiForAll: !this.environmentService.isBuilt || (!!this.environmentService.extensionDevelopmentPath && product.nameLong.indexOf('Insiders') >= 0),
 					enableProposedApiFor: this.environmentService.args['enable-proposed-api'] || []
 				},
-				workspace: <IWorkspaceData>this.contextService.getWorkspace2(),
+				workspace: <IWorkspaceData>this.contextService.getWorkspace(),
 				extensions: extensionDescriptions,
 				configuration: this.configurationService.getConfigurationData(),
 				telemetryInfo

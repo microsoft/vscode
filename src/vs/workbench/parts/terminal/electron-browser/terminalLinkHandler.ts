@@ -224,7 +224,7 @@ export class TerminalLinkHandler {
 					// Abort if no workspace is open
 					return null;
 				}
-				link = path.join(this._contextService.getWorkspace().resource.fsPath, link); // TODO@Daniel (https://github.com/Microsoft/vscode/issues/29006)
+				link = path.join(this._contextService.getLegacyWorkspace().resource.fsPath, link); // TODO@Daniel (https://github.com/Microsoft/vscode/issues/29006)
 			}
 		}
 		// Resolve workspace path . | .. | <relative_path> -> <path>/. | <path>/.. | <path>/<relative_path>
@@ -233,7 +233,7 @@ export class TerminalLinkHandler {
 				// Abort if no workspace is open
 				return null;
 			}
-			link = path.join(this._contextService.getWorkspace().resource.fsPath, link); // TODO@Daniel (https://github.com/Microsoft/vscode/issues/29006)
+			link = path.join(this._contextService.getLegacyWorkspace().resource.fsPath, link); // TODO@Daniel (https://github.com/Microsoft/vscode/issues/29006)
 		}
 		return link;
 	}

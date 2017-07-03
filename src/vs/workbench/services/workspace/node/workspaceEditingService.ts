@@ -48,7 +48,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			return TPromise.as(void 0); // we need a workspace to begin with
 		}
 
-		const roots = this.contextService.getWorkspace2().roots;
+		const roots = this.contextService.getWorkspace().roots;
 
 		return this.doSetRoots([...roots, ...rootsToAdd]);
 	}
@@ -58,7 +58,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			return TPromise.as(void 0); // we need a workspace to begin with
 		}
 
-		const roots = this.contextService.getWorkspace2().roots;
+		const roots = this.contextService.getWorkspace().roots;
 		const rootsToRemoveRaw = rootsToRemove.map(root => root.toString());
 
 		return this.doSetRoots(roots.filter(root => rootsToRemoveRaw.indexOf(root.toString()) === -1));
@@ -66,7 +66,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 	private doSetRoots(newRoots: URI[]): TPromise<void> {
 		const workspaceUserConfig = this.configurationService.lookup(workspaceConfigKey).user as IWorkspaceConfiguration || Object.create(null);
-		const master = this.contextService.getWorkspace2().roots[0];
+		const master = this.contextService.getWorkspace().roots[0];
 		const masterKey = master.toString(true /* skip encoding */);
 
 		const currentWorkspaceRoots = this.validateRoots(master, workspaceUserConfig[masterKey] && workspaceUserConfig[masterKey].folders);
