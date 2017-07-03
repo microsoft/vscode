@@ -220,7 +220,7 @@ export class SearchRenderer extends Disposable implements IRenderer {
 	}
 
 	private renderFolderMatch(tree: ITree, folderMatch: FolderMatch, templateData: IFolderMatchTemplate): void {
-		templateData.label.setFile(folderMatch.resource());
+		templateData.label.setFile(folderMatch.resource(), { isFolder: true });
 		let count = folderMatch.count();
 		templateData.badge.setCount(count);
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchMatches', "{0} matches found", count) : nls.localize('searchMatch', "{0} match found", count));
