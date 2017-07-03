@@ -101,7 +101,8 @@ export default class PHPValidationProvider {
 	private platform: string;
 	private runInShell: boolean = false;
 	private shellExecutable: string;
-	private shellArgs: string[] = ['-c'];
+	private shellArgs: string[] = [];
+	private isMsys: boolean = false;
 
 	constructor(private workspaceStore: vscode.Memento) {
 		this.executable = null;
@@ -151,9 +152,19 @@ export default class PHPValidationProvider {
 			if (typeof(shellSettings) === 'boolean') {
 				this.runInShell = shellSettings;
 				if (this.platform.toLowerCase() === 'win32') {
-					this.shellExecutable = 'C:\\Windows\\sysnative\\bash.exe';
+					this.shellExecutable = 'C:\WINDOWS\system32\cmd.exe';
+					this.shellArgs = ['\C'];
+					if (process.env.ComSpec) {
+						this.shellExecutable = process.env.ComSpec;
+						if (process.env.ComSpec.toLowerCase().indexof('powershell.exe') !== -1) {
+							this.shellArgs = ['\Command'];
+						} else if (process.env.ComSpec.toLowerCase().indexof('bash.exe') !== -1) {
+							this.shellArgs = ['-c'];
+						}
+					}
 				} else {
 					this.shellExecutable = process.env.SHELL || '/bin/bash';
+					this.shellArgs = ['-c'];
 				}
 			} else if (typeof(shellSettings) === 'object') {
 				this.runInShell = true;
@@ -168,6 +179,22 @@ export default class PHPValidationProvider {
 						this.shellArgs = shellSettings.shellArgs.splice(0);
 					}
 				}
+				console.log('Run in shell?', this.runInShell);
+				console.log('Shell exec', shellSettings.shellExecutable);
+				console.log('Shell args', this.shellArgs);
+			}
+
+			// Is this native bash.exe?
+			// We inspect output from `bash.exe` and look for "msys" string.
+			// This tells us how we need to transform our file paths.
+			if (this.shellExecutable.toLowerCase().indexOf('bash.exe') !== -1) {
+				let inspectString = this.shellExecutable + ' --version';
+				cp.exec(inspectString, function (error, stdout, stderr) {
+					console.log('Inspecting bash.exe shell executable version', inspectString, stdout);
+					if (stdout.toLowerCase().indexOf('msys') !== -1) {
+						this.isMsys = true;
+					}
+				});
 			}
 
 			this.trigger = RunTrigger.from(section.get<string>('validate.run', RunTrigger.strings.onSave));
@@ -267,7 +294,7 @@ export default class PHPValidationProvider {
 				}
 			};
 
-			let options = vscode.workspace.rootPath ? { cwd: vscode.workspace.rootPath } : undefined;
+			let options = vscode.workspace.rootPath ? { cwd: vscode.workspace.rootPath } : {};
 			let args: string[];
 			if (this.trigger === RunTrigger.onSave) {
 				args = PHPValidationProvider.FileArgs.slice(0);
@@ -288,7 +315,14 @@ export default class PHPValidationProvider {
 				// If win32 and bash.exe, transform Windows file path to Linux file path
 				if (this.platform === 'win32' && executable.indexOf('bash.exe') !== -1) {
 					let windowsPath = executableArgs.pop();
-					let linuxPath = windowsPath.trim().replace(/^([a-zA-Z]):\\/, '/mnt/$1/').replace(/\\/g, '/');
+					let linuxPath = '';
+					if (this.isMsys) {
+						// Git Bash (msys) uses "/c/Users/..." filesystem mount
+						linuxPath = windowsPath.trim().replace(/^([a-zA-Z]):\\/, '/$1/').replace(/\\/g, '/');
+					} else {
+						// WSL Bash uses "/mnt/c/Users/..." filesystem mount
+						linuxPath = windowsPath.trim().replace(/^([a-zA-Z]):\\/, '/mnt/$1/').replace(/\\/g, '/');
+					}
 					executableArgs.push(linuxPath);
 				}
 
@@ -298,11 +332,6 @@ export default class PHPValidationProvider {
 				// Node spawn with shell
 				options['shell'] = true;
 			}
-
-			console.log('Validating with executable', executable);
-			console.log('Validating with shell?', this.runInShell);
-			console.log('Validating with shell executable', this.shellExecutable);
-			console.log('Validating with shell args', this.shellArgs);
 
 			try {
 				let childProcess = cp.spawn(executable, args, options);
