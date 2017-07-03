@@ -106,16 +106,6 @@ export class WelcomePageAction extends Action {
 	}
 }
 
-const reorderedQuickLinks = [
-	'showInterfaceOverview',
-	'selectTheme',
-	'showRecommendedKeymapExtensions',
-	'showCommands',
-	'keybindingsReference',
-	'openGlobalSettings',
-	'showInteractivePlayground',
-];
-
 interface ExtensionSuggestion {
 	name: string;
 	id: string;
@@ -270,24 +260,6 @@ class WelcomePage {
 				ul.insertBefore(li, before);
 			});
 		}).then(null, onUnexpectedError);
-
-		const customize = container.querySelector('.commands .section.customize');
-		const learn = container.querySelector('.commands .section.learn');
-		const quickLinks = container.querySelector('.commands .section.quickLinks');
-		if (this.telemetryService.getExperiments().mergeQuickLinks) {
-			const ul = quickLinks.querySelector('ul');
-			reorderedQuickLinks.forEach(clazz => {
-				const link = container.querySelector(`.commands .${clazz}`);
-				if (link) {
-					ul.appendChild(link);
-				}
-			});
-			customize.remove();
-			learn.remove();
-			container.querySelector('.keybindingsReferenceLink').remove();
-		} else {
-			quickLinks.remove();
-		}
 
 		this.addExtensionList(container, '.extensionPackList', extensionPacks, extensionPackStrings);
 		this.addExtensionList(container, '.keymapList', keymapExtensions, keymapStrings);

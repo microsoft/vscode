@@ -22,7 +22,8 @@ import pkg from 'vs/platform/node/package';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import { Workbench, IWorkbenchStartedInfo } from 'vs/workbench/electron-browser/workbench';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService, configurationTelemetry, loadExperiments, lifecycleTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { NullTelemetryService, configurationTelemetry, lifecycleTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { loadExperiments } from 'vs/platform/telemetry/common/experiments';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { IdleMonitor, UserStatus } from 'vs/platform/telemetry/browser/idleMonitor';
@@ -218,7 +219,7 @@ export class WorkbenchShell {
 			customKeybindingsCount: info.customKeybindingsCount,
 			theme: this.themeService.getColorTheme().id,
 			language: platform.language,
-			experiments: this.telemetryService.getExperiments(),
+			experiments: loadExperiments(),
 			pinnedViewlets: info.pinnedViewlets,
 			restoredViewlet: info.restoredViewlet,
 			restoredEditors: info.restoredEditors.length,
@@ -287,8 +288,7 @@ export class WorkbenchShell {
 			const config: ITelemetryServiceConfig = {
 				appender: new TelemetryAppenderClient(channel),
 				commonProperties: resolveWorkbenchCommonProperties(this.storageService, commit, version),
-				piiPaths: [this.environmentService.appRoot, this.environmentService.extensionsPath],
-				experiments: instantiationService.invokeFunction(loadExperiments)
+				piiPaths: [this.environmentService.appRoot, this.environmentService.extensionsPath]
 			};
 
 			const telemetryService = instantiationService.createInstance(TelemetryService, config);
@@ -305,7 +305,6 @@ export class WorkbenchShell {
 
 			disposables.push(telemetryService, errorTelemetry, listener, idleMonitor);
 		} else {
-			NullTelemetryService._experiments = instantiationService.invokeFunction(loadExperiments);
 			this.telemetryService = NullTelemetryService;
 		}
 
