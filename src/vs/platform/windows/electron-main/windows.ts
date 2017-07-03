@@ -55,6 +55,7 @@ export interface IWindowsMainService {
 	pickFolder(options?: { buttonLabel: string; title: string; }): TPromise<string[]>;
 	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow;
 	getLastActiveWindow(): ICodeWindow;
+	waitForWindowClose(windowId: number): TPromise<void>;
 	findWindow(workspacePath: string, filePath?: string, extensionDevelopmentPath?: string): ICodeWindow;
 	openNewWindow(context: OpenContext): void;
 	sendToFocused(channel: string, ...args: any[]): void;
