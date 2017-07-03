@@ -227,7 +227,7 @@ export class SearchRenderer extends Disposable implements IRenderer {
 	}
 
 	private renderFileMatch(tree: ITree, fileMatch: FileMatch, templateData: IFileMatchTemplate): void {
-		templateData.label.setFile(fileMatch.resource());
+		templateData.label.setFile(fileMatch.resource(), { root: fileMatch.parent().resource() });
 		let count = fileMatch.count();
 		templateData.badge.setCount(count);
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchMatches', "{0} matches found", count) : nls.localize('searchMatch', "{0} match found", count));
