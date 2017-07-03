@@ -253,10 +253,12 @@ export class CommandCenter {
 		}
 
 		const clonePromise = this.git.clone(url, parentPath);
-		window.withProgress({location: ProgressLocation.SourceControl, title: localize('cloning', "Cloning git repository...")}, () => clonePromise);
-		window.withProgress({location: ProgressLocation.Window, title: localize('cloning', "Cloning git repository...")}, () => clonePromise);
+
 
 		try {
+			window.withProgress({ location: ProgressLocation.SourceControl, title: localize('cloning', "Cloning git repository...") }, () => clonePromise);
+			window.withProgress({ location: ProgressLocation.Window, title: localize('cloning', "Cloning git repository...") }, () => clonePromise);
+
 			const repositoryPath = await clonePromise;
 
 			const open = localize('openrepo', "Open Repository");
