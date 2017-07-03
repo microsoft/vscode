@@ -295,7 +295,7 @@ export class Item extends Events.EventEmitter {
 			this.emit('item:expanding', eventData);
 
 			if (this.needsChildrenRefresh) {
-				result = this.refreshChildren(false, true, true);
+				result = this.refreshChildren(true, true, true);
 			} else {
 				result = WinJS.TPromise.as(null);
 			}
