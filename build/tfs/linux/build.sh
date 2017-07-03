@@ -29,10 +29,8 @@ step "Install distro dependencies" \
 step "Build minified" \
 	npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-min"
 
-if [ -z "$SKIP_UNIT_TESTS" ]; then
-	step "Run unit tests" \
-		./scripts/test.sh --xvfb --build --reporter dot
-fi
+step "Run unit tests" \
+	./scripts/test.sh --xvfb --build --reporter dot
 
 step "Publish release" \
 	./build/tfs/linux/release.sh
