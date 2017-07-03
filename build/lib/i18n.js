@@ -1,15 +1,17 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var path = require('path');
-var fs = require('fs');
-var event_stream_1 = require('event-stream');
-var File = require('vinyl');
-var Is = require('is');
-var xml2js = require('xml2js');
-var glob = require('glob');
-var https = require('https');
+Object.defineProperty(exports, "__esModule", { value: true });
+var path = require("path");
+var fs = require("fs");
+var event_stream_1 = require("event-stream");
+var File = require("vinyl");
+var Is = require("is");
+var xml2js = require("xml2js");
+var glob = require("glob");
+var https = require("https");
 var util = require('gulp-util');
 var iconv = require('iconv-lite');
 function log(message) {
@@ -22,7 +24,7 @@ function log(message) {
 var LocalizeInfo;
 (function (LocalizeInfo) {
     function is(value) {
-        var candidate = value, as = LocalizeInfo;
+        var candidate = value;
         return Is.defined(candidate) && Is.string(candidate.key) && (Is.undef(candidate.comment) || (Is.array(candidate.comment) && candidate.comment.every(function (element) { return Is.string(element); })));
     }
     LocalizeInfo.is = is;
@@ -33,7 +35,7 @@ var BundledFormat;
         if (Is.undef(value)) {
             return false;
         }
-        var candidate = value, as = BundledFormat;
+        var candidate = value;
         var length = Object.keys(value).length;
         return length === 3 && Is.defined(candidate.keys) && Is.defined(candidate.messages) && Is.defined(candidate.bundles);
     }
@@ -55,7 +57,7 @@ var PackageJsonFormat;
 var ModuleJsonFormat;
 (function (ModuleJsonFormat) {
     function is(value) {
-        var candidate = value, as = ModuleJsonFormat;
+        var candidate = value;
         return Is.defined(candidate)
             && Is.array(candidate.messages) && candidate.messages.every(function (message) { return Is.string(message); })
             && Is.array(candidate.keys) && candidate.keys.every(function (key) { return Is.string(key) || LocalizeInfo.is(key); });
@@ -79,7 +81,7 @@ var Line = (function () {
         return this.buffer.join('');
     };
     return Line;
-})();
+}());
 exports.Line = Line;
 var TextModel = (function () {
     function TextModel(contents) {
@@ -93,7 +95,7 @@ var TextModel = (function () {
         configurable: true
     });
     return TextModel;
-})();
+}());
 var XLF = (function () {
     function XLF(project) {
         this.project = project;
@@ -116,8 +118,8 @@ var XLF = (function () {
     XLF.prototype.addFile = function (original, keys, messages) {
         this.files[original] = [];
         var existingKeys = [];
-        for (var _i = 0; _i < keys.length; _i++) {
-            var key = keys[_i];
+        for (var _i = 0, keys_1 = keys; _i < keys_1.length; _i++) {
+            var key = keys_1[_i];
             // Ignore duplicate keys because Transifex does not populate those with translated values.
             if (existingKeys.indexOf(key) !== -1) {
                 continue;
@@ -160,50 +162,50 @@ var XLF = (function () {
         line.append(content);
         this.buffer.push(line.toString());
     };
-    XLF.parse = function (xlfString) {
-        return new Promise(function (resolve, reject) {
-            var parser = new xml2js.Parser();
-            var files = [];
-            parser.parseString(xlfString, function (err, result) {
-                if (err) {
-                    reject("Failed to parse XLIFF string. " + err);
-                }
-                var fileNodes = result['xliff']['file'];
-                if (!fileNodes) {
-                    reject('XLIFF file does not contain "xliff" or "file" node(s) required for parsing.');
-                }
-                fileNodes.forEach(function (file) {
-                    var originalFilePath = file.$.original;
-                    if (!originalFilePath) {
-                        reject('XLIFF file node does not contain original attribute to determine the original location of the resource file.');
-                    }
-                    var language = file.$['target-language'].toLowerCase();
-                    if (!language) {
-                        reject('XLIFF file node does not contain target-language attribute to determine translated language.');
-                    }
-                    var messages = {};
-                    var transUnits = file.body[0]['trans-unit'];
-                    transUnits.forEach(function (unit) {
-                        var key = unit.$.id;
-                        if (!unit.target) {
-                            return; // No translation available
-                        }
-                        var val = unit.target.toString();
-                        if (key && val) {
-                            messages[key] = decodeEntities(val);
-                        }
-                        else {
-                            reject('XLIFF file does not contain full localization data. ID or target translation for one of the trans-unit nodes is not present.');
-                        }
-                    });
-                    files.push({ messages: messages, originalFilePath: originalFilePath, language: language });
-                });
-                resolve(files);
-            });
-        });
-    };
     return XLF;
-})();
+}());
+XLF.parse = function (xlfString) {
+    return new Promise(function (resolve, reject) {
+        var parser = new xml2js.Parser();
+        var files = [];
+        parser.parseString(xlfString, function (err, result) {
+            if (err) {
+                reject("Failed to parse XLIFF string. " + err);
+            }
+            var fileNodes = result['xliff']['file'];
+            if (!fileNodes) {
+                reject('XLIFF file does not contain "xliff" or "file" node(s) required for parsing.');
+            }
+            fileNodes.forEach(function (file) {
+                var originalFilePath = file.$.original;
+                if (!originalFilePath) {
+                    reject('XLIFF file node does not contain original attribute to determine the original location of the resource file.');
+                }
+                var language = file.$['target-language'].toLowerCase();
+                if (!language) {
+                    reject('XLIFF file node does not contain target-language attribute to determine translated language.');
+                }
+                var messages = {};
+                var transUnits = file.body[0]['trans-unit'];
+                transUnits.forEach(function (unit) {
+                    var key = unit.$.id;
+                    if (!unit.target) {
+                        return; // No translation available
+                    }
+                    var val = unit.target.toString();
+                    if (key && val) {
+                        messages[key] = decodeEntities(val);
+                    }
+                    else {
+                        reject('XLIFF file does not contain full localization data. ID or target translation for one of the trans-unit nodes is not present.');
+                    }
+                });
+                files.push({ messages: messages, originalFilePath: originalFilePath, language: language });
+            });
+            resolve(files);
+        });
+    });
+};
 exports.XLF = XLF;
 var iso639_3_to_2 = {
     'chs': 'zh-cn',
@@ -419,7 +421,7 @@ function processCoreBundleFormat(fileHeader, languages, json, emitter) {
             var modules = bundleSection[bundle];
             var contents = [
                 fileHeader,
-                ("define(\"" + bundle + ".nls." + language.iso639_2 + "\", {")
+                "define(\"" + bundle + ".nls." + language.iso639_2 + "\", {"
             ];
             modules.forEach(function (module, index) {
                 contents.push("\t\"" + module + "\": [");
@@ -746,12 +748,12 @@ function updateResource(project, slug, xlfFile, apiHostname, credentials) {
         var request = https.request(options, function (res) {
             if (res.statusCode === 200) {
                 res.setEncoding('utf8');
-                var responseBuffer = '';
+                var responseBuffer_1 = '';
                 res.on('data', function (chunk) {
-                    responseBuffer += chunk;
+                    responseBuffer_1 += chunk;
                 });
                 res.on('end', function () {
-                    var response = JSON.parse(responseBuffer);
+                    var response = JSON.parse(responseBuffer_1);
                     log("Resource " + project + "/" + slug + " successfully updated on Transifex. Strings added: " + response.strings_added + ", updated: " + response.strings_added + ", deleted: " + response.strings_added);
                     resolve();
                 });
@@ -779,10 +781,10 @@ function obtainProjectResources(projectName) {
     }
     else if (projectName === extensionsProject) {
         var extensionsToLocalize = glob.sync('./extensions/**/*.nls.json').map(function (extension) { return extension.split('/')[2]; });
-        var resourcesToPull = [];
+        var resourcesToPull_1 = [];
         extensionsToLocalize.forEach(function (extension) {
-            if (resourcesToPull.indexOf(extension) === -1) {
-                resourcesToPull.push(extension);
+            if (resourcesToPull_1.indexOf(extension) === -1) {
+                resourcesToPull_1.push(extension);
                 resources.push({ name: extension, project: projectName });
             }
         });
@@ -809,12 +811,12 @@ function pullXlfFiles(projectName, apiHostname, username, password, languages, r
         }
         if (!called) {
             called = true;
-            var stream = this;
+            var stream_1 = this;
             // Retrieve XLF files from main projects
             languages.map(function (language) {
                 resources.map(function (resource) {
                     retrieveResource(language, resource, apiHostname, credentials).then(function (file) {
-                        stream.emit('data', file);
+                        stream_1.emit('data', file);
                         translationsRetrieved++;
                     }).catch(function (error) { throw new Error(error); });
                 });
