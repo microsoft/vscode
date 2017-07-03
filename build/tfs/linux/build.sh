@@ -30,7 +30,7 @@ step "Build minified" \
 	npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-min"
 
 step "Run unit tests" \
-	./scripts/test.sh --xvfb --build --reporter dot
+	./scripts/test.sh --build --reporter dot
 
 step "Publish release" \
 	./build/tfs/linux/release.sh
