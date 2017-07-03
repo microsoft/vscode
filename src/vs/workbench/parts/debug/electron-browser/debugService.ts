@@ -159,13 +159,21 @@ export class DebugService implements debug.IDebugService {
 	private onBroadcast(broadcast: IBroadcast): void {
 
 		// attach: PH is ready to be attached to
-		// TODO@Isidor this is a hack to just get any 'extensionHost' session.
-		// Optimally the broadcast would contain the id of the session
-		// We are only interested if we have an active debug session for extensionHost
 		const process = this.model.getProcesses().filter(p => strings.equalsIgnoreCase(p.configuration.type, 'extensionhost')).pop();
 		const session = process ? <RawDebugSession>process.session : null;
 		if (broadcast.channel === EXTENSION_ATTACH_BROADCAST_CHANNEL) {
-			setTimeout(() => this.rawAttach(session, broadcast.payload.port), 300);
+			if (session) {
+				// Only support one extension host session at a time. More details #29884
+				this.onSessionEnd(session);
+			}
+
+			const config = this.configurationManager.getConfiguration(this.viewModel.selectedConfigurationName);
+			this.configurationManager.resloveConfiguration(config).done(resolvedConfig => {
+				resolvedConfig.request = 'attach';
+				resolvedConfig.port = broadcast.payload.port;
+				this.doCreateProcess(resolvedConfig);
+			}, errors.onUnexpectedError);
+
 			return;
 		}
 
@@ -879,19 +887,6 @@ export class DebugService implements debug.IDebugService {
 			}
 
 			return taskPromise;
-		});
-	}
-
-	private rawAttach(session: RawDebugSession, port: number): TPromise<any> {
-		if (session) {
-			return session.attach({ port });
-		}
-
-		const config = this.configurationManager.getConfiguration(this.viewModel.selectedConfigurationName);
-		return this.configurationManager.resloveConfiguration(config).then(resolvedConfig => {
-			resolvedConfig.request = 'attach';
-			resolvedConfig.port = port;
-			this.doCreateProcess(resolvedConfig);
 		});
 	}
 
