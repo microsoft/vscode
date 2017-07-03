@@ -985,10 +985,10 @@ export class Workbench implements IPartService {
 
 		// Close when empty: check if we should close the window based on the setting
 		// Overruled by: window has a workspace opened or this window is for extension development
-		// or setting is disabled.
+		// or setting is disabled. Also enabled when running with --wait from the command line.
 		if (visibleEditors === 0 && !this.contextService.hasWorkspace() && !this.environmentService.isExtensionDevelopment) {
 			const closeWhenEmpty = this.configurationService.lookup<boolean>(Workbench.closeWhenEmptyConfigurationKey).value;
-			if (closeWhenEmpty) {
+			if (closeWhenEmpty || this.environmentService.args.wait) {
 				this.closeEmptyWindowScheduler.schedule();
 			}
 		}
