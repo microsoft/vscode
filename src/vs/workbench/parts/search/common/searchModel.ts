@@ -345,8 +345,7 @@ export class FolderMatch extends Disposable {
 
 	private _fileMatches: ResourceMap<FileMatch>;
 	private _unDisposedFileMatches: ResourceMap<FileMatch>;
-
-	public replacingAll: boolean = false;
+	private _replacingAll: boolean = false;
 
 	constructor(private _resource: URI, private _index: number, private _query: ISearchQuery, private _parent: SearchResult, private _searchModel: SearchModel, @IReplaceService private replaceService: IReplaceService, @ITelemetryService private telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService) {
@@ -361,6 +360,10 @@ export class FolderMatch extends Disposable {
 
 	public get showHighlights(): boolean {
 		return this._parent.showHighlights;
+	}
+
+	public set replacingAll(b: boolean) {
+		this._replacingAll = b;
 	}
 
 	public id(): string {
@@ -443,7 +446,7 @@ export class FolderMatch extends Disposable {
 			added = false;
 			removed = true;
 		}
-		if (!this.replacingAll) {
+		if (!this._replacingAll) {
 			this._onChange.fire({ elements: [fileMatch], added: added, removed: removed });
 		}
 	}
