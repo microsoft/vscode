@@ -3,6 +3,8 @@ MAINTAINER Joao Moreno <joao.moreno@microsoft.com>
 
 RUN dpkg --add-architecture i386
 RUN apt-get update
+
+# Dependencies
 RUN apt-get install -y build-essential
 RUN apt-get install -y gcc-multilib g++-multilib
 RUN apt-get install -y zip
@@ -27,3 +29,11 @@ RUN apt-get install -y libx11-xcb-dev libx11-xcb-dev:i386
 RUN apt-get install -y libgl1-mesa-glx:i386 libgl1-mesa-dri:i386
 RUN apt-get install -y libxkbfile-dev
 RUN apt-get install -y bc bsdmainutils
+
+# Xvfb
+# Thanks https://medium.com/@griggheo/running-headless-selenium-webdriver-tests-in-docker-containers-342fdbabf756
+ADD xvfb.init /etc/init.d/xvfb
+RUN chmod +x /etc/init.d/xvfb
+RUN update-rc.d xvfb defaults
+
+CMD (service xvfb start; export DISPLAY=:10; ./start.sh)
