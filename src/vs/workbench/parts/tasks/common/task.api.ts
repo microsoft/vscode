@@ -22,9 +22,9 @@ export interface ProblemPattern {
 	file?: number;
 
 	/**
-	 * The match group index of the problems's location. Valid location
+	 * The match group index of the problem's location. Valid location
 	 * patterns are: (line), (line,column) and (startLine,startColumn,endLine,endColumn).
-	 * If omitted the line and colum properties are used.
+	 * If omitted the line and column properties are used.
 	 */
 	location?: number;
 
@@ -65,7 +65,7 @@ export interface ProblemPattern {
 	severity?: number;
 
 	/**
-	 * The match group index of the problems's code.
+	 * The match group index of the problem's code.
 	 *
 	 * Defaults to undefined. No code is captured.
 	 */
