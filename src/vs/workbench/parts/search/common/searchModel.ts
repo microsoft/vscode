@@ -587,6 +587,10 @@ export class SearchResult extends Disposable {
 		return this.folderMatches().reduce<number>((prev, match) => prev + match.fileCount(), 0);
 	}
 
+	public folderCount(): number {
+		return this.folderMatches().reduce<number>((prev, match) => prev + (match.fileCount() > 0 ? 1 : 0), 0);
+	}
+
 	public count(): number {
 		return this.matches().reduce<number>((prev, match) => prev + match.count(), 0);
 	}

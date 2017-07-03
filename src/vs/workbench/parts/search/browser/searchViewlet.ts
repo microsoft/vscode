@@ -1168,7 +1168,7 @@ export class SearchViewlet extends Viewlet {
 		const msgWasHidden = this.messages.isHidden();
 		if (fileCount > 0) {
 			const div = this.clearMessage();
-			$(div).p({ text: this.buildResultCountMessage(this.viewModel.searchResult.count(), fileCount) });
+			$(div).p({ text: this.buildResultCountMessage(fileCount, this.viewModel.searchResult.folderCount()) });
 			if (msgWasHidden) {
 				this.reLayout();
 			}
@@ -1177,15 +1177,15 @@ export class SearchViewlet extends Viewlet {
 		}
 	}
 
-	private buildResultCountMessage(resultCount: number, fileCount: number): string {
-		if (resultCount === 1 && fileCount === 1) {
-			return nls.localize('search.file.result', "{0} result in {1} file", resultCount, fileCount);
-		} else if (resultCount === 1) {
-			return nls.localize('search.files.result', "{0} result in {1} files", resultCount, fileCount);
+	private buildResultCountMessage(fileCount: number, folderCount: number): string {
+		if (folderCount === 1 && fileCount === 1) {
+			return nls.localize('search.folder.file', "{0} file in {1} folder", fileCount, folderCount);
+		} else if (folderCount === 1) {
+			return nls.localize('search.folder.files', "{0} files in {1} folder", fileCount, folderCount);
 		} else if (fileCount === 1) {
-			return nls.localize('search.file.results', "{0} results in {1} file", resultCount, fileCount);
+			return nls.localize('search.folders.file', "{0} file in {1} folders", fileCount, folderCount);
 		} else {
-			return nls.localize('search.files.results', "{0} results in {1} files", resultCount, fileCount);
+			return nls.localize('search.folders.files', "{0} files in {1} folders", fileCount, folderCount);
 		}
 	}
 
