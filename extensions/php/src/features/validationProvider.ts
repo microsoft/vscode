@@ -152,12 +152,12 @@ export default class PHPValidationProvider {
 			if (typeof(shellSettings) === 'boolean') {
 				this.runInShell = shellSettings;
 				if (this.platform.toLowerCase() === 'win32') {
-					this.shellExecutable = 'C:\WINDOWS\system32\cmd.exe';
-					this.shellArgs = ['\C'];
+					this.shellExecutable = 'C:\\WINDOWS\\system32\\cmd.exe';
+					this.shellArgs = ['/C'];
 					if (process.env.ComSpec) {
 						this.shellExecutable = process.env.ComSpec;
 						if (process.env.ComSpec.toLowerCase().indexof('powershell.exe') !== -1) {
-							this.shellArgs = ['\Command'];
+							this.shellArgs = ['/Command'];
 						} else if (process.env.ComSpec.toLowerCase().indexof('bash.exe') !== -1) {
 							this.shellArgs = ['-c'];
 						}
@@ -180,7 +180,7 @@ export default class PHPValidationProvider {
 					}
 				}
 				console.log('Run in shell?', this.runInShell);
-				console.log('Shell exec', shellSettings.shellExecutable);
+				console.log('Shell exec', this.shellExecutable);
 				console.log('Shell args', this.shellArgs);
 			}
 
@@ -310,6 +310,7 @@ export default class PHPValidationProvider {
 				let executableInShell = executable;
 				executable = this.shellExecutable;
 
+				console.log('Orig args', args);
 				// Shell args
 				let executableArgs = args.slice(0);
 
@@ -329,6 +330,8 @@ export default class PHPValidationProvider {
 
 				// Finalize executable args
 				args = this.shellArgs.concat(['"', executableInShell, executableArgs.join(' '), '"']);
+
+				console.log('Final args', args);
 
 				// Node spawn with shell
 				options['shell'] = true;
