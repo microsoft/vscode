@@ -897,6 +897,10 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
+	closeWindow(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
 	setDocumentEdited(flag: boolean): TPromise<void> {
 		return TPromise.as(void 0);
 	}
@@ -1022,6 +1026,10 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	focusWindow(windowId: number): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	closeWindow(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 

@@ -36,6 +36,7 @@ export interface IWindowsService {
 	clearRecentPathsList(): TPromise<void>;
 	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }>;
 	focusWindow(windowId: number): TPromise<void>;
+	closeWindow(windowId: number): TPromise<void>;
 	isFocused(windowId: number): TPromise<boolean>;
 	isMaximized(windowId: number): TPromise<boolean>;
 	maximizeWindow(windowId: number): TPromise<void>;
@@ -89,6 +90,7 @@ export interface IWindowService {
 	removeFromRecentlyOpen(paths: string[]): TPromise<void>;
 	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }>;
 	focusWindow(): TPromise<void>;
+	closeWindow(): TPromise<void>;
 	isFocused(): TPromise<boolean>;
 	setDocumentEdited(flag: boolean): TPromise<void>;
 	isMaximized(): TPromise<boolean>;
@@ -116,6 +118,7 @@ export interface IWindowSettings {
 	newWindowDimensions: 'default' | 'inherit' | 'maximized' | 'fullscreen';
 	nativeTabs: boolean;
 	enableMenuBarMnemonics: boolean;
+	closeWhenEmpty: boolean;
 }
 
 export enum OpenContext {

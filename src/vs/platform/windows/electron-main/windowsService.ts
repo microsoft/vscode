@@ -174,6 +174,16 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return TPromise.as(null);
 	}
 
+	closeWindow(windowId: number): TPromise<void> {
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (codeWindow) {
+			codeWindow.win.close();
+		}
+
+		return TPromise.as(null);
+	}
+
 	isFocused(windowId: number): TPromise<boolean> {
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
