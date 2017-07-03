@@ -120,7 +120,7 @@ export class Renderer implements IRenderer {
 	}
 
 	private renderFileResourceTemplate(container: HTMLElement): IFileResourceTemplateData {
-		var data: IFileResourceTemplateData = Object.create(null);
+		const data: IFileResourceTemplateData = Object.create(null);
 		const resourceLabelContainer = dom.append(container, dom.$('.resource-label-container'));
 		data.fileLabel = this.instantiationService.createInstance(FileLabel, resourceLabelContainer, { supportHighlights: true });
 
@@ -132,7 +132,7 @@ export class Renderer implements IRenderer {
 	}
 
 	private renderResourceTemplate(container: HTMLElement): IResourceTemplateData {
-		var data: IResourceTemplateData = Object.create(null);
+		const data: IResourceTemplateData = Object.create(null);
 		const resourceLabelContainer = dom.append(container, dom.$('.resource-label-container'));
 		data.resourceLabel = this.instantiationService.createInstance(ResourceLabel, resourceLabelContainer, { supportHighlights: true });
 
@@ -144,7 +144,7 @@ export class Renderer implements IRenderer {
 	}
 
 	private renderMarkerTemplate(container: HTMLElement): IMarkerTemplateData {
-		var data: IMarkerTemplateData = Object.create(null);
+		const data: IMarkerTemplateData = Object.create(null);
 		data.icon = dom.append(container, dom.$('.marker-icon'));
 		data.source = new HighlightedLabel(dom.append(container, dom.$('')));
 		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')));
