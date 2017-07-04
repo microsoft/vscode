@@ -27,3 +27,15 @@ RUN apt-get install -y libx11-xcb-dev libx11-xcb-dev:i386
 RUN apt-get install -y libgl1-mesa-glx:i386 libgl1-mesa-dri:i386
 RUN apt-get install -y libxkbfile-dev
 RUN apt-get install -y bc bsdmainutils
+
+# Xvfb
+# Thanks https://medium.com/@griggheo/running-headless-selenium-webdriver-tests-in-docker-containers-342fdbabf756
+ADD xvfb.init /etc/init.d/xvfb
+RUN chmod +x /etc/init.d/xvfb
+RUN update-rc.d xvfb defaults
+
+# nvm
+ENV NVM_DIR /usr/local/nvm
+RUN curl https://raw.githubusercontent.com/creationix/nvm/v0.33.2/install.sh | bash
+
+CMD (service xvfb start; export DISPLAY=:10; ./start.sh)
