@@ -13,19 +13,26 @@ import { editorContribution } from "vs/editor/browser/editorBrowserExtensions";
 import { ICodeEditor } from "vs/editor/browser/editorBrowser";
 import { ColorPickerWidget } from "vs/editor/contrib/colorPicker/browser/colorPickerWidget";
 import { Disposable } from "vs/base/common/lifecycle";
+import { ColorPickerModel } from "vs/editor/contrib/colorPicker/common/colorPickerModel";
+import { registerThemingParticipant } from "vs/platform/theme/common/themeService";
+import { editorWidgetBackground, editorWidgetBorder } from "vs/platform/theme/common/colorRegistry";
 
 @editorContribution
 export class ColorPickerController extends Disposable implements IEditorContribution {
 	private static ID: string = 'editor.contrib.colorPicker';
 
 	private widget: ColorPickerWidget;
+	private model: ColorPickerModel;
 
 	constructor(private editor: ICodeEditor) {
 		super();
 
-		console.log('Colour picker controller was instantiated');
+		this.model = this._register(new ColorPickerModel());
+		this.widget = this._register(new ColorPickerWidget(this, this.model, editor));
 
-		this.widget = this._register(new ColorPickerWidget(this, editor));
+		this._register(editor.onDidChangeModel(() =>
+			this.dispose()
+		));
 	}
 
 	public getId(): string {
@@ -38,9 +45,40 @@ export class ColorPickerController extends Disposable implements IEditorContribu
 
 	public pickColor(): void {
 		// Convert color from editors to string, pass it to widget
-		this.widget.show('#00ab54');
+		const color = 'rgba(0, 171, 84, 1)'; // temp colour that is picked from editor
+		this.model.originalColor = color;
+		this.model.selectedColor = color;
+
+		this.widget.show();
+	}
+
+	public selectColor(): void {
+		console.log('Selecting color');
+		// Rerender widget selections:
+		// 1. Saturation box
+		// 2. Opacity box
+		// Top color container
+	}
+
+	public changeColorType(): void {
+		console.log('Colour type change triggered');
+	}
+
+	public dispose(): void {
+		if (this.widget.visible) {
+			this.widget.dispose();
+		}
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	const widgetBackground = theme.getColor(editorWidgetBackground);
+	collector.addRule(`.monaco-editor .colorpicker-widget { background-color: ${widgetBackground}; }`);
+
+	const widgetBorder = theme.getColor(editorWidgetBorder);
+	collector.addRule(`.monaco-editor .colorpicker-widget { border: 1px solid ${widgetBorder}; }`);
+	collector.addRule(`.monaco-editor .colorpicker-header { border: 1px solid ${widgetBorder}; }`);
+});
 
 @editorAction
 class ColorPickerCommand extends EditorAction {

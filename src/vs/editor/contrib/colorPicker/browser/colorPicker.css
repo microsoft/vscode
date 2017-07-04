@@ -1,0 +1,53 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.colorpicker-widget {
+	background-color: rgba(255, 255, 255, 1);
+}
+
+.colorpicker-header {
+	display: flex;
+	height: 24px;
+}
+
+.colorpicker-header .color-code {
+	text-align: center;
+}
+
+.colorpicker-body {
+	display: flex;
+}
+
+.picked-color {
+	text-align: center;
+	color: rgba(255, 255, 255, 1);
+}
+
+.saturation-box {
+	cursor: crosshair;
+}
+
+.hue-strip {
+	margin-left: 8px;
+}
+
+.opacity-strip-wrap {
+	position: relative;
+	margin-left: 8px;
+}
+
+.opacity-strip-wrap::before {
+	content: '';
+	background: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAJElEQVQIW2PcvXv3fwYg6OzsBFEMjBgCLi4uYBXl5eUQFegCAIYVD/syLxKnAAAAAElFTkSuQmCC);
+	background-size: 9px 9px;
+	image-rendering: pixelated;
+	position: absolute;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	z-index: 1;
+	opacity: .1;
+}

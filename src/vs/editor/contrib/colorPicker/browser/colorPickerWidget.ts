@@ -3,45 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./colorpicker';
 import { IOverlayWidget, IOverlayWidgetPosition, ICodeEditor } from "vs/editor/browser/editorBrowser";
 import { Widget } from "vs/base/browser/ui/widget";
-import { ColorPickerController } from "vs/editor/contrib/colorPicker/browser/colorPicker";
 import * as dom from 'vs/base/browser/dom';
 import { ColorPickerHeader } from "vs/editor/contrib/colorPicker/browser/elements/colorPickerHeader";
 import { ColorPickerBody } from "vs/editor/contrib/colorPicker/browser/elements/colorPickerBody";
+import { ColorPickerModel } from "vs/editor/contrib/colorPicker/common/colorPickerModel";
+import { ColorPickerController } from "vs/editor/contrib/colorPicker/browser/colorPicker";
 const $ = dom.$;
 
 export class ColorPickerWidget extends Widget implements IOverlayWidget {
 	private static ID = 'editor.contrib.colorPickerWidget';
-	private readonly width = 400;
-	private readonly height = 350;
+	private readonly width = 300;
+	private readonly height = 190;
 
 	private domNode: HTMLElement;
 	private header: ColorPickerHeader;
 	private body: ColorPickerBody;
 
-	private visible: boolean = false;
-	public originalColor: string;
-	public selectedColor: string;
+	public visible: boolean = false;
 
-	constructor(controller: ColorPickerController, public editor: ICodeEditor) {
+	constructor(public controller: ColorPickerController, private model: ColorPickerModel, public editor: ICodeEditor) {
 		super();
-
-		this.domNode = $('editor-widget colorpicker-widget');
-		this.domNode.setAttribute('aria-hidden', 'false');
-		editor.addOverlayWidget(this);
 	}
 
-	public show(color: string): void {
+	public show(): void {
 		if (this.visible) {
 			return;
 		}
 
-		this.originalColor = color;
-		this.selectedColor = color;
+		this.domNode = $('editor-widget colorpicker-widget');
+		this.domNode.setAttribute('aria-hidden', 'false');
+		this.editor.addOverlayWidget(this);
 
-		this.header = new ColorPickerHeader(this);
-		this.body = new ColorPickerBody(this, this.width - 100);
+		this.header = new ColorPickerHeader(this, this.model);
+		this.body = new ColorPickerBody(this, this.model, this.width);
 
 		this.layout();
 		this.visible = true;
@@ -56,27 +53,27 @@ export class ColorPickerWidget extends Widget implements IOverlayWidget {
 		let left = Math.round((editorLayout.width - this.width) / 2);
 		this.domNode.style.left = left + 'px';
 
-		this.domNode.style.backgroundColor = 'red';
 		this.domNode.style.width = this.width + 'px';
 		this.domNode.style.height = this.height + 'px';
 	}
 
 	public changePrimaryColor(): void {
-
+		// View change only, other things go through the controller
 	}
 	public changeShade(): void {
-
+		// View change only, other things go through the controller
 	}
 	public changeOpacity(): void {
-
+		// View change only, other things go through the controller
 	}
 
 	public changeSelectedColor(color: string): void {
-		this.selectedColor = color;
+		// View change only, other things go through the controller
 		this.layout();
 	}
 
 	public dispose(): void {
+		this.visible = false;
 		this.editor.removeOverlayWidget(this);
 		super.dispose();
 	}
