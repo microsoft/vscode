@@ -78,6 +78,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _cols: number;
 	private _rows: number;
 	private _messageTitleListener: (message: { type: string, content: string }) => void;
+	private _preLaunchInputQ: string;
 
 	private _widgetManager: TerminalWidgetManager;
 	private _linkHandler: TerminalLinkHandler;
@@ -121,6 +122,8 @@ export class TerminalInstance implements ITerminalInstance {
 		this._onDataForApi = new Emitter<{ instance: ITerminalInstance, data: string }>();
 		this._onProcessIdReady = new Emitter<TerminalInstance>();
 		this._onTitleChanged = new Emitter<string>();
+		// Data input queue for pty launch delay
+		this._preLaunchInputQ = '';
 
 		// Create a promise that resolves when the pty is ready
 		this._processReady = new TPromise<void>(c => {
@@ -210,11 +213,17 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
 		this._xterm.on('data', (data) => {
-			if (this._process) {
+			// Check if we have a valid process Id
+			if (this._processId) {
 				this._process.send({
 					event: 'input',
 					data: this._sanitizeInput(data)
 				});
+			}
+			else {
+				// we need to queue data until the pty is ready
+				// message data has already had escape encoding by xterm
+				this._preLaunchInputQ += data;
 			}
 			return false;
 		});
@@ -525,6 +534,12 @@ export class TerminalInstance implements ITerminalInstance {
 		this._process.on('message', (message) => {
 			if (message.type === 'pid') {
 				this._processId = message.content;
+
+				// pty is ready - send queued data
+				this._process.send({
+					event: 'input',
+					data: this._sanitizeInput(this._preLaunchInputQ)
+				});
 				this._onProcessIdReady.fire(this);
 			}
 		});
