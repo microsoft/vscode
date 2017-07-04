@@ -1,5 +1,6 @@
 #!/bin/bash
 
+. ./build/tfs/common/node.sh
 . ./scripts/env.sh
 . ./build/tfs/common/common.sh
 
