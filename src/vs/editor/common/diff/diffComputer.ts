@@ -8,8 +8,8 @@ import { IDiffChange, ISequence, LcsDiff } from 'vs/base/common/diff/diff';
 import * as strings from 'vs/base/common/strings';
 import { ICharChange, ILineChange } from 'vs/editor/common/editorCommon';
 
-var MAXIMUM_RUN_TIME = 5000; // 5 seconds
-var MINIMUM_MATCHING_CHARACTER_LENGTH = 3;
+const MAXIMUM_RUN_TIME = 5000; // 5 seconds
+const MINIMUM_MATCHING_CHARACTER_LENGTH = 3;
 
 interface IMarker {
 	lineNumber: number;
@@ -18,7 +18,7 @@ interface IMarker {
 }
 
 function computeDiff(originalSequence: ISequence, modifiedSequence: ISequence, continueProcessingPredicate: () => boolean, pretty: boolean): IDiffChange[] {
-	var diffAlgo = new LcsDiff(originalSequence, modifiedSequence, continueProcessingPredicate);
+	const diffAlgo = new LcsDiff(originalSequence, modifiedSequence, continueProcessingPredicate);
 	return diffAlgo.ComputeDiff(pretty);
 }
 
@@ -38,13 +38,13 @@ class MarkerSequence implements ISequence {
 		if (!(other instanceof MarkerSequence)) {
 			return false;
 		}
-		var otherMarkerSequence = <MarkerSequence>other;
+		const otherMarkerSequence = <MarkerSequence>other;
 		if (this.getLength() !== otherMarkerSequence.getLength()) {
 			return false;
 		}
-		for (var i = 0, len = this.getLength(); i < len; i++) {
-			var myElement = this.getElementHash(i);
-			var otherElement = otherMarkerSequence.getElementHash(i);
+		for (let i = 0, len = this.getLength(); i < len; i++) {
+			const myElement = this.getElementHash(i);
+			const otherElement = otherMarkerSequence.getElementHash(i);
 			if (myElement !== otherElement) {
 				return false;
 			}
@@ -85,14 +85,14 @@ class MarkerSequence implements ISequence {
 class LineMarkerSequence extends MarkerSequence {
 
 	constructor(lines: string[], shouldIgnoreTrimWhitespace: boolean) {
-		var i: number, length: number, pos: number;
-		var buffer = '';
-		var startMarkers: IMarker[] = [], endMarkers: IMarker[] = [], startColumn: number, endColumn: number;
+		let buffer = '';
+		let startMarkers: IMarker[] = [];
+		let endMarkers: IMarker[] = [];
 
-		for (pos = 0, i = 0, length = lines.length; i < length; i++) {
+		for (let pos = 0, i = 0, length = lines.length; i < length; i++) {
 			buffer += lines[i];
-			startColumn = 1;
-			endColumn = lines[i].length + 1;
+			let startColumn = 1;
+			let endColumn = lines[i].length + 1;
 
 			if (shouldIgnoreTrimWhitespace) {
 				startColumn = LineMarkerSequence._getFirstNonBlankColumn(lines[i], 1);
@@ -118,7 +118,7 @@ class LineMarkerSequence extends MarkerSequence {
 	}
 
 	private static _getFirstNonBlankColumn(txt: string, defaultValue: number): number {
-		var r = strings.firstNonWhitespaceIndex(txt);
+		const r = strings.firstNonWhitespaceIndex(txt);
 		if (r === -1) {
 			return defaultValue;
 		}
@@ -126,7 +126,7 @@ class LineMarkerSequence extends MarkerSequence {
 	}
 
 	private static _getLastNonBlankColumn(txt: string, defaultValue: number): number {
-		var r = strings.lastNonWhitespaceIndex(txt);
+		const r = strings.lastNonWhitespaceIndex(txt);
 		if (r === -1) {
 			return defaultValue;
 		}
@@ -134,11 +134,12 @@ class LineMarkerSequence extends MarkerSequence {
 	}
 
 	public getCharSequence(startIndex: number, endIndex: number): MarkerSequence {
-		var startMarkers: IMarker[] = [], endMarkers: IMarker[] = [], index: number, i: number, startMarker: IMarker, endMarker: IMarker;
-		for (index = startIndex; index <= endIndex; index++) {
-			startMarker = this.startMarkers[index];
-			endMarker = this.endMarkers[index];
-			for (i = startMarker.offset; i < endMarker.offset; i++) {
+		let startMarkers: IMarker[] = [];
+		let endMarkers: IMarker[] = [];
+		for (let index = startIndex; index <= endIndex; index++) {
+			const startMarker = this.startMarkers[index];
+			const endMarker = this.endMarkers[index];
+			for (let i = startMarker.offset; i < endMarker.offset; i++) {
 				startMarkers.push({
 					offset: i,
 					lineNumber: startMarker.lineNumber,
@@ -199,16 +200,17 @@ function postProcessCharChanges(rawChanges: IDiffChange[]): IDiffChange[] {
 	if (rawChanges.length <= 1) {
 		return rawChanges;
 	}
-	var result = [rawChanges[0]];
 
-	var i: number, len: number, originalMatchingLength: number, modifiedMatchingLength: number, matchingLength: number, prevChange = result[0], currChange: IDiffChange;
-	for (i = 1, len = rawChanges.length; i < len; i++) {
-		currChange = rawChanges[i];
+	let result = [rawChanges[0]];
+	let prevChange = result[0];
 
-		originalMatchingLength = currChange.originalStart - (prevChange.originalStart + prevChange.originalLength);
-		modifiedMatchingLength = currChange.modifiedStart - (prevChange.modifiedStart + prevChange.modifiedLength);
+	for (let i = 1, len = rawChanges.length; i < len; i++) {
+		const currChange = rawChanges[i];
+
+		const originalMatchingLength = currChange.originalStart - (prevChange.originalStart + prevChange.originalLength);
+		const modifiedMatchingLength = currChange.modifiedStart - (prevChange.modifiedStart + prevChange.modifiedLength);
 		// Both of the above should be equal, but the continueProcessingPredicate may prevent this from being true
-		matchingLength = Math.min(originalMatchingLength, modifiedMatchingLength);
+		const matchingLength = Math.min(originalMatchingLength, modifiedMatchingLength);
 
 		if (matchingLength < MINIMUM_MATCHING_CHARACTER_LENGTH) {
 			// Merge the current change into the previous one
@@ -249,17 +251,17 @@ class LineChange implements ILineChange {
 		}
 
 		if (diffChange.originalLength !== 0 && diffChange.modifiedLength !== 0 && continueProcessingPredicate()) {
-			var originalCharSequence = originalLineSequence.getCharSequence(diffChange.originalStart, diffChange.originalStart + diffChange.originalLength - 1);
-			var modifiedCharSequence = modifiedLineSequence.getCharSequence(diffChange.modifiedStart, diffChange.modifiedStart + diffChange.modifiedLength - 1);
+			const originalCharSequence = originalLineSequence.getCharSequence(diffChange.originalStart, diffChange.originalStart + diffChange.originalLength - 1);
+			const modifiedCharSequence = modifiedLineSequence.getCharSequence(diffChange.modifiedStart, diffChange.modifiedStart + diffChange.modifiedLength - 1);
 
-			var rawChanges = computeDiff(originalCharSequence, modifiedCharSequence, continueProcessingPredicate, false);
+			let rawChanges = computeDiff(originalCharSequence, modifiedCharSequence, continueProcessingPredicate, false);
 
 			if (shouldPostProcessCharChanges) {
 				rawChanges = postProcessCharChanges(rawChanges);
 			}
 
 			this.charChanges = [];
-			for (var i = 0, length = rawChanges.length; i < length; i++) {
+			for (let i = 0, length = rawChanges.length; i < length; i++) {
 				this.charChanges.push(new CharChange(rawChanges[i], originalCharSequence, modifiedCharSequence));
 			}
 		}
@@ -344,10 +346,10 @@ export class DiffComputer {
 
 		this.computationStartTime = (new Date()).getTime();
 
-		var rawChanges = computeDiff(this.original, this.modified, this._continueProcessingPredicate.bind(this), this.shouldMakePrettyDiff);
+		const rawChanges = computeDiff(this.original, this.modified, this._continueProcessingPredicate.bind(this), this.shouldMakePrettyDiff);
 
-		var lineChanges: ILineChange[] = [];
-		for (var i = 0, length = rawChanges.length; i < length; i++) {
+		let lineChanges: ILineChange[] = [];
+		for (let i = 0, length = rawChanges.length; i < length; i++) {
 			lineChanges.push(new LineChange(rawChanges[i], this.original, this.modified, this._continueProcessingPredicate.bind(this), this.shouldPostProcessCharChanges));
 		}
 		return lineChanges;
@@ -357,7 +359,7 @@ export class DiffComputer {
 		if (this.maximumRunTimeMs === 0) {
 			return true;
 		}
-		var now = (new Date()).getTime();
+		const now = (new Date()).getTime();
 		return now - this.computationStartTime < this.maximumRunTimeMs;
 	}
 
