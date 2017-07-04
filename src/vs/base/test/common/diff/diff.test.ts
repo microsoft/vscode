@@ -143,7 +143,7 @@ suite('Diff - Ported from VS', () => {
 			// cancel processing
 			return false;
 		});
-		var changes = diff.ComputeDiff();
+		var changes = diff.ComputeDiff(true);
 
 		assert.equal(predicateCallCount, 1);
 
@@ -159,7 +159,7 @@ suite('Diff - Ported from VS', () => {
 			// Continue processing as long as there hasn't been a match made.
 			return longestMatchSoFar < 1;
 		});
-		changes = diff.ComputeDiff();
+		changes = diff.ComputeDiff(true);
 
 		assertAnswer(left, right, changes, 'abcf');
 
@@ -172,7 +172,7 @@ suite('Diff - Ported from VS', () => {
 			// Continue processing as long as there hasn't been a match made.
 			return longestMatchSoFar < 2;
 		});
-		changes = diff.ComputeDiff();
+		changes = diff.ComputeDiff(true);
 
 		assertAnswer(left, right, changes, 'abcdf');
 
@@ -188,7 +188,7 @@ suite('Diff - Ported from VS', () => {
 			// Continue processing as long as there hasn't been a match made.
 			return !hitYet;
 		});
-		changes = diff.ComputeDiff();
+		changes = diff.ComputeDiff(true);
 
 		assertAnswer(left, right, changes, 'abcdf');
 
@@ -201,7 +201,7 @@ suite('Diff - Ported from VS', () => {
 			// Continue processing as long as there hasn't been a match made.
 			return longestMatchSoFar < 3;
 		});
-		changes = diff.ComputeDiff();
+		changes = diff.ComputeDiff(true);
 
 		assertAnswer(left, right, changes, 'abcdef');
 	});

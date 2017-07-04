@@ -17,9 +17,9 @@ interface IMarker {
 	offset: number;
 }
 
-function computeDiff(originalSequence: ISequence, modifiedSequence: ISequence, continueProcessingPredicate: () => boolean): IDiffChange[] {
+function computeDiff(originalSequence: ISequence, modifiedSequence: ISequence, continueProcessingPredicate: () => boolean, pretty: boolean): IDiffChange[] {
 	var diffAlgo = new LcsDiff(originalSequence, modifiedSequence, continueProcessingPredicate);
-	return diffAlgo.ComputeDiff();
+	return diffAlgo.ComputeDiff(pretty);
 }
 
 class MarkerSequence implements ISequence {
@@ -252,7 +252,7 @@ class LineChange implements ILineChange {
 			var originalCharSequence = originalLineSequence.getCharSequence(diffChange.originalStart, diffChange.originalStart + diffChange.originalLength - 1);
 			var modifiedCharSequence = modifiedLineSequence.getCharSequence(diffChange.modifiedStart, diffChange.modifiedStart + diffChange.modifiedLength - 1);
 
-			var rawChanges = computeDiff(originalCharSequence, modifiedCharSequence, continueProcessingPredicate);
+			var rawChanges = computeDiff(originalCharSequence, modifiedCharSequence, continueProcessingPredicate, false);
 
 			if (shouldPostProcessCharChanges) {
 				rawChanges = postProcessCharChanges(rawChanges);
@@ -271,12 +271,14 @@ export interface IDiffComputerOpts {
 	shouldPostProcessCharChanges: boolean;
 	shouldIgnoreTrimWhitespace: boolean;
 	shouldConsiderTrimWhitespaceInEmptyCase: boolean;
+	shouldMakePrettyDiff: boolean;
 }
 
 export class DiffComputer {
 
 	private shouldPostProcessCharChanges: boolean;
 	private shouldIgnoreTrimWhitespace: boolean;
+	private shouldMakePrettyDiff: boolean;
 	private maximumRunTimeMs: number;
 	private original: LineMarkerSequence;
 	private modified: LineMarkerSequence;
@@ -286,6 +288,7 @@ export class DiffComputer {
 	constructor(originalLines: string[], modifiedLines: string[], opts: IDiffComputerOpts) {
 		this.shouldPostProcessCharChanges = opts.shouldPostProcessCharChanges;
 		this.shouldIgnoreTrimWhitespace = opts.shouldIgnoreTrimWhitespace;
+		this.shouldMakePrettyDiff = opts.shouldMakePrettyDiff;
 		this.maximumRunTimeMs = MAXIMUM_RUN_TIME;
 		this.original = new LineMarkerSequence(originalLines, this.shouldIgnoreTrimWhitespace);
 		this.modified = new LineMarkerSequence(modifiedLines, this.shouldIgnoreTrimWhitespace);
@@ -341,7 +344,7 @@ export class DiffComputer {
 
 		this.computationStartTime = (new Date()).getTime();
 
-		var rawChanges = computeDiff(this.original, this.modified, this._continueProcessingPredicate.bind(this));
+		var rawChanges = computeDiff(this.original, this.modified, this._continueProcessingPredicate.bind(this), this.shouldMakePrettyDiff);
 
 		var lineChanges: ILineChange[] = [];
 		for (var i = 0, length = rawChanges.length; i < length; i++) {

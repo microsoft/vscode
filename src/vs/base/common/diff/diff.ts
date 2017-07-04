@@ -15,8 +15,8 @@ function createStringSequence(a: string): ISequence {
 	};
 }
 
-export function stringDiff(original: string, modified: string): IDiffChange[] {
-	return new LcsDiff(createStringSequence(original), createStringSequence(modified)).ComputeDiff();
+export function stringDiff(original: string, modified: string, pretty: boolean): IDiffChange[] {
+	return new LcsDiff(createStringSequence(original), createStringSequence(modified)).ComputeDiff(pretty);
 }
 
 
@@ -286,8 +286,16 @@ export class LcsDiff {
 		return this.m_originalIds[originalIndex] === this.m_modifiedIds[newIndex];
 	}
 
-	public ComputeDiff(): IDiffChange[] {
-		return this._ComputeDiff(0, this.OriginalSequence.getLength() - 1, 0, this.ModifiedSequence.getLength() - 1);
+	private OriginalElementsAreEqual(index1: number, index2: number): boolean {
+		return this.m_originalIds[index1] === this.m_originalIds[index2];
+	}
+
+	private ModifiedElementsAreEqual(index1: number, index2: number): boolean {
+		return this.m_modifiedIds[index1] === this.m_modifiedIds[index2];
+	}
+
+	public ComputeDiff(pretty: boolean): IDiffChange[] {
+		return this._ComputeDiff(0, this.OriginalSequence.getLength() - 1, 0, this.ModifiedSequence.getLength() - 1, pretty);
 	}
 
 	/**
@@ -295,9 +303,18 @@ export class LcsDiff {
 	 * sequences on the bounded range.
 	 * @returns An array of the differences between the two input sequences.
 	 */
-	private _ComputeDiff(originalStart: number, originalEnd: number, modifiedStart: number, modifiedEnd: number): DiffChange[] {
+	private _ComputeDiff(originalStart: number, originalEnd: number, modifiedStart: number, modifiedEnd: number, pretty: boolean): DiffChange[] {
 		let quitEarlyArr = [false];
-		return this.ComputeDiffRecursive(originalStart, originalEnd, modifiedStart, modifiedEnd, quitEarlyArr);
+		let changes = this.ComputeDiffRecursive(originalStart, originalEnd, modifiedStart, modifiedEnd, quitEarlyArr);
+
+		if (pretty) {
+			// We have to clean up the computed diff to be more intuitive
+			// but it turns out this cannot be done correctly until the entire set
+			// of diffs have been computed
+			return this.ShiftChanges(changes);
+		}
+
+		return changes;
 	}
 
 	/**
@@ -770,6 +787,57 @@ export class LcsDiff {
 	}
 
 	/**
+	 * Shifts the given changes to provide a more intuitive diff.
+	 * While the first element in a diff matches the first element after the diff,
+	 * we shift the diff down.
+	 *
+	 * @param changes The list of changes to shift
+	 * @returns The shifted changes
+	 */
+	private ShiftChanges(changes: DiffChange[]): DiffChange[] {
+		let mergedDiffs: boolean;
+		do {
+			mergedDiffs = false;
+
+			// Shift all the changes first
+			for (let i = 0; i < changes.length; i++) {
+				const change = changes[i];
+				const originalStop = (i < changes.length - 1) ? changes[i + 1].originalStart : this.OriginalSequence.getLength();
+				const modifiedStop = (i < changes.length - 1) ? changes[i + 1].modifiedStart : this.ModifiedSequence.getLength();
+				const checkOriginal = change.originalLength > 0;
+				const checkModified = change.modifiedLength > 0;
+
+				while (change.originalStart + change.originalLength < originalStop &&
+					change.modifiedStart + change.modifiedLength < modifiedStop &&
+					(!checkOriginal || this.OriginalElementsAreEqual(change.originalStart, change.originalStart + change.originalLength)) &&
+					(!checkModified || this.ModifiedElementsAreEqual(change.modifiedStart, change.modifiedStart + change.modifiedLength))) {
+					change.originalStart++;
+					change.modifiedStart++;
+				}
+			}
+
+			// Build up the new list (we have to build a new list because we
+			// might have changes we can merge together now)
+			let result = new Array<DiffChange>();
+			let mergedChangeArr: DiffChange[] = [null];
+			for (let i = 0; i < changes.length; i++) {
+				if (i < changes.length - 1 && this.ChangesOverlap(changes[i], changes[i + 1], mergedChangeArr)) {
+					mergedDiffs = true;
+					result.push(mergedChangeArr[0]);
+					i++;
+				}
+				else {
+					result.push(changes[i]);
+				}
+			}
+
+			changes = result;
+		} while (mergedDiffs);
+
+		return changes;
+	}
+
+	/**
 	 * Concatenates the two input DiffChange lists and returns the resulting
 	 * list.
 	 * @param The left changes
@@ -847,7 +915,6 @@ export class LcsDiff {
 	 * @param numDiagonals The total number of diagonals.
 	 * @returns The clipped diagonal index.
 	 */
-
 	private ClipDiagonalBound(diagonal: number, numDifferences: number, diagonalBaseIndex: number, numDiagonals: number): number {
 		if (diagonal >= 0 && diagonal < numDiagonals) {
 			// Nothing to clip, its in range
@@ -868,5 +935,4 @@ export class LcsDiff {
 			return (diffEven === upperBoundEven) ? numDiagonals - 1 : numDiagonals - 2;
 		}
 	}
-
 }

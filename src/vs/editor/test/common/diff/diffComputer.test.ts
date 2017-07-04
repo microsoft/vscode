@@ -55,7 +55,8 @@ function assertDiff(originalLines: string[], modifiedLines: string[], expectedCh
 	var diffComputer = new DiffComputer(originalLines, modifiedLines, {
 		shouldPostProcessCharChanges: shouldPostProcessCharChanges || false,
 		shouldIgnoreTrimWhitespace: shouldIgnoreTrimWhitespace || false,
-		shouldConsiderTrimWhitespaceInEmptyCase: true
+		shouldConsiderTrimWhitespaceInEmptyCase: true,
+		shouldMakePrettyDiff: true
 	});
 	var changes = diffComputer.computeDiff();
 
@@ -455,6 +456,86 @@ suite('Editor Diff - DiffComputer', () => {
 			createLineChange(1, 1, 1, 1, [
 				createCharChange(0, 0, 0, 0, 0, 0, 0, 0)
 			])
+		];
+		assertDiff(original, modified, expected, false, true);
+	});
+
+	test('pretty diff 1', () => {
+		var original = [
+			'suite(function () {',
+			'	test1() {',
+			'		assert.ok(true);',
+			'	}',
+			'',
+			'	test2() {',
+			'		assert.ok(true);',
+			'	}',
+			'});',
+			'',
+		];
+		var modified = [
+			'// An insertion',
+			'suite(function () {',
+			'	test1() {',
+			'		assert.ok(true);',
+			'	}',
+			'',
+			'	test2() {',
+			'		assert.ok(true);',
+			'	}',
+			'',
+			'	test3() {',
+			'		assert.ok(true);',
+			'	}',
+			'});',
+			'',
+		];
+		var expected = [
+			createLineInsertion(1, 1, 0),
+			createLineInsertion(10, 13, 8)
+		];
+		assertDiff(original, modified, expected, false, true);
+	});
+
+	test('pretty diff 2', () => {
+		var original = [
+			'// Just a comment',
+			'',
+			'function compute(a, b, c, d) {',
+			'	if (a) {',
+			'		if (b) {',
+			'			if (c) {',
+			'				return 5;',
+			'			}',
+			'		}',
+			'		// These next lines will be deleted',
+			'		if (d) {',
+			'			return -1;',
+			'		}',
+			'		return 0;',
+			'	}',
+			'}',
+		];
+		var modified = [
+			'// Here is an inserted line',
+			'// and another inserted line',
+			'// and another one',
+			'// Just a comment',
+			'',
+			'function compute(a, b, c, d) {',
+			'	if (a) {',
+			'		if (b) {',
+			'			if (c) {',
+			'				return 5;',
+			'			}',
+			'		}',
+			'		return 0;',
+			'	}',
+			'}',
+		];
+		var expected = [
+			createLineInsertion(1, 3, 0),
+			createLineDeletion(10, 13, 12),
 		];
 		assertDiff(original, modified, expected, false, true);
 	});
