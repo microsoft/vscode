@@ -9,8 +9,7 @@ import { Widget } from "vs/base/browser/ui/widget";
 import * as dom from 'vs/base/browser/dom';
 import { ColorPickerHeader } from "vs/editor/contrib/colorPicker/browser/elements/colorPickerHeader";
 import { ColorPickerBody } from "vs/editor/contrib/colorPicker/browser/elements/colorPickerBody";
-import { ColorPickerModel } from "vs/editor/contrib/colorPicker/common/colorPickerModel";
-import { ColorPickerController } from "vs/editor/contrib/colorPicker/browser/colorPicker";
+import { ColorPickerModel } from "vs/editor/contrib/colorPicker/browser/colorPickerModel";
 const $ = dom.$;
 
 export class ColorPickerWidget extends Widget implements IOverlayWidget {
@@ -19,12 +18,12 @@ export class ColorPickerWidget extends Widget implements IOverlayWidget {
 	private readonly height = 190;
 
 	private domNode: HTMLElement;
-	private header: ColorPickerHeader;
-	private body: ColorPickerBody;
+	public header: ColorPickerHeader;
+	public body: ColorPickerBody;
 
 	public visible: boolean = false;
 
-	constructor(public controller: ColorPickerController, private model: ColorPickerModel, public editor: ICodeEditor) {
+	constructor(public model: ColorPickerModel, public editor: ICodeEditor) {
 		super();
 	}
 

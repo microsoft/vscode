@@ -29,8 +29,19 @@
 	cursor: crosshair;
 }
 
-.hue-strip {
+.hue-strip-wrap {
+	position: relative;
 	margin-left: 8px;
+}
+
+.hue-strip-wrap .slider {
+	position: absolute;
+	top: 0;
+	right: 1px;
+	left: 1px;
+	background: rgba(100, 100, 100, 0.4);
+	height: 5px;
+	will-change: transform;
 }
 
 .opacity-strip-wrap {
@@ -49,5 +60,5 @@
 	bottom: 0;
 	left: 0;
 	z-index: 1;
-	opacity: .1;
+	opacity: 0.5;
 }

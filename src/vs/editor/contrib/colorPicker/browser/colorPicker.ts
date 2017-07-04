@@ -13,7 +13,7 @@ import { editorContribution } from "vs/editor/browser/editorBrowserExtensions";
 import { ICodeEditor } from "vs/editor/browser/editorBrowser";
 import { ColorPickerWidget } from "vs/editor/contrib/colorPicker/browser/colorPickerWidget";
 import { Disposable } from "vs/base/common/lifecycle";
-import { ColorPickerModel } from "vs/editor/contrib/colorPicker/common/colorPickerModel";
+import { ColorPickerModel } from "vs/editor/contrib/colorPicker/browser/colorPickerModel";
 import { registerThemingParticipant } from "vs/platform/theme/common/themeService";
 import { editorWidgetBackground, editorWidgetBorder } from "vs/platform/theme/common/colorRegistry";
 
@@ -28,7 +28,8 @@ export class ColorPickerController extends Disposable implements IEditorContribu
 		super();
 
 		this.model = this._register(new ColorPickerModel());
-		this.widget = this._register(new ColorPickerWidget(this, this.model, editor));
+		this.widget = this._register(new ColorPickerWidget(this.model, editor));
+		this.model.widget = this.widget;
 
 		this._register(editor.onDidChangeModel(() =>
 			this.dispose()
@@ -52,12 +53,8 @@ export class ColorPickerController extends Disposable implements IEditorContribu
 		this.widget.show();
 	}
 
-	public selectColor(): void {
-		console.log('Selecting color');
-		// Rerender widget selections:
-		// 1. Saturation box
-		// 2. Opacity box
-		// Top color container
+	public selectColor(color: string): void {
+		this.model.selectedColor = color;
 	}
 
 	public changeColorType(): void {
@@ -77,7 +74,7 @@ registerThemingParticipant((theme, collector) => {
 
 	const widgetBorder = theme.getColor(editorWidgetBorder);
 	collector.addRule(`.monaco-editor .colorpicker-widget { border: 1px solid ${widgetBorder}; }`);
-	collector.addRule(`.monaco-editor .colorpicker-header { border: 1px solid ${widgetBorder}; }`);
+	collector.addRule(`.monaco-editor .colorpicker-header { border-bottom: 1px solid ${widgetBorder}; }`);
 });
 
 @editorAction

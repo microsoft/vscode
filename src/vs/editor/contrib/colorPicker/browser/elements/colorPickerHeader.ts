@@ -5,12 +5,13 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { ColorPickerWidget } from "vs/editor/contrib/colorPicker/browser/colorPickerWidget";
-import { ColorPickerModel } from "vs/editor/contrib/colorPicker/common/colorPickerModel";
+import { ColorPickerModel } from "vs/editor/contrib/colorPicker/browser/colorPickerModel";
 const $ = dom.$;
 
 export class ColorPickerHeader {
 
 	private domNode: HTMLElement;
+	private pickedColorNode: HTMLElement;
 
 	constructor(private widget: ColorPickerWidget, private model: ColorPickerModel) {
 		this.domNode = $('.colorpicker-header');
@@ -20,12 +21,16 @@ export class ColorPickerHeader {
 		this.drawOriginalColorBox();
 	}
 
+	public updatePickedColor() {
+		this.pickedColorNode.style.backgroundColor = this.model.selectedColor;
+	}
+
 	private drawPickedColorBox() {
-		let pickedColorBox = $('.picked-color');
-		pickedColorBox.style.backgroundColor = this.model.selectedColor;
-		pickedColorBox.style.width = 80 + '%';
-		pickedColorBox.textContent = this.model.selectedColor;
-		dom.append(this.domNode, pickedColorBox);
+		this.pickedColorNode = $('.picked-color');
+		this.pickedColorNode.style.backgroundColor = this.model.selectedColor;
+		this.pickedColorNode.style.width = 80 + '%';
+		this.pickedColorNode.textContent = this.model.selectedColor;
+		dom.append(this.domNode, this.pickedColorNode);
 	}
 
 	private drawOriginalColorBox() {
