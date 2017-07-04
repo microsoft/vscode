@@ -539,4 +539,42 @@ suite('Editor Diff - DiffComputer', () => {
 		];
 		assertDiff(original, modified, expected, false, true);
 	});
+
+	test('pretty diff 3', () => {
+		var original = [
+			'class A {',
+			'	/**',
+			'	 * m1',
+			'	 */',
+			'	method1() {}',
+			'',
+			'	/**',
+			'	 * m3',
+			'	 */',
+			'	method3() {}',
+			'}',
+		];
+		var modified = [
+			'class A {',
+			'	/**',
+			'	 * m1',
+			'	 */',
+			'	method1() {}',
+			'',
+			'	/**',
+			'	 * m2',
+			'	 */',
+			'	method2() {}',
+			'',
+			'	/**',
+			'	 * m3',
+			'	 */',
+			'	method3() {}',
+			'}',
+		];
+		var expected = [
+			createLineInsertion(7, 11, 6)
+		];
+		assertDiff(original, modified, expected, false, true);
+	});
 });

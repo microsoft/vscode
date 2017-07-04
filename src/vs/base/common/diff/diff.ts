@@ -799,7 +799,7 @@ export class LcsDiff {
 		do {
 			mergedDiffs = false;
 
-			// Shift all the changes first
+			// Shift all the changes down first
 			for (let i = 0; i < changes.length; i++) {
 				const change = changes[i];
 				const originalStop = (i < changes.length - 1) ? changes[i + 1].originalStart : this.OriginalSequence.getLength();
@@ -834,7 +834,103 @@ export class LcsDiff {
 			changes = result;
 		} while (mergedDiffs);
 
+		// Shift changes back up until we hit empty or whitespace-only lines
+		for (let i = changes.length - 1; i >= 0; i--) {
+			const change = changes[i];
+
+			let originalStop = 0;
+			let modifiedStop = 0;
+			if (i > 0) {
+				const prevChange = changes[i - 1];
+				if (prevChange.originalLength > 0) {
+					originalStop = prevChange.originalStart + prevChange.originalLength;
+				}
+				if (prevChange.modifiedLength > 0) {
+					modifiedStop = prevChange.modifiedStart + prevChange.modifiedLength;
+				}
+			}
+
+			const checkOriginal = change.originalLength > 0;
+			const checkModified = change.modifiedLength > 0;
+
+			let bestDelta = 0;
+			let bestScore = this._boundaryScore(change.originalStart, change.originalLength, change.modifiedStart, change.modifiedLength);
+
+			for (let delta = 1; ; delta++) {
+				let originalStart = change.originalStart - delta;
+				let modifiedStart = change.modifiedStart - delta;
+
+				if (originalStart < originalStop || modifiedStart < modifiedStart) {
+					break;
+				}
+
+				if (checkOriginal && !this.OriginalElementsAreEqual(originalStart, originalStart + change.originalLength)) {
+					break;
+				}
+
+				if (checkModified && !this.ModifiedElementsAreEqual(modifiedStart, modifiedStart + change.modifiedLength)) {
+					break;
+				}
+
+				let score = this._boundaryScore(originalStart, change.originalLength, modifiedStart, change.modifiedLength);
+
+				if (score > bestScore) {
+					bestScore = score;
+					bestDelta = delta;
+				}
+			}
+
+			change.originalStart -= bestDelta;
+			change.modifiedStart -= bestDelta;
+		}
+
 		return changes;
+	}
+
+	private _OriginalIsBoundary(index: number): boolean {
+		if (index <= 0 || index >= this.OriginalSequence.getLength() - 1) {
+			return true;
+		}
+		return /^\s*$/.test(this.OriginalSequence.getElementHash(index));
+	}
+
+	private _OriginalRegionIsBoundary(originalStart: number, originalLength: number): boolean {
+		if (this._OriginalIsBoundary(originalStart) || this._OriginalIsBoundary(originalStart - 1)) {
+			return true;
+		}
+		if (originalLength > 0) {
+			let originalEnd = originalStart + originalLength;
+			if (this._OriginalIsBoundary(originalEnd - 1) || this._OriginalIsBoundary(originalEnd)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private _ModifiedIsBoundary(index: number): boolean {
+		if (index <= 0 || index >= this.ModifiedSequence.getLength() - 1) {
+			return true;
+		}
+		return /^\s*$/.test(this.ModifiedSequence.getElementHash(index));
+	}
+
+	private _ModifiedRegionIsBoundary(modifiedStart: number, modifiedLength: number): boolean {
+		if (this._ModifiedIsBoundary(modifiedStart) || this._ModifiedIsBoundary(modifiedStart - 1)) {
+			return true;
+		}
+		if (modifiedLength > 0) {
+			let modifiedEnd = modifiedStart + modifiedLength;
+			if (this._ModifiedIsBoundary(modifiedEnd - 1) || this._ModifiedIsBoundary(modifiedEnd)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private _boundaryScore(originalStart: number, originalLength: number, modifiedStart: number, modifiedLength: number): number {
+		let originalScore = (this._OriginalRegionIsBoundary(originalStart, originalLength) ? 1 : 0);
+		let modifiedScore = (this._ModifiedRegionIsBoundary(modifiedStart, modifiedLength) ? 1 : 0);
+		return (originalScore + modifiedScore);
 	}
 
 	/**
