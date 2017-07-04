@@ -156,6 +156,13 @@ export abstract class Composite extends Component implements IComposite {
 	}
 
 	/**
+	 * Returns an array of actions to show in the context menu of the composite
+	 */
+	public getContextMenuActions(): IAction[] {
+		return [];
+	}
+
+	/**
 	 * For any of the actions returned by this composite, provide an IActionItem in
 	 * cases where the implementor of the composite wants to override the presentation
 	 * of an action. Returns null to indicate that the action is not rendered through
