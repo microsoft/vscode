@@ -577,4 +577,101 @@ suite('Editor Diff - DiffComputer', () => {
 		];
 		assertDiff(original, modified, expected, false, true);
 	});
+
+	test('issue #23636', () => {
+		let original = [
+			'if(!TextDrawLoad[playerid])',
+			'{',
+			'',
+			'	TextDrawHideForPlayer(playerid,TD_AppleJob[3]);',
+			'	TextDrawHideForPlayer(playerid,TD_AppleJob[4]);',
+			'	if(!AppleJobTreesType[AppleJobTreesPlayerNum[playerid]])',
+			'	{',
+			'		for(new i=0;i<10;i++) if(StatusTD_AppleJobApples[playerid][i]) TextDrawHideForPlayer(playerid,TD_AppleJob[5+i]);',
+			'	}',
+			'	else',
+			'	{',
+			'		for(new i=0;i<10;i++) if(StatusTD_AppleJobApples[playerid][i]) TextDrawHideForPlayer(playerid,TD_AppleJob[15+i]);',
+			'	}',
+			'}',
+			'else',
+			'{',
+			'	TextDrawHideForPlayer(playerid,TD_AppleJob[3]);',
+			'	TextDrawHideForPlayer(playerid,TD_AppleJob[27]);',
+			'	if(!AppleJobTreesType[AppleJobTreesPlayerNum[playerid]])',
+			'	{',
+			'		for(new i=0;i<10;i++) if(StatusTD_AppleJobApples[playerid][i]) TextDrawHideForPlayer(playerid,TD_AppleJob[28+i]);',
+			'	}',
+			'	else',
+			'	{',
+			'		for(new i=0;i<10;i++) if(StatusTD_AppleJobApples[playerid][i]) TextDrawHideForPlayer(playerid,TD_AppleJob[38+i]);',
+			'	}',
+			'}',
+		];
+		let modified = [
+			'	if(!TextDrawLoad[playerid])',
+			'	{',
+			'	',
+			'		TextDrawHideForPlayer(playerid,TD_AppleJob[3]);',
+			'		TextDrawHideForPlayer(playerid,TD_AppleJob[4]);',
+			'		if(!AppleJobTreesType[AppleJobTreesPlayerNum[playerid]])',
+			'		{',
+			'			for(new i=0;i<10;i++) if(StatusTD_AppleJobApples[playerid][i]) TextDrawHideForPlayer(playerid,TD_AppleJob[5+i]);',
+			'		}',
+			'		else',
+			'		{',
+			'			for(new i=0;i<10;i++) if(StatusTD_AppleJobApples[playerid][i]) TextDrawHideForPlayer(playerid,TD_AppleJob[15+i]);',
+			'		}',
+			'	}',
+			'	else',
+			'	{',
+			'		TextDrawHideForPlayer(playerid,TD_AppleJob[3]);',
+			'		TextDrawHideForPlayer(playerid,TD_AppleJob[27]);',
+			'		if(!AppleJobTreesType[AppleJobTreesPlayerNum[playerid]])',
+			'		{',
+			'			for(new i=0;i<10;i++) if(StatusTD_AppleJobApples[playerid][i]) TextDrawHideForPlayer(playerid,TD_AppleJob[28+i]);',
+			'		}',
+			'		else',
+			'		{',
+			'			for(new i=0;i<10;i++) if(StatusTD_AppleJobApples[playerid][i]) TextDrawHideForPlayer(playerid,TD_AppleJob[38+i]);',
+			'		}',
+			'	}',
+		];
+		var expected = [
+			createLineChange(
+				1, 27, 1, 27,
+				[
+					createCharChange(1, 1, 1, 1, 1, 1, 1, 2),
+					createCharChange(2, 1, 2, 1, 2, 1, 2, 2),
+					createCharChange(3, 1, 3, 1, 3, 1, 3, 2),
+					createCharChange(4, 1, 4, 1, 4, 1, 4, 2),
+					createCharChange(5, 1, 5, 1, 5, 1, 5, 2),
+					createCharChange(6, 1, 6, 1, 6, 1, 6, 2),
+					createCharChange(7, 1, 7, 1, 7, 1, 7, 2),
+					createCharChange(8, 1, 8, 1, 8, 1, 8, 2),
+					createCharChange(9, 1, 9, 1, 9, 1, 9, 2),
+					createCharChange(10, 1, 10, 1, 10, 1, 10, 2),
+					createCharChange(11, 1, 11, 1, 11, 1, 11, 2),
+					createCharChange(12, 1, 12, 1, 12, 1, 12, 2),
+					createCharChange(13, 1, 13, 1, 13, 1, 13, 2),
+					createCharChange(14, 1, 14, 1, 14, 1, 14, 2),
+					createCharChange(15, 1, 15, 1, 15, 1, 15, 2),
+					createCharChange(16, 1, 16, 1, 16, 1, 16, 2),
+					createCharChange(17, 1, 17, 1, 17, 1, 17, 2),
+					createCharChange(18, 1, 18, 1, 18, 1, 18, 2),
+					createCharChange(19, 1, 19, 1, 19, 1, 19, 2),
+					createCharChange(20, 1, 20, 1, 20, 1, 20, 2),
+					createCharChange(21, 1, 21, 1, 21, 1, 21, 2),
+					createCharChange(22, 1, 22, 1, 22, 1, 22, 2),
+					createCharChange(23, 1, 23, 1, 23, 1, 23, 2),
+					createCharChange(24, 1, 24, 1, 24, 1, 24, 2),
+					createCharChange(25, 1, 25, 1, 25, 1, 25, 2),
+					createCharChange(26, 1, 26, 1, 26, 1, 26, 2),
+					createCharChange(27, 1, 27, 1, 27, 1, 27, 2),
+				]
+			)
+			// createLineInsertion(7, 11, 6)
+		];
+		assertDiff(original, modified, expected, true, false);
+	});
 });

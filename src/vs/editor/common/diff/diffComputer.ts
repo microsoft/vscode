@@ -84,20 +84,15 @@ class MarkerSequence implements ISequence {
 
 class LineMarkerSequence extends MarkerSequence {
 
-	constructor(lines: string[], shouldIgnoreTrimWhitespace: boolean) {
+	constructor(lines: string[]) {
 		let buffer = '';
 		let startMarkers: IMarker[] = [];
 		let endMarkers: IMarker[] = [];
 
 		for (let pos = 0, i = 0, length = lines.length; i < length; i++) {
 			buffer += lines[i];
-			let startColumn = 1;
-			let endColumn = lines[i].length + 1;
-
-			if (shouldIgnoreTrimWhitespace) {
-				startColumn = LineMarkerSequence._getFirstNonBlankColumn(lines[i], 1);
-				endColumn = LineMarkerSequence._getLastNonBlankColumn(lines[i], 1);
-			}
+			const startColumn = LineMarkerSequence._getFirstNonBlankColumn(lines[i], 1);
+			const endColumn = LineMarkerSequence._getLastNonBlankColumn(lines[i], 1);
 
 			startMarkers.push({
 				offset: pos + startColumn - 1,
@@ -117,7 +112,7 @@ class LineMarkerSequence extends MarkerSequence {
 		super(buffer, startMarkers, endMarkers);
 	}
 
-	private static _getFirstNonBlankColumn(txt: string, defaultValue: number): number {
+	public static _getFirstNonBlankColumn(txt: string, defaultValue: number): number {
 		const r = strings.firstNonWhitespaceIndex(txt);
 		if (r === -1) {
 			return defaultValue;
@@ -125,7 +120,7 @@ class LineMarkerSequence extends MarkerSequence {
 		return r + 1;
 	}
 
-	private static _getLastNonBlankColumn(txt: string, defaultValue: number): number {
+	public static _getLastNonBlankColumn(txt: string, defaultValue: number): number {
 		const r = strings.lastNonWhitespaceIndex(txt);
 		if (r === -1) {
 			return defaultValue;
@@ -168,32 +163,65 @@ class CharChange implements ICharChange {
 	public modifiedEndLineNumber: number;
 	public modifiedEndColumn: number;
 
-	constructor(diffChange: IDiffChange, originalCharSequence: MarkerSequence, modifiedCharSequence: MarkerSequence) {
+	constructor(
+		originalStartLineNumber: number,
+		originalStartColumn: number,
+		originalEndLineNumber: number,
+		originalEndColumn: number,
+		modifiedStartLineNumber: number,
+		modifiedStartColumn: number,
+		modifiedEndLineNumber: number,
+		modifiedEndColumn: number
+	) {
+		this.originalStartLineNumber = originalStartLineNumber;
+		this.originalStartColumn = originalStartColumn;
+		this.originalEndLineNumber = originalEndLineNumber;
+		this.originalEndColumn = originalEndColumn;
+		this.modifiedStartLineNumber = modifiedStartLineNumber;
+		this.modifiedStartColumn = modifiedStartColumn;
+		this.modifiedEndLineNumber = modifiedEndLineNumber;
+		this.modifiedEndColumn = modifiedEndColumn;
+	}
+
+	public static createFromDiffChange(diffChange: IDiffChange, originalCharSequence: MarkerSequence, modifiedCharSequence: MarkerSequence): CharChange {
+		let originalStartLineNumber: number;
+		let originalStartColumn: number;
+		let originalEndLineNumber: number;
+		let originalEndColumn: number;
+		let modifiedStartLineNumber: number;
+		let modifiedStartColumn: number;
+		let modifiedEndLineNumber: number;
+		let modifiedEndColumn: number;
+
 		if (diffChange.originalLength === 0) {
-			this.originalStartLineNumber = 0;
-			this.originalStartColumn = 0;
-			this.originalEndLineNumber = 0;
-			this.originalEndColumn = 0;
+			originalStartLineNumber = 0;
+			originalStartColumn = 0;
+			originalEndLineNumber = 0;
+			originalEndColumn = 0;
 		} else {
-			this.originalStartLineNumber = originalCharSequence.getStartLineNumber(diffChange.originalStart);
-			this.originalStartColumn = originalCharSequence.getStartColumn(diffChange.originalStart);
-			this.originalEndLineNumber = originalCharSequence.getEndLineNumber(diffChange.originalStart + diffChange.originalLength - 1);
-			this.originalEndColumn = originalCharSequence.getEndColumn(diffChange.originalStart + diffChange.originalLength - 1);
+			originalStartLineNumber = originalCharSequence.getStartLineNumber(diffChange.originalStart);
+			originalStartColumn = originalCharSequence.getStartColumn(diffChange.originalStart);
+			originalEndLineNumber = originalCharSequence.getEndLineNumber(diffChange.originalStart + diffChange.originalLength - 1);
+			originalEndColumn = originalCharSequence.getEndColumn(diffChange.originalStart + diffChange.originalLength - 1);
 		}
 
 		if (diffChange.modifiedLength === 0) {
-			this.modifiedStartLineNumber = 0;
-			this.modifiedStartColumn = 0;
-			this.modifiedEndLineNumber = 0;
-			this.modifiedEndColumn = 0;
+			modifiedStartLineNumber = 0;
+			modifiedStartColumn = 0;
+			modifiedEndLineNumber = 0;
+			modifiedEndColumn = 0;
 		} else {
-			this.modifiedStartLineNumber = modifiedCharSequence.getStartLineNumber(diffChange.modifiedStart);
-			this.modifiedStartColumn = modifiedCharSequence.getStartColumn(diffChange.modifiedStart);
-			this.modifiedEndLineNumber = modifiedCharSequence.getEndLineNumber(diffChange.modifiedStart + diffChange.modifiedLength - 1);
-			this.modifiedEndColumn = modifiedCharSequence.getEndColumn(diffChange.modifiedStart + diffChange.modifiedLength - 1);
+			modifiedStartLineNumber = modifiedCharSequence.getStartLineNumber(diffChange.modifiedStart);
+			modifiedStartColumn = modifiedCharSequence.getStartColumn(diffChange.modifiedStart);
+			modifiedEndLineNumber = modifiedCharSequence.getEndLineNumber(diffChange.modifiedStart + diffChange.modifiedLength - 1);
+			modifiedEndColumn = modifiedCharSequence.getEndColumn(diffChange.modifiedStart + diffChange.modifiedLength - 1);
 		}
-	}
 
+		return new CharChange(
+			originalStartLineNumber, originalStartColumn, originalEndLineNumber, originalEndColumn,
+			modifiedStartLineNumber, modifiedStartColumn, modifiedEndLineNumber, modifiedEndColumn,
+		);
+	}
 }
 
 function postProcessCharChanges(rawChanges: IDiffChange[]): IDiffChange[] {
@@ -233,21 +261,41 @@ class LineChange implements ILineChange {
 	public modifiedEndLineNumber: number;
 	public charChanges: CharChange[];
 
-	constructor(diffChange: IDiffChange, originalLineSequence: LineMarkerSequence, modifiedLineSequence: LineMarkerSequence, continueProcessingPredicate: () => boolean, shouldPostProcessCharChanges: boolean) {
+	constructor(
+		originalStartLineNumber: number,
+		originalEndLineNumber: number,
+		modifiedStartLineNumber: number,
+		modifiedEndLineNumber: number,
+		charChanges: CharChange[]
+	) {
+		this.originalStartLineNumber = originalStartLineNumber;
+		this.originalEndLineNumber = originalEndLineNumber;
+		this.modifiedStartLineNumber = modifiedStartLineNumber;
+		this.modifiedEndLineNumber = modifiedEndLineNumber;
+		this.charChanges = charChanges;
+	}
+
+	public static createFromDiffResult(diffChange: IDiffChange, originalLineSequence: LineMarkerSequence, modifiedLineSequence: LineMarkerSequence, continueProcessingPredicate: () => boolean, shouldPostProcessCharChanges: boolean): LineChange {
+		let originalStartLineNumber: number;
+		let originalEndLineNumber: number;
+		let modifiedStartLineNumber: number;
+		let modifiedEndLineNumber: number;
+		let charChanges: CharChange[];
+
 		if (diffChange.originalLength === 0) {
-			this.originalStartLineNumber = originalLineSequence.getStartLineNumber(diffChange.originalStart) - 1;
-			this.originalEndLineNumber = 0;
+			originalStartLineNumber = originalLineSequence.getStartLineNumber(diffChange.originalStart) - 1;
+			originalEndLineNumber = 0;
 		} else {
-			this.originalStartLineNumber = originalLineSequence.getStartLineNumber(diffChange.originalStart);
-			this.originalEndLineNumber = originalLineSequence.getEndLineNumber(diffChange.originalStart + diffChange.originalLength - 1);
+			originalStartLineNumber = originalLineSequence.getStartLineNumber(diffChange.originalStart);
+			originalEndLineNumber = originalLineSequence.getEndLineNumber(diffChange.originalStart + diffChange.originalLength - 1);
 		}
 
 		if (diffChange.modifiedLength === 0) {
-			this.modifiedStartLineNumber = modifiedLineSequence.getStartLineNumber(diffChange.modifiedStart) - 1;
-			this.modifiedEndLineNumber = 0;
+			modifiedStartLineNumber = modifiedLineSequence.getStartLineNumber(diffChange.modifiedStart) - 1;
+			modifiedEndLineNumber = 0;
 		} else {
-			this.modifiedStartLineNumber = modifiedLineSequence.getStartLineNumber(diffChange.modifiedStart);
-			this.modifiedEndLineNumber = modifiedLineSequence.getEndLineNumber(diffChange.modifiedStart + diffChange.modifiedLength - 1);
+			modifiedStartLineNumber = modifiedLineSequence.getStartLineNumber(diffChange.modifiedStart);
+			modifiedEndLineNumber = modifiedLineSequence.getEndLineNumber(diffChange.modifiedStart + diffChange.modifiedLength - 1);
 		}
 
 		if (diffChange.originalLength !== 0 && diffChange.modifiedLength !== 0 && continueProcessingPredicate()) {
@@ -260,13 +308,14 @@ class LineChange implements ILineChange {
 				rawChanges = postProcessCharChanges(rawChanges);
 			}
 
-			this.charChanges = [];
+			charChanges = [];
 			for (let i = 0, length = rawChanges.length; i < length; i++) {
-				this.charChanges.push(new CharChange(rawChanges[i], originalCharSequence, modifiedCharSequence));
+				charChanges.push(CharChange.createFromDiffChange(rawChanges[i], originalCharSequence, modifiedCharSequence));
 			}
 		}
-	}
 
+		return new LineChange(originalStartLineNumber, originalEndLineNumber, modifiedStartLineNumber, modifiedEndLineNumber, charChanges);
+	}
 }
 
 export interface IDiffComputerOpts {
@@ -278,12 +327,14 @@ export interface IDiffComputerOpts {
 
 export class DiffComputer {
 
-	private shouldPostProcessCharChanges: boolean;
-	private shouldIgnoreTrimWhitespace: boolean;
-	private shouldMakePrettyDiff: boolean;
-	private maximumRunTimeMs: number;
-	private original: LineMarkerSequence;
-	private modified: LineMarkerSequence;
+	private readonly shouldPostProcessCharChanges: boolean;
+	private readonly shouldIgnoreTrimWhitespace: boolean;
+	private readonly shouldMakePrettyDiff: boolean;
+	private readonly maximumRunTimeMs: number;
+	private readonly originalLines: string[];
+	private readonly modifiedLines: string[];
+	private readonly original: LineMarkerSequence;
+	private readonly modified: LineMarkerSequence;
 
 	private computationStartTime: number;
 
@@ -292,13 +343,14 @@ export class DiffComputer {
 		this.shouldIgnoreTrimWhitespace = opts.shouldIgnoreTrimWhitespace;
 		this.shouldMakePrettyDiff = opts.shouldMakePrettyDiff;
 		this.maximumRunTimeMs = MAXIMUM_RUN_TIME;
-		this.original = new LineMarkerSequence(originalLines, this.shouldIgnoreTrimWhitespace);
-		this.modified = new LineMarkerSequence(modifiedLines, this.shouldIgnoreTrimWhitespace);
+		this.originalLines = originalLines;
+		this.modifiedLines = modifiedLines;
+		this.original = new LineMarkerSequence(originalLines);
+		this.modified = new LineMarkerSequence(modifiedLines);
+
 		if (opts.shouldConsiderTrimWhitespaceInEmptyCase && this.shouldIgnoreTrimWhitespace && this.original.equals(this.modified)) {
 			// Diff would be empty with `shouldIgnoreTrimWhitespace`
 			this.shouldIgnoreTrimWhitespace = false;
-			this.original = new LineMarkerSequence(originalLines, this.shouldIgnoreTrimWhitespace);
-			this.modified = new LineMarkerSequence(modifiedLines, this.shouldIgnoreTrimWhitespace);
 		}
 	}
 
@@ -346,13 +398,149 @@ export class DiffComputer {
 
 		this.computationStartTime = (new Date()).getTime();
 
-		const rawChanges = computeDiff(this.original, this.modified, this._continueProcessingPredicate.bind(this), this.shouldMakePrettyDiff);
+		let rawChanges = computeDiff(this.original, this.modified, this._continueProcessingPredicate.bind(this), this.shouldMakePrettyDiff);
 
-		let lineChanges: ILineChange[] = [];
-		for (let i = 0, length = rawChanges.length; i < length; i++) {
-			lineChanges.push(new LineChange(rawChanges[i], this.original, this.modified, this._continueProcessingPredicate.bind(this), this.shouldPostProcessCharChanges));
+		// The diff is always computed with ignoring trim whitespace
+		// This ensures we get the prettiest diff
+
+		if (this.shouldIgnoreTrimWhitespace) {
+			let lineChanges: LineChange[] = [];
+			for (let i = 0, length = rawChanges.length; i < length; i++) {
+				lineChanges.push(LineChange.createFromDiffResult(rawChanges[i], this.original, this.modified, this._continueProcessingPredicate.bind(this), this.shouldPostProcessCharChanges));
+			}
+			return lineChanges;
 		}
-		return lineChanges;
+
+		// Need to post-process and introduce changes where the trim whitespace is different
+		// Note that we are looping starting at -1 to also cover the lines before the first change
+		let result: LineChange[] = [];
+
+		let originalLineIndex = 0;
+		let modifiedLineIndex = 0;
+		for (let i = -1 /* !!!! */, len = rawChanges.length; i < len; i++) {
+			const nextChange = (i + 1 < len ? rawChanges[i + 1] : null);
+			const originalStop = (nextChange ? nextChange.originalStart : this.originalLines.length);
+			const modifiedStop = (nextChange ? nextChange.modifiedStart : this.modifiedLines.length);
+
+			while (originalLineIndex < originalStop && modifiedLineIndex < modifiedStop) {
+				const originalLine = this.originalLines[originalLineIndex];
+				const modifiedLine = this.modifiedLines[modifiedLineIndex];
+
+				if (originalLine !== modifiedLine) {
+					// These lines differ only in trim whitespace
+
+					// Check the leading whitespace
+					{
+						let originalStartColumn = LineMarkerSequence._getFirstNonBlankColumn(originalLine, 1);
+						let modifiedStartColumn = LineMarkerSequence._getFirstNonBlankColumn(modifiedLine, 1);
+						while (originalStartColumn > 1 && modifiedStartColumn > 1) {
+							const originalChar = originalLine.charCodeAt(originalStartColumn - 2);
+							const modifiedChar = modifiedLine.charCodeAt(modifiedStartColumn - 2);
+							if (originalChar !== modifiedChar) {
+								break;
+							}
+							originalStartColumn--;
+							modifiedStartColumn--;
+						}
+
+						if (originalStartColumn > 1 || modifiedStartColumn > 1) {
+							this._pushTrimWhitespaceCharChange(result,
+								originalLineIndex + 1, 1, originalStartColumn,
+								modifiedLineIndex + 1, 1, modifiedStartColumn
+							);
+						}
+					}
+
+					// Check the trailing whitespace
+					{
+						let originalEndColumn = LineMarkerSequence._getLastNonBlankColumn(originalLine, 1);
+						let modifiedEndColumn = LineMarkerSequence._getLastNonBlankColumn(modifiedLine, 1);
+						const originalMaxColumn = originalLine.length + 1;
+						const modifiedMaxColumn = modifiedLine.length + 1;
+						while (originalEndColumn < originalMaxColumn && modifiedEndColumn < modifiedMaxColumn) {
+							const originalChar = originalLine.charCodeAt(originalEndColumn - 1);
+							const modifiedChar = originalLine.charCodeAt(modifiedEndColumn - 1);
+							if (originalChar !== modifiedChar) {
+								break;
+							}
+							originalEndColumn++;
+							modifiedEndColumn++;
+						}
+
+						if (originalEndColumn < originalMaxColumn || modifiedEndColumn < modifiedMaxColumn) {
+							this._pushTrimWhitespaceCharChange(result,
+								originalLineIndex + 1, originalEndColumn, originalMaxColumn,
+								modifiedLineIndex + 1, modifiedEndColumn, modifiedMaxColumn
+							);
+						}
+					}
+				}
+				originalLineIndex++;
+				modifiedLineIndex++;
+			}
+
+			if (nextChange) {
+				// Emit the actual change
+				result.push(LineChange.createFromDiffResult(nextChange, this.original, this.modified, this._continueProcessingPredicate.bind(this), this.shouldPostProcessCharChanges));
+
+				originalLineIndex += nextChange.originalLength;
+				modifiedLineIndex += nextChange.modifiedLength;
+			}
+		}
+
+		return result;
+	}
+
+	private _pushTrimWhitespaceCharChange(
+		result: LineChange[],
+		originalLineNumber: number, originalStartColumn: number, originalEndColumn: number,
+		modifiedLineNumber: number, modifiedStartColumn: number, modifiedEndColumn: number
+	): void {
+		if (this._mergeTrimWhitespaceCharChange(result, originalLineNumber, originalStartColumn, originalEndColumn, modifiedLineNumber, modifiedStartColumn, modifiedEndColumn)) {
+			// Merged into previous
+			return;
+		}
+
+		result.push(new LineChange(
+			originalLineNumber, originalLineNumber,
+			modifiedLineNumber, modifiedLineNumber,
+			[
+				new CharChange(
+					originalLineNumber, originalStartColumn, originalLineNumber, originalEndColumn,
+					modifiedLineNumber, modifiedStartColumn, modifiedLineNumber, modifiedEndColumn
+				)
+			]
+		));
+	}
+
+	private _mergeTrimWhitespaceCharChange(
+		result: LineChange[],
+		originalLineNumber: number, originalStartColumn: number, originalEndColumn: number,
+		modifiedLineNumber: number, modifiedStartColumn: number, modifiedEndColumn: number
+	): boolean {
+		const len = result.length;
+		if (len === 0) {
+			return false;
+		}
+
+		const prevChange = result[len - 1];
+
+		if (prevChange.originalEndLineNumber === 0 || prevChange.modifiedEndLineNumber === 0) {
+			// Don't merge with inserts/deletes
+			return false;
+		}
+
+		if (prevChange.originalEndLineNumber + 1 === originalLineNumber && prevChange.modifiedEndLineNumber + 1 === modifiedLineNumber) {
+			prevChange.originalEndLineNumber = originalLineNumber;
+			prevChange.modifiedEndLineNumber = modifiedLineNumber;
+			prevChange.charChanges.push(new CharChange(
+				originalLineNumber, originalStartColumn, originalLineNumber, originalEndColumn,
+				modifiedLineNumber, modifiedStartColumn, modifiedLineNumber, modifiedEndColumn
+			));
+			return true;
+		}
+
+		return false;
 	}
 
 	private _continueProcessingPredicate(): boolean {
