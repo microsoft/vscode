@@ -127,7 +127,7 @@ export class HtmlPreviewPart extends WebviewEditor {
 			this._webviewDisposables = dispose(this._webviewDisposables);
 			this._webview = undefined;
 		} else {
-			this._themeChangeSubscription = this.themeService.onThemeChange(this.onThemeChange);
+			this._themeChangeSubscription = this.themeService.onThemeChange(this.onThemeChange.bind(this));
 
 			if (this._hasValidModel()) {
 				this._modelChangeSubscription = this.model.onDidChangeContent(() => this.webview.contents = this.model.getLinesContent());
