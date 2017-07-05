@@ -314,7 +314,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		return config.configurations.filter(config => config && config.name === name).shift();
 	}
 
-	public resloveConfiguration(config: IConfig): TPromise<IConfig> {
+	public resolveConfiguration(config: IConfig): TPromise<IConfig> {
 		if (!this.contextService.hasWorkspace()) {
 			return TPromise.as(config);
 		}

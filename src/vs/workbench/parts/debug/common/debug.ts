@@ -395,7 +395,7 @@ export interface IConfigurationManager {
 	 * Returns the resolved configuration.
 	 * Replaces os specific values, system variables, interactive variables.
 	 */
-	resloveConfiguration(config: IConfig): TPromise<IConfig>;
+	resolveConfiguration(config: IConfig): TPromise<IConfig>;
 
 	/**
 	 * Returns a compound with the specified name.
@@ -451,7 +451,7 @@ export interface IDebugService {
 	getConfigurationManager(): IConfigurationManager;
 
 	/**
-	 * Sets the focused stack frame and evaluates all expresions against the newly focused stack frame,
+	 * Sets the focused stack frame and evaluates all expressions against the newly focused stack frame,
 	 */
 	focusStackFrameAndEvaluate(focusedStackFrame: IStackFrame, process?: IProcess): TPromise<void>;
 

@@ -169,7 +169,7 @@ export class DebugService implements debug.IDebugService {
 			}
 
 			const config = this.configurationManager.getConfiguration(this.viewModel.selectedConfigurationName);
-			this.configurationManager.resloveConfiguration(config).done(resolvedConfig => {
+			this.configurationManager.resolveConfiguration(config).done(resolvedConfig => {
 				resolvedConfig.request = 'attach';
 				resolvedConfig.port = broadcast.payload.port;
 				this.doCreateProcess(resolvedConfig);
@@ -677,7 +677,7 @@ export class DebugService implements debug.IDebugService {
 
 	public createProcess(config: debug.IConfig): TPromise<debug.IProcess> {
 		return this.textFileService.saveAll().then(() =>
-			this.configurationManager.resloveConfiguration(config).then(resolvedConfig => {
+			this.configurationManager.resolveConfiguration(config).then(resolvedConfig => {
 				if (!resolvedConfig) {
 					// User canceled resolving of interactive variables, silently return
 					return undefined;
