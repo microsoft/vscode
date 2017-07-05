@@ -4,21 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SimpleFindWidget } from 'vs/editor/contrib/find/browser/simpleFindWidget';
-import * as dom from 'vs/base/browser/dom';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
 export class TerminalFindWidget extends SimpleFindWidget {
-	private _focusTracker: dom.IFocusTracker;
 
 	constructor(
 		@IContextViewService _contextViewService: IContextViewService,
 		@ITerminalService private _terminalService: ITerminalService
 	) {
 		super(_contextViewService);
-		this._focusTracker = this._register(dom.trackFocus(this._findInput.inputBox.inputElement));
-		this._register(this._focusTracker.addFocusListener(() => this._terminalService.getActiveInstance().notifyFindWidgetFocusChanged(true)));
-		this._register(this._focusTracker.addBlurListener(() => this._terminalService.getActiveInstance().notifyFindWidgetFocusChanged(false)));
 	}
 
 	public find(previous) {
@@ -40,5 +35,13 @@ export class TerminalFindWidget extends SimpleFindWidget {
 
 	protected onInputChanged() {
 		// Ignore input changes for now
+	}
+
+	protected onFocusTrackerFocus() {
+		this._terminalService.getActiveInstance().notifyFindWidgetFocusChanged(true);
+	}
+
+	protected onFocusTrackerBlur() {
+		this._terminalService.getActiveInstance().notifyFindWidgetFocusChanged(false);
 	}
 }

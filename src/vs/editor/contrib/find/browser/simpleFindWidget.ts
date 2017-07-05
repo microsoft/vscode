@@ -84,6 +84,7 @@ export abstract class SimpleFindWidget extends Widget {
 	protected _findInput: FindInput;
 	protected _domNode: HTMLElement;
 	protected _isVisible: boolean;
+	protected _focusTracker: dom.IFocusTracker;
 
 	constructor(
 		@IContextViewService private _contextViewService: IContextViewService,
@@ -156,6 +157,10 @@ export abstract class SimpleFindWidget extends Widget {
 			}
 		});
 
+		this._focusTracker = this._register(dom.trackFocus(this._domNode));
+		this._register(this._focusTracker.addFocusListener(this.onFocusTrackerFocus.bind(this)));
+		this._register(this._focusTracker.addBlurListener(this.onFocusTrackerBlur.bind(this)));
+
 		this._register(dom.addDisposableListener(this._domNode, 'click', (event) => {
 			event.stopPropagation();
 		}));
@@ -163,6 +168,8 @@ export abstract class SimpleFindWidget extends Widget {
 
 	protected abstract onInputChanged();
 	protected abstract find(previous: boolean);
+	protected abstract onFocusTrackerFocus();
+	protected abstract onFocusTrackerBlur();
 
 	protected get inputValue() {
 		return this._findInput.getValue();

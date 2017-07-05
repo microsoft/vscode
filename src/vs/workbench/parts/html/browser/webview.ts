@@ -219,6 +219,11 @@ export default class Webview {
 			parent.appendChild(this._webviewFindWidget.getDomNode());
 			parent.appendChild(this._webview);
 		}
+
+	}
+
+	public notifyFindWidgetFocusChanged(isFocused: boolean) {
+		this._contextKey.set(isFocused || document.activeElement === this._webview);
 	}
 
 	dispose(): void {
