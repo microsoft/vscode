@@ -89,6 +89,8 @@ export class HtmlPreviewPart extends WebviewEditor {
 				this.webview.baseUrl = resourceUri.toString(true);
 			}
 
+			this._webview.style(this.themeService.getTheme());
+
 			this._webviewDisposables = [
 				this._webview,
 				this._webview.onDidClickLink(uri => this.openerService.open(uri)),
@@ -127,7 +129,6 @@ export class HtmlPreviewPart extends WebviewEditor {
 					this._webview.style(themeId);
 				}
 			});
-			this.webview.style(this.themeService.getTheme());
 			if (this._hasValidModel()) {
 				this._modelChangeSubscription = this.model.onDidChangeContent(() => this.webview.contents = this.model.getLinesContent());
 				this.webview.contents = this.model.getLinesContent();
