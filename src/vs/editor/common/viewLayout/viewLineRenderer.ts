@@ -602,7 +602,7 @@ function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 			}
 
 			characterMapping.setPartLength(partIndex, partContentCnt);
-			if (fontIsMonospace) {
+			if (fontIsMonospace || containsForeignElements) {
 				out += `<span class="${partType}">${partContent}</span>`;
 			} else {
 				out += `<span class="${partType}" style="width:${spaceWidth * partContentCnt}px">${partContent}</span>`;
