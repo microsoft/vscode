@@ -189,4 +189,22 @@ declare module 'vscode' {
 		 */
 		onData(callback: (data: string) => any): void;
 	}
+
+	export namespace debug {
+
+		/**
+		 * The currently active debug session or `undefined`. The active debug session is the one
+		 * represented by the debug action floating window or the one currently shown in the drop down menu of the debug action floating window.
+		 * If no debug session is active, the value is `undefined`.
+		 */
+		export const activeDebugSession: DebugSession | undefined;
+
+		/**
+		 * An [event](#Event) which fires when the [active debug session](#debug.activeDebugSession)
+		 * has changed. *Note* that the event also fires when the active debug session changes
+		 * to `undefined`.
+		 */
+		export const onDidChangeActiveDebugSession: Event<DebugSession | undefined>;
+	}
+
 }
