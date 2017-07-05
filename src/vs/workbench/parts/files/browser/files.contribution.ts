@@ -32,7 +32,6 @@ import * as platform from 'vs/base/common/platform';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { DirtyFilesTracker } from 'vs/workbench/parts/files/common/dirtyFilesTracker';
 
-
 // Viewlet Action
 export class OpenExplorerViewletAction extends ToggleViewletAction {
 	public static ID = VIEWLET_ID;
@@ -334,7 +333,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('sortOrder.type', 'Files and directories are sorted by their extensions, in alphabetical order. Directories are displayed before files.'),
 				nls.localize('sortOrder.modified', 'Files and directories are sorted by last modified date, in descending order. Directories are displayed before files.')
 			],
-			'description': nls.localize('sortOrder', "Controls the way of sorting files and directories.")
+			'description': nls.localize('sortOrder', "Controls the way of sorting files and directories in the explorer.")
 		}
 	}
 });
