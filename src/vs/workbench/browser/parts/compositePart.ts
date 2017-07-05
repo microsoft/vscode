@@ -428,7 +428,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			'class': ['composite', 'title']
 		});
 
-		this._register(DOM.addDisposableListener(titleArea.getHTMLElement(), DOM.EventType.CONTEXT_MENU, e => this.onContextMenu(new StandardMouseEvent(e))));
+		$(titleArea).on(DOM.EventType.CONTEXT_MENU, (e: MouseEvent) => this.onContextMenu(new StandardMouseEvent(e)));
 
 		// Left Title Label
 		this.titleLabel = this.createTitleLabel(titleArea);
@@ -511,7 +511,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return $(parent).div({
 			'class': 'content'
 		}, (div: Builder) => {
-			this._register(DOM.addDisposableListener(div.getHTMLElement(), DOM.EventType.CONTEXT_MENU, e => this.onContextMenu(new StandardMouseEvent(e))));
+			$(div).on(DOM.EventType.CONTEXT_MENU, (e: MouseEvent) => this.onContextMenu(new StandardMouseEvent(e)));
 			this.progressBar = new ProgressBar(div);
 			this.toUnbind.push(attachProgressBarStyler(this.progressBar, this.themeService));
 			this.progressBar.getContainer().hide();
