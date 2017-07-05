@@ -62,6 +62,12 @@ export abstract class WebviewEditor extends BaseWebviewEditor {
 		}
 	}
 
+	public hideFind() {
+		if (this._webview) {
+			this._webview.hideFind();
+		}
+	}
+
 	public updateStyles() {
 		super.updateStyles();
 		if (this._webview) {
@@ -76,7 +82,7 @@ export abstract class WebviewEditor extends BaseWebviewEditor {
 	protected abstract createEditor(parent: Builder);
 }
 
-class StartWebViewEditorFindCommand extends Command {
+class ShowWebViewEditorFindCommand extends Command {
 	public runCommand(accessor: ServicesAccessor, args: any): void {
 		const webViewEditor = this.getWebViewEditor(accessor);
 		if (webViewEditor) {
@@ -92,11 +98,36 @@ class StartWebViewEditorFindCommand extends Command {
 		return null;
 	}
 }
-const command = new StartWebViewEditorFindCommand({
-	id: 'editor.action.webvieweditor.find',
+const showFindCommand = new ShowWebViewEditorFindCommand({
+	id: 'editor.action.webvieweditor.showFind',
 	precondition: KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS,
 	kbOpts: {
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_F
 	}
 });
-KeybindingsRegistry.registerCommandAndKeybindingRule(command.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+KeybindingsRegistry.registerCommandAndKeybindingRule(showFindCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+
+class HideWebViewEditorFindCommand extends Command {
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const webViewEditor = this.getWebViewEditor(accessor);
+		if (webViewEditor) {
+			webViewEditor.hideFind();
+		}
+	}
+
+	private getWebViewEditor(accessor: ServicesAccessor): WebviewEditor {
+		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as WebviewEditor;
+		if (activeEditor.isWebviewEditor) {
+			return activeEditor;
+		}
+		return null;
+	}
+}
+const hideCommand = new HideWebViewEditorFindCommand({
+	id: 'editor.action.webvieweditor.hideFind',
+	precondition: KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS,
+	kbOpts: {
+		primary: KeyCode.Escape
+	}
+});
+KeybindingsRegistry.registerCommandAndKeybindingRule(hideCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));

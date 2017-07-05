@@ -340,6 +340,12 @@ export class ExtensionEditor extends BaseEditor {
 		}
 	}
 
+	hideFind(): void {
+		if (this.activeWebview) {
+			this.activeWebview.hideFind();
+		}
+	}
+
 	private onNavbarChange(extension: IExtension, id: string): void {
 		this.contentDisposables = dispose(this.contentDisposables);
 		this.content.innerHTML = '';
@@ -792,7 +798,7 @@ export class ExtensionEditor extends BaseEditor {
 	}
 }
 
-class StartExtensionEditorFindCommand extends Command {
+class ShowExtensionEditorFindCommand extends Command {
 	public runCommand(accessor: ServicesAccessor, args: any): void {
 		const extensionEditor = this.getExtensionEditor(accessor);
 		if (extensionEditor) {
@@ -808,11 +814,36 @@ class StartExtensionEditorFindCommand extends Command {
 		return null;
 	}
 }
-const command = new StartExtensionEditorFindCommand({
-	id: 'editor.action.extensioneditor.find',
+const showCommand = new ShowExtensionEditorFindCommand({
+	id: 'editor.action.extensioneditor.showfind',
 	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS,
 	kbOpts: {
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_F
 	}
 });
-KeybindingsRegistry.registerCommandAndKeybindingRule(command.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+KeybindingsRegistry.registerCommandAndKeybindingRule(showCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+
+class HideExtensionEditorFindCommand extends Command {
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const extensionEditor = this.getExtensionEditor(accessor);
+		if (extensionEditor) {
+			extensionEditor.hideFind();
+		}
+	}
+
+	private getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor {
+		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as ExtensionEditor;
+		if (activeEditor instanceof ExtensionEditor) {
+			return activeEditor;
+		}
+		return null;
+	}
+}
+const hideCommand = new ShowExtensionEditorFindCommand({
+	id: 'editor.action.extensioneditor.hidefind',
+	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS,
+	kbOpts: {
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_F
+	}
+});
+KeybindingsRegistry.registerCommandAndKeybindingRule(hideCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
