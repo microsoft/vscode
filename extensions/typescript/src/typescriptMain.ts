@@ -660,7 +660,9 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 			return;
 		}
 
-		(body.triggerFile ? this.findLanguage(body.triggerFile) : this.findLanguage(body.configFile)).then(language => {
+		// TODO: restore opening trigger file?
+		//     body.triggerFile ? this.findLanguage(body.triggerFile)
+		(this.findLanguage(body.configFile)).then(language => {
 			if (!language) {
 				return;
 			}
