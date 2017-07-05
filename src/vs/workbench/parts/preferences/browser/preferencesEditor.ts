@@ -23,7 +23,7 @@ import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import {
-	IPreferencesService, ISettingsGroup, ISetting, IFilterResult, IPreferencesEditorModel,
+	IPreferencesService, ISettingsGroup, ISetting, IFilterResult,
 	CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_SEARCH, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, ISettingsEditorModel
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
@@ -617,6 +617,7 @@ class DefaultSettingsEditorContribution extends Disposable implements ISettingsE
 		@IPreferencesService private preferencesService: IPreferencesService
 	) {
 		super();
+		this._register(this.editor.onDidChangeModel(() => this._onModelChanged()));
 	}
 
 	getId(): string {
@@ -624,58 +625,52 @@ class DefaultSettingsEditorContribution extends Disposable implements ISettingsE
 	}
 
 	createPreferencesRenderer(associatedPreferencesModelUri: URI): TPromise<IPreferencesRenderer<ISetting>> {
-		return this._hasAssociatedPreferencesModelChanged(associatedPreferencesModelUri)
-			.then(changed => {
-				if (changed) {
-					return this.preferencesService.createPreferencesEditorModel<ISetting>(associatedPreferencesModelUri)
-						.then(associatedPreferencesEditorModel => {
-							if (this.preferencesRenderer) {
-								return this._updatePreferencesRenderer(associatedPreferencesEditorModel);
-							} else {
-								return this._createPreferencesRenderer(associatedPreferencesEditorModel);
-							}
-						});
-				}
-				return this.preferencesRenderer;
-			});
-	}
-
-	_hasAssociatedPreferencesModelChanged(associatedPreferencesModelUri: URI): TPromise<boolean> {
-		if (this.preferencesRenderer) {
-			return this.preferencesRenderer.then(preferencesRenderer => {
-				return !(preferencesRenderer && preferencesRenderer.associatedPreferencesModel && preferencesRenderer.associatedPreferencesModel.uri.fsPath === associatedPreferencesModelUri.fsPath);
-			});
+		if (!this.preferencesRenderer) {
+			return TPromise.as(null);
 		}
-		return TPromise.as(true);
+
+		return this._hasAssociatedPreferencesModelChanged(associatedPreferencesModelUri)
+			.then(changed => changed ? this._updatePreferencesRenderer(associatedPreferencesModelUri) : this.preferencesRenderer);
 	}
 
-	_createPreferencesRenderer(associatedPreferencesEditorModel: IPreferencesEditorModel<ISetting>): TPromise<IPreferencesRenderer<ISetting>> {
-		this.preferencesRenderer = this.preferencesService.createPreferencesEditorModel(this.editor.getModel().uri)
+	private _onModelChanged(): void {
+		const model = this.editor.getModel();
+		if (model) {
+			this.preferencesRenderer = this._createPreferencesRenderer();
+		}
+	}
+
+	private _hasAssociatedPreferencesModelChanged(associatedPreferencesModelUri: URI): TPromise<boolean> {
+		return this.preferencesRenderer.then(preferencesRenderer => {
+			return !(preferencesRenderer && preferencesRenderer.associatedPreferencesModel && preferencesRenderer.associatedPreferencesModel.uri.fsPath === associatedPreferencesModelUri.fsPath);
+		});
+	}
+
+	private _createPreferencesRenderer(): TPromise<IPreferencesRenderer<ISetting>> {
+		return this.preferencesService.createPreferencesEditorModel(this.editor.getModel().uri)
 			.then(editorModel => {
 				if (editorModel instanceof DefaultSettingsEditorModel) {
-					return this.instantiationService.createInstance(DefaultSettingsRenderer, this.editor, editorModel, associatedPreferencesEditorModel);
+					const preferencesRenderer = this.instantiationService.createInstance(DefaultSettingsRenderer, this.editor, editorModel);
+					preferencesRenderer.render();
+					return preferencesRenderer;
 				}
 				return null;
-			})
-			.then(preferencesRenderer => {
-				if (preferencesRenderer) {
-					preferencesRenderer.render();
-				}
-				return preferencesRenderer;
 			});
-		return this.preferencesRenderer;
 	}
 
-	_updatePreferencesRenderer(associatedPreferencesEditorModel: IPreferencesEditorModel<ISetting>): TPromise<IPreferencesRenderer<ISetting>> {
-		return this.preferencesRenderer.then(preferencesRenderer => {
-			if (preferencesRenderer) {
-				if (preferencesRenderer.associatedPreferencesModel) {
-					preferencesRenderer.associatedPreferencesModel.dispose();
-				}
-				preferencesRenderer.associatedPreferencesModel = associatedPreferencesEditorModel;
-			}
-			return preferencesRenderer;
-		});
+	private _updatePreferencesRenderer(associatedPreferencesModelUri: URI): TPromise<IPreferencesRenderer<ISetting>> {
+		return this.preferencesService.createPreferencesEditorModel<ISetting>(associatedPreferencesModelUri)
+			.then(associatedPreferencesEditorModel => {
+				return this.preferencesRenderer.then(preferencesRenderer => {
+					if (preferencesRenderer) {
+						if (preferencesRenderer.associatedPreferencesModel) {
+							preferencesRenderer.associatedPreferencesModel.dispose();
+						}
+						preferencesRenderer.associatedPreferencesModel = associatedPreferencesEditorModel;
+					}
+					return preferencesRenderer;
+				});
+			});
 	}
 
 	dispose() {
