@@ -311,7 +311,6 @@ export class ComposedViewsViewlet extends Viewlet {
 	protected lastFocusedView: IView;
 
 	private splitView: SplitView;
-	protected views: IView[];
 	private viewHeaderContextMenuListeners: IDisposable[] = [];
 	private dimension: Dimension;
 	private viewletSettings: object;
@@ -335,7 +334,6 @@ export class ComposedViewsViewlet extends Viewlet {
 	) {
 		super(id, telemetryService, themeService);
 
-		this.views = [];
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 		this.viewsStates = this.loadViewsStates();
 
@@ -358,29 +356,29 @@ export class ComposedViewsViewlet extends Viewlet {
 
 		return this.onViewDescriptorsChanged()
 			.then(() => {
-				this.lastFocusedView = this.views[0];
+				this.lastFocusedView = this.splitView.getViews<IView>()[0];
 				this.focus();
 			});
 	}
 
 	public getTitle(): string {
 		let title = Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlet(this.getId()).name;
-		if (this.hasSingleView() && this.views[0]) {
-			title += ': ' + this.views[0].name;
+		if (this.hasSingleView() && this.splitView.getViews<IView>()[0]) {
+			title += ': ' + this.splitView.getViews<IView>()[0].name;
 		}
 		return title;
 	}
 
 	public getActions(): IAction[] {
-		if (this.hasSingleView() && this.views[0]) {
-			return this.views[0].getActions();
+		if (this.hasSingleView() && this.splitView.getViews<IView>()[0]) {
+			return this.splitView.getViews<IView>()[0].getActions();
 		}
 		return [];
 	}
 
 	public getSecondaryActions(): IAction[] {
-		if (this.hasSingleView() && this.views[0]) {
-			return this.views[0].getSecondaryActions();
+		if (this.hasSingleView() && this.splitView.getViews<IView>()[0]) {
+			return this.splitView.getViews<IView>()[0].getSecondaryActions();
 		}
 		return [];
 	}
@@ -397,7 +395,7 @@ export class ComposedViewsViewlet extends Viewlet {
 
 	public setVisible(visible: boolean): TPromise<void> {
 		return super.setVisible(visible)
-			.then(() => TPromise.join(this.views.filter(view => view.isVisible() !== visible)
+			.then(() => TPromise.join(this.splitView.getViews<IView>().filter(view => view.isVisible() !== visible)
 				.map((view) => view.setVisible(visible))))
 			.then(() => void 0);
 	}
@@ -416,20 +414,20 @@ export class ComposedViewsViewlet extends Viewlet {
 
 	public getOptimalWidth(): number {
 		const additionalMargin = 16;
-		const optimalWidth = Math.max(...this.views.map(view => view.getOptimalWidth() || 0));
+		const optimalWidth = Math.max(...this.splitView.getViews<IView>().map(view => view.getOptimalWidth() || 0));
 		return optimalWidth + additionalMargin;
 	}
 
 	public shutdown(): void {
 		this.saveViewsStates();
-		this.views.forEach((view) => view.shutdown());
+		this.splitView.getViews<IView>().forEach((view) => view.shutdown());
 		super.shutdown();
 	}
 
 	private layoutViews(): void {
 		if (this.splitView) {
 			this.splitView.layout(this.dimension.height);
-			for (const view of this.views) {
+			for (const view of this.splitView.getViews<IView>()) {
 				let viewState = this.createViewState(view);
 				this.viewsStates.set(view.id, viewState);
 			}
@@ -507,7 +505,7 @@ export class ComposedViewsViewlet extends Viewlet {
 			const toCreate = [];
 
 			if (toAdd.length || toRemove.length) {
-				for (const view of this.views) {
+				for (const view of this.splitView.getViews<IView>()) {
 					let viewState = this.viewsStates.get(view.id);
 					if (!viewState || view.size !== viewState.size || !view.isExpanded() !== viewState.collapsed) {
 						viewState = { ...this.createViewState(view), isHidden: viewState && viewState.isHidden };
@@ -518,7 +516,6 @@ export class ComposedViewsViewlet extends Viewlet {
 				if (toRemove.length) {
 					for (const viewDescriptor of toRemove) {
 						let view = this.getView(viewDescriptor.id);
-						this.views.splice(this.views.indexOf(view), 1);
 						this.splitView.removeView(view);
 						if (this.lastFocusedView === view) {
 							this.lastFocusedView = null;
@@ -538,7 +535,6 @@ export class ComposedViewsViewlet extends Viewlet {
 					});
 					toCreate.push(view);
 
-					this.views.splice(index, 0, view);
 					this.attachHeaderViewStyler(view, this.themeService);
 					this.splitView.addView(view, viewState && viewState.size ? Math.max(viewState.size, 1) : viewDescriptor.size, index);
 				}
@@ -576,14 +572,14 @@ export class ComposedViewsViewlet extends Viewlet {
 		}
 
 		if (this.hasSingleView()) {
-			if (this.views[0]) {
-				this.views[0].hideHeader();
-				if (!this.views[0].isExpanded()) {
-					this.views[0].expand();
+			if (this.splitView.getViews<IView>()[0]) {
+				this.splitView.getViews<IView>()[0].hideHeader();
+				if (!this.splitView.getViews<IView>()[0].isExpanded()) {
+					this.splitView.getViews<IView>()[0].expand();
 				}
 			}
 		} else {
-			for (const view of this.views) {
+			for (const view of this.splitView.getViews<IView>()) {
 				view.showHeader();
 			}
 		}
@@ -623,7 +619,7 @@ export class ComposedViewsViewlet extends Viewlet {
 	}
 
 	private hasSingleView(): boolean {
-		if (this.views.length > 1) {
+		if (this.splitView.getViews<IView>().length > 1) {
 			return false;
 		}
 		if (ViewLocation.getContributedViewLocation(this.location.id) && !this.areExtensionsReady) {
@@ -676,8 +672,12 @@ export class ComposedViewsViewlet extends Viewlet {
 		return this.instantiationService.createInstance(viewDescriptor.ctor, options);
 	}
 
+	protected get views(): IView[] {
+		return this.splitView.getViews<IView>();
+	}
+
 	protected getView(id: string): IView {
-		return this.views.filter(view => view.id === id)[0];
+		return this.splitView.getViews<IView>().filter(view => view.id === id)[0];
 	}
 
 	private createViewState(view: IView): IViewState {
