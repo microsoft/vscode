@@ -89,6 +89,16 @@ class MergeItem implements QuickPickItem {
 	}
 }
 
+class CreateBranchItem implements QuickPickItem {
+
+	get label(): string { return localize('create branch', '$(plus) Create new branch'); }
+	get description(): string { return ''; }
+
+	async run(model: Model): Promise<void> {
+		await commands.executeCommand('git.branch');
+	}
+}
+
 interface Command {
 	commandId: string;
 	key: string;
@@ -728,6 +738,8 @@ export class CommandCenter {
 		const includeTags = checkoutType === 'all' || checkoutType === 'tags';
 		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
 
+		const createBranch = new CreateBranchItem();
+
 		const heads = this.model.refs.filter(ref => ref.type === RefType.Head)
 			.map(ref => new CheckoutItem(ref));
 
@@ -737,9 +749,9 @@ export class CommandCenter {
 		const remoteHeads = (includeRemotes ? this.model.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
 			.map(ref => new CheckoutRemoteHeadItem(ref));
 
-		const picks = [...heads, ...tags, ...remoteHeads];
+		const picks = [createBranch, ...heads, ...tags, ...remoteHeads];
 		const placeHolder = localize('select a ref to checkout', 'Select a ref to checkout');
-		const choice = await window.showQuickPick<CheckoutItem>(picks, { placeHolder });
+		const choice = await window.showQuickPick(picks, { placeHolder });
 
 		if (!choice) {
 			return;

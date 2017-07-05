@@ -21,10 +21,6 @@ export interface ITelemetryData {
 	[key: string]: any;
 }
 
-export interface ITelemetryExperiments {
-	mergeQuickLinks: boolean;
-}
-
 export interface ITelemetryService {
 
 	_serviceBrand: any;
@@ -38,6 +34,4 @@ export interface ITelemetryService {
 	getTelemetryInfo(): TPromise<ITelemetryInfo>;
 
 	isOptedIn: boolean;
-
-	getExperiments(): ITelemetryExperiments;
 }

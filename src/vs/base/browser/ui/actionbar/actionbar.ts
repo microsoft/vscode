@@ -435,12 +435,6 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			}
 		});
 
-		// Prevent native context menu on actions
-		$(this.domNode).on(DOM.EventType.CONTEXT_MENU, (e: Event) => {
-			e.preventDefault();
-			e.stopPropagation();
-		});
-
 		$(this.domNode).on(DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
 			let event = new StandardKeyboardEvent(e);
 
@@ -535,6 +529,12 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			const actionItemElement = document.createElement('li');
 			actionItemElement.className = 'action-item';
 			actionItemElement.setAttribute('role', 'presentation');
+
+			// Prevent native context menu on actions
+			$(actionItemElement).on(DOM.EventType.CONTEXT_MENU, (e: Event) => {
+				e.preventDefault();
+				e.stopPropagation();
+			});
 
 			let item: IActionItem = null;
 

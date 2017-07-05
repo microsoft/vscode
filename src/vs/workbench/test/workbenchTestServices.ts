@@ -89,11 +89,11 @@ export class TestContextService implements IWorkspaceContextService {
 		return !!this.workspace;
 	}
 
-	public getWorkspace(): ILegacyWorkspace {
+	public getLegacyWorkspace(): ILegacyWorkspace {
 		return this.workspace ? { resource: this.workspace.roots[0] } : void 0;
 	}
 
-	public getWorkspace2(): IWorkspace {
+	public getWorkspace(): IWorkspace {
 		return this.workspace;
 	}
 
@@ -397,7 +397,7 @@ export class TestStorageService extends EventEmitter implements IStorageService 
 		super();
 
 		let context = new TestContextService();
-		this.storage = new StorageService(new InMemoryLocalStorage(), null, context.getWorkspace2());
+		this.storage = new StorageService(new InMemoryLocalStorage(), null, context.getWorkspace());
 	}
 
 	store(key: string, value: any, scope: StorageScope = StorageScope.GLOBAL): void {
@@ -881,19 +881,15 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
-	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
-	removeFromRecentlyOpen(paths: string[]): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
 	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }> {
 		return TPromise.as(void 0);
 	}
 
 	focusWindow(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	closeWindow(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
@@ -915,6 +911,14 @@ export class TestWindowService implements IWindowService {
 
 	onWindowTitleDoubleClick(): TPromise<void> {
 		return TPromise.as(void 0);
+	}
+
+	showMessageBox(options: Electron.ShowMessageBoxOptions): number {
+		return 0;
+	}
+
+	showSaveDialog(options: Electron.SaveDialogOptions, callback?: (fileName: string) => void): string {
+		return void 0;
 	}
 }
 
@@ -976,7 +980,7 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
-	pickFolder(options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
+	pickFolder(windowId: number, options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
 		return TPromise.as([]);
 	}
 
@@ -1022,6 +1026,10 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	focusWindow(windowId: number): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	closeWindow(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 

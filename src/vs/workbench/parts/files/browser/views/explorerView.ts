@@ -132,7 +132,7 @@ export class ExplorerView extends CollapsibleView {
 		const titleDiv = $('div.title').appendTo(container);
 		const titleSpan = $('span').appendTo(titleDiv);
 		const setHeader = () => {
-			const workspace = this.contextService.getWorkspace2();
+			const workspace = this.contextService.getWorkspace();
 			const title = workspace.roots.map(root => labels.getPathLabel(root.fsPath, void 0, this.environmentService)).join();
 			titleSpan.text(this.name).title(title);
 		};
@@ -143,7 +143,7 @@ export class ExplorerView extends CollapsibleView {
 	}
 
 	public get name(): string {
-		const workspace = this.contextService.getWorkspace2();
+		const workspace = this.contextService.getWorkspace();
 		return workspace.roots.length === 1 ? workspace.name : nls.localize('folders', "Folders");
 	}
 

@@ -191,9 +191,9 @@ function main() {
 
 		const workbenchMainTimer = startTimer('load:workbench.main');
 		require([
-			'vs/workbench/electron-browser/workbench.main',
-			'vs/nls!vs/workbench/electron-browser/workbench.main',
-			'vs/css!vs/workbench/electron-browser/workbench.main'
+			'vs/workbench/workbench.main',
+			'vs/nls!vs/workbench/workbench.main',
+			'vs/css!vs/workbench/workbench.main'
 		], function () {
 			workbenchMainTimer.stop();
 			timers.afterLoadWorkbenchMain = Date.now();

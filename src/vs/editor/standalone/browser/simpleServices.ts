@@ -33,7 +33,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeybindingsRegistry, IKeybindingItem } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { MenuId, IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { Menu } from 'vs/platform/actions/common/menu';
-import { ITelemetryService, ITelemetryExperiments, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { ResolvedKeybinding, Keybinding, createKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { OS } from 'vs/base/common/platform';
@@ -513,10 +513,6 @@ export class StandaloneTelemetryService implements ITelemetryService {
 	public getTelemetryInfo(): TPromise<ITelemetryInfo> {
 		return null;
 	}
-
-	public getExperiments(): ITelemetryExperiments {
-		return null;
-	}
 }
 
 export class SimpleWorkspaceContextService implements IWorkspaceContextService {
@@ -536,11 +532,11 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', roots: [this.legacyWorkspace.resource], name: this.legacyWorkspace.resource.fsPath };
 	}
 
-	public getWorkspace(): ILegacyWorkspace {
+	public getLegacyWorkspace(): ILegacyWorkspace {
 		return this.legacyWorkspace;
 	}
 
-	public getWorkspace2(): IWorkspace {
+	public getWorkspace(): IWorkspace {
 		return this.workspace;
 	}
 

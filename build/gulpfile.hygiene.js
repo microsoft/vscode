@@ -91,6 +91,7 @@ const copyrightFilter = [
 	'!**/*.xpm',
 	'!**/*.opts',
 	'!**/*.disabled',
+	'!build/**/*.init',
 	'!resources/win32/bin/code.js',
 	'!extensions/markdown/media/tomorrow.css',
 	'!extensions/html/server/src/modes/typescript/*'

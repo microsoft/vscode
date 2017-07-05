@@ -22,7 +22,8 @@ import pkg from 'vs/platform/node/package';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import { Workbench, IWorkbenchStartedInfo } from 'vs/workbench/electron-browser/workbench';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService, configurationTelemetry, loadExperiments, lifecycleTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { NullTelemetryService, configurationTelemetry, lifecycleTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { loadExperiments } from 'vs/platform/telemetry/common/experiments';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { IdleMonitor, UserStatus } from 'vs/platform/telemetry/browser/idleMonitor';
@@ -31,7 +32,6 @@ import { ElectronWindow } from 'vs/workbench/electron-browser/window';
 import { resolveWorkbenchCommonProperties, getOrCreateMachineId } from 'vs/platform/telemetry/node/workbenchCommonProperties';
 import { machineIdIpcChannel } from 'vs/platform/telemetry/node/commonProperties';
 import { WorkspaceStats } from 'vs/workbench/services/telemetry/common/workspaceStats';
-import { IWindowIPCService, WindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IWindowsService, IWindowService, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
@@ -100,6 +100,7 @@ import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platf
 import { foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 import { TextMateService } from 'vs/workbench/services/textMate/electron-browser/TMSyntax';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
+import { IBroadcastService, BroadcastService } from "vs/platform/broadcast/electron-browser/broadcastService";
 
 /**
  * Services that we require for the Shell
@@ -129,7 +130,7 @@ export class WorkbenchShell {
 	private telemetryService: ITelemetryService;
 	private extensionService: MainProcessExtensionService;
 	private windowsService: IWindowsService;
-	private windowIPCService: IWindowIPCService;
+	private broadcastService: IBroadcastService;
 	private timerService: ITimerService;
 	private themeService: WorkbenchThemeService;
 	private lifecycleService: LifecycleService;
@@ -190,8 +191,7 @@ export class WorkbenchShell {
 		});
 
 		// Window
-		const activeWindow = this.workbench.getInstantiationService().createInstance(ElectronWindow, currentWindow, this.container);
-		this.windowIPCService.registerWindow(activeWindow);
+		this.workbench.getInstantiationService().createInstance(ElectronWindow, currentWindow, this.container);
 
 		// Handle case where workbench is not starting up properly
 		const timeoutHandle = setTimeout(() => {
@@ -219,7 +219,7 @@ export class WorkbenchShell {
 			customKeybindingsCount: info.customKeybindingsCount,
 			theme: this.themeService.getColorTheme().id,
 			language: platform.language,
-			experiments: this.telemetryService.getExperiments(),
+			experiments: loadExperiments(),
 			pinnedViewlets: info.pinnedViewlets,
 			restoredViewlet: info.restoredViewlet,
 			restoredEditors: info.restoredEditors.length,
@@ -256,9 +256,8 @@ export class WorkbenchShell {
 
 		const instantiationService: IInstantiationService = new InstantiationService(serviceCollection, true);
 
-		// TODO@joao remove this
-		this.windowIPCService = instantiationService.createInstance<IWindowIPCService>(WindowIPCService);
-		serviceCollection.set(IWindowIPCService, this.windowIPCService);
+		this.broadcastService = new BroadcastService(currentWindow.id);
+		serviceCollection.set(IBroadcastService, this.broadcastService);
 
 		const mainProcessClient = new ElectronIPCClient(String(`window${currentWindow.id}`));
 		disposables.push(mainProcessClient);
@@ -267,10 +266,10 @@ export class WorkbenchShell {
 		this.windowsService = new WindowsChannelClient(windowsChannel);
 		serviceCollection.set(IWindowsService, this.windowsService);
 
-		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, this.windowIPCService.getWindowId()));
+		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, currentWindow.id));
 
 		const sharedProcess = this.windowsService.whenSharedProcessReady()
-			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${this.windowIPCService.getWindowId()}`));
+			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${currentWindow.id}`));
 
 		sharedProcess
 			.done(client => client.registerChannel('choice', instantiationService.createInstance(ChoiceChannel)));
@@ -289,8 +288,7 @@ export class WorkbenchShell {
 			const config: ITelemetryServiceConfig = {
 				appender: new TelemetryAppenderClient(channel),
 				commonProperties: resolveWorkbenchCommonProperties(this.storageService, commit, version),
-				piiPaths: [this.environmentService.appRoot, this.environmentService.extensionsPath],
-				experiments: instantiationService.invokeFunction(loadExperiments)
+				piiPaths: [this.environmentService.appRoot, this.environmentService.extensionsPath]
 			};
 
 			const telemetryService = instantiationService.createInstance(TelemetryService, config);
@@ -307,7 +305,6 @@ export class WorkbenchShell {
 
 			disposables.push(telemetryService, errorTelemetry, listener, idleMonitor);
 		} else {
-			NullTelemetryService._experiments = instantiationService.invokeFunction(loadExperiments);
 			this.telemetryService = NullTelemetryService;
 		}
 
@@ -385,7 +382,7 @@ export class WorkbenchShell {
 		serviceCollection.set(IUpdateService, new SyncDescriptor(UpdateChannelClient, updateChannel));
 
 		const urlChannel = mainProcessClient.getChannel('url');
-		serviceCollection.set(IURLService, new SyncDescriptor(URLChannelClient, urlChannel, this.windowIPCService.getWindowId()));
+		serviceCollection.set(IURLService, new SyncDescriptor(URLChannelClient, urlChannel, currentWindow.id));
 
 		return [instantiationService, serviceCollection];
 	}

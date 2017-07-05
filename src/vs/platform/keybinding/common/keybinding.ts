@@ -37,7 +37,7 @@ export interface IKeyboardEvent {
 	readonly code: string;
 }
 
-export let IKeybindingService = createDecorator<IKeybindingService>('keybindingService');
+export const IKeybindingService = createDecorator<IKeybindingService>('keybindingService');
 
 export interface IKeybindingService {
 	_serviceBrand: any;

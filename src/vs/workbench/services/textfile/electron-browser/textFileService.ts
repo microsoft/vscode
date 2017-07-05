@@ -21,14 +21,13 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { ModelBuilder } from 'vs/workbench/services/textfile/electron-browser/modelBuilder';
 import product from 'vs/platform/node/product';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 export class TextFileService extends AbstractTextFileService {
@@ -44,7 +43,7 @@ export class TextFileService extends AbstractTextFileService {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IModeService private modeService: IModeService,
-		@IWindowIPCService private windowService: IWindowIPCService,
+		@IWindowService private windowService: IWindowService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IMessageService messageService: IMessageService,
 		@IBackupFileService backupFileService: IBackupFileService,
@@ -132,7 +131,7 @@ export class TextFileService extends AbstractTextFileService {
 			opts.defaultId = 2;
 		}
 
-		const choice = this.windowService.getWindow().showMessageBox(opts);
+		const choice = this.windowService.showMessageBox(opts);
 
 		return buttons[choice].result;
 	}
@@ -146,7 +145,7 @@ export class TextFileService extends AbstractTextFileService {
 	}
 
 	public promptForPath(defaultPath?: string): string {
-		return this.windowService.getWindow().showSaveDialog(this.getSaveDialogOptions(defaultPath ? paths.normalize(defaultPath, true) : void 0));
+		return this.windowService.showSaveDialog(this.getSaveDialogOptions(defaultPath ? paths.normalize(defaultPath, true) : void 0));
 	}
 
 	private getSaveDialogOptions(defaultPath?: string): Electron.SaveDialogOptions {

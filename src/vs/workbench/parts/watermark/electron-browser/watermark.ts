@@ -27,6 +27,7 @@ import { Parts, IPartService } from 'vs/workbench/services/part/common/partServi
 import { StartAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { FindInFilesActionId } from 'vs/workbench/parts/search/common/constants';
 import { ToggleTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import { escape } from 'vs/base/common/strings';
 
 interface WatermarkEntry {
 	text: string;
@@ -160,9 +161,9 @@ export class WatermarkContribution implements IWorkbenchContribution {
 							.map(id => {
 								let k = this.keybindingService.lookupKeybinding(id);
 								if (k) {
-									return `<span class="shortcuts">${k.getLabel()}</span>`;
+									return `<span class="shortcuts">${escape(k.getLabel())}</span>`;
 								}
-								return `<span class="unbound">${UNBOUND}</span>`;
+								return `<span class="unbound">${escape(UNBOUND)}</span>`;
 							})
 							.join(' / ')
 					));

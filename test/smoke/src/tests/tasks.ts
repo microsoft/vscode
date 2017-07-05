@@ -39,9 +39,9 @@ export function testTasks() {
 			assert.equal(viewType, 'Git');
 		});
 
-		it('ensures that build task produces error in index.js', async function () {
+		it('ensures that build task produces no-unused-vars message', async function () {
 			await tasks.build();
-			assert.ok(await tasks.outputContains('index.js'), `Output does not contain error in index.js`);
+			assert.ok(await tasks.outputContains(`'next' is defined but never used`), `Output does not contain no-unused-vars message`);
 		});
 
 		it(`verifies build error is reflected in 'Problems View'`, async function () {

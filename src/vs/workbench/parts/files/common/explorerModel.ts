@@ -25,7 +25,7 @@ export class Model {
 	private _roots: FileStat[];
 
 	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
-		const setRoots = () => this._roots = this.contextService.getWorkspace2().roots.map(uri => new FileStat(uri, undefined));
+		const setRoots = () => this._roots = this.contextService.getWorkspace().roots.map(uri => new FileStat(uri, undefined));
 		this.contextService.onDidChangeWorkspaceRoots(() => setRoots());
 		setRoots();
 	}

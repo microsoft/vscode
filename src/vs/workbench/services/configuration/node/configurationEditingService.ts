@@ -287,7 +287,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 	}
 
 	private getConfigurationFileResource(resource: URI): URI {
-		const workspace = this.contextService.getWorkspace2();
+		const workspace = this.contextService.getWorkspace();
 		if (workspace) {
 			if (resource) {
 				const root = this.contextService.getRoot(resource);

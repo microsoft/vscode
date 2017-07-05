@@ -8,6 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+import { remote } from 'electron';
 
 export class WindowService implements IWindowService {
 
@@ -35,7 +36,7 @@ export class WindowService implements IWindowService {
 	}
 
 	pickFolder(options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
-		return this.windowsService.pickFolder(options);
+		return this.windowsService.pickFolder(this.windowId, options);
 	}
 
 	reloadWindow(): TPromise<void> {
@@ -54,20 +55,16 @@ export class WindowService implements IWindowService {
 		return this.windowsService.closeFolder(this.windowId);
 	}
 
+	closeWindow(): TPromise<void> {
+		return this.windowsService.closeWindow(this.windowId);
+	}
+
 	toggleFullScreen(): TPromise<void> {
 		return this.windowsService.toggleFullScreen(this.windowId);
 	}
 
 	setRepresentedFilename(fileName: string): TPromise<void> {
 		return this.windowsService.setRepresentedFilename(this.windowId, fileName);
-	}
-
-	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void> {
-		return this.windowsService.addToRecentlyOpen(paths);
-	}
-
-	removeFromRecentlyOpen(paths: string[]): TPromise<void> {
-		return this.windowsService.removeFromRecentlyOpen(paths);
 	}
 
 	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }> {
@@ -102,4 +99,15 @@ export class WindowService implements IWindowService {
 		return this.windowsService.setDocumentEdited(this.windowId, flag);
 	}
 
+	showMessageBox(options: Electron.ShowMessageBoxOptions): number {
+		return remote.dialog.showMessageBox(remote.getCurrentWindow(), options);
+	}
+
+	showSaveDialog(options: Electron.SaveDialogOptions, callback?: (fileName: string) => void): string {
+		if (callback) {
+			return remote.dialog.showSaveDialog(remote.getCurrentWindow(), options, callback);
+		}
+
+		return remote.dialog.showSaveDialog(remote.getCurrentWindow(), options); // https://github.com/electron/electron/issues/4936
+	}
 }

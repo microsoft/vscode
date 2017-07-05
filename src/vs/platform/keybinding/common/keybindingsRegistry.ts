@@ -223,10 +223,10 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		return result;
 	}
 }
-export let KeybindingsRegistry: IKeybindingsRegistry = new KeybindingsRegistryImpl();
+export const KeybindingsRegistry: IKeybindingsRegistry = new KeybindingsRegistryImpl();
 
 // Define extension point ids
-export let Extensions = {
+export const Extensions = {
 	EditorModes: 'platform.keybindingsRegistry'
 };
 Registry.add(Extensions.EditorModes, KeybindingsRegistry);

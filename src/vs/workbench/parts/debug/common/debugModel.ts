@@ -900,7 +900,7 @@ export class Model implements IModel {
 	public setEnablement(element: IEnablement, enable: boolean): void {
 		element.enabled = enable;
 		if (element instanceof Breakpoint && !element.enabled) {
-			var breakpoint = <Breakpoint>element;
+			const breakpoint = <Breakpoint>element;
 			breakpoint.verified = false;
 		}
 

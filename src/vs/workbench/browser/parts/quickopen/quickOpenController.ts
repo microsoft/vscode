@@ -16,7 +16,7 @@ import DOM = require('vs/base/browser/dom');
 import URI from 'vs/base/common/uri';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import types = require('vs/base/common/types');
-import { Action } from 'vs/base/common/actions';
+import { Action, IAction } from 'vs/base/common/actions';
 import { IIconLabelOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
@@ -52,6 +52,8 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { attachQuickOpenStyler } from 'vs/platform/theme/common/styler';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ITree, IActionProvider } from "vs/base/parts/tree/browser/tree";
+import { BaseActionItem } from "vs/base/browser/ui/actionbar/actionbar";
 
 const HELP_PREFIX = '?';
 
@@ -354,7 +356,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				this.pickOpenWidget.getProgressBar().stop().getContainer().hide();
 
 				// Model
-				const model = new QuickOpenModel();
+				const model = new QuickOpenModel([], new PickOpenActionProvider());
 				const entries = picks.map((e, index) => this.instantiationService.createInstance(PickOpenEntry, e, index, () => progress(e)));
 				if (picks.length === 0) {
 					entries.push(this.instantiationService.createInstance(PickOpenEntry, { label: nls.localize('emptyPicks', "There are no entries to pick from") }, 0, null));
@@ -1065,6 +1067,7 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 	private alwaysShow: boolean;
 	private resource: URI;
 	private isFolder: boolean;
+	private _action: IAction;
 
 	constructor(
 		item: IPickOpenEntry,
@@ -1080,10 +1083,15 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 		this.hasSeparator = item.separator && item.separator.border;
 		this.separatorLabel = item.separator && item.separator.label;
 		this.alwaysShow = item.alwaysShow;
+		this._action = item.action;
 
 		const fileItem = <IFilePickOpenEntry>item;
 		this.resource = fileItem.resource;
 		this.isFolder = fileItem.isFolder;
+	}
+
+	public get action(): IAction {
+		return this._action;
 	}
 
 	public get index(): number {
@@ -1132,6 +1140,28 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 		}
 
 		return false;
+	}
+}
+
+class PickOpenActionProvider implements IActionProvider {
+	public hasActions(tree: ITree, element: PickOpenEntry): boolean {
+		return !!element.action;
+	}
+
+	public getActions(tree: ITree, element: PickOpenEntry): TPromise<IAction[]> {
+		return TPromise.as(element.action ? [element.action] : []);
+	}
+
+	public hasSecondaryActions(tree: ITree, element: PickOpenEntry): boolean {
+		return false;
+	}
+
+	public getSecondaryActions(tree: ITree, element: PickOpenEntry): TPromise<IAction[]> {
+		return TPromise.as([]);
+	}
+
+	public getActionItem(tree: ITree, element: PickOpenEntry, action: Action): BaseActionItem {
+		return null;
 	}
 }
 
