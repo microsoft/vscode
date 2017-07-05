@@ -271,9 +271,9 @@ export class ExtensionsListView extends CollapsibleView {
 		return this.extensionsWorkbenchService.queryLocal()
 			.then(result => result.filter(e => e.type === LocalExtensionType.User))
 			.then(local => {
-				return TPromise.join([TPromise.as(this.tipsService.getRecommendations()), this.tipsService.getWorkspaceRecommendations(), TPromise.as(this.tipsService.getKeymapRecommendations())])
-					.then(([recommendations, workspaceRecommendations, keymapsRecommendations]) => {
-						const names = distinct([...recommendations, ...workspaceRecommendations, ...keymapsRecommendations])
+				return TPromise.join([TPromise.as(this.tipsService.getRecommendations()), this.tipsService.getWorkspaceRecommendations()])
+					.then(([recommendations, workspaceRecommendations]) => {
+						const names = distinct([...recommendations, ...workspaceRecommendations])
 							.filter(name => local.every(ext => `${ext.publisher}.${ext.name}` !== name))
 							.filter(name => name.toLowerCase().indexOf(value) > -1);
 
@@ -441,8 +441,7 @@ export class RecommendedExtensionsView extends ExtensionsListView {
 
 	public static isRecommendedExtensionsQuery(query: string): boolean {
 		return ExtensionsListView.isRecommendedExtensionsQuery(query)
-			|| ExtensionsListView.isWorkspaceRecommendedExtensionsQuery(query)
-			|| ExtensionsListView.isKeymapsRecommendedExtensionsQuery(query);
+			|| ExtensionsListView.isWorkspaceRecommendedExtensionsQuery(query);
 	}
 
 	async show(query: string): TPromise<IPagedModel<IExtension>> {

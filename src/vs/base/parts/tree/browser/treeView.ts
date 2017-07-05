@@ -955,7 +955,7 @@ export class TreeView extends HeightMap {
 						getElementHash: (i: number) => afterModelItems[i].id
 					}, null);
 
-				diff = lcs.ComputeDiff();
+				diff = lcs.ComputeDiff(false);
 
 				// this means that the result of the diff algorithm would result
 				// in inserting items that were already registered. this can only
