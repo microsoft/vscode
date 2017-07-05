@@ -25,8 +25,6 @@ export class TaskPanel extends Panel {
 
 	private _actions: IAction[];
 	//private toDispose: lifecycle.IDisposable[];
-	private taskContainer: HTMLElement;
-	private taskButtons: HTMLElement[];
 
 	constructor(
 
@@ -43,35 +41,17 @@ export class TaskPanel extends Panel {
 	public create(parent: Builder): TPromise<any> {
 		super.create(parent);
 		dom.addClass(parent.getHTMLElement(), 'task-panel');
-		let container = dom.append(parent.getHTMLElement(), dom.$('.task-panel-container'));
-		this.taskButtons = [];
-		this.createTaskButtons(container);
+		parent.innerHtml(domElement());
+		/*
+		let yesButton = builder.select('yes-telemetry');
+		let noButton = builder.select('no-telemetry');
+		yesButton.item(0).on('click', e => {
+			this.telemetryService.publicLog('taskPanel.yes');
+		});
+		noButton.item(0).on('click', e => {
+			this.telemetryService.publicLog('taskPanel.no');
+		});*/
 		return TPromise.as(void 0);
-	}
-
-	private createTaskButtons(parent: HTMLElement): void {
-		// Make big html string, with localized names
-		// Use innerHTML to create dom nodes on the builder
-		// Use select/on to add event listeners
-		let builder = new Builder(parent, false);
-		builder = builder.innerHtml(domElement());
-		this.taskContainer = dom.append(parent, builder.child().getHTMLElement());
-		let builder1 = builder.select('button');
-		builder1.item(0).on('click', e => {
-			this.commandService.executeCommand('workbench.action.tasks.runTask');
-		});
-		builder1.item(1).on('click', e => {
-			this.commandService.executeCommand('workbench.action.tasks.build');
-		});
-		builder1.item(2).on('click', e => {
-			this.commandService.executeCommand('workbench.action.tasks.test');
-		});
-		builder1.item(3).on('click', e => {
-			this.commandService.executeCommand('workbench.action.tasks.terminate');
-		});
-		builder1.item(4).on('click', e => {
-			this.commandService.executeCommand('workbench.action.tasks.restartTask');
-		});
 	}
 
 	public layout(dimension?: Dimension): void {

@@ -4,19 +4,46 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { escape } from 'vs/base/common/strings';
-import { localize } from 'vs/nls';
-
 export function domElement() {
 	return `
-<div>
-<button class="taskButton", tabindex="0">${escape(localize('RunTaskAction.label', "Run task"))}</button>
-<button class="taskButton", tabindex="1">${escape(localize('BuildAction.label', "Run build task"))}</button>
-<button class="taskButton", tabindex="2">${escape(localize('TestAction.label', "Run test task"))}</button>
-<button class="taskButton", tabindex="3">${escape(localize('TerminateAction.label', "Terminate running task"))}</button>
-<button class="taskButton", tabindex="4">${escape(localize('RestartTaskAction.label', "Restart task"))}</button>
-</div>
-<div class="taskMockup" alt="testing">
+<div class="composite panel task-panel" id="workbench.panel.task" aria-hidden="false">
+	<div class="task-text">
+		<p style="text-align:left;">This is an experiment. Would you find the task panel seen below useful? <button class="yes-telemetry">Yes</button> <button  class="no-telemetry">No</button>
+		<span style="float:right;"> Link for feedback </span> </p>
+	</div>
+	<div class="task-panel-container">
+		<div class="block">
+			<p style="text-align:left;">
+				Task: tsc -watch
+				<span style="float:right;">Running (0 Errors)</span>
+			</p>
+			<p style="text-align:left;">
+				<button>Show Output </button>
+				<span style="float:right;"><button> Configure </button> <button> Stop </button> <button> Restart </button></span>
+			</p>
+		</div>
+		<div class="block">
+			<p style="text-align:left;">
+				Task: tslint
+				<span style="float:right;">Running (10 Errors)</span>
+			</p>
+			<p style="text-align:left;">
+				<button>Hide Output </button>
+				<span style="float:right;"><button> Configure </button> <button> Stop </button> <button> Restart </button></span>
+			</p>
+			Running tslint... </br> /users/express/index.js - invalid name expression </br>tslint finished with 1 Error(s)
+		</div>
+		<div class="block">
+			<p style="text-align:left;">
+				Task: tsc
+				<span style="float:right;">Finished (0 Errors)</span>
+			</p>
+			<p style="text-align:left;">
+				<button>Show Output </button>
+				<span style="float:right;"><button> Configure </button> <button> Restart </button></span>
+			</p>
+		</div>
+	</div>
 </div>
 `;
 };
