@@ -78,7 +78,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _cols: number;
 	private _rows: number;
 	private _messageTitleListener: (message: { type: string, content: string }) => void;
-	private _preLaunchInputQ: string;
+	private _preLaunchInputQueue: string;
 
 	private _widgetManager: TerminalWidgetManager;
 	private _linkHandler: TerminalLinkHandler;
@@ -117,13 +117,12 @@ export class TerminalInstance implements ITerminalInstance {
 		this._isDisposed = false;
 		this._id = TerminalInstance._idCounter++;
 		this._terminalHasTextContextKey = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.bindTo(this._contextKeyService);
+		this._preLaunchInputQueue = '';
 
 		this._onDisposed = new Emitter<TerminalInstance>();
 		this._onDataForApi = new Emitter<{ instance: ITerminalInstance, data: string }>();
 		this._onProcessIdReady = new Emitter<TerminalInstance>();
 		this._onTitleChanged = new Emitter<string>();
-		// Data input queue for pty launch delay
-		this._preLaunchInputQ = '';
 
 		// Create a promise that resolves when the pty is ready
 		this._processReady = new TPromise<void>(c => {
@@ -213,17 +212,16 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
 		this._xterm.on('data', (data) => {
-			// Check if we have a valid process Id
 			if (this._processId) {
+				// Send data if the pty is ready
 				this._process.send({
 					event: 'input',
 					data: this._sanitizeInput(data)
 				});
-			}
-			else {
-				// we need to queue data until the pty is ready
-				// message data has already had escape encoding by xterm
-				this._preLaunchInputQ += data;
+			} else {
+				// If the pty is not ready, queue the data received from
+				// xterm.js until the pty is ready
+				this._preLaunchInputQueue += data;
 			}
 			return false;
 		});
@@ -535,11 +533,14 @@ export class TerminalInstance implements ITerminalInstance {
 			if (message.type === 'pid') {
 				this._processId = message.content;
 
-				// pty is ready - send queued data
-				this._process.send({
-					event: 'input',
-					data: this._sanitizeInput(this._preLaunchInputQ)
-				});
+				// Send any queued data that's waiting
+				if (this._preLaunchInputQueue.length > 0) {
+					this._process.send({
+						event: 'input',
+						data: this._sanitizeInput(this._preLaunchInputQueue)
+					});
+					this._preLaunchInputQueue = null;
+				}
 				this._onProcessIdReady.fire(this);
 			}
 		});
