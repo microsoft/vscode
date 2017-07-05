@@ -27,7 +27,7 @@ export class ColorPickerController extends Disposable implements IEditorContribu
 	constructor(private editor: ICodeEditor) {
 		super();
 
-		this.model = this._register(new ColorPickerModel());
+		this.model = new ColorPickerModel();
 		this.widget = this._register(new ColorPickerWidget(this.model, editor));
 		this.model.widget = this.widget;
 

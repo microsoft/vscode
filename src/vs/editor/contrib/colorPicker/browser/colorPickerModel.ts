@@ -3,23 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from "vs/base/common/lifecycle";
-import { EventEmitter } from "vs/base/common/eventEmitter";
 import { ColorPickerWidget } from "vs/editor/contrib/colorPicker/browser/colorPickerWidget";
 
-export class ColorPickerModel implements IDisposable {
+export class ColorPickerModel {
+
+	public saturationSelection: ISaturationState;
 	public dragging: boolean;
 
 	private _widget: ColorPickerWidget;
 	private _originalColor: string;
 	private _selectedColor: string;
-
-	private eventEmmiter: EventEmitter;
+	private _hue: string;
 
 	constructor() {
 		this.dragging = false;
-
-		this.eventEmmiter = new EventEmitter();
 	}
 
 	public set widget(widget: ColorPickerWidget) {
@@ -32,8 +29,6 @@ export class ColorPickerModel implements IDisposable {
 
 	public set originalColor(color: string) {
 		this._originalColor = color;
-
-		// Update view, probably draw
 	}
 
 	public get originalColor() {
@@ -41,12 +36,11 @@ export class ColorPickerModel implements IDisposable {
 	}
 
 	public set selectedColor(color: string) {
-		console.log('Updating a view based on selected color + ' + color);
 		this._selectedColor = color;
 
 		if (this.widget.header) {
-			this.widget.header.updatePickedColor();
-			this.widget.body.updateOpacityGradient();
+			this.widget.header.updatePickedColor(); // update picked colour from box view
+			this.widget.body.fillOpacityGradient();  // update opacity gradient based on the color
 		}
 	}
 
@@ -54,7 +48,18 @@ export class ColorPickerModel implements IDisposable {
 		return this._selectedColor;
 	}
 
-	public dispose(): void {
-		this.eventEmmiter.dispose();
+	public set hue(color: string) {
+		this._hue = color;
+
+		this.widget.body.fillSaturationBox();
 	}
+
+	public get hue() {
+		return this._hue;
+	}
+}
+
+export class ISaturationState {
+	public x: number;
+	public y: number;
 }

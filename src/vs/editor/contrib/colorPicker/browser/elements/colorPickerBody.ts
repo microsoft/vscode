@@ -13,7 +13,6 @@ const $ = dom.$;
 const MOUSE_DRAG_RESET_DISTANCE = 140;
 
 export class ColorPickerBody extends Disposable {
-
 	private domNode: HTMLElement;
 	private saturationBox: HTMLElement;
 	private hueStrip: HueStrip;
@@ -23,6 +22,8 @@ export class ColorPickerBody extends Disposable {
 	private opacityStripCtx: CanvasRenderingContext2D;
 
 	private opacityGradient: CanvasGradient;
+	private whiteGradient: CanvasGradient;
+	private blackGradient: CanvasGradient;
 
 	constructor(private widget: ColorPickerWidget, private model: ColorPickerModel, widgetWidth: number) {
 		super();
@@ -51,10 +52,24 @@ export class ColorPickerBody extends Disposable {
 		this.registerListeners();
 	}
 
-	public updateOpacityGradient(): void {
+	public fillOpacityGradient(): void {
 		this.opacityGradient.addColorStop(0, this.model.selectedColor);
 		this.opacityStripCtx.fillStyle = this.opacityGradient;
 		this.opacityStripCtx.fill();
+	}
+
+	public fillSaturationBox(): void {
+		this.saturationCtx.fillStyle = this.model.hue ? this.model.hue : this.model.originalColor;
+		this.saturationCtx.fill();
+		this.saturationCtx.fillStyle = this.whiteGradient;
+		this.saturationCtx.fill();
+		this.saturationCtx.fillStyle = this.blackGradient;
+		this.saturationCtx.fill();
+
+		// Update selected color if saturation selection was beforehand
+		if (this.model.saturationSelection) {
+			this.model.selectedColor = this.extractColorData(this.saturationCtx, this.model.saturationSelection.x, this.model.saturationSelection.y);
+		}
 	}
 
 	private registerListeners(): void {
@@ -62,16 +77,16 @@ export class ColorPickerBody extends Disposable {
 		// Saturation box listeners
 		this._register(dom.addDisposableListener(this.saturationBox, dom.EventType.MOUSE_DOWN, e => {
 			this.model.dragging = true;
-			const color = this.extractColorData(e);
-			this.widget.model.selectedColor = color;
+			this.widget.model.selectedColor = this.extractColorData(this.saturationCtx, e.offsetX, e.offsetY);
+			this.widget.model.saturationSelection = { x: e.offsetX, y: e.offsetY };
 		}));
 		this._register(dom.addDisposableListener(this.saturationBox, dom.EventType.MOUSE_UP, e => {
 			this.model.dragging = false;
 		}));
 		this._register(dom.addDisposableListener(this.saturationBox, dom.EventType.MOUSE_MOVE, e => {
 			if (this.model.dragging) {
-				const color = this.extractColorData(e);
-				this.widget.model.selectedColor = color;
+				this.widget.model.selectedColor = this.extractColorData(this.saturationCtx, e.offsetX, e.offsetY);
+				this.widget.model.saturationSelection = { x: e.offsetX, y: e.offsetY };
 			}
 		}));
 
@@ -85,15 +100,16 @@ export class ColorPickerBody extends Disposable {
 			const initialMouseOrthogonalPosition = e.posx;
 			const initialSliderTop = this.slider.top;
 			monitor.startMonitoring(standardMouseMoveMerger, (mouseMoveData: IStandardMouseMoveEventData) => {
-				const mouseOrthogonalDelta = Math.abs(mouseMoveData.posx - initialMouseOrthogonalPosition);
-
 				// Do not move slider on Windows if it's outside of movable bounds
+				const mouseOrthogonalDelta = Math.abs(mouseMoveData.posx - initialMouseOrthogonalPosition);
 				if (isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
 					return;
 				}
 
 				const mouseDelta = mouseMoveData.posy - initialMousePosition;
 				this.slider.top = initialSliderTop + mouseDelta;
+
+				this.widget.model.hue = this.extractColorData(this.hueStrip.context, 0, this.slider.top);
 			}, () => null);
 		}));
 	}
@@ -109,23 +125,19 @@ export class ColorPickerBody extends Disposable {
 
 		this.saturationCtx = canvas.getContext('2d');
 		this.saturationCtx.rect(0, 0, actualW, actualH);
-		this.saturationCtx.fillStyle = this.model.selectedColor;
-		this.saturationCtx.fillRect(0, 0, actualW, actualH);
 
 		// Create black and white gradients on top
 		const ctx2 = document.createElement('canvas').getContext('2d');
 
-		const whiteGradient = ctx2.createLinearGradient(0, 0, actualW, 0);
-		whiteGradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
-		whiteGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-		this.saturationCtx.fillStyle = whiteGradient;
-		this.saturationCtx.fillRect(0, 0, actualW, actualH);
+		this.whiteGradient = ctx2.createLinearGradient(0, 0, actualW, 0);
+		this.whiteGradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+		this.whiteGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
 
-		const blackGradient = ctx2.createLinearGradient(0, 0, 0, actualH);
-		blackGradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
-		blackGradient.addColorStop(1, 'rgba(0, 0, 0, 1)');
-		this.saturationCtx.fillStyle = blackGradient;
-		this.saturationCtx.fillRect(0, 0, actualW, actualH);
+		this.blackGradient = ctx2.createLinearGradient(0, 0, 0, actualH);
+		this.blackGradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+		this.blackGradient.addColorStop(1, 'rgba(0, 0, 0, 1)');
+
+		this.fillSaturationBox();
 
 		// Append to DOM
 		dom.append(this.domNode, canvas);
@@ -161,7 +173,6 @@ export class ColorPickerBody extends Disposable {
 		const hueWrapper = $('.hue-strip-wrap');
 
 		this.hueStrip = new HueStrip(w, h, actualW, actualH);
-
 		this.slider = new HueSlider(this.hueStrip);
 
 		dom.append(this.domNode, hueWrapper);
@@ -169,8 +180,8 @@ export class ColorPickerBody extends Disposable {
 		dom.append(hueWrapper, this.slider.domNode);
 	}
 
-	private extractColorData(e: MouseEvent) {
-		const imageData = this.saturationCtx.getImageData(e.offsetX, e.offsetY, 1, 1);
+	private extractColorData(context: CanvasRenderingContext2D, offsetX: number, offsetY: number) {
+		const imageData = context.getImageData(offsetX, offsetY, 1, 1);
 		const color = `rgba(${imageData.data[0]}, ${imageData.data[1]}, ${imageData.data[2]}, ${imageData.data[3]})`;
 		return color;
 	}
@@ -179,6 +190,8 @@ export class ColorPickerBody extends Disposable {
 class HueStrip {
 	public domNode: HTMLCanvasElement;
 	public height: number;
+
+	public context: CanvasRenderingContext2D;
 
 	constructor(width: number, height: number, actualWidth: number, actualHeight: number) {
 		this.height = height;
@@ -190,10 +203,10 @@ class HueStrip {
 		this.domNode.style.width = width + 'px';
 		this.domNode.style.height = height + 'px';
 
-		const colorStripCtx = this.domNode.getContext('2d');
-		colorStripCtx.rect(0, 0, actualWidth, actualHeight);
+		this.context = this.domNode.getContext('2d');
+		this.context.rect(0, 0, actualWidth, actualHeight);
 
-		const colorGradient = colorStripCtx.createLinearGradient(0, 0, 0, actualHeight);
+		const colorGradient = this.context.createLinearGradient(0, 0, 0, actualHeight);
 		colorGradient.addColorStop(0, 'rgba(255, 0, 0, 1)');
 		colorGradient.addColorStop(0.17, 'rgba(255, 255, 0, 1)');
 		colorGradient.addColorStop(0.34, 'rgba(0, 255, 0, 1)');
@@ -202,8 +215,8 @@ class HueStrip {
 		colorGradient.addColorStop(0.85, 'rgba(255, 0, 255, 1)');
 		colorGradient.addColorStop(1, 'rgba(255, 0, 0, 1)');
 
-		colorStripCtx.fillStyle = colorGradient;
-		colorStripCtx.fill();
+		this.context.fillStyle = colorGradient;
+		this.context.fill();
 	}
 }
 
