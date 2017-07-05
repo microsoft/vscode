@@ -19,6 +19,7 @@
 	"closeEditorsToTheLeft": "Fermer les éditeurs situés à gauche",
 	"closeEditorsToTheRight": "Fermer les éditeurs situés à droite",
 	"closeAllEditors": "Fermer tous les éditeurs",
+	"closeUnmodifiedEditors": "Fermer les éditeurs non modifiés du groupe",
 	"closeEditorsInOtherGroups": "Fermer les éditeurs des autres groupes",
 	"closeOtherEditorsInGroup": "Fermer les autres éditeurs",
 	"closeEditorsInGroup": "Fermer tous les éditeurs du groupe",

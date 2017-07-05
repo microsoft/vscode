@@ -32,5 +32,6 @@
 	"workbench.action.terminal.disallowWorkspaceShell": "不允許工作區外觀設置",
 	"workbench.action.terminal.rename": "重新命名",
 	"workbench.action.terminal.rename.prompt": "輸入終端機名稱",
+	"workbench.action.terminal.focusFindWidget": "焦點尋找小工具",
 	"workbench.action.terminal.hideFindWidget": "隱藏尋找小工具"
 }

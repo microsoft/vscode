@@ -48,5 +48,6 @@
 	"config.checkoutType": "Controla quais tipos de ramos são listados quando executando `Checkout para... `. `todos` mostra todas as referências, `local` mostra apenas os ramos locais, `etiqueta` mostra apenas etiquetas e `remoto` mostra apenas os ramos remotos.",
 	"config.ignoreLegacyWarning": "Ignora o aviso de Git legado",
 	"config.ignoreLimitWarning": "Ignora o aviso quando houver muitas alterações em um repositório",
-	"config.defaultCloneDirectory": "O local padrão onde clonar um repositório git"
+	"config.defaultCloneDirectory": "O local padrão onde clonar um repositório git",
+	"config.enableSmartCommit": "Confirme todas as alterações quando não há modificações planejadas."
 }

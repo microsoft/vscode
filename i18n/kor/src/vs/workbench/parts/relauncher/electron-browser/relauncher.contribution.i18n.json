@@ -7,5 +7,7 @@
 	"relaunchSettingMessage": "설정이 변경되어 다시 시작해야만 적용됩니다.",
 	"relaunchSettingDetail": "[다시 시작] 단추를 눌러 {0}을(를) 다시 시작하고 설정을 사용하도록 설정하세요.",
 	"restart": "다시 시작",
+	"relaunchWorkspaceMessage": "작업 공간 폴더가 추가 또는 삭제되어 다시 로드해야만 적용됩니다.",
+	"relaunchWorkspaceDetail": "다시 시작 단추를 눌러 창을 다시 불러와야 변경 사항이 적용됩니다.",
 	"reload": "다시 로드"
 }

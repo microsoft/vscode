@@ -28,6 +28,7 @@
 	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": "定义非空括号的左括号后面和右括号前面的空格处理。要求 TypeScript >= 2.3.0。",
 	"format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": "定义模板字符串的左括号后面和右括号前面的空格处理。要求 TypeScript >= 2.0.6。",
 	"format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces": "定义 JSX 表达式左括号后面和右括号前面的空格处理。要求 TypeScript >= 2.0.6。",
+	"format.insertSpaceAfterTypeAssertion": "定义 TypeScript 中类型断言后的空格处理。要求 TypeScript >= 2.4。",
 	"format.placeOpenBraceOnNewLineForFunctions": "定义函数的左大括号是否放置在新的一行。",
 	"format.placeOpenBraceOnNewLineForControlBlocks": "定义控制块的左括号是否放置在新的一行。",
 	"javascript.validate.enable": "启用/禁用 JavaScript 验证。",
@@ -44,5 +45,7 @@
 	"typescript.npm": "指定用于自动获取类型的 NPM 可执行文件的路径。要求 TypeScript >= 2.3.4。",
 	"typescript.check.npmIsInstalled": "检查是否安装了 NPM 以自动获取类型。",
 	"javascript.nameSuggestions": "启用/禁用在 JavaScript 建议列表中包含文件中的唯一名称。",
-	"typescript.tsc.autoDetect": "控制自动检测 tsc 任务是否打开。"
+	"typescript.tsc.autoDetect": "控制自动检测 tsc 任务是否打开。",
+	"typescript.problemMatchers.tsc.label": "TypeScript 问题",
+	"typescript.problemMatchers.tscWatch.label": "TypeScript 问题(观看模式)"
 }

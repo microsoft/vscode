@@ -46,6 +46,7 @@
 	"autoClosingBrackets": "控制编辑器是否应该在左括号后自动插入右括号",
 	"formatOnType": "控制编辑器是否应在键入后自动设置行的格式",
 	"formatOnPaste": "控制编辑器是否应自动设置粘贴内容的格式。格式化程序必须可用并且能设置文档中某一范围的格式。",
+	"autoIndent": "控制编辑器是否应在用户键入、粘贴或移动行时自动调整缩进。语言的缩进规则必须可用。",
 	"suggestOnTriggerCharacters": "控制键入触发器字符时是否应自动显示建议",
 	"acceptSuggestionOnEnter": "控制按“Enter”键是否像按“Tab”键一样接受建议。这能帮助避免“插入新行”和“接受建议”之间的歧义。值为“smart”时表示，仅当文字改变时，按“Enter”键才能接受建议",
 	"acceptSuggestionOnCommitCharacter": "控制是否应在遇到提交字符时接受建议。例如，在 JavaScript 中，分号(\";\")可以为提交字符，可接受建议并键入该字符。",

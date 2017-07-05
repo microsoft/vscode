@@ -24,6 +24,7 @@
 	"default": "기본값",
 	"debuggers": "디버거({0})",
 	"debugger name": "이름",
+	"debugger type": "유형",
 	"views": "뷰({0})",
 	"view id": "ID",
 	"view name": "이름",

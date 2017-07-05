@@ -9,6 +9,7 @@
 	"command.refresh": "最新の情報に更新",
 	"command.openChange": "変更を開く",
 	"command.openFile": "ファイルを開く",
+	"command.openHEADFile": "HEAD のファイルを開く",
 	"command.stage": "変更のステージング",
 	"command.stageAll": "すべての変更のステージング",
 	"command.stageSelectedRanges": "選択した範囲をステージする",
@@ -27,13 +28,16 @@
 	"command.checkout": "チェックアウト先...",
 	"command.branch": "分岐の作成...",
 	"command.deleteBranch": "ブランチの削除...",
+	"command.merge": "ブランチをマージ...",
 	"command.pull": "プル",
 	"command.pullRebase": "プル (リベース)",
+	"command.pullFrom": "指定元からプル...",
 	"command.push": "プッシュ",
 	"command.pushTo": "プッシュ先...",
 	"command.sync": "同期",
 	"command.publish": "ブランチの発行",
 	"command.showOutput": "Git 出力の表示",
+	"command.ignore": "ファイルを .gitignore に追加",
 	"config.enabled": "Git が有効になっているかどうか",
 	"config.path": "Git 実行可能ファイルのパス",
 	"config.autorefresh": "自動更新が有効かどうか",
@@ -44,5 +48,6 @@
 	"config.checkoutType": "`Checkout to...` を実行するときに表示されるブランチの種類を制御します。`all` はすべての参照を表示します。`local` はローカル ブランチのみ、`tags`  はタグのみ、`remote` はリモート ブランチのみを表示します。 ",
 	"config.ignoreLegacyWarning": "旧 Git の警告を無視します",
 	"config.ignoreLimitWarning": "リポジトリ内に変更が多い場合は警告を無視します",
-	"config.defaultCloneDirectory": "Git リポジトリをクローンする既定の場所"
+	"config.defaultCloneDirectory": "Git リポジトリをクローンする既定の場所",
+	"config.enableSmartCommit": "ステージされた変更がない場合はすべての変更をコミットします。"
 }

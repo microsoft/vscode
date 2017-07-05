@@ -46,6 +46,7 @@
 	"autoClosingBrackets": "Controla si el editor debe cerrar automáticamente los corchetes después de abrirlos",
 	"formatOnType": "Controla si el editor debe dar formato automáticamente a la línea después de escribirla",
 	"formatOnPaste": "Controla si el editor debe formatear automáticamente el contenido pegado. Debe haber disponible un formateador capaz de aplicar formato a un intervalo dentro de un documento.",
+	"autoIndent": "Controla si el editor debería ajustar automáticamente la sangría cuando los usuarios escriben, pegan o mueven líneas. Las reglas de sangría del idioma deben estar disponibles.",
 	"suggestOnTriggerCharacters": "Controla si las sugerencias deben aparecer de forma automática al escribir caracteres desencadenadores",
 	"acceptSuggestionOnEnter": "Controla si las sugerencias deben aceptarse en \"Entrar\" (además de \"TAB\"). Ayuda a evitar la ambigüedad entre insertar nuevas líneas o aceptar sugerencias. El valor \"smart\" significa que solo se acepta una sugerencia con Entrar cuando se realiza un cambio textual.",
 	"acceptSuggestionOnCommitCharacter": "Controla si se deben aceptar sugerencias en los caracteres de confirmación. Por ejemplo, en Javascript, el punto y coma (\";\") puede ser un carácter de confirmación que acepta una sugerencia y escribe ese carácter.",

@@ -6,6 +6,7 @@
 {
 	"errorInvalidConfiguration": "設定を書き込めません。ファイル内のエラー/警告を修正してからもう一度お試しください。",
 	"defaultSettingsTitle": "既定の設定",
+	"defaultSettingsMessage": "上書きするには、右側のファイルに設定を入力します。",
 	"noSettingsFound": "設定が見つかりません。",
 	"editTtile": "編集",
 	"replaceDefaultValue": "設定を置換",

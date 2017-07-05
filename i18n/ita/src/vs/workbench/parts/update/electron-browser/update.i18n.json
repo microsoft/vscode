@@ -27,5 +27,6 @@
 	"DownloadUpdate": "Scarica l'aggiornamento disponibile",
 	"DownloadingUpdate": "Download dell'aggiornamento...",
 	"InstallingUpdate": "Installazione dell'aggiornamento...",
+	"restartToUpdate": "Riavvia per aggiornare...",
 	"checkForUpdates": "Verifica disponibilità aggiornamenti..."
 }

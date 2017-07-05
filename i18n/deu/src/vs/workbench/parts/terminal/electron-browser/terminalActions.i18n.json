@@ -30,5 +30,8 @@
 	"workbench.action.terminal.clear": "Löschen",
 	"workbench.action.terminal.allowWorkspaceShell": "Shell-Konfiguration des Arbeitsbereichs zulassen",
 	"workbench.action.terminal.disallowWorkspaceShell": "Verbiete Workspace Shell Konfiguration",
-	"workbench.action.terminal.rename": "Umbenennen"
+	"workbench.action.terminal.rename": "Umbenennen",
+	"workbench.action.terminal.rename.prompt": "Terminalnamen eingeben",
+	"workbench.action.terminal.focusFindWidget": "Widget zum Anzeigen der Suche mit Fokus",
+	"workbench.action.terminal.hideFindWidget": "Widget zum Ausblenden der Suche"
 }

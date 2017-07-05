@@ -7,6 +7,7 @@
 	"editorGroupAriaLabel": "{0}, 편집기 그룹",
 	"openEditorAriaLabel": "{0}, 편집기 열기",
 	"saveAll": "모두 저장",
+	"closeAllUnmodified": "수정되지 않은 항목 닫기",
 	"closeAll": "모두 닫기",
 	"close": "닫기",
 	"closeOthers": "기타 항목 닫기"

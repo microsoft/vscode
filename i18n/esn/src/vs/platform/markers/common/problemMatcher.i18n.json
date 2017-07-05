@@ -56,5 +56,15 @@
 	"LegacyProblemMatcherSchema.watchedBegin": "Expresión regular que señala que una tarea inspeccionada comienza a ejecutarse desencadenada a través de la inspección de archivos.",
 	"LegacyProblemMatcherSchema.watchedEnd.deprecated": "This property is deprecated. Use the watching property instead.",
 	"LegacyProblemMatcherSchema.watchedEnd": "Expresión regular que señala que una tarea inspeccionada termina de ejecutarse.",
-	"ProblemMatcherExtPoint": "Aporta buscadores de coincidencias de problemas"
+	"NamedProblemMatcherSchema.name": "Nombre del buscador de coincidencias de problemas usado para referirse a él.",
+	"NamedProblemMatcherSchema.label": "Etiqueta en lenguaje natural del buscador de coincidencias de problemas. ",
+	"ProblemMatcherExtPoint": "Aporta buscadores de coincidencias de problemas",
+	"msCompile": "Problemas del compilador de Microsoft",
+	"lessCompile": "Menos problemas",
+	"gulp-tsc": "Problemas de Gulp TSC",
+	"jshint": "Problemas de JSHint",
+	"jshint-stylish": "Problemas de estilismo de JSHint",
+	"eslint-compact": "Problemas de compactación de ESLint",
+	"eslint-stylish": "Problemas de estilismo de ESLint",
+	"go": "Ir a problemas"
 }

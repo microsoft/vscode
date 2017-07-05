@@ -23,6 +23,7 @@
 	"error.cannotparseicontheme": "Problems parsing file icons file: {0}",
 	"colorTheme": "Specifies the color theme used in the workbench.",
 	"colorThemeError": "Theme is unknown or not installed.",
+	"iconTheme": "Especifica el tema de icono utilizado en el área de trabajo o \"null\" para no mostrar ningún icono de archivo.",
 	"noIconThemeDesc": "No file icons",
 	"iconThemeError": "File icon theme is unknown or not installed.",
 	"workbenchColors": "Reemplaza los colores del tema de color actual",

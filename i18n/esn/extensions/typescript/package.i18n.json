@@ -28,6 +28,7 @@
 	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": "Define el tratamiento del espacio después de la llave de apertura y antes de la llave de cierre. Requiere TypeScript >= 2.0.6.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": "Define el tratamiento del espacio después de la llave de apertura y antes de la llave de cierre de cadenas de plantilla. Requiere TypeScript >= 2.0.6.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces": "Define el tratamiento del espacio después de la llave de apertura y antes de la llave de cierre de las expresiones JSX. Requiere TypeScript >= 2.0.6.",
+	"format.insertSpaceAfterTypeAssertion": "Define el control del espacio después de las aserciones de tipos en TypeScript. Requiere TypeScript >= 2.4",
 	"format.placeOpenBraceOnNewLineForFunctions": "Define si una llave de apertura se incluye en una nueva línea para las funciones o no.",
 	"format.placeOpenBraceOnNewLineForControlBlocks": "Define si una llave de apertura se incluye en una nueva línea para los bloques de control o no.",
 	"javascript.validate.enable": "Habilita o deshabilita la validación de JavaScript.",
@@ -44,5 +45,7 @@
 	"typescript.npm": "Especifica la ruta de acceso al archivo ejecutable de NPM usada para la adquisición automática de tipos. Requiere TypeScript >= 2.3.4.",
 	"typescript.check.npmIsInstalled": "Compruebe si NPM está instalado para la adquisición automática de tipos.",
 	"javascript.nameSuggestions": "Habilitar/deshabilitar nombres únicos de la lista de sugerencias en los archivos de JavaScript. ",
-	"typescript.tsc.autoDetect": "Controla si la detección automática de tareas TSC está activada o desactivada."
+	"typescript.tsc.autoDetect": "Controla si la detección automática de tareas TSC está activada o desactivada.",
+	"typescript.problemMatchers.tsc.label": "Problemas de TypeScript",
+	"typescript.problemMatchers.tscWatch.label": "Problemas de TypeScript (modo de inspección)"
 }

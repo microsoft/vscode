@@ -24,6 +24,7 @@
 	"default": "預設",
 	"debuggers": "偵錯工具 ({0})",
 	"debugger name": "名稱",
+	"debugger type": "型別",
 	"views": "瀏覽次數 ({0})",
 	"view id": "識別碼",
 	"view name": "名稱",

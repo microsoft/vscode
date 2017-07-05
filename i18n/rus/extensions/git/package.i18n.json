@@ -9,6 +9,7 @@
 	"command.refresh": "Обновить",
 	"command.openChange": "Открыть изменения",
 	"command.openFile": "Открыть файл",
+	"command.openHEADFile": "Открыть файл (заголовок)",
 	"command.stage": "Хранить промежуточные изменения",
 	"command.stageAll": "Хранить все промежуточные изменения",
 	"command.stageSelectedRanges": "Разместить выбранные диапазоны",
@@ -27,13 +28,16 @@
 	"command.checkout": "Извлечь в...",
 	"command.branch": "Создать ветвь...",
 	"command.deleteBranch": "Удалить ветвь...",
+	"command.merge": "Объединить ветвь...",
 	"command.pull": "Получить",
 	"command.pullRebase": "Получить (переместить изменения из одной ветви в другую)",
+	"command.pullFrom": "Загрузить с...",
 	"command.push": "Отправить",
 	"command.pushTo": "Отправить в:",
 	"command.sync": "Синхронизация",
 	"command.publish": "Опубликовать ветвь",
 	"command.showOutput": "Показать выходные данные GIT",
+	"command.ignore": "Добавить файл в .gitignore",
 	"config.enabled": "Включен ли GIT",
 	"config.path": "Путь к исполняемому файлу GIT",
 	"config.autorefresh": "Включено ли автоматическое обновление",
@@ -44,5 +48,6 @@
 	"config.checkoutType": "Определяет типы ветвей, которые выводятся при выборе пункта меню \"Извлечь в...\". При указании значения \"all\" отображаются все ссылки, \"local\" — только локальные ветви, \"tags\" — только теги, а \"remote\" — только удаленные ветви.",
 	"config.ignoreLegacyWarning": "Игнорирует предупреждение об устаревшей версии Git",
 	"config.ignoreLimitWarning": "Игнорировать предупреждение, когда в репозитории слишком много изменений",
-	"config.defaultCloneDirectory": "Расположение по умолчанию, в которое будет клонирован репозиторий Git"
+	"config.defaultCloneDirectory": "Расположение по умолчанию, в которое будет клонирован репозиторий Git",
+	"config.enableSmartCommit": "Зафиксировать все изменения при отсутствии промежуточных изменений."
 }

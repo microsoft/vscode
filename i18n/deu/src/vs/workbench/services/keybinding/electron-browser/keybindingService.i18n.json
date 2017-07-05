@@ -8,6 +8,7 @@
 	"requirestring": "Die Eigenschaft \"{0}\" ist erforderlich. Sie muss vom Typ \"string\" sein.",
 	"optstring": "Die Eigenschaft \"{0}\" kann ausgelassen werden oder muss vom Typ \"string\" sein.",
 	"vscode.extension.contributes.keybindings.command": "Der Bezeichner des Befehls, der ausgeführt werden soll, wenn die Tastenbindung ausgelöst wird.",
+	"vscode.extension.contributes.keybindings.key": "Der Schlüssel oder die Schlüsselsequenz (separate Schlüssel mit Pluszeichen und Sequenzen mit Leerzeichen, z. B. STRG+O und STRG+L L für einen Akkord).",
 	"vscode.extension.contributes.keybindings.mac": "Der Mac-spezifische Schlüssel oder die Schlüsselsequenz.",
 	"vscode.extension.contributes.keybindings.linux": "Der Linux-spezifische Schlüssel oder die Schlüsselsequenz.",
 	"vscode.extension.contributes.keybindings.win": "Der Windows-spezifische Schlüssel oder die Schlüsselsequenz.",

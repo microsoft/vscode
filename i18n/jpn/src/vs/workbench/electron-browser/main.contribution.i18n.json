@@ -40,6 +40,7 @@
 	"restoreWindows": "再起動後にウィンドウを再度開く方法を制御します。'none' を選択すると常に空のウィンドウで開始します。'one' を選択すると最後に使用したウィンドウを再度開きます。'folders' を選択すると開いていたすべてのウィンドウを再度開きます。'all' を選択すると前回のセッションのすべてのウィンドウを再度開きます。",
 	"restoreFullscreen": "全画面表示モードで終了した場合に、ウィンドウを全画面表示モードに復元するかどうかを制御します。",
 	"zoomLevel": "ウィンドウのズーム レベルを調整します。元のサイズは 0 で、1 つ上げるごとに (1 など) 20% ずつ拡大することを表し、1 つ下げるごとに (-1 など) 20% ずつ縮小することを表します。小数点以下の桁数を入力して、さらに細かくズーム レベルを調整することもできます。",
+	"title": "アクティブなエディターに基づいてウィンドウのタイトルを制御します。変数は、コンテキストに基づいて置換されます:\n${activeEditorShort}: 例: myFile.txt\n${activeEditorMedium}: 例: myFolder/myFile.txt\n${activeEditorLong}: 例: /Users/Development/myProject/myFolder/myFile.txt\n${folderName}: 例: myFolder\n${folderPath}: 例: /Users/Development/myFolder\n${rootName}: 例: myFolder1, myFolder2, myFolder3\n${rootPath}: 例: /Users/Development/myWorkspace\n${appName}: 例: VS Code\n${dirty}: アクティブなエディターがダーティである場合のダーティ インジゲーター\n${separator}: 値のある変数で囲まれた場合にのみ表示される条件付き区切り記号 (\" - \")",
 	"window.newWindowDimensions.default": "新しいウィンドウを画面の中央に開きます。",
 	"window.newWindowDimensions.inherit": "新しいウィンドウを、最後にアクティブだったウィンドウと同じサイズで開きます。",
 	"window.newWindowDimensions.maximized": "新しいウィンドウを最大化した状態で開きます。",

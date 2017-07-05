@@ -7,5 +7,7 @@
 	"relaunchSettingMessage": "Ha cambiado un ajuste que requiere un reinicio para ser efectivo.",
 	"relaunchSettingDetail": "Pulse el botón de reinicio para reiniciar {0} y habilitar el ajuste.",
 	"restart": "Reiniciar",
+	"relaunchWorkspaceMessage": "Una carpeta del área de trabajo se agregó o quitó, lo que requiere un reinicio para aplicarse.",
+	"relaunchWorkspaceDetail": "Presione el botón de reinicio para volver a cargar la ventana y habilitar los cambios en el área de trabajo.",
 	"reload": "Recargar"
 }

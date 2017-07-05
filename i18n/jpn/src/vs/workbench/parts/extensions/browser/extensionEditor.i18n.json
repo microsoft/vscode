@@ -24,6 +24,7 @@
 	"default": "既定",
 	"debuggers": "デバッガー ({0})",
 	"debugger name": "名前",
+	"debugger type": "種類",
 	"views": "ビュー ({0})",
 	"view id": "ID",
 	"view name": "名前",

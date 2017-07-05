@@ -23,6 +23,7 @@
 	"error.cannotparseicontheme": "Problems parsing file icons file: {0}",
 	"colorTheme": "指定工作台中使用的颜色主题。",
 	"colorThemeError": "主题未知或未安装。",
+	"iconTheme": "指定在工作台中使用的图标主题，或指定 \"null\" 以不显示任何文件图标。",
 	"noIconThemeDesc": "No file icons",
 	"iconThemeError": "文件图标主题未知或未安装。",
 	"workbenchColors": "覆盖当前所选颜色主题的颜色。",

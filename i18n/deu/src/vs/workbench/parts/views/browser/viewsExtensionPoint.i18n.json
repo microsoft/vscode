@@ -9,6 +9,7 @@
 	"optstring": "Die Eigenschaft \"{0}\" kann ausgelassen werden oder muss vom Typ \"string\" sein.",
 	"vscode.extension.contributes.view.id": "Bezeichner der Ansicht. Damit können Sie einen Datenanbieter über die API \"vscode.window.registerTreeDataProviderForView\" registrieren. Er dient auch zum Aktivieren Ihrer Erweiterung, indem Sie das Ereignis \"onView:${id}\" für \"activationEvents\" registrieren.",
 	"vscode.extension.contributes.view.name": "Der visuell lesbare Name der Ansicht. Wird angezeigt",
+	"vscode.extension.contributes.view.when": "Bedingung, die zum Anzeigen dieser Ansicht erfüllt sein muss",
 	"vscode.extension.contributes.views": "Trägt Ansichten zum Editor bei.",
 	"views.explorer": "Explorer-Ansicht",
 	"locationId.invalid": "{0}\" ist kein gültiger Ansichtenspeicherort"

@@ -6,5 +6,8 @@
 {
 	"openFolder": "打开文件夹...",
 	"openFileFolder": "打开...",
-	"add": "添加"
+	"addFolderToWorkspace": "将文件夹添加到工作区...",
+	"add": "添加",
+	"addFolderToWorkspaceTitle": "将文件夹添加到工作区",
+	"removeFolderFromWorkspace": "将文件夹从工作区删除"
 }

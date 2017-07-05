@@ -27,5 +27,6 @@
 	"DownloadUpdate": "사용 가능한 업데이트 다운로드",
 	"DownloadingUpdate": "업데이트를 다운로드하는 중...",
 	"InstallingUpdate": "업데이트를 설치하는 중...",
+	"restartToUpdate": "업데이트하기 위해 다시 시작...",
 	"checkForUpdates": "업데이트 확인..."
 }

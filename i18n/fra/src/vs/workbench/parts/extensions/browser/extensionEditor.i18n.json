@@ -24,6 +24,7 @@
 	"default": "Par défaut",
 	"debuggers": "Débogueurs ({0})",
 	"debugger name": "Nom",
+	"debugger type": "Type",
 	"views": "Vues ({0})",
 	"view id": "ID",
 	"view name": "Nom",

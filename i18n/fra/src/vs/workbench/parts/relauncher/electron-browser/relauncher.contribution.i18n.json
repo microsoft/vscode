@@ -7,5 +7,7 @@
 	"relaunchSettingMessage": "Un paramètre a changé et nécessite un redémarrage pour être appliqué.",
 	"relaunchSettingDetail": "Appuyez sur le bouton de redémarrage pour redémarrer {0} et activer le paramètre.",
 	"restart": "Redémarrer",
+	"relaunchWorkspaceMessage": "Un dossier de l'espace de travail a été ajouté ou supprimé, et cette opération nécessite un redémarrage pour prendre effet.",
+	"relaunchWorkspaceDetail": "Appuyez sur le bouton de redémarrage pour recharger la fenêtre et activer les modifications de l'espace de travail.",
 	"reload": "Recharger"
 }

@@ -7,5 +7,6 @@
 	"replAriaLabel": "Панель read–eval–print loop",
 	"actions.repl.historyPrevious": "Журнал — назад",
 	"actions.repl.historyNext": "Журнал — далее",
-	"actions.repl.acceptInput": "Прием входных данных REPL"
+	"actions.repl.acceptInput": "Прием входных данных REPL",
+	"actions.repl.copyAll": "Отладка: скопировать все содержимое консоли"
 }

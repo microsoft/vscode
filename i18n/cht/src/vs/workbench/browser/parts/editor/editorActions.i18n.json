@@ -19,6 +19,7 @@
 	"closeEditorsToTheLeft": "將編輯器關到左側",
 	"closeEditorsToTheRight": "將編輯器關到右側",
 	"closeAllEditors": "關閉所有編輯器",
+	"closeUnmodifiedEditors": "在群組中關閉未修改的編輯器",
 	"closeEditorsInOtherGroups": "關閉其他群組中的編輯器",
 	"closeOtherEditorsInGroup": "關閉其他編輯器",
 	"closeEditorsInGroup": "關閉群組中的所有編輯器",
