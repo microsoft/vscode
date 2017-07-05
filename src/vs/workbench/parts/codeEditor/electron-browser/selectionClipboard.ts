@@ -26,7 +26,7 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 		super();
 
 		if (platform.isLinux) {
-			var isEnabled = editor.getConfiguration().contribInfo.selectionClipboard;
+			let isEnabled = editor.getConfiguration().contribInfo.selectionClipboard;
 
 			this._register(editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
 				if (e.contribInfo) {

@@ -30,7 +30,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		@ICommandService private commandService: ICommandService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
-		this._workspaceRoot = paths.normalize(contextService.hasWorkspace() ? contextService.getWorkspace().resource.fsPath : '', true); // TODO@Isidor (https://github.com/Microsoft/vscode/issues/29246)
+		this._workspaceRoot = paths.normalize(contextService.hasWorkspace() ? contextService.getLegacyWorkspace().resource.fsPath : '', true); // TODO@Isidor (https://github.com/Microsoft/vscode/issues/29246)
 		this._execPath = environmentService.execPath;
 		Object.keys(envVariables).forEach(key => {
 			this[`env:${key}`] = envVariables[key];

@@ -25,7 +25,7 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
@@ -48,8 +48,8 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWindowIPCService, IBroadcast } from 'vs/workbench/services/window/electron-browser/windowService';
 import { ILogEntry, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from 'vs/workbench/electron-browser/extensionHost';
+import { IBroadcastService, IBroadcast } from "vs/platform/broadcast/electron-browser/broadcastService";
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -91,7 +91,8 @@ export class DebugService implements debug.IDebugService {
 		@IMessageService private messageService: IMessageService,
 		@IPartService private partService: IPartService,
 		@IWindowsService private windowsService: IWindowsService,
-		@IWindowIPCService private windowService: IWindowIPCService,
+		@IWindowService private windowService: IWindowService,
+		@IBroadcastService private broadcastService: IBroadcastService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -144,7 +145,7 @@ export class DebugService implements debug.IDebugService {
 		lifecycleService.onShutdown(this.store, this);
 		lifecycleService.onShutdown(this.dispose, this);
 
-		this.toDispose.push(this.windowService.onBroadcast(this.onBroadcast, this));
+		this.toDispose.push(this.broadcastService.onBroadcast(this.onBroadcast, this));
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration((event) => {
 			if (event.sourceConfig) {
 				const names = this.configurationManager.getConfigurationNames();
@@ -159,13 +160,21 @@ export class DebugService implements debug.IDebugService {
 	private onBroadcast(broadcast: IBroadcast): void {
 
 		// attach: PH is ready to be attached to
-		// TODO@Isidor this is a hack to just get any 'extensionHost' session.
-		// Optimally the broadcast would contain the id of the session
-		// We are only interested if we have an active debug session for extensionHost
 		const process = this.model.getProcesses().filter(p => strings.equalsIgnoreCase(p.configuration.type, 'extensionhost')).pop();
 		const session = process ? <RawDebugSession>process.session : null;
 		if (broadcast.channel === EXTENSION_ATTACH_BROADCAST_CHANNEL) {
-			setTimeout(() => this.rawAttach(session, broadcast.payload.port), 300);
+			if (session) {
+				// Only support one extension host session at a time. More details #29884
+				this.onSessionEnd(session);
+			}
+
+			const config = this.configurationManager.getConfiguration(this.viewModel.selectedConfigurationName);
+			this.configurationManager.resolveConfiguration(config).done(resolvedConfig => {
+				resolvedConfig.request = 'attach';
+				resolvedConfig.port = broadcast.payload.port;
+				this.doCreateProcess(resolvedConfig);
+			}, errors.onUnexpectedError);
+
 			return;
 		}
 
@@ -268,7 +277,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.focusStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
 		if (thread.stoppedDetails) {
-			this.windowService.getWindow().focus();
+			this.windowService.focusWindow();
 			aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", thread.stoppedDetails.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.range.startLineNumber));
 		}
 
@@ -399,7 +408,7 @@ export class DebugService implements debug.IDebugService {
 			const process = this.viewModel.focusedProcess;
 			if (process && session && process.getId() === session.getId() && strings.equalsIgnoreCase(process.configuration.type, 'extensionhost') && this.sessionStates.get(session.getId()) === debug.State.Running &&
 				process && this.contextService.hasWorkspace() && process.configuration.noDebug) {
-				this.windowsService.closeExtensionHostWindow(this.contextService.getWorkspace2().roots.map(r => r.fsPath));
+				this.windowsService.closeExtensionHostWindow(this.contextService.getWorkspace().roots.map(r => r.fsPath));
 			}
 			if (session && session.getId() === event.body.sessionId) {
 				this.onSessionEnd(session);
@@ -668,7 +677,7 @@ export class DebugService implements debug.IDebugService {
 
 	public createProcess(config: debug.IConfig): TPromise<debug.IProcess> {
 		return this.textFileService.saveAll().then(() =>
-			this.configurationManager.resloveConfiguration(config).then(resolvedConfig => {
+			this.configurationManager.resolveConfiguration(config).then(resolvedConfig => {
 				if (!resolvedConfig) {
 					// User canceled resolving of interactive variables, silently return
 					return undefined;
@@ -818,7 +827,7 @@ export class DebugService implements debug.IDebugService {
 					watchExpressionsCount: this.model.getWatchExpressions().length,
 					extensionName: `${adapter.extensionDescription.publisher}.${adapter.extensionDescription.name}`,
 					isBuiltin: adapter.extensionDescription.isBuiltin,
-					launchJsonExists: this.contextService.hasWorkspace() && !!this.configurationService.getConfiguration<debug.IGlobalConfig>('launch', { resource: this.contextService.getWorkspace().resource }) // TODO@Isidor (https://github.com/Microsoft/vscode/issues/29245)
+					launchJsonExists: this.contextService.hasWorkspace() && !!this.configurationService.getConfiguration<debug.IGlobalConfig>('launch', { resource: this.contextService.getLegacyWorkspace().resource }) // TODO@Isidor (https://github.com/Microsoft/vscode/issues/29245)
 				});
 			}).then(() => process, (error: any) => {
 				if (error instanceof Error && error.message === 'Canceled') {
@@ -857,13 +866,13 @@ export class DebugService implements debug.IDebugService {
 			}
 
 			// task is already running - nothing to do.
-			if (this.lastTaskEvent && (this.lastTaskEvent.taskName === taskName || this.lastTaskEvent.taskId === task._id)) {
+			if (this.lastTaskEvent && this.lastTaskEvent.taskId === task._id) {
 				return TPromise.as(null);
 			}
 
 			if (this.lastTaskEvent) {
 				// there is a different task running currently.
-				return TPromise.wrapError(errors.create(nls.localize('differentTaskRunning', "There is a task {0} running. Can not run pre launch task {1}.", this.lastTaskEvent.taskName, taskName)));
+				return TPromise.wrapError(errors.create(nls.localize('differentTaskRunning', "The task '{0}' is already running. Cannot run pre-launch task '{1}'.", this.lastTaskEvent.taskName, taskName)));
 			}
 
 			// no task running, execute the preLaunchTask.
@@ -879,19 +888,6 @@ export class DebugService implements debug.IDebugService {
 			}
 
 			return taskPromise;
-		});
-	}
-
-	private rawAttach(session: RawDebugSession, port: number): TPromise<any> {
-		if (session) {
-			return session.attach({ port });
-		}
-
-		const config = this.configurationManager.getConfiguration(this.viewModel.selectedConfigurationName);
-		return this.configurationManager.resloveConfiguration(config).then(resolvedConfig => {
-			resolvedConfig.request = 'attach';
-			resolvedConfig.port = port;
-			this.doCreateProcess(resolvedConfig);
 		});
 	}
 

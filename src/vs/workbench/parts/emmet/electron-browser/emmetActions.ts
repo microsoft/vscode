@@ -292,7 +292,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 		const modeService = accessor.get(IModeService);
 		const messageService = accessor.get(IMessageService);
 		const contextService = accessor.get(IWorkspaceContextService);
-		const workspaceRoot = contextService.hasWorkspace() ? contextService.getWorkspace().resource.fsPath : ''; // TODO@Ramya (https://github.com/Microsoft/vscode/issues/29244)
+		const workspaceRoot = contextService.hasWorkspace() ? contextService.getLegacyWorkspace().resource.fsPath : ''; // TODO@Ramya (https://github.com/Microsoft/vscode/issues/29244)
 		const telemetryService = accessor.get(ITelemetryService);
 		const commandService = accessor.get(ICommandService);
 

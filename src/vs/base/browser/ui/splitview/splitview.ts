@@ -544,6 +544,10 @@ export class SplitView implements
 		return this._onFocus.event;
 	}
 
+	getViews<T extends IView>(): T[] {
+		return <T[]>this.views.slice(0, this.views.length - 1);
+	}
+
 	addView(view: IView, initialWeight: number = 1, index = this.views.length - 1): void {
 		if (initialWeight <= 0) {
 			throw new Error('Initial weight must be a positive number.');

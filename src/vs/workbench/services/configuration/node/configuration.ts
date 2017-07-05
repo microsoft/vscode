@@ -227,11 +227,11 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		}
 	}
 
-	public getWorkspace(): ILegacyWorkspace {
+	public getLegacyWorkspace(): ILegacyWorkspace {
 		return this.legacyWorkspace;
 	}
 
-	public getWorkspace2(): IWorkspace {
+	public getWorkspace(): IWorkspace {
 		return this.workspace;
 	}
 

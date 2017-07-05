@@ -459,7 +459,7 @@ export interface IContextKeyServiceTarget {
 	getAttribute(attr: string): string;
 }
 
-export let IContextKeyService = createDecorator<IContextKeyService>('contextKeyService');
+export const IContextKeyService = createDecorator<IContextKeyService>('contextKeyService');
 
 export interface IContextKeyService {
 	_serviceBrand: any;

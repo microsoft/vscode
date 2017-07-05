@@ -190,66 +190,21 @@ declare module 'vscode' {
 		onData(callback: (data: string) => any): void;
 	}
 
-	/**
-	 * Namespace for dealing with debug sessions.
-	 */
 	export namespace debug {
 
 		/**
-		 * An [event](#Event) which fires when a debug session has terminated.
+		 * The currently active debug session or `undefined`. The active debug session is the one
+		 * represented by the debug action floating window or the one currently shown in the drop down menu of the debug action floating window.
+		 * If no debug session is active, the value is `undefined`.
 		 */
-		export const onDidTerminateDebugSession: Event<DebugSession>;
+		export const activeDebugSession: DebugSession | undefined;
 
 		/**
-		 * Create a new debug session based on the given launchConfig.
-		 * @param launchConfig
+		 * An [event](#Event) which fires when the [active debug session](#debug.activeDebugSession)
+		 * has changed. *Note* that the event also fires when the active debug session changes
+		 * to `undefined`.
 		 */
-		export function createDebugSession(launchConfig: DebugConfiguration): Thenable<DebugSession>;
+		export const onDidChangeActiveDebugSession: Event<DebugSession | undefined>;
 	}
 
-	/**
-	 * Configuration for a debug session.
-	 */
-	export interface DebugConfiguration {
-		/**
-		 * The type for the debug session.
-		 */
-		type: string;
-
-		/**
-		 * An optional name for the debug session.
-		 */
-		name?: string;
-
-		/**
-		 * The request type of the debug session.
-		 */
-		request: string;
-
-		/**
-		 * Additional debug type specific properties.
-		 */
-		[key: string]: any;
-	}
-
-	/**
-	 * A debug session.
-	 */
-	export interface DebugSession {
-
-		/**
-		 * The debug session's type from the debug configuration.
-		 */
-		readonly type: string;
-
-		/**
-		 * The debug session's name from the debug configuration.
-		 */
-		readonly name: string;
-
-		/**
-		 * Send a custom request to the debug adapter.
-		 */
-		customRequest(command: string, args?: any): Thenable<any>;
-	}
 }

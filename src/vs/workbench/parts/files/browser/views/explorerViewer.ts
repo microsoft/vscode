@@ -574,7 +574,7 @@ export class FileFilter implements IFilter {
 
 	public updateConfiguration(): boolean {
 		let needsRefresh = false;
-		this.contextService.getWorkspace2().roots.forEach(root => {
+		this.contextService.getWorkspace().roots.forEach(root => {
 			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(undefined, { resource: root });
 			const excludesConfig = (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
 			needsRefresh = needsRefresh || !objects.equals(this.hiddenExpressionPerRoot.get(root.toString()), excludesConfig);
@@ -641,7 +641,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 	}
 
 	public getDragURI(tree: ITree, stat: FileStat): string {
-		if (this.contextService.getWorkspace2().roots.some(r => r.toString() === stat.resource.toString())) {
+		if (this.contextService.getWorkspace().roots.some(r => r.toString() === stat.resource.toString())) {
 			return null; // Can not move root folder
 		}
 		if (stat.isDirectory) {
@@ -744,7 +744,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 			return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY(true) : DRAG_OVER_ACCEPT_BUBBLE_DOWN(true);
 		}
 
-		const workspace = this.contextService.getWorkspace2();
+		const workspace = this.contextService.getWorkspace();
 		if (workspace && workspace.roots.every(r => r.toString() !== target.resource.toString())) {
 			return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_UP_COPY : DRAG_OVER_ACCEPT_BUBBLE_UP;
 		}

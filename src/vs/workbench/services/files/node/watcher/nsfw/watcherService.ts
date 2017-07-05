@@ -93,7 +93,7 @@ export class FileWatcher {
 			return;
 		}
 
-		const roots = this.contextService.getWorkspace2().roots;
+		const roots = this.contextService.getWorkspace().roots;
 		this.service.setRoots(roots.map(root => {
 			// Fetch the root's watcherExclude setting and return it
 			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(undefined, {
