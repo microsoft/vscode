@@ -56,7 +56,7 @@
 
 .quick-open-widget .quick-open-tree .quick-open-entry > .row {
 	display: flex;
-	align-items: center;
+	align-items: stretch;
 }
 
 .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon {
@@ -92,7 +92,7 @@
 }
 
 .quick-open-widget .quick-open-tree .quick-open-entry-keybinding .monaco-kbkey {
-	vertical-align: text-bottom;
+	margin-top: -3px;
 }
 
 .quick-open-widget .quick-open-tree .results-group {
