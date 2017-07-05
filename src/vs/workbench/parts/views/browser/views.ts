@@ -613,7 +613,7 @@ export class ComposedViewsViewlet extends Viewlet {
 		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => TPromise.as([{
+			getActions: () => TPromise.as([<IAction>{
 				id: `${view.id}.removeView`,
 				label: nls.localize('removeView', "Remove from {0}", this.getTitle()),
 				enabled: true,
