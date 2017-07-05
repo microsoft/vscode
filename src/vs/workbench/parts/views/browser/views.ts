@@ -12,7 +12,7 @@ import { $, Dimension, Builder } from 'vs/base/browser/builder';
 import { Scope } from 'vs/workbench/common/memento';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
-import { IActionItem, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { prepareActions } from 'vs/workbench/browser/actions';
 import { Viewlet, ViewletRegistry, Extensions } from 'vs/workbench/browser/viewlet';
@@ -57,6 +57,8 @@ export interface IView extends IBaseView, IThemable {
 	id: string;
 
 	name: string;
+
+	getHeaderElement(): HTMLElement;
 
 	create(): TPromise<void>;
 
@@ -139,6 +141,10 @@ export abstract class CollapsibleView extends AbstractCollapsibleView implements
 
 	public create(): TPromise<void> {
 		return TPromise.as(null);
+	}
+
+	getHeaderElement(): HTMLElement {
+		return this.header;
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -306,6 +312,7 @@ export class ComposedViewsViewlet extends Viewlet {
 
 	private splitView: SplitView;
 	protected views: IView[];
+	private viewHeaderContextMenuListeners: IDisposable[] = [];
 	private dimension: Dimension;
 	private viewletSettings: object;
 
@@ -348,7 +355,6 @@ export class ComposedViewsViewlet extends Viewlet {
 		this.viewletContainer = DOM.append(parent.getHTMLElement(), DOM.$(''));
 		this.splitView = this._register(new SplitView(this.viewletContainer));
 		this._register(this.splitView.onFocus((view: IView) => this.lastFocusedView = view));
-		this._register(DOM.addDisposableListener(this.viewletContainer, 'contextmenu', e => this.onContextMenu(new StandardMouseEvent(e))));
 
 		return this.onViewDescriptorsChanged()
 			.then(() => {
@@ -373,18 +379,20 @@ export class ComposedViewsViewlet extends Viewlet {
 	}
 
 	public getSecondaryActions(): IAction[] {
-		let actions = [];
 		if (this.hasSingleView() && this.views[0]) {
-			actions = this.views[0].getSecondaryActions();
+			return this.views[0].getSecondaryActions();
 		}
+		return [];
+	}
 
-		if (actions.length) {
-			actions.push(new Separator());
-		}
-
-		actions.push(...this.getToggleVisibilityActions(this.getViewDescriptorsFromRegistry()));
-
-		return actions;
+	public getContextMenuActions(): IAction[] {
+		return this.getVisibilityManageableViewDescriptors().map(viewDescriptor => (<IAction>{
+			id: `${viewDescriptor.id}.toggleVisibility`,
+			label: viewDescriptor.name,
+			checked: this.isCurrentlyVisible(viewDescriptor),
+			enabled: this.contextKeyService.contextMatchesRules(viewDescriptor.when),
+			run: () => this.toggleViewVisibility(viewDescriptor.id)
+		}));
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
@@ -428,28 +436,9 @@ export class ComposedViewsViewlet extends Viewlet {
 		}
 	}
 
-	private onContextMenu(event: StandardMouseEvent): void {
-		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
-			getActions: () => TPromise.as(this.getSecondaryActions()),
-		});
-	}
-
-	private getToggleVisibilityActions(viewDescriptors: IViewDescriptor[]): IAction[] {
-		// return viewDescriptors.map(viewDescriptor => (<IAction>{
-		// 	id: `${viewDescriptor.id}.toggleVisibility`,
-		// 	label: viewDescriptor.name,
-		// 	checked: this.isCurrentlyVisible(viewDescriptor),
-		// 	enabled: this.contextKeyService.contextMatchesRules(viewDescriptor.when),
-		// 	run: () => this.toggleViewVisibility(viewDescriptor)
-		// }));
-		return [];
-	}
-
-	protected toggleViewVisibility(viewDescriptor: IViewDescriptor): void {
-		const view = this.getView(viewDescriptor.id);
-		let viewState = this.viewsStates.get(viewDescriptor.id);
+	private toggleViewVisibility(id: string): void {
+		const view = this.getView(id);
+		let viewState = this.viewsStates.get(id);
 		if (view) {
 			viewState = viewState || this.createViewState(view);
 			viewState.isHidden = true;
@@ -457,7 +446,7 @@ export class ComposedViewsViewlet extends Viewlet {
 			viewState = viewState || { collapsed: true, size: void 0, isHidden: false };
 			viewState.isHidden = false;
 		}
-		this.viewsStates.set(viewDescriptor.id, viewState);
+		this.viewsStates.set(id, viewState);
 		this.updateViews();
 	}
 
@@ -602,11 +591,35 @@ export class ComposedViewsViewlet extends Viewlet {
 		// Update title area since the title actions have changed.
 		this.updateTitleArea();
 
+		this.viewHeaderContextMenuListeners = dispose(this.viewHeaderContextMenuListeners);
+		for (const viewDescriptor of this.getVisibilityManageableViewDescriptors()) {
+			const view = this.getView(viewDescriptor.id);
+			if (view) {
+				this.viewHeaderContextMenuListeners.push(DOM.addDisposableListener(view.getHeaderElement(), DOM.EventType.CONTEXT_MENU, (e) => this.onContextMenu(new StandardMouseEvent(e), view)));
+			}
+		}
+
 		if (this.dimension) {
 			this.layoutViews();
 		}
 
 		return this.setVisible(this.isVisible());
+	}
+
+	private onContextMenu(event: StandardMouseEvent, view: IView): void {
+		event.stopPropagation();
+		event.preventDefault();
+
+		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => TPromise.as([{
+				id: `${view.id}.removeView`,
+				label: nls.localize('removeView', "Remove from {0}", this.getTitle()),
+				enabled: true,
+				run: () => this.toggleViewVisibility(view.id)
+			}]),
+		});
 	}
 
 	private hasSingleView(): boolean {
@@ -618,6 +631,10 @@ export class ComposedViewsViewlet extends Viewlet {
 			return this.viewsStates.size === 1;
 		}
 		return true;
+	}
+
+	private getVisibilityManageableViewDescriptors(): IViewDescriptor[] {
+		return this.getViewDescriptorsFromRegistry().filter(viewDescriptor => viewDescriptor.canToggleVisibility);
 	}
 
 	private getViewDescriptorsFromRegistry(): IViewDescriptor[] {

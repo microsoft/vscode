@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { forEach } from 'vs/base/common/collections';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
-import { ViewLocation, ViewsRegistry } from 'vs/workbench/parts/views/browser/viewsRegistry';
+import { ViewLocation, ViewsRegistry, IViewDescriptor } from 'vs/workbench/parts/views/browser/viewsRegistry';
 import { TreeView } from 'vs/workbench/parts/views/browser/treeView';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
@@ -92,12 +92,13 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyV
 				return;
 			}
 
-			const viewDescriptors = entry.value.map(item => ({
+			const viewDescriptors = entry.value.map(item => (<IViewDescriptor>{
 				id: item.id,
 				name: item.name,
 				ctor: TreeView,
 				location,
-				when: ContextKeyExpr.deserialize(item.when)
+				when: ContextKeyExpr.deserialize(item.when),
+				canToggleVisibility: true
 			}));
 			ViewsRegistry.registerViews(viewDescriptors);
 		});
