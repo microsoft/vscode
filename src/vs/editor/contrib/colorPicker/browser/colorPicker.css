@@ -41,7 +41,6 @@
 	left: 1px;
 	background: rgba(100, 100, 100, 0.4);
 	height: 5px;
-	will-change: transform;
 }
 
 .opacity-strip-wrap {

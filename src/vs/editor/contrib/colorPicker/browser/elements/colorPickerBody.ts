@@ -15,8 +15,9 @@ const MOUSE_DRAG_RESET_DISTANCE = 140;
 export class ColorPickerBody extends Disposable {
 
 	private domNode: HTMLElement;
-	private slider: HTMLElement;
 	private saturationBox: HTMLElement;
+	private hueStrip: HueStrip;
+	private slider: HueSlider;
 
 	private saturationCtx: CanvasRenderingContext2D;
 	private opacityStripCtx: CanvasRenderingContext2D;
@@ -60,13 +61,9 @@ export class ColorPickerBody extends Disposable {
 		const monitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
 		// Saturation box listeners
 		this._register(dom.addDisposableListener(this.saturationBox, dom.EventType.MOUSE_DOWN, e => {
-			monitor.startMonitoring(standardMouseMoveMerger,
-				(mouseMoveData: IStandardMouseMoveEventData) => {
-					this.model.dragging = true;
-					const color = this.extractColorData(e);
-					this.widget.model.selectedColor = color;
-				}, () => null
-			);
+			this.model.dragging = true;
+			const color = this.extractColorData(e);
+			this.widget.model.selectedColor = color;
 		}));
 		this._register(dom.addDisposableListener(this.saturationBox, dom.EventType.MOUSE_UP, e => {
 			this.model.dragging = false;
@@ -79,35 +76,25 @@ export class ColorPickerBody extends Disposable {
 		}));
 
 		// Slider listeners
-		this._register(dom.addDisposableListener(this.slider, dom.EventType.MOUSE_DOWN, e => {
-			// Clicked on a slider
-			e.preventDefault();
-			if (e.leftButton) {
+		this._register(dom.addStandardDisposableListener(this.slider.domNode, dom.EventType.MOUSE_DOWN, e => {
+			if (!e.leftButton) {
 				return;
 			}
 
-			//const initialMousePosition = e.posy;
+			const initialMousePosition = e.posy;
 			const initialMouseOrthogonalPosition = e.posx;
+			const initialSliderTop = this.slider.top;
 			monitor.startMonitoring(standardMouseMoveMerger, (mouseMoveData: IStandardMouseMoveEventData) => {
 				const mouseOrthogonalDelta = Math.abs(mouseMoveData.posx - initialMouseOrthogonalPosition);
 
-				// Change if the
+				// Do not move slider on Windows if it's outside of movable bounds
 				if (isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
 					return;
 				}
 
-				//const mouseDelta = mouseMoveData.posy - initialMousePosition;
-				// render slider in correct place
+				const mouseDelta = mouseMoveData.posy - initialMousePosition;
+				this.slider.top = initialSliderTop + mouseDelta;
 			}, () => null);
-		}));
-		this._register(dom.addDisposableListener(this.slider, dom.EventType.MOUSE_DOWN, e => {
-			// Add top
-		}));
-		this._register(dom.addDisposableListener(this.slider, dom.EventType.MOUSE_UP, e => {
-			// Reduce top
-		}));
-		this._register(dom.addDisposableListener(this.slider, dom.EventType.MOUSE_UP, e => {
-			// Reduce top
 		}));
 	}
 
@@ -173,30 +160,13 @@ export class ColorPickerBody extends Disposable {
 		// Hue strip
 		const hueWrapper = $('.hue-strip-wrap');
 
-		const hueStrip = document.createElement('canvas');
-		hueStrip.className = 'hue-strip';
-		hueStrip.width = actualW;
-		hueStrip.height = actualH;
-		hueStrip.style.width = w + 'px';
-		hueStrip.style.height = h + 'px';
-		const colorStripCtx = hueStrip.getContext('2d');
-		colorStripCtx.rect(0, 0, actualW, actualH);
-		const colorGradient = colorStripCtx.createLinearGradient(0, 0, 0, actualH);
-		colorGradient.addColorStop(0, 'rgba(255, 0, 0, 1)');
-		colorGradient.addColorStop(0.17, 'rgba(255, 255, 0, 1)');
-		colorGradient.addColorStop(0.34, 'rgba(0, 255, 0, 1)');
-		colorGradient.addColorStop(0.51, 'rgba(0, 255, 255, 1)');
-		colorGradient.addColorStop(0.68, 'rgba(0, 0, 255, 1)');
-		colorGradient.addColorStop(0.85, 'rgba(255, 0, 255, 1)');
-		colorGradient.addColorStop(1, 'rgba(255, 0, 0, 1)');
-		colorStripCtx.fillStyle = colorGradient;
-		colorStripCtx.fill();
+		this.hueStrip = new HueStrip(w, h, actualW, actualH);
 
-		this.slider = $('.slider');
+		this.slider = new HueSlider(this.hueStrip);
 
 		dom.append(this.domNode, hueWrapper);
-		dom.append(hueWrapper, hueStrip);
-		dom.append(hueWrapper, this.slider);
+		dom.append(hueWrapper, this.hueStrip.domNode);
+		dom.append(hueWrapper, this.slider.domNode);
 	}
 
 	private extractColorData(e: MouseEvent) {
@@ -204,4 +174,65 @@ export class ColorPickerBody extends Disposable {
 		const color = `rgba(${imageData.data[0]}, ${imageData.data[1]}, ${imageData.data[2]}, ${imageData.data[3]})`;
 		return color;
 	}
+}
+
+class HueStrip {
+	public domNode: HTMLCanvasElement;
+	public height: number;
+
+	constructor(width: number, height: number, actualWidth: number, actualHeight: number) {
+		this.height = height;
+
+		this.domNode = document.createElement('canvas');
+		this.domNode.className = 'hue-strip';
+		this.domNode.width = actualWidth;
+		this.domNode.height = actualHeight;
+		this.domNode.style.width = width + 'px';
+		this.domNode.style.height = height + 'px';
+
+		const colorStripCtx = this.domNode.getContext('2d');
+		colorStripCtx.rect(0, 0, actualWidth, actualHeight);
+
+		const colorGradient = colorStripCtx.createLinearGradient(0, 0, 0, actualHeight);
+		colorGradient.addColorStop(0, 'rgba(255, 0, 0, 1)');
+		colorGradient.addColorStop(0.17, 'rgba(255, 255, 0, 1)');
+		colorGradient.addColorStop(0.34, 'rgba(0, 255, 0, 1)');
+		colorGradient.addColorStop(0.51, 'rgba(0, 255, 255, 1)');
+		colorGradient.addColorStop(0.68, 'rgba(0, 0, 255, 1)');
+		colorGradient.addColorStop(0.85, 'rgba(255, 0, 255, 1)');
+		colorGradient.addColorStop(1, 'rgba(255, 0, 0, 1)');
+
+		colorStripCtx.fillStyle = colorGradient;
+		colorStripCtx.fill();
+	}
+}
+
+class HueSlider {
+	public domNode: HTMLElement;
+	private _top: number;
+
+	constructor(private hueStrip: HueStrip) {
+		this.domNode = $('.slider');
+		this._top = 0;
+	}
+
+	public get top() {
+		return this._top;
+	}
+
+	// Sets style.top in 'px'
+	public set top(top: number) {
+		if (top < 0 || top > this.hueStrip.height) {
+			return;
+		}
+
+		// Account for height of the slider, not overflowing top of the strip
+		if (top >= this.domNode.offsetHeight) {
+			top -= this.domNode.offsetHeight;
+		}
+
+		this.domNode.style.top = top + 'px';
+		this._top = top;
+	}
+
 }
