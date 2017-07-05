@@ -234,6 +234,8 @@ export default class Webview {
 
 		if (this._webview.parentElement) {
 			this._webview.parentElement.removeChild(this._webview);
+			const findWidgetDomNode = this._webviewFindWidget.getDomNode();
+			findWidgetDomNode.parentElement.removeChild(findWidgetDomNode);
 		}
 	}
 
