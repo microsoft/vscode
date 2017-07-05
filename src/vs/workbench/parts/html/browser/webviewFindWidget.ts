@@ -40,7 +40,7 @@ export class WebviewFindWidget extends SimpleFindWidget {
 
 		let val = this.inputValue;
 		if (val) {
-			this.webview.find(val);
+			this.webview.startFind(val);
 		} else {
 			this.webview.stopFind(false);
 		}

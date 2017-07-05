@@ -89,6 +89,7 @@ export default class Webview {
 	private _onFoundInPageResults = new Emitter<FoundInPageResults>();
 
 	private _webviewFindWidget: WebviewFindWidget;
+	private _findStarted: boolean = false;
 
 	constructor(
 		private parent: HTMLElement,
@@ -411,6 +412,27 @@ export default class Webview {
 		return false;
 	}
 
+	public startFind(value: string, options?: WebviewElementFindInPageOptions) {
+		if (!value) {
+			return;
+		}
+
+		// ensure options is defined without modifying the original
+		options = options || {};
+
+		// FindNext must be false for a first request
+		const findOptions: WebviewElementFindInPageOptions = {
+			forward: options.forward,
+			findNext: false,
+			matchCase: options.matchCase,
+			medialCapitalAsWordStart: options.medialCapitalAsWordStart
+		};
+
+		this._findStarted = true;
+		this._webview.findInPage(value, findOptions);
+		return;
+	}
+
 	/**
 	 * Webviews expose a stateful find API.
 	 * Successive calls to find will move forward or backward through onFindResults
@@ -423,12 +445,20 @@ export default class Webview {
 	 */
 	public find(value: string, options?: WebviewElementFindInPageOptions): void {
 		// Searching with an empty value will throw an exception
-		if (value) {
-			this._webview.findInPage(value, options);
+		if (!value) {
+			return;
 		}
+
+		if (!this._findStarted) {
+			this.startFind(value, options);
+			return;
+		}
+
+		this._webview.findInPage(value, options);
 	}
 
 	public stopFind(keepSelection?: boolean): void {
+		this._findStarted = false;
 		this._webview.stopFindInPage(keepSelection ? StopFindInPageActions.keepSelection : StopFindInPageActions.clearSelection);
 	}
 
