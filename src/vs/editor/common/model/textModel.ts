@@ -115,6 +115,10 @@ export class TextModel implements editorCommon.ITextModel {
 		this._isDisposing = false;
 	}
 
+	protected _createModelLine(text: string, tabSize: number): IModelLine {
+		return new ModelLine(text, tabSize);
+	}
+
 	protected _assertNotDisposed(): void {
 		if (this._isDisposed) {
 			throw new Error('Model is disposed!');
@@ -758,7 +762,7 @@ export class TextModel implements editorCommon.ITextModel {
 		let modelLines: IModelLine[] = [];
 
 		for (let i = 0, len = rawLines.length; i < len; i++) {
-			modelLines[i] = new ModelLine(rawLines[i], tabSize);
+			modelLines[i] = this._createModelLine(rawLines[i], tabSize);
 		}
 		this._BOM = textSource.BOM;
 		this._mightContainRTL = textSource.containsRTL;

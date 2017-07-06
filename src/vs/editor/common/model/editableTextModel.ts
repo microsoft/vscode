@@ -7,7 +7,7 @@
 import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditStack } from 'vs/editor/common/model/editStack';
-import { ILineEdit, LineMarker, ModelLine, MarkersTracker, IModelLine } from 'vs/editor/common/model/modelLine';
+import { ILineEdit, LineMarker, MarkersTracker, IModelLine } from 'vs/editor/common/model/modelLine';
 import { TextModelWithDecorations, ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import * as strings from 'vs/base/common/strings';
 import * as arrays from 'vs/base/common/arrays';
@@ -653,7 +653,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				let newLinesContent: string[] = [];
 				let newLinesLengths = new Uint32Array(insertingLinesCnt - editingLinesCnt);
 				for (let j = editingLinesCnt + 1; j <= insertingLinesCnt; j++) {
-					newLines.push(new ModelLine(op.lines[j], tabSize));
+					newLines.push(this._createModelLine(op.lines[j], tabSize));
 					newLinesContent.push(op.lines[j]);
 					newLinesLengths[j - editingLinesCnt - 1] = op.lines[j].length + this._EOL.length;
 				}
