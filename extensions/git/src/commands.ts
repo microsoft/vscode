@@ -174,7 +174,6 @@ export class CommandCenter {
 		}
 
 		const opts: TextDocumentShowOptions = {
-			preview: true,
 			viewColumn
 		};
 
