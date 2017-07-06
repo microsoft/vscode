@@ -213,7 +213,7 @@ export class TriggerRenameFileAction extends BaseFileAction {
 			});
 		}).done(null, errors.onUnexpectedError);
 
-		return undefined;
+		return void 0;
 	}
 }
 
@@ -846,7 +846,7 @@ export class ImportFileAction extends BaseFileAction {
 					}
 
 					if (!overwrite) {
-						return undefined;
+						return void 0;
 					}
 
 					// Run import in sequence
@@ -879,7 +879,8 @@ export class ImportFileAction extends BaseFileAction {
 					return sequence(importPromisesFactory);
 				});
 			}
-			return undefined;
+
+			return void 0;
 		});
 
 		return importPromise.then(() => {
@@ -1042,7 +1043,8 @@ export class DuplicateFileAction extends BaseFileAction {
 			if (!stat.isDirectory) {
 				return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 			}
-			return undefined;
+
+			return void 0;
 		}, error => this.onError(error));
 
 		return result;
@@ -1395,7 +1397,7 @@ export abstract class BaseSaveOneFileAction extends BaseSaveFileAction {
 
 				return savePromise.then((target) => {
 					if (!target || target.toString() === source.toString()) {
-						return undefined; // save canceled or same resource used
+						return void 0; // save canceled or same resource used
 					}
 
 					const replaceWith: IResourceInput = {
@@ -1566,7 +1568,8 @@ export abstract class BaseSaveAllAction extends BaseSaveFileAction {
 			if (untitledToReopen.length) {
 				return this.editorService.openEditors(untitledToReopen).then(() => true);
 			}
-			return undefined;
+
+			return void 0;
 		});
 	}
 

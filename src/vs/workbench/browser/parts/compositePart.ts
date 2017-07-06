@@ -270,7 +270,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 			// Make sure that the user meanwhile did not open another composite or closed the part containing the composite
 			if (!this.activeComposite || composite.getId() !== this.activeComposite.getId()) {
-				return undefined;
+				return void 0;
 			}
 
 			// Take Composite on-DOM and show

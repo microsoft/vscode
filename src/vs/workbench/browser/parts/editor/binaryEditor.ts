@@ -99,7 +99,8 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 						if (!didOpen) {
 							return this.windowsService.showItemInFolder(resource.fsPath);
 						}
-						return undefined;
+
+						return void 0;
 					});
 				},
 				(meta) => this.handleMetadataChanged(meta));

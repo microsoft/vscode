@@ -344,7 +344,8 @@ export class ExplorerView extends CollapsibleView {
 					this.openFocusedElement();
 				});
 			}
-			return undefined;
+
+			return void 0;
 		});
 	}
 
