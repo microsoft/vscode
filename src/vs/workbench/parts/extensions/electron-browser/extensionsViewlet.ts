@@ -301,22 +301,23 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 			.done(null, err => this.onError(err));
 	}
 
-	private async doSearch(): TPromise<any> {
+	private doSearch(): TPromise<any> {
 		const value = this.searchBox.value || '';
 		this.searchExtensionsContextKey.set(!!value);
 		this.searchInstalledExtensionsContextKey.set(InstalledExtensionsView.isInsalledExtensionsQuery(value));
 		this.searchRecommendedExtensionsContextKey.set(RecommendedExtensionsView.isRecommendedExtensionsQuery(value));
 
-		await this.updateViews(!!value);
+		return this.updateViews(!!value);
 	}
 
-	protected async updateViews(showAll?: boolean): TPromise<IView[]> {
-		const created = await super.updateViews();
-		const toShow = showAll ? this.views : created;
-		if (toShow.length) {
-			await this.progress(TPromise.join(toShow.map(view => (<ExtensionsListView>view).show(this.searchBox.value))));
-		}
-		return created;
+	protected updateViews(showAll?: boolean): TPromise<IView[]> {
+		return super.updateViews().then(created => {
+			const toShow = showAll ? this.views : created;
+			if (toShow.length) {
+				return this.progress(TPromise.join(toShow.map(view => (<ExtensionsListView>view).show(this.searchBox.value)))).then(() => created);
+			}
+			return created;
+		});
 	}
 
 	private count(): number {

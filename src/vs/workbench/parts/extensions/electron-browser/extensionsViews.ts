@@ -116,10 +116,11 @@ export class ExtensionsListView extends CollapsibleView {
 		this.list.layout(size);
 	}
 
-	async show(query: string): TPromise<IPagedModel<IExtension>> {
-		const model = await this.query(query);
-		this.setModel(model);
-		return model;
+	show(query: string): TPromise<IPagedModel<IExtension>> {
+		return this.query(query).then(model => {
+			this.setModel(model);
+			return model;
+		});
 	}
 
 	select(): void {
@@ -150,7 +151,7 @@ export class ExtensionsListView extends CollapsibleView {
 		return this.list.length;
 	}
 
-	private async query(value: string): TPromise<IPagedModel<IExtension>> {
+	private query(value: string): TPromise<IPagedModel<IExtension>> {
 		const query = Query.parse(value);
 
 		let options: IQueryOptions = {
@@ -167,52 +168,55 @@ export class ExtensionsListView extends CollapsibleView {
 			// Show installed extensions
 			value = value ? value.replace(/@installed/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase() : '';
 
-			let result = await this.extensionsWorkbenchService.queryLocal();
+			return this.extensionsWorkbenchService.queryLocal().then(result => {
 
-			switch (options.sortBy) {
-				case SortBy.InstallCount:
-					result = result.sort((e1, e2) => e2.installCount - e1.installCount);
-					break;
-				case SortBy.AverageRating:
-					result = result.sort((e1, e2) => e2.rating - e1.rating);
-					break;
-				default:
-					result = result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName));
-					break;
-			}
+				switch (options.sortBy) {
+					case SortBy.InstallCount:
+						result = result.sort((e1, e2) => e2.installCount - e1.installCount);
+						break;
+					case SortBy.AverageRating:
+						result = result.sort((e1, e2) => e2.rating - e1.rating);
+						break;
+					default:
+						result = result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName));
+						break;
+				}
 
-			if (options.sortOrder === SortOrder.Descending) {
-				result = result.reverse();
-			}
+				if (options.sortOrder === SortOrder.Descending) {
+					result = result.reverse();
+				}
 
-			result = result
-				.filter(e => e.type === LocalExtensionType.User && e.name.toLowerCase().indexOf(value) > -1);
+				result = result
+					.filter(e => e.type === LocalExtensionType.User && e.name.toLowerCase().indexOf(value) > -1);
 
-			return new PagedModel(result);
+				return new PagedModel(result);
+			});
 		}
 
 		if (/@outdated/i.test(value)) {
 			value = value.replace(/@outdated/g, '').trim().toLowerCase();
 
-			const local = await this.extensionsWorkbenchService.queryLocal();
-			const result = local
-				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
-				.filter(extension => extension.outdated && extension.name.toLowerCase().indexOf(value) > -1);
+			return this.extensionsWorkbenchService.queryLocal().then(local => {
+				const result = local
+					.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
+					.filter(extension => extension.outdated && extension.name.toLowerCase().indexOf(value) > -1);
 
-			return new PagedModel(result);
+				return new PagedModel(result);
+			});
 		}
 
 		if (/@disabled/i.test(value)) {
 			value = value.replace(/@disabled/g, '').trim().toLowerCase();
 
-			const local = await this.extensionsWorkbenchService.queryLocal();
-			const runningExtensions = await this.extensionService.getExtensions();
+			return this.extensionsWorkbenchService.queryLocal().then(local => {
+				return this.extensionService.getExtensions().then(runningExtensions => {
+					const result = local
+						.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
+						.filter(e => runningExtensions.every(r => !areSameExtensions(r, e)) && e.name.toLowerCase().indexOf(value) > -1);
 
-			const result = local
-				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
-				.filter(e => runningExtensions.every(r => !areSameExtensions(r, e)) && e.name.toLowerCase().indexOf(value) > -1);
-
-			return new PagedModel(result);
+					return new PagedModel(result);
+				});
+			});
 		}
 
 		if (ExtensionsListView.isWorkspaceRecommendedExtensionsQuery(query.value)) {
@@ -259,10 +263,12 @@ export class ExtensionsListView extends CollapsibleView {
 
 		pagerPromises.push(this.extensionsWorkbenchService.queryGallery(options));
 
-		const pagers = await TPromise.join(pagerPromises);
-		const pager = pagers.length === 2 ? mergePagers(pagers[0], pagers[1]) : pagers[0];
 
-		return new PagedModel(pager);
+		return TPromise.join(pagerPromises).then(pagers => {
+			const pager = pagers.length === 2 ? mergePagers(pagers[0], pagers[1]) : pagers[0];
+
+			return new PagedModel(pager);
+		});
 	}
 
 	private getAllRecommendationsModel(query: Query, options: IQueryOptions): TPromise<IPagedModel<IExtension>> {
@@ -426,7 +432,7 @@ export class InstalledExtensionsView extends ExtensionsListView {
 			|| ExtensionsListView.isDisabledExtensionsQuery(query);
 	}
 
-	async show(query: string): TPromise<IPagedModel<IExtension>> {
+	show(query: string): TPromise<IPagedModel<IExtension>> {
 		if (InstalledExtensionsView.isInsalledExtensionsQuery(query)) {
 			return super.show(query);
 		}
@@ -444,7 +450,7 @@ export class RecommendedExtensionsView extends ExtensionsListView {
 			|| ExtensionsListView.isWorkspaceRecommendedExtensionsQuery(query);
 	}
 
-	async show(query: string): TPromise<IPagedModel<IExtension>> {
+	show(query: string): TPromise<IPagedModel<IExtension>> {
 		if (RecommendedExtensionsView.isRecommendedExtensionsQuery(query)) {
 			return super.show(query);
 		}
