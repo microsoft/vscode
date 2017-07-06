@@ -179,8 +179,8 @@ export interface IModelLine {
 	// --- editing
 	updateLineNumber(markersTracker: MarkersTracker, newLineNumber: number): void;
 	applyEdits(markersTracker: MarkersTracker, edits: ILineEdit[], tabSize: number): number;
-	append(markersTracker: MarkersTracker, myLineNumber: number, other: ModelLine, tabSize: number): void;
-	split(markersTracker: MarkersTracker, splitColumn: number, forceMoveMarkers: boolean, tabSize: number): ModelLine;
+	append(markersTracker: MarkersTracker, myLineNumber: number, other: IModelLine, tabSize: number): void;
+	split(markersTracker: MarkersTracker, splitColumn: number, forceMoveMarkers: boolean, tabSize: number): IModelLine;
 }
 
 export abstract class AbstractModelLine {
@@ -196,6 +196,7 @@ export abstract class AbstractModelLine {
 	protected abstract get text(): string;
 	protected abstract _setText(text: string, tabSize: number);
 	protected abstract _createTokensAdjuster(): ITokensAdjuster;
+	protected abstract _createModelLine(text: string, tabSize: number): IModelLine;
 
 	///
 
@@ -357,7 +358,7 @@ export abstract class AbstractModelLine {
 		return deltaColumn;
 	}
 
-	public split(markersTracker: MarkersTracker, splitColumn: number, forceMoveMarkers: boolean, tabSize: number): ModelLine {
+	public split(markersTracker: MarkersTracker, splitColumn: number, forceMoveMarkers: boolean, tabSize: number): IModelLine {
 		// console.log('--> split @ ' + splitColumn + '::: ' + this._printMarkers());
 		var myText = this.text.substring(0, splitColumn - 1);
 		var otherText = this.text.substring(splitColumn - 1);
@@ -397,31 +398,33 @@ export abstract class AbstractModelLine {
 
 		this._setText(myText, tabSize);
 
-		var otherLine = new ModelLine(otherText, tabSize);
+		var otherLine = this._createModelLine(otherText, tabSize);
 		if (otherMarkers) {
 			otherLine.addMarkers(otherMarkers);
 		}
 		return otherLine;
 	}
 
-	public append(markersTracker: MarkersTracker, myLineNumber: number, other: ModelLine, tabSize: number): void {
+	public append(markersTracker: MarkersTracker, myLineNumber: number, other: IModelLine, tabSize: number): void {
 		// console.log('--> append: THIS :: ' + this._printMarkers());
 		// console.log('--> append: OTHER :: ' + this._printMarkers());
 		let thisTextLength = this.text.length;
 		this._setText(this.text + other.text, tabSize);
 
-		if (other._markers) {
-			// Other has markers
-			let otherMarkers = other._markers;
+		if (other instanceof AbstractModelLine) {
+			if (other._markers) {
+				// Other has markers
+				let otherMarkers = other._markers;
 
-			// Adjust other markers
-			for (let i = 0, len = otherMarkers.length; i < len; i++) {
-				let marker = otherMarkers[i];
+				// Adjust other markers
+				for (let i = 0, len = otherMarkers.length; i < len; i++) {
+					let marker = otherMarkers[i];
 
-				marker.updatePosition(markersTracker, new Position(myLineNumber, marker.position.column + thisTextLength));
+					marker.updatePosition(markersTracker, new Position(myLineNumber, marker.position.column + thisTextLength));
+				}
+
+				this.addMarkers(otherMarkers);
 			}
-
-			this.addMarkers(otherMarkers);
 		}
 	}
 
@@ -561,7 +564,11 @@ export class ModelLine extends AbstractModelLine implements IModelLine {
 		this._lineTokens = null;
 	}
 
-	public split(markersTracker: MarkersTracker, splitColumn: number, forceMoveMarkers: boolean, tabSize: number): ModelLine {
+	protected _createModelLine(text: string, tabSize: number): IModelLine {
+		return new ModelLine(text, tabSize);
+	}
+
+	public split(markersTracker: MarkersTracker, splitColumn: number, forceMoveMarkers: boolean, tabSize: number): IModelLine {
 		let result = super.split(markersTracker, splitColumn, forceMoveMarkers, tabSize);
 
 		// Mark overflowing tokens for deletion & delete marked tokens
@@ -570,36 +577,38 @@ export class ModelLine extends AbstractModelLine implements IModelLine {
 		return result;
 	}
 
-	public append(markersTracker: MarkersTracker, myLineNumber: number, other: ModelLine, tabSize: number): void {
+	public append(markersTracker: MarkersTracker, myLineNumber: number, other: IModelLine, tabSize: number): void {
 		let thisTextLength = this.text.length;
 
 		super.append(markersTracker, myLineNumber, other, tabSize);
 
-		let otherRawTokens = other._lineTokens;
-		if (otherRawTokens) {
-			// Other has real tokens
+		if (other instanceof ModelLine) {
+			let otherRawTokens = other._lineTokens;
+			if (otherRawTokens) {
+				// Other has real tokens
 
-			let otherTokens = new Uint32Array(otherRawTokens);
+				let otherTokens = new Uint32Array(otherRawTokens);
 
-			// Adjust other tokens
-			if (thisTextLength > 0) {
-				for (let i = 0, len = (otherTokens.length >>> 1); i < len; i++) {
-					otherTokens[(i << 1)] = otherTokens[(i << 1)] + thisTextLength;
+				// Adjust other tokens
+				if (thisTextLength > 0) {
+					for (let i = 0, len = (otherTokens.length >>> 1); i < len; i++) {
+						otherTokens[(i << 1)] = otherTokens[(i << 1)] + thisTextLength;
+					}
 				}
-			}
 
-			// Append other tokens
-			let myRawTokens = this._lineTokens;
-			if (myRawTokens) {
-				// I have real tokens
-				let myTokens = new Uint32Array(myRawTokens);
-				let result = new Uint32Array(myTokens.length + otherTokens.length);
-				result.set(myTokens, 0);
-				result.set(otherTokens, myTokens.length);
-				this._lineTokens = result.buffer;
-			} else {
-				// I don't have real tokens
-				this._lineTokens = otherTokens.buffer;
+				// Append other tokens
+				let myRawTokens = this._lineTokens;
+				if (myRawTokens) {
+					// I have real tokens
+					let myTokens = new Uint32Array(myRawTokens);
+					let result = new Uint32Array(myTokens.length + otherTokens.length);
+					result.set(myTokens, 0);
+					result.set(otherTokens, myTokens.length);
+					this._lineTokens = result.buffer;
+				} else {
+					// I don't have real tokens
+					this._lineTokens = otherTokens.buffer;
+				}
 			}
 		}
 	}
