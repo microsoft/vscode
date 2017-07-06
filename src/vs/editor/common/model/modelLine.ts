@@ -160,7 +160,6 @@ function computePlusOneIndentLevel(line: string, tabSize: number): number {
 
 export interface IModelLine {
 	readonly text: string;
-	isInvalid: boolean;
 
 	// --- markers
 	addMarker(marker: LineMarker): void;
@@ -171,6 +170,8 @@ export interface IModelLine {
 
 	// --- tokenization
 	resetTokenizationState(): void;
+	isInvalid(): boolean;
+	setIsInvalid(isInvalid: boolean): void;
 	getState(): IState;
 	setState(state: IState): void;
 	getTokens(topLevelLanguageId: LanguageId): LineTokens;
@@ -198,12 +199,12 @@ export class ModelLine implements IModelLine {
 	 */
 	private _metadata: number;
 
-	public get isInvalid(): boolean {
+	public isInvalid(): boolean {
 		return (this._metadata & 0x00000001) ? true : false;
 	}
 
-	public set isInvalid(value: boolean) {
-		this._metadata = (this._metadata & 0xfffffffe) | (value ? 1 : 0);
+	public setIsInvalid(isInvalid: boolean): void {
+		this._metadata = (this._metadata & 0xfffffffe) | (isInvalid ? 1 : 0);
 	}
 
 	/**
