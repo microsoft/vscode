@@ -132,8 +132,6 @@ export class PreferencesEditor extends BaseEditor {
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, this.headerContainer, {
 			ariaLabel: nls.localize('SearchSettingsWidget.AriaLabel', "Search settings"),
 			placeholder: nls.localize('SearchSettingsWidget.Placeholder', "Search Settings"),
-			navigateByArrows: true,
-			navigateByEnter: true,
 			focusKey: this.focusSettingsContextKey
 		}));
 		this._register(this.searchWidget.onDidChange(value => this.filterPreferences(value.trim())));
