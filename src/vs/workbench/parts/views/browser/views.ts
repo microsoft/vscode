@@ -653,16 +653,13 @@ export class ComposedViewsViewlet extends Viewlet {
 		return this.getViewDescriptorsFromRegistry().filter(viewDescriptor => viewDescriptor.canToggleVisibility);
 	}
 
-	private getViewDescriptorsFromRegistry(): IViewDescriptor[] {
+	private getViewDescriptorsFromRegistry(defaultOrder: boolean = true): IViewDescriptor[] {
 		return ViewsRegistry.getViews(this.location)
 			.sort((a, b) => {
-				// const viewStateA = this.viewsStates.get(a.id);
-				// const viewStateB = this.viewsStates.get(b.id);
-				// const orderA = viewStateA ? viewStateA.order : a.order;
-				// const orderB = viewStateB ? viewStateB.order : b.order;
-
-				const orderA = a.order;
-				const orderB = b.order;
+				const viewStateA = this.viewsStates.get(a.id);
+				const viewStateB = this.viewsStates.get(b.id);
+				const orderA = !defaultOrder && viewStateA ? viewStateA.order : a.order;
+				const orderB = !defaultOrder && viewStateB ? viewStateB.order : b.order;
 
 				if (orderB === void 0 || orderB === null) {
 					return -1;
