@@ -1042,7 +1042,7 @@ export class TaskGroup implements vscode.TaskGroup {
 
 	public static Rebuild: TaskGroup = new TaskGroup('rebuild', 'Rebuild');
 
-	public static Test: TaskGroup = new TaskGroup('clean', 'Clean');
+	public static Test: TaskGroup = new TaskGroup('test', 'Test');
 
 	constructor(id: string, label: string) {
 		if (typeof id !== 'string') {
