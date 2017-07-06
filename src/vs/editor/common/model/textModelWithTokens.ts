@@ -119,7 +119,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		}
 
 		this._tokenizationSupport = null;
-		if (!this.isTooLargeForHavingAMode()) {
+		if (!this._isTooLargeForTokenization) {
 			this._tokenizationSupport = TokenizationRegistry.get(this._languageIdentifier.language);
 		}
 

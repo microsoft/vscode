@@ -689,13 +689,6 @@ export interface ITextModel {
 	isDisposed(): boolean;
 
 	/**
-	 * No mode supports allowed on this model because it is simply too large.
-	 * (even tokenization would cause too much memory pressure)
-	 * @internal
-	 */
-	isTooLargeForHavingAMode(): boolean;
-
-	/**
 	 * Only basic mode supports allowed on this model because it is simply too large.
 	 * (tokenization is allowed and other basic supports)
 	 * @internal

@@ -94,7 +94,7 @@ export class TextModel implements editorCommon.ITextModel {
 	protected _mightContainNonBasicASCII: boolean;
 
 	private _shouldSimplifyMode: boolean;
-	private _shouldDenyMode: boolean;
+	protected readonly _isTooLargeForTokenization: boolean;
 
 	constructor(rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions) {
 		this._eventEmitter = new OrderGuaranteeEventEmitter();
@@ -102,7 +102,11 @@ export class TextModel implements editorCommon.ITextModel {
 		const textModelData = TextModel.resolveCreationData(rawTextSource, creationOptions);
 
 		this._shouldSimplifyMode = (textModelData.text.length > TextModel.MODEL_SYNC_LIMIT);
-		this._shouldDenyMode = (textModelData.text.length > TextModel.MODEL_TOKENIZATION_LIMIT);
+
+		// !!! Make a decision in the ctor and permanently respect this decision !!!
+		// If a model is too large at construction time, it will never get tokenized,
+		// under no circumstances.
+		this._isTooLargeForTokenization = (textModelData.text.length > TextModel.MODEL_TOKENIZATION_LIMIT);
 
 		this._options = new editorCommon.TextModelResolvedOptions(textModelData.options);
 		this._constructLines(textModelData.text);
@@ -115,11 +119,6 @@ export class TextModel implements editorCommon.ITextModel {
 		if (this._isDisposed) {
 			throw new Error('Model is disposed!');
 		}
-	}
-
-	public isTooLargeForHavingAMode(): boolean {
-		this._assertNotDisposed();
-		return this._shouldDenyMode;
 	}
 
 	public isTooLargeForHavingARichMode(): boolean {
