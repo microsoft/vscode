@@ -23,7 +23,7 @@ import glob = require('vs/base/common/glob');
 import { FileLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ContributableActionProvider } from 'vs/workbench/browser/actions';
-import { IFilesConfiguration } from 'vs/workbench/parts/files/common/files';
+import { IFilesConfiguration, SortOrder } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { ResourceMap } from 'vs/base/common/map';
@@ -526,20 +526,53 @@ export class FileController extends DefaultController {
 
 // Explorer Sorter
 export class FileSorter implements ISorter {
+	private toDispose: IDisposable[];
+	private sortOrder: SortOrder;
+
+	constructor(
+		@IConfigurationService private configurationService: IConfigurationService
+	) {
+		this.toDispose = [];
+
+		this.onConfigurationUpdated(configurationService.getConfiguration<IFilesConfiguration>());
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>())));
+	}
+
+	private onConfigurationUpdated(configuration: IFilesConfiguration): void {
+		this.sortOrder = configuration && configuration.explorer && configuration.explorer.sortOrder || 'default';
+	}
 
 	public compare(tree: ITree, statA: FileStat, statB: FileStat): number {
-		if (statA.isDirectory && !statB.isDirectory) {
-			return -1;
-		}
+		switch (this.sortOrder) {
+			case 'default':
+			case 'type':
+			case 'modified':
+				if (statA.isDirectory && !statB.isDirectory) {
+					return -1;
+				}
+				if (statB.isDirectory && !statA.isDirectory) {
+					return 1;
+				}
+				break;
 
-		if (statB.isDirectory && !statA.isDirectory) {
-			return 1;
+			case 'filesFirst':
+				if (statA.isDirectory && !statB.isDirectory) {
+					return 1;
+				}
+				if (statB.isDirectory && !statA.isDirectory) {
+					return -1;
+				}
+				break;
 		}
 
 		if (statA instanceof NewStatPlaceholder) {
 			return -1;
 		}
-
 		if (statB instanceof NewStatPlaceholder) {
 			return 1;
 		}
@@ -548,12 +581,26 @@ export class FileSorter implements ISorter {
 		if (statA.isRoot) {
 			return -1;
 		}
-
 		if (statB.isRoot) {
 			return 1;
 		}
 
-		return comparers.compareFileNames(statA.name, statB.name);
+		switch (this.sortOrder) {
+			case 'default':
+			case 'mixed':
+			case 'filesFirst':
+				return comparers.compareFileNames(statA.name, statB.name);
+
+			case 'type':
+				return comparers.compareFileExtensions(statA.name, statB.name);
+
+			case 'modified':
+				if (statA.mtime !== statB.mtime) {
+					return statA.mtime < statB.mtime ? 1 : -1;
+				} else {
+					return comparers.compareFileNames(statA.name, statB.name);
+				}
+		}
 	}
 }
 
