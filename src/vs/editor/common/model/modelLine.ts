@@ -158,7 +158,36 @@ function computePlusOneIndentLevel(line: string, tabSize: number): number {
 	return indent + 1;
 }
 
-export class ModelLine {
+export interface IModelLine {
+	readonly text: string;
+	isInvalid: boolean;
+
+	// --- markers
+	addMarker(marker: LineMarker): void;
+	addMarkers(markers: LineMarker[]): void;
+	removeMarker(marker: LineMarker): void;
+	removeMarkers(deleteMarkers: { [markerId: string]: boolean; }): void;
+	getMarkers(): LineMarker[];
+
+	// --- tokenization
+	resetTokenizationState(): void;
+	getState(): IState;
+	setState(state: IState): void;
+	getTokens(topLevelLanguageId: LanguageId): LineTokens;
+	setTokens(topLevelLanguageId: LanguageId, tokens: Uint32Array): void;
+
+	// --- indentation
+	updateTabSize(tabSize: number): void;
+	getIndentLevel(): number;
+
+	// --- editing
+	updateLineNumber(markersTracker: MarkersTracker, newLineNumber: number): void;
+	applyEdits(markersTracker: MarkersTracker, edits: ILineEdit[], tabSize: number): number;
+	append(markersTracker: MarkersTracker, myLineNumber: number, other: ModelLine, tabSize: number): void;
+	split(markersTracker: MarkersTracker, splitColumn: number, forceMoveMarkers: boolean, tabSize: number): ModelLine;
+}
+
+export class ModelLine implements IModelLine {
 
 	private _text: string;
 	public get text(): string { return this._text; }

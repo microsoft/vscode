@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ModelLine } from 'vs/editor/common/model/modelLine';
+import { ModelLine, IModelLine } from 'vs/editor/common/model/modelLine';
 import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
@@ -76,7 +76,7 @@ export class TextModel implements editorCommon.ITextModel {
 
 	protected readonly _eventEmitter: OrderGuaranteeEventEmitter;
 
-	/*protected*/ _lines: ModelLine[];
+	/*protected*/ _lines: IModelLine[];
 	protected _EOL: string;
 	protected _isDisposed: boolean;
 	protected _isDisposing: boolean;
@@ -756,7 +756,7 @@ export class TextModel implements editorCommon.ITextModel {
 	private _constructLines(textSource: ITextSource): void {
 		const tabSize = this._options.tabSize;
 		let rawLines = textSource.lines;
-		let modelLines: ModelLine[] = [];
+		let modelLines: IModelLine[] = [];
 
 		for (let i = 0, len = rawLines.length; i < len; i++) {
 			modelLines[i] = new ModelLine(rawLines[i], tabSize);

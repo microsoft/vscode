@@ -7,7 +7,7 @@
 import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditStack } from 'vs/editor/common/model/editStack';
-import { ILineEdit, LineMarker, ModelLine, MarkersTracker } from 'vs/editor/common/model/modelLine';
+import { ILineEdit, LineMarker, ModelLine, MarkersTracker, IModelLine } from 'vs/editor/common/model/modelLine';
 import { TextModelWithDecorations, ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import * as strings from 'vs/base/common/strings';
 import * as arrays from 'vs/base/common/arrays';
@@ -649,7 +649,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				this._invalidateLine(spliceLineNumber - 1);
 
 				// Lines in the middle
-				let newLines: ModelLine[] = [];
+				let newLines: IModelLine[] = [];
 				let newLinesContent: string[] = [];
 				let newLinesLengths = new Uint32Array(insertingLinesCnt - editingLinesCnt);
 				for (let j = editingLinesCnt + 1; j <= insertingLinesCnt; j++) {
