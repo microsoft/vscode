@@ -307,13 +307,14 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 		this.searchInstalledExtensionsContextKey.set(InstalledExtensionsView.isInsalledExtensionsQuery(value));
 		this.searchRecommendedExtensionsContextKey.set(RecommendedExtensionsView.isRecommendedExtensionsQuery(value));
 
-		await this.updateViews();
+		await this.updateViews(!!value);
 	}
 
-	protected async updateViews(): TPromise<IView[]> {
+	protected async updateViews(showAll?: boolean): TPromise<IView[]> {
 		const created = await super.updateViews();
-		if (created.length) {
-			await this.progress(TPromise.join(created.map(view => (<ExtensionsListView>view).show(this.searchBox.value))));
+		const toShow = showAll ? this.views : created;
+		if (toShow.length) {
+			await this.progress(TPromise.join(toShow.map(view => (<ExtensionsListView>view).show(this.searchBox.value))));
 		}
 		return created;
 	}
