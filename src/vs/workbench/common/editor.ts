@@ -11,7 +11,7 @@ import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IEditor, IEditorViewState, IModel } from 'vs/editor/common/editorCommon';
-import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position, Verbosity, ITextDiffEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position, Verbosity } from 'vs/platform/editor/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -602,16 +602,9 @@ export class TextEditorOptions extends EditorOptions {
 			typeof input.options.revealInCenterIfOutsideViewport === 'boolean' ||
 			typeof input.options.pinned === 'boolean' ||
 			typeof input.options.inactive === 'boolean' ||
-			typeof input.options.index === 'number' ||
-			typeof (input.options as ITextDiffEditorOptions).autoRevealFirstChange === 'boolean'
+			typeof input.options.index === 'number'
 		) {
-			const textDiffOptions = input.options as ITextDiffEditorOptions;
-			if (typeof textDiffOptions.autoRevealFirstChange === 'boolean') {
-				options = new TextDiffEditorOptions();
-				(<TextDiffEditorOptions>options).autoRevealFirstChange = textDiffOptions.autoRevealFirstChange;
-			} else {
-				options = new TextEditorOptions();
-			}
+			options = new TextEditorOptions();
 		}
 
 		if (input.options.selection) {
@@ -662,15 +655,7 @@ export class TextEditorOptions extends EditorOptions {
 	 * Helper to create TextEditorOptions inline.
 	 */
 	public static create(settings: ITextEditorOptions = Object.create(null)): TextEditorOptions {
-		let options: TextEditorOptions;
-
-		const textDiffOptions = settings as ITextDiffEditorOptions;
-		if (typeof textDiffOptions.autoRevealFirstChange === 'boolean') {
-			options = new TextDiffEditorOptions();
-			(<TextDiffEditorOptions>options).autoRevealFirstChange = textDiffOptions.autoRevealFirstChange;
-		} else {
-			options = new TextEditorOptions();
-		}
+		const options = new TextEditorOptions();
 
 		options.preserveFocus = settings.preserveFocus;
 		options.forceOpen = settings.forceOpen;
@@ -779,18 +764,6 @@ export class TextEditorOptions extends EditorOptions {
 
 		return gotApplied;
 	}
-}
-
-/**
- * Base Text Diff Editor Options.
- */
-export class TextDiffEditorOptions extends TextEditorOptions {
-
-	/**
-	 * Whether to auto reveal the first change when the text editor is opened or not. By default
-	 * the first change will not be revealed.
-	 */
-	public autoRevealFirstChange: boolean;
 }
 
 export interface IStacksModelChangeEvent {
