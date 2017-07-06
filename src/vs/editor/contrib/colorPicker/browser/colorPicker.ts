@@ -53,10 +53,6 @@ export class ColorPickerController extends Disposable implements IEditorContribu
 		this.widget.show();
 	}
 
-	public selectColor(color: string): void {
-		this.model.selectedColor = color;
-	}
-
 	public changeColorType(): void {
 		console.log('Colour type change triggered');
 	}

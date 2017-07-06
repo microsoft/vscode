@@ -17,11 +17,10 @@ export class ColorPickerBody extends Disposable {
 	private saturationBox: HTMLElement;
 	private hueStrip: HueStrip;
 	private slider: HueSlider;
+	private opacityStrip: OpacityStrip;
 
 	private saturationCtx: CanvasRenderingContext2D;
-	private opacityStripCtx: CanvasRenderingContext2D;
 
-	private opacityGradient: CanvasGradient;
 	private whiteGradient: CanvasGradient;
 	private blackGradient: CanvasGradient;
 
@@ -53,9 +52,9 @@ export class ColorPickerBody extends Disposable {
 	}
 
 	public fillOpacityGradient(): void {
-		this.opacityGradient.addColorStop(0, this.model.selectedColor);
-		this.opacityStripCtx.fillStyle = this.opacityGradient;
-		this.opacityStripCtx.fill();
+		this.opacityStrip.gradient.addColorStop(0, this.model.selectedColor);
+		this.opacityStrip.context.fillStyle = this.opacityStrip.gradient;
+		this.opacityStrip.context.fill();
 	}
 
 	public fillSaturationBox(): void {
@@ -91,27 +90,40 @@ export class ColorPickerBody extends Disposable {
 		}));
 
 		// Slider listeners
-		this._register(dom.addStandardDisposableListener(this.slider.domNode, dom.EventType.MOUSE_DOWN, e => {
-			if (!e.leftButton) {
+		this._register(dom.addDisposableListener(this.slider.domNode, dom.EventType.MOUSE_DOWN, e => {
+			this.hueStripListener(this.slider.domNode, e, monitor);
+		}));
+		this._register(dom.addDisposableListener(this.hueStrip.domNode, dom.EventType.MOUSE_DOWN, e => {
+			this.hueStripListener(this.hueStrip.domNode, e, monitor);
+		}));
+	}
+
+	private hueStripListener(element: HTMLElement, e: MouseEvent, monitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>): void {
+		if (e.button !== 0) {
+			return;
+		}
+
+		// Update slider position if clicked on huestrip
+		if (element === this.hueStrip.domNode) {
+			this.slider.top = e.offsetY;
+			this.widget.model.hue = this.extractColorData(this.hueStrip.context, 0, this.slider.top);
+		}
+
+		const initialMousePosition = e.clientY;
+		const initialMouseOrthogonalPosition = e.clientX;
+		const initialSliderTop = this.slider.top;
+		monitor.startMonitoring(standardMouseMoveMerger, (mouseMoveData: IStandardMouseMoveEventData) => {
+			// Do not move slider on Windows if it's outside of movable bounds
+			const mouseOrthogonalDelta = Math.abs(mouseMoveData.posx - initialMouseOrthogonalPosition);
+			if (isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
 				return;
 			}
 
-			const initialMousePosition = e.posy;
-			const initialMouseOrthogonalPosition = e.posx;
-			const initialSliderTop = this.slider.top;
-			monitor.startMonitoring(standardMouseMoveMerger, (mouseMoveData: IStandardMouseMoveEventData) => {
-				// Do not move slider on Windows if it's outside of movable bounds
-				const mouseOrthogonalDelta = Math.abs(mouseMoveData.posx - initialMouseOrthogonalPosition);
-				if (isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
-					return;
-				}
+			const mouseDelta = mouseMoveData.posy - initialMousePosition;
+			this.slider.top = initialSliderTop + mouseDelta;
 
-				const mouseDelta = mouseMoveData.posy - initialMousePosition;
-				this.slider.top = initialSliderTop + mouseDelta;
-
-				this.widget.model.hue = this.extractColorData(this.hueStrip.context, 0, this.slider.top);
-			}, () => null);
-		}));
+			this.widget.model.hue = this.extractColorData(this.hueStrip.context, 0, this.slider.top);
+		}, () => null);
 	}
 
 	private drawSaturationBox(w: number, h: number, actualW: number, actualH: number): HTMLCanvasElement {
@@ -149,23 +161,10 @@ export class ColorPickerBody extends Disposable {
 		// Opacity strip
 		const opacityWrapper = $('.opacity-strip-wrap');
 
-		const opacityStrip = document.createElement('canvas');
-		opacityStrip.className = 'opacity-strip';
-		opacityStrip.width = actualW;
-		opacityStrip.height = actualH;
-		opacityStrip.style.width = w + 'px';
-		opacityStrip.style.height = h + 'px';
-		this.opacityStripCtx = opacityStrip.getContext('2d');
-		this.opacityStripCtx.rect(0, 0, actualW, actualH);
-
-		this.opacityGradient = this.opacityStripCtx.createLinearGradient(0, 0, 0, actualH);
-		this.opacityGradient.addColorStop(0, this.model.selectedColor);
-		this.opacityGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-		this.opacityStripCtx.fillStyle = this.opacityGradient;
-		this.opacityStripCtx.fill();
+		this.opacityStrip = new OpacityStrip(w, h, actualW, actualH, this.model.selectedColor);
 
 		dom.append(this.domNode, opacityWrapper);
-		dom.append(opacityWrapper, opacityStrip);
+		dom.append(opacityWrapper, this.opacityStrip.domNode);
 	}
 
 	private drawHueStrip(w: number, h: number, actualW: number, actualH: number): void {
@@ -216,6 +215,32 @@ class HueStrip {
 		colorGradient.addColorStop(1, 'rgba(255, 0, 0, 1)');
 
 		this.context.fillStyle = colorGradient;
+		this.context.fill();
+	}
+}
+
+class OpacityStrip {
+	public domNode: HTMLCanvasElement;
+	public height: number;
+
+	public context: CanvasRenderingContext2D;
+	public gradient: CanvasGradient;
+
+	constructor(width: number, height: number, actualWidth: number, actualHeight: number, selectedColor: string) {
+		this.domNode = document.createElement('canvas');
+		this.domNode.className = 'opacity-strip';
+		this.domNode.width = actualWidth;
+		this.domNode.height = actualHeight;
+		this.domNode.style.width = width + 'px';
+		this.domNode.style.height = height + 'px';
+		this.context = this.domNode.getContext('2d');
+		this.context.rect(0, 0, actualWidth, actualHeight);
+
+		this.gradient = this.context.createLinearGradient(0, 0, 0, actualHeight);
+		this.gradient.addColorStop(0, selectedColor);
+		this.gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+
+		this.context.fillStyle = this.gradient;
 		this.context.fill();
 	}
 }
