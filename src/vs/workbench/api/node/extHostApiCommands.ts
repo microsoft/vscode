@@ -208,7 +208,7 @@ export class ExtHostApiCommands {
 			let editorOptions: IEditorOptions;
 			if (options) {
 				editorOptions = {
-					pinned: options.preview === undefined ? undefined : !options.preview,
+					pinned: typeof options.preview === 'boolean' ? !options.preview : undefined,
 					preserveFocus: options.preserveFocus
 				};
 			}

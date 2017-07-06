@@ -643,8 +643,8 @@ export class TextEditorOptions extends EditorOptions {
 			options.revealInCenterIfOutsideViewport = true;
 		}
 
-		if (input.options.pinned !== undefined) {
-			options.pinned = !!input.options.pinned;
+		if (input.options.pinned) {
+			options.pinned = true;
 		}
 
 		if (input.options.inactive) {

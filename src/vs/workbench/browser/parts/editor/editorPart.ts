@@ -319,13 +319,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// while the UI is not yet ready. Clients have to deal with this fact and we have to make sure that the
 		// stacks model gets updated if any of the UI updating fails with an error.
 		const group = this.ensureGroup(position, !options || !options.preserveFocus);
-
-		let pinned = !this.tabOptions.previewEditors;
-		if (!pinned) {
-			pinned = (options && options.pinned !== undefined)
-				? options.pinned
-				: (options && typeof options.index === 'number') || input.isDirty();
-		}
+		const pinned = !this.tabOptions.previewEditors || (options && (options.pinned || typeof options.index === 'number')) || input.isDirty();
 
 		const active = (group.count === 0) || !options || !options.inactive;
 		group.openEditor(input, { active, pinned, index: options && options.index });
