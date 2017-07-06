@@ -187,8 +187,10 @@ export abstract class AbstractModelLine {
 
 	private _markers: LineMarker[];
 
-	constructor() {
-		this._markers = null;
+	constructor(initializeMarkers: boolean) {
+		if (initializeMarkers) {
+			this._markers = null;
+		}
 	}
 
 	///
@@ -557,7 +559,7 @@ export class ModelLine extends AbstractModelLine implements IModelLine {
 	private _lineTokens: ArrayBuffer;
 
 	constructor(text: string, tabSize: number) {
-		super();
+		super(true);
 		this._metadata = 0;
 		this._setText(text, tabSize);
 		this._state = null;
@@ -826,7 +828,7 @@ export class MinimalModelLine extends AbstractModelLine implements IModelLine {
 	}
 
 	constructor(text: string, tabSize: number) {
-		super();
+		super(false);
 		this._setText(text, tabSize);
 	}
 
