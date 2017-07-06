@@ -550,7 +550,7 @@ export class Model implements Disposable {
 			await window.showTextDocument(document);
 			const edit = new WorkspaceEdit();
 
-			edit.insert(document.uri, document.lineAt(document.lineCount - 1).range.end, `${textToAppend}\n`);
+			edit.insert(document.uri, document.lineAt(document.lineCount - 1).range.end, document.getText().length > 0 ? `\n${textToAppend}` : textToAppend);
 			workspace.applyEdit(edit);
 		});
 	}
