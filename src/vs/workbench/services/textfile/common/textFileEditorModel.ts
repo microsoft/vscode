@@ -444,9 +444,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					this.setDirty(false);
 				}
 
-				this.toDispose.push(this.textEditorModel.onDidChangeContent(() => {
-					this.onModelContentChanged();
-				}));
+				// See https://github.com/Microsoft/vscode/issues/30189
+				// This code has been extracted to a different method because it caused a memory leak
+				// where `value` was captured in the content change listener closure scope.
+				this._installChangeContentListener();
 
 				return this;
 			}, error => {
@@ -457,6 +458,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		});
 
 		return this.createTextEditorModelPromise;
+	}
+
+	private _installChangeContentListener(): void {
+		// See https://github.com/Microsoft/vscode/issues/30189
+		// This code has been extracted to a different method because it caused a memory leak
+		// where `value` was captured in the content change listener closure scope.
+		this.toDispose.push(this.textEditorModel.onDidChangeContent(() => {
+			this.onModelContentChanged();
+		}));
 	}
 
 	private doLoadBackup(backup: URI): TPromise<string> {
