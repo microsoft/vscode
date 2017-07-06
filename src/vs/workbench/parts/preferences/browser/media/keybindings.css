@@ -34,6 +34,14 @@
 	margin: 0px 4px;
 }
 
+.htmlkb {
+	display: flex;
+}
+
+.htmlkb > .monaco-kbkey-separator {
+	width: 2px;
+}
+
 /* Editor decorations */
 .monaco-editor .inlineKeybindingInfo:before {
 	margin: 0.2em 0.1em 0 0.1em;

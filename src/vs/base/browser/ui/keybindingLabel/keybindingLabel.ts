@@ -63,7 +63,7 @@ export class KeybindingLabel implements IDisposable {
 				this.renderPart(this.domNode, firstPart, this.matches ? this.matches.firstPart : null);
 			}
 			if (chordPart) {
-				dom.append(this.domNode, $('span', null, ' '));
+				dom.append(this.domNode, $('span.monaco-kbkey-separator', null, ' '));
 				this.renderPart(this.domNode, chordPart, this.matches ? this.matches.chordPart : null);
 			}
 			this.domNode.title = this.keybinding.getAriaLabel();
