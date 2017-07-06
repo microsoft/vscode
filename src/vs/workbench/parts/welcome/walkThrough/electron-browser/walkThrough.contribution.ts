@@ -10,7 +10,7 @@ import { WalkThroughPart, WALK_THROUGH_FOCUS } from 'vs/workbench/parts/welcome/
 import { WalkThroughArrowUpAction, WalkThroughArrowDownAction, WalkThroughPageUpAction, WalkThroughPageDownAction } from 'vs/workbench/parts/welcome/walkThrough/electron-browser/walkThroughActions';
 import { WalkThroughContentProvider, WalkThroughSnippetContentProvider } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughContentProvider';
 import { EditorWalkThroughAction } from 'vs/workbench/parts/welcome/walkThrough/electron-browser/editor/editorWalkThrough';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';

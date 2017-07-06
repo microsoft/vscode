@@ -14,6 +14,7 @@ import { IDebugService, VIEWLET_ID, State } from 'vs/workbench/parts/debug/commo
 import { StartAction, ToggleReplAction, ConfigureAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { StartDebugActionItem } from 'vs/workbench/parts/debug/browser/debugActionItems';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -21,6 +22,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewLocation } from 'vs/workbench/parts/views/browser/viewsRegistry';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
 export class DebugViewlet extends ComposedViewsViewlet {
 
@@ -36,9 +38,11 @@ export class DebugViewlet extends ComposedViewsViewlet {
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
 		@IThemeService themeService: IThemeService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IExtensionService extensionService: IExtensionService
 	) {
-		super(VIEWLET_ID, ViewLocation.Debug, `${VIEWLET_ID}.state`, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService);
+		super(VIEWLET_ID, ViewLocation.Debug, `${VIEWLET_ID}.state`, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
 
 		this.progressRunner = null;
 

@@ -34,6 +34,7 @@
 				".opml",
 				".owl",
 				".proj",
+        ".props",
 				".pt",
 				".pubxml",
 				".pubxml.user",

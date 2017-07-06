@@ -33,9 +33,9 @@ export function registerCommands(): void {
 
 			if (typeof configurationOrName === 'string') {
 				debugService.getViewModel().setSelectedConfigurationName(configurationOrName);
-				return debugService.startDebugging();
+				debugService.startDebugging();
 			} else {
-				return debugService.createProcess(configurationOrName);
+				debugService.createProcess(configurationOrName);
 			}
 		},
 		when: CONTEXT_NOT_IN_DEBUG_MODE,

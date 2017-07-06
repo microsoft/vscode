@@ -95,7 +95,7 @@ export class Client implements IChannelClient, IDisposable {
 
 	protected request(channelName: string, name: string, arg: any): Promise {
 		if (!this.disposeDelayer) {
-			return Promise.wrapError('disposed');
+			return Promise.wrapError(new Error('disposed'));
 		}
 
 		this.disposeDelayer.cancel();

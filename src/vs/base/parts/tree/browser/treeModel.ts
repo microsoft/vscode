@@ -839,23 +839,6 @@ export class TreeModel extends Events.EventEmitter {
 		});
 	}
 
-	public refreshAll(elements: any[], recursive: boolean = true): WinJS.Promise {
-		try {
-			this.beginDeferredEmit();
-			return this._refreshAll(elements, recursive);
-		} finally {
-			this.endDeferredEmit();
-		}
-	}
-
-	private _refreshAll(elements: any[], recursive: boolean): WinJS.Promise {
-		var promises = [];
-		for (var i = 0, len = elements.length; i < len; i++) {
-			promises.push(this.refresh(elements[i], recursive));
-		}
-		return WinJS.Promise.join(promises);
-	}
-
 	public expand(element: any): WinJS.Promise {
 		var item = this.getItem(element);
 

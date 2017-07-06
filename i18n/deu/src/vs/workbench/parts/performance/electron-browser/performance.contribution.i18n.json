@@ -10,5 +10,6 @@
 	"prof.detail": "Erstellen Sie ein Problem, und fügen Sie die folgenden Dateien manuell an:\n{0}",
 	"prof.restartAndFileIssue": "Problem erstellen und neu starten",
 	"prof.restart": "Neu starten",
-	"prof.thanks": "Danke für Ihre Hilfe."
+	"prof.thanks": "Danke für Ihre Hilfe.",
+	"prof.detail.restart": "Ein abschließender Neustart ist erforderlich um '{0}' nutzen zu können. Danke für Ihre Hilfe."
 }

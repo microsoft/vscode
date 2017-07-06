@@ -7,6 +7,7 @@
 	"debugAdapterBinNotFound": "Il file eseguibile '{0}' dell'adattatore di debug non esiste.",
 	"debugAdapterCannotDetermineExecutable": "Non è possibile determinare il file eseguibile per l'adattatore di debug '{0}'.",
 	"debugType": "Tipo di configurazione.",
+	"debugTypeNotRecognised": "Il tipo di debug non è riconosciuto. Assicurarsi di avere un'estensione appropriata per il debug installata e che sia abilitata.",
 	"node2NotSupported": "\"node2\" non è più supportato. In alternativa, usare \"node\" e impostare l'attributo \"protocol\" su \"inspector\".",
 	"debugName": "Nome della configurazione. Viene visualizzato nel menu a discesa della configurazione di avvio.",
 	"debugRequest": "Tipo della richiesta di configurazione. Può essere \"launch\" o \"attach\".",

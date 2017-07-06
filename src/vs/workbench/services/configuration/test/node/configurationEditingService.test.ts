@@ -12,7 +12,7 @@ import path = require('path');
 import fs = require('fs');
 import * as json from 'vs/base/common/json';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
@@ -25,7 +25,7 @@ import { WorkspaceConfigurationService } from 'vs/workbench/services/configurati
 import URI from 'vs/base/common/uri';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { ConfigurationEditingService } from 'vs/workbench/services/configuration/node/configurationEditingService';
-import { ConfigurationTarget, IConfigurationEditingError, ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { ConfigurationTarget, ConfigurationEditingError, ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IFileService } from 'vs/platform/files/common/files';
 import { WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -44,6 +44,7 @@ import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -115,7 +116,7 @@ suite('ConfigurationEditingService', () => {
 		instantiationService = new TestInstantiationService();
 		const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
 		instantiationService.stub(IEnvironmentService, environmentService);
-		const workspace = noWorkspace ? null : new Workspace(URI.file(workspaceDir));
+		const workspace = noWorkspace ? null : new Workspace(workspaceDir, workspaceDir, [URI.file(workspaceDir)]);
 		const workspaceService = new WorkspaceConfigurationService(environmentService, workspace);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 		instantiationService.stub(IConfigurationService, workspaceService);
@@ -124,9 +125,8 @@ suite('ConfigurationEditingService', () => {
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IModeService, ModeServiceImpl);
 		instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
-		instantiationService.stub(IFileService, new FileService(workspaceDir, { disableWatcher: true }));
+		instantiationService.stub(IFileService, new FileService(workspaceService, new TestConfigurationService(), { disableWatcher: true }));
 		instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
-
 		instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 		instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 		instantiationService.stub(IBackupFileService, new TestBackupFileService());
@@ -171,34 +171,34 @@ suite('ConfigurationEditingService', () => {
 	test('errors cases - invalid key', () => {
 		return testObject.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'unknown.key', value: 'value' })
 			.then(() => assert.fail('Should fail with ERROR_UNKNOWN_KEY'),
-			(error: IConfigurationEditingError) => assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY));
+			(error: ConfigurationEditingError) => assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY));
 	});
 
 	test('errors cases - invalid target', () => {
 		return testObject.writeConfiguration(ConfigurationTarget.USER, { key: 'tasks.something', value: 'value' })
 			.then(() => assert.fail('Should fail with ERROR_INVALID_TARGET'),
-			(error: IConfigurationEditingError) => assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_INVALID_TARGET));
+			(error: ConfigurationEditingError) => assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_INVALID_TARGET));
 	});
 
 	test('errors cases - no workspace', () => {
 		return setUpServices(true)
 			.then(() => testObject.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'configurationEditing.service.testSetting', value: 'value' }))
 			.then(() => assert.fail('Should fail with ERROR_NO_WORKSPACE_OPENED'),
-			(error: IConfigurationEditingError) => assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED));
+			(error: ConfigurationEditingError) => assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED));
 	});
 
 	test('errors cases - invalid configuration', () => {
 		fs.writeFileSync(globalSettingsFile, ',,,,,,,,,,,,,,');
 		return testObject.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: 'value' })
 			.then(() => assert.fail('Should fail with ERROR_INVALID_CONFIGURATION'),
-			(error: IConfigurationEditingError) => assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION));
+			(error: ConfigurationEditingError) => assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION));
 	});
 
 	test('errors cases - dirty', () => {
 		instantiationService.stub(ITextFileService, 'isDirty', true);
 		return testObject.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: 'value' })
 			.then(() => assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.'),
-			(error: IConfigurationEditingError) => assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY));
+			(error: ConfigurationEditingError) => assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY));
 	});
 
 	test('dirty error is not thrown if not asked to save', () => {
@@ -213,7 +213,7 @@ suite('ConfigurationEditingService', () => {
 		instantiationService.stubPromise(IChoiceService, 'choose', target);
 		return testObject.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true })
 			.then(() => assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.'),
-			(error: IConfigurationEditingError) => {
+			(error: ConfigurationEditingError) => {
 				assert.equal(false, target.calledOnce);
 				assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY);
 			});

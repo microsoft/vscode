@@ -11,6 +11,7 @@ export interface ParsedArgs {
 	help?: boolean;
 	version?: boolean;
 	wait?: boolean;
+	waitMarkerFilePath?: string;
 	diff?: boolean;
 	goto?: boolean;
 	'new-window'?: boolean;

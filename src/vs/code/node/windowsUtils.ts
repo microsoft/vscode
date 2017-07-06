@@ -10,7 +10,6 @@ import * as fs from 'fs';
 import * as platform from 'vs/base/common/platform';
 import * as paths from 'vs/base/common/paths';
 import { OpenContext } from 'vs/platform/windows/common/windows';
-import { isEqualOrParent } from 'vs/platform/files/common/files';
 
 /**
  * Exported subset of CodeWindow for testing.
@@ -48,7 +47,7 @@ export function findBestWindowOrFolder<SimpleWindow extends ISimpleWindow>({ win
 }
 
 function findBestWindow<WINDOW extends ISimpleWindow>(windows: WINDOW[], filePath: string): WINDOW {
-	const containers = windows.filter(window => typeof window.openedWorkspacePath === 'string' && isEqualOrParent(filePath, window.openedWorkspacePath, !platform.isLinux /* ignorecase */));
+	const containers = windows.filter(window => typeof window.openedWorkspacePath === 'string' && paths.isEqualOrParent(filePath, window.openedWorkspacePath, !platform.isLinux /* ignorecase */));
 	if (containers.length) {
 		return containers.sort((a, b) => -(a.openedWorkspacePath.length - b.openedWorkspacePath.length))[0];
 	}

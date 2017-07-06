@@ -4,19 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { getNode } from './util';
-import parse from '@emmetio/html-matcher';
-import Node from '@emmetio/node';
-import { DocumentStreamReader } from './bufferStream';
+import { HtmlNode } from 'EmmetNode';
+import { getNode, parse, validate } from './util';
 
 export function matchTag() {
 	let editor = vscode.window.activeTextEditor;
-	if (!editor) {
-		vscode.window.showInformationMessage('No editor is active');
+	if (!validate(false)) {
 		return;
 	}
 
-	let rootNode: Node = parse(new DocumentStreamReader(editor.document));
+	let rootNode = <HtmlNode>parse(editor.document);
+	if (!rootNode) {
+		return;
+	}
+
 	let updatedSelections = [];
 	editor.selections.forEach(selection => {
 		let updatedSelection = getUpdatedSelections(editor, selection.start, rootNode);
@@ -30,15 +31,19 @@ export function matchTag() {
 	}
 }
 
-function getUpdatedSelections(editor: vscode.TextEditor, position: vscode.Position, rootNode: Node): vscode.Selection {
-	let currentNode = getNode(rootNode, position, true);
+function getUpdatedSelections(editor: vscode.TextEditor, position: vscode.Position, rootNode: HtmlNode): vscode.Selection {
+	let currentNode = <HtmlNode>getNode(rootNode, position, true);
+	if (!currentNode) {
+		return;
+	}
 
 	// If no closing tag or cursor is between open and close tag, then no-op
 	if (!currentNode.close || (position.isAfter(currentNode.open.end) && position.isBefore(currentNode.close.start))) {
 		return;
 	}
 
-	let finalPosition = position.isBeforeOrEqual(currentNode.open.end) ? currentNode.close.start : currentNode.open.start;
+	// Place cursor inside the close tag if cursor is inside the open tag, else place it inside the open tag
+	let finalPosition = position.isBeforeOrEqual(currentNode.open.end) ? currentNode.close.start.translate(0, 2) : currentNode.open.start.translate(0, 1);
 	return new vscode.Selection(finalPosition, finalPosition);
 }
 

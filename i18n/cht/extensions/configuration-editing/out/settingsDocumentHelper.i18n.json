@@ -7,7 +7,6 @@
 	"activeEditorShort": "例如 myFile.txt",
 	"activeEditorMedium": "例如 myFolder/myFile.txt",
 	"activeEditorLong": "例如 /Users/Development/myProject/myFolder/myFile.txt",
-	"rootName": "例如 myProject",
 	"rootPath": "例如 /Users/Development/myProject",
 	"appName": "例如 VS Code",
 	"dirty": "若使用中的編輯器已變更，即為已變更的指示區",

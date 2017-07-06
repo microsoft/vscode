@@ -67,30 +67,45 @@ export function findFirst<T>(array: T[], p: (x: T) => boolean): number {
 }
 
 /**
- * Like `Array#sort` but always stable. Comes at a cost: iterates 2n-times,
- * creates n-objects in addition to sorting (log(n))
+ * Like `Array#sort` but always stable. Usually runs a little slower `than Array#sort`
+ * so only use this when actually needing stable sort.
  */
-export function stableSort<T>(data: T[], compare: (a: T, b: T) => number): T[] {
-
-	let data2: { idx: number; e: T }[] = <any>data;
-
-	for (let idx = 0; idx < data2.length; idx++) {
-		data2[idx] = { idx, e: data[idx] };
-	}
-
-	data2.sort((a, b) => {
-		let ret = compare(a.e, b.e);
-		if (ret === 0) {
-			ret = a.idx - b.idx;
-		}
-		return ret;
-	});
-
-	for (let idx = 0; idx < data2.length; idx++) {
-		data[idx] = data2[idx].e;
-	}
-
+export function mergeSort<T>(data: T[], compare: (a: T, b: T) => number): T[] {
+	_divideAndMerge(data, compare);
 	return data;
+}
+
+function _divideAndMerge<T>(data: T[], compare: (a: T, b: T) => number): void {
+	if (data.length <= 1) {
+		// sorted
+		return;
+	}
+	const p = (data.length / 2) | 0;
+	const left = data.slice(0, p);
+	const right = data.slice(p);
+
+	_divideAndMerge(left, compare);
+	_divideAndMerge(right, compare);
+
+	let leftIdx = 0;
+	let rightIdx = 0;
+	let i = 0;
+	while (leftIdx < left.length && rightIdx < right.length) {
+		let ret = compare(left[leftIdx], right[rightIdx]);
+		if (ret <= 0) {
+			// smaller_equal -> take left to preserve order
+			data[i++] = left[leftIdx++];
+		} else {
+			// greater -> take right
+			data[i++] = right[rightIdx++];
+		}
+	}
+	while (leftIdx < left.length) {
+		data[i++] = left[leftIdx++];
+	}
+	while (rightIdx < right.length) {
+		data[i++] = right[rightIdx++];
+	}
 }
 
 export function groupBy<T>(data: T[], compare: (a: T, b: T) => number): T[][] {

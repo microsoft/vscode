@@ -48,4 +48,74 @@ suite('ExtHostWorkspace', function () {
 		assert.equal(ws.getRelativePath('/Coding/Two/files/out.txt'), 'files/out.txt');
 		assert.equal(ws.getRelativePath('/Coding/Two2/files/out.txt'), '/Coding/Two2/files/out.txt');
 	});
+
+	test('getPath, legacy', function () {
+		let ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', name: 'Test', roots: [] });
+		assert.equal(ws.getPath(), undefined);
+
+		ws = new ExtHostWorkspace(new TestThreadService(), null);
+		assert.equal(ws.getPath(), undefined);
+
+		ws = new ExtHostWorkspace(new TestThreadService(), undefined);
+		assert.equal(ws.getPath(), undefined);
+
+		// ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', name: 'Test', roots: [URI.file('Folder'), URI.file('Another/Folder')] });
+		// assert.equal(ws.getPath(), undefined);
+
+		ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', name: 'Test', roots: [URI.file('/Folder')] });
+		assert.equal(ws.getPath().replace(/\\/g, '/'), '/Folder');
+	});
+
+	test('Multiroot change event should have a delta, #29641', function () {
+		let ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', name: 'Test', roots: [] });
+
+		let sub = ws.onDidChangeWorkspace(e => {
+			assert.deepEqual(e.addedFolders, []);
+			assert.deepEqual(e.removedFolders, []);
+		});
+		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', roots: [] });
+		sub.dispose();
+
+		sub = ws.onDidChangeWorkspace(e => {
+			assert.deepEqual(e.removedFolders, []);
+			assert.equal(e.addedFolders.length, 1);
+			assert.equal(e.addedFolders[0].toString(), 'foo:bar');
+		});
+		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', roots: [URI.parse('foo:bar')] });
+		sub.dispose();
+
+		sub = ws.onDidChangeWorkspace(e => {
+			assert.deepEqual(e.removedFolders, []);
+			assert.equal(e.addedFolders.length, 1);
+			assert.equal(e.addedFolders[0].toString(), 'foo:bar2');
+		});
+		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', roots: [URI.parse('foo:bar'), URI.parse('foo:bar2')] });
+		sub.dispose();
+
+		sub = ws.onDidChangeWorkspace(e => {
+			assert.equal(e.removedFolders.length, 2);
+			assert.equal(e.removedFolders[0].toString(), 'foo:bar');
+			assert.equal(e.removedFolders[1].toString(), 'foo:bar2');
+
+			assert.equal(e.addedFolders.length, 1);
+			assert.equal(e.addedFolders[0].toString(), 'foo:bar3');
+		});
+		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', roots: [URI.parse('foo:bar3')] });
+		sub.dispose();
+
+	});
+
+	test('Multiroot change event is immutable', function () {
+		let ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', name: 'Test', roots: [] });
+		let sub = ws.onDidChangeWorkspace(e => {
+			assert.throws(() => {
+				(<any>e).addedFolders = [];
+			});
+			assert.throws(() => {
+				(<any>e.addedFolders)[0] = null;
+			});
+		});
+		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', roots: [] });
+		sub.dispose();
+	});
 });

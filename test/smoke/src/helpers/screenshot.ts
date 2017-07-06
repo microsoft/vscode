@@ -12,11 +12,11 @@ export class Screenshot {
 	private index: number = 0;
 	private testPath: string;
 
-	constructor(private spectron: SpectronApplication, testName: string) {
+	constructor(private spectron: SpectronApplication, testName: string, testRetry: number) {
 		const testTime = this.sanitizeFolderName(__testTime);
 		testName = this.sanitizeFolderName(testName);
 
-		this.testPath = `test_data/screenshots/${testTime}/${testName}`;
+		this.testPath = `test_data/screenshots/${testTime}/${testName}/${testRetry}`;
 		this.createFolder(this.testPath);
 	}
 

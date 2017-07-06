@@ -21,6 +21,8 @@
 	"menus.scmTitle": "Das Titelmenü der Quellcodeverwaltung",
 	"menus.resourceGroupContext": "Das Ressourcengruppen-Kontextmenü der Quellcodeverwaltung",
 	"menus.resourceStateContext": "Das Ressourcenstatus-Kontextmenü der Quellcodeverwaltung",
+	"view.viewTitle": "Das beigetragene Editor-Titelmenü.",
+	"view.itemContext": "Das beigetragene Anzeigeelement-Kontextmenü.",
 	"nonempty": "Es wurde ein nicht leerer Wert erwartet.",
 	"opticon": "Die Eigenschaft \"icon\" kann ausgelassen werden oder muss eine Zeichenfolge oder ein Literal wie \"{dark, light}\" sein.",
 	"requireStringOrObject": "Die Eigenschaft \"{0}\" ist obligatorisch und muss vom Typ \"Zeichenfolge\" oder \"Objekt\" sein.",

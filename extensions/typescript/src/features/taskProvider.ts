@@ -21,6 +21,11 @@ const exists = (file: string): Promise<boolean> =>
 		});
 	});
 
+
+interface TypeScriptTaskDefinition extends vscode.TaskDefinition {
+	tsconfig: string;
+}
+
 /**
  * Provides tasks for building `tsconfig.json` files in a project.
  */
@@ -48,11 +53,15 @@ class TscTaskProvider implements vscode.TaskProvider {
 
 		return projects.map(configFile => {
 			const configFileName = path.relative(rootPath, configFile);
-			const buildTask = new vscode.ShellTask(`build ${configFileName}`, `${command} -p "${configFile}"`, '$tsc');
-			buildTask.source = 'tsc';
+			const identifier: TypeScriptTaskDefinition = { type: 'typescript', tsconfig: configFileName };
+			const buildTask = new vscode.Task(identifier, `build ${configFileName}`, 'tsc', new vscode.ShellExecution(`${command} -p "${configFile}"`), '$tsc');
 			buildTask.group = vscode.TaskGroup.Build;
 			return buildTask;
 		});
+	}
+
+	public resolveTask(_task: vscode.Task): vscode.Task | undefined {
+		return undefined;
 	}
 
 	private async getAllTsConfigs(token: vscode.CancellationToken): Promise<string[]> {
@@ -152,7 +161,7 @@ export default class TypeScriptTaskProviderManager {
 			this.taskProviderSub.dispose();
 			this.taskProviderSub = undefined;
 		} else if (!this.taskProviderSub && autoDetect === 'on') {
-			this.taskProviderSub = vscode.workspace.registerTaskProvider(new TscTaskProvider(this.lazyClient));
+			this.taskProviderSub = vscode.workspace.registerTaskProvider('typescript', new TscTaskProvider(this.lazyClient));
 		}
 	}
 }

@@ -14,10 +14,6 @@
 	"watermark.toggleTerminal": "切換終端機",
 	"watermark.findInFiles": "在檔案中尋找",
 	"watermark.startDebugging": "開始偵錯",
-	"watermark.selectTheme": "變更佈景主題",
-	"watermark.selectKeymap": "變更鍵盤對應",
-	"watermark.keybindingsReference": "鍵盤參考",
-	"watermark.openGlobalKeybindings": "鍵盤快速鍵",
 	"watermark.unboundCommand": "未繫結",
 	"workbenchConfigurationTitle": "工作台",
 	"tips.enabled": "如有啟用，將會在編輯器未開啟時以浮水印方式顯示提示。"

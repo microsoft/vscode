@@ -13,7 +13,19 @@
 	"read the release notes": "Willkommen bei {0} v{1}! Möchten Sie die Hinweise zu dieser Version lesen?",
 	"licenseChanged": "Unsere Lizenzbedingungen haben sich geändert. Bitte lesen Sie die neuen Bedingungen.",
 	"license": "Lizenz lesen",
-	"updateAvailable": "{0} wird nach dem Neustart aktualisiert.",
+	"updateIsReady": "Neue Aktualisierung verfügbar.",
 	"thereIsUpdateAvailable": "Ein Update ist verfügbar.",
-	"noUpdatesAvailable": "Zurzeit sind keine Updates verfügbar."
+	"updateAvailable": "{0} wird nach dem Neustart aktualisiert.",
+	"noUpdatesAvailable": "Zurzeit sind keine Updates verfügbar.",
+	"commandPalette": "Befehlspalette...",
+	"settings": "Einstellungen",
+	"keyboardShortcuts": "Tastenkombinationen",
+	"selectTheme.label": "Farbdesign",
+	"themes.selectIconTheme.label": "Dateisymboldesign",
+	"not available": "Aktualisierungen nicht verfügbar",
+	"checkingForUpdates": "Überprüfen auf Updates...",
+	"DownloadUpdate": "Verfügbares Update herunterladen",
+	"DownloadingUpdate": "Das Update wird heruntergeladen...",
+	"InstallingUpdate": "Update wird installiert...",
+	"checkForUpdates": "Nach Aktualisierungen suchen..."
 }

@@ -4,13 +4,13 @@ Param(
   [string]$vsoPAT
 )
 
+. .\build\tfs\win32\node.ps1
 . .\scripts\env.ps1
 . .\build\tfs\win32\lib.ps1
 
 # Create a _netrc file to download distro dependencies
 # In order to get _netrc to work, we need a HOME variable setup
-$env:HOME=$env:USERPROFILE
-"machine monacotools.visualstudio.com password ${vsoPAT}" | Out-File "$env:USERPROFILE\_netrc" -Encoding ASCII
+"machine monacotools.visualstudio.com password ${vsoPAT}" | Out-File "$env:HOME\_netrc" -Encoding ASCII
 
 # Set the right architecture
 $env:npm_config_arch="$arch"

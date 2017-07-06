@@ -9,8 +9,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { IProcessEnvironment } from "vs/base/common/platform";
-import { ParsedArgs } from "vs/platform/environment/common/environment";
+import { IProcessEnvironment } from 'vs/base/common/platform';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
 
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
@@ -21,9 +21,10 @@ export interface IWindowsService {
 	onWindowOpen: Event<number>;
 	onWindowFocus: Event<number>;
 
-	openFileFolderPicker(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void>;
-	openFilePicker(windowId: number, forceNewWindow?: boolean, path?: string, data?: ITelemetryData): TPromise<void>;
-	openFolderPicker(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void>;
+	pickFileFolderAndOpen(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void>;
+	pickFileAndOpen(windowId: number, forceNewWindow?: boolean, path?: string, data?: ITelemetryData): TPromise<void>;
+	pickFolderAndOpen(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void>;
+	pickFolder(windowId: number, options?: { buttonLabel: string; title: string; }): TPromise<string[]>;
 	reloadWindow(windowId: number): TPromise<void>;
 	openDevTools(windowId: number): TPromise<void>;
 	toggleDevTools(windowId: number): TPromise<void>;
@@ -35,6 +36,7 @@ export interface IWindowsService {
 	clearRecentPathsList(): TPromise<void>;
 	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }>;
 	focusWindow(windowId: number): TPromise<void>;
+	closeWindow(windowId: number): TPromise<void>;
 	isFocused(windowId: number): TPromise<boolean>;
 	isMaximized(windowId: number): TPromise<boolean>;
 	maximizeWindow(windowId: number): TPromise<void>;
@@ -56,7 +58,7 @@ export interface IWindowsService {
 	getWindowCount(): TPromise<number>;
 	log(severity: string, ...messages: string[]): TPromise<void>;
 	// TODO@joao: what?
-	closeExtensionHostWindow(extensionDevelopmentPath: string): TPromise<void>;
+	closeExtensionHostWindow(extensionDevelopmentPaths: string[]): TPromise<void>;
 	showItemInFolder(path: string): TPromise<void>;
 
 	// This needs to be handled from browser process to prevent
@@ -74,25 +76,27 @@ export interface IWindowService {
 	_serviceBrand: any;
 
 	getCurrentWindowId(): number;
-	openFileFolderPicker(forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void>;
-	openFilePicker(forceNewWindow?: boolean, path?: string, data?: ITelemetryData): TPromise<void>;
-	openFolderPicker(forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void>;
+	pickFileFolderAndOpen(forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void>;
+	pickFileAndOpen(forceNewWindow?: boolean, path?: string, data?: ITelemetryData): TPromise<void>;
+	pickFolderAndOpen(forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void>;
+	pickFolder(options?: { buttonLabel: string; title: string; }): TPromise<string[]>;
 	reloadWindow(): TPromise<void>;
 	openDevTools(): TPromise<void>;
 	toggleDevTools(): TPromise<void>;
 	closeFolder(): TPromise<void>;
 	toggleFullScreen(): TPromise<void>;
 	setRepresentedFilename(fileName: string): TPromise<void>;
-	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void>;
-	removeFromRecentlyOpen(paths: string[]): TPromise<void>;
 	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }>;
 	focusWindow(): TPromise<void>;
+	closeWindow(): TPromise<void>;
 	isFocused(): TPromise<boolean>;
 	setDocumentEdited(flag: boolean): TPromise<void>;
 	isMaximized(): TPromise<boolean>;
 	maximizeWindow(): TPromise<void>;
 	unmaximizeWindow(): TPromise<void>;
 	onWindowTitleDoubleClick(): TPromise<void>;
+	showMessageBox(options: Electron.ShowMessageBoxOptions): number;
+	showSaveDialog(options: Electron.SaveDialogOptions, callback?: (fileName: string) => void): string;
 }
 
 export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden';
@@ -114,6 +118,7 @@ export interface IWindowSettings {
 	newWindowDimensions: 'default' | 'inherit' | 'maximized' | 'fullscreen';
 	nativeTabs: boolean;
 	enableMenuBarMnemonics: boolean;
+	closeWhenEmpty: boolean;
 }
 
 export enum OpenContext {

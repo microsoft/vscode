@@ -9,8 +9,8 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import { Extensions, IConfigurationRegistry, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/platform';
+import { Extensions, IConfigurationRegistry, IConfigurationNode, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
@@ -173,6 +173,7 @@ const editorConfiguration: IConfigurationNode = {
 	'type': 'object',
 	'title': nls.localize('editorConfigurationTitle', "Editor"),
 	'overridable': true,
+	'scope': ConfigurationScope.FOLDER,
 	'properties': {
 		'editor.fontFamily': {
 			'type': 'string',
@@ -400,6 +401,11 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.formatOnPaste,
 			'description': nls.localize('formatOnPaste', "Controls if the editor should automatically format the pasted content. A formatter must be available and the formatter should be able to format a range in a document.")
+		},
+		'editor.autoIndent': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.autoIndent,
+			'description': nls.localize('autoIndent', "Controls if the editor should automatically adjust the indentation when users type, paste or move lines. Indentation rules of the language must be available. ")
 		},
 		'editor.suggestOnTriggerCharacters': {
 			'type': 'boolean',

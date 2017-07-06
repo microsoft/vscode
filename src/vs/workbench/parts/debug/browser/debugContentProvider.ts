@@ -33,7 +33,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		const process = this.debugService.getViewModel().focusedProcess;
 
 		if (!process) {
-			return TPromise.wrapError<IModel>(localize('unable', "Unable to resolve the resource without a debug session"));
+			return TPromise.wrapError<IModel>(new Error(localize('unable', "Unable to resolve the resource without a debug session")));
 		}
 		const source = process.sources.get(resource.toString());
 		let rawSource: DebugProtocol.Source;
@@ -51,7 +51,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 
 			return model;
 		}, (err: DebugProtocol.ErrorResponse) => {
-			this.debugService.deemphasizeSource(resource);
+			this.debugService.sourceIsNotAvailable(resource);
 			const modePromise = this.modeService.getOrCreateMode(MIME_TEXT);
 			const model = this.modelService.createModel(err.message, modePromise, resource);
 

@@ -16,7 +16,7 @@ import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { ReportPerformanceIssueAction } from 'vs/workbench/electron-browser/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { join } from 'path';
@@ -247,7 +247,7 @@ class PerformanceTelemetry implements IWorkbenchContribution {
 	}
 
 	private _sendWorkbenchMainSizeTelemetry(): void {
-		const { fsPath } = URI.parse(require.toUrl('vs/workbench/electron-browser/workbench.main.js'));
+		const { fsPath } = URI.parse(require.toUrl('vs/workbench/workbench.main.js'));
 		stat(fsPath).then(stats => {
 			this._telemetryService.publicLog('perf:jsFileSize', { workbenchMain: stats.size });
 		});

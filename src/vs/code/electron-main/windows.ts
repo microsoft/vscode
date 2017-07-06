@@ -10,11 +10,12 @@ import * as fs from 'original-fs';
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import { assign, mixin } from 'vs/base/common/objects';
+import URI from 'vs/base/common/uri';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/platform/storage/node/storage';
 import { CodeWindow, IWindowState as ISingleWindowState, defaultWindowState, WindowMode } from 'vs/code/electron-main/window';
-import { ipcMain as ipc, screen, BrowserWindow, dialog } from 'electron';
+import { ipcMain as ipc, screen, BrowserWindow, dialog, systemPreferences } from 'electron';
 import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/node/paths';
 import { ILifecycleService, UnloadReason } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -24,10 +25,12 @@ import { getLastActiveWindow, findBestWindowOrFolder } from 'vs/code/node/window
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/node/product';
 import { ITelemetryService, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { isEqual, isEqualOrParent } from 'vs/platform/files/common/files';
+import { isEqual, isEqualOrParent } from 'vs/base/common/paths';
 import { IWindowsMainService, IOpenConfiguration } from "vs/platform/windows/electron-main/windows";
 import { IHistoryMainService } from "vs/platform/history/electron-main/historyMainService";
-import { IProcessEnvironment, isLinux, isMacintosh } from "vs/base/common/platform";
+import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { TPromise } from "vs/base/common/winjs.base";
+
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -152,6 +155,17 @@ export class WindowsManager implements IWindowsMainService {
 				this._onWindowReady.fire(win);
 			}
 		});
+
+		// React to HC color scheme changes (Windows)
+		if (isWindows) {
+			systemPreferences.on('inverted-color-scheme-changed', () => {
+				if (systemPreferences.isInvertedColorScheme()) {
+					this.sendToAll('vscode:enterHighContrast');
+				} else {
+					this.sendToAll('vscode:leaveHighContrast');
+				}
+			});
+		}
 
 		// Update our windows state before quitting and before closing windows
 		this.lifecycleService.onBeforeWindowClose(win => this.onBeforeWindowClose(win as CodeWindow));
@@ -299,6 +313,13 @@ export class WindowsManager implements IWindowsMainService {
 		// Emit events
 		if (windowsToOpen.length) {
 			this._onPathsOpen.fire(windowsToOpen);
+		}
+
+		// If we got started with --wait from the CLI, we need to signal to the outside when the window
+		// used for the edit operation is closed so that the waiting process can continue. We do this by
+		// deleting the waitMarkerFilePath.
+		if (openConfig.context === OpenContext.CLI && openConfig.cli.wait && openConfig.cli.waitMarkerFilePath && usedWindows.length === 1 && usedWindows[0]) {
+			this.waitForWindowClose(usedWindows[0].id).done(() => fs.unlink(openConfig.cli.waitMarkerFilePath, error => void 0));
 		}
 
 		return usedWindows;
@@ -602,9 +623,9 @@ export class WindowsManager implements IWindowsMainService {
 			restoreWindows = 'all'; // always reopen all windows when an update was applied
 		} else {
 			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
-			restoreWindows = (windowConfig && windowConfig.restoreWindows) as RestoreWindowsSetting;
+			restoreWindows = ((windowConfig && windowConfig.restoreWindows) || 'one') as RestoreWindowsSetting;
 
-			if (windowConfig && windowConfig.restoreWindows === 'one' /* default */ && windowConfig.reopenFolders) {
+			if (restoreWindows === 'one' /* default */ && windowConfig && windowConfig.reopenFolders) {
 				restoreWindows = windowConfig.reopenFolders; // TODO@Ben migration
 			}
 
@@ -654,9 +675,12 @@ export class WindowsManager implements IWindowsMainService {
 
 		// let the user settings override how folders are open in a new window or same window unless we are forced
 		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+		const openFolderInNewWindowConfig = (windowConfig && windowConfig.openFoldersInNewWindow) || 'default' /* default */;
+		const openFilesInNewWindowConfig = (windowConfig && windowConfig.openFilesInNewWindow) || 'off' /* default */;
+
 		let openFolderInNewWindow = (openConfig.preferNewWindow || openConfig.forceNewWindow) && !openConfig.forceReuseWindow;
-		if (!openConfig.forceNewWindow && !openConfig.forceReuseWindow && windowConfig && (windowConfig.openFoldersInNewWindow === 'on' || windowConfig.openFoldersInNewWindow === 'off')) {
-			openFolderInNewWindow = (windowConfig.openFoldersInNewWindow === 'on');
+		if (!openConfig.forceNewWindow && !openConfig.forceReuseWindow && (openFolderInNewWindowConfig === 'on' || openFolderInNewWindowConfig === 'off')) {
+			openFolderInNewWindow = (openFolderInNewWindowConfig === 'on');
 		}
 
 		// let the user settings override how files are open in a new window or same window unless we are forced (not for extension development though)
@@ -668,8 +692,8 @@ export class WindowsManager implements IWindowsMainService {
 				openFilesInNewWindow = true; // only on macOS do we allow to open files in a new window if this is triggered via DOCK context
 			}
 
-			if (!openConfig.cli.extensionDevelopmentPath && windowConfig && (windowConfig.openFilesInNewWindow === 'on' || windowConfig.openFilesInNewWindow === 'off')) {
-				openFilesInNewWindow = (windowConfig.openFilesInNewWindow === 'on');
+			if (!openConfig.cli.extensionDevelopmentPath && (openFilesInNewWindowConfig === 'on' || openFilesInNewWindowConfig === 'off')) {
+				openFilesInNewWindow = (openFilesInNewWindowConfig === 'on');
 			}
 		}
 
@@ -780,6 +804,25 @@ export class WindowsManager implements IWindowsMainService {
 			codeWindow.win.webContents.on('crashed', () => this.onWindowError(codeWindow, WindowError.CRASHED));
 			codeWindow.win.on('unresponsive', () => this.onWindowError(codeWindow, WindowError.UNRESPONSIVE));
 			codeWindow.win.on('closed', () => this.onWindowClosed(codeWindow));
+
+			// Prevent loading on svgs in main renderer
+			codeWindow.win.webContents.session.webRequest.onBeforeRequest((details, callback) => {
+				if (details.url.indexOf('.svg') > 0) {
+					const uri = URI.parse(details.url);
+					if (uri && !uri.scheme.match(/file/i) && (uri.path as any).endsWith('.svg')) {
+						return callback({ cancel: true });
+					}
+				}
+				return callback({});
+			});
+
+			codeWindow.win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+				const contentType: string[] = (details.responseHeaders['content-type'] || details.responseHeaders['Content-Type']) as any;
+				if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
+					return callback({ cancel: true });
+				}
+				return callback({ cancel: false, responseHeaders: details.responseHeaders });
+			});
 
 			// Lifecycle
 			this.lifecycleService.registerWindow(codeWindow);
@@ -1008,6 +1051,17 @@ export class WindowsManager implements IWindowsMainService {
 		this.open({ context, cli: this.environmentService.args, forceNewWindow: true, forceEmpty: true });
 	}
 
+	public waitForWindowClose(windowId: number): TPromise<void> {
+		return new TPromise<void>(c => {
+			const toDispose = this.onWindowClose(id => {
+				if (id === windowId) {
+					toDispose.dispose();
+					c(null);
+				}
+			});
+		});
+	}
+
 	public sendToFocused(channel: string, ...args: any[]): void {
 		const focusedWindow = this.getFocusedWindow() || this.getLastActiveWindow();
 
@@ -1016,7 +1070,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 	}
 
-	public sendToAll(channel: string, payload: any, windowIdsToIgnore?: number[]): void {
+	public sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void {
 		WindowsManager.WINDOWS.forEach(w => {
 			if (windowIdsToIgnore && windowIdsToIgnore.indexOf(w.id) >= 0) {
 				return; // do not send if we are instructed to ignore it
@@ -1115,16 +1169,24 @@ export class WindowsManager implements IWindowsMainService {
 		this._onWindowClose.fire(win.id);
 	}
 
-	public openFileFolderPicker(forceNewWindow?: boolean, data?: ITelemetryData): void {
+	public pickFileFolderAndOpen(forceNewWindow?: boolean, data?: ITelemetryData): void {
 		this.fileDialog.pickAndOpen({ pickFolders: true, pickFiles: true, forceNewWindow }, 'openFileFolder', data);
 	}
 
-	public openFilePicker(forceNewWindow?: boolean, path?: string, window?: CodeWindow, data?: ITelemetryData): void {
-		this.fileDialog.pickAndOpen({ pickFiles: true, forceNewWindow, path, window }, 'openFile', data);
+	public pickFileAndOpen(forceNewWindow?: boolean, path?: string, window?: CodeWindow, data?: ITelemetryData): void {
+		this.fileDialog.pickAndOpen({ pickFiles: true, forceNewWindow, path, window, title: nls.localize('openFile', "Open File") }, 'openFile', data);
 	}
 
-	public openFolderPicker(forceNewWindow?: boolean, window?: CodeWindow, data?: ITelemetryData): void {
-		this.fileDialog.pickAndOpen({ pickFolders: true, forceNewWindow, window }, 'openFolder', data);
+	public pickFolderAndOpen(forceNewWindow?: boolean, window?: CodeWindow, data?: ITelemetryData): void {
+		this.fileDialog.pickAndOpen({ pickFolders: true, forceNewWindow, window, title: nls.localize('openFolder', "Open Folder") }, 'openFolder', data);
+	}
+
+	public pickFolder(window?: CodeWindow, options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
+		return new TPromise((c, e) => {
+			this.fileDialog.getFileOrFolderPaths({ pickFolders: true, window, buttonLabel: options && options.buttonLabel }, folders => {
+				c(folders || []);
+			});
+		});
 	}
 
 	public quit(): void {
@@ -1146,11 +1208,13 @@ export class WindowsManager implements IWindowsMainService {
 }
 
 interface INativeOpenDialogOptions {
+	title?: string;
 	pickFolders?: boolean;
 	pickFiles?: boolean;
 	path?: string;
 	forceNewWindow?: boolean;
 	window?: CodeWindow;
+	buttonLabel?: string;
 }
 
 class FileDialog {
@@ -1179,7 +1243,7 @@ class FileDialog {
 		});
 	}
 
-	private getFileOrFolderPaths(options: INativeOpenDialogOptions, clb: (paths: string[]) => void): void {
+	public getFileOrFolderPaths(options: INativeOpenDialogOptions, clb: (paths: string[]) => void): void {
 		const workingDir = options.path || this.storageService.getItem<string>(FileDialog.workingDirPickerStorageKey);
 		const focussedWindow = options.window || this.windowsMainService.getFocusedWindow();
 
@@ -1191,8 +1255,10 @@ class FileDialog {
 		}
 
 		dialog.showOpenDialog(focussedWindow && focussedWindow.win, {
+			title: options && options.title ? options.title : void 0,
 			defaultPath: workingDir,
-			properties: pickerProperties
+			properties: pickerProperties,
+			buttonLabel: options && options.buttonLabel ? options.buttonLabel : void 0
 		}, paths => {
 			if (paths && paths.length > 0) {
 

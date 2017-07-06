@@ -5,9 +5,35 @@
 
 import * as vscode from 'vscode';
 import parse from '@emmetio/html-matcher';
-import Node from '@emmetio/node';
-import * as extract from '@emmetio/extract-abbreviation';
+import parseStylesheet from '@emmetio/css-parser';
+import { Node, HtmlNode } from 'EmmetNode';
 import { DocumentStreamReader } from './bufferStream';
+import { isStyleSheet } from 'vscode-emmet-helper';
+
+export const LANGUAGE_MODES: Object = {
+	'html': ['!', '.', '}', ':', '*', '$'],
+	'jade': ['!', '.', '}', ':', '*', '$'],
+	'slim': ['!', '.', '}', ':', '*', '$'],
+	'haml': ['!', '.', '}', ':', '*', '$'],
+	'xml': ['.', '}', '*', '$'],
+	'xsl': ['.', '}', '*', '$'],
+	'css': [':'],
+	'scss': [':'],
+	'sass': [':'],
+	'less': [':'],
+	'stylus': [':'],
+	'javascriptreact': ['.', '}', '*', '$'],
+	'typescriptreact': ['.', '}', '*', '$']
+};
+
+// Explicitly map languages that have built-in grammar in VS Code to their parent language
+// to get emmet completion support
+// For other languages, users will have to use `emmet.includeLanguages` or
+// language specific extensions can provide emmet completion support
+export const MAPPED_MODES: Object = {
+	'handlebars': 'html',
+	'php': 'html'
+};
 
 export function validate(allowStylesheet: boolean = true): boolean {
 	let editor = vscode.window.activeTextEditor;
@@ -21,78 +47,43 @@ export function validate(allowStylesheet: boolean = true): boolean {
 	return true;
 }
 
-export function getSyntax(document: vscode.TextDocument): string {
-	if (document.languageId === 'jade') {
-		return 'pug';
-	}
-	if (document.languageId === 'javascriptreact' || document.languageId === 'typescriptreact') {
-		return 'jsx';
-	}
-	return document.languageId;
+export function getMappingForIncludedLanguages(): any {
+	let finalMappedModes = {};
+	let includeLanguagesConfig = vscode.workspace.getConfiguration('emmet')['includeLanguages'];
+	let includeLanguages = Object.assign({}, MAPPED_MODES, includeLanguagesConfig ? includeLanguagesConfig : {});
+	Object.keys(includeLanguages).forEach(syntax => {
+		if (typeof includeLanguages[syntax] === 'string' && LANGUAGE_MODES[includeLanguages[syntax]]) {
+			finalMappedModes[syntax] = includeLanguages[syntax];
+		}
+	});
+	return finalMappedModes;
 }
 
-export function isStyleSheet(syntax): boolean {
-	let stylesheetSyntaxes = ['css', 'scss', 'sass', 'less', 'stylus'];
-	return (stylesheetSyntaxes.indexOf(syntax) > -1);
-}
-
-export function getProfile(syntax: string): any {
-	let config = vscode.workspace.getConfiguration('emmet')['syntaxProfiles'] || {};
-	let options = config[syntax];
-	if (!options || typeof options === 'string') {
-		return {};
-	}
-	let newOptions = {};
-	for (let key in options) {
-		switch (key) {
-			case 'tag_case':
-				newOptions['tagCase'] = (options[key] === 'lower' || options[key] === 'upper') ? options[key] : '';
-				break;
-			case 'attr_case':
-				newOptions['attributeCase'] = (options[key] === 'lower' || options[key] === 'upper') ? options[key] : '';
-				break;
-			case 'attr_quotes':
-				newOptions['attributeQuotes'] = options[key];
-				break;
-			case 'tag_nl':
-				newOptions['format'] = (options[key] === 'true' || options[key] === 'false') ? options[key] : 'true';
-				break;
-			case 'indent':
-				newOptions['attrCase'] = (options[key] === 'true' || options[key] === 'false') ? '\t' : options[key];
-				break;
-			case 'inline_break':
-				newOptions['inlineBreak'] = options[key];
-				break;
-			case 'self_closing_tag':
-				if (options[key] === true) {
-					newOptions['selfClosingStyle'] = 'xml'; break;
-				}
-				if (options[key] === false) {
-					newOptions['selfClosingStyle'] = 'html'; break;
-				}
-				newOptions['selfClosingStyle'] = options[key];
-				break;
-			default:
-				newOptions[key] = options[key];
-				break;
+/**
+ * Parses the given document using emmet parsing modules
+ * @param document 
+ */
+export function parse(document: vscode.TextDocument, showError: boolean = true): Node {
+	let parseContent = isStyleSheet(document.languageId) ? parseStylesheet : parse;
+	let rootNode: Node;
+	try {
+		rootNode = parseContent(new DocumentStreamReader(document));
+	} catch (e) {
+		if (showError) {
+			vscode.window.showErrorMessage('Emmet: Failed to parse the file');
 		}
 	}
-	return newOptions;
+	return rootNode;
 }
 
-export function getOpenCloseRange(document: vscode.TextDocument, position: vscode.Position): [vscode.Range, vscode.Range] {
-	let rootNode: Node = parse(new DocumentStreamReader(document));
-	let nodeToUpdate = getNode(rootNode, position);
-	let openRange = new vscode.Range(nodeToUpdate.open.start, nodeToUpdate.open.end);
-	let closeRange = null;
-	if (nodeToUpdate.close) {
-		closeRange = new vscode.Range(nodeToUpdate.close.start, nodeToUpdate.close.end);
-	}
-	return [openRange, closeRange];
-}
-
+/**
+ * Returns node corresponding to given position in the given root node
+ * @param root
+ * @param position
+ * @param includeNodeBoundary
+ */
 export function getNode(root: Node, position: vscode.Position, includeNodeBoundary: boolean = false) {
-	let currentNode: Node = root.firstChild;
+	let currentNode = root.firstChild;
 	let foundNode: Node = null;
 
 	while (currentNode) {
@@ -112,20 +103,19 @@ export function getNode(root: Node, position: vscode.Position, includeNodeBounda
 	return foundNode;
 }
 
-export function extractAbbreviation(position: vscode.Position): [vscode.Range, string] {
-	let editor = vscode.window.activeTextEditor;
-	let currentLine = editor.document.lineAt(position.line).text;
-	let result = extract(currentLine, position.character, true);
-	if (!result) {
-		return [null, ''];
+/**
+ * Returns inner range of an html node.
+ * @param currentNode
+ */
+export function getInnerRange(currentNode: HtmlNode): vscode.Range {
+	if (!currentNode.close) {
+		return;
 	}
-
-	let rangeToReplace = new vscode.Range(position.line, result.location, position.line, result.location + result.abbreviation.length);
-	return [rangeToReplace, result.abbreviation];
+	return new vscode.Range(currentNode.open.end, currentNode.close.start);
 }
 
 export function getDeepestNode(node: Node): Node {
-	if (!node || !node.children || node.children.length === 0) {
+	if (!node || !node.children || node.children.length === 0 || !node.children.find(x => x.type !== 'comment')) {
 		return node;
 	}
 	for (let i = node.children.length - 1; i >= 0; i--) {
@@ -261,3 +251,5 @@ export function sameNodes(node1: Node, node2: Node): boolean {
 	}
 	return (<vscode.Position>node1.start).isEqual(node2.start) && (<vscode.Position>node1.end).isEqual(node2.end);
 }
+
+

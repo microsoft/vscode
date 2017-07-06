@@ -13,6 +13,6 @@
 	"error.connection.unknown": "出现未知连接错误。您的 Internet 连接已断开，或者您连接的服务器已脱机。",
 	"stackTrace.format": "{0}: {1}",
 	"error.defaultMessage": "出现未知错误。有关详细信息，请参阅日志。",
-	"nodeExceptionMessage": "发生了系统错误({0})",
+	"nodeExceptionMessage": "发生了系统错误 ({0})",
 	"error.moreErrors": "{0} 个(共 {1} 个错误)"
 }

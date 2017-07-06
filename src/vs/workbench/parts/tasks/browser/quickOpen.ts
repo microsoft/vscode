@@ -16,7 +16,7 @@ import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
 import { Task, TaskSourceKind } from 'vs/workbench/parts/tasks/common/tasks';
-import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
+import { ITaskService, RunOptions } from 'vs/workbench/parts/tasks/common/taskService';
 import { ActionBarContributor, ContributableActionProvider } from 'vs/workbench/browser/actions';
 
 export class TaskEntry extends Model.QuickOpenEntry {
@@ -35,6 +35,15 @@ export class TaskEntry extends Model.QuickOpenEntry {
 
 	public get task(): Task {
 		return this._task;
+	}
+
+	protected doRun(task: Task, options?: RunOptions): boolean {
+		this.taskService.run(task, options);
+		if (task.command.presentation.focus) {
+			this.quickOpenService.close();
+			return false;
+		}
+		return true;
 	}
 }
 
@@ -78,7 +87,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 			let configured: Task[] = [];
 			let detected: Task[] = [];
 			let taskMap: IStringDictionary<Task> = Object.create(null);
-			tasks.forEach(task => taskMap[task.identifier] = task);
+			tasks.forEach(task => taskMap[Task.getKey(task)] = task);
 			recentlyUsedTasks.keys().forEach(key => {
 				let task = taskMap[key];
 				if (task) {
@@ -86,7 +95,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 				}
 			});
 			for (let task of tasks) {
-				if (!recentlyUsedTasks.has(task.identifier)) {
+				if (!recentlyUsedTasks.has(Task.getKey(task))) {
 					if (task._source.kind === TaskSourceKind.Workspace) {
 						configured.push(task);
 					} else {
@@ -135,7 +144,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 class CustomizeTaskAction extends Action {
 
 	private static ID = 'workbench.action.tasks.customizeTask';
-	private static LABEL = nls.localize('customizeTask', "Customize Task");
+	private static LABEL = nls.localize('customizeTask', "Configure Task");
 
 	constructor(private taskService: ITaskService, private quickOpenService: IQuickOpenService, private task: Task) {
 		super(CustomizeTaskAction.ID, CustomizeTaskAction.LABEL);
@@ -147,7 +156,7 @@ class CustomizeTaskAction extends Action {
 	}
 
 	public run(context: any): TPromise<any> {
-		return this.taskService.customize(this.task, true).then(() => {
+		return this.taskService.customize(this.task, undefined, true).then(() => {
 			this.quickOpenService.close();
 		});
 	}

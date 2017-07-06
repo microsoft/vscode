@@ -159,6 +159,11 @@
 					"default": "hide",
 					"description": "%markdown.previewFrontMatter.dec%"
 				},
+				"markdown.preview.breaks": {
+					"type": "boolean",
+					"default": false,
+					"description": "%markdown.preview.breaks.desc%"
+				},
 				"markdown.preview.fontFamily": {
 					"type": "string",
 					"default": "-apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', 'HelveticaNeue-Light', 'Ubuntu', 'Droid Sans', sans-serif",
@@ -222,11 +227,11 @@
 		"update-grammar": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ./syntaxes/gulpfile.js"
 	},
 	"dependencies": {
-		"highlight.js": "^9.11.0",
-		"markdown-it": "^8.3.1",
+		"highlight.js": "9.5.0",
+		"markdown-it": "8.2.2",
 		"markdown-it-named-headers": "0.0.4",
-		"vscode-extension-telemetry": "^0.0.7",
-		"vscode-nls": "^2.0.2"
+		"vscode-extension-telemetry": "0.0.8",
+		"vscode-nls": "2.0.2"
 	},
 	"devDependencies": {
 		"@types/node": "^7.0.4",

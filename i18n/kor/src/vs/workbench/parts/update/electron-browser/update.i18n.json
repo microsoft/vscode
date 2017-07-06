@@ -13,7 +13,19 @@
 	"read the release notes": "{0} v{1}을(를) 시작합니다. 릴리스 정보를 확인하시겠습니까?",
 	"licenseChanged": "사용 조건이 변경되었습니다. 자세히 읽어보세요.",
 	"license": "라이선스 읽기",
-	"updateAvailable": "다시 시작하면 {0}이(가) 업데이트됩니다.",
+	"updateIsReady": "새 업데이트를 사용할 수 있습니다.",
 	"thereIsUpdateAvailable": "사용 가능한 업데이트가 있습니다.",
-	"noUpdatesAvailable": "현재 사용 가능한 업데이트가 없습니다."
+	"updateAvailable": "다시 시작하면 {0}이(가) 업데이트됩니다.",
+	"noUpdatesAvailable": "현재 사용 가능한 업데이트가 없습니다.",
+	"commandPalette": "명령 팔레트...",
+	"settings": "설정",
+	"keyboardShortcuts": "바로 가기 키(&&K)",
+	"selectTheme.label": "색 테마",
+	"themes.selectIconTheme.label": "파일 아이콘 테마",
+	"not available": "업데이트를 사용할 수 없음",
+	"checkingForUpdates": "업데이트를 확인하는 중...",
+	"DownloadUpdate": "사용 가능한 업데이트 다운로드",
+	"DownloadingUpdate": "업데이트를 다운로드하는 중...",
+	"InstallingUpdate": "업데이트를 설치하는 중...",
+	"checkForUpdates": "업데이트 확인..."
 }

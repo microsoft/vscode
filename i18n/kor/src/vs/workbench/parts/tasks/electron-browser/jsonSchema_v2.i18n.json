@@ -7,6 +7,12 @@
 	"JsonSchema.shell": "명령이 셸 명령인지 외부 프로그램인지 여부를 지정합니다. 생략하면 기본값 false가 사용됩니다.",
 	"JsonSchema.tasks.dependsOn.string": "이 작업이 종속된 또 다른 작업입니다.",
 	"JsonSchema.tasks.dependsOn.array": "이 작업이 종속된 다른 여러 작업입니다.",
+	"JsonSchema.tasks.type": "작업이 프로세스로 실행되는지 또는 셸 내의 명령으로 실행되는지를 제어합니다. 기본값은 프로세스입니다.",
+	"JsonSchema.version": "구성의 버전 번호입니다.",
+	"JsonSchema.tasks.taskName": "작업 이름",
+	"JsonSchema.tasks.background": "실행한 작업을 활성 상태로 유지하고 배경에서 실행하는지 여부입니다.",
+	"JsonSchema.tasks.promptOnClose": "실행 중인 작업이 있는 VS Code가 닫힐 때 사용자에게 메시지를 표시할지 여부입니다.",
+	"JsonSchema.tasks.matchers": "사용할 문제 선택기입니다. 문자열, 문제 선택기 정의 또는 문자열 및 문제 선택기 배열일 수 있습니다.",
 	"JsonSchema.windows": "Windows 특정 명령 구성",
 	"JsonSchema.mac": "Mac 특정 명령 구성",
 	"JsonSchema.linux": "Linux 특정 명령 구성"

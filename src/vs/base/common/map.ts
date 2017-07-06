@@ -19,12 +19,14 @@ export interface Entry<K, T> {
 export function values<K, V>(map: Map<K, V>): V[] {
 	const result: V[] = [];
 	map.forEach(value => result.push(value));
+
 	return result;
 }
 
 export function keys<K, V>(map: Map<K, V>): K[] {
 	const result: K[] = [];
 	map.forEach((value, key) => result.push(key));
+
 	return result;
 }
 
@@ -34,6 +36,7 @@ export function getOrSet<K, V>(map: Map<K, V>, key: K, value: V): V {
 		result = value;
 		map.set(key, result);
 	}
+
 	return result;
 }
 
@@ -41,7 +44,7 @@ export interface ISerializedBoundedLinkedMap<T> {
 	entries: { key: string; value: T }[];
 }
 
-export interface LinkedEntry<K, T> extends Entry<K, T> {
+interface LinkedEntry<K, T> extends Entry<K, T> {
 	next?: LinkedEntry<K, T>;
 	prev?: LinkedEntry<K, T>;
 }
@@ -52,16 +55,14 @@ export interface LinkedEntry<K, T> extends Entry<K, T> {
  * all elements will be removed until the ratio is full filled (e.g. 0.75 to remove 25% of old elements).
  */
 export class BoundedMap<T> {
-	protected map: { [key: string]: LinkedEntry<string, T> };
+	private map: Map<string, LinkedEntry<string, T>>;
 
 	private head: LinkedEntry<string, T>;
 	private tail: LinkedEntry<string, T>;
-	private _size: number;
 	private ratio: number;
 
 	constructor(private limit = Number.MAX_VALUE, ratio = 1, value?: ISerializedBoundedLinkedMap<T>) {
-		this.map = Object.create(null);
-		this._size = 0;
+		this.map = new Map<string, LinkedEntry<string, T>>();
 		this.ratio = limit * ratio;
 
 		if (value) {
@@ -77,7 +78,7 @@ export class BoundedMap<T> {
 		}
 
 		this.limit = limit;
-		while (this._size > this.limit) {
+		while (this.map.size > this.limit) {
 			this.trim();
 		}
 	}
@@ -85,31 +86,26 @@ export class BoundedMap<T> {
 	public serialize(): ISerializedBoundedLinkedMap<T> {
 		const serialized: ISerializedBoundedLinkedMap<T> = { entries: [] };
 
-		let element = this.tail;
-		while (element) {
-			serialized.entries.push({ key: element.key, value: element.value });
-			if (element === element.next) {
-				break; // end reached
-			}
-			element = element.next;
-		}
+		this.map.forEach(entry => {
+			serialized.entries.push({ key: entry.key, value: entry.value });
+		});
 
 		return serialized;
 	}
 
 	public get size(): number {
-		return this._size;
+		return this.map.size;
 	}
 
 	public set(key: string, value: T): boolean {
-		if (this.map[key]) {
+		if (this.map.has(key)) {
 			return false; // already present!
 		}
 
 		const entry: LinkedEntry<string, T> = { key, value };
 		this.push(entry);
 
-		if (this._size > this.limit) {
+		if (this.size > this.limit) {
 			this.trim();
 		}
 
@@ -117,7 +113,7 @@ export class BoundedMap<T> {
 	}
 
 	public get(key: string): T {
-		const entry = this.map[key];
+		const entry = this.map.get(key);
 
 		return entry ? entry.value : null;
 	}
@@ -134,11 +130,10 @@ export class BoundedMap<T> {
 	}
 
 	public delete(key: string): T {
-		const entry = this.map[key];
+		const entry = this.map.get(key);
 
 		if (entry) {
-			this.map[key] = void 0;
-			this._size--;
+			this.map.delete(key);
 
 			if (entry.next) {
 				entry.next.prev = entry.prev; // [A]<-[x]<-[C] = [A]<-[C]
@@ -159,17 +154,16 @@ export class BoundedMap<T> {
 	}
 
 	public has(key: string): boolean {
-		return !!this.map[key];
+		return this.map.has(key);
 	}
 
 	public clear(): void {
-		this.map = Object.create(null);
-		this._size = 0;
+		this.map.clear();
 		this.head = null;
 		this.tail = null;
 	}
 
-	protected push(entry: LinkedEntry<string, T>): void {
+	private push(entry: LinkedEntry<string, T>): void {
 		if (this.head) {
 			// [A]-[B] = [A]-[B]->[X]
 			entry.prev = this.head;
@@ -182,8 +176,7 @@ export class BoundedMap<T> {
 
 		this.head = entry;
 
-		this.map[entry.key] = entry;
-		this._size++;
+		this.map.set(entry.key, entry);
 	}
 
 	private trim(): void {
@@ -196,8 +189,7 @@ export class BoundedMap<T> {
 				while (current.next) {
 
 					// Remove the entry
-					this.map[current.key] = void 0;
-					this._size--;
+					this.map.delete(current.key);
 
 					// if we reached the element that overflows our ratio condition
 					// make its next element the new tail of the Map and adjust the size
@@ -216,8 +208,7 @@ export class BoundedMap<T> {
 
 			// Just remove the tail element
 			else {
-				this.map[this.tail.key] = void 0;
-				this._size--;
+				this.map.delete(this.tail.key);
 
 				// [x]-[B] = [B]
 				this.tail = this.tail.next;
@@ -485,14 +476,18 @@ export class LinkedMap<K, V> {
 	}
 
 	public delete(key: K): boolean {
+		return !!this.remove(key);
+	}
+
+	public remove(key: K): V | undefined {
 		const item = this._map.get(key);
 		if (!item) {
-			return false;
+			return undefined;
 		}
 		this._map.delete(key);
 		this.removeItem(item);
 		this._size--;
-		return true;
+		return item.value;
 	}
 
 	public shift(): V | undefined {

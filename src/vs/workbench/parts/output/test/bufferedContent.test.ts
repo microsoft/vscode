@@ -41,7 +41,7 @@ suite('Workbench - Output Buffered Content', () => {
 		bufferedContent.append('first line');
 		const firstDelta = bufferedContent.getDelta();
 		let longString = '';
-		for (var i = 0; i < 5000; i++) {
+		for (let i = 0; i < 5000; i++) {
 			bufferedContent.append(i.toString());
 			longString += i.toString();
 		}

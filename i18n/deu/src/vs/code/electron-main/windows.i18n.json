@@ -14,8 +14,6 @@
 	"appStalledDetail": "Sie können das Fenster erneut öffnen oder schließen oder weiterhin warten.",
 	"appCrashed": "Das Fenster ist abgestürzt.",
 	"appCrashedDetail": "Bitte entschuldigen Sie die Unannehmlichkeiten. Sie können das Fenster erneut öffnen und dort weitermachen, wo Sie aufgehört haben.",
-	"newWindow": "Neues Fenster",
-	"newWindowDesc": "Öffnet ein neues Fenster.",
-	"recentFolders": "Zuletzt verwendete Ordner",
-	"folderDesc": "{0} {1}"
+	"openFile": "Datei öffnen",
+	"openFolder": "Ordner öffnen"
 }

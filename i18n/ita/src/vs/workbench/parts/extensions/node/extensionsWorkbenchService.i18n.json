@@ -13,5 +13,6 @@
 	"cancel": "Annulla",
 	"singleDependentError": "Non è possibile disabilitare l'estensione '{0}'. L'estensione '{1}' dipende da tale estensione.",
 	"twoDependentsError": "Non è possibile disabilitare l'estensione '{0}'. Le estensioni '{1}' e '{2}' dipendono da tale estensione.",
-	"multipleDependentsError": "Non è possibile disabilitare l'estensione '{0}'. Alcune estensioni, tra cui '{1}' e '{2}' dipendono da tale estensione."
+	"multipleDependentsError": "Non è possibile disabilitare l'estensione '{0}'. Alcune estensioni, tra cui '{1}' e '{2}' dipendono da tale estensione.",
+	"install": "Installa"
 }

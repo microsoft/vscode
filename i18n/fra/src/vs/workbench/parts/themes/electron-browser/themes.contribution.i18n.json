@@ -6,6 +6,7 @@
 {
 	"selectTheme.label": "Thème de couleur",
 	"installColorThemes": "Installer des thèmes de couleurs supplémentaires...",
+	"themes.selectTheme": "Sélectionner un thème de couleur (flèches bas/haut pour afficher l'aperçu)",
 	"selectIconTheme.label": "Thème d'icône de fichier",
 	"installIconThemes": "Installer des thèmes d'icônes de fichiers supplémentaires...",
 	"noIconThemeLabel": "Aucun",

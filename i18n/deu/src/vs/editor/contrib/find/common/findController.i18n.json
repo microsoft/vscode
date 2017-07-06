@@ -14,6 +14,6 @@
 	"addSelectionToPreviousFindMatch": "Letzte Auswahl zu vorheriger Übereinstimmungssuche hinzufügen",
 	"moveSelectionToNextFindMatch": "Letzte Auswahl in nächste Übereinstimmungssuche verschieben",
 	"moveSelectionToPreviousFindMatch": "Letzte Auswahl in vorherige Übereinstimmungssuche verschieben",
-	"selectAllOccurencesOfFindMatch": "Alle Vorkommen auswählen und Übereinstimmung suchen",
+	"selectAllOccurrencesOfFindMatch": "Alle Vorkommen auswählen und Übereinstimmung suchen",
 	"changeAll.label": "Alle Vorkommen ändern"
 }

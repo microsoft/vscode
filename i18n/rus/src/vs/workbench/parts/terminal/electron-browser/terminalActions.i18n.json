@@ -8,6 +8,7 @@
 	"workbench.action.terminal.kill": "Завершить активный экземпляр терминала",
 	"workbench.action.terminal.kill.short": "Завершить работу терминала",
 	"workbench.action.terminal.copySelection": "Скопировать выделение",
+	"workbench.action.terminal.selectAll": "Выбрать все",
 	"workbench.action.terminal.new": "Создание нового интегрированного терминала",
 	"workbench.action.terminal.new.short": "Новый терминал",
 	"workbench.action.terminal.focus": "Фокус на терминале",
@@ -26,5 +27,8 @@
 	"workbench.action.terminal.scrollUp": "Прокрутить вверх (построчно)",
 	"workbench.action.terminal.scrollUpPage": "Прокрутить вверх (страницу)",
 	"workbench.action.terminal.scrollToTop": "Прокрутить до верхней границы",
-	"workbench.action.terminal.clear": "Очистить"
+	"workbench.action.terminal.clear": "Очистить",
+	"workbench.action.terminal.allowWorkspaceShell": "Разрешить настройку оболочки в рабочей области",
+	"workbench.action.terminal.disallowWorkspaceShell": "Запретить настройку оболочки в рабочей области",
+	"workbench.action.terminal.rename": "Переименовать"
 }

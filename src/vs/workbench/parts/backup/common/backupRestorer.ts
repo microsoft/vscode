@@ -16,7 +16,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position, IResourceInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { Schemas } from "vs/base/common/network";
+import { Schemas } from 'vs/base/common/network';
 
 export class BackupRestorer implements IWorkbenchContribution {
 
@@ -41,7 +41,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 		}
 	}
 
-	private doRestoreBackups(): TPromise<any> {
+	private doRestoreBackups(): TPromise<URI[]> {
 
 		// Find all files and untitled with backups
 		return this.backupFileService.getWorkspaceFileBackups().then(backups => {
@@ -62,7 +62,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 	private doResolveOpenedBackups(backups: URI[]): TPromise<URI[]> {
 		const stacks = this.groupService.getStacksModel();
 
-		const restorePromises: TPromise<any>[] = [];
+		const restorePromises: TPromise<number>[] = [];
 		const unresolved: URI[] = [];
 
 		backups.forEach(backup => {

@@ -6,8 +6,9 @@
 {
 	"vscode.extension.contributes.snippets": "Trägt Codeausschnitte bei.",
 	"vscode.extension.contributes.snippets-language": "Der Sprachbezeichner, für den dieser Codeausschnitt beigetragen wird.",
-	"vscode.extension.contributes.snippets-path": "Der Pfad der Codeausschnittdatei. Der Pfad ist relativ zum Extensionordner und beginnt normalerweise mit \". /snippets/\".",
+	"vscode.extension.contributes.snippets-path": "Der Pfad der Codeausschnittdatei. Der Pfad ist relativ zum Erweiterungsordner und beginnt normalerweise mit \". /snippets/\".",
 	"invalid.language": "Unbekannte Sprache in \"contributes.{0}.language\". Bereitgestellter Wert: {1}",
 	"invalid.path.0": "In \"contributes.{0}.path\" wurde eine Zeichenfolge erwartet. Bereitgestellter Wert: {1}",
-	"invalid.path.1": "Es wurde erwartet, dass \"contributes.{0}.path\" ({1}) im Ordner ({2}) der Extension enthalten ist. Dies führt ggf. dazu, dass die Extension nicht portierbar ist."
+	"invalid.path.1": "Es wurde erwartet, dass \"contributes.{0}.path\" ({1}) im Ordner ({2}) der Erweiterung enthalten ist. Dies führt ggf. dazu, dass die Erweiterung nicht portierbar ist.",
+	"badVariableUse": "Das \"{0}\"-Snippet verwirrt wahrscheinlich Snippet-Variablen und Snippet-Paltzhalter. Schaue https://code.visualstudio.com/docs/editor/userdefinedsnippets#_snippet-syntax für weitere Informationen."
 }

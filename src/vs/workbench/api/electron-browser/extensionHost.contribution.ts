@@ -6,7 +6,7 @@
 'use strict';
 
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { MainContext, InstanceCollection } from '../node/extHost.protocol';
@@ -15,6 +15,7 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 // --- addressable
 import { MainThreadCommands } from './mainThreadCommands';
 import { MainThreadConfiguration } from './mainThreadConfiguration';
+import { MainThreadDebugService } from './mainThreadDebugService';
 import { MainThreadDiagnostics } from './mainThreadDiagnostics';
 import { MainThreadDocuments } from './mainThreadDocuments';
 import { MainThreadEditors } from './mainThreadEditors';
@@ -39,7 +40,7 @@ import { MainThreadSCM } from './mainThreadSCM';
 // --- other interested parties
 import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
 import { JSONValidationExtensionPoint } from 'vs/platform/jsonschemas/common/jsonValidationExtensionPoint';
-import { LanguageConfigurationFileHandler } from 'vs/editor/node/languageConfigurationExtensionPoint';
+import { LanguageConfigurationFileHandler } from 'vs/workbench/parts/codeEditor/electron-browser/languageConfiguration/languageConfigurationExtensionPoint';
 import { SaveParticipant } from './mainThreadSaveParticipant';
 
 // --- registers itself as service
@@ -70,6 +71,7 @@ export class ExtHostContribution implements IWorkbenchContribution {
 		const col = new InstanceCollection();
 		col.define(MainContext.MainThreadCommands).set(create(MainThreadCommands));
 		col.define(MainContext.MainThreadConfiguration).set(create(MainThreadConfiguration));
+		col.define(MainContext.MainThreadDebugService).set(create(MainThreadDebugService));
 		col.define(MainContext.MainThreadDiagnostics).set(create(MainThreadDiagnostics));
 		col.define(MainContext.MainThreadDocuments).set(this.instantiationService.createInstance(MainThreadDocuments, documentsAndEditors));
 		col.define(MainContext.MainThreadEditors).set(this.instantiationService.createInstance(MainThreadEditors, documentsAndEditors));

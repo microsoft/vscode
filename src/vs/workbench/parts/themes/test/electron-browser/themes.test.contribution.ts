@@ -15,11 +15,11 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IWorkbenchThemeService, IColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
-import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
+import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
 import { IGrammar, StackElement } from 'vscode-textmate';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
-import { ThemeRule, findMatchingThemeRule } from 'vs/editor/electron-browser/textMate/TMHelper';
+import { ThemeRule, findMatchingThemeRule } from 'vs/workbench/services/textMate/electron-browser/TMHelper';
 import { Color } from 'vs/base/common/color';
 
 interface IToken {

@@ -7,7 +7,6 @@
 	"activeEditorShort": "p. ej. myFile.txt",
 	"activeEditorMedium": "e.g. myFolder/myFile.txt",
 	"activeEditorLong": "e.g. /Users/Development/myProject/myFolder/myFile.txt",
-	"rootName": "p. ej. myProject",
 	"rootPath": "p. ej. /Users/Development/myProject",
 	"appName": "p. ej. VS Code",
 	"dirty": "un indicador con modificaciones si el editor activo tiene modificaciones",

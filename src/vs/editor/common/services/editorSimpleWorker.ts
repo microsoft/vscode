@@ -313,7 +313,8 @@ export abstract class BaseEditorSimpleWorker {
 		let diffComputer = new DiffComputer(originalLines, modifiedLines, {
 			shouldPostProcessCharChanges: true,
 			shouldIgnoreTrimWhitespace: ignoreTrimWhitespace,
-			shouldConsiderTrimWhitespaceInEmptyCase: true
+			shouldConsiderTrimWhitespaceInEmptyCase: true,
+			shouldMakePrettyDiff: true
 		});
 		return TPromise.as(diffComputer.computeDiff());
 	}
@@ -330,7 +331,8 @@ export abstract class BaseEditorSimpleWorker {
 		let diffComputer = new DiffComputer(originalLines, modifiedLines, {
 			shouldPostProcessCharChanges: false,
 			shouldIgnoreTrimWhitespace: ignoreTrimWhitespace,
-			shouldConsiderTrimWhitespaceInEmptyCase: false
+			shouldConsiderTrimWhitespaceInEmptyCase: false,
+			shouldMakePrettyDiff: true
 		});
 		return TPromise.as(diffComputer.computeDiff());
 	}
@@ -377,7 +379,7 @@ export abstract class BaseEditorSimpleWorker {
 			}
 
 			// compute diff between original and edit.text
-			const changes = stringDiff(original, text);
+			const changes = stringDiff(original, text, false);
 			const editOffset = model.offsetAt(Range.lift(range).getStartPosition());
 
 			for (const change of changes) {

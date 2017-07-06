@@ -9,6 +9,8 @@
 	"neverShowAgain": "Ne plus afficher",
 	"close": "Fermer",
 	"workspaceRecommended": "Cet espace de travail a des recommandations d'extension.",
+	"ignoreExtensionRecommendations": "Voulez-vous ignorer toutes les recommandations d'extension ?",
+	"ignoreAll": "Oui, ignorer tout",
 	"no": "Non",
 	"cancel": "Annuler"
 }

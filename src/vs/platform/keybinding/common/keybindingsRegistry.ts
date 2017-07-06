@@ -8,7 +8,7 @@ import { SimpleKeybinding, KeyCode, KeybindingType, createKeybinding, Keybinding
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export interface IKeybindingItem {
 	keybinding: Keybinding;
@@ -223,10 +223,10 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		return result;
 	}
 }
-export let KeybindingsRegistry: IKeybindingsRegistry = new KeybindingsRegistryImpl();
+export const KeybindingsRegistry: IKeybindingsRegistry = new KeybindingsRegistryImpl();
 
 // Define extension point ids
-export let Extensions = {
+export const Extensions = {
 	EditorModes: 'platform.keybindingsRegistry'
 };
 Registry.add(Extensions.EditorModes, KeybindingsRegistry);

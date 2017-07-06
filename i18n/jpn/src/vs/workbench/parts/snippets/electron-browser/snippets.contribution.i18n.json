@@ -11,6 +11,6 @@
 	"snippetSchema.json.default": "空のスニペット",
 	"snippetSchema.json": "ユーザー スニペット構成",
 	"snippetSchema.json.prefix": "intellisense でスニペットを選択するときに使用するプレフィックス",
-	"snippetSchema.json.body": "スニペットの内容。変数には '${id}'、'${id:label}'、'${1:label}' を使用し、カーソル位置には '$0'、'$1' を使用します",
+	"snippetSchema.json.body": "スニペットのコンテンツです。カーソルの位置を定義するには '$1', '${1:defaultText}' を使用し、最後のカーソルの位置には '$0' を使用します。'${varName}' と '${varName:defaultText}' を使用すると変数値を挿入します。例: 'This is file: $TM_FILENAME'.",
 	"snippetSchema.json.description": "スニペットについての記述。"
 }

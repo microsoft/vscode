@@ -7,6 +7,12 @@
 	"JsonSchema.shell": "Gibt an, ob der Befehl ein Shellbefehl oder ein externes Programm ist. Wenn keine Angabe erfolgt, ist der Standardwert \"false\".",
 	"JsonSchema.tasks.dependsOn.string": "Eine weitere Aufgabe, von der diese Aufgabe abhängt.",
 	"JsonSchema.tasks.dependsOn.array": "Die anderen Aufgaben, von denen diese Aufgabe abhängt.",
+	"JsonSchema.tasks.type": "Definiert, ob die Aufgabe als Prozess oder als Befehl innerhalb einer Shell ausgeführt wird. Standardmäßig wird sie als Prozess ausgeführt.",
+	"JsonSchema.version": "Die Versionsnummer der Konfiguration.",
+	"JsonSchema.tasks.taskName": "Der Name des Tasks.",
+	"JsonSchema.tasks.background": "Ob die ausgeführte Aufgabe weiterhin besteht und im Hintergrund ausgeführt wird.",
+	"JsonSchema.tasks.promptOnClose": "Ob der Benutzer aufgefordert wird, wenn VS Code bei einer aktuell ausgeführten Aufgabe geschlossen wird.",
+	"JsonSchema.tasks.matchers": "Die zu verwendenden Problemabgleicher. Es kann sich um eine Zeichenfolge, eine Problemabgleicherdefinition oder ein Array aus Zeichenfolgen und Problemabgleichern handeln.",
 	"JsonSchema.windows": "Windows-spezifische Befehlskonfiguration",
 	"JsonSchema.mac": "Mac-spezifische Befehlskonfiguration",
 	"JsonSchema.linux": "Linux-spezifische Befehlskonfiguration"

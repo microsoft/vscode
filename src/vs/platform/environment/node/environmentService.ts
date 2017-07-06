@@ -30,6 +30,9 @@ function getUniqueUserId(): string {
 }
 
 function getNixIPCHandle(userDataPath: string, type: string): string {
+	if (process.env['XDG_RUNTIME_DIR']) {
+		return path.join(process.env['XDG_RUNTIME_DIR'], `${pkg.name}-${pkg.version}-${type}.sock`);
+	}
 	return path.join(userDataPath, `${pkg.version}-${type}.sock`);
 }
 

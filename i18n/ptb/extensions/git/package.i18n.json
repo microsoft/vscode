@@ -9,6 +9,7 @@
 	"command.refresh": "Atualizar",
 	"command.openChange": "Abrir alterações",
 	"command.openFile": "Abrir Arquivo",
+	"command.openHEADFile": "Abrir arquivo (HEAD)",
 	"command.stage": "Estagiar Alterações",
 	"command.stageAll": "Estagiar Todas Alterações",
 	"command.stageSelectedRanges": "Estagiar Faixas Selecionadas",
@@ -27,13 +28,16 @@
 	"command.checkout": "Fazer checkout para...",
 	"command.branch": "Criar Ramificação...",
 	"command.deleteBranch": "Excluir Ramificação...",
+	"command.merge": "Mesclar ramificação...",
 	"command.pull": "Efetuar pull",
 	"command.pullRebase": "Efetuar pull (Rebase)",
+	"command.pullFrom": "Fazer pull de...",
 	"command.push": "Enviar por push",
 	"command.pushTo": "Enviar por push para...",
 	"command.sync": "Sincronizar",
-	"command.publish": "Publicar",
+	"command.publish": "Publicar Ramo",
 	"command.showOutput": "Mostrar Saída do Git",
+	"command.ignore": "Adicionar arquivo ao .gitignore",
 	"config.enabled": "Se o git estiver habilitado",
 	"config.path": "Caminho para o executável do git",
 	"config.autorefresh": "Se a atualização automática estiver habilitada",
@@ -44,6 +48,5 @@
 	"config.checkoutType": "Controla quais tipos de ramos são listados quando executando `Checkout para... `. `todos` mostra todas as referências, `local` mostra apenas os ramos locais, `etiqueta` mostra apenas etiquetas e `remoto` mostra apenas os ramos remotos.",
 	"config.ignoreLegacyWarning": "Ignora o aviso de Git legado",
 	"config.ignoreLimitWarning": "Ignora o aviso quando houver muitas alterações em um repositório",
-	"config.defaultCloneDirectory": "O local padrão onde clonar um repositório git",
-	"config.enableSmartCommit": "Confirme todas as alterações quando não há modificações escalonadas."
+	"config.defaultCloneDirectory": "O local padrão onde clonar um repositório git"
 }

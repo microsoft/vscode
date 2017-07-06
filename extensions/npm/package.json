@@ -4,7 +4,6 @@
   "description": "Extension to add task support for npm scripts.",
   "displayName": "Npm support for VSCode",
   "version": "0.0.1",
-  "enableProposedApi": true,
   "engines": {
     "vscode": "0.10.x"
   },
@@ -41,6 +40,22 @@
           "description": "%config.npm.autoDetect%"
         }
       }
-    }
+    },
+    "taskDefinitions": [
+      {
+        "type": "npm",
+        "required": ["script"],
+        "properties": {
+          "script": {
+            "type": "string",
+            "description": "The npm script to customize"
+          },
+          "file": {
+            "type": "string",
+            "description": "The package.json file that provides the task. Can be omitted."
+          }
+        }
+      }
+    ]
   }
 }

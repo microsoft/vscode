@@ -95,7 +95,7 @@ declare module monaco {
 		public static wrap<ValueType>(value: Thenable<ValueType>): Promise<ValueType>;
 		public static wrap<ValueType>(value: ValueType): Promise<ValueType>;
 
-		public static wrapError<ValueType>(error: any): Promise<ValueType>;
+		public static wrapError<ValueType>(error: Error): Promise<ValueType>;
 	}
 
 	export class CancellationTokenSource {
@@ -1050,6 +1050,10 @@ declare module monaco.editor {
 		Auto = 1,
 		Hidden = 2,
 		Visible = 3,
+	}
+
+	export interface ThemeColor {
+		id: string;
 	}
 
 	/**
@@ -2159,10 +2163,6 @@ declare module monaco.editor {
 		restoreViewState?(state: any): void;
 	}
 
-	export interface ThemeColor {
-		id: string;
-	}
-
 	export interface ICommonCodeEditor extends IEditor {
 		/**
 		 * An event emitted when the content of the current model has changed.
@@ -2927,6 +2927,11 @@ declare module monaco.editor {
 		 */
 		autoClosingBrackets?: boolean;
 		/**
+		 * Enable auto indentation adjustment.
+		 * Defaults to false.
+		 */
+		autoIndent?: boolean;
+		/**
 		 * Enable format on type.
 		 * Defaults to false.
 		 */
@@ -3284,6 +3289,7 @@ declare module monaco.editor {
 		readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 		readonly wordSeparators: string;
 		readonly autoClosingBrackets: boolean;
+		readonly autoIndent: boolean;
 		readonly useTabStops: boolean;
 		readonly tabFocusMode: boolean;
 		readonly dragAndDrop: boolean;
@@ -3416,6 +3422,7 @@ declare module monaco.editor {
 		readonly multiCursorModifier: boolean;
 		readonly wordSeparators: boolean;
 		readonly autoClosingBrackets: boolean;
+		readonly autoIndent: boolean;
 		readonly useTabStops: boolean;
 		readonly tabFocusMode: boolean;
 		readonly dragAndDrop: boolean;

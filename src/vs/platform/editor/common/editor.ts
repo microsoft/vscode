@@ -9,7 +9,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IEditorViewState } from 'vs/editor/common/editorCommon';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
 
@@ -108,6 +107,11 @@ export interface IResourceDiffInput extends IBaseResourceInput {
 	 * The right hand side URI to open inside a diff editor.
 	 */
 	rightResource: URI;
+
+	/**
+	 * Optional options to use when opening the text diff input.
+	 */
+	options?: ITextDiffEditorOptions;
 }
 
 export interface IResourceSideBySideInput extends IBaseResourceInput {
@@ -291,10 +295,19 @@ export interface ITextEditorOptions extends IEditorOptions {
 	/**
 	 * Text editor view state.
 	 */
-	viewState?: IEditorViewState;
+	viewState?: object;
 
 	/**
 	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
 	 */
 	revealInCenterIfOutsideViewport?: boolean;
+}
+
+export interface ITextDiffEditorOptions extends ITextEditorOptions {
+
+	/**
+	 * Whether to auto reveal the first change when the text editor is opened or not. By default
+	 * the first change will not be revealed.
+	 */
+	autoRevealFirstChange: boolean;
 }

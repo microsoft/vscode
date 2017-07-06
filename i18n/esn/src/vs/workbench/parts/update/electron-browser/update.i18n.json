@@ -13,7 +13,20 @@
 	"read the release notes": "{0} v{1}. ¿Quiere leer las notas de la versión?",
 	"licenseChanged": "Los términos de licencia han cambiado, revíselos.",
 	"license": "Leer licencia",
-	"updateAvailable": "{0} se actualizará después de reiniciarse.",
+	"updateIsReady": "Nueva actualización disponible.",
 	"thereIsUpdateAvailable": "Hay una actualización disponible.",
-	"noUpdatesAvailable": "Actualmente no hay actualizaciones disponibles."
+	"updateAvailable": "{0} se actualizará después de reiniciarse.",
+	"noUpdatesAvailable": "Actualmente no hay actualizaciones disponibles.",
+	"commandPalette": "Paleta de comandos...",
+	"settings": "Configuración",
+	"keyboardShortcuts": "Métodos abreviados de teclado",
+	"selectTheme.label": "Tema de color",
+	"themes.selectIconTheme.label": "Tema de icono de archivo",
+	"not available": "Actualizaciones no disponibles",
+	"checkingForUpdates": "Buscando actualizaciones...",
+	"DownloadUpdate": "Descargar actualización disponible",
+	"DownloadingUpdate": "Descargando actualización...",
+	"InstallingUpdate": "Instalando actualización...",
+	"restartToUpdate": "Reiniciar para actualizar...",
+	"checkForUpdates": "Buscar actualizaciones..."
 }

@@ -177,7 +177,7 @@ export class MessageList {
 			return toErrorMessage(message, false);
 		}
 
-		if ((<IMessageWithAction>message).message) {
+		if (message && (<IMessageWithAction>message).message) {
 			return (<IMessageWithAction>message).message;
 		}
 
@@ -334,10 +334,9 @@ export class MessageList {
 				sevLabel.appendTo(div);
 
 				// Error message
-				const messageContentElement = htmlRenderer.renderHtml({
+				const messageContentElement = htmlRenderer.renderFormattedText(text, {
 					inline: true,
 					className: 'message-left-side',
-					formattedText: text
 				});
 
 				$(messageContentElement as HTMLElement).title(messageContentElement.textContent).appendTo(div);

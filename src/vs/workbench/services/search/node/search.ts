@@ -7,10 +7,16 @@
 
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import { IExpression } from 'vs/base/common/glob';
-import { IProgress, ILineMatch, IPatternInfo, ISearchStats } from 'vs/platform/search/common/search';
+import { IProgress, ILineMatch, IPatternInfo, ISearchStats, ISearchLog } from 'vs/platform/search/common/search';
+
+export interface IFolderSearch {
+	folder: string;
+	excludePattern?: IExpression;
+	fileEncoding?: string;
+}
 
 export interface IRawSearch {
-	rootFolders: string[];
+	folderQueries: IFolderSearch[];
 	extraFiles?: string[];
 	filePattern?: string;
 	excludePattern?: IExpression;
@@ -20,7 +26,6 @@ export interface IRawSearch {
 	sortByScore?: boolean;
 	cacheKey?: string;
 	maxFilesize?: number;
-	fileEncoding?: string;
 	useRipgrep?: boolean;
 	disregardIgnoreFiles?: boolean;
 	searchPaths?: string[];
@@ -56,4 +61,5 @@ export interface ISerializedFileMatch {
 }
 
 // Type of the possible values for progress calls from the engine
-export type ISerializedSearchProgressItem = ISerializedFileMatch | ISerializedFileMatch[] | IProgress;
+export type ISerializedSearchProgressItem = ISerializedFileMatch | ISerializedFileMatch[] | IProgress | ISearchLog;
+export type IFileSearchProgressItem = IRawFileMatch | IRawFileMatch[] | IProgress;

@@ -5,15 +5,17 @@
 
 'use strict';
 
-import 'vs/editor/browser/editor.all';
-import 'vs/editor/contrib/quickOpen/browser/quickOutline';
-import 'vs/editor/contrib/quickOpen/browser/gotoLine';
-import 'vs/editor/contrib/quickOpen/browser/quickCommand';
-import 'vs/editor/contrib/inspectTokens/browser/inspectTokens';
+import 'vs/editor/editor.all';
+import 'vs/editor/standalone/browser/inspectTokens/inspectTokens';
+import 'vs/editor/standalone/browser/iPadShowKeyboard/iPadShowKeyboard';
+import 'vs/editor/standalone/browser/quickOpen/quickOutline';
+import 'vs/editor/standalone/browser/quickOpen/gotoLine';
+import 'vs/editor/standalone/browser/quickOpen/quickCommand';
+import 'vs/editor/standalone/browser/toggleHighContrast/toggleHighContrast';
 
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
-import { createMonacoEditorAPI } from 'vs/editor/browser/standalone/standaloneEditor';
-import { createMonacoLanguagesAPI } from 'vs/editor/browser/standalone/standaloneLanguages';
+import { createMonacoEditorAPI } from 'vs/editor/standalone/browser/standaloneEditor';
+import { createMonacoLanguagesAPI } from 'vs/editor/standalone/browser/standaloneLanguages';
 import { EDITOR_DEFAULTS, WrappingIndent } from 'vs/editor/common/config/editorOptions';
 
 // Set defaults for standalone editor

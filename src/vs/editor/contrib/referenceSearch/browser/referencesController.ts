@@ -29,7 +29,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
-import { IEnvironmentService } from "vs/platform/environment/common/environment";
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false);
 
@@ -229,10 +229,11 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		});
 
 		const onDone = stopwatch(fromPromise(promise));
+		const mode = this._editor.getModel().getLanguageIdentifier().language;
 
 		onDone(duration => this._telemetryService.publicLog('findReferences', {
 			duration,
-			mode: this._editor.getModel().getLanguageIdentifier().language
+			mode
 		}));
 	}
 

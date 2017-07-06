@@ -14,6 +14,7 @@ var __extends = (this && this.__extends) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+var ts = require("typescript");
 var Lint = require("tslint");
 var path_1 = require("path");
 var Rule = (function (_super) {
@@ -54,8 +55,15 @@ var LayeringRule = (function (_super) {
         _this._config = config;
         return _this;
     }
+    LayeringRule.prototype.visitImportEqualsDeclaration = function (node) {
+        if (node.moduleReference.kind === ts.SyntaxKind.ExternalModuleReference) {
+            this._validateImport(node.moduleReference.expression.getText(), node);
+        }
+    };
     LayeringRule.prototype.visitImportDeclaration = function (node) {
-        var path = node.moduleSpecifier.getText();
+        this._validateImport(node.moduleSpecifier.getText(), node);
+    };
+    LayeringRule.prototype._validateImport = function (path, node) {
         // remove quotes
         path = path.slice(1, -1);
         if (path[0] === '.') {

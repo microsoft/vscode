@@ -115,10 +115,12 @@ export interface ProblemMatcher {
 
 export interface NamedProblemMatcher extends ProblemMatcher {
 	name: string;
+	label: string;
 }
 
 export interface NamedMultiLineProblemPattern {
 	name: string;
+	label: string;
 	patterns: MultiLineProblemPattern;
 }
 
@@ -427,9 +429,9 @@ export namespace Config {
 		file?: number;
 
 		/**
-		* The match group index of the problems's location. Valid location
+		* The match group index of the problem's location. Valid location
 		* patterns are: (line), (line,column) and (startLine,startColumn,endLine,endColumn).
-		* If omitted the line and colum properties are used.
+		* If omitted the line and column properties are used.
 		*/
 		location?: number;
 
@@ -470,7 +472,7 @@ export namespace Config {
 		severity?: number;
 
 		/**
-		* The match group index of the problems's code.
+		* The match group index of the problem's code.
 		*
 		* Defaults to undefined. No code is captured.
 		*/
@@ -495,6 +497,11 @@ export namespace Config {
 		 * The name of the problem pattern.
 		 */
 		name: string;
+
+		/**
+		 * A human readable label
+		 */
+		label?: string;
 	}
 
 	export namespace NamedProblemPattern {
@@ -517,6 +524,11 @@ export namespace Config {
 		 * The name of the problem pattern.
 		 */
 		name: string;
+
+		/**
+		 * A human readable label
+		 */
+		label?: string;
 
 		/**
 		 * The actual patterns
@@ -660,9 +672,14 @@ export namespace Config {
 	export interface NamedProblemMatcher extends ProblemMatcher {
 		/**
 		* An optional name. This name can be used to refer to the
-		* problem matchter from within a task.
+		* problem matcher from within a task.
 		*/
 		name?: string;
+
+		/**
+		 * A human readable label.
+		 */
+		label?: string;
 	}
 
 	export function isNamedProblemMatcher(value: ProblemMatcher): value is NamedProblemMatcher {
@@ -682,7 +699,7 @@ class ProblemPatternParser extends Parser {
 	public parse(value: Config.NamedMultiLineProblemPattern): NamedMultiLineProblemPattern;
 	public parse(value: Config.ProblemPattern | Config.MultiLineProblemPattern | Config.NamedProblemPattern | Config.NamedMultiLineProblemPattern): any {
 		if (Config.NamedMultiLineProblemPattern.is(value)) {
-			this.createNamedMultiLineProblemPattern(value);
+			return this.createNamedMultiLineProblemPattern(value);
 		} else if (Config.MultiLineProblemPattern.is(value)) {
 			return this.createMultiLineProblemPattern(value);
 		} else if (Config.NamedProblemPattern.is(value)) {
@@ -704,6 +721,7 @@ class ProblemPatternParser extends Parser {
 	private createNamedMultiLineProblemPattern(value: Config.NamedMultiLineProblemPattern): NamedMultiLineProblemPattern {
 		let result = {
 			name: value.name,
+			label: value.label ? value.label : value.name,
 			patterns: this.createMultiLineProblemPattern(value.patterns)
 		};
 		return result.patterns ? result : null;
@@ -1229,7 +1247,8 @@ export class ProblemMatcherParser extends Parser {
 			}
 		}
 		if (Config.isNamedProblemMatcher(description)) {
-			(<NamedProblemMatcher>result).name = description.name;
+			(result as NamedProblemMatcher).name = description.name;
+			(result as NamedProblemMatcher).label = Types.isString(description.label) ? description.label : description.name;
 		}
 		return result;
 	}
@@ -1466,9 +1485,13 @@ export namespace Schemas {
 
 	export const NamedProblemMatcher: IJSONSchema = Objects.clone(ProblemMatcher);
 	NamedProblemMatcher.properties = Objects.clone(NamedProblemMatcher.properties);
-	NamedProblemMatcher.properties['name'] = {
+	NamedProblemMatcher.properties.name = {
 		type: 'string',
-		description: localize('NamedProblemMatcherSchema.name', 'The name of the problem matcher.')
+		description: localize('NamedProblemMatcherSchema.name', 'The name of the problem matcher used to refer to it.')
+	};
+	NamedProblemMatcher.properties.label = {
+		type: 'string',
+		description: localize('NamedProblemMatcherSchema.label', 'A human readable label of the problem matcher.')
 	};
 }
 
@@ -1481,14 +1504,14 @@ let problemMatchersExtPoint = ExtensionsRegistry.registerExtensionPoint<Config.N
 export interface IProblemMatcherRegistry {
 	onReady(): TPromise<void>;
 	exists(name: string): boolean;
-	get(name: string): ProblemMatcher;
-	values(): ProblemMatcher[];
+	get(name: string): NamedProblemMatcher;
+	values(): NamedProblemMatcher[];
 	keys(): string[];
 }
 
 class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 
-	private matchers: IStringDictionary<ProblemMatcher>;
+	private matchers: IStringDictionary<NamedProblemMatcher>;
 	private readyPromise: TPromise<void>;
 
 	constructor() {
@@ -1503,7 +1526,7 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 						for (let matcher of problemMatchers) {
 							let result = parser.parse(matcher);
 							if (result && isNamedProblemMatcher(result)) {
-								this.add(result.name, result);
+								this.add(result);
 							}
 						}
 					});
@@ -1522,11 +1545,11 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 		return this.readyPromise;
 	}
 
-	public add(name: string, matcher: ProblemMatcher): void {
-		this.matchers[name] = matcher;
+	public add(matcher: NamedProblemMatcher): void {
+		this.matchers[matcher.name] = matcher;
 	}
 
-	public get(name: string): ProblemMatcher {
+	public get(name: string): NamedProblemMatcher {
 		return this.matchers[name];
 	}
 
@@ -1542,19 +1565,23 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 		return Object.keys(this.matchers);
 	}
 
-	public values(): ProblemMatcher[] {
+	public values(): NamedProblemMatcher[] {
 		return Object.keys(this.matchers).map(key => this.matchers[key]);
 	}
 
 	private fillDefaults(): void {
-		this.add('msCompile', {
+		this.add({
+			name: 'msCompile',
+			label: localize('msCompile', 'Microsoft compiler problems'),
 			owner: 'msCompile',
 			applyTo: ApplyToKind.allDocuments,
 			fileLocation: FileLocationKind.Absolute,
 			pattern: ProblemPatternRegistry.get('msCompile')
 		});
 
-		this.add('lessCompile', {
+		this.add({
+			name: 'lessCompile',
+			label: localize('lessCompile', 'Less problems'),
 			owner: 'lessCompile',
 			applyTo: ApplyToKind.allDocuments,
 			fileLocation: FileLocationKind.Absolute,
@@ -1562,7 +1589,9 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 			severity: Severity.Error
 		});
 
-		this.add('gulp-tsc', {
+		this.add({
+			name: 'gulp-tsc',
+			label: localize('gulp-tsc', 'Gulp TSC Problems'),
 			owner: 'typescript',
 			applyTo: ApplyToKind.closedDocuments,
 			fileLocation: FileLocationKind.Relative,
@@ -1570,21 +1599,27 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 			pattern: ProblemPatternRegistry.get('gulp-tsc')
 		});
 
-		this.add('jshint', {
+		this.add({
+			name: 'jshint',
+			label: localize('jshint', 'JSHint problems'),
 			owner: 'jshint',
 			applyTo: ApplyToKind.allDocuments,
 			fileLocation: FileLocationKind.Absolute,
 			pattern: ProblemPatternRegistry.get('jshint')
 		});
 
-		this.add('jshint-stylish', {
+		this.add({
+			name: 'jshint-stylish',
+			label: localize('jshint-stylish', 'JSHint stylish problems'),
 			owner: 'jshint',
 			applyTo: ApplyToKind.allDocuments,
 			fileLocation: FileLocationKind.Absolute,
 			pattern: ProblemPatternRegistry.get('jshint-stylish')
 		});
 
-		this.add('eslint-compact', {
+		this.add({
+			name: 'eslint-compact',
+			label: localize('eslint-compact', 'ESLint compact problems'),
 			owner: 'eslint',
 			applyTo: ApplyToKind.allDocuments,
 			fileLocation: FileLocationKind.Relative,
@@ -1592,14 +1627,18 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 			pattern: ProblemPatternRegistry.get('eslint-compact')
 		});
 
-		this.add('eslint-stylish', {
+		this.add({
+			name: 'eslint-stylish',
+			label: localize('eslint-stylish', 'ESLint stylish problems'),
 			owner: 'eslint',
 			applyTo: ApplyToKind.allDocuments,
 			fileLocation: FileLocationKind.Absolute,
 			pattern: ProblemPatternRegistry.get('eslint-stylish')
 		});
 
-		this.add('go', {
+		this.add({
+			name: 'go',
+			label: localize('go', 'Go problems'),
 			owner: 'go',
 			applyTo: ApplyToKind.allDocuments,
 			fileLocation: FileLocationKind.Relative,

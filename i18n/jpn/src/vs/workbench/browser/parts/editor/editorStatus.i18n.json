@@ -12,6 +12,7 @@
 	"endOfLineCarriageReturnLineFeed": "CRLF",
 	"tabFocusModeEnabled": "タブによるフォーカスの移動",
 	"screenReaderDetected": "スクリーン リーダーが検出されました",
+	"screenReaderDetectedExtra": "スクリーン リーダーを使用しない場合、`editor.accessibilitySupport` を \"off\" にしてください。",
 	"disableTabMode": "アクセシビリティ モードを無効にする",
 	"gotoLine": "行へ移動",
 	"indentation": "インデント",

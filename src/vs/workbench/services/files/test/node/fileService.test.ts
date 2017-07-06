@@ -12,13 +12,16 @@ import assert = require('assert');
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { FileService, IEncodingOverride } from 'vs/workbench/services/files/node/fileService';
-import { FileOperation, FileOperationEvent, FileChangesEvent, FileOperationResult, IFileOperationResult } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, FileChangesEvent, FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
 import uri from 'vs/base/common/uri';
 import uuid = require('vs/base/common/uuid');
 import extfs = require('vs/base/node/extfs');
 import encodingLib = require('vs/base/node/encoding');
 import utils = require('vs/workbench/services/files/test/node/utils');
 import { onError } from 'vs/base/test/common/utils';
+import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
+import { Workspace } from 'vs/platform/workspace/common/workspace';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 suite('FileService', () => {
 	let service: FileService;
@@ -35,7 +38,7 @@ suite('FileService', () => {
 				return onError(error, done);
 			}
 
-			service = new FileService(testDir, { disableWatcher: true });
+			service = new FileService(new TestContextService(new Workspace(testDir, testDir, [uri.file(testDir)])), new TestConfigurationService(), { disableWatcher: true });
 			done();
 		});
 	});
@@ -226,7 +229,7 @@ suite('FileService', () => {
 		});
 
 		service.resolveFile(uri.file(path.join(testDir, 'index.html'))).done(source => {
-			return service.moveFile(source.resource, uri.file(path.join(testDir, 'binary.txt'))).then(null, (e: IFileOperationResult) => {
+			return service.moveFile(source.resource, uri.file(path.join(testDir, 'binary.txt'))).then(null, (e: FileOperationError) => {
 				assert.equal(e.fileOperationResult, FileOperationResult.FILE_MOVE_CONFLICT);
 
 				assert.ok(!event);
@@ -505,6 +508,26 @@ suite('FileService', () => {
 		}, error => onError(error, done));
 	});
 
+	test('resolveFiles', function (done: () => void) {
+		service.resolveFiles([
+			{ resource: uri.file(testDir), options: { resolveTo: [uri.file(path.join(testDir, 'deep'))] } },
+			{ resource: uri.file(path.join(testDir, 'deep')) }
+		]).then(res => {
+			const r1 = res[0].stat;
+
+			assert.equal(r1.children.length, 6);
+
+			let deep = utils.getByName(r1, 'deep');
+			assert.equal(deep.children.length, 4);
+
+			const r2 = res[1].stat;
+			assert.equal(r2.children.length, 4);
+			assert.equal(r2.name, 'deep');
+
+			done();
+		}, error => onError(error, done));
+	});
+
 	test('existsFile', function (done: () => void) {
 		service.existsFile(uri.file(testDir)).then((exists) => {
 			assert.equal(exists, true);
@@ -580,7 +603,7 @@ suite('FileService', () => {
 	test('resolveContent - FILE_IS_BINARY', function (done: () => void) {
 		let resource = uri.file(path.join(testDir, 'binary.txt'));
 
-		service.resolveContent(resource, { acceptTextOnly: true }).done(null, (e: IFileOperationResult) => {
+		service.resolveContent(resource, { acceptTextOnly: true }).done(null, (e: FileOperationError) => {
 			assert.equal(e.fileOperationResult, FileOperationResult.FILE_IS_BINARY);
 
 			return service.resolveContent(uri.file(path.join(testDir, 'small.txt')), { acceptTextOnly: true }).then(r => {
@@ -594,7 +617,7 @@ suite('FileService', () => {
 	test('resolveContent - FILE_IS_DIRECTORY', function (done: () => void) {
 		let resource = uri.file(path.join(testDir, 'deep'));
 
-		service.resolveContent(resource).done(null, (e: IFileOperationResult) => {
+		service.resolveContent(resource).done(null, (e: FileOperationError) => {
 			assert.equal(e.fileOperationResult, FileOperationResult.FILE_IS_DIRECTORY);
 
 			done();
@@ -604,7 +627,7 @@ suite('FileService', () => {
 	test('resolveContent - FILE_NOT_FOUND', function (done: () => void) {
 		let resource = uri.file(path.join(testDir, '404.html'));
 
-		service.resolveContent(resource).done(null, (e: IFileOperationResult) => {
+		service.resolveContent(resource).done(null, (e: FileOperationError) => {
 			assert.equal(e.fileOperationResult, FileOperationResult.FILE_NOT_FOUND);
 
 			done();
@@ -615,7 +638,7 @@ suite('FileService', () => {
 		let resource = uri.file(path.join(testDir, 'index.html'));
 
 		service.resolveContent(resource).done(c => {
-			return service.resolveContent(resource, { etag: c.etag }).then(null, (e: IFileOperationResult) => {
+			return service.resolveContent(resource, { etag: c.etag }).then(null, (e: FileOperationError) => {
 				assert.equal(e.fileOperationResult, FileOperationResult.FILE_NOT_MODIFIED_SINCE);
 
 				done();
@@ -629,7 +652,7 @@ suite('FileService', () => {
 		service.resolveContent(resource).done(c => {
 			fs.writeFileSync(resource.fsPath, 'Updates Incoming!');
 
-			return service.updateContent(resource, c.value, { etag: c.etag, mtime: c.mtime - 1000 }).then(null, (e: IFileOperationResult) => {
+			return service.updateContent(resource, c.value, { etag: c.etag, mtime: c.mtime - 1000 }).then(null, (e: FileOperationError) => {
 				assert.equal(e.fileOperationResult, FileOperationResult.FILE_MODIFIED_SINCE);
 
 				done();
@@ -731,9 +754,11 @@ suite('FileService', () => {
 				encoding: 'utf16le'
 			});
 
-			let _service = new FileService(_testDir, {
-				encoding: 'windows1252',
-				encodingOverride: encodingOverride,
+			let configurationService = new TestConfigurationService();
+			configurationService.setUserConfiguration('files', { encoding: 'windows1252' });
+
+			let _service = new FileService(new TestContextService(new Workspace(_testDir, _testDir, [uri.file(_testDir)])), configurationService, {
+				encodingOverride,
 				disableWatcher: true
 			});
 
@@ -759,7 +784,7 @@ suite('FileService', () => {
 		let _sourceDir = require.toUrl('./fixtures/service');
 		let resource = uri.file(path.join(testDir, 'index.html'));
 
-		let _service = new FileService(_testDir, {
+		let _service = new FileService(new TestContextService(new Workspace(_testDir, _testDir, [uri.file(_testDir)])), new TestConfigurationService(), {
 			disableWatcher: true
 		});
 

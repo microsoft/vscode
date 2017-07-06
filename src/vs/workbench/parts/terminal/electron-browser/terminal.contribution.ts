@@ -19,7 +19,7 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/wor
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KillTerminalAction, CopyTerminalSelectionAction, CreateNewTerminalAction, FocusActiveTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, FocusTerminalAtIndexAction, SelectDefaultShellWindowsTerminalAction, RunSelectedTextInTerminalAction, RunActiveFileInTerminalAction, ScrollDownTerminalAction, ScrollDownPageTerminalAction, ScrollToBottomTerminalAction, ScrollUpTerminalAction, ScrollUpPageTerminalAction, ScrollToTopTerminalAction, TerminalPasteAction, ToggleTerminalAction, ClearTerminalAction, AllowWorkspaceShellTerminalCommand, DisallowWorkspaceShellTerminalCommand, RenameTerminalAction, SelectAllTerminalAction, FocusTerminalFindWidgetAction, HideTerminalFindWidgetAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { TerminalService } from 'vs/workbench/parts/terminal/electron-browser/terminalService';
@@ -29,6 +29,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { OpenNextRecentlyUsedEditorInGroupAction, OpenPreviousRecentlyUsedEditorInGroupAction, FocusActiveGroupAction, FocusFirstGroupAction, FocusSecondGroupAction, FocusThirdGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { registerColors } from './terminalColorRegistry';
+import { NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction } from "vs/workbench/electron-browser/actions";
 
 let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -188,7 +189,11 @@ configurationRegistry.registerConfiguration({
 				FocusThirdGroupAction.ID,
 				SelectAllTerminalAction.ID,
 				FocusTerminalFindWidgetAction.ID,
-				HideTerminalFindWidgetAction.ID
+				HideTerminalFindWidgetAction.ID,
+				NavigateUpAction.ID,
+				NavigateDownAction.ID,
+				NavigateRightAction.ID,
+				NavigateLeftAction.ID
 			].sort()
 		}
 	}
@@ -283,6 +288,7 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalFin
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_F
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Focus Find Widget', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(HideTerminalFindWidgetAction, HideTerminalFindWidgetAction.ID, HideTerminalFindWidgetAction.LABEL, {
-	primary: KeyCode.Escape
-}, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE), 'Terminal: Focus Find Widget', category);
+	primary: KeyCode.Escape,
+	secondary: [KeyCode.Shift | KeyCode.Escape]
+}, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE)), 'Terminal: Focus Find Widget', category);
 registerColors();

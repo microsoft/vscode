@@ -6,8 +6,8 @@
 
 import URI from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import paths = require('vs/base/common/paths');
-import { isEqualOrParent } from 'vs/platform/files/common/files';
+import * as paths from 'vs/base/common/paths';
+import { TrieMap } from 'vs/base/common/map';
 import { isLinux } from 'vs/base/common/platform';
 import Event from 'vs/base/common/event';
 
@@ -25,18 +25,18 @@ export interface IWorkspaceContextService {
 	 * Provides access to the workspace object the platform is running with. This may be null if the workbench was opened
 	 * without workspace (empty);
 	 */
-	getWorkspace(): IWorkspace;
+	getLegacyWorkspace(): ILegacyWorkspace;
 
 	/**
 	 * Provides access to the workspace object the platform is running with. This may be null if the workbench was opened
 	 * without workspace (empty);
 	 */
-	getWorkspace2(): IWorkspace2;
+	getWorkspace(): IWorkspace;
 
 	/**
 	 * An event which fires on workspace roots change.
 	 */
-	onDidChangeWorkspaceRoots: Event<URI[]>;
+	onDidChangeWorkspaceRoots: Event<void>;
 
 	/**
 	 * Returns the root for the given resource from the workspace.
@@ -62,26 +62,16 @@ export interface IWorkspaceContextService {
 	toResource: (workspaceRelativePath: string) => URI;
 }
 
-export interface IWorkspace {
+export interface ILegacyWorkspace {
 
 	/**
 	 * the full uri of the workspace. this is a file:// URL to the location
 	 * of the workspace on disk.
 	 */
 	resource: URI;
-
-	/**
-	 * the creation date of the workspace if known.
-	 */
-	ctime: number;
-
-	/**
-	 * the name of the workspace
-	 */
-	name?: string;
 }
 
-export interface IWorkspace2 {
+export interface IWorkspace {
 
 	/**
 	 * the unique identifier of the workspace.
@@ -99,7 +89,7 @@ export interface IWorkspace2 {
 	readonly roots: URI[];
 }
 
-export class Workspace implements IWorkspace {
+export class LegacyWorkspace implements ILegacyWorkspace {
 	private _name: string;
 
 	constructor(private _resource: URI, private _ctime?: number) {
@@ -128,7 +118,7 @@ export class Workspace implements IWorkspace {
 
 	private contains(resource: URI): boolean {
 		if (resource) {
-			return isEqualOrParent(resource.fsPath, this._resource.fsPath, !isLinux /* ignorecase */);
+			return paths.isEqualOrParent(resource.fsPath, this._resource.fsPath, !isLinux /* ignorecase */);
 		}
 
 		return false;
@@ -140,5 +130,54 @@ export class Workspace implements IWorkspace {
 		}
 
 		return null;
+	}
+}
+
+export class Workspace implements IWorkspace {
+
+	private _rootsMap: TrieMap<URI> = new TrieMap<URI>(TrieMap.PathSplitter);
+
+	constructor(
+		public readonly id: string,
+		private _name: string,
+		private _roots: URI[]
+	) {
+		this.updateRootsMap();
+	}
+
+	public get roots(): URI[] {
+		return this._roots;
+	}
+
+	public set roots(roots: URI[]) {
+		this._roots = roots;
+		this.updateRootsMap();
+	}
+
+	public get name(): string {
+		return this._name;
+	}
+
+	public set name(name: string) {
+		this._name = name;
+	}
+
+	public getRoot(resource: URI): URI {
+		if (!resource) {
+			return null;
+		}
+
+		return this._rootsMap.findSubstr(resource.fsPath);
+	}
+
+	private updateRootsMap(): void {
+		this._rootsMap = new TrieMap<URI>(TrieMap.PathSplitter);
+		for (const root of this.roots) {
+			this._rootsMap.insert(root.fsPath, root);
+		}
+	}
+
+	public toJSON(): IWorkspace {
+		return { id: this.id, roots: this.roots, name: this.name };
 	}
 }

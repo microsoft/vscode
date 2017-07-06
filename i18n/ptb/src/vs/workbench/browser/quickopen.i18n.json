@@ -6,6 +6,5 @@
 {
 	"noResultsMatching": "Nenhum resultado encontrado",
 	"noResultsFound2": "Nenhum resultado encontrado",
-	"entryAriaLabel": "{0}, comando",
-	"noCommands": "Não há comandos correspondentes"
+	"entryAriaLabel": "{0}, comando"
 }

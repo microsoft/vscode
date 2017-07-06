@@ -7,6 +7,7 @@
 	"JsonSchema.options": "추가 명령 옵션",
 	"JsonSchema.options.cwd": "실행된 프로그램 또는 스크립트의 현재 작업 디렉터리입니다. 생략된 경우 Code의 현재 작업 영역 루트가 사용됩니다.",
 	"JsonSchema.options.env": "실행할 프로그램 또는 셸의 환경입니다. 생략하면 부모 프로세스의 환경이 사용됩니다.",
+	"JsonSchema.shellConfiguration": "사용할 셸을 구성합니다.",
 	"JsonSchema.shell.executable": "사용할 셸입니다.",
 	"JsonSchema.shell.args": "셸 인수입니다.",
 	"JsonSchema.command": "실행할 명령이며, 외부 프로그램 또는 셸 명령입니다.",

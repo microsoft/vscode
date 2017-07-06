@@ -361,12 +361,14 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private static TOP_STACK_FRAME_DECORATION: IModelDecorationOptions = {
 		isWholeLine: true,
+		inlineClassName: 'debug-remove-token-colors',
 		className: 'debug-top-stack-frame-line',
 		stickiness
 	};
 
 	private static TOP_STACK_FRAME_EXCEPTION_DECORATION: IModelDecorationOptions = {
 		isWholeLine: true,
+		inlineClassName: 'debug-remove-token-colors',
 		className: 'debug-top-stack-frame-exception-line',
 		stickiness
 	};
@@ -377,6 +379,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private static FOCUSED_STACK_FRAME_DECORATION: IModelDecorationOptions = {
 		isWholeLine: true,
+		inlineClassName: 'debug-remove-token-colors',
 		className: 'debug-focused-stack-frame-line',
 		stickiness
 	};

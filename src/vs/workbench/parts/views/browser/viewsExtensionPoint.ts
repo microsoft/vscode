@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { forEach } from 'vs/base/common/collections';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
-import { ViewLocation, ViewsRegistry } from 'vs/workbench/parts/views/browser/viewsRegistry';
+import { ViewLocation, ViewsRegistry, IViewDescriptor } from 'vs/workbench/parts/views/browser/viewsRegistry';
 import { TreeView } from 'vs/workbench/parts/views/browser/treeView';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
@@ -20,13 +20,6 @@ namespace schema {
 		id: string;
 		name: string;
 		when?: string;
-	}
-
-	export function parseLocation(value: string): ViewLocation {
-		switch (value) {
-			case ViewLocation.Explorer.id: return ViewLocation.Explorer;
-		}
-		return void 0;
 	}
 
 	export function isValidViewDescriptors(viewDescriptors: IUserFriendlyViewDescriptor[], collector: ExtensionMessageCollector): boolean {
@@ -93,18 +86,19 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyV
 				return;
 			}
 
-			const location = schema.parseLocation(entry.key);
+			const location = ViewLocation.getContributedViewLocation(entry.key);
 			if (!location) {
 				collector.warn(localize('locationId.invalid', "`{0}` is not a valid view location", entry.key));
 				return;
 			}
 
-			const viewDescriptors = entry.value.map(item => ({
+			const viewDescriptors = entry.value.map(item => (<IViewDescriptor>{
 				id: item.id,
 				name: item.name,
 				ctor: TreeView,
 				location,
-				when: ContextKeyExpr.deserialize(item.when)
+				when: ContextKeyExpr.deserialize(item.when),
+				canToggleVisibility: true
 			}));
 			ViewsRegistry.registerViews(viewDescriptors);
 		});

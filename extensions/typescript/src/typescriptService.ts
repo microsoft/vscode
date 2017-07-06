@@ -68,11 +68,15 @@ export class API {
 	public has234Features(): boolean {
 		return semver.gte(this._version, '2.3.4');
 	}
+	public has240Features(): boolean {
+		return semver.gte(this._version, '2.4.0');
+	}
 }
 
 export interface ITypescriptServiceClient {
 	normalizePath(resource: Uri): string | null;
 	asUrl(filepath: string): Uri;
+	getWorkspaceRootForResource(resource: Uri): string | undefined;
 
 	warn(message: string, data?: any): void;
 
@@ -115,6 +119,8 @@ export interface ITypescriptServiceClient {
 	execute(command: 'getCodeFixes', args: Proto.CodeFixRequestArgs, token?: CancellationToken): Promise<Proto.GetCodeFixesResponse>;
 	execute(command: 'getSupportedCodeFixes', args: null, token?: CancellationToken): Promise<Proto.GetSupportedCodeFixesResponse>;
 	execute(command: 'docCommentTemplate', args: Proto.FileLocationRequestArgs, token?: CancellationToken): Promise<Proto.DocCommandTemplateResponse>;
+	execute(command: 'getApplicableRefactors', args: Proto.GetApplicableRefactorsRequestArgs, token?: CancellationToken): Promise<Proto.GetApplicableRefactorsResponse>;
+	execute(command: 'getEditsForRefactor', args: Proto.GetEditsForRefactorRequestArgs, token?: CancellationToken): Promise<Proto.GetEditsForRefactorResponse>;
 	// execute(command: 'compileOnSaveAffectedFileList', args: Proto.CompileOnSaveEmitFileRequestArgs, token?: CancellationToken): Promise<Proto.CompileOnSaveAffectedFileListResponse>;
 	// execute(command: 'compileOnSaveEmitFile', args: Proto.CompileOnSaveEmitFileRequestArgs, token?: CancellationToken): Promise<any>;
 	execute(command: string, args: any, expectedResult: boolean | CancellationToken, token?: CancellationToken): Promise<any>;

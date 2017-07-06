@@ -200,7 +200,7 @@ export class QuickOpenViewPickerAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): TPromise<boolean> {
 		const keys = this.keybindingService.lookupKeybindings(this.id);
 
 		this.quickOpenService.show(VIEW_PICKER_PREFIX, { quickNavigateConfiguration: { keybindings: keys } });

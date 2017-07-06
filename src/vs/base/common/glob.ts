@@ -224,6 +224,9 @@ export type ParsedPattern = (path: string, basename?: string) => boolean;
 export type ParsedExpression = (path: string, basename?: string, siblingsFn?: () => string[] | TPromise<string[]>) => string | TPromise<string> /* the matching pattern */;
 
 export interface IGlobOptions {
+	/**
+	 * Simplify patterns for use as exclusion filters during tree traversal to skip entire subtrees. Cannot be used outside of a tree traversal.
+	 */
 	trimForExclusions?: boolean;
 }
 
