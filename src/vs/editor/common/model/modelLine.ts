@@ -193,7 +193,7 @@ export abstract class AbstractModelLine {
 
 	///
 
-	protected abstract get text(): string;
+	public abstract get text(): string;
 	protected abstract _setText(text: string, tabSize: number);
 	protected abstract _createTokensAdjuster(): ITokensAdjuster;
 	protected abstract _createModelLine(text: string, tabSize: number): IModelLine;
@@ -632,16 +632,6 @@ export class ModelLine extends AbstractModelLine implements IModelLine {
 
 	// --- BEGIN TOKENS
 
-	private static _getDefaultMetadata(topLevelLanguageId: LanguageId): number {
-		return (
-			(topLevelLanguageId << MetadataConsts.LANGUAGEID_OFFSET)
-			| (StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET)
-			| (FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)
-			| (ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
-			| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
-		) >>> 0;
-	}
-
 	public setTokens(topLevelLanguageId: LanguageId, tokens: Uint32Array): void {
 		if (!tokens || tokens.length === 0) {
 			this._lineTokens = null;
@@ -649,7 +639,7 @@ export class ModelLine extends AbstractModelLine implements IModelLine {
 		}
 		if (tokens.length === 2) {
 			// there is one token
-			if (tokens[0] === 0 && tokens[1] === ModelLine._getDefaultMetadata(topLevelLanguageId)) {
+			if (tokens[0] === 0 && tokens[1] === getDefaultMetadata(topLevelLanguageId)) {
 				this._lineTokens = null;
 				return;
 			}
@@ -665,7 +655,7 @@ export class ModelLine extends AbstractModelLine implements IModelLine {
 
 		let lineTokens = new Uint32Array(2);
 		lineTokens[0] = 0;
-		lineTokens[1] = ModelLine._getDefaultMetadata(topLevelLanguageId);
+		lineTokens[1] = getDefaultMetadata(topLevelLanguageId);
 		return new LineTokens(lineTokens, this._text);
 	}
 
@@ -805,4 +795,97 @@ export class ModelLine extends AbstractModelLine implements IModelLine {
 		}
 	}
 
+}
+
+/**
+ * A model line that cannot store any tokenization state, nor does it compute indentation levels.
+ * It has no fields except the text.
+ */
+export class MinimalModelLine extends AbstractModelLine implements IModelLine {
+
+	private _text: string;
+	public get text(): string { return this._text; }
+
+	public isInvalid(): boolean {
+		return false;
+	}
+
+	public setIsInvalid(isInvalid: boolean): void {
+	}
+
+	/**
+	 * Returns:
+	 *  - -1 => the line consists of whitespace
+	 *  - otherwise => the indent level is returned value
+	 */
+	public getIndentLevel(): number {
+		return 0;
+	}
+
+	public updateTabSize(tabSize: number): void {
+	}
+
+	constructor(text: string, tabSize: number) {
+		super();
+		this._setText(text, tabSize);
+	}
+
+	protected _createModelLine(text: string, tabSize: number): IModelLine {
+		return new MinimalModelLine(text, tabSize);
+	}
+
+	public split(markersTracker: MarkersTracker, splitColumn: number, forceMoveMarkers: boolean, tabSize: number): IModelLine {
+		return super.split(markersTracker, splitColumn, forceMoveMarkers, tabSize);
+	}
+
+	public append(markersTracker: MarkersTracker, myLineNumber: number, other: IModelLine, tabSize: number): void {
+		super.append(markersTracker, myLineNumber, other, tabSize);
+	}
+
+	// --- BEGIN STATE
+
+	public resetTokenizationState(): void {
+	}
+
+	public setState(state: IState): void {
+	}
+
+	public getState(): IState {
+		return null;
+	}
+
+	// --- END STATE
+
+	// --- BEGIN TOKENS
+
+	public setTokens(topLevelLanguageId: LanguageId, tokens: Uint32Array): void {
+	}
+
+	public getTokens(topLevelLanguageId: LanguageId): LineTokens {
+		let lineTokens = new Uint32Array(2);
+		lineTokens[0] = 0;
+		lineTokens[1] = getDefaultMetadata(topLevelLanguageId);
+		return new LineTokens(lineTokens, this._text);
+	}
+
+	// --- END TOKENS
+
+	protected _createTokensAdjuster(): ITokensAdjuster {
+		// This line does not have real tokens, so there is nothing to adjust
+		return NO_OP_TOKENS_ADJUSTER;
+	}
+
+	protected _setText(text: string, tabSize: number): void {
+		this._text = text;
+	}
+}
+
+function getDefaultMetadata(topLevelLanguageId: LanguageId): number {
+	return (
+		(topLevelLanguageId << MetadataConsts.LANGUAGEID_OFFSET)
+		| (StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET)
+		| (FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)
+		| (ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
+		| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
+	) >>> 0;
 }

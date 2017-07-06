@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ModelLine, IModelLine } from 'vs/editor/common/model/modelLine';
+import { ModelLine, IModelLine, MinimalModelLine } from 'vs/editor/common/model/modelLine';
 import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
@@ -18,6 +18,8 @@ import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelS
 import { TextSource, ITextSource, IRawTextSource, RawTextSource } from 'vs/editor/common/model/textSource';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
+
+const USE_MIMINAL_MODEL_LINE = true;
 
 const LIMIT_FIND_COUNT = 999;
 export const LONG_LINE_BOUNDARY = 10000;
@@ -116,6 +118,9 @@ export class TextModel implements editorCommon.ITextModel {
 	}
 
 	protected _createModelLine(text: string, tabSize: number): IModelLine {
+		if (USE_MIMINAL_MODEL_LINE && this._isTooLargeForTokenization) {
+			return new MinimalModelLine(text, tabSize);
+		}
 		return new ModelLine(text, tabSize);
 	}
 
