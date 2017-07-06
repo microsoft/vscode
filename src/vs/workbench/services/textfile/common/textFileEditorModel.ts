@@ -444,7 +444,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					this.setDirty(false);
 				}
 
-				this.toDispose.push(this.textEditorModel.onDidChangeContent((e) => {
+				this.toDispose.push(this.textEditorModel.onDidChangeContent(() => {
 					this.onModelContentChanged();
 				}));
 
