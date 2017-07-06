@@ -388,13 +388,15 @@ export class ComposedViewsViewlet extends Viewlet {
 	}
 
 	public getContextMenuActions(): IAction[] {
-		return this.getVisibilityManageableViewDescriptors().map(viewDescriptor => (<IAction>{
-			id: `${viewDescriptor.id}.toggleVisibility`,
-			label: viewDescriptor.name,
-			checked: this.isCurrentlyVisible(viewDescriptor),
-			enabled: this.contextKeyService.contextMatchesRules(viewDescriptor.when),
-			run: () => this.toggleViewVisibility(viewDescriptor.id)
-		}));
+		return this.getViewDescriptorsFromRegistry(true)
+			.filter(viewDescriptor => viewDescriptor.canToggleVisibility)
+			.map(viewDescriptor => (<IAction>{
+				id: `${viewDescriptor.id}.toggleVisibility`,
+				label: viewDescriptor.name,
+				checked: this.isCurrentlyVisible(viewDescriptor),
+				enabled: this.contextKeyService.contextMatchesRules(viewDescriptor.when),
+				run: () => this.toggleViewVisibility(viewDescriptor.id)
+			}));
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
@@ -647,10 +649,6 @@ export class ComposedViewsViewlet extends Viewlet {
 			return this.viewsStates.size === 1;
 		}
 		return true;
-	}
-
-	private getVisibilityManageableViewDescriptors(): IViewDescriptor[] {
-		return this.getViewDescriptorsFromRegistry().filter(viewDescriptor => viewDescriptor.canToggleVisibility);
 	}
 
 	private getViewDescriptorsFromRegistry(defaultOrder: boolean = true): IViewDescriptor[] {
