@@ -14,6 +14,7 @@ export class ColorPickerModel {
 	private _originalColor: string;
 	private _selectedColor: string;
 	private _hue: string;
+	private _opacity: number;
 
 	constructor() {
 		this.dragging = false;
@@ -56,6 +57,16 @@ export class ColorPickerModel {
 
 	public get hue() {
 		return this._hue;
+	}
+
+	public set opacity(opacity: number) {
+		this._opacity = opacity;
+
+		this.widget.header.updatePickedColor();
+	}
+
+	public get opacity(): number {
+		return this._opacity;
 	}
 }
 

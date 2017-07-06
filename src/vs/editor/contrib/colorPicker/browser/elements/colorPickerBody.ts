@@ -16,8 +16,9 @@ export class ColorPickerBody extends Disposable {
 	private domNode: HTMLElement;
 	private saturationBox: HTMLElement;
 	private hueStrip: HueStrip;
-	private slider: HueSlider;
+	private hueSlider: Slider;
 	private opacityStrip: OpacityStrip;
+	private opacitySlider: Slider;
 
 	private saturationCtx: CanvasRenderingContext2D;
 
@@ -90,28 +91,34 @@ export class ColorPickerBody extends Disposable {
 		}));
 
 		// Slider listeners
-		this._register(dom.addDisposableListener(this.slider.domNode, dom.EventType.MOUSE_DOWN, e => {
-			this.hueStripListener(this.slider.domNode, e, monitor);
+		this._register(dom.addDisposableListener(this.hueSlider.domNode, dom.EventType.MOUSE_DOWN, e => {
+			this.hueStripListener(this.hueSlider.domNode, e, monitor);
 		}));
 		this._register(dom.addDisposableListener(this.hueStrip.domNode, dom.EventType.MOUSE_DOWN, e => {
 			this.hueStripListener(this.hueStrip.domNode, e, monitor);
 		}));
+		this._register(dom.addDisposableListener(this.opacitySlider.domNode, dom.EventType.MOUSE_DOWN, e => {
+			this.opacityStripListener(this.opacitySlider.domNode, e, monitor);
+		}));
+		this._register(dom.addDisposableListener(this.opacityStrip.domNode, dom.EventType.MOUSE_DOWN, e => {
+			this.opacityStripListener(this.opacityStrip.domNode, e, monitor);
+		}));
 	}
 
 	private hueStripListener(element: HTMLElement, e: MouseEvent, monitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>): void {
-		if (e.button !== 0) {
+		if (e.button !== 0) { // Only left click is allowed
 			return;
 		}
 
 		// Update slider position if clicked on huestrip
 		if (element === this.hueStrip.domNode) {
-			this.slider.top = e.offsetY;
-			this.widget.model.hue = this.extractColorData(this.hueStrip.context, 0, this.slider.top);
+			this.hueSlider.top = e.offsetY;
+			this.widget.model.hue = this.extractColorData(this.hueStrip.context, 0, this.hueSlider.top);
 		}
 
 		const initialMousePosition = e.clientY;
 		const initialMouseOrthogonalPosition = e.clientX;
-		const initialSliderTop = this.slider.top;
+		const initialSliderTop = this.hueSlider.top;
 		monitor.startMonitoring(standardMouseMoveMerger, (mouseMoveData: IStandardMouseMoveEventData) => {
 			// Do not move slider on Windows if it's outside of movable bounds
 			const mouseOrthogonalDelta = Math.abs(mouseMoveData.posx - initialMouseOrthogonalPosition);
@@ -120,9 +127,39 @@ export class ColorPickerBody extends Disposable {
 			}
 
 			const mouseDelta = mouseMoveData.posy - initialMousePosition;
-			this.slider.top = initialSliderTop + mouseDelta;
+			this.hueSlider.top = initialSliderTop + mouseDelta;
 
-			this.widget.model.hue = this.extractColorData(this.hueStrip.context, 0, this.slider.top);
+			this.widget.model.hue = this.extractColorData(this.hueStrip.context, 0, this.hueSlider.top);
+		}, () => null);
+	}
+
+	private opacityStripListener(element: HTMLElement, e: MouseEvent, monitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>): void {
+		if (e.button !== 0) { // Only left click is allowed
+			return;
+		}
+
+		// Update slider position if clicked on huestrip
+		if (element === this.opacityStrip.domNode) {
+			this.opacitySlider.top = e.offsetY;
+			this.widget.model.opacity = this.opacitySlider.top / this.opacityStrip.height;
+			console.log('Setting opacity to ' + this.widget.model.opacity);
+		}
+
+		const initialMousePosition = e.clientY;
+		const initialMouseOrthogonalPosition = e.clientX;
+		const initialSliderTop = this.opacitySlider.top;
+		monitor.startMonitoring(standardMouseMoveMerger, (mouseMoveData: IStandardMouseMoveEventData) => {
+			// Do not move slider on Windows if it's outside of movable bounds
+			const mouseOrthogonalDelta = Math.abs(mouseMoveData.posx - initialMouseOrthogonalPosition);
+			if (isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
+				return;
+			}
+
+			const mouseDelta = mouseMoveData.posy - initialMousePosition;
+			this.opacitySlider.top = initialSliderTop + mouseDelta;
+
+			this.widget.model.opacity = Number((this.opacitySlider.top / this.opacityStrip.height).toFixed(2));
+			console.log('Setting opacity to ' + this.widget.model.opacity);
 		}, () => null);
 	}
 
@@ -153,18 +190,22 @@ export class ColorPickerBody extends Disposable {
 
 		// Append to DOM
 		dom.append(this.domNode, canvas);
-
 		return canvas;
 	}
 
 	private drawOpacityStrip(w: number, h: number, actualW: number, actualH: number): void {
 		// Opacity strip
 		const opacityWrapper = $('.opacity-strip-wrap');
+		const opacityTransparency = $('.opacity-strip-transparency');
+		opacityTransparency.style.height = h + 'px';
 
 		this.opacityStrip = new OpacityStrip(w, h, actualW, actualH, this.model.selectedColor);
+		this.opacitySlider = new Slider(this.opacityStrip);
 
 		dom.append(this.domNode, opacityWrapper);
+		dom.append(opacityWrapper, opacityTransparency);
 		dom.append(opacityWrapper, this.opacityStrip.domNode);
+		dom.append(opacityWrapper, this.opacitySlider.domNode);
 	}
 
 	private drawHueStrip(w: number, h: number, actualW: number, actualH: number): void {
@@ -172,31 +213,31 @@ export class ColorPickerBody extends Disposable {
 		const hueWrapper = $('.hue-strip-wrap');
 
 		this.hueStrip = new HueStrip(w, h, actualW, actualH);
-		this.slider = new HueSlider(this.hueStrip);
+		this.hueSlider = new Slider(this.hueStrip);
 
 		dom.append(this.domNode, hueWrapper);
 		dom.append(hueWrapper, this.hueStrip.domNode);
-		dom.append(hueWrapper, this.slider.domNode);
+		dom.append(hueWrapper, this.hueSlider.domNode);
 	}
 
-	private extractColorData(context: CanvasRenderingContext2D, offsetX: number, offsetY: number) {
+	private extractColorData(context: CanvasRenderingContext2D, offsetX: number, offsetY: number): string {
 		const imageData = context.getImageData(offsetX, offsetY, 1, 1);
 		const color = `rgba(${imageData.data[0]}, ${imageData.data[1]}, ${imageData.data[2]}, ${imageData.data[3]})`;
 		return color;
 	}
 }
 
-class HueStrip {
+class Strip {
 	public domNode: HTMLCanvasElement;
 	public height: number;
 
 	public context: CanvasRenderingContext2D;
 
-	constructor(width: number, height: number, actualWidth: number, actualHeight: number) {
+	constructor(width: number, height: number, actualWidth: number, actualHeight: number, className: string) {
 		this.height = height;
 
 		this.domNode = document.createElement('canvas');
-		this.domNode.className = 'hue-strip';
+		this.domNode.className = className;
 		this.domNode.width = actualWidth;
 		this.domNode.height = actualHeight;
 		this.domNode.style.width = width + 'px';
@@ -204,6 +245,13 @@ class HueStrip {
 
 		this.context = this.domNode.getContext('2d');
 		this.context.rect(0, 0, actualWidth, actualHeight);
+	}
+}
+
+class HueStrip extends Strip {
+
+	constructor(width: number, height: number, actualWidth: number, actualHeight: number) {
+		super(width, height, actualWidth, actualHeight, 'hue-strip');
 
 		const colorGradient = this.context.createLinearGradient(0, 0, 0, actualHeight);
 		colorGradient.addColorStop(0, 'rgba(255, 0, 0, 1)');
@@ -219,22 +267,11 @@ class HueStrip {
 	}
 }
 
-class OpacityStrip {
-	public domNode: HTMLCanvasElement;
-	public height: number;
-
-	public context: CanvasRenderingContext2D;
+class OpacityStrip extends Strip {
 	public gradient: CanvasGradient;
 
 	constructor(width: number, height: number, actualWidth: number, actualHeight: number, selectedColor: string) {
-		this.domNode = document.createElement('canvas');
-		this.domNode.className = 'opacity-strip';
-		this.domNode.width = actualWidth;
-		this.domNode.height = actualHeight;
-		this.domNode.style.width = width + 'px';
-		this.domNode.style.height = height + 'px';
-		this.context = this.domNode.getContext('2d');
-		this.context.rect(0, 0, actualWidth, actualHeight);
+		super(width, height, actualWidth, actualHeight, 'opacity-strip');
 
 		this.gradient = this.context.createLinearGradient(0, 0, 0, actualHeight);
 		this.gradient.addColorStop(0, selectedColor);
@@ -245,11 +282,11 @@ class OpacityStrip {
 	}
 }
 
-class HueSlider {
+class Slider {
 	public domNode: HTMLElement;
 	private _top: number;
 
-	constructor(private hueStrip: HueStrip) {
+	constructor(private strip: Strip) {
 		this.domNode = $('.slider');
 		this._top = 0;
 	}
@@ -260,7 +297,7 @@ class HueSlider {
 
 	// Sets style.top in 'px'
 	public set top(top: number) {
-		if (top < 0 || top > this.hueStrip.height) {
+		if (top < 0 || top > this.strip.height) {
 			return;
 		}
 
