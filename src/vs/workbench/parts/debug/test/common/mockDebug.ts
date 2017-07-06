@@ -15,6 +15,10 @@ export class MockDebugService implements debug.IDebugService {
 		return null;
 	}
 
+	public get onDidCustomEvent(): Event<DebugProtocol.Event> {
+		return null;
+	}
+
 	public get onDidEndProcess(): Event<debug.IProcess> {
 		return null;
 	}
