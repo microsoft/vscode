@@ -44,6 +44,5 @@
 	"config.checkoutType": "Contrôle le type des branches répertoriées pendant l'exécution de 'Extraire vers...'. La valeur 'toutes' montre toutes les références, la valeur 'locales' montre uniquement les branches locales, la valeur 'balises' montre uniquement les balises et la valeur 'distantes' montre uniquement les branches distantes.",
 	"config.ignoreLegacyWarning": "Ignore l'avertissement Git hérité",
 	"config.ignoreLimitWarning": "Ignore l'avertissement quand il y a trop de modifications dans un dépôt",
-	"config.defaultCloneDirectory": "Emplacement par défaut où cloner un dépôt git",
-	"config.enableSmartCommit": "Validez toutes les modifications en l'absence de modifications en attente."
+	"config.defaultCloneDirectory": "Emplacement par défaut où cloner un dépôt git"
 }

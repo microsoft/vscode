@@ -25,22 +25,16 @@ import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorMo
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IBackupFileService, BACKUP_FILE_RESOLVE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
-import { IFileService, IFileStat, IFileOperationResult, FileOperationResult, IContent, CONTENT_CHANGE_EVENT_BUFFER_DELAY, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
+import { IFileService, IFileStat, FileOperationError, FileOperationResult, IContent, CONTENT_CHANGE_EVENT_BUFFER_DELAY, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, Severity, IChoiceService } from 'vs/platform/message/common/message';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { anonymize } from 'vs/platform/telemetry/common/telemetryUtils';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IRawTextSource } from 'vs/editor/common/model/textSource';
-import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
-import { localize } from 'vs/nls';
-import { Action } from 'vs/base/common/actions';
 
-// TODO@Rob layer breaker
-// tslint:disable-next-line:import-patterns
-import { ShowTasksAction, ShowTasksDocumentationAction } from 'vs/workbench/parts/quickopen/common/quickopenActions';
 /**
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
  */
@@ -93,8 +87,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IChoiceService private choiceService: IChoiceService,
-		@IStorageService private storageService: IStorageService
 	) {
 		super(modelService, modeService);
 
@@ -142,31 +134,36 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private onFileChanges(e: FileChangesEvent): void {
 
 		// Track ADD and DELETES for updates of this model to orphan-mode
-		const newInOrphanModeGuess = e.contains(this.resource, FileChangeType.DELETED) && !e.contains(this.resource, FileChangeType.ADDED);
-		if (this.inOrphanMode !== newInOrphanModeGuess) {
-			let checkOrphanedPromise: TPromise<boolean>;
-			if (newInOrphanModeGuess) {
-				// We have received reports of users seeing delete events even though the file still
-				// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
-				// Since we do not want to mark the model as orphaned, we have to check if the
-				// file is really gone and not just a faulty file event (TODO@Ben revisit when we
-				// have a more stable file watcher in place for this scenario).
-				checkOrphanedPromise = TPromise.timeout(100).then(() => {
-					if (this.disposed) {
-						return true;
-					}
+		const modelFileDeleted = e.contains(this.resource, FileChangeType.DELETED);
+		const modelFileAdded = e.contains(this.resource, FileChangeType.ADDED);
 
-					return this.fileService.existsFile(this.resource).then(exists => !exists);
-				});
-			} else {
-				checkOrphanedPromise = TPromise.as(false);
-			}
+		if (modelFileDeleted || modelFileAdded) {
+			const newInOrphanModeGuess = modelFileDeleted && !modelFileAdded;
+			if (this.inOrphanMode !== newInOrphanModeGuess) {
+				let checkOrphanedPromise: TPromise<boolean>;
+				if (newInOrphanModeGuess) {
+					// We have received reports of users seeing delete events even though the file still
+					// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
+					// Since we do not want to mark the model as orphaned, we have to check if the
+					// file is really gone and not just a faulty file event (TODO@Ben revisit when we
+					// have a more stable file watcher in place for this scenario).
+					checkOrphanedPromise = TPromise.timeout(100).then(() => {
+						if (this.disposed) {
+							return true;
+						}
 
-			checkOrphanedPromise.done(newInOrphanModeValidated => {
-				if (this.inOrphanMode !== newInOrphanModeValidated && !this.disposed) {
-					this.setOrphaned(newInOrphanModeValidated);
+						return this.fileService.existsFile(this.resource).then(exists => !exists);
+					});
+				} else {
+					checkOrphanedPromise = TPromise.as(false);
 				}
-			});
+
+				checkOrphanedPromise.done(newInOrphanModeValidated => {
+					if (this.inOrphanMode !== newInOrphanModeValidated && !this.disposed) {
+						this.setOrphaned(newInOrphanModeValidated);
+					}
+				});
+			}
 		}
 	}
 
@@ -328,58 +325,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Resolve Content
 		return this.textFileService
 			.resolveTextContent(this.resource, { acceptTextOnly: true, etag, encoding: this.preferredEncoding })
-			.then(content => this.handleLoadSuccess(content), error => this.handleLoadError(error))
-			.then((result) => {
-				this.showTaskNotification();
-				return result;
-			});
-	}
-
-	private showTaskNotification(): void {
-		const storageKey = 'workbench.tasks.ranTaskBefore';
-		const ignoreKey = 'workbench.tasks.ignoreTaskNotification';
-		if (!this.storageService.get(ignoreKey) && !this.storageService.get(storageKey) && this.contextService.getWorkspace2()
-			&& this.contextService.getWorkspace2().roots && this.contextService.getWorkspace2().roots.length > 0) {
-			const fileName = path.relative(this.contextService.getWorkspace2().roots[0].toString(), this.resource.toString());
-			if (fileName.match(/^gruntfile\.js$/i) || fileName.match(/^gulpfile\.js$/i) || fileName.match(/^tsconfig\.json$/i)) {
-				const message = localize('taskFileOpened', `Run your {0} in VS Code. Get started here.`, fileName.split('.')[0]);
-				let action: Action;
-				let messageTest: string;
-				const showDocumentation = this.telemetryService.getExperiments().showTaskDocumentation;
-				if (showDocumentation) {
-					action = this.instantiationService.createInstance(ShowTasksDocumentationAction, ShowTasksDocumentationAction.ID, localize('showTaskDocumentation', "Show task Documentation"));
-					messageTest = ShowTasksDocumentationAction.LABEL;
-				} else {
-					action = this.instantiationService.createInstance(ShowTasksAction, ShowTasksAction.ID, localize('showTasks', "Show tasks"));
-					messageTest = ShowTasksAction.LABEL;
-				}
-				const options = [
-					messageTest,
-					localize('neverShowAgain', "Don't show again"),
-					localize('close', "Close")
-				];
-
-				this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
-					switch (choice) {
-						case 0: {
-							this.telemetryService.publicLog('taskNotificationOptionChoice',
-								{ choice: 0, test: showDocumentation });
-							return action.run();
-						}
-						case 1: {
-							this.telemetryService.publicLog('taskNotificationOptionChoice',
-								{ choice: 1, test: showDocumentation });
-							return this.storageService.store(ignoreKey, true, StorageScope.GLOBAL);
-						}
-						case 2: {
-							this.telemetryService.publicLog('taskNotificationOptionChoice',
-								{ choice: 2, test: showDocumentation });
-							return;
-						}
-					}
-				});
-			}
-		}
+			.then(content => this.handleLoadSuccess(content), error => this.handleLoadError(error));
 	}
 
 	private handleLoadSuccess(content: IRawTextContent): TPromise<TextFileEditorModel> {
@@ -390,7 +336,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.loadWithContent(content);
 	}
 
-	private handleLoadError(error: IFileOperationResult): TPromise<TextFileEditorModel> {
+	private handleLoadError(error: FileOperationError): TPromise<TextFileEditorModel> {
 		const result = error.fileOperationResult;
 
 		// Apply orphaned state based on error code
@@ -498,9 +444,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					this.setDirty(false);
 				}
 
-				this.toDispose.push(this.textEditorModel.onDidChangeContent((e) => {
-					this.onModelContentChanged();
-				}));
+				// See https://github.com/Microsoft/vscode/issues/30189
+				// This code has been extracted to a different method because it caused a memory leak
+				// where `value` was captured in the content change listener closure scope.
+				this._installChangeContentListener();
 
 				return this;
 			}, error => {
@@ -511,6 +458,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		});
 
 		return this.createTextEditorModelPromise;
+	}
+
+	private _installChangeContentListener(): void {
+		// See https://github.com/Microsoft/vscode/issues/30189
+		// This code has been extracted to a different method because it caused a memory leak
+		// where `value` was captured in the content change listener closure scope.
+		this.toDispose.push(this.textEditorModel.onDidChangeContent(() => {
+			this.onModelContentChanged();
+		}));
 	}
 
 	private doLoadBackup(backup: URI): TPromise<string> {
@@ -758,7 +714,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				this.inErrorMode = true;
 
 				// Look out for a save conflict
-				if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
+				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
 					this.inConflictMode = true;
 				}
 
@@ -780,7 +736,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Check for workspace settings file
 		if (this.contextService.hasWorkspace()) {
-			return this.contextService.getWorkspace2().roots.some(root => {
+			return this.contextService.getWorkspace().roots.some(root => {
 				return paths.isEqualOrParent(this.resource.fsPath, path.join(root.fsPath, '.vscode'));
 			});
 		}

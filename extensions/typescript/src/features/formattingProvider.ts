@@ -21,6 +21,7 @@ interface Configuration {
 	insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces: boolean;
 	insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: boolean;
 	insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: boolean;
+	insertSpaceAfterTypeAssertion: boolean;
 	insertSpaceBeforeFunctionParenthesis: boolean;
 	placeOpenBraceOnNewLineForFunctions: boolean;
 	placeOpenBraceOnNewLineForControlBlocks: boolean;
@@ -39,6 +40,7 @@ namespace Configuration {
 	export const insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces = 'insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces';
 	export const insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces = 'insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces';
 	export const insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces = 'insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces';
+	export const insertSpaceAfterTypeAssertion = 'insertSpaceAfterTypeAssertion';
 	export const placeOpenBraceOnNewLineForFunctions = 'placeOpenBraceOnNewLineForFunctions';
 	export const placeOpenBraceOnNewLineForControlBlocks = 'placeOpenBraceOnNewLineForControlBlocks';
 
@@ -68,6 +70,7 @@ namespace Configuration {
 		result.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces = true;
 		result.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces = false;
 		result.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces = false;
+		result.insertSpaceAfterTypeAssertion = false;
 		result.placeOpenBraceOnNewLineForFunctions = false;
 		result.placeOpenBraceOnNewLineForControlBlocks = false;
 		return result;
@@ -225,6 +228,7 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 			insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces: this.config.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces,
 			insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: this.config.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces,
 			insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: this.config.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces,
+			insertSpaceAfterTypeAssertion: this.config.insertSpaceAfterTypeAssertion,
 			placeOpenBraceOnNewLineForFunctions: this.config.placeOpenBraceOnNewLineForFunctions,
 			placeOpenBraceOnNewLineForControlBlocks: this.config.placeOpenBraceOnNewLineForControlBlocks,
 

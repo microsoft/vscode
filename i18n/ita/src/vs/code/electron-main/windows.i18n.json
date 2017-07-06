@@ -13,5 +13,7 @@
 	"appStalled": "La finestra non risponde",
 	"appStalledDetail": "È possibile riaprire la finestra, chiuderla oppure attendere.",
 	"appCrashed": "Si è verificato un arresto anomalo della finestra",
-	"appCrashedDetail": "Ci scusiamo per l'inconveniente. Per riprendere dal punto in cui si è verificata l'interruzione, riaprire la finestra."
+	"appCrashedDetail": "Ci scusiamo per l'inconveniente. Per riprendere dal punto in cui si è verificata l'interruzione, riaprire la finestra.",
+	"openFile": "Apri file",
+	"openFolder": "Apri cartella"
 }

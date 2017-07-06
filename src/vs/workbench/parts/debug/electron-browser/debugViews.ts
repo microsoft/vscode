@@ -50,7 +50,7 @@ export class VariablesView extends CollapsibleView {
 	private settings: any;
 
 	constructor(
-		options: IViewletViewOptions,
+		private options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IDebugService private debugService: IDebugService,
@@ -85,7 +85,7 @@ export class VariablesView extends CollapsibleView {
 
 	public renderHeader(container: HTMLElement): void {
 		const titleDiv = $('div.title').appendTo(container);
-		$('span').text(nls.localize('variables', "Variables")).appendTo(titleDiv);
+		$('span').text(this.options.name).appendTo(titleDiv);
 
 		super.renderHeader(container);
 	}
@@ -159,7 +159,7 @@ export class WatchExpressionsView extends CollapsibleView {
 	private settings: any;
 
 	constructor(
-		options: IViewletViewOptions,
+		private options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -188,7 +188,7 @@ export class WatchExpressionsView extends CollapsibleView {
 
 	public renderHeader(container: HTMLElement): void {
 		const titleDiv = $('div.title').appendTo(container);
-		$('span').text(nls.localize('watch', "Watch")).appendTo(titleDiv);
+		$('span').text(this.options.name).appendTo(titleDiv);
 
 		super.renderHeader(container);
 	}
@@ -258,7 +258,7 @@ export class CallStackView extends CollapsibleView {
 	private settings: any;
 
 	constructor(
-		options: IViewletViewOptions,
+		private options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IDebugService private debugService: IDebugService,
@@ -300,7 +300,7 @@ export class CallStackView extends CollapsibleView {
 
 	public renderHeader(container: HTMLElement): void {
 		const title = $('div.debug-call-stack-title').appendTo(container);
-		$('span.title').text(nls.localize('callStack', "Call Stack")).appendTo(title);
+		$('span.title').text(this.options.name).appendTo(title);
 		this.pauseMessage = $('span.pause-message').appendTo(title);
 		this.pauseMessage.hide();
 		this.pauseMessageLabel = $('span.label').appendTo(this.pauseMessage);
@@ -392,7 +392,7 @@ export class BreakpointsView extends CollapsibleView {
 	private settings: any;
 
 	constructor(
-		options: IViewletViewOptions,
+		private options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -415,7 +415,7 @@ export class BreakpointsView extends CollapsibleView {
 
 	public renderHeader(container: HTMLElement): void {
 		const titleDiv = $('div.title').appendTo(container);
-		$('span').text(nls.localize('breakpoints', "Breakpoints")).appendTo(titleDiv);
+		$('span').text(this.options.name).appendTo(titleDiv);
 
 		super.renderHeader(container);
 	}

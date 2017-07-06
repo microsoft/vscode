@@ -102,7 +102,11 @@ export function activate(context: ExtensionContext) {
 	context.subscriptions.push(disposable);
 
 	languages.setLanguageConfiguration('json', {
-		wordPattern: /("(?:[^\\\"]*(?:\\.)?)*"?)|[^\s{}\[\],:]+/
+		wordPattern: /("(?:[^\\\"]*(?:\\.)?)*"?)|[^\s{}\[\],:]+/,
+		indentationRules: {
+			increaseIndentPattern: /^.*(\{[^}]*|\[[^\]]*)$/,
+			decreaseIndentPattern: /^\s*[}\]],?\s*$/
+		}
 	});
 }
 

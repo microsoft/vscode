@@ -61,7 +61,7 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 
 	public setEnablement(identifier: string, enable: boolean, workspace: boolean = false): TPromise<boolean> {
 		if (workspace && !this.hasWorkspace) {
-			return TPromise.wrapError<boolean>(localize('noWorkspace', "No workspace."));
+			return TPromise.wrapError<boolean>(new Error(localize('noWorkspace', "No workspace.")));
 		}
 
 		if (this.environmentService.disableExtensions) {

@@ -5,12 +5,13 @@
 
 'use strict';
 
-import { Uri, Command, EventEmitter, Event, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace } from 'vscode';
+import { Uri, Command, EventEmitter, Event, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit } from 'vscode';
 import { Git, Repository, Ref, Branch, Remote, Commit, GitErrorCodes } from './git';
 import { anyEvent, eventToPromise, filterEvent, EmptyDisposable, combinedDisposable, dispose } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import * as path from 'path';
 import * as nls from 'vscode-nls';
+import * as fs from 'fs';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -52,7 +53,7 @@ export class Resource implements SourceControlResourceState {
 
 	@memoize
 	get resourceUri(): Uri {
-		if (this.renameResourceUri && (this._type === Status.MODIFIED || this._type === Status.DELETED || this._type === Status.INDEX_RENAMED)) {
+		if (this.renameResourceUri && (this._type === Status.MODIFIED || this._type === Status.DELETED || this._type === Status.INDEX_RENAMED || this._type === Status.INDEX_COPIED)) {
 			return this.renameResourceUri;
 		}
 
@@ -211,7 +212,9 @@ export enum Operation {
 	Show = 1 << 13,
 	Stage = 1 << 14,
 	GetCommitTemplate = 1 << 15,
-	DeleteBranch = 1 << 16
+	DeleteBranch = 1 << 16,
+	Merge = 1 << 17,
+	Ignore = 1 << 18
 }
 
 // function getOperationName(operation: Operation): string {
@@ -458,6 +461,10 @@ export class Model implements Disposable {
 		await this.run(Operation.DeleteBranch, () => this.repository.deleteBranch(name, force));
 	}
 
+	async merge(ref: string): Promise<void> {
+		await this.run(Operation.Merge, () => this.repository.merge(ref));
+	}
+
 	async checkout(treeish: string): Promise<void> {
 		await this.run(Operation.Checkout, () => this.repository.checkout(treeish, []));
 	}
@@ -480,18 +487,22 @@ export class Model implements Disposable {
 	}
 
 	@throttle
-	async pull(): Promise<void> {
-		await this.run(Operation.Pull, () => this.repository.pull());
-	}
-
-	@throttle
 	async pullWithRebase(): Promise<void> {
 		await this.run(Operation.Pull, () => this.repository.pull(true));
 	}
 
 	@throttle
+	async pull(rebase?: boolean, remote?: string, name?: string): Promise<void> {
+		await this.run(Operation.Pull, () => this.repository.pull(rebase, remote, name));
+	}
+
+	@throttle
 	async push(): Promise<void> {
 		await this.run(Operation.Push, () => this.repository.push());
+	}
+
+	async pullFrom(rebase?: boolean, remote?: string, branch?: string): Promise<void> {
+		await this.run(Operation.Pull, () => this.repository.pull(rebase, remote, branch));
 	}
 
 	async pushTo(remote?: string, name?: string, setUpstream: boolean = false): Promise<void> {
@@ -523,6 +534,28 @@ export class Model implements Disposable {
 
 	async getCommitTemplate(): Promise<string> {
 		return await this.run(Operation.GetCommitTemplate, async () => this.repository.getCommitTemplate());
+	}
+
+	async ignore(files: Uri[]): Promise<void> {
+		return await this.run(Operation.Ignore, async () => {
+			const ignoreFile = `${this.repository.root}${path.sep}.gitignore`;
+			const textToAppend = files
+				.map(uri => path.relative(this.repository.root, uri.fsPath).replace(/\\/g, '/'))
+				.join('\n');
+
+			const document = await new Promise(c => fs.exists(ignoreFile, c))
+				? await workspace.openTextDocument(ignoreFile)
+				: await workspace.openTextDocument(Uri.file(ignoreFile).with({ scheme: 'untitled' }));
+
+			await window.showTextDocument(document);
+
+			const edit = new WorkspaceEdit();
+			const lastLine = document.lineAt(document.lineCount - 1);
+			const text = lastLine.isEmptyOrWhitespace ? `${textToAppend}\n` : `\n${textToAppend}\n`;
+
+			edit.insert(document.uri, lastLine.range.end, text);
+			workspace.applyEdit(edit);
+		});
 	}
 
 	private async run<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
@@ -682,7 +715,7 @@ export class Model implements Disposable {
 				case 'A': index.push(new Resource(this.workspaceRoot, this.indexGroup, uri, Status.INDEX_ADDED)); break;
 				case 'D': index.push(new Resource(this.workspaceRoot, this.indexGroup, uri, Status.INDEX_DELETED)); break;
 				case 'R': index.push(new Resource(this.workspaceRoot, this.indexGroup, uri, Status.INDEX_RENAMED, renameUri)); break;
-				case 'C': index.push(new Resource(this.workspaceRoot, this.indexGroup, uri, Status.INDEX_COPIED)); break;
+				case 'C': index.push(new Resource(this.workspaceRoot, this.indexGroup, uri, Status.INDEX_COPIED, renameUri)); break;
 			}
 
 			switch (raw.y) {

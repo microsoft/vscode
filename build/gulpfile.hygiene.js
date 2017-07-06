@@ -91,6 +91,7 @@ const copyrightFilter = [
 	'!**/*.xpm',
 	'!**/*.opts',
 	'!**/*.disabled',
+	'!build/**/*.init',
 	'!resources/win32/bin/code.js',
 	'!extensions/markdown/media/tomorrow.css',
 	'!extensions/html/server/src/modes/typescript/*'
@@ -98,9 +99,11 @@ const copyrightFilter = [
 
 const eslintFilter = [
 	'src/**/*.js',
-	'!src/vs/css.js',
 	'!src/vs/loader.js',
+	'!src/vs/css.js',
 	'!src/vs/nls.js',
+	'!src/vs/css.build.js',
+	'!src/vs/nls.build.js',
 	'!src/**/winjs.base.raw.js',
 	'!src/**/raw.marked.js',
 	'!**/test/**'
@@ -108,6 +111,7 @@ const eslintFilter = [
 
 const tslintFilter = [
 	'src/**/*.ts',
+	'test/**/*.ts',
 	'extensions/**/*.ts',
 	'!**/fixtures/**',
 	'!**/typings/**',

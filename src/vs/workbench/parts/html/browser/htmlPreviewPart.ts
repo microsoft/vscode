@@ -20,7 +20,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
 
-import Webview from './webview';
+import Webview, { WebviewOptions } from './webview';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { WebviewEditor } from 'vs/workbench/browser/parts/editor/webviewEditor';
 
@@ -74,7 +74,12 @@ export class HtmlPreviewPart extends WebviewEditor {
 
 	private get webview(): Webview {
 		if (!this._webview) {
-			this._webview = new Webview(this._container, this.partService.getContainer(Parts.EDITOR_PART), { enableJavascript: true });
+			let webviewOptions: WebviewOptions = {};
+			if (this.input && this.input instanceof HtmlInput) {
+				webviewOptions = this.input.options;
+			}
+
+			this._webview = new Webview(this._container, this.partService.getContainer(Parts.EDITOR_PART), webviewOptions);
 			if (this.input && this.input instanceof HtmlInput) {
 				const state = this.loadViewState(this.input.getResource());
 				this.scrollYPercentage = state ? state.scrollYPercentage : 0;
@@ -83,6 +88,8 @@ export class HtmlPreviewPart extends WebviewEditor {
 				const resourceUri = this.input.getResource();
 				this.webview.baseUrl = resourceUri.toString(true);
 			}
+
+			this._webview.style(this.themeService.getTheme());
 
 			this._webviewDisposables = [
 				this._webview,
@@ -117,9 +124,11 @@ export class HtmlPreviewPart extends WebviewEditor {
 			this._webviewDisposables = dispose(this._webviewDisposables);
 			this._webview = undefined;
 		} else {
-			this._themeChangeSubscription = this.themeService.onThemeChange(themeId => this.webview.style(themeId));
-			this.webview.style(this.themeService.getTheme());
-
+			this._themeChangeSubscription = this.themeService.onThemeChange(themeId => {
+				if (this._webview) {
+					this._webview.style(themeId);
+				}
+			});
 			if (this._hasValidModel()) {
 				this._modelChangeSubscription = this.model.onDidChangeContent(() => this.webview.contents = this.model.getLinesContent());
 				this.webview.contents = this.model.getLinesContent();
@@ -186,7 +195,7 @@ export class HtmlPreviewPart extends WebviewEditor {
 		this._modelChangeSubscription.dispose();
 
 		if (!(input instanceof HtmlInput)) {
-			return TPromise.wrapError<void>('Invalid input');
+			return TPromise.wrapError<void>(new Error('Invalid input'));
 		}
 
 		return super.setInput(input, options).then(() => {
@@ -199,7 +208,7 @@ export class HtmlPreviewPart extends WebviewEditor {
 				}
 
 				if (!this.model) {
-					return TPromise.wrapError<void>(localize('html.voidInput', "Invalid editor input."));
+					return TPromise.wrapError<void>(new Error(localize('html.voidInput', "Invalid editor input.")));
 				}
 
 				this._modelChangeSubscription = this.model.onDidChangeContent(() => {
@@ -211,6 +220,7 @@ export class HtmlPreviewPart extends WebviewEditor {
 				const state = this.loadViewState(resourceUri);
 				this.scrollYPercentage = state ? state.scrollYPercentage : 0;
 				this.webview.baseUrl = resourceUri.toString(true);
+				this.webview.options = input.options;
 				this.webview.contents = this.model.getLinesContent();
 				this.webview.initialScrollProgress = this.scrollYPercentage;
 				return undefined;

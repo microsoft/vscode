@@ -12,8 +12,7 @@ import { IWorkspaceContextService, LegacyWorkspace } from 'vs/platform/workspace
 import { createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ISearchService, IQueryOptions } from 'vs/platform/search/common/search';
-import { ITelemetryService, ITelemetryInfo, ITelemetryExperiments } from 'vs/platform/telemetry/common/telemetry';
-import { defaultExperiments } from 'vs/platform/telemetry/common/telemetryUtils';
+import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as minimist from 'minimist';
@@ -70,15 +69,14 @@ suite('TextSearch performance (integration)', () => {
 			[ISearchService, createSyncDescriptor(SearchService)]
 		));
 
-		let queryOptions: IQueryOptions = {
-			folderResources: [URI.file(testWorkspacePath)],
+		const queryOptions: IQueryOptions = {
 			maxResults: 2048
 		};
 
 		const searchModel: SearchModel = instantiationService.createInstance(SearchModel);
 		function runSearch(): TPromise<any> {
 			const queryBuilder: QueryBuilder = instantiationService.createInstance(QueryBuilder);
-			const query = queryBuilder.text({ pattern: 'static_library(' }, queryOptions);
+			const query = queryBuilder.text({ pattern: 'static_library(' }, [URI.file(testWorkspacePath)], queryOptions);
 
 			// Wait for the 'searchResultsFinished' event, which is fired after the search() promise is resolved
 			const onSearchResultsFinished = event.filterEvent(telemetryService.eventLogged, e => e.name === 'searchResultsFinished');
@@ -166,9 +164,5 @@ class TestTelemetryService implements ITelemetryService {
 			sessionId: 'someValue.sessionId',
 			machineId: 'someValue.machineId'
 		});
-	}
-
-	public getExperiments(): ITelemetryExperiments {
-		return defaultExperiments;
 	}
 };

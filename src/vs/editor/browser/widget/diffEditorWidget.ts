@@ -37,6 +37,7 @@ import { Color } from 'vs/base/common/color';
 import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { DiffReview } from 'vs/editor/browser/widget/diffReview';
 
 interface IEditorDiffDecorations {
 	decorations: editorCommon.IModelDeltaDecoration[];
@@ -150,6 +151,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	private _width: number;
 	private _height: number;
+	private _reviewHeight: number;
 	private readonly _measureDomElementToken: number;
 
 	private originalEditor: CodeEditor;
@@ -184,6 +186,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	protected _contextKeyService: IContextKeyService;
 	private _codeEditorService: ICodeEditorService;
 	private _themeService: IThemeService;
+
+	private _reviewPane: DiffReview;
 
 	constructor(
 		domElement: HTMLElement,
@@ -245,7 +249,6 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._overviewDomElement = document.createElement('div');
 		this._overviewDomElement.className = 'diffOverview';
 		this._overviewDomElement.style.position = 'absolute';
-		this._overviewDomElement.style.height = '100%';
 
 		this._overviewDomElement.appendChild(this._overviewViewportDomElement.domNode);
 
@@ -269,6 +272,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 		this._width = 0;
 		this._height = 0;
+		this._reviewHeight = 0;
 
 		this._lineChanges = null;
 
@@ -279,6 +283,11 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 		this._createLeftHandSideEditor(options, scopedInstantiationService);
 		this._createRightHandSideEditor(options, scopedInstantiationService);
+
+		this._reviewPane = new DiffReview(this);
+		this._containerDomElement.appendChild(this._reviewPane.domNode.domNode);
+		this._containerDomElement.appendChild(this._reviewPane.shadow.domNode);
+		this._containerDomElement.appendChild(this._reviewPane.actionBarContainer.domNode);
 
 		if (options.automaticLayout) {
 			this._measureDomElementToken = window.setInterval(() => this._measureDomElement(false), 100);
@@ -316,6 +325,18 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	public get renderIndicators(): boolean {
 		return this._renderIndicators;
+	}
+
+	public hasWidgetFocus(): boolean {
+		return dom.isAncestor(document.activeElement, this._domElement);
+	}
+
+	public diffReviewNext(): void {
+		this._reviewPane.next();
+	}
+
+	public diffReviewPrev(): void {
+		this._reviewPane.prev();
 	}
 
 	private static _getClassName(theme: ITheme, renderSideBySide: boolean): string {
@@ -451,6 +472,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this.modifiedEditor.dispose();
 
 		this._strategy.dispose();
+
+		this._reviewPane.dispose();
 
 		this._onDidDispose.fire();
 
@@ -750,6 +773,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		if (dimensions.width <= 0) {
 			this._width = 0;
 			this._height = 0;
+			this._reviewHeight = 0;
 			return;
 		}
 
@@ -760,6 +784,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 		this._width = dimensions.width;
 		this._height = dimensions.height;
+		this._reviewHeight = this._reviewPane.isVisible() ? this._height : 0;
 
 		this._doLayout();
 	}
@@ -772,13 +797,13 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 				top: 0,
 				width: DiffEditorWidget.ONE_OVERVIEW_WIDTH,
 				right: freeSpace + DiffEditorWidget.ONE_OVERVIEW_WIDTH,
-				height: this._height
+				height: (this._height - this._reviewHeight)
 			});
 			this._modifiedOverviewRuler.setLayout({
 				top: 0,
 				right: 0,
 				width: DiffEditorWidget.ONE_OVERVIEW_WIDTH,
-				height: this._height
+				height: (this._height - this._reviewHeight)
 			});
 		}
 	}
@@ -895,6 +920,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return result;
 	}
 
+	public doLayout(): void {
+		this._measureDomElement(true);
+	}
+
 	private _doLayout(): void {
 		let splitPoint = this._strategy.layout();
 
@@ -905,17 +934,20 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._modifiedDomNode.style.left = splitPoint + 'px';
 
 		this._overviewDomElement.style.top = '0px';
+		this._overviewDomElement.style.height = (this._height - this._reviewHeight) + 'px';
 		this._overviewDomElement.style.width = DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH + 'px';
 		this._overviewDomElement.style.left = (this._width - DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH) + 'px';
 		this._overviewViewportDomElement.setWidth(DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH);
 		this._overviewViewportDomElement.setHeight(30);
 
-		this.originalEditor.layout({ width: splitPoint, height: this._height });
-		this.modifiedEditor.layout({ width: this._width - splitPoint - DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH, height: this._height });
+		this.originalEditor.layout({ width: splitPoint, height: (this._height - this._reviewHeight) });
+		this.modifiedEditor.layout({ width: this._width - splitPoint - DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH, height: (this._height - this._reviewHeight) });
 
 		if (this._originalOverviewRuler || this._modifiedOverviewRuler) {
 			this._layoutOverviewRulers();
 		}
+
+		this._reviewPane.layout(this._height - this._reviewHeight, this._width, this._reviewHeight);
 
 		this._layoutOverviewViewport();
 	}
@@ -944,7 +976,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		let computedRepresentableSize = Math.max(0, computedAvailableSize - 2 * 0);
 		let computedRatio = scrollHeight > 0 ? (computedRepresentableSize / scrollHeight) : 0;
 
-		let computedSliderSize = Math.max(1, Math.floor(layoutInfo.contentHeight * computedRatio));
+		let computedSliderSize = Math.max(0, Math.floor(layoutInfo.contentHeight * computedRatio));
 		let computedSliderPosition = Math.floor(scrollTop * computedRatio);
 
 		return {
@@ -960,7 +992,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			},
 
 			getHeight: () => {
-				return this._height;
+				return (this._height - this._reviewHeight);
 			},
 
 			getContainerDomNode: () => {
@@ -1973,11 +2005,13 @@ registerThemingParticipant((theme, collector) => {
 	let added = theme.getColor(diffInserted);
 	if (added) {
 		collector.addRule(`.monaco-editor .line-insert, .monaco-editor .char-insert { background-color: ${added}; }`);
+		collector.addRule(`.monaco-diff-editor .line-insert, .monaco-diff-editor .char-insert { background-color: ${added}; }`);
 		collector.addRule(`.monaco-editor .inline-added-margin-view-zone { background-color: ${added}; }`);
 	}
 	let removed = theme.getColor(diffRemoved);
 	if (removed) {
 		collector.addRule(`.monaco-editor .line-delete, .monaco-editor .char-delete { background-color: ${removed}; }`);
+		collector.addRule(`.monaco-diff-editor .line-delete, .monaco-diff-editor .char-delete { background-color: ${removed}; }`);
 		collector.addRule(`.monaco-editor .inline-deleted-margin-view-zone { background-color: ${removed}; }`);
 	}
 	let addedOutline = theme.getColor(diffInsertedOutline);

@@ -39,15 +39,16 @@ import { resolveCommonProperties, machineIdStorageKey, machineIdIpcChannel } fro
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
+import { ProxyAuthHandler } from './auth';
+import { IDisposable, dispose } from "vs/base/common/lifecycle";
+import { ConfigurationService } from "vs/platform/configuration/node/configurationService";
 import { TPromise } from "vs/base/common/winjs.base";
 import { IWindowsMainService } from "vs/platform/windows/electron-main/windows";
 import { IHistoryMainService } from "vs/platform/history/electron-main/historyMainService";
-import { isUndefinedOrNull } from "vs/base/common/types";
+import { isUndefinedOrNull } from 'vs/base/common/types';
 import { CodeWindow } from "vs/code/electron-main/window";
-import { isParent } from "vs/platform/files/common/files";
-import { isEqual } from "vs/base/common/paths";
+import { isParent } from 'vs/platform/files/common/files';
+import { isEqual } from 'vs/base/common/paths';
 import { KeyboardLayoutMonitor } from "vs/code/electron-main/keyboard";
 import URI from 'vs/base/common/uri';
 
@@ -133,8 +134,8 @@ export class CodeApplication {
 				if (isValidWebviewSource(params.src) && isValidWebviewSource(webPreferences.preloadURL)) {
 					return;
 				}
-				// Otherwise prevent loading
 
+				// Otherwise prevent loading
 				console.error('Prevented webview attach');
 				event.preventDefault();
 			});
@@ -266,6 +267,10 @@ export class CodeApplication {
 
 		// Services
 		const appInstantiationService = this.initServices();
+
+		// Setup Auth Handler
+		const authHandler = appInstantiationService.createInstance(ProxyAuthHandler);
+		this.toDispose.push(authHandler);
 
 		// Open Windows
 		appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor));

@@ -266,6 +266,19 @@ export class EditorAccessor implements emmet.Editor {
 		return syntax;
 	}
 
+	public getLanguage() {
+		let position = this._editor.getSelection().getStartPosition();
+		this._editor.getModel().forceTokenization(position.lineNumber);
+		let languageId = this._editor.getModel().getLanguageIdAtPosition(position.lineNumber, position.column);
+		let language = this._languageIdentifierResolver.getLanguageIdentifier(languageId).language;
+		let syntax = language.split('.').pop();
+
+		return {
+			language: syntax,
+			parentMode: this.checkParentMode(syntax)
+		};
+	}
+
 	private getSyntaxProfile(syntax: string): string {
 		const profile = this._syntaxProfiles[syntax];
 		if (profile && typeof profile === 'string') {

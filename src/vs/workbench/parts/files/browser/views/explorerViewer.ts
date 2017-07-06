@@ -23,9 +23,9 @@ import glob = require('vs/base/common/glob');
 import { FileLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ContributableActionProvider } from 'vs/workbench/browser/actions';
-import { IFilesConfiguration } from 'vs/workbench/parts/files/common/files';
+import { IFilesConfiguration, SortOrder } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileOperationResult, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { ResourceMap } from 'vs/base/common/map';
 import { DuplicateFileAction, ImportFileAction, IEditableData, IFileViewletState } from 'vs/workbench/parts/files/browser/fileActions';
 import { IDataSource, ITree, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDrop, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
@@ -65,7 +65,7 @@ export class FileDataSource implements IDataSource {
 			return 'model';
 		}
 
-		return `${stat.root.toString()}:${stat.getId()}`;
+		return `${stat.root.resource.toString()}:${stat.getId()}`;
 	}
 
 	public hasChildren(tree: ITree, stat: FileStat | Model): boolean {
@@ -526,16 +526,65 @@ export class FileController extends DefaultController {
 
 // Explorer Sorter
 export class FileSorter implements ISorter {
+	private toDispose: IDisposable[];
+	private sortOrder: SortOrder;
+
+	constructor(
+		@IConfigurationService private configurationService: IConfigurationService
+	) {
+		this.toDispose = [];
+
+		this.onConfigurationUpdated(configurationService.getConfiguration<IFilesConfiguration>());
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>())));
+	}
+
+	private onConfigurationUpdated(configuration: IFilesConfiguration): void {
+		this.sortOrder = configuration && configuration.explorer && configuration.explorer.sortOrder || 'default';
+	}
 
 	public compare(tree: ITree, statA: FileStat, statB: FileStat): number {
-		if (statA.isDirectory && !statB.isDirectory) {
+
+		// Do not sort roots
+		if (statA.isRoot) {
 			return -1;
 		}
-
-		if (statB.isDirectory && !statA.isDirectory) {
+		if (statB.isRoot) {
 			return 1;
 		}
 
+		// Sort Directories
+		switch (this.sortOrder) {
+			case 'default':
+			case 'type':
+			case 'modified':
+				if (statA.isDirectory && !statB.isDirectory) {
+					return -1;
+				}
+
+				if (statB.isDirectory && !statA.isDirectory) {
+					return 1;
+				}
+
+				break;
+
+			case 'filesFirst':
+				if (statA.isDirectory && !statB.isDirectory) {
+					return 1;
+				}
+
+				if (statB.isDirectory && !statA.isDirectory) {
+					return -1;
+				}
+
+				break;
+		}
+
+		// Sort "New File/Folder" placeholders
 		if (statA instanceof NewStatPlaceholder) {
 			return -1;
 		}
@@ -544,16 +593,23 @@ export class FileSorter implements ISorter {
 			return 1;
 		}
 
-		// Do not sort roots
-		if (statA.isRoot) {
-			return -1;
-		}
+		// Sort Files
+		switch (this.sortOrder) {
+			case 'default':
+			case 'mixed':
+			case 'filesFirst':
+				return comparers.compareFileNames(statA.name, statB.name);
 
-		if (statB.isRoot) {
-			return 1;
-		}
+			case 'type':
+				return comparers.compareFileExtensions(statA.name, statB.name);
 
-		return comparers.compareFileNames(statA.name, statB.name);
+			case 'modified':
+				if (statA.mtime !== statB.mtime) {
+					return statA.mtime < statB.mtime ? 1 : -1;
+				}
+
+				return comparers.compareFileNames(statA.name, statB.name);
+		}
 	}
 }
 
@@ -574,7 +630,7 @@ export class FileFilter implements IFilter {
 
 	public updateConfiguration(): boolean {
 		let needsRefresh = false;
-		this.contextService.getWorkspace2().roots.forEach(root => {
+		this.contextService.getWorkspace().roots.forEach(root => {
 			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(undefined, { resource: root });
 			const excludesConfig = (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
 			needsRefresh = needsRefresh || !objects.equals(this.hiddenExpressionPerRoot.get(root.toString()), excludesConfig);
@@ -601,8 +657,8 @@ export class FileFilter implements IFilter {
 
 		// Hide those that match Hidden Patterns
 		const siblingsFn = () => siblings && siblings.map(c => c.name);
-		const expression = this.hiddenExpressionPerRoot.get(stat.root.toString()) || Object.create(null);
-		if (glob.match(expression, paths.normalize(paths.relative(stat.root.fsPath, stat.resource.fsPath)), siblingsFn)) {
+		const expression = this.hiddenExpressionPerRoot.get(stat.root.resource.toString()) || Object.create(null);
+		if (glob.match(expression, paths.normalize(paths.relative(stat.root.resource.fsPath, stat.resource.fsPath)), siblingsFn)) {
 			return false; // hidden through pattern
 		}
 
@@ -641,7 +697,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 	}
 
 	public getDragURI(tree: ITree, stat: FileStat): string {
-		if (this.contextService.getWorkspace2().roots.some(r => r.toString() === stat.resource.toString())) {
+		if (this.contextService.getWorkspace().roots.some(r => r.toString() === stat.resource.toString())) {
 			return null; // Can not move root folder
 		}
 		if (stat.isDirectory) {
@@ -744,7 +800,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 			return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY(true) : DRAG_OVER_ACCEPT_BUBBLE_DOWN(true);
 		}
 
-		const workspace = this.contextService.getWorkspace2();
+		const workspace = this.contextService.getWorkspace();
 		if (workspace && workspace.roots.every(r => r.toString() !== target.resource.toString())) {
 			return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_UP_COPY : DRAG_OVER_ACCEPT_BUBBLE_UP;
 		}
@@ -823,7 +879,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 						return this.fileService.moveFile(source.resource, targetResource).then(null, error => {
 
 							// Conflict
-							if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
+							if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
 								didHandleConflict = true;
 
 								const confirm: IConfirmation = {

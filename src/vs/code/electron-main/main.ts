@@ -60,6 +60,10 @@ function createPaths(environmentService: IEnvironmentService): TPromise<any> {
 	return TPromise.join(paths.map(p => p && mkdirp(p))) as TPromise<any>;
 }
 
+class ExpectedError extends Error {
+	public readonly isExpected = true;
+}
+
 function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	const logService = accessor.get(ILogService);
 	const environmentService = accessor.get(IEnvironmentService);
@@ -109,7 +113,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 						const msg = 'Running extension tests from the command line is currently only supported if no other instance of Code is running.';
 						console.error(msg);
 						client.dispose();
-						return TPromise.wrapError<Server>(msg);
+						return TPromise.wrapError<Server>(new Error(msg));
 					}
 
 					logService.log('Sending env to running instance...');
@@ -120,7 +124,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 					return allowSetForegroundWindow(service)
 						.then(() => service.start(environmentService.args, process.env))
 						.then(() => client.dispose())
-						.then(() => TPromise.wrapError<Server>('Sent env to running instance. Terminating...'));
+						.then(() => TPromise.wrapError(new ExpectedError('Sent env to running instance. Terminating...')));
 				},
 				err => {
 					if (!retry || platform.isWindows || err.code !== 'ECONNREFUSED') {
@@ -146,19 +150,23 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	return setup(true);
 }
 
-function quit(accessor: ServicesAccessor, errorOrMessage?: Error | string): void {
+function quit(accessor: ServicesAccessor, reason?: ExpectedError | Error): void {
 	const logService = accessor.get(ILogService);
 	const lifecycleService = accessor.get(ILifecycleService);
 
 	let exitCode = 0;
-	if (typeof errorOrMessage === 'string') {
-		logService.log(errorOrMessage);
-	} else if (errorOrMessage) {
-		exitCode = 1; // signal error to the outside
-		if (errorOrMessage.stack) {
-			console.error(errorOrMessage.stack);
+
+	if (reason) {
+		if ((reason as ExpectedError).isExpected) {
+			logService.log(reason.message);
 		} else {
-			console.error('Startup error: ' + errorOrMessage.toString());
+			exitCode = 1; // signal error to the outside
+
+			if (reason.stack) {
+				console.error(reason.stack);
+			} else {
+				console.error(`Startup error: ${reason.toString()}`);
+			}
 		}
 	}
 

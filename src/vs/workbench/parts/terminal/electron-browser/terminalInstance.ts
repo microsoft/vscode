@@ -33,7 +33,7 @@ import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platf
 import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground } from 'vs/platform/theme/common/colorRegistry';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IHistoryService } from "vs/workbench/services/history/common/history";
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -78,6 +78,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _cols: number;
 	private _rows: number;
 	private _messageTitleListener: (message: { type: string, content: string }) => void;
+	private _preLaunchInputQueue: string;
 
 	private _widgetManager: TerminalWidgetManager;
 	private _linkHandler: TerminalLinkHandler;
@@ -116,6 +117,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._isDisposed = false;
 		this._id = TerminalInstance._idCounter++;
 		this._terminalHasTextContextKey = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.bindTo(this._contextKeyService);
+		this._preLaunchInputQueue = '';
 
 		this._onDisposed = new Emitter<TerminalInstance>();
 		this._onDataForApi = new Emitter<{ instance: ITerminalInstance, data: string }>();
@@ -165,8 +167,8 @@ export class TerminalInstance implements ITerminalInstance {
 			return null;
 		}
 		const font = this._configHelper.getFont();
-		this._cols = Math.floor(dimension.width / font.charWidth);
-		this._rows = Math.floor(dimension.height / font.charHeight);
+		this._cols = Math.max(Math.floor(dimension.width / font.charWidth), 1);
+		this._rows = Math.max(Math.floor(dimension.height / font.charHeight), 1);
 		return dimension.width;
 	}
 
@@ -210,11 +212,16 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
 		this._xterm.on('data', (data) => {
-			if (this._process) {
+			if (this._processId) {
+				// Send data if the pty is ready
 				this._process.send({
 					event: 'input',
 					data: this._sanitizeInput(data)
 				});
+			} else {
+				// If the pty is not ready, queue the data received from
+				// xterm.js until the pty is ready
+				this._preLaunchInputQueue += data;
 			}
 			return false;
 		});
@@ -525,6 +532,15 @@ export class TerminalInstance implements ITerminalInstance {
 		this._process.on('message', (message) => {
 			if (message.type === 'pid') {
 				this._processId = message.content;
+
+				// Send any queued data that's waiting
+				if (this._preLaunchInputQueue.length > 0) {
+					this._process.send({
+						event: 'input',
+						data: this._sanitizeInput(this._preLaunchInputQueue)
+					});
+					this._preLaunchInputQueue = null;
+				}
 				this._onProcessIdReady.fire(this);
 			}
 		});

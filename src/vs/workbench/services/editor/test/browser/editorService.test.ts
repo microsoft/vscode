@@ -17,7 +17,7 @@ import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestSe
 import { DelegatingWorkbenchEditorService, WorkbenchEditorService, IEditorPart } from 'vs/workbench/services/editor/browser/editorService';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import { TestThemeService } from "vs/platform/theme/test/common/testThemeService";
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 let activeEditor: BaseEditor = <any>{
 	getSelection: function () {

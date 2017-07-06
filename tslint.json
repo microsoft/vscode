@@ -3,6 +3,7 @@
 		"build/lib/tslint"
 	],
 	"rules": {
+		"no-string-throw": true,
 		"no-unused-expression": true,
 		"no-duplicate-variable": true,
 		"no-unused-variable": true,
@@ -116,6 +117,7 @@
 				"target": "**/vs/platform/*/test/common/**",
 				"restrictions": [
 					"assert",
+					"sinon",
 					"vs/nls",
 					"**/vs/base/common/**",
 					"**/vs/platform/*/common/**",
@@ -136,6 +138,7 @@
 				"target": "**/vs/platform/*/test/browser/**",
 				"restrictions": [
 					"assert",
+					"sinon",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/platform/*/{common,browser}/**",
@@ -292,7 +295,7 @@
 				]
 			},
 			{
-				"target": "**/vs/workbench/electron-browser/workbench.main.ts",
+				"target": "**/vs/workbench/workbench.main.ts",
 				"restrictions": [
 					"**"
 				]

@@ -13,7 +13,7 @@ import { IStorageService } from 'vs/platform/storage/node/storage';
 import Event, { Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeWindow } from "vs/platform/windows/electron-main/windows";
-import { ReadyState } from "vs/platform/windows/common/windows";
+import { ReadyState } from 'vs/platform/windows/common/windows';
 
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
 

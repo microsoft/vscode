@@ -40,6 +40,9 @@ function packageInnoSetup(iss, options, cb) {
 
 function buildWin32Setup(arch) {
 	return cb => {
+		const ia32AppId = product.win32AppId;
+		const x64AppId = product.win32x64AppId;
+
 		const definitions = {
 			NameLong: product.nameLong,
 			NameShort: product.nameShort,
@@ -51,8 +54,12 @@ function buildWin32Setup(arch) {
 			RegValueName: product.win32RegValueName,
 			ShellNameShort: product.win32ShellNameShort,
 			AppMutex: product.win32MutexName,
-			AppId: product.win32AppId,
+			Arch: arch,
+			AppId: arch === 'ia32' ? ia32AppId : x64AppId,
+			IncompatibleAppId: arch === 'ia32' ? x64AppId : ia32AppId,
 			AppUserId: product.win32AppUserModelId,
+			ArchitecturesAllowed: arch === 'ia32' ? '' : 'x64',
+			ArchitecturesInstallIn64BitMode: arch === 'ia32' ? '' : 'x64',
 			SourceDir: buildPath(arch),
 			RepoDir: repoPath,
 			OutputDir: setupDir(arch)

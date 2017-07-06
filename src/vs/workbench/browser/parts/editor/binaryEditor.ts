@@ -80,7 +80,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
 			// Assert Model instance
 			if (!(resolvedModel instanceof BinaryEditorModel)) {
-				return TPromise.wrapError<void>('Unable to open file as binary');
+				return TPromise.wrapError<void>(new Error('Unable to open file as binary'));
 			}
 
 			// Assert that the current input is still the one we expect. This prevents a race condition when loading takes long and another input was set meanwhile
@@ -99,7 +99,8 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 						if (!didOpen) {
 							return this.windowsService.showItemInFolder(resource.fsPath);
 						}
-						return undefined;
+
+						return void 0;
 					});
 				},
 				(meta) => this.handleMetadataChanged(meta));

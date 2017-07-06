@@ -27,6 +27,15 @@ export interface ITaskProvider {
 	provideTasks(): TPromise<TaskSet>;
 }
 
+export interface RunOptions {
+	attachProblemMatcher?: boolean;
+}
+
+export interface CustomizationProperties {
+	group?: string | { kind?: string; isDefault?: boolean; };
+	problemMatcher?: string | string[];
+}
+
 export interface ITaskService extends IEventEmitter {
 	_serviceBrand: any;
 	configureAction(): Action;
@@ -34,7 +43,7 @@ export interface ITaskService extends IEventEmitter {
 	rebuild(): TPromise<ITaskSummary>;
 	clean(): TPromise<ITaskSummary>;
 	runTest(): TPromise<ITaskSummary>;
-	run(task: string | Task): TPromise<ITaskSummary>;
+	run(task: string | Task, options?: RunOptions): TPromise<ITaskSummary>;
 	inTerminal(): boolean;
 	isActive(): TPromise<boolean>;
 	getActiveTasks(): TPromise<Task[]>;
@@ -42,10 +51,15 @@ export interface ITaskService extends IEventEmitter {
 	terminate(task: string | Task): TPromise<TaskTerminateResponse>;
 	terminateAll(): TPromise<TaskTerminateResponse[]>;
 	tasks(): TPromise<Task[]>;
+	/**
+	 * @param identifier The task's name, label or defined identifier.
+	 */
+	getTask(identifier: string): TPromise<Task>;
 	getTasksForGroup(group: string): TPromise<Task[]>;
 	getRecentlyUsedTasks(): LinkedMap<string, string>;
 
-	customize(task: Task, openConfig?: boolean): TPromise<void>;
+	canCustomize(): boolean;
+	customize(task: Task, properties?: {}, openConfig?: boolean): TPromise<void>;
 
 	registerTaskProvider(handle: number, taskProvider: ITaskProvider): void;
 	unregisterTaskProvider(handle: number): boolean;

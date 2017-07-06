@@ -14,10 +14,6 @@
 	"watermark.toggleTerminal": "Terminál be- és kikapcsolása",
 	"watermark.findInFiles": "Keresés a fájlokban",
 	"watermark.startDebugging": "Hibakeresés indítása",
-	"watermark.selectTheme": "Téma módosítása",
-	"watermark.selectKeymap": "Billentyűkonfiguráció módosítása",
-	"watermark.keybindingsReference": "Billentyűparancs-referencia",
-	"watermark.openGlobalKeybindings": "Billentyűparancsok",
 	"watermark.unboundCommand": "nincs hozzárendelve",
 	"workbenchConfigurationTitle": "Munkaterület",
 	"tips.enabled": "Ha engedélyezve van, tippek jelennek meg vízjelként, ha nincs egyetlen szerkesztőablak sem nyitva."

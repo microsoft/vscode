@@ -19,7 +19,13 @@ export class Localization {
 	}
 
 	public async getOpenEditorsText(): Promise<string> {
-		const explorerTitles = await this.spectron.client.getText('div[id="workbench.view.explorer"] .title span');
+		let explorerTitles;
+		try {
+			explorerTitles = await this.spectron.client.getText('div[id="workbench.view.explorer"] .title span');
+		} catch (e) {
+			return Promise.reject('Failed to get span of title in explorer viewlet.');
+		}
+
 		return explorerTitles[0];
 	}
 
@@ -45,11 +51,19 @@ export class Localization {
 	}
 
 	public getOpenedViewletTitle(): Promise<string> {
-		return this.spectron.client.getText('div[id="workbench.parts.sidebar"] .title-label span');
+		try {
+			return this.spectron.client.getText('div[id="workbench.parts.sidebar"] .title-label span');
+		} catch (e) {
+			return Promise.reject('Failed to get span of title label in explorer viewlet.');
+		}
 	}
 
 	public getExtensionsSearchPlaceholder(): Promise<string> {
-		return this.spectron.client.getAttribute('div[id="workbench.view.extensions"] .search-box', 'placeholder');
+		try {
+			return this.spectron.client.getAttribute('div[id="workbench.view.extensions"] .search-box', 'placeholder');
+		} catch (e) {
+			return Promise.reject('Failed to add attribute for extensi');
+		}
 	}
 
 }

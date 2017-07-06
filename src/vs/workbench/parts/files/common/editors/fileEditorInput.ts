@@ -12,7 +12,7 @@ import URI from 'vs/base/common/uri';
 import { EncodingMode, ConfirmResult, EditorInput, IFileEditorInput, ITextEditorModel } from 'vs/workbench/common/editor';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
-import { IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { BINARY_FILE_EDITOR_ID, TEXT_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode, ModelState, TextFileModelChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -216,7 +216,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		}, error => {
 
 			// In case of an error that indicates that the file is binary or too large, just return with the binary editor model
-			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
+			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
 				return this.resolveAsBinary();
 			}
 

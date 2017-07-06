@@ -7,6 +7,7 @@
 
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
+import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
 import * as json from 'vs/base/common/json';
 import * as encoding from 'vs/base/node/encoding';
@@ -22,11 +23,11 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { keyFromOverrideIdentifier } from 'vs/platform/configuration/common/model';
 import { WORKSPACE_CONFIG_DEFAULT_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IConfigurationEditingService, ConfigurationEditingErrorCode, IConfigurationEditingError, ConfigurationTarget, IConfigurationValue, IConfigurationEditingOptions } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IConfigurationEditingService, ConfigurationEditingErrorCode, ConfigurationEditingError, ConfigurationTarget, IConfigurationValue, IConfigurationEditingOptions } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { IChoiceService, IMessageService, Severity } from 'vs/platform/message/common/message';
@@ -35,6 +36,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 interface IConfigurationEditOperation extends IConfigurationValue {
 	resource: URI;
 	isWorkspaceStandalone?: boolean;
+	overrideIdentifier?: string;
 }
 
 interface IValidationResult {
@@ -70,12 +72,15 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		return this.queue.queue(() => this.doWriteConfiguration(target, value, options) // queue up writes to prevent race conditions
 			.then(() => null,
 			error => {
-				return options.donotNotifyError ? TPromise.wrapError(error) : this.onError(error, target, value);
+				if (!options.donotNotifyError) {
+					this.onError(error, target, value, options.scopes);
+				}
+				return TPromise.wrapError(error);
 			}));
 	}
 
 	private doWriteConfiguration(target: ConfigurationTarget, value: IConfigurationValue, options: ConfigurationEditingOptions): TPromise<void> {
-		const operation = this.getConfigurationEditOperation(target, value);
+		const operation = this.getConfigurationEditOperation(target, value, options.scopes || {});
 
 		const checkDirtyConfiguration = !(options.force || options.donotSave);
 		const saveConfiguration = options.force || !options.donotSave;
@@ -106,21 +111,20 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		return false;
 	}
 
-	private onError(error: IConfigurationEditingError, target: ConfigurationTarget, value: IConfigurationValue): TPromise<IConfigurationEditingError> {
+	private onError(error: ConfigurationEditingError, target: ConfigurationTarget, value: IConfigurationValue, scopes: IConfigurationOverrides): void {
 		switch (error.code) {
 			case ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION:
 				this.onInvalidConfigurationError(error, target);
 				break;
 			case ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY:
-				this.onConfigurationFileDirtyError(error, target, value);
+				this.onConfigurationFileDirtyError(error, target, value, scopes);
 				break;
 			default:
 				this.messageService.show(Severity.Error, error.message);
 		}
-		return TPromise.wrapError(error);
 	}
 
-	private onInvalidConfigurationError(error: IConfigurationEditingError, target: ConfigurationTarget): void {
+	private onInvalidConfigurationError(error: ConfigurationEditingError, target: ConfigurationTarget): void {
 		this.choiceService.choose(Severity.Error, error.message, [nls.localize('open', "Open Settings"), nls.localize('close', "Close")], 1)
 			.then(option => {
 				switch (option) {
@@ -130,12 +134,12 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 			});
 	}
 
-	private onConfigurationFileDirtyError(error: IConfigurationEditingError, target: ConfigurationTarget, value: IConfigurationValue): void {
+	private onConfigurationFileDirtyError(error: ConfigurationEditingError, target: ConfigurationTarget, value: IConfigurationValue, scopes: IConfigurationOverrides): void {
 		this.choiceService.choose(Severity.Error, error.message, [nls.localize('saveAndRetry', "Save Settings and Retry"), nls.localize('open', "Open Settings"), nls.localize('close', "Close")], 2)
 			.then(option => {
 				switch (option) {
 					case 0:
-						this.writeConfiguration(target, value, <ConfigurationEditingOptions>{ force: true });
+						this.writeConfiguration(target, value, <ConfigurationEditingOptions>{ force: true, scopes });
 						break;
 					case 1:
 						this.openSettings(target);
@@ -148,14 +152,10 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		this.commandService.executeCommand(ConfigurationTarget.USER === target ? 'workbench.action.openGlobalSettings' : 'workbench.action.openWorkspaceSettings');
 	}
 
-	private wrapError(code: ConfigurationEditingErrorCode, target: ConfigurationTarget): TPromise<any> {
+	private wrapError(code: ConfigurationEditingErrorCode, target: ConfigurationTarget): TPromise<never> {
 		const message = this.toErrorMessage(code, target);
 
-		return TPromise.wrapError<IConfigurationEditingError>({
-			code,
-			message,
-			toString: () => message
-		});
+		return TPromise.wrapError<never>(new ConfigurationEditingError(message, code));
 	}
 
 	private toErrorMessage(error: ConfigurationEditingErrorCode, target: ConfigurationTarget): string {
@@ -257,14 +257,14 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 			});
 	}
 
-	private getConfigurationEditOperation(target: ConfigurationTarget, config: IConfigurationValue): IConfigurationEditOperation {
+	private getConfigurationEditOperation(target: ConfigurationTarget, config: IConfigurationValue, overrides: IConfigurationOverrides): IConfigurationEditOperation {
 
 		// Check for standalone workspace configurations
 		if (config.key) {
 			const standaloneConfigurationKeys = Object.keys(WORKSPACE_STANDALONE_CONFIGURATIONS);
 			for (let i = 0; i < standaloneConfigurationKeys.length; i++) {
 				const key = standaloneConfigurationKeys[i];
-				const resource = this.contextService.toResource(WORKSPACE_STANDALONE_CONFIGURATIONS[key]);
+				const resource = this.contextService.toResource(WORKSPACE_STANDALONE_CONFIGURATIONS[key]); // TODO@Sandeep (https://github.com/Microsoft/vscode/issues/29456)
 
 				// Check for prefix
 				if (config.key === key) {
@@ -280,9 +280,27 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		}
 
 		if (target === ConfigurationTarget.USER) {
-			return { key: config.key, value: config.value, overrideIdentifier: config.overrideIdentifier, resource: URI.file(this.environmentService.appSettingsPath) };
+			return { key: config.key, value: config.value, overrideIdentifier: overrides.overrideIdentifier, resource: URI.file(this.environmentService.appSettingsPath) };
 		}
 
-		return { key: config.key, value: config.value, overrideIdentifier: config.overrideIdentifier, resource: this.contextService.toResource(WORKSPACE_CONFIG_DEFAULT_PATH) };
+		return { key: config.key, value: config.value, overrideIdentifier: overrides.overrideIdentifier, resource: this.getConfigurationFileResource(overrides.resource) };
+	}
+
+	private getConfigurationFileResource(resource: URI): URI {
+		const workspace = this.contextService.getWorkspace();
+		if (workspace) {
+			if (resource) {
+				const root = this.contextService.getRoot(resource);
+				if (root) {
+					return this.toResource(WORKSPACE_CONFIG_DEFAULT_PATH, root);
+				}
+			}
+			return this.toResource(WORKSPACE_CONFIG_DEFAULT_PATH, workspace.roots[0]);
+		}
+		return null;
+	}
+
+	private toResource(relativePath: string, root: URI): URI {
+		return URI.file(paths.join(root.fsPath, relativePath));
 	}
 }

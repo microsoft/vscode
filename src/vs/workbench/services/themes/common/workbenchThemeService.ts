@@ -11,7 +11,7 @@ import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/
 import { Color } from 'vs/base/common/color';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 
-export let IWorkbenchThemeService = createDecorator<IWorkbenchThemeService>('themeService');
+export const IWorkbenchThemeService = createDecorator<IWorkbenchThemeService>('themeService');
 
 export const VS_LIGHT_THEME = 'vs';
 export const VS_DARK_THEME = 'vs-dark';

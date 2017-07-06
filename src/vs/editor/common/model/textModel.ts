@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ModelLine } from 'vs/editor/common/model/modelLine';
+import { ModelLine, IModelLine, MinimalModelLine } from 'vs/editor/common/model/modelLine';
 import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
@@ -18,6 +18,8 @@ import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelS
 import { TextSource, ITextSource, IRawTextSource, RawTextSource } from 'vs/editor/common/model/textSource';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
+
+const USE_MIMINAL_MODEL_LINE = true;
 
 const LIMIT_FIND_COUNT = 999;
 export const LONG_LINE_BOUNDARY = 10000;
@@ -76,7 +78,7 @@ export class TextModel implements editorCommon.ITextModel {
 
 	protected readonly _eventEmitter: OrderGuaranteeEventEmitter;
 
-	/*protected*/ _lines: ModelLine[];
+	/*protected*/ _lines: IModelLine[];
 	protected _EOL: string;
 	protected _isDisposed: boolean;
 	protected _isDisposing: boolean;
@@ -93,8 +95,8 @@ export class TextModel implements editorCommon.ITextModel {
 	protected _mightContainRTL: boolean;
 	protected _mightContainNonBasicASCII: boolean;
 
-	private _shouldSimplifyMode: boolean;
-	private _shouldDenyMode: boolean;
+	private readonly _shouldSimplifyMode: boolean;
+	protected readonly _isTooLargeForTokenization: boolean;
 
 	constructor(rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions) {
 		this._eventEmitter = new OrderGuaranteeEventEmitter();
@@ -102,7 +104,11 @@ export class TextModel implements editorCommon.ITextModel {
 		const textModelData = TextModel.resolveCreationData(rawTextSource, creationOptions);
 
 		this._shouldSimplifyMode = (textModelData.text.length > TextModel.MODEL_SYNC_LIMIT);
-		this._shouldDenyMode = (textModelData.text.length > TextModel.MODEL_TOKENIZATION_LIMIT);
+
+		// !!! Make a decision in the ctor and permanently respect this decision !!!
+		// If a model is too large at construction time, it will never get tokenized,
+		// under no circumstances.
+		this._isTooLargeForTokenization = (textModelData.text.length > TextModel.MODEL_TOKENIZATION_LIMIT);
 
 		this._options = new editorCommon.TextModelResolvedOptions(textModelData.options);
 		this._constructLines(textModelData.text);
@@ -111,20 +117,25 @@ export class TextModel implements editorCommon.ITextModel {
 		this._isDisposing = false;
 	}
 
+	protected _createModelLine(text: string, tabSize: number): IModelLine {
+		if (USE_MIMINAL_MODEL_LINE && this._isTooLargeForTokenization) {
+			return new MinimalModelLine(text, tabSize);
+		}
+		return new ModelLine(text, tabSize);
+	}
+
 	protected _assertNotDisposed(): void {
 		if (this._isDisposed) {
 			throw new Error('Model is disposed!');
 		}
 	}
 
-	public isTooLargeForHavingAMode(): boolean {
-		this._assertNotDisposed();
-		return this._shouldDenyMode;
+	public isTooLargeForHavingARichMode(): boolean {
+		return this._shouldSimplifyMode;
 	}
 
-	public isTooLargeForHavingARichMode(): boolean {
-		this._assertNotDisposed();
-		return this._shouldSimplifyMode;
+	public isTooLargeForTokenization(): boolean {
+		return this._isTooLargeForTokenization;
 	}
 
 	public getOptions(): editorCommon.TextModelResolvedOptions {
@@ -756,10 +767,10 @@ export class TextModel implements editorCommon.ITextModel {
 	private _constructLines(textSource: ITextSource): void {
 		const tabSize = this._options.tabSize;
 		let rawLines = textSource.lines;
-		let modelLines: ModelLine[] = [];
+		let modelLines: IModelLine[] = [];
 
 		for (let i = 0, len = rawLines.length; i < len; i++) {
-			modelLines[i] = new ModelLine(i + 1, rawLines[i], tabSize);
+			modelLines[i] = this._createModelLine(rawLines[i], tabSize);
 		}
 		this._BOM = textSource.BOM;
 		this._mightContainRTL = textSource.containsRTL;

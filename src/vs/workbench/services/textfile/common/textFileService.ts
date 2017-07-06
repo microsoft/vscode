@@ -18,7 +18,7 @@ import { IRevertOptions, IResult, ITextFileOperationResult, ITextFileService, IR
 import { ConfirmResult } from 'vs/workbench/common/editor';
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IFileService, IResolveContentOptions, IFilesConfiguration, IFileOperationResult, FileOperationResult, AutoSaveConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
+import { IFileService, IResolveContentOptions, IFilesConfiguration, FileOperationError, FileOperationResult, AutoSaveConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -29,8 +29,8 @@ import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/commo
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ResourceMap } from 'vs/base/common/map';
-import { Schemas } from "vs/base/common/network";
-import { IHistoryService } from "vs/workbench/services/history/common/history";
+import { Schemas } from 'vs/base/common/network';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 export interface IBackupResult {
 	didBackup: boolean;
@@ -160,7 +160,8 @@ export abstract class TextFileService implements ITextFileService {
 					// Otherwise just confirm from the user what to do with the dirty files
 					return this.confirmBeforeShutdown();
 				}
-				return undefined;
+
+				return void 0;
 			});
 		}
 
@@ -277,7 +278,7 @@ export abstract class TextFileService implements ITextFileService {
 			return true; // veto
 		}
 
-		return undefined;
+		return void 0;
 	}
 
 	private noVeto(options: { cleanUpBackups: boolean }): boolean | TPromise<boolean> {
@@ -602,7 +603,7 @@ export abstract class TextFileService implements ITextFileService {
 		}, error => {
 
 			// binary model: delete the file and run the operation again
-			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
+			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
 				return this.fileService.del(target).then(() => this.doSaveTextFileAs(sourceModel, resource, target));
 			}
 
@@ -654,7 +655,7 @@ export abstract class TextFileService implements ITextFileService {
 			}, error => {
 
 				// FileNotFound means the file got deleted meanwhile, so still record as successful revert
-				if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
+				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
 					mapResourceToResult.get(model.getResource()).success = true;
 				}
 
@@ -663,7 +664,7 @@ export abstract class TextFileService implements ITextFileService {
 					return TPromise.wrapError(error);
 				}
 
-				return undefined;
+				return void 0;
 			});
 		})).then(r => {
 			return {

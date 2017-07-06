@@ -33,7 +33,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { IOutputService, IOutputChannel } from 'vs/workbench/parts/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEvents } from 'vs/workbench/parts/tasks/common/problemCollectors';
-import { Task, RevealKind, CommandOptions, ShellConfiguration, CommandType, PanelKind } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, RevealKind, CommandOptions, ShellConfiguration, RuntimeType, PanelKind } from 'vs/workbench/parts/tasks/common/tasks';
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
 	TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType, TaskTerminateResponse
@@ -43,14 +43,17 @@ class TerminalDecoder {
 	// See https://en.wikipedia.org/wiki/ANSI_escape_code & http://stackoverflow.com/questions/25189651/how-to-remove-ansi-control-chars-vt100-from-a-java-string &
 	// https://www.npmjs.com/package/strip-ansi
 	private static ANSI_CONTROL_SEQUENCE: RegExp = /\x1b[[()#;?]*(?:\d{1,4}(?:;\d{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
+	private static OPERATING_SYSTEM_COMMAND_SEQUENCE: RegExp = /\x1b[\]](?:.*)(?:\x07|\x1b\\)/g;
 
 	private remaining: string;
 
 	public write(data: string): string[] {
 		let result: string[] = [];
+		data = data.replace(TerminalDecoder.ANSI_CONTROL_SEQUENCE, '');
+		data = data.replace(TerminalDecoder.OPERATING_SYSTEM_COMMAND_SEQUENCE, '');
 		let value = this.remaining
-			? this.remaining + data.replace(TerminalDecoder.ANSI_CONTROL_SEQUENCE, '')
-			: data.replace(TerminalDecoder.ANSI_CONTROL_SEQUENCE, '');
+			? this.remaining + data
+			: data;
 
 		if (value.length < 1) {
 			return result;
@@ -406,7 +409,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			waitOnExit = nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.');
 		};
 		let shellLaunchConfig: IShellLaunchConfig = undefined;
-		let isShellCommand = task.command.type === CommandType.Shell;
+		let isShellCommand = task.command.runtime === RuntimeType.Shell;
 		if (isShellCommand) {
 			if (Platform.isWindows && ((options.cwd && TPath.isUNC(options.cwd)) || (!options.cwd && TPath.isUNC(process.cwd())))) {
 				throw new TaskError(Severity.Error, nls.localize('TerminalTaskSystem', 'Can\'t execute a shell command on an UNC drive.'), TaskErrors.UnknownError);
@@ -428,8 +431,9 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			let shellArgs = <string[]>shellLaunchConfig.args.slice(0);
 			let toAdd: string[] = [];
 			let commandLine = args && args.length > 0 ? `${command} ${args.join(' ')}` : `${command}`;
+			let basename: string;
 			if (Platform.isWindows) {
-				let basename = path.basename(shellLaunchConfig.executable).toLowerCase();
+				basename = path.basename(shellLaunchConfig.executable).toLowerCase();
 				if (basename === 'powershell.exe') {
 					if (!shellSpecified) {
 						toAdd.push('-Command');

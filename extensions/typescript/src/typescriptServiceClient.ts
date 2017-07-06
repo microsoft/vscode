@@ -897,19 +897,19 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	public getWorkspaceRootForResource(resource: Uri): string | undefined {
-		if (workspace.rootPath) {
-			return workspace.rootPath;
+		const roots = workspace.workspaceFolders;
+		if (!roots || !roots.length) {
+			return undefined;
 		}
 
-		if (workspace.workspaceFolders && workspace.workspaceFolders.length) {
-			if (resource.scheme === 'file') {
-				const found = workspace.workspaceFolders.find(root => resource.fsPath.startsWith(root.fsPath));
-				return found ? found.fsPath : found;
+		if (resource.scheme === 'file' || resource.scheme === 'untitled') {
+			for (const root of roots.sort((a, b) => a.fsPath.length - b.fsPath.length)) {
+				if (resource.fsPath.startsWith(root.fsPath)) {
+					return root.fsPath;
+				}
 			}
-			return workspace.workspaceFolders[0].fsPath;
 		}
-
-		return undefined;
+		return roots[0].fsPath;
 	}
 
 	public execute(command: string, args: any, expectsResultOrToken?: boolean | CancellationToken): Promise<any> {

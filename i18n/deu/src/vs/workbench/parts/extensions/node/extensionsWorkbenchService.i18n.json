@@ -13,5 +13,7 @@
 	"cancel": "Abbrechen",
 	"singleDependentError": "Die Erweiterung \"{0}\" kann nicht deaktiviert werden. Die Erweiterung \"{1}\" ist davon abhängig.",
 	"twoDependentsError": "Die Erweiterung \"{0}\" kann nicht deaktiviert werden. Die Erweiterungen \"{1}\" und \"{2}\" sind davon abhängig.",
-	"multipleDependentsError": "Die Erweiterung \"{0}\" kann nicht deaktiviert werden. Die Erweiterungen \"{1}\", \"{2}\" und andere sind davon abhängig."
+	"multipleDependentsError": "Die Erweiterung \"{0}\" kann nicht deaktiviert werden. Die Erweiterungen \"{1}\", \"{2}\" und andere sind davon abhängig.",
+	"installConfirmation": "Möchten sie die Erweiterung \"{0}\" installieren?",
+	"install": "Installieren"
 }

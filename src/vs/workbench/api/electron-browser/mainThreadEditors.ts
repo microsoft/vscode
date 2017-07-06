@@ -158,7 +158,7 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 
 	$trySetSelections(id: string, selections: ISelection[]): TPromise<any> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError('TextEditor disposed');
+			return TPromise.wrapError(new Error('TextEditor disposed'));
 		}
 		this._documentsAndEditors.getEditor(id).setSelections(selections);
 		return TPromise.as(null);
@@ -166,7 +166,7 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 
 	$trySetDecorations(id: string, key: string, ranges: IDecorationOptions[]): TPromise<any> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError('TextEditor disposed');
+			return TPromise.wrapError(new Error('TextEditor disposed'));
 		}
 		this._documentsAndEditors.getEditor(id).setDecorations(key, ranges);
 		return TPromise.as(null);
@@ -174,7 +174,7 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 
 	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): TPromise<any> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError('TextEditor disposed');
+			return TPromise.wrapError(new Error('TextEditor disposed'));
 		}
 		this._documentsAndEditors.getEditor(id).revealRange(range, revealType);
 		return undefined;
@@ -182,7 +182,7 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 
 	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): TPromise<any> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError('TextEditor disposed');
+			return TPromise.wrapError(new Error('TextEditor disposed'));
 		}
 		this._documentsAndEditors.getEditor(id).setConfiguration(options);
 		return TPromise.as(null);
@@ -190,14 +190,14 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 
 	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): TPromise<boolean> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError<boolean>('TextEditor disposed');
+			return TPromise.wrapError<boolean>(new Error('TextEditor disposed'));
 		}
 		return TPromise.as(this._documentsAndEditors.getEditor(id).applyEdits(modelVersionId, edits, opts));
 	}
 
 	$tryInsertSnippet(id: string, template: string, ranges: IRange[], opts: IUndoStopOptions): TPromise<boolean> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError<boolean>('TextEditor disposed');
+			return TPromise.wrapError<boolean>(new Error('TextEditor disposed'));
 		}
 		return TPromise.as(this._documentsAndEditors.getEditor(id).insertSnippet(template, ranges, opts));
 	}
@@ -214,7 +214,7 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 		const editor = this._documentsAndEditors.getEditor(id);
 
 		if (!editor) {
-			return TPromise.wrapError<ILineChange[]>('No such TextEditor');
+			return TPromise.wrapError<ILineChange[]>(new Error('No such TextEditor'));
 		}
 
 		const codeEditor = editor.getCodeEditor();

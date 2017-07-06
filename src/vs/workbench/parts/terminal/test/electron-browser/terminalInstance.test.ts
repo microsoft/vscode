@@ -18,7 +18,7 @@ import { TestMessageService, TestContextService, TestHistoryService } from 'vs/w
 import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IHistoryService } from "vs/workbench/services/history/common/history";
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 class TestTerminalInstance extends TerminalInstance {
 	public _getCwd(shell: IShellLaunchConfig, root: Uri): string {

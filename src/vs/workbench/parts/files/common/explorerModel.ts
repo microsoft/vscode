@@ -25,7 +25,7 @@ export class Model {
 	private _roots: FileStat[];
 
 	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
-		const setRoots = () => this._roots = this.contextService.getWorkspace2().roots.map(uri => new FileStat(uri, uri));
+		const setRoots = () => this._roots = this.contextService.getWorkspace().roots.map(uri => new FileStat(uri, undefined));
 		this.contextService.onDidChangeWorkspaceRoots(() => setRoots());
 		setRoots();
 	}
@@ -35,19 +35,25 @@ export class Model {
 	}
 
 	/**
-	 * Returns a child stat from this stat that matches with the provided path.
+	 * Returns an array of child stat from this stat that matches with the provided path.
 	 * Starts matching from the first root.
-	 * Will return "null" in case the child does not exist.
+	 * Will return empty array in case the FileStat does not exist.
 	 */
 	public findAll(resource: URI): FileStat[] {
 		return this.roots.map(root => root.find(resource)).filter(stat => !!stat);
 	}
 
-	public findFirst(resource: URI): FileStat {
-		for (let root of this.roots) {
-			const result = root.find(resource);
-			if (result) {
-				return result;
+	/**
+	 * Returns a FileStat that matches the passed resource.
+	 * In case multiple FileStat are matching the resource (same folder opened multiple times) returns the FileStat that has the closest root.
+	 * Will return null in case the FileStat does not exist.
+	 */
+	public findClosest(resource: URI): FileStat {
+		const rootUri = this.contextService.getRoot(resource);
+		if (rootUri) {
+			const root = this.roots.filter(r => r.resource.toString() === rootUri.toString()).pop();
+			if (root) {
+				return root.find(resource);
 			}
 		}
 
@@ -67,7 +73,7 @@ export class FileStat implements IFileStat {
 
 	public isDirectoryResolved: boolean;
 
-	constructor(resource: URI, public root: URI, isDirectory?: boolean, hasChildren?: boolean, name: string = paths.basename(resource.fsPath), mtime?: number, etag?: string) {
+	constructor(resource: URI, public root: FileStat, isDirectory?: boolean, hasChildren?: boolean, name: string = paths.basename(resource.fsPath), mtime?: number, etag?: string) {
 		this.resource = resource;
 		this.name = name;
 		this.isDirectory = !!isDirectory;
@@ -79,6 +85,9 @@ export class FileStat implements IFileStat {
 		if (this.isDirectory) {
 			this.children = [];
 		}
+		if (!this.root) {
+			this.root = this;
+		}
 
 		this.isDirectoryResolved = false;
 	}
@@ -88,10 +97,10 @@ export class FileStat implements IFileStat {
 	}
 
 	public get isRoot(): boolean {
-		return this.resource.toString() === this.root.toString();
+		return this.resource.toString() === this.root.resource.toString();
 	}
 
-	public static create(raw: IFileStat, root: URI, resolveTo?: URI[]): FileStat {
+	public static create(raw: IFileStat, root: FileStat, resolveTo?: URI[]): FileStat {
 		const stat = new FileStat(raw.resource, root, raw.isDirectory, raw.hasChildren, raw.name, raw.mtime, raw.etag);
 
 		// Recursively add children if present
@@ -316,8 +325,8 @@ export class NewStatPlaceholder extends FileStat {
 	private id: number;
 	private directoryPlaceholder: boolean;
 
-	constructor(isDirectory: boolean) {
-		super(URI.file(''), URI.file(''));
+	constructor(isDirectory: boolean, root: FileStat) {
+		super(URI.file(''), root);
 
 		this.id = NewStatPlaceholder.ID++;
 		this.isDirectoryResolved = isDirectory;
@@ -367,7 +376,7 @@ export class NewStatPlaceholder extends FileStat {
 	}
 
 	public static addNewStatPlaceholder(parent: FileStat, isDirectory: boolean): NewStatPlaceholder {
-		const child = new NewStatPlaceholder(isDirectory);
+		const child = new NewStatPlaceholder(isDirectory, parent.root);
 
 		// Inherit some parent properties to child
 		child.parent = parent;

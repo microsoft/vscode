@@ -29,37 +29,37 @@ export function testStatusbar() {
 
 		it('verifies presence of all default status bar elements', async function () {
 			await app.wait();
-			assert.ok(await statusBar.isVisible(StatusBarElement.BRANCH_STATUS));
-			assert.ok(await statusBar.isVisible(StatusBarElement.FEEDBACK_ICON));
-			assert.ok(await statusBar.isVisible(StatusBarElement.SYNC_STATUS));
-			assert.ok(await statusBar.isVisible(StatusBarElement.PROBLEMS_STATUS));
+			assert.ok(await statusBar.isVisible(StatusBarElement.BRANCH_STATUS), 'Branch indicator is not visible.');
+			assert.ok(await statusBar.isVisible(StatusBarElement.FEEDBACK_ICON), 'Feedback icon is not visible.');
+			assert.ok(await statusBar.isVisible(StatusBarElement.SYNC_STATUS), 'Sync indicator is not visible.');
+			assert.ok(await statusBar.isVisible(StatusBarElement.PROBLEMS_STATUS), 'Problems indicator is not visible.');
 
 			await common.openFirstMatchFile('app.js');
-			assert.ok(await statusBar.isVisible(StatusBarElement.ENCODING_STATUS));
-			assert.ok(await statusBar.isVisible(StatusBarElement.EOL_STATUS));
-			assert.ok(await statusBar.isVisible(StatusBarElement.INDENTATION_STATUS));
-			assert.ok(await statusBar.isVisible(StatusBarElement.LANGUAGE_STATUS));
-			assert.ok(await statusBar.isVisible(StatusBarElement.SELECTION_STATUS));
+			assert.ok(await statusBar.isVisible(StatusBarElement.ENCODING_STATUS), 'Encoding indicator is not visible.');
+			assert.ok(await statusBar.isVisible(StatusBarElement.EOL_STATUS), 'EOL indicator is not visible.');
+			assert.ok(await statusBar.isVisible(StatusBarElement.INDENTATION_STATUS), 'Indentation indicator is not visible.');
+			assert.ok(await statusBar.isVisible(StatusBarElement.LANGUAGE_STATUS), 'Language indicator is not visible.');
+			assert.ok(await statusBar.isVisible(StatusBarElement.SELECTION_STATUS), 'Selection indicator is not visible.');
 		});
 
-		it(`verifies that 'quick open' opens when clicking on 'Branch', 'Indentation Status, 'Encoding', 'EOL' and 'Language' status elements`, async function () {
+		it(`verifies that 'quick open' opens when clicking on status bar elements`, async function () {
 			await app.wait();
 			await statusBar.clickOn(StatusBarElement.BRANCH_STATUS);
-			assert.ok(await statusBar.isQuickOpenWidgetVisible());
+			assert.ok(await statusBar.isQuickOpenWidgetVisible(), 'Quick open is not opened for branch indicator.');
 			await common.closeQuickOpen();
 
 			await common.openFirstMatchFile('app.js');
 			await statusBar.clickOn(StatusBarElement.INDENTATION_STATUS);
-			assert.ok(await statusBar.isQuickOpenWidgetVisible());
+			assert.ok(await statusBar.isQuickOpenWidgetVisible(), 'Quick open is not opened for indentation indicator.');
 			await common.closeQuickOpen();
 			await statusBar.clickOn(StatusBarElement.ENCODING_STATUS);
-			assert.ok(await statusBar.isQuickOpenWidgetVisible());
+			assert.ok(await statusBar.isQuickOpenWidgetVisible(), 'Quick open is not opened for encoding indicator.');
 			await common.closeQuickOpen();
 			await statusBar.clickOn(StatusBarElement.EOL_STATUS);
-			assert.ok(await statusBar.isQuickOpenWidgetVisible());
+			assert.ok(await statusBar.isQuickOpenWidgetVisible(), 'Quick open is not opened for EOL indicator.');
 			await common.closeQuickOpen();
 			await statusBar.clickOn(StatusBarElement.LANGUAGE_STATUS);
-			assert.ok(await statusBar.isQuickOpenWidgetVisible());
+			assert.ok(await statusBar.isQuickOpenWidgetVisible(), 'Quick open is not opened for language indicator.');
 			await common.closeQuickOpen();
 		});
 
@@ -79,7 +79,7 @@ export function testStatusbar() {
 			const lineNumber = 15;
 			await common.type(lineNumber.toString());
 			await common.enter();
-			assert.ok(await statusBar.getEditorHighlightedLine(lineNumber));
+			assert.ok(await statusBar.getEditorHighlightedLine(lineNumber), 'Editor does not highlight the line.');
 		});
 
 		it(`verifies if changing EOL is reflected in the status bar`, async function () {

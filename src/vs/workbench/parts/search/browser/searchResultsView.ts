@@ -21,7 +21,7 @@ import { RemoveAction, ReplaceAllAction, ReplaceAction } from 'vs/workbench/part
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { getPathLabel } from "vs/base/common/labels";
+import { getPathLabel } from 'vs/base/common/labels';
 
 export class SearchDataSource implements IDataSource {
 

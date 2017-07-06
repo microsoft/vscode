@@ -16,9 +16,9 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITerminalService, ITerminalFont, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { TerminalFindWidget } from './terminalFindWidget';
-import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from './terminalColorRegistry';
-import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR } from './terminalColorRegistry';
+import { ColorIdentifier, editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
+import { KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction, SelectAllTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -130,6 +130,7 @@ export class TerminalPanel extends Panel {
 				new Separator(),
 				this._copyContextMenuAction,
 				this._instantiationService.createInstance(TerminalPasteAction, TerminalPasteAction.ID, nls.localize('paste', "Paste")),
+				this._instantiationService.createInstance(SelectAllTerminalAction, SelectAllTerminalAction.ID, nls.localize('selectAll', "Select All")),
 				new Separator(),
 				this._instantiationService.createInstance(ClearTerminalAction, ClearTerminalAction.ID, nls.localize('clear', "Clear"))
 			];
@@ -245,7 +246,7 @@ export class TerminalPanel extends Panel {
 				}
 
 				const terminal = this._terminalService.getActiveInstance();
-				terminal.sendText(this._preparePathForTerminal(uri), false);
+				terminal.sendText(TerminalPanel.preparePathForTerminal(uri), false);
 			}
 		}));
 	}
@@ -278,9 +279,19 @@ export class TerminalPanel extends Panel {
 				`.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-bar.focus.xterm-cursor-blink .terminal-cursor::before,` +
 				`.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-underline.focus.xterm-cursor-blink .terminal-cursor::before { background-color: ${fgColor}; }`;
 		}
-		const selectionColor = theme.getColor(TERMINAL_SELECTION_BACKGROUND_COLOR);
-		if (selectionColor) {
-			css += `.monaco-workbench .panel.integrated-terminal .xterm .xterm-selection div { background-color: ${selectionColor}; }`;
+		// TODO: Reinstate, see #28397
+		// const selectionColor = theme.getColor(TERMINAL_SELECTION_BACKGROUND_COLOR);
+		// if (selectionColor) {
+		// 	css += `.monaco-workbench .panel.integrated-terminal .xterm .xterm-selection div { background-color: ${selectionColor}; }`;
+		// }
+		// Borrow the editor's hover background for now
+		let hoverBackground = theme.getColor(editorHoverBackground);
+		if (hoverBackground) {
+			css += `.monaco-workbench .panel.integrated-terminal .terminal-message-widget { background-color: ${hoverBackground}; }`;
+		}
+		let hoverBorder = theme.getColor(editorHoverBorder);
+		if (hoverBorder) {
+			css += `.monaco-workbench .panel.integrated-terminal .terminal-message-widget { border: 1px solid ${hoverBorder}; }`;
 		}
 
 		this._themeStyleElement.innerHTML = css;
@@ -316,7 +327,7 @@ export class TerminalPanel extends Panel {
 	/**
 	 * Adds quotes to a path if it contains whitespaces
 	 */
-	private _preparePathForTerminal(path: string) {
+	public static preparePathForTerminal(path: string): string {
 		if (platform.isWindows) {
 			if (/\s+/.test(path)) {
 				return `"${path}"`;

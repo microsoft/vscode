@@ -13,5 +13,7 @@
 	"cancel": "Cancelar",
 	"singleDependentError": "No se puede deshabilitar la extensión \"{0}\". La extensión \"{1}\" depende de ella.",
 	"twoDependentsError": "No se puede deshabilitar la extensión \"{0}\". Las extensiones \"{1}\" y \"{2}\" dependen de ella.",
-	"multipleDependentsError": "No se puede deshabilitar la extensión \"{0}\". Las extensiones \"{1}\", \"{2}\" y otras dependen de ella."
+	"multipleDependentsError": "No se puede deshabilitar la extensión \"{0}\". Las extensiones \"{1}\", \"{2}\" y otras dependen de ella.",
+	"installConfirmation": "Desea instalar la extensión '{0}' ?",
+	"install": "Instalar"
 }

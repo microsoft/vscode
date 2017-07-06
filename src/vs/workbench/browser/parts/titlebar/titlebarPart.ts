@@ -30,8 +30,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Verbosity } from 'vs/platform/editor/common/editor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
-import URI from "vs/base/common/uri";
+import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER } from 'vs/workbench/common/theme';
+import URI from 'vs/base/common/uri';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -183,7 +183,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	 */
 	private doGetWindowTitle(): string {
 		const input = this.editorService.getActiveEditorInput();
-		const workspace = this.contextService.getWorkspace2();
+		const workspace = this.contextService.getWorkspace();
 
 		// Compute root resource
 		// Single Root Workspace: always the single root workspace in this case
@@ -269,6 +269,9 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (container) {
 			container.style('color', this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_FOREGROUND : TITLE_BAR_ACTIVE_FOREGROUND));
 			container.style('background-color', this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND));
+
+			const titleBorder = this.getColor(TITLE_BAR_BORDER);
+			container.style('border-bottom', titleBorder ? `1px solid ${titleBorder}` : null);
 		}
 	}
 

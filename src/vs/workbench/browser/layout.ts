@@ -368,7 +368,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 		// Sidebar hidden
 		if (isSidebarHidden) {
-			editorSize.width = Math.min(this.workbenchSize.width - activityBarSize.width, this.workbenchSize.width - this.activitybarWidth);
+			editorSize.width = this.workbenchSize.width - activityBarSize.width;
 
 			if (sidebarPosition === Position.LEFT) {
 				editorSize.remainderLeft = Math.round((this.workbenchSize.width - editorSize.width + activityBarSize.width) / 2);

@@ -52,7 +52,8 @@ export class SpectronApplication {
 		this.spectron = new Application({
 			path: electronPath,
 			args: args,
-			chromeDriverArgs: chromeDriverArgs
+			chromeDriverArgs: chromeDriverArgs,
+			startTimeout: 10000
 		});
 		this.testRetry += 1; // avoid multiplication by 0 for wait times
 		this.screenshot = new Screenshot(this, testName, testRetry);
@@ -120,8 +121,8 @@ export class SpectronApplication {
 
 				let result;
 				try {
-					result = await func.call(this.client, args);
-				} catch (e) {}
+					result = await func.call(this.client, args, false);
+				} catch (e) { }
 
 				if (result && result !== '') {
 					await this.screenshot.capture();
@@ -142,7 +143,7 @@ export class SpectronApplication {
 	public command(command: string, capture?: boolean): Promise<any> {
 		const binding = this.keybindings.find(x => x['command'] === command);
 		if (!binding) {
-			throw new Error(`Key binding for ${command} was not found`);
+			return Promise.reject(`Key binding for ${command} was not found.`);
 		}
 
 		const keys: string = binding.key;

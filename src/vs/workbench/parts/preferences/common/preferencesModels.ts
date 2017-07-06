@@ -30,7 +30,7 @@ class SettingMatches {
 
 	public readonly matches: IRange[];
 
-	constructor(searchString: string, setting: ISetting) {
+	constructor(searchString: string, setting: ISetting, private valuesMatcher: (filter: string, setting: ISetting) => IRange[]) {
 		this.matches = distinct(this._findMatchesInSetting(searchString, setting), (match) => `${match.startLineNumber}_${match.startColumn}_${match.endLineNumber}_${match.endColumn}_`);
 	}
 
@@ -38,7 +38,7 @@ class SettingMatches {
 		const result = this._doFindMatchesInSetting(searchString, setting);
 		if (setting.overrides && setting.overrides.length) {
 			for (const subSetting of setting.overrides) {
-				const subSettingMatches = new SettingMatches(searchString, subSetting);
+				const subSettingMatches = new SettingMatches(searchString, subSetting, this.valuesMatcher);
 				let words = searchString.split(' ');
 				const descriptionRanges: IRange[] = this.getRangesForWords(words, this.descriptionMatchingWords, [subSettingMatches.descriptionMatchingWords, subSettingMatches.keyMatchingWords, subSettingMatches.valueMatchingWords]);
 				const keyRanges: IRange[] = this.getRangesForWords(words, this.keyMatchingWords, [subSettingMatches.descriptionMatchingWords, subSettingMatches.keyMatchingWords, subSettingMatches.valueMatchingWords]);
@@ -74,7 +74,7 @@ class SettingMatches {
 			const valueMatches = typeof setting.value === 'string' ? matchesContiguousSubString(word, setting.value) : null;
 			if (valueMatches) {
 				this.valueMatchingWords.set(word, valueMatches.map(match => this.toValueRange(setting, match)));
-			} else if (schema.enum && schema.enum.some(enumValue => typeof enumValue === 'string' && !!matchesContiguousSubString(word, enumValue))) {
+			} else if (schema && schema.enum && schema.enum.some(enumValue => typeof enumValue === 'string' && !!matchesContiguousSubString(word, enumValue))) {
 				this.valueMatchingWords.set(word, []);
 			}
 		}
@@ -95,6 +95,8 @@ class SettingMatches {
 		if (setting.value && typeof setting.value === 'string') {
 			const valueMatches = or(matchesPrefix, matchesContiguousSubString)(searchString, setting.value);
 			valueRanges = valueMatches ? valueMatches.map(match => this.toValueRange(setting, match)) : this.getRangesForWords(words, this.valueMatchingWords, [this.keyMatchingWords, this.descriptionMatchingWords]);
+		} else {
+			valueRanges = this.valuesMatcher(searchString, setting);
 		}
 
 		return [...descriptionRanges, ...keyRanges, ...valueRanges];
@@ -124,9 +126,9 @@ class SettingMatches {
 
 	private toDescriptionRange(setting: ISetting, match: IMatch, lineIndex: number): IRange {
 		return {
-			startLineNumber: setting.descriptionRanges[lineIndex].startLineNumber + lineIndex,
+			startLineNumber: setting.descriptionRanges[lineIndex].startLineNumber,
 			startColumn: setting.descriptionRanges[lineIndex].startColumn + match.start,
-			endLineNumber: setting.descriptionRanges[lineIndex].startLineNumber + lineIndex,
+			endLineNumber: setting.descriptionRanges[lineIndex].endLineNumber,
 			endColumn: setting.descriptionRanges[lineIndex].startColumn + match.end
 		};
 	}
@@ -153,7 +155,7 @@ export abstract class AbstractSettingsModel extends EditorModel {
 			return {
 				filteredGroups: allGroups,
 				allGroups,
-				matches: new Map<string, IRange[]>()
+				matches: []
 			};
 		}
 
@@ -162,11 +164,11 @@ export abstract class AbstractSettingsModel extends EditorModel {
 			return {
 				filteredGroups: [group],
 				allGroups,
-				matches: new Map<string, IRange[]>()
+				matches: []
 			};
 		}
 
-		const matches: Map<string, IRange[]> = new Map<string, IRange[]>();
+		const matches: IRange[] = [];
 		const filteredGroups: ISettingsGroup[] = [];
 		const regex = strings.createRegExp(filter, false, { global: true });
 		for (const group of allGroups) {
@@ -175,11 +177,11 @@ export abstract class AbstractSettingsModel extends EditorModel {
 			for (const section of group.sections) {
 				const settings: ISetting[] = [];
 				for (const setting of section.settings) {
-					const settingMatches = new SettingMatches(filter, setting).matches;
+					const settingMatches = new SettingMatches(filter, setting, (filter, setting) => this.findValueMatches(filter, setting)).matches;
 					if (groupMatched || settingMatches.length > 0) {
 						settings.push(setting);
 					}
-					matches.set(group.title + setting.key, settingMatches);
+					matches.push(...settingMatches);
 				}
 				if (settings.length) {
 					sections.push({
@@ -224,6 +226,8 @@ export abstract class AbstractSettingsModel extends EditorModel {
 	}
 
 	public abstract settingsGroups: ISettingsGroup[];
+
+	protected abstract findValueMatches(filter: string, setting: ISetting): IRange[];
 }
 
 export class SettingsEditorModel extends AbstractSettingsModel implements ISettingsEditorModel {
@@ -261,6 +265,10 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 
 	public filterSettings(filter: string): IFilterResult {
 		return this.doFilterSettings(filter, this.settingsGroups);
+	}
+
+	protected findValueMatches(filter: string, setting: ISetting): IRange[] {
+		return this.model.findMatches(filter, setting.valueRange, false, false, null, false).map(match => match.range);
 	}
 
 	private parse() {
@@ -328,7 +336,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 						key: name,
 						keyRange: {
 							startLineNumber: settingStartPosition.lineNumber,
-							startColumn: settingStartPosition.column,
+							startColumn: settingStartPosition.column + 1,
 							endLineNumber: settingStartPosition.lineNumber,
 							endColumn: settingStartPosition.column + length
 						},
@@ -629,10 +637,16 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 				section.titleRange = { startLineNumber: sectionTitleStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
 			}
 
-			for (const setting of section.settings) {
-				this.pushSetting(setting, indent);
-				lastSetting = setting;
+			if (section.settings.length) {
+				for (const setting of section.settings) {
+					this.pushSetting(setting, indent);
+					lastSetting = setting;
+				}
+			} else {
+				this._contentByLines.push('// ' + nls.localize('noSettings', "No Settings"));
+				this._contentByLines.push('');
 			}
+
 		}
 		group.range = { startLineNumber: groupStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
 		return lastSetting;
@@ -691,6 +705,10 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		for (const line of description) {
 			result.push(indent + '// ' + line);
 		}
+	}
+
+	protected findValueMatches(filter: string, setting: ISetting): IRange[] {
+		return [];
 	}
 
 	public dispose(): void {

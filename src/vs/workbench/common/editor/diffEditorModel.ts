@@ -6,7 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorModel } from 'vs/workbench/common/editor';
-import { IEditorModel } from "vs/platform/editor/common/editor";
+import { IEditorModel } from 'vs/platform/editor/common/editor';
 
 /**
  * The base editor model for the diff editor. It is made up of two editor models, the original version

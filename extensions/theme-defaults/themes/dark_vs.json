@@ -254,6 +254,16 @@
 			}
 		},
 		{
+			"name": "Reset JavaScript string interpolation expression",
+			"scope": [
+				"meta.template.expression.js",
+				"meta.template.expression.ts"
+			],
+			"settings": {
+				"foreground": "#d4d4d4"
+			}
+		},
+		{
 			"scope": [
 				"support.type.vendored.property-name",
 				"support.type.property-name",

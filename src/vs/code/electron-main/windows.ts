@@ -10,6 +10,7 @@ import * as fs from 'original-fs';
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import { assign, mixin } from 'vs/base/common/objects';
+import URI from 'vs/base/common/uri';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/platform/storage/node/storage';
@@ -27,8 +28,9 @@ import { ITelemetryService, ITelemetryData } from 'vs/platform/telemetry/common/
 import { isEqual, isEqualOrParent } from 'vs/base/common/paths';
 import { IWindowsMainService, IOpenConfiguration } from "vs/platform/windows/electron-main/windows";
 import { IHistoryMainService } from "vs/platform/history/electron-main/historyMainService";
-import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from "vs/base/common/platform";
+import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { TPromise } from "vs/base/common/winjs.base";
+
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -278,7 +280,7 @@ export class WindowsManager implements IWindowsMainService {
 		const hotExitRestore = (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath);
 		const foldersToRestore = hotExitRestore ? this.backupService.getWorkspaceBackupPaths() : [];
 		let emptyToRestore = hotExitRestore ? this.backupService.getEmptyWorkspaceBackupPaths() : [];
-		emptyToRestore.push(...windowsToOpen.filter(w => !w.workspacePath && w.backupPath).map(w => path.basename(w.backupPath))); // add empty windows with backupPath
+		emptyToRestore.push(...windowsToOpen.filter(w => !w.workspacePath && w.backupPath).map(w => path.basename(w.backupPath))); // add empty workspaces with backupPath
 		emptyToRestore = arrays.distinct(emptyToRestore); // prevent duplicates
 
 		// Open based on config
@@ -311,6 +313,13 @@ export class WindowsManager implements IWindowsMainService {
 		// Emit events
 		if (windowsToOpen.length) {
 			this._onPathsOpen.fire(windowsToOpen);
+		}
+
+		// If we got started with --wait from the CLI, we need to signal to the outside when the window
+		// used for the edit operation is closed so that the waiting process can continue. We do this by
+		// deleting the waitMarkerFilePath.
+		if (openConfig.context === OpenContext.CLI && openConfig.cli.wait && openConfig.cli.waitMarkerFilePath && usedWindows.length === 1 && usedWindows[0]) {
+			this.waitForWindowClose(usedWindows[0].id).done(() => fs.unlink(openConfig.cli.waitMarkerFilePath, error => void 0));
 		}
 
 		return usedWindows;
@@ -548,11 +557,11 @@ export class WindowsManager implements IWindowsMainService {
 
 		switch (restoreWindows) {
 
-			// none: we always open an empty window
+			// none: we always open an empty workspace
 			case 'none':
 				return [Object.create(null)];
 
-			// one: restore last opened folder or empty window
+			// one: restore last opened folder or empty workspace
 			case 'one':
 				if (lastActiveWindow) {
 
@@ -565,7 +574,7 @@ export class WindowsManager implements IWindowsMainService {
 						}
 					}
 
-					// otherwise use backup path to restore empty windows
+					// otherwise use backup path to restore empty workspaces
 					else if (lastActiveWindow.backupPath) {
 						return [{ backupPath: lastActiveWindow.backupPath }];
 					}
@@ -604,7 +613,7 @@ export class WindowsManager implements IWindowsMainService {
 				break;
 		}
 
-		// Always fallback to empty window
+		// Always fallback to empty workspace
 		return [Object.create(null)];
 	}
 
@@ -795,6 +804,25 @@ export class WindowsManager implements IWindowsMainService {
 			codeWindow.win.webContents.on('crashed', () => this.onWindowError(codeWindow, WindowError.CRASHED));
 			codeWindow.win.on('unresponsive', () => this.onWindowError(codeWindow, WindowError.UNRESPONSIVE));
 			codeWindow.win.on('closed', () => this.onWindowClosed(codeWindow));
+
+			// Prevent loading on svgs in main renderer
+			codeWindow.win.webContents.session.webRequest.onBeforeRequest((details, callback) => {
+				if (details.url.indexOf('.svg') > 0) {
+					const uri = URI.parse(details.url);
+					if (uri && !uri.scheme.match(/file/i) && (uri.path as any).endsWith('.svg')) {
+						return callback({ cancel: true });
+					}
+				}
+				return callback({});
+			});
+
+			codeWindow.win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+				const contentType: string[] = (details.responseHeaders['content-type'] || details.responseHeaders['Content-Type']) as any;
+				if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
+					return callback({ cancel: true });
+				}
+				return callback({ cancel: false, responseHeaders: details.responseHeaders });
+			});
 
 			// Lifecycle
 			this.lifecycleService.registerWindow(codeWindow);
@@ -1023,6 +1051,17 @@ export class WindowsManager implements IWindowsMainService {
 		this.open({ context, cli: this.environmentService.args, forceNewWindow: true, forceEmpty: true });
 	}
 
+	public waitForWindowClose(windowId: number): TPromise<void> {
+		return new TPromise<void>(c => {
+			const toDispose = this.onWindowClose(id => {
+				if (id === windowId) {
+					toDispose.dispose();
+					c(null);
+				}
+			});
+		});
+	}
+
 	public sendToFocused(channel: string, ...args: any[]): void {
 		const focusedWindow = this.getFocusedWindow() || this.getLastActiveWindow();
 
@@ -1142,9 +1181,9 @@ export class WindowsManager implements IWindowsMainService {
 		this.fileDialog.pickAndOpen({ pickFolders: true, forceNewWindow, window, title: nls.localize('openFolder', "Open Folder") }, 'openFolder', data);
 	}
 
-	public pickFolder(options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
+	public pickFolder(window?: CodeWindow, options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
 		return new TPromise((c, e) => {
-			this.fileDialog.getFileOrFolderPaths({ pickFolders: true, buttonLabel: options && options.buttonLabel }, folders => {
+			this.fileDialog.getFileOrFolderPaths({ pickFolders: true, window, buttonLabel: options && options.buttonLabel }, folders => {
 				c(folders || []);
 			});
 		});

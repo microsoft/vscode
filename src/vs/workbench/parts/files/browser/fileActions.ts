@@ -27,7 +27,7 @@ import labels = require('vs/base/common/labels');
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { toResource, IEditorIdentifier, EditorInput } from 'vs/workbench/common/editor';
-import { FileStat, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
+import { FileStat, Model, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
 import { ExplorerView } from 'vs/workbench/parts/files/browser/views/explorerView';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/browser/explorerViewlet';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -61,23 +61,60 @@ export interface IFileViewletState {
 	clearEditable(stat: IFileStat): void;
 }
 
-export class BaseFileAction extends Action {
+export class BaseErrorReportingAction extends Action {
+
+	constructor(
+		id: string,
+		label: string,
+		private _messageService: IMessageService
+	) {
+		super(id, label);
+	}
+
+	public get messageService() {
+		return this._messageService;
+	}
+
+	protected onError(error: any): void {
+		if (error.message === 'string') {
+			error = error.message;
+		}
+
+		this._messageService.show(Severity.Error, toErrorMessage(error, false));
+	}
+
+	protected onErrorWithRetry(error: any, retry: () => TPromise<any>, extraAction?: Action): void {
+		const actions = [
+			new Action(this.id, nls.localize('retry', "Retry"), null, true, () => retry()),
+			CancelAction
+		];
+
+		if (extraAction) {
+			actions.unshift(extraAction);
+		}
+
+		const errorWithRetry: IMessageWithAction = {
+			actions,
+			message: toErrorMessage(error, false)
+		};
+
+		this._messageService.show(Severity.Error, errorWithRetry);
+	}
+}
+
+export class BaseFileAction extends BaseErrorReportingAction {
 	private _element: FileStat;
 
 	constructor(
 		id: string,
 		label: string,
 		@IFileService private _fileService: IFileService,
-		@IMessageService private _messageService: IMessageService,
+		@IMessageService _messageService: IMessageService,
 		@ITextFileService private _textFileService: ITextFileService
 	) {
-		super(id, label);
+		super(id, label, _messageService);
 
 		this.enabled = false;
-	}
-
-	public get messageService() {
-		return this._messageService;
 	}
 
 	public get fileService() {
@@ -102,32 +139,6 @@ export class BaseFileAction extends Action {
 
 	_updateEnablement(): void {
 		this.enabled = !!(this._fileService && this._isEnabled());
-	}
-
-	protected onError(error: any): void {
-		this._messageService.show(Severity.Error, error);
-	}
-
-	protected onWarning(warning: any): void {
-		this._messageService.show(Severity.Warning, warning);
-	}
-
-	protected onErrorWithRetry(error: any, retry: () => TPromise<any>, extraAction?: Action): void {
-		const actions = [
-			new Action(this.id, nls.localize('retry', "Retry"), null, true, () => retry()),
-			CancelAction
-		];
-
-		if (extraAction) {
-			actions.unshift(extraAction);
-		}
-
-		const errorWithRetry: IMessageWithAction = {
-			actions,
-			message: toErrorMessage(error, false)
-		};
-
-		this._messageService.show(Severity.Error, errorWithRetry);
 	}
 }
 
@@ -160,17 +171,17 @@ export class TriggerRenameFileAction extends BaseFileAction {
 
 	public run(context?: any): TPromise<any> {
 		if (!context) {
-			return TPromise.wrapError('No context provided to BaseEnableFileRenameAction.');
+			return TPromise.wrapError(new Error('No context provided to BaseEnableFileRenameAction.'));
 		}
 
 		const viewletState = <IFileViewletState>context.viewletState;
 		if (!viewletState) {
-			return TPromise.wrapError('Invalid viewlet state provided to BaseEnableFileRenameAction.');
+			return TPromise.wrapError(new Error('Invalid viewlet state provided to BaseEnableFileRenameAction.'));
 		}
 
 		const stat = <IFileStat>context.stat;
 		if (!stat) {
-			return TPromise.wrapError('Invalid stat provided to BaseEnableFileRenameAction.');
+			return TPromise.wrapError(new Error('Invalid stat provided to BaseEnableFileRenameAction.'));
 		}
 
 		viewletState.setEditable(stat, {
@@ -202,7 +213,7 @@ export class TriggerRenameFileAction extends BaseFileAction {
 			});
 		}).done(null, errors.onUnexpectedError);
 
-		return undefined;
+		return void 0;
 	}
 }
 
@@ -223,12 +234,12 @@ export abstract class BaseRenameAction extends BaseFileAction {
 
 	public run(context?: any): TPromise<any> {
 		if (!context) {
-			return TPromise.wrapError('No context provided to BaseRenameFileAction.');
+			return TPromise.wrapError(new Error('No context provided to BaseRenameFileAction.'));
 		}
 
 		let name = <string>context.value;
 		if (!name) {
-			return TPromise.wrapError('No new name provided to BaseRenameFileAction.');
+			return TPromise.wrapError(new Error('No new name provided to BaseRenameFileAction.'));
 		}
 
 		// Automatically trim whitespaces and trailing dots to produce nice file names
@@ -357,26 +368,27 @@ export class BaseNewAction extends BaseFileAction {
 
 	public run(context?: any): TPromise<any> {
 		if (!context) {
-			return TPromise.wrapError('No context provided to BaseNewAction.');
+			return TPromise.wrapError(new Error('No context provided to BaseNewAction.'));
 		}
 
 		const viewletState = <IFileViewletState>context.viewletState;
 		if (!viewletState) {
-			return TPromise.wrapError('Invalid viewlet state provided to BaseNewAction.');
+			return TPromise.wrapError(new Error('Invalid viewlet state provided to BaseNewAction.'));
 		}
 
-		let folder: FileStat = this.presetFolder;
+		let folder = this.presetFolder;
 		if (!folder) {
 			const focus = <FileStat>this.tree.getFocus();
 			if (focus) {
 				folder = focus.isDirectory ? focus : focus.parent;
 			} else {
-				folder = this.tree.getInput();
+				const input: FileStat | Model = this.tree.getInput();
+				folder = input instanceof Model ? input.roots[0] : input;
 			}
 		}
 
 		if (!folder) {
-			return TPromise.wrapError('Invalid parent folder to create.');
+			return TPromise.wrapError(new Error('Invalid parent folder to create.'));
 		}
 
 		return this.tree.reveal(folder, 0.5).then(() => {
@@ -795,7 +807,8 @@ export class ImportFileAction extends BaseFileAction {
 				if (this.element) {
 					targetElement = this.element;
 				} else {
-					targetElement = this.tree.getFocus() || this.tree.getInput();
+					const input: FileStat | Model = this.tree.getInput();
+					targetElement = this.tree.getFocus() || (input instanceof Model ? input.roots[0] : input);
 				}
 
 				if (!targetElement.isDirectory) {
@@ -833,7 +846,7 @@ export class ImportFileAction extends BaseFileAction {
 					}
 
 					if (!overwrite) {
-						return undefined;
+						return void 0;
 					}
 
 					// Run import in sequence
@@ -858,9 +871,7 @@ export class ImportFileAction extends BaseFileAction {
 									if (filesArray.length === 1) {
 										this.editorService.openEditor({ resource: res.stat.resource, options: { pinned: true } }).done(null, errors.onUnexpectedError);
 									}
-								}, (error: any) => {
-									this.messageService.show(Severity.Error, error);
-								});
+								}, error => this.onError(error));
 							});
 						});
 					});
@@ -868,7 +879,8 @@ export class ImportFileAction extends BaseFileAction {
 					return sequence(importPromisesFactory);
 				});
 			}
-			return undefined;
+
+			return void 0;
 		});
 
 		return importPromise.then(() => {
@@ -935,7 +947,11 @@ export class PasteFileAction extends BaseFileAction {
 		super(PasteFileAction.ID, nls.localize('pasteFile', "Paste"), fileService, messageService, textFileService);
 
 		this.tree = tree;
-		this.element = element || this.tree.getInput();
+		this.element = element;
+		if (!this.element) {
+			const input: FileStat | Model = this.tree.getInput();
+			this.element = input instanceof Model ? input.roots[0] : input;
+		}
 		this._updateEnablement();
 	}
 
@@ -947,8 +963,7 @@ export class PasteFileAction extends BaseFileAction {
 		}
 
 		// Check if file was deleted or moved meanwhile
-		const root: FileStat = this.tree.getInput();
-		const exists = root.find(fileToCopy.resource);
+		const exists = fileToCopy.root.find(fileToCopy.resource);
 		if (!exists) {
 			fileToCopy = null;
 			return false;
@@ -1028,25 +1043,19 @@ export class DuplicateFileAction extends BaseFileAction {
 			if (!stat.isDirectory) {
 				return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 			}
-			return undefined;
-		}, (error: any) => {
-			this.onError(error);
-		});
+
+			return void 0;
+		}, error => this.onError(error));
 
 		return result;
 	}
 
-	public onError(error: any): void {
-		this.messageService.show(Severity.Error, error);
-	}
-
 	private findTarget(): URI {
-		const root: FileStat = this.tree.getInput();
 		let name = this.element.name;
 
 		let candidate = URI.file(paths.join(this.target.resource.fsPath, name));
 		while (true) {
-			if (!root.find(candidate)) {
+			if (!this.element.root.find(candidate)) {
 				break;
 			}
 
@@ -1262,13 +1271,11 @@ export class CompareResourcesAction extends Action {
 
 		// Check if file was deleted or moved meanwhile (explorer only)
 		if (this.tree) {
-			const root: FileStat = this.tree.getInput();
-			if (root instanceof FileStat) {
-				const exists = root.find(globalResourceToCompare);
-				if (!exists) {
-					globalResourceToCompare = null;
-					return false;
-				}
+			const input: FileStat | Model = this.tree.getInput();
+			const exists = input instanceof Model ? input.findClosest(globalResourceToCompare) : input.find(globalResourceToCompare);
+			if (!exists) {
+				globalResourceToCompare = null;
+				return false;
 			}
 		}
 
@@ -1302,25 +1309,23 @@ export class RefreshViewExplorerAction extends Action {
 	}
 }
 
-export abstract class BaseActionWithErrorReporting extends Action {
+export abstract class BaseSaveFileAction extends BaseErrorReportingAction {
 	constructor(
 		id: string,
 		label: string,
-		private messageService: IMessageService
+		messageService: IMessageService
 	) {
-		super(id, label);
+		super(id, label, messageService);
 	}
 
 	public run(context?: any): TPromise<boolean> {
-		return this.doRun(context).then(() => true, (error) => {
-			this.messageService.show(Severity.Error, toErrorMessage(error, false));
-		});
+		return this.doRun(context).then(() => true, error => this.onError(error));
 	}
 
 	protected abstract doRun(context?: any): TPromise<boolean>;
 }
 
-export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
+export abstract class BaseSaveOneFileAction extends BaseSaveFileAction {
 	private resource: URI;
 
 	constructor(
@@ -1392,7 +1397,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 
 				return savePromise.then((target) => {
 					if (!target || target.toString() === source.toString()) {
-						return undefined; // save canceled or same resource used
+						return void 0; // save canceled or same resource used
 					}
 
 					const replaceWith: IResourceInput = {
@@ -1427,7 +1432,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 	}
 }
 
-export class SaveFileAction extends BaseSaveFileAction {
+export class SaveFileAction extends BaseSaveOneFileAction {
 
 	public static ID = 'workbench.action.files.save';
 	public static LABEL = nls.localize('save', "Save");
@@ -1437,7 +1442,7 @@ export class SaveFileAction extends BaseSaveFileAction {
 	}
 }
 
-export class SaveFileAsAction extends BaseSaveFileAction {
+export class SaveFileAsAction extends BaseSaveOneFileAction {
 
 	public static ID = 'workbench.action.files.saveAs';
 	public static LABEL = nls.localize('saveAs', "Save As...");
@@ -1447,7 +1452,7 @@ export class SaveFileAsAction extends BaseSaveFileAction {
 	}
 }
 
-export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
+export abstract class BaseSaveAllAction extends BaseSaveFileAction {
 	private toDispose: IDisposable[];
 	private lastIsDirty: boolean;
 
@@ -1563,7 +1568,8 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 			if (untitledToReopen.length) {
 				return this.editorService.openEditors(untitledToReopen).then(() => true);
 			}
-			return undefined;
+
+			return void 0;
 		});
 	}
 
