@@ -656,10 +656,13 @@ export class ComposedViewsViewlet extends Viewlet {
 	private getViewDescriptorsFromRegistry(): IViewDescriptor[] {
 		return ViewsRegistry.getViews(this.location)
 			.sort((a, b) => {
-				const viewStateA = this.viewsStates.get(a.id);
-				const viewStateB = this.viewsStates.get(b.id);
-				const orderA = viewStateA ? viewStateA.order : a.order;
-				const orderB = viewStateB ? viewStateB.order : b.order;
+				// const viewStateA = this.viewsStates.get(a.id);
+				// const viewStateB = this.viewsStates.get(b.id);
+				// const orderA = viewStateA ? viewStateA.order : a.order;
+				// const orderB = viewStateB ? viewStateB.order : b.order;
+
+				const orderA = a.order;
+				const orderB = b.order;
 
 				if (orderB === void 0 || orderB === null) {
 					return -1;
@@ -667,6 +670,7 @@ export class ComposedViewsViewlet extends Viewlet {
 				if (orderA === void 0 || orderA === null) {
 					return 1;
 				}
+
 				return orderA - orderB;
 			});
 	}
