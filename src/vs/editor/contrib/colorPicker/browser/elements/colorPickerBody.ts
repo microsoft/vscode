@@ -90,36 +90,45 @@ export class ColorPickerBody extends Disposable {
 			}
 		}));
 
-		// Slider listeners
+		// Color strip and slider listeners
 		this._register(dom.addDisposableListener(this.hueSlider.domNode, dom.EventType.MOUSE_DOWN, e => {
-			this.hueStripListener(this.hueSlider.domNode, e, monitor);
+			this.stripListener(this.hueStrip, this.hueSlider.domNode, e, monitor);
 		}));
 		this._register(dom.addDisposableListener(this.hueStrip.domNode, dom.EventType.MOUSE_DOWN, e => {
-			this.hueStripListener(this.hueStrip.domNode, e, monitor);
+			this.stripListener(this.hueStrip, this.hueStrip.domNode, e, monitor);
 		}));
 		this._register(dom.addDisposableListener(this.opacitySlider.domNode, dom.EventType.MOUSE_DOWN, e => {
-			this.opacityStripListener(this.opacitySlider.domNode, e, monitor);
+			this.stripListener(this.opacityStrip, this.opacitySlider.domNode, e, monitor);
 		}));
 		this._register(dom.addDisposableListener(this.opacityStrip.domNode, dom.EventType.MOUSE_DOWN, e => {
-			this.opacityStripListener(this.opacityStrip.domNode, e, monitor);
+			this.stripListener(this.opacityStrip, this.opacityStrip.domNode, e, monitor);
 		}));
 	}
 
-	private hueStripListener(element: HTMLElement, e: MouseEvent, monitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>): void {
+	private stripListener(strip: Strip, element: HTMLElement, e: MouseEvent, monitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>): void {
 		if (e.button !== 0) { // Only left click is allowed
 			return;
 		}
 
-		// Update slider position if clicked on huestrip
-		if (element === this.hueStrip.domNode) {
-			this.hueSlider.top = e.offsetY;
-			this.widget.model.hue = this.extractColorData(this.hueStrip.context, 0, this.hueSlider.top);
+		const slider = strip instanceof HueStrip ? this.hueSlider : this.opacitySlider;
+
+		// Update slider position if clicked on a strip itself
+		if (element === strip.domNode) {
+			slider.top = e.offsetY;
+
+			// Update model
+			if (slider === this.hueSlider) {
+				this.widget.model.hue = this.extractColorData(strip.context, 0, slider.top);
+			} else {
+				this.widget.model.opacity = slider.top / strip.height;
+			}
 		}
 
 		const initialMousePosition = e.clientY;
 		const initialMouseOrthogonalPosition = e.clientX;
-		const initialSliderTop = this.hueSlider.top;
+		const initialSliderTop = slider.top;
 		monitor.startMonitoring(standardMouseMoveMerger, (mouseMoveData: IStandardMouseMoveEventData) => {
+			strip.domNode.style.cursor = '-webkit-grabbing';
 			// Do not move slider on Windows if it's outside of movable bounds
 			const mouseOrthogonalDelta = Math.abs(mouseMoveData.posx - initialMouseOrthogonalPosition);
 			if (isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
@@ -127,40 +136,17 @@ export class ColorPickerBody extends Disposable {
 			}
 
 			const mouseDelta = mouseMoveData.posy - initialMousePosition;
-			this.hueSlider.top = initialSliderTop + mouseDelta;
+			slider.top = initialSliderTop + mouseDelta;
 
-			this.widget.model.hue = this.extractColorData(this.hueStrip.context, 0, this.hueSlider.top);
-		}, () => null);
-	}
-
-	private opacityStripListener(element: HTMLElement, e: MouseEvent, monitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>): void {
-		if (e.button !== 0) { // Only left click is allowed
-			return;
-		}
-
-		// Update slider position if clicked on huestrip
-		if (element === this.opacityStrip.domNode) {
-			this.opacitySlider.top = e.offsetY;
-			this.widget.model.opacity = this.opacitySlider.top / this.opacityStrip.height;
-			console.log('Setting opacity to ' + this.widget.model.opacity);
-		}
-
-		const initialMousePosition = e.clientY;
-		const initialMouseOrthogonalPosition = e.clientX;
-		const initialSliderTop = this.opacitySlider.top;
-		monitor.startMonitoring(standardMouseMoveMerger, (mouseMoveData: IStandardMouseMoveEventData) => {
-			// Do not move slider on Windows if it's outside of movable bounds
-			const mouseOrthogonalDelta = Math.abs(mouseMoveData.posx - initialMouseOrthogonalPosition);
-			if (isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
-				return;
+			// Update model
+			if (slider === this.hueSlider) {
+				this.widget.model.hue = this.extractColorData(strip.context, 0, slider.top);
+			} else {
+				this.widget.model.opacity = slider.top / strip.height;
 			}
-
-			const mouseDelta = mouseMoveData.posy - initialMousePosition;
-			this.opacitySlider.top = initialSliderTop + mouseDelta;
-
-			this.widget.model.opacity = Number((this.opacitySlider.top / this.opacityStrip.height).toFixed(2));
-			console.log('Setting opacity to ' + this.widget.model.opacity);
-		}, () => null);
+		}, () => {
+			strip.domNode.style.cursor = '-webkit-grab';
+		});
 	}
 
 	private drawSaturationBox(w: number, h: number, actualW: number, actualH: number): HTMLCanvasElement {
@@ -309,5 +295,4 @@ class Slider {
 		this.domNode.style.top = top + 'px';
 		this._top = top;
 	}
-
 }

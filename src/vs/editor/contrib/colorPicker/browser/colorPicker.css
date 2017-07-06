@@ -51,7 +51,6 @@
 }
 
 .opacity-strip-transparency {
-	content: '';
 	background: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAJElEQVQIW2PcvXv3fwYg6OzsBFEMjBgCLi4uYBXl5eUQFegCAIYVD/syLxKnAAAAAElFTkSuQmCC);
 	background-size: 9px 9px;
 	image-rendering: pixelated;
