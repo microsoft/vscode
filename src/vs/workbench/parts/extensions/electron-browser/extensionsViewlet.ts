@@ -97,7 +97,7 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(VIEWLET_ID, ViewLocation.Extensions, `${VIEWLET_ID}.state`, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
+		super(VIEWLET_ID, ViewLocation.Extensions, `${VIEWLET_ID}.state`, true, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
 
 		this.registerViews();
 		this.searchDelayer = new ThrottledDelayer(500);
@@ -167,7 +167,8 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 			location: ViewLocation.Extensions,
 			ctor: RecommendedExtensionsView,
 			when: ContextKeyExpr.not('searchExtensions'),
-			size: 50
+			size: 50,
+			canToggleVisibility: true
 		};
 	}
 
@@ -307,7 +308,13 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 		this.searchRecommendedExtensionsContextKey.set(RecommendedExtensionsView.isRecommendedExtensionsQuery(value));
 
 		await this.updateViews();
-		await this.progress(TPromise.join(this.views.map(view => (<ExtensionsListView>view).show(value))));
+	}
+
+	protected async updateViews(): TPromise<void> {
+		const created = await super.updateViews();
+		if (created.length) {
+			await this.progress(TPromise.join(created.map(view => (<ExtensionsListView>view).show(this.searchBox.value))));
+		}
 	}
 
 	private count(): number {

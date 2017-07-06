@@ -325,6 +325,7 @@ export class ComposedViewsViewlet extends Viewlet {
 		id: string,
 		private location: ViewLocation,
 		private viewletStateStorageId: string,
+		private showHeaderInTitleWhenSingleView: boolean,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService protected storageService: IStorageService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
@@ -366,21 +367,21 @@ export class ComposedViewsViewlet extends Viewlet {
 
 	public getTitle(): string {
 		let title = Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlet(this.getId()).name;
-		if (this.hasSingleView() && this.splitView.getViews<IView>()[0]) {
+		if (this.showHeaderInTitleArea() && this.splitView.getViews<IView>()[0]) {
 			title += ': ' + this.splitView.getViews<IView>()[0].name;
 		}
 		return title;
 	}
 
 	public getActions(): IAction[] {
-		if (this.hasSingleView() && this.splitView.getViews<IView>()[0]) {
+		if (this.showHeaderInTitleArea() && this.splitView.getViews<IView>()[0]) {
 			return this.splitView.getViews<IView>()[0].getActions();
 		}
 		return [];
 	}
 
 	public getSecondaryActions(): IAction[] {
-		if (this.hasSingleView() && this.splitView.getViews<IView>()[0]) {
+		if (this.showHeaderInTitleArea() && this.splitView.getViews<IView>()[0]) {
 			return this.splitView.getViews<IView>()[0].getSecondaryActions();
 		}
 		return [];
@@ -451,7 +452,7 @@ export class ComposedViewsViewlet extends Viewlet {
 		this.updateViews();
 	}
 
-	private onViewDescriptorsChanged(): TPromise<void> {
+	private onViewDescriptorsChanged(): TPromise<any> {
 		this.viewsContextKeys.clear();
 		for (const viewDescriptor of this.getViewDescriptorsFromRegistry()) {
 			if (viewDescriptor.when) {
@@ -481,7 +482,7 @@ export class ComposedViewsViewlet extends Viewlet {
 		}
 	}
 
-	protected updateViews(): TPromise<void> {
+	protected updateViews(): TPromise<IView[]> {
 		if (this.splitView) {
 
 			const registeredViews = this.getViewDescriptorsFromRegistry();
@@ -543,10 +544,11 @@ export class ComposedViewsViewlet extends Viewlet {
 				}
 
 				return TPromise.join(toCreate.map(view => view.create()))
-					.then(() => this.onViewsUpdated());
+					.then(() => this.onViewsUpdated())
+					.then(() => toCreate);
 			}
 		}
-		return TPromise.as(null);
+		return TPromise.as([]);
 	}
 
 	private attachViewStyler(widget: IThemable, options?: { noContrastBorder?: boolean }): IDisposable {
@@ -580,7 +582,7 @@ export class ComposedViewsViewlet extends Viewlet {
 			return TPromise.as(null);
 		}
 
-		if (this.hasSingleView()) {
+		if (this.showHeaderInTitleArea()) {
 			if (this.splitView.getViews<IView>()[0]) {
 				this.splitView.getViews<IView>()[0].hideHeader();
 				if (!this.splitView.getViews<IView>()[0].isExpanded()) {
@@ -597,10 +599,16 @@ export class ComposedViewsViewlet extends Viewlet {
 		this.updateTitleArea();
 
 		this.viewHeaderContextMenuListeners = dispose(this.viewHeaderContextMenuListeners);
-		for (const viewDescriptor of this.getVisibilityManageableViewDescriptors()) {
+		for (const viewDescriptor of this.getViewDescriptorsFromRegistry()) {
 			const view = this.getView(viewDescriptor.id);
 			if (view) {
-				this.viewHeaderContextMenuListeners.push(DOM.addDisposableListener(view.getHeaderElement(), DOM.EventType.CONTEXT_MENU, (e) => this.onContextMenu(new StandardMouseEvent(e), view)));
+				this.viewHeaderContextMenuListeners.push(DOM.addDisposableListener(view.getHeaderElement(), DOM.EventType.CONTEXT_MENU, e => {
+					e.stopPropagation();
+					e.preventDefault();
+					if (viewDescriptor.canToggleVisibility) {
+						this.onContextMenu(new StandardMouseEvent(e), view);
+					}
+				}));
 			}
 		}
 
@@ -627,7 +635,10 @@ export class ComposedViewsViewlet extends Viewlet {
 		});
 	}
 
-	private hasSingleView(): boolean {
+	private showHeaderInTitleArea(): boolean {
+		if (!this.showHeaderInTitleWhenSingleView) {
+			return false;
+		}
 		if (this.splitView.getViews<IView>().length > 1) {
 			return false;
 		}
@@ -693,7 +704,7 @@ export class ComposedViewsViewlet extends Viewlet {
 	}
 
 	protected get views(): IView[] {
-		return this.splitView.getViews<IView>();
+		return this.splitView ? this.splitView.getViews<IView>() : [];
 	}
 
 	protected getView(id: string): IView {
