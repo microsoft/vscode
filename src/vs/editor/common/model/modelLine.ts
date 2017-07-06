@@ -159,8 +159,6 @@ function computePlusOneIndentLevel(line: string, tabSize: number): number {
 }
 
 export class ModelLine {
-	private _lineNumber: number;
-	public get lineNumber(): number { return this._lineNumber; }
 
 	private _text: string;
 	public get text(): string { return this._text; }
@@ -205,8 +203,7 @@ export class ModelLine {
 	private _lineTokens: ArrayBuffer;
 	private _markers: LineMarker[];
 
-	constructor(lineNumber: number, text: string, tabSize: number) {
-		this._lineNumber = lineNumber | 0;
+	constructor(text: string, tabSize: number) {
 		this._metadata = 0;
 		this._setText(text, tabSize);
 		this._state = null;
@@ -607,7 +604,7 @@ export class ModelLine {
 		// Mark overflowing tokens for deletion & delete marked tokens
 		this._deleteMarkedTokens(this._markOverflowingTokensForDeletion(0, this._text.length));
 
-		var otherLine = new ModelLine(this._lineNumber + 1, otherText, tabSize);
+		var otherLine = new ModelLine(otherText, tabSize);
 		if (otherMarkers) {
 			otherLine.addMarkers(otherMarkers);
 		}
@@ -727,9 +724,6 @@ export class ModelLine {
 	}
 
 	public updateLineNumber(markersTracker: MarkersTracker, newLineNumber: number): void {
-		if (this._lineNumber === newLineNumber) {
-			return;
-		}
 		if (this._markers) {
 			let markers = this._markers;
 			for (let i = 0, len = markers.length; i < len; i++) {
@@ -737,8 +731,6 @@ export class ModelLine {
 				marker.updateLineNumber(markersTracker, newLineNumber);
 			}
 		}
-
-		this._lineNumber = newLineNumber;
 	}
 
 	private _indexOfMarkerId(markerId: string): number {

@@ -759,7 +759,7 @@ export class TextModel implements editorCommon.ITextModel {
 		let modelLines: ModelLine[] = [];
 
 		for (let i = 0, len = rawLines.length; i < len; i++) {
-			modelLines[i] = new ModelLine(i + 1, rawLines[i], tabSize);
+			modelLines[i] = new ModelLine(rawLines[i], tabSize);
 		}
 		this._BOM = textSource.BOM;
 		this._mightContainRTL = textSource.containsRTL;

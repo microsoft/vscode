@@ -32,7 +32,7 @@ function testCommand(lines: string[], selections: Selection[], edits: IIdentifie
 }
 
 function testLineEditMarker(text: string, column: number, stickToPreviousCharacter: boolean, edit: ILineEdit, expectedColumn: number): void {
-	var line = new ModelLine(1, text, NO_TAB_SIZE);
+	var line = new ModelLine(text, NO_TAB_SIZE);
 	line.addMarker(new LineMarker('1', 0, new Position(0, column), stickToPreviousCharacter));
 
 	line.applyEdits(new MarkersTracker(), [edit], NO_TAB_SIZE);

@@ -653,8 +653,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				let newLinesContent: string[] = [];
 				let newLinesLengths = new Uint32Array(insertingLinesCnt - editingLinesCnt);
 				for (let j = editingLinesCnt + 1; j <= insertingLinesCnt; j++) {
-					let newLineNumber = startLineNumber + j;
-					newLines.push(new ModelLine(newLineNumber, op.lines[j], tabSize));
+					newLines.push(new ModelLine(op.lines[j], tabSize));
 					newLinesContent.push(op.lines[j]);
 					newLinesLengths[j - editingLinesCnt - 1] = op.lines[j].length + this._EOL.length;
 				}
@@ -728,10 +727,6 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		for (let i = 0, len = this._lines.length; i < len; i++) {
 			let line = this._lines[i];
 			let lineNumber = i + 1;
-
-			if (line.lineNumber !== lineNumber) {
-				throw new Error('Invalid lineNumber at line: ' + lineNumber + '; text is: ' + this.getValue());
-			}
 
 			let markers = line.getMarkers();
 			if (markers !== null) {
