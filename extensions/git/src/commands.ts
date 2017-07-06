@@ -366,29 +366,6 @@ export class CommandCenter {
 		return await this._openResource(resource);
 	}
 
-	@command('git.openFileFromUri')
-	async openFileFromUri(uri?: Uri): Promise<void> {
-		const resource = this.getSCMResource(uri);
-		let uriToOpen: Uri | undefined;
-
-		if (resource) {
-			uriToOpen = resource.resourceUri;
-		} else if (uri && uri.scheme === 'git') {
-			const { path } = fromGitUri(uri);
-			uriToOpen = Uri.file(path);
-		} else if (uri && uri.scheme === 'file') {
-			uriToOpen = uri;
-		}
-
-		if (!uriToOpen) {
-			return;
-		}
-
-		const viewColumn = window.activeTextEditor && window.activeTextEditor.viewColumn || ViewColumn.One;
-
-		return await commands.executeCommand<void>('vscode.open', uriToOpen, viewColumn);
-	}
-
 	@command('git.stage')
 	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
 		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
