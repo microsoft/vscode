@@ -173,10 +173,10 @@ async function publish(commit: string, quality: string, platform: string, type: 
 	const storageAccount = process.env['AZURE_STORAGE_ACCOUNT_2'];
 
 	const blobService = azure.createBlobService(storageAccount, process.env['AZURE_STORAGE_ACCESS_KEY_2'])
-		.withFilter(new azure.ExponentialRetryPolicyFilter());
+		.withFilter(new azure.ExponentialRetryPolicyFilter(20));
 
 	const mooncakeBlobService = azure.createBlobService(storageAccount, process.env['MOONCAKE_STORAGE_ACCESS_KEY'], `${storageAccount}.blob.core.chinacloudapi.cn`)
-		.withFilter(new azure.ExponentialRetryPolicyFilter());
+		.withFilter(new azure.ExponentialRetryPolicyFilter(20));
 
 	await Promise.all([
 		assertContainer(blobService, quality),
