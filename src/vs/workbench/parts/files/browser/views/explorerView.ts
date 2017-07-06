@@ -79,12 +79,9 @@ export class ExplorerView extends CollapsibleView {
 	private fileEventsFilter: ResourceGlobMatcher;
 
 	private shouldRefresh: boolean;
-
 	private autoReveal: boolean;
-
 	private sortOrder: SortOrder;
-
-	private settings: any;
+	private settings: object;
 
 	constructor(
 		options: IExplorerViewOptions,
@@ -792,7 +789,7 @@ export class ExplorerView extends CollapsibleView {
 			// Display roots only when there is more than 1 root
 			// Make sure to expand all folders that where expanded in the previous session
 			return this.explorerViewer.setInput(input).then(() => this.explorerViewer.expandAll(statsToExpand));
-		}, (e: any) => TPromise.wrapError(e));
+		}, e => TPromise.wrapError(e));
 
 		this.progressService.showWhile(promise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
 
@@ -867,7 +864,7 @@ export class ExplorerView extends CollapsibleView {
 			// Select and Reveal
 			return this.explorerViewer.refresh(root).then(() => this.doSelect(root.find(resource), reveal));
 
-		}, (e: any) => this.messageService.show(Severity.Error, e));
+		}, e => this.messageService.show(Severity.Error, e));
 	}
 
 	private hasSelection(resource: URI): FileStat {

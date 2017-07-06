@@ -548,34 +548,6 @@ export class FileSorter implements ISorter {
 	}
 
 	public compare(tree: ITree, statA: FileStat, statB: FileStat): number {
-		switch (this.sortOrder) {
-			case 'default':
-			case 'type':
-			case 'modified':
-				if (statA.isDirectory && !statB.isDirectory) {
-					return -1;
-				}
-				if (statB.isDirectory && !statA.isDirectory) {
-					return 1;
-				}
-				break;
-
-			case 'filesFirst':
-				if (statA.isDirectory && !statB.isDirectory) {
-					return 1;
-				}
-				if (statB.isDirectory && !statA.isDirectory) {
-					return -1;
-				}
-				break;
-		}
-
-		if (statA instanceof NewStatPlaceholder) {
-			return -1;
-		}
-		if (statB instanceof NewStatPlaceholder) {
-			return 1;
-		}
 
 		// Do not sort roots
 		if (statA.isRoot) {
@@ -585,6 +557,43 @@ export class FileSorter implements ISorter {
 			return 1;
 		}
 
+		// Sort Directories
+		switch (this.sortOrder) {
+			case 'default':
+			case 'type':
+			case 'modified':
+				if (statA.isDirectory && !statB.isDirectory) {
+					return -1;
+				}
+
+				if (statB.isDirectory && !statA.isDirectory) {
+					return 1;
+				}
+
+				break;
+
+			case 'filesFirst':
+				if (statA.isDirectory && !statB.isDirectory) {
+					return 1;
+				}
+
+				if (statB.isDirectory && !statA.isDirectory) {
+					return -1;
+				}
+
+				break;
+		}
+
+		// Sort "New File/Folder" placeholders
+		if (statA instanceof NewStatPlaceholder) {
+			return -1;
+		}
+
+		if (statB instanceof NewStatPlaceholder) {
+			return 1;
+		}
+
+		// Sort Files
 		switch (this.sortOrder) {
 			case 'default':
 			case 'mixed':
@@ -597,9 +606,9 @@ export class FileSorter implements ISorter {
 			case 'modified':
 				if (statA.mtime !== statB.mtime) {
 					return statA.mtime < statB.mtime ? 1 : -1;
-				} else {
-					return comparers.compareFileNames(statA.name, statB.name);
 				}
+
+				return comparers.compareFileNames(statA.name, statB.name);
 		}
 	}
 }
