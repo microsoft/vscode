@@ -1105,13 +1105,14 @@ export class CodeMenu {
 			type: 'info',
 			message: product.nameLong,
 			detail: nls.localize('aboutDetail',
-				"\nVersion {0}\nCommit {1}\nDate {2}\nShell {3}\nRenderer {4}\nNode {5}",
+				"\nVersion {0}\nCommit {1}\nDate {2}\nShell {3}\nRenderer {4}\nNode {5}\nArchitecture {6}",
 				app.getVersion(),
 				product.commit || 'Unknown',
 				product.date || 'Unknown',
 				process.versions['electron'],
 				process.versions['chrome'],
-				process.versions['node']
+				process.versions['node'],
+				process.arch
 			),
 			buttons: [nls.localize('okButton', "OK")],
 			noLink: true
