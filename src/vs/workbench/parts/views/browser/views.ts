@@ -682,7 +682,7 @@ export class ComposedViewsViewlet extends Viewlet {
 			} else {
 				const viewDescriptor = registeredViewDescriptors.filter(v => v.id === id)[0];
 				if (viewDescriptor) {
-					viewsStates[id] = { size: void 0, collapsed: false, isHidden: viewState.isHidden, order: void 0 };
+					viewsStates[id] = viewState;
 				}
 			}
 		});
