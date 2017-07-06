@@ -95,7 +95,7 @@ export class TextModel implements editorCommon.ITextModel {
 	protected _mightContainRTL: boolean;
 	protected _mightContainNonBasicASCII: boolean;
 
-	private _shouldSimplifyMode: boolean;
+	private readonly _shouldSimplifyMode: boolean;
 	protected readonly _isTooLargeForTokenization: boolean;
 
 	constructor(rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions) {
@@ -131,8 +131,11 @@ export class TextModel implements editorCommon.ITextModel {
 	}
 
 	public isTooLargeForHavingARichMode(): boolean {
-		this._assertNotDisposed();
 		return this._shouldSimplifyMode;
+	}
+
+	public isTooLargeForTokenization(): boolean {
+		return this._isTooLargeForTokenization;
 	}
 
 	public getOptions(): editorCommon.TextModelResolvedOptions {

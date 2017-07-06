@@ -696,6 +696,12 @@ export interface ITextModel {
 	isTooLargeForHavingARichMode(): boolean;
 
 	/**
+	 * The file is so large, that even tokenization is disabled.
+	 * @internal
+	 */
+	isTooLargeForTokenization(): boolean;
+
+	/**
 	 * Search the model.
 	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
 	 * @param searchOnlyEditableRange Limit the searching to only search inside the editable range of the model.
