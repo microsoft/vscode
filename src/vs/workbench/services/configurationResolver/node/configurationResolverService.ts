@@ -5,7 +5,6 @@
 
 import * as paths from 'vs/base/common/paths';
 import * as types from 'vs/base/common/types';
-import uri from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { sequence } from 'vs/base/common/async';
 import { IStringDictionary } from 'vs/base/common/collections';
@@ -16,6 +15,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export class ConfigurationResolverService implements IConfigurationResolverService {
 	_serviceBrand: any;
@@ -23,14 +23,14 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 	private _execPath: string;
 
 	constructor(
-		workspaceRoot: uri,
 		envVariables: { [key: string]: string },
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private commandService: ICommandService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
-		this._workspaceRoot = paths.normalize(workspaceRoot ? workspaceRoot.fsPath : '', true);
+		this._workspaceRoot = paths.normalize(contextService.hasWorkspace() ? contextService.getLegacyWorkspace().resource.fsPath : '', true); // TODO@Isidor (https://github.com/Microsoft/vscode/issues/29246)
 		this._execPath = environmentService.execPath;
 		Object.keys(envVariables).forEach(key => {
 			this[`env:${key}`] = envVariables[key];

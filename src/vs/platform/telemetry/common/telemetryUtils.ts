@@ -12,18 +12,10 @@ import URI from 'vs/base/common/uri';
 import { ConfigurationSource, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService, ITelemetryExperiments, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-
-export const defaultExperiments: ITelemetryExperiments = {
-	mergeQuickLinks: false,
-	showTaskDocumentation: true
-};
+import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export const NullTelemetryService = {
 	_serviceBrand: undefined,
-	_experiments: defaultExperiments,
 	publicLog(eventName: string, data?: ITelemetryData) {
 		return TPromise.as<void>(null);
 	},
@@ -34,71 +26,8 @@ export const NullTelemetryService = {
 			sessionId: 'someValue.sessionId',
 			machineId: 'someValue.machineId'
 		});
-	},
-	getExperiments(): ITelemetryExperiments {
-		return this._experiments;
 	}
 };
-
-export function loadExperiments(accessor: ServicesAccessor): ITelemetryExperiments {
-	const storageService = accessor.get(IStorageService);
-	const configurationService = accessor.get(IConfigurationService);
-
-	let {
-		mergeQuickLinks,
-		showTaskDocumentation,
-	} = splitExperimentsRandomness(storageService);
-
-	return applyOverrides({
-		mergeQuickLinks,
-		showTaskDocumentation,
-	}, configurationService);
-}
-
-function applyOverrides(experiments: ITelemetryExperiments, configurationService: IConfigurationService): ITelemetryExperiments {
-	const experimentsConfig = getExperimentsOverrides(configurationService);
-	Object.keys(experiments).forEach(key => {
-		if (key in experimentsConfig) {
-			experiments[key] = experimentsConfig[key];
-		}
-	});
-	return experiments;
-}
-
-function splitExperimentsRandomness(storageService: IStorageService): ITelemetryExperiments {
-	const random1 = getExperimentsRandomness(storageService);
-	const [random2, showTaskDocumentation] = splitRandom(random1);
-	const [random3, /* openUntitledFile */] = splitRandom(random2);
-	const [random4, mergeQuickLinks] = splitRandom(random3);
-	// tslint:disable-next-line:no-unused-variable (https://github.com/Microsoft/TypeScript/issues/16628)
-	const [random5, /* enableWelcomePage */] = splitRandom(random4);
-	return {
-		mergeQuickLinks,
-		showTaskDocumentation,
-	};
-}
-
-function getExperimentsRandomness(storageService: IStorageService) {
-	const key = 'experiments.randomness';
-	let valueString = storageService.get(key);
-	if (!valueString) {
-		valueString = Math.random().toString();
-		storageService.store(key, valueString);
-	}
-
-	return parseFloat(valueString);
-}
-
-function splitRandom(random: number): [number, boolean] {
-	const scaled = random * 2;
-	const i = Math.floor(scaled);
-	return [scaled - i, i === 1];
-}
-
-function getExperimentsOverrides(configurationService: IConfigurationService): ITelemetryExperiments {
-	const config: any = configurationService.getConfiguration('telemetry');
-	return config && config.experiments || {};
-}
 
 export interface ITelemetryAppender {
 	log(eventName: string, data: any): void;
@@ -180,7 +109,7 @@ const configurationValueWhitelist = [
 	'editor.quickSuggestionsDelay',
 	'editor.parameterHints',
 	'editor.autoClosingBrackets',
-	'editor.autoindent',
+	'editor.autoIndent',
 	'editor.formatOnType',
 	'editor.formatOnPaste',
 	'editor.suggestOnTriggerCharacters',
@@ -245,6 +174,7 @@ const configurationValueWhitelist = [
 	'php.validate.enable',
 	'php.validate.run',
 	'workbench.welcome.enabled',
+	'workbench.startupEditor',
 ];
 
 export function configurationTelemetry(telemetryService: ITelemetryService, configurationService: IConfigurationService): IDisposable {

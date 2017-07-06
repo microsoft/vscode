@@ -30,5 +30,8 @@
 	"workbench.action.terminal.clear": "Borrar",
 	"workbench.action.terminal.allowWorkspaceShell": "Permitir la configuración del área de trabajo Shell",
 	"workbench.action.terminal.disallowWorkspaceShell": "No permitir la configuración del área de trabajo Shell",
-	"workbench.action.terminal.rename": "Cambiar nombre"
+	"workbench.action.terminal.rename": "Cambiar nombre",
+	"workbench.action.terminal.rename.prompt": "Introducir nombre del terminal",
+	"workbench.action.terminal.focusFindWidget": "Foco Encontrar Widget",
+	"workbench.action.terminal.hideFindWidget": "Ocultar Encontrar Widget"
 }

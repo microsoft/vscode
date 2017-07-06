@@ -9,7 +9,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import { Extensions, IConfigurationRegistry, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
+import { Extensions, IConfigurationRegistry, IConfigurationNode, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
@@ -173,6 +173,7 @@ const editorConfiguration: IConfigurationNode = {
 	'type': 'object',
 	'title': nls.localize('editorConfigurationTitle', "Editor"),
 	'overridable': true,
+	'scope': ConfigurationScope.FOLDER,
 	'properties': {
 		'editor.fontFamily': {
 			'type': 'string',
@@ -404,7 +405,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.autoIndent': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.autoIndent,
-			'description': nls.localize('autoIndent', "Controls if the editor should automatically adjust the indenation when users type, paste or move lines. Indentation Rules of the language must be available. ")
+			'description': nls.localize('autoIndent', "Controls if the editor should automatically adjust the indentation when users type, paste or move lines. Indentation rules of the language must be available. ")
 		},
 		'editor.suggestOnTriggerCharacters': {
 			'type': 'boolean',

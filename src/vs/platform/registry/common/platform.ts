@@ -57,7 +57,7 @@ class RegistryImpl implements IRegistry {
 	}
 }
 
-export var Registry = <IRegistry>new RegistryImpl();
+export const Registry = <IRegistry>new RegistryImpl();
 
 /**
  * A base class for registries that leverage the instantiation service to create instances.

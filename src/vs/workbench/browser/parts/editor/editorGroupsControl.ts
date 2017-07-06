@@ -31,7 +31,7 @@ import { TitleControl, ITitleAreaControl } from 'vs/workbench/browser/parts/edit
 import { NoTabsTitleControl } from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
 import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup, EditorOptions, TextEditorOptions, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { extractResources } from 'vs/base/browser/dnd';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -147,6 +147,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		@IExtensionService private extensionService: IExtensionService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWindowService private windowService: IWindowService,
+		@IWindowsService private windowsService: IWindowsService,
 		@IThemeService themeService: IThemeService
 	) {
 		super(themeService);
@@ -1117,7 +1118,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 					// Add external ones to recently open list
 					const externalResources = droppedResources.filter(d => d.isExternal).map(d => d.resource);
 					if (externalResources.length) {
-						$this.windowService.addToRecentlyOpen(externalResources.map(resource => {
+						$this.windowsService.addToRecentlyOpen(externalResources.map(resource => {
 							return {
 								path: resource.fsPath,
 								isFile: true

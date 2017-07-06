@@ -2104,7 +2104,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	wordWrapBreakAfterCharacters: ' \t})]?|&,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣',
 	wordWrapBreakObtrusiveCharacters: '.',
 	autoClosingBrackets: true,
-	autoIndent: false,
+	autoIndent: true,
 	dragAndDrop: true,
 	emptySelectionClipboard: true,
 	useTabStops: true,

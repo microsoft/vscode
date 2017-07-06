@@ -29,7 +29,7 @@ export function testDataLoss() {
 		});
 
 		it(`verifies that 'hot exit' works for dirty files`, async function () {
-			const textToType = 'Hello, Code!', fileName = 'readme.md', untitled = 'Untitled-1';
+			const textToType = 'Hello, Code', fileName = 'readme.md', untitled = 'Untitled-1';
 			await common.newUntitledFile();
 			await common.type(textToType);
 			await dl.openExplorerViewlet();
@@ -40,22 +40,22 @@ export function testDataLoss() {
 			await app.start();
 
 			// check tab presence
-			assert.ok(await common.getTab(untitled));
-			assert.ok(await common.getTab(fileName, true));
+			assert.ok(await common.getTab(untitled), `${untitled} tab is not present after reopening.`);
+			assert.ok(await common.getTab(fileName, true), `${fileName} tab is not present or is not active after reopening.`);
 			// check if they marked as dirty (icon) and active tab is the last opened
-			assert.ok(await dl.verifyTabIsDirty(untitled));
-			assert.ok(await dl.verifyTabIsDirty(fileName, true));
+			assert.ok(await dl.verifyTabIsDirty(untitled), `${untitled} tab is not dirty after reopening.`);
+			assert.ok(await dl.verifyTabIsDirty(fileName, true), `${fileName} tab is not dirty after reopening.`);
 		});
 
 		it(`verifies that contents of the dirty files are restored after 'hot exit'`, async function () {
 			// make one dirty file,
 			// create one untitled file
-			const textToType = 'Hello, Code!';
+			const textToType = 'Hello, Code';
 
 			// create one untitled file
 			await common.newUntitledFile();
 			await common.type(textToType);
-			
+
 			// make one dirty file,
 			await common.openFile('readme.md', true);
 			await common.type(textToType);
@@ -65,10 +65,10 @@ export function testDataLoss() {
 
 			// check their contents
 			let fileDirt = await common.getEditorFirstLinePlainText();
-			assert.equal(fileDirt, 'Hello, Code'); // ignore '!' as it is a separate <span/>, first part is enough
+			assert.equal(fileDirt, textToType, 'Active file contents are different after restore.');
 			await common.selectTab('Untitled-1');
 			fileDirt = await common.getEditorFirstLinePlainText();
-			assert.equal(fileDirt, textToType);
+			assert.equal(fileDirt, textToType, 'Untitled file edit are different after restore.');
 		});
 	});
 }

@@ -240,10 +240,15 @@ export class ActionItem extends BaseActionItem {
 		super.render(container);
 
 		this.$e = $('a.action-label').appendTo(this.builder);
-		if (this.options.isMenu) {
-			this.$e.attr({ role: 'menuitem' });
+		if (this._action.id === Separator.ID) {
+			// A separator is a presentation item
+			this.$e.attr({ role: 'presentation' });
 		} else {
-			this.$e.attr({ role: 'button' });
+			if (this.options.isMenu) {
+				this.$e.attr({ role: 'menuitem' });
+			} else {
+				this.$e.attr({ role: 'button' });
+			}
 		}
 
 		if (this.options.label && this.options.keybinding) {
@@ -430,12 +435,6 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			}
 		});
 
-		// Prevent native context menu on actions
-		$(this.domNode).on(DOM.EventType.CONTEXT_MENU, (e: Event) => {
-			e.preventDefault();
-			e.stopPropagation();
-		});
-
 		$(this.domNode).on(DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
 			let event = new StandardKeyboardEvent(e);
 
@@ -530,6 +529,12 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			const actionItemElement = document.createElement('li');
 			actionItemElement.className = 'action-item';
 			actionItemElement.setAttribute('role', 'presentation');
+
+			// Prevent native context menu on actions
+			$(actionItemElement).on(DOM.EventType.CONTEXT_MENU, (e: Event) => {
+				e.preventDefault();
+				e.stopPropagation();
+			});
 
 			let item: IActionItem = null;
 

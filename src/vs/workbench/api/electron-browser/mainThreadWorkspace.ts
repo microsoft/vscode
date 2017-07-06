@@ -43,19 +43,19 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 	// --- workspace ---
 
 	private _onDidChangeWorkspace(): void {
-		this._proxy.$acceptWorkspaceData(this._contextService.getWorkspace2());
+		this._proxy.$acceptWorkspaceData(this._contextService.getWorkspace());
 	}
 
 	// --- search ---
 
 	$startSearch(include: string, exclude: string, maxResults: number, requestId: number): Thenable<URI[]> {
-		const workspace = this._contextService.getWorkspace2();
+		const workspace = this._contextService.getWorkspace();
 		if (!workspace) {
 			return undefined;
 		}
 
 		const search = this._searchService.search({
-			folderResources: workspace.roots,
+			folderQueries: workspace.roots.map(root => ({ folder: root })),
 			type: QueryType.File,
 			maxResults,
 			includePattern: { [include]: true },

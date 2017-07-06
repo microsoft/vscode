@@ -12,7 +12,7 @@ import encoding = require('vs/base/node/encoding');
 import errors = require('vs/base/common/errors');
 import uri from 'vs/base/common/uri';
 import { toResource } from 'vs/workbench/common/editor';
-import { FileOperation, FileOperationEvent, IFileService, IFilesConfiguration, IResolveFileOptions, IFileStat, IContent, IStreamContent, IImportResult, IResolveContentOptions, IUpdateContentOptions, FileChangesEvent } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IFileService, IFilesConfiguration, IResolveFileOptions, IFileStat, IResolveFileResult, IContent, IStreamContent, IImportResult, IResolveContentOptions, IUpdateContentOptions, FileChangesEvent } from 'vs/platform/files/common/files';
 import { FileService as NodeFileService, IFileServiceOptions, IEncodingOverride } from 'vs/workbench/services/files/node/fileService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -73,8 +73,6 @@ export class FileService implements IFileService {
 		// build config
 		const fileServiceConfig: IFileServiceOptions = {
 			errorLogger: (msg: string) => this.onFileServiceError(msg),
-			encoding: configuration.files && configuration.files.encoding,
-			autoGuessEncoding: configuration.files && configuration.files.autoGuessEncoding,
 			encodingOverride: this.getEncodingOverrides(),
 			watcherIgnoredPatterns,
 			verboseLogging: environmentService.verbose,
@@ -82,7 +80,7 @@ export class FileService implements IFileService {
 		};
 
 		// create service
-		this.raw = new NodeFileService(contextService, fileServiceConfig);
+		this.raw = new NodeFileService(contextService, configurationService, fileServiceConfig);
 
 		// Listeners
 		this.registerListeners();
@@ -147,7 +145,7 @@ export class FileService implements IFileService {
 		const encodingOverride: IEncodingOverride[] = [];
 		encodingOverride.push({ resource: uri.file(this.environmentService.appSettingsHome), encoding: encoding.UTF8 });
 		if (this.contextService.hasWorkspace()) {
-			this.contextService.getWorkspace2().roots.forEach(root => {
+			this.contextService.getWorkspace().roots.forEach(root => {
 				encodingOverride.push({ resource: uri.file(paths.join(root.fsPath, '.vscode')), encoding: encoding.UTF8 });
 			});
 		}
@@ -196,6 +194,10 @@ export class FileService implements IFileService {
 
 	public resolveFile(resource: uri, options?: IResolveFileOptions): TPromise<IFileStat> {
 		return this.raw.resolveFile(resource, options);
+	}
+
+	public resolveFiles(toResolve: { resource: uri, options?: IResolveFileOptions }[]): TPromise<IResolveFileResult[]> {
+		return this.raw.resolveFiles(toResolve);
 	}
 
 	public existsFile(resource: uri): TPromise<boolean> {

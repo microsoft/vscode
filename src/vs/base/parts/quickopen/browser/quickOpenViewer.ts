@@ -55,6 +55,16 @@ export class AccessibilityProvider implements IAccessibilityProvider {
 
 		return model.accessibilityProvider && model.accessibilityProvider.getAriaLabel(element);
 	}
+
+	public getPosInSet(tree: ITree, element: any): string {
+		const model = this.modelProvider.getModel();
+		return String(model.entries.indexOf(element) + 1);
+	}
+
+	public getSetSize(): string {
+		const model = this.modelProvider.getModel();
+		return String(model.entries.length);
+	}
 }
 
 export class Filter implements IFilter {

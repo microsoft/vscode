@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/css!vs/workbench/services/progress/browser/media/progressService2';
+import 'vs/css!./media/progressService2';
 import * as dom from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IActivityBarService, ProgressBadge } from 'vs/workbench/services/activity/common/activityBarService';
@@ -87,14 +87,26 @@ export class ProgressService2 implements IProgressService2 {
 		const task: [IProgressOptions, Progress<IProgressStep>] = [options, new Progress<IProgressStep>(() => this._updateWindowProgress())];
 
 		const promise = callback(task[1]);
-		this._stack.unshift(task);
-		this._updateWindowProgress();
 
-		always(promise, () => {
-			const idx = this._stack.indexOf(task);
-			this._stack.splice(idx, 1);
+		let delayHandle = setTimeout(() => {
+			delayHandle = undefined;
+			this._stack.unshift(task);
 			this._updateWindowProgress();
-		});
+
+			// show progress for at least 150ms
+			always(TPromise.join([
+				TPromise.timeout(150),
+				promise
+			]), () => {
+				const idx = this._stack.indexOf(task);
+				this._stack.splice(idx, 1);
+				this._updateWindowProgress();
+			});
+
+		}, 150);
+
+		// cancel delay if promise finishes below 150ms
+		always(promise, () => clearTimeout(delayHandle));
 	}
 
 	private _updateWindowProgress(idx: number = 0) {

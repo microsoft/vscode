@@ -50,21 +50,27 @@ export class WindowsService implements IWindowsService, IDisposable {
 			.on(this.openExtensionForURI, this, this.disposables);
 	}
 
-	openFileFolderPicker(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
-		this.windowsMainService.openFileFolderPicker(forceNewWindow, data);
+	pickFileFolderAndOpen(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
+		this.windowsMainService.pickFileFolderAndOpen(forceNewWindow, data);
 		return TPromise.as(null);
 	}
 
-	openFilePicker(windowId: number, forceNewWindow?: boolean, path?: string, data?: ITelemetryData): TPromise<void> {
-		this.windowsMainService.openFilePicker(forceNewWindow, path, undefined, data);
+	pickFileAndOpen(windowId: number, forceNewWindow?: boolean, path?: string, data?: ITelemetryData): TPromise<void> {
+		this.windowsMainService.pickFileAndOpen(forceNewWindow, path, undefined, data);
 		return TPromise.as(null);
 	}
 
-	openFolderPicker(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
+	pickFolderAndOpen(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
-		this.windowsMainService.openFolderPicker(forceNewWindow, codeWindow, data);
+		this.windowsMainService.pickFolderAndOpen(forceNewWindow, codeWindow, data);
 
 		return TPromise.as(null);
+	}
+
+	pickFolder(windowId: number, options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
+
+		return this.windowsMainService.pickFolder(codeWindow, options);
 	}
 
 	reloadWindow(windowId: number): TPromise<void> {
@@ -165,6 +171,16 @@ export class WindowsService implements IWindowsService, IDisposable {
 
 		if (codeWindow) {
 			codeWindow.win.focus();
+		}
+
+		return TPromise.as(null);
+	}
+
+	closeWindow(windowId: number): TPromise<void> {
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (codeWindow) {
+			codeWindow.win.close();
 		}
 
 		return TPromise.as(null);

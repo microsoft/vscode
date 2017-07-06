@@ -31,14 +31,14 @@ export function testJavaScriptDebug() {
 			await jsDebug.openDebugViewlet();
 			await jsDebug.pressConfigureLaunchJson();
 			const value = await jsDebug.getProgramConfigValue();
-			process.platform === 'win32' ? assert.equal(value, '"${workspaceRoot}\\\\bin\\\\www"') : assert.equal(value, '"${workspaceRoot}/bin/www"');
+			process.platform === 'win32' ? assert.equal(value, '${workspaceRoot}\\bin\\www') : assert.equal(value, '${workspaceRoot}/bin/www');
 		});
 
 		it(`can set a breakpoint and verify if it's set`, async function () {
 			await common.openFirstMatchFile('index.js');
 			await jsDebug.setBreakpointOnLine(6);
 			const breakpoint = await jsDebug.verifyBreakpointOnLine(6);
-			assert.ok(breakpoint);
+			assert.ok(breakpoint, 'Breakpoint was not found on line 6.');
 		});
 	});
 }

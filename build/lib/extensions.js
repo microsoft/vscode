@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-var event_stream_1 = require("event-stream");
+var es = require("event-stream");
 var assign = require("object-assign");
 var remote = require("gulp-remote-src");
 var flatmap = require('gulp-flatmap');
@@ -14,8 +14,29 @@ var rename = require('gulp-rename');
 var util = require('gulp-util');
 var buffer = require('gulp-buffer');
 var json = require('gulp-json-editor');
+var fs = require("fs");
+var path = require("path");
+var vsce = require("vsce");
+var File = require("vinyl");
+function fromLocal(extensionPath) {
+    var result = es.through();
+    vsce.listFiles({ cwd: extensionPath })
+        .then(function (fileNames) {
+        var files = fileNames
+            .map(function (fileName) { return path.join(extensionPath, fileName); })
+            .map(function (filePath) { return new File({
+            path: filePath,
+            base: extensionPath,
+            contents: fs.createReadStream(filePath)
+        }); });
+        es.readArray(files).pipe(result);
+    })
+        .catch(function (err) { return result.emit('error', err); });
+    return result;
+}
+exports.fromLocal = fromLocal;
 function error(err) {
-    var result = event_stream_1.through();
+    var result = es.through();
     setTimeout(function () { return result.emit('error', err); });
     return result;
 }
@@ -23,7 +44,7 @@ var baseHeaders = {
     'X-Market-Client-Id': 'VSCode Build',
     'User-Agent': 'VSCode Build',
 };
-function src(extensionName, version) {
+function fromMarketplace(extensionName, version) {
     var filterType = 7;
     var value = extensionName;
     var criterium = { filterType: filterType, value: value };
@@ -93,4 +114,4 @@ function src(extensionName, version) {
         }));
     }));
 }
-exports.src = src;
+exports.fromMarketplace = fromMarketplace;

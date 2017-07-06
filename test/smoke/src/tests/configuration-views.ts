@@ -30,12 +30,12 @@ export function testConfigViews() {
 		it('turns off editor line numbers and verifies the live change', async function () {
 			await common.newUntitledFile();
 			await app.wait();
-			let elements = await configView.getEditorLineNumbers();
-			assert.equal(elements.value.length, 1);
+			let elementsCount = await configView.getEditorLineNumbers();
+			assert.equal(elementsCount, 1, 'Line numbers are not present in the editor before disabling them.');
 			await common.addSetting('editor.lineNumbers', 'off');
 			await app.wait();
-			elements = await configView.getEditorLineNumbers();
-			assert.equal(elements.value.length, 0);
+			elementsCount = await configView.getEditorLineNumbers();
+			assert.equal(elementsCount, 0, 'Line numbers are still present in the editor after disabling them.');
 		});
 
 		it(`changes 'workbench.action.toggleSidebarPosition' command key binding and verifies it`, async function () {
@@ -47,11 +47,11 @@ export function testConfigViews() {
 			await configView.enterBinding(['Control', 'u', 'NULL']);
 			await common.enter();
 			let html = await configView.getActivityBar(ActivityBarPosition.RIGHT);
-			assert.equal(html, undefined);
+			assert.equal(html, undefined, 'Activity bar is positioned on the right, whereas should not be.');
 			await app.wait();
 			await configView.toggleActivityBarPosition();
 			html = await configView.getActivityBar(ActivityBarPosition.RIGHT);
-			assert.ok(html);
+			assert.ok(html, 'Activity bar was not moved to right after toggling its position.');
 		});
 	});
 }

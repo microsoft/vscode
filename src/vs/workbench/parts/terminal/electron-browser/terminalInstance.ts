@@ -21,7 +21,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { ITerminalProcessFactory } from 'vs/workbench/parts/terminal/electron-browser/terminal';
-import { ILegacyWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -33,6 +33,7 @@ import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platf
 import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground } from 'vs/platform/theme/common/colorRegistry';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -77,6 +78,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _cols: number;
 	private _rows: number;
 	private _messageTitleListener: (message: { type: string, content: string }) => void;
+	private _preLaunchInputQueue: string;
 
 	private _widgetManager: TerminalWidgetManager;
 	private _linkHandler: TerminalLinkHandler;
@@ -102,7 +104,8 @@ export class TerminalInstance implements ITerminalInstance {
 		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
 		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
-		@IClipboardService private _clipboardService: IClipboardService
+		@IClipboardService private _clipboardService: IClipboardService,
+		@IHistoryService private _historyService: IHistoryService
 	) {
 		this._instanceDisposables = [];
 		this._processDisposables = [];
@@ -114,6 +117,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._isDisposed = false;
 		this._id = TerminalInstance._idCounter++;
 		this._terminalHasTextContextKey = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.bindTo(this._contextKeyService);
+		this._preLaunchInputQueue = '';
 
 		this._onDisposed = new Emitter<TerminalInstance>();
 		this._onDataForApi = new Emitter<{ instance: ITerminalInstance, data: string }>();
@@ -126,7 +130,7 @@ export class TerminalInstance implements ITerminalInstance {
 		});
 
 		this._initDimensions();
-		this._createProcess(this._contextService.getWorkspace(), this._shellLaunchConfig);
+		this._createProcess(this._historyService.getLastActiveWorkspaceRoot(), this._shellLaunchConfig);
 		this._createXterm();
 
 		// Only attach xterm.js to the DOM if the terminal panel has been opened before.
@@ -163,8 +167,8 @@ export class TerminalInstance implements ITerminalInstance {
 			return null;
 		}
 		const font = this._configHelper.getFont();
-		this._cols = Math.floor(dimension.width / font.charWidth);
-		this._rows = Math.floor(dimension.height / font.charHeight);
+		this._cols = Math.max(Math.floor(dimension.width / font.charWidth), 1);
+		this._rows = Math.max(Math.floor(dimension.height / font.charHeight), 1);
 		return dimension.width;
 	}
 
@@ -208,11 +212,16 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
 		this._xterm.on('data', (data) => {
-			if (this._process) {
+			if (this._processId) {
+				// Send data if the pty is ready
 				this._process.send({
 					event: 'input',
 					data: this._sanitizeInput(data)
 				});
+			} else {
+				// If the pty is not ready, queue the data received from
+				// xterm.js until the pty is ready
+				this._preLaunchInputQueue += data;
 			}
 			return false;
 		});
@@ -355,6 +364,13 @@ export class TerminalInstance implements ITerminalInstance {
 		return this._xterm.findPrevious(term);
 	}
 
+	public notifyFindWidgetFocusChanged(isFocused: boolean): void {
+		// In order to support escape to close the find widget when the terminal
+		// is focused terminalFocus needs to be true when either the terminal or
+		// the find widget are focused.
+		this._terminalFocusContextKey.set(isFocused || document.activeElement === this._xterm.textarea);
+	}
+
 	public dispose(): void {
 		if (this._linkHandler) {
 			this._linkHandler.dispose();
@@ -464,7 +480,7 @@ export class TerminalInstance implements ITerminalInstance {
 		return typeof data === 'string' ? data.replace(TerminalInstance.WINDOWS_EOL_REGEX, '\r') : data;
 	}
 
-	protected _getCwd(shell: IShellLaunchConfig, workspace: ILegacyWorkspace): string {
+	protected _getCwd(shell: IShellLaunchConfig, root: Uri): string {
 		if (shell.cwd) {
 			return shell.cwd;
 		}
@@ -478,26 +494,26 @@ export class TerminalInstance implements ITerminalInstance {
 			if (customCwd) {
 				if (path.isAbsolute(customCwd)) {
 					cwd = customCwd;
-				} else if (workspace) {
-					cwd = path.normalize(path.join(workspace.resource.fsPath, customCwd));
+				} else if (root) {
+					cwd = path.normalize(path.join(root.fsPath, customCwd));
 				}
 			}
 		}
 
 		// If there was no custom cwd or it was relative with no workspace
 		if (!cwd) {
-			cwd = workspace ? workspace.resource.fsPath : os.homedir();
+			cwd = root ? root.fsPath : os.homedir();
 		}
 
 		return TerminalInstance._sanitizeCwd(cwd);
 	}
 
-	protected _createProcess(workspace: ILegacyWorkspace, shell: IShellLaunchConfig): void {
+	protected _createProcess(root: Uri, shell: IShellLaunchConfig): void {
 		const locale = this._configHelper.config.setLocaleVariables ? platform.locale : undefined;
 		if (!shell.executable) {
 			this._configHelper.mergeDefaultShellPathAndArgs(shell);
 		}
-		const env = TerminalInstance.createTerminalEnv(process.env, shell, this._getCwd(shell, workspace), locale, this._cols, this._rows);
+		const env = TerminalInstance.createTerminalEnv(process.env, shell, this._getCwd(shell, root), locale, this._cols, this._rows);
 		this._title = shell.name || '';
 		this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], {
 			env,
@@ -516,6 +532,15 @@ export class TerminalInstance implements ITerminalInstance {
 		this._process.on('message', (message) => {
 			if (message.type === 'pid') {
 				this._processId = message.content;
+
+				// Send any queued data that's waiting
+				if (this._preLaunchInputQueue.length > 0) {
+					this._process.send({
+						event: 'input',
+						data: this._sanitizeInput(this._preLaunchInputQueue)
+					});
+					this._preLaunchInputQueue = null;
+				}
 				this._onProcessIdReady.fire(this);
 			}
 		});
@@ -620,7 +645,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 		// Initialize new process
 		const oldTitle = this._title;
-		this._createProcess(this._contextService.getWorkspace(), shell);
+		this._createProcess(this._historyService.getLastActiveWorkspaceRoot(), shell);
 		if (oldTitle !== this._title) {
 			this._onTitleChanged.fire(this._title);
 		}

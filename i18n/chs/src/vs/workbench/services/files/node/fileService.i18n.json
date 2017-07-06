@@ -6,8 +6,10 @@
 {
 	"fileInvalidPath": "无效的文件资源({0})",
 	"fileIsDirectoryError": "文件是目录({0})",
+	"fileTooLargeError": "文件太大，无法打开",
 	"fileBinaryError": "文件似乎是二进制文件，无法作为文档打开",
 	"fileNotFoundError": "找不到文件({0})",
+	"fileMoveConflict": "无法移动/复制。文件已存在于目标位置。",
 	"unableToMoveCopyError": "无法移动/复制。文件将替换其所在的文件夹。",
 	"foldersCopyError": "无法将文件夹复制到工作区中。请选择单独的文件来进行复制。",
 	"fileReadOnlyError": "文件为只读文件"

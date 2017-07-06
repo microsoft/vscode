@@ -9,9 +9,9 @@ import types = require('vs/base/common/types');
 import strings = require('vs/base/common/strings');
 import { match } from 'vs/base/common/glob';
 
-export let MIME_TEXT = 'text/plain';
-export let MIME_BINARY = 'application/octet-stream';
-export let MIME_UNKNOWN = 'application/unknown';
+export const MIME_TEXT = 'text/plain';
+export const MIME_BINARY = 'application/octet-stream';
+export const MIME_UNKNOWN = 'application/unknown';
 
 export interface ITextMimeAssociation {
 	id: string;

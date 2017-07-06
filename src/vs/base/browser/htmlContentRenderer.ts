@@ -115,7 +115,7 @@ export function renderMarkdown(markdown: string, options: RenderOptions = {}): N
 		}
 		title = removeMarkdownEscapes(title);
 		href = removeMarkdownEscapes(href);
-		if (href && !href.match(/^http:|https:|file:|mailto:/i)) {
+		if (!href || href.match(/^data:|javascript:/i)) {
 			return text;
 		}
 		return `<a href="#" data-href="${href}" title="${title || text}">${text}</a>`;

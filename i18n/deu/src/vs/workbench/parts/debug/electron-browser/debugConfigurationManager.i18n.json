@@ -7,7 +7,7 @@
 	"vscode.extension.contributes.debuggers": "Trägt Debugadapter bei.",
 	"vscode.extension.contributes.debuggers.type": "Der eindeutige Bezeichner für diese Debugadapter.",
 	"vscode.extension.contributes.debuggers.label": "Der Anzeigename für diese Debugadapter.",
-	"vscode.extension.contributes.debuggers.program": "Der Pfad zum Debugadapterprogramm. Der Pfad ist absolut oder relativ zum Extensionordner.",
+	"vscode.extension.contributes.debuggers.program": "Der Pfad zum Debugadapterprogramm. Der Pfad ist absolut oder relativ zum Erweiterungsordner.",
 	"vscode.extension.contributes.debuggers.args": "Optionale Argumente, die an den Adapter übergeben werden sollen.",
 	"vscode.extension.contributes.debuggers.runtime": "Optionale Laufzeit für den Fall, dass das Programmattribut keine ausführbare Datei ist und eine Laufzeit erfordert.",
 	"vscode.extension.contributes.debuggers.runtimeArgs": "Optionale Laufzeitargumente.",

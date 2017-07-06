@@ -17,6 +17,7 @@
 	"typescript.format.enable": "既定の TypeScript フォーマッタを有効/無効にします。",
 	"javascript.format.enable": "既定の JavaScript フォーマッタを有効/無効にします。",
 	"format.insertSpaceAfterCommaDelimiter": "コンマ区切り記号の後のスペース処理を定義します。",
+	"format.insertSpaceAfterConstructor": "コンストラクター キーワードの後にスペース処理を定義します。TypeScript が 2.3.0 以上である必要があります。",
 	"format.insertSpaceAfterSemicolonInForStatements": " for ステートメント内のセミコロンの後のスペース処理を定義します。",
 	"format.insertSpaceBeforeAndAfterBinaryOperators": "2 項演算子の後のスペース処理を定義します。",
 	"format.insertSpaceAfterKeywordsInControlFlowStatements": "制御フロー ステートメント内のキーワードの後のスペース処理を定義します。",

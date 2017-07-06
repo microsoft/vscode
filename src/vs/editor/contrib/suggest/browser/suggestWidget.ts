@@ -374,6 +374,9 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	private detailsFocusBorderColor: string;
 	private detailsBorderColor: string;
 
+	private storageServiceAvailable: boolean = true;
+	private expandSuggestionDocs: boolean = false;
+
 	constructor(
 		private editor: ICodeEditor,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -389,8 +392,15 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		this.isAuto = false;
 		this.focusedItem = null;
 		this.storageService = storageService;
-		this.element = $('.editor-widget.suggest-widget');
 
+		if (this.expandDocsSettingFromStorage() === undefined) {
+			this.storageService.store('expandSuggestionDocs', expandSuggestionDocsByDefault, StorageScope.GLOBAL);
+			if (this.expandDocsSettingFromStorage() === undefined) {
+				this.storageServiceAvailable = false;
+			}
+		}
+
+		this.element = $('.editor-widget.suggest-widget');
 		if (!this.editor.getConfiguration().contribInfo.iconsInSuggestions) {
 			addClass(this.element, 'no-icons');
 		}
@@ -413,6 +423,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			}),
 			themeService.onThemeChange(t => this.onThemeChange(t)),
 			editor.onDidBlurEditorText(() => this.onEditorBlur()),
+			editor.onDidLayoutChange(() => this.onEditorLayoutChange()),
 			this.list.onSelectionChange(e => this.onListSelection(e)),
 			this.list.onFocusChange(e => this.onListFocus(e)),
 			this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged())
@@ -460,6 +471,12 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				this.setState(State.Hidden);
 			}
 		});
+	}
+
+	private onEditorLayoutChange(): void {
+		if ((this.state === State.Open || this.state === State.Details) && this.expandDocsSettingFromStorage()) {
+			this.expandSideOrBelow();
+		}
 	}
 
 	private onListSelection(e: IListEvent<ICompletionItem>): void {
@@ -579,7 +596,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				this.list.setFocus([index]);
 				this.list.reveal(index);
 
-				if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault)) {
+				if (this.expandDocsSettingFromStorage()) {
 					this.showDetails();
 				} else {
 					removeClass(this.element, 'docs-side');
@@ -628,7 +645,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			case State.Open:
 				hide(this.messageElement);
 				show(this.listElement);
-				if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault)
+				if (this.expandDocsSettingFromStorage()
 					&& canExpandCompletionItem(this.list.getFocusedElements()[0])) {
 					show(this.details.element);
 					this.expandSideOrBelow();
@@ -821,8 +838,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			if (this.detailsBorderColor) {
 				this.details.element.style.borderColor = this.detailsBorderColor;
 			}
-		} else if (this.state === State.Open
-			&& this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault)) {
+		} else if (this.state === State.Open && this.expandDocsSettingFromStorage()) {
 			this.setState(State.Details);
 			if (this.detailsFocusBorderColor) {
 				this.details.element.style.borderColor = this.detailsFocusBorderColor;
@@ -836,15 +852,19 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			return;
 		}
 
-		if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault)) {
-			this.storageService.store('expandSuggestionDocs', false, StorageScope.GLOBAL);
+		if (this.expandDocsSettingFromStorage()) {
+			this.updateExpandDocsSetting(false);
 			hide(this.details.element);
 			removeClass(this.element, 'docs-side');
 			removeClass(this.element, 'docs-below');
 			this.editor.layoutContentWidget(this);
 			this.telemetryService.publicLog('suggestWidget:collapseDetails', this.editor.getTelemetryData());
 		} else {
-			this.storageService.store('expandSuggestionDocs', true, StorageScope.GLOBAL);
+			if (this.state !== State.Open && this.state !== State.Details) {
+				return;
+			}
+
+			this.updateExpandDocsSetting(true);
 			this.showDetails();
 			this.telemetryService.publicLog('suggestWidget:expandDetails', this.editor.getTelemetryData());
 		}
@@ -852,13 +872,10 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	}
 
 	showDetails(): void {
-		if (this.state !== State.Open && this.state !== State.Details) {
-			return;
-		}
 		this.expandSideOrBelow();
 
 		show(this.details.element);
-		this.renderDetails();
+		this.details.render(this.list.getFocusedElements()[0]);
 		this.details.element.style.maxHeight = this.maxWidgetHeight + 'px';
 
 		// Reset margin-top that was set as Fix for #26416
@@ -940,8 +957,9 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		const editorCoords = getDomNodePagePosition(this.editor.getDomNode());
 		const cursorX = editorCoords.left + cursorCoords.left;
 		const cursorY = editorCoords.top + cursorCoords.top + cursorCoords.height;
-		const widgetX = this.element.offsetLeft;
-		const widgetY = this.element.offsetTop;
+		const widgetCoords = getDomNodePagePosition(this.element);
+		const widgetX = widgetCoords.left;
+		const widgetY = widgetCoords.top;
 
 		if (widgetX < cursorX - this.listWidth) {
 			// Widget is too far to the left of cursor, swap list and docs
@@ -974,14 +992,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		}
 	}
 
-	private renderDetails(): void {
-		if (this.state === State.Details || this.state === State.Open) {
-			this.details.render(this.list.getFocusedElements()[0]);
-		} else {
-			this.details.render(null);
-		}
-	}
-
 	// Heights
 
 	private get maxWidgetHeight(): number {
@@ -1001,6 +1011,24 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 	getTemplateId(element: ICompletionItem): string {
 		return 'suggestion';
+	}
+
+	// Monaco Editor does not have a storage service
+	private expandDocsSettingFromStorage(): boolean {
+		if (this.storageServiceAvailable) {
+			return this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL);
+		} else {
+			return this.expandSuggestionDocs;
+		}
+	}
+
+	// Monaco Editor does not have a storage service
+	private updateExpandDocsSetting(value: boolean) {
+		if (this.storageServiceAvailable) {
+			this.storageService.store('expandSuggestionDocs', value, StorageScope.GLOBAL);
+		} else {
+			this.expandSuggestionDocs = value;
+		}
 	}
 
 	dispose(): void {

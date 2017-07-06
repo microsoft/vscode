@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as sinon from 'sinon';
 import * as assert from 'assert';
+import * as sinon from 'sinon';
 import { IExtensionManagementService, IExtensionEnablementService, DidUninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -13,7 +13,6 @@ import { Emitter } from 'vs/base/common/event';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 function storageService(instantiationService: TestInstantiationService): IStorageService {
@@ -21,12 +20,17 @@ function storageService(instantiationService: TestInstantiationService): IStorag
 	if (!service) {
 		let workspaceContextService = instantiationService.get(IWorkspaceContextService);
 		if (!workspaceContextService) {
-			workspaceContextService = instantiationService.stub(IWorkspaceContextService, new TestContextService());
+			workspaceContextService = instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{
+				hasWorkspace: () => {
+					return true;
+				},
+			});
 		}
 		service = instantiationService.stub(IStorageService, instantiationService.createInstance(StorageService, new InMemoryLocalStorage(), new InMemoryLocalStorage()));
 	}
 	return service;
 }
+
 
 export class TestExtensionEnablementService extends ExtensionEnablementService {
 	constructor(instantiationService: TestInstantiationService) {

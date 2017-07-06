@@ -41,7 +41,8 @@ export class TestConfigurationService extends EventEmitter implements IConfigura
 			value: getConfigurationValue<C>(this.getConfiguration(), key),
 			default: getConfigurationValue<C>(this.getConfiguration(), key),
 			user: getConfigurationValue<C>(this.getConfiguration(), key),
-			workspace: null
+			workspace: null,
+			folder: null
 		};
 	}
 

@@ -25,13 +25,13 @@ export interface IWorkspaceContextService {
 	 * Provides access to the workspace object the platform is running with. This may be null if the workbench was opened
 	 * without workspace (empty);
 	 */
-	getWorkspace(): ILegacyWorkspace;
+	getLegacyWorkspace(): ILegacyWorkspace;
 
 	/**
 	 * Provides access to the workspace object the platform is running with. This may be null if the workbench was opened
 	 * without workspace (empty);
 	 */
-	getWorkspace2(): IWorkspace;
+	getWorkspace(): IWorkspace;
 
 	/**
 	 * An event which fires on workspace roots change.
@@ -163,6 +163,10 @@ export class Workspace implements IWorkspace {
 	}
 
 	public getRoot(resource: URI): URI {
+		if (!resource) {
+			return null;
+		}
+
 		return this._rootsMap.findSubstr(resource.fsPath);
 	}
 

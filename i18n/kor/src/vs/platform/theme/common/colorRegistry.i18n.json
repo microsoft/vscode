@@ -60,7 +60,6 @@
 	"editorForeground": "편집기 기본 전경색입니다.",
 	"editorWidgetBackground": "찾기/바꾸기 같은 편집기 위젯의 배경색입니다.",
 	"editorWidgetBorder": "편집기 위젯의 테두리 색입니다. 위젯에 테두리가 있고 위젯이 색상을 무시하지 않을 때만 사용됩니다.",
-	"editorSelection": "편집기 선택 영역의 색입니다.",
 	"editorInactiveSelection": "비활성 편집기 선택 영역의 색입니다.",
 	"editorSelectionHighlight": "선택 영역과 동일한 콘텐츠가 있는 영역의 색입니다.",
 	"editorFindMatch": "현재 검색 일치 항목의 색입니다.",

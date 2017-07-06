@@ -101,7 +101,7 @@ export class ExtHostDocumentData extends MirrorModel {
 
 	private _save(): TPromise<boolean> {
 		if (this._isDisposed) {
-			return TPromise.wrapError<boolean>('Document has been closed');
+			return TPromise.wrapError<boolean>(new Error('Document has been closed'));
 		}
 		return this._proxy.$trySaveDocument(this._uri);
 	}

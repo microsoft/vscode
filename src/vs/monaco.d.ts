@@ -95,7 +95,7 @@ declare module monaco {
 		public static wrap<ValueType>(value: Thenable<ValueType>): Promise<ValueType>;
 		public static wrap<ValueType>(value: ValueType): Promise<ValueType>;
 
-		public static wrapError<ValueType>(error: any): Promise<ValueType>;
+		public static wrapError<ValueType>(error: Error): Promise<ValueType>;
 	}
 
 	export class CancellationTokenSource {

@@ -30,6 +30,8 @@ SourceDir={#SourceDir}
 AppVersion={#Version}
 VersionInfoVersion={#RawVersion}
 ShowLanguageDialog=auto
+ArchitecturesAllowed={#ArchitecturesAllowed}
+ArchitecturesInstallIn64BitMode={#ArchitecturesInstallIn64BitMode}
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl,{#RepoDir}\build\win32\i18n\messages.en.isl" {#LocalizedLanguageFile}
@@ -51,7 +53,7 @@ Type: filesandordirs; Name: {app}\resources\app\node_modules
 Type: files; Name: {app}\resources\app\Credits_45.0.2454.85.html
 
 [Tasks]
-Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked; OnlyBelowVersion: 0,6.1
 Name: "addcontextmenufiles"; Description: "{cm:AddContextMenuFiles,{#NameShort}}"; GroupDescription: "{cm:Other}"; Flags: unchecked
 Name: "addcontextmenufolders"; Description: "{cm:AddContextMenuFolders,{#NameShort}}"; GroupDescription: "{cm:Other}"; Flags: unchecked
@@ -790,6 +792,34 @@ Root: HKCU; Subkey: "SOFTWARE\Classes\Drive\shell\{#RegValueName}"; ValueType: e
 Root: HKCU; Subkey: "SOFTWARE\Classes\Drive\shell\{#RegValueName}\command"; ValueType: expandsz; ValueName: ""; ValueData: """{app}\{#ExeBasename}.exe"" ""%V"""; Tasks: addcontextmenufolders
 
 [Code]
+// Don't allow installing conflicting architectures
+function InitializeSetup(): Boolean;
+var
+  RegKey: String;
+  ThisArch: String;
+  AltArch: String;
+begin
+  Result := True;
+
+  if IsWin64 then begin
+    RegKey := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\' + copy('{#IncompatibleAppId}', 2, 38) + '_is1';
+
+    if '{#Arch}' = 'ia32' then begin
+      Result := not RegKeyExists(HKLM64, RegKey);
+      ThisArch := '32';
+      AltArch := '64';
+    end else begin
+      Result := not RegKeyExists(HKLM32, RegKey);
+      ThisArch := '64';
+      AltArch := '32';
+    end;
+
+    if not Result then begin
+      MsgBox('Please uninstall {#NameShort} ' + AltArch + 'bits before installing this ' + ThisArch + 'bits version.', mbInformation, MB_OK);
+    end;
+  end;
+end;
+
 function WizardNotSilent(): Boolean;
 begin
   Result := not WizardSilent();

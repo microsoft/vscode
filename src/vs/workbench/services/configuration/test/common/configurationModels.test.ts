@@ -6,6 +6,7 @@
 
 import * as assert from 'assert';
 import { FolderConfigurationModel, ScopedConfigurationModel, FolderSettingsModel } from 'vs/workbench/services/configuration/common/configurationModels';
+import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 
 suite('ConfigurationService - Model', () => {
 
@@ -14,7 +15,7 @@ suite('ConfigurationService - Model', () => {
 			awesome: true
 		}));
 
-		const testObject = new FolderConfigurationModel(settingsConfig, []);
+		const testObject = new FolderConfigurationModel(settingsConfig, [], ConfigurationScope.WORKSPACE);
 
 		assert.equal(testObject.getContentsFor('task'), undefined);
 	});
@@ -35,7 +36,7 @@ suite('ConfigurationService - Model', () => {
 			}
 		};
 
-		assert.deepEqual(new FolderConfigurationModel(settingsConfig, [tasksConfig]).contents, expected);
+		assert.deepEqual(new FolderConfigurationModel(settingsConfig, [tasksConfig], ConfigurationScope.WORKSPACE).contents, expected);
 	});
 
 	test('Test consolidate (settings and launch)', () => {
@@ -54,7 +55,7 @@ suite('ConfigurationService - Model', () => {
 			}
 		};
 
-		assert.deepEqual(new FolderConfigurationModel(settingsConfig, [launchConfig]).contents, expected);
+		assert.deepEqual(new FolderConfigurationModel(settingsConfig, [launchConfig], ConfigurationScope.WORKSPACE).contents, expected);
 	});
 
 	test('Test consolidate (settings and launch and tasks) - launch/tasks wins over settings file', () => {
@@ -90,7 +91,7 @@ suite('ConfigurationService - Model', () => {
 			}
 		};
 
-		assert.deepEqual(new FolderConfigurationModel(settingsConfig, [launchConfig, tasksConfig]).contents, expected);
-		assert.deepEqual(new FolderConfigurationModel(settingsConfig, [tasksConfig, launchConfig]).contents, expected);
+		assert.deepEqual(new FolderConfigurationModel(settingsConfig, [launchConfig, tasksConfig], ConfigurationScope.WORKSPACE).contents, expected);
+		assert.deepEqual(new FolderConfigurationModel(settingsConfig, [tasksConfig, launchConfig], ConfigurationScope.WORKSPACE).contents, expected);
 	});
 });

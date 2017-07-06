@@ -41,7 +41,7 @@ class TrimWhitespaceParticipant implements INamedSaveParticpant {
 	}
 
 	public participate(model: ITextFileEditorModel, env: { reason: SaveReason }): void {
-		if (this.configurationService.lookup('files.trimTrailingWhitespace', model.textEditorModel.getLanguageIdentifier().language).value) {
+		if (this.configurationService.lookup('files.trimTrailingWhitespace', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.getResource() }).value) {
 			this.doTrimTrailingWhitespace(model.textEditorModel, env.reason === SaveReason.AUTO);
 		}
 	}
@@ -99,7 +99,7 @@ export class FinalNewLineParticipant implements INamedSaveParticpant {
 	}
 
 	public participate(model: ITextFileEditorModel, env: { reason: SaveReason }): void {
-		if (this.configurationService.lookup('files.insertFinalNewline', model.textEditorModel.getLanguageIdentifier().language).value) {
+		if (this.configurationService.lookup('files.insertFinalNewline', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.getResource() }).value) {
 			this.doInsertFinalNewLine(model.textEditorModel);
 		}
 	}
@@ -142,7 +142,7 @@ class FormatOnSaveParticipant implements INamedSaveParticpant {
 
 		const model = editorModel.textEditorModel;
 		if (env.reason === SaveReason.AUTO
-			|| !this._configurationService.lookup('editor.formatOnSave', model.getLanguageIdentifier().language).value) {
+			|| !this._configurationService.lookup('editor.formatOnSave', { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() }).value) {
 			return undefined;
 		}
 
@@ -210,7 +210,7 @@ class ExtHostSaveParticipant implements INamedSaveParticpant {
 			this._proxy.$participateInSave(editorModel.getResource(), env.reason).then(values => {
 				for (const success of values) {
 					if (!success) {
-						return TPromise.wrapError('listener failed');
+						return TPromise.wrapError(new Error('listener failed'));
 					}
 				}
 				return undefined;

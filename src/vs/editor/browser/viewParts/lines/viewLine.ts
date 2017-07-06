@@ -15,6 +15,7 @@ import { IVisibleLine } from 'vs/editor/browser/view/viewLayer';
 import { RangeUtil } from 'vs/editor/browser/viewParts/lines/rangeUtil';
 import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { ThemeType, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {
@@ -39,6 +40,8 @@ const canUseFastRenderedViewLine = (function () {
 
 	return true;
 })();
+
+const alwaysRenderInlineSelection = (browser.isEdgeOrIE);
 
 export class DomReadingContext {
 
@@ -65,6 +68,7 @@ export class DomReadingContext {
 }
 
 export class ViewLineOptions {
+	public readonly themeType: ThemeType;
 	public readonly renderWhitespace: 'none' | 'boundary' | 'all';
 	public readonly renderControlCharacters: boolean;
 	public readonly spaceWidth: number;
@@ -73,7 +77,8 @@ export class ViewLineOptions {
 	public readonly stopRenderingLineAfter: number;
 	public readonly fontLigatures: boolean;
 
-	constructor(config: IConfiguration) {
+	constructor(config: IConfiguration, themeType: ThemeType) {
+		this.themeType = themeType;
 		this.renderWhitespace = config.editor.viewInfo.renderWhitespace;
 		this.renderControlCharacters = config.editor.viewInfo.renderControlCharacters;
 		this.spaceWidth = config.editor.fontInfo.spaceWidth;
@@ -88,7 +93,8 @@ export class ViewLineOptions {
 
 	public equals(other: ViewLineOptions): boolean {
 		return (
-			this.renderWhitespace === other.renderWhitespace
+			this.themeType === other.themeType
+			&& this.renderWhitespace === other.renderWhitespace
 			&& this.renderControlCharacters === other.renderControlCharacters
 			&& this.spaceWidth === other.spaceWidth
 			&& this.useMonospaceOptimizations === other.useMonospaceOptimizations
@@ -142,6 +148,13 @@ export class ViewLine implements IVisibleLine {
 		this._isMaybeInvalid = true;
 		this._options = newOptions;
 	}
+	public onSelectionChanged(): boolean {
+		if (alwaysRenderInlineSelection || this._options.themeType === HIGH_CONTRAST) {
+			this._isMaybeInvalid = true;
+			return true;
+		}
+		return false;
+	}
 
 	public renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData): string {
 		if (this._isMaybeInvalid === false) {
@@ -154,6 +167,26 @@ export class ViewLine implements IVisibleLine {
 		const lineData = viewportData.getViewLineRenderingData(lineNumber);
 		const options = this._options;
 		const actualInlineDecorations = LineDecoration.filter(lineData.inlineDecorations, lineNumber, lineData.minColumn, lineData.maxColumn);
+
+		if (alwaysRenderInlineSelection || options.themeType === HIGH_CONTRAST) {
+			const selections = viewportData.selections;
+			for (let i = 0, len = selections.length; i < len; i++) {
+				const selection = selections[i];
+
+				if (selection.endLineNumber < lineNumber || selection.startLineNumber > lineNumber) {
+					// Selection does not intersect line
+					continue;
+				}
+
+				let startColumn = (selection.startLineNumber === lineNumber ? selection.startColumn : lineData.minColumn);
+				let endColumn = (selection.endLineNumber === lineNumber ? selection.endColumn : lineData.maxColumn);
+
+				if (startColumn < endColumn) {
+					actualInlineDecorations.push(new LineDecoration(startColumn, endColumn, 'inline-selected-text', false));
+				}
+			}
+		}
+
 		let renderLineInput = new RenderLineInput(
 			options.useMonospaceOptimizations,
 			lineData.content,
@@ -373,7 +406,7 @@ class RenderedViewLine {
 		this._cachedWidth = -1;
 
 		this._pixelOffsetCache = null;
-		if (!containsRTL) {
+		if (!containsRTL || this._characterMapping.length === 0 /* the line is empty */) {
 			this._pixelOffsetCache = new Int32Array(this._characterMapping.length + 1);
 			for (let column = 0, len = this._characterMapping.length; column <= len; column++) {
 				this._pixelOffsetCache[column] = -1;
@@ -451,8 +484,11 @@ class RenderedViewLine {
 
 	protected _readPixelOffset(column: number, context: DomReadingContext): number {
 		if (this._characterMapping.length === 0) {
-			// This line is empty
-			return 0;
+			// This line has no content
+			if (!this._containsForeignElements) {
+				// We can assume the line is really empty
+				return 0;
+			}
 		}
 
 		if (this._pixelOffsetCache !== null) {
@@ -472,6 +508,14 @@ class RenderedViewLine {
 	}
 
 	private _actualReadPixelOffset(column: number, context: DomReadingContext): number {
+		if (this._characterMapping.length === 0) {
+			// This line has no content
+			let r = RangeUtil.readHorizontalRanges(this._getReadingTarget(), 0, 0, 0, 0, context.clientRectDeltaLeft, context.endNode);
+			if (!r || r.length === 0) {
+				return -1;
+			}
+			return r[0].left;
+		}
 
 		if (column === this._characterMapping.length && this._isWhitespaceOnly && !this._containsForeignElements) {
 			// This branch helps in the case of whitespace only lines which have a width set

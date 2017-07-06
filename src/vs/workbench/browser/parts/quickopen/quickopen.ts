@@ -10,8 +10,8 @@ import nls = require('vs/nls');
 import { Action } from 'vs/base/common/actions';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ContextKeyExpr } from "vs/platform/contextkey/common/contextkey";
-import { ICommandHandler } from "vs/platform/commands/common/commands";
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ICommandHandler } from 'vs/platform/commands/common/commands';
 
 export const inQuickOpenContext = ContextKeyExpr.has('inQuickOpen');
 export const defaultQuickOpenContextKey = 'inFilesPicker';

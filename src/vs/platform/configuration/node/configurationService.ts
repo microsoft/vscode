@@ -83,7 +83,7 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 		return this._configuration.values();
 	}
 
-	public getConfigurationData(): IConfigurationData<T> {
+	public getConfigurationData<T2>(): IConfigurationData<T2> {
 		return this.configuration().toData();
 	}
 

@@ -40,6 +40,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { listHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 let $ = DOM.$;
 
@@ -107,7 +108,8 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		@IChoiceService private choiceService: IChoiceService,
 		@IMessageService private messageService: IMessageService,
 		@IClipboardService private clipboardService: IClipboardService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(KeybindingsEditor.ID, telemetryService, themeService);
 		this.delayedFiltering = new Delayer<void>(300);
@@ -377,7 +379,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 					this.unAssignedKeybindingItemToRevealAndFocus = null;
 				} else if (currentSelectedIndex !== -1 && currentSelectedIndex < this.listEntries.length) {
 					this.selectEntry(currentSelectedIndex);
-				} else {
+				} else if (this.editorService.getActiveEditor() === this) {
 					this.focus();
 				}
 			}

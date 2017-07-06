@@ -14,7 +14,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IMessageService } from 'vs/platform/message/common/message';
-import { IDebugService, State, IProcess, IThread, IEnablement, IBreakpoint, IStackFrame, IFunctionBreakpoint, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, IExpression, REPL_ID }
+import { IDebugService, State, IProcess, IThread, IEnablement, IBreakpoint, IStackFrame, IFunctionBreakpoint, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, IExpression, REPL_ID, ProcessState }
 	from 'vs/workbench/parts/debug/common/debug';
 import { Variable, Expression, Thread, Breakpoint, Process } from 'vs/workbench/parts/debug/common/debugModel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -183,7 +183,7 @@ export class RestartAction extends AbstractDebugAction {
 	}
 
 	private setLabel(process: IProcess): void {
-		this.updateLabel(process && process.isAttach() ? RestartAction.RECONNECT_LABEL : RestartAction.LABEL);
+		this.updateLabel(process && process.state === ProcessState.ATTACH ? RestartAction.RECONNECT_LABEL : RestartAction.LABEL);
 	}
 
 	public run(process: IProcess): TPromise<any> {

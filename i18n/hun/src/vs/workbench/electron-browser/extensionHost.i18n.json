@@ -7,5 +7,6 @@
 	"extensionHostProcess.startupFailDebug": "A kiegészítő gazdafolyamata nem idult el 10 másodperben belül. Elképzelhető, hogy megállt az első soron, és szüksége van a hibakeresőre a folytatáshoz.",
 	"extensionHostProcess.startupFail": "A kiegészítő gazdafolyamata nem idult el 10 másodperben belül. Ez probléma lehet.",
 	"extensionHostProcess.error": "A kiegészítő gazdafolyamatától hiba érkezett: {0}",
+	"devTools": "Fejlesztői eszközök",
 	"extensionHostProcess.crash": "A kiegészítő gazdafolyamata váratlanul leállt. Töltse újra az ablakot a visszaállításhoz."
 }

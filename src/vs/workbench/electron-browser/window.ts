@@ -25,10 +25,10 @@ import { toResource } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService, IResourceInputType } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService } from 'vs/platform/message/common/message';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IWindowsService, IWindowService, IWindowSettings, IWindowConfiguration, IPath, IOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
@@ -42,10 +42,8 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { Themable, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 
-import { remote, ipcRenderer as ipc, webFrame } from 'electron';
+import { ipcRenderer as ipc, webFrame } from 'electron';
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-
-const dialog = remote.dialog;
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), null, true, () => document.execCommand('undo') && TPromise.as(true)),
@@ -68,7 +66,6 @@ export class ElectronWindow extends Themable {
 	constructor(
 		win: Electron.BrowserWindow,
 		shellContainer: HTMLElement,
-		@IWindowIPCService private windowIPCService: IWindowIPCService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IPartService private partService: IPartService,
@@ -84,7 +81,8 @@ export class ElectronWindow extends Themable {
 		@IViewletService private viewletService: IViewletService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		super(themeService);
 
@@ -141,7 +139,7 @@ export class ElectronWindow extends Themable {
 							.on(DOM.EventType.DROP, (e: DragEvent) => {
 								DOM.EventHelper.stop(e, true);
 
-								this.focus(); // make sure this window has focus so that the open call reaches the right window!
+								this.windowService.focusWindow(); // make sure this window has focus so that the open call reaches the right window!
 
 								// Ask the user when opening a potential large number of folders
 								let doOpen = true;
@@ -206,7 +204,11 @@ export class ElectronWindow extends Themable {
 
 		// Support runAction event
 		ipc.on('vscode:runAction', (event, actionId: string) => {
-			this.commandService.executeCommand(actionId, { from: 'menu' }).done(undefined, err => this.messageService.show(Severity.Error, err));
+			this.commandService.executeCommand(actionId, { from: 'menu' }).done(_ => {
+				this.telemetryService.publicLog('commandExecuted', { id: actionId, from: 'menu' });
+			}, err => {
+				this.messageService.show(Severity.Error, err);
+			});
 		});
 
 		// Support resolve keybindings event
@@ -244,7 +246,7 @@ export class ElectronWindow extends Themable {
 
 		// Emit event when vscode has loaded
 		this.partService.joinCreation().then(() => {
-			ipc.send('vscode:workbenchLoaded', this.windowIPCService.getWindowId());
+			ipc.send('vscode:workbenchLoaded', this.windowService.getCurrentWindowId());
 		});
 
 		// Message support
@@ -456,25 +458,5 @@ export class ElectronWindow extends Themable {
 		return TPromise.join(resources.map(resource => {
 			return stat(resource.fsPath).then(stats => stats.isDirectory() ? true : false, error => false);
 		})).then(res => res.some(res => !!res));
-	}
-
-	public close(): void {
-		this.win.close();
-	}
-
-	public showMessageBox(options: Electron.ShowMessageBoxOptions): number {
-		return dialog.showMessageBox(this.win, options);
-	}
-
-	public showSaveDialog(options: Electron.SaveDialogOptions, callback?: (fileName: string) => void): string {
-		if (callback) {
-			return dialog.showSaveDialog(this.win, options, callback);
-		}
-
-		return dialog.showSaveDialog(this.win, options); // https://github.com/electron/electron/issues/4936
-	}
-
-	public focus(): TPromise<void> {
-		return this.windowService.focusWindow();
 	}
 }

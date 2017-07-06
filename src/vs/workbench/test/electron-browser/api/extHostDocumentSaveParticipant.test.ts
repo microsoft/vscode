@@ -235,7 +235,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		const participant = new ExtHostDocumentSaveParticipant(documents, workspace);
 
 		let sub1 = participant.onWillSaveTextDocumentEvent(function (e) {
-			e.waitUntil(TPromise.wrapError('dddd'));
+			e.waitUntil(TPromise.wrapError(new Error('dddd')));
 		});
 
 		let event: vscode.TextDocumentWillSaveEvent;

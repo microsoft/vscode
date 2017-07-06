@@ -8,7 +8,6 @@
 	"requirestring": "la propriété '{0}' est obligatoire et doit être de type 'string'",
 	"optstring": "La propriété '{0}' peut être omise ou doit être de type 'string'",
 	"vscode.extension.contributes.keybindings.command": "Identificateur de la commande à exécuter quand la combinaison de touches est déclenchée.",
-	"vscode.extension.contributes.keybindings.key": "Touche ou séquence de touches (séparation des touches avec le signe plus et des séquences de touches avec un espace. Exemple : Ctrl+O et Ctrl+L L pour une pression simultanée",
 	"vscode.extension.contributes.keybindings.mac": "Touche ou séquence de touches spécifique à Mac.",
 	"vscode.extension.contributes.keybindings.linux": "Touche ou séquence de touches spécifique à Linux.",
 	"vscode.extension.contributes.keybindings.win": "Touche ou séquence de touches spécifique à Windows.",

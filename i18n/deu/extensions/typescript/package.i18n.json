@@ -17,6 +17,7 @@
 	"typescript.format.enable": "Standardmäßigen TypeScript-Formatierer aktivieren/deaktivieren.",
 	"javascript.format.enable": "Standardmäßigen JavaScript-Formatierer aktivieren/deaktivieren.",
 	"format.insertSpaceAfterCommaDelimiter": "Definiert die Verarbeitung von Leerzeichen nach einem Kommatrennzeichen.",
+	"format.insertSpaceAfterConstructor": "Definiert die Verarbeitung von Leerzeichen nach dem Konstruktor-Schlüsselwort. Erfordert TypeScript 2.3.0 oder höher.",
 	"format.insertSpaceAfterSemicolonInForStatements": " Definiert die Verarbeitung von Leerzeichen nach einem Semikolon in einer for-Anweisung.",
 	"format.insertSpaceBeforeAndAfterBinaryOperators": "Definiert die Verarbeitung von Leerzeichen nach einem binären Operator.",
 	"format.insertSpaceAfterKeywordsInControlFlowStatements": "Definiert die Verarbeitung von Leerzeichen nach Schlüsselwörtern in einer Flusssteuerungsanweisung.",
