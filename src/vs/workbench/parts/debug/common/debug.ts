@@ -446,6 +446,11 @@ export interface IDebugService {
 	onDidEndProcess: Event<IProcess>;
 
 	/**
+	 * Allows to register on custom DAP events.
+	 */
+	onDidCustomEvent: Event<DebugProtocol.Event>;
+
+	/**
 	 * Gets the current configuration manager.
 	 */
 	getConfigurationManager(): IConfigurationManager;

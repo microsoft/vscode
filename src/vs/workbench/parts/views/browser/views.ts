@@ -31,7 +31,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND } from 'vs/workbench/common/theme';
+import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 export interface IViewOptions {
@@ -303,6 +303,8 @@ interface IViewState {
 
 	isHidden: boolean;
 
+	order: number;
+
 }
 
 export class ComposedViewsViewlet extends Viewlet {
@@ -323,6 +325,7 @@ export class ComposedViewsViewlet extends Viewlet {
 		id: string,
 		private location: ViewLocation,
 		private viewletStateStorageId: string,
+		private showHeaderInTitleWhenSingleView: boolean,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService protected storageService: IStorageService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
@@ -351,7 +354,8 @@ export class ComposedViewsViewlet extends Viewlet {
 		super.create(parent);
 
 		this.viewletContainer = DOM.append(parent.getHTMLElement(), DOM.$(''));
-		this.splitView = this._register(new SplitView(this.viewletContainer));
+		this.splitView = this._register(new SplitView(this.viewletContainer/* , { canChangeOrderByDragAndDrop: true } */));
+		// this.attachSplitViewStyler(this.splitView);
 		this._register(this.splitView.onFocus((view: IView) => this.lastFocusedView = view));
 
 		return this.onViewDescriptorsChanged()
@@ -363,34 +367,36 @@ export class ComposedViewsViewlet extends Viewlet {
 
 	public getTitle(): string {
 		let title = Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlet(this.getId()).name;
-		if (this.hasSingleView() && this.splitView.getViews<IView>()[0]) {
+		if (this.showHeaderInTitleArea() && this.splitView.getViews<IView>()[0]) {
 			title += ': ' + this.splitView.getViews<IView>()[0].name;
 		}
 		return title;
 	}
 
 	public getActions(): IAction[] {
-		if (this.hasSingleView() && this.splitView.getViews<IView>()[0]) {
+		if (this.showHeaderInTitleArea() && this.splitView.getViews<IView>()[0]) {
 			return this.splitView.getViews<IView>()[0].getActions();
 		}
 		return [];
 	}
 
 	public getSecondaryActions(): IAction[] {
-		if (this.hasSingleView() && this.splitView.getViews<IView>()[0]) {
+		if (this.showHeaderInTitleArea() && this.splitView.getViews<IView>()[0]) {
 			return this.splitView.getViews<IView>()[0].getSecondaryActions();
 		}
 		return [];
 	}
 
 	public getContextMenuActions(): IAction[] {
-		return this.getVisibilityManageableViewDescriptors().map(viewDescriptor => (<IAction>{
-			id: `${viewDescriptor.id}.toggleVisibility`,
-			label: viewDescriptor.name,
-			checked: this.isCurrentlyVisible(viewDescriptor),
-			enabled: this.contextKeyService.contextMatchesRules(viewDescriptor.when),
-			run: () => this.toggleViewVisibility(viewDescriptor.id)
-		}));
+		return this.getViewDescriptorsFromRegistry(true)
+			.filter(viewDescriptor => viewDescriptor.canToggleVisibility)
+			.map(viewDescriptor => (<IAction>{
+				id: `${viewDescriptor.id}.toggleVisibility`,
+				label: viewDescriptor.name,
+				checked: this.isCurrentlyVisible(viewDescriptor),
+				enabled: this.contextKeyService.contextMatchesRules(viewDescriptor.when),
+				run: () => this.toggleViewVisibility(viewDescriptor.id)
+			}));
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
@@ -428,7 +434,7 @@ export class ComposedViewsViewlet extends Viewlet {
 		if (this.splitView) {
 			this.splitView.layout(this.dimension.height);
 			for (const view of this.splitView.getViews<IView>()) {
-				let viewState = this.createViewState(view);
+				let viewState = this.updateViewStateSize(view);
 				this.viewsStates.set(view.id, viewState);
 			}
 		}
@@ -441,14 +447,14 @@ export class ComposedViewsViewlet extends Viewlet {
 			viewState = viewState || this.createViewState(view);
 			viewState.isHidden = true;
 		} else {
-			viewState = viewState || { collapsed: true, size: void 0, isHidden: false };
+			viewState = viewState || { collapsed: true, size: void 0, isHidden: false, order: void 0 };
 			viewState.isHidden = false;
 		}
 		this.viewsStates.set(id, viewState);
 		this.updateViews();
 	}
 
-	private onViewDescriptorsChanged(): TPromise<void> {
+	private onViewDescriptorsChanged(): TPromise<any> {
 		this.viewsContextKeys.clear();
 		for (const viewDescriptor of this.getViewDescriptorsFromRegistry()) {
 			if (viewDescriptor.when) {
@@ -478,7 +484,7 @@ export class ComposedViewsViewlet extends Viewlet {
 		}
 	}
 
-	protected updateViews(): TPromise<void> {
+	protected updateViews(): TPromise<IView[]> {
 		if (this.splitView) {
 
 			const registeredViews = this.getViewDescriptorsFromRegistry();
@@ -508,7 +514,7 @@ export class ComposedViewsViewlet extends Viewlet {
 				for (const view of this.splitView.getViews<IView>()) {
 					let viewState = this.viewsStates.get(view.id);
 					if (!viewState || view.size !== viewState.size || !view.isExpanded() !== viewState.collapsed) {
-						viewState = { ...this.createViewState(view), isHidden: viewState && viewState.isHidden };
+						viewState = this.updateViewStateSize(view);
 						this.viewsStates.set(view.id, viewState);
 						this.splitView.updateWeight(view, viewState.size);
 					}
@@ -535,22 +541,29 @@ export class ComposedViewsViewlet extends Viewlet {
 					});
 					toCreate.push(view);
 
-					this.attachHeaderViewStyler(view, this.themeService);
+					this.attachViewStyler(view);
 					this.splitView.addView(view, viewState && viewState.size ? Math.max(viewState.size, 1) : viewDescriptor.size, index);
 				}
 
 				return TPromise.join(toCreate.map(view => view.create()))
-					.then(() => this.onViewsUpdated());
+					.then(() => this.onViewsUpdated())
+					.then(() => toCreate);
 			}
 		}
-		return TPromise.as(null);
+		return TPromise.as([]);
 	}
 
-	private attachHeaderViewStyler(widget: IThemable, themeService: IThemeService, options?: { noContrastBorder?: boolean }): IDisposable {
-		return attachStyler(themeService, {
+	private attachViewStyler(widget: IThemable, options?: { noContrastBorder?: boolean }): IDisposable {
+		return attachStyler(this.themeService, {
 			headerForeground: SIDE_BAR_SECTION_HEADER_FOREGROUND,
 			headerBackground: SIDE_BAR_SECTION_HEADER_BACKGROUND,
 			headerHighContrastBorder: (options && options.noContrastBorder) ? null : contrastBorder
+		}, widget);
+	}
+
+	protected attachSplitViewStyler(widget: IThemable): IDisposable {
+		return attachStyler(this.themeService, {
+			dropBackground: SIDE_BAR_DRAG_AND_DROP_BACKGROUND
 		}, widget);
 	}
 
@@ -571,7 +584,7 @@ export class ComposedViewsViewlet extends Viewlet {
 			return TPromise.as(null);
 		}
 
-		if (this.hasSingleView()) {
+		if (this.showHeaderInTitleArea()) {
 			if (this.splitView.getViews<IView>()[0]) {
 				this.splitView.getViews<IView>()[0].hideHeader();
 				if (!this.splitView.getViews<IView>()[0].isExpanded()) {
@@ -588,10 +601,16 @@ export class ComposedViewsViewlet extends Viewlet {
 		this.updateTitleArea();
 
 		this.viewHeaderContextMenuListeners = dispose(this.viewHeaderContextMenuListeners);
-		for (const viewDescriptor of this.getVisibilityManageableViewDescriptors()) {
+		for (const viewDescriptor of this.getViewDescriptorsFromRegistry()) {
 			const view = this.getView(viewDescriptor.id);
 			if (view) {
-				this.viewHeaderContextMenuListeners.push(DOM.addDisposableListener(view.getHeaderElement(), DOM.EventType.CONTEXT_MENU, (e) => this.onContextMenu(new StandardMouseEvent(e), view)));
+				this.viewHeaderContextMenuListeners.push(DOM.addDisposableListener(view.getHeaderElement(), DOM.EventType.CONTEXT_MENU, e => {
+					e.stopPropagation();
+					e.preventDefault();
+					if (viewDescriptor.canToggleVisibility) {
+						this.onContextMenu(new StandardMouseEvent(e), view);
+					}
+				}));
 			}
 		}
 
@@ -618,7 +637,10 @@ export class ComposedViewsViewlet extends Viewlet {
 		});
 	}
 
-	private hasSingleView(): boolean {
+	private showHeaderInTitleArea(): boolean {
+		if (!this.showHeaderInTitleWhenSingleView) {
+			return false;
+		}
 		if (this.splitView.getViews<IView>().length > 1) {
 			return false;
 		}
@@ -629,30 +651,38 @@ export class ComposedViewsViewlet extends Viewlet {
 		return true;
 	}
 
-	private getVisibilityManageableViewDescriptors(): IViewDescriptor[] {
-		return this.getViewDescriptorsFromRegistry().filter(viewDescriptor => viewDescriptor.canToggleVisibility);
-	}
-
-	private getViewDescriptorsFromRegistry(): IViewDescriptor[] {
+	private getViewDescriptorsFromRegistry(defaultOrder: boolean = true): IViewDescriptor[] {
 		return ViewsRegistry.getViews(this.location)
 			.sort((a, b) => {
-				if (b.order === void 0 || b.order === null) {
+				const viewStateA = this.viewsStates.get(a.id);
+				const viewStateB = this.viewsStates.get(b.id);
+				const orderA = !defaultOrder && viewStateA ? viewStateA.order : a.order;
+				const orderB = !defaultOrder && viewStateB ? viewStateB.order : b.order;
+
+				if (orderB === void 0 || orderB === null) {
 					return -1;
 				}
-				if (a.order === void 0 || a.order === null) {
+				if (orderA === void 0 || orderA === null) {
 					return 1;
 				}
-				return a.order - b.order;
+
+				return orderA - orderB;
 			});
 	}
 
 	private saveViewsStates(): void {
 		const viewsStates = {};
+		const registeredViewDescriptors = this.getViewDescriptorsFromRegistry();
 		this.viewsStates.forEach((viewState, id) => {
 			const view = this.getView(id);
 			if (view) {
-				viewState = view ? this.createViewState(view) : viewState;
-				viewsStates[id] = { size: viewState.size, collapsed: viewState.collapsed, isHidden: viewState.isHidden };
+				viewState = this.createViewState(view);
+				viewsStates[id] = { size: viewState.size, collapsed: viewState.collapsed, isHidden: viewState.isHidden, order: viewState.order };
+			} else {
+				const viewDescriptor = registeredViewDescriptors.filter(v => v.id === id)[0];
+				if (viewDescriptor) {
+					viewsStates[id] = viewState;
+				}
 			}
 		});
 
@@ -673,11 +703,17 @@ export class ComposedViewsViewlet extends Viewlet {
 	}
 
 	protected get views(): IView[] {
-		return this.splitView.getViews<IView>();
+		return this.splitView ? this.splitView.getViews<IView>() : [];
 	}
 
 	protected getView(id: string): IView {
 		return this.splitView.getViews<IView>().filter(view => view.id === id)[0];
+	}
+
+	private updateViewStateSize(view: IView): IViewState {
+		const currentState = this.viewsStates.get(view.id);
+		const newViewState = this.createViewState(view);
+		return currentState ? { ...currentState, collapsed: newViewState.collapsed, size: newViewState.size } : newViewState;
 	}
 
 	private createViewState(view: IView): IViewState {
@@ -686,7 +722,8 @@ export class ComposedViewsViewlet extends Viewlet {
 		return {
 			collapsed,
 			size: size && size > 0 ? size : void 0,
-			isHidden: false
+			isHidden: false,
+			order: this.splitView.getViews<IView>().indexOf(view)
 		};
 	}
 }

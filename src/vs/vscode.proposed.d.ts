@@ -207,4 +207,14 @@ declare module 'vscode' {
 		export const onDidChangeActiveDebugSession: Event<DebugSession | undefined>;
 	}
 
+	export interface DebugSession {
+
+		/**
+		 * Experimental API that allows hooking custom events from the debug session's debug adapter.
+		 *
+		 * @param callback The callback that is triggered when a custom event is received from the debug adapter.
+		 */
+		onCustomEvent(callback: (event: any) => void): void;
+	}
+
 }

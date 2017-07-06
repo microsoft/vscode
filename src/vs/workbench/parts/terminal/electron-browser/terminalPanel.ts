@@ -246,7 +246,7 @@ export class TerminalPanel extends Panel {
 				}
 
 				const terminal = this._terminalService.getActiveInstance();
-				terminal.sendText(this._preparePathForTerminal(uri), false);
+				terminal.sendText(TerminalPanel.preparePathForTerminal(uri), false);
 			}
 		}));
 	}
@@ -327,7 +327,7 @@ export class TerminalPanel extends Panel {
 	/**
 	 * Adds quotes to a path if it contains whitespaces
 	 */
-	private _preparePathForTerminal(path: string) {
+	public static preparePathForTerminal(path: string): string {
 		if (platform.isWindows) {
 			if (/\s+/.test(path)) {
 				return `"${path}"`;

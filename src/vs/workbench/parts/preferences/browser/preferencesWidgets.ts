@@ -288,8 +288,6 @@ export class SettingsTabsWidget extends Widget {
 }
 
 export interface SearchOptions extends IInputOptions {
-	navigateByEnter?: boolean;
-	navigateByArrows?: boolean;
 	focusKey?: IContextKey<boolean>;
 }
 
@@ -408,10 +406,8 @@ export class SearchWidget extends Widget {
 		let handled = false;
 		switch (keyboardEvent.keyCode) {
 			case KeyCode.Enter:
-				if (this.options.navigateByEnter) {
-					this._onNavigate.fire(keyboardEvent.shiftKey);
-					handled = true;
-				}
+				this._onNavigate.fire(keyboardEvent.shiftKey);
+				handled = true;
 				break;
 			case KeyCode.Escape:
 				this.clear();

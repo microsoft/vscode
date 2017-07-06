@@ -217,7 +217,8 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				if (valid && item) {
 					return lastValue === void 0 ? (options.value || '') : lastValue;
 				}
-				return undefined;
+
+				return void 0;
 			});
 		});
 	}

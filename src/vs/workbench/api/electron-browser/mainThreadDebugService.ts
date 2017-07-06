@@ -31,6 +31,11 @@ export class MainThreadDebugService extends MainThreadDebugServiceShape {
 				this._proxy.$acceptDebugSessionActiveChanged(undefined);
 			}
 		}));
+		this._toDispose.push(debugService.onDidCustomEvent(event => {
+			if (event.body && event.body.sessionId) {
+				this._proxy.$acceptDebugSessionCustomEvent(event.body.sessionId, event);
+			}
+		}));
 	}
 
 	public dispose(): void {

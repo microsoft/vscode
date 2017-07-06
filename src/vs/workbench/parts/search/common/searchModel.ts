@@ -169,7 +169,7 @@ export class FileMatch extends Disposable {
 
 	private bindModel(model: IModel): void {
 		this._model = model;
-		this._modelListener = this._model.onDidChangeContent(_ => {
+		this._modelListener = this._model.onDidChangeContent(() => {
 			this._updateScheduler.schedule();
 		});
 		this._model.onWillDispose(() => this.onModelWillDispose());
