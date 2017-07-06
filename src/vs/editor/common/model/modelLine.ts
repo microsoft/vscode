@@ -614,7 +614,7 @@ export class ModelLine {
 		return otherLine;
 	}
 
-	public append(markersTracker: MarkersTracker, other: ModelLine, tabSize: number): void {
+	public append(markersTracker: MarkersTracker, myLineNumber: number, other: ModelLine, tabSize: number): void {
 		// console.log('--> append: THIS :: ' + this._printMarkers());
 		// console.log('--> append: OTHER :: ' + this._printMarkers());
 		let thisTextLength = this._text.length;
@@ -656,7 +656,7 @@ export class ModelLine {
 			for (let i = 0, len = otherMarkers.length; i < len; i++) {
 				let marker = otherMarkers[i];
 
-				marker.updatePosition(markersTracker, new Position(this._lineNumber, marker.position.column + thisTextLength));
+				marker.updatePosition(markersTracker, new Position(myLineNumber, marker.position.column + thisTextLength));
 			}
 
 			this.addMarkers(otherMarkers);

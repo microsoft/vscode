@@ -603,7 +603,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				}
 
 				// Reconstruct first line
-				this._lines[spliceStartLineNumber - 1].append(markersTracker, endLineRemains, tabSize);
+				this._lines[spliceStartLineNumber - 1].append(markersTracker, spliceStartLineNumber, endLineRemains, tabSize);
 				if (this._lineStarts) {
 					// update prefix sum
 					this._lineStarts.changeValue(spliceStartLineNumber - 1, this._lines[spliceStartLineNumber - 1].text.length + this._EOL.length);
@@ -666,7 +666,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				}
 
 				// Last line
-				this._lines[startLineNumber + insertingLinesCnt - 1].append(markersTracker, leftoverLine, tabSize);
+				this._lines[startLineNumber + insertingLinesCnt - 1].append(markersTracker, startLineNumber + insertingLinesCnt, leftoverLine, tabSize);
 				if (this._lineStarts) {
 					// update prefix sum
 					this._lineStarts.changeValue(startLineNumber + insertingLinesCnt - 1, this._lines[startLineNumber + insertingLinesCnt - 1].text.length + this._EOL.length);
@@ -739,7 +739,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 					foundMarkersCnt++;
 					let markerId = markers[j].id;
 					let marker = this._markerIdToMarker[markerId];
-					if (marker.position.lineNumber !== line.lineNumber) {
+					if (marker.position.lineNumber !== lineNumber) {
 						throw new Error('Misplaced marker with id ' + markerId);
 					}
 				}

@@ -239,7 +239,7 @@ suite('Editor Model - modelLine.append text', () => {
 	function testLineAppend(a: string, b: string, expected: string): void {
 		var line1 = new ModelLine(1, a, NO_TAB_SIZE);
 		var line2 = new ModelLine(2, b, NO_TAB_SIZE);
-		line1.append(new MarkersTracker(), line2, NO_TAB_SIZE);
+		line1.append(new MarkersTracker(), 1, line2, NO_TAB_SIZE);
 		assert.equal(line1.text, expected);
 	}
 
@@ -960,7 +960,7 @@ suite('Editor Model - modelLine.append text & tokens', () => {
 		let b = new ModelLine(2, bText, NO_TAB_SIZE);
 		b.setTokens(0, TestToken.toTokens(bTokens));
 
-		a.append(new MarkersTracker(), b, NO_TAB_SIZE);
+		a.append(new MarkersTracker(), 1, b, NO_TAB_SIZE);
 
 		assert.equal(a.text, expectedText);
 		assertLineTokens(a.getTokens(0), expectedTokens);
@@ -2191,7 +2191,7 @@ suite('Editor Model - modelLine.append text & markers', () => {
 		b.addMarkers(bMarkers);
 
 		let changedMarkers = new MarkersTracker();
-		a.append(changedMarkers, b, NO_TAB_SIZE);
+		a.append(changedMarkers, 1, b, NO_TAB_SIZE);
 
 		assert.equal(a.text, expectedText, 'text');
 
