@@ -280,7 +280,7 @@ export class WindowsManager implements IWindowsMainService {
 		const hotExitRestore = (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath);
 		const foldersToRestore = hotExitRestore ? this.backupService.getWorkspaceBackupPaths() : [];
 		let emptyToRestore = hotExitRestore ? this.backupService.getEmptyWorkspaceBackupPaths() : [];
-		emptyToRestore.push(...windowsToOpen.filter(w => !w.workspacePath && w.backupPath).map(w => path.basename(w.backupPath))); // add empty windows with backupPath
+		emptyToRestore.push(...windowsToOpen.filter(w => !w.workspacePath && w.backupPath).map(w => path.basename(w.backupPath))); // add empty workspaces with backupPath
 		emptyToRestore = arrays.distinct(emptyToRestore); // prevent duplicates
 
 		// Open based on config
@@ -557,11 +557,11 @@ export class WindowsManager implements IWindowsMainService {
 
 		switch (restoreWindows) {
 
-			// none: we always open an empty window
+			// none: we always open an empty workspace
 			case 'none':
 				return [Object.create(null)];
 
-			// one: restore last opened folder or empty window
+			// one: restore last opened folder or empty workspace
 			case 'one':
 				if (lastActiveWindow) {
 
@@ -574,7 +574,7 @@ export class WindowsManager implements IWindowsMainService {
 						}
 					}
 
-					// otherwise use backup path to restore empty windows
+					// otherwise use backup path to restore empty workspaces
 					else if (lastActiveWindow.backupPath) {
 						return [{ backupPath: lastActiveWindow.backupPath }];
 					}
@@ -613,7 +613,7 @@ export class WindowsManager implements IWindowsMainService {
 				break;
 		}
 
-		// Always fallback to empty window
+		// Always fallback to empty workspace
 		return [Object.create(null)];
 	}
 
