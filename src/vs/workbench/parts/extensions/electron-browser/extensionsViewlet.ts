@@ -46,7 +46,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { inputForeground, inputBackground, inputBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ViewsRegistry, ViewLocation, IViewDescriptor } from 'vs/workbench/parts/views/browser/viewsRegistry';
-import { ComposedViewsViewlet } from 'vs/workbench/parts/views/browser/views';
+import { ComposedViewsViewlet, IView } from 'vs/workbench/parts/views/browser/views';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -310,11 +310,12 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 		await this.updateViews();
 	}
 
-	protected async updateViews(): TPromise<void> {
+	protected async updateViews(): TPromise<IView[]> {
 		const created = await super.updateViews();
 		if (created.length) {
 			await this.progress(TPromise.join(created.map(view => (<ExtensionsListView>view).show(this.searchBox.value))));
 		}
+		return created;
 	}
 
 	private count(): number {
