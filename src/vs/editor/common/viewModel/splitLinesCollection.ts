@@ -928,3 +928,169 @@ function createSplitLine(linePositionMapperFactory: ILineMapperFactory, text: st
 		return new SplitLine(positionMapper, isVisible);
 	}
 }
+
+export class IdentityCoordinatesConverter implements ICoordinatesConverter {
+
+	private readonly _lines: IdentityLinesCollection;
+
+	constructor(lines: IdentityLinesCollection) {
+		this._lines = lines;
+	}
+
+	private _validPosition(pos: Position): Position {
+		return this._lines.model.validatePosition(pos);
+	}
+
+	private _validRange(range: Range): Range {
+		return this._lines.model.validateRange(range);
+	}
+
+	private _validSelection(selection: Selection): Selection {
+		let selectionStart = this._validPosition(new Position(selection.selectionStartLineNumber, selection.selectionStartColumn));
+		let position = this._validPosition(new Position(selection.positionLineNumber, selection.positionColumn));
+		return new Selection(selectionStart.lineNumber, selectionStart.column, position.lineNumber, position.column);
+	}
+
+	// View -> Model conversion and related methods
+
+	public convertViewPositionToModelPosition(viewPosition: Position): Position {
+		return this._validPosition(viewPosition);
+	}
+
+	public convertViewRangeToModelRange(viewRange: Range): Range {
+		return this._validRange(viewRange);
+	}
+
+	public convertViewSelectionToModelSelection(viewSelection: Selection): Selection {
+		return this._validSelection(viewSelection);
+	}
+
+	public validateViewPosition(viewPosition: Position, expectedModelPosition: Position): Position {
+		return this._validPosition(expectedModelPosition);
+	}
+
+	public validateViewRange(viewRange: Range, expectedModelRange: Range): Range {
+		return this._validRange(expectedModelRange);
+	}
+
+	// Model -> View conversion and related methods
+
+	public convertModelPositionToViewPosition(modelPosition: Position): Position {
+		return this._validPosition(modelPosition);
+	}
+
+	public convertModelRangeToViewRange(modelRange: Range): Range {
+		return this._validRange(modelRange);
+	}
+
+	public convertModelSelectionToViewSelection(modelSelection: Selection): Selection {
+		return this._validSelection(modelSelection);
+	}
+
+	public modelPositionIsVisible(modelPosition: Position): boolean {
+		const lineCount = this._lines.model.getLineCount();
+		if (modelPosition.lineNumber < 1 || modelPosition.lineNumber > lineCount) {
+			// invalid arguments
+			return false;
+		}
+		return true;
+	}
+
+}
+
+export class IdentityLinesCollection implements IViewModelLinesCollection {
+
+	public readonly model: editorCommon.IModel;
+
+	constructor(model: editorCommon.IModel) {
+		this.model = model;
+	}
+
+	public dispose(): void {
+	}
+
+	public createCoordinatesConverter(): ICoordinatesConverter {
+		return new IdentityCoordinatesConverter(this);
+	}
+
+	public setHiddenAreas(_ranges: Range[]): boolean {
+		return false;
+	}
+
+	public setTabSize(newTabSize: number): boolean {
+		return false;
+	}
+
+	public setWrappingSettings(wrappingIndent: WrappingIndent, wrappingColumn: number, columnsForFullWidthChar: number): boolean {
+		return false;
+	}
+
+	public onModelFlushed(): void {
+	}
+
+	public onModelLinesDeleted(versionId: number, fromLineNumber: number, toLineNumber: number): viewEvents.ViewLinesDeletedEvent {
+		return new viewEvents.ViewLinesDeletedEvent(fromLineNumber, toLineNumber);
+	}
+
+	public onModelLinesInserted(versionId: number, fromLineNumber: number, toLineNumber: number, text: string[]): viewEvents.ViewLinesInsertedEvent {
+		return new viewEvents.ViewLinesInsertedEvent(fromLineNumber, toLineNumber);
+	}
+
+	public onModelLineChanged(versionId: number, lineNumber: number, newText: string): [boolean, viewEvents.ViewLinesChangedEvent, viewEvents.ViewLinesInsertedEvent, viewEvents.ViewLinesDeletedEvent] {
+		return [false, new viewEvents.ViewLinesChangedEvent(lineNumber, lineNumber), null, null];
+	}
+
+	public acceptVersionId(versionId: number): void {
+	}
+
+	public getViewLineCount(): number {
+		return this.model.getLineCount();
+	}
+
+	public warmUpLookupCache(viewStartLineNumber: number, viewEndLineNumber: number): void {
+	}
+
+	public getViewLineIndentGuide(viewLineNumber: number): number {
+		return 0;
+	}
+
+	public getViewLineContent(viewLineNumber: number): string {
+		return this.model.getLineContent(viewLineNumber);
+	}
+
+	public getViewLineMinColumn(viewLineNumber: number): number {
+		return this.model.getLineMinColumn(viewLineNumber);
+	}
+
+	public getViewLineMaxColumn(viewLineNumber: number): number {
+		return this.model.getLineMaxColumn(viewLineNumber);
+	}
+
+	public getViewLineData(viewLineNumber: number): ViewLineData {
+		let lineTokens = this.model.getLineTokens(viewLineNumber);
+		let lineContent = lineTokens.getLineContent();
+		return new ViewLineData(
+			lineContent,
+			1,
+			lineContent.length + 1,
+			lineTokens.inflate()
+		);
+	}
+
+	public getViewLinesData(viewStartLineNumber: number, viewEndLineNumber: number, needed: boolean[]): ViewLineData[] {
+		const lineCount = this.model.getLineCount();
+		viewStartLineNumber = Math.min(Math.max(1, viewStartLineNumber), lineCount);
+		viewEndLineNumber = Math.min(Math.max(1, viewEndLineNumber), lineCount);
+
+		let result: ViewLineData[] = [];
+		for (let lineNumber = viewStartLineNumber; lineNumber <= viewEndLineNumber; lineNumber++) {
+			let idx = lineNumber - viewStartLineNumber;
+			if (!needed[idx]) {
+				result[idx] = null;
+			}
+			result[idx] = this.getViewLineData(lineNumber);
+		}
+
+		return result;
+	}
+}

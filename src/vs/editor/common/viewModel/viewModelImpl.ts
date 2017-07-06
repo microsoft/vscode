@@ -13,13 +13,15 @@ import { TokenizationRegistry, ColorId, LanguageId } from 'vs/editor/common/mode
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
 import { MinimapLinesRenderingData, ViewLineRenderingData, ViewModelDecoration, IViewModel, ICoordinatesConverter, ViewEventsCollector } from 'vs/editor/common/viewModel/viewModel';
-import { SplitLinesCollection, IViewModelLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
+import { SplitLinesCollection, IViewModelLinesCollection, IdentityLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { MinimapTokensColorTracker } from 'vs/editor/common/view/minimapCharRenderer';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
 import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
+
+const USE_IDENTITY_LINES_COLLECTION = true;
 
 export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel {
 
@@ -42,22 +44,28 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		this.configuration = configuration;
 		this.model = model;
 
-		const conf = this.configuration.editor;
+		if (USE_IDENTITY_LINES_COLLECTION && this.model.isTooLargeForTokenization()) {
 
-		let hardWrappingLineMapperFactory = new CharacterHardWrappingLineMapperFactory(
-			conf.wrappingInfo.wordWrapBreakBeforeCharacters,
-			conf.wrappingInfo.wordWrapBreakAfterCharacters,
-			conf.wrappingInfo.wordWrapBreakObtrusiveCharacters
-		);
+			this.lines = new IdentityLinesCollection(this.model);
 
-		this.lines = new SplitLinesCollection(
-			this.model,
-			hardWrappingLineMapperFactory,
-			this.model.getOptions().tabSize,
-			conf.wrappingInfo.wrappingColumn,
-			conf.fontInfo.typicalFullwidthCharacterWidth / conf.fontInfo.typicalHalfwidthCharacterWidth,
-			conf.wrappingInfo.wrappingIndent
-		);
+		} else {
+			const conf = this.configuration.editor;
+
+			let hardWrappingLineMapperFactory = new CharacterHardWrappingLineMapperFactory(
+				conf.wrappingInfo.wordWrapBreakBeforeCharacters,
+				conf.wrappingInfo.wordWrapBreakAfterCharacters,
+				conf.wrappingInfo.wordWrapBreakObtrusiveCharacters
+			);
+
+			this.lines = new SplitLinesCollection(
+				this.model,
+				hardWrappingLineMapperFactory,
+				this.model.getOptions().tabSize,
+				conf.wrappingInfo.wrappingColumn,
+				conf.fontInfo.typicalFullwidthCharacterWidth / conf.fontInfo.typicalHalfwidthCharacterWidth,
+				conf.wrappingInfo.wrappingIndent
+			);
+		}
 
 		this.coordinatesConverter = this.lines.createCoordinatesConverter();
 
