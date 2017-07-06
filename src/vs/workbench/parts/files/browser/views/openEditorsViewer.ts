@@ -28,7 +28,7 @@ import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/file
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorStacksModel, EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
-import { SaveFileAction, RevertFileAction, SaveFileAsAction, OpenToSideAction, SelectResourceForCompareAction, CompareResourcesAction, SaveAllInGroupAction } from 'vs/workbench/parts/files/browser/fileActions';
+import { SaveFileAction, RevertFileAction, SaveFileAsAction, OpenToSideAction, SelectResourceForCompareAction, CompareResourcesAction, SaveAllInGroupAction, ShowModificationsAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { CloseOtherEditorsInGroupAction, CloseEditorAction, CloseEditorsInGroupAction, CloseUnmodifiedEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
 
@@ -362,7 +362,7 @@ export class ActionProvider extends ContributableActionProvider {
 
 					if (!openEditor.isUntitled()) {
 
-						// Files: Save / Revert
+						// Files: Save / Revert / Show modifications
 						if (!autoSaveEnabled) {
 							result.push(new Separator());
 
@@ -375,6 +375,11 @@ export class ActionProvider extends ContributableActionProvider {
 							revertAction.setResource(resource);
 							revertAction.enabled = openEditor.isDirty();
 							result.push(revertAction);
+
+							const showModificationsAction = this.instantiationService.createInstance(ShowModificationsAction, ShowModificationsAction.ID, ShowModificationsAction.LABEL);
+							showModificationsAction.setResource(resource);
+							showModificationsAction.enabled = openEditor.isDirty();
+							result.push(showModificationsAction);
 						}
 					}
 
