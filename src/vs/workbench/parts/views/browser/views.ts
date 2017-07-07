@@ -354,9 +354,15 @@ export class ComposedViewsViewlet extends Viewlet {
 		super.create(parent);
 
 		this.viewletContainer = DOM.append(parent.getHTMLElement(), DOM.$(''));
-		this.splitView = this._register(new SplitView(this.viewletContainer/* , { canChangeOrderByDragAndDrop: true } */));
-		// this.attachSplitViewStyler(this.splitView);
+		this.splitView = this._register(new SplitView(this.viewletContainer, { canChangeOrderByDragAndDrop: true }));
+		this.attachSplitViewStyler(this.splitView);
 		this._register(this.splitView.onFocus((view: IView) => this.lastFocusedView = view));
+		this._register(this.splitView.onDidOrderChange(() => {
+			const views = this.splitView.getViews<IView>();
+			for (let order = 0; order < views.length; order++) {
+				this.viewsStates.get(views[order].id).order = order;
+			}
+		}));
 
 		return this.onViewDescriptorsChanged()
 			.then(() => {
@@ -561,7 +567,7 @@ export class ComposedViewsViewlet extends Viewlet {
 		}, widget);
 	}
 
-	protected attachSplitViewStyler(widget: IThemable): IDisposable {
+	private attachSplitViewStyler(widget: IThemable): IDisposable {
 		return attachStyler(this.themeService, {
 			dropBackground: SIDE_BAR_DRAG_AND_DROP_BACKGROUND
 		}, widget);
@@ -651,7 +657,7 @@ export class ComposedViewsViewlet extends Viewlet {
 		return true;
 	}
 
-	private getViewDescriptorsFromRegistry(defaultOrder: boolean = true): IViewDescriptor[] {
+	private getViewDescriptorsFromRegistry(defaultOrder: boolean = false): IViewDescriptor[] {
 		return ViewsRegistry.getViews(this.location)
 			.sort((a, b) => {
 				const viewStateA = this.viewsStates.get(a.id);
