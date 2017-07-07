@@ -362,7 +362,7 @@ export class ActionProvider extends ContributableActionProvider {
 
 					if (!openEditor.isUntitled()) {
 
-						// Files: Save / Revert / Show modifications
+						// Files: Save / Revert
 						if (!autoSaveEnabled) {
 							result.push(new Separator());
 
@@ -375,11 +375,6 @@ export class ActionProvider extends ContributableActionProvider {
 							revertAction.setResource(resource);
 							revertAction.enabled = openEditor.isDirty();
 							result.push(revertAction);
-
-							const showModificationsAction = this.instantiationService.createInstance(ShowModificationsAction, ShowModificationsAction.ID, ShowModificationsAction.LABEL);
-							showModificationsAction.setResource(resource);
-							showModificationsAction.enabled = openEditor.isDirty();
-							result.push(showModificationsAction);
 						}
 					}
 
@@ -400,6 +395,12 @@ export class ActionProvider extends ContributableActionProvider {
 
 					// Compare Actions
 					result.push(new Separator());
+
+					const showModificationsAction = this.instantiationService.createInstance(ShowModificationsAction, ShowModificationsAction.ID, ShowModificationsAction.LABEL);
+					showModificationsAction.setResource(resource);
+					showModificationsAction.enabled = openEditor.isDirty();
+					result.push(showModificationsAction);
+
 					const runCompareAction = this.instantiationService.createInstance(CompareResourcesAction, resource, tree);
 					if (runCompareAction._isEnabled()) {
 						result.push(runCompareAction);

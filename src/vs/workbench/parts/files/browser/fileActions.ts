@@ -1996,7 +1996,7 @@ export function getWellFormedFileName(filename: string): string {
 export const SHOW_MODIFICATIONS_SCHEME = 'showModifications';
 export class ShowModificationsAction extends Action implements ITextModelContentProvider {
 	public static ID = 'workbench.files.action.showModifications';
-	public static LABEL = nls.localize('showModifications', "Show modifications");
+	public static LABEL = nls.localize('showModifications', "Compare with Saved");
 
 	private resource: URI;
 
@@ -2023,8 +2023,18 @@ export class ShowModificationsAction extends Action implements ITextModelContent
 	}
 
 	public run(): TPromise<any> {
+		let resource: URI;
+
 		if (this.resource) {
-			return this.editorService.openEditor({ leftResource: URI.from({ scheme: SHOW_MODIFICATIONS_SCHEME, path: this.resource.fsPath }), rightResource: this.resource, label: nls.localize('Modifications', "Modifications"), options: { pinned: true } });
+			resource = this.resource;
+		} else {
+			resource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
+		}
+
+		if (resource && resource.scheme !== 'untitled') {
+			const name = paths.basename(resource.fsPath);
+			const editorLabel = nls.localize('modifiedLabel', "{0} (on disk) ↔ {1}", name, name);
+			return this.editorService.openEditor({ leftResource: URI.from({ scheme: SHOW_MODIFICATIONS_SCHEME, path: resource.fsPath }), rightResource: resource, label: editorLabel });
 		}
 
 		return TPromise.as(true);
