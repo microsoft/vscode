@@ -8,39 +8,39 @@ export function domElement() {
 	return `
 <div class="composite panel task-panel" id="workbench.panel.task" aria-hidden="false">
 	<div class="task-text">
-		<p style="text-align:left;">This is an experiment. Would you find the task panel seen below useful? <button class="yes-telemetry">Yes</button> <button  class="no-telemetry">No</button>
-		<span style="float:right;"> Link for feedback </span> </p>
+		<p class="oneliner">This is a static mockup. Would you find the task panel seen below useful? <button class="mockup-button yes-telemetry">Yes</button> <button class="mockup-button no-telemetry">No</button>
+		<span class="right-aligned"> Link for feedback </span> </p>
 	</div>
 	<div class="task-panel-container">
 		<div class="block">
-			<p style="text-align:left;">
+			<p class="oneliner">
 				Task: tsc -watch
-				<span style="float:right;">Running (0 Errors)</span>
+				<span class="right-aligned">Running (0 Errors)</span>
 			</p>
-			<p style="text-align:left;">
-				<button>Show Output </button>
-				<span style="float:right;"><button> Configure </button> <button> Stop </button> <button> Restart </button></span>
+			<p class="oneliner">
+				<div class="mockup-button">Show Output </div>
+				<span class="right-aligned"><div class="mockup-button"> Configure </div> <div class="mockup-button"> Stop </div> <div class="mockup-button"> Restart </div></span>
 			</p>
 		</div>
 		<div class="block">
-			<p style="text-align:left;">
+			<p class="oneliner">
 				Task: tslint
-				<span style="float:right;">Running (10 Errors)</span>
+				<span class="right-aligned">Running (10 Errors)</span>
 			</p>
-			<p style="text-align:left;">
-				<button>Hide Output </button>
-				<span style="float:right;"><button> Configure </button> <button> Stop </button> <button> Restart </button></span>
+			<p class="oneliner">
+				<div class="mockup-button">Hide Output </div>
+				<span class="right-aligned"><div class="mockup-button"> Configure </div> <div class="mockup-button"> Stop </div> <div class="mockup-button"> Restart </div></span>
 			</p>
 			Running tslint... </br> /users/express/index.js - invalid name expression </br>tslint finished with 1 Error(s)
 		</div>
 		<div class="block">
-			<p style="text-align:left;">
+			<p class="oneliner">
 				Task: tsc
-				<span style="float:right;">Finished (0 Errors)</span>
+				<span class="right-aligned">Finished (0 Errors)</span>
 			</p>
-			<p style="text-align:left;">
-				<button>Show Output </button>
-				<span style="float:right;"><button> Configure </button> <button> Restart </button></span>
+			<p class="oneliner">
+				<div class="mockup-button">Show Output </div>
+				<span class="right-aligned"><div class="mockup-button"> Configure </div> <div class="mockup-button"> Restart </div></span>
 			</p>
 		</div>
 	</div>

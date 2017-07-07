@@ -100,7 +100,8 @@
 }
 
 .task-panel-container {
-	outline: grey solid thin;
+	outline: grey dotted thick;
+	padding: 1px 17px;
 }
 
 .block {
@@ -109,6 +110,17 @@
 	padding-right: 5px;
 }
 
-.folded {
-	outline: grey solid thin;
+.mockup-button {
+	display: inline-block;
+	padding: 2px;
+	padding-left: 5px;
+	padding-right: 5px;
+}
+
+.oneliner {
+	text-align: left;
+}
+
+.right-aligned {
+	float: right;
 }

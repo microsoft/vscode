@@ -18,13 +18,15 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ConfigureTaskRunnerAction } from 'vs/workbench/parts/tasks/electron-browser/task.contribution';
 import { domElement } from 'vs/workbench/parts/tasks/electron-browser/taskButtons';
+import { buttonBackground, buttonForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 const TASK_PANEL_ID = 'workbench.panel.task';
 
 export class TaskPanel extends Panel {
 
 	private _actions: IAction[];
-	//private toDispose: lifecycle.IDisposable[];
+	private taskExperimentPart5 = 'workbench.tasks.feedbackAnswered';
 
 	constructor(
 
@@ -33,6 +35,7 @@ export class TaskPanel extends Panel {
 		@ITaskService private taskService: ITaskService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@ICommandService private commandService: ICommandService,
+		@IStorageService private storageService: IStorageService,
 
 	) {
 		super(TASK_PANEL_ID, telemetryService, themeService);
@@ -41,16 +44,28 @@ export class TaskPanel extends Panel {
 	public create(parent: Builder): TPromise<any> {
 		super.create(parent);
 		dom.addClass(parent.getHTMLElement(), 'task-panel');
-		parent.innerHtml(domElement());
-		/*
-		let yesButton = builder.select('yes-telemetry');
-		let noButton = builder.select('no-telemetry');
+		let builder = parent.innerHtml(domElement());
+		let buttons = builder.select('.mockup-button');
+		buttons.style('background-color', this.themeService.getTheme().getColor(buttonBackground).toString());
+		buttons.style('color', this.themeService.getTheme().getColor(buttonForeground).toString());
+		this.themeService.onThemeChange(() => {
+			buttons.style('background-color', this.themeService.getTheme().getColor(buttonBackground).toString());
+			buttons.style('color', this.themeService.getTheme().getColor(buttonForeground).toString());
+		});
+		let yesButton = builder.select('.yes-telemetry');
+		let noButton = builder.select('.no-telemetry');
 		yesButton.item(0).on('click', e => {
-			this.telemetryService.publicLog('taskPanel.yes');
+			if (!this.storageService.get(this.taskExperimentPart5)) {
+				this.telemetryService.publicLog('taskPanel.yes');
+				this.storageService.store(this.taskExperimentPart5, true, StorageScope.GLOBAL);
+			}
 		});
 		noButton.item(0).on('click', e => {
-			this.telemetryService.publicLog('taskPanel.no');
-		});*/
+			if (!this.storageService.get(this.taskExperimentPart5)) {
+				this.telemetryService.publicLog('taskPanel.no');
+				this.storageService.store(this.taskExperimentPart5, true, StorageScope.GLOBAL);
+			}
+		});
 		return TPromise.as(void 0);
 	}
 
