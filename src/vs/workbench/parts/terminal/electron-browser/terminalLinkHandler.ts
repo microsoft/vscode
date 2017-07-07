@@ -11,7 +11,6 @@ import * as pfs from 'vs/base/node/pfs';
 import Uri from 'vs/base/common/uri';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -65,9 +64,9 @@ export class TerminalLinkHandler {
 	constructor(
 		private _xterm: any,
 		private _platform: platform.Platform,
+		private _initialCwd: string,
 		@IOpenerService private _openerService: IOpenerService,
 		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
-		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
 		@IConfigurationService private _configurationService: IConfigurationService
 	) {
 		const baseLocalLinkClause = _platform === platform.Platform.Windows ? winLocalLinkClause : unixLocalLinkClause;
@@ -220,20 +219,20 @@ export class TerminalLinkHandler {
 
 			// Resolve relative paths (.\a, ..\a, ~\a, a\b)
 			if (!link.match('^' + winDrivePrefix)) {
-				if (!this._contextService.hasWorkspace()) {
+				if (!this._initialCwd) {
 					// Abort if no workspace is open
 					return null;
 				}
-				link = path.join(this._contextService.getLegacyWorkspace().resource.fsPath, link); // TODO@Daniel (https://github.com/Microsoft/vscode/issues/29006)
+				link = path.join(this._initialCwd, link);
 			}
 		}
 		// Resolve workspace path . | .. | <relative_path> -> <path>/. | <path>/.. | <path>/<relative_path>
 		else if (link.charAt(0) !== '/' && link.charAt(0) !== '~') {
-			if (!this._contextService.hasWorkspace()) {
+			if (!this._initialCwd) {
 				// Abort if no workspace is open
 				return null;
 			}
-			link = path.join(this._contextService.getLegacyWorkspace().resource.fsPath, link); // TODO@Daniel (https://github.com/Microsoft/vscode/issues/29006)
+			link = path.join(this._initialCwd, link);
 		}
 		return link;
 	}

@@ -79,6 +79,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _rows: number;
 	private _messageTitleListener: (message: { type: string, content: string }) => void;
 	private _preLaunchInputQueue: string;
+	private _initialCwd: string;
 
 	private _widgetManager: TerminalWidgetManager;
 	private _linkHandler: TerminalLinkHandler;
@@ -130,7 +131,7 @@ export class TerminalInstance implements ITerminalInstance {
 		});
 
 		this._initDimensions();
-		this._createProcess(this._historyService.getLastActiveWorkspaceRoot(), this._shellLaunchConfig);
+		this._createProcess(this._shellLaunchConfig);
 		this._createXterm();
 
 		// Only attach xterm.js to the DOM if the terminal panel has been opened before.
@@ -225,7 +226,7 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 			return false;
 		});
-		this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform);
+		this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform, this._initialCwd);
 		this._linkHandler.registerLocalLinkHandler();
 	}
 
@@ -508,12 +509,13 @@ export class TerminalInstance implements ITerminalInstance {
 		return TerminalInstance._sanitizeCwd(cwd);
 	}
 
-	protected _createProcess(root: Uri, shell: IShellLaunchConfig): void {
+	protected _createProcess(shell: IShellLaunchConfig): void {
 		const locale = this._configHelper.config.setLocaleVariables ? platform.locale : undefined;
 		if (!shell.executable) {
 			this._configHelper.mergeDefaultShellPathAndArgs(shell);
 		}
-		const env = TerminalInstance.createTerminalEnv(process.env, shell, this._getCwd(shell, root), locale, this._cols, this._rows);
+		this._initialCwd = this._getCwd(this._shellLaunchConfig, this._historyService.getLastActiveWorkspaceRoot());
+		const env = TerminalInstance.createTerminalEnv(process.env, shell, this._initialCwd, locale, this._cols, this._rows);
 		this._title = shell.name || '';
 		this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], {
 			env,
@@ -645,7 +647,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 		// Initialize new process
 		const oldTitle = this._title;
-		this._createProcess(this._historyService.getLastActiveWorkspaceRoot(), shell);
+		this._createProcess(shell);
 		if (oldTitle !== this._title) {
 			this._onTitleChanged.fire(this._title);
 		}
