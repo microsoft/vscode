@@ -52,6 +52,7 @@
 	text-overflow: ellipsis;
 	display: flex;
 	flex-direction: column;
+	height: 100%;
 }
 
 .quick-open-widget .quick-open-tree .quick-open-entry > .quick-open-row {
@@ -91,7 +92,7 @@
 	margin-right: 8px;
 }
 
-.quick-open-widget .quick-open-tree .quick-open-entry-keybinding .monaco-kbkey {
+.quick-open-widget .quick-open-tree .quick-open-entry-keybinding .monaco-keybinding-key {
 	vertical-align: text-bottom;
 }
 
