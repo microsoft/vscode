@@ -17,11 +17,6 @@ export declare class Promise<T = any, TProgress = any> {
 
 	public then<TResult1 = T, TResult2 = never>(
 		onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
-		onrejected?: ((reason: any) => void) | null,
-		onprogress?: (progress: TProgress) => void): Promise<TResult1, TProgress>;
-
-	public then<TResult1 = T, TResult2 = never>(
-		onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
 		onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
 		onprogress?: (progress: TProgress) => void): Promise<TResult1 | TResult2, TProgress>;
 

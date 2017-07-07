@@ -336,7 +336,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		});
 	}
 
-	private initialize(): TPromise<IFileIconTheme> {
+	private initialize(): TPromise<[IColorTheme, IFileIconTheme]> {
 
 		this.updateColorCustomizations(false);
 

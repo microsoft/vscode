@@ -535,6 +535,6 @@ export class ConfigureGlobalExclusionsAction extends Action {
 	}
 
 	public run(): TPromise<void> {
-		return this.preferencesService.openGlobalSettings().then(null, errors.onUnexpectedError);
+		return this.preferencesService.openGlobalSettings().then(() => { /*drop resolved value*/ }, errors.onUnexpectedError);
 	}
 }

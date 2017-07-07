@@ -152,10 +152,10 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		this.commandService.executeCommand(ConfigurationTarget.USER === target ? 'workbench.action.openGlobalSettings' : 'workbench.action.openWorkspaceSettings');
 	}
 
-	private wrapError(code: ConfigurationEditingErrorCode, target: ConfigurationTarget): TPromise<never> {
+	private wrapError<T = never>(code: ConfigurationEditingErrorCode, target: ConfigurationTarget): TPromise<T> {
 		const message = this.toErrorMessage(code, target);
 
-		return TPromise.wrapError<never>(new ConfigurationEditingError(message, code));
+		return TPromise.wrapError<T>(new ConfigurationEditingError(message, code));
 	}
 
 	private toErrorMessage(error: ConfigurationEditingErrorCode, target: ConfigurationTarget): string {
@@ -246,12 +246,12 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 				const model = reference.object.textEditorModel;
 
 				if (this.hasParseErrors(model, operation)) {
-					return this.wrapError(ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION, target);
+					return this.wrapError<typeof reference>(ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION, target);
 				}
 
 				// Target cannot be dirty if not writing into buffer
 				if (checkDirty && this.textFileService.isDirty(operation.resource)) {
-					return this.wrapError(ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY, target);
+					return this.wrapError<typeof reference>(ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY, target);
 				}
 				return reference;
 			});

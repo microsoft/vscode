@@ -91,7 +91,7 @@ export class ParameterHintsModel extends Disposable {
 
 	private doTrigger(): void {
 		provideSignatureHelp(this.editor.getModel(), this.editor.getPosition())
-			.then<SignatureHelp>(null, onUnexpectedError)
+			.then(null, onUnexpectedError)
 			.then(result => {
 				if (!result || !result.signatures || result.signatures.length === 0) {
 					this.cancel();

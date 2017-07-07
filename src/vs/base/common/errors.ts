@@ -148,8 +148,8 @@ export function onUnexpectedExternalError(e: any): void {
 	}
 }
 
-export function onUnexpectedPromiseError<T>(promise: TPromise<T>): TPromise<T> {
-	return promise.then<T>(null, onUnexpectedError);
+export function onUnexpectedPromiseError<T>(promise: TPromise<T>): TPromise<T | void> {
+	return promise.then(null, onUnexpectedError);
 }
 
 export function transformErrorForSerialization(error: any): any {
