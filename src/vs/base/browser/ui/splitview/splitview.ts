@@ -49,7 +49,8 @@ export interface IView extends ee.IEventEmitter {
 	fixedSize: number;
 	minimumSize: number;
 	maximumSize: number;
-	draggableElement: HTMLElement;
+	draggableElement?: HTMLElement;
+	draggableLabel?: string;
 	render(container: HTMLElement, orientation: Orientation): void;
 	layout(size: number, orientation: Orientation): void;
 	focus(): void;
@@ -72,7 +73,6 @@ export abstract class View extends ee.EventEmitter implements IView {
 	protected _sizing: ViewSizing;
 	protected _fixedSize: number;
 	protected _minimumSize: number;
-	protected _draggableElement: HTMLElement = null;
 
 	constructor(opts: IViewOptions) {
 		super();
@@ -87,7 +87,6 @@ export abstract class View extends ee.EventEmitter implements IView {
 	get fixedSize(): number { return this._fixedSize; }
 	get minimumSize(): number { return this.sizing === ViewSizing.Fixed ? this.fixedSize : this._minimumSize; }
 	get maximumSize(): number { return this.sizing === ViewSizing.Fixed ? this.fixedSize : Number.POSITIVE_INFINITY; }
-	get draggableElement(): HTMLElement { return this._draggableElement; }
 
 	protected setFlexible(size?: number): void {
 		this._sizing = ViewSizing.Flexible;
@@ -166,10 +165,11 @@ export abstract class HeaderView extends View {
 		}
 	}
 
+	get draggableElement(): HTMLElement { return this.header; }
+
 	render(container: HTMLElement, orientation: Orientation): void {
 		this.header = document.createElement('div');
 		this.header.className = 'header';
-		this._draggableElement = this.header;
 
 		let headerSize = this.headerSize + 'px';
 
@@ -596,7 +596,7 @@ export class SplitView extends lifecycle.Disposable implements
 		}
 
 		// Listen to Drag and Drop
-		this.viewDnDListeners[index] = this.listenToDragAndDrop(view, viewElement);
+		this.viewDnDListeners[index] = this.createDnDListeners(view, viewElement);
 
 		// Add sash
 		if (this.views.length > 2) {
@@ -698,7 +698,7 @@ export class SplitView extends lifecycle.Disposable implements
 		this.dropBackground = styles.dropBackground;
 	}
 
-	private listenToDragAndDrop(view: IView, viewElement: HTMLElement): lifecycle.IDisposable[] {
+	private createDnDListeners(view: IView, viewElement: HTMLElement): lifecycle.IDisposable[] {
 		if (!this.canDragAndDrop || view instanceof VoidView) {
 			return [];
 		}
@@ -710,6 +710,14 @@ export class SplitView extends lifecycle.Disposable implements
 			view.draggableElement.draggable = true;
 			disposables.push(dom.addDisposableListener(view.draggableElement, dom.EventType.DRAG_START, (e: DragEvent) => {
 				e.dataTransfer.effectAllowed = 'move';
+
+				const dragImage = document.createElement('div');
+				dragImage.className = 'monaco-tree-drag-image';
+				dragImage.textContent = view.draggableLabel ? view.draggableLabel : view.draggableElement.textContent;
+				document.body.appendChild(dragImage);
+				e.dataTransfer.setDragImage(dragImage, -10, -10);
+				setTimeout(() => document.body.removeChild(dragImage), 0);
+
 				this.draggedView = view;
 			}));
 		}

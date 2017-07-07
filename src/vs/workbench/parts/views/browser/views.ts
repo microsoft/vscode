@@ -139,6 +139,8 @@ export abstract class CollapsibleView extends AbstractCollapsibleView implements
 		super.changeState(state);
 	}
 
+	get draggableLabel(): string { return this.name; }
+
 	public create(): TPromise<void> {
 		return TPromise.as(null);
 	}
