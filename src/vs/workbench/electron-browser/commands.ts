@@ -447,6 +447,6 @@ namespace GlobalQuickOpenCommand {
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-			command: { id: ID, title: LABEL }
+		command: { id: ID, title: LABEL }
 	});
 }
