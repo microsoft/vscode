@@ -450,9 +450,9 @@
       "resolved": "https://registry.npmjs.org/yauzl/-/yauzl-2.3.1.tgz"
     },
     "nsfw": {
-      "version": "1.0.15",
-      "from": "nsfw@1.0.15",
-      "resolved": "https://registry.npmjs.org/nsfw/-/nsfw-1.0.15.tgz",
+      "version": "1.0.16",
+      "from": "nsfw@1.0.16",
+      "resolved": "https://registry.npmjs.org/nsfw/-/nsfw-1.0.16.tgz",
       "dependencies": {
         "asap": {
           "version": "2.0.5",
@@ -514,10 +514,15 @@
           "from": "klaw@>=1.0.0 <2.0.0",
           "resolved": "https://registry.npmjs.org/klaw/-/klaw-1.3.1.tgz"
         },
-        "lodash": {
-          "version": "4.17.4",
-          "from": "lodash@>=4.6.1 <5.0.0",
-          "resolved": "https://registry.npmjs.org/lodash/-/lodash-4.17.4.tgz"
+        "lodash.isinteger": {
+          "version": "4.0.4",
+          "from": "lodash.isinteger@>=4.0.4 <5.0.0",
+          "resolved": "https://registry.npmjs.org/lodash.isinteger/-/lodash.isinteger-4.0.4.tgz"
+        },
+        "lodash.isundefined": {
+          "version": "3.0.1",
+          "from": "lodash.isundefined@>=3.0.1 <4.0.0",
+          "resolved": "https://registry.npmjs.org/lodash.isundefined/-/lodash.isundefined-3.0.1.tgz"
         },
         "minimatch": {
           "version": "3.0.4",
