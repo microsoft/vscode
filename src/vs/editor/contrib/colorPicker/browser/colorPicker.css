@@ -12,8 +12,16 @@
 	height: 24px;
 }
 
-.colorpicker-header .color-code {
+.colorpicker-header .picked-color input {
 	text-align: center;
+}
+
+.colorpicker-header .monaco-inputbox.idle {
+	border: none;
+}
+
+.colorpicker-header .monaco-inputbox.synthetic-focus {
+	outline: none;
 }
 
 .colorpicker-body {

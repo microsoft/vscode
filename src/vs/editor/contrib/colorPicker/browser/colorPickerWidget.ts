@@ -10,6 +10,7 @@ import * as dom from 'vs/base/browser/dom';
 import { ColorPickerHeader } from "vs/editor/contrib/colorPicker/browser/elements/colorPickerHeader";
 import { ColorPickerBody } from "vs/editor/contrib/colorPicker/browser/elements/colorPickerBody";
 import { ColorPickerModel } from "vs/editor/contrib/colorPicker/browser/colorPickerModel";
+import { IContextViewService } from "vs/platform/contextview/browser/contextView";
 const $ = dom.$;
 
 export class ColorPickerWidget extends Widget implements IOverlayWidget {
@@ -23,7 +24,7 @@ export class ColorPickerWidget extends Widget implements IOverlayWidget {
 
 	public visible: boolean = false;
 
-	constructor(public model: ColorPickerModel, public editor: ICodeEditor) {
+	constructor(public model: ColorPickerModel, public editor: ICodeEditor, private contextViewService: IContextViewService) {
 		super();
 	}
 
@@ -36,7 +37,7 @@ export class ColorPickerWidget extends Widget implements IOverlayWidget {
 		this.domNode.setAttribute('aria-hidden', 'false');
 		this.editor.addOverlayWidget(this);
 
-		this.header = new ColorPickerHeader(this, this.model);
+		this.header = new ColorPickerHeader(this, this.model, this.contextViewService);
 		this.body = new ColorPickerBody(this, this.model, this.width);
 
 		this.layout();
