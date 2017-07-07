@@ -29,7 +29,7 @@ export class Localization {
 		return explorerTitles[0];
 	}
 
-	public openViewlet(type: ViewletType): Promise<any> {
+	public async openViewlet(type: ViewletType): Promise<any> {
 		let command;
 
 		switch (type) {
