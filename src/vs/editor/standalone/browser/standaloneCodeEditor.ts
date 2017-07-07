@@ -26,6 +26,7 @@ import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/acti
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import * as aria from 'vs/base/browser/ui/aria/aria';
+import { IMessageService } from "vs/platform/message/common/message";
 
 /**
  * The options to create an editor.
@@ -301,14 +302,15 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		@IContextViewService contextViewService: IContextViewService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IStandaloneThemeService themeService: IStandaloneThemeService
+		@IStandaloneThemeService themeService: IStandaloneThemeService,
+		@IMessageService messageService: IMessageService
 	) {
 		options = options || {};
 		if (typeof options.theme === 'string') {
 			options.theme = themeService.setTheme(options.theme);
 		}
 
-		super(domElement, options, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService);
+		super(domElement, options, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, messageService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = keybindingService;
