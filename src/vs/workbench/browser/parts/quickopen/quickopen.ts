@@ -24,7 +24,7 @@ export const QUICKOPEN_ACION_LABEL = nls.localize('quickOpen', "Go to File...");
 CommandsRegistry.registerCommand(QUICKOPEN_ACTION_ID, function (accessor: ServicesAccessor, prefix: string = null) {
 	const quickOpenService = accessor.get(IQuickOpenService);
 
-	return quickOpenService.show(prefix).then(() => {
+	return quickOpenService.show(typeof prefix === 'string' ? prefix : null).then(() => {
 		return void 0;
 	});
 });
