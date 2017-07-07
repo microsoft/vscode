@@ -18,7 +18,7 @@ import { CloseEditorAction, KeybindingsReferenceAction, OpenDocumentationUrlActi
 import { MessagesVisibleContext } from 'vs/workbench/electron-browser/workbench';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { registerCommands } from 'vs/workbench/electron-browser/commands';
-import { AddRootFolderAction } from "vs/workbench/browser/actions/fileActions";
+import { AddRootFolderAction } from 'vs/workbench/browser/actions/fileActions';
 
 // Contribute Commands
 registerCommands();
@@ -83,7 +83,7 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(Decrea
 
 // TODO@Ben multi root
 if (product.quality !== 'stable') {
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL), 'Files: Add Root Folder...', fileCategory);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL), 'Files: Add Folder to Workspace...', fileCategory);
 }
 
 // Developer related actions
@@ -235,12 +235,12 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 		'enum': ['all', 'folders', 'one', 'none'],
 		'enumDescriptions': [
 			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.reopenFolders.all' }, "Reopen all windows."),
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.reopenFolders.folders' }, "Reopen all folders. Empty windows will not be restored."),
+			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.reopenFolders.folders' }, "Reopen all folders. Empty workspaces will not be restored."),
 			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.reopenFolders.one' }, "Reopen the last active window."),
 			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.reopenFolders.none' }, "Never reopen a window. Always start with an empty one.")
 		],
 		'default': 'one',
-		'description': nls.localize('restoreWindows', "Controls how windows are being reopened after a restart. Select 'none' to always start with an empty window, 'one' to reopen the last window you worked on, 'folders' to reopen all folders you had opened or 'all' to reopen all windows of your last session.")
+		'description': nls.localize('restoreWindows', "Controls how windows are being reopened after a restart. Select 'none' to always start with an empty workspace, 'one' to reopen the last window you worked on, 'folders' to reopen all folders you had opened or 'all' to reopen all windows of your last session.")
 	},
 	'window.restoreFullscreen': {
 		'type': 'boolean',
@@ -280,6 +280,11 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 		'default': 'default',
 		'description': nls.localize('newWindowDimensions', "Controls the dimensions of opening a new window when at least one window is already opened. By default, a new window will open in the center of the screen with small dimensions. When set to 'inherit', the window will get the same dimensions as the last window that was active. When set to 'maximized', the window will open maximized and fullscreen if configured to 'fullscreen'. Note that this setting does not have an impact on the first window that is opened. The first window will always restore the size and location as you left it before closing.")
 	},
+	'window.closeWhenEmpty': {
+		'type': 'boolean',
+		'default': false,
+		'description': nls.localize('closeWhenEmpty', "Controls if closing the last editor should also close the window. This setting only applies for windows that have no folder opened.")
+	}
 };
 
 if (isWindows || isLinux) {

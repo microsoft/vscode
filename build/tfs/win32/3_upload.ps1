@@ -5,6 +5,7 @@ Param(
 	 [string]$documentDbKey
 )
 
+. .\build\tfs\win32\node.ps1
 . .\build\tfs\win32\lib.ps1
 
 $Repo = "$(pwd)"

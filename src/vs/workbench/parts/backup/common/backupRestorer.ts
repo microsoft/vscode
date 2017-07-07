@@ -16,7 +16,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position, IResourceInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { Schemas } from "vs/base/common/network";
+import { Schemas } from 'vs/base/common/network';
 
 export class BackupRestorer implements IWorkbenchContribution {
 

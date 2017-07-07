@@ -15,8 +15,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { getPathLabel } from 'vs/base/common/labels';
 import { IPath } from 'vs/platform/windows/common/windows';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
-import { createDecorator } from "vs/platform/instantiation/common/instantiation";
-import { isWindows, isMacintosh, isLinux } from "vs/base/common/platform";
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
 
 export const IHistoryMainService = createDecorator<IHistoryMainService>('historyMainService');
 

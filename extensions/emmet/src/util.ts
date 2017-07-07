@@ -5,28 +5,36 @@
 
 import * as vscode from 'vscode';
 import parse from '@emmetio/html-matcher';
+import parseStylesheet from '@emmetio/css-parser';
 import { Node, HtmlNode } from 'EmmetNode';
 import { DocumentStreamReader } from './bufferStream';
 import { isStyleSheet } from 'vscode-emmet-helper';
 
 export const LANGUAGE_MODES: Object = {
-	'html': ['!', '.', '}'],
-	'jade': ['!', '.', '}'],
-	'slim': ['!', '.', '}'],
-	'haml': ['!', '.', '}'],
-	'xml': ['.', '}'],
-	'xsl': ['.', '}'],
+	'html': ['!', '.', '}', ':', '*', '$'],
+	'jade': ['!', '.', '}', ':', '*', '$'],
+	'slim': ['!', '.', '}', ':', '*', '$'],
+	'haml': ['!', '.', '}', ':', '*', '$'],
+	'xml': ['.', '}', '*', '$'],
+	'xsl': ['.', '}', '*', '$'],
 	'css': [':'],
 	'scss': [':'],
 	'sass': [':'],
 	'less': [':'],
-	'stylus': [':']
+	'stylus': [':'],
+	'javascriptreact': ['.', '}', '*', '$'],
+	'typescriptreact': ['.', '}', '*', '$']
 };
 
-// Explicitly map languages to their parent language to get emmet completion support
+// Explicitly map languages that have built-in grammar in VS Code to their parent language
+// to get emmet completion support
+// For other languages, users will have to use `emmet.includeLanguages` or
+// language specific extensions can provide emmet completion support
 export const MAPPED_MODES: Object = {
-	'handlebars': 'html'
+	'handlebars': 'html',
+	'php': 'html'
 };
+
 export function validate(allowStylesheet: boolean = true): boolean {
 	let editor = vscode.window.activeTextEditor;
 	if (!editor) {
@@ -39,29 +47,35 @@ export function validate(allowStylesheet: boolean = true): boolean {
 	return true;
 }
 
-export function getSyntax(document: vscode.TextDocument): string {
-	if (document.languageId === 'jade') {
-		return 'pug';
-	}
-	return document.languageId;
-}
-
-export function getMappedModes(): any {
+export function getMappingForIncludedLanguages(): any {
 	let finalMappedModes = {};
-	let syntaxProfileConfig = vscode.workspace.getConfiguration('emmet')['syntaxProfiles'];
-	let syntaxProfiles = Object.assign({}, MAPPED_MODES, syntaxProfileConfig ? syntaxProfileConfig : {});
-	Object.keys(syntaxProfiles).forEach(syntax => {
-		if (typeof syntaxProfiles[syntax] === 'string' && LANGUAGE_MODES[syntaxProfiles[syntax]]) {
-			finalMappedModes[syntax] = syntaxProfiles[syntax];
+	let includeLanguagesConfig = vscode.workspace.getConfiguration('emmet')['includeLanguages'];
+	let includeLanguages = Object.assign({}, MAPPED_MODES, includeLanguagesConfig ? includeLanguagesConfig : {});
+	Object.keys(includeLanguages).forEach(syntax => {
+		if (typeof includeLanguages[syntax] === 'string' && LANGUAGE_MODES[includeLanguages[syntax]]) {
+			finalMappedModes[syntax] = includeLanguages[syntax];
 		}
 	});
 	return finalMappedModes;
 }
 
-export function getExcludedModes(): string[] {
-	let excludedConfig = vscode.workspace.getConfiguration('emmet')['excludeLanguages'];
-	return Array.isArray(excludedConfig) ? excludedConfig : [];
+/**
+ * Parses the given document using emmet parsing modules
+ * @param document 
+ */
+export function parse(document: vscode.TextDocument, showError: boolean = true): Node {
+	let parseContent = isStyleSheet(document.languageId) ? parseStylesheet : parse;
+	let rootNode: Node;
+	try {
+		rootNode = parseContent(new DocumentStreamReader(document));
+	} catch (e) {
+		if (showError) {
+			vscode.window.showErrorMessage('Emmet: Failed to parse the file');
+		}
+	}
+	return rootNode;
 }
+
 /**
  * Returns node corresponding to given position in the given root node
  * @param root
@@ -100,19 +114,8 @@ export function getInnerRange(currentNode: HtmlNode): vscode.Range {
 	return new vscode.Range(currentNode.open.end, currentNode.close.start);
 }
 
-export function getOpenCloseRange(document: vscode.TextDocument, position: vscode.Position): [vscode.Range, vscode.Range] {
-	let rootNode: HtmlNode = parse(new DocumentStreamReader(document));
-	let nodeToUpdate = <HtmlNode>getNode(rootNode, position);
-	let openRange = new vscode.Range(nodeToUpdate.open.start, nodeToUpdate.open.end);
-	let closeRange = null;
-	if (nodeToUpdate.close) {
-		closeRange = new vscode.Range(nodeToUpdate.close.start, nodeToUpdate.close.end);
-	}
-	return [openRange, closeRange];
-}
-
 export function getDeepestNode(node: Node): Node {
-	if (!node || !node.children || node.children.length === 0) {
+	if (!node || !node.children || node.children.length === 0 || !node.children.find(x => x.type !== 'comment')) {
 		return node;
 	}
 	for (let i = node.children.length - 1; i >= 0; i--) {

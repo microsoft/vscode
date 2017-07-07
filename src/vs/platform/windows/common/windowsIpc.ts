@@ -17,7 +17,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'pickFileFolderAndOpen', arg: [number, boolean, ITelemetryData]): TPromise<void>;
 	call(command: 'pickFileAndOpen', arg: [number, boolean, string, ITelemetryData]): TPromise<void>;
 	call(command: 'pickFolderAndOpen', arg: [number, boolean, ITelemetryData]): TPromise<void>;
-	call(command: 'pickFolder', arg: { buttonLabel: string; title: string; }): TPromise<string[]>;
+	call(command: 'pickFolder', arg: [number, { buttonLabel: string; title: string; }]): TPromise<string[]>;
 	call(command: 'reloadWindow', arg: number): TPromise<void>;
 	call(command: 'toggleDevTools', arg: number): TPromise<void>;
 	call(command: 'closeFolder', arg: number): TPromise<void>;
@@ -28,6 +28,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'clearRecentPathsList'): TPromise<void>;
 	call(command: 'getRecentlyOpen', arg: number): TPromise<{ files: string[]; folders: string[]; }>;
 	call(command: 'focusWindow', arg: number): TPromise<void>;
+	call(command: 'closeWindow', arg: number): TPromise<void>;
 	call(command: 'isFocused', arg: number): TPromise<boolean>;
 	call(command: 'isMaximized', arg: number): TPromise<boolean>;
 	call(command: 'maximizeWindow', arg: number): TPromise<void>;
@@ -68,7 +69,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'pickFileFolderAndOpen': return this.service.pickFileFolderAndOpen(arg[0], arg[1], arg[2]);
 			case 'pickFileAndOpen': return this.service.pickFileAndOpen(arg[0], arg[1], arg[2], arg[3]);
 			case 'pickFolderAndOpen': return this.service.pickFolderAndOpen(arg[0], arg[1], arg[2]);
-			case 'pickFolder': return this.service.pickFolder(arg);
+			case 'pickFolder': return this.service.pickFolder(arg[0], arg[1]);
 			case 'reloadWindow': return this.service.reloadWindow(arg);
 			case 'openDevTools': return this.service.openDevTools(arg);
 			case 'toggleDevTools': return this.service.toggleDevTools(arg);
@@ -80,6 +81,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'clearRecentPathsList': return this.service.clearRecentPathsList();
 			case 'getRecentlyOpen': return this.service.getRecentlyOpen(arg);
 			case 'focusWindow': return this.service.focusWindow(arg);
+			case 'closeWindow': return this.service.closeWindow(arg);
 			case 'isFocused': return this.service.isFocused(arg);
 			case 'isMaximized': return this.service.isMaximized(arg);
 			case 'maximizeWindow': return this.service.maximizeWindow(arg);
@@ -129,8 +131,8 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('pickFolderAndOpen', [windowId, forceNewWindow, data]);
 	}
 
-	pickFolder(options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
-		return this.channel.call('pickFolder', options);
+	pickFolder(windowId: number, options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
+		return this.channel.call('pickFolder', [windowId, options]);
 	}
 
 	reloadWindow(windowId: number): TPromise<void> {
@@ -175,6 +177,10 @@ export class WindowsChannelClient implements IWindowsService {
 
 	focusWindow(windowId: number): TPromise<void> {
 		return this.channel.call('focusWindow', windowId);
+	}
+
+	closeWindow(windowId: number): TPromise<void> {
+		return this.channel.call('closeWindow', windowId);
 	}
 
 	isFocused(windowId: number): TPromise<boolean> {

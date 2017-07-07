@@ -96,6 +96,7 @@ export interface ISession {
 	disconnect(restart?: boolean, force?: boolean): TPromise<DebugProtocol.DisconnectResponse>;
 	custom(request: string, args: any): TPromise<DebugProtocol.Response>;
 	onDidEvent: Event<DebugProtocol.Event>;
+	onDidInitialize: Event<DebugProtocol.InitializedEvent>;
 	restartFrame(args: DebugProtocol.RestartFrameArguments, threadId: number): TPromise<DebugProtocol.RestartFrameResponse>;
 
 	next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse>;
@@ -111,12 +112,18 @@ export interface ISession {
 	source(args: DebugProtocol.SourceArguments): TPromise<DebugProtocol.SourceResponse>;
 }
 
+export enum ProcessState {
+	INACTIVE,
+	ATTACH,
+	LAUNCH
+}
+
 export interface IProcess extends ITreeElement {
 	name: string;
 	configuration: IConfig;
 	session: ISession;
 	sources: Map<string, Source>;
-	isAttach(): boolean;
+	state: ProcessState;
 	getThread(threadId: number): IThread;
 	getAllThreads(): IThread[];
 	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]>;
@@ -266,6 +273,7 @@ export interface IViewModel extends ITreeElement {
 
 	isMultiProcessView(): boolean;
 
+	onDidFocusProcess: Event<IProcess | undefined>;
 	onDidFocusStackFrame: Event<IStackFrame>;
 	onDidSelectExpression: Event<IExpression>;
 	onDidSelectFunctionBreakpoint: Event<IFunctionBreakpoint>;
@@ -387,7 +395,7 @@ export interface IConfigurationManager {
 	 * Returns the resolved configuration.
 	 * Replaces os specific values, system variables, interactive variables.
 	 */
-	resloveConfiguration(config: IConfig): TPromise<IConfig>;
+	resolveConfiguration(config: IConfig): TPromise<IConfig>;
 
 	/**
 	 * Returns a compound with the specified name.
@@ -438,12 +446,17 @@ export interface IDebugService {
 	onDidEndProcess: Event<IProcess>;
 
 	/**
+	 * Allows to register on custom DAP events.
+	 */
+	onDidCustomEvent: Event<DebugProtocol.Event>;
+
+	/**
 	 * Gets the current configuration manager.
 	 */
 	getConfigurationManager(): IConfigurationManager;
 
 	/**
-	 * Sets the focused stack frame and evaluates all expresions against the newly focused stack frame,
+	 * Sets the focused stack frame and evaluates all expressions against the newly focused stack frame,
 	 */
 	focusStackFrameAndEvaluate(focusedStackFrame: IStackFrame, process?: IProcess): TPromise<void>;
 

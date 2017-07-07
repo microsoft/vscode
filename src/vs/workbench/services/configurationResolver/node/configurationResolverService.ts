@@ -15,7 +15,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
-import { IWorkspaceContextService } from "vs/platform/workspace/common/workspace";
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export class ConfigurationResolverService implements IConfigurationResolverService {
 	_serviceBrand: any;
@@ -30,7 +30,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		@ICommandService private commandService: ICommandService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
-		this._workspaceRoot = paths.normalize(contextService.hasWorkspace() ? contextService.getWorkspace().resource.fsPath : '', true); // TODO@Isidor (https://github.com/Microsoft/vscode/issues/29246)
+		this._workspaceRoot = paths.normalize(contextService.hasWorkspace() ? contextService.getLegacyWorkspace().resource.fsPath : '', true); // TODO@Isidor (https://github.com/Microsoft/vscode/issues/29246)
 		this._execPath = environmentService.execPath;
 		Object.keys(envVariables).forEach(key => {
 			this[`env:${key}`] = envVariables[key];

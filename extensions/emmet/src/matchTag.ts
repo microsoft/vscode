@@ -4,22 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import parse from '@emmetio/html-matcher';
 import { HtmlNode } from 'EmmetNode';
-import { DocumentStreamReader } from './bufferStream';
-import { getNode } from './util';
+import { getNode, parse, validate } from './util';
 
 export function matchTag() {
 	let editor = vscode.window.activeTextEditor;
-	if (!editor) {
-		vscode.window.showInformationMessage('No editor is active');
+	if (!validate(false)) {
 		return;
 	}
 
-	let rootNode: HtmlNode = parse(new DocumentStreamReader(editor.document));
+	let rootNode = <HtmlNode>parse(editor.document);
 	if (!rootNode) {
 		return;
 	}
+
 	let updatedSelections = [];
 	editor.selections.forEach(selection => {
 		let updatedSelection = getUpdatedSelections(editor, selection.start, rootNode);
@@ -35,6 +33,9 @@ export function matchTag() {
 
 function getUpdatedSelections(editor: vscode.TextEditor, position: vscode.Position, rootNode: HtmlNode): vscode.Selection {
 	let currentNode = <HtmlNode>getNode(rootNode, position, true);
+	if (!currentNode) {
+		return;
+	}
 
 	// If no closing tag or cursor is between open and close tag, then no-op
 	if (!currentNode.close || (position.isAfter(currentNode.open.end) && position.isBefore(currentNode.close.start))) {

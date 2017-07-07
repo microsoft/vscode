@@ -8,6 +8,9 @@ import { CommonActions } from "./common";
 
 export class IntegratedTerminal {
 
+	public static terminalSelector = 'div[id="workbench.panel.terminal"]';
+	public static terminalRowsSelector = 'div[id="workbench.panel.terminal"] .xterm-rows';
+
 	constructor(private spectron: SpectronApplication) {
 		// noop
 	}
@@ -20,17 +23,24 @@ export class IntegratedTerminal {
 			return commonActions.enter();
 		}
 
-		return this.spectron.command('workbench.action.terminal.toggleTerminal');
+		await this.spectron.command('workbench.action.terminal.toggleTerminal');
+
+		// If no terminal panel was opened, try triggering terminal from quick open
+		try {
+			await this.spectron.client.getHTML(IntegratedTerminal.terminalSelector);
+		} catch (e) {
+			await commonActions.openQuickOpen();
+			await this.spectron.client.keys('>Toggle Integrated Terminal');
+			await this.spectron.client.keys(['Enter', 'NULL']);
+		}
 	}
 
 	public async commandOutputHas(result: string): Promise<boolean> {
-		const selector = 'div[id="workbench.panel.terminal"] .xterm-rows';
-
-		const rows = await this.spectron.client.elements(`${selector} div`);
+		const rows = await this.spectron.client.elements(`${IntegratedTerminal.terminalRowsSelector} div`);
 		for (let i = 0; i < rows.value.length; i++) {
 			let rowText;
 			try {
-				rowText = await this.spectron.client.getText(`${selector}>:nth-child(${i + 1})`);
+				rowText = await this.spectron.client.getText(`${IntegratedTerminal.terminalRowsSelector}>:nth-child(${i + 1})`);
 			} catch (e) {
 				return Promise.reject(`Failed to obtain text from line ${i + 1} from the terminal.`);
 			}

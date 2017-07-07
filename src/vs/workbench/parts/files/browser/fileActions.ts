@@ -213,7 +213,7 @@ export class TriggerRenameFileAction extends BaseFileAction {
 			});
 		}).done(null, errors.onUnexpectedError);
 
-		return undefined;
+		return void 0;
 	}
 }
 
@@ -846,7 +846,7 @@ export class ImportFileAction extends BaseFileAction {
 					}
 
 					if (!overwrite) {
-						return undefined;
+						return void 0;
 					}
 
 					// Run import in sequence
@@ -879,7 +879,8 @@ export class ImportFileAction extends BaseFileAction {
 					return sequence(importPromisesFactory);
 				});
 			}
-			return undefined;
+
+			return void 0;
 		});
 
 		return importPromise.then(() => {
@@ -962,8 +963,7 @@ export class PasteFileAction extends BaseFileAction {
 		}
 
 		// Check if file was deleted or moved meanwhile
-		const root: FileStat = this.element.root;
-		const exists = root.find(fileToCopy.resource);
+		const exists = fileToCopy.root.find(fileToCopy.resource);
 		if (!exists) {
 			fileToCopy = null;
 			return false;
@@ -1043,7 +1043,8 @@ export class DuplicateFileAction extends BaseFileAction {
 			if (!stat.isDirectory) {
 				return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 			}
-			return undefined;
+
+			return void 0;
 		}, error => this.onError(error));
 
 		return result;
@@ -1271,11 +1272,7 @@ export class CompareResourcesAction extends Action {
 		// Check if file was deleted or moved meanwhile (explorer only)
 		if (this.tree) {
 			const input: FileStat | Model = this.tree.getInput();
-			if (input instanceof Model) {
-				return false;
-			}
-
-			const exists = input.find(globalResourceToCompare);
+			const exists = input instanceof Model ? input.findClosest(globalResourceToCompare) : input.find(globalResourceToCompare);
 			if (!exists) {
 				globalResourceToCompare = null;
 				return false;
@@ -1400,7 +1397,7 @@ export abstract class BaseSaveOneFileAction extends BaseSaveFileAction {
 
 				return savePromise.then((target) => {
 					if (!target || target.toString() === source.toString()) {
-						return undefined; // save canceled or same resource used
+						return void 0; // save canceled or same resource used
 					}
 
 					const replaceWith: IResourceInput = {
@@ -1571,7 +1568,8 @@ export abstract class BaseSaveAllAction extends BaseSaveFileAction {
 			if (untitledToReopen.length) {
 				return this.editorService.openEditors(untitledToReopen).then(() => true);
 			}
-			return undefined;
+
+			return void 0;
 		});
 	}
 
@@ -1676,7 +1674,7 @@ export class RevertFileAction extends Action {
 		}
 
 		if (resource && resource.scheme !== 'untitled') {
-			return this.textFileService.revert(resource, true /* force */);
+			return this.textFileService.revert(resource, { force: true });
 		}
 
 		return TPromise.as(true);

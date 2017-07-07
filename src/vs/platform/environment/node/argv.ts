@@ -147,7 +147,7 @@ export function formatOptions(options: { [name: string]: string; }, columns: num
 			result += '\n';
 		}
 		result += '  ' + k + keyPadding + wrappedDescription[0];
-		for (var i = 1; i < wrappedDescription.length; i++) {
+		for (let i = 1; i < wrappedDescription.length; i++) {
 			result += '\n' + (<any>' ').repeat(argLength) + wrappedDescription[i];
 		}
 	});

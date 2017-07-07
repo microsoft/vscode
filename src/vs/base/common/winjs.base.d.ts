@@ -47,7 +47,7 @@ export declare class Promise {
  * The value callback to complete a promise
  */
 export interface TValueCallback<T> {
-	(value: T): void;
+	(value: T | Thenable<T>): void;
 }
 
 

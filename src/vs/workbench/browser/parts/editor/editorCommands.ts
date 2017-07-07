@@ -250,7 +250,8 @@ function registerOpenEditorAtIndexCommands(): void {
 						return editorService.openEditor(editor);
 					}
 				}
-				return undefined;
+
+				return void 0;
 			}
 		});
 	}
@@ -268,6 +269,7 @@ function registerOpenEditorAtIndexCommands(): void {
 			case 8: return KeyCode.KEY_8;
 			case 9: return KeyCode.KEY_9;
 		}
-		return undefined;
+
+		return void 0;
 	}
 }

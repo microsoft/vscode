@@ -6,6 +6,7 @@
 {
 	"entryAriaLabel": "{0}, görevler",
 	"recentlyUsed": "yakınlarda kullanılan görevler",
+	"configured": "yapılandırılmış görevler",
 	"detected": "algılanan görevler",
-	"customizeTask": "Görevi Özelleştir"
+	"customizeTask": "Görevi Yapılandır"
 }

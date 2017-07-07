@@ -33,7 +33,7 @@ import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platf
 import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground } from 'vs/platform/theme/common/colorRegistry';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IHistoryService } from "vs/workbench/services/history/common/history";
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -78,6 +78,8 @@ export class TerminalInstance implements ITerminalInstance {
 	private _cols: number;
 	private _rows: number;
 	private _messageTitleListener: (message: { type: string, content: string }) => void;
+	private _preLaunchInputQueue: string;
+	private _initialCwd: string;
 
 	private _widgetManager: TerminalWidgetManager;
 	private _linkHandler: TerminalLinkHandler;
@@ -116,6 +118,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._isDisposed = false;
 		this._id = TerminalInstance._idCounter++;
 		this._terminalHasTextContextKey = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.bindTo(this._contextKeyService);
+		this._preLaunchInputQueue = '';
 
 		this._onDisposed = new Emitter<TerminalInstance>();
 		this._onDataForApi = new Emitter<{ instance: ITerminalInstance, data: string }>();
@@ -128,7 +131,7 @@ export class TerminalInstance implements ITerminalInstance {
 		});
 
 		this._initDimensions();
-		this._createProcess(this._historyService.getLastActiveWorkspaceRoot(), this._shellLaunchConfig);
+		this._createProcess(this._shellLaunchConfig);
 		this._createXterm();
 
 		// Only attach xterm.js to the DOM if the terminal panel has been opened before.
@@ -210,15 +213,20 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
 		this._xterm.on('data', (data) => {
-			if (this._process) {
+			if (this._processId) {
+				// Send data if the pty is ready
 				this._process.send({
 					event: 'input',
 					data: this._sanitizeInput(data)
 				});
+			} else {
+				// If the pty is not ready, queue the data received from
+				// xterm.js until the pty is ready
+				this._preLaunchInputQueue += data;
 			}
 			return false;
 		});
-		this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform);
+		this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform, this._initialCwd);
 		this._linkHandler.registerLocalLinkHandler();
 	}
 
@@ -255,20 +263,16 @@ export class TerminalInstance implements ITerminalInstance {
 			return undefined;
 		});
 		this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'mouseup', (event: KeyboardEvent) => {
-			// Wait until mouseup has propogated through the DOM before evaluating the new selection
-			// state.
-			setTimeout(() => {
-				this._refreshSelectionContextKey();
-			}, 0);
+			// Wait until mouseup has propagated through the DOM before
+			// evaluating the new selection state.
+			setTimeout(() => this._refreshSelectionContextKey(), 0);
 		}));
 
 		// xterm.js currently drops selection on keyup as we need to handle this case.
 		this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'keyup', (event: KeyboardEvent) => {
-			// Wait until keyup has propogated through the DOM before evaluating the new selection
-			// state.
-			setTimeout(() => {
-				this._refreshSelectionContextKey();
-			}, 0);
+			// Wait until keyup has propagated through the DOM before evaluating
+			// the new selection state.
+			setTimeout(() => this._refreshSelectionContextKey(), 0);
 		}));
 
 		const xtermHelper: HTMLElement = this._xterm.element.querySelector('.xterm-helpers');
@@ -501,12 +505,13 @@ export class TerminalInstance implements ITerminalInstance {
 		return TerminalInstance._sanitizeCwd(cwd);
 	}
 
-	protected _createProcess(root: Uri, shell: IShellLaunchConfig): void {
+	protected _createProcess(shell: IShellLaunchConfig): void {
 		const locale = this._configHelper.config.setLocaleVariables ? platform.locale : undefined;
 		if (!shell.executable) {
 			this._configHelper.mergeDefaultShellPathAndArgs(shell);
 		}
-		const env = TerminalInstance.createTerminalEnv(process.env, shell, this._getCwd(shell, root), locale, this._cols, this._rows);
+		this._initialCwd = this._getCwd(this._shellLaunchConfig, this._historyService.getLastActiveWorkspaceRoot());
+		const env = TerminalInstance.createTerminalEnv(process.env, shell, this._initialCwd, locale, this._cols, this._rows);
 		this._title = shell.name || '';
 		this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], {
 			env,
@@ -525,6 +530,15 @@ export class TerminalInstance implements ITerminalInstance {
 		this._process.on('message', (message) => {
 			if (message.type === 'pid') {
 				this._processId = message.content;
+
+				// Send any queued data that's waiting
+				if (this._preLaunchInputQueue.length > 0) {
+					this._process.send({
+						event: 'input',
+						data: this._sanitizeInput(this._preLaunchInputQueue)
+					});
+					this._preLaunchInputQueue = null;
+				}
 				this._onProcessIdReady.fire(this);
 			}
 		});
@@ -629,7 +643,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 		// Initialize new process
 		const oldTitle = this._title;
-		this._createProcess(this._historyService.getLastActiveWorkspaceRoot(), shell);
+		this._createProcess(shell);
 		if (oldTitle !== this._title) {
 			this._onTitleChanged.fire(this._title);
 		}

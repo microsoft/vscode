@@ -364,6 +364,25 @@
 			}
 		},
 		{
+			"name": "Template Definition",
+			"scope": [
+				"punctuation.definition.template-expression",
+				"punctuation.section.embedded.coffee"
+			],
+			"settings": {
+				"foreground": "#D08442"
+			}
+		},
+		{
+			"name": "Reset JavaScript string interpolation expression",
+			"scope": [
+				"meta.template.expression"
+			],
+			"settings": {
+				"foreground": "#C5C8C6"
+			}
+		},
+		{
 			"name": "PHP Function Call",
 			"scope": "meta.function-call.object.php",
 			"settings": {
@@ -533,13 +552,6 @@
 			"scope": "token.debug-token",
 			"settings": {
 				"foreground": "#b267e6"
-			}
-		},
-		{
-			"name": "this.self",
-			"scope": "variable.language",
-			"settings": {
-				"foreground": "#c7444a"
 			}
 		},
 		{

@@ -18,7 +18,6 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { GlobalQuickOpenAction } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { OpenRecentAction } from 'vs/workbench/electron-browser/actions';
 import { GlobalNewUntitledFileAction, OpenFileAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
@@ -27,6 +26,8 @@ import { Parts, IPartService } from 'vs/workbench/services/part/common/partServi
 import { StartAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { FindInFilesActionId } from 'vs/workbench/parts/search/common/constants';
 import { ToggleTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import { escape } from 'vs/base/common/strings';
+import { QUICKOPEN_ACTION_ID } from "vs/workbench/browser/parts/quickopen/quickopen";
 
 interface WatermarkEntry {
 	text: string;
@@ -40,7 +41,7 @@ const showCommands: WatermarkEntry = {
 };
 const quickOpen: WatermarkEntry = {
 	text: nls.localize('watermark.quickOpen', "Go to File"),
-	ids: [GlobalQuickOpenAction.ID]
+	ids: [QUICKOPEN_ACTION_ID]
 };
 const openFileNonMacOnly: WatermarkEntry = {
 	text: nls.localize('watermark.openFile', "Open File"),
@@ -160,9 +161,9 @@ export class WatermarkContribution implements IWorkbenchContribution {
 							.map(id => {
 								let k = this.keybindingService.lookupKeybinding(id);
 								if (k) {
-									return `<span class="shortcuts">${k.getLabel()}</span>`;
+									return `<span class="shortcuts">${escape(k.getLabel())}</span>`;
 								}
-								return `<span class="unbound">${UNBOUND}</span>`;
+								return `<span class="unbound">${escape(UNBOUND)}</span>`;
 							})
 							.join(' / ')
 					));

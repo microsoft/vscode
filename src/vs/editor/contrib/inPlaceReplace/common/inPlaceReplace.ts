@@ -75,13 +75,17 @@ class InPlaceReplaceController implements IEditorContribution {
 
 		var state = new EditorState(this.editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
 
-		this.currentRequest = this.editorWorkerService.navigateValueSet(modelURI, selection, up);
-		this.currentRequest = this.currentRequest.then((basicResult) => {
-			if (basicResult && basicResult.range && basicResult.value) {
-				return basicResult;
-			}
-			return null;
-		});
+		if (!this.editorWorkerService.canNavigateValueSet(modelURI)) {
+			this.currentRequest = TPromise.as(null);
+		} else {
+			this.currentRequest = this.editorWorkerService.navigateValueSet(modelURI, selection, up);
+			this.currentRequest = this.currentRequest.then((basicResult) => {
+				if (basicResult && basicResult.range && basicResult.value) {
+					return basicResult;
+				}
+				return null;
+			});
+		}
 
 		return this.currentRequest.then((result: IInplaceReplaceSupportResult) => {
 

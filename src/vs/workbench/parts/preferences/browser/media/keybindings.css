@@ -30,7 +30,7 @@
 	justify-content: center;
 }
 
-.defineKeybindingWidget .output .htmlkb {
+.defineKeybindingWidget .output .monaco-keybinding {
 	margin: 0px 4px;
 }
 

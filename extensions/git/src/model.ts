@@ -53,7 +53,7 @@ export class Resource implements SourceControlResourceState {
 
 	@memoize
 	get resourceUri(): Uri {
-		if (this.renameResourceUri && (this._type === Status.MODIFIED || this._type === Status.DELETED || this._type === Status.INDEX_RENAMED)) {
+		if (this.renameResourceUri && (this._type === Status.MODIFIED || this._type === Status.DELETED || this._type === Status.INDEX_RENAMED || this._type === Status.INDEX_COPIED)) {
 			return this.renameResourceUri;
 		}
 
@@ -536,11 +536,11 @@ export class Model implements Disposable {
 		return await this.run(Operation.GetCommitTemplate, async () => this.repository.getCommitTemplate());
 	}
 
-	async ignore(files: Resource[]): Promise<void> {
+	async ignore(files: Uri[]): Promise<void> {
 		return await this.run(Operation.Ignore, async () => {
 			const ignoreFile = `${this.repository.root}${path.sep}.gitignore`;
 			const textToAppend = files
-				.map(file => path.relative(this.repository.root, file.resourceUri.fsPath).replace(/\\/g, '/'))
+				.map(uri => path.relative(this.repository.root, uri.fsPath).replace(/\\/g, '/'))
 				.join('\n');
 
 			const document = await new Promise(c => fs.exists(ignoreFile, c))
@@ -548,9 +548,12 @@ export class Model implements Disposable {
 				: await workspace.openTextDocument(Uri.file(ignoreFile).with({ scheme: 'untitled' }));
 
 			await window.showTextDocument(document);
-			const edit = new WorkspaceEdit();
 
-			edit.insert(document.uri, document.lineAt(document.lineCount - 1).range.end, `${textToAppend}\n`);
+			const edit = new WorkspaceEdit();
+			const lastLine = document.lineAt(document.lineCount - 1);
+			const text = lastLine.isEmptyOrWhitespace ? `${textToAppend}\n` : `\n${textToAppend}\n`;
+
+			edit.insert(document.uri, lastLine.range.end, text);
 			workspace.applyEdit(edit);
 		});
 	}
@@ -712,7 +715,7 @@ export class Model implements Disposable {
 				case 'A': index.push(new Resource(this.workspaceRoot, this.indexGroup, uri, Status.INDEX_ADDED)); break;
 				case 'D': index.push(new Resource(this.workspaceRoot, this.indexGroup, uri, Status.INDEX_DELETED)); break;
 				case 'R': index.push(new Resource(this.workspaceRoot, this.indexGroup, uri, Status.INDEX_RENAMED, renameUri)); break;
-				case 'C': index.push(new Resource(this.workspaceRoot, this.indexGroup, uri, Status.INDEX_COPIED)); break;
+				case 'C': index.push(new Resource(this.workspaceRoot, this.indexGroup, uri, Status.INDEX_COPIED, renameUri)); break;
 			}
 
 			switch (raw.y) {

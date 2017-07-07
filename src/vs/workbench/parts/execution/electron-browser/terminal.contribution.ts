@@ -24,7 +24,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED } from 'vs/workbench/parts/terminal/common/terminal';
 import { DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX_READY, DEFAULT_TERMINAL_OSX } from 'vs/workbench/parts/execution/electron-browser/terminal';
-import { IHistoryService } from "vs/workbench/services/history/common/history";
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 DEFAULT_TERMINAL_LINUX_READY.then(defaultTerminalLinux => {
 	let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);

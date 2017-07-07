@@ -134,31 +134,36 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private onFileChanges(e: FileChangesEvent): void {
 
 		// Track ADD and DELETES for updates of this model to orphan-mode
-		const newInOrphanModeGuess = e.contains(this.resource, FileChangeType.DELETED) && !e.contains(this.resource, FileChangeType.ADDED);
-		if (this.inOrphanMode !== newInOrphanModeGuess) {
-			let checkOrphanedPromise: TPromise<boolean>;
-			if (newInOrphanModeGuess) {
-				// We have received reports of users seeing delete events even though the file still
-				// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
-				// Since we do not want to mark the model as orphaned, we have to check if the
-				// file is really gone and not just a faulty file event (TODO@Ben revisit when we
-				// have a more stable file watcher in place for this scenario).
-				checkOrphanedPromise = TPromise.timeout(100).then(() => {
-					if (this.disposed) {
-						return true;
-					}
+		const modelFileDeleted = e.contains(this.resource, FileChangeType.DELETED);
+		const modelFileAdded = e.contains(this.resource, FileChangeType.ADDED);
 
-					return this.fileService.existsFile(this.resource).then(exists => !exists);
-				});
-			} else {
-				checkOrphanedPromise = TPromise.as(false);
-			}
+		if (modelFileDeleted || modelFileAdded) {
+			const newInOrphanModeGuess = modelFileDeleted && !modelFileAdded;
+			if (this.inOrphanMode !== newInOrphanModeGuess) {
+				let checkOrphanedPromise: TPromise<boolean>;
+				if (newInOrphanModeGuess) {
+					// We have received reports of users seeing delete events even though the file still
+					// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
+					// Since we do not want to mark the model as orphaned, we have to check if the
+					// file is really gone and not just a faulty file event (TODO@Ben revisit when we
+					// have a more stable file watcher in place for this scenario).
+					checkOrphanedPromise = TPromise.timeout(100).then(() => {
+						if (this.disposed) {
+							return true;
+						}
 
-			checkOrphanedPromise.done(newInOrphanModeValidated => {
-				if (this.inOrphanMode !== newInOrphanModeValidated && !this.disposed) {
-					this.setOrphaned(newInOrphanModeValidated);
+						return this.fileService.existsFile(this.resource).then(exists => !exists);
+					});
+				} else {
+					checkOrphanedPromise = TPromise.as(false);
 				}
-			});
+
+				checkOrphanedPromise.done(newInOrphanModeValidated => {
+					if (this.inOrphanMode !== newInOrphanModeValidated && !this.disposed) {
+						this.setOrphaned(newInOrphanModeValidated);
+					}
+				});
+			}
 		}
 	}
 
@@ -439,9 +444,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					this.setDirty(false);
 				}
 
-				this.toDispose.push(this.textEditorModel.onDidChangeContent((e) => {
-					this.onModelContentChanged();
-				}));
+				// See https://github.com/Microsoft/vscode/issues/30189
+				// This code has been extracted to a different method because it caused a memory leak
+				// where `value` was captured in the content change listener closure scope.
+				this._installChangeContentListener();
 
 				return this;
 			}, error => {
@@ -452,6 +458,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		});
 
 		return this.createTextEditorModelPromise;
+	}
+
+	private _installChangeContentListener(): void {
+		// See https://github.com/Microsoft/vscode/issues/30189
+		// This code has been extracted to a different method because it caused a memory leak
+		// where `value` was captured in the content change listener closure scope.
+		this.toDispose.push(this.textEditorModel.onDidChangeContent(() => {
+			this.onModelContentChanged();
+		}));
 	}
 
 	private doLoadBackup(backup: URI): TPromise<string> {
@@ -721,7 +736,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Check for workspace settings file
 		if (this.contextService.hasWorkspace()) {
-			return this.contextService.getWorkspace2().roots.some(root => {
+			return this.contextService.getWorkspace().roots.some(root => {
 				return paths.isEqualOrParent(this.resource.fsPath, path.join(root.fsPath, '.vscode'));
 			});
 		}

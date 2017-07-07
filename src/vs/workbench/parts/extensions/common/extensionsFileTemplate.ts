@@ -18,7 +18,6 @@ export const ExtensionsConfigurationSchema: IJSONSchema = {
 			description: localize('app.extensions.json.recommendations', "List of extensions recommendations. The identifier of an extension is always '${publisher}.${name}'. For example: 'vscode.csharp'."),
 			items: {
 				type: 'string',
-				defaultSnippets: [{ label: 'Example', body: 'vscode.csharp' }],
 				pattern: EXTENSION_IDENTIFIER_PATTERN,
 				errorMessage: localize('app.extension.identifier.errorMessage', "Expected format '${publisher}.${name}'. Example: 'vscode.csharp'.")
 			},

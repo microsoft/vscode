@@ -6,6 +6,7 @@
 {
 	"fileInvalidPath": "ファイルのリソース ({0}) が無効です",
 	"fileIsDirectoryError": "ファイルがディレクトリです ({0})",
+	"fileTooLargeError": "開くファイルが大きすぎます",
 	"fileBinaryError": "ファイルはバイナリのようなので、テキストとして開くことができません",
 	"fileNotFoundError": "ファイルが見つかりません ({0})",
 	"unableToMoveCopyError": "移動/コピーできません。ファイルが含まれるフォルダーが置き換わることになります。",

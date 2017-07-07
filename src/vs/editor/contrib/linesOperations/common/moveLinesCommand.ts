@@ -22,13 +22,13 @@ export class MoveLinesCommand implements ICommand {
 
 	private _selectionId: string;
 	private _moveEndPositionDown: boolean;
-	private _moveEndNewIndentLevel: number | undefined;
+	private _moveEndLineSelectionShrink: boolean;
 
 	constructor(selection: Selection, isMovingDown: boolean, autoIndent: boolean) {
 		this._selection = selection;
 		this._isMovingDown = isMovingDown;
 		this._autoIndent = autoIndent;
-		this._moveEndNewIndentLevel = undefined;
+		this._moveEndLineSelectionShrink = false;
 	}
 
 	public getEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder): void {
@@ -46,11 +46,8 @@ export class MoveLinesCommand implements ICommand {
 		var s = this._selection;
 
 		if (s.startLineNumber < s.endLineNumber && s.endColumn === 1) {
-			// if we have auto indent turned on, the endColumn may be 1 when doing indentation adjustment.
-			if (!this.isAutoIndent(model, s)) {
-				this._moveEndPositionDown = true;
-				s = s.setEndPosition(s.endLineNumber - 1, model.getLineMaxColumn(s.endLineNumber - 1));
-			}
+			this._moveEndPositionDown = true;
+			s = s.setEndPosition(s.endLineNumber - 1, model.getLineMaxColumn(s.endLineNumber - 1));
 		}
 
 		let tabSize = model.getOptions().tabSize;
@@ -294,7 +291,21 @@ export class MoveLinesCommand implements ICommand {
 	}
 
 	private isAutoIndent(model: ITokenizedModel, selection: Selection) {
-		return this._autoIndent && (model.getLanguageIdAtPosition(selection.startLineNumber, 1) === model.getLanguageIdAtPosition(selection.endLineNumber, 1));
+		if (!this._autoIndent) {
+			return false;
+		}
+		let languageAtSelectionStart = model.getLanguageIdAtPosition(selection.startLineNumber, 1);
+		let languageAtSelectionEnd = model.getLanguageIdAtPosition(selection.endLineNumber, 1);
+
+		if (languageAtSelectionStart !== languageAtSelectionEnd) {
+			return false;
+		}
+
+		if (LanguageConfigurationRegistry.getIndentRulesSupport(languageAtSelectionStart) === null) {
+			return false;
+		}
+
+		return true;
 	}
 
 	private getIndentEditsOfMovingBlock(model: ITokenizedModel, builder: IEditOperationBuilder, s: Selection, tabSize: number, insertSpaces: boolean, offset: number) {
@@ -308,10 +319,10 @@ export class MoveLinesCommand implements ICommand {
 			if (newIndent !== originalIndent) {
 				builder.addEditOperation(new Range(i, 1, i, originalIndent.length + 1), newIndent);
 
-				if (i === s.endLineNumber && s.endColumn <= originalIndent.length + 1) {
+				if (i === s.endLineNumber && s.endColumn <= originalIndent.length + 1 && newIndent === '') {
 					// as users select part of the original indent white spaces
 					// when we adjust the indentation of endLine, we should adjust the cursor position as well.
-					this._moveEndNewIndentLevel = newIndent.length;
+					this._moveEndLineSelectionShrink = true;
 				}
 			}
 
@@ -325,8 +336,8 @@ export class MoveLinesCommand implements ICommand {
 			result = result.setEndPosition(result.endLineNumber + 1, 1);
 		}
 
-		if (this._moveEndNewIndentLevel !== undefined) {
-			result = result.setEndPosition(result.endLineNumber, this._moveEndNewIndentLevel + 1);
+		if (this._moveEndLineSelectionShrink && result.startLineNumber < result.endLineNumber) {
+			result = result.setEndPosition(result.endLineNumber, 2);
 		}
 
 		return result;

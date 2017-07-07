@@ -205,11 +205,10 @@ export class ExtHostApiCommands {
 			});
 
 		this._register('vscode.diff', (left: URI, right: URI, label: string, options?: vscode.TextDocumentShowOptions) => {
-
 			let editorOptions: IEditorOptions;
 			if (options) {
 				editorOptions = {
-					pinned: !options.preview,
+					pinned: typeof options.preview === 'boolean' ? !options.preview : undefined,
 					preserveFocus: options.preserveFocus
 				};
 			}

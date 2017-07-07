@@ -6,6 +6,6 @@
 {
 	"entryAriaLabel": "{0}, tasks",
 	"recentlyUsed": "最近使用したタスク",
-	"detected": "検出されたタスク",
-	"customizeTask": "タスクのカスタマイズ"
+	"configured": "構成済みのタスク",
+	"detected": "検出されたタスク"
 }

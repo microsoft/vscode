@@ -9,7 +9,6 @@ import * as assert from 'assert';
 import { Platform } from 'vs/base/common/platform';
 import { TerminalLinkHandler, LineColumnInfo } from 'vs/workbench/parts/terminal/electron-browser/terminalLinkHandler';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
-import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import URI from 'vs/base/common/uri';
 import * as strings from 'vs/base/common/strings';
 import * as path from 'path';
@@ -54,7 +53,7 @@ class TestWorkspace extends Workspace {
 suite('Workbench - TerminalLinkHandler', () => {
 	suite('localLinkRegex', () => {
 		test('Windows', () => {
-			const terminalLinkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, null, null, null);
+			const terminalLinkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, null, null, null, null);
 			function testLink(link: string, linkUrl: string, lineNo?: string, columnNo?: string) {
 				assert.equal(terminalLinkHandler.extractLinkUrl(link), linkUrl);
 				assert.equal(terminalLinkHandler.extractLinkUrl(`:${link}:`), linkUrl);
@@ -96,12 +95,16 @@ suite('Workbench - TerminalLinkHandler', () => {
 					{ urlFormat: '{0} ({1})', line: '5' },
 					{ urlFormat: '{0}({1},{2})', line: '5', column: '3' },
 					{ urlFormat: '{0} ({1},{2})', line: '5', column: '3' },
+					{ urlFormat: '{0}({1}, {2})', line: '5', column: '3' },
+					{ urlFormat: '{0} ({1}, {2})', line: '5', column: '3' },
 					{ urlFormat: '{0}:{1}', line: '5' },
 					{ urlFormat: '{0}:{1}:{2}', line: '5', column: '3' },
 					{ urlFormat: '{0}[{1}]', line: '5' },
 					{ urlFormat: '{0} [{1}]', line: '5' },
 					{ urlFormat: '{0}[{1},{2}]', line: '5', column: '3' },
-					{ urlFormat: '{0} [{1},{2}]', line: '5', column: '3' }
+					{ urlFormat: '{0} [{1},{2}]', line: '5', column: '3' },
+					{ urlFormat: '{0}[{1}, {2}]', line: '5', column: '3' },
+					{ urlFormat: '{0} [{1}, {2}]', line: '5', column: '3' }
 				];
 
 				linkUrls.forEach(linkUrl => {
@@ -120,7 +123,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 		});
 
 		test('Linux', () => {
-			const terminalLinkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, null, null, null);
+			const terminalLinkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, null, null, null, null);
 			function testLink(link: string, linkUrl: string, lineNo?: string, columnNo?: string) {
 				assert.equal(terminalLinkHandler.extractLinkUrl(link), linkUrl);
 				assert.equal(terminalLinkHandler.extractLinkUrl(`:${link}:`), linkUrl);
@@ -183,8 +186,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 
 	suite('preprocessPath', () => {
 		test('Windows', () => {
-			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, null, null,
-				new TestContextService(new TestWorkspace('C:\\base')));
+			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, 'C:\\base', null, null, null);
 
 			let stub = sinon.stub(path, 'join', function (arg1, arg2) {
 				return arg1 + '\\' + arg2;
@@ -197,8 +199,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 		});
 
 		test('Linux', () => {
-			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, null, null,
-				new TestContextService(new TestWorkspace('/base')));
+			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, '/base', null, null, null);
 
 			let stub = sinon.stub(path, 'join', function (arg1, arg2) {
 				return arg1 + '/' + arg2;
@@ -211,7 +212,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 		});
 
 		test('No Workspace', () => {
-			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, null, null, new TestContextService(null));
+			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, null, null, null, null);
 
 			assert.equal(linkHandler.preprocessPath('./src/file1'), null);
 			assert.equal(linkHandler.preprocessPath('src/file2'), null);

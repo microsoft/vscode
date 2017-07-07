@@ -392,9 +392,12 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		this.isAuto = false;
 		this.focusedItem = null;
 		this.storageService = storageService;
-		const storageResult = this.storageService.store('expandSuggestionDocs', expandSuggestionDocsByDefault, StorageScope.GLOBAL);
-		if (storageResult === undefined) {
-			this.storageServiceAvailable = false;
+
+		if (this.expandDocsSettingFromStorage() === undefined) {
+			this.storageService.store('expandSuggestionDocs', expandSuggestionDocsByDefault, StorageScope.GLOBAL);
+			if (this.expandDocsSettingFromStorage() === undefined) {
+				this.storageServiceAvailable = false;
+			}
 		}
 
 		this.element = $('.editor-widget.suggest-widget');
@@ -420,6 +423,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			}),
 			themeService.onThemeChange(t => this.onThemeChange(t)),
 			editor.onDidBlurEditorText(() => this.onEditorBlur()),
+			editor.onDidLayoutChange(() => this.onEditorLayoutChange()),
 			this.list.onSelectionChange(e => this.onListSelection(e)),
 			this.list.onFocusChange(e => this.onListFocus(e)),
 			this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged())
@@ -467,6 +471,12 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				this.setState(State.Hidden);
 			}
 		});
+	}
+
+	private onEditorLayoutChange(): void {
+		if ((this.state === State.Open || this.state === State.Details) && this.expandDocsSettingFromStorage()) {
+			this.expandSideOrBelow();
+		}
 	}
 
 	private onListSelection(e: IListEvent<ICompletionItem>): void {
@@ -947,8 +957,9 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		const editorCoords = getDomNodePagePosition(this.editor.getDomNode());
 		const cursorX = editorCoords.left + cursorCoords.left;
 		const cursorY = editorCoords.top + cursorCoords.top + cursorCoords.height;
-		const widgetX = this.element.offsetLeft;
-		const widgetY = this.element.offsetTop;
+		const widgetCoords = getDomNodePagePosition(this.element);
+		const widgetX = widgetCoords.left;
+		const widgetY = widgetCoords.top;
 
 		if (widgetX < cursorX - this.listWidth) {
 			// Widget is too far to the left of cursor, swap list and docs
@@ -1005,7 +1016,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	// Monaco Editor does not have a storage service
 	private expandDocsSettingFromStorage(): boolean {
 		if (this.storageServiceAvailable) {
-			return this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault);
+			return this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL);
 		} else {
 			return this.expandSuggestionDocs;
 		}

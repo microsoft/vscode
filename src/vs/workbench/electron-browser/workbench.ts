@@ -13,7 +13,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter, chain } from 'vs/base/common/event';
 import DOM = require('vs/base/browser/dom');
 import { Builder, $ } from 'vs/base/browser/builder';
-import { Delayer } from 'vs/base/common/async';
+import { Delayer, RunOnceScheduler } from 'vs/base/common/async';
 import * as browser from 'vs/base/browser/browser';
 import assert = require('vs/base/common/assert');
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -94,10 +94,10 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { OpenRecentAction, ToggleDevToolsAction, ReloadWindowAction, inRecentFilesPickerContextKey } from "vs/workbench/electron-browser/actions";
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { KeybindingsRegistry } from "vs/platform/keybinding/common/keybindingsRegistry";
-import { getQuickNavigateHandler, inQuickOpenContext } from "vs/workbench/browser/parts/quickopen/quickopen";
-import { IWorkspaceEditingService } from "vs/workbench/services/workspace/common/workspaceEditing";
-import { WorkspaceEditingService } from "vs/workbench/services/workspace/node/workspaceEditingService";
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { getQuickNavigateHandler, inQuickOpenContext } from 'vs/workbench/browser/parts/quickopen/quickopen';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { WorkspaceEditingService } from 'vs/workbench/services/workspace/node/workspaceEditingService';
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -156,6 +156,8 @@ export class Workbench implements IPartService {
 	private static statusbarVisibleConfigurationKey = 'workbench.statusBar.visible';
 	private static activityBarVisibleConfigurationKey = 'workbench.activityBar.visible';
 
+	private static closeWhenEmptyConfigurationKey = 'window.closeWhenEmpty';
+
 	private _onTitleBarVisibilityChange: Emitter<void>;
 
 	public _serviceBrand: any;
@@ -193,6 +195,7 @@ export class Workbench implements IPartService {
 	private sideBarPosition: Position;
 	private panelHidden: boolean;
 	private editorBackgroundDelayer: Delayer<void>;
+	private closeEmptyWindowScheduler: RunOnceScheduler;
 	private messagesVisibleContext: IContextKey<boolean>;
 	private editorsVisibleContext: IContextKey<boolean>;
 	private inZenMode: IContextKey<boolean>;
@@ -236,7 +239,9 @@ export class Workbench implements IPartService {
 
 		this.toDispose = [];
 		this.toShutdown = [];
+
 		this.editorBackgroundDelayer = new Delayer<void>(50);
+		this.closeEmptyWindowScheduler = new RunOnceScheduler(() => this.onAllEditorsClosed(), 50);
 
 		this._onTitleBarVisibilityChange = new Emitter<void>();
 
@@ -339,10 +344,11 @@ export class Workbench implements IPartService {
 				}
 
 				return editorOpenPromise.then(editors => {
-					this.onEditorsChanged(); // make sure we show the proper background in the editor area
+					this.handleEditorBackground(); // make sure we show the proper background in the editor area
 					editorRestoreStopWatch.stop();
+
 					for (const editor of editors) {
-						if (editor.input) {
+						if (editor && editor.input) {
 							restoredEditors.push(editor.input.getName());
 						} else {
 							restoredEditors.push(`other:${editor.getId()}`);
@@ -471,12 +477,15 @@ export class Workbench implements IPartService {
 
 	private openUntitledFile() {
 		const startupEditor = this.configurationService.lookup('workbench.startupEditor');
+
+		// Fallback to previous workbench.welcome.enabled setting in case startupEditor is not defined
 		if (!startupEditor.user && !startupEditor.workspace) {
 			const welcomeEnabled = this.configurationService.lookup('workbench.welcome.enabled');
-			if (welcomeEnabled.value !== undefined && welcomeEnabled.value !== null) {
+			if (typeof welcomeEnabled.value === 'boolean') {
 				return !welcomeEnabled.value;
 			}
 		}
+
 		return startupEditor.value === 'newUntitledFile';
 	}
 
@@ -978,8 +987,23 @@ export class Workbench implements IPartService {
 	private onEditorsChanged(): void {
 		const visibleEditors = this.editorService.getVisibleEditors().length;
 
+		// Close when empty: check if we should close the window based on the setting
+		// Overruled by: window has a workspace opened or this window is for extension development
+		// or setting is disabled. Also enabled when running with --wait from the command line.
+		if (visibleEditors === 0 && !this.contextService.hasWorkspace() && !this.environmentService.isExtensionDevelopment) {
+			const closeWhenEmpty = this.configurationService.lookup<boolean>(Workbench.closeWhenEmptyConfigurationKey).value;
+			if (closeWhenEmpty || this.environmentService.args.wait) {
+				this.closeEmptyWindowScheduler.schedule();
+			}
+		}
+
 		// We update the editorpart class to indicate if an editor is opened or not
 		// through a delay to accomodate for fast editor switching
+		this.handleEditorBackground();
+	}
+
+	private handleEditorBackground(): void {
+		const visibleEditors = this.editorService.getVisibleEditors().length;
 
 		const editorContainer = this.editorPart.getContainer();
 		if (visibleEditors === 0) {
@@ -988,6 +1012,13 @@ export class Workbench implements IPartService {
 		} else {
 			this.editorsVisibleContext.set(true);
 			this.editorBackgroundDelayer.trigger(() => editorContainer.removeClass('empty'));
+		}
+	}
+
+	private onAllEditorsClosed(): void {
+		const visibleEditors = this.editorService.getVisibleEditors().length;
+		if (visibleEditors === 0) {
+			this.windowService.closeWindow();
 		}
 	}
 

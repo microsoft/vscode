@@ -29,7 +29,7 @@ export class Localization {
 		return explorerTitles[0];
 	}
 
-	public openViewlet(type: ViewletType): Promise<any> {
+	public async openViewlet(type: ViewletType): Promise<any> {
 		let command;
 
 		switch (type) {
@@ -47,7 +47,8 @@ export class Localization {
 				break;
 		}
 
-		return this.spectron.command(command, false);
+		await this.spectron.command(command, false);
+		return this.spectron.wait();
 	}
 
 	public getOpenedViewletTitle(): Promise<string> {
@@ -62,7 +63,7 @@ export class Localization {
 		try {
 			return this.spectron.client.getAttribute('div[id="workbench.view.extensions"] .search-box', 'placeholder');
 		} catch (e) {
-			return Promise.reject('Failed to add attribute for extensi');
+			return Promise.reject('Failed to get extension viewlet search box placeholder.');
 		}
 	}
 

@@ -47,7 +47,7 @@ declare module monaco {
 	 * The value callback to complete a promise
 	 */
 	export interface TValueCallback<T> {
-		(value: T): void;
+		(value: T | Thenable<T>): void;
 	}
 
 
@@ -981,6 +981,13 @@ declare module monaco.editor {
 		 * To switch a theme, use `monaco.editor.setTheme`
 		 */
 		theme?: string;
+		/**
+		 * An URL to open when Ctrl+H (Windows and Linux) or Cmd+H (OSX) is pressed in
+		 * the accessibility help dialog in the editor.
+		 *
+		 * Defaults to "https://go.microsoft.com/fwlink/?linkid=852450"
+		 */
+		accessibilityHelpUrl?: string;
 	}
 
 	/**

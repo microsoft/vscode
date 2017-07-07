@@ -7,7 +7,6 @@
   "engines": {
     "vscode": "*"
   },
-  "enableProposedApi": true,
   "categories": [
     "Other"
   ],
@@ -42,7 +41,7 @@
         }
       }
     },
-    "taskTypes": [
+    "taskDefinitions": [
       {
         "type": "jake",
         "required": ["task"],

@@ -11,7 +11,7 @@ var File = require("vinyl");
 var Is = require("is");
 var xml2js = require("xml2js");
 var glob = require("glob");
-var http = require("http");
+var https = require("https");
 var util = require('gulp-util');
 var iconv = require('iconv-lite');
 function log(message) {
@@ -576,10 +576,11 @@ function importModuleOrPackageJson(file, json, projectName, stream, extensionNam
     }
     var extension = extensions[extensionName] ?
         extensions[extensionName] : extensions[extensionName] = { xlf: new XLF(projectName), processed: 0 };
-    if (ModuleJsonFormat.is(json)) {
-        extension.xlf.addFile(originalFilePath, json['keys'], json['messages']);
+    // .nls.json can come with empty array of keys and messages, check for it
+    if (ModuleJsonFormat.is(json) && json.keys.length !== 0) {
+        extension.xlf.addFile(originalFilePath, json.keys, json.messages);
     }
-    else {
+    else if (PackageJsonFormat.is(json) && Object.keys(json).length !== 0) {
         extension.xlf.addFile(originalFilePath, Object.keys(json), messages);
     }
     // Check if XLF is populated with file nodes to emit it
@@ -677,7 +678,7 @@ function tryGetResource(project, slug, apiHostname, credentials) {
             auth: credentials,
             method: 'GET'
         };
-        var request = http.request(options, function (response) {
+        var request = https.request(options, function (response) {
             if (response.statusCode === 404) {
                 resolve(false);
             }
@@ -712,7 +713,7 @@ function createResource(project, slug, xlfFile, apiHostname, credentials) {
             auth: credentials,
             method: 'POST'
         };
-        var request = http.request(options, function (res) {
+        var request = https.request(options, function (res) {
             if (res.statusCode === 201) {
                 log("Resource " + project + "/" + slug + " successfully created on Transifex.");
             }
@@ -744,7 +745,7 @@ function updateResource(project, slug, xlfFile, apiHostname, credentials) {
             auth: credentials,
             method: 'PUT'
         };
-        var request = http.request(options, function (res) {
+        var request = https.request(options, function (res) {
             if (res.statusCode === 200) {
                 res.setEncoding('utf8');
                 var responseBuffer_1 = '';
@@ -836,7 +837,7 @@ function retrieveResource(language, resource, apiHostname, credentials) {
             auth: credentials,
             method: 'GET'
         };
-        var request = http.request(options, function (res) {
+        var request = https.request(options, function (res) {
             var xlfBuffer = [];
             res.on('data', function (chunk) { return xlfBuffer.push(chunk); });
             res.on('end', function () {

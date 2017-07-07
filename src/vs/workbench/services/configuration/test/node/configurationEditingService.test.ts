@@ -44,7 +44,7 @@ import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
-import { TestConfigurationService } from "vs/platform/configuration/test/common/testConfigurationService";
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 

@@ -18,15 +18,15 @@ import { ColorId, MetadataConsts, FontStyle } from 'vs/editor/common/modes';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
-import { DiffEditorWidget } from "vs/editor/browser/widget/diffEditorWidget";
-import { DomScrollableElement } from "vs/base/browser/ui/scrollbar/scrollableElement";
-import { editorLineNumbers } from "vs/editor/common/view/editorColorRegistry";
-import { KeyCode, KeyMod } from "vs/base/common/keyCodes";
-import { ActionBar } from "vs/base/browser/ui/actionbar/actionbar";
-import { Action } from "vs/base/common/actions";
-import { editorAction, EditorAction, ServicesAccessor } from "vs/editor/common/editorCommonExtensions";
-import { ContextKeyExpr } from "vs/platform/contextkey/common/contextkey";
-import { ICodeEditorService } from "vs/editor/common/services/codeEditorService";
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { editorLineNumbers } from 'vs/editor/common/view/editorColorRegistry';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Action } from 'vs/base/common/actions';
+import { editorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 
 const DIFF_LINES_PADDING = 3;
 
@@ -121,6 +121,16 @@ export class DiffReview extends Disposable {
 			}
 			this._render();
 		}));
+		this._register(diffEditor.getOriginalEditor().onDidFocusEditor(() => {
+			if (this._isVisible) {
+				this.hide();
+			}
+		}));
+		this._register(diffEditor.getModifiedEditor().onDidFocusEditor(() => {
+			if (this._isVisible) {
+				this.hide();
+			}
+		}));
 		this._register(dom.addStandardDisposableListener(this.domNode.domNode, 'click', (e) => {
 			e.preventDefault();
 
@@ -152,6 +162,7 @@ export class DiffReview extends Disposable {
 				e.equals(KeyCode.Escape)
 				|| e.equals(KeyMod.CtrlCmd | KeyCode.Escape)
 				|| e.equals(KeyMod.Alt | KeyCode.Escape)
+				|| e.equals(KeyMod.Shift | KeyCode.Escape)
 			) {
 				e.preventDefault();
 				this.hide();
@@ -185,6 +196,8 @@ export class DiffReview extends Disposable {
 				}
 			}
 			index = (this._diffs.length + currentIndex - 1);
+		} else {
+			index = this._findDiffIndex(this._diffEditor.getPosition());
 		}
 
 		if (this._diffs.length === 0) {
@@ -216,6 +229,8 @@ export class DiffReview extends Disposable {
 				}
 			}
 			index = (currentIndex + 1);
+		} else {
+			index = this._findDiffIndex(this._diffEditor.getPosition());
 		}
 
 		if (this._diffs.length === 0) {
@@ -232,14 +247,20 @@ export class DiffReview extends Disposable {
 	}
 
 	private accept(): void {
+		let jumpToLineNumber = -1;
 		let current = this._getCurrentFocusedRow();
 		if (current) {
 			let lineNumber = parseInt(current.getAttribute('data-line'), 10);
 			if (!isNaN(lineNumber)) {
-				this._diffEditor.setPosition(new Position(lineNumber, 1));
+				jumpToLineNumber = lineNumber;
 			}
 		}
 		this.hide();
+
+		if (jumpToLineNumber !== -1) {
+			this._diffEditor.setPosition(new Position(jumpToLineNumber, 1));
+			this._diffEditor.revealPosition(new Position(jumpToLineNumber, 1));
+		}
 	}
 
 	private hide(): void {
@@ -685,13 +706,13 @@ export class DiffReview extends Disposable {
 			let ariaLabel: string;
 			switch (type) {
 				case DiffEntryType.Equal:
-					ariaLabel = nls.localize('equalLine', "Unchanged original {0}, modified {1}: {2}", originalLine, modifiedLine, lineContent);
+					ariaLabel = nls.localize('equalLine', "original {0}, modified {1}: {2}", originalLine, modifiedLine, lineContent);
 					break;
 				case DiffEntryType.Insert:
-					ariaLabel = nls.localize('insertLine', "Inserted modified {0}: {1}", modifiedLine, lineContent);
+					ariaLabel = nls.localize('insertLine', "+ modified {0}: {1}", modifiedLine, lineContent);
 					break;
 				case DiffEntryType.Delete:
-					ariaLabel = nls.localize('deleteLine', "Deleted original {0}: {1}", originalLine, lineContent);
+					ariaLabel = nls.localize('deleteLine', "- original {0}: {1}", originalLine, lineContent);
 					break;
 			}
 			row.setAttribute('aria-label', ariaLabel);

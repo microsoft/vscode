@@ -6,25 +6,62 @@
 'use strict';
 
 import { Disposable, window, InputBoxOptions } from 'vscode';
+import { denodeify } from './util';
 import * as path from 'path';
 import * as http from 'http';
+import * as os from 'os';
+import * as crypto from 'crypto';
+
+const randomBytes = denodeify<Buffer>(crypto.randomBytes);
+
+export interface AskpassEnvironment {
+	GIT_ASKPASS: string;
+	ELECTRON_RUN_AS_NODE?: string;
+	VSCODE_GIT_ASKPASS_NODE?: string;
+	VSCODE_GIT_ASKPASS_MAIN?: string;
+	VSCODE_GIT_ASKPASS_HANDLE?: string;
+}
+
+function getIPCHandlePath(nonce: string): string {
+	if (process.platform === 'win32') {
+		return `\\\\.\\pipe\\vscode-git-askpass-${nonce}-sock`;
+	}
+
+	if (process.env['XDG_RUNTIME_DIR']) {
+		return path.join(process.env['XDG_RUNTIME_DIR'], `vscode-git-askpass-${nonce}.sock`);
+	}
+
+	return path.join(os.tmpdir(), `vscode-git-askpass-${nonce}.sock`);
+}
 
 export class Askpass implements Disposable {
 
 	private server: http.Server;
-	private portPromise: Promise<number>;
+	private ipcHandlePathPromise: Promise<string>;
 	private enabled = true;
 
 	constructor() {
 		this.server = http.createServer((req, res) => this.onRequest(req, res));
+		this.ipcHandlePathPromise = this.setup().catch(err => {
+			console.error(err);
+			return '';
+		});
+	}
+
+	private async setup(): Promise<string> {
+		const buffer = await randomBytes(20);
+		const nonce = buffer.toString('hex');
+		const ipcHandlePath = getIPCHandlePath(nonce);
 
 		try {
-			this.server.listen(0);
-			this.portPromise = new Promise<number>(c => this.server.on('listening', () => c(this.server.address().port)));
+			this.server.listen(ipcHandlePath);
 			this.server.on('error', err => console.error(err));
 		} catch (err) {
+			console.error('Could not launch git askpass helper.');
 			this.enabled = false;
 		}
+
+		return ipcHandlePath;
 	}
 
 	private onRequest(req: http.ServerRequest, res: http.ServerResponse): void {
@@ -55,7 +92,7 @@ export class Askpass implements Disposable {
 		return await window.showInputBox(options) || '';
 	}
 
-	async getEnv(): Promise<any> {
+	async getEnv(): Promise<AskpassEnvironment> {
 		if (!this.enabled) {
 			return {
 				GIT_ASKPASS: path.join(__dirname, 'askpass-empty.sh')
@@ -67,7 +104,7 @@ export class Askpass implements Disposable {
 			GIT_ASKPASS: path.join(__dirname, 'askpass.sh'),
 			VSCODE_GIT_ASKPASS_NODE: process.execPath,
 			VSCODE_GIT_ASKPASS_MAIN: path.join(__dirname, 'askpass-main.js'),
-			VSCODE_GIT_ASKPASS_PORT: String(await this.portPromise)
+			VSCODE_GIT_ASKPASS_HANDLE: await this.ipcHandlePathPromise
 		};
 	}
 

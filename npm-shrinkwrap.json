@@ -1,6 +1,6 @@
 {
   "name": "code-oss-dev",
-  "version": "1.10.0",
+  "version": "1.15.0",
   "dependencies": {
     "agent-base": {
       "version": "1.0.2",
@@ -410,9 +410,9 @@
       "resolved": "git://github.com/jrieken/v8-profiler.git#bc0803a4d4b2150b8a1bbffa80270769007036c2"
     },
     "vscode-debugprotocol": {
-      "version": "1.20.0",
-      "from": "vscode-debugprotocol@1.20.0",
-      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.20.0.tgz"
+      "version": "1.21.0",
+      "from": "vscode-debugprotocol@1.21.0",
+      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.21.0.tgz"
     },
     "vscode-ripgrep": {
       "version": "0.0.12",
@@ -440,9 +440,9 @@
       "resolved": "https://registry.npmjs.org/winreg/-/winreg-1.2.0.tgz"
     },
     "xterm": {
-      "version": "2.7.0",
-      "from": "Tyriar/xterm.js#vscode-release/1.14",
-      "resolved": "git+https://github.com/Tyriar/xterm.js.git#16ed764fcc2253721bafc4f9c9acc19e8518f1c0"
+      "version": "2.8.0",
+      "from": "Tyriar/xterm.js#vscode-release/1.15",
+      "resolved": "git+https://github.com/Tyriar/xterm.js.git#81204d4ff2e80b4d1fb89e5e4c2cd436124193b3"
     },
     "yauzl": {
       "version": "2.3.1",
@@ -450,9 +450,9 @@
       "resolved": "https://registry.npmjs.org/yauzl/-/yauzl-2.3.1.tgz"
     },
     "nsfw": {
-      "version": "1.0.15",
-      "from": "nsfw@1.0.15",
-      "resolved": "https://registry.npmjs.org/nsfw/-/nsfw-1.0.15.tgz",
+      "version": "1.0.16",
+      "from": "nsfw@1.0.16",
+      "resolved": "https://registry.npmjs.org/nsfw/-/nsfw-1.0.16.tgz",
       "dependencies": {
         "asap": {
           "version": "2.0.5",
@@ -514,10 +514,15 @@
           "from": "klaw@>=1.0.0 <2.0.0",
           "resolved": "https://registry.npmjs.org/klaw/-/klaw-1.3.1.tgz"
         },
-        "lodash": {
-          "version": "4.17.4",
-          "from": "lodash@>=4.6.1 <5.0.0",
-          "resolved": "https://registry.npmjs.org/lodash/-/lodash-4.17.4.tgz"
+        "lodash.isinteger": {
+          "version": "4.0.4",
+          "from": "lodash.isinteger@>=4.0.4 <5.0.0",
+          "resolved": "https://registry.npmjs.org/lodash.isinteger/-/lodash.isinteger-4.0.4.tgz"
+        },
+        "lodash.isundefined": {
+          "version": "3.0.1",
+          "from": "lodash.isundefined@>=3.0.1 <4.0.0",
+          "resolved": "https://registry.npmjs.org/lodash.isundefined/-/lodash.isundefined-3.0.1.tgz"
         },
         "minimatch": {
           "version": "3.0.4",

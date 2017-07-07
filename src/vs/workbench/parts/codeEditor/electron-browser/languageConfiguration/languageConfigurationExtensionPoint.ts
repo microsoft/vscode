@@ -68,8 +68,8 @@ export class LanguageConfigurationFileHandler {
 
 	private _handleConfigFile(languageIdentifier: LanguageIdentifier, configFilePath: string): void {
 		readFile(configFilePath).then((fileContents) => {
-			var errors: ParseError[] = [];
-			var configuration = <ILanguageConfiguration>parse(fileContents.toString(), errors);
+			const errors: ParseError[] = [];
+			const configuration = <ILanguageConfiguration>parse(fileContents.toString(), errors);
 			if (errors.length) {
 				console.error(nls.localize('parseErrors', "Errors parsing {0}: {1}", configFilePath, errors.join('\n')));
 			}

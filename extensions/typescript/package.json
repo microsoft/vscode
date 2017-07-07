@@ -7,13 +7,13 @@
   "license": "MIT",
   "publisher": "vscode",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
+  "enableProposedApi": true,
   "engines": {
     "vscode": "*"
   },
-  "enableProposedApi": true,
   "dependencies": {
     "semver": "4.3.6",
-    "vscode-extension-telemetry": "0.0.7",
+    "vscode-extension-telemetry": "0.0.8",
     "vscode-nls": "2.0.1"
   },
   "devDependencies": {
@@ -228,6 +228,11 @@
           "type": "boolean",
           "default": false,
           "description": "%format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces%"
+        },
+        "typescript.format.insertSpaceAfterTypeAssertion": {
+          "type": "boolean",
+          "default": false,
+          "description": "%format.insertSpaceAfterTypeAssertion%"
         },
         "typescript.format.placeOpenBraceOnNewLineForFunctions": {
           "type": "boolean",
@@ -458,7 +463,7 @@
         "url": "http://json.schemastore.org/typings"
       }
     ],
-    "taskTypes": [
+    "taskDefinitions": [
       {
         "type": "typescript",
         "required": ["tsconfig"],

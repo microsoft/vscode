@@ -9,7 +9,6 @@ import URI from 'vs/base/common/uri';
 import * as collections from 'vs/base/common/collections';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
-import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IWindowService, IWindowsService, MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import nls = require('vs/nls');
@@ -35,12 +34,12 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts, Position as SidebarPosition } from 'vs/workbench/services/part/common/partService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IKeybindingService } from "vs/platform/keybinding/common/keybinding";
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import * as os from 'os';
 import { webFrame } from 'electron';
-import { getPathLabel } from "vs/base/common/labels";
-import { IViewlet } from "vs/workbench/common/viewlet";
-import { IPanel } from "vs/workbench/common/panel";
+import { getPathLabel } from 'vs/base/common/labels';
+import { IViewlet } from 'vs/workbench/common/viewlet';
+import { IPanel } from 'vs/workbench/common/panel';
 
 // --- actions
 
@@ -72,12 +71,12 @@ export class CloseWindowAction extends Action {
 	public static ID = 'workbench.action.closeWindow';
 	public static LABEL = nls.localize('closeWindow', "Close Window");
 
-	constructor(id: string, label: string, @IWindowIPCService private windowService: IWindowIPCService) {
+	constructor(id: string, label: string, @IWindowService private windowService: IWindowService) {
 		super(id, label);
 	}
 
 	public run(): TPromise<boolean> {
-		this.windowService.getWindow().close();
+		this.windowService.closeWindow();
 
 		return TPromise.as(true);
 	}

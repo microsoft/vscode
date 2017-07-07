@@ -8,7 +8,7 @@ import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IWorkspace } from "vs/platform/workspace/common/workspace";
+import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 
 // Browser localStorage interface
 export interface IStorage {

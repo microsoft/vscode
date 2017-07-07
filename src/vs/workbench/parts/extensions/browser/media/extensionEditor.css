@@ -143,6 +143,8 @@
 
 .extension-editor > .body > .content {
 	height: calc(100% - 36px);
+	position: relative;
+	overflow: hidden;
 }
 
 .extension-editor > .body > .content.loading {

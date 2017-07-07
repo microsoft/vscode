@@ -36,7 +36,7 @@ import { CloseEditorsInGroupAction, SplitEditorAction, CloseEditorAction, KeepEd
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IMenuService, MenuId, IMenu, ExecuteCommandAction } from 'vs/platform/actions/common/actions';
-import { ResourceContextKey } from 'vs/workbench/common/resourceContextKey';
+import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Themable } from 'vs/workbench/common/theme';
 

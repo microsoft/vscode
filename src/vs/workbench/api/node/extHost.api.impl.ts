@@ -358,9 +358,17 @@ export function createApiFactory(
 			},
 			get workspaceFolders() {
 				assertProposedApi(extension);
+				telemetryService.publicLog('api-getter', {
+					name: 'workspace#workspaceFolders',
+					extension: extension.id
+				});
 				return extHostWorkspace.getRoots();
 			},
 			onDidChangeWorkspaceFolders: proposedApiFunction(extension, (listener, thisArgs?, disposables?) => {
+				telemetryService.publicLog('api-getter', {
+					name: 'workspace#onDidChangeWorkspaceFolders',
+					extension: extension.id
+				});
 				return extHostWorkspace.onDidChangeWorkspace(listener, thisArgs, disposables);
 			}),
 			asRelativePath: (pathOrUri) => {
@@ -430,11 +438,11 @@ export function createApiFactory(
 				return extHostConfiguration.getConfiguration(section);
 			},
 			getConfiguration2: proposedApiFunction(extension, (section?: string, resource?: vscode.Uri): vscode.WorkspaceConfiguration => {
-				return extHostConfiguration.getConfiguration(section, <URI>resource);
+				return extHostConfiguration.getConfiguration2(section, <URI>resource);
 			}),
-			registerTaskProvider: proposedApiFunction(extension, (type: string, provider: vscode.TaskProvider) => {
+			registerTaskProvider: (type: string, provider: vscode.TaskProvider) => {
 				return extHostTask.registerTaskProvider(extension, provider);
-			})
+			}
 		};
 
 		// namespace: scm
@@ -455,11 +463,18 @@ export function createApiFactory(
 
 		// namespace: debug
 		const debug: typeof vscode.debug = {
-			createDebugSession: proposedApiFunction(extension, (config: vscode.DebugConfiguration) => {
+			get activeDebugSession() {
+				assertProposedApi(extension);
+				return extHostDebugService.activeDebugSession;
+			},
+			createDebugSession(config: vscode.DebugConfiguration) {
 				return extHostDebugService.createDebugSession(config);
-			}),
-			onDidTerminateDebugSession: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
+			},
+			onDidTerminateDebugSession(listener, thisArg?, disposables?) {
 				return extHostDebugService.onDidTerminateDebugSession(listener, thisArg, disposables);
+			},
+			onDidChangeActiveDebugSession: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
+				return extHostDebugService.onDidChangeActiveDebugSession(listener, thisArg, disposables);
 			})
 		};
 

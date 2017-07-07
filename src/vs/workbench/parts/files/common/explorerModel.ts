@@ -25,7 +25,7 @@ export class Model {
 	private _roots: FileStat[];
 
 	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
-		const setRoots = () => this._roots = this.contextService.getWorkspace2().roots.map(uri => new FileStat(uri, undefined));
+		const setRoots = () => this._roots = this.contextService.getWorkspace().roots.map(uri => new FileStat(uri, undefined));
 		this.contextService.onDidChangeWorkspaceRoots(() => setRoots());
 		setRoots();
 	}
@@ -35,19 +35,25 @@ export class Model {
 	}
 
 	/**
-	 * Returns a child stat from this stat that matches with the provided path.
+	 * Returns an array of child stat from this stat that matches with the provided path.
 	 * Starts matching from the first root.
-	 * Will return "null" in case the child does not exist.
+	 * Will return empty array in case the FileStat does not exist.
 	 */
 	public findAll(resource: URI): FileStat[] {
 		return this.roots.map(root => root.find(resource)).filter(stat => !!stat);
 	}
 
-	public findFirst(resource: URI): FileStat {
-		for (let root of this.roots) {
-			const result = root.find(resource);
-			if (result) {
-				return result;
+	/**
+	 * Returns a FileStat that matches the passed resource.
+	 * In case multiple FileStat are matching the resource (same folder opened multiple times) returns the FileStat that has the closest root.
+	 * Will return null in case the FileStat does not exist.
+	 */
+	public findClosest(resource: URI): FileStat {
+		const rootUri = this.contextService.getRoot(resource);
+		if (rootUri) {
+			const root = this.roots.filter(r => r.resource.toString() === rootUri.toString()).pop();
+			if (root) {
+				return root.find(resource);
 			}
 		}
 

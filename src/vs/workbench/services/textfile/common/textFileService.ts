@@ -29,8 +29,8 @@ import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/commo
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ResourceMap } from 'vs/base/common/map';
-import { Schemas } from "vs/base/common/network";
-import { IHistoryService } from "vs/workbench/services/history/common/history";
+import { Schemas } from 'vs/base/common/network';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 export interface IBackupResult {
 	didBackup: boolean;
@@ -160,7 +160,8 @@ export abstract class TextFileService implements ITextFileService {
 					// Otherwise just confirm from the user what to do with the dirty files
 					return this.confirmBeforeShutdown();
 				}
-				return undefined;
+
+				return void 0;
 			});
 		}
 
@@ -277,7 +278,7 @@ export abstract class TextFileService implements ITextFileService {
 			return true; // veto
 		}
 
-		return undefined;
+		return void 0;
 	}
 
 	private noVeto(options: { cleanUpBackups: boolean }): boolean | TPromise<boolean> {
@@ -663,7 +664,7 @@ export abstract class TextFileService implements ITextFileService {
 					return TPromise.wrapError(error);
 				}
 
-				return undefined;
+				return void 0;
 			});
 		})).then(r => {
 			return {

@@ -24,6 +24,7 @@
 	"default": "Valor padrão",
 	"debuggers": "Depuradores ({0})",
 	"debugger name": "Nome",
+	"debugger type": "Tipo",
 	"views": "Visualizações ({0})",
 	"view id": "ID",
 	"view name": "Nome",

@@ -796,21 +796,27 @@ Root: HKCU; Subkey: "SOFTWARE\Classes\Drive\shell\{#RegValueName}\command"; Valu
 function InitializeSetup(): Boolean;
 var
   RegKey: String;
+  ThisArch: String;
   AltArch: String;
 begin
   Result := True;
-  RegKey := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\' + copy('{#IncompatibleAppId}', 2, 38) + '_is1';
 
-  if '{#Arch}' = 'ia32' then begin
-    Result := not RegKeyExists(HKLM64, RegKey);
-    AltArch := 'x64';
-  end else begin
-    Result := not RegKeyExists(HKLM32, RegKey);
-    AltArch := 'ia32';
-  end;
+  if IsWin64 then begin
+    RegKey := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\' + copy('{#IncompatibleAppId}', 2, 38) + '_is1';
 
-  if not Result then begin
-    MsgBox('Please uninstall "{#NameShort}" ' + AltArch + ' before installing this package.', mbInformation, MB_OK);
+    if '{#Arch}' = 'ia32' then begin
+      Result := not RegKeyExists(HKLM64, RegKey);
+      ThisArch := '32';
+      AltArch := '64';
+    end else begin
+      Result := not RegKeyExists(HKLM32, RegKey);
+      ThisArch := '64';
+      AltArch := '32';
+    end;
+
+    if not Result then begin
+      MsgBox('Please uninstall {#NameShort} ' + AltArch + 'bits before installing this ' + ThisArch + 'bits version.', mbInformation, MB_OK);
+    end;
   end;
 end;
 

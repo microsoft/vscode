@@ -56,5 +56,15 @@
 	"LegacyProblemMatcherSchema.watchedBegin": "Reguláris kifejezés, mely jelzi, hogy a figyeltő feladatok fájlmódosítás miatt éppen műveletet hajtanak végre.",
 	"LegacyProblemMatcherSchema.watchedEnd.deprecated": "Ez a tulajdonság elavult. Használja a watching tulajdonságot helyette.",
 	"LegacyProblemMatcherSchema.watchedEnd": "Reguláros kifejezés, ami jelzi, hogy a figyelő feladat befejezte a végrehajtást.",
-	"ProblemMatcherExtPoint": "Problémaillesztőket szolgáltat."
+	"NamedProblemMatcherSchema.name": "A problémaillesztő neve, amivel hivatkozni lehet rá.",
+	"NamedProblemMatcherSchema.label": "A problémaillesztő leírása emberek számára.",
+	"ProblemMatcherExtPoint": "Problémaillesztőket szolgáltat.",
+	"msCompile": "Microsoft fordítói problémák",
+	"lessCompile": "Less-problémák",
+	"gulp-tsc": "Gulp TSC-problémák",
+	"jshint": "JSHint-problémák",
+	"jshint-stylish": "JSHint stylish-problémák",
+	"eslint-compact": "ESLint compact-problémák",
+	"eslint-stylish": "ESLint stylish-problémák",
+	"go": "Go-problémák"
 }

@@ -8,10 +8,10 @@
 import { IRawFileChange, toFileChangesEvent } from 'vs/workbench/services/files/node/watcher/common';
 import { OutOfProcessWin32FolderWatcher } from 'vs/workbench/services/files/node/watcher/win32/csharpWatcherService';
 import { FileChangesEvent } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService } from "vs/platform/workspace/common/workspace";
-import { normalize } from "path";
-import { rtrim, endsWith } from "vs/base/common/strings";
-import { sep } from "vs/base/common/paths";
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { normalize } from 'path';
+import { rtrim, endsWith } from 'vs/base/common/strings';
+import { sep } from 'vs/base/common/paths';
 
 export class FileWatcher {
 	private isDisposed: boolean;
@@ -26,7 +26,7 @@ export class FileWatcher {
 	}
 
 	public startWatching(): () => void {
-		let basePath: string = normalize(this.contextService.getWorkspace2().roots[0].fsPath);
+		let basePath: string = normalize(this.contextService.getWorkspace().roots[0].fsPath);
 
 		if (basePath && basePath.indexOf('\\\\') === 0 && endsWith(basePath, sep)) {
 			// for some weird reason, node adds a trailing slash to UNC paths

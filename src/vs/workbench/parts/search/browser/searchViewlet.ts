@@ -61,7 +61,7 @@ import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { Color } from 'vs/base/common/color';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
-import { PreferencesEditor } from "vs/workbench/parts/preferences/browser/preferencesEditor";
+import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 
 export class SearchViewlet extends Viewlet {
 
@@ -150,12 +150,9 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	private onConfigurationUpdated(): void {
-		// TODO
-		// const workspace = this.contextService.getWorkspace2();
-		// workspace.roots.forEach(root => {
-		// 	const config = this.configurationService.getConfiguration(undefined, { resource: root });
-		// })
-		// this.updateGlobalPatternExclusions(configuration);
+		const resource = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots[0] : undefined;
+		const config = this.configurationService.getConfiguration<ISearchConfiguration>(undefined, { resource });
+		this.updateGlobalPatternExclusions(config);
 	}
 
 	public create(parent: Builder): TPromise<void> {
@@ -896,13 +893,33 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	public searchInFolder(resource: URI): void {
+		let folderPath = null;
+		const workspace = this.contextService.getWorkspace();
+		if (workspace) {
+			if (workspace.roots.length === 1) {
+				// Fallback to old way for single root workspace
+				folderPath = this.contextService.toWorkspaceRelativePath(resource);
+				if (folderPath && folderPath !== '.') {
+					folderPath = './' + folderPath;
+				}
+			} else {
+				folderPath = resource.fsPath;
+			}
+		}
+
+		if (!folderPath || folderPath === '.') {
+			this.inputPatternIncludes.setValue('');
+			this.searchWidget.focus();
+			return;
+		}
+
 		// Show 'files to include' box
 		if (!this.showsFileTypes()) {
 			this.toggleQueryDetails(true, true);
 		}
 
 		this.inputPatternIncludes.setIsGlobPattern(false);
-		this.inputPatternIncludes.setValue(resource.fsPath);
+		this.inputPatternIncludes.setValue(folderPath);
 		this.searchWidget.focus(false);
 	}
 
@@ -959,7 +976,7 @@ export class SearchViewlet extends Viewlet {
 			searchPaths
 		};
 
-		const folderResources = this.contextService.hasWorkspace() ? this.contextService.getWorkspace2().roots : [];
+		const folderResources = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots : [];
 		this.onQueryTriggered(this.queryBuilder.text(content, folderResources, options), excludePatternText, includePatternText);
 
 		if (!preserveFocus) {

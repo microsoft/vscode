@@ -9,6 +9,9 @@ import * as vscode from 'vscode';
 import { getLocation, visit, parse } from 'jsonc-parser';
 import * as path from 'path';
 import { SettingsDocument } from './settingsDocumentHelper';
+import * as nls from 'vscode-nls';
+
+const localize = nls.loadMessageBundle();
 
 const decoration = vscode.window.createTextEditorDecorationType({
 	color: '#b1b1b1'
@@ -73,13 +76,12 @@ function registerExtensionsCompletions(): vscode.Disposable {
 				const config = parse(document.getText());
 				const alreadyEnteredExtensions = config && config.recommendations || [];
 				if (Array.isArray(alreadyEnteredExtensions)) {
-					return vscode.extensions.all
-						.filter(e => !(
-							e.id.startsWith('vscode.')
+					const knownExtensionProposals = vscode.extensions.all.filter(e =>
+						!(e.id.startsWith('vscode.')
 							|| e.id === 'Microsoft.vscode-markdown'
-							|| alreadyEnteredExtensions.indexOf(e.id) > -1
-						))
-						.map(e => {
+							|| alreadyEnteredExtensions.indexOf(e.id) > -1));
+					if (knownExtensionProposals.length) {
+						return knownExtensionProposals.map(e => {
 							const item = new vscode.CompletionItem(e.id);
 							const insertText = `"${e.id}"`;
 							item.kind = vscode.CompletionItemKind.Value;
@@ -88,6 +90,13 @@ function registerExtensionsCompletions(): vscode.Disposable {
 							item.filterText = insertText;
 							return item;
 						});
+					} else {
+						const example = new vscode.CompletionItem(localize('exampleExtension', "Example"));
+						example.insertText = '"vscode.csharp"';
+						example.kind = vscode.CompletionItemKind.Value;
+						example.range = range;
+						return [example];
+					}
 				}
 			}
 			return [];

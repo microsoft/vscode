@@ -45,8 +45,8 @@ const nodeModules = ['electron', 'original-fs']
 // Build
 
 const builtInExtensions = [
-	{ name: 'ms-vscode.node-debug', version: '1.14.7' },
-	{ name: 'ms-vscode.node-debug2', version: '1.14.2' }
+	{ name: 'ms-vscode.node-debug', version: '1.15.2' },
+	{ name: 'ms-vscode.node-debug2', version: '1.14.4' }
 ];
 
 const excludedExtensions = [
@@ -55,7 +55,7 @@ const excludedExtensions = [
 ];
 
 const vscodeEntryPoints = _.flatten([
-	buildfile.entrypoint('vs/workbench/electron-browser/workbench.main'),
+	buildfile.entrypoint('vs/workbench/workbench.main'),
 	buildfile.base,
 	buildfile.workbench,
 	buildfile.code
@@ -219,8 +219,8 @@ function packageTask(platform, arch, opts) {
 		const out = opts.minified ? 'out-vscode-min' : 'out-vscode';
 
 		const checksums = computeChecksums(out, [
-			'vs/workbench/electron-browser/workbench.main.js',
-			'vs/workbench/electron-browser/workbench.main.css',
+			'vs/workbench/workbench.main.js',
+			'vs/workbench/workbench.main.css',
 			'vs/workbench/electron-browser/bootstrap/index.html',
 			'vs/workbench/electron-browser/bootstrap/index.js',
 			'vs/workbench/electron-browser/bootstrap/preload.js'

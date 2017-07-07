@@ -89,6 +89,16 @@ class MergeItem implements QuickPickItem {
 	}
 }
 
+class CreateBranchItem implements QuickPickItem {
+
+	get label(): string { return localize('create branch', '$(plus) Create new branch'); }
+	get description(): string { return ''; }
+
+	async run(model: Model): Promise<void> {
+		await commands.executeCommand('git.branch');
+	}
+}
+
 interface Command {
 	commandId: string;
 	key: string;
@@ -164,7 +174,6 @@ export class CommandCenter {
 		}
 
 		const opts: TextDocumentShowOptions = {
-			preview: true,
 			viewColumn
 		};
 
@@ -355,29 +364,6 @@ export class CommandCenter {
 			return;
 		}
 		return await this._openResource(resource);
-	}
-
-	@command('git.openFileFromUri')
-	async openFileFromUri(uri?: Uri): Promise<void> {
-		const resource = this.getSCMResource(uri);
-		let uriToOpen: Uri | undefined;
-
-		if (resource) {
-			uriToOpen = resource.resourceUri;
-		} else if (uri && uri.scheme === 'git') {
-			const { path } = fromGitUri(uri);
-			uriToOpen = Uri.file(path);
-		} else if (uri && uri.scheme === 'file') {
-			uriToOpen = uri;
-		}
-
-		if (!uriToOpen) {
-			return;
-		}
-
-		const viewColumn = window.activeTextEditor && window.activeTextEditor.viewColumn || ViewColumn.One;
-
-		return await commands.executeCommand<void>('vscode.open', uriToOpen, viewColumn);
 	}
 
 	@command('git.stage')
@@ -728,6 +714,8 @@ export class CommandCenter {
 		const includeTags = checkoutType === 'all' || checkoutType === 'tags';
 		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
 
+		const createBranch = new CreateBranchItem();
+
 		const heads = this.model.refs.filter(ref => ref.type === RefType.Head)
 			.map(ref => new CheckoutItem(ref));
 
@@ -737,9 +725,9 @@ export class CommandCenter {
 		const remoteHeads = (includeRemotes ? this.model.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
 			.map(ref => new CheckoutRemoteHeadItem(ref));
 
-		const picks = [...heads, ...tags, ...remoteHeads];
+		const picks = [createBranch, ...heads, ...tags, ...remoteHeads];
 		const placeHolder = localize('select a ref to checkout', 'Select a ref to checkout');
-		const choice = await window.showQuickPick<CheckoutItem>(picks, { placeHolder });
+		const choice = await window.showQuickPick(picks, { placeHolder });
 
 		if (!choice) {
 			return;
@@ -982,14 +970,25 @@ export class CommandCenter {
 
 	@command('git.ignore')
 	async ignore(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		const resources = resourceStates
-			.filter(s => s instanceof Resource) as Resource[];
+		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
+			const uri = window.activeTextEditor && window.activeTextEditor.document.uri;
 
-		if (!resources.length) {
+			if (!uri) {
+				return;
+			}
+
+			return await this.model.ignore([uri]);
+		}
+
+		const uris = resourceStates
+			.filter(s => s instanceof Resource)
+			.map(r => r.resourceUri);
+
+		if (!uris.length) {
 			return;
 		}
 
-		await this.model.ignore(resources);
+		await this.model.ignore(uris);
 	}
 
 	private createCommand(id: string, key: string, method: Function, skipModelCheck: boolean): (...args: any[]) => any {

@@ -265,7 +265,7 @@ export class CodeMenu {
 
 		// Tasks
 		const taskMenu = new Menu();
-		const taskMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mTask', comment: ['&& denotes a mnemonic'] }, "&&Task")), submenu: taskMenu });
+		const taskMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mTask', comment: ['&& denotes a mnemonic'] }, "&&Tasks")), submenu: taskMenu });
 		this.setTaskMenu(taskMenu);
 
 		// Menu Structure
@@ -354,7 +354,7 @@ export class CodeMenu {
 		const openRecent = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miOpenRecent', comment: ['&& denotes a mnemonic'] }, "Open &&Recent")), submenu: openRecentMenu, enabled: openRecentMenu.items.length > 0 });
 
 		const isMultiRootEnabled = (product.quality !== 'stable'); // TODO@Ben multi root
-		const addFolder = this.createMenuItem(nls.localize({ key: 'miAddRootFolder', comment: ['&& denotes a mnemonic'] }, "&&Add Root Folder"), 'workbench.action.addRootFolder', this.windowsService.getWindowCount() > 0);
+		const addFolder = this.createMenuItem(nls.localize({ key: 'miAddFolderToWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Add Folder to Workspace..."), 'workbench.action.addRootFolder', this.windowsService.getWindowCount() > 0);
 
 		const saveFile = this.createMenuItem(nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "&&Save"), 'workbench.action.files.save', this.windowsService.getWindowCount() > 0);
 		const saveFileAs = this.createMenuItem(nls.localize({ key: 'miSaveAs', comment: ['&& denotes a mnemonic'] }, "Save &&As..."), 'workbench.action.files.saveAs', this.windowsService.getWindowCount() > 0);
@@ -537,12 +537,12 @@ export class CodeMenu {
 		let multiCursorModifierLabel: string;
 		if (this.currentMultiCursorModifierSetting === 'ctrlCmd') {
 			// The default has been overwritten
-			multiCursorModifierLabel = nls.localize('miMultiCursorAlt', "Use Alt+Click for Multi-Cursor");
+			multiCursorModifierLabel = nls.localize('miMultiCursorAlt', "Switch to Alt+Click for Multi-Cursor");
 		} else {
 			multiCursorModifierLabel = (
 				isMacintosh
-					? nls.localize('miMultiCursorCmd', "Use Cmd+Click for Multi-Cursor")
-					: nls.localize('miMultiCursorCtrl', "Use Ctrl+Click for Multi-Cursor")
+					? nls.localize('miMultiCursorCmd', "Switch to Cmd+Click for Multi-Cursor")
+					: nls.localize('miMultiCursorCtrl', "Switch to Ctrl+Click for Multi-Cursor")
 			);
 		}
 
@@ -913,24 +913,28 @@ export class CodeMenu {
 
 	private setTaskMenu(taskMenu: Electron.Menu): void {
 		const runTask = this.createMenuItem(nls.localize({ key: 'miRunTask', comment: ['&& denotes a mnemonic'] }, "&&Run Task..."), 'workbench.action.tasks.runTask');
-		const restartTask = this.createMenuItem(nls.localize({ key: 'miRestartTask', comment: ['&& denotes a mnemonic'] }, "R&&estart Task..."), 'workbench.action.tasks.restartTask');
+		const restartTask = this.createMenuItem(nls.localize({ key: 'miRestartTask', comment: ['&& denotes a mnemonic'] }, "R&&estart Running Task..."), 'workbench.action.tasks.restartTask');
 		const terminateTask = this.createMenuItem(nls.localize({ key: 'miTerminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task..."), 'workbench.action.tasks.terminate');
 		const buildTask = this.createMenuItem(nls.localize({ key: 'miBuildTask', comment: ['&& denotes a mnemonic'] }, "Run &&Build Task..."), 'workbench.action.tasks.build');
-		const testTask = this.createMenuItem(nls.localize({ key: 'miTestTask', comment: ['&& denotes a mnemonic'] }, "Run Test T&&ask..."), 'workbench.action.tasks.test');
-		const showTaskLog = this.createMenuItem(nls.localize({ key: 'miShowTaskLog', comment: ['&& denotes a mnemonic'] }, "&&Show Task Log"), 'workbench.action.tasks.showLog');
+		// const testTask = this.createMenuItem(nls.localize({ key: 'miTestTask', comment: ['&& denotes a mnemonic'] }, "Run Test T&&ask..."), 'workbench.action.tasks.test');
+		// const showTaskLog = this.createMenuItem(nls.localize({ key: 'miShowTaskLog', comment: ['&& denotes a mnemonic'] }, "&&Show Task Log"), 'workbench.action.tasks.showLog');
 		const configureTask = this.createMenuItem(nls.localize({ key: 'miConfigureTask', comment: ['&& denotes a mnemonic'] }, "&&Configure Tasks"), 'workbench.action.tasks.configureTaskRunner');
+		const configureBuildTask = this.createMenuItem(nls.localize({ key: 'miConfigureBuildTask', comment: ['&& denotes a mnemonic'] }, "Configure De&&fault Build Task"), 'workbench.action.tasks.configureDefaultBuildTask');
+		// const configureTestTask = this.createMenuItem(nls.localize({ key: 'miConfigureTestTask', comment: ['&& denotes a mnemonic'] }, "Configure Defau&&lt Test Task"), 'workbench.action.tasks.configureDefaultTestTask');
 
 		[
+			//__separator__(),
 			runTask,
-			__separator__(),
 			buildTask,
-			testTask,
+			// testTask,
 			__separator__(),
 			terminateTask,
 			restartTask,
 			__separator__(),
-			showTaskLog,
+			//showTaskLog,
 			configureTask,
+			configureBuildTask
+			// configureTestTask
 		].forEach(item => taskMenu.append(item));
 	}
 
@@ -1101,13 +1105,14 @@ export class CodeMenu {
 			type: 'info',
 			message: product.nameLong,
 			detail: nls.localize('aboutDetail',
-				"\nVersion {0}\nCommit {1}\nDate {2}\nShell {3}\nRenderer {4}\nNode {5}",
+				"\nVersion {0}\nCommit {1}\nDate {2}\nShell {3}\nRenderer {4}\nNode {5}\nArchitecture {6}",
 				app.getVersion(),
 				product.commit || 'Unknown',
 				product.date || 'Unknown',
 				process.versions['electron'],
 				process.versions['chrome'],
-				process.versions['node']
+				process.versions['node'],
+				process.arch
 			),
 			buttons: [nls.localize('okButton', "OK")],
 			noLink: true

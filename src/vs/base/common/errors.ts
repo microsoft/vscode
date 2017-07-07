@@ -18,8 +18,8 @@ function promiseErrorHandler(e: IPromiseError): void {
 	//
 	// e.detail looks like: { exception, error, promise, handler, id, parent }
 	//
-	var details = e.detail;
-	var id = details.id;
+	const details = e.detail;
+	const id = details.id;
 
 	// If the error has a parent promise then this is not the origination of the
 	//  error so we check if it has a handler, and if so we mark that the error
@@ -39,10 +39,10 @@ function promiseErrorHandler(e: IPromiseError): void {
 	// check if any errors are still unhandled.
 	if (Object.keys(outstandingPromiseErrors).length === 1) {
 		setTimeout(function () {
-			var errors = outstandingPromiseErrors;
+			const errors = outstandingPromiseErrors;
 			outstandingPromiseErrors = {};
 			Object.keys(errors).forEach(function (errorId) {
-				var error = errors[errorId];
+				const error = errors[errorId];
 				if (error.exception) {
 					onUnexpectedError(error.exception);
 				} else if (error.error) {
@@ -126,7 +126,7 @@ export class ErrorHandler {
 	}
 }
 
-export let errorHandler = new ErrorHandler();
+export const errorHandler = new ErrorHandler();
 
 export function setUnexpectedErrorHandler(newUnexpectedErrorHandler: (e: any) => void): void {
 	errorHandler.setUnexpectedErrorHandler(newUnexpectedErrorHandler);

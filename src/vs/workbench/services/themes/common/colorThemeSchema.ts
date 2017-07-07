@@ -114,6 +114,24 @@ let textMateScopes = [
 	'variable.parameter'
 ];
 
+export const tokenColorizationSettingSchema = {
+	type: 'object',
+	properties: {
+		foreground: {
+			type: 'string',
+			format: 'color'
+		},
+		background: {
+			type: 'string',
+			format: 'color'
+		},
+		fontStyle: {
+			type: 'string',
+			description: nls.localize('schema.fontStyle', 'Font style of the rule: One or a combination of \'italic\', \'bold\' and \'underline\'')
+		}
+	}
+};
+
 export const colorsSchema = themingRegistry.getColorSchema();
 export const tokenColorsSchema = {
 	type: 'array',
@@ -147,23 +165,7 @@ export const tokenColorsSchema = {
 					}
 				]
 			},
-			settings: {
-				type: 'object',
-				properties: {
-					foreground: {
-						type: 'string',
-						format: 'color'
-					},
-					background: {
-						type: 'string',
-						format: 'color'
-					},
-					fontStyle: {
-						type: 'string',
-						description: nls.localize('schema.fontStyle', 'Font style of the rule: One or a combination of \'italic\', \'bold\' and \'underline\'')
-					}
-				}
-			}
+			settings: tokenColorizationSettingSchema
 		}
 	}
 };

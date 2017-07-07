@@ -36,9 +36,9 @@ import {
 } from 'vs/workbench/browser/parts/editor/editorActions';
 import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { getQuickNavigateHandler, inQuickOpenContext } from "vs/workbench/browser/parts/quickopen/quickopen";
-import { KeybindingsRegistry } from "vs/platform/keybinding/common/keybindingsRegistry";
-import { ContextKeyExpr } from "vs/platform/contextkey/common/contextkey";
+import { getQuickNavigateHandler, inQuickOpenContext } from 'vs/workbench/browser/parts/quickopen/quickopen';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
