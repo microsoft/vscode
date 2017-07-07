@@ -18,9 +18,48 @@ export interface ModelBuilderResult {
 	readonly value: IRawTextSource;
 }
 
+const PREALLOC_BUFFER_CHARS = 1000;
+
+const emptyString = '';
+const asciiStrings: string[] = [];
+for (let i = 0; i < 128; i++) {
+	asciiStrings[i] = String.fromCharCode(i);
+}
+
+function optimizeStringMemory(buff: Buffer, s: string): string {
+	const len = s.length;
+
+	if (len === 0) {
+		return emptyString;
+	}
+
+	if (len === 1) {
+		const charCode = s.charCodeAt(0);
+		if (charCode < 128) {
+			return asciiStrings[charCode];
+		}
+	}
+
+	if (AVOID_SLICED_STRINGS) {
+		// See https://bugs.chromium.org/p/v8/issues/detail?id=2869
+		// See https://github.com/nodejs/help/issues/711
+
+		if (len < PREALLOC_BUFFER_CHARS) {
+			// Use the same buffer instance that we have allocated and that can fit `PREALLOC_BUFFER_CHARS` characters
+			const byteLen = buff.write(s, 0);
+			return buff.toString(undefined, 0, byteLen);
+		}
+
+		return Buffer.from(s).toString();
+	}
+
+	return s;
+}
+
 class ModelLineBasedBuilder {
 
 	private hash: crypto.Hash;
+	private buff: Buffer;
 	private BOM: string;
 	private lines: string[];
 	private currLineIndex: number;
@@ -30,6 +69,7 @@ class ModelLineBasedBuilder {
 		this.BOM = '';
 		this.lines = [];
 		this.currLineIndex = 0;
+		this.buff = Buffer.alloc(2 * PREALLOC_BUFFER_CHARS);
 	}
 
 	public acceptLines(lines: string[]): void {
@@ -42,12 +82,7 @@ class ModelLineBasedBuilder {
 		}
 
 		for (let i = 0, len = lines.length; i < len; i++) {
-			let line = lines[i];
-			if (AVOID_SLICED_STRINGS) {
-				// See https://bugs.chromium.org/p/v8/issues/detail?id=2869
-				line = Buffer.from(line).toString();
-			}
-			this.lines[this.currLineIndex++] = line;
+			this.lines[this.currLineIndex++] = optimizeStringMemory(this.buff, lines[i]);
 		}
 		this.hash.update(lines.join('\n') + '\n');
 	}
