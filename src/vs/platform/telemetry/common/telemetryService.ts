@@ -144,7 +144,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		'telemetry.enableTelemetry': {
 			'type': 'boolean',
 			'description': localize('telemetry.enableTelemetry', "Enable usage data and errors to be sent to Microsoft."),
-			'default': true
+			'default': false
 		}
 	}
 });
