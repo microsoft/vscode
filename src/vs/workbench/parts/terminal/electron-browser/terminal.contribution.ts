@@ -299,6 +299,6 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(DeleteWordBefore
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Delete Word Before Cursor', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(DeleteWordAfterCursorTerminalAction, DeleteWordAfterCursorTerminalAction.ID, DeleteWordAfterCursorTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.Delete,
-	mac: { primary: null }
+	mac: { primary: KeyMod.Alt | KeyCode.Delete }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Delete Word After Cursor', category);
 registerColors();
