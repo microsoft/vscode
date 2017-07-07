@@ -17,25 +17,6 @@ export const inQuickOpenContext = ContextKeyExpr.has('inQuickOpen');
 export const defaultQuickOpenContextKey = 'inFilesPicker';
 export const defaultQuickOpenContext = ContextKeyExpr.and(inQuickOpenContext, ContextKeyExpr.has(defaultQuickOpenContextKey));
 
-export class GlobalQuickOpenAction extends Action {
-
-	public static ID = 'workbench.action.quickOpen';
-	public static LABEL = nls.localize('quickOpen', "Go to File...");
-
-	constructor(id: string, label: string, @IQuickOpenService private quickOpenService: IQuickOpenService) {
-		super(id, label);
-
-		this.order = 100; // Allow other actions to position before or after
-		this.class = 'quickopen';
-	}
-
-	public run(): TPromise<any> {
-		this.quickOpenService.show(null);
-
-		return TPromise.as(true);
-	}
-}
-
 export class BaseQuickOpenNavigateAction extends Action {
 
 	constructor(

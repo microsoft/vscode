@@ -20,6 +20,8 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import URI from 'vs/base/common/uri';
 import { IEditorOptions, Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 
 // --- List Commands
 
@@ -419,5 +421,30 @@ export function registerCommands(): void {
 		return editorService.openEditor({ resource }, column).then(() => {
 			return void 0;
 		});
+	});
+}
+
+namespace GlobalQuickOpenCommand {
+	export const ID = 'workbench.action.quickOpen';
+	export const LABEL = nls.localize('quickOpen', "Go to File...");
+
+	CommandsRegistry.registerCommand(ID, function (accessor: ServicesAccessor, args: [string]) {
+		const quickOpenService = accessor.get(IQuickOpenService);
+		const [prefix] = args;
+
+		return quickOpenService.show(prefix).then(() => {
+			return void 0;
+		});
+	});
+
+	KeybindingsRegistry.registerKeybindingRule({
+		id: 'workbench.action.quickOpen',
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: undefined,
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_P
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+		command: { id: ID, title: LABEL }
 	});
 }
