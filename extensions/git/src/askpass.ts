@@ -42,7 +42,10 @@ export class Askpass implements Disposable {
 
 	constructor() {
 		this.server = http.createServer((req, res) => this.onRequest(req, res));
-		this.ipcHandlePathPromise = this.setup().catch(err => console.error(err));
+		this.ipcHandlePathPromise = this.setup().catch(err => {
+			console.error(err);
+			return '';
+		});
 	}
 
 	private async setup(): Promise<string> {
