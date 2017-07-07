@@ -16,11 +16,15 @@
 
 .colorpicker-header .picked-color {
 	text-align: center;
-	width: 228px
+	width: 216px
 }
 
 .colorpicker-header .original-color {
 	width: 72px
+}
+
+.colorpicker-header a.octicon.octicon-triangle-down {
+	width: 12px;
 }
 
 .colorpicker-body {

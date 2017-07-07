@@ -13,9 +13,10 @@ import { editorContribution } from "vs/editor/browser/editorBrowserExtensions";
 import { ICodeEditor } from "vs/editor/browser/editorBrowser";
 import { ColorPickerWidget } from "vs/editor/contrib/colorPicker/browser/colorPickerWidget";
 import { Disposable } from "vs/base/common/lifecycle";
-import { ColorPickerModel } from "vs/editor/contrib/colorPicker/browser/colorPickerModel";
+import { ColorPickerModel, ColorModel } from "vs/editor/contrib/colorPicker/browser/colorPickerModel";
 import { registerThemingParticipant } from "vs/platform/theme/common/themeService";
 import { editorWidgetBackground, editorWidgetBorder } from "vs/platform/theme/common/colorRegistry";
+import { Color, RGBA } from "vs/base/common/color";
 
 @editorContribution
 export class ColorPickerController extends Disposable implements IEditorContribution {
@@ -45,10 +46,12 @@ export class ColorPickerController extends Disposable implements IEditorContribu
 	}
 
 	public pickColor(): void {
-		// Convert color from editors to string, pass it to widget
-		const color = 'rgba(0, 171, 84, 1)'; // temp colour that is picked from editor
-		this.model.originalColor = color;
-		this.model.selectedColor = color;
+		const colorString = 'rgba(0, 171, 84, 1)'; // temp colour that is picked from editor
+		this.model.originalColor = colorString;
+		this.model.colorModel = ColorModel.RGBA;
+		this.model.color = Color.fromRGBA(new RGBA(0, 171, 84, 1));
+
+		// this.model.selectedColorString = colorString;
 
 		this.widget.show();
 	}

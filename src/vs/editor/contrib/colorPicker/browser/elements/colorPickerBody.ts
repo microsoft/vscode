@@ -9,6 +9,7 @@ import { Disposable } from "vs/base/common/lifecycle";
 import { ColorPickerModel } from "vs/editor/contrib/colorPicker/browser/colorPickerModel";
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from "vs/base/browser/globalMouseMoveMonitor";
 import { isWindows } from "vs/base/common/platform";
+import { Color, RGBA } from "vs/base/common/color";
 const $ = dom.$;
 const MOUSE_DRAG_RESET_DISTANCE = 140;
 
@@ -43,7 +44,7 @@ export class ColorPickerBody extends Disposable {
 	}
 
 	public fillOpacityGradient(): void {
-		this.opacityStrip.gradient.addColorStop(0, this.model.selectedColor);
+		this.opacityStrip.gradient.addColorStop(0, this.model.selectedColorString);
 		this.opacityStrip.context.fillStyle = this.opacityStrip.gradient;
 		this.opacityStrip.context.fill();
 	}
@@ -58,7 +59,7 @@ export class ColorPickerBody extends Disposable {
 
 		// Update selected color if saturation selection was beforehand
 		if (this.model.saturationSelection) {
-			this.model.selectedColor = this.extractColorData(this.saturationCtx, this.model.saturationSelection.x, this.model.saturationSelection.y);
+			this.model.color = this.extractColor(this.saturationCtx, this.model.saturationSelection.x, this.model.saturationSelection.y);
 		}
 	}
 
@@ -67,7 +68,7 @@ export class ColorPickerBody extends Disposable {
 		// Saturation box listeners
 		this._register(dom.addDisposableListener(this.saturationBox, dom.EventType.MOUSE_DOWN, e => {
 			this.model.dragging = true;
-			this.widget.model.selectedColor = this.extractColorData(this.saturationCtx, e.offsetX, e.offsetY);
+			this.widget.model.color = this.extractColor(this.saturationCtx, e.offsetX, e.offsetY);
 			this.widget.model.saturationSelection = { x: e.offsetX, y: e.offsetY };
 		}));
 		this._register(dom.addDisposableListener(this.saturationBox, dom.EventType.MOUSE_UP, e => {
@@ -75,7 +76,7 @@ export class ColorPickerBody extends Disposable {
 		}));
 		this._register(dom.addDisposableListener(this.saturationBox, dom.EventType.MOUSE_MOVE, e => {
 			if (this.model.dragging) {
-				this.widget.model.selectedColor = this.extractColorData(this.saturationCtx, e.offsetX, e.offsetY);
+				this.widget.model.color = this.extractColor(this.saturationCtx, e.offsetX, e.offsetY);
 				this.widget.model.saturationSelection = { x: e.offsetX, y: e.offsetY };
 			}
 		}));
@@ -108,7 +109,7 @@ export class ColorPickerBody extends Disposable {
 
 			// Update model
 			if (slider === this.hueSlider) {
-				this.widget.model.hue = this.extractColorData(strip.context, 0, slider.top);
+				this.widget.model.hue = this.extractColor(strip.context, 0, slider.top).toString();
 			} else {
 				this.widget.model.opacity = slider.top / strip.height;
 			}
@@ -130,7 +131,7 @@ export class ColorPickerBody extends Disposable {
 
 			// Update model
 			if (slider === this.hueSlider) {
-				this.widget.model.hue = this.extractColorData(strip.context, 0, slider.top);
+				this.widget.model.hue = this.extractColor(strip.context, 0, slider.top).toString();
 			} else {
 				this.widget.model.opacity = slider.top / strip.height;
 			}
@@ -176,7 +177,7 @@ export class ColorPickerBody extends Disposable {
 		const opacityTransparency = $('.opacity-strip-transparency');
 		dom.append(this.domNode, opacityWrapper);
 
-		this.opacityStrip = new OpacityStrip(opacityWrapper, this.pixelRatio, this.model.selectedColor);
+		this.opacityStrip = new OpacityStrip(opacityWrapper, this.pixelRatio, this.model.selectedColorString);
 		this.opacitySlider = new Slider(this.opacityStrip);
 
 		dom.append(opacityWrapper, opacityTransparency);
@@ -195,10 +196,9 @@ export class ColorPickerBody extends Disposable {
 		dom.append(hueWrapper, this.hueSlider.domNode);
 	}
 
-	private extractColorData(context: CanvasRenderingContext2D, offsetX: number, offsetY: number): string {
+	private extractColor(context: CanvasRenderingContext2D, offsetX: number, offsetY: number): Color {
 		const imageData = context.getImageData(offsetX, offsetY, 1, 1);
-		const color = `rgba(${imageData.data[0]}, ${imageData.data[1]}, ${imageData.data[2]}, ${imageData.data[3]})`;
-		return color;
+		return Color.fromRGBA(new RGBA(imageData.data[0], imageData.data[1], imageData.data[2]));
 	}
 }
 

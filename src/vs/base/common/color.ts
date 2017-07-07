@@ -50,6 +50,14 @@ export class RGBA {
 		}
 		return c | 0;
 	}
+
+	public toString(): string {
+		if (this.a === 255) {
+			return `rgb(${this.r}, ${this.g}, ${this.b})`;
+		}
+
+		return `rgba(${this.r}, ${this.g}, ${this.b}, ${this.a})`;
+	}
 }
 
 /**
@@ -100,6 +108,17 @@ export class HSLA {
 			return 1.0;
 		}
 		return n;
+	}
+
+	public toString() {
+		const s = (this.s * 100).toFixed(2);
+		const l = (this.l * 100).toFixed(2);
+
+		if (this.a === 1) {
+			return `hsl(${this.h}, ${s}%, ${l}%)`;
+		}
+
+		return `hsla(${this.h}, ${s}%, ${l}%, ${this.a})`;
 	}
 }
 
@@ -385,6 +404,7 @@ export class Color {
 	public isTransparent(): boolean {
 		return this.rgba.a === 0;
 	}
+
 
 	public opposite(): Color {
 		return new Color(new RGBA(

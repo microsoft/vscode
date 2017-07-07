@@ -51,21 +51,6 @@ export class ColorPickerWidget extends Widget implements IOverlayWidget {
 		this.domNode.style.left = left + 'px';
 	}
 
-	public changePrimaryColor(): void {
-		// View change only, other things go through the controller
-	}
-	public changeShade(): void {
-		// View change only, other things go through the controller
-	}
-	public changeOpacity(): void {
-		// View change only, other things go through the controller
-	}
-
-	public changeSelectedColor(color: string): void {
-		// View change only, other things go through the controller
-		this.layout();
-	}
-
 	public dispose(): void {
 		this.visible = false;
 		this.editor.removeOverlayWidget(this);

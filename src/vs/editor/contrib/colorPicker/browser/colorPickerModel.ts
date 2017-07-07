@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ColorPickerWidget } from "vs/editor/contrib/colorPicker/browser/colorPickerWidget";
+import { Color } from "vs/base/common/color";
 
 export class ColorPickerModel {
 
@@ -16,8 +17,14 @@ export class ColorPickerModel {
 	private _hue: string;
 	private _opacity: number;
 
+	public _color: Color;
+
+	private _colorModel: ColorModel;
+	private _colorModelIndex: number;
+
 	constructor() {
 		this.dragging = false;
+		this._colorModelIndex = 0;
 	}
 
 	public set widget(widget: ColorPickerWidget) {
@@ -32,11 +39,11 @@ export class ColorPickerModel {
 		this._originalColor = color;
 	}
 
-	public get originalColor() {
+	public get originalColor(): string {
 		return this._originalColor;
 	}
 
-	public set selectedColor(color: string) {
+	public set selectedColorString(color: string) {
 		this._selectedColor = color;
 
 		if (this.widget.header) {
@@ -45,7 +52,7 @@ export class ColorPickerModel {
 		}
 	}
 
-	public get selectedColor() {
+	public get selectedColorString() {
 		return this._selectedColor;
 	}
 
@@ -55,7 +62,7 @@ export class ColorPickerModel {
 		this.widget.body.fillSaturationBox();
 	}
 
-	public get hue() {
+	public get hue(): string {
 		return this._hue;
 	}
 
@@ -68,9 +75,52 @@ export class ColorPickerModel {
 	public get opacity(): number {
 		return this._opacity;
 	}
+
+	public set color(color: Color) {
+		if (this._colorModel === ColorModel.RGBA) {
+			this.selectedColorString = color.toRGBA().toString();
+		} else if (this._colorModel === ColorModel.Hex) {
+			this.selectedColorString = color.toRGBHex();
+		} else {
+			this.selectedColorString = color.toHSLA().toString();
+		}
+
+		this._color = color;
+	}
+
+	public get color(): Color {
+		return this._color;
+	}
+
+	public set colorModel(model: ColorModel) {
+		this._colorModel = model;
+	}
+
+	public get colorModel(): ColorModel {
+		return this._colorModel;
+	}
+
+	public nextColorModel() { // should go to the controller perhaps
+		this._colorModelIndex++;
+
+		if (this._colorModelIndex > 2) {
+			this._colorModelIndex = 0;
+		}
+
+		this._colorModel = this._colorModelIndex;
+		if (this._selectedColor) {
+			this.color = this._color; // Refresh selected colour string state
+		}
+	}
 }
 
 export class ISaturationState {
 	public x: number;
 	public y: number;
+}
+
+export enum ColorModel {
+	RGBA,
+	Hex,
+	HSL
 }
