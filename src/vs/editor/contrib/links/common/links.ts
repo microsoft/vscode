@@ -38,7 +38,7 @@ export class Link implements ILink {
 			try {
 				return TPromise.as(URI.parse(this._link.url));
 			} catch (e) {
-				return TPromise.wrapError<URI>('invalid');
+				return TPromise.wrapError<URI>(new Error('invalid'));
 			}
 		}
 
@@ -50,11 +50,11 @@ export class Link implements ILink {
 					return this.resolve();
 				}
 
-				return TPromise.wrapError<URI>('missing');
+				return TPromise.wrapError<URI>(new Error('missing'));
 			});
 		}
 
-		return TPromise.wrapError<URI>('missing');
+		return TPromise.wrapError<URI>(new Error('missing'));
 	}
 }
 

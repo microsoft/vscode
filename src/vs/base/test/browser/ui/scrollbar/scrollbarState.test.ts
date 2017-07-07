@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { ScrollbarState } from "vs/base/browser/ui/scrollbar/scrollbarState";
+import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
 
 suite('ScrollbarState', () => {
 	test('inflates slider size', () => {

@@ -137,19 +137,19 @@ export class CompletionModel {
 				// if it matches we check with the label to compute highlights
 				// and if that doesn't yield a result we have no highlights,
 				// despite having the match
-				let match = fuzzyScore(word, suggestion.filterText);
+				let match = fuzzyScore(word, suggestion.filterText, suggestion.overwriteBefore);
 				if (!match) {
 					continue;
 				}
 				item.score = match[0];
 				item.matches = [];
-				match = fuzzyScore(word, suggestion.label);
+				match = fuzzyScore(word, suggestion.label, suggestion.overwriteBefore);
 				if (match) {
 					item.matches = match[1];
 				}
 			} else {
 				// by default match `word` against the `label`
-				let match = fuzzyScore(word, suggestion.label);
+				let match = fuzzyScore(word, suggestion.label, suggestion.overwriteBefore);
 				if (match) {
 					item.score = match[0];
 					item.matches = match[1];

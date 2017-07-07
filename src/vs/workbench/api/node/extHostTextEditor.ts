@@ -399,7 +399,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 			throw illegalArgument('selection');
 		}
 		this._selections = [value];
-		this._trySetSelection(true);
+		this._trySetSelection();
 	}
 
 	get selections(): Selection[] {
@@ -411,7 +411,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 			throw illegalArgument('selections');
 		}
 		this._selections = value;
-		this._trySetSelection(true);
+		this._trySetSelection();
 	}
 
 	setDecorations(decorationType: vscode.TextEditorDecorationType, ranges: Range[] | vscode.DecorationOptions[]): void {
@@ -420,8 +420,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 				this._id,
 				decorationType.key,
 				TypeConverters.fromRangeOrRangeWithMessage(ranges)
-			),
-			true
+			)
 		);
 	}
 
@@ -431,14 +430,13 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 				this._id,
 				TypeConverters.fromRange(range),
 				(revealType || TextEditorRevealType.Default)
-			),
-			true
+			)
 		);
 	}
 
-	private _trySetSelection(silent: boolean): TPromise<vscode.TextEditor> {
+	private _trySetSelection(): TPromise<vscode.TextEditor> {
 		let selection = this._selections.map(TypeConverters.fromSelection);
-		return this._runOnProxy(() => this._proxy.$trySetSelections(this._id, selection), silent);
+		return this._runOnProxy(() => this._proxy.$trySetSelections(this._id, selection));
 	}
 
 	_acceptSelections(selections: Selection[]): void {
@@ -450,7 +448,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 
 	edit(callback: (edit: TextEditorEdit) => void, options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Thenable<boolean> {
 		if (this._disposed) {
-			return TPromise.wrapError<boolean>('TextEditor#edit not possible on closed editors');
+			return TPromise.wrapError<boolean>(new Error('TextEditor#edit not possible on closed editors'));
 		}
 		let edit = new TextEditorEdit(this._documentData.document, options);
 		callback(edit);
@@ -508,7 +506,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 
 	insertSnippet(snippet: SnippetString, where?: Position | Position[] | Range | Range[], options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Thenable<boolean> {
 		if (this._disposed) {
-			return TPromise.wrapError<boolean>('TextEditor#insertSnippet not possible on closed editors');
+			return TPromise.wrapError<boolean>(new Error('TextEditor#insertSnippet not possible on closed editors'));
 		}
 		let ranges: IRange[];
 
@@ -538,19 +536,12 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 
 	// ---- util
 
-	private _runOnProxy(callback: () => TPromise<any>, silent: boolean): TPromise<ExtHostTextEditor> {
+	private _runOnProxy(callback: () => TPromise<any>): TPromise<ExtHostTextEditor> {
 		if (this._disposed) {
-			if (!silent) {
-				return TPromise.wrapError<ExtHostTextEditor>(silent);
-			} else {
-				console.warn('TextEditor is closed/disposed');
-				return TPromise.as(undefined);
-			}
+			console.warn('TextEditor is closed/disposed');
+			return TPromise.as(undefined);
 		}
 		return callback().then(() => this, err => {
-			if (!silent) {
-				return TPromise.wrapError<ExtHostTextEditor>(silent);
-			}
 			console.warn(err);
 			return undefined;
 		});

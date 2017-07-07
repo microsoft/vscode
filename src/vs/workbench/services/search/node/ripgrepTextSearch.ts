@@ -12,7 +12,9 @@ import * as cp from 'child_process';
 import { rgPath } from 'vscode-ripgrep';
 
 import objects = require('vs/base/common/objects');
+import platform = require('vs/base/common/platform');
 import * as strings from 'vs/base/common/strings';
+import * as paths from 'vs/base/common/paths';
 import * as extfs from 'vs/base/node/extfs';
 import * as encoding from 'vs/base/node/encoding';
 import * as glob from 'vs/base/common/glob';
@@ -54,25 +56,25 @@ export class RipgrepEngine {
 			this.postProcessExclusions = glob.parseToAsync(rgArgs.siblingClauses, { trimForExclusions: true });
 		}
 
+		const cwd = platform.isWindows ? 'c:/' : '/';
 		process.nextTick(() => {
 			const escapedArgs = rgArgs.globArgs
 				.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
 				.join(' ');
 
 			// Allow caller to register progress callback
-			const rgCmd = `rg ${escapedArgs}\n - cwd: /\n`;
+			const rgCmd = `rg ${escapedArgs}\n - cwd: ${cwd}\n`;
 			onMessage({ message: rgCmd });
 			if (rgArgs.siblingClauses) {
 				onMessage({ message: ` - Sibling clauses: ${JSON.stringify(rgArgs.siblingClauses)}\n` });
 			}
 		});
-		this.rgProc = cp.spawn(rgPath, rgArgs.globArgs, { cwd: '/' });
+		this.rgProc = cp.spawn(rgPath, rgArgs.globArgs, { cwd });
 
-		this.ripgrepParser = new RipgrepParser(this.config.maxResults, '/');
+		this.ripgrepParser = new RipgrepParser(this.config.maxResults, cwd);
 		this.ripgrepParser.on('result', (match: ISerializedFileMatch) => {
 			if (this.postProcessExclusions) {
-				const relativePath = path.relative('/', match.path);
-				const handleResultP = (<TPromise<string>>this.postProcessExclusions(relativePath, undefined, () => getSiblings(match.path)))
+				const handleResultP = (<TPromise<string>>this.postProcessExclusions(match.path, undefined, () => getSiblings(match.path)))
 					.then(globMatch => {
 						if (!globMatch) {
 							onResult(match);
@@ -411,7 +413,7 @@ function globExprsToRgGlobs(patterns: glob.IExpression, folder: string): IRgGlob
 	Object.keys(patterns)
 		.forEach(key => {
 			const value = patterns[key];
-			key = path.join(folder, key);
+			key = getAbsoluteGlob(folder, key);
 
 			if (typeof value === 'boolean' && value) {
 				globArgs.push(key);
@@ -425,6 +427,20 @@ function globExprsToRgGlobs(patterns: glob.IExpression, folder: string): IRgGlob
 		});
 
 	return { globArgs, siblingClauses };
+}
+
+/**
+ * Resolves a glob like "node_modules/**" in "/foo/bar" to "/foo/bar/node_modules/**".
+ * Special cases C:/foo paths to write the glob like /foo instead - see https://github.com/BurntSushi/ripgrep/issues/530.
+ *
+ * Exported for testing
+ */
+export function getAbsoluteGlob(folder: string, key: string): string {
+	const absolutePathKey = path.join(folder, key);
+	const root = paths.getRoot(folder);
+	return root.toLowerCase() === 'c:/' ?
+		absolutePathKey.replace(/^c:[/\\]/i, '/') :
+		absolutePathKey;
 }
 
 function getRgArgs(config: IRawSearch): IRgGlobResult {

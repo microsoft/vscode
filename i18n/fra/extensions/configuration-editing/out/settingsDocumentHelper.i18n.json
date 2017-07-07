@@ -7,7 +7,6 @@
 	"activeEditorShort": "exemple : myFile.txt",
 	"activeEditorMedium": "exemple : myFolder/myFile.txt",
 	"activeEditorLong": "exemple : /Users/Development/myProject/myFolder/myFile.txt",
-	"rootName": "exemple : myProject",
 	"rootPath": "exemple : /Users/Development/myProject",
 	"appName": "exemple : VS Code",
 	"dirty": "indicateur d'intégrité si l'intégrité de l'éditeur actif est compromise",

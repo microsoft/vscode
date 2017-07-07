@@ -249,7 +249,7 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
  *
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/normalize}
  */
-export let canNormalize = typeof ((<any>'').normalize) === 'function';
+export const canNormalize = typeof ((<any>'').normalize) === 'function';
 const nonAsciiCharactersPattern = /[^\u0000-\u0080]/;
 const normalizedCache = new BoundedMap<string>(10000); // bounded to 10000 elements
 export function normalizeNFC(str: string): string {
@@ -339,11 +339,11 @@ export function compareIgnoreCase(a: string, b: string): number {
 		}
 
 		if (isUpperAsciiLetter(codeA)) {
-			codeA -= 32;
+			codeA += 32;
 		}
 
 		if (isUpperAsciiLetter(codeB)) {
-			codeB -= 32;
+			codeB += 32;
 		}
 
 		const diff = codeA - codeB;

@@ -7,6 +7,13 @@
 import * as strings from 'vs/base/common/strings';
 import { IndentationRule, IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 
+export const enum IndentConsts {
+	INCREASE_MASK = 0b00000001,
+	DECREASE_MASK = 0b00000010,
+	INDENT_NEXTLINE_MASK = 0b00000100,
+	UNINDENT_MASK = 0b00001000,
+};
+
 export class IndentRulesSupport {
 
 	private readonly _indentationRules: IndentationRule;
@@ -73,6 +80,23 @@ export class IndentRulesSupport {
 		}
 
 		return false;
+	}
+
+	public getIndentMetadata(text: string): number {
+		let ret = 0;
+		if (this.shouldIncrease(text)) {
+			ret += IndentConsts.INCREASE_MASK;
+		}
+		if (this.shouldDecrease(text)) {
+			ret += IndentConsts.DECREASE_MASK;
+		}
+		if (this.shouldIndentNextLine(text)) {
+			ret += IndentConsts.INDENT_NEXTLINE_MASK;
+		}
+		if (this.shouldIgnore(text)) {
+			ret += IndentConsts.UNINDENT_MASK;
+		}
+		return ret;
 	}
 }
 

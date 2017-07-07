@@ -8,6 +8,7 @@
 	"closeOthers": "關閉其他",
 	"closeRight": "關到右側",
 	"closeAll": "全部關閉",
+	"closeAllUnmodified": "關閉未變更的檔案",
 	"keepOpen": "保持開啟",
 	"showOpenedEditors": "顯示開啟的編輯器",
 	"araLabelEditorActions": "編輯器動作"

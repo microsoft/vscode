@@ -125,7 +125,7 @@ export default class URI {
 	 */
 	get fsPath() {
 		if (!this._fsPath) {
-			var value: string;
+			let value: string;
 			if (this._authority && this._path && this.scheme === 'file') {
 				// unc path: file://shares/c$/far/boo
 				value = `//${this._authority}${this._path}`;

@@ -60,6 +60,7 @@ export interface IFilesConfiguration extends IFilesConfiguration, IWorkbenchEdit
 		};
 		autoReveal: boolean;
 		enableDragAndDrop: boolean;
+		sortOrder: SortOrder;
 	};
 	editor: IEditorOptions;
 }
@@ -94,3 +95,13 @@ export function explorerItemToFileResource(obj: FileStat | OpenEditor): IFileRes
 
 	return null;
 }
+
+export const SortOrderConfiguration = {
+	DEFAULT: 'default',
+	MIXED: 'mixed',
+	FILES_FIRST: 'filesFirst',
+	TYPE: 'type',
+	MODIFIED: 'modified'
+};
+
+export type SortOrder = 'default' | 'mixed' | 'filesFirst' | 'type' | 'modified';

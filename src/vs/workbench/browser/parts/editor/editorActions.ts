@@ -672,7 +672,7 @@ export class CloseAllEditorsAction extends Action {
 		// Otherwise ask for combined confirmation
 		const confirm = this.textFileService.confirmSave();
 		if (confirm === ConfirmResult.CANCEL) {
-			return undefined;
+			return void 0;
 		}
 
 		let saveOrRevertPromise: TPromise<boolean>;
@@ -686,7 +686,8 @@ export class CloseAllEditorsAction extends Action {
 			if (success) {
 				return this.editorService.closeAllEditors();
 			}
-			return undefined;
+
+			return void 0;
 		});
 	}
 }

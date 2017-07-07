@@ -173,10 +173,10 @@ async function publish(commit: string, quality: string, platform: string, type: 
 	const storageAccount = process.env['AZURE_STORAGE_ACCOUNT_2'];
 
 	const blobService = azure.createBlobService(storageAccount, process.env['AZURE_STORAGE_ACCESS_KEY_2'])
-		.withFilter(new azure.ExponentialRetryPolicyFilter());
+		.withFilter(new azure.ExponentialRetryPolicyFilter(20));
 
 	const mooncakeBlobService = azure.createBlobService(storageAccount, process.env['MOONCAKE_STORAGE_ACCESS_KEY'], `${storageAccount}.blob.core.chinacloudapi.cn`)
-		.withFilter(new azure.ExponentialRetryPolicyFilter());
+		.withFilter(new azure.ExponentialRetryPolicyFilter(20));
 
 	await Promise.all([
 		assertContainer(blobService, quality),
@@ -188,17 +188,24 @@ async function publish(commit: string, quality: string, platform: string, type: 
 		doesAssetExist(mooncakeBlobService, quality, blobName)
 	]);
 
-	if (blobExists || moooncakeBlobExists) {
+	const promises = [];
+
+	if (!blobExists) {
+		promises.push(uploadBlob(blobService, quality, blobName, file));
+	}
+
+	if (!moooncakeBlobExists) {
+		promises.push(uploadBlob(mooncakeBlobService, quality, blobName, file));
+	}
+
+	if (promises.length === 0) {
 		console.log(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
 		return;
 	}
 
 	console.log('Uploading blobs to Azure storage...');
 
-	await Promise.all([
-		uploadBlob(blobService, quality, blobName, file),
-		uploadBlob(mooncakeBlobService, quality, blobName, file)
-	]);
+	await Promise.all(promises);
 
 	console.log('Blobs successfully uploaded.');
 

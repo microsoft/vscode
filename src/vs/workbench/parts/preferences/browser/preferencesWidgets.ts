@@ -28,6 +28,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { buttonBackground, buttonForeground, badgeForeground, badgeBackground, contrastBorder, errorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export class SettingsHeaderWidget extends Widget implements IViewZone {
 
@@ -287,8 +288,7 @@ export class SettingsTabsWidget extends Widget {
 }
 
 export interface SearchOptions extends IInputOptions {
-	navigateByEnter?: boolean;
-	navigateByArrows?: boolean;
+	focusKey?: IContextKey<boolean>;
 }
 
 export class SearchWidget extends Widget {
@@ -332,13 +332,19 @@ export class SearchWidget extends Widget {
 			this.styleCountElementForeground();
 		}));
 		this.inputBox.inputElement.setAttribute('aria-live', 'assertive');
+
+		if (this.options.focusKey) {
+			const focusTracker = this._register(DOM.trackFocus(this.inputBox.inputElement));
+			this._register(focusTracker.addFocusListener(() => this.options.focusKey.set(true)));
+			this._register(focusTracker.addBlurListener(() => this.options.focusKey.set(false)));
+		}
 	}
 
 	private createSearchContainer(searchContainer: HTMLElement) {
 		this.searchContainer = searchContainer;
 		const searchInput = DOM.append(this.searchContainer, DOM.$('div.settings-search-input'));
-		this.inputBox = this.createInputBox(searchInput);
-		this.inputBox.onDidChange(value => this._onDidChange.fire(value));
+		this.inputBox = this._register(this.createInputBox(searchInput));
+		this._register(this.inputBox.onDidChange(value => this._onDidChange.fire(value)));
 		this.onkeydown(this.inputBox.inputElement, (e) => this._onKeyDown(e));
 	}
 
@@ -400,21 +406,7 @@ export class SearchWidget extends Widget {
 		let handled = false;
 		switch (keyboardEvent.keyCode) {
 			case KeyCode.Enter:
-				if (this.options.navigateByEnter) {
-					this._onNavigate.fire(keyboardEvent.shiftKey);
-					handled = true;
-				}
-				break;
-			case KeyCode.UpArrow:
-				if (this.options.navigateByArrows) {
-					this._onNavigate.fire(true);
-				}
-				handled = true;
-				break;
-			case KeyCode.DownArrow:
-				if (this.options.navigateByArrows) {
-					this._onNavigate.fire(false);
-				}
+				this._onNavigate.fire(keyboardEvent.shiftKey);
 				handled = true;
 				break;
 			case KeyCode.Escape:
@@ -426,6 +418,13 @@ export class SearchWidget extends Widget {
 			keyboardEvent.preventDefault();
 			keyboardEvent.stopPropagation();
 		}
+	}
+
+	public dispose(): void {
+		if (this.options.focusKey) {
+			this.options.focusKey.set(false);
+		}
+		super.dispose();
 	}
 }
 

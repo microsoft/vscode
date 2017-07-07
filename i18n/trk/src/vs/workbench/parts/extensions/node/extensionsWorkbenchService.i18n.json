@@ -13,5 +13,7 @@
 	"cancel": "İptal",
 	"singleDependentError": "'{0}' eklentisi devre dışı bırakılamıyor. '{1}' eklentisi buna bağlı.",
 	"twoDependentsError": "'{0}' eklentisi devre dışı bırakılamıyor. '{1}' ve '{2}' eklentileri buna bağlı.",
-	"multipleDependentsError": "'{0}' eklentisi devre dışı bırakılamıyor. '{1}, '{2}' eklentileri ve diğerleri buna bağlı."
+	"multipleDependentsError": "'{0}' eklentisi devre dışı bırakılamıyor. '{1}, '{2}' eklentileri ve diğerleri buna bağlı.",
+	"installConfirmation": "'{0}' eklentisini yüklemek ister misiniz?",
+	"install": "Yükle"
 }

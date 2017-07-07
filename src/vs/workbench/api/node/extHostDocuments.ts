@@ -154,7 +154,7 @@ export class ExtHostDocuments extends ExtHostDocumentsShape {
 	public $provideTextDocumentContent(handle: number, uri: URI): TPromise<string> {
 		const provider = this._documentContentProviders.get(handle);
 		if (!provider) {
-			return TPromise.wrapError<string>(`unsupported uri-scheme: ${uri.scheme}`);
+			return TPromise.wrapError<string>(new Error(`unsupported uri-scheme: ${uri.scheme}`));
 		}
 		return asWinJsPromise(token => provider.provideTextDocumentContent(uri, token));
 	}

@@ -44,6 +44,5 @@
 	"config.checkoutType": "Steuert, welcher Branchtyp beim Ausführen von \"Auschecken an...\" aufgelistet wird. \"Alle\" zeigt alle Verweise an, \"Lokal\" nur die lokalen Branches, \"Tags\" zeigt nur Tags an, und \"Remote\" zeigt nur Remotebranches an.",
 	"config.ignoreLegacyWarning": "Ignoriert die Legacy-Git-Warnung.",
 	"config.ignoreLimitWarning": "Ignoriert Warnung bei zu hoher Anzahl von Änderungen in einem Repository",
-	"config.defaultCloneDirectory": "Das Standard-Verzeichnis für einen Klon eines Git-Repositorys",
-	"config.enableSmartCommit": "Alle Änderungen committen, wenn keine Änderungen bereitgestellt sind."
+	"config.defaultCloneDirectory": "Das Standard-Verzeichnis für einen Klon eines Git-Repositorys"
 }

@@ -84,7 +84,7 @@ function getOutputChannel(): vscode.OutputChannel {
 	return _channel;
 }
 
-interface JakeTaskKind extends vscode.TaskKind {
+interface JakeTaskDefinition extends vscode.TaskDefinition {
 	task: string;
 	file?: string;
 }
@@ -151,11 +151,11 @@ async function getJakeTasks(): Promise<vscode.Task[]> {
 				let matches = regExp.exec(line);
 				if (matches && matches.length === 2) {
 					let taskName = matches[1];
-					let kind: JakeTaskKind = {
+					let kind: JakeTaskDefinition = {
 						type: 'jake',
 						task: taskName
 					};
-					let task = new vscode.Task(kind, taskName, new vscode.ShellExecution(`${jakeCommand} ${taskName}`));
+					let task = new vscode.Task(kind, taskName, 'jake', new vscode.ShellExecution(`${jakeCommand} ${taskName}`));
 					result.push(task);
 					let lowerCaseLine = line.toLowerCase();
 					if (isBuildTask(lowerCaseLine)) {

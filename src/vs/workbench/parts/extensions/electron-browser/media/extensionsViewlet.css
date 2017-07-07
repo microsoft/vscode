@@ -105,7 +105,7 @@
 }
 
 .extensions-viewlet > .extensions .extension > .details > .header-container > .header > .version {
-	opacity: 0.6;
+	opacity: 0.85;
 	font-size: 80%;
 	padding-left: 6px;
 	flex: 1;

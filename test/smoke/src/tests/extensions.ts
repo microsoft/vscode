@@ -18,6 +18,7 @@ export function testExtensions() {
 
 	context('Extensions', () => {
 		let extensions: Extensions;
+		const extensionName = 'vscode-smoketest-check';
 
 		beforeEach(async function () {
 			const network = await networkAttached();
@@ -37,31 +38,29 @@ export function testExtensions() {
 			return await common.removeDirectory(EXTENSIONS_DIR);
 		});
 
-		it(`installs 'vscode-icons' extension and verifies reload is prompted`, async function () {
-			const name = 'vscode-icons';
+		it(`installs 'vscode-smoketest-check' extension and verifies reload is prompted`, async function () {
 			await extensions.openExtensionsViewlet();
-			await extensions.searchForExtension(name);
+			await extensions.searchForExtension(extensionName);
 			await app.wait();
-			await extensions.installExtension(name);
+			await extensions.installExtension(extensionName);
 			await app.wait();
 			assert.ok(await extensions.getExtensionReloadText(), 'Reload was not prompted after extension installation.');
 		});
 
 		it(`installs an extension and checks if it works on restart`, async function () {
-			const name = 'vscode-icons';
 			await extensions.openExtensionsViewlet();
-			await extensions.searchForExtension(name);
+			await extensions.searchForExtension(extensionName);
 			await app.wait();
-			await extensions.installExtension(name);
+			await extensions.installExtension(extensionName);
 			await app.wait();
 			await extensions.getExtensionReloadText();
 
 			await app.stop();
 			await app.wait(); // wait until all resources are released (e.g. locked local storage)
 			await app.start();
-			await extensions.selectMinimalIconsTheme();
-			const x = await extensions.verifyFolderIconAppearance();
-			assert.ok(x);
+			await extensions.activateExtension();
+			const statusbarText = await extensions.verifyStatusbarItem();
+			assert.equal(statusbarText, 'VS Code Smoke Test Check', 'Extension contribution text does not match expected.');
 		});
 	});
 }

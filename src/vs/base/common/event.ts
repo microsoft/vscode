@@ -315,10 +315,13 @@ export function debounceEvent<I, O>(event: Event<I>, merger: (last: O, event: I)
 	let subscription: IDisposable;
 	let output: O;
 	let handle: number;
+	let numDebouncedCalls = 0;
 
 	const emitter = new Emitter<O>({
 		onFirstListenerAdd() {
 			subscription = event(cur => {
+				numDebouncedCalls++;
+
 				output = merger(output, cur);
 				if (!handle && leading) {
 					emitter.fire(output);
@@ -328,8 +331,12 @@ export function debounceEvent<I, O>(event: Event<I>, merger: (last: O, event: I)
 				handle = setTimeout(() => {
 					let _output = output;
 					output = undefined;
-					emitter.fire(_output);
+					if (!leading || numDebouncedCalls > 1) {
+						emitter.fire(_output);
+					}
+
 					handle = null;
+					numDebouncedCalls = 0;
 				}, delay);
 			});
 		},

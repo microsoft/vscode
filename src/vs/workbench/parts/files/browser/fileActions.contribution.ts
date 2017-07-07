@@ -24,7 +24,7 @@ import { copyFocusedFilesExplorerViewItem, revealInOSFocusedFilesExplorerItem, o
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IEnvironmentService } from "vs/platform/environment/common/environment";
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { explorerItemToFileResource, ExplorerFocusCondition, FilesExplorerFocusCondition } from 'vs/workbench/parts/files/common/files';
 
 class FilesViewerActionContributor extends ActionBarContributor {
@@ -95,7 +95,7 @@ class FilesViewerActionContributor extends ActionBarContributor {
 			let action: Action = this.instantiationService.createInstance(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL);
 			action.order = 52;
 			actions.push(action);
-			if (this.contextService.getWorkspace2().roots.length > 1) {
+			if (this.contextService.getWorkspace().roots.length > 1) {
 				action = this.instantiationService.createInstance(RemoveRootFolderAction, stat.resource, RemoveRootFolderAction.ID, RemoveRootFolderAction.LABEL);
 				action.order = 53;
 				actions.push(action);
@@ -104,7 +104,9 @@ class FilesViewerActionContributor extends ActionBarContributor {
 		}
 
 		// Copy File/Folder
-		actions.push(this.instantiationService.createInstance(CopyFileAction, tree, <FileStat>stat));
+		if (!stat.isRoot) {
+			actions.push(this.instantiationService.createInstance(CopyFileAction, tree, <FileStat>stat));
+		}
 
 		// Paste File/Folder
 		if (stat.isDirectory) {

@@ -292,12 +292,12 @@ export abstract class EmmetEditorAction extends EditorAction {
 		const modeService = accessor.get(IModeService);
 		const messageService = accessor.get(IMessageService);
 		const contextService = accessor.get(IWorkspaceContextService);
-		const workspaceRoot = contextService.hasWorkspace() ? contextService.getWorkspace().resource.fsPath : '';
+		const workspaceRoot = contextService.hasWorkspace() ? contextService.getLegacyWorkspace().resource.fsPath : ''; // TODO@Ramya (https://github.com/Microsoft/vscode/issues/29244)
 		const telemetryService = accessor.get(ITelemetryService);
 		const commandService = accessor.get(ICommandService);
 
 		let mappedCommand = configurationService.getConfiguration<IEmmetConfiguration>().emmet.useNewEmmet ? this.actionMap[this.id] : undefined;
-		if (mappedCommand && mappedCommand !== 'emmet.expandAbbreviation') {
+		if (mappedCommand && mappedCommand !== 'emmet.expandAbbreviation' && mappedCommand !== 'emmet.wrapWithAbbreviation') {
 			return commandService.executeCommand<void>(mappedCommand);
 		}
 
@@ -312,9 +312,8 @@ export abstract class EmmetEditorAction extends EditorAction {
 				this.emmetActionName
 			);
 
-			if (mappedCommand === 'emmet.expandAbbreviation') {
-				let syntax = editorAccessor.getSyntax();
-				return commandService.executeCommand<void>(mappedCommand, { syntax });
+			if (mappedCommand === 'emmet.expandAbbreviation' || mappedCommand === 'emmet.wrapWithAbbreviation') {
+				return commandService.executeCommand<void>(mappedCommand, editorAccessor.getLanguage());
 			}
 
 			if (!editorAccessor.isEmmetEnabledMode()) {

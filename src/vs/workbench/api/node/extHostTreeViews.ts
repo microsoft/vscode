@@ -53,7 +53,7 @@ export class ExtHostTreeViews extends ExtHostTreeViewsShape {
 	$getElements(treeViewId: string): TPromise<ITreeItem[]> {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
-			return TPromise.wrapError<ITreeItem[]>(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
+			return TPromise.wrapError<ITreeItem[]>(new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId)));
 		}
 		return treeView.getTreeItems();
 	}
@@ -61,7 +61,7 @@ export class ExtHostTreeViews extends ExtHostTreeViewsShape {
 	$getChildren(treeViewId: string, treeItemHandle?: number): TPromise<ITreeItem[]> {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
-			return TPromise.wrapError<ITreeItem[]>(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
+			return TPromise.wrapError<ITreeItem[]>(new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId)));
 		}
 		return treeView.getChildren(treeItemHandle);
 	}
@@ -102,7 +102,7 @@ class ExtHostTreeView<T> extends Disposable {
 		if (extElement) {
 			this.clearChildren(extElement);
 		} else {
-			return TPromise.wrapError<ITreeItem[]>(localize('treeItem.notFound', 'No tree item with id \'{0}\' found.', treeItemHandle));
+			return TPromise.wrapError<ITreeItem[]>(new Error(localize('treeItem.notFound', 'No tree item with id \'{0}\' found.', treeItemHandle)));
 		}
 
 		return asWinJsPromise(() => this.dataProvider.getChildren(extElement))
@@ -130,7 +130,7 @@ class ExtHostTreeView<T> extends Disposable {
 				elements.filter(element => !!element)
 					.map(element => {
 						if (this.extChildrenElementsMap.has(element)) {
-							return TPromise.wrapError<ITreeItem>(localize('treeView.duplicateElement', 'Element {0} is already registered', element));
+							return TPromise.wrapError<ITreeItem>(new Error(localize('treeView.duplicateElement', 'Element {0} is already registered', element)));
 						}
 						return this.resolveElement(element);
 					}))

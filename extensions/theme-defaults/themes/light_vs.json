@@ -250,6 +250,16 @@
 			}
 		},
 		{
+			"name": "Reset JavaScript string interpolation expression",
+			"scope": [
+				"meta.template.expression.js",
+				"meta.template.expression.ts"
+			],
+			"settings": {
+				"foreground": "#000000"
+			}
+		},
+		{
 			"scope": [
 				"support.constant.property-value",
 				"support.constant.font-name",

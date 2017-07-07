@@ -7,6 +7,7 @@
 	"editorGroupAriaLabel": "{0}, 编辑器组",
 	"openEditorAriaLabel": "{0}, 打开编辑器",
 	"saveAll": "全部保存",
+	"closeAllUnmodified": "关闭未更改的",
 	"closeAll": "全部关闭",
 	"close": "关闭",
 	"closeOthers": "关闭其他"

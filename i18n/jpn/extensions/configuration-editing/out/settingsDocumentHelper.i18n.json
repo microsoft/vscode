@@ -7,7 +7,6 @@
 	"activeEditorShort": "例: myFile.txt",
 	"activeEditorMedium": "例: myFolder/myFile.txt",
 	"activeEditorLong": "例: /Users/Development/myProject/myFolder/myFile.txt",
-	"rootName": "例: myProject",
 	"rootPath": "例: /Users/Development/myProject",
 	"appName": "例: VS Code",
 	"dirty": "アクティブなエディターがダーティである場合のダーティ インジケーター",

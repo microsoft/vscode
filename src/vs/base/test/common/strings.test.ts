@@ -80,6 +80,7 @@ suite('Strings', () => {
 		assertCompareIgnoreCase('aa', 'aA');
 		assertCompareIgnoreCase('a', 'aa');
 		assertCompareIgnoreCase('ab', 'aA');
+		assertCompareIgnoreCase('O', '/');
 	});
 
 	test('format', function () {
@@ -258,30 +259,6 @@ suite('Strings', () => {
 		assert.equal(strings.containsEmoji('2702 # ✂ scissors'), true);
 		assert.equal(strings.containsEmoji('1F1F7 1F1F4  # 🇷🇴 Romania'), true);
 	});
-
-	// test('containsRTL speed', () => {
-	// 	var SIZE = 1000000;
-	// 	var REPEAT = 10;
-	// 	function generateASCIIStr(len:number): string {
-	// 		let r = '';
-	// 		for (var i = 0; i < len; i++) {
-	// 			var res = Math.floor(Math.random() * 256);
-	// 			r += String.fromCharCode(res);
-	// 		}
-	// 		return r;
-	// 	}
-	// 	function testContainsRTLSpeed(): number {
-	// 		var str = generateASCIIStr(SIZE);
-	// 		var start = Date.now();
-	// 		assert.equal(strings.containsRTL(str), false);
-	// 		return (Date.now() - start);
-	// 	}
-	// 	var allTime = 0;
-	// 	for (var i = 0; i < REPEAT; i++) {
-	// 		allTime += testContainsRTLSpeed();
-	// 	}
-	// 	console.log('TOOK: ' + (allTime)/10 + 'ms for size of ' + SIZE/1000000 + 'Mb');
-	// });
 
 	test('isBasicASCII', () => {
 		function assertIsBasicASCII(str: string, expected: boolean): void {

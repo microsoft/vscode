@@ -13,5 +13,6 @@
 	"cancel": "Annuler",
 	"singleDependentError": "Impossible de désactiver l'extension '{0}'. L'extension '{1}' en dépend.",
 	"twoDependentsError": "Impossible de désactiver l'extension '{0}'. Les extensions '{1}' et '{2}' en dépendent.",
-	"multipleDependentsError": "Impossible de désactiver l'extension '{0}'. Les extensions '{1}', '{2}' et d'autres extensions en dépendent."
+	"multipleDependentsError": "Impossible de désactiver l'extension '{0}'. Les extensions '{1}', '{2}' et d'autres extensions en dépendent.",
+	"install": "Installer"
 }

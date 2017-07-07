@@ -22,7 +22,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { once } from "vs/base/common/event";
+import { once } from 'vs/base/common/event';
 
 /**
  * An editor implementation that is capable of showing the contents of resource inputs. Uses
@@ -80,7 +80,7 @@ export class TextResourceEditor extends BaseTextEditor {
 
 			// Assert Model instance
 			if (!(resolvedModel instanceof BaseTextEditorModel)) {
-				return TPromise.wrapError<void>('Unable to open file as text');
+				return TPromise.wrapError<void>(new Error('Unable to open file as text'));
 			}
 
 			// Assert that the current input is still the one we expect. This prevents a race condition when loading takes long and another input was set meanwhile
@@ -104,7 +104,8 @@ export class TextResourceEditor extends BaseTextEditor {
 			if (!optionsGotApplied) {
 				this.restoreViewState(input);
 			}
-			return undefined;
+
+			return void 0;
 		});
 	}
 

@@ -6,8 +6,10 @@
 'use strict';
 
 import assert = require('assert');
+import platform = require('vs/base/common/platform');
+
 import { NsfwWatcherService } from 'vs/workbench/services/files/node/watcher/nsfw/nsfwWatcherService';
-import { IWatcherRequest } from "vs/workbench/services/files/node/watcher/nsfw/watcher";
+import { IWatcherRequest } from 'vs/workbench/services/files/node/watcher/nsfw/watcher';
 
 class TestNsfwWatcherService extends NsfwWatcherService {
 	public normalizeRoots(roots: string[]): string[] {
@@ -23,17 +25,30 @@ suite('NSFW Watcher Service', () => {
 	suite('_normalizeRoots', () => {
 		test('should not impacts roots that don\'t overlap', () => {
 			const service = new TestNsfwWatcherService();
-			assert.deepEqual(service.normalizeRoots(['/a']), ['/a']);
-			assert.deepEqual(service.normalizeRoots(['/a', '/b']), ['/a', '/b']);
-			assert.deepEqual(service.normalizeRoots(['/a', '/b', '/c/d/e']), ['/a', '/b', '/c/d/e']);
+			if (platform.isWindows) {
+				assert.deepEqual(service.normalizeRoots(['C:\\a']), ['C:\\a']);
+				assert.deepEqual(service.normalizeRoots(['C:\\a', 'C:\\b']), ['C:\\a', 'C:\\b']);
+				assert.deepEqual(service.normalizeRoots(['C:\\a', 'C:\\b', 'C:\\c\\d\\e']), ['C:\\a', 'C:\\b', 'C:\\c\\d\\e']);
+			} else {
+				assert.deepEqual(service.normalizeRoots(['/a']), ['/a']);
+				assert.deepEqual(service.normalizeRoots(['/a', '/b']), ['/a', '/b']);
+				assert.deepEqual(service.normalizeRoots(['/a', '/b', '/c/d/e']), ['/a', '/b', '/c/d/e']);
+			}
 		});
 
 		test('should remove sub-folders of other roots', () => {
 			const service = new TestNsfwWatcherService();
-			assert.deepEqual(service.normalizeRoots(['/a', '/a/b']), ['/a']);
-			assert.deepEqual(service.normalizeRoots(['/a', '/b', '/a/b']), ['/a', '/b']);
-			assert.deepEqual(service.normalizeRoots(['/b/a', '/a', '/b', '/a/b']), ['/a', '/b']);
-			assert.deepEqual(service.normalizeRoots(['/a', '/a/b', '/a/c/d']), ['/a']);
+			if (platform.isWindows) {
+				assert.deepEqual(service.normalizeRoots(['C:\\a', 'C:\\a\\b']), ['C:\\a']);
+				assert.deepEqual(service.normalizeRoots(['C:\\a', 'C:\\b', 'C:\\a\\b']), ['C:\\a', 'C:\\b']);
+				assert.deepEqual(service.normalizeRoots(['C:\\b\\a', 'C:\\a', 'C:\\b', 'C:\\a\\b']), ['C:\\a', 'C:\\b']);
+				assert.deepEqual(service.normalizeRoots(['C:\\a', 'C:\\a\\b', 'C:\\a\\c\\d']), ['C:\\a']);
+			} else {
+				assert.deepEqual(service.normalizeRoots(['/a', '/a/b']), ['/a']);
+				assert.deepEqual(service.normalizeRoots(['/a', '/b', '/a/b']), ['/a', '/b']);
+				assert.deepEqual(service.normalizeRoots(['/b/a', '/a', '/b', '/a/b']), ['/a', '/b']);
+				assert.deepEqual(service.normalizeRoots(['/a', '/a/b', '/a/c/d']), ['/a']);
+			}
 		});
 	});
 });

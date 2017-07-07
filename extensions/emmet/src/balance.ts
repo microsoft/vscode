@@ -4,11 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import parse from '@emmetio/html-matcher';
-import Node from '@emmetio/node';
-import { DocumentStreamReader } from './bufferStream';
-import { isStyleSheet } from 'vscode-emmet-helper';
-import { getNode } from './util';
+import { HtmlNode } from 'EmmetNode';
+import { getNode, parse, validate } from './util';
 
 export function balanceOut() {
 	balance(true);
@@ -20,17 +17,16 @@ export function balanceIn() {
 
 function balance(out: boolean) {
 	let editor = vscode.window.activeTextEditor;
-	if (!editor) {
-		vscode.window.showInformationMessage('No editor is active');
+	if (!validate(false)) {
 		return;
 	}
-	if (isStyleSheet(editor.document.languageId)) {
+
+	let rootNode = <HtmlNode>parse(editor.document);
+	if (!rootNode) {
 		return;
 	}
+
 	let getRangeFunction = out ? getRangeToBalanceOut : getRangeToBalanceIn;
-
-	let rootNode: Node = parse(new DocumentStreamReader(editor.document));
-
 	let newSelections: vscode.Selection[] = [];
 	editor.selections.forEach(selection => {
 		let range = getRangeFunction(editor.document, selection, rootNode);
@@ -41,8 +37,8 @@ function balance(out: boolean) {
 	editor.selections = newSelections;
 }
 
-function getRangeToBalanceOut(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Node): vscode.Selection {
-	let nodeToBalance = getNode(rootNode, selection.start);
+function getRangeToBalanceOut(document: vscode.TextDocument, selection: vscode.Selection, rootNode: HtmlNode): vscode.Selection {
+	let nodeToBalance = <HtmlNode>getNode(rootNode, selection.start);
 	if (!nodeToBalance) {
 		return;
 	}
@@ -62,9 +58,8 @@ function getRangeToBalanceOut(document: vscode.TextDocument, selection: vscode.S
 	return;
 }
 
-function getRangeToBalanceIn(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Node): vscode.Selection {
-	let nodeToBalance: Node = getNode(rootNode, selection.start, true);
-
+function getRangeToBalanceIn(document: vscode.TextDocument, selection: vscode.Selection, rootNode: HtmlNode): vscode.Selection {
+	let nodeToBalance = <HtmlNode>getNode(rootNode, selection.start);
 	if (!nodeToBalance) {
 		return;
 	}

@@ -11,6 +11,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { CharCode } from 'vs/base/common/charCode';
 import { IRawTextSource } from 'vs/editor/common/model/textSource';
 
+const AVOID_SLICED_STRINGS = true;
+
 export interface ModelBuilderResult {
 	readonly hash: string;
 	readonly value: IRawTextSource;
@@ -40,7 +42,12 @@ class ModelLineBasedBuilder {
 		}
 
 		for (let i = 0, len = lines.length; i < len; i++) {
-			this.lines[this.currLineIndex++] = lines[i];
+			let line = lines[i];
+			if (AVOID_SLICED_STRINGS) {
+				// See https://bugs.chromium.org/p/v8/issues/detail?id=2869
+				line = Buffer.from(line).toString();
+			}
+			this.lines[this.currLineIndex++] = line;
 		}
 		this.hash.update(lines.join('\n') + '\n');
 	}

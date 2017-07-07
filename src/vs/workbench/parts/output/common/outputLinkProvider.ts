@@ -14,7 +14,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { OUTPUT_MODE_ID } from 'vs/workbench/parts/output/common/output';
 import { MonacoWebWorker, createWebWorker } from 'vs/editor/common/services/webWorker';
 import { ICreateData, OutputLinkComputer } from 'vs/workbench/parts/output/common/outputLinkComputer';
-import { IDisposable, dispose } from "vs/base/common/lifecycle";
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export class OutputLinkProvider {
 
@@ -55,7 +55,7 @@ export class OutputLinkProvider {
 			}
 
 			// Update link provider worker if workspace roots changed
-			const newWorkspacesCount = this.contextService.getWorkspace2().roots.length;
+			const newWorkspacesCount = this.contextService.getWorkspace().roots.length;
 			if (this.workspacesCount !== newWorkspacesCount) {
 				this.workspacesCount = newWorkspacesCount;
 
@@ -80,7 +80,7 @@ export class OutputLinkProvider {
 
 		if (!this.worker) {
 			const createData: ICreateData = {
-				workspaceFolders: this.contextService.getWorkspace2().roots.map(root => root.toString())
+				workspaceFolders: this.contextService.getWorkspace().roots.map(root => root.toString())
 			};
 
 			this.worker = createWebWorker<OutputLinkComputer>(this.modelService, {

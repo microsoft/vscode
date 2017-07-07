@@ -5,8 +5,9 @@
 'use strict';
 
 import { mixin } from 'vs/base/common/objects';
+import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
-import { WorkspaceConfiguration } from 'vscode';
+import { WorkspaceConfiguration, WorkspaceConfiguration2 } from 'vscode';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostConfigurationShape, MainThreadConfigurationShape } from './extHost.protocol';
 import { IConfigurationData, Configuration } from 'vs/platform/configuration/common/configuration';
@@ -22,6 +23,14 @@ function lookUp(tree: any, key: string) {
 		return node;
 	}
 }
+
+type ConfigurationInspect<T> = {
+	key: string;
+	defaultValue?: T;
+	globalValue?: T;
+	workspaceValue?: T;
+	folderValue?: T;
+};
 
 export class ExtHostConfiguration extends ExtHostConfigurationShape {
 
@@ -47,10 +56,18 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 	}
 
 	getConfiguration(section?: string): WorkspaceConfiguration {
+		return this._getConfiguration(section, null, true);
+	}
+
+	getConfiguration2(section?: string, resource?: URI): WorkspaceConfiguration2 {
+		return this._getConfiguration(section, resource, false);
+	}
+
+	private _getConfiguration(section: string, resource: URI, legacy: boolean): WorkspaceConfiguration {
 
 		const config = section
-			? lookUp(this._configuration.getValue(), section)
-			: this._configuration.getValue();
+			? lookUp(this._configuration.getValue(null, { resource }), section)
+			: this._configuration.getValue(null, { resource });
 
 		const result: WorkspaceConfiguration = {
 			has(key: string): boolean {
@@ -72,16 +89,20 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 					return this._proxy.$removeConfigurationOption(target, key);
 				}
 			},
-			inspect: <T>(key: string): { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T } => {
+			inspect: <T>(key: string): ConfigurationInspect<T> => {
 				key = section ? `${section}.${key}` : key;
-				const config = this._configuration.values()[key];
+				const config = legacy ? this._configuration.lookupLegacy<T>(key) : this._configuration.lookup<T>(key, { resource });
 				if (config) {
-					return {
+					const inspect: ConfigurationInspect<T> = {
 						key,
 						defaultValue: config.default,
 						globalValue: config.user,
-						workspaceValue: config.workspace
+						workspaceValue: config.workspace,
 					};
+					if (!legacy) {
+						inspect.folderValue = config.folder;
+					}
+					return inspect;
 				}
 				return undefined;
 			}

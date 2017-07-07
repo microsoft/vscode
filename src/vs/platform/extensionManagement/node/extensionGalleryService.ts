@@ -345,8 +345,6 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			query = query.withSortOrder(options.sortOrder);
 		}
 
-		console.log(query.raw);
-
 		return this.queryGallery(query).then(({ galleryExtensions, total }) => {
 			const extensions = galleryExtensions.map(e => toExtension(e, this.extensionsGalleryUrl));
 			const pageSize = query.pageSize;
@@ -517,7 +515,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			const firstOptions = assign({}, options, { url: asset.uri });
 
 			return this.requestService.request(firstOptions)
-				.then(context => context.res.statusCode === 200 ? context : TPromise.wrapError('expected 200'))
+				.then(context => context.res.statusCode === 200 ? context : TPromise.wrapError(new Error('expected 200')))
 				.then(null, err => {
 					this.telemetryService.publicLog('galleryService:requestError', { cdn: true, message: getErrorMessage(err) });
 					this.telemetryService.publicLog('galleryService:cdnFallback', { url: asset.uri });

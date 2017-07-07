@@ -54,17 +54,16 @@ export class Extensions {
 		}
 	}
 
-	public async selectMinimalIconsTheme(): Promise<any> {
+	public async activateExtension(): Promise<any> {
 		await this.common.showCommands();
-		await this.common.type('File Icon Theme');
+		await this.common.type('Smoke Test Check');
 		await this.spectron.wait();
-		await this.common.enter();
-		return this.spectron.client.keys(['ArrowDown', 'NULL', 'Enter', 'NULL']);
+		return this.common.enter();
 	}
 
-	public async verifyFolderIconAppearance(): Promise<any> {
+	public verifyStatusbarItem(): Promise<any> {
 		try {
-			return this.spectron.waitFor(this.spectron.client.getHTML, 'style[class="contributedIconTheme"]');
+			return this.spectron.waitFor(this.spectron.client.getText, '.statusbar-item.statusbar-entry span[title="smoke test"]');
 		} catch (e) {
 			return Promise.reject('Failed to validate extension contribution.');
 		}

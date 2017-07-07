@@ -13,5 +13,6 @@
 	"cancel": "取消",
 	"singleDependentError": "無法停用延伸模組 '{0}'。'{1}' 延伸模組相依於此項。",
 	"twoDependentsError": "無法停用延伸模組 '{0}'。'{1}' 及 '{2}' 延伸模組相依於此項。",
-	"multipleDependentsError": "無法停用延伸模組 '{0}'。'{1}'、'{2}' 及其他延伸模組相依於此項。"
+	"multipleDependentsError": "無法停用延伸模組 '{0}'。'{1}'、'{2}' 及其他延伸模組相依於此項。",
+	"install": "安裝"
 }

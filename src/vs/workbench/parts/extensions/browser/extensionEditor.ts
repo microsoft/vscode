@@ -51,16 +51,27 @@ import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLa
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 
 function renderBody(body: string): string {
-	const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
 	return `<!DOCTYPE html>
 		<html>
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src http: https: data:; media-src https:; script-src 'none'; style-src 'nonce-${nonce}'; child-src 'none'; frame-src 'none';">
-				<link rel="stylesheet" type="text/css" href="${require.toUrl('./media/markdown.css')}" nonce="${nonce}" >
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https:; media-src https:; script-src 'none'; style-src file:; child-src 'none'; frame-src 'none';">
+				<link rel="stylesheet" type="text/css" href="${require.toUrl('./media/markdown.css')}">
 			</head>
 			<body>${body}</body>
 		</html>`;
+}
+
+function removeEmbeddedSVGs(documentContent: string): string {
+	const newDocument = new DOMParser().parseFromString(documentContent, 'text/html');
+
+	// remove all inline svgs
+	const allSVGs = newDocument.documentElement.querySelectorAll('svg');
+	for (let i = 0; i < allSVGs.length; i++) {
+		allSVGs[i].parentNode.removeChild(allSVGs[i]);
+	}
+
+	return newDocument.documentElement.outerHTML;
 }
 
 class NavBar {
@@ -323,8 +334,11 @@ export class ExtensionEditor extends BaseEditor {
 		return this.loadContents(() => content
 			.then(marked.parse)
 			.then(renderBody)
+			.then(removeEmbeddedSVGs)
 			.then<void>(body => {
-				const webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART));
+				const allowedBadgeProviders = this.extensionsWorkbenchService.allowedBadgeProviders;
+				const webViewOptions = allowedBadgeProviders.length > 0 ? { allowScripts: false, allowSvgs: false, svgWhiteList: allowedBadgeProviders } : undefined;
+				const webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), webViewOptions);
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, webview);
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
 
@@ -487,8 +501,13 @@ export class ExtensionEditor extends BaseEditor {
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', null, localize('debuggers', "Debuggers ({0})", contrib.length)),
 			$('table', null,
-				$('tr', null, $('th', null, localize('debugger name', "Name"))),
-				...contrib.map(d => $('tr', null, $('td', null, d.label || d.type)))
+				$('tr', null,
+					$('th', null, localize('debugger name', "Name")),
+					$('th', null, localize('debugger type', "Type")),
+				),
+				...contrib.map(d => $('tr', null,
+					$('td', null, d.label),
+					$('td', null, d.type)))
 			)
 		);
 

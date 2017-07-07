@@ -45,8 +45,8 @@ const nodeModules = ['electron', 'original-fs']
 // Build
 
 const builtInExtensions = [
-	{ name: 'ms-vscode.node-debug', version: '1.14.5' },
-	{ name: 'ms-vscode.node-debug2', version: '1.14.1' }
+	{ name: 'ms-vscode.node-debug', version: '1.15.2' },
+	{ name: 'ms-vscode.node-debug2', version: '1.14.4' }
 ];
 
 const excludedExtensions = [
@@ -55,7 +55,7 @@ const excludedExtensions = [
 ];
 
 const vscodeEntryPoints = _.flatten([
-	buildfile.entrypoint('vs/workbench/electron-browser/workbench.main'),
+	buildfile.entrypoint('vs/workbench/workbench.main'),
 	buildfile.base,
 	buildfile.workbench,
 	buildfile.code
@@ -219,8 +219,8 @@ function packageTask(platform, arch, opts) {
 		const out = opts.minified ? 'out-vscode-min' : 'out-vscode';
 
 		const checksums = computeChecksums(out, [
-			'vs/workbench/electron-browser/workbench.main.js',
-			'vs/workbench/electron-browser/workbench.main.css',
+			'vs/workbench/workbench.main.js',
+			'vs/workbench/workbench.main.css',
 			'vs/workbench/electron-browser/bootstrap/index.html',
 			'vs/workbench/electron-browser/bootstrap/index.js',
 			'vs/workbench/electron-browser/bootstrap/preload.js'
@@ -376,23 +376,27 @@ gulp.task('vscode-linux-arm-min', ['minify-vscode', 'clean-vscode-linux-arm'], p
 function snapshotTask(platform, arch) {
 
 	const destination = path.join(path.dirname(root), 'VSCode') + (platform ? '-' + platform : '') + (arch ? '-' + arch : '');
-	const command = path.join(process.cwd(), 'node_modules/.bin/mksnapshot');
 
+	let command = path.join(process.cwd(), 'node_modules/.bin/mksnapshot');
+	let loaderInputFilepath;
 	let startupBlobFilepath;
 
 	if (platform === 'darwin') {
+		loaderInputFilepath = path.join(destination, 'Code - OSS.app/Contents/Resources/app/out/vs/loader.js');
 		startupBlobFilepath = path.join(destination, 'Code - OSS.app/Contents/Frameworks/Electron Framework.framework/Resources/snapshot_blob.bin')
-	} else if (platform === 'windows') {
+
+	} else if (platform === 'win32') {
+		command = `${command}.cmd`;
+		loaderInputFilepath = path.join(destination, 'resources/app/out/vs/loader.js');
 		startupBlobFilepath = path.join(destination, 'snapshot_blob.bin')
-		// TODO
-		return () => { };
+
 	} else if (platform === 'linux') {
 		// TODO
 		return () => { };
 	}
 
 	return () => {
-		const inputFile = fs.readFileSync(path.join(destination, 'Code - OSS.app/Contents/Resources/app/out/vs/loader.js'));
+		const inputFile = fs.readFileSync(loaderInputFilepath);
 		const wrappedInputFile = `
 		var Monaco_Loader_Init;
 		(function() {
@@ -415,7 +419,9 @@ function snapshotTask(platform, arch) {
 	}
 }
 
-gulp.task('vscode-darwin-snapshots', ['vscode-darwin'], snapshotTask('darwin', undefined));
+gulp.task('vscode-darwin-snapshots', ['vscode-darwin-min'], snapshotTask('darwin', undefined));
+gulp.task('vscode-win32-ia32-snapshots', ['vscode-win32-ia32'], snapshotTask('win32', 'ia32'));
+gulp.task('vscode-win32-x64-snapshots', ['vscode-win32-x64'], snapshotTask('win32', 'x64'));
 
 
 // Transifex Localizations

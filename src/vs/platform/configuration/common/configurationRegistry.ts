@@ -52,9 +52,15 @@ export interface IConfigurationRegistry {
 	registerOverrideIdentifiers(identifiers: string[]): void;
 }
 
+export enum ConfigurationScope {
+	WORKSPACE = 1,
+	FOLDER
+}
+
 export interface IConfigurationPropertySchema extends IJSONSchema {
 	overridable?: boolean;
 	isExecutable?: boolean;
+	scope?: ConfigurationScope;
 }
 
 export interface IConfigurationNode {
@@ -66,6 +72,7 @@ export interface IConfigurationNode {
 	properties?: { [path: string]: IConfigurationPropertySchema; };
 	allOf?: IConfigurationNode[];
 	overridable?: boolean;
+	scope?: ConfigurationScope;
 }
 
 export interface IDefaultConfigurationExtension {
@@ -147,7 +154,8 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		}
 	}
 
-	private validateAndRegisterProperties(configuration: IConfigurationNode, validate: boolean = true, overridable: boolean = false) {
+	private validateAndRegisterProperties(configuration: IConfigurationNode, validate: boolean = true, scope: ConfigurationScope = ConfigurationScope.WORKSPACE, overridable: boolean = false) {
+		scope = configuration.scope !== void 0 && configuration.scope !== null ? configuration.scope : scope;
 		overridable = configuration.overridable || overridable;
 		let properties = configuration.properties;
 		if (properties) {
@@ -168,6 +176,9 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				if (overridable) {
 					property.overridable = true;
 				}
+				if (property.scope === void 0) {
+					property.scope = scope;
+				}
 				// add to properties map
 				this.configurationProperties[key] = properties[key];
 			}
@@ -175,7 +186,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		let subNodes = configuration.allOf;
 		if (subNodes) {
 			for (let node of subNodes) {
-				this.validateAndRegisterProperties(node, validate, overridable);
+				this.validateAndRegisterProperties(node, validate, scope, overridable);
 			}
 		}
 	}

@@ -16,7 +16,7 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { editorOverviewRulerBorder, editorCursor } from 'vs/editor/common/view/editorColorRegistry';
 import { Color } from 'vs/base/common/color';
-import { ThemeColor } from "vs/platform/theme/common/themeService";
+import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
 export class DecorationsOverviewRuler extends ViewPart {
 

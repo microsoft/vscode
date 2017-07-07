@@ -52,7 +52,8 @@ export class SpectronApplication {
 		this.spectron = new Application({
 			path: electronPath,
 			args: args,
-			chromeDriverArgs: chromeDriverArgs
+			chromeDriverArgs: chromeDriverArgs,
+			startTimeout: 10000
 		});
 		this.testRetry += 1; // avoid multiplication by 0 for wait times
 		this.screenshot = new Screenshot(this, testName, testRetry);
@@ -120,7 +121,7 @@ export class SpectronApplication {
 
 				let result;
 				try {
-					result = await func.call(this.client, args);
+					result = await func.call(this.client, args, false);
 				} catch (e) { }
 
 				if (result && result !== '') {

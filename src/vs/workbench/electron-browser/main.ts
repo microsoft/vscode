@@ -18,7 +18,7 @@ import paths = require('vs/base/common/paths');
 import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { LegacyWorkspace, Workspace } from "vs/platform/workspace/common/workspace";
+import { LegacyWorkspace, Workspace } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configuration';
 import { realpath, stat } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
@@ -27,15 +27,15 @@ import gracefulFs = require('graceful-fs');
 import { IInitData } from 'vs/workbench/services/timer/common/timerService';
 import { TimerService } from 'vs/workbench/services/timer/node/timerService';
 import { KeyboardMapperFactory } from "vs/workbench/services/keybinding/electron-browser/keybindingService";
-import { IWindowConfiguration, IPath } from "vs/platform/windows/common/windows";
-import { IStorageService } from "vs/platform/storage/common/storage";
-import { IEnvironmentService } from "vs/platform/environment/common/environment";
-import { StorageService, inMemoryLocalStorageInstance } from "vs/platform/storage/common/storageService";
+import { IWindowConfiguration, IPath } from 'vs/platform/windows/common/windows';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { StorageService, inMemoryLocalStorageInstance } from 'vs/platform/storage/common/storageService';
 
 import { webFrame } from 'electron';
 
 import fs = require('fs');
-import { createHash } from "crypto";
+import { createHash } from 'crypto';
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
 export function startup(configuration: IWindowConfiguration): TPromise<void> {

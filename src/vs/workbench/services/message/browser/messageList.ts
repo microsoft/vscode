@@ -177,7 +177,7 @@ export class MessageList {
 			return toErrorMessage(message, false);
 		}
 
-		if ((<IMessageWithAction>message).message) {
+		if (message && (<IMessageWithAction>message).message) {
 			return (<IMessageWithAction>message).message;
 		}
 

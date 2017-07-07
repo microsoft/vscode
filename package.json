@@ -1,8 +1,8 @@
 {
   "name": "code-oss-dev",
-  "version": "1.14.0",
+  "version": "1.15.0",
   "electronVersion": "1.6.6",
-  "distro": "e1ebae615f927063affde84ceee25d4c47415821",
+  "distro": "3d527860a13c6374d293f95ac2b8d26338d5f428",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -39,7 +39,7 @@
     "nsfw": "1.0.15",
     "semver": "4.3.6",
     "v8-profiler": "jrieken/v8-profiler#vscode",
-    "vscode-debugprotocol": "1.20.0",
+    "vscode-debugprotocol": "1.21.0",
     "vscode-ripgrep": "0.0.12",
     "vscode-textmate": "^3.1.5",
     "winreg": "1.2.0",

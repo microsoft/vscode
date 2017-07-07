@@ -14,5 +14,6 @@
 	"addSelectionToPreviousFindMatch": "Seçimi Önceki Bulunan Eşleşmeye Ekle",
 	"moveSelectionToNextFindMatch": "Son Seçimi Sonraki Bulunan Eşleşmeye Taşı",
 	"moveSelectionToPreviousFindMatch": "Son Seçimi Önceki Bulunan Eşleşmeye Taşı",
+	"selectAllOccurrencesOfFindMatch": "Bulunan Eşleşmenin Tüm Tekrarlamalarını Seç",
 	"changeAll.label": "Tüm Tekrarlamaları Değiştir"
 }

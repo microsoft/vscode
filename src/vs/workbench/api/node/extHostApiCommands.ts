@@ -161,11 +161,12 @@ export class ExtHostApiCommands {
 			returns: 'A promise that resolves to an array of DocumentLink-instances.'
 		});
 
-		this._register('vscode.previewHtml', (uri: URI, position?: vscode.ViewColumn, label?: string) => {
+		this._register('vscode.previewHtml', (uri: URI, position?: vscode.ViewColumn, label?: string, options?: any) => {
 			return this._commands.executeCommand('_workbench.previewHtml',
 				uri,
 				typeof position === 'number' && typeConverters.fromViewColumn(position),
-				label);
+				label,
+				options);
 		}, {
 				description: `
 					Render the html of the resource in an editor view.
@@ -175,7 +176,8 @@ export class ExtHostApiCommands {
 				args: [
 					{ name: 'uri', description: 'Uri of the resource to preview.', constraint: value => value instanceof URI || typeof value === 'string' },
 					{ name: 'column', description: '(optional) Column in which to preview.', constraint: value => typeof value === 'undefined' || (typeof value === 'number' && typeof types.ViewColumn[value] === 'string') },
-					{ name: 'label', description: '(optional) An human readable string that is used as title for the preview.', constraint: v => typeof v === 'string' || typeof v === 'undefined' }
+					{ name: 'label', description: '(optional) An human readable string that is used as title for the preview.', constraint: v => typeof v === 'string' || typeof v === 'undefined' },
+					{ name: 'options', description: '(optional) Options for controlling webview environment.', constraint: v => typeof v === 'object' || typeof v === 'undefined' }
 				]
 			});
 
@@ -203,11 +205,10 @@ export class ExtHostApiCommands {
 			});
 
 		this._register('vscode.diff', (left: URI, right: URI, label: string, options?: vscode.TextDocumentShowOptions) => {
-
 			let editorOptions: IEditorOptions;
 			if (options) {
 				editorOptions = {
-					pinned: !options.preview,
+					pinned: typeof options.preview === 'boolean' ? !options.preview : undefined,
 					preserveFocus: options.preserveFocus
 				};
 			}
@@ -341,7 +342,7 @@ export class ExtHostApiCommands {
 				return undefined;
 			}
 			if (value.rejectReason) {
-				return TPromise.wrapError<types.WorkspaceEdit>(value.rejectReason);
+				return TPromise.wrapError<types.WorkspaceEdit>(new Error(value.rejectReason));
 			}
 			let workspaceEdit = new types.WorkspaceEdit();
 			for (let edit of value.edits) {

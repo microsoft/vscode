@@ -38,11 +38,12 @@ import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/com
 import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils';
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
-import { IStorageService } from "vs/platform/storage/common/storage";
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 used();
 
-const configurationKey = 'workbench.welcome.enabled';
+const configurationKey = 'workbench.startupEditor';
+const oldConfigurationKey = 'workbench.welcome.enabled';
 const telemetryFrom = 'welcomePage';
 
 export class WelcomePageContribution implements IWorkbenchContribution {
@@ -76,7 +77,14 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 }
 
 function isWelcomePageEnabled(configurationService: IConfigurationService) {
-	return configurationService.lookup(configurationKey).value;
+	const startupEditor = configurationService.lookup(configurationKey);
+	if (!startupEditor.user && !startupEditor.workspace) {
+		const welcomeEnabled = configurationService.lookup(oldConfigurationKey);
+		if (welcomeEnabled.value !== undefined && welcomeEnabled.value !== null) {
+			return welcomeEnabled.value;
+		}
+	}
+	return startupEditor.value === 'welcomePage';
 }
 
 export class WelcomePageAction extends Action {
@@ -97,16 +105,6 @@ export class WelcomePageAction extends Action {
 		return null;
 	}
 }
-
-const reorderedQuickLinks = [
-	'showInterfaceOverview',
-	'selectTheme',
-	'showRecommendedKeymapExtensions',
-	'showCommands',
-	'keybindingsReference',
-	'openGlobalSettings',
-	'showInteractivePlayground',
-];
 
 interface ExtensionSuggestion {
 	name: string;
@@ -209,12 +207,12 @@ class WelcomePage {
 			showOnStartup.setAttribute('checked', 'checked');
 		}
 		showOnStartup.addEventListener('click', e => {
-			this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: configurationKey, value: showOnStartup.checked });
+			this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: configurationKey, value: showOnStartup.checked ? 'welcomePage' : 'newUntitledFile' });
 		});
 
 		recentlyOpened.then(({ folders }) => {
 			if (this.contextService.hasWorkspace()) {
-				const currents = this.contextService.getWorkspace2().roots;
+				const currents = this.contextService.getWorkspace().roots;
 				folders = folders.filter(folder => !currents.some(current => this.pathEquals(folder, current.fsPath)));
 			}
 			if (!folders.length) {
@@ -262,24 +260,6 @@ class WelcomePage {
 				ul.insertBefore(li, before);
 			});
 		}).then(null, onUnexpectedError);
-
-		const customize = container.querySelector('.commands .section.customize');
-		const learn = container.querySelector('.commands .section.learn');
-		const quickLinks = container.querySelector('.commands .section.quickLinks');
-		if (this.telemetryService.getExperiments().mergeQuickLinks) {
-			const ul = quickLinks.querySelector('ul');
-			reorderedQuickLinks.forEach(clazz => {
-				const link = container.querySelector(`.commands .${clazz}`);
-				if (link) {
-					ul.appendChild(link);
-				}
-			});
-			customize.remove();
-			learn.remove();
-			container.querySelector('.keybindingsReferenceLink').remove();
-		} else {
-			quickLinks.remove();
-		}
 
 		this.addExtensionList(container, '.extensionPackList', extensionPacks, extensionPackStrings);
 		this.addExtensionList(container, '.keymapList', keymapExtensions, keymapStrings);

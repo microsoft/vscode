@@ -22,7 +22,7 @@ import { IContextMenuService, ContextSubMenu } from 'vs/platform/contextview/bro
 import { SettingsGroupTitleWidget, EditPreferenceWidget, SettingsHeaderWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
-import { IConfigurationEditingService, IConfigurationEditingError, ConfigurationEditingErrorCode, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IConfigurationEditingService, ConfigurationEditingError, ConfigurationEditingErrorCode, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { overrideIdentifierFromKey } from 'vs/platform/configuration/common/model';
 import { IMarkerService, IMarkerData } from 'vs/platform/markers/common/markers';
@@ -100,7 +100,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 			});
 	}
 
-	private toErrorMessage(error: IConfigurationEditingError, target: ConfigurationTarget): string {
+	private toErrorMessage(error: ConfigurationEditingError, target: ConfigurationTarget): string {
 		switch (error.code) {
 			case ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION: {
 				return nls.localize('errorInvalidConfiguration', "Unable to write into settings. Correct errors/warnings in the file and try again.");
@@ -185,6 +185,7 @@ export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements I
 
 export class DefaultSettingsRenderer extends Disposable implements IPreferencesRenderer<ISetting> {
 
+	private _associatedPreferencesModel: IPreferencesEditorModel<ISetting>;
 	private settingHighlighter: SettingHighlighter;
 	private settingsHeaderRenderer: SettingsHeaderRenderer;
 	private settingsGroupTitleRenderer: SettingsGroupTitleRenderer;
@@ -203,14 +204,12 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 
 	private filterResult: IFilterResult;
 
-	constructor(protected editor: ICodeEditor, public readonly preferencesModel: DefaultSettingsEditorModel, private _associatedPreferencesModel: IPreferencesEditorModel<ISetting>,
+	constructor(protected editor: ICodeEditor, public readonly preferencesModel: DefaultSettingsEditorModel,
 		@IPreferencesService protected preferencesService: IPreferencesService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
 		super();
-		this._register(preferencesModel);
-		this._register(_associatedPreferencesModel);
 		this.settingHighlighter = this._register(instantiationService.createInstance(SettingHighlighter, editor, this._onFocusPreference, this._onClearFocusPreference));
 		this.settingsHeaderRenderer = this._register(instantiationService.createInstance(SettingsHeaderRenderer, editor));
 		this.settingsGroupTitleRenderer = this._register(instantiationService.createInstance(SettingsGroupTitleRenderer, editor));

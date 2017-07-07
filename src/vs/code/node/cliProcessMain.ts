@@ -116,7 +116,7 @@ class Main {
 							const [extension] = result.firstPage;
 
 							if (!extension) {
-								return TPromise.wrapError(`${notFound(id)}\n${useId}`);
+								return TPromise.wrapError(new Error(`${notFound(id)}\n${useId}`));
 							}
 
 							console.log(localize('foundExtension', "Found '{0}' in the marketplace.", id));
@@ -137,7 +137,7 @@ class Main {
 				const [extension] = installed.filter(e => getId(e.manifest) === id);
 
 				if (!extension) {
-					return TPromise.wrapError(`${notInstalled(id)}\n${useId}`);
+					return TPromise.wrapError(new Error(`${notInstalled(id)}\n${useId}`));
 				}
 
 				console.log(localize('uninstalling', "Uninstalling {0}...", id));

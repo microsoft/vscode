@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 const MochaTest = require('mocha');
-const path = require('path');
 
 const mochaTest = new MochaTest({
 	timeout: 360000,
@@ -12,8 +11,7 @@ const mochaTest = new MochaTest({
 	slow: 50000,
 	useColors: true
 });
-
-mochaTest.addFile(path.join(process.cwd(), 'out/test.js'));
+mochaTest.addFile(require('path').join(process.cwd(), 'out/test.js'));
 mochaTest.run((failures) => {
 	process.exit(failures);
 });

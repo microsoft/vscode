@@ -1,5 +1,6 @@
 #!/bin/sh
 
+. ./build/tfs/common/node.sh
 . ./scripts/env.sh
 . ./build/tfs/common/common.sh
 
@@ -23,6 +24,5 @@ step "Build minified & upload source maps" \
 step "Run smoke test" \
 	pushd test/smoke
 	npm install
-	npm run compile
-	node src/main.js --latest "$AGENT_BUILDDIRECTORY/VSCode-darwin/Visual Studio Code - Insiders.app/Contents/MacOS/Electron"
+	npm test -- --latest "$AGENT_BUILDDIRECTORY/VSCode-darwin/Visual Studio Code - Insiders.app/Contents/MacOS/Electron"
 	popd
