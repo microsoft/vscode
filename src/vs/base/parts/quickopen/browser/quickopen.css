@@ -54,7 +54,7 @@
 	flex-direction: column;
 }
 
-.quick-open-widget .quick-open-tree .quick-open-entry > .row {
+.quick-open-widget .quick-open-tree .quick-open-entry > .quick-open-row {
 	display: flex;
 	align-items: center;
 }

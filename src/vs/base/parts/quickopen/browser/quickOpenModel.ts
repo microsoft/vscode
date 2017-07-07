@@ -442,8 +442,8 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		container.appendChild(entryContainer);
 
 		// Entry
-		const row1 = DOM.$('.row');
-		const row2 = DOM.$('.row');
+		const row1 = DOM.$('.quick-open-row');
+		const row2 = DOM.$('.quick-open-row');
 		const entry = DOM.$('.quick-open-entry', null, row1, row2);
 		entryContainer.appendChild(entry);
 
