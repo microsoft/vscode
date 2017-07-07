@@ -32,6 +32,7 @@ export interface ITextModelCreationData {
 export class TextModel implements editorCommon.ITextModel {
 	private static MODEL_SYNC_LIMIT = 5 * 1024 * 1024; // 5 MB
 	private static MODEL_TOKENIZATION_LIMIT = 20 * 1024 * 1024; // 20 MB
+	private static MANY_MANY_LINES = 300 * 1000; // 300K lines
 
 	public static DEFAULT_CREATION_OPTIONS: editorCommon.ITextModelCreationOptions = {
 		tabSize: EDITOR_MODEL_DEFAULTS.tabSize,
@@ -103,12 +104,18 @@ export class TextModel implements editorCommon.ITextModel {
 
 		const textModelData = TextModel.resolveCreationData(rawTextSource, creationOptions);
 
-		this._shouldSimplifyMode = (textModelData.text.length > TextModel.MODEL_SYNC_LIMIT);
-
 		// !!! Make a decision in the ctor and permanently respect this decision !!!
 		// If a model is too large at construction time, it will never get tokenized,
 		// under no circumstances.
-		this._isTooLargeForTokenization = (textModelData.text.length > TextModel.MODEL_TOKENIZATION_LIMIT);
+		this._isTooLargeForTokenization = (
+			(textModelData.text.length > TextModel.MODEL_TOKENIZATION_LIMIT)
+			|| (textModelData.text.lines.length > TextModel.MANY_MANY_LINES)
+		);
+
+		this._shouldSimplifyMode = (
+			this._isTooLargeForTokenization
+			|| (textModelData.text.length > TextModel.MODEL_SYNC_LIMIT)
+		);
 
 		this._options = new editorCommon.TextModelResolvedOptions(textModelData.options);
 		this._constructLines(textModelData.text);
