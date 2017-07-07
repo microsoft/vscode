@@ -62,7 +62,7 @@ export class Localization {
 		try {
 			return this.spectron.client.getAttribute('div[id="workbench.view.extensions"] .search-box', 'placeholder');
 		} catch (e) {
-			return Promise.reject('Failed to add attribute for extensi');
+			return Promise.reject('Failed to get extension viewlet search box placeholder.');
 		}
 	}
 
