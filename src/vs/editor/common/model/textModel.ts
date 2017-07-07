@@ -774,7 +774,7 @@ export class TextModel implements editorCommon.ITextModel {
 	private _constructLines(textSource: ITextSource): void {
 		const tabSize = this._options.tabSize;
 		let rawLines = textSource.lines;
-		let modelLines: IModelLine[] = [];
+		let modelLines: IModelLine[] = new Array<IModelLine>(rawLines.length);
 
 		for (let i = 0, len = rawLines.length; i < len; i++) {
 			modelLines[i] = this._createModelLine(rawLines[i], tabSize);
