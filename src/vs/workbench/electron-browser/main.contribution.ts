@@ -282,7 +282,7 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 	},
 	'window.closeWhenEmpty': {
 		'type': 'boolean',
-		'default': isMacintosh ? true : false,
+		'default': false,
 		'description': nls.localize('closeWhenEmpty', "Controls if closing the last editor should also close the window. This setting only applies for windows that have no folder opened.")
 	}
 };
