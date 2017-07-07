@@ -263,20 +263,16 @@ export class TerminalInstance implements ITerminalInstance {
 			return undefined;
 		});
 		this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'mouseup', (event: KeyboardEvent) => {
-			// Wait until mouseup has propogated through the DOM before evaluating the new selection
-			// state.
-			setTimeout(() => {
-				this._refreshSelectionContextKey();
-			}, 0);
+			// Wait until mouseup has propagated through the DOM before
+			// evaluating the new selection state.
+			setTimeout(() => this._refreshSelectionContextKey(), 0);
 		}));
 
 		// xterm.js currently drops selection on keyup as we need to handle this case.
 		this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'keyup', (event: KeyboardEvent) => {
-			// Wait until keyup has propogated through the DOM before evaluating the new selection
-			// state.
-			setTimeout(() => {
-				this._refreshSelectionContextKey();
-			}, 0);
+			// Wait until keyup has propagated through the DOM before evaluating
+			// the new selection state.
+			setTimeout(() => this._refreshSelectionContextKey(), 0);
 		}));
 
 		const xtermHelper: HTMLElement = this._xterm.element.querySelector('.xterm-helpers');
