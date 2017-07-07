@@ -184,10 +184,3 @@ export function canUseTranslate3d(): boolean {
 
 	return true;
 }
-
-export function supportsExecCommand(command: string): boolean {
-	return (
-		(isIE || Platform.isNative)
-		&& document.queryCommandSupported(command)
-	);
-}
