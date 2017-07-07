@@ -352,9 +352,8 @@ export class ExtensionHostProcessWorker {
 
 			// Unexpected termination
 			if (!this.isExtensionDevelopmentHost) {
-				const openDevTools = new Action('openDevTools', nls.localize('devTools', "Developer Tools"), '', true, async (): TPromise<boolean> => {
-					await this.windowService.openDevTools();
-					return false;
+				const openDevTools = new Action('openDevTools', nls.localize('devTools', "Developer Tools"), '', true, (): TPromise<boolean> => {
+					return this.windowService.openDevTools().then(() => false);
 				});
 
 				this.messageService.show(Severity.Error, {

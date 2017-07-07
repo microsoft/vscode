@@ -355,34 +355,36 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		});
 	}
 
-	private async queryGallery(query: Query): TPromise<{ galleryExtensions: IRawGalleryExtension[], total: number; }> {
-		const commonHeaders = await this.commonHTTPHeaders;
-		const data = JSON.stringify(query.raw);
-		const headers = assign({}, commonHeaders, {
-			'Content-Type': 'application/json',
-			'Accept': 'application/json;api-version=3.0-preview.1',
-			'Accept-Encoding': 'gzip',
-			'Content-Length': data.length
+	private queryGallery(query: Query): TPromise<{ galleryExtensions: IRawGalleryExtension[], total: number; }> {
+		return this.commonHTTPHeaders.then(commonHeaders => {
+			const data = JSON.stringify(query.raw);
+			const headers = assign({}, commonHeaders, {
+				'Content-Type': 'application/json',
+				'Accept': 'application/json;api-version=3.0-preview.1',
+				'Accept-Encoding': 'gzip',
+				'Content-Length': data.length
+			});
+
+			return this.requestService.request({
+				type: 'POST',
+				url: this.api('/extensionquery'),
+				data,
+				headers
+			});
+		}).then((context) => {
+			if (context.res.statusCode >= 400 && context.res.statusCode < 500) {
+				return TPromise.as({ galleryExtensions: [], total: 0 });
+			}
+
+			return asJson<IRawGalleryQueryResult>(context).then(result => {
+				const r = result.results[0];
+				const galleryExtensions = r.extensions;
+				const resultCount = r.resultMetadata && r.resultMetadata.filter(m => m.metadataType === 'ResultCount')[0];
+				const total = resultCount && resultCount.metadataItems.filter(i => i.name === 'TotalCount')[0].count || 0;
+
+				return { galleryExtensions, total };
+			});
 		});
-
-		const context = await this.requestService.request({
-			type: 'POST',
-			url: this.api('/extensionquery'),
-			data,
-			headers
-		});
-
-		if (context.res.statusCode >= 400 && context.res.statusCode < 500) {
-			return { galleryExtensions: [], total: 0 };
-		}
-
-		const result = await asJson<IRawGalleryQueryResult>(context);
-		const r = result.results[0];
-		const galleryExtensions = r.extensions;
-		const resultCount = r.resultMetadata && r.resultMetadata.filter(m => m.metadataType === 'ResultCount')[0];
-		const total = resultCount && resultCount.metadataItems.filter(i => i.name === 'TotalCount')[0].count || 0;
-
-		return { galleryExtensions, total };
 	}
 
 	download(extension: IGalleryExtension): TPromise<string> {
