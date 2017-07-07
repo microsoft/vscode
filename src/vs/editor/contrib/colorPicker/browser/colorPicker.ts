@@ -16,7 +16,6 @@ import { Disposable } from "vs/base/common/lifecycle";
 import { ColorPickerModel } from "vs/editor/contrib/colorPicker/browser/colorPickerModel";
 import { registerThemingParticipant } from "vs/platform/theme/common/themeService";
 import { editorWidgetBackground, editorWidgetBorder } from "vs/platform/theme/common/colorRegistry";
-import { IContextViewService } from "vs/platform/contextview/browser/contextView";
 
 @editorContribution
 export class ColorPickerController extends Disposable implements IEditorContribution {
@@ -25,14 +24,11 @@ export class ColorPickerController extends Disposable implements IEditorContribu
 	private widget: ColorPickerWidget;
 	private model: ColorPickerModel;
 
-	constructor(
-		private editor: ICodeEditor,
-		@IContextViewService contextViewService: IContextViewService
-	) {
+	constructor(private editor: ICodeEditor) {
 		super();
 
 		this.model = new ColorPickerModel();
-		this.widget = this._register(new ColorPickerWidget(this.model, editor, contextViewService));
+		this.widget = this._register(new ColorPickerWidget(this.model, editor));
 		this.model.widget = this.widget;
 
 		this._register(editor.onDidChangeModel(() =>

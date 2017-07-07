@@ -10,13 +10,10 @@ import * as dom from 'vs/base/browser/dom';
 import { ColorPickerHeader } from "vs/editor/contrib/colorPicker/browser/elements/colorPickerHeader";
 import { ColorPickerBody } from "vs/editor/contrib/colorPicker/browser/elements/colorPickerBody";
 import { ColorPickerModel } from "vs/editor/contrib/colorPicker/browser/colorPickerModel";
-import { IContextViewService } from "vs/platform/contextview/browser/contextView";
 const $ = dom.$;
 
 export class ColorPickerWidget extends Widget implements IOverlayWidget {
 	private static ID = 'editor.contrib.colorPickerWidget';
-	private readonly width = 300;
-	private readonly height = 190;
 
 	private domNode: HTMLElement;
 	public header: ColorPickerHeader;
@@ -24,7 +21,7 @@ export class ColorPickerWidget extends Widget implements IOverlayWidget {
 
 	public visible: boolean = false;
 
-	constructor(public model: ColorPickerModel, public editor: ICodeEditor, private contextViewService: IContextViewService) {
+	constructor(public model: ColorPickerModel, public editor: ICodeEditor) {
 		super();
 	}
 
@@ -37,8 +34,8 @@ export class ColorPickerWidget extends Widget implements IOverlayWidget {
 		this.domNode.setAttribute('aria-hidden', 'false');
 		this.editor.addOverlayWidget(this);
 
-		this.header = new ColorPickerHeader(this, this.model, this.contextViewService);
-		this.body = new ColorPickerBody(this, this.model, this.width);
+		this.header = new ColorPickerHeader(this, this.model);
+		this.body = new ColorPickerBody(this, this.model, this.domNode.offsetWidth);
 
 		this.layout();
 		this.visible = true;
@@ -47,14 +44,11 @@ export class ColorPickerWidget extends Widget implements IOverlayWidget {
 	private layout(): void {
 		let editorLayout = this.editor.getLayoutInfo();
 
-		let top = Math.round((editorLayout.height - this.height) / 2);
+		let top = Math.round((editorLayout.height - this.domNode.offsetHeight) / 2);
 		this.domNode.style.top = top + 'px';
 
-		let left = Math.round((editorLayout.width - this.width) / 2);
+		let left = Math.round((editorLayout.width - this.domNode.offsetWidth) / 2);
 		this.domNode.style.left = left + 'px';
-
-		this.domNode.style.width = this.width + 'px';
-		this.domNode.style.height = this.height + 'px';
 	}
 
 	public changePrimaryColor(): void {

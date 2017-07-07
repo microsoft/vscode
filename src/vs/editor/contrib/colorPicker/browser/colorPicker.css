@@ -5,6 +5,8 @@
 
 .colorpicker-widget {
 	background-color: rgba(255, 255, 255, 1);
+	width: 300px;
+	height: 190px;
 }
 
 .colorpicker-header {
@@ -12,20 +14,18 @@
 	height: 24px;
 }
 
-.colorpicker-header .picked-color input {
+.colorpicker-header .picked-color {
 	text-align: center;
+	width: 228px
 }
 
-.colorpicker-header .monaco-inputbox.idle {
-	border: none;
-}
-
-.colorpicker-header .monaco-inputbox.synthetic-focus {
-	outline: none;
+.colorpicker-header .original-color {
+	width: 72px
 }
 
 .colorpicker-body {
 	display: flex;
+	padding: 8px;
 }
 
 .picked-color {
@@ -34,32 +34,40 @@
 }
 
 .saturation-box {
+	width: 220px;
+	height: 150px;
 	cursor: crosshair;
+}
+
+.colorpicker-body .slider {
+	position: absolute;
+	top: 0;
+	width: 100%;
+	background: rgba(100, 100, 100, 0.7);
+	height: 5px;
 }
 
 .hue-strip-wrap {
 	position: relative;
 	margin-left: 8px;
 	cursor: -webkit-grab;
+	height: 150px;
 }
 
-.hue-strip-wrap .slider, .opacity-strip-wrap .slider {
-	position: absolute;
-	top: 0;
-	right: 1px;
-	left: 1px;
-	background: rgba(100, 100, 100, 0.4);
-	height: 5px;
+.strip {
+	width: 25px;
+	height: 150px;
 }
 
 .opacity-strip-wrap {
 	position: relative;
 	margin-left: 8px;
 	cursor: -webkit-grab;
+	height: 150px;
 }
 
 .opacity-strip-transparency {
-	background: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAJElEQVQIW2PcvXv3fwYg6OzsBFEMjBgCLi4uYBXl5eUQFegCAIYVD/syLxKnAAAAAElFTkSuQmCC);
+	background: url('images/opacity-background.png');
 	background-size: 9px 9px;
 	image-rendering: pixelated;
 	position: absolute;
@@ -68,4 +76,5 @@
 	bottom: 0;
 	left: 0;
 	opacity: 0.1;
+	pointer-events: none;
 }

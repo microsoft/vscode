@@ -25,29 +25,19 @@ export class ColorPickerBody extends Disposable {
 	private whiteGradient: CanvasGradient;
 	private blackGradient: CanvasGradient;
 
+	private pixelRatio: number;
+
 	constructor(private widget: ColorPickerWidget, private model: ColorPickerModel, widgetWidth: number) {
 		super();
 
-		const pixelRatio = this.widget.editor.getConfiguration().pixelRatio;
-
-		const stripsWidth = 25; //px
-		const actualStripsWidth = pixelRatio * 25; //px
-		const padding = 8; //px
-
-		const satBoxWidth = widgetWidth - (2 * stripsWidth) - (4 * padding);
-		const actualSatBoxWidth = pixelRatio * widgetWidth - (2 * actualStripsWidth) - (4 * padding);
-		const satBoxHeight = 150; //px
-		const actualSatBoxHeight = pixelRatio * satBoxHeight;
+		this.pixelRatio = this.widget.editor.getConfiguration().pixelRatio;
 
 		this.domNode = $('.colorpicker-body');
-		this.domNode.style.padding = `${padding}px`;
 		dom.append(widget.getDomNode(), this.domNode);
 
-		// Draw saturation selection box
-		this.saturationBox = this.drawSaturationBox(satBoxWidth, satBoxHeight, actualSatBoxWidth, actualSatBoxHeight);
-		// Draw sliders
-		this.drawOpacityStrip(stripsWidth, satBoxHeight, actualStripsWidth, actualSatBoxHeight);
-		this.drawHueStrip(stripsWidth, satBoxHeight, actualStripsWidth, actualSatBoxHeight);
+		this.saturationBox = this.drawSaturationBox();
+		this.drawOpacityStrip();
+		this.drawHueStrip();
 
 		this.registerListeners();
 	}
@@ -149,14 +139,17 @@ export class ColorPickerBody extends Disposable {
 		});
 	}
 
-	private drawSaturationBox(w: number, h: number, actualW: number, actualH: number): HTMLCanvasElement {
+	private drawSaturationBox(): HTMLCanvasElement {
 		// Create canvas, draw selected color
 		const canvas = document.createElement('canvas');
 		canvas.className = 'saturation-box';
+		dom.append(this.domNode, canvas);
+
+		const actualW = canvas.offsetWidth * this.pixelRatio,
+			actualH = canvas.offsetHeight * this.pixelRatio;
+
 		canvas.width = actualW;
 		canvas.height = actualH;
-		canvas.style.width = w + 'px';
-		canvas.style.height = h + 'px';
 
 		this.saturationCtx = canvas.getContext('2d');
 		this.saturationCtx.rect(0, 0, actualW, actualH);
@@ -174,34 +167,30 @@ export class ColorPickerBody extends Disposable {
 
 		this.fillSaturationBox();
 
-		// Append to DOM
-		dom.append(this.domNode, canvas);
 		return canvas;
 	}
 
-	private drawOpacityStrip(w: number, h: number, actualW: number, actualH: number): void {
+	private drawOpacityStrip(): void {
 		// Opacity strip
 		const opacityWrapper = $('.opacity-strip-wrap');
 		const opacityTransparency = $('.opacity-strip-transparency');
-		opacityTransparency.style.height = h + 'px';
+		dom.append(this.domNode, opacityWrapper);
 
-		this.opacityStrip = new OpacityStrip(w, h, actualW, actualH, this.model.selectedColor);
+		this.opacityStrip = new OpacityStrip(opacityWrapper, this.pixelRatio, this.model.selectedColor);
 		this.opacitySlider = new Slider(this.opacityStrip);
 
-		dom.append(this.domNode, opacityWrapper);
 		dom.append(opacityWrapper, opacityTransparency);
-		dom.append(opacityWrapper, this.opacityStrip.domNode);
 		dom.append(opacityWrapper, this.opacitySlider.domNode);
 	}
 
-	private drawHueStrip(w: number, h: number, actualW: number, actualH: number): void {
+	private drawHueStrip(): void {
 		// Hue strip
 		const hueWrapper = $('.hue-strip-wrap');
+		dom.append(this.domNode, hueWrapper);
 
-		this.hueStrip = new HueStrip(w, h, actualW, actualH);
+		this.hueStrip = new HueStrip(hueWrapper, this.pixelRatio);
 		this.hueSlider = new Slider(this.hueStrip);
 
-		dom.append(this.domNode, hueWrapper);
 		dom.append(hueWrapper, this.hueStrip.domNode);
 		dom.append(hueWrapper, this.hueSlider.domNode);
 	}
@@ -219,27 +208,30 @@ class Strip {
 
 	public context: CanvasRenderingContext2D;
 
-	constructor(width: number, height: number, actualWidth: number, actualHeight: number, className: string) {
-		this.height = height;
-
+	constructor(parent: HTMLElement, pixelRatio: number) {
 		this.domNode = document.createElement('canvas');
-		this.domNode.className = className;
-		this.domNode.width = actualWidth;
-		this.domNode.height = actualHeight;
-		this.domNode.style.width = width + 'px';
-		this.domNode.style.height = height + 'px';
+		this.domNode.className = 'strip';
+		dom.append(parent, this.domNode);
+
+		const actualW = this.domNode.offsetWidth * pixelRatio,
+			actualH = this.domNode.offsetHeight * pixelRatio;
+
+		this.domNode.width = actualW;
+		this.domNode.height = actualH;
 
 		this.context = this.domNode.getContext('2d');
-		this.context.rect(0, 0, actualWidth, actualHeight);
+		this.context.rect(0, 0, actualW, actualH);
+
+		this.height = this.domNode.offsetHeight;
 	}
 }
 
 class HueStrip extends Strip {
 
-	constructor(width: number, height: number, actualWidth: number, actualHeight: number) {
-		super(width, height, actualWidth, actualHeight, 'hue-strip');
+	constructor(parent: HTMLElement, pixelRatio: number) {
+		super(parent, pixelRatio);
 
-		const colorGradient = this.context.createLinearGradient(0, 0, 0, actualHeight);
+		const colorGradient = this.context.createLinearGradient(0, 0, 0, this.height * pixelRatio);
 		colorGradient.addColorStop(0, 'rgba(255, 0, 0, 1)');
 		colorGradient.addColorStop(0.17, 'rgba(255, 255, 0, 1)');
 		colorGradient.addColorStop(0.34, 'rgba(0, 255, 0, 1)');
@@ -256,10 +248,10 @@ class HueStrip extends Strip {
 class OpacityStrip extends Strip {
 	public gradient: CanvasGradient;
 
-	constructor(width: number, height: number, actualWidth: number, actualHeight: number, selectedColor: string) {
-		super(width, height, actualWidth, actualHeight, 'opacity-strip');
+	constructor(parent: HTMLElement, pixelRatio: number, selectedColor: string) {
+		super(parent, pixelRatio);
 
-		this.gradient = this.context.createLinearGradient(0, 0, 0, actualHeight);
+		this.gradient = this.context.createLinearGradient(0, 0, 0, this.height * pixelRatio);
 		this.gradient.addColorStop(0, selectedColor);
 		this.gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
 
