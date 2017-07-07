@@ -58,14 +58,18 @@ function optimizeStringMemory(buff: Buffer, s: string): string {
 
 class ModelLineBasedBuilder {
 
+	private computeHash: boolean;
 	private hash: crypto.Hash;
 	private buff: Buffer;
 	private BOM: string;
 	private lines: string[];
 	private currLineIndex: number;
 
-	constructor() {
-		this.hash = crypto.createHash('sha1');
+	constructor(computeHash: boolean) {
+		this.computeHash = computeHash;
+		if (this.computeHash) {
+			this.hash = crypto.createHash('sha1');
+		}
 		this.BOM = '';
 		this.lines = [];
 		this.currLineIndex = 0;
@@ -84,12 +88,14 @@ class ModelLineBasedBuilder {
 		for (let i = 0, len = lines.length; i < len; i++) {
 			this.lines[this.currLineIndex++] = optimizeStringMemory(this.buff, lines[i]);
 		}
-		this.hash.update(lines.join('\n') + '\n');
+		if (this.computeHash) {
+			this.hash.update(lines.join('\n') + '\n');
+		}
 	}
 
 	public finish(length: number, carriageReturnCnt: number, containsRTL: boolean, isBasicASCII: boolean): ModelBuilderResult {
 		return {
-			hash: this.hash.digest('hex'),
+			hash: this.computeHash ? this.hash.digest('hex') : null,
 			value: {
 				BOM: this.BOM,
 				lines: this.lines,
@@ -123,7 +129,7 @@ export class ModelBuilder {
 	public static fromStringStream(stream: IStringStream): TPromise<ModelBuilderResult> {
 		return new TPromise<ModelBuilderResult>((c, e, p) => {
 			let done = false;
-			let builder = new ModelBuilder();
+			let builder = new ModelBuilder(false);
 
 			stream.on('data', (chunk) => {
 				builder.acceptChunk(chunk);
@@ -145,11 +151,11 @@ export class ModelBuilder {
 		});
 	}
 
-	constructor() {
+	constructor(computeHash: boolean) {
 		this.leftoverPrevChunk = '';
 		this.leftoverEndsInCR = false;
 		this.totalCRCount = 0;
-		this.lineBasedBuilder = new ModelLineBasedBuilder();
+		this.lineBasedBuilder = new ModelLineBasedBuilder(computeHash);
 		this.totalLength = 0;
 		this.containsRTL = false;
 		this.isBasicASCII = true;
