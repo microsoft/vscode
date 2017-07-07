@@ -5,43 +5,53 @@
 
 import { SimpleFindWidget } from 'vs/editor/contrib/find/browser/simpleFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
+import Webview from './webview';
 
-export class TerminalFindWidget extends SimpleFindWidget {
+export class WebviewFindWidget extends SimpleFindWidget {
 
 	constructor(
 		@IContextViewService _contextViewService: IContextViewService,
-		@ITerminalService private _terminalService: ITerminalService
+		private webview: Webview
 	) {
 		super(_contextViewService);
+
+		this.find = this.find.bind(this);
+		this.hide = this.hide.bind(this);
+		this.onInputChanged = this.onInputChanged.bind(this);
 	}
 
 	public find(previous) {
 		let val = this.inputValue;
-		let instance = this._terminalService.getActiveInstance();
-		if (instance !== null) {
-			if (previous) {
-				instance.findPrevious(val);
-			} else {
-				instance.findNext(val);
-			}
+		if (this.webview !== null && val) {
+			this.webview.find(val, { findNext: true, forward: !previous });
 		}
 	};
 
 	public hide() {
 		super.hide();
-		this._terminalService.getActiveInstance().focus();
+		this.webview.stopFind(true);
+		this.webview.focus();
 	}
 
-	protected onInputChanged() {
-		// Ignore input changes for now
+	public onInputChanged() {
+		if (!this.webview) {
+			return;
+		}
+
+		let val = this.inputValue;
+		if (val) {
+			this.webview.startFind(val);
+		} else {
+			this.webview.stopFind(false);
+		}
 	}
 
 	protected onFocusTrackerFocus() {
-		this._terminalService.getActiveInstance().notifyFindWidgetFocusChanged(true);
+		this.webview.notifyFindWidgetFocusChanged(true);
 	}
 
 	protected onFocusTrackerBlur() {
-		this._terminalService.getActiveInstance().notifyFindWidgetFocusChanged(false);
+		this.webview.notifyFindWidgetFocusChanged(false);
 	}
+
 }
