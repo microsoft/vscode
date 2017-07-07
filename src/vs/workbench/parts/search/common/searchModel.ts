@@ -607,7 +607,8 @@ export class SearchModel extends Disposable {
 			count: this._searchResult.count(),
 			fileCount: this._searchResult.fileCount(),
 			options,
-			duration
+			duration,
+			useRipgrep: this._searchQuery.useRipgrep
 		});
 		return completed;
 	}
