@@ -693,6 +693,10 @@ class ProblemPatternParser extends Parser {
 		super(logger);
 	}
 
+	public parse(value: Config.ProblemPattern): ProblemPattern;
+	public parse(value: Config.MultiLineProblemPattern): MultiLineProblemPattern[];
+	public parse(value: Config.NamedProblemPattern): NamedProblemPattern;
+	public parse(value: Config.NamedMultiLineProblemPattern): NamedMultiLineProblemPattern;
 	public parse(value: Config.ProblemPattern | Config.MultiLineProblemPattern | Config.NamedProblemPattern | Config.NamedMultiLineProblemPattern): any {
 		if (Config.NamedMultiLineProblemPattern.is(value)) {
 			return this.createNamedMultiLineProblemPattern(value);
