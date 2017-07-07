@@ -74,6 +74,10 @@ const startDebugging: WatermarkEntry = {
 	text: nls.localize('watermark.startDebugging', "Start Debugging"),
 	ids: [StartAction.ID]
 };
+const quickOpen: WatermarkEntry = {
+	text: nls.localize('workbench.action.quickOpen', "Quick Open"),
+	ids: ['workbench.action.quickOpen']
+};
 
 const noFolderEntries = [
 	showCommands,
@@ -82,7 +86,8 @@ const noFolderEntries = [
 	openFileOrFolderMacOnly,
 	openRecent,
 	newUntitledFileMacOnly,
-	toggleTerminal
+	toggleTerminal,
+	quickOpen
 ];
 
 const folderEntries = [

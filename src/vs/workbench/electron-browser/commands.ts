@@ -22,6 +22,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import URI from 'vs/base/common/uri';
 import { IEditorOptions, Position as EditorPosition } from 'vs/platform/editor/common/editor';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 
 // --- List Commands
 
@@ -443,5 +444,9 @@ namespace GlobalQuickOpenCommand {
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: undefined,
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_P
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+			command: { id: ID, title: LABEL }
 	});
 }
