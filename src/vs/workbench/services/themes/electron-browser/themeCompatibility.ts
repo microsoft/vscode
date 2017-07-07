@@ -42,7 +42,7 @@ export function convertSettings(oldSettings: ITokenColorizationRule[], resultRul
 							}
 						}
 					}
-					if (key !== 'foreground' && key !== 'background') {
+					if (key !== 'foreground' && key !== 'background' && key !== 'fontStyle') {
 						delete settings[key];
 					}
 				}
