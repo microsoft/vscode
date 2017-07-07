@@ -25,7 +25,7 @@ class TestTerminalInstance extends TerminalInstance {
 		return super._getCwd(shell, root);
 	}
 
-	protected _createProcess(root: Uri, shell: IShellLaunchConfig): void { }
+	protected _createProcess(shell: IShellLaunchConfig): void { }
 	protected _createXterm(): void { }
 }
 
