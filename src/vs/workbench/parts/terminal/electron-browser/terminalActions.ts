@@ -115,10 +115,10 @@ export class SelectAllTerminalAction extends Action {
 	}
 }
 
-export class DeleteWordTerminalAction extends Action {
+export class DeleteWordBeforeCursorTerminalAction extends Action {
 
-	public static ID = 'workbench.action.terminal.deleteWord';
-	public static LABEL = nls.localize('workbench.action.terminal.deleteWord', "Delete Word");
+	public static ID = 'workbench.action.terminal.deleteWordBeforeCursor';
+	public static LABEL = nls.localize('workbench.action.terminal.deleteWordBeforeCursor', "Delete Word Before Cursor");
 
 	constructor(
 		id: string, label: string,
@@ -130,7 +130,30 @@ export class DeleteWordTerminalAction extends Action {
 	public run(event?: any): TPromise<any> {
 		let terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
-			terminalInstance.sendText(String.fromCharCode(87/*w*/ - 64), false);
+			// Send ctrl+W
+			terminalInstance.sendText(String.fromCharCode('W'.charCodeAt(0) - 64), false);
+		}
+		return TPromise.as(void 0);
+	}
+}
+
+export class DeleteWordAfterCursorTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.deleteWordAfterCursor';
+	public static LABEL = nls.localize('workbench.action.terminal.deleteWordAfterCursor', "Delete Word After Cursor");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		let terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance) {
+			// Send alt+D
+			terminalInstance.sendText('\x1bD', false);
 		}
 		return TPromise.as(void 0);
 	}
