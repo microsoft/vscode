@@ -183,6 +183,7 @@ export interface ITextDocumentShowOptions {
 	position?: EditorPosition;
 	preserveFocus?: boolean;
 	pinned?: boolean;
+	selection?: IRange;
 }
 
 export abstract class MainThreadEditorsShape {
