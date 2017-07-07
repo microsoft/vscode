@@ -47,7 +47,8 @@ export class Localization {
 				break;
 		}
 
-		return this.spectron.command(command, false);
+		await this.spectron.command(command, false);
+		return this.spectron.wait();
 	}
 
 	public getOpenedViewletTitle(): Promise<string> {
