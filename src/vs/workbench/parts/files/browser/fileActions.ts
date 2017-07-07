@@ -1674,7 +1674,7 @@ export class RevertFileAction extends Action {
 		}
 
 		if (resource && resource.scheme !== 'untitled') {
-			return this.textFileService.revert(resource, true /* force */);
+			return this.textFileService.revert(resource, { force: true });
 		}
 
 		return TPromise.as(true);
