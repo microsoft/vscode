@@ -344,10 +344,11 @@ export class Workbench implements IPartService {
 				}
 
 				return editorOpenPromise.then(editors => {
-					this.onEditorsChanged(); // make sure we show the proper background in the editor area
+					this.handleEditorBackground(); // make sure we show the proper background in the editor area
 					editorRestoreStopWatch.stop();
+
 					for (const editor of editors) {
-						if (editor.input) {
+						if (editor && editor.input) {
 							restoredEditors.push(editor.input.getName());
 						} else {
 							restoredEditors.push(`other:${editor.getId()}`);
@@ -476,12 +477,15 @@ export class Workbench implements IPartService {
 
 	private openUntitledFile() {
 		const startupEditor = this.configurationService.lookup('workbench.startupEditor');
+
+		// Fallback to previous workbench.welcome.enabled setting in case startupEditor is not defined
 		if (!startupEditor.user && !startupEditor.workspace) {
 			const welcomeEnabled = this.configurationService.lookup('workbench.welcome.enabled');
-			if (welcomeEnabled.value !== undefined && welcomeEnabled.value !== null) {
+			if (typeof welcomeEnabled.value === 'boolean') {
 				return !welcomeEnabled.value;
 			}
 		}
+
 		return startupEditor.value === 'newUntitledFile';
 	}
 
@@ -995,6 +999,12 @@ export class Workbench implements IPartService {
 
 		// We update the editorpart class to indicate if an editor is opened or not
 		// through a delay to accomodate for fast editor switching
+		this.handleEditorBackground();
+	}
+
+	private handleEditorBackground(): void {
+		const visibleEditors = this.editorService.getVisibleEditors().length;
+
 		const editorContainer = this.editorPart.getContainer();
 		if (visibleEditors === 0) {
 			this.editorsVisibleContext.reset();
