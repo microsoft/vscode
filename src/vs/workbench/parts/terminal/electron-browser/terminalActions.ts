@@ -115,10 +115,10 @@ export class SelectAllTerminalAction extends Action {
 	}
 }
 
-export class DeleteWordBeforeCursorTerminalAction extends Action {
+export class DeleteWordLeftTerminalAction extends Action {
 
-	public static ID = 'workbench.action.terminal.deleteWordBeforeCursor';
-	public static LABEL = nls.localize('workbench.action.terminal.deleteWordBeforeCursor', "Delete Word Before Cursor");
+	public static ID = 'workbench.action.terminal.deleteWordLeft';
+	public static LABEL = nls.localize('workbench.action.terminal.deleteWordLeft', "Delete Word Left");
 
 	constructor(
 		id: string, label: string,
@@ -137,10 +137,10 @@ export class DeleteWordBeforeCursorTerminalAction extends Action {
 	}
 }
 
-export class DeleteWordAfterCursorTerminalAction extends Action {
+export class DeleteWordRightTerminalAction extends Action {
 
-	public static ID = 'workbench.action.terminal.deleteWordAfterCursor';
-	public static LABEL = nls.localize('workbench.action.terminal.deleteWordAfterCursor', "Delete Word After Cursor");
+	public static ID = 'workbench.action.terminal.deleteWordRight';
+	public static LABEL = nls.localize('workbench.action.terminal.deleteWordRight', "Delete Word Right");
 
 	constructor(
 		id: string, label: string,
