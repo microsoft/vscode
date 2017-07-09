@@ -346,8 +346,6 @@ abstract class BareHitTestRequest {
 	protected readonly mouseColumn: number;
 
 	constructor(ctx: HitTestContext, public readonly editorPos: EditorPagePosition, public readonly pos: PageCoordinates) {
-		this.editorPos = editorPos;
-		this.pos = pos;
 
 		this.mouseVerticalOffset = Math.max(0, ctx.getScrollTop() + pos.y - editorPos.y);
 		this.mouseContentHorizontalOffset = ctx.getScrollLeft() + pos.x - editorPos.x - ctx.layoutInfo.contentLeft;
