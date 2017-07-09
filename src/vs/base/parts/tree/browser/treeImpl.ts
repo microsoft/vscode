@@ -18,11 +18,6 @@ import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
 
 export class TreeContext implements _.ITreeContext {
-
-	public tree: _.ITree;
-	public configuration: _.ITreeConfiguration;
-	public options: _.ITreeOptions;
-
 	public dataSource: _.IDataSource;
 	public renderer: _.IRenderer;
 	public controller: _.IController;
@@ -31,10 +26,7 @@ export class TreeContext implements _.ITreeContext {
 	public sorter: _.ISorter;
 	public accessibilityProvider: _.IAccessibilityProvider;
 
-	constructor(tree: _.ITree, configuration: _.ITreeConfiguration, options: _.ITreeOptions = {}) {
-		this.tree = tree;
-		this.configuration = configuration;
-		this.options = options;
+	constructor(public tree: _.ITree, public configuration: _.ITreeConfiguration, public options: _.ITreeOptions = {}) {
 
 		if (!configuration.dataSource) {
 			throw new Error('You must provide a Data Source to the tree.');
@@ -62,11 +54,6 @@ const defaultStyles: _.ITreeStyles = {
 };
 
 export class Tree extends Events.EventEmitter implements _.ITree {
-
-	private container: HTMLElement;
-	private configuration: _.ITreeConfiguration;
-	private options: _.ITreeOptions;
-
 	private context: _.ITreeContext;
 	private model: Model.TreeModel;
 	private view: View.TreeView;
@@ -76,7 +63,7 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 
 	private toDispose: Lifecycle.IDisposable[];
 
-	constructor(container: HTMLElement, configuration: _.ITreeConfiguration, options: _.ITreeOptions = {}) {
+	constructor(private container: HTMLElement, private configuration: _.ITreeConfiguration, private options: _.ITreeOptions = {}) {
 		super();
 
 		this.toDispose = [];
@@ -86,9 +73,6 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 
 		this.toDispose.push(this._onDispose, this._onHighlightChange);
 
-		this.container = container;
-		this.configuration = configuration;
-		this.options = options;
 		mixin(this.options, defaultStyles, false);
 
 		this.options.twistiePixels = typeof this.options.twistiePixels === 'number' ? this.options.twistiePixels : 32;

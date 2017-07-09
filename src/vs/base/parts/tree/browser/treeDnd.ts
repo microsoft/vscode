@@ -8,11 +8,8 @@ import _ = require('vs/base/parts/tree/browser/tree');
 import Mouse = require('vs/base/browser/mouseEvent');
 
 export class ElementsDragAndDropData implements _.IDragAndDropData {
+	constructor(private elements: any[]) {
 
-	private elements: any[];
-
-	constructor(elements: any[]) {
-		this.elements = elements;
 	}
 
 	public update(event: Mouse.DragMouseEvent): void {
@@ -25,11 +22,8 @@ export class ElementsDragAndDropData implements _.IDragAndDropData {
 }
 
 export class ExternalElementsDragAndDropData implements _.IDragAndDropData {
+	constructor(private elements: any[]) {
 
-	private elements: any[];
-
-	constructor(elements: any[]) {
-		this.elements = elements;
 	}
 
 	public update(event: Mouse.DragMouseEvent): void {
@@ -43,12 +37,11 @@ export class ExternalElementsDragAndDropData implements _.IDragAndDropData {
 
 export class DesktopDragAndDropData implements _.IDragAndDropData {
 
-	private types: any[];
-	private files: any[];
+	private types: any[] = [];
+	private files: any[] = [];
 
 	constructor() {
-		this.types = [];
-		this.files = [];
+
 	}
 
 	public update(event: Mouse.DragMouseEvent): void {

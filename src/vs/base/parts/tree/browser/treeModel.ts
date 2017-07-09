@@ -19,16 +19,8 @@ interface ITraitMap extends IMap<IItemMap> { }
 
 export class LockData extends Events.EventEmitter {
 
-	private _item: Item;
-
-	constructor(item: Item) {
+	constructor(public readonly item: Item) {
 		super();
-
-		this._item = item;
-	}
-
-	public get item(): Item {
-		return this._item;
 	}
 
 	public dispose(): void {
