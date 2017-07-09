@@ -116,7 +116,7 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 		'items': {
 			'type': 'string'
 		},
-		'description': nls.localize('emphasizeParentDirectoryInTab', "Controls if should emphasize parent directory name when there are multiple opened editors with the same file name specified."),
+		'description': nls.localize('emphasizeParentDirectoryInTab', "Controls if should emphasize parent directory name when there are opened editors with the specified file name."),
 		'default': []
 	},
 	'workbench.editor.enablePreview': {
