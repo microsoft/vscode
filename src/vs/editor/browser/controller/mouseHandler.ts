@@ -67,20 +67,17 @@ export class MouseHandler extends ViewEventHandler {
 	static MOUSE_MOVE_MINIMUM_TIME = 100; // ms
 
 	protected _context: ViewContext;
-	protected viewController: ViewController;
-	protected viewHelper: IPointerHandlerHelper;
+
+
 	protected mouseTargetFactory: MouseTargetFactory;
 	private _asyncFocus: RunOnceScheduler;
 
 	private _mouseDownOperation: MouseDownOperation;
 	private lastMouseLeaveTime: number;
 
-	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
+	constructor(context: ViewContext, protected viewController: ViewController, protected viewHelper: IPointerHandlerHelper) {
 		super();
-
 		this._context = context;
-		this.viewController = viewController;
-		this.viewHelper = viewHelper;
 		this.mouseTargetFactory = new MouseTargetFactory(this._context, viewHelper);
 
 		this._mouseDownOperation = this._register(new MouseDownOperation(

@@ -88,14 +88,12 @@ export interface ITask<T> {
  */
 export class Throttler {
 
-	private activePromise: Promise;
-	private queuedPromise: Promise;
-	private queuedPromiseFactory: ITask<Promise>;
+	private activePromise: Promise = null;
+	private queuedPromise: Promise = null;
+	private queuedPromiseFactory: ITask<Promise> = null;
 
 	constructor() {
-		this.activePromise = null;
-		this.queuedPromise = null;
-		this.queuedPromiseFactory = null;
+
 	}
 
 	queue<T>(promiseFactory: ITask<TPromise<T>>): TPromise<T> {
