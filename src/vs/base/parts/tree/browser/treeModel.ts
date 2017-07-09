@@ -119,14 +119,8 @@ export class Lock {
 }
 
 export class ItemRegistry extends Events.EventEmitter {
-
 	private _isDisposed = false;
-	private items: IMap<{ item: Item; disposable: IDisposable; }>;
-
-	constructor() {
-		super();
-		this.items = {};
-	}
+	private items: IMap<{ item: Item; disposable: IDisposable; }> = {};
 
 	public register(item: Item): void {
 		Assert.ok(!this.isRegistered(item.id), 'item already registered: ' + item.id);
@@ -181,66 +175,41 @@ export interface IItemChildrenRefreshEvent extends IBaseItemEvent {
 }
 
 export class Item extends Events.EventEmitter {
-
-	private registry: ItemRegistry;
-	private context: _.ITreeContext;
-	private element: any;
-	private lock: Lock;
-
-	public id: string;
-
 	private needsChildrenRefresh: boolean;
 	private doesHaveChildren: boolean;
 
-	public parent: Item;
-	public previous: Item;
-	public next: Item;
-	public firstChild: Item;
-	public lastChild: Item;
+	public parent: Item = null;
+	public previous: Item = null;
+	public next: Item = null;
+	public firstChild: Item = null;
+	public lastChild: Item = null;
 
-	private userContent: HTMLElement;
+	private userContent: HTMLElement = null;
 
 	private height: number;
-	private depth: number;
+	private depth: number = 0;
 
 	private visible: boolean;
 	private expanded: boolean;
 
-	private traits: { [trait: string]: boolean; };
+	private traits: { [trait: string]: boolean; } = {};
 
-	private _isDisposed: boolean;
+	private _isDisposed: boolean = false;
 
-	constructor(id: string, registry: ItemRegistry, context: _.ITreeContext, lock: Lock, element: any) {
+	constructor(public id: string, private registry: ItemRegistry, private context: _.ITreeContext, private lock: Lock, private element: any) {
 		super();
 
-		this.registry = registry;
-		this.context = context;
-		this.lock = lock;
-		this.element = element;
-
-		this.id = id;
 		this.registry.register(this);
 
 		this.doesHaveChildren = this.context.dataSource.hasChildren(this.context.tree, this.element);
 		this.needsChildrenRefresh = true;
 
-		this.parent = null;
-		this.previous = null;
-		this.next = null;
-		this.firstChild = null;
-		this.lastChild = null;
-
-		this.userContent = null;
-		this.traits = {};
-		this.depth = 0;
 		this.expanded = this.context.dataSource.shouldAutoexpand && this.context.dataSource.shouldAutoexpand(this.context.tree, element);
 
 		this.emit('item:create', { item: this });
 
 		this.visible = this._isVisible();
 		this.height = this._getHeight();
-
-		this._isDisposed = false;
 	}
 
 	public getElement(): any {
