@@ -71,14 +71,11 @@ let LISTENER_BINDING_ID = '__$listeners';
 let VISIBILITY_BINDING_ID = '__$visibility';
 
 export class Position {
-
 	constructor(public x: number, public y: number) {
-
 	}
 }
 
 export class Box {
-
 	constructor(public top: number, public right: number, public bottom: number, public left: number) {
 
 	}
