@@ -74,7 +74,7 @@ export class MainThreadDebugService extends MainThreadDebugServiceShape {
 		const processes = this.debugService.getModel().getProcesses();
 		const result = processes.filter(process => process.getId() === processId);
 		if (result.length > 0) {
-			return processes[0];	// there can only be one
+			return result[0];	// there can only be one
 		}
 		return null;
 	}

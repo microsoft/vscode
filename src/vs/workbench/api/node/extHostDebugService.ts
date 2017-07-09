@@ -97,6 +97,10 @@ export class ExtHostDebugSession implements vscode.DebugSession {
 		this._name = name;
 	};
 
+	public get id(): string {
+		return this._id;
+	}
+
 	public get type(): string {
 		return this._type;
 	}
