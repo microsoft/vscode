@@ -265,12 +265,12 @@ export class TabsTitleControl extends TitleControl {
 				const isDirty = editor.isDirty();
 
 				const tabOptions = this.editorGroupService.getTabOptions();
-				const filesToBeEmphasized = tabOptions.emphasizeParentDirectoryInTab;
+				const fileDirectoriesToBeEmphasized = tabOptions.emphasizeParentDirectoryInTab;
 
 				const label = labels[index];
 				const name = label.name;
-				const fileNameShouldBeEmphasized = Array.isArray(filesToBeEmphasized) && filesToBeEmphasized.indexOf(name) !== -1;
-				const description = label.description && (label.hasAmbiguousName || fileNameShouldBeEmphasized) ? label.description : '';
+				const fileDirectoryShouldBeEmphasized = Array.isArray(fileDirectoriesToBeEmphasized) && fileDirectoriesToBeEmphasized.indexOf(name) !== -1;
+				const description = label.description && (label.hasAmbiguousName || fileDirectoryShouldBeEmphasized) ? label.description : '';
 				const title = label.title || '';
 
 				// Container
@@ -293,7 +293,7 @@ export class TabsTitleControl extends TitleControl {
 					resource: toResource(editor, { supportSideBySide: true })
 				};
 
-				if (fileNameShouldBeEmphasized && editorLabel.description) { // emphasize name
+				if (fileDirectoryShouldBeEmphasized && editorLabel.description) { // emphasize name
 					const descriptionSubstrings = editorLabel.description.split('/');
 					const emphasizedDescription = descriptionSubstrings[descriptionSubstrings.length - 1];
 					const previousName = editorLabel.name;
