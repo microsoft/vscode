@@ -316,13 +316,8 @@ export class ExtensionLinter {
 
 function endsWith(haystack: string, needle: string): boolean {
 	let diff = haystack.length - needle.length;
-	if (diff > 0) {
-		return haystack.indexOf(needle, diff) === diff;
-	} else if (diff === 0) {
-		return haystack === needle;
-	} else {
-		return false;
-	}
+	return (diff > 0 && haystack.indexOf(needle, diff) === diff) ||
+		(diff === 0 && haystack === needle);
 }
 
 function fileExists(path: string): Promise<boolean> {

@@ -50,11 +50,7 @@ interface IKeybindingDispatcherItem {
 
 export class KeybindingDispatcher {
 
-	private _arr: IKeybindingDispatcherItem[];
-
-	constructor() {
-		this._arr = [];
-	}
+	private _arr: IKeybindingDispatcherItem[] = [];
 
 	public set(keybinding: number, callback: IKeyBindingCallback) {
 		this._arr.push({

@@ -44,10 +44,6 @@ export class GlobalMouseMoveMonitor<R> extends Disposable {
 	private mouseMoveCallback: IMouseMoveCallback<R> = null;
 	private onStopCallback: IOnStopCallback = null;
 
-	constructor() {
-		super();
-	}
-
 	public dispose(): void {
 		this.stopMonitoring(false);
 		super.dispose();
