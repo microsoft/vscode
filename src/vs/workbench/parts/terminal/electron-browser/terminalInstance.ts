@@ -512,7 +512,7 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		this._initialCwd = this._getCwd(this._shellLaunchConfig, this._historyService.getLastActiveWorkspaceRoot());
 		const platformKey = platform.isWindows ? 'windows' : platform.isMacintosh ? 'osx' : 'linux';
-		const envFromConfig = { ...process.env, ...this._configHelper.config.envVars[platformKey] };
+		const envFromConfig = { ...process.env, ...this._configHelper.config.env[platformKey] };
 		const env = TerminalInstance.createTerminalEnv(envFromConfig, shell, this._initialCwd, locale, this._cols, this._rows);
 		this._title = shell.name || '';
 		this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], {

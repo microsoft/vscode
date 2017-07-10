@@ -198,18 +198,18 @@ configurationRegistry.registerConfiguration({
 				DeleteWordRightTerminalAction.ID
 			].sort()
 		},
-		'terminal.integrated.envVars.osx': {
-			'description': nls.localize('terminal.integrated.envVars.osx', "Object with environment variables that will be passed to the terminal on OS X"),
+		'terminal.integrated.env.osx': {
+			'description': nls.localize('terminal.integrated.env.osx', "Object with environment variables that will be added to the VS Code process to be used by the terminal on OS X"),
 			'type': 'object',
 			'default': {}
 		},
-		'terminal.integrated.envVars.linux': {
-			'description': nls.localize('terminal.integrated.envVars.linux', "Object with environment variables that will be passed to the terminal on Linux"),
+		'terminal.integrated.env.linux': {
+			'description': nls.localize('terminal.integrated.env.linux', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Linux"),
 			'type': 'object',
 			'default': {}
 		},
-		'terminal.integrated.envVars.windows': {
-			'description': nls.localize('terminal.integrated.envVars.windows', "Object with environment variables that will be passed to the terminal on Windows"),
+		'terminal.integrated.env.windows': {
+			'description': nls.localize('terminal.integrated.env.windows', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Windows"),
 			'type': 'object',
 			'default': {}
 		}
