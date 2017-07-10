@@ -67,6 +67,7 @@ export interface ITerminalConfiguration {
 	commandsToSkipShell: string[];
 	cwd: string;
 	confirmOnExit: boolean;
+	envVars: object;
 }
 
 export interface ITerminalConfigHelper {

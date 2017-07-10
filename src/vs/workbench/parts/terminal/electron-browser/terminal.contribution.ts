@@ -197,6 +197,21 @@ configurationRegistry.registerConfiguration({
 				DeleteWordLeftTerminalAction.ID,
 				DeleteWordRightTerminalAction.ID
 			].sort()
+		},
+		'terminal.integrated.envVars.osx': {
+			'description': nls.localize('terminal.integrated.envVars.osx', "Object with environment variables that will be passed to the terminal on OS X"),
+			'type': 'object',
+			'default': {}
+		},
+		'terminal.integrated.envVars.linux': {
+			'description': nls.localize('terminal.integrated.envVars.linux', "Object with environment variables that will be passed to the terminal on Linux"),
+			'type': 'object',
+			'default': {}
+		},
+		'terminal.integrated.envVars.windows': {
+			'description': nls.localize('terminal.integrated.envVars.windows', "Object with environment variables that will be passed to the terminal on Windows"),
+			'type': 'object',
+			'default': {}
 		}
 	}
 });
