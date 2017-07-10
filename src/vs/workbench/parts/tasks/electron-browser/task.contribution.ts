@@ -1195,9 +1195,9 @@ class TaskService extends EventEmitter implements ITaskService {
 					let active = executeResult.active;
 					if (active.same) {
 						if (active.background) {
-							this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame.background', 'The task is already active and in background mode. To terminate the task use `F1 > terminate task`'));
+							this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame.background', 'The task \'{0}\' is already active and in background mode. To terminate it use `Terminate Task...` from the Tasks menu.', task._label));
 						} else {
-							this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame.noBackground', 'The task is already active. To terminate the task use `F1 > terminate task`'));
+							this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active. To terminate it use `Terminate Task...` from the Tasks menu.'));
 						}
 					} else {
 						throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is already a task running. Terminate it first before executing another task.'), TaskErrors.RunningTask);
