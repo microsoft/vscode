@@ -16,14 +16,15 @@ import uri from 'vs/base/common/uri';
 import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITerminalService } from 'vs/workbench/parts/execution/common/execution';
+import { ITerminalService as IIntegratedTerminalService, KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED } from 'vs/workbench/parts/terminal/common/terminal';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED } from 'vs/workbench/parts/terminal/common/terminal';
-import { DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX_READY, DEFAULT_TERMINAL_OSX } from 'vs/workbench/parts/execution/electron-browser/terminal';
+import { ITerminalConfiguration, DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX_READY, DEFAULT_TERMINAL_OSX } from 'vs/workbench/parts/execution/electron-browser/terminal';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 DEFAULT_TERMINAL_LINUX_READY.then(defaultTerminalLinux => {
@@ -34,6 +35,16 @@ DEFAULT_TERMINAL_LINUX_READY.then(defaultTerminalLinux => {
 		'title': nls.localize('terminalConfigurationTitle', "External Terminal"),
 		'type': 'object',
 		'properties': {
+			'terminal.terminalKind': {
+				'type': 'string',
+				'enum': [
+					'external',
+					'integrated'
+				],
+				'description': nls.localize('terminal.terminalKind', "Customizes what kind of terminal to launch."),
+				'default': 'external',
+				'isExecutable': false
+			},
 			'terminal.external.windowsExec': {
 				'type': 'string',
 				'description': nls.localize('terminal.external.windowsExec', "Customizes which terminal to run on Windows."),
@@ -70,6 +81,8 @@ export class OpenConsoleAction extends Action {
 		id: string,
 		label: string,
 		@ITerminalService private terminalService: ITerminalService,
+		@IIntegratedTerminalService private integratedTerminalService: IIntegratedTerminalService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IHistoryService private historyService: IHistoryService
@@ -99,7 +112,18 @@ export class OpenConsoleAction extends Action {
 			}
 		}
 
-		this.terminalService.openTerminal(pathToOpen);
+		const configuration = this.configurationService.getConfiguration<ITerminalConfiguration>();
+
+		const terminalKind = configuration.terminal.terminalKind;
+		if (terminalKind === 'integrated') {
+			var instance = this.integratedTerminalService.createInstance({ cwd: pathToOpen }, true);
+			if (instance) {
+				this.integratedTerminalService.setActiveInstance(instance);
+				this.integratedTerminalService.showPanel(true);
+			}
+		} else {
+			this.terminalService.openTerminal(pathToOpen);
+		}
 
 		return TPromise.as(null);
 	}

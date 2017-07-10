@@ -37,6 +37,7 @@ export const DEFAULT_TERMINAL_WINDOWS = `${process.env.windir}\\${process.env.ha
 
 export interface ITerminalConfiguration {
 	terminal: {
+		terminalKind: 'integrated' | 'external',
 		external: {
 			linuxExec: string,
 			osxExec: string,
