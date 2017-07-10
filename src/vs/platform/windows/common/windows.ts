@@ -101,7 +101,7 @@ export interface IWindowService {
 
 export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden';
 
-export interface IWindowConfiguration {
+export interface IWindowsConfiguration {
 	window: IWindowSettings;
 }
 
