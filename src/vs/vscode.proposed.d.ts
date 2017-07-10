@@ -32,7 +32,19 @@ declare module 'vscode' {
 
 	}
 
+	// todo@joh discover files etc
+	export interface FileSystemProvider {
+		// todo@joh -> added, deleted, renamed, changed
+		onDidChange: Event<Uri>;
+
+		resolveContents(resource: Uri): string | Thenable<string>;
+		writeContents(resource: Uri, contents: string): void | Thenable<void>;
+	}
+
 	export namespace workspace {
+
+		export function registerFileSystemProvider(authority: string, provider: FileSystemProvider): Disposable;
+
 		/**
 		 * Get a configuration object.
 		 *

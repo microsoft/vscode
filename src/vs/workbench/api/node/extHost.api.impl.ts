@@ -442,7 +442,10 @@ export function createApiFactory(
 			}),
 			registerTaskProvider: (type: string, provider: vscode.TaskProvider) => {
 				return extHostTask.registerTaskProvider(extension, provider);
-			}
+			},
+			registerFileSystemProvider: proposedApiFunction(extension, (authority, provider) => {
+				return extHostWorkspace.registerFileSystemProvider(authority, provider);
+			})
 		};
 
 		// namespace: scm

@@ -17,6 +17,8 @@ import { fromRange, EndOfLine } from 'vs/workbench/api/node/extHostTypeConverter
 import { IWorkspaceData, ExtHostWorkspaceShape, MainContext, MainThreadWorkspaceShape } from './extHost.protocol';
 import * as vscode from 'vscode';
 import { compare } from "vs/base/common/strings";
+import { asWinJsPromise } from 'vs/base/common/async';
+import { Disposable } from 'vs/workbench/api/node/extHostTypes';
 
 export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 
@@ -150,5 +152,31 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 		}
 
 		return this._proxy.$applyWorkspaceEdit(resourceEdits);
+	}
+
+	// --- EXPERIMENT: workspace resolver
+
+	private readonly _provider = new Map<number, vscode.FileSystemProvider>();
+
+	public registerFileSystemProvider(authority: string, provider: vscode.FileSystemProvider): vscode.Disposable {
+
+		const handle = this._provider.size;
+		this._provider.set(handle, provider);
+		const reg = provider.onDidChange(e => this._proxy.$onFileSystemChange(handle, <URI>e));
+		this._proxy.$registerFileSystemProvider(handle, authority);
+		return new Disposable(() => {
+			this._provider.delete(handle);
+			reg.dispose();
+		});
+	}
+
+	$resolveFile(handle: number, resource: URI): TPromise<string> {
+		const provider = this._provider.get(handle);
+		return asWinJsPromise(token => provider.resolveContents(resource));
+	}
+
+	$storeFile(handle: number, resource: URI, content: string): TPromise<any> {
+		const provider = this._provider.get(handle);
+		return asWinJsPromise(token => provider.writeContents(resource, content));
 	}
 }

@@ -21,7 +21,7 @@ import { EventEmitter } from "events";
 import { basename } from "path";
 import { IDisposable } from "vs/base/common/lifecycle";
 
-export interface IRemoteFileProvider {
+export interface IRemoteFileSystemProvider {
 	onDidChange: Event<URI>;
 	resolve(resource: URI): TPromise<string>;
 	update(resource: URI, content: string): TPromise<any>;
@@ -29,8 +29,8 @@ export interface IRemoteFileProvider {
 
 export class RemoteFileService extends FileService {
 
+	private _provider: IRemoteFileSystemProvider;
 	private readonly _remoteAuthority: string;
-	private _provider: IRemoteFileProvider;
 
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
@@ -43,25 +43,18 @@ export class RemoteFileService extends FileService {
 		@IStorageService storageService: IStorageService
 	) {
 		super(configurationService, contextService, editorService, environmentService, editorGroupService, lifecycleService, messageService, storageService);
-
 		this._remoteAuthority = environmentService.args['remote'];
-
-		this.registerProvider(new class implements IRemoteFileProvider {
-			onDidChange: Event<URI> = Event.None;
-			resolve(resource: URI): TPromise<string> {
-				return TPromise.as(JSON.stringify(resource, undefined, 4));
-			}
-			update(resource: URI, content: string): TPromise<any> {
-				return TPromise.as(undefined);
-			}
-		});
 	}
 
 	private _shouldIntercept(resource: URI): boolean {
 		return this._provider && resource.authority === this._remoteAuthority;
 	}
 
-	registerProvider(provider: IRemoteFileProvider): IDisposable {
+	registerProvider(authority: string, provider: IRemoteFileSystemProvider): IDisposable {
+		// todo@joh make this actually work for N provider
+		if (authority !== this._remoteAuthority) {
+			throw new Error();
+		}
 		this._provider = provider;
 		const reg = this._provider.onDidChange(e => {
 			// forward change events
