@@ -162,6 +162,17 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		}
 	}
 
+
+	public revealTask(task: Task): boolean {
+		let terminalData = this.activeTasks[task._id];
+		if (!terminalData) {
+			return false;
+		}
+		this.terminalService.setActiveInstance(terminalData.terminal);
+		this.terminalService.showPanel(task.command.presentation.focus);
+		return true;
+	}
+
 	public isActive(): TPromise<boolean> {
 		return TPromise.as(this.isActiveSync());
 	}
@@ -301,6 +312,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					onData.dispose();
 					onExit.dispose();
 					delete this.activeTasks[task._id];
+					this.emit(TaskSystemEvents.Changed);
 					switch (task.command.presentation.panel) {
 						case PanelKind.Dedicated:
 							this.sameTaskTerminals[task._id] = terminal.id.toString();
@@ -347,6 +359,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					onData.dispose();
 					onExit.dispose();
 					delete this.activeTasks[task._id];
+					this.emit(TaskSystemEvents.Changed);
 					switch (task.command.presentation.panel) {
 						case PanelKind.Dedicated:
 							this.sameTaskTerminals[task._id] = terminal.id.toString();
@@ -372,6 +385,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			this.terminalService.showPanel(task.command.presentation.focus);
 		}
 		this.activeTasks[task._id] = { terminal, task, promise };
+		this.emit(TaskSystemEvents.Changed);
 		return promise.then((summary) => {
 			try {
 				let telemetryEvent: TelemetryEvent = {

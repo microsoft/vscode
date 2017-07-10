@@ -3,6 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.task-statusbar-runningItem {
+	display: inline-block;
+}
+
+.task-statusbar-runningItem-label {
+	display: inline-block;
+	cursor: pointer;
+	padding: 0 5px 0 5px;
+}
+
 .task-statusbar-item {
 	display: inline-block;
 }
