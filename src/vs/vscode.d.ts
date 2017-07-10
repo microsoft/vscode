@@ -743,6 +743,11 @@ declare module 'vscode' {
 		 * with the next editor or if it will be kept.
 		 */
 		preview?: boolean;
+
+		/**
+		 * An optional selection to apply for the document in the [editor](#TextEditor).
+		 */
+		selection?: Range;
 	}
 
 	/**

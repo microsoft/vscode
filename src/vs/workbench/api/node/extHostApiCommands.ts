@@ -15,7 +15,7 @@ import * as modes from 'vs/editor/common/modes';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 export class ExtHostApiCommands {
 
@@ -205,11 +205,12 @@ export class ExtHostApiCommands {
 			});
 
 		this._register('vscode.diff', (left: URI, right: URI, label: string, options?: vscode.TextDocumentShowOptions) => {
-			let editorOptions: IEditorOptions;
+			let editorOptions: ITextEditorOptions;
 			if (options) {
 				editorOptions = {
 					pinned: typeof options.preview === 'boolean' ? !options.preview : undefined,
-					preserveFocus: options.preserveFocus
+					preserveFocus: options.preserveFocus,
+					selection: typeof options.selection === 'object' ? typeConverters.fromRange(options.selection) : undefined
 				};
 			}
 
