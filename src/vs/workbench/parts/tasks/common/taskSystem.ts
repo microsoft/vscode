@@ -94,6 +94,7 @@ export interface TaskEvent {
 	taskName?: string;
 	type?: TaskType;
 	group?: string;
+	__task?: Task;
 }
 
 export interface ITaskResolver {

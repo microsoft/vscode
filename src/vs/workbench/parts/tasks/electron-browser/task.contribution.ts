@@ -378,7 +378,7 @@ class StatusBarItem extends Themable implements IStatusbarItem {
 		});
 
 		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Active, (event: TaskEvent) => {
-			if (this.taskService.inTerminal() && event.group !== TaskGroup.Build) {
+			if (this.ignoreEvent(event)) {
 				return;
 			}
 			this.activeCount++;
@@ -398,7 +398,7 @@ class StatusBarItem extends Themable implements IStatusbarItem {
 		}));
 
 		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Inactive, (event: TaskEvent) => {
-			if (this.taskService.inTerminal() && event.group !== TaskGroup.Build) {
+			if (this.ignoreEvent(event)) {
 				return;
 			}
 			// Since the exiting of the sub process is communicated async we can't order inactive and terminate events.
@@ -416,7 +416,7 @@ class StatusBarItem extends Themable implements IStatusbarItem {
 		}));
 
 		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Terminated, (event: TaskEvent) => {
-			if (this.taskService.inTerminal() && event.group !== TaskGroup.Build) {
+			if (this.ignoreEvent(event)) {
 				return;
 			}
 			if (this.activeCount !== 0) {
@@ -438,6 +438,19 @@ class StatusBarItem extends Themable implements IStatusbarItem {
 				callOnDispose = dispose(callOnDispose);
 			}
 		};
+	}
+
+	private ignoreEvent(event: TaskEvent): boolean {
+		if (!this.taskService.inTerminal()) {
+			return false;
+		}
+		if (event.group !== TaskGroup.Build) {
+			return true;
+		}
+		if (!event.__task) {
+			return false;
+		}
+		return event.__task.problemMatchers === void 0 || event.__task.problemMatchers.length === 0;
 	}
 }
 
@@ -757,7 +770,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		this.storageService.store(TaskService.RecentlyUsedTasks_Key, JSON.stringify(values), StorageScope.WORKSPACE);
 	}
 
-	public openDocumentation(): void {
+	private openDocumentation(): void {
 		this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?LinkId=733558'));
 	}
 

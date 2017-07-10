@@ -189,7 +189,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				let task = activeTerminal.task;
 				try {
 					onExit.dispose();
-					let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun, group: task.group };
+					let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun, group: task.group, __task: task };
 					this.emit(TaskSystemEvents.Terminated, event);
 				} catch (error) {
 					// Do nothing.
@@ -210,7 +210,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					let task = terminalData.task;
 					try {
 						onExit.dispose();
-						let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun, group: task.group };
+						let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun, group: task.group, __task: task };
 						this.emit(TaskSystemEvents.Terminated, event);
 					} catch (error) {
 						// Do nothing.
@@ -270,7 +270,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				const problemMatchers = this.resolveMatchers(task.problemMatchers);
 				let watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this.markerService, this.modelService);
 				let toUnbind: IDisposable[] = [];
-				let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.Watching, group: task.group };
+				let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.Watching, group: task.group, __task: task };
 				let eventCounter: number = 0;
 				toUnbind.push(watchingProblemMatcher.addListener(ProblemCollectorEvents.WatchingBeginDetected, () => {
 					eventCounter++;
@@ -332,7 +332,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		} else {
 			promise = new TPromise<ITaskSummary>((resolve, reject) => {
 				[terminal, executedCommand] = this.createTerminal(task);
-				let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun, group: task.group };
+				let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun, group: task.group, __task: task };
 				this.emit(TaskSystemEvents.Active, event);
 				let decoder = new TerminalDecoder();
 				let problemMatchers = this.resolveMatchers(task.problemMatchers);
