@@ -32,14 +32,8 @@ export interface ITextAreaHandlerHelper {
 class VisibleTextAreaData {
 	_visibleTextAreaBrand: void;
 
-	public readonly top: number;
-	public readonly left: number;
-	public readonly width: number;
+	constructor(public readonly top: number, public readonly left: number, public readonly width: number) {
 
-	constructor(top: number, left: number, width: number) {
-		this.top = top;
-		this.left = left;
-		this.width = width;
 	}
 
 	public setWidth(width: number): VisibleTextAreaData {

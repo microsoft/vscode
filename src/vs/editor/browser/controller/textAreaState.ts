@@ -32,29 +32,19 @@ export class TextAreaState {
 
 	public static EMPTY = new TextAreaState('', 0, 0);
 
-	public readonly value: string;
-	public readonly selectionStart: number;
-	public readonly selectionEnd: number;
+	constructor(public readonly value: string, public readonly selectionStart: number, public readonly selectionEnd: number) {
 
-	constructor(value: string, selectionStart: number, selectionEnd: number) {
-		this.value = value;
-		this.selectionStart = selectionStart;
-		this.selectionEnd = selectionEnd;
 	}
 
 	public equals(other: TextAreaState): boolean {
-		if (other instanceof TextAreaState) {
-			return (
-				this.value === other.value
-				&& this.selectionStart === other.selectionStart
-				&& this.selectionEnd === other.selectionEnd
-			);
-		}
-		return false;
+		return (other instanceof TextAreaState &&
+			this.value === other.value &&
+			this.selectionStart === other.selectionStart &&
+			this.selectionEnd === other.selectionEnd);
 	}
 
 	public toString(): string {
-		return '[ <' + this.value + '>, selectionStart: ' + this.selectionStart + ', selectionEnd: ' + this.selectionEnd + ']';
+		return `[ <${this.value}>, selectionStart: ${this.selectionStart}, selectionEnd: ${this.selectionEnd}]`;
 	}
 
 	public readFromTextArea(textArea: ITextAreaWrapper): TextAreaState {

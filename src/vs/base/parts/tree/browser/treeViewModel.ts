@@ -15,15 +15,8 @@ export interface IViewItem {
 
 export class HeightMap extends EventEmitter {
 
-	private heightMap: IViewItem[];
-	private indexes: { [item: string]: number; };
-
-	constructor() {
-		super();
-
-		this.heightMap = [];
-		this.indexes = {};
-	}
+	private heightMap: IViewItem[] = [];
+	private indexes: { [item: string]: number; } = {};
 
 	public getTotalHeight(): number {
 		var last = this.heightMap[this.heightMap.length - 1];

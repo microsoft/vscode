@@ -71,36 +71,20 @@ let LISTENER_BINDING_ID = '__$listeners';
 let VISIBILITY_BINDING_ID = '__$visibility';
 
 export class Position {
-	public x: number;
-	public y: number;
-
-	constructor(x: number, y: number) {
-		this.x = x;
-		this.y = y;
+	constructor(public x: number, public y: number) {
 	}
 }
 
 export class Box {
-	public top: number;
-	public right: number;
-	public bottom: number;
-	public left: number;
+	constructor(public top: number, public right: number, public bottom: number, public left: number) {
 
-	constructor(top: number, right: number, bottom: number, left: number) {
-		this.top = top;
-		this.right = right;
-		this.bottom = bottom;
-		this.left = left;
 	}
 }
 
 export class Dimension {
-	public width: number;
-	public height: number;
 
-	constructor(width: number, height: number) {
-		this.width = width;
-		this.height = height;
+	constructor(public width: number, public height: number) {
+
 	}
 
 	public substract(box: Box): Dimension {

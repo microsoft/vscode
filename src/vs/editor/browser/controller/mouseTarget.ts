@@ -338,8 +338,6 @@ class HitTestContext {
 
 abstract class BareHitTestRequest {
 
-	public readonly editorPos: EditorPagePosition;
-	public readonly pos: PageCoordinates;
 	public readonly mouseVerticalOffset: number;
 	public readonly isInMarginArea: boolean;
 	public readonly isInContentArea: boolean;
@@ -347,9 +345,7 @@ abstract class BareHitTestRequest {
 
 	protected readonly mouseColumn: number;
 
-	constructor(ctx: HitTestContext, editorPos: EditorPagePosition, pos: PageCoordinates) {
-		this.editorPos = editorPos;
-		this.pos = pos;
+	constructor(ctx: HitTestContext, public readonly editorPos: EditorPagePosition, public readonly pos: PageCoordinates) {
 
 		this.mouseVerticalOffset = Math.max(0, ctx.getScrollTop() + pos.y - editorPos.y);
 		this.mouseContentHorizontalOffset = ctx.getScrollLeft() + pos.x - editorPos.x - ctx.layoutInfo.contentLeft;

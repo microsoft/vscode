@@ -39,18 +39,10 @@ export function standardMouseMoveMerger(lastEvent: IStandardMouseMoveEventData, 
 
 export class GlobalMouseMoveMonitor<R> extends Disposable {
 
-	private hooks: IDisposable[];
-	private mouseMoveEventMerger: IEventMerger<R>;
-	private mouseMoveCallback: IMouseMoveCallback<R>;
-	private onStopCallback: IOnStopCallback;
-
-	constructor() {
-		super();
-		this.hooks = [];
-		this.mouseMoveEventMerger = null;
-		this.mouseMoveCallback = null;
-		this.onStopCallback = null;
-	}
+	private hooks: IDisposable[] = [];
+	private mouseMoveEventMerger: IEventMerger<R> = null;
+	private mouseMoveCallback: IMouseMoveCallback<R> = null;
+	private onStopCallback: IOnStopCallback = null;
 
 	public dispose(): void {
 		this.stopMonitoring(false);

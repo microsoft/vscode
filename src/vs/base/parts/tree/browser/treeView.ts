@@ -103,9 +103,6 @@ export interface IViewContext extends _.ITreeContext {
 
 export class ViewItem implements IViewItem {
 
-	private context: IViewContext;
-
-	public model: Model.Item;
 	public id: string;
 	protected row: IRow;
 
@@ -121,9 +118,7 @@ export class ViewItem implements IViewItem {
 	public _styles: any;
 	private _draggable: boolean;
 
-	constructor(context: IViewContext, model: Model.Item) {
-		this.context = context;
-		this.model = model;
+	constructor(private context: IViewContext, public model: Model.Item) {
 
 		this.id = this.model.id;
 		this.row = null;
