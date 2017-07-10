@@ -370,7 +370,7 @@ export class WindowsManager implements IWindowsMainService {
 		const usedWindows: CodeWindow[] = [];
 		if (!foldersToOpen.length && !foldersToRestore.length && !emptyToRestore.length && (filesToOpen.length > 0 || filesToCreate.length > 0 || filesToDiff.length > 0)) {
 
-			// Open Files in last instance if any and flag tells us so
+			// Find suitable window or folder path to open files in
 			const fileToCheck = filesToOpen[0] || filesToCreate[0] || filesToDiff[0];
 			const bestWindowOrFolder = findBestWindowOrFolderForFile({
 				windows: WindowsManager.WINDOWS,
@@ -382,21 +382,8 @@ export class WindowsManager implements IWindowsMainService {
 			});
 
 			// We found a suitable window to open the files within: send the files to open over
-			if (bestWindowOrFolder instanceof CodeWindow) {
-				const files = { filesToOpen, filesToCreate, filesToDiff }; // copy to object because they get reset shortly after
-
-				const windowToUse = bestWindowOrFolder;
-				windowToUse.focus();
-				windowToUse.ready().then(readyWindow => {
-					readyWindow.send('vscode:openFiles', files);
-				});
-
-				usedWindows.push(windowToUse);
-
-				// Reset these because we handled them
-				filesToOpen = [];
-				filesToCreate = [];
-				filesToDiff = [];
+			if (bestWindowOrFolder instanceof CodeWindow && bestWindowOrFolder.openedFolderPath) {
+				foldersToOpen.push(bestWindowOrFolder.openedFolderPath);
 			}
 
 			// We found a suitable folder to open: add it to foldersToOpen
@@ -477,7 +464,7 @@ export class WindowsManager implements IWindowsMainService {
 			});
 		}
 
-		// Handle empty
+		// Handle empty to restore
 		if (emptyToRestore.length > 0) {
 			emptyToRestore.forEach(emptyWindowBackupFolder => {
 				const browserWindow = this.openInBrowserWindow({
