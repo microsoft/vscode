@@ -81,8 +81,6 @@ export class OpenConsoleAction extends AbstarctOpenInTerminalAction {
 		@IHistoryService historyService: IHistoryService
 	) {
 		super(id, label, editorService, contextService, historyService);
-
-		this.order = 49; // Allow other actions to position before or after
 	}
 
 	public run(event?: any): TPromise<any> {
@@ -107,8 +105,6 @@ export class OpenIntegratedTerminalAction extends AbstarctOpenInTerminalAction {
 		@IHistoryService historyService: IHistoryService
 	) {
 		super(id, label, editorService, contextService, historyService);
-
-		this.order = 49; // Allow other actions to position before or after
 	}
 
 	public run(event?: any): TPromise<any> {
