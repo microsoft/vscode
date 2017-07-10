@@ -177,6 +177,12 @@ export class CommandCenter {
 			viewColumn
 		};
 
+		const activeTextEditor = window.activeTextEditor;
+
+		if (activeTextEditor && activeTextEditor.document.uri.toString() === right.toString()) {
+			opts.selection = activeTextEditor.selection;
+		}
+
 		return await commands.executeCommand<void>('vscode.diff', left, right, title, opts);
 	}
 
@@ -317,9 +323,16 @@ export class CommandCenter {
 			return;
 		}
 
-		const viewColumn = window.activeTextEditor && window.activeTextEditor.viewColumn || ViewColumn.One;
+		const activeTextEditor = window.activeTextEditor && window.activeTextEditor;
+		const isSameUri = activeTextEditor && activeTextEditor.document.uri.toString() === uri.toString();
+		const selections = activeTextEditor && activeTextEditor.selections;
+		const viewColumn = activeTextEditor && activeTextEditor.viewColumn || ViewColumn.One;
 
-		return await commands.executeCommand<void>('vscode.open', uri, viewColumn);
+		await commands.executeCommand<void>('vscode.open', uri, viewColumn);
+
+		if (isSameUri && selections && window.activeTextEditor) {
+			window.activeTextEditor.selections = selections;
+		}
 	}
 
 	@command('git.openHEADFile')
@@ -363,6 +376,7 @@ export class CommandCenter {
 		if (!resource) {
 			return;
 		}
+
 		return await this._openResource(resource);
 	}
 
