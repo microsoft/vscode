@@ -9,6 +9,9 @@
 	height: 190px;
 }
 
+
+/* Header */
+
 .colorpicker-header {
 	display: flex;
 	height: 24px;
@@ -16,7 +19,13 @@
 
 .colorpicker-header .picked-color {
 	text-align: center;
-	width: 216px
+	width: 216px;
+	-webkit-user-select: text;
+	-ms-user-select: text;
+	-khtml-user-select: text;
+	-moz-user-select: text;
+	-o-user-select: text;
+	user-select: text;
 }
 
 .colorpicker-header .original-color {
@@ -27,20 +36,34 @@
 	width: 12px;
 }
 
-.colorpicker-body {
-	display: flex;
-	padding: 8px;
-}
-
-.picked-color {
+.colorpicker-header .picked-color {
 	text-align: center;
 	color: rgba(255, 255, 255, 1);
 }
 
-.saturation-box {
+
+/* Body */
+
+.colorpicker-body {
+	display: flex;
+	padding: 8px;
+	position: relative;
+}
+
+.colorpicker-body .saturation-box {
 	width: 220px;
 	height: 150px;
-	cursor: crosshair;
+}
+
+.colorpicker-body .saturation-selection {
+	width: 9px;
+	height: 9px;
+	border: 1px solid rgba(255, 255, 255, 1);
+	border-radius: 100%;
+	box-shadow: inset 0 0 1px rgba(0, 0, 0, 0.3);
+	margin-top: 5px;
+	margin-left: 5px;
+	position: absolute;
 }
 
 .colorpicker-body .slider {
@@ -51,26 +74,26 @@
 	height: 5px;
 }
 
-.hue-strip-wrap {
+.colorpicker-body .hue-strip-wrap {
 	position: relative;
 	margin-left: 8px;
 	cursor: -webkit-grab;
 	height: 150px;
 }
 
-.strip {
+.colorpicker-body .strip {
 	width: 25px;
 	height: 150px;
 }
 
-.opacity-strip-wrap {
+.colorpicker-body .opacity-strip-wrap {
 	position: relative;
 	margin-left: 8px;
 	cursor: -webkit-grab;
 	height: 150px;
 }
 
-.opacity-strip-transparency {
+.colorpicker-body .opacity-strip-transparency {
 	background: url('images/opacity-background.png');
 	background-size: 9px 9px;
 	image-rendering: pixelated;

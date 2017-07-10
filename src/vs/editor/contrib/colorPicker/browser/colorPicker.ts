@@ -46,18 +46,12 @@ export class ColorPickerController extends Disposable implements IEditorContribu
 	}
 
 	public pickColor(): void {
-		const colorString = 'rgba(0, 171, 84, 1)'; // temp colour that is picked from editor
+		const colorString = 'rgb(243, 34, 43)'; // temp colour that is picked from editor
 		this.model.originalColor = colorString;
 		this.model.colorModel = ColorModel.RGBA;
-		this.model.color = Color.fromRGBA(new RGBA(0, 171, 84, 1));
-
-		// this.model.selectedColorString = colorString;
+		this.model.color = Color.fromRGBA(new RGBA(243, 34, 43));
 
 		this.widget.show();
-	}
-
-	public changeColorType(): void {
-		console.log('Colour type change triggered');
 	}
 
 	public dispose(): void {

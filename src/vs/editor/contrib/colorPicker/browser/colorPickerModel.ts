@@ -46,7 +46,7 @@ export class ColorPickerModel {
 	public set selectedColorString(color: string) {
 		this._selectedColor = color;
 
-		if (this.widget.header) {
+		if (this.widget.header && this.widget.body) {
 			this.widget.header.updatePickedColor(); // update picked colour from box view
 			this.widget.body.fillOpacityGradient();  // update opacity gradient based on the color
 		}
@@ -77,6 +77,8 @@ export class ColorPickerModel {
 	}
 
 	public set color(color: Color) {
+		this._color = color;
+
 		if (this._colorModel === ColorModel.RGBA) {
 			this.selectedColorString = color.toRGBA().toString();
 		} else if (this._colorModel === ColorModel.Hex) {
@@ -84,8 +86,6 @@ export class ColorPickerModel {
 		} else {
 			this.selectedColorString = color.toHSLA().toString();
 		}
-
-		this._color = color;
 	}
 
 	public get color(): Color {

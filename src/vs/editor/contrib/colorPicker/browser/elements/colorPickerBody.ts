@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { ColorPickerWidget } from "vs/editor/contrib/colorPicker/browser/colorPickerWidget";
 import { Disposable } from "vs/base/common/lifecycle";
-import { ColorPickerModel } from "vs/editor/contrib/colorPicker/browser/colorPickerModel";
+import { ColorPickerModel, ISaturationState } from "vs/editor/contrib/colorPicker/browser/colorPickerModel";
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from "vs/base/browser/globalMouseMoveMonitor";
 import { isWindows } from "vs/base/common/platform";
 import { Color, RGBA } from "vs/base/common/color";
@@ -15,7 +15,10 @@ const MOUSE_DRAG_RESET_DISTANCE = 140;
 
 export class ColorPickerBody extends Disposable {
 	private domNode: HTMLElement;
-	private saturationBox: HTMLElement;
+	private pixelRatio: number;
+
+	private saturationBox: HTMLCanvasElement;
+	private saturationSelection: HTMLElement;
 	private hueStrip: HueStrip;
 	private hueSlider: Slider;
 	private opacityStrip: OpacityStrip;
@@ -25,8 +28,6 @@ export class ColorPickerBody extends Disposable {
 
 	private whiteGradient: CanvasGradient;
 	private blackGradient: CanvasGradient;
-
-	private pixelRatio: number;
 
 	constructor(private widget: ColorPickerWidget, private model: ColorPickerModel, widgetWidth: number) {
 		super();
@@ -43,41 +44,25 @@ export class ColorPickerBody extends Disposable {
 		this.registerListeners();
 	}
 
-	public fillOpacityGradient(): void {
-		this.opacityStrip.gradient.addColorStop(0, this.model.selectedColorString);
-		this.opacityStrip.context.fillStyle = this.opacityStrip.gradient;
-		this.opacityStrip.context.fill();
-	}
-
-	public fillSaturationBox(): void {
-		this.saturationCtx.fillStyle = this.model.hue ? this.model.hue : this.model.originalColor;
-		this.saturationCtx.fill();
-		this.saturationCtx.fillStyle = this.whiteGradient;
-		this.saturationCtx.fill();
-		this.saturationCtx.fillStyle = this.blackGradient;
-		this.saturationCtx.fill();
-
-		// Update selected color if saturation selection was beforehand
-		if (this.model.saturationSelection) {
-			this.model.color = this.extractColor(this.saturationCtx, this.model.saturationSelection.x, this.model.saturationSelection.y);
-		}
-	}
-
 	private registerListeners(): void {
 		const monitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
+
 		// Saturation box listeners
 		this._register(dom.addDisposableListener(this.saturationBox, dom.EventType.MOUSE_DOWN, e => {
+			e.preventDefault();
 			this.model.dragging = true;
 			this.widget.model.color = this.extractColor(this.saturationCtx, e.offsetX, e.offsetY);
 			this.widget.model.saturationSelection = { x: e.offsetX, y: e.offsetY };
+			this.focusSaturationSelection(this.widget.model.saturationSelection);
 		}));
-		this._register(dom.addDisposableListener(this.saturationBox, dom.EventType.MOUSE_UP, e => {
+		this._register(dom.addDisposableListener(this.saturationSelection, dom.EventType.MOUSE_UP, e => {
 			this.model.dragging = false;
 		}));
 		this._register(dom.addDisposableListener(this.saturationBox, dom.EventType.MOUSE_MOVE, e => {
 			if (this.model.dragging) {
 				this.widget.model.color = this.extractColor(this.saturationCtx, e.offsetX, e.offsetY);
 				this.widget.model.saturationSelection = { x: e.offsetX, y: e.offsetY };
+				this.focusSaturationSelection(this.widget.model.saturationSelection);
 			}
 		}));
 
@@ -107,10 +92,9 @@ export class ColorPickerBody extends Disposable {
 		if (element === strip.domNode) {
 			slider.top = e.offsetY;
 
-			// Update model
 			if (slider === this.hueSlider) {
 				this.widget.model.hue = this.extractColor(strip.context, 0, slider.top).toString();
-			} else {
+			} else if (slider === this.opacitySlider) {
 				this.widget.model.opacity = slider.top / strip.height;
 			}
 		}
@@ -129,15 +113,63 @@ export class ColorPickerBody extends Disposable {
 			const mouseDelta = mouseMoveData.posy - initialMousePosition;
 			slider.top = initialSliderTop + mouseDelta;
 
-			// Update model
 			if (slider === this.hueSlider) {
 				this.widget.model.hue = this.extractColor(strip.context, 0, slider.top).toString();
-			} else {
+			} else if (slider === this.opacitySlider) {
 				this.widget.model.opacity = slider.top / strip.height;
 			}
 		}, () => {
 			strip.domNode.style.cursor = '-webkit-grab';
 		});
+	}
+
+	public fillOpacityGradient(): void {
+		this.opacityStrip.gradient.addColorStop(0, this.model.selectedColorString);
+		this.opacityStrip.context.fillStyle = this.opacityStrip.gradient;
+		this.opacityStrip.context.fill();
+	}
+
+	public fillSaturationBox(): void {
+		this.saturationCtx.fillStyle = this.model.hue ? this.model.hue : this.model.originalColor;
+		this.saturationCtx.fill();
+		this.saturationCtx.fillStyle = this.whiteGradient;
+		this.saturationCtx.fill();
+		this.saturationCtx.fillStyle = this.blackGradient;
+		this.saturationCtx.fill();
+
+		// Update selected color if saturation selection was beforehand
+		if (this.model.saturationSelection) {
+			this.model.color = this.extractColor(this.saturationCtx, this.model.saturationSelection.x, this.model.saturationSelection.y);
+		}
+	}
+
+	private focusSaturationSelection(state: ISaturationState): void {
+		let left = state.x;
+		let top = state.y;
+
+		const leftTopOffset = 3;
+		const rightBottomOffset = 7;
+
+		console.log(`top: ${top}; left: ${left}; offsetWidth: ${this.saturationBox.offsetWidth}; offsetHeight: ${this.saturationBox.offsetHeight}`);
+		if (left <= leftTopOffset) {
+			left = leftTopOffset;
+			console.log('left = 3');
+		}
+		if (left >= this.saturationBox.offsetWidth - rightBottomOffset) {
+			left = left - rightBottomOffset; // take into account box-shadow
+			console.log('left = left - 7');
+		}
+		if (top <= leftTopOffset) {
+			top = leftTopOffset;
+			console.log('top = 3');
+		}
+		if (top >= this.saturationBox.offsetHeight - rightBottomOffset) {
+			top = top - rightBottomOffset; // take into account box-shadow
+			console.log('top = top - 7');
+		}
+
+		this.saturationSelection.style.left = left + 'px';
+		this.saturationSelection.style.top = top + 'px';
 	}
 
 	private drawSaturationBox(): HTMLCanvasElement {
@@ -168,6 +200,10 @@ export class ColorPickerBody extends Disposable {
 
 		this.fillSaturationBox();
 
+		// Add selection circle
+		this.saturationSelection = $('.saturation-selection');
+		dom.append(this.domNode, this.saturationSelection);
+
 		return canvas;
 	}
 
@@ -197,7 +233,7 @@ export class ColorPickerBody extends Disposable {
 	}
 
 	private extractColor(context: CanvasRenderingContext2D, offsetX: number, offsetY: number): Color {
-		const imageData = context.getImageData(offsetX, offsetY, 1, 1);
+		const imageData = context.getImageData(offsetX * this.pixelRatio, offsetY * this.pixelRatio, 1, 1);
 		return Color.fromRGBA(new RGBA(imageData.data[0], imageData.data[1], imageData.data[2]));
 	}
 }
@@ -275,13 +311,10 @@ class Slider {
 
 	// Sets style.top in 'px'
 	public set top(top: number) {
-		if (top < 0 || top > this.strip.height) {
-			return;
-		}
-
-		// Account for height of the slider, not overflowing top of the strip
-		if (top >= this.domNode.offsetHeight) {
-			top -= this.domNode.offsetHeight;
+		if (top < 0) {
+			top = 0;
+		} else if (top > this.strip.height - this.domNode.offsetHeight) {
+			top = this.strip.height - this.domNode.offsetHeight;
 		}
 
 		this.domNode.style.top = top + 'px';
