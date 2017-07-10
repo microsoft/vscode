@@ -33,7 +33,8 @@ export class MainThreadDebugService extends MainThreadDebugServiceShape {
 		}));
 		this._toDispose.push(debugService.onDidCustomEvent(event => {
 			if (event.body && event.body.sessionId) {
-				this._proxy.$acceptDebugSessionCustomEvent(event.body.sessionId, event);
+				const process = this.debugService.findProcessByUUID(event.body.sessionId);	// TODO
+				this._proxy.$acceptDebugSessionCustomEvent(event.body.sessionId, process.configuration.type, process.configuration.name, event);
 			}
 		}));
 	}

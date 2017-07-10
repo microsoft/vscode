@@ -27,11 +27,16 @@ export class ExtHostDebugService extends ExtHostDebugServiceShape {
 	private _activeDebugSession: ExtHostDebugSession | undefined;
 	get activeDebugSession(): ExtHostDebugSession | undefined { return this._activeDebugSession; }
 
+	private _onDidReceiveDebugSessionCustomEvent: Emitter<vscode.DebugSessionCustomEvent>;
+	get onDidReceiveDebugSessionCustomEvent(): Event<vscode.DebugSessionCustomEvent> { return this._onDidReceiveDebugSessionCustomEvent.event; }
+
+
 	constructor(threadService: IThreadService) {
 		super();
 
 		this._onDidTerminateDebugSession = new Emitter<vscode.DebugSession>();
 		this._onDidChangeActiveDebugSession = new Emitter<vscode.DebugSession>();
+		this._onDidReceiveDebugSessionCustomEvent = new Emitter<vscode.DebugSessionCustomEvent>();
 
 		this._debugServiceProxy = threadService.get(MainContext.MainThreadDebugService);
 	}
@@ -70,12 +75,19 @@ export class ExtHostDebugService extends ExtHostDebugServiceShape {
 		this._onDidChangeActiveDebugSession.fire(this._activeDebugSession);
 	}
 
-	public $acceptDebugSessionCustomEvent(id: DebugSessionUUID, event: any): void {
+	public $acceptDebugSessionCustomEvent(id: DebugSessionUUID, type: string, name: string, event: any): void {
 
 		let debugSession = this._debugSessions.get(id);
-		if (debugSession) {
-			debugSession._onCustomEvent(event);
+		if (!debugSession) {
+			debugSession = new ExtHostDebugSession(this._debugServiceProxy, id, type, name);
+			this._debugSessions.set(id, debugSession);
 		}
+		const ee: vscode.DebugSessionCustomEvent = {
+			session: debugSession,
+			event: event.event,
+			body: event.body
+		};
+		this._onDidReceiveDebugSessionCustomEvent.fire(ee);
 	}
 }
 
@@ -87,8 +99,6 @@ export class ExtHostDebugSession implements vscode.DebugSession {
 
 	private _type: string;
 	private _name: string;
-
-	private _onCustomEventCallback: (event: any) => void;
 
 	constructor(proxy: MainThreadDebugServiceShape, id: DebugSessionUUID, type: string, name: string) {
 		this._debugServiceProxy = proxy;
@@ -111,13 +121,5 @@ export class ExtHostDebugSession implements vscode.DebugSession {
 
 	public customRequest(command: string, args: any): Thenable<any> {
 		return this._debugServiceProxy.$customDebugAdapterRequest(this._id, command, args);
-	}
-
-	public onCustomEvent(callback: (event: any) => void): void {
-		this._onCustomEventCallback = callback;
-	}
-
-	public _onCustomEvent(event: any): void {
-		this._onCustomEventCallback(event);
 	}
 }
