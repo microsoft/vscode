@@ -195,7 +195,7 @@ export abstract class SimpleFindWidget extends Widget {
 	}
 
 	public reveal(initialInput?: string): void {
-		if (typeof initialInput !== 'undefined') {
+		if (initialInput) {
 			this._findInput.setValue(initialInput);
 		}
 
