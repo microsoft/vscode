@@ -856,7 +856,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			return false;
 		}
 		if (task._source.config === void 0 && ContributedTask.is(task)) {
-			return true;
+			return !task.hasDefinedMatchers && task.problemMatchers.length === 0;
 		}
 		let configProperties: TaskConfig.ConfigurationProperties = task._source.config.element;
 		return configProperties.problemMatcher === void 0;
