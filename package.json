@@ -35,7 +35,7 @@
     "jschardet": "^1.4.2",
     "minimist": "1.2.0",
     "native-keymap": "1.2.4",
-    "node-pty": "0.6.8",
+    "node-pty": "0.6.9",
     "nsfw": "1.0.16",
     "semver": "4.3.6",
     "v8-profiler": "jrieken/v8-profiler#vscode",
