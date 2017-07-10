@@ -685,6 +685,15 @@ export class DebugService implements debug.IDebugService {
 		));
 	}
 
+	public findProcessByUUID(uuid: string): debug.IProcess | null {
+		const processes = this.getModel().getProcesses();
+		const result = processes.filter(process => process.getId() === uuid);
+		if (result.length > 0) {
+			return result[0];	// there can only be one
+		}
+		return null;
+	}
+
 	public createProcess(config: debug.IConfig): TPromise<debug.IProcess> {
 		return this.textFileService.saveAll().then(() =>
 			this.configurationManager.resolveConfiguration(config).then(resolvedConfig => {
