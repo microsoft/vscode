@@ -49,7 +49,7 @@ export class SearchDataSource implements IDataSource {
 		} else if (element instanceof FolderMatch) {
 			return element.matches();
 		} else if (element instanceof SearchResult) {
-			return element.folderMatches();
+			return element.folderMatches().filter(fm => !fm.isEmpty());
 		}
 
 		return [];
