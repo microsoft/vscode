@@ -1955,12 +1955,20 @@ class TaskService extends EventEmitter implements ITaskService {
 			return;
 		}
 		this.getActiveTasks().then((tasks) => {
-			this.showQuickPick(tasks, nls.localize('TaskService.pickShowTask', 'Select the task to show its output'), false, true).then((task) => {
-				if (!task || !this._taskSystem) {
-					return;
+			if (tasks.length === 0) {
+				this.messageService.show(Severity.Info, nls.localize('TaskService.noTaskIsRunning', 'No task is running.'));
+			} else if (tasks.length === 1) {
+				if (this._taskSystem) {
+					this._taskSystem.revealTask(tasks[0]);
 				}
-				this._taskSystem.revealTask(task);
-			});
+			} else {
+				this.showQuickPick(tasks, nls.localize('TaskService.pickShowTask', 'Select the task to show its output'), false, true).then((task) => {
+					if (!task || !this._taskSystem) {
+						return;
+					}
+					this._taskSystem.revealTask(task);
+				});
+			}
 		});
 	}
 }
