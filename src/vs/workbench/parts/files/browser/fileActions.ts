@@ -1999,10 +1999,12 @@ export function getWellFormedFileName(filename: string): string {
 	return filename;
 }
 
-export const SHOW_MODIFICATIONS_SCHEME = 'showModifications';
-export class ShowModificationsAction extends Action implements ITextModelContentProvider {
-	public static ID = 'workbench.files.action.showModifications';
-	public static LABEL = nls.localize('showModifications', "Compare with Saved");
+export class CompareWithSavedAction extends Action implements ITextModelContentProvider {
+
+	public static ID = 'workbench.files.action.compareWithSaved';
+	public static LABEL = nls.localize('compareWithSaved', "Compare Active File with Saved");
+
+	private static SCHEME = 'showModifications';
 
 	private resource: URI;
 
@@ -2019,7 +2021,7 @@ export class ShowModificationsAction extends Action implements ITextModelContent
 	) {
 		super(id, label);
 
-		textModelService.registerTextModelContentProvider(SHOW_MODIFICATIONS_SCHEME, this);
+		textModelService.registerTextModelContentProvider(CompareWithSavedAction.SCHEME, this);
 
 		this.enabled = true;
 	}
@@ -2030,7 +2032,6 @@ export class ShowModificationsAction extends Action implements ITextModelContent
 
 	public run(): TPromise<any> {
 		let resource: URI;
-
 		if (this.resource) {
 			resource = this.resource;
 		} else {
@@ -2040,13 +2041,15 @@ export class ShowModificationsAction extends Action implements ITextModelContent
 		if (resource && resource.scheme !== 'untitled') {
 			const name = paths.basename(resource.fsPath);
 			const editorLabel = nls.localize('modifiedLabel', "{0} (on disk) ↔ {1}", name, name);
-			return this.editorService.openEditor({ leftResource: URI.from({ scheme: SHOW_MODIFICATIONS_SCHEME, path: resource.fsPath }), rightResource: resource, label: editorLabel });
+
+			return this.editorService.openEditor({ leftResource: URI.from({ scheme: CompareWithSavedAction.SCHEME, path: resource.fsPath }), rightResource: resource, label: editorLabel });
 		}
 
 		return TPromise.as(true);
 	}
 
 	provideTextContent(resource: URI): TPromise<IModel> {
+
 		// Make sure our file from disk is resolved up to date
 		return this.textFileService.resolveTextContent(URI.file(resource.fsPath)).then(content => {
 			let codeEditorModel = this.modelService.getModel(resource);
