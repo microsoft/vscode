@@ -391,8 +391,8 @@ function snapshotTask(platform, arch) {
 		startupBlobFilepath = path.join(destination, 'snapshot_blob.bin')
 
 	} else if (platform === 'linux') {
-		// TODO
-		return () => { };
+		loaderInputFilepath = path.join(destination, 'resources/app/out/vs/loader.js');
+		startupBlobFilepath = path.join(destination, 'snapshot_blob.bin')
 	}
 
 	return () => {
