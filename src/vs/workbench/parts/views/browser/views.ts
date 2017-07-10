@@ -334,7 +334,7 @@ export class ComposedViewsViewlet extends Viewlet {
 		@IThemeService themeService: IThemeService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IContextKeyService protected contextKeyService: IContextKeyService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService
 	) {
 		super(id, telemetryService, themeService);

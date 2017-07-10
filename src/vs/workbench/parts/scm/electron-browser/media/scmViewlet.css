@@ -8,6 +8,10 @@
 	-webkit-mask-size: 19px;
 }
 
+.scm-viewlet .scm-status {
+	height: 100%;
+}
+
 .scm-viewlet .monaco-list-row {
 	padding: 0 12px 0 20px;
 	line-height: 22px;

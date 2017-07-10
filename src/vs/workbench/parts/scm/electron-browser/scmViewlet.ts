@@ -14,7 +14,7 @@ import * as platform from 'vs/base/common/platform';
 import { domEvent } from 'vs/base/browser/event';
 import { IDisposable, dispose, empty as EmptyDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
-import { Viewlet } from 'vs/workbench/browser/viewlet';
+import { ComposedViewsViewlet, CollapsibleView, ICollapsibleViewOptions, IViewletViewOptions, IView } from 'vs/workbench/parts/views/browser/views';
 import { append, $, toggleClass } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -34,18 +34,23 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IAction, IActionItem, ActionRunner } from 'vs/base/common/actions';
 import { MenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
-import { SCMMenus } from './scmMenus';
+import { SCMMenus, SCMMenus2 } from './scmMenus';
 import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IModelService } from 'vs/editor/common/services/modelService';
 import { comparePaths } from 'vs/base/common/comparers';
 import { isSCMResource } from './scmUtil';
 import { attachInputBoxStyler, attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import Severity from 'vs/base/common/severity';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ViewLocation, ViewsRegistry, IViewDescriptor } from 'vs/workbench/parts/views/browser/viewsRegistry';
+import { TreeView } from 'vs/workbench/parts/views/browser/treeView';
+import { ViewSizing } from 'vs/base/browser/ui/splitview/splitview';
 
 // TODO@Joao
 // Need to subclass MenuItemActionItem in order to respect
@@ -91,7 +96,7 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 	get templateId(): string { return ResourceGroupRenderer.TEMPLATE_ID; }
 
 	constructor(
-		private scmMenus: SCMMenus,
+		private scmMenus: SCMMenus2,
 		private actionItemProvider: IActionItemProvider,
 		private themeService: IThemeService
 	) { }
@@ -220,88 +225,50 @@ function resourceSorter(a: ISCMResource, b: ISCMResource): number {
 	return comparePaths(a.sourceUri.fsPath, b.sourceUri.fsPath);
 }
 
-export class SCMViewlet extends Viewlet {
+class SourceControlViewDescriptor implements IViewDescriptor {
 
-	private activeProvider: ISCMProvider | undefined;
-	private cachedDimension: Dimension;
-	private inputBoxContainer: HTMLElement;
-	private inputBox: InputBox;
+	get provider(): ISCMProvider { return this._provider; }
+	get id(): string { return this._provider.id; }
+	get name(): string { return this._provider.label; }
+	get ctor(): any { return null; }
+	get location(): ViewLocation { return ViewLocation.SCM; }
+
+	constructor(private _provider: ISCMProvider) {
+
+	}
+}
+
+class SourceControlView extends CollapsibleView {
+
 	private listContainer: HTMLElement;
 	private list: List<ISCMResourceGroup | ISCMResource>;
-	private menus: SCMMenus;
-	private providerChangeDisposable: IDisposable = EmptyDisposable;
+	private menus: SCMMenus2 = new SCMMenus2();
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@ISCMService private scmService: ISCMService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IContextViewService private contextViewService: IContextViewService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@IMessageService private messageService: IMessageService,
-		@IListService private listService: IListService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
+		private provider: ISCMProvider,
+		options: IViewletViewOptions,
+		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IThemeService protected themeService: IThemeService,
-		@IMenuService private menuService: IMenuService,
-		@IModelService private modelService: IModelService,
-		@ICommandService private commandService: ICommandService,
-		@IEditorGroupService private groupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IContextMenuService protected contextMenuService: IContextMenuService,
+		@IListService protected listService: IListService,
+		@ICommandService protected commandService: ICommandService,
+		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
+		@IEditorGroupService protected editorGroupService: IEditorGroupService,
+		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
-		super(VIEWLET_ID, telemetryService, themeService);
-
-		this.menus = this.instantiationService.createInstance(SCMMenus);
-		this.menus.onDidChangeTitle(this.updateTitleArea, this, this.disposables);
-		this.disposables.push(this.menus);
+		super({...options, sizing: ViewSizing.Flexible}, keybindingService, contextMenuService);
 	}
 
-	private setActiveProvider(activeProvider: ISCMProvider | undefined): void {
-		this.providerChangeDisposable.dispose();
-		this.activeProvider = activeProvider;
+	renderHeader(container: HTMLElement): void {
+		const title = append(container, $('div.title'));
+		title.textContent = this.name;
 
-		if (activeProvider) {
-			const disposables = [activeProvider.onDidChange(this.update, this)];
-
-			if (activeProvider.onDidChangeCommitTemplate) {
-				disposables.push(activeProvider.onDidChangeCommitTemplate(this.updateInputBox, this));
-			}
-
-			this.providerChangeDisposable = combinedDisposable(disposables);
-		} else {
-			this.providerChangeDisposable = EmptyDisposable;
-		}
-
-		this.updateInputBox();
-		this.updateTitleArea();
-		this.update();
+		super.renderHeader(container);
 	}
 
-	create(parent: Builder): TPromise<void> {
-		super.create(parent);
-		parent.addClass('scm-viewlet');
-
-		const root = parent.getHTMLElement();
-		this.inputBoxContainer = append(root, $('.scm-editor'));
-
-		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, {
-			placeholder: localize('commitMessage', "Message (press {0} to commit)", platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter'),
-			flexibleHeight: true
-		});
-		this.disposables.push(attachInputBoxStyler(this.inputBox, this.themeService));
-		this.disposables.push(this.inputBox);
-
-		this.inputBox.value = this.scmService.input.value;
-		this.inputBox.onDidChange(value => this.scmService.input.value = value, null, this.disposables);
-		this.scmService.input.onDidChange(value => this.inputBox.value = value, null, this.disposables);
-		this.disposables.push(this.inputBox.onDidHeightChange(() => this.layout()));
-
-		chain(domEvent(this.inputBox.inputElement, 'keydown'))
-			.map(e => new StandardKeyboardEvent(e))
-			.filter(e => e.equals(KeyMod.CtrlCmd | KeyCode.Enter) || e.equals(KeyMod.CtrlCmd | KeyCode.KEY_S))
-			.on(this.onDidAcceptInput, this, this.disposables);
-
-		this.listContainer = append(root, $('.scm-status.show-file-icons'));
+	renderBody(container: HTMLElement): void {
+		this.listContainer = append(container, $('.scm-status.show-file-icons'));
 		const delegate = new Delegate();
 
 		const actionItemProvider = action => this.getActionItem(action);
@@ -332,11 +299,168 @@ export class SCMViewlet extends Viewlet {
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
 		this.disposables.push(this.list);
 
+		this.provider.onDidChange(this.update, this, this.disposables);
+	}
+
+	layoutBody(size: number): void {
+		this.list.layout(size);
+	}
+
+	private update(): void {
+		const elements = this.provider.resources
+			.reduce<(ISCMResourceGroup | ISCMResource)[]>((r, g) => [...r, g, ...g.resources.sort(resourceSorter)], []);
+
+		this.list.splice(0, this.list.length, elements);
+	}
+
+	private open(e: ISCMResource): void {
+		if (!e.command) {
+			return;
+		}
+
+		this.commandService.executeCommand(e.command.id, ...e.command.arguments)
+			.done(undefined, onUnexpectedError);
+	}
+
+	private pin(): void {
+		const activeEditor = this.editorService.getActiveEditor();
+		const activeEditorInput = this.editorService.getActiveEditorInput();
+		this.editorGroupService.pinEditor(activeEditor.position, activeEditorInput);
+	}
+
+	private onListContextMenu(e: IListContextMenuEvent<ISCMResourceGroup | ISCMResource>): void {
+		const element = e.element;
+		let actions: IAction[];
+
+		if (isSCMResource(element)) {
+			actions = this.menus.getResourceContextActions(element);
+		} else {
+			actions = this.menus.getResourceGroupContextActions(element);
+		}
+
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => e.anchor,
+			getActions: () => TPromise.as(actions),
+			getActionsContext: () => element,
+			actionRunner: new MultipleSelectionActionRunner(() => this.getSelectedResources())
+		});
+	}
+
+	private getSelectedResources(): ISCMResource[] {
+		return this.list.getSelectedElements()
+			.filter(r => isSCMResource(r)) as ISCMResource[];
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
+		super.dispose();
+	}
+}
+
+export class SCMViewlet extends ComposedViewsViewlet {
+
+	private activeProvider: ISCMProvider | undefined;
+	private cachedDimension: Dimension;
+	private inputBoxContainer: HTMLElement;
+	private inputBox: InputBox;
+	private menus: SCMMenus;
+	private providerChangeDisposable: IDisposable = EmptyDisposable;
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		@ITelemetryService telemetryService: ITelemetryService,
+		@ISCMService protected scmService: ISCMService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextViewService protected contextViewService: IContextViewService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IKeybindingService protected keybindingService: IKeybindingService,
+		@IMessageService protected messageService: IMessageService,
+		@IListService protected listService: IListService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IThemeService protected themeService: IThemeService,
+		@ICommandService protected commandService: ICommandService,
+		@IEditorGroupService protected editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IStorageService storageService: IStorageService,
+		@IExtensionService extensionService: IExtensionService
+	) {
+		super(VIEWLET_ID, ViewLocation.SCM, `${VIEWLET_ID}.state`, false,
+			telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
+
+		this.menus = this.instantiationService.createInstance(SCMMenus);
+		this.menus.onDidChangeTitle(this.updateTitleArea, this, this.disposables);
+		this.disposables.push(this.menus);
+	}
+
+	private setActiveProvider(activeProvider: ISCMProvider | undefined): void {
+		this.providerChangeDisposable.dispose();
+		this.activeProvider = activeProvider;
+
+		if (activeProvider) {
+			const disposables = [];
+
+			// if (activeProvider.onDidChangeCommitTemplate) {
+			// 	disposables.push(activeProvider.onDidChangeCommitTemplate(this.updateInputBox, this));
+			// }
+
+			const id = activeProvider.id;
+			ViewsRegistry.registerViews([new SourceControlViewDescriptor(activeProvider)]);
+
+			disposables.push({
+				dispose: () => {
+					ViewsRegistry.deregisterViews([id], ViewLocation.SCM);
+				}
+			});
+
+			this.providerChangeDisposable = combinedDisposable(disposables);
+		} else {
+			this.providerChangeDisposable = EmptyDisposable;
+		}
+
+		// this.updateInputBox();
+		// this.updateTitleArea();
+	}
+
+	async create(parent: Builder): TPromise<void> {
+		await super.create(parent);
+
+		parent.addClass('scm-viewlet');
+
+		// const root = parent.getHTMLElement();
+		// this.inputBoxContainer = append(root, $('.scm-editor'));
+
+		// this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, {
+		// 	placeholder: localize('commitMessage', "Message (press {0} to commit)", platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter'),
+		// 	flexibleHeight: true
+		// });
+		// this.disposables.push(attachInputBoxStyler(this.inputBox, this.themeService));
+		// this.disposables.push(this.inputBox);
+
+		// this.inputBox.value = this.scmService.input.value;
+		// this.inputBox.onDidChange(value => this.scmService.input.value = value, null, this.disposables);
+		// this.scmService.input.onDidChange(value => this.inputBox.value = value, null, this.disposables);
+		// this.disposables.push(this.inputBox.onDidHeightChange(() => this.layout()));
+
+		// chain(domEvent(this.inputBox.inputElement, 'keydown'))
+		// 	.map(e => new StandardKeyboardEvent(e))
+		// 	.filter(e => e.equals(KeyMod.CtrlCmd | KeyCode.Enter) || e.equals(KeyMod.CtrlCmd | KeyCode.KEY_S))
+		// 	.on(this.onDidAcceptInput, this, this.disposables);
+
+
 		this.setActiveProvider(this.scmService.activeProvider);
 		this.scmService.onDidChangeProvider(this.setActiveProvider, this, this.disposables);
-		this.themeService.onThemeChange(this.update, this, this.disposables);
+		// this.themeService.onThemeChange(this.update, this, this.disposables);
 
-		return TPromise.as(null);
+		// return TPromise.as(null);
+	}
+
+	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): IView {
+		if (viewDescriptor instanceof SourceControlViewDescriptor) {
+			return this.instantiationService.createInstance(SourceControlView, viewDescriptor.provider, options);
+		}
+
+		return this.instantiationService.createInstance(viewDescriptor.ctor, options);
 	}
 
 	private onDidAcceptInput(): void {
@@ -355,20 +479,6 @@ export class SCMViewlet extends Viewlet {
 			.done(undefined, onUnexpectedError);
 	}
 
-	private update(): void {
-		const provider = this.scmService.activeProvider;
-
-		if (!provider) {
-			this.list.splice(0, this.list.length);
-			return;
-		}
-
-		const elements = provider.resources
-			.reduce<(ISCMResourceGroup | ISCMResource)[]>((r, g) => [...r, g, ...g.resources.sort(resourceSorter)], []);
-
-		this.list.splice(0, this.list.length, elements);
-	}
-
 	private updateInputBox(): void {
 		if (!this.activeProvider) {
 			return;
@@ -381,21 +491,21 @@ export class SCMViewlet extends Viewlet {
 		this.inputBox.value = this.activeProvider.commitTemplate;
 	}
 
-	layout(dimension: Dimension = this.cachedDimension): void {
-		if (!dimension) {
-			return;
-		}
+	// layout(dimension: Dimension = this.cachedDimension): void {
+	// 	if (!dimension) {
+	// 		return;
+	// 	}
 
-		this.cachedDimension = dimension;
-		this.inputBox.layout();
+	// 	this.cachedDimension = dimension;
+	// 	this.inputBox.layout();
 
-		const editorHeight = this.inputBox.height;
-		const listHeight = dimension.height - (editorHeight + 12 /* margin */);
-		this.listContainer.style.height = `${listHeight}px`;
-		this.list.layout(listHeight);
+	// 	const editorHeight = this.inputBox.height;
+	// 	const listHeight = dimension.height - (editorHeight + 12 /* margin */);
+	// 	this.listContainer.style.height = `${listHeight}px`;
+	// 	this.list.layout(listHeight);
 
-		toggleClass(this.inputBoxContainer, 'scroll', editorHeight >= 134);
-	}
+	// 	toggleClass(this.inputBoxContainer, 'scroll', editorHeight >= 134);
+	// }
 
 	getOptimalWidth(): number {
 		return 400;
@@ -403,22 +513,7 @@ export class SCMViewlet extends Viewlet {
 
 	focus(): void {
 		super.focus();
-		this.inputBox.focus();
-	}
-
-	private open(e: ISCMResource): void {
-		if (!e.command) {
-			return;
-		}
-
-		this.commandService.executeCommand(e.command.id, ...e.command.arguments)
-			.done(undefined, onUnexpectedError);
-	}
-
-	private pin(): void {
-		const activeEditor = this.editorService.getActiveEditor();
-		const activeEditorInput = this.editorService.getActiveEditorInput();
-		this.groupService.pinEditor(activeEditor.position, activeEditorInput);
+		// this.inputBox.focus();
 	}
 
 	getTitle(): string {
@@ -446,29 +541,6 @@ export class SCMViewlet extends Viewlet {
 		}
 
 		return new SCMMenuItemActionItem(action, this.keybindingService, this.messageService);
-	}
-
-	private onListContextMenu(e: IListContextMenuEvent<ISCMResourceGroup | ISCMResource>): void {
-		const element = e.element;
-		let actions: IAction[];
-
-		if (isSCMResource(element)) {
-			actions = this.menus.getResourceContextActions(element);
-		} else {
-			actions = this.menus.getResourceGroupContextActions(element);
-		}
-
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => e.anchor,
-			getActions: () => TPromise.as(actions),
-			getActionsContext: () => element,
-			actionRunner: new MultipleSelectionActionRunner(() => this.getSelectedResources())
-		});
-	}
-
-	private getSelectedResources(): ISCMResource[] {
-		return this.list.getSelectedElements()
-			.filter(r => isSCMResource(r)) as ISCMResource[];
 	}
 
 	dispose(): void {

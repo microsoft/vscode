@@ -174,3 +174,33 @@ export class SCMMenus implements IDisposable {
 		this.disposables = dispose(this.disposables);
 	}
 }
+
+export class SCMMenus2 implements IDisposable {
+
+	getTitleActions(): IAction[] {
+		return [];
+	}
+
+	getTitleSecondaryActions(): IAction[] {
+		return [];
+	}
+
+	getResourceGroupActions(group: ISCMResourceGroup): IAction[] {
+		return [];
+	}
+
+	getResourceGroupContextActions(group: ISCMResourceGroup): IAction[] {
+		return [];
+	}
+
+	getResourceActions(resource: ISCMResource): IAction[] {
+		return [];
+	}
+
+	getResourceContextActions(resource: ISCMResource): IAction[] {
+		return [];
+	}
+
+	dispose(): void {
+	}
+}
