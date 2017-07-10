@@ -43,25 +43,25 @@ export class BackupMainService implements IBackupMainService {
 		return this.backups.folderWorkspaces.slice(0); // return a copy
 	}
 
-	public getEmptyWorkspaceBackupPaths(): string[] {
+	public getEmptyWindowBackupPaths(): string[] {
 		return this.backups.emptyWorkspaces.slice(0); // return a copy
 	}
 
-	public registerWindowForBackupsSync(windowId: number, isEmptyWorkspace: boolean, backupFolder?: string, workspacePath?: string): string {
+	public registerWindowForBackupsSync(windowId: number, isEmptyWindow: boolean, backupFolder?: string, workspacePath?: string): string {
 
 		// Generate a new folder if this is a new empty workspace
-		if (isEmptyWorkspace && !backupFolder) {
-			backupFolder = this.getRandomEmptyWorkspaceId();
+		if (isEmptyWindow && !backupFolder) {
+			backupFolder = this.getRandomEmptyWindowId();
 		}
 
-		this.pushBackupPathsSync(isEmptyWorkspace ? backupFolder : workspacePath, isEmptyWorkspace);
+		this.pushBackupPathsSync(isEmptyWindow ? backupFolder : workspacePath, isEmptyWindow);
 
-		return path.join(this.backupHome, isEmptyWorkspace ? backupFolder : this.getWorkspaceHash(workspacePath));
+		return path.join(this.backupHome, isEmptyWindow ? backupFolder : this.getWorkspaceHash(workspacePath));
 	}
 
-	private pushBackupPathsSync(workspaceIdentifier: string, isEmptyWorkspace: boolean): string {
-		const array = isEmptyWorkspace ? this.backups.emptyWorkspaces : this.backups.folderWorkspaces;
-		if (this.indexOf(workspaceIdentifier, isEmptyWorkspace) === -1) {
+	private pushBackupPathsSync(workspaceIdentifier: string, isEmptyWindow: boolean): string {
+		const array = isEmptyWindow ? this.backups.emptyWorkspaces : this.backups.folderWorkspaces;
+		if (this.indexOf(workspaceIdentifier, isEmptyWindow) === -1) {
 			array.push(workspaceIdentifier);
 			this.saveSync();
 		}
@@ -69,12 +69,12 @@ export class BackupMainService implements IBackupMainService {
 		return workspaceIdentifier;
 	}
 
-	protected removeBackupPathSync(workspaceIdentifier: string, isEmptyWorkspace: boolean): void {
-		const array = isEmptyWorkspace ? this.backups.emptyWorkspaces : this.backups.folderWorkspaces;
+	protected removeBackupPathSync(workspaceIdentifier: string, isEmptyWindow: boolean): void {
+		const array = isEmptyWindow ? this.backups.emptyWorkspaces : this.backups.folderWorkspaces;
 		if (!array) {
 			return;
 		}
-		const index = this.indexOf(workspaceIdentifier, isEmptyWorkspace);
+		const index = this.indexOf(workspaceIdentifier, isEmptyWindow);
 		if (index === -1) {
 			return;
 		}
@@ -82,13 +82,13 @@ export class BackupMainService implements IBackupMainService {
 		this.saveSync();
 	}
 
-	private indexOf(workspaceIdentifier: string, isEmptyWorkspace: boolean): number {
-		const array = isEmptyWorkspace ? this.backups.emptyWorkspaces : this.backups.folderWorkspaces;
+	private indexOf(workspaceIdentifier: string, isEmptyWindow: boolean): number {
+		const array = isEmptyWindow ? this.backups.emptyWorkspaces : this.backups.folderWorkspaces;
 		if (!array) {
 			return -1;
 		}
 
-		if (isEmptyWorkspace) {
+		if (isEmptyWindow) {
 			return array.indexOf(workspaceIdentifier);
 		}
 
@@ -140,7 +140,7 @@ export class BackupMainService implements IBackupMainService {
 	}
 
 	private validateBackupWorkspaces(backups: IBackupWorkspacesFormat): void {
-		const staleBackupWorkspaces: { workspaceIdentifier: string; backupPath: string; isEmptyWorkspace: boolean }[] = [];
+		const staleBackupWorkspaces: { workspaceIdentifier: string; backupPath: string; isEmptyWindow: boolean }[] = [];
 
 		// Validate Folder Workspaces
 		backups.folderWorkspaces.forEach(workspacePath => {
@@ -151,13 +151,13 @@ export class BackupMainService implements IBackupMainService {
 			// If the folder has no backups, make sure to delete it
 			// If the folder has backups, but the target workspace is missing, convert backups to empty ones
 			if (!hasBackups || missingWorkspace) {
-				staleBackupWorkspaces.push({ workspaceIdentifier: workspacePath, backupPath, isEmptyWorkspace: false });
+				staleBackupWorkspaces.push({ workspaceIdentifier: workspacePath, backupPath, isEmptyWindow: false });
 
 				if (missingWorkspace) {
-					const identifier = this.pushBackupPathsSync(this.getRandomEmptyWorkspaceId(), true /* is empty workspace */);
-					const newEmptyWorkspaceBackupPath = path.join(path.dirname(backupPath), identifier);
+					const identifier = this.pushBackupPathsSync(this.getRandomEmptyWindowId(), true /* is empty workspace */);
+					const newEmptyWindowBackupPath = path.join(path.dirname(backupPath), identifier);
 					try {
-						fs.renameSync(backupPath, newEmptyWorkspaceBackupPath);
+						fs.renameSync(backupPath, newEmptyWindowBackupPath);
 					} catch (ex) {
 						console.error(`Backup: Could not rename backup folder for missing workspace: ${ex.toString()}`);
 
@@ -167,17 +167,17 @@ export class BackupMainService implements IBackupMainService {
 			}
 		});
 
-		// Validate Empty Workspaces
+		// Validate Empty Windows
 		backups.emptyWorkspaces.forEach(backupFolder => {
 			const backupPath = path.join(this.backupHome, backupFolder);
 			if (!this.hasBackupsSync(backupPath)) {
-				staleBackupWorkspaces.push({ workspaceIdentifier: backupFolder, backupPath, isEmptyWorkspace: true });
+				staleBackupWorkspaces.push({ workspaceIdentifier: backupFolder, backupPath, isEmptyWindow: true });
 			}
 		});
 
 		// Clean up stale backups
 		staleBackupWorkspaces.forEach(staleBackupWorkspace => {
-			const { backupPath, workspaceIdentifier, isEmptyWorkspace } = staleBackupWorkspace;
+			const { backupPath, workspaceIdentifier, isEmptyWindow } = staleBackupWorkspace;
 
 			try {
 				extfs.delSync(backupPath);
@@ -185,7 +185,7 @@ export class BackupMainService implements IBackupMainService {
 				console.error(`Backup: Could not delete stale backup: ${ex.toString()}`);
 			}
 
-			this.removeBackupPathSync(workspaceIdentifier, isEmptyWorkspace);
+			this.removeBackupPathSync(workspaceIdentifier, isEmptyWindow);
 		});
 	}
 
@@ -220,7 +220,7 @@ export class BackupMainService implements IBackupMainService {
 		}
 	}
 
-	private getRandomEmptyWorkspaceId(): string {
+	private getRandomEmptyWindowId(): string {
 		return (Date.now() + Math.round(Math.random() * 1000)).toString();
 	}
 

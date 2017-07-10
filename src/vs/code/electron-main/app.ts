@@ -211,9 +211,9 @@ export class CodeApplication {
 
 				// Send to windows
 				if (target) {
-					const otherWindowsWithTarget = this.windowsMainService.getWindows().filter(w => w.id !== windowId && typeof w.openedWorkspacePath === 'string');
-					const directTargetMatch = otherWindowsWithTarget.filter(w => isEqual(target, w.openedWorkspacePath, !platform.isLinux /* ignorecase */));
-					const parentTargetMatch = otherWindowsWithTarget.filter(w => isParent(target, w.openedWorkspacePath, !platform.isLinux /* ignorecase */));
+					const otherWindowsWithTarget = this.windowsMainService.getWindows().filter(w => w.id !== windowId && typeof w.openedFolderPath === 'string');
+					const directTargetMatch = otherWindowsWithTarget.filter(w => isEqual(target, w.openedFolderPath, !platform.isLinux /* ignorecase */));
+					const parentTargetMatch = otherWindowsWithTarget.filter(w => isParent(target, w.openedFolderPath, !platform.isLinux /* ignorecase */));
 
 					const targetWindow = directTargetMatch.length ? directTargetMatch[0] : parentTargetMatch[0]; // prefer direct match over parent match
 					if (targetWindow) {

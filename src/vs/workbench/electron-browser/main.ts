@@ -148,32 +148,32 @@ function legacyWorkspaceToMultiRootWorkspace(legacyWorkspace: LegacyWorkspace): 
 }
 
 function resolveLegacyWorkspace(configuration: IWindowConfiguration): TPromise<LegacyWorkspace> {
-	if (!configuration.workspacePath) {
+	if (!configuration.folderPath) {
 		return TPromise.as(null);
 	}
 
-	return realpath(configuration.workspacePath).then(realWorkspacePath => {
+	return realpath(configuration.folderPath).then(realFolderPath => {
 
 		// for some weird reason, node adds a trailing slash to UNC paths
 		// we never ever want trailing slashes as our workspace path unless
 		// someone opens root ("/").
 		// See also https://github.com/nodejs/io.js/issues/1765
-		if (paths.isUNC(realWorkspacePath) && strings.endsWith(realWorkspacePath, paths.nativeSep)) {
-			realWorkspacePath = strings.rtrim(realWorkspacePath, paths.nativeSep);
+		if (paths.isUNC(realFolderPath) && strings.endsWith(realFolderPath, paths.nativeSep)) {
+			realFolderPath = strings.rtrim(realFolderPath, paths.nativeSep);
 		}
 
 		// update config
-		configuration.workspacePath = realWorkspacePath;
+		configuration.folderPath = realFolderPath;
 
 		// resolve ctime of workspace
-		return stat(realWorkspacePath).then(folderStat => new LegacyWorkspace(
-			uri.file(realWorkspacePath),
+		return stat(realFolderPath).then(folderStat => new LegacyWorkspace(
+			uri.file(realFolderPath),
 			platform.isLinux ? folderStat.ino : folderStat.birthtime.getTime() // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
 		));
 	}, error => {
 		errors.onUnexpectedError(error);
 
-		return null; // treat invalid paths as empty workspace
+		return null; // treat invalid paths as empty window
 	});
 }
 

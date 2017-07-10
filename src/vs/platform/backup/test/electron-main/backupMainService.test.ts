@@ -117,11 +117,11 @@ suite('BackupMainService', () => {
 		fs.mkdirSync(fileBackups);
 		service.registerWindowForBackupsSync(1, false, null, fooFile.fsPath);
 		assert.equal(service.getWorkspaceBackupPaths().length, 1);
-		assert.equal(service.getEmptyWorkspaceBackupPaths().length, 0);
+		assert.equal(service.getEmptyWindowBackupPaths().length, 0);
 		fs.writeFileSync(path.join(fileBackups, 'backup.txt'), '');
 		service.loadSync();
 		assert.equal(service.getWorkspaceBackupPaths().length, 0);
-		assert.equal(service.getEmptyWorkspaceBackupPaths().length, 1);
+		assert.equal(service.getEmptyWindowBackupPaths().length, 1);
 
 		done();
 	});
@@ -179,46 +179,46 @@ suite('BackupMainService', () => {
 		});
 
 		test('getEmptyWorkspaceBackupPaths() should return [] when workspaces.json doesn\'t exist', () => {
-			assert.deepEqual(service.getEmptyWorkspaceBackupPaths(), []);
+			assert.deepEqual(service.getEmptyWindowBackupPaths(), []);
 		});
 
 		test('getEmptyWorkspaceBackupPaths() should return [] when workspaces.json is not properly formed JSON', () => {
 			fs.writeFileSync(backupWorkspacesPath, '');
 			service.loadSync();
-			assert.deepEqual(service.getEmptyWorkspaceBackupPaths(), []);
+			assert.deepEqual(service.getEmptyWindowBackupPaths(), []);
 			fs.writeFileSync(backupWorkspacesPath, '{]');
 			service.loadSync();
-			assert.deepEqual(service.getEmptyWorkspaceBackupPaths(), []);
+			assert.deepEqual(service.getEmptyWindowBackupPaths(), []);
 			fs.writeFileSync(backupWorkspacesPath, 'foo');
 			service.loadSync();
-			assert.deepEqual(service.getEmptyWorkspaceBackupPaths(), []);
+			assert.deepEqual(service.getEmptyWindowBackupPaths(), []);
 		});
 
 		test('getEmptyWorkspaceBackupPaths() should return [] when folderWorkspaces in workspaces.json is absent', () => {
 			fs.writeFileSync(backupWorkspacesPath, '{}');
 			service.loadSync();
-			assert.deepEqual(service.getEmptyWorkspaceBackupPaths(), []);
+			assert.deepEqual(service.getEmptyWindowBackupPaths(), []);
 		});
 
 		test('getEmptyWorkspaceBackupPaths() should return [] when folderWorkspaces in workspaces.json is not a string array', () => {
 			fs.writeFileSync(backupWorkspacesPath, '{"emptyWorkspaces":{}}');
 			service.loadSync();
-			assert.deepEqual(service.getEmptyWorkspaceBackupPaths(), []);
+			assert.deepEqual(service.getEmptyWindowBackupPaths(), []);
 			fs.writeFileSync(backupWorkspacesPath, '{"emptyWorkspaces":{"foo": ["bar"]}}');
 			service.loadSync();
-			assert.deepEqual(service.getEmptyWorkspaceBackupPaths(), []);
+			assert.deepEqual(service.getEmptyWindowBackupPaths(), []);
 			fs.writeFileSync(backupWorkspacesPath, '{"emptyWorkspaces":{"foo": []}}');
 			service.loadSync();
-			assert.deepEqual(service.getEmptyWorkspaceBackupPaths(), []);
+			assert.deepEqual(service.getEmptyWindowBackupPaths(), []);
 			fs.writeFileSync(backupWorkspacesPath, '{"emptyWorkspaces":{"foo": "bar"}}');
 			service.loadSync();
-			assert.deepEqual(service.getEmptyWorkspaceBackupPaths(), []);
+			assert.deepEqual(service.getEmptyWindowBackupPaths(), []);
 			fs.writeFileSync(backupWorkspacesPath, '{"emptyWorkspaces":"foo"}');
 			service.loadSync();
-			assert.deepEqual(service.getEmptyWorkspaceBackupPaths(), []);
+			assert.deepEqual(service.getEmptyWindowBackupPaths(), []);
 			fs.writeFileSync(backupWorkspacesPath, '{"emptyWorkspaces":1}');
 			service.loadSync();
-			assert.deepEqual(service.getEmptyWorkspaceBackupPaths(), []);
+			assert.deepEqual(service.getEmptyWindowBackupPaths(), []);
 		});
 	});
 

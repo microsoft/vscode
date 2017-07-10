@@ -277,12 +277,12 @@ export class CodeWindow implements ICodeWindow {
 		return this._lastFocusTime;
 	}
 
-	public get openedWorkspacePath(): string {
-		return this.currentConfig ? this.currentConfig.workspacePath : void 0;
-	}
-
 	public get backupPath(): string {
 		return this.currentConfig ? this.currentConfig.backupPath : void 0;
+	}
+
+	public get openedFolderPath(): string {
+		return this.currentConfig ? this.currentConfig.folderPath : void 0;
 	}
 
 	public get openedFilePath(): string {

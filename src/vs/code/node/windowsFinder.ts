@@ -12,7 +12,7 @@ import * as paths from 'vs/base/common/paths';
 import { OpenContext } from 'vs/platform/windows/common/windows';
 
 export interface ISimpleWindow {
-	openedWorkspacePath: string;
+	openedFolderPath: string;
 	openedFilePath?: string;
 	extensionDevelopmentPath?: string;
 	lastFocusTime: number;
@@ -34,7 +34,7 @@ export function findBestWindowOrFolderForFile<W extends ISimpleWindow>({ windows
 		const folderWithCodeSettings = !reuseWindow && findFolderWithCodeSettings(filePath, userHome, codeSettingsFolder);
 
 		// Return if we found a window that has the parent of the file path opened
-		if (windowOnFilePath && !(folderWithCodeSettings && folderWithCodeSettings.length > windowOnFilePath.openedWorkspacePath.length)) {
+		if (windowOnFilePath && !(folderWithCodeSettings && folderWithCodeSettings.length > windowOnFilePath.openedFolderPath.length)) {
 			return windowOnFilePath;
 		}
 
@@ -51,9 +51,9 @@ function findWindowOnFilePath<W extends ISimpleWindow>(windows: W[], filePath: s
 
 	// From all windows that have the parent of the file opened, return the window
 	// that has the most specific folder opened ( = longest path wins)
-	const windowsOnFilePath = windows.filter(window => typeof window.openedWorkspacePath === 'string' && paths.isEqualOrParent(filePath, window.openedWorkspacePath, !platform.isLinux /* ignorecase */));
+	const windowsOnFilePath = windows.filter(window => typeof window.openedFolderPath === 'string' && paths.isEqualOrParent(filePath, window.openedFolderPath, !platform.isLinux /* ignorecase */));
 	if (windowsOnFilePath.length) {
-		return windowsOnFilePath.sort((a, b) => -(a.openedWorkspacePath.length - b.openedWorkspacePath.length))[0];
+		return windowsOnFilePath.sort((a, b) => -(a.openedFolderPath.length - b.openedFolderPath.length))[0];
 	}
 
 	return null;
@@ -105,7 +105,7 @@ export function getLastActiveWindow<W extends ISimpleWindow>(windows: W[]): W {
 	return null;
 }
 
-export function findWindowOnWorkspace<W extends ISimpleWindow>(windows: W[], workspacePath: string): W {
+export function findWindowOnFolder<W extends ISimpleWindow>(windows: W[], folderPath: string): W {
 	if (windows.length) {
 
 		// Sort the last active window to the front of the array of windows to test
@@ -119,8 +119,8 @@ export function findWindowOnWorkspace<W extends ISimpleWindow>(windows: W[], wor
 		// Find it
 		const res = windowsToTest.filter(w => {
 
-			// match on workspace
-			if (typeof w.openedWorkspacePath === 'string' && (paths.isEqual(w.openedWorkspacePath, workspacePath, !platform.isLinux /* ignorecase */))) {
+			// match on folder
+			if (typeof w.openedFolderPath === 'string' && (paths.isEqual(w.openedFolderPath, folderPath, !platform.isLinux /* ignorecase */))) {
 				return true;
 			}
 
