@@ -12,7 +12,7 @@
 	padding: 4px;
 	align-items: center;
 	width: 255px;
-	max-width: calc(100% - 28px - 8px);
+	max-width: calc(100% - 28px - 28px - 8px);
 
 	-webkit-transition: top 200ms linear;
 	-o-transition: top 200ms linear;
