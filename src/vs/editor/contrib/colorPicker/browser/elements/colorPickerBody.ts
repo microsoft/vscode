@@ -51,18 +51,14 @@ export class ColorPickerBody extends Disposable {
 		this._register(dom.addDisposableListener(this.saturationBox, dom.EventType.MOUSE_DOWN, e => {
 			e.preventDefault();
 			this.model.dragging = true;
-			this.widget.model.color = this.extractColor(this.saturationCtx, e.offsetX, e.offsetY);
-			this.widget.model.saturationSelection = { x: e.offsetX, y: e.offsetY };
-			this.focusSaturationSelection(this.widget.model.saturationSelection);
+			this.saturationListener(e);
 		}));
 		this._register(dom.addDisposableListener(this.saturationSelection, dom.EventType.MOUSE_UP, e => {
 			this.model.dragging = false;
 		}));
 		this._register(dom.addDisposableListener(this.saturationBox, dom.EventType.MOUSE_MOVE, e => {
 			if (this.model.dragging) {
-				this.widget.model.color = this.extractColor(this.saturationCtx, e.offsetX, e.offsetY);
-				this.widget.model.saturationSelection = { x: e.offsetX, y: e.offsetY };
-				this.focusSaturationSelection(this.widget.model.saturationSelection);
+				this.saturationListener(e);
 			}
 		}));
 
@@ -81,6 +77,12 @@ export class ColorPickerBody extends Disposable {
 		}));
 	}
 
+	private saturationListener(e: MouseEvent): void {
+		this.widget.model.color = this.extractColor(this.saturationCtx, e.offsetX, e.offsetY);
+		this.widget.model.saturationSelection = { x: e.offsetX, y: e.offsetY };
+		this.focusSaturationSelection(this.widget.model.saturationSelection);
+	}
+
 	private stripListener(strip: Strip, element: HTMLElement, e: MouseEvent, monitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>): void {
 		if (e.button !== 0) { // Only left click is allowed
 			return;
@@ -94,8 +96,8 @@ export class ColorPickerBody extends Disposable {
 
 			if (slider === this.hueSlider) {
 				this.widget.model.hue = this.extractColor(strip.context, 0, slider.top).toString();
-			} else if (slider === this.opacitySlider) {
-				this.widget.model.opacity = slider.top / strip.height;
+			} else if (slider === this.opacitySlider && slider.top !== 0) {
+				this.widget.model.opacity = (strip.height - slider.top) / strip.height;
 			}
 		}
 
@@ -115,8 +117,8 @@ export class ColorPickerBody extends Disposable {
 
 			if (slider === this.hueSlider) {
 				this.widget.model.hue = this.extractColor(strip.context, 0, slider.top).toString();
-			} else if (slider === this.opacitySlider) {
-				this.widget.model.opacity = slider.top / strip.height;
+			} else if (slider === this.opacitySlider && slider.top !== 0) {
+				this.widget.model.opacity = (strip.height - slider.top) / strip.height;
 			}
 		}, () => {
 			strip.domNode.style.cursor = '-webkit-grab';
@@ -150,22 +152,17 @@ export class ColorPickerBody extends Disposable {
 		const leftTopOffset = 3;
 		const rightBottomOffset = 7;
 
-		console.log(`top: ${top}; left: ${left}; offsetWidth: ${this.saturationBox.offsetWidth}; offsetHeight: ${this.saturationBox.offsetHeight}`);
 		if (left <= leftTopOffset) {
 			left = leftTopOffset;
-			console.log('left = 3');
 		}
 		if (left >= this.saturationBox.offsetWidth - rightBottomOffset) {
 			left = left - rightBottomOffset; // take into account box-shadow
-			console.log('left = left - 7');
 		}
 		if (top <= leftTopOffset) {
 			top = leftTopOffset;
-			console.log('top = 3');
 		}
 		if (top >= this.saturationBox.offsetHeight - rightBottomOffset) {
 			top = top - rightBottomOffset; // take into account box-shadow
-			console.log('top = top - 7');
 		}
 
 		this.saturationSelection.style.left = left + 'px';
@@ -234,6 +231,9 @@ export class ColorPickerBody extends Disposable {
 
 	private extractColor(context: CanvasRenderingContext2D, offsetX: number, offsetY: number): Color {
 		const imageData = context.getImageData(offsetX * this.pixelRatio, offsetY * this.pixelRatio, 1, 1);
+		if (this.model.opacity) {
+			return Color.fromRGBA(new RGBA(imageData.data[0], imageData.data[1], imageData.data[2], this.model.opacity * 255));
+		}
 		return Color.fromRGBA(new RGBA(imageData.data[0], imageData.data[1], imageData.data[2]));
 	}
 }

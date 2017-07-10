@@ -15,6 +15,8 @@
 .colorpicker-header {
 	display: flex;
 	height: 24px;
+	position: relative;
+	z-index: 1;
 }
 
 .colorpicker-header .picked-color {
@@ -26,14 +28,17 @@
 	-moz-user-select: text;
 	-o-user-select: text;
 	user-select: text;
+	z-index: inherit;
 }
 
 .colorpicker-header .original-color {
-	width: 72px
+	width: 72px;
+	z-index: inherit;
 }
 
 .colorpicker-header a.octicon.octicon-triangle-down {
 	width: 12px;
+	z-index: inherit;
 }
 
 .colorpicker-header .picked-color {
@@ -93,7 +98,7 @@
 	height: 150px;
 }
 
-.colorpicker-body .opacity-strip-transparency {
+.opacity-strip-transparency {
 	background: url('images/opacity-background.png');
 	background-size: 9px 9px;
 	image-rendering: pixelated;

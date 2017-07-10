@@ -50,6 +50,7 @@ export class ColorPickerHeader extends Disposable {
 		}));
 		this.toggleButton.icon = 'octicon octicon-triangle-down';
 
+		dom.append(this.domNode, $('.opacity-strip-transparency'));
 	}
 
 	private drawOriginalColorBox() {

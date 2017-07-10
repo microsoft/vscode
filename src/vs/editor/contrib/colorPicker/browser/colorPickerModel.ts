@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ColorPickerWidget } from "vs/editor/contrib/colorPicker/browser/colorPickerWidget";
-import { Color } from "vs/base/common/color";
+import { Color, RGBA } from "vs/base/common/color";
 
 export class ColorPickerModel {
 
@@ -43,6 +43,22 @@ export class ColorPickerModel {
 		return this._originalColor;
 	}
 
+	public set color(color: Color) {
+		this._color = color;
+
+		if (this._colorModel === ColorModel.RGBA) {
+			this.selectedColorString = color.toRGBA().toString();
+		} else if (this._colorModel === ColorModel.Hex) {
+			this.selectedColorString = color.toRGBHex();
+		} else {
+			this.selectedColorString = color.toHSLA().toString();
+		}
+	}
+
+	public get color(): Color {
+		return this._color;
+	}
+
 	public set selectedColorString(color: string) {
 		this._selectedColor = color;
 
@@ -69,27 +85,14 @@ export class ColorPickerModel {
 	public set opacity(opacity: number) {
 		this._opacity = opacity;
 
+		const rgba = this._color.toRGBA();
+
+		this.color = Color.fromRGBA(new RGBA(rgba.r, rgba.g, rgba.b, opacity * 255));
 		this.widget.header.updatePickedColor();
 	}
 
 	public get opacity(): number {
 		return this._opacity;
-	}
-
-	public set color(color: Color) {
-		this._color = color;
-
-		if (this._colorModel === ColorModel.RGBA) {
-			this.selectedColorString = color.toRGBA().toString();
-		} else if (this._colorModel === ColorModel.Hex) {
-			this.selectedColorString = color.toRGBHex();
-		} else {
-			this.selectedColorString = color.toHSLA().toString();
-		}
-	}
-
-	public get color(): Color {
-		return this._color;
 	}
 
 	public set colorModel(model: ColorModel) {
@@ -105,6 +108,12 @@ export class ColorPickerModel {
 
 		if (this._colorModelIndex > 2) {
 			this._colorModelIndex = 0;
+		}
+
+		// Skip hex model if opacity is set
+		if (this._colorModelIndex === ColorModel.Hex && this.opacity !== 1) {
+			this.nextColorModel();
+			return;
 		}
 
 		this._colorModel = this._colorModelIndex;

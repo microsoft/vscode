@@ -56,7 +56,7 @@ export class RGBA {
 			return `rgb(${this.r}, ${this.g}, ${this.b})`;
 		}
 
-		return `rgba(${this.r}, ${this.g}, ${this.b}, ${this.a})`;
+		return `rgba(${this.r}, ${this.g}, ${this.b}, ${(this.a / 255).toFixed(2)})`;
 	}
 }
 
@@ -118,7 +118,7 @@ export class HSLA {
 			return `hsl(${this.h}, ${s}%, ${l}%)`;
 		}
 
-		return `hsla(${this.h}, ${s}%, ${l}%, ${this.a})`;
+		return `hsla(${this.h}, ${s}%, ${l}%, ${this.a.toFixed(2)})`;
 	}
 }
 
