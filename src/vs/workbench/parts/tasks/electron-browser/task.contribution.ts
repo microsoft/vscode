@@ -885,12 +885,12 @@ class TaskService extends EventEmitter implements ITaskService {
 			entries = entries.sort((a, b) => a.label.localeCompare(b.label));
 			entries[0].separator = { border: true };
 			entries.unshift(
-				{ label: nls.localize('TaskService.attachProblemMatcher.continueWithout', 'Continue without scanning the build output'), matcher: undefined },
-				{ label: nls.localize('TaskService.attachProblemMatcher.never', 'Never scan the build output'), matcher: undefined, never: true },
-				{ label: nls.localize('TaskService.attachProblemMatcher.learnMoreAbout', 'Learn more about scanning the build output'), matcher: undefined, learnMore: true }
+				{ label: nls.localize('TaskService.attachProblemMatcher.continueWithout', 'Continue without scanning the task output'), matcher: undefined },
+				{ label: nls.localize('TaskService.attachProblemMatcher.never', 'Never scan the task output'), matcher: undefined, never: true },
+				{ label: nls.localize('TaskService.attachProblemMatcher.learnMoreAbout', 'Learn more about scanning the task output'), matcher: undefined, learnMore: true }
 			);
 			return this.quickOpenService.pick(entries, {
-				placeHolder: nls.localize('selectProblemMatcher', 'Select for which kind of errors and warnings to scan the build output'),
+				placeHolder: nls.localize('selectProblemMatcher', 'Select for which kind of errors and warnings to scan the task output'),
 				autoFocus: { autoFocusFirstEntry: true }
 			}).then((selected) => {
 				if (selected) {
