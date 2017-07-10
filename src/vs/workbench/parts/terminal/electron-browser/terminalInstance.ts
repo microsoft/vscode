@@ -34,6 +34,7 @@ import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSli
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import pkg from 'vs/platform/node/package';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -665,6 +666,8 @@ export class TerminalInstance implements ITerminalInstance {
 		const env = shell.env ? shell.env : TerminalInstance._cloneEnv(parentEnv);
 		env['PTYPID'] = process.pid.toString();
 		env['PTYSHELL'] = shell.executable;
+		env['TERM_PROGRAM'] = 'vscode';
+		env['TERM_PROGRAM_VERSION'] = pkg.version;
 		if (shell.args) {
 			if (typeof shell.args === 'string') {
 				env[`PTYSHELLCMDLINE`] = shell.args;
