@@ -8,7 +8,7 @@
 import { IDisposable, toDisposable, empty as EmptyDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { memoize } from 'vs/base/common/decorators';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ISCMService, ISCMProvider, ISCMInput, DefaultSCMProviderIdStorageKey } from './scm';
@@ -36,7 +36,6 @@ export class SCMService implements ISCMService {
 
 	private activeProviderDisposable: IDisposable = EmptyDisposable;
 	private statusBarDisposable: IDisposable = EmptyDisposable;
-	private activeProviderContextKey: IContextKey<string | undefined>;
 
 	private _activeProvider: ISCMProvider | undefined;
 
@@ -62,9 +61,7 @@ export class SCMService implements ISCMService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private storageService: IStorageService,
 		@IStatusbarService private statusbarService: IStatusbarService
-	) {
-		this.activeProviderContextKey = contextKeyService.createKey<string | undefined>('scmProvider', void 0);
-	}
+	) {}
 
 	private setActiveSCMProdiver(provider: ISCMProvider): void {
 		this.activeProviderDisposable.dispose();
@@ -82,7 +79,6 @@ export class SCMService implements ISCMService {
 		this.activeProviderDisposable = provider.onDidChange(() => this.onDidProviderChange(provider));
 		this.onDidProviderChange(provider);
 
-		this.activeProviderContextKey.set(provider ? provider.id : void 0);
 		this._onDidChangeProvider.fire(provider);
 	}
 

@@ -9,9 +9,8 @@ import 'vs/css!./media/scmViewlet';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { chain } from 'vs/base/common/event';
+import { memoize } from 'vs/base/common/decorators';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import * as platform from 'vs/base/common/platform';
-import { domEvent } from 'vs/base/browser/event';
 import { IDisposable, dispose, empty as EmptyDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { ComposedViewsViewlet, CollapsibleView, ICollapsibleViewOptions, IViewletViewOptions, IView } from 'vs/workbench/parts/views/browser/views';
@@ -35,9 +34,9 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
-import { IAction, IActionItem, ActionRunner } from 'vs/base/common/actions';
+import { IAction, Action, IActionItem, ActionRunner } from 'vs/base/common/actions';
 import { MenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
-import { SCMMenus, SCMMenus2 } from './scmMenus';
+import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -49,8 +48,9 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ViewLocation, ViewsRegistry, IViewDescriptor } from 'vs/workbench/parts/views/browser/viewsRegistry';
-import { TreeView } from 'vs/workbench/parts/views/browser/treeView';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewSizing } from 'vs/base/browser/ui/splitview/splitview';
+import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
 
 // TODO@Joao
 // Need to subclass MenuItemActionItem in order to respect
@@ -96,7 +96,7 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 	get templateId(): string { return ResourceGroupRenderer.TEMPLATE_ID; }
 
 	constructor(
-		private scmMenus: SCMMenus2,
+		private scmMenus: SCMMenus,
 		private actionItemProvider: IActionItemProvider,
 		private themeService: IThemeService
 	) { }
@@ -123,7 +123,7 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 		template.count.setCount(group.resources.length);
 		template.actionBar.clear();
 		template.actionBar.context = group;
-		template.actionBar.push(this.scmMenus.getResourceGroupActions(group));
+		template.actionBar.push(this.scmMenus.getResourceGroupActions(group), { icon: true, label: false });
 	}
 
 	disposeTemplate(template: ResourceGroupTemplate): void {
@@ -193,7 +193,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		template.fileLabel.setFile(resource.sourceUri);
 		template.actionBar.clear();
 		template.actionBar.context = resource;
-		template.actionBar.push(this.scmMenus.getResourceActions(resource));
+		template.actionBar.push(this.scmMenus.getResourceActions(resource), { icon: true, label: false });
 		toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
 		toggleClass(template.element, 'faded', resource.decorations.faded);
 
@@ -242,7 +242,7 @@ class SourceControlView extends CollapsibleView {
 
 	private listContainer: HTMLElement;
 	private list: List<ISCMResourceGroup | ISCMResource>;
-	private menus: SCMMenus2 = new SCMMenus2();
+	private menus: SCMMenus;
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -258,6 +258,9 @@ class SourceControlView extends CollapsibleView {
 		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
 		super({...options, sizing: ViewSizing.Flexible}, keybindingService, contextMenuService);
+
+		this.menus = instantiationService.createInstance(SCMMenus, provider);
+		this.menus.onDidChangeTitle(this.updateActions, this, this.disposables);
 	}
 
 	renderHeader(container: HTMLElement): void {
@@ -299,14 +302,22 @@ class SourceControlView extends CollapsibleView {
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
 		this.disposables.push(this.list);
 
-		this.provider.onDidChange(this.update, this, this.disposables);
+		this.provider.onDidChange(this.updateList, this, this.disposables);
 	}
 
 	layoutBody(size: number): void {
 		this.list.layout(size);
 	}
 
-	private update(): void {
+	getActions(): IAction[] {
+		return this.menus.getTitleActions();
+	}
+
+	getSecondaryActions(): IAction[] {
+		return this.menus.getTitleSecondaryActions();
+	}
+
+	private updateList(): void {
 		const elements = this.provider.resources
 			.reduce<(ISCMResourceGroup | ISCMResource)[]>((r, g) => [...r, g, ...g.resources.sort(resourceSorter)], []);
 
@@ -357,13 +368,27 @@ class SourceControlView extends CollapsibleView {
 	}
 }
 
+class InstallAdditionalSCMProvidersAction extends Action {
+
+	constructor(@IViewletService private viewletService: IViewletService) {
+		super('scm.installAdditionalSCMProviders', localize('installAdditionalSCMProviders', "Install Additional SCM Providers..."), '', true);
+	}
+
+	run(): TPromise<void> {
+		return this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true).then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search('category:"SCM Providers" @sort:installs');
+				viewlet.focus();
+			});
+	}
+}
+
 export class SCMViewlet extends ComposedViewsViewlet {
 
 	private activeProvider: ISCMProvider | undefined;
 	private cachedDimension: Dimension;
 	private inputBoxContainer: HTMLElement;
 	private inputBox: InputBox;
-	private menus: SCMMenus;
 	private providerChangeDisposable: IDisposable = EmptyDisposable;
 	private disposables: IDisposable[] = [];
 
@@ -387,10 +412,6 @@ export class SCMViewlet extends ComposedViewsViewlet {
 	) {
 		super(VIEWLET_ID, ViewLocation.SCM, `${VIEWLET_ID}.state`, false,
 			telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
-
-		this.menus = this.instantiationService.createInstance(SCMMenus);
-		this.menus.onDidChangeTitle(this.updateTitleArea, this, this.disposables);
-		this.disposables.push(this.menus);
 	}
 
 	private setActiveProvider(activeProvider: ISCMProvider | undefined): void {
@@ -527,12 +548,11 @@ export class SCMViewlet extends ComposedViewsViewlet {
 		}
 	}
 
-	getActions(): IAction[] {
-		return this.menus.getTitleActions();
-	}
-
+	@memoize
 	getSecondaryActions(): IAction[] {
-		return this.menus.getTitleSecondaryActions();
+		return [
+			this.instantiationService.createInstance(InstallAdditionalSCMProvidersAction)
+		];
 	}
 
 	getActionItem(action: IAction): IActionItem {
