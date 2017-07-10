@@ -194,7 +194,11 @@ export abstract class SimpleFindWidget extends Widget {
 		return this._domNode;
 	}
 
-	public reveal(): void {
+	public reveal(initialInput?: string): void {
+		if (initialInput) {
+			this._findInput.setValue(initialInput);
+		}
+
 		if (this._isVisible) {
 			this._findInput.select();
 			return;
