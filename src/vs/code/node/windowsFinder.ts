@@ -11,17 +11,13 @@ import * as platform from 'vs/base/common/platform';
 import * as paths from 'vs/base/common/paths';
 import { OpenContext } from 'vs/platform/windows/common/windows';
 
-/**
- * Exported subset of CodeWindow for testing.
- */
 export interface ISimpleWindow {
 	openedWorkspacePath: string;
+	openedFilePath?: string;
+	extensionDevelopmentPath?: string;
 	lastFocusTime: number;
 }
 
-/**
- * Exported for testing.
- */
 export interface IBestWindowOrFolderOptions<W extends ISimpleWindow> {
 	windows: W[];
 	newWindow: boolean;
@@ -101,6 +97,56 @@ export function getLastActiveWindow<W extends ISimpleWindow>(windows: W[]): W {
 	if (windows.length) {
 		const lastFocussedDate = Math.max.apply(Math, windows.map(w => w.lastFocusTime));
 		const res = windows.filter(w => w.lastFocusTime === lastFocussedDate);
+		if (res && res.length) {
+			return res[0];
+		}
+	}
+
+	return null;
+}
+
+export function findWindowOnWorkspace<W extends ISimpleWindow>(windows: W[], workspacePath: string): W {
+	if (windows.length) {
+
+		// Sort the last active window to the front of the array of windows to test
+		const windowsToTest = windows.slice(0);
+		const lastActiveWindow = getLastActiveWindow(windows);
+		if (lastActiveWindow) {
+			windowsToTest.splice(windowsToTest.indexOf(lastActiveWindow), 1);
+			windowsToTest.unshift(lastActiveWindow);
+		}
+
+		// Find it
+		const res = windowsToTest.filter(w => {
+
+			// match on workspace
+			if (typeof w.openedWorkspacePath === 'string' && (paths.isEqual(w.openedWorkspacePath, workspacePath, !platform.isLinux /* ignorecase */))) {
+				return true;
+			}
+
+			return false;
+		});
+
+		if (res && res.length) {
+			return res[0];
+		}
+	}
+
+	return null;
+}
+
+export function findExtensionDevelopmentWindow<W extends ISimpleWindow>(windows: W[], extensionDevelopmentPath?: string): W {
+	if (windows.length) {
+		const res = windows.filter(w => {
+
+			// match on extension development path
+			if (typeof extensionDevelopmentPath === 'string' && paths.isEqual(w.extensionDevelopmentPath, extensionDevelopmentPath, !platform.isLinux /* ignorecase */)) {
+				return true;
+			}
+
+			return false;
+		});
+
 		if (res && res.length) {
 			return res[0];
 		}

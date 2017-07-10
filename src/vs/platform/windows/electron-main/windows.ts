@@ -18,6 +18,7 @@ export interface ICodeWindow {
 	win: Electron.BrowserWindow;
 	config: IWindowConfiguration;
 	openedWorkspacePath: string;
+	lastFocusTime: number;
 
 	readyState: ReadyState;
 
@@ -56,7 +57,6 @@ export interface IWindowsMainService {
 	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow;
 	getLastActiveWindow(): ICodeWindow;
 	waitForWindowClose(windowId: number): TPromise<void>;
-	findWindow(workspacePath: string, filePath?: string, extensionDevelopmentPath?: string): ICodeWindow;
 	openNewWindow(context: OpenContext): void;
 	sendToFocused(channel: string, ...args: any[]): void;
 	sendToAll(channel: string, payload: any, windowIdsToIgnore?: number[]): void;

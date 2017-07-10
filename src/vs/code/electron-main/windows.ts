@@ -21,11 +21,11 @@ import { ILifecycleService, UnloadReason } from 'vs/platform/lifecycle/electron-
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowSettings, OpenContext, IPath, IWindowConfiguration } from 'vs/platform/windows/common/windows';
-import { getLastActiveWindow, findBestWindowOrFolderForFile } from 'vs/code/node/windowsFinder';
+import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace } from 'vs/code/node/windowsFinder';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/node/product';
 import { ITelemetryService, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { isEqual, isEqualOrParent } from 'vs/base/common/paths';
+import { isEqual } from 'vs/base/common/paths';
 import { IWindowsMainService, IOpenConfiguration } from "vs/platform/windows/electron-main/windows";
 import { IHistoryMainService } from "vs/platform/history/electron-main/historyMainService";
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
@@ -356,22 +356,25 @@ export class WindowsManager implements IWindowsMainService {
 
 			// We found a suitable window to open the files within
 			if (bestWindowOrFolder instanceof CodeWindow) {
-				bestWindowOrFolder.focus();
 				const files = { filesToOpen, filesToCreate, filesToDiff }; // copy to object because they get reset shortly after
-				bestWindowOrFolder.ready().then(readyWindow => {
+
+				const windowToUse = bestWindowOrFolder;
+				windowToUse.focus();
+				windowToUse.ready().then(readyWindow => {
 					readyWindow.send('vscode:openFiles', files);
 				});
 
-				usedWindows.push(bestWindowOrFolder);
+				usedWindows.push(windowToUse);
 			}
 
 			// Otherwise open a new window with the best folder to use for the file
 			else {
+				const folderToOpen = bestWindowOrFolder;
 				const browserWindow = this.openInBrowserWindow({
 					userEnv: openConfig.userEnv,
 					cli: openConfig.cli,
 					initialStartup: openConfig.initialStartup,
-					workspacePath: bestWindowOrFolder,
+					workspacePath: folderToOpen,
 					filesToOpen,
 					filesToCreate,
 					filesToDiff,
@@ -393,7 +396,7 @@ export class WindowsManager implements IWindowsMainService {
 		if (allFoldersToOpen.length > 0) {
 
 			// Check for existing instances
-			const windowsOnWorkspacePath = arrays.coalesce(allFoldersToOpen.map(folderToOpen => this.findWindow(folderToOpen)));
+			const windowsOnWorkspacePath = arrays.coalesce(allFoldersToOpen.map(folderToOpen => findWindowOnWorkspace(WindowsManager.WINDOWS, folderToOpen)));
 			if (windowsOnWorkspacePath.length > 0) {
 				const browserWindow = windowsOnWorkspacePath[0];
 				browserWindow.focus(); // just focus one of them
@@ -1001,51 +1004,6 @@ export class WindowsManager implements IWindowsMainService {
 
 	public getLastActiveWindow(): CodeWindow {
 		return getLastActiveWindow(WindowsManager.WINDOWS);
-	}
-
-	public findWindow(workspacePath: string, filePath?: string, extensionDevelopmentPath?: string): CodeWindow {
-		if (WindowsManager.WINDOWS.length) {
-
-			// Sort the last active window to the front of the array of windows to test
-			const windowsToTest = WindowsManager.WINDOWS.slice(0);
-			const lastActiveWindow = this.getLastActiveWindow();
-			if (lastActiveWindow) {
-				windowsToTest.splice(windowsToTest.indexOf(lastActiveWindow), 1);
-				windowsToTest.unshift(lastActiveWindow);
-			}
-
-			// Find it
-			const res = windowsToTest.filter(w => {
-
-				// match on workspace
-				if (typeof w.openedWorkspacePath === 'string' && (isEqual(w.openedWorkspacePath, workspacePath, !isLinux /* ignorecase */))) {
-					return true;
-				}
-
-				// match on file
-				if (typeof w.openedFilePath === 'string' && isEqual(w.openedFilePath, filePath, !isLinux /* ignorecase */)) {
-					return true;
-				}
-
-				// match on file path
-				if (typeof w.openedWorkspacePath === 'string' && filePath && isEqualOrParent(filePath, w.openedWorkspacePath, !isLinux /* ignorecase */)) {
-					return true;
-				}
-
-				// match on extension development path
-				if (typeof extensionDevelopmentPath === 'string' && isEqual(w.extensionDevelopmentPath, extensionDevelopmentPath, !isLinux /* ignorecase */)) {
-					return true;
-				}
-
-				return false;
-			});
-
-			if (res && res.length) {
-				return res[0];
-			}
-		}
-
-		return null;
 	}
 
 	public openNewWindow(context: OpenContext): void {
