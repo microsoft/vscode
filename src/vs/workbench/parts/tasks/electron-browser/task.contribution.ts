@@ -922,6 +922,9 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (!this.canCustomize()) {
 			return false;
 		}
+		if (task.group !== void 0 && task.group !== TaskGroup.Build) {
+			return false;
+		}
 		if (task.problemMatchers !== void 0 && task.problemMatchers.length > 0) {
 			return false;
 		}
