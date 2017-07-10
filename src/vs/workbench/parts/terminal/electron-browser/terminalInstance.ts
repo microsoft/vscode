@@ -475,7 +475,8 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _sanitizeInput(data: any) {
-		return typeof data === 'string' ? data.replace(TerminalInstance.WINDOWS_EOL_REGEX, '\r') : data;
+		// Use '\r' to simulate typing on paste (#22887), but keep '\n' when standalone to pass on Ctrl + J (#26786).
+		return typeof data === 'string' && data !== '\n' ? data.replace(TerminalInstance.WINDOWS_EOL_REGEX, '\r') : data;
 	}
 
 	protected _getCwd(shell: IShellLaunchConfig, root: Uri): string {
