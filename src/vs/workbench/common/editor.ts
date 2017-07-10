@@ -807,7 +807,7 @@ export interface IWorkbenchEditorConfiguration {
 			openPositioning: 'left' | 'right' | 'first' | 'last';
 			revealIfOpen: boolean;
 			swipeToNavigate: boolean;
-			emphasizeParentDirectoryInTab: string[];
+			tabTitleUsesParentFor: string[];
 		}
 	};
 }

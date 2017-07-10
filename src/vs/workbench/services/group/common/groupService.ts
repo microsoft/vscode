@@ -24,7 +24,7 @@ export interface ITabOptions {
 	tabCloseButton?: 'left' | 'right' | 'off';
 	showIcons?: boolean;
 	previewEditors?: boolean;
-	emphasizeParentDirectoryInTab?: string[];
+	tabTitleUsesParentFor?: string[];
 }
 
 export interface IMoveOptions {

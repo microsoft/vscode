@@ -156,7 +156,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				showIcons: editorConfig.showIcons,
 				showTabs: editorConfig.showTabs,
 				tabCloseButton: editorConfig.tabCloseButton,
-				emphasizeParentDirectoryInTab: editorConfig.emphasizeParentDirectoryInTab
+				tabTitleUsesParentFor: editorConfig.tabTitleUsesParentFor
 			};
 
 			this.revealIfOpen = editorConfig.revealIfOpen;
@@ -168,7 +168,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				showIcons: false,
 				showTabs: true,
 				tabCloseButton: 'right',
-				emphasizeParentDirectoryInTab: []
+				tabTitleUsesParentFor: []
 			};
 
 			this.revealIfOpen = false;
@@ -211,7 +211,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				showIcons: editorConfig.showIcons,
 				tabCloseButton: editorConfig.tabCloseButton,
 				showTabs: this.forceHideTabs ? false : editorConfig.showTabs,
-				emphasizeParentDirectoryInTab: editorConfig.emphasizeParentDirectoryInTab
+				tabTitleUsesParentFor: editorConfig.tabTitleUsesParentFor
 			};
 
 			if (!this.doNotFireTabOptionsChanged && !objects.equals(oldTabOptions, this.tabOptions)) {
