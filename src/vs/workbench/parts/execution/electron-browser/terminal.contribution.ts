@@ -67,25 +67,15 @@ DEFAULT_TERMINAL_LINUX_READY.then(defaultTerminalLinux => {
 	});
 });
 
-export class OpenConsoleAction extends Action {
-
-	public static ID = 'workbench.action.terminal.openNativeConsole';
-	public static Label = baseplatform.isWindows ? nls.localize('globalConsoleActionWin', "Open New Command Prompt") :
-		nls.localize('globalConsoleActionMacLinux', "Open New Terminal");
-	public static ScopedLabel = baseplatform.isWindows ? nls.localize('scopedConsoleActionWin', "Open in Command Prompt") :
-		nls.localize('scopedConsoleActionMacLinux', "Open in Terminal");
-
+export abstract class AbstarctOpenInTerminalAction extends Action {
 	private resource: uri;
 
 	constructor(
 		id: string,
 		label: string,
-		@ITerminalService private terminalService: ITerminalService,
-		@IIntegratedTerminalService private integratedTerminalService: IIntegratedTerminalService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IHistoryService private historyService: IHistoryService
+		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
+		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
+		@IHistoryService protected historyService: IHistoryService
 	) {
 		super(id, label);
 
@@ -97,7 +87,7 @@ export class OpenConsoleAction extends Action {
 		this.enabled = !paths.isUNC(this.resource.fsPath);
 	}
 
-	public run(event?: any): TPromise<any> {
+	public getPathToOpen(): string {
 		let pathToOpen: string;
 
 		// Try workspace path first
@@ -112,26 +102,75 @@ export class OpenConsoleAction extends Action {
 			}
 		}
 
-		const configuration = this.configurationService.getConfiguration<ITerminalConfiguration>();
+		return pathToOpen;
+	}
+}
 
-		const terminalKind = configuration.terminal.terminalKind;
-		if (terminalKind === 'integrated') {
-			var instance = this.integratedTerminalService.createInstance({ cwd: pathToOpen }, true);
-			if (instance) {
-				this.integratedTerminalService.setActiveInstance(instance);
-				this.integratedTerminalService.showPanel(true);
-			}
-		} else {
-			this.terminalService.openTerminal(pathToOpen);
+export class OpenConsoleAction extends AbstarctOpenInTerminalAction {
+
+	public static ID = 'workbench.action.terminal.openNativeConsole';
+	public static Label = baseplatform.isWindows ? nls.localize('globalConsoleActionWin', "Open New Command Prompt") :
+		nls.localize('globalConsoleActionMacLinux', "Open New Terminal");
+	public static ScopedLabel = baseplatform.isWindows ? nls.localize('scopedConsoleActionWin', "Open in Command Prompt") :
+		nls.localize('scopedConsoleActionMacLinux', "Open in Terminal");
+
+	constructor(
+		id: string,
+		label: string,
+		@ITerminalService private terminalService: ITerminalService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IHistoryService historyService: IHistoryService
+	) {
+		super(id, label, editorService, contextService, historyService);
+
+		this.order = 49; // Allow other actions to position before or after
+	}
+
+	public run(event?: any): TPromise<any> {
+		let pathToOpen = this.getPathToOpen();
+		this.terminalService.openTerminal(pathToOpen);
+
+		return TPromise.as(null);
+	}
+}
+
+export class OpenIntegratedTerminalAction extends AbstarctOpenInTerminalAction {
+
+	public static ID = 'workbench.action.terminal.openFolderInIntegratedTerminal';
+	public static Label = nls.localize('scopedConsoleActionMacLinux', "Open in Terminal");
+
+	constructor(
+		id: string,
+		label: string,
+		@IIntegratedTerminalService private integratedTerminalService: IIntegratedTerminalService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IHistoryService historyService: IHistoryService
+	) {
+		super(id, label, editorService, contextService, historyService);
+
+		this.order = 49; // Allow other actions to position before or after
+	}
+
+	public run(event?: any): TPromise<any> {
+		let pathToOpen = this.getPathToOpen();
+
+		var instance = this.integratedTerminalService.createInstance({ cwd: pathToOpen }, true);
+		if (instance) {
+			this.integratedTerminalService.setActiveInstance(instance);
+			this.integratedTerminalService.showPanel(true);
 		}
-
 		return TPromise.as(null);
 	}
 }
 
 class ExplorerViewerActionContributor extends ActionBarContributor {
 
-	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IConfigurationService private configurationService: IConfigurationService
+	) {
 		super();
 	}
 
@@ -148,10 +187,20 @@ class ExplorerViewerActionContributor extends ActionBarContributor {
 			resource = uri.file(paths.dirname(resource.fsPath));
 		}
 
-		let action = this.instantiationService.createInstance(OpenConsoleAction, OpenConsoleAction.ID, OpenConsoleAction.ScopedLabel);
-		action.setResource(resource);
+		const configuration = this.configurationService.getConfiguration<ITerminalConfiguration>();
+		const terminalKind = configuration.terminal.terminalKind;
 
-		return [action];
+		if (terminalKind === 'integrated') {
+			let action = this.instantiationService.createInstance(OpenIntegratedTerminalAction, OpenIntegratedTerminalAction.ID, OpenIntegratedTerminalAction.Label);
+			action.setResource(resource);
+
+			return [action];
+		} else {
+			let action = this.instantiationService.createInstance(OpenConsoleAction, OpenConsoleAction.ID, OpenConsoleAction.ScopedLabel);
+			action.setResource(resource);
+
+			return [action];
+		}
 	}
 }
 
