@@ -49,7 +49,7 @@ class StandardTerminalProcessFactory implements ITerminalProcessFactory {
 }
 
 export class TerminalInstance implements ITerminalInstance {
-	private static readonly WINDOWS_EOL_REGEX = /\r?\n/g;
+	private static readonly EOL_REGEX = /\r?\n/g;
 
 	private static _terminalProcessFactory: ITerminalProcessFactory = new StandardTerminalProcessFactory();
 	private static _lastKnownDimensions: Dimension = null;
@@ -218,7 +218,7 @@ export class TerminalInstance implements ITerminalInstance {
 				// Send data if the pty is ready
 				this._process.send({
 					event: 'input',
-					data: this._sanitizeInput(data)
+					data
 				});
 			} else {
 				// If the pty is not ready, queue the data received from
@@ -415,7 +415,8 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public sendText(text: string, addNewLine: boolean): void {
 		this._processReady.then(() => {
-			text = this._sanitizeInput(text);
+			// Normalize line endings to 'enter' press.
+			text = text.replace(TerminalInstance.EOL_REGEX, '\r');
 			if (addNewLine && text.substr(text.length - 1) !== '\r') {
 				text += '\r';
 			}
@@ -472,11 +473,6 @@ export class TerminalInstance implements ITerminalInstance {
 		const activePanel = this._panelService.getActivePanel();
 		const isActive = activePanel && activePanel.getId() === TERMINAL_PANEL_ID;
 		this._terminalHasTextContextKey.set(isActive && this.hasSelection());
-	}
-
-	private _sanitizeInput(data: any) {
-		// Use '\r' to simulate typing on paste (#22887), but keep '\n' when standalone to pass on Ctrl + J (#26786).
-		return typeof data === 'string' && data !== '\n' ? data.replace(TerminalInstance.WINDOWS_EOL_REGEX, '\r') : data;
 	}
 
 	protected _getCwd(shell: IShellLaunchConfig, root: Uri): string {
@@ -537,7 +533,7 @@ export class TerminalInstance implements ITerminalInstance {
 				if (this._preLaunchInputQueue.length > 0) {
 					this._process.send({
 						event: 'input',
-						data: this._sanitizeInput(this._preLaunchInputQueue)
+						data: this._preLaunchInputQueue
 					});
 					this._preLaunchInputQueue = null;
 				}
