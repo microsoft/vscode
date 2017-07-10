@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench .simple-find-part {
+	z-index: 10;
 	position: absolute;
 	top: -40px;
 	right: 28px;
