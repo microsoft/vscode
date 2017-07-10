@@ -233,6 +233,11 @@ export interface ITerminalInstance {
 	copySelection(): void;
 
 	/**
+	 * Current selection in the terminal.
+	 */
+	readonly selection: string | undefined;
+
+	/**
 	 * Clear current selection.
 	 */
 	clearSelection(): void;

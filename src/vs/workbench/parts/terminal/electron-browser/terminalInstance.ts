@@ -344,6 +344,14 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 	}
 
+	get selection(): string | undefined {
+		if (this.hasSelection()) {
+			return this._xterm.getSelection();
+		} else {
+			return undefined;
+		}
+	}
+
 	public clearSelection(): void {
 		this._xterm.clearSelection();
 	}
