@@ -31,7 +31,6 @@ import { IHistoryMainService } from "vs/platform/history/electron-main/historyMa
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { TPromise } from "vs/base/common/winjs.base";
 
-
 enum WindowError {
 	UNRESPONSIVE,
 	CRASHED
@@ -285,7 +284,6 @@ export class WindowsManager implements IWindowsMainService {
 		// These are windows to open to show either folders or files (including diffing files or creating them)
 		//
 		const foldersToOpen = arrays.distinct(windowsToOpen.filter(win => win.folderPath && !win.filePath).map(win => win.folderPath), folder => isLinux ? folder : folder.toLowerCase()); // prevent duplicates
-		const emptyToOpen = windowsToOpen.filter(win => !win.folderPath && !win.filePath && !win.backupPath).length;
 
 		let filesToOpen = windowsToOpen.filter(path => !!path.filePath && !path.createFilePath);
 		let filesToCreate = windowsToOpen.filter(path => !!path.filePath && path.createFilePath);
@@ -299,13 +297,18 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		//
-		// These are windows to restore because of hot-exit
+		// These are windows to restore because of hot-exit or empty windows from previous session
 		//
 		const hotExitRestore = (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath);
 		const foldersToRestore = hotExitRestore ? this.backupService.getWorkspaceBackupPaths() : [];
 		let emptyToRestore = hotExitRestore ? this.backupService.getEmptyWindowBackupPaths() : [];
 		emptyToRestore.push(...windowsToOpen.filter(w => !w.folderPath && w.backupPath).map(w => path.basename(w.backupPath))); // add empty windows with backupPath
 		emptyToRestore = arrays.distinct(emptyToRestore); // prevent duplicates
+
+		//
+		// These are empty windows to open
+		//
+		const emptyToOpen = windowsToOpen.filter(win => !win.folderPath && !win.filePath && !win.backupPath).length;
 
 		// Open based on config
 		const usedWindows = this.doOpen(openConfig, foldersToOpen, foldersToRestore, emptyToRestore, emptyToOpen, filesToOpen, filesToCreate, filesToDiff);
@@ -378,7 +381,7 @@ export class WindowsManager implements IWindowsMainService {
 				userHome: this.environmentService.userHome
 			});
 
-			// We found a suitable window to open the files within
+			// We found a suitable window to open the files within: send the files to open over
 			if (bestWindowOrFolder instanceof CodeWindow) {
 				const files = { filesToOpen, filesToCreate, filesToDiff }; // copy to object because they get reset shortly after
 
@@ -389,16 +392,24 @@ export class WindowsManager implements IWindowsMainService {
 				});
 
 				usedWindows.push(windowToUse);
+
+				// Reset these because we handled them
+				filesToOpen = [];
+				filesToCreate = [];
+				filesToDiff = [];
 			}
 
-			// Otherwise open a new window with the best folder to use for the file
+			// We found a suitable folder to open: add it to foldersToOpen
+			else if (typeof bestWindowOrFolder === 'string') {
+				foldersToOpen.push(bestWindowOrFolder);
+			}
+
+			// Finally, if no window or folder is found, just open the files in an empty window
 			else {
-				const folderToOpen = bestWindowOrFolder;
 				const browserWindow = this.openInBrowserWindow({
 					userEnv: openConfig.userEnv,
 					cli: openConfig.cli,
 					initialStartup: openConfig.initialStartup,
-					folderPath: folderToOpen,
 					filesToOpen,
 					filesToCreate,
 					filesToDiff,
@@ -406,13 +417,11 @@ export class WindowsManager implements IWindowsMainService {
 				});
 				usedWindows.push(browserWindow);
 
-				openFolderInNewWindow = true; // any other folders to open must open in new window then
+				// Reset these because we handled them
+				filesToOpen = [];
+				filesToCreate = [];
+				filesToDiff = [];
 			}
-
-			// Reset these because we handled them
-			filesToOpen = [];
-			filesToCreate = [];
-			filesToDiff = [];
 		}
 
 		// Handle folders to open (instructed and to restore)
@@ -680,13 +689,20 @@ export class WindowsManager implements IWindowsMainService {
 		try {
 			const candidateStat = fs.statSync(candidate);
 			if (candidateStat) {
-				return candidateStat.isFile() ?
-					{
+
+				// File
+				if (candidateStat.isFile()) {
+					return {
 						filePath: candidate,
 						lineNumber: gotoLineMode ? parsedPath.line : void 0,
 						columnNumber: gotoLineMode ? parsedPath.column : void 0
-					} :
-					{ folderPath: candidate };
+					};
+				}
+
+				// Folder
+				return {
+					folderPath: candidate
+				};
 			}
 		} catch (error) {
 			this.historyService.removeFromRecentPathsList(candidate); // since file does not seem to exist anymore, remove from recent
