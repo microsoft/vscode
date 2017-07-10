@@ -1,7 +1,9 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
+*  Copyright (c) Microsoft Corporation. All rights reserved.
+*  Licensed under the MIT License. See License.txt in the project root for license information.
+*--------------------------------------------------------------------------------------------*/
+
+'use strict';
 
 import * as cp from 'child_process';
 import * as os from 'os';
@@ -845,6 +847,47 @@ export class TerminalInstance implements ITerminalInstance {
 			this._process.removeListener('message', this._messageTitleListener);
 			this._messageTitleListener = null;
 		}
+	}
+
+	private static getChildProcesses(pid: number): Promise<{ executable: string, pid: number }[]> {
+		return new Promise((resolve, reject) => {
+			cp.execFile('wmic.exe', ['process', 'where', `parentProcessId=${pid}`, 'get', 'ExecutablePath,ProcessId'], (err, stdout, stderr) => {
+				if (err) {
+					reject(err);
+				} else if (stderr.length > 0) {
+					resolve([]); // No processes found
+				} else {
+					resolve(stdout.split('\n').slice(1).filter(str => str.length > 0).map(str => {
+						const s = str.split('  ');
+						return { executable: s[0], pid: Number(s[1]) };
+					}));
+				}
+			});
+		});
+	}
+
+	public async getShellList(): Promise<string[]> {
+		if (platform.platform !== platform.Platform.Windows) {
+			return [];
+		}
+
+		const shells = ['bash.exe', 'cmd.exe', 'powershell.exe'];
+		const pList = [this._shellLaunchConfig.executable];
+
+		let pid = this._processId;
+		while (pid !== null) {
+			const oldPid = pid;
+			pid = null;
+			for (const childproc of await TerminalInstance.getChildProcesses(oldPid)) {
+				if (shells.indexOf(path.basename(childproc.executable)) !== -1) {
+					pList.push(childproc.executable);
+					pid = childproc.pid;
+					break;
+				}
+			}
+		}
+
+		return pList;
 	}
 }
 
