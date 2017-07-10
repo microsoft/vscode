@@ -92,7 +92,6 @@ export abstract class SimpleFindWidget extends Widget {
 	) {
 		super();
 		this._findInput = this._register(new FindInput(null, this._contextViewService, {
-			width: 155,
 			label: NLS_FIND_INPUT_LABEL,
 			placeholder: NLS_FIND_INPUT_PLACEHOLDER,
 		}));
