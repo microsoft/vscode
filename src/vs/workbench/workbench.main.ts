@@ -86,7 +86,6 @@ import 'vs/workbench/parts/emmet/electron-browser/emmet.contribution';
 import 'vs/workbench/parts/codeEditor/codeEditor.contribution';
 
 import 'vs/workbench/parts/execution/electron-browser/execution.contribution';
-import 'vs/workbench/parts/execution/electron-browser/terminal.contribution';
 
 import 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 

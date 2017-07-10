@@ -11,9 +11,9 @@ import baseplatform = require('vs/base/common/platform');
 import { IAction, Action } from 'vs/base/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import paths = require('vs/base/common/paths');
-import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor } from 'vs/workbench/browser/actions';
+import { ActionBarContributor } from 'vs/workbench/browser/actions';
 import uri from 'vs/base/common/uri';
-import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
+import { explorerItemToFileResource, IFilesConfiguration } from 'vs/workbench/parts/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITerminalService } from 'vs/workbench/parts/execution/common/execution';
 import { ITerminalService as IIntegratedTerminalService, KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED } from 'vs/workbench/parts/terminal/common/terminal';
@@ -23,49 +23,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ITerminalConfiguration, DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX_READY, DEFAULT_TERMINAL_OSX } from 'vs/workbench/parts/execution/electron-browser/terminal';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-
-DEFAULT_TERMINAL_LINUX_READY.then(defaultTerminalLinux => {
-	let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
-	configurationRegistry.registerConfiguration({
-		'id': 'externalTerminal',
-		'order': 100,
-		'title': nls.localize('terminalConfigurationTitle', "External Terminal"),
-		'type': 'object',
-		'properties': {
-			'terminal.terminalKind': {
-				'type': 'string',
-				'enum': [
-					'external',
-					'integrated'
-				],
-				'description': nls.localize('terminal.terminalKind', "Customizes what kind of terminal to launch."),
-				'default': 'external',
-				'isExecutable': false
-			},
-			'terminal.external.windowsExec': {
-				'type': 'string',
-				'description': nls.localize('terminal.external.windowsExec', "Customizes which terminal to run on Windows."),
-				'default': DEFAULT_TERMINAL_WINDOWS,
-				'isExecutable': true
-			},
-			'terminal.external.osxExec': {
-				'type': 'string',
-				'description': nls.localize('terminal.external.osxExec', "Customizes which terminal application to run on OS X."),
-				'default': DEFAULT_TERMINAL_OSX,
-				'isExecutable': true
-			},
-			'terminal.external.linuxExec': {
-				'type': 'string',
-				'description': nls.localize('terminal.external.linuxExec', "Customizes which terminal to run on Linux."),
-				'default': defaultTerminalLinux,
-				'isExecutable': true
-			}
-		}
-	});
-});
 
 export abstract class AbstarctOpenInTerminalAction extends Action {
 	private resource: uri;
@@ -138,7 +96,7 @@ export class OpenConsoleAction extends AbstarctOpenInTerminalAction {
 export class OpenIntegratedTerminalAction extends AbstarctOpenInTerminalAction {
 
 	public static ID = 'workbench.action.terminal.openFolderInIntegratedTerminal';
-	public static Label = nls.localize('scopedConsoleActionMacLinux', "Open in Terminal");
+	public static Label = nls.localize('openFolderInIntegratedTerminal', "Open in Integrated Terminal");
 
 	constructor(
 		id: string,
@@ -165,7 +123,7 @@ export class OpenIntegratedTerminalAction extends AbstarctOpenInTerminalAction {
 	}
 }
 
-class ExplorerViewerActionContributor extends ActionBarContributor {
+export class ExplorerViewerActionContributor extends ActionBarContributor {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -187,8 +145,8 @@ class ExplorerViewerActionContributor extends ActionBarContributor {
 			resource = uri.file(paths.dirname(resource.fsPath));
 		}
 
-		const configuration = this.configurationService.getConfiguration<ITerminalConfiguration>();
-		const terminalKind = configuration.terminal.terminalKind;
+		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
+		const terminalKind = configuration.explorer.openInTerminalKind;
 
 		if (terminalKind === 'integrated') {
 			let action = this.instantiationService.createInstance(OpenIntegratedTerminalAction, OpenIntegratedTerminalAction.ID, OpenIntegratedTerminalAction.Label);
@@ -203,9 +161,6 @@ class ExplorerViewerActionContributor extends ActionBarContributor {
 		}
 	}
 }
-
-const actionBarRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar);
-actionBarRegistry.registerActionBarContributor(Scope.VIEWER, ExplorerViewerActionContributor);
 
 // Register Global Action to Open Console
 Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registerWorkbenchAction(
