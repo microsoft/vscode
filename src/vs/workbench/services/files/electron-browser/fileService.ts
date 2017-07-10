@@ -41,7 +41,7 @@ export class FileService implements IFileService {
 	private toUnbind: IDisposable[];
 	private activeOutOfWorkspaceWatchers: ResourceMap<uri>;
 
-	private _onFileChanges: Emitter<FileChangesEvent>;
+	protected _onFileChanges: Emitter<FileChangesEvent>;
 	private _onAfterOperation: Emitter<FileOperationEvent>;
 
 	constructor(
