@@ -21,7 +21,7 @@ import { ILifecycleService, UnloadReason } from 'vs/platform/lifecycle/electron-
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowSettings, OpenContext, IPath, IWindowConfiguration } from 'vs/platform/windows/common/windows';
-import { getLastActiveWindow, findBestWindowOrFolder } from 'vs/code/node/windowsUtils';
+import { getLastActiveWindow, findBestWindowOrFolderForFile } from 'vs/code/node/windowsFinder';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/node/product';
 import { ITelemetryService, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
@@ -345,7 +345,7 @@ export class WindowsManager implements IWindowsMainService {
 
 			// Open Files in last instance if any and flag tells us so
 			const fileToCheck = filesToOpen[0] || filesToCreate[0] || filesToDiff[0];
-			const windowOrFolder = findBestWindowOrFolder({
+			const bestWindowOrFolder = findBestWindowOrFolderForFile({
 				windows: WindowsManager.WINDOWS,
 				newWindow: openFilesInNewWindow,
 				reuseWindow: openConfig.forceReuseWindow,
@@ -354,23 +354,24 @@ export class WindowsManager implements IWindowsMainService {
 				userHome: this.environmentService.userHome
 			});
 
-			if (windowOrFolder instanceof CodeWindow) {
-				windowOrFolder.focus();
+			// We found a suitable window to open the files within
+			if (bestWindowOrFolder instanceof CodeWindow) {
+				bestWindowOrFolder.focus();
 				const files = { filesToOpen, filesToCreate, filesToDiff }; // copy to object because they get reset shortly after
-				windowOrFolder.ready().then(readyWindow => {
+				bestWindowOrFolder.ready().then(readyWindow => {
 					readyWindow.send('vscode:openFiles', files);
 				});
 
-				usedWindows.push(windowOrFolder);
+				usedWindows.push(bestWindowOrFolder);
 			}
 
-			// Otherwise open instance with files
+			// Otherwise open a new window with the best folder to use for the file
 			else {
 				const browserWindow = this.openInBrowserWindow({
 					userEnv: openConfig.userEnv,
 					cli: openConfig.cli,
 					initialStartup: openConfig.initialStartup,
-					workspacePath: windowOrFolder,
+					workspacePath: bestWindowOrFolder,
 					filesToOpen,
 					filesToCreate,
 					filesToDiff,
