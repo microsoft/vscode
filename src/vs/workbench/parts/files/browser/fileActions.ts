@@ -1271,11 +1271,14 @@ export class CompareResourcesAction extends Action {
 
 		// Check if file was deleted or moved meanwhile (explorer only)
 		if (this.tree) {
-			const input: FileStat | Model = this.tree.getInput();
-			const exists = input instanceof Model ? input.findClosest(globalResourceToCompare) : input.find(globalResourceToCompare);
-			if (!exists) {
-				globalResourceToCompare = null;
-				return false;
+			const input = this.tree.getInput();
+			if (input instanceof FileStat || input instanceof Model) {
+				const exists = input instanceof Model ? input.findClosest(globalResourceToCompare) : input.find(globalResourceToCompare);
+				if (!exists) {
+					globalResourceToCompare = null;
+
+					return false;
+				}
 			}
 		}
 
