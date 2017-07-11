@@ -363,7 +363,6 @@ export class Model implements Disposable {
 		this._onDidChangeResources.fire();
 	}
 
-	private workspaceRoot: Uri;
 	private onWorkspaceChange: Event<Uri>;
 	private isRepositoryHuge = false;
 	private didWarnAboutLimit = false;
@@ -372,10 +371,8 @@ export class Model implements Disposable {
 
 	constructor(
 		private _git: Git,
-		workspaceRootPath: string
+		private workspaceRoot: Uri
 	) {
-		this.workspaceRoot = Uri.file(workspaceRootPath);
-
 		const fsWatcher = workspace.createFileSystemWatcher('**');
 		this.onWorkspaceChange = anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate, fsWatcher.onDidDelete);
 		this.disposables.push(fsWatcher);
