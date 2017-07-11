@@ -18,5 +18,6 @@ export interface IBackupMainService {
 	getWorkspaceBackupPaths(): string[];
 	getEmptyWindowBackupPaths(): string[];
 
-	registerWindowForBackupsSync(windowId: number, isEmptyWindow: boolean, backupFolder?: string, workspacePath?: string): string;
+	registerWorkspaceBackupSync(workspacePath: string): string;
+	registerEmptyWindowBackupSync(backupFolder?: string): string;
 }

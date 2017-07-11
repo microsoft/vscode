@@ -779,14 +779,13 @@ export class WindowsManager implements IWindowsMainService {
 
 		// if we know the backup folder upfront (for empty windows to restore), we can set it
 		// directly here which helps for restoring UI state associated with that window.
-		// For all other cases we first call into registerWindowForBackupsSync() to set it before
+		// For all other cases we first call into registerEmptyWindowBackupSync() to set it before
 		// loading the window.
 		if (options.emptyWindowBackupFolder) {
 			configuration.backupPath = path.join(this.environmentService.backupHome, options.emptyWindowBackupFolder);
 		}
 
 		let codeWindow: CodeWindow;
-
 		if (!options.forceNewWindow) {
 			codeWindow = options.windowToUse || this.getLastActiveWindow();
 
@@ -860,8 +859,11 @@ export class WindowsManager implements IWindowsMainService {
 
 				// Register window for backups
 				if (!configuration.extensionDevelopmentPath) {
-					const backupPath = this.backupService.registerWindowForBackupsSync(codeWindow.id, !configuration.folderPath, options.emptyWindowBackupFolder, configuration.folderPath);
-					configuration.backupPath = backupPath;
+					if (configuration.folderPath) {
+						configuration.backupPath = this.backupService.registerWorkspaceBackupSync(configuration.folderPath);
+					} else {
+						configuration.backupPath = this.backupService.registerEmptyWindowBackupSync(options.emptyWindowBackupFolder);
+					}
 				}
 
 				// Load it

@@ -19,10 +19,12 @@ import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainSe
 import { IBackupWorkspacesFormat } from 'vs/platform/backup/common/backup';
 import { HotExitConfiguration } from 'vs/platform/files/common/files';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { LogMainService } from "vs/platform/log/common/log";
 
 class TestBackupMainService extends BackupMainService {
+
 	constructor(backupHome: string, backupWorkspacesPath: string, configService: TestConfigurationService) {
-		super(new EnvironmentService(parseArgs(process.argv), process.execPath), configService);
+		super(new EnvironmentService(parseArgs(process.argv), process.execPath), configService, new LogMainService(new EnvironmentService(parseArgs(process.argv), process.execPath)));
 
 		this.backupHome = backupHome;
 		this.workspacesJsonPath = backupWorkspacesPath;
@@ -82,16 +84,16 @@ suite('BackupMainService', () => {
 	test('service validates backup workspaces on startup and cleans up', done => {
 
 		// 1) backup workspace path does not exist
-		service.registerWindowForBackupsSync(1, false, null, fooFile.fsPath);
-		service.registerWindowForBackupsSync(2, false, null, barFile.fsPath);
+		service.registerWorkspaceBackupSync(fooFile.fsPath);
+		service.registerWorkspaceBackupSync(barFile.fsPath);
 		service.loadSync();
 		assert.deepEqual(service.getWorkspaceBackupPaths(), []);
 
 		// 2) backup workspace path exists with empty contents within
 		fs.mkdirSync(service.toBackupPath(fooFile.fsPath));
 		fs.mkdirSync(service.toBackupPath(barFile.fsPath));
-		service.registerWindowForBackupsSync(1, false, null, fooFile.fsPath);
-		service.registerWindowForBackupsSync(2, false, null, barFile.fsPath);
+		service.registerWorkspaceBackupSync(fooFile.fsPath);
+		service.registerWorkspaceBackupSync(barFile.fsPath);
 		service.loadSync();
 		assert.deepEqual(service.getWorkspaceBackupPaths(), []);
 		assert.ok(!fs.exists(service.toBackupPath(fooFile.fsPath)));
@@ -102,8 +104,8 @@ suite('BackupMainService', () => {
 		fs.mkdirSync(service.toBackupPath(barFile.fsPath));
 		fs.mkdirSync(path.join(service.toBackupPath(fooFile.fsPath), 'file'));
 		fs.mkdirSync(path.join(service.toBackupPath(barFile.fsPath), 'untitled'));
-		service.registerWindowForBackupsSync(1, false, null, fooFile.fsPath);
-		service.registerWindowForBackupsSync(2, false, null, barFile.fsPath);
+		service.registerWorkspaceBackupSync(fooFile.fsPath);
+		service.registerWorkspaceBackupSync(barFile.fsPath);
 		service.loadSync();
 		assert.deepEqual(service.getWorkspaceBackupPaths(), []);
 		assert.ok(!fs.exists(service.toBackupPath(fooFile.fsPath)));
@@ -115,7 +117,7 @@ suite('BackupMainService', () => {
 		fs.mkdirSync(service.toBackupPath(fooFile.fsPath));
 		fs.mkdirSync(service.toBackupPath(barFile.fsPath));
 		fs.mkdirSync(fileBackups);
-		service.registerWindowForBackupsSync(1, false, null, fooFile.fsPath);
+		service.registerWorkspaceBackupSync(fooFile.fsPath);
 		assert.equal(service.getWorkspaceBackupPaths().length, 1);
 		assert.equal(service.getEmptyWindowBackupPaths().length, 0);
 		fs.writeFileSync(path.join(fileBackups, 'backup.txt'), '');
@@ -171,7 +173,7 @@ suite('BackupMainService', () => {
 		});
 
 		test('getWorkspaceBackupPaths() should return [] when files.hotExit = "onExitAndWindowClose"', () => {
-			service.registerWindowForBackupsSync(1, false, null, fooFile.fsPath.toUpperCase());
+			service.registerWorkspaceBackupSync(fooFile.fsPath.toUpperCase());
 			assert.deepEqual(service.getWorkspaceBackupPaths(), [fooFile.fsPath.toUpperCase()]);
 			configService.setUserConfiguration('files.hotExit', HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE);
 			service.loadSync();
@@ -247,8 +249,8 @@ suite('BackupMainService', () => {
 
 	suite('registerWindowForBackups', () => {
 		test('should persist paths to workspaces.json', done => {
-			service.registerWindowForBackupsSync(1, false, null, fooFile.fsPath);
-			service.registerWindowForBackupsSync(2, false, null, barFile.fsPath);
+			service.registerWorkspaceBackupSync(fooFile.fsPath);
+			service.registerWorkspaceBackupSync(barFile.fsPath);
 			assert.deepEqual(service.getWorkspaceBackupPaths(), [fooFile.fsPath, barFile.fsPath]);
 			pfs.readFile(backupWorkspacesPath, 'utf-8').then(buffer => {
 				const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
@@ -258,7 +260,7 @@ suite('BackupMainService', () => {
 		});
 
 		test('should always store the workspace path in workspaces.json using the case given, regardless of whether the file system is case-sensitive', done => {
-			service.registerWindowForBackupsSync(1, false, null, fooFile.fsPath.toUpperCase());
+			service.registerWorkspaceBackupSync(fooFile.fsPath.toUpperCase());
 			assert.deepEqual(service.getWorkspaceBackupPaths(), [fooFile.fsPath.toUpperCase()]);
 			pfs.readFile(backupWorkspacesPath, 'utf-8').then(buffer => {
 				const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
@@ -270,8 +272,8 @@ suite('BackupMainService', () => {
 
 	suite('removeBackupPathSync', () => {
 		test('should remove folder workspaces from workspaces.json', done => {
-			service.registerWindowForBackupsSync(1, false, null, fooFile.fsPath);
-			service.registerWindowForBackupsSync(2, false, null, barFile.fsPath);
+			service.registerWorkspaceBackupSync(fooFile.fsPath);
+			service.registerWorkspaceBackupSync(barFile.fsPath);
 			service.removeBackupPathSync(fooFile.fsPath, false);
 			pfs.readFile(backupWorkspacesPath, 'utf-8').then(buffer => {
 				const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
@@ -286,8 +288,8 @@ suite('BackupMainService', () => {
 		});
 
 		test('should remove empty workspaces from workspaces.json', done => {
-			service.registerWindowForBackupsSync(1, true, 'foo');
-			service.registerWindowForBackupsSync(2, true, 'bar');
+			service.registerEmptyWindowBackupSync('foo');
+			service.registerEmptyWindowBackupSync('bar');
 			service.removeBackupPathSync('foo', true);
 			pfs.readFile(backupWorkspacesPath, 'utf-8').then(buffer => {
 				const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
@@ -338,8 +340,8 @@ suite('BackupMainService', () => {
 
 	suite('mixed path casing', () => {
 		test('should handle case insensitive paths properly (registerWindowForBackupsSync)', done => {
-			service.registerWindowForBackupsSync(1, false, null, fooFile.fsPath);
-			service.registerWindowForBackupsSync(1, false, null, fooFile.fsPath.toUpperCase());
+			service.registerWorkspaceBackupSync(fooFile.fsPath);
+			service.registerWorkspaceBackupSync(fooFile.fsPath.toUpperCase());
 
 			if (platform.isLinux) {
 				assert.equal(service.getWorkspaceBackupPaths().length, 2);
@@ -353,12 +355,12 @@ suite('BackupMainService', () => {
 		test('should handle case insensitive paths properly (removeBackupPathSync)', done => {
 
 			// same case
-			service.registerWindowForBackupsSync(1, false, null, fooFile.fsPath);
+			service.registerWorkspaceBackupSync(fooFile.fsPath);
 			service.removeBackupPathSync(fooFile.fsPath, false);
 			assert.equal(service.getWorkspaceBackupPaths().length, 0);
 
 			// mixed case
-			service.registerWindowForBackupsSync(1, false, null, fooFile.fsPath);
+			service.registerWorkspaceBackupSync(fooFile.fsPath);
 			service.removeBackupPathSync(fooFile.fsPath.toUpperCase(), false);
 
 			if (platform.isLinux) {

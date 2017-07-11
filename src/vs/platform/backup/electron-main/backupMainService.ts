@@ -49,19 +49,25 @@ export class BackupMainService implements IBackupMainService {
 		return this.backups.emptyWorkspaces.slice(0); // return a copy
 	}
 
-	public registerWindowForBackupsSync(windowId: number, isEmptyWindow: boolean, backupFolder?: string, workspacePath?: string): string {
+	public registerWorkspaceBackupSync(workspacePath: string): string {
+		this.pushBackupPathsSync(workspacePath);
+
+		return path.join(this.backupHome, this.getWorkspaceHash(workspacePath));
+	}
+
+	public registerEmptyWindowBackupSync(backupFolder?: string): string {
 
 		// Generate a new folder if this is a new empty workspace
-		if (isEmptyWindow && !backupFolder) {
+		if (!backupFolder) {
 			backupFolder = this.getRandomEmptyWindowId();
 		}
 
-		this.pushBackupPathsSync(isEmptyWindow ? backupFolder : workspacePath, isEmptyWindow);
+		this.pushBackupPathsSync(backupFolder, true);
 
-		return path.join(this.backupHome, isEmptyWindow ? backupFolder : this.getWorkspaceHash(workspacePath));
+		return path.join(this.backupHome, backupFolder);
 	}
 
-	private pushBackupPathsSync(workspaceIdentifier: string, isEmptyWindow: boolean): string {
+	private pushBackupPathsSync(workspaceIdentifier: string, isEmptyWindow?: boolean): string {
 		const array = isEmptyWindow ? this.backups.emptyWorkspaces : this.backups.folderWorkspaces;
 		if (this.indexOf(workspaceIdentifier, isEmptyWindow) === -1) {
 			array.push(workspaceIdentifier);
