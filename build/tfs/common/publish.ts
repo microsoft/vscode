@@ -178,6 +178,9 @@ async function publish(commit: string, quality: string, platform: string, type: 
 	const mooncakeBlobService = azure.createBlobService(storageAccount, process.env['MOONCAKE_STORAGE_ACCESS_KEY'], `${storageAccount}.blob.core.chinacloudapi.cn`)
 		.withFilter(new azure.ExponentialRetryPolicyFilter(20));
 
+	// mooncake is fussy and far away, this is needed!
+	mooncakeBlobService.defaultClientRequestTimeoutInMs = 10 * 60 * 1000;
+
 	await Promise.all([
 		assertContainer(blobService, quality),
 		assertContainer(mooncakeBlobService, quality)
