@@ -27,14 +27,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, ExtensionState } from '../common/extensions';
 import {
-<<<<<<< HEAD
-	ShowInstalledExtensionsAction, ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowDisabledExtensionsAction,
+	ShowEnabledExtensionsAction, ShowInstalledExtensionsAction, ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowDisabledExtensionsAction,
 	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, CheckForUpdatesAction, DisableAllAction, EnableAllAction,
 	EnableAutoUpdateAction, DisableAutoUpdateAction
-=======
-	ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowPopularExtensionsAction, ShowEnabledExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction,
-	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, CheckForUpdatesAction
->>>>>>> Added an Enabled menu item to extensions
 } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { LocalExtensionType, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { InstallVSIXAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
