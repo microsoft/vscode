@@ -635,6 +635,8 @@ class DefaultSettingsEditorContribution extends Disposable implements ISettingsE
 		const model = this.editor.getModel();
 		if (model) {
 			this.preferencesRenderer = this._createPreferencesRenderer();
+		} else {
+			this.disposePreferencesRenderer();
 		}
 	}
 
@@ -671,7 +673,7 @@ class DefaultSettingsEditorContribution extends Disposable implements ISettingsE
 			});
 	}
 
-	dispose() {
+	private disposePreferencesRenderer(): void {
 		if (this.preferencesRenderer) {
 			this.preferencesRenderer.then(preferencesRenderer => {
 				if (preferencesRenderer) {
@@ -682,6 +684,10 @@ class DefaultSettingsEditorContribution extends Disposable implements ISettingsE
 				}
 			});
 		}
+	}
+
+	dispose() {
+		this.disposePreferencesRenderer();
 		super.dispose();
 	}
 }
