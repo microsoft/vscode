@@ -11,6 +11,8 @@ var snaps;
     var cp = require('child_process');
     var mksnapshot = path.join(__dirname, "../../node_modules/.bin/" + (process.platform === 'win32' ? 'mksnapshot.cmd' : 'mksnapshot'));
     var product = require('../../product.json');
+    console.log(process.argv0);
+    var arch = /--arch=(.*)/.exec(process.argv.join(''))[1];
     //
     var loaderFilepath;
     var startupBlobFilepath;
@@ -21,8 +23,8 @@ var snaps;
             break;
         case 'win32':
         case 'linux':
-            loaderFilepath = "VSCode-" + process.platform + "/loader.js";
-            startupBlobFilepath = "VSCode-" + process.platform + "/snapshot_blob.bin";
+            loaderFilepath = "VSCode-" + process.platform + "-" + arch + "/resources/app/out/vs/loader.js";
+            startupBlobFilepath = "VSCode-" + process.platform + "-" + arch + "/snapshot_blob.bin";
     }
     loaderFilepath = path.join(__dirname, '../../../', loaderFilepath);
     startupBlobFilepath = path.join(__dirname, '../../../', startupBlobFilepath);

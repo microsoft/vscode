@@ -31,7 +31,7 @@ step "Build minified" \
 	npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-min"
 
 step "Create loader snapshot"
-	node build/lib/snapshotLoader.js
+	node build/lib/snapshotLoader.js --arch=$ARCH
 
 step "Run unit tests" \
 	./scripts/test.sh --build --reporter dot

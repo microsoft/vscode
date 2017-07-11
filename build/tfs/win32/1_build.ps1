@@ -37,7 +37,7 @@ step "Build minified" {
 }
 
 step "Create loader snapshot" {
-  exec { & 	node build\lib\snapshotLoader.js }
+  exec { & 	node build\lib\snapshotLoader.js --arch=$global:arch }
 }
 
 step "Run unit tests" {

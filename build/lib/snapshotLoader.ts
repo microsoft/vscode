@@ -14,6 +14,7 @@ namespace snaps {
 
 	const mksnapshot = path.join(__dirname, `../../node_modules/.bin/${process.platform === 'win32' ? 'mksnapshot.cmd' : 'mksnapshot'}`);
 	const product = require('../../product.json');
+	const arch = process.argv.join('').match(/--arch=(.*)/)[0];
 
 	//
 	let loaderFilepath: string;
@@ -27,8 +28,8 @@ namespace snaps {
 
 		case 'win32':
 		case 'linux':
-			loaderFilepath = `VSCode-${process.platform}/resources/app/out/vs/loader.js`;
-			startupBlobFilepath = `VSCode-${process.platform}/snapshot_blob.bin`;
+			loaderFilepath = `VSCode-${process.platform}-${arch}/resources/app/out/vs/loader.js`;
+			startupBlobFilepath = `VSCode-${process.platform}-${arch}/snapshot_blob.bin`;
 	}
 
 	loaderFilepath = path.join(__dirname, '../../../', loaderFilepath);
