@@ -473,12 +473,12 @@ export function createApiFactory(
 			onDidTerminateDebugSession(listener, thisArg?, disposables?) {
 				return extHostDebugService.onDidTerminateDebugSession(listener, thisArg, disposables);
 			},
-			onDidChangeActiveDebugSession: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
+			onDidChangeActiveDebugSession(listener, thisArg?, disposables?) {
 				return extHostDebugService.onDidChangeActiveDebugSession(listener, thisArg, disposables);
-			}),
-			onDidReceiveDebugSessionCustomEvent: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
+			},
+			onDidReceiveDebugSessionCustomEvent(listener, thisArg?, disposables?) {
 				return extHostDebugService.onDidReceiveDebugSessionCustomEvent(listener, thisArg, disposables);
-			})
+			}
 		};
 
 
