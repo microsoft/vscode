@@ -49,10 +49,10 @@ export class BackupMainService implements IBackupMainService {
 		return this.backups.emptyWorkspaces.slice(0); // return a copy
 	}
 
-	public registerWorkspaceBackupSync(workspacePath: string): string {
-		this.pushBackupPathsSync(workspacePath);
+	public registerFolderBackupSync(folderPath: string): string {
+		this.pushBackupPathsSync(folderPath);
 
-		return path.join(this.backupHome, this.getWorkspaceHash(workspacePath));
+		return path.join(this.backupHome, this.getWorkspaceHash(folderPath));
 	}
 
 	public registerEmptyWindowBackupSync(backupFolder?: string): string {

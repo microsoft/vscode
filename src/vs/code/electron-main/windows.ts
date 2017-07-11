@@ -860,7 +860,7 @@ export class WindowsManager implements IWindowsMainService {
 				// Register window for backups
 				if (!configuration.extensionDevelopmentPath) {
 					if (configuration.folderPath) {
-						configuration.backupPath = this.backupService.registerWorkspaceBackupSync(configuration.folderPath);
+						configuration.backupPath = this.backupService.registerFolderBackupSync(configuration.folderPath);
 					} else {
 						configuration.backupPath = this.backupService.registerEmptyWindowBackupSync(options.emptyWindowBackupFolder);
 					}
