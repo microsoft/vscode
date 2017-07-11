@@ -397,7 +397,7 @@ export class TestStorageService extends EventEmitter implements IStorageService 
 		super();
 
 		let context = new TestContextService();
-		this.storage = new StorageService(new InMemoryLocalStorage(), null, context.getWorkspace());
+		this.storage = new StorageService(new InMemoryLocalStorage(), null, context.getWorkspace().id);
 	}
 
 	store(key: string, value: any, scope: StorageScope = StorageScope.GLOBAL): void {
