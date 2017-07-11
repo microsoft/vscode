@@ -419,9 +419,12 @@ function snapshotTask(platform, arch) {
 	}
 }
 
+gulp.task('vscode-win32-ia32-snapshots', ['vscode-win32-ia32-min'], snapshotTask('win32', 'ia32'));
+gulp.task('vscode-win32-x64-snapshots', ['vscode-win32-x64-min'], snapshotTask('win32', 'x64'));
 gulp.task('vscode-darwin-snapshots', ['vscode-darwin-min'], snapshotTask('darwin', undefined));
-gulp.task('vscode-win32-ia32-snapshots', ['vscode-win32-ia32'], snapshotTask('win32', 'ia32'));
-gulp.task('vscode-win32-x64-snapshots', ['vscode-win32-x64'], snapshotTask('win32', 'x64'));
+gulp.task('vscode-linux-ia32-snapshots', ['vscode-linux-ia32-min'], snapshotTask('linux', 'ia32'));
+gulp.task('vscode-linux-x64-snapshots', ['vscode-linux-x64-min'], snapshotTask('linux', 'x64'));
+gulp.task('vscode-linux-arm-snapshots', ['vscode-linux-arm-min'], snapshotTask('linux', 'arm'));
 
 
 // Transifex Localizations
