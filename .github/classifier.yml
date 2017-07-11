@@ -7,7 +7,7 @@
         api: [],
         css-less-sass: [],
         debug: [ weinand ],
-        editor: [],
+        editor: [ rebornix ],
         editor-brackets: [],
         editor-clipboard: [],
         editor-colors: [],
