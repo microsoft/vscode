@@ -11,8 +11,7 @@ var snaps;
     var cp = require('child_process');
     var mksnapshot = path.join(__dirname, "../../node_modules/.bin/" + (process.platform === 'win32' ? 'mksnapshot.cmd' : 'mksnapshot'));
     var product = require('../../product.json');
-    console.log(process.argv0);
-    var arch = /--arch=(.*)/.exec(process.argv.join(''))[1];
+    var arch = (process.argv.join('').match(/--arch=(.*)/) || [])[1];
     //
     var loaderFilepath;
     var startupBlobFilepath;

@@ -14,7 +14,7 @@ namespace snaps {
 
 	const mksnapshot = path.join(__dirname, `../../node_modules/.bin/${process.platform === 'win32' ? 'mksnapshot.cmd' : 'mksnapshot'}`);
 	const product = require('../../product.json');
-	const arch = process.argv.join('').match(/--arch=(.*)/)[0];
+	const arch = (process.argv.join('').match(/--arch=(.*)/) || [])[1];
 
 	//
 	let loaderFilepath: string;
