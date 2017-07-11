@@ -202,6 +202,26 @@ declare module 'vscode' {
 		onData(callback: (data: string) => any): void;
 	}
 
+	/**
+	 * A custom Debug Adapter Protocol event received from a [debug session](#DebugSession).
+	 */
+	export interface DebugSessionCustomEvent {
+		/**
+		 * The [debug session](#DebugSession) for which the custom event was received.
+		 */
+		session: DebugSession;
+
+		/**
+		 * Type of event.
+		 */
+		event: string;
+
+		/**
+		 * Event specific information.
+		 */
+		body?: any;
+	}
+
 	export namespace debug {
 
 		/**
@@ -209,7 +229,7 @@ declare module 'vscode' {
 		 * represented by the debug action floating window or the one currently shown in the drop down menu of the debug action floating window.
 		 * If no debug session is active, the value is `undefined`.
 		 */
-		export const activeDebugSession: DebugSession | undefined;
+		export let activeDebugSession: DebugSession | undefined;
 
 		/**
 		 * An [event](#Event) which fires when the [active debug session](#debug.activeDebugSession)
@@ -217,16 +237,19 @@ declare module 'vscode' {
 		 * to `undefined`.
 		 */
 		export const onDidChangeActiveDebugSession: Event<DebugSession | undefined>;
+
+		/**
+		 * An [event](#Event) which fires when a custom DAP event is received from the debug session.
+		 */
+		export const onDidReceiveDebugSessionCustomEvent: Event<DebugSessionCustomEvent>;
 	}
 
 	export interface DebugSession {
 
 		/**
-		 * Experimental API that allows hooking custom events from the debug session's debug adapter.
-		 *
-		 * @param callback The callback that is triggered when a custom event is received from the debug adapter.
+		 * The debug session's ID.
 		 */
-		onCustomEvent(callback: (event: any) => void): void;
+		readonly id: string;
 	}
 
 }

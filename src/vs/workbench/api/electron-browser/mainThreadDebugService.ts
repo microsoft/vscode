@@ -5,7 +5,7 @@
 'use strict';
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IDebugService, IProcess, IConfig } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IConfig } from 'vs/workbench/parts/debug/common/debug';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID } from '../node/extHost.protocol';
@@ -33,7 +33,8 @@ export class MainThreadDebugService extends MainThreadDebugServiceShape {
 		}));
 		this._toDispose.push(debugService.onDidCustomEvent(event => {
 			if (event.body && event.body.sessionId) {
-				this._proxy.$acceptDebugSessionCustomEvent(event.body.sessionId, event);
+				const process = this.debugService.findProcessByUUID(event.body.sessionId);	// TODO
+				this._proxy.$acceptDebugSessionCustomEvent(event.body.sessionId, process.configuration.type, process.configuration.name, event);
 			}
 		}));
 	}
@@ -57,7 +58,7 @@ export class MainThreadDebugService extends MainThreadDebugServiceShape {
 	}
 
 	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: any): TPromise<any> {
-		const process = this._findProcessByUUID(sessionId);
+		const process = this.debugService.findProcessByUUID(sessionId);
 		if (process) {
 			return process.session.custom(request, args).then(response => {
 				if (response.success) {
@@ -68,14 +69,5 @@ export class MainThreadDebugService extends MainThreadDebugServiceShape {
 			});
 		}
 		return TPromise.wrapError(new Error('debug session not found'));
-	}
-
-	private _findProcessByUUID(processId: DebugSessionUUID): IProcess | null {
-		const processes = this.debugService.getModel().getProcesses();
-		const result = processes.filter(process => process.getId() === processId);
-		if (result.length > 0) {
-			return result[0];	// there can only be one
-		}
-		return null;
 	}
 }

@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench .simple-find-part {
+	z-index: 10;
 	position: absolute;
 	top: -40px;
 	right: 28px;
 	display: flex;
 	padding: 4px;
 	align-items: center;
+	width: 220px;
+	max-width: calc(100% - 28px - 28px - 8px);
 
 	-webkit-transition: top 200ms linear;
 	-o-transition: top 200ms linear;
@@ -20,6 +23,10 @@
 
 .monaco-workbench .simple-find-part.visible {
 	top: 0;
+}
+
+.monaco-workbench .simple-find-part .monaco-findInput {
+	flex: 1;
 }
 
 /* Temporarily we don't show match numbers */

@@ -92,7 +92,6 @@ export abstract class SimpleFindWidget extends Widget {
 	) {
 		super();
 		this._findInput = this._register(new FindInput(null, this._contextViewService, {
-			width: 155,
 			label: NLS_FIND_INPUT_LABEL,
 			placeholder: NLS_FIND_INPUT_PLACEHOLDER,
 		}));
@@ -195,7 +194,11 @@ export abstract class SimpleFindWidget extends Widget {
 		return this._domNode;
 	}
 
-	public reveal(): void {
+	public reveal(initialInput?: string): void {
+		if (initialInput) {
+			this._findInput.setValue(initialInput);
+		}
+
 		if (this._isVisible) {
 			this._findInput.select();
 			return;

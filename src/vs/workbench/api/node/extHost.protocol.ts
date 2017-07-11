@@ -507,7 +507,7 @@ export abstract class ExtHostTaskShape {
 export abstract class ExtHostDebugServiceShape {
 	$acceptDebugSessionTerminated(id: DebugSessionUUID, type: string, name: string): void { throw ni(); }
 	$acceptDebugSessionActiveChanged(id: DebugSessionUUID | undefined, type?: string, name?: string): void { throw ni(); }
-	$acceptDebugSessionCustomEvent(id: DebugSessionUUID, event: any): void { throw ni(); }
+	$acceptDebugSessionCustomEvent(id: DebugSessionUUID, type: string, name: string, event: any): void { throw ni(); }
 }
 
 // --- proxy identifiers
