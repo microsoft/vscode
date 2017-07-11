@@ -230,7 +230,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	private _onReady: { promise: Promise<void>; resolve: () => void; reject: () => void; };
 	private configuration: TypeScriptServiceConfiguration;
-	private _checkGlobalTSCVersion: boolean;
 	private tracer: Tracer;
 	private readonly logger: Logger = new Logger();
 	private tsServerLogFile: string | null = null;
@@ -281,7 +280,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.configuration = TypeScriptServiceConfiguration.loadFromWorkspace();
 
 		this._apiVersion = new API('1.0.0');
-		this._checkGlobalTSCVersion = true;
 		this.tracer = new Tracer(this.logger);
 
 		disposables.push(workspace.onDidChangeConfiguration(() => {
@@ -343,10 +341,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		return this._onTypesInstallerInitializationFailed.event;
 	}
 
-	public get checkGlobalTSCVersion(): boolean {
-		return this._checkGlobalTSCVersion;
-	}
-
 	public get apiVersion(): API {
 		return this._apiVersion;
 	}
@@ -400,7 +394,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 
 		if (this.configuration.localTsdk) {
-			this._checkGlobalTSCVersion = false;
 			if ((<any>path).isAbsolute(this.configuration.localTsdk)) {
 				return path.join(this.configuration.localTsdk, 'tsserver.js');
 			}
@@ -416,7 +409,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	private get globalTypescriptPath(): string {
 		if (this.configuration.globalTsdk) {
-			this._checkGlobalTSCVersion = false;
 			if ((<any>path).isAbsolute(this.configuration.globalTsdk)) {
 				return path.join(this.configuration.globalTsdk, 'tsserver.js');
 			} else if (this.mainWorkspaceRootPath) {
