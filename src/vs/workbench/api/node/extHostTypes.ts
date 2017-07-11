@@ -1158,6 +1158,7 @@ export class Task implements vscode.Task {
 	private _name: string;
 	private _execution: ProcessExecution | ShellExecution;
 	private _problemMatchers: string[];
+	private _hasDefinedMatchers: boolean;
 	private _isBackground: boolean;
 	private _source: string;
 	private _group: TaskGroup;
@@ -1170,10 +1171,13 @@ export class Task implements vscode.Task {
 		this.execution = execution;
 		if (typeof problemMatchers === 'string') {
 			this._problemMatchers = [problemMatchers];
+			this._hasDefinedMatchers = true;
 		} else if (Array.isArray(problemMatchers)) {
 			this._problemMatchers = problemMatchers;
+			this._hasDefinedMatchers = true;
 		} else {
 			this._problemMatchers = [];
+			this._hasDefinedMatchers = false;
 		}
 		this._isBackground = false;
 	}
@@ -1227,9 +1231,16 @@ export class Task implements vscode.Task {
 
 	set problemMatchers(value: string[]) {
 		if (!Array.isArray(value)) {
-			value = [];
+			this._problemMatchers = [];
+			this._hasDefinedMatchers = false;
+			return;
 		}
 		this._problemMatchers = value;
+		this._hasDefinedMatchers = true;
+	}
+
+	get hasDefinedMatchers(): boolean {
+		return this._hasDefinedMatchers;
 	}
 
 	get isBackground(): boolean {

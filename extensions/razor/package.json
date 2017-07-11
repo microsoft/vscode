@@ -6,7 +6,7 @@
     "vscode": "0.10.x"
   },
   "scripts": {
-    "update-grammar": "node ../../build/npm/update-grammar.js demyte/language-cshtml grammars/cshtml.cson ./syntaxes/cshtml.json"
+    "update-grammar": "node ../../build/npm/update-grammar.js demyte/language-cshtml grammars/cshtml.json ./syntaxes/cshtml.json"
   },
 	"contributes": {
 		"languages": [{

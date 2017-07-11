@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-php/commit/e1290265f3d68316347e0ab2665686016b4b24b7",
+	"version": "https://github.com/atom/language-php/commit/16d8c3ea6f30c808e270a7be02a33e27ed19eed0",
 	"scopeName": "text.html.php",
 	"name": "PHP",
 	"fileTypes": [
@@ -450,6 +450,10 @@
 					"include": "#comments"
 				},
 				{
+					"match": ",",
+					"name": "punctuation.separator.delimiter.php"
+				},
+				{
 					"begin": "(?xi)\n(array)                                                            # Typehint\n\\s+((&)?\\s*(\\$+)[a-z_\\x{7f}-\\x{ff}][a-z0-9_\\x{7f}-\\x{ff}]*) # Variable name with possible reference\n\\s*(=)\\s*(array)\\s*(\\()                                        # Default value",
 					"beginCaptures": {
 						"1": {
@@ -535,21 +539,34 @@
 					}
 				},
 				{
-					"begin": "(?xi)\n([a-z_\\x{7f}-\\x{ff}][a-z0-9_\\x{7f}-\\x{ff}]*)                               # Typehinted class name\n\\s*((&)?\\s*(\\.\\.\\.)?(\\$+)[a-z_\\x{7f}-\\x{ff}][a-z0-9_\\x{7f}-\\x{ff}]*) # Variable name with possible reference",
+					"begin": "(?xi)\n(\\\\?(?:[a-z_\\x{7f}-\\x{ff}][a-z0-9_\\x{7f}-\\x{ff}]*\\\\)*)                 # Optional namespace\n([a-z_\\x{7f}-\\x{ff}][a-z0-9_\\x{7f}-\\x{ff}]*)                               # Typehinted class name\n\\s+((&)?\\s*(\\.\\.\\.)?(\\$+)[a-z_\\x{7f}-\\x{ff}][a-z0-9_\\x{7f}-\\x{ff}]*) # Variable name with possible reference",
 					"beginCaptures": {
 						"1": {
-							"name": "storage.type.php"
+							"name": "support.other.namespace.php",
+							"patterns": [
+								{
+									"match": "(?i)[a-z_\\x{7f}-\\x{ff}][a-z0-9_\\x{7f}-\\x{ff}]*",
+									"name": "storage.type.php"
+								},
+								{
+									"match": "\\\\",
+									"name": "punctuation.separator.inheritance.php"
+								}
+							]
 						},
 						"2": {
-							"name": "variable.other.php"
+							"name": "storage.type.php"
 						},
 						"3": {
-							"name": "storage.modifier.reference.php"
+							"name": "variable.other.php"
 						},
 						"4": {
-							"name": "keyword.operator.variadic.php"
+							"name": "storage.modifier.reference.php"
 						},
 						"5": {
+							"name": "keyword.operator.variadic.php"
+						},
+						"6": {
 							"name": "punctuation.definition.variable.php"
 						}
 					},
@@ -1760,13 +1777,10 @@
 					"name": "keyword.control.exception.php"
 				},
 				{
-					"begin": "(?i)\\b(function)\\s*(&)?\\s*(?=\\()",
+					"begin": "(?i)\\b(function)\\s*(?=\\()",
 					"beginCaptures": {
 						"1": {
 							"name": "storage.type.function.php"
-						},
-						"2": {
-							"name": "storage.modifier.reference.php"
 						}
 					},
 					"end": "(?={)",
@@ -1829,7 +1843,7 @@
 					]
 				},
 				{
-					"begin": "(?x)\n((?:(?:final|abstract|public|private|protected|static)\\s+)*)\n(function)\n\\s*(&)?\\s*\n(?i:\n  (__(?:call|construct|debugInfo|destruct|get|set|isset|unset|tostring|\n        clone|set_state|sleep|wakeup|autoload|invoke|callStatic))\n  |([a-zA-Z_\\x{7f}-\\x{ff}][a-zA-Z0-9_\\x{7f}-\\x{ff}]*)\n)\n\\s*(\\()",
+					"begin": "(?x)\n((?:(?:final|abstract|public|private|protected|static)\\s+)*)\n(function)\\s+\n(?i:\n  (__(?:call|construct|debugInfo|destruct|get|set|isset|unset|tostring|\n        clone|set_state|sleep|wakeup|autoload|invoke|callStatic))\n  |([a-zA-Z_\\x{7f}-\\x{ff}][a-zA-Z0-9_\\x{7f}-\\x{ff}]*)\n)\n\\s*(\\()",
 					"beginCaptures": {
 						"1": {
 							"patterns": [
@@ -1843,15 +1857,12 @@
 							"name": "storage.type.function.php"
 						},
 						"3": {
-							"name": "storage.modifier.reference.php"
-						},
-						"4": {
 							"name": "support.function.magic.php"
 						},
-						"5": {
+						"4": {
 							"name": "entity.name.function.php"
 						},
-						"6": {
+						"5": {
 							"name": "punctuation.definition.parameters.begin.bracket.round.php"
 						}
 					},
@@ -2099,6 +2110,10 @@
 				},
 				{
 					"include": "#constants"
+				},
+				{
+					"match": ",",
+					"name": "punctuation.separator.delimiter.php"
 				}
 			]
 		},

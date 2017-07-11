@@ -100,24 +100,24 @@
 	},
 	{
 		"c": "#",
-		"t": "source.cpp meta.preprocessor.c keyword.control.directive.conditional.c punctuation.definition.directive.c",
+		"t": "source.cpp meta.preprocessor.c",
 		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+			"dark_plus": "meta.preprocessor: #569CD6",
+			"light_plus": "meta.preprocessor: #0000FF",
+			"dark_vs": "meta.preprocessor: #569CD6",
+			"light_vs": "meta.preprocessor: #0000FF",
+			"hc_black": "meta.preprocessor: #569CD6"
 		}
 	},
 	{
 		"c": "endif",
-		"t": "source.cpp meta.preprocessor.c keyword.control.directive.conditional.c",
+		"t": "source.cpp meta.preprocessor.c entity.name.function.preprocessor.c",
 		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"dark_vs": "meta.preprocessor: #569CD6",
+			"light_vs": "meta.preprocessor: #0000FF",
+			"hc_black": "entity.name.function: #DCDCAA"
 		}
 	}
 ]

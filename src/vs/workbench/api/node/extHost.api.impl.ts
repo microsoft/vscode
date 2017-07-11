@@ -475,6 +475,9 @@ export function createApiFactory(
 			},
 			onDidChangeActiveDebugSession: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
 				return extHostDebugService.onDidChangeActiveDebugSession(listener, thisArg, disposables);
+			}),
+			onDidReceiveDebugSessionCustomEvent: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
+				return extHostDebugService.onDidReceiveDebugSessionCustomEvent(listener, thisArg, disposables);
 			})
 		};
 

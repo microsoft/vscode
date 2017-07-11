@@ -263,7 +263,7 @@ class ViewTerminalAction extends Action {
 	}
 }
 
-class StatusBarItem extends Themable implements IStatusbarItem {
+class BuildStatusBarItem extends Themable implements IStatusbarItem {
 	private intervalToken: any;
 	private activeCount: number;
 	private static progressChars: string = '|/-\\';
@@ -309,7 +309,7 @@ class StatusBarItem extends Themable implements IStatusbarItem {
 
 		Dom.addClass(progress, 'task-statusbar-item-progress');
 		element.appendChild(progress);
-		progress.innerHTML = StatusBarItem.progressChars[0];
+		progress.innerHTML = BuildStatusBarItem.progressChars[0];
 		$(progress).hide();
 
 		Dom.addClass(label, 'task-statusbar-item-label');
@@ -378,13 +378,13 @@ class StatusBarItem extends Themable implements IStatusbarItem {
 		});
 
 		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Active, (event: TaskEvent) => {
-			if (this.taskService.inTerminal() && event.group !== TaskGroup.Build) {
+			if (this.ignoreEvent(event)) {
 				return;
 			}
 			this.activeCount++;
 			if (this.activeCount === 1) {
 				let index = 1;
-				let chars = StatusBarItem.progressChars;
+				let chars = BuildStatusBarItem.progressChars;
 				progress.innerHTML = chars[0];
 				this.intervalToken = setInterval(() => {
 					progress.innerHTML = chars[index];
@@ -398,7 +398,7 @@ class StatusBarItem extends Themable implements IStatusbarItem {
 		}));
 
 		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Inactive, (event: TaskEvent) => {
-			if (this.taskService.inTerminal() && event.group !== TaskGroup.Build) {
+			if (this.ignoreEvent(event)) {
 				return;
 			}
 			// Since the exiting of the sub process is communicated async we can't order inactive and terminate events.
@@ -416,7 +416,7 @@ class StatusBarItem extends Themable implements IStatusbarItem {
 		}));
 
 		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Terminated, (event: TaskEvent) => {
-			if (this.taskService.inTerminal() && event.group !== TaskGroup.Build) {
+			if (this.ignoreEvent(event)) {
 				return;
 			}
 			if (this.activeCount !== 0) {
@@ -439,6 +439,82 @@ class StatusBarItem extends Themable implements IStatusbarItem {
 			}
 		};
 	}
+
+	private ignoreEvent(event: TaskEvent): boolean {
+		if (!this.taskService.inTerminal()) {
+			return false;
+		}
+		if (event.group !== TaskGroup.Build) {
+			return true;
+		}
+		if (!event.__task) {
+			return false;
+		}
+		return event.__task.problemMatchers === void 0 || event.__task.problemMatchers.length === 0;
+	}
+}
+
+class TaskStatusBarItem extends Themable implements IStatusbarItem {
+
+	constructor(
+		@IPanelService private panelService: IPanelService,
+		@IMarkerService private markerService: IMarkerService,
+		@IOutputService private outputService: IOutputService,
+		@ITaskService private taskService: ITaskService,
+		@IPartService private partService: IPartService,
+		@IThemeService themeService: IThemeService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+	) {
+		super(themeService);
+	}
+
+	protected updateStyles(): void {
+		super.updateStyles();
+	}
+
+	public render(container: HTMLElement): IDisposable {
+		let callOnDispose: IDisposable[] = [];
+
+		const element = document.createElement('div');
+		const label = document.createElement('a');
+
+		Dom.addClass(element, 'task-statusbar-runningItem');
+
+		Dom.addClass(label, 'task-statusbar-runningItem-label');
+		element.appendChild(label);
+		element.title = nls.localize('runningTasks', "Show Running Tasks");
+
+		callOnDispose.push(Dom.addDisposableListener(label, 'click', (e: MouseEvent) => {
+			(this.taskService as TaskService).runShowTasks();
+		}));
+
+		let updateStatus = (): void => {
+			this.taskService.getActiveTasks().then(tasks => {
+				if (tasks.length === 0) {
+					label.innerHTML = nls.localize('nothingRunner', 'Running Tasks: 0');
+				} else if (tasks.length === 1) {
+					label.innerHTML = nls.localize('oneTasksRunnering', 'Running Tasks: 1');
+				} else {
+					label.innerHTML = nls.localize('nTasksRunnering', 'Running Tasks: {0}', tasks.length);
+				}
+			});
+		};
+
+		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Changed, (event: TaskEvent) => {
+			updateStatus();
+		}));
+
+		container.appendChild(element);
+
+		this.updateStyles();
+		updateStatus();
+
+		return {
+			dispose: () => {
+				callOnDispose = dispose(callOnDispose);
+			}
+		};
+	}
 }
 
 interface TaskServiceEventData {
@@ -451,6 +527,9 @@ class NullTaskSystem extends EventEmitter implements ITaskSystem {
 			kind: TaskExecuteKind.Started,
 			promise: TPromise.as<ITaskSummary>({})
 		};
+	}
+	public revealTask(task: Task): boolean {
+		return false;
 	}
 	public isActive(): TPromise<boolean> {
 		return TPromise.as(false);
@@ -673,6 +752,10 @@ class TaskService extends EventEmitter implements ITaskService {
 		CommandsRegistry.registerCommand('workbench.action.tasks.configureDefaultTestTask', () => {
 			this.runConfigureDefaultTestTask();
 		});
+
+		CommandsRegistry.registerCommand('workbench.action.tasks.showTasks', () => {
+			this.runShowTasks();
+		});
 	}
 
 	private showOutput(): void {
@@ -757,7 +840,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		this.storageService.store(TaskService.RecentlyUsedTasks_Key, JSON.stringify(values), StorageScope.WORKSPACE);
 	}
 
-	public openDocumentation(): void {
+	private openDocumentation(): void {
 		this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?LinkId=733558'));
 	}
 
@@ -839,11 +922,14 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (!this.canCustomize()) {
 			return false;
 		}
+		if (task.group !== void 0 && task.group !== TaskGroup.Build) {
+			return false;
+		}
 		if (task.problemMatchers !== void 0 && task.problemMatchers.length > 0) {
 			return false;
 		}
 		if (task._source.config === void 0 && ContributedTask.is(task)) {
-			return true;
+			return !task.hasDefinedMatchers && task.problemMatchers.length === 0;
 		}
 		let configProperties: TaskConfig.ConfigurationProperties = task._source.config.element;
 		return configProperties.problemMatcher === void 0;
@@ -872,12 +958,12 @@ class TaskService extends EventEmitter implements ITaskService {
 			entries = entries.sort((a, b) => a.label.localeCompare(b.label));
 			entries[0].separator = { border: true };
 			entries.unshift(
-				{ label: nls.localize('TaskService.attachProblemMatcher.continueWithout', 'Continue without scanning the build output'), matcher: undefined },
-				{ label: nls.localize('TaskService.attachProblemMatcher.never', 'Never scan the build output'), matcher: undefined, never: true },
-				{ label: nls.localize('TaskService.attachProblemMatcher.learnMoreAbout', 'Learn more about scanning the build output'), matcher: undefined, learnMore: true }
+				{ label: nls.localize('TaskService.attachProblemMatcher.continueWithout', 'Continue without scanning the task output'), matcher: undefined },
+				{ label: nls.localize('TaskService.attachProblemMatcher.never', 'Never scan the task output'), matcher: undefined, never: true },
+				{ label: nls.localize('TaskService.attachProblemMatcher.learnMoreAbout', 'Learn more about scanning the task output'), matcher: undefined, learnMore: true }
 			);
 			return this.quickOpenService.pick(entries, {
-				placeHolder: nls.localize('selectProblemMatcher', 'Select for which kind of errors and warnings to scan the build output'),
+				placeHolder: nls.localize('selectProblemMatcher', 'Select for which kind of errors and warnings to scan the task output'),
 				autoFocus: { autoFocusFirstEntry: true }
 			}).then((selected) => {
 				if (selected) {
@@ -1109,9 +1195,9 @@ class TaskService extends EventEmitter implements ITaskService {
 					let active = executeResult.active;
 					if (active.same) {
 						if (active.background) {
-							this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame.background', 'The task is already active and in background mode. To terminate the task use `F1 > terminate task`'));
+							this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame.background', 'The task \'{0}\' is already active and in background mode. To terminate it use `Terminate Task...` from the Tasks menu.', task._label));
 						} else {
-							this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame.noBackground', 'The task is already active. To terminate the task use `F1 > terminate task`'));
+							this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active. To terminate it use `Terminate Task...` from the Tasks menu.'));
 						}
 					} else {
 						throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is already a task running. Terminate it first before executing another task.'), TaskErrors.RunningTask);
@@ -1176,6 +1262,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		this._taskSystemListeners.push(this._taskSystem.addListener(TaskSystemEvents.Active, (event) => this.emit(TaskServiceEvents.Active, event)));
 		this._taskSystemListeners.push(this._taskSystem.addListener(TaskSystemEvents.Inactive, (event) => this.emit(TaskServiceEvents.Inactive, event)));
 		this._taskSystemListeners.push(this._taskSystem.addListener(TaskSystemEvents.Terminated, (event) => this.emit(TaskServiceEvents.Terminated, event)));
+		this._taskSystemListeners.push(this._taskSystem.addListener(TaskSystemEvents.Changed, () => this.emit(TaskServiceEvents.Changed)));
 		return this._taskSystem;
 	}
 
@@ -1861,6 +1948,32 @@ class TaskService extends EventEmitter implements ITaskService {
 			this.configureAction().run();
 		}
 	}
+
+	public runShowTasks(): void {
+		if (!this.canRunCommand()) {
+			return;
+		}
+		if (!this._taskSystem) {
+			this.messageService.show(Severity.Info, nls.localize('TaskService.noTaskIsRunning', 'No task is running.'));
+			return;
+		}
+		this.getActiveTasks().then((tasks) => {
+			if (tasks.length === 0) {
+				this.messageService.show(Severity.Info, nls.localize('TaskService.noTaskIsRunning', 'No task is running.'));
+			} else if (tasks.length === 1) {
+				if (this._taskSystem) {
+					this._taskSystem.revealTask(tasks[0]);
+				}
+			} else {
+				this.showQuickPick(tasks, nls.localize('TaskService.pickShowTask', 'Select the task to show its output'), false, true).then((task) => {
+					if (!task || !this._taskSystem) {
+						return;
+					}
+					this._taskSystem.revealTask(task);
+				});
+			}
+		});
+	}
 }
 
 
@@ -1870,6 +1983,7 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(Config
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.showLog', title: { value: nls.localize('ShowLogAction.label', "Show Task Log"), original: 'Show Task Log' }, category: { value: tasksCategory, original: 'Tasks' } });
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.runTask', title: { value: nls.localize('RunTaskAction.label', "Run Task"), original: 'Run Task' }, category: { value: tasksCategory, original: 'Tasks' } });
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.restartTask', title: { value: nls.localize('RestartTaskAction.label', "Restart Running Task"), original: 'Restart Running Task' }, category: { value: tasksCategory, original: 'Tasks' } });
+MenuRegistry.addCommand({ id: 'workbench.action.tasks.showTasks', title: { value: nls.localize('ShowTasksAction.label', "Show Running Tasks"), original: 'Show Running Tasks' }, category: { value: tasksCategory, original: 'Tasks' } });
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.terminate', title: { value: nls.localize('TerminateAction.label', "Terminate Task"), original: 'Terminate Task' }, category: { value: tasksCategory, original: 'Tasks' } });
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.build', title: { value: nls.localize('BuildAction.label', "Run Build Task"), original: 'Run Build Task' }, category: { value: tasksCategory, original: 'Tasks' } });
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.test', title: { value: nls.localize('TestAction.label', "Run Test Task"), original: 'Run Test Task' }, category: { value: tasksCategory, original: 'Tasks' } });
@@ -1900,7 +2014,8 @@ actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionCont
 
 // Status bar
 let statusbarRegistry = <IStatusbarRegistry>Registry.as(StatusbarExtensions.Statusbar);
-statusbarRegistry.registerStatusbarItem(new StatusbarItemDescriptor(StatusBarItem, StatusbarAlignment.LEFT, 50 /* Medium Priority */));
+statusbarRegistry.registerStatusbarItem(new StatusbarItemDescriptor(BuildStatusBarItem, StatusbarAlignment.LEFT, 50 /* Medium Priority */));
+statusbarRegistry.registerStatusbarItem(new StatusbarItemDescriptor(TaskStatusBarItem, StatusbarAlignment.LEFT, 50 /* Medium Priority */));
 
 // Output channel
 let outputChannelRegistry = <IOutputChannelRegistry>Registry.as(OutputExt.OutputChannels);

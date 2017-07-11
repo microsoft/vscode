@@ -18,9 +18,6 @@ import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { isCommonCodeEditor, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { HtmlZoneController } from './htmlEditorZone';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 // --- Register Editor
 (<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(HtmlPreviewPart.ID,
@@ -30,47 +27,6 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 	[new SyncDescriptor(HtmlInput)]);
 
 // --- Register Commands
-
-interface HtmlZoneParams {
-	editorPosition: EditorPosition;
-	lineNumber: number;
-	resource: URI;
-}
-
-let warn = true;
-
-CommandsRegistry.registerCommand('_workbench.htmlZone', function (accessor: ServicesAccessor, params: HtmlZoneParams) {
-
-	if (warn) {
-		console.warn(`'_workbench.htmlZone' is an EXPERIMENTAL feature and therefore subject to CHANGE and REMOVAL without notice.`);
-		warn = false;
-	}
-
-	let codeEditor: ICommonCodeEditor;
-	for (const editor of accessor.get(IWorkbenchEditorService).getVisibleEditors()) {
-		if (editor.position === params.editorPosition) {
-			const control = editor.getControl();
-			if (isCommonCodeEditor(control)) {
-				codeEditor = control;
-			}
-		}
-	}
-
-	if (!codeEditor) {
-		console.warn('NO matching editor found');
-		return undefined;
-	}
-
-	const textModelResolverService = accessor.get(ITextModelService);
-
-	return textModelResolverService.createModelReference(params.resource).then(ref => {
-		const model = ref.object;
-		const contents = model.textEditorModel.getValue();
-		ref.dispose();
-
-		HtmlZoneController.getInstance(codeEditor).addZone(params.lineNumber, contents);
-	});
-});
 
 const defaultPreviewHtmlOptions: HtmlInputOptions = {
 	allowScripts: true,

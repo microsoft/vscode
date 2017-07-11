@@ -34,6 +34,7 @@ import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSli
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import pkg from 'vs/platform/node/package';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -48,7 +49,7 @@ class StandardTerminalProcessFactory implements ITerminalProcessFactory {
 }
 
 export class TerminalInstance implements ITerminalInstance {
-	private static readonly WINDOWS_EOL_REGEX = /\r?\n/g;
+	private static readonly EOL_REGEX = /\r?\n/g;
 
 	private static _terminalProcessFactory: ITerminalProcessFactory = new StandardTerminalProcessFactory();
 	private static _lastKnownDimensions: Dimension = null;
@@ -217,7 +218,7 @@ export class TerminalInstance implements ITerminalInstance {
 				// Send data if the pty is ready
 				this._process.send({
 					event: 'input',
-					data: this._sanitizeInput(data)
+					data
 				});
 			} else {
 				// If the pty is not ready, queue the data received from
@@ -343,6 +344,10 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 	}
 
+	get selection(): string | undefined {
+		return this.hasSelection() ? this._xterm.getSelection() : undefined;
+	}
+
 	public clearSelection(): void {
 		this._xterm.clearSelection();
 	}
@@ -414,7 +419,8 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public sendText(text: string, addNewLine: boolean): void {
 		this._processReady.then(() => {
-			text = this._sanitizeInput(text);
+			// Normalize line endings to 'enter' press.
+			text = text.replace(TerminalInstance.EOL_REGEX, '\r');
 			if (addNewLine && text.substr(text.length - 1) !== '\r') {
 				text += '\r';
 			}
@@ -473,10 +479,6 @@ export class TerminalInstance implements ITerminalInstance {
 		this._terminalHasTextContextKey.set(isActive && this.hasSelection());
 	}
 
-	private _sanitizeInput(data: any) {
-		return typeof data === 'string' ? data.replace(TerminalInstance.WINDOWS_EOL_REGEX, '\r') : data;
-	}
-
 	protected _getCwd(shell: IShellLaunchConfig, root: Uri): string {
 		if (shell.cwd) {
 			return shell.cwd;
@@ -511,7 +513,9 @@ export class TerminalInstance implements ITerminalInstance {
 			this._configHelper.mergeDefaultShellPathAndArgs(shell);
 		}
 		this._initialCwd = this._getCwd(this._shellLaunchConfig, this._historyService.getLastActiveWorkspaceRoot());
-		const env = TerminalInstance.createTerminalEnv(process.env, shell, this._initialCwd, locale, this._cols, this._rows);
+		const platformKey = platform.isWindows ? 'windows' : platform.isMacintosh ? 'osx' : 'linux';
+		const envFromConfig = { ...process.env, ...this._configHelper.config.env[platformKey] };
+		const env = TerminalInstance.createTerminalEnv(envFromConfig, shell, this._initialCwd, locale, this._cols, this._rows);
 		this._title = shell.name || '';
 		this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], {
 			env,
@@ -535,7 +539,7 @@ export class TerminalInstance implements ITerminalInstance {
 				if (this._preLaunchInputQueue.length > 0) {
 					this._process.send({
 						event: 'input',
-						data: this._sanitizeInput(this._preLaunchInputQueue)
+						data: this._preLaunchInputQueue
 					});
 					this._preLaunchInputQueue = null;
 				}
@@ -665,6 +669,8 @@ export class TerminalInstance implements ITerminalInstance {
 		const env = shell.env ? shell.env : TerminalInstance._cloneEnv(parentEnv);
 		env['PTYPID'] = process.pid.toString();
 		env['PTYSHELL'] = shell.executable;
+		env['TERM_PROGRAM'] = 'vscode';
+		env['TERM_PROGRAM_VERSION'] = pkg.version;
 		if (shell.args) {
 			if (typeof shell.args === 'string') {
 				env[`PTYSHELLCMDLINE`] = shell.args;

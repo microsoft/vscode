@@ -67,6 +67,11 @@ export interface ITerminalConfiguration {
 	commandsToSkipShell: string[];
 	cwd: string;
 	confirmOnExit: boolean;
+	env: {
+		linux: { [key: string]: string };
+		osx: { [key: string]: string };
+		windows: { [key: string]: string };
+	};
 }
 
 export interface ITerminalConfigHelper {
@@ -231,6 +236,11 @@ export interface ITerminalInstance {
 	 * Copies the terminal selection to the clipboard.
 	 */
 	copySelection(): void;
+
+	/**
+	 * Current selection in the terminal.
+	 */
+	readonly selection: string | undefined;
 
 	/**
 	 * Clear current selection.
