@@ -113,7 +113,12 @@ export default class BufferSyncSupport {
 	private readonly diagnosticDelayer: Delayer<any>;
 	private checkGlobalTSCVersion: boolean;
 
-	constructor(client: ITypescriptServiceClient, modeIds: string[], diagnostics: Diagnostics, validate: boolean = true) {
+	constructor(
+		client: ITypescriptServiceClient,
+		modeIds: string[],
+		diagnostics: Diagnostics,
+		validate: boolean
+	) {
 		this.client = client;
 		this.modeIds = new Set<string>(modeIds);
 		this.diagnostics = diagnostics;
@@ -132,10 +137,6 @@ export default class BufferSyncSupport {
 		workspace.onDidCloseTextDocument(this.onDidCloseTextDocument, this, this.disposables);
 		workspace.onDidChangeTextDocument(this.onDidChangeTextDocument, this, this.disposables);
 		workspace.textDocuments.forEach(this.onDidOpenTextDocument, this);
-	}
-
-	public get validate(): boolean {
-		return this._validate;
 	}
 
 	public set validate(value: boolean) {
@@ -180,7 +181,7 @@ export default class BufferSyncSupport {
 	}
 
 	private onDidCloseTextDocument(document: TextDocument): void {
-		let filepath = this.client.normalizePath(document.uri);
+		const filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
 			return;
 		}
@@ -197,7 +198,7 @@ export default class BufferSyncSupport {
 	}
 
 	private onDidChangeTextDocument(e: TextDocumentChangeEvent): void {
-		let filepath = this.client.normalizePath(e.document.uri);
+		const filepath = this.client.normalizePath(e.document.uri);
 		if (!filepath) {
 			return;
 		}
