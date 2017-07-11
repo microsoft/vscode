@@ -10,7 +10,7 @@ import { always } from 'vs/base/common/async';
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { Position } from 'vs/editor/common/core/position';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CodeAction } from 'vs/editor/common/modes';
+import { Command } from 'vs/editor/common/modes';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Action } from 'vs/base/common/actions';
@@ -32,10 +32,10 @@ export class QuickFixContextMenu {
 		this._commandService = commandService;
 	}
 
-	show(fixes: TPromise<CodeAction[]>, at: { x: number; y: number } | Position) {
+	show(fixes: TPromise<Command[]>, at: { x: number; y: number } | Position) {
 
 		const actions = fixes.then(value => {
-			return value.map(({ command }) => {
+			return value.map(command => {
 				return new Action(command.id, command.title, undefined, true, () => {
 					return always(
 						this._commandService.executeCommand(command.id, ...command.arguments),

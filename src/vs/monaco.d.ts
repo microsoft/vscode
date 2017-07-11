@@ -4050,7 +4050,7 @@ declare module monaco.languages {
 		/**
 		 * Provide commands for the given document and range.
 		 */
-		provideCodeActions(model: editor.IReadOnlyModel, range: Range, context: CodeActionContext, token: CancellationToken): CodeAction[] | Thenable<CodeAction[]>;
+		provideCodeActions(model: editor.IReadOnlyModel, range: Range, context: CodeActionContext, token: CancellationToken): Command[] | Thenable<Command[]>;
 	}
 
 	/**
@@ -4423,14 +4423,6 @@ declare module monaco.languages {
 		 * to the word range at the position when omitted.
 		 */
 		provideHover(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): Hover | Thenable<Hover>;
-	}
-
-	/**
-	 * Interface used to quick fix typing errors while accesing member fields.
-	 */
-	export interface CodeAction {
-		command: Command;
-		score: number;
 	}
 
 	/**
