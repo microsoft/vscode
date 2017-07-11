@@ -348,10 +348,12 @@ export class Workbench implements IPartService {
 					editorRestoreStopWatch.stop();
 
 					for (const editor of editors) {
-						if (editor && editor.input) {
-							restoredEditors.push(editor.input.getName());
-						} else {
-							restoredEditors.push(`other:${editor.getId()}`);
+						if (editor) {
+							if (editor.input) {
+								restoredEditors.push(editor.input.getName());
+							} else {
+								restoredEditors.push(`other:${editor.getId()}`);
+							}
 						}
 					}
 				});
