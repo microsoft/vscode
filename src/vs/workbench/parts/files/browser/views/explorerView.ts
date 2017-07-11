@@ -142,7 +142,8 @@ export class ExplorerView extends CollapsibleView {
 	}
 
 	public get name(): string {
-		return nls.localize('folders', "Folders");
+		const workspace = this.contextService.getWorkspace();
+		return workspace.roots.length === 1 ? workspace.name : nls.localize('folders', "Folders");
 	}
 
 	public set name(value) {
@@ -726,8 +727,6 @@ export class ExplorerView extends CollapsibleView {
 		let targetsToExpand: URI[] = [];
 		if (this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES]) {
 			targetsToExpand = this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES].map((e: string) => URI.parse(e));
-		} else if (this.model.roots.length === 1) {
-			targetsToExpand = this.model.roots.map(root => root.resource); // always expand single root folder
 		}
 
 		// First time refresh: Receive target through active editor input or selection and also include settings from previous session
@@ -777,7 +776,7 @@ export class ExplorerView extends CollapsibleView {
 			// Subsequent refresh: Merge stat into our local model and refresh tree
 			modelStats.forEach((modelStat, index) => FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]));
 
-			const input = this.model;
+			const input = this.model.roots.length === 1 ? this.model.roots[0] : this.model;
 			if (input === this.explorerViewer.getInput()) {
 				return this.explorerViewer.refresh();
 			}
@@ -788,6 +787,7 @@ export class ExplorerView extends CollapsibleView {
 			const statsToExpand = expanded.length ? [this.model.roots[0]].concat(expanded) :
 				targetsToExpand.map(expand => this.model.findClosest(expand));
 
+			// Display roots only when there is more than 1 root
 			// Make sure to expand all folders that where expanded in the previous session
 			return this.explorerViewer.setInput(input).then(() => this.explorerViewer.expandAll(statsToExpand));
 		}, e => TPromise.wrapError(e));
