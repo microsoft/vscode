@@ -27,7 +27,7 @@ namespace snaps {
 
 		case 'win32':
 		case 'linux':
-			loaderFilepath = `VSCode-${process.platform}/loader.js`;
+			loaderFilepath = `VSCode-${process.platform}/resources/app/out/vs/loader.js`;
 			startupBlobFilepath = `VSCode-${process.platform}/snapshot_blob.bin`;
 	}
 
