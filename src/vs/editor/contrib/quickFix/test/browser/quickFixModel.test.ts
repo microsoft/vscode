@@ -38,7 +38,7 @@ suite('QuickFix', () => {
 	setup(() => {
 		reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
 			provideCodeActions() {
-				return [{ command: { id: 'test-command', title: 'test', arguments: [] }, score: 1 }];
+				return [{ id: 'test-command', title: 'test', arguments: [] }];
 			}
 		});
 		markerService = new MarkerService();
