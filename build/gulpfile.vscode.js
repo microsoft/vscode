@@ -382,8 +382,8 @@ function snapshotTask(platform, arch) {
 	let startupBlobFilepath;
 
 	if (platform === 'darwin') {
-		loaderInputFilepath = path.join(destination, 'Code - OSS.app/Contents/Resources/app/out/vs/loader.js');
-		startupBlobFilepath = path.join(destination, 'Code - OSS.app/Contents/Frameworks/Electron Framework.framework/Resources/snapshot_blob.bin')
+		loaderInputFilepath = path.join(destination, `${config.productAppName}.app`, 'Contents/Resources/app/out/vs/loader.js');
+		startupBlobFilepath = path.join(destination, `${config.productAppName}.app`, 'Contents/Frameworks/Electron Framework.framework/Resources/snapshot_blob.bin')
 
 	} else if (platform === 'win32') {
 		command = `${command}.cmd`;
