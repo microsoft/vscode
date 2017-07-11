@@ -6,6 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IBackupWorkspacesFormat {
+	rootWorkspaces: string[];
 	folderWorkspaces: string[];
 	emptyWorkspaces: string[];
 }
@@ -16,8 +17,10 @@ export interface IBackupMainService {
 	_serviceBrand: any;
 
 	getWorkspaceBackupPaths(): string[];
+	getFolderBackupPaths(): string[];
 	getEmptyWindowBackupPaths(): string[];
 
+	registerWorkspaceBackupSync(workspaceConfigPath: string): string;
 	registerFolderBackupSync(folderPath: string): string;
 	registerEmptyWindowBackupSync(backupFolder?: string): string;
 }

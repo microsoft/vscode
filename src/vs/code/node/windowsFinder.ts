@@ -12,7 +12,8 @@ import * as paths from 'vs/base/common/paths';
 import { OpenContext } from 'vs/platform/windows/common/windows';
 
 export interface ISimpleWindow {
-	openedFolderPath: string;
+	openedWorkspaceConfigPath?: string;
+	openedFolderPath?: string;
 	openedFilePath?: string;
 	extensionDevelopmentPath?: string;
 	lastFocusTime: number;
@@ -107,20 +108,30 @@ export function getLastActiveWindow<W extends ISimpleWindow>(windows: W[]): W {
 
 export function findWindowOnFolder<W extends ISimpleWindow>(windows: W[], folderPath: string): W {
 	if (windows.length) {
-
-		// Sort the last active window to the front of the array of windows to test
-		const windowsToTest = windows.slice(0);
-		const lastActiveWindow = getLastActiveWindow(windows);
-		if (lastActiveWindow) {
-			windowsToTest.splice(windowsToTest.indexOf(lastActiveWindow), 1);
-			windowsToTest.unshift(lastActiveWindow);
-		}
-
-		// Find it
-		const res = windowsToTest.filter(w => {
+		const res = windows.filter(w => {
 
 			// match on folder
 			if (typeof w.openedFolderPath === 'string' && (paths.isEqual(w.openedFolderPath, folderPath, !platform.isLinux /* ignorecase */))) {
+				return true;
+			}
+
+			return false;
+		});
+
+		if (res && res.length) {
+			return res[0];
+		}
+	}
+
+	return null;
+}
+
+export function findWindowOnWorkspace<W extends ISimpleWindow>(windows: W[], workspaceConfigPath: string): W {
+	if (windows.length) {
+		const res = windows.filter(w => {
+
+			// match on workspace
+			if (typeof w.openedWorkspaceConfigPath === 'string' && (paths.isEqual(w.openedWorkspaceConfigPath, workspaceConfigPath, !platform.isLinux /* ignorecase */))) {
 				return true;
 			}
 

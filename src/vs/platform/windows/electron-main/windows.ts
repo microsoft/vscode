@@ -17,7 +17,10 @@ export interface ICodeWindow {
 	id: number;
 	win: Electron.BrowserWindow;
 	config: IWindowConfiguration;
+
 	openedFolderPath: string;
+	openedWorkspaceConfigPath: string;
+
 	lastFocusTime: number;
 
 	readyState: ReadyState;
