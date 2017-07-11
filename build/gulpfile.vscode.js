@@ -371,62 +371,6 @@ gulp.task('vscode-linux-ia32-min', ['minify-vscode', 'clean-vscode-linux-ia32'],
 gulp.task('vscode-linux-x64-min', ['minify-vscode', 'clean-vscode-linux-x64'], packageTask('linux', 'x64', { minified: true }));
 gulp.task('vscode-linux-arm-min', ['minify-vscode', 'clean-vscode-linux-arm'], packageTask('linux', 'arm', { minified: true }));
 
-// --- v8 snapshots ---
-
-function snapshotTask(platform, arch) {
-
-	const destination = path.join(path.dirname(root), 'VSCode') + (platform ? '-' + platform : '') + (arch ? '-' + arch : '');
-
-	let command = path.join(process.cwd(), 'node_modules/.bin/mksnapshot');
-	let loaderInputFilepath;
-	let startupBlobFilepath;
-
-	if (platform === 'darwin') {
-		loaderInputFilepath = path.join(destination, `${config.productAppName}.app`, 'Contents/Resources/app/out/vs/loader.js');
-		startupBlobFilepath = path.join(destination, `${config.productAppName}.app`, 'Contents/Frameworks/Electron Framework.framework/Resources/snapshot_blob.bin')
-
-	} else if (platform === 'win32') {
-		command = `${command}.cmd`;
-		loaderInputFilepath = path.join(destination, 'resources/app/out/vs/loader.js');
-		startupBlobFilepath = path.join(destination, 'snapshot_blob.bin')
-
-	} else if (platform === 'linux') {
-		loaderInputFilepath = path.join(destination, 'resources/app/out/vs/loader.js');
-		startupBlobFilepath = path.join(destination, 'snapshot_blob.bin')
-	}
-
-	return () => {
-		const inputFile = fs.readFileSync(loaderInputFilepath);
-		const wrappedInputFile = `
-		var Monaco_Loader_Init;
-		(function() {
-			var doNotInitLoader = true;
-			${inputFile.toString()};
-			Monaco_Loader_Init = function() {
-				AMDLoader.init();
-				CSSLoaderPlugin.init();
-				NLSLoaderPlugin.init();
-
-				return define;
-			}
-		})();
-		`;
-		const wrappedInputFilepath = path.join(os.tmpdir(), 'wrapped-loader.js');
-		console.log(wrappedInputFilepath);
-		fs.writeFileSync(wrappedInputFilepath, wrappedInputFile);
-
-		cp.execFileSync(command, [wrappedInputFilepath, `--startup_blob`, startupBlobFilepath]);
-	}
-}
-
-gulp.task('vscode-win32-ia32-snapshots', ['vscode-win32-ia32-min'], snapshotTask('win32', 'ia32'));
-gulp.task('vscode-win32-x64-snapshots', ['vscode-win32-x64-min'], snapshotTask('win32', 'x64'));
-gulp.task('vscode-darwin-snapshots', ['vscode-darwin-min'], snapshotTask('darwin', undefined));
-gulp.task('vscode-linux-ia32-snapshots', ['vscode-linux-ia32-min'], snapshotTask('linux', 'ia32'));
-gulp.task('vscode-linux-x64-snapshots', ['vscode-linux-x64-min'], snapshotTask('linux', 'x64'));
-gulp.task('vscode-linux-arm-snapshots', ['vscode-linux-arm-min'], snapshotTask('linux', 'arm'));
-
-
 // Transifex Localizations
 const vscodeLanguages = [
 	'zh-hans',
