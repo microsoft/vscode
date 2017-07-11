@@ -33,7 +33,11 @@ step "Install distro dependencies" {
 }
 
 step "Build minified" {
-  exec { & npm run gulp -- --max_old_space_size=4096 "vscode-win32-$global:arch-snapshots" }
+  exec { & npm run gulp -- --max_old_space_size=4096 "vscode-win32-$global:arch-min" }
+}
+
+step "Create loader snapshot" {
+  exec { & 	node build\lib\snapshotLoader.js }
 }
 
 step "Run unit tests" {
