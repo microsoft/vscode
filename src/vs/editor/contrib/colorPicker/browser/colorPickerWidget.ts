@@ -7,6 +7,7 @@ import 'vs/css!./colorpicker';
 import { IOverlayWidget, IOverlayWidgetPosition, ICodeEditor } from "vs/editor/browser/editorBrowser";
 import { Widget } from "vs/base/browser/ui/widget";
 import * as dom from 'vs/base/browser/dom';
+import { onDidChangeZoomLevel } from 'vs/base/browser/browser';
 import { ColorPickerHeader } from "vs/editor/contrib/colorPicker/browser/elements/colorPickerHeader";
 import { ColorPickerBody } from "vs/editor/contrib/colorPicker/browser/elements/colorPickerBody";
 import { ColorPickerModel } from "vs/editor/contrib/colorPicker/browser/colorPickerModel";
@@ -23,6 +24,7 @@ export class ColorPickerWidget extends Widget implements IOverlayWidget {
 
 	constructor(public model: ColorPickerModel, public editor: ICodeEditor) {
 		super();
+		this._register(onDidChangeZoomLevel(() => this.layout()));
 	}
 
 	public show(): void {

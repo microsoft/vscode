@@ -16,34 +16,28 @@
 	display: flex;
 	height: 24px;
 	position: relative;
-	z-index: 1;
+	background: url('images/opacity-background.png');
+	background-size: 9px 9px;
+	image-rendering: pixelated;
 }
 
 .colorpicker-header .picked-color {
-	text-align: center;
 	width: 216px;
-	-webkit-user-select: text;
-	-ms-user-select: text;
-	-khtml-user-select: text;
-	-moz-user-select: text;
-	-o-user-select: text;
-	user-select: text;
-	z-index: inherit;
+	text-align: center;
+	text-shadow: 0.5px 0.5px 0.5px black;
+	line-height: 20px;
+	cursor: pointer;
+}
+
+.colorpicker-header .picked-color {
+	flex: 1;
+	text-align: center;
+	color: rgba(255, 255, 255, 1);
 }
 
 .colorpicker-header .original-color {
 	width: 72px;
 	z-index: inherit;
-}
-
-.colorpicker-header a.octicon.octicon-triangle-down {
-	width: 12px;
-	z-index: inherit;
-}
-
-.colorpicker-header .picked-color {
-	text-align: center;
-	color: rgba(255, 255, 255, 1);
 }
 
 
@@ -107,6 +101,5 @@
 	right: 0;
 	bottom: 0;
 	left: 0;
-	opacity: 0.1;
 	pointer-events: none;
 }

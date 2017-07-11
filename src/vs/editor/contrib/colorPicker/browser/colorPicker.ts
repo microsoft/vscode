@@ -35,6 +35,11 @@ export class ColorPickerController extends Disposable implements IEditorContribu
 		this._register(editor.onDidChangeModel(() =>
 			this.dispose()
 		));
+		this._register(editor.onKeyDown(e => {
+			if (e.keyCode === KeyCode.Escape) {
+				this.dispose();
+			}
+		}));
 	}
 
 	public getId(): string {

@@ -26,7 +26,7 @@ export class ColorPickerHeader extends Disposable {
 		this.drawPickedColorBox();
 		this.drawOriginalColorBox();
 
-		this.toggleButton.addListener(dom.EventType.CLICK, () => {
+		dom.addDisposableListener(this.pickedColorNode, dom.EventType.CLICK, () => {
 			this.model.nextColorModel();
 		});
 	}
@@ -34,9 +34,6 @@ export class ColorPickerHeader extends Disposable {
 	public updatePickedColor() {
 		this.pickedColorNode.textContent = this.model.selectedColorString;
 		this.pickedColorNode.style.backgroundColor = this.model.selectedColorString;
-		this.toggleButton.style({
-			buttonBackground: this.model.color
-		});
 	}
 
 	private drawPickedColorBox() {
@@ -44,13 +41,6 @@ export class ColorPickerHeader extends Disposable {
 		this.pickedColorNode.style.backgroundColor = this.model.selectedColorString;
 		this.pickedColorNode.textContent = this.model.selectedColorString;
 		dom.append(this.domNode, this.pickedColorNode);
-
-		this.toggleButton = this._register(new Button(this.domNode, {
-			buttonBackground: this.model.color
-		}));
-		this.toggleButton.icon = 'octicon octicon-triangle-down';
-
-		dom.append(this.domNode, $('.opacity-strip-transparency'));
 	}
 
 	private drawOriginalColorBox() {
