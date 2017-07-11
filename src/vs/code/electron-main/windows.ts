@@ -747,7 +747,7 @@ export class WindowsManager implements IWindowsMainService {
 
 				// File / Workspace
 				if (candidateStat.isFile()) {
-					const isWorkspaceConfig = isParent(candidate, this.environmentService.workspacesHome);
+					const isWorkspaceConfig = isParent(candidate, this.environmentService.workspacesHome) || path.extname(candidate) === '.vscode';
 					return {
 						workspaceConfigPath: isWorkspaceConfig ? candidate : void 0,
 						filePath: !isWorkspaceConfig ? candidate : void 0,

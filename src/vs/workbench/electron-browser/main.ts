@@ -151,8 +151,8 @@ function createMultiRootWorkspace(workspaceData: ISingleFolderWorkspaceData | IM
 	} else {
 		const multiRootWorkspaceData = workspaceData as IMultiRootWorkspaceData;
 		id = multiRootWorkspaceData.id;
+		name = nls.localize('untitledWorkspace', "Untitled Workspace");
 		folders = multiRootWorkspaceData.folders.map(f => uri.parse(f));
-		name = multiRootWorkspaceData.name;
 	}
 
 	return new Workspace(id, name, folders);
@@ -165,7 +165,6 @@ interface ISingleFolderWorkspaceData {
 
 interface IMultiRootWorkspaceData {
 	id: string;
-	name: string;
 	folders: string[];
 }
 
@@ -213,12 +212,7 @@ function resolveMultiRootWorkspaceData(configuration: IWindowConfiguration): TPr
 	return readFile(configuration.workspaceConfigPath).then(buffer => {
 		const contents = buffer.toString('utf8');
 
-		const res = JSON.parse(contents) as IMultiRootWorkspaceData;
-		if (!res.name) {
-			res.name = path.basename(configuration.workspaceConfigPath);
-		}
-
-		return res;
+		return JSON.parse(contents) as IMultiRootWorkspaceData;
 	}, error => {
 		errors.onUnexpectedError(error);
 
