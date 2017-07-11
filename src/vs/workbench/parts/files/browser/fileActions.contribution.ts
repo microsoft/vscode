@@ -21,7 +21,6 @@ import { FileStat, Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { OpenFolderAction, OpenFileFolderAction, AddRootFolderAction, RemoveRootFolderAction } from 'vs/workbench/browser/actions/fileActions';
 import { copyFocusedFilesExplorerViewItem, revealInOSFocusedFilesExplorerItem, openFocusedExplorerItemSideBySideCommand, copyPathOfFocusedExplorerItem, copyPathCommand, revealInExplorerCommand, revealInOSCommand, openFolderPickerCommand, openWindowCommand, openFileInNewWindowCommand, deleteFocusedFilesExplorerViewItemCommand, moveFocusedFilesExplorerViewItemToTrashCommand, renameFocusedFilesExplorerViewItemCommand } from 'vs/workbench/parts/files/browser/fileCommands';
-import { ExplorerViewerActionContributor as TerminalExplorerViewerActionContributor } from 'vs/workbench/parts/execution/browser/terminal.contribution';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -186,7 +185,6 @@ class ExplorerViewersActionContributor extends ActionBarContributor {
 const actionBarRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar);
 actionBarRegistry.registerActionBarContributor(Scope.VIEWER, FilesViewerActionContributor);
 actionBarRegistry.registerActionBarContributor(Scope.VIEWER, ExplorerViewersActionContributor);
-actionBarRegistry.registerActionBarContributor(Scope.VIEWER, TerminalExplorerViewerActionContributor);
 
 // Contribute Global Actions
 const category = nls.localize('filesCategory', "Files");

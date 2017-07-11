@@ -334,16 +334,6 @@ configurationRegistry.registerConfiguration({
 				nls.localize('sortOrder.modified', 'Files and directories are sorted by last modified date, in descending order. Directories are displayed before files.')
 			],
 			'description': nls.localize('sortOrder', "Controls the way of sorting files and directories in the explorer.")
-		},
-		'explorer.openInTerminalKind': {
-			'type': 'string',
-			'enum': [
-				'external',
-				'integrated'
-			],
-			'description': nls.localize('explorer.openInTerminalKind', "Customizes what kind of terminal to launch."),
-			'default': 'external',
-			'isExecutable': false
-		},
+		}
 	}
 });
