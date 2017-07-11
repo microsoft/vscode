@@ -11,7 +11,6 @@ import { IWorkspacesService, IWorkspace } from 'vs/platform/workspaces/common/wo
 
 export interface IWorkspacesChannel extends IChannel {
 	call(command: 'createWorkspace', arg: [string[]]): TPromise<string>;
-	call(command: 'openWorkspace', arg: [IWorkspace]): TPromise<string>;
 	call(command: string, arg?: any): TPromise<any>;
 }
 
@@ -22,7 +21,6 @@ export class WorkspacesChannel implements IWorkspacesChannel {
 	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
 			case 'createWorkspace': return this.service.createWorkspace(arg);
-			case 'openWorkspace': this.service.openWorkspace(arg);
 		}
 
 		return void 0;
@@ -37,9 +35,5 @@ export class WorkspacesChannelClient implements IWorkspacesService {
 
 	createWorkspace(folders?: string[]): TPromise<IWorkspace> {
 		return this.channel.call('createWorkspace', folders);
-	}
-
-	openWorkspace(workspace: IWorkspace): void {
-		this.channel.call('openWorkspace', workspace);
 	}
 }

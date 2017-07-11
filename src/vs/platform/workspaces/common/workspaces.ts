@@ -30,5 +30,4 @@ export interface IWorkspacesService {
 	_serviceBrand: any;
 
 	createWorkspace(folders?: string[]): TPromise<IWorkspace>;
-	openWorkspace(workspace: IWorkspace): void;
 }

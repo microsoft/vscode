@@ -45,10 +45,6 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		});
 	}
 
-	public openWorkspace(workspace: IWorkspace): void {
-
-	}
-
 	private nextWorkspaceId(): string {
 		return (Date.now() + Math.round(Math.random() * 1000)).toString();
 	}
