@@ -235,7 +235,7 @@ function createStorageService(workspaceData: ISingleFolderWorkspaceData | IMulti
 
 	// in multi root workspace mode we use the provided ID as key for workspace storage
 	if (multiRootWorkspaceData && multiRootWorkspaceData.id) {
-		workspaceId = uri.from({ path: multiRootWorkspaceData.id, scheme: 'workspace' }).toString();
+		workspaceId = uri.from({ path: multiRootWorkspaceData.id, scheme: 'root' }).toString();
 	}
 
 	// in single folder mode we use the path of the opened folder as key for workspace storage
