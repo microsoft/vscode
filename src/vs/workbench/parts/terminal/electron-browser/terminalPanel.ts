@@ -16,8 +16,9 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITerminalService, ITerminalFont, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { TerminalFindWidget } from './terminalFindWidget';
-import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR } from './terminalColorRegistry';
+import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR } from './terminalColorRegistry';
 import { ColorIdentifier, editorHoverBackground, editorHoverBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction, SelectAllTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -275,15 +276,26 @@ export class TerminalPanel extends Panel {
 		}
 		const fgColor = theme.getColor(TERMINAL_FOREGROUND_COLOR);
 		if (fgColor) {
-			css += `.monaco-workbench .panel.integrated-terminal .xterm { color: ${fgColor}; }` +
-				`.monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .terminal-cursor,` +
-				`.monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .terminal-cursor { background-color: ${fgColor} }` +
-				`.monaco-workbench .panel.integrated-terminal .xterm:not(.focus):not(:focus) .terminal-cursor { outline-color: ${fgColor}; }` +
-				`.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-bar .terminal-cursor::before,` +
-				`.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-underline .terminal-cursor::before { background-color: ${fgColor}; }` +
-				`.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-bar.focus.xterm-cursor-blink .terminal-cursor::before,` +
-				`.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-underline.focus.xterm-cursor-blink .terminal-cursor::before { background-color: ${fgColor}; }`;
+			css += `.monaco-workbench .panel.integrated-terminal .xterm { color: ${fgColor}; }`;
 		}
+
+		const cursorFgColor = theme.getColor(TERMINAL_CURSOR_FOREGROUND_COLOR) || fgColor;
+		if (cursorFgColor) {
+			css += `.monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .terminal-cursor,` +
+				`.monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .terminal-cursor { background-color: ${cursorFgColor} }` +
+				`.monaco-workbench .panel.integrated-terminal .xterm:not(.focus):not(:focus) .terminal-cursor { outline-color: ${cursorFgColor}; }` +
+				`.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-bar .terminal-cursor::before,` +
+				`.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-underline .terminal-cursor::before { background-color: ${cursorFgColor}; }` +
+				`.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-bar.focus.xterm-cursor-blink .terminal-cursor::before,` +
+				`.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-underline.focus.xterm-cursor-blink .terminal-cursor::before { background-color: ${cursorFgColor}; }`;
+		}
+
+		const cursorBgColor = theme.getColor(TERMINAL_CURSOR_BACKGROUND_COLOR) || bgColor || theme.getColor(PANEL_BACKGROUND);
+		if (cursorBgColor) {
+			css += `.monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .terminal-cursor,` +
+				`.monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .terminal-cursor { color: ${cursorBgColor} }`;
+		}
+
 		// TODO: Reinstate, see #28397
 		// const selectionColor = theme.getColor(TERMINAL_SELECTION_BACKGROUND_COLOR);
 		// if (selectionColor) {
