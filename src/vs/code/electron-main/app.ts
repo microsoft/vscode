@@ -51,6 +51,9 @@ import { isParent } from 'vs/platform/files/common/files';
 import { isEqual } from 'vs/base/common/paths';
 import { KeyboardLayoutMonitor } from "vs/code/electron-main/keyboard";
 import URI from 'vs/base/common/uri';
+import { WorkspacesChannel } from "vs/platform/workspaces/common/workspacesIpc";
+import { IWorkspacesMainService } from "vs/platform/workspaces/common/workspaces";
+import { WorkspacesMainService } from "vs/platform/workspaces/electron-main/workspacesMainService";
 
 export class CodeApplication {
 	private toDispose: IDisposable[];
@@ -287,6 +290,7 @@ export class CodeApplication {
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager));
 		services.set(IWindowsService, new SyncDescriptor(WindowsService, this.sharedProcess));
 		services.set(ILaunchService, new SyncDescriptor(LaunchService));
+		services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
 
 		// Telemtry
 		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !!product.enableTelemetry) {
@@ -333,6 +337,10 @@ export class CodeApplication {
 		const urlService = accessor.get(IURLService);
 		const urlChannel = appInstantiationService.createInstance(URLChannel, urlService);
 		this.electronIpcServer.registerChannel('url', urlChannel);
+
+		const workspacesService = accessor.get(IWorkspacesMainService);
+		const workspacesChannel = appInstantiationService.createInstance(WorkspacesChannel, workspacesService);
+		this.electronIpcServer.registerChannel('workspaces', workspacesChannel);
 
 		const windowsService = accessor.get(IWindowsService);
 		const windowsChannel = new WindowsChannel(windowsService);

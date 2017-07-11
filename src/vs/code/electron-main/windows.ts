@@ -29,7 +29,7 @@ import { IWindowsMainService, IOpenConfiguration } from "vs/platform/windows/ele
 import { IHistoryMainService } from "vs/platform/history/electron-main/historyMainService";
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { TPromise } from "vs/base/common/winjs.base";
-import { isParent } from "vs/platform/files/common/files";
+import { IWorkspacesMainService } from "vs/platform/workspaces/common/workspaces";
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -132,7 +132,8 @@ export class WindowsManager implements IWindowsMainService {
 		@IBackupMainService private backupService: IBackupMainService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IHistoryMainService private historyService: IHistoryMainService
+		@IHistoryMainService private historyService: IHistoryMainService,
+		@IWorkspacesMainService private workspacesService: IWorkspacesMainService
 	) {
 		this.windowsState = this.storageService.getItem<IWindowsState>(WindowsManager.windowsStateStorageKey) || { openedWindows: [] };
 		this.fileDialog = new FileDialog(environmentService, telemetryService, storageService, this);
@@ -747,7 +748,7 @@ export class WindowsManager implements IWindowsMainService {
 
 				// File / Workspace
 				if (candidateStat.isFile()) {
-					const isWorkspaceConfig = isParent(candidate, this.environmentService.workspacesHome) || path.extname(candidate) === '.vscode';
+					const isWorkspaceConfig = this.workspacesService.isWorkspace(candidate);
 					return {
 						workspaceConfigPath: isWorkspaceConfig ? candidate : void 0,
 						filePath: !isWorkspaceConfig ? candidate : void 0,
