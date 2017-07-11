@@ -13,6 +13,7 @@ import { IBackupWorkspacesFormat, IBackupMainService } from 'vs/platform/backup/
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
+import { ILogService } from "vs/platform/log/common/log";
 
 export class BackupMainService implements IBackupMainService {
 
@@ -25,7 +26,8 @@ export class BackupMainService implements IBackupMainService {
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@ILogService private logService: ILogService
 	) {
 		this.backupHome = environmentService.backupHome;
 		this.workspacesJsonPath = environmentService.backupWorkspacesPath;
@@ -159,7 +161,7 @@ export class BackupMainService implements IBackupMainService {
 					try {
 						fs.renameSync(backupPath, newEmptyWindowBackupPath);
 					} catch (ex) {
-						console.error(`Backup: Could not rename backup folder for missing workspace: ${ex.toString()}`);
+						this.logService.error(`Backup: Could not rename backup folder for missing workspace: ${ex.toString()}`);
 
 						this.removeBackupPathSync(identifier, true);
 					}
@@ -182,7 +184,7 @@ export class BackupMainService implements IBackupMainService {
 			try {
 				extfs.delSync(backupPath);
 			} catch (ex) {
-				console.error(`Backup: Could not delete stale backup: ${ex.toString()}`);
+				this.logService.error(`Backup: Could not delete stale backup: ${ex.toString()}`);
 			}
 
 			this.removeBackupPathSync(workspaceIdentifier, isEmptyWindow);
@@ -216,7 +218,7 @@ export class BackupMainService implements IBackupMainService {
 			}
 			fs.writeFileSync(this.workspacesJsonPath, JSON.stringify(this.backups));
 		} catch (ex) {
-			console.error(`Backup: Could not save workspaces.json: ${ex.toString()}`);
+			this.logService.error(`Backup: Could not save workspaces.json: ${ex.toString()}`);
 		}
 	}
 

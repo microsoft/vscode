@@ -383,7 +383,7 @@ export class CodeWindow implements ICodeWindow {
 
 		// Window Failed to load
 		this._win.webContents.on('did-fail-load', (event: Event, errorCode: string, errorDescription: string) => {
-			console.warn('[electron event]: fail to load, ', errorDescription);
+			this.logService.warn('[electron event]: fail to load, ', errorDescription);
 		});
 
 		// Prevent any kind of navigation triggered by the user!
@@ -472,7 +472,7 @@ export class CodeWindow implements ICodeWindow {
 		// (--prof-startup) save profile to disk
 		const { profileStartup } = this.environmentService;
 		if (profileStartup) {
-			stopProfiling(profileStartup.dir, profileStartup.prefix).done(undefined, err => console.error(err));
+			stopProfiling(profileStartup.dir, profileStartup.prefix).done(undefined, err => this.logService.error(err));
 		}
 	}
 

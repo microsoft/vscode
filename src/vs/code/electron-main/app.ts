@@ -95,9 +95,9 @@ export class CodeApplication {
 				}
 			}
 
-			console.error('[uncaught exception in main]: ' + err);
+			this.logService.error(`[uncaught exception in main]: ${err}`);
 			if (err.stack) {
-				console.error(err.stack);
+				this.logService.error(err.stack);
 			}
 		});
 
@@ -136,12 +136,12 @@ export class CodeApplication {
 				}
 
 				// Otherwise prevent loading
-				console.error('Prevented webview attach');
+				this.logService.error('webContents#web-contents-created: Prevented webview attach');
 				event.preventDefault();
 			});
 
 			contents.on('will-navigate', event => {
-				console.error('Prevented webcontent navigation');
+				this.logService.error('webContents#will-navigate: Prevented webcontent navigation');
 				event.preventDefault();
 			});
 		});
@@ -198,7 +198,8 @@ export class CodeApplication {
 				if (!webContents.isDestroyed()) {
 					webContents.send('vscode:acceptShellEnv', {});
 				}
-				console.error('Error fetching shell env', err);
+
+				this.logService.error('Error fetching shell env', err);
 			});
 		});
 
