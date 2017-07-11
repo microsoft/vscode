@@ -21,11 +21,23 @@ export class ExtHostDebugService extends ExtHostDebugServiceShape {
 	private _onDidTerminateDebugSession: Emitter<vscode.DebugSession>;
 	get onDidTerminateDebugSession(): Event<vscode.DebugSession> { return this._onDidTerminateDebugSession.event; }
 
+	private _onDidChangeActiveDebugSession: Emitter<vscode.DebugSession | undefined>;
+	get onDidChangeActiveDebugSession(): Event<vscode.DebugSession | undefined> { return this._onDidChangeActiveDebugSession.event; }
+
+	private _activeDebugSession: ExtHostDebugSession | undefined;
+	get activeDebugSession(): ExtHostDebugSession | undefined { return this._activeDebugSession; }
+
+	private _onDidReceiveDebugSessionCustomEvent: Emitter<vscode.DebugSessionCustomEvent>;
+	get onDidReceiveDebugSessionCustomEvent(): Event<vscode.DebugSessionCustomEvent> { return this._onDidReceiveDebugSessionCustomEvent.event; }
+
 
 	constructor(threadService: IThreadService) {
 		super();
 
 		this._onDidTerminateDebugSession = new Emitter<vscode.DebugSession>();
+		this._onDidChangeActiveDebugSession = new Emitter<vscode.DebugSession>();
+		this._onDidReceiveDebugSessionCustomEvent = new Emitter<vscode.DebugSessionCustomEvent>();
+
 		this._debugServiceProxy = threadService.get(MainContext.MainThreadDebugService);
 	}
 
@@ -43,9 +55,39 @@ export class ExtHostDebugService extends ExtHostDebugServiceShape {
 		let debugSession = this._debugSessions.get(id);
 		if (!debugSession) {
 			debugSession = new ExtHostDebugSession(this._debugServiceProxy, id, type, name);
+			this._debugSessions.set(id, debugSession);
 		}
 		this._onDidTerminateDebugSession.fire(debugSession);
 		this._debugSessions.delete(id);
+	}
+
+	public $acceptDebugSessionActiveChanged(id: DebugSessionUUID | undefined, type?: string, name?: string): void {
+
+		if (id) {
+			this._activeDebugSession = this._debugSessions.get(id);
+			if (!this._activeDebugSession) {
+				this._activeDebugSession = new ExtHostDebugSession(this._debugServiceProxy, id, type, name);
+				this._debugSessions.set(id, this._activeDebugSession);
+			}
+		} else {
+			this._activeDebugSession = undefined;
+		}
+		this._onDidChangeActiveDebugSession.fire(this._activeDebugSession);
+	}
+
+	public $acceptDebugSessionCustomEvent(id: DebugSessionUUID, type: string, name: string, event: any): void {
+
+		let debugSession = this._debugSessions.get(id);
+		if (!debugSession) {
+			debugSession = new ExtHostDebugSession(this._debugServiceProxy, id, type, name);
+			this._debugSessions.set(id, debugSession);
+		}
+		const ee: vscode.DebugSessionCustomEvent = {
+			session: debugSession,
+			event: event.event,
+			body: event.body
+		};
+		this._onDidReceiveDebugSessionCustomEvent.fire(ee);
 	}
 }
 
@@ -58,13 +100,16 @@ export class ExtHostDebugSession implements vscode.DebugSession {
 	private _type: string;
 	private _name: string;
 
-
 	constructor(proxy: MainThreadDebugServiceShape, id: DebugSessionUUID, type: string, name: string) {
 		this._debugServiceProxy = proxy;
 		this._id = id;
 		this._type = type;
 		this._name = name;
 	};
+
+	public get id(): string {
+		return this._id;
+	}
 
 	public get type(): string {
 		return this._type;

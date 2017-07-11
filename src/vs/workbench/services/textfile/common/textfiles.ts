@@ -293,7 +293,7 @@ export interface ITextFileService extends IDisposable {
 	 * @param resource the resource of the file to revert.
 	 * @param force to force revert even when the file is not dirty
 	 */
-	revert(resource: URI, force?: boolean): TPromise<boolean>;
+	revert(resource: URI, options?: IRevertOptions): TPromise<boolean>;
 
 	/**
 	 * Reverts all the provided resources and returns a promise with the operation result.

@@ -463,11 +463,21 @@ export function createApiFactory(
 
 		// namespace: debug
 		const debug: typeof vscode.debug = {
-			createDebugSession: proposedApiFunction(extension, (config: vscode.DebugConfiguration) => {
+			get activeDebugSession() {
+				assertProposedApi(extension);
+				return extHostDebugService.activeDebugSession;
+			},
+			createDebugSession(config: vscode.DebugConfiguration) {
 				return extHostDebugService.createDebugSession(config);
-			}),
-			onDidTerminateDebugSession: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
+			},
+			onDidTerminateDebugSession(listener, thisArg?, disposables?) {
 				return extHostDebugService.onDidTerminateDebugSession(listener, thisArg, disposables);
+			},
+			onDidChangeActiveDebugSession: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
+				return extHostDebugService.onDidChangeActiveDebugSession(listener, thisArg, disposables);
+			}),
+			onDidReceiveDebugSessionCustomEvent: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
+				return extHostDebugService.onDidReceiveDebugSessionCustomEvent(listener, thisArg, disposables);
 			})
 		};
 

@@ -162,6 +162,17 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		}
 	}
 
+
+	public revealTask(task: Task): boolean {
+		let terminalData = this.activeTasks[task._id];
+		if (!terminalData) {
+			return false;
+		}
+		this.terminalService.setActiveInstance(terminalData.terminal);
+		this.terminalService.showPanel(task.command.presentation.focus);
+		return true;
+	}
+
 	public isActive(): TPromise<boolean> {
 		return TPromise.as(this.isActiveSync());
 	}
@@ -189,7 +200,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				let task = activeTerminal.task;
 				try {
 					onExit.dispose();
-					let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun, group: task.group };
+					let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun, group: task.group, __task: task };
 					this.emit(TaskSystemEvents.Terminated, event);
 				} catch (error) {
 					// Do nothing.
@@ -210,7 +221,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					let task = terminalData.task;
 					try {
 						onExit.dispose();
-						let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun, group: task.group };
+						let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun, group: task.group, __task: task };
 						this.emit(TaskSystemEvents.Terminated, event);
 					} catch (error) {
 						// Do nothing.
@@ -270,7 +281,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				const problemMatchers = this.resolveMatchers(task.problemMatchers);
 				let watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this.markerService, this.modelService);
 				let toUnbind: IDisposable[] = [];
-				let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.Watching, group: task.group };
+				let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.Watching, group: task.group, __task: task };
 				let eventCounter: number = 0;
 				toUnbind.push(watchingProblemMatcher.addListener(ProblemCollectorEvents.WatchingBeginDetected, () => {
 					eventCounter++;
@@ -301,6 +312,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					onData.dispose();
 					onExit.dispose();
 					delete this.activeTasks[task._id];
+					this.emit(TaskSystemEvents.Changed);
 					switch (task.command.presentation.panel) {
 						case PanelKind.Dedicated:
 							this.sameTaskTerminals[task._id] = terminal.id.toString();
@@ -332,7 +344,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		} else {
 			promise = new TPromise<ITaskSummary>((resolve, reject) => {
 				[terminal, executedCommand] = this.createTerminal(task);
-				let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun, group: task.group };
+				let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun, group: task.group, __task: task };
 				this.emit(TaskSystemEvents.Active, event);
 				let decoder = new TerminalDecoder();
 				let problemMatchers = this.resolveMatchers(task.problemMatchers);
@@ -347,6 +359,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					onData.dispose();
 					onExit.dispose();
 					delete this.activeTasks[task._id];
+					this.emit(TaskSystemEvents.Changed);
 					switch (task.command.presentation.panel) {
 						case PanelKind.Dedicated:
 							this.sameTaskTerminals[task._id] = terminal.id.toString();
@@ -372,6 +385,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			this.terminalService.showPanel(task.command.presentation.focus);
 		}
 		this.activeTasks[task._id] = { terminal, task, promise };
+		this.emit(TaskSystemEvents.Changed);
 		return promise.then((summary) => {
 			try {
 				let telemetryEvent: TelemetryEvent = {

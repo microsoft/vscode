@@ -1011,6 +1011,63 @@ suite('viewLineRenderer.renderLine 2', () => {
 		].join(''));
 	});
 
+	test('issue #11485: Visible whitespace conflicts with before decorator attachment', () => {
+
+		let lineContent = '\tbla';
+
+		let actual = renderViewLine(new RenderLineInput(
+			false,
+			lineContent,
+			false,
+			0,
+			[createPart(4, 3)],
+			[new LineDecoration(1, 2, 'before', true)],
+			4,
+			10,
+			-1,
+			'all',
+			false,
+			true
+		));
+
+		let expected = [
+			'<span>',
+			'<span class="vs-whitespace before">&rarr;&nbsp;&nbsp;&nbsp;</span>',
+			'<span class="mtk3">bla</span>',
+			'</span>'
+		].join('');
+
+		assert.deepEqual(actual.html, expected);
+	});
+
+	test('issue #30133: Empty lines don\'t render inline decorations', () => {
+
+		let lineContent = '';
+
+		let actual = renderViewLine(new RenderLineInput(
+			false,
+			lineContent,
+			false,
+			0,
+			[createPart(0, 3)],
+			[new LineDecoration(1, 2, 'before', true)],
+			4,
+			10,
+			-1,
+			'all',
+			false,
+			true
+		));
+
+		let expected = [
+			'<span>',
+			'<span class="before">&nbsp;</span>',
+			'</span>'
+		].join('');
+
+		assert.deepEqual(actual.html, expected);
+	});
+
 	function createTestGetColumnOfLinePartOffset(lineContent: string, tabSize: number, parts: ViewLineToken[], expectedPartLengths: number[]): (partIndex: number, partLength: number, offset: number, expected: number) => void {
 		let renderLineOutput = renderViewLine(new RenderLineInput(
 			false,

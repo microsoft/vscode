@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import { join } from 'path';
-import { commands, workspace, window, Uri, ViewColumn } from 'vscode';
+import { commands, workspace, window, Uri, ViewColumn, Range, Position } from 'vscode';
 
 suite('commands namespace tests', () => {
 
@@ -114,10 +114,15 @@ suite('commands namespace tests', () => {
 			registration.dispose();
 		});
 
-		let c = commands.executeCommand('vscode.diff').then(() => assert.ok(false), () => assert.ok(true));
-		let d = commands.executeCommand('vscode.diff', 1, 2, 3).then(() => assert.ok(false), () => assert.ok(true));
+		let c = commands.executeCommand('vscode.diff', Uri.parse('sc:a'), Uri.parse('sc:b'), 'Title', { selection: new Range(new Position(1, 1), new Position(1, 2)) }).then(value => {
+			assert.ok(value === void 0);
+			registration.dispose();
+		});
 
-		return Promise.all([a, b, c, d]);
+		let d = commands.executeCommand('vscode.diff').then(() => assert.ok(false), () => assert.ok(true));
+		let e = commands.executeCommand('vscode.diff', 1, 2, 3).then(() => assert.ok(false), () => assert.ok(true));
+
+		return Promise.all([a, b, c, d, e]);
 	});
 
 	test('api-command: vscode.open', function () {

@@ -314,6 +314,9 @@ class TreeController extends DefaultController {
 	}
 
 	public onContextMenu(tree: ITree, node: ITreeItem, event: ContextMenuEvent): boolean {
+		event.preventDefault();
+		event.stopPropagation();
+
 		tree.setFocus(node);
 		const actions = this.menus.getResourceContextActions(node);
 		if (!actions.length) {

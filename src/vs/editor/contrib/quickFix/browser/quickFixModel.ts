@@ -12,7 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IMarker, IMarkerService } from 'vs/platform/markers/common/markers';
 import { Range } from 'vs/editor/common/core/range';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { CodeActionProviderRegistry, CodeAction } from 'vs/editor/common/modes';
+import { CodeActionProviderRegistry, Command } from 'vs/editor/common/modes';
 import { getCodeActions } from './quickFix';
 import { Position } from 'vs/editor/common/core/position';
 
@@ -126,7 +126,7 @@ export interface QuickFixComputeEvent {
 	type: 'auto' | 'manual';
 	range: Range;
 	position: Position;
-	fixes: TPromise<CodeAction[]>;
+	fixes: TPromise<Command[]>;
 }
 
 export class QuickFixModel {

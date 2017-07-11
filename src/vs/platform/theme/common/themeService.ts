@@ -11,7 +11,7 @@ import platform = require('vs/platform/registry/common/platform');
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import Event, { Emitter } from 'vs/base/common/event';
 
-export let IThemeService = createDecorator<IThemeService>('themeService');
+export const IThemeService = createDecorator<IThemeService>('themeService');
 
 export interface ThemeColor {
 	id: string;

@@ -89,6 +89,16 @@ class MergeItem implements QuickPickItem {
 	}
 }
 
+class CreateBranchItem implements QuickPickItem {
+
+	get label(): string { return localize('create branch', '$(plus) Create new branch'); }
+	get description(): string { return ''; }
+
+	async run(model: Model): Promise<void> {
+		await commands.executeCommand('git.branch');
+	}
+}
+
 interface Command {
 	commandId: string;
 	key: string;
@@ -164,9 +174,14 @@ export class CommandCenter {
 		}
 
 		const opts: TextDocumentShowOptions = {
-			preview: true,
 			viewColumn
 		};
+
+		const activeTextEditor = window.activeTextEditor;
+
+		if (activeTextEditor && activeTextEditor.document.uri.toString() === right.toString()) {
+			opts.selection = activeTextEditor.selection;
+		}
 
 		return await commands.executeCommand<void>('vscode.diff', left, right, title, opts);
 	}
@@ -308,9 +323,16 @@ export class CommandCenter {
 			return;
 		}
 
-		const viewColumn = window.activeTextEditor && window.activeTextEditor.viewColumn || ViewColumn.One;
+		const activeTextEditor = window.activeTextEditor && window.activeTextEditor;
+		const isSameUri = activeTextEditor && activeTextEditor.document.uri.toString() === uri.toString();
+		const selections = activeTextEditor && activeTextEditor.selections;
+		const viewColumn = activeTextEditor && activeTextEditor.viewColumn || ViewColumn.One;
 
-		return await commands.executeCommand<void>('vscode.open', uri, viewColumn);
+		await commands.executeCommand<void>('vscode.open', uri, viewColumn);
+
+		if (isSameUri && selections && window.activeTextEditor) {
+			window.activeTextEditor.selections = selections;
+		}
 	}
 
 	@command('git.openHEADFile')
@@ -354,30 +376,8 @@ export class CommandCenter {
 		if (!resource) {
 			return;
 		}
+
 		return await this._openResource(resource);
-	}
-
-	@command('git.openFileFromUri')
-	async openFileFromUri(uri?: Uri): Promise<void> {
-		const resource = this.getSCMResource(uri);
-		let uriToOpen: Uri | undefined;
-
-		if (resource) {
-			uriToOpen = resource.resourceUri;
-		} else if (uri && uri.scheme === 'git') {
-			const { path } = fromGitUri(uri);
-			uriToOpen = Uri.file(path);
-		} else if (uri && uri.scheme === 'file') {
-			uriToOpen = uri;
-		}
-
-		if (!uriToOpen) {
-			return;
-		}
-
-		const viewColumn = window.activeTextEditor && window.activeTextEditor.viewColumn || ViewColumn.One;
-
-		return await commands.executeCommand<void>('vscode.open', uriToOpen, viewColumn);
 	}
 
 	@command('git.stage')
@@ -728,6 +728,8 @@ export class CommandCenter {
 		const includeTags = checkoutType === 'all' || checkoutType === 'tags';
 		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
 
+		const createBranch = new CreateBranchItem();
+
 		const heads = this.model.refs.filter(ref => ref.type === RefType.Head)
 			.map(ref => new CheckoutItem(ref));
 
@@ -737,9 +739,9 @@ export class CommandCenter {
 		const remoteHeads = (includeRemotes ? this.model.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
 			.map(ref => new CheckoutRemoteHeadItem(ref));
 
-		const picks = [...heads, ...tags, ...remoteHeads];
+		const picks = [createBranch, ...heads, ...tags, ...remoteHeads];
 		const placeHolder = localize('select a ref to checkout', 'Select a ref to checkout');
-		const choice = await window.showQuickPick<CheckoutItem>(picks, { placeHolder });
+		const choice = await window.showQuickPick(picks, { placeHolder });
 
 		if (!choice) {
 			return;

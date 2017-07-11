@@ -103,12 +103,12 @@
         "url": "http://json.schemastore.org/bower"
       },
       {
-        "fileMatch": ".bower.json",
-        "url": "http://json.schemastore.org/bower"
-      },
-      {
         "fileMatch": ".bowerrc",
         "url": "http://json.schemastore.org/bowerrc"
+      },
+      {
+        "fileMatch": ".babelrc",
+        "url": "http://json.schemastore.org/babelrc"
       },
       {
         "fileMatch": "jsconfig.json",

@@ -18,6 +18,7 @@ export interface ICodeWindow {
 	win: Electron.BrowserWindow;
 	config: IWindowConfiguration;
 	openedWorkspacePath: string;
+	lastFocusTime: number;
 
 	readyState: ReadyState;
 
@@ -52,10 +53,10 @@ export interface IWindowsMainService {
 	pickFileFolderAndOpen(forceNewWindow?: boolean, data?: ITelemetryData): void;
 	pickFileAndOpen(forceNewWindow?: boolean, path?: string, window?: ICodeWindow, data?: ITelemetryData): void;
 	pickFolderAndOpen(forceNewWindow?: boolean, window?: ICodeWindow, data?: ITelemetryData): void;
-	pickFolder(options?: { buttonLabel: string; title: string; }): TPromise<string[]>;
+	pickFolder(window?: ICodeWindow, options?: { buttonLabel: string; title: string; }): TPromise<string[]>;
 	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow;
 	getLastActiveWindow(): ICodeWindow;
-	findWindow(workspacePath: string, filePath?: string, extensionDevelopmentPath?: string): ICodeWindow;
+	waitForWindowClose(windowId: number): TPromise<void>;
 	openNewWindow(context: OpenContext): void;
 	sendToFocused(channel: string, ...args: any[]): void;
 	sendToAll(channel: string, payload: any, windowIdsToIgnore?: number[]): void;

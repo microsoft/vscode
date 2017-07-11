@@ -44,6 +44,8 @@ export interface IViewDescriptor {
 	readonly order?: number;
 
 	readonly size?: number;
+
+	readonly canToggleVisibility?: boolean;
 }
 
 export interface IViewsRegistry {

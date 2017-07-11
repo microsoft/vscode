@@ -7,7 +7,7 @@
 import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditStack } from 'vs/editor/common/model/editStack';
-import { ILineEdit, LineMarker, ModelLine, MarkersTracker } from 'vs/editor/common/model/modelLine';
+import { ILineEdit, LineMarker, MarkersTracker, IModelLine } from 'vs/editor/common/model/modelLine';
 import { TextModelWithDecorations, ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import * as strings from 'vs/base/common/strings';
 import * as arrays from 'vs/base/common/arrays';
@@ -603,7 +603,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				}
 
 				// Reconstruct first line
-				this._lines[spliceStartLineNumber - 1].append(markersTracker, endLineRemains, tabSize);
+				this._lines[spliceStartLineNumber - 1].append(markersTracker, spliceStartLineNumber, endLineRemains, tabSize);
 				if (this._lineStarts) {
 					// update prefix sum
 					this._lineStarts.changeValue(spliceStartLineNumber - 1, this._lines[spliceStartLineNumber - 1].text.length + this._EOL.length);
@@ -649,12 +649,11 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				this._invalidateLine(spliceLineNumber - 1);
 
 				// Lines in the middle
-				let newLines: ModelLine[] = [];
+				let newLines: IModelLine[] = [];
 				let newLinesContent: string[] = [];
 				let newLinesLengths = new Uint32Array(insertingLinesCnt - editingLinesCnt);
 				for (let j = editingLinesCnt + 1; j <= insertingLinesCnt; j++) {
-					let newLineNumber = startLineNumber + j;
-					newLines.push(new ModelLine(newLineNumber, op.lines[j], tabSize));
+					newLines.push(this._createModelLine(op.lines[j], tabSize));
 					newLinesContent.push(op.lines[j]);
 					newLinesLengths[j - editingLinesCnt - 1] = op.lines[j].length + this._EOL.length;
 				}
@@ -666,7 +665,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				}
 
 				// Last line
-				this._lines[startLineNumber + insertingLinesCnt - 1].append(markersTracker, leftoverLine, tabSize);
+				this._lines[startLineNumber + insertingLinesCnt - 1].append(markersTracker, startLineNumber + insertingLinesCnt, leftoverLine, tabSize);
 				if (this._lineStarts) {
 					// update prefix sum
 					this._lineStarts.changeValue(startLineNumber + insertingLinesCnt - 1, this._lines[startLineNumber + insertingLinesCnt - 1].text.length + this._EOL.length);
@@ -729,17 +728,13 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			let line = this._lines[i];
 			let lineNumber = i + 1;
 
-			if (line.lineNumber !== lineNumber) {
-				throw new Error('Invalid lineNumber at line: ' + lineNumber + '; text is: ' + this.getValue());
-			}
-
 			let markers = line.getMarkers();
 			if (markers !== null) {
 				for (let j = 0, lenJ = markers.length; j < lenJ; j++) {
 					foundMarkersCnt++;
 					let markerId = markers[j].id;
 					let marker = this._markerIdToMarker[markerId];
-					if (marker.position.lineNumber !== line.lineNumber) {
+					if (marker.position.lineNumber !== lineNumber) {
 						throw new Error('Misplaced marker with id ' + markerId);
 					}
 				}

@@ -21,6 +21,7 @@ export namespace TaskServiceEvents {
 	export let Inactive: string = 'inactive';
 	export let ConfigChanged: string = 'configChanged';
 	export let Terminated: string = 'terminated';
+	export let Changed: string = 'changed';
 }
 
 export interface ITaskProvider {

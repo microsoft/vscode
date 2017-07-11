@@ -429,9 +429,9 @@ export namespace Config {
 		file?: number;
 
 		/**
-		* The match group index of the problems's location. Valid location
+		* The match group index of the problem's location. Valid location
 		* patterns are: (line), (line,column) and (startLine,startColumn,endLine,endColumn).
-		* If omitted the line and colum properties are used.
+		* If omitted the line and column properties are used.
 		*/
 		location?: number;
 
@@ -472,7 +472,7 @@ export namespace Config {
 		severity?: number;
 
 		/**
-		* The match group index of the problems's code.
+		* The match group index of the problem's code.
 		*
 		* Defaults to undefined. No code is captured.
 		*/
@@ -672,12 +672,12 @@ export namespace Config {
 	export interface NamedProblemMatcher extends ProblemMatcher {
 		/**
 		* An optional name. This name can be used to refer to the
-		* problem matchter from within a task.
+		* problem matcher from within a task.
 		*/
 		name?: string;
 
 		/**
-		 * A human reable label.
+		 * A human readable label.
 		 */
 		label?: string;
 	}
@@ -694,7 +694,7 @@ class ProblemPatternParser extends Parser {
 	}
 
 	public parse(value: Config.ProblemPattern): ProblemPattern;
-	public parse(value: Config.MultiLineProblemPattern): MultiLineProblemPattern[];
+	public parse(value: Config.MultiLineProblemPattern): MultiLineProblemPattern;
 	public parse(value: Config.NamedProblemPattern): NamedProblemPattern;
 	public parse(value: Config.NamedMultiLineProblemPattern): NamedMultiLineProblemPattern;
 	public parse(value: Config.ProblemPattern | Config.MultiLineProblemPattern | Config.NamedProblemPattern | Config.NamedMultiLineProblemPattern): any {
@@ -1253,7 +1253,7 @@ export class ProblemMatcherParser extends Parser {
 		return result;
 	}
 
-	private createProblemPattern(value: string | Config.ProblemPattern | Config.ProblemPattern[]): ProblemPattern | ProblemPattern[] {
+	private createProblemPattern(value: string | Config.ProblemPattern | Config.MultiLineProblemPattern): ProblemPattern | ProblemPattern[] {
 		if (Types.isString(value)) {
 			let variableName: string = <string>value;
 			if (variableName.length > 1 && variableName[0] === '$') {
@@ -1271,7 +1271,11 @@ export class ProblemMatcherParser extends Parser {
 			}
 		} else if (value) {
 			let problemPatternParser = new ProblemPatternParser(this.problemReporter);
-			return problemPatternParser.parse(value);
+			if (Array.isArray(value)) {
+				return problemPatternParser.parse(value);
+			} else {
+				return problemPatternParser.parse(value);
+			}
 		}
 		return null;
 	}

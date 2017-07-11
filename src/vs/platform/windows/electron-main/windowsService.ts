@@ -19,6 +19,7 @@ import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { ILifecycleService } from "vs/platform/lifecycle/electron-main/lifecycleMain";
 import { IWindowsMainService, ISharedProcess } from "vs/platform/windows/electron-main/windows";
 import { IHistoryMainService } from "vs/platform/history/electron-main/historyMainService";
+import { findExtensionDevelopmentWindow } from "vs/code/node/windowsFinder";
 
 export class WindowsService implements IWindowsService, IDisposable {
 
@@ -67,8 +68,10 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return TPromise.as(null);
 	}
 
-	pickFolder(options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
-		return this.windowsMainService.pickFolder(options);
+	pickFolder(windowId: number, options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
+
+		return this.windowsMainService.pickFolder(codeWindow, options);
 	}
 
 	reloadWindow(windowId: number): TPromise<void> {
@@ -169,6 +172,16 @@ export class WindowsService implements IWindowsService, IDisposable {
 
 		if (codeWindow) {
 			codeWindow.win.focus();
+		}
+
+		return TPromise.as(null);
+	}
+
+	closeWindow(windowId: number): TPromise<void> {
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (codeWindow) {
+			codeWindow.win.close();
 		}
 
 		return TPromise.as(null);
@@ -275,9 +288,9 @@ export class WindowsService implements IWindowsService, IDisposable {
 	}
 
 	closeExtensionHostWindow(extensionDevelopmentPaths: string[]): TPromise<void> {
-		extensionDevelopmentPaths.map(p => this.windowsMainService.findWindow(null, null, p)).forEach(windowOnExtension => {
-			if (windowOnExtension) {
-				windowOnExtension.win.close();
+		extensionDevelopmentPaths.map(extensionDevelopmentPath => findExtensionDevelopmentWindow(this.windowsMainService.getWindows(), extensionDevelopmentPath)).forEach(extensionDevelopmentWindow => {
+			if (extensionDevelopmentWindow) {
+				extensionDevelopmentWindow.win.close();
 			}
 		});
 

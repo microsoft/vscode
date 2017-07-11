@@ -9,35 +9,39 @@ import 'vs/css!./clipboard';
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as browser from 'vs/base/browser/browser';
+import * as platform from 'vs/base/common/platform';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { editorAction, IActionOptions, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { editorAction, IActionOptions, EditorAction, ICommandKeybindingsOptions } from 'vs/editor/common/editorCommonExtensions';
 import { CopyOptions } from 'vs/editor/browser/controller/textAreaInput';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
 
-function conditionalEditorAction(testCommand: string) {
-	if (!browser.supportsExecCommand(testCommand)) {
+const supportsCut = (platform.isNative || document.queryCommandSupported('cut'));
+const supportsCopy = (platform.isNative || document.queryCommandSupported('copy'));
+// IE and Edge have trouble with setting html content in clipboard
+const supportsCopyWithSyntaxHighlighting = (supportsCopy && !browser.isEdgeOrIE);
+// Chrome incorrectly returns true for document.queryCommandSupported('paste')
+// when the paste feature is available but the calling script has insufficient
+// privileges to actually perform the action
+const supportsPaste = (platform.isNative || (!browser.isChrome && document.queryCommandSupported('paste')));
+
+type ExecCommand = 'cut' | 'copy' | 'paste';
+
+function conditionalEditorAction(condition: boolean) {
+	if (!condition) {
 		return () => { };
 	}
-	return editorAction;
-}
-
-function conditionalCopyWithSyntaxHighlighting() {
-	if (browser.isEdgeOrIE || !browser.supportsExecCommand('copy')) {
-		return () => { };
-	}
-
 	return editorAction;
 }
 
 abstract class ExecCommandAction extends EditorAction {
 
-	private browserCommand: string;
+	private browserCommand: ExecCommand;
 
-	constructor(browserCommand: string, opts: IActionOptions) {
+	constructor(browserCommand: ExecCommand, opts: IActionOptions) {
 		super(opts);
 		this.browserCommand = browserCommand;
 	}
@@ -59,20 +63,26 @@ abstract class ExecCommandAction extends EditorAction {
 	}
 }
 
-@conditionalEditorAction('cut')
+@conditionalEditorAction(supportsCut)
 class ExecCommandCutAction extends ExecCommandAction {
 
 	constructor() {
+		let kbOpts: ICommandKeybindingsOptions = {
+			kbExpr: EditorContextKeys.textFocus,
+			primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
+			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_X, secondary: [KeyMod.Shift | KeyCode.Delete] }
+		};
+		// Do not bind cut keybindings in the browser,
+		// since browsers do that for us and it avoids security prompts
+		if (!platform.isNative) {
+			kbOpts = null;
+		}
 		super('cut', {
 			id: 'editor.action.clipboardCutAction',
 			label: nls.localize('actions.clipboard.cutLabel', "Cut"),
 			alias: 'Cut',
 			precondition: EditorContextKeys.writable,
-			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
-				win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_X, secondary: [KeyMod.Shift | KeyCode.Delete] }
-			},
+			kbOpts: kbOpts,
 			menuOpts: {
 				group: CLIPBOARD_CONTEXT_MENU_GROUP,
 				order: 1
@@ -91,20 +101,27 @@ class ExecCommandCutAction extends ExecCommandAction {
 	}
 }
 
-@conditionalEditorAction('copy')
+@conditionalEditorAction(supportsCopy)
 class ExecCommandCopyAction extends ExecCommandAction {
 
 	constructor() {
+		let kbOpts: ICommandKeybindingsOptions = {
+			kbExpr: EditorContextKeys.textFocus,
+			primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
+			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyCode.Insert] }
+		};
+		// Do not bind copy keybindings in the browser,
+		// since browsers do that for us and it avoids security prompts
+		if (!platform.isNative) {
+			kbOpts = null;
+		}
+
 		super('copy', {
 			id: 'editor.action.clipboardCopyAction',
 			label: nls.localize('actions.clipboard.copyLabel', "Copy"),
 			alias: 'Copy',
 			precondition: null,
-			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
-				win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyCode.Insert] }
-			},
+			kbOpts: kbOpts,
 			menuOpts: {
 				group: CLIPBOARD_CONTEXT_MENU_GROUP,
 				order: 2
@@ -123,20 +140,27 @@ class ExecCommandCopyAction extends ExecCommandAction {
 	}
 }
 
-@conditionalEditorAction('paste')
+@conditionalEditorAction(supportsPaste)
 class ExecCommandPasteAction extends ExecCommandAction {
 
 	constructor() {
+		let kbOpts: ICommandKeybindingsOptions = {
+			kbExpr: EditorContextKeys.textFocus,
+			primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
+			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] }
+		};
+		// Do not bind paste keybindings in the browser,
+		// since browsers do that for us and it avoids security prompts
+		if (!platform.isNative) {
+			kbOpts = null;
+		}
+
 		super('paste', {
 			id: 'editor.action.clipboardPasteAction',
 			label: nls.localize('actions.clipboard.pasteLabel', "Paste"),
 			alias: 'Paste',
 			precondition: EditorContextKeys.writable,
-			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
-				win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] }
-			},
+			kbOpts: kbOpts,
 			menuOpts: {
 				group: CLIPBOARD_CONTEXT_MENU_GROUP,
 				order: 3
@@ -145,7 +169,7 @@ class ExecCommandPasteAction extends ExecCommandAction {
 	}
 }
 
-@conditionalCopyWithSyntaxHighlighting()
+@conditionalEditorAction(supportsCopyWithSyntaxHighlighting)
 class ExecCommandCopyWithSyntaxHighlightingAction extends ExecCommandAction {
 
 	constructor() {

@@ -45,7 +45,7 @@ const nodeModules = ['electron', 'original-fs']
 // Build
 
 const builtInExtensions = [
-	{ name: 'ms-vscode.node-debug', version: '1.14.8' },
+	{ name: 'ms-vscode.node-debug', version: '1.15.2' },
 	{ name: 'ms-vscode.node-debug2', version: '1.14.4' }
 ];
 
@@ -55,7 +55,7 @@ const excludedExtensions = [
 ];
 
 const vscodeEntryPoints = _.flatten([
-	buildfile.entrypoint('vs/workbench/electron-browser/workbench.main'),
+	buildfile.entrypoint('vs/workbench/workbench.main'),
 	buildfile.base,
 	buildfile.workbench,
 	buildfile.code
@@ -219,8 +219,8 @@ function packageTask(platform, arch, opts) {
 		const out = opts.minified ? 'out-vscode-min' : 'out-vscode';
 
 		const checksums = computeChecksums(out, [
-			'vs/workbench/electron-browser/workbench.main.js',
-			'vs/workbench/electron-browser/workbench.main.css',
+			'vs/workbench/workbench.main.js',
+			'vs/workbench/workbench.main.css',
 			'vs/workbench/electron-browser/bootstrap/index.html',
 			'vs/workbench/electron-browser/bootstrap/index.js',
 			'vs/workbench/electron-browser/bootstrap/preload.js'
@@ -391,8 +391,8 @@ function snapshotTask(platform, arch) {
 		startupBlobFilepath = path.join(destination, 'snapshot_blob.bin')
 
 	} else if (platform === 'linux') {
-		// TODO
-		return () => { };
+		loaderInputFilepath = path.join(destination, 'resources/app/out/vs/loader.js');
+		startupBlobFilepath = path.join(destination, 'snapshot_blob.bin')
 	}
 
 	return () => {
@@ -419,9 +419,12 @@ function snapshotTask(platform, arch) {
 	}
 }
 
+gulp.task('vscode-win32-ia32-snapshots', ['vscode-win32-ia32-min'], snapshotTask('win32', 'ia32'));
+gulp.task('vscode-win32-x64-snapshots', ['vscode-win32-x64-min'], snapshotTask('win32', 'x64'));
 gulp.task('vscode-darwin-snapshots', ['vscode-darwin-min'], snapshotTask('darwin', undefined));
-gulp.task('vscode-win32-ia32-snapshots', ['vscode-win32-ia32'], snapshotTask('win32', 'ia32'));
-gulp.task('vscode-win32-x64-snapshots', ['vscode-win32-x64'], snapshotTask('win32', 'x64'));
+gulp.task('vscode-linux-ia32-snapshots', ['vscode-linux-ia32-min'], snapshotTask('linux', 'ia32'));
+gulp.task('vscode-linux-x64-snapshots', ['vscode-linux-x64-min'], snapshotTask('linux', 'x64'));
+gulp.task('vscode-linux-arm-snapshots', ['vscode-linux-arm-min'], snapshotTask('linux', 'arm'));
 
 
 // Transifex Localizations

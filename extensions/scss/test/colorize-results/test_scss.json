@@ -155,7 +155,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss",
+		"t": "source.css.scss punctuation.terminator.rule.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1606,8 +1606,19 @@
 		}
 	},
 	{
-		"c": "  color: black;",
+		"c": "  color: black",
 		"t": "source.css.scss",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.scss punctuation.terminator.rule.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2321,7 +2332,29 @@
 		}
 	},
 	{
-		"c": "  foo: 1px; ",
+		"c": "  foo: 1px",
+		"t": "source.css.scss",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.scss punctuation.terminator.rule.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
 		"t": "source.css.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -2806,7 +2839,7 @@
 	},
 	{
 		"c": "$width",
-		"t": "source.css.scss meta.set.variable.scss variable.scss",
+		"t": "source.css.scss meta.definition.variable.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
 			"light_plus": "variable.scss: #FF0000",
@@ -2817,7 +2850,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.css.scss meta.set.variable.scss punctuation.separator.key-value.scss",
+		"t": "source.css.scss meta.definition.variable.scss punctuation.separator.key-value.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2828,7 +2861,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.css.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.definition.variable.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2839,7 +2872,7 @@
 	},
 	{
 		"c": "5",
-		"t": "source.css.scss meta.set.variable.scss constant.numeric.css",
+		"t": "source.css.scss meta.definition.variable.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -2850,7 +2883,7 @@
 	},
 	{
 		"c": "em",
-		"t": "source.css.scss meta.set.variable.scss constant.numeric.css keyword.other.unit.em.css",
+		"t": "source.css.scss meta.definition.variable.scss constant.numeric.css keyword.other.unit.em.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -2861,7 +2894,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss",
+		"t": "source.css.scss punctuation.terminator.rule.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2872,7 +2905,7 @@
 	},
 	{
 		"c": "$width",
-		"t": "source.css.scss meta.set.variable.scss variable.scss",
+		"t": "source.css.scss meta.definition.variable.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
 			"light_plus": "variable.scss: #FF0000",
@@ -2883,7 +2916,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.css.scss meta.set.variable.scss punctuation.separator.key-value.scss",
+		"t": "source.css.scss meta.definition.variable.scss punctuation.separator.key-value.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2894,7 +2927,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.css.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.definition.variable.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2905,7 +2938,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.css.scss meta.set.variable.scss string.quoted.double.scss punctuation.definition.string.begin.scss",
+		"t": "source.css.scss meta.definition.variable.scss string.quoted.double.scss punctuation.definition.string.begin.scss",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -2916,7 +2949,7 @@
 	},
 	{
 		"c": "Second width?",
-		"t": "source.css.scss meta.set.variable.scss string.quoted.double.scss",
+		"t": "source.css.scss meta.definition.variable.scss string.quoted.double.scss",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -2927,7 +2960,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.css.scss meta.set.variable.scss string.quoted.double.scss punctuation.definition.string.end.scss",
+		"t": "source.css.scss meta.definition.variable.scss string.quoted.double.scss punctuation.definition.string.end.scss",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -2938,7 +2971,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.css.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.definition.variable.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2949,7 +2982,7 @@
 	},
 	{
 		"c": "!default",
-		"t": "source.css.scss meta.set.variable.scss keyword.other.default.scss",
+		"t": "source.css.scss meta.definition.variable.scss keyword.other.default.scss",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -2960,7 +2993,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss",
+		"t": "source.css.scss punctuation.terminator.rule.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3015,7 +3048,7 @@
 	},
 	{
 		"c": "  ",
-		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.property-list.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3026,7 +3059,7 @@
 	},
 	{
 		"c": "$localvar",
-		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss variable.scss",
+		"t": "source.css.scss meta.property-list.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
 			"light_plus": "variable.scss: #FF0000",
@@ -3037,7 +3070,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss punctuation.separator.key-value.scss",
+		"t": "source.css.scss meta.property-list.scss punctuation.separator.key-value.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3048,7 +3081,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.property-list.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3059,7 +3092,7 @@
 	},
 	{
 		"c": "6",
-		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -3070,7 +3103,7 @@
 	},
 	{
 		"c": "em",
-		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css keyword.other.unit.em.css",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.em.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -3081,7 +3114,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss meta.property-list.scss",
+		"t": "source.css.scss meta.property-list.scss punctuation.terminator.rule.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3158,7 +3191,7 @@
 	},
 	{
 		"c": "  ",
-		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.property-list.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3169,7 +3202,7 @@
 	},
 	{
 		"c": "$font-size",
-		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss variable.scss",
+		"t": "source.css.scss meta.property-list.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
 			"light_plus": "variable.scss: #FF0000",
@@ -3180,7 +3213,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss punctuation.separator.key-value.scss",
+		"t": "source.css.scss meta.property-list.scss punctuation.separator.key-value.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3191,7 +3224,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.property-list.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3202,7 +3235,7 @@
 	},
 	{
 		"c": "12",
-		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -3213,7 +3246,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css keyword.other.unit.px.css",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -3224,7 +3257,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss meta.property-list.scss",
+		"t": "source.css.scss meta.property-list.scss punctuation.terminator.rule.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3235,7 +3268,7 @@
 	},
 	{
 		"c": "  ",
-		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.property-list.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3246,7 +3279,7 @@
 	},
 	{
 		"c": "$line-height",
-		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss variable.scss",
+		"t": "source.css.scss meta.property-list.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
 			"light_plus": "variable.scss: #FF0000",
@@ -3257,7 +3290,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss punctuation.separator.key-value.scss",
+		"t": "source.css.scss meta.property-list.scss punctuation.separator.key-value.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3268,7 +3301,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.property-list.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3279,7 +3312,7 @@
 	},
 	{
 		"c": "30",
-		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -3290,7 +3323,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css keyword.other.unit.px.css",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -3301,7 +3334,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss meta.property-list.scss",
+		"t": "source.css.scss meta.property-list.scss punctuation.terminator.rule.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3455,7 +3488,7 @@
 	},
 	{
 		"c": "$name",
-		"t": "source.css.scss meta.set.variable.scss variable.scss",
+		"t": "source.css.scss meta.definition.variable.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
 			"light_plus": "variable.scss: #FF0000",
@@ -3466,7 +3499,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.css.scss meta.set.variable.scss punctuation.separator.key-value.scss",
+		"t": "source.css.scss meta.definition.variable.scss punctuation.separator.key-value.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3477,7 +3510,7 @@
 	},
 	{
 		"c": " foo",
-		"t": "source.css.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.definition.variable.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3488,7 +3521,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss",
+		"t": "source.css.scss punctuation.terminator.rule.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3499,7 +3532,7 @@
 	},
 	{
 		"c": "$attr",
-		"t": "source.css.scss meta.set.variable.scss variable.scss",
+		"t": "source.css.scss meta.definition.variable.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
 			"light_plus": "variable.scss: #FF0000",
@@ -3510,7 +3543,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.css.scss meta.set.variable.scss punctuation.separator.key-value.scss",
+		"t": "source.css.scss meta.definition.variable.scss punctuation.separator.key-value.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3521,7 +3554,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.css.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.definition.variable.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3532,7 +3565,7 @@
 	},
 	{
 		"c": "border",
-		"t": "source.css.scss meta.set.variable.scss support.constant.property-value.css",
+		"t": "source.css.scss meta.definition.variable.scss support.constant.property-value.css",
 		"r": {
 			"dark_plus": "support.constant.property-value: #CE9178",
 			"light_plus": "support.constant.property-value: #0451A5",
@@ -3543,7 +3576,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss",
+		"t": "source.css.scss punctuation.terminator.rule.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3796,7 +3829,7 @@
 	},
 	{
 		"c": "$grid-background-column-color",
-		"t": "source.css.scss meta.set.variable.scss variable.scss",
+		"t": "source.css.scss meta.definition.variable.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
 			"light_plus": "variable.scss: #FF0000",
@@ -3807,7 +3840,7 @@
 	},
 	{
 		"c": "     ",
-		"t": "source.css.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.definition.variable.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3818,7 +3851,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.css.scss meta.set.variable.scss punctuation.separator.key-value.scss",
+		"t": "source.css.scss meta.definition.variable.scss punctuation.separator.key-value.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3829,7 +3862,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.css.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.definition.variable.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3840,7 +3873,7 @@
 	},
 	{
 		"c": "rgba",
-		"t": "source.css.scss meta.set.variable.scss support.function.misc.scss",
+		"t": "source.css.scss meta.definition.variable.scss support.function.misc.scss",
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
@@ -3851,7 +3884,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.css.scss meta.set.variable.scss punctuation.section.function.scss",
+		"t": "source.css.scss meta.definition.variable.scss punctuation.section.function.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3862,7 +3895,7 @@
 	},
 	{
 		"c": "100",
-		"t": "source.css.scss meta.set.variable.scss constant.numeric.css",
+		"t": "source.css.scss meta.definition.variable.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -3873,7 +3906,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.css.scss meta.set.variable.scss punctuation.separator.delimiter.scss",
+		"t": "source.css.scss meta.definition.variable.scss punctuation.separator.delimiter.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3884,7 +3917,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.css.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.definition.variable.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3895,7 +3928,7 @@
 	},
 	{
 		"c": "100",
-		"t": "source.css.scss meta.set.variable.scss constant.numeric.css",
+		"t": "source.css.scss meta.definition.variable.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -3906,7 +3939,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.css.scss meta.set.variable.scss punctuation.separator.delimiter.scss",
+		"t": "source.css.scss meta.definition.variable.scss punctuation.separator.delimiter.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3917,7 +3950,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.css.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.definition.variable.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3928,7 +3961,7 @@
 	},
 	{
 		"c": "225",
-		"t": "source.css.scss meta.set.variable.scss constant.numeric.css",
+		"t": "source.css.scss meta.definition.variable.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -3939,7 +3972,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.css.scss meta.set.variable.scss punctuation.separator.delimiter.scss",
+		"t": "source.css.scss meta.definition.variable.scss punctuation.separator.delimiter.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3950,7 +3983,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.css.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.definition.variable.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3961,7 +3994,7 @@
 	},
 	{
 		"c": "0.25",
-		"t": "source.css.scss meta.set.variable.scss constant.numeric.css",
+		"t": "source.css.scss meta.definition.variable.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -3972,7 +4005,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.css.scss meta.set.variable.scss punctuation.section.function.scss",
+		"t": "source.css.scss meta.definition.variable.scss punctuation.section.function.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3983,7 +4016,7 @@
 	},
 	{
 		"c": "   ",
-		"t": "source.css.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.definition.variable.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3994,7 +4027,7 @@
 	},
 	{
 		"c": "!default",
-		"t": "source.css.scss meta.set.variable.scss keyword.other.default.scss",
+		"t": "source.css.scss meta.definition.variable.scss keyword.other.default.scss",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -4005,7 +4038,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss",
+		"t": "source.css.scss punctuation.terminator.rule.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5380,7 +5413,7 @@
 	},
 	{
 		"c": "$grid-width",
-		"t": "source.css.scss meta.set.variable.scss variable.scss",
+		"t": "source.css.scss meta.definition.variable.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
 			"light_plus": "variable.scss: #FF0000",
@@ -5391,7 +5424,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.css.scss meta.set.variable.scss punctuation.separator.key-value.scss",
+		"t": "source.css.scss meta.definition.variable.scss punctuation.separator.key-value.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5402,7 +5435,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.css.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.definition.variable.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5413,7 +5446,7 @@
 	},
 	{
 		"c": "40",
-		"t": "source.css.scss meta.set.variable.scss constant.numeric.css",
+		"t": "source.css.scss meta.definition.variable.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -5424,7 +5457,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.set.variable.scss constant.numeric.css keyword.other.unit.px.css",
+		"t": "source.css.scss meta.definition.variable.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -5435,7 +5468,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss",
+		"t": "source.css.scss punctuation.terminator.rule.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5446,7 +5479,7 @@
 	},
 	{
 		"c": "$gutter-width",
-		"t": "source.css.scss meta.set.variable.scss variable.scss",
+		"t": "source.css.scss meta.definition.variable.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
 			"light_plus": "variable.scss: #FF0000",
@@ -5457,7 +5490,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.css.scss meta.set.variable.scss punctuation.separator.key-value.scss",
+		"t": "source.css.scss meta.definition.variable.scss punctuation.separator.key-value.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5468,7 +5501,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.css.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.definition.variable.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5479,7 +5512,7 @@
 	},
 	{
 		"c": "10",
-		"t": "source.css.scss meta.set.variable.scss constant.numeric.css",
+		"t": "source.css.scss meta.definition.variable.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -5490,7 +5523,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.set.variable.scss constant.numeric.css keyword.other.unit.px.css",
+		"t": "source.css.scss meta.definition.variable.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -5501,7 +5534,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss",
+		"t": "source.css.scss punctuation.terminator.rule.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5864,7 +5897,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss meta.property-list.scss",
+		"t": "source.css.scss meta.property-list.scss punctuation.terminator.rule.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6150,7 +6183,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss",
+		"t": "source.css.scss punctuation.terminator.rule.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6161,7 +6194,7 @@
 	},
 	{
 		"c": "$family",
-		"t": "source.css.scss meta.set.variable.scss variable.scss",
+		"t": "source.css.scss meta.definition.variable.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
 			"light_plus": "variable.scss: #FF0000",
@@ -6172,7 +6205,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.css.scss meta.set.variable.scss punctuation.separator.key-value.scss",
+		"t": "source.css.scss meta.definition.variable.scss punctuation.separator.key-value.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6183,7 +6216,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.css.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.definition.variable.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6194,7 +6227,7 @@
 	},
 	{
 		"c": "unquote",
-		"t": "source.css.scss meta.set.variable.scss support.function.misc.scss",
+		"t": "source.css.scss meta.definition.variable.scss support.function.misc.scss",
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
@@ -6205,7 +6238,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.css.scss meta.set.variable.scss punctuation.section.function.scss",
+		"t": "source.css.scss meta.definition.variable.scss punctuation.section.function.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6216,7 +6249,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.css.scss meta.set.variable.scss string.quoted.double.scss punctuation.definition.string.begin.scss",
+		"t": "source.css.scss meta.definition.variable.scss string.quoted.double.scss punctuation.definition.string.begin.scss",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -6227,7 +6260,7 @@
 	},
 	{
 		"c": "Droid+Sans",
-		"t": "source.css.scss meta.set.variable.scss string.quoted.double.scss",
+		"t": "source.css.scss meta.definition.variable.scss string.quoted.double.scss",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -6238,7 +6271,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.css.scss meta.set.variable.scss string.quoted.double.scss punctuation.definition.string.end.scss",
+		"t": "source.css.scss meta.definition.variable.scss string.quoted.double.scss punctuation.definition.string.end.scss",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -6249,7 +6282,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.css.scss meta.set.variable.scss punctuation.section.function.scss",
+		"t": "source.css.scss meta.definition.variable.scss punctuation.section.function.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6260,7 +6293,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss",
+		"t": "source.css.scss punctuation.terminator.rule.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6447,7 +6480,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss",
+		"t": "source.css.scss punctuation.terminator.rule.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6579,7 +6612,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss meta.property-list.scss",
+		"t": "source.css.scss meta.property-list.scss punctuation.terminator.rule.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7360,7 +7393,7 @@
 	},
 	{
 		"c": "  ",
-		"t": "source.css.scss meta.property-list.scss meta.at-rule.import.scss",
+		"t": "source.css.scss meta.property-list.scss meta.at-rule.extend.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7371,7 +7404,7 @@
 	},
 	{
 		"c": "@",
-		"t": "source.css.scss meta.property-list.scss meta.at-rule.import.scss keyword.control.at-rule.import.scss punctuation.definition.keyword.scss",
+		"t": "source.css.scss meta.property-list.scss meta.at-rule.extend.scss keyword.control.at-rule.extend.scss punctuation.definition.keyword.scss",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -7382,7 +7415,7 @@
 	},
 	{
 		"c": "extend",
-		"t": "source.css.scss meta.property-list.scss meta.at-rule.import.scss keyword.control.at-rule.import.scss",
+		"t": "source.css.scss meta.property-list.scss meta.at-rule.extend.scss keyword.control.at-rule.extend.scss",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -7393,7 +7426,7 @@
 	},
 	{
 		"c": " .error",
-		"t": "source.css.scss meta.property-list.scss meta.at-rule.import.scss",
+		"t": "source.css.scss meta.property-list.scss meta.at-rule.extend.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7404,7 +7437,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss meta.property-list.scss",
+		"t": "source.css.scss meta.property-list.scss punctuation.terminator.rule.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7844,7 +7877,7 @@
 	},
 	{
 		"c": "  ",
-		"t": "source.css.scss meta.property-list.scss meta.at-rule.import.scss",
+		"t": "source.css.scss meta.property-list.scss meta.at-rule.extend.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7855,7 +7888,7 @@
 	},
 	{
 		"c": "@",
-		"t": "source.css.scss meta.property-list.scss meta.at-rule.import.scss keyword.control.at-rule.import.scss punctuation.definition.keyword.scss",
+		"t": "source.css.scss meta.property-list.scss meta.at-rule.extend.scss keyword.control.at-rule.extend.scss punctuation.definition.keyword.scss",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -7866,7 +7899,7 @@
 	},
 	{
 		"c": "extend",
-		"t": "source.css.scss meta.property-list.scss meta.at-rule.import.scss keyword.control.at-rule.import.scss",
+		"t": "source.css.scss meta.property-list.scss meta.at-rule.extend.scss keyword.control.at-rule.extend.scss",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -7877,7 +7910,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.css.scss meta.property-list.scss meta.at-rule.import.scss",
+		"t": "source.css.scss meta.property-list.scss meta.at-rule.extend.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7888,7 +7921,7 @@
 	},
 	{
 		"c": "%",
-		"t": "source.css.scss meta.property-list.scss meta.at-rule.import.scss entity.other.attribute-name.placeholder.css punctuation.definition.entity.css",
+		"t": "source.css.scss meta.property-list.scss meta.at-rule.extend.scss entity.other.attribute-name.placeholder.css punctuation.definition.entity.css",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
 			"light_plus": "entity.other.attribute-name: #FF0000",
@@ -7899,7 +7932,7 @@
 	},
 	{
 		"c": "extreme",
-		"t": "source.css.scss meta.property-list.scss meta.at-rule.import.scss entity.other.attribute-name.placeholder.css",
+		"t": "source.css.scss meta.property-list.scss meta.at-rule.extend.scss entity.other.attribute-name.placeholder.css",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
 			"light_plus": "entity.other.attribute-name: #FF0000",
@@ -7910,7 +7943,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.css.scss meta.property-list.scss meta.at-rule.import.scss",
+		"t": "source.css.scss meta.property-list.scss meta.at-rule.extend.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7921,7 +7954,7 @@
 	},
 	{
 		"c": "!optional",
-		"t": "source.css.scss meta.property-list.scss meta.at-rule.import.scss keyword.other.optional.scss",
+		"t": "source.css.scss meta.property-list.scss meta.at-rule.extend.scss keyword.other.optional.scss",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -7932,7 +7965,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss meta.property-list.scss",
+		"t": "source.css.scss meta.property-list.scss punctuation.terminator.rule.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8020,7 +8053,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss",
+		"t": "source.css.scss punctuation.terminator.rule.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8383,7 +8416,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss punctuation.terminator.rule.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8394,7 +8427,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8405,7 +8438,7 @@
 	},
 	{
 		"c": "$x",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss variable.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
 			"light_plus": "variable.scss: #FF0000",
@@ -8416,7 +8449,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss punctuation.separator.key-value.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss punctuation.separator.key-value.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8427,7 +8460,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8438,7 +8471,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -8449,7 +8482,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css keyword.other.unit.px.css",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -8460,7 +8493,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8471,7 +8504,7 @@
 	},
 	{
 		"c": "*",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss keyword.operator.css",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss keyword.operator.css",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -8482,7 +8515,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8493,7 +8526,7 @@
 	},
 	{
 		"c": "$x",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss variable.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
 			"light_plus": "variable.scss: #FF0000",
@@ -8504,7 +8537,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss punctuation.terminator.rule.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8768,7 +8801,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss punctuation.terminator.rule.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8779,7 +8812,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8790,7 +8823,7 @@
 	},
 	{
 		"c": "$y",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss variable.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
 			"light_plus": "variable.scss: #FF0000",
@@ -8801,7 +8834,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss punctuation.separator.key-value.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss punctuation.separator.key-value.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8812,7 +8845,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8823,7 +8856,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -8834,7 +8867,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css keyword.other.unit.px.css",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -8845,7 +8878,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8856,7 +8889,7 @@
 	},
 	{
 		"c": "*",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss keyword.operator.css",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss keyword.operator.css",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -8867,7 +8900,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8878,7 +8911,7 @@
 	},
 	{
 		"c": "$y",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss variable.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
 			"light_plus": "variable.scss: #FF0000",
@@ -8889,7 +8922,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss punctuation.terminator.rule.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9978,7 +10011,7 @@
 	},
 	{
 		"c": "$type",
-		"t": "source.css.scss meta.set.variable.scss variable.scss",
+		"t": "source.css.scss meta.definition.variable.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
 			"light_plus": "variable.scss: #FF0000",
@@ -9989,7 +10022,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.css.scss meta.set.variable.scss punctuation.separator.key-value.scss",
+		"t": "source.css.scss meta.definition.variable.scss punctuation.separator.key-value.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -10000,7 +10033,7 @@
 	},
 	{
 		"c": " monster",
-		"t": "source.css.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.definition.variable.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -10011,7 +10044,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss",
+		"t": "source.css.scss punctuation.terminator.rule.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -11309,7 +11342,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss meta.at-rule.each.scss",
+		"t": "source.css.scss meta.at-rule.each.scss punctuation.terminator.rule.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -11661,7 +11694,7 @@
 	},
 	{
 		"c": "  ",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -11672,7 +11705,7 @@
 	},
 	{
 		"c": "$i",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.set.variable.scss variable.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
 			"light_plus": "variable.scss: #FF0000",
@@ -11683,7 +11716,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.set.variable.scss punctuation.separator.key-value.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss punctuation.separator.key-value.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -11694,7 +11727,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -11705,7 +11738,7 @@
 	},
 	{
 		"c": "$i",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.set.variable.scss variable.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
 			"light_plus": "variable.scss: #FF0000",
@@ -11716,7 +11749,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -11727,7 +11760,7 @@
 	},
 	{
 		"c": "-",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.set.variable.scss keyword.operator.css",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss keyword.operator.css",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -11738,7 +11771,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -11749,7 +11782,7 @@
 	},
 	{
 		"c": "2",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -11760,7 +11793,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss punctuation.terminator.rule.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -12431,7 +12464,7 @@
 	},
 	{
 		"c": "      ",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -12442,7 +12475,7 @@
 	},
 	{
 		"c": "$z",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss variable.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
 			"light_plus": "variable.scss: #FF0000",
@@ -12453,7 +12486,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss punctuation.separator.key-value.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss punctuation.separator.key-value.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -12464,7 +12497,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -12475,7 +12508,7 @@
 	},
 	{
 		"c": "100",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -12486,7 +12519,7 @@
 	},
 	{
 		"c": "%",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css keyword.other.unit.percentage.css",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.percentage.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -12497,7 +12530,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss punctuation.terminator.rule.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -12585,7 +12618,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss punctuation.terminator.rule.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -12695,7 +12728,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss punctuation.terminator.rule.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -13278,7 +13311,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss punctuation.terminator.rule.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -13970,7 +14003,18 @@
 		}
 	},
 	{
-		"c": "; ",
+		"c": ";",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss punctuation.terminator.rule.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -14719,7 +14763,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss punctuation.terminator.rule.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -15236,7 +15280,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss punctuation.terminator.rule.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -15390,7 +15434,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss punctuation.terminator.rule.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -15599,7 +15643,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss punctuation.terminator.rule.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -16754,7 +16798,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -16765,7 +16809,7 @@
 	},
 	{
 		"c": "$foo",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss variable.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
 			"light_plus": "variable.scss: #FF0000",
@@ -16776,7 +16820,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss punctuation.separator.key-value.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss punctuation.separator.key-value.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -16787,7 +16831,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -16798,7 +16842,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -16809,7 +16853,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css keyword.other.unit.px.css",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -16819,8 +16863,8 @@
 		}
 	},
 	{
-		"c": "  }",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss",
+		"c": "  ",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -16830,8 +16874,8 @@
 		}
 	},
 	{
-		"c": "  foo: {",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss",
+		"c": "}",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss punctuation.section.property-list.end.bracket.curly.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -16841,8 +16885,96 @@
 		}
 	},
 	{
-		"c": "    foo : ",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss",
+		"c": "  ",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "foo",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ": ",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss punctuation.section.property-list.begin.bracket.curly.scss",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "foo",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss punctuation.separator.key-value.scss",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -16853,7 +16985,7 @@
 	},
 	{
 		"c": "white",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss support.constant.color.w3c-standard-color-name.css",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.constant.color.w3c-standard-color-name.css",
 		"r": {
 			"dark_plus": "support.constant.color: #CE9178",
 			"light_plus": "support.constant.color: #0451A5",
@@ -16863,8 +16995,8 @@
 		}
 	},
 	{
-		"c": "  }",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss",
+		"c": "  ",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -16874,8 +17006,8 @@
 		}
 	},
 	{
-		"c": "  foo.bar1 {",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss",
+		"c": "}",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss punctuation.section.property-list.end.bracket.curly.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -16885,30 +17017,151 @@
 		}
 	},
 	{
-		"c": "    @extend tr.",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss",
+		"c": "  ",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "foo",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss entity.other.attribute-name.class.css punctuation.definition.entity.css",
+		"r": {
+			"dark_plus": "entity.other.attribute-name.class.css: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.class.css: #800000",
+			"dark_vs": "entity.other.attribute-name.class.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.class.css: #800000",
+			"hc_black": "entity.other.attribute-name.class.css: #D7BA7D"
+		}
+	},
+	{
+		"c": "bar1",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss entity.other.attribute-name.class.css",
+		"r": {
+			"dark_plus": "entity.other.attribute-name.class.css: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.class.css: #800000",
+			"dark_vs": "entity.other.attribute-name.class.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.class.css: #800000",
+			"hc_black": "entity.other.attribute-name.class.css: #D7BA7D"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss punctuation.section.property-list.begin.bracket.curly.scss",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss keyword.control.at-rule.extend.scss punctuation.definition.keyword.scss",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
+		}
+	},
+	{
+		"c": "extend",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss keyword.control.at-rule.extend.scss",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "tr",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss entity.name.tag.css",
+		"r": {
+			"dark_plus": "entity.name.tag.css: #D7BA7D",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag.css: #D7BA7D",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag.css: #D7BA7D"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss entity.other.attribute-name.class.css punctuation.definition.entity.css",
+		"r": {
+			"dark_plus": "entity.other.attribute-name.class.css: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.class.css: #800000",
+			"dark_vs": "entity.other.attribute-name.class.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.class.css: #800000",
+			"hc_black": "entity.other.attribute-name.class.css: #D7BA7D"
 		}
 	},
 	{
 		"c": "default",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss support.constant.property-value.css",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss entity.other.attribute-name.class.css",
 		"r": {
-			"dark_plus": "support.constant.property-value: #CE9178",
-			"light_plus": "support.constant.property-value: #0451A5",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "support.constant.property-value: #CE9178"
+			"dark_plus": "entity.other.attribute-name.class.css: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.class.css: #800000",
+			"dark_vs": "entity.other.attribute-name.class.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.class.css: #800000",
+			"hc_black": "entity.other.attribute-name.class.css: #D7BA7D"
 		}
 	},
 	{
 		"c": "  }",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -16918,8 +17171,41 @@
 		}
 	},
 	{
-		"c": "  foo.bar2 {",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss",
+		"c": "  foo",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss entity.other.attribute-name.class.css punctuation.definition.entity.css",
+		"r": {
+			"dark_plus": "entity.other.attribute-name.class.css: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.class.css: #800000",
+			"dark_vs": "entity.other.attribute-name.class.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.class.css: #800000",
+			"hc_black": "entity.other.attribute-name.class.css: #D7BA7D"
+		}
+	},
+	{
+		"c": "bar2",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss entity.other.attribute-name.class.css",
+		"r": {
+			"dark_plus": "entity.other.attribute-name.class.css: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.class.css: #800000",
+			"dark_vs": "entity.other.attribute-name.class.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.class.css: #800000",
+			"hc_black": "entity.other.attribute-name.class.css: #D7BA7D"
+		}
+	},
+	{
+		"c": " {",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -16930,7 +17216,7 @@
 	},
 	{
 		"c": "    @import ",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -16941,7 +17227,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss string.quoted.double.scss punctuation.definition.string.begin.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss string.quoted.double.scss punctuation.definition.string.begin.scss",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -16952,7 +17238,7 @@
 	},
 	{
 		"c": "compass",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss string.quoted.double.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss string.quoted.double.scss",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -16963,7 +17249,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss string.quoted.double.scss punctuation.definition.string.end.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss string.quoted.double.scss punctuation.definition.string.end.scss",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -16974,7 +17260,7 @@
 	},
 	{
 		"c": "  }",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -16985,7 +17271,7 @@
 	},
 	{
 		"c": "  bar: ",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -16996,7 +17282,7 @@
 	},
 	{
 		"c": "black",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss support.constant.color.w3c-standard-color-name.css",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss support.constant.color.w3c-standard-color-name.css",
 		"r": {
 			"dark_plus": "support.constant.color: #CE9178",
 			"light_plus": "support.constant.color: #0451A5",
@@ -17007,7 +17293,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -17017,41 +17303,118 @@
 		}
 	},
 	{
-		"c": "/*",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss comment.block.scss punctuation.definition.comment.scss",
+		"c": "/",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss",
 		"r": {
-			"dark_plus": "comment: #608B4E",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
-		"c": " rules without whitespace ",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss comment.block.scss",
+		"c": "*",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss entity.name.tag.wildcard.scss",
 		"r": {
-			"dark_plus": "comment: #608B4E",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+			"dark_plus": "entity.name.tag: #569CD6",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag: #569CD6",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag: #569CD6"
 		}
 	},
 	{
-		"c": "*/",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss comment.block.scss punctuation.definition.comment.scss",
+		"c": " rules without ",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss",
 		"r": {
-			"dark_plus": "comment: #608B4E",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
-		"c": "legend {foo{a:s}",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss",
+		"c": "whitespace",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss support.constant.property-value.css",
+		"r": {
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "support.constant.property-value: #0451A5",
+			"hc_black": "support.constant.property-value: #CE9178"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "*",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss entity.name.tag.wildcard.scss",
+		"r": {
+			"dark_plus": "entity.name.tag: #569CD6",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag: #569CD6",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag: #569CD6"
+		}
+	},
+	{
+		"c": "/",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss keyword.operator.css",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": "legend",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss entity.name.tag.css",
+		"r": {
+			"dark_plus": "entity.name.tag.css: #D7BA7D",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag.css: #D7BA7D",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag.css: #D7BA7D"
+		}
+	},
+	{
+		"c": " {foo{",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "a",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss entity.name.tag.css",
+		"r": {
+			"dark_plus": "entity.name.tag.css: #D7BA7D",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag.css: #D7BA7D",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag.css: #D7BA7D"
+		}
+	},
+	{
+		"c": ":s}",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -17062,7 +17425,7 @@
 	},
 	{
 		"c": "margin-top",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss support.type.property-name.css",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
 			"light_plus": "support.type.property-name: #FF0000",
@@ -17073,7 +17436,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -17084,7 +17447,7 @@
 	},
 	{
 		"c": "0",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss constant.numeric.css",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -17095,7 +17458,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss punctuation.terminator.rule.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -17392,7 +17755,7 @@
 	},
 	{
 		"c": "  ",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.import.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -17403,7 +17766,7 @@
 	},
 	{
 		"c": "@",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.import.scss keyword.control.at-rule.import.scss punctuation.definition.keyword.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss keyword.control.at-rule.extend.scss punctuation.definition.keyword.scss",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -17414,7 +17777,7 @@
 	},
 	{
 		"c": "extend",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.import.scss keyword.control.at-rule.import.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss keyword.control.at-rule.extend.scss",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -17425,7 +17788,7 @@
 	},
 	{
 		"c": " .",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.import.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -17436,7 +17799,7 @@
 	},
 	{
 		"c": "#{",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.import.scss variable.interpolation.scss punctuation.definition.interpolation.begin.bracket.curly.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss variable.interpolation.scss punctuation.definition.interpolation.begin.bracket.curly.scss",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -17447,7 +17810,7 @@
 	},
 	{
 		"c": "$a",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.import.scss variable.interpolation.scss variable.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss variable.interpolation.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
 			"light_plus": "variable.scss: #FF0000",
@@ -17458,7 +17821,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.import.scss variable.interpolation.scss punctuation.definition.interpolation.end.bracket.curly.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss variable.interpolation.scss punctuation.definition.interpolation.end.bracket.curly.scss",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -17469,7 +17832,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss punctuation.terminator.rule.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -17480,7 +17843,7 @@
 	},
 	{
 		"c": "  ",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.import.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -17491,7 +17854,7 @@
 	},
 	{
 		"c": "@",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.import.scss keyword.control.at-rule.import.scss punctuation.definition.keyword.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss keyword.control.at-rule.extend.scss punctuation.definition.keyword.scss",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -17502,7 +17865,7 @@
 	},
 	{
 		"c": "extend",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.import.scss keyword.control.at-rule.import.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss keyword.control.at-rule.extend.scss",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -17513,7 +17876,7 @@
 	},
 	{
 		"c": " #",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.import.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -17524,7 +17887,7 @@
 	},
 	{
 		"c": "#{",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.import.scss variable.interpolation.scss punctuation.definition.interpolation.begin.bracket.curly.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss variable.interpolation.scss punctuation.definition.interpolation.begin.bracket.curly.scss",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -17535,7 +17898,7 @@
 	},
 	{
 		"c": "$a",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.import.scss variable.interpolation.scss variable.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss variable.interpolation.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
 			"light_plus": "variable.scss: #FF0000",
@@ -17546,7 +17909,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.import.scss variable.interpolation.scss punctuation.definition.interpolation.end.bracket.curly.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss variable.interpolation.scss punctuation.definition.interpolation.end.bracket.curly.scss",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -17557,7 +17920,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss punctuation.terminator.rule.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -17964,7 +18327,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss punctuation.terminator.rule.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

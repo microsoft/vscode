@@ -12,7 +12,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { DEBUG_SCHEME, IDebugService } from 'vs/workbench/parts/debug/common/debug';
+import { DEBUG_SCHEME, IDebugService, IProcess } from 'vs/workbench/parts/debug/common/debug';
 
 export class DebugContentProvider implements IWorkbenchContribution, ITextModelContentProvider {
 
@@ -30,7 +30,23 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 	}
 
 	public provideTextContent(resource: uri): TPromise<IModel> {
-		const process = this.debugService.getViewModel().focusedProcess;
+
+		let process: IProcess;
+		if (resource.query) {
+			const keyvalues = resource.query.split('&');
+			for (let keyvalue of keyvalues) {
+				const pair = keyvalue.split('=');
+				if (pair.length === 2 && pair[0] === 'session') {
+					process = this.debugService.findProcessByUUID(decodeURIComponent(pair[1]));
+					break;
+				}
+			}
+		}
+
+		if (!process) {
+			// fallback: use focussed process
+			process = this.debugService.getViewModel().focusedProcess;
+		}
 
 		if (!process) {
 			return TPromise.wrapError<IModel>(new Error(localize('unable', "Unable to resolve the resource without a debug session")));
@@ -41,7 +57,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 			rawSource = source.raw;
 		} else {
 			// Remove debug: scheme
-			rawSource = { path: resource.with({ scheme: '' }).toString(true) };
+			rawSource = { path: resource.with({ scheme: '', query: '' }).toString(true) };
 		}
 
 		return process.session.source({ sourceReference: source ? source.reference : undefined, source: rawSource }).then(response => {

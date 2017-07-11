@@ -259,13 +259,6 @@ export interface ISuggestSupport {
 }
 
 /**
- * Interface used to quick fix typing errors while accesing member fields.
- */
-export interface CodeAction {
-	command: Command;
-	score: number;
-}
-/**
  * The code action interface defines the contract between extensions and
  * the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature.
  * @internal
@@ -274,7 +267,7 @@ export interface CodeActionProvider {
 	/**
 	 * Provide commands for the given document and range.
 	 */
-	provideCodeActions(model: editorCommon.IReadOnlyModel, range: Range, token: CancellationToken): CodeAction[] | Thenable<CodeAction[]>;
+	provideCodeActions(model: editorCommon.IReadOnlyModel, range: Range, token: CancellationToken): Command[] | Thenable<Command[]>;
 }
 
 /**

@@ -42,7 +42,7 @@ export class DebugViewlet extends ComposedViewsViewlet {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(VIEWLET_ID, ViewLocation.Debug, `${VIEWLET_ID}.state`, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
+		super(VIEWLET_ID, ViewLocation.Debug, `${VIEWLET_ID}.state`, false, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
 
 		this.progressRunner = null;
 

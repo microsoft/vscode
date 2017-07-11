@@ -27,7 +27,7 @@ const NO_TAB_SIZE = 0;
 
 suite('ModelLine - getIndentLevel', () => {
 	function assertIndentLevel(text: string, expected: number, tabSize: number = 4): void {
-		let modelLine = new ModelLine(1, text, tabSize);
+		let modelLine = new ModelLine(text, tabSize);
 		let actual = modelLine.getIndentLevel();
 		assert.equal(actual, expected, text);
 	}
@@ -53,7 +53,7 @@ suite('ModelLine - getIndentLevel', () => {
 suite('Editor Model - modelLine.applyEdits text', () => {
 
 	function testEdits(initial: string, edits: ILineEdit[], expected: string): void {
-		var line = new ModelLine(1, initial, NO_TAB_SIZE);
+		var line = new ModelLine(initial, NO_TAB_SIZE);
 		line.applyEdits(new MarkersTracker(), edits, NO_TAB_SIZE);
 		assert.equal(line.text, expected);
 	}
@@ -200,7 +200,7 @@ suite('Editor Model - modelLine.applyEdits text', () => {
 suite('Editor Model - modelLine.split text', () => {
 
 	function testLineSplit(initial: string, splitColumn: number, expected1: string, expected2: string): void {
-		var line = new ModelLine(1, initial, NO_TAB_SIZE);
+		var line = new ModelLine(initial, NO_TAB_SIZE);
 		var newLine = line.split(new MarkersTracker(), splitColumn, false, NO_TAB_SIZE);
 		assert.equal(line.text, expected1);
 		assert.equal(newLine.text, expected2);
@@ -237,9 +237,9 @@ suite('Editor Model - modelLine.split text', () => {
 suite('Editor Model - modelLine.append text', () => {
 
 	function testLineAppend(a: string, b: string, expected: string): void {
-		var line1 = new ModelLine(1, a, NO_TAB_SIZE);
-		var line2 = new ModelLine(2, b, NO_TAB_SIZE);
-		line1.append(new MarkersTracker(), line2, NO_TAB_SIZE);
+		var line1 = new ModelLine(a, NO_TAB_SIZE);
+		var line2 = new ModelLine(b, NO_TAB_SIZE);
+		line1.append(new MarkersTracker(), 1, line2, NO_TAB_SIZE);
 		assert.equal(line1.text, expected);
 	}
 
@@ -298,7 +298,7 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 
 
 	function testLineEditTokens(initialText: string, initialTokens: TestToken[], edits: ILineEdit[], expectedText: string, expectedTokens: TestToken[]): void {
-		let line = new ModelLine(1, initialText, NO_TAB_SIZE);
+		let line = new ModelLine(initialText, NO_TAB_SIZE);
 		line.setTokens(0, TestToken.toTokens(initialTokens));
 
 		line.applyEdits(new MarkersTracker(), edits, NO_TAB_SIZE);
@@ -308,7 +308,7 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 	}
 
 	test('insertion on empty line', () => {
-		let line = new ModelLine(1, 'some text', NO_TAB_SIZE);
+		let line = new ModelLine('some text', NO_TAB_SIZE);
 		line.setTokens(0, TestToken.toTokens([new TestToken(0, 1)]));
 
 		line.applyEdits(new MarkersTracker(), [{ startColumn: 1, endColumn: 10, text: '', forceMoveMarkers: false }], NO_TAB_SIZE);
@@ -870,7 +870,7 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 
 suite('Editor Model - modelLine.split text & tokens', () => {
 	function testLineSplitTokens(initialText: string, initialTokens: TestToken[], splitColumn: number, expectedText1: string, expectedText2: string, expectedTokens: TestToken[]): void {
-		let line = new ModelLine(1, initialText, NO_TAB_SIZE);
+		let line = new ModelLine(initialText, NO_TAB_SIZE);
 		line.setTokens(0, TestToken.toTokens(initialTokens));
 
 		let other = line.split(new MarkersTracker(), splitColumn, false, NO_TAB_SIZE);
@@ -954,13 +954,13 @@ suite('Editor Model - modelLine.split text & tokens', () => {
 
 suite('Editor Model - modelLine.append text & tokens', () => {
 	function testLineAppendTokens(aText: string, aTokens: TestToken[], bText: string, bTokens: TestToken[], expectedText: string, expectedTokens: TestToken[]): void {
-		let a = new ModelLine(1, aText, NO_TAB_SIZE);
+		let a = new ModelLine(aText, NO_TAB_SIZE);
 		a.setTokens(0, TestToken.toTokens(aTokens));
 
-		let b = new ModelLine(2, bText, NO_TAB_SIZE);
+		let b = new ModelLine(bText, NO_TAB_SIZE);
 		b.setTokens(0, TestToken.toTokens(bTokens));
 
-		a.append(new MarkersTracker(), b, NO_TAB_SIZE);
+		a.append(new MarkersTracker(), 1, b, NO_TAB_SIZE);
 
 		assert.equal(a.text, expectedText);
 		assertLineTokens(a.getTokens(0), expectedTokens);
@@ -1094,7 +1094,7 @@ suite('Editor Model - modelLine.applyEdits text & markers', () => {
 	}
 
 	function testLineEditMarkers(initialText: string, initialMarkers: LineMarker[], edits: ILineEdit[], expectedText: string, expectedChangedMarkers: number[], _expectedMarkers: LineMarker[]): void {
-		let line = new ModelLine(1, initialText, NO_TAB_SIZE);
+		let line = new ModelLine(initialText, NO_TAB_SIZE);
 		line.addMarkers(initialMarkers);
 
 		let changedMarkers = new MarkersTracker();
@@ -1911,7 +1911,7 @@ suite('Editor Model - modelLine.split text & markers', () => {
 	}
 
 	function testLineSplitMarkers(initialText: string, initialMarkers: LineMarker[], splitColumn: number, forceMoveMarkers: boolean, expectedText1: string, expectedText2: string, expectedChangedMarkers: number[], _expectedMarkers1: LineMarker[], _expectedMarkers2: LineMarker[]): void {
-		let line = new ModelLine(1, initialText, NO_TAB_SIZE);
+		let line = new ModelLine(initialText, NO_TAB_SIZE);
 		line.addMarkers(initialMarkers);
 
 		let changedMarkers = new MarkersTracker();
@@ -2184,14 +2184,14 @@ suite('Editor Model - modelLine.append text & markers', () => {
 	}
 
 	function testLinePrependMarkers(aText: string, aMarkers: LineMarker[], bText: string, bMarkers: LineMarker[], expectedText: string, expectedChangedMarkers: number[], _expectedMarkers: LineMarker[]): void {
-		let a = new ModelLine(1, aText, NO_TAB_SIZE);
+		let a = new ModelLine(aText, NO_TAB_SIZE);
 		a.addMarkers(aMarkers);
 
-		let b = new ModelLine(2, bText, NO_TAB_SIZE);
+		let b = new ModelLine(bText, NO_TAB_SIZE);
 		b.addMarkers(bMarkers);
 
 		let changedMarkers = new MarkersTracker();
-		a.append(changedMarkers, b, NO_TAB_SIZE);
+		a.append(changedMarkers, 1, b, NO_TAB_SIZE);
 
 		assert.equal(a.text, expectedText, 'text');
 

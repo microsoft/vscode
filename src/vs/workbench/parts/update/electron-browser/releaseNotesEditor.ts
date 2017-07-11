@@ -19,8 +19,10 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
-import { WebviewEditor } from 'vs/workbench/browser/parts/editor/webviewEditor';
+import { WebviewEditor } from 'vs/workbench/parts/html/browser/webviewEditor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 function renderBody(body: string): string {
 	return `<!DOCTYPE html>
@@ -39,9 +41,6 @@ export class ReleaseNotesEditor extends WebviewEditor {
 
 	static ID: string = 'workbench.editor.releaseNotes';
 
-	private content: HTMLElement;
-	private webview: WebView;
-
 	private contentDisposables: IDisposable[] = [];
 	private scrollYPercentage: number = 0;
 
@@ -51,14 +50,16 @@ export class ReleaseNotesEditor extends WebviewEditor {
 		@IOpenerService private openerService: IOpenerService,
 		@IModeService private modeService: IModeService,
 		@IPartService private partService: IPartService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IContextViewService private _contextViewService: IContextViewService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(ReleaseNotesEditor.ID, telemetryService, themeService, storageService);
+		super(ReleaseNotesEditor.ID, telemetryService, themeService, storageService, contextKeyService);
 	}
 
 	createEditor(parent: Builder): void {
 		const container = parent.getHTMLElement();
-		this.content = append(container, $('.release-notes', { 'style': 'height: 100%' }));
+		this.content = append(container, $('.release-notes', { 'style': 'height: 100%; position: relative; overflow: hidden;' }));
 	}
 
 	setInput(input: ReleaseNotesInput, options: EditorOptions): TPromise<void> {
@@ -94,39 +95,39 @@ export class ReleaseNotesEditor extends WebviewEditor {
 			})
 			.then(renderBody)
 			.then<void>(body => {
-				this.webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART));
+				this._webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this._contextViewService, this.contextKey);
 
 				if (this.input && this.input instanceof ReleaseNotesInput) {
 					const state = this.loadViewState(this.input.version);
 					if (state) {
-						this.webview.initialScrollProgress = state.scrollYPercentage;
+						this._webview.initialScrollProgress = state.scrollYPercentage;
 					}
 				}
-				this.webview.style(this.themeService.getTheme());
-				this.webview.contents = [body];
+				this.onThemeChange(this.themeService.getTheme());
+				this._webview.contents = [body];
 
-				this.webview.onDidClickLink(link => this.openerService.open(link), null, this.contentDisposables);
-				this.webview.onDidScroll(event => {
+				this._webview.onDidClickLink(link => this.openerService.open(link), null, this.contentDisposables);
+				this._webview.onDidScroll(event => {
 					this.scrollYPercentage = event.scrollYPercentage;
 				}, null, this.contentDisposables);
-				this.themeService.onThemeChange(themeId => this.webview.style(themeId), null, this.contentDisposables);
-				this.contentDisposables.push(this.webview);
-				this.contentDisposables.push(toDisposable(() => this.webview = null));
+				this.themeService.onThemeChange(this.onThemeChange, null, this.contentDisposables);
+				this.contentDisposables.push(this._webview);
+				this.contentDisposables.push(toDisposable(() => this._webview = null));
 			});
 	}
 
 	layout(): void {
-		if (this.webview) {
-			this.webview.layout();
+		if (this._webview) {
+			this._webview.layout();
 		}
 	}
 
 	focus(): void {
-		if (!this.webview) {
+		if (!this._webview) {
 			return;
 		}
 
-		this.webview.focus();
+		this._webview.focus();
 	}
 
 	dispose(): void {

@@ -12,16 +12,11 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { ICommonCodeEditor, IEditorContribution, IReadOnlyModel } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { Range } from 'vs/editor/common/core/range';
 import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { CodeAction, CodeActionProviderRegistry } from 'vs/editor/common/modes';
-import { asWinJsPromise } from 'vs/base/common/async';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { QuickFixContextMenu } from './quickFixWidget';
 import { LightBulbWidget } from './lightBulbWidget';
 import { QuickFixModel, QuickFixComputeEvent } from './quickFixModel';
@@ -135,21 +130,3 @@ export class QuickFixAction extends EditorAction {
 		}
 	}
 }
-
-
-export function getCodeActions(model: IReadOnlyModel, range: Range): TPromise<CodeAction[]> {
-
-	const allResults: CodeAction[] = [];
-	const promises = CodeActionProviderRegistry.all(model).map(support => {
-		return asWinJsPromise(token => support.provideCodeActions(model, range, token)).then(result => {
-			if (Array.isArray(result)) {
-				allResults.push(...result);
-			}
-		}, err => {
-			onUnexpectedExternalError(err);
-		});
-	});
-
-	return TPromise.join(promises).then(() => allResults);
-}
-

@@ -5,53 +5,33 @@
 
 'use strict';
 
-import { ElectronWindow } from 'vs/workbench/electron-browser/window';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event, { Emitter } from 'vs/base/common/event';
 
-import { ipcRenderer as ipc, remote } from 'electron';
+import { ipcRenderer as ipc } from 'electron';
 
-const windowId = remote.getCurrentWindow().id;
-
-export const IWindowIPCService = createDecorator<IWindowIPCService>('windowIPCService');
-
-export interface IWindowServices {
-	windowService?: IWindowIPCService;
-}
+export const IBroadcastService = createDecorator<IBroadcastService>('broadcastService');
 
 export interface IBroadcast {
 	channel: string;
 	payload: any;
 }
 
-export interface IWindowIPCService {
+export interface IBroadcastService {
 	_serviceBrand: any;
-
-	getWindowId(): number;
-
-	getWindow(): ElectronWindow;
-
-	registerWindow(win: ElectronWindow): void;
 
 	broadcast(b: IBroadcast, target?: string): void;
 
 	onBroadcast: Event<IBroadcast>;
 }
 
-/**
- * TODO@Joao: remove this service
- * @deprecated
- */
-export class WindowIPCService implements IWindowIPCService {
+export class BroadcastService implements IBroadcastService {
 	public _serviceBrand: any;
 
-	private win: ElectronWindow;
-	private windowId: number;
 	private _onBroadcast: Emitter<IBroadcast>;
 
-	constructor() {
+	constructor(private windowId: number) {
 		this._onBroadcast = new Emitter<IBroadcast>();
-		this.windowId = windowId;
 
 		this.registerListeners();
 	}
@@ -66,20 +46,8 @@ export class WindowIPCService implements IWindowIPCService {
 		return this._onBroadcast.event;
 	}
 
-	public getWindowId(): number {
-		return this.windowId;
-	}
-
-	public getWindow(): ElectronWindow {
-		return this.win;
-	}
-
-	public registerWindow(win: ElectronWindow): void {
-		this.win = win;
-	}
-
 	public broadcast(b: IBroadcast, target?: string): void {
-		ipc.send('vscode:broadcast', this.getWindowId(), target, {
+		ipc.send('vscode:broadcast', this.windowId, target, {
 			channel: b.channel,
 			payload: b.payload
 		});

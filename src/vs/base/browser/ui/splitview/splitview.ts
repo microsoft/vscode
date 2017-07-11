@@ -29,6 +29,7 @@ export enum ViewSizing {
 
 export interface IOptions {
 	orientation?: Orientation; // default Orientation.VERTICAL
+	canChangeOrderByDragAndDrop?: boolean;
 }
 
 export interface ISashEvent {
@@ -48,6 +49,8 @@ export interface IView extends ee.IEventEmitter {
 	fixedSize: number;
 	minimumSize: number;
 	maximumSize: number;
+	draggableElement?: HTMLElement;
+	draggableLabel?: string;
 	render(container: HTMLElement, orientation: Orientation): void;
 	layout(size: number, orientation: Orientation): void;
 	focus(): void;
@@ -161,6 +164,8 @@ export abstract class HeaderView extends View {
 			this.header.style.borderTop = headerHighContrastBorderColor ? `1px solid ${headerHighContrastBorderColor}` : null;
 		}
 	}
+
+	get draggableElement(): HTMLElement { return this.header; }
 
 	render(container: HTMLElement, orientation: Orientation): void {
 		this.header = document.createElement('div');
@@ -476,10 +481,15 @@ function sum(arr: number[]): number {
 	return arr.reduce((a, b) => a + b);
 }
 
-export class SplitView implements
+export interface SplitViewStyles {
+	dropBackground?: Color;
+}
+
+export class SplitView extends lifecycle.Disposable implements
 	sash.IHorizontalSashLayoutProvider,
 	sash.IVerticalSashLayoutProvider {
 	private orientation: Orientation;
+	private canDragAndDrop: boolean;
 	private el: HTMLElement;
 	private size: number;
 	private viewElements: HTMLElement[];
@@ -488,6 +498,7 @@ export class SplitView implements
 	private viewFocusPreviousListeners: lifecycle.IDisposable[];
 	private viewFocusNextListeners: lifecycle.IDisposable[];
 	private viewFocusListeners: lifecycle.IDisposable[];
+	private viewDnDListeners: lifecycle.IDisposable[][];
 	private initialWeights: number[];
 	private sashOrientation: sash.Orientation;
 	private sashes: sash.Sash[];
@@ -496,13 +507,22 @@ export class SplitView implements
 	private layoutViewElement: (viewElement: HTMLElement, size: number) => void;
 	private eventWrapper: (event: sash.ISashEvent) => ISashEvent;
 	private animationTimeout: number;
-	private _onFocus: Emitter<IView>;
 	private state: IState;
+	private draggedView: IView;
+	private dropBackground: Color;
+
+	private _onFocus: Emitter<IView> = this._register(new Emitter<IView>());
+	readonly onFocus: Event<IView> = this._onFocus.event;
+
+	private _onDidOrderChange: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidOrderChange: Event<void> = this._onDidOrderChange.event;
 
 	constructor(container: HTMLElement, options?: IOptions) {
+		super();
 		options = options || {};
 
 		this.orientation = types.isUndefined(options.orientation) ? Orientation.VERTICAL : options.orientation;
+		this.canDragAndDrop = !!options.canChangeOrderByDragAndDrop;
 
 		this.el = document.createElement('div');
 		dom.addClass(this.el, 'monaco-split-view');
@@ -516,11 +536,11 @@ export class SplitView implements
 		this.viewFocusPreviousListeners = [];
 		this.viewFocusNextListeners = [];
 		this.viewFocusListeners = [];
+		this.viewDnDListeners = [];
 		this.initialWeights = [];
 		this.sashes = [];
 		this.sashesListeners = [];
 		this.animationTimeout = null;
-		this._onFocus = new Emitter<IView>();
 
 		this.sashOrientation = this.orientation === Orientation.VERTICAL
 			? sash.Orientation.HORIZONTAL
@@ -540,8 +560,8 @@ export class SplitView implements
 		this.addView(new VoidView(), 1, 0);
 	}
 
-	get onFocus(): Event<IView> {
-		return this._onFocus.event;
+	getViews<T extends IView>(): T[] {
+		return <T[]>this.views.slice(0, this.views.length - 1);
 	}
 
 	addView(view: IView, initialWeight: number = 1, index = this.views.length - 1): void {
@@ -574,6 +594,9 @@ export class SplitView implements
 		} else {
 			this.el.insertBefore(viewElement, this.el.children.item(index));
 		}
+
+		// Listen to Drag and Drop
+		this.viewDnDListeners[index] = this.createDnDListeners(view, viewElement);
 
 		// Add sash
 		if (this.views.length > 2) {
@@ -632,6 +655,9 @@ export class SplitView implements
 		this.viewFocusNextListeners[index].dispose();
 		this.viewFocusNextListeners.splice(index, 1);
 
+		lifecycle.dispose(this.viewDnDListeners[index]);
+		this.viewDnDListeners.splice(index, 1);
+
 		this.views.splice(index, 1);
 		this.initialWeights.splice(index, 1);
 		this.el.removeChild(this.viewElements[index]);
@@ -666,6 +692,116 @@ export class SplitView implements
 
 		this.size = size;
 		this.layoutViews();
+	}
+
+	style(styles: SplitViewStyles): void {
+		this.dropBackground = styles.dropBackground;
+	}
+
+	private createDnDListeners(view: IView, viewElement: HTMLElement): lifecycle.IDisposable[] {
+		if (!this.canDragAndDrop || view instanceof VoidView) {
+			return [];
+		}
+
+		const disposables: lifecycle.IDisposable[] = [];
+
+		// Allow to drag
+		if (view.draggableElement) {
+			view.draggableElement.draggable = true;
+			disposables.push(dom.addDisposableListener(view.draggableElement, dom.EventType.DRAG_START, (e: DragEvent) => {
+				e.dataTransfer.effectAllowed = 'move';
+
+				const dragImage = document.createElement('div');
+				dragImage.className = 'monaco-tree-drag-image';
+				dragImage.textContent = view.draggableLabel ? view.draggableLabel : view.draggableElement.textContent;
+				document.body.appendChild(dragImage);
+				e.dataTransfer.setDragImage(dragImage, -10, -10);
+				setTimeout(() => document.body.removeChild(dragImage), 0);
+
+				this.draggedView = view;
+			}));
+		}
+
+		// Drag enter
+		let counter = 0; // see https://github.com/Microsoft/vscode/issues/14470
+		disposables.push(dom.addDisposableListener(viewElement, dom.EventType.DRAG_ENTER, (e: DragEvent) => {
+			if (this.draggedView && this.draggedView !== view) {
+				counter++;
+				this.updateFromDragging(view, viewElement, true);
+			}
+		}));
+
+		// Drag leave
+		disposables.push(dom.addDisposableListener(viewElement, dom.EventType.DRAG_LEAVE, (e: DragEvent) => {
+			if (this.draggedView && this.draggedView !== view) {
+				counter--;
+				if (counter === 0) {
+					this.updateFromDragging(view, viewElement, false);
+				}
+			}
+		}));
+
+		// Drag end
+		disposables.push(dom.addDisposableListener(viewElement, dom.EventType.DRAG_END, (e: DragEvent) => {
+			if (this.draggedView) {
+				counter = 0;
+				this.updateFromDragging(view, viewElement, false);
+				this.draggedView = null;
+			}
+		}));
+
+		// Drop
+		disposables.push(dom.addDisposableListener(viewElement, dom.EventType.DROP, (e: DragEvent) => {
+			dom.EventHelper.stop(e, true);
+			counter = 0;
+			this.updateFromDragging(view, viewElement, false);
+			if (this.draggedView && this.draggedView !== view) {
+				this.move(this.views.indexOf(this.draggedView), this.views.indexOf(view));
+			}
+			this.draggedView = null;
+		}));
+
+		return disposables;
+	}
+
+	private updateFromDragging(view: IView, viewElement: HTMLElement, isDragging: boolean): void {
+		viewElement.style.backgroundColor = isDragging && this.dropBackground ? this.dropBackground.toString() : null;
+	}
+
+	private move(fromIndex: number, toIndex: number): void {
+		if (fromIndex < 0 || toIndex > this.views.length - 2) {
+			return;
+		}
+
+		const [viewChangeListener] = this.viewChangeListeners.splice(fromIndex, 1);
+		this.viewChangeListeners.splice(toIndex, 0, viewChangeListener);
+
+		const [viewFocusPreviousListener] = this.viewFocusPreviousListeners.splice(fromIndex, 1);
+		this.viewFocusPreviousListeners.splice(toIndex, 0, viewFocusPreviousListener);
+
+		const [viewFocusListener] = this.viewFocusListeners.splice(fromIndex, 1);
+		this.viewFocusListeners.splice(toIndex, 0, viewFocusListener);
+
+		const [viewFocusNextListener] = this.viewFocusNextListeners.splice(fromIndex, 1);
+		this.viewFocusNextListeners.splice(toIndex, 0, viewFocusNextListener);
+
+		const [viewDnDListeners] = this.viewDnDListeners.splice(fromIndex, 1);
+		this.viewDnDListeners.splice(toIndex, 0, viewDnDListeners);
+
+		const [view] = this.views.splice(fromIndex, 1);
+		this.views.splice(toIndex, 0, view);
+
+		const [weight] = this.initialWeights.splice(fromIndex, 1);
+		this.initialWeights.splice(toIndex, 0, weight);
+
+		this.el.removeChild(this.viewElements[fromIndex]);
+		this.el.insertBefore(this.viewElements[fromIndex], this.viewElements[toIndex < fromIndex ? toIndex : toIndex + 1]);
+		const [viewElement] = this.viewElements.splice(fromIndex, 1);
+		this.viewElements.splice(toIndex, 0, viewElement);
+
+		this.layout();
+
+		this._onDidOrderChange.fire();
 	}
 
 	private onSashStart(sash: sash.Sash, event: ISashEvent): void {
@@ -909,5 +1045,7 @@ export class SplitView implements
 		this.layoutViewElement = null;
 		this.eventWrapper = null;
 		this.state = null;
+
+		super.dispose();
 	}
 }
