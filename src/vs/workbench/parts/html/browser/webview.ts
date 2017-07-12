@@ -77,9 +77,7 @@ export default class Webview {
 		private _options: WebviewOptions = {},
 	) {
 		this._webview = <any>document.createElement('webview');
-		if (!this._options.allowSvgs) {
-			this._webview.setAttribute('partition', `webview${Webview.index++}`);
-		}
+		this._webview.setAttribute('partition', this._options.allowSvgs ? 'webview' : `webview${Webview.index++}`);
 
 		// disable auxclick events (see https://developers.google.com/web/updates/2016/10/auxclick)
 		this._webview.setAttribute('disableblinkfeatures', 'Auxclick');
