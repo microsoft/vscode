@@ -115,7 +115,6 @@ export class PatternInputWidget extends Widget {
 		let searchPaths: string[];
 		if (isGlobPattern) {
 			const segments = splitGlobAware(pattern, ',')
-				.map(s => strings.ltrim(s.trim(), './'))
 				.filter(s => !!s.length);
 
 			const groups = this.groupByPathsAndExprSegments(segments);
@@ -123,7 +122,6 @@ export class PatternInputWidget extends Widget {
 			exprSegments = groups.exprSegments;
 		} else {
 			const segments = pattern.split(',')
-				.map(s => strings.ltrim(s.trim(), './'))
 				.filter(s => !!s.length);
 
 			const groups = this.groupByPathsAndExprSegments(segments);
@@ -144,15 +142,14 @@ export class PatternInputWidget extends Widget {
 
 	private groupByPathsAndExprSegments(segments: string[]) {
 		const isSearchPath = (segment: string) => {
-			// An segment is a search path if it is an absolute path and doesn't contain any glob characters
-			return paths.isAbsolute(segment) && !segment.match(/[\*\{\}\(\)\[\]\?]/);
+			// A segment is a search path if it is an absolute path or starts with ./
+			return paths.isAbsolute(segment) || strings.startsWith(segment, './');
 		};
 
 		const groups = collections.groupBy(segments,
 			segment => isSearchPath(segment) ? 'searchPaths' : 'exprSegments');
 		groups.searchPaths = groups.searchPaths || [];
-		groups.exprSegments = (groups.exprSegments || [])
-			.map(segment => strings.trim(segment, '/'));
+		groups.exprSegments = groups.exprSegments || [];
 
 		return groups;
 	}

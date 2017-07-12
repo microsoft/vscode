@@ -17,6 +17,7 @@ import env = require('vs/base/common/platform');
 import { Delayer } from 'vs/base/common/async';
 import URI from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
+import * as paths from 'vs/base/common/paths';
 import dom = require('vs/base/browser/dom');
 import { IAction, Action } from 'vs/base/common/actions';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -897,13 +898,24 @@ export class SearchViewlet extends Viewlet {
 		const workspace = this.contextService.getWorkspace();
 		if (workspace) {
 			if (workspace.roots.length === 1) {
-				// Fallback to old way for single root workspace
-				folderPath = this.contextService.toWorkspaceRelativePath(resource);
+				// Show relative path from the root for single-root mode
+				folderPath = paths.relative(workspace.roots[0].fsPath, resource.fsPath);
 				if (folderPath && folderPath !== '.') {
 					folderPath = './' + folderPath;
 				}
 			} else {
-				folderPath = resource.fsPath;
+				const owningRoot = this.contextService.getRoot(resource);
+				if (owningRoot) {
+					const owningRootBasename = paths.basename(owningRoot.fsPath);
+
+					// If this root is the only one with its basename, use a relative ./ path. If there is another, use an absolute path
+					const isUniqueRoot = workspace.roots.filter(root => paths.basename(root.fsPath) === owningRootBasename).length === 1;
+					if (isUniqueRoot) {
+						folderPath = `./${owningRootBasename}/${paths.relative(owningRoot.fsPath, resource.fsPath)}`;
+					} else {
+						folderPath = resource.fsPath;
+					}
+				}
 			}
 		}
 
@@ -977,7 +989,14 @@ export class SearchViewlet extends Viewlet {
 		};
 
 		const folderResources = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots : [];
-		this.onQueryTriggered(this.queryBuilder.text(content, folderResources, options), excludePatternText, includePatternText);
+		let query: ISearchQuery;
+		// try {
+		query = this.queryBuilder.text(content, folderResources, options);
+		// } catch (e) {
+		// 	// TODO@roblou show error popup
+		// }
+
+		this.onQueryTriggered(query, excludePatternText, includePatternText);
 
 		if (!preserveFocus) {
 			this.searchWidget.focus(false); // focus back to input field

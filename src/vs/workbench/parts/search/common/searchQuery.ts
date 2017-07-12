@@ -4,15 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import nls = require('vs/nls');
 import { IExpression } from 'vs/base/common/glob';
-import { mixin } from 'vs/base/common/objects';
+import * as objects from 'vs/base/common/objects';
+import * as paths from 'vs/base/common/paths';
 import uri from 'vs/base/common/uri';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IPatternInfo, IQueryOptions, IFolderQueryOptions, ISearchQuery, QueryType, ISearchConfiguration, getExcludes } from 'vs/platform/search/common/search';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class QueryBuilder {
 
-	constructor( @IConfigurationService private configurationService: IConfigurationService) {
+	constructor(
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService) {
 	}
 
 	public text(contentPattern: IPatternInfo, folderResources?: uri[], options?: IQueryOptions): ISearchQuery {
@@ -38,6 +43,8 @@ export class QueryBuilder {
 			return folderConfig.search.useRipgrep;
 		});
 
+		const searchPaths = this.getSearchPaths(options).searchPaths;
+
 		return {
 			type,
 			folderQueries,
@@ -52,7 +59,7 @@ export class QueryBuilder {
 			useRipgrep,
 			disregardIgnoreFiles: options.disregardIgnoreFiles,
 			disregardExcludeSettings: options.disregardExcludeSettings,
-			searchPaths: options.searchPaths
+			searchPaths
 		};
 	}
 
@@ -62,9 +69,64 @@ export class QueryBuilder {
 		if (options.disregardExcludeSettings) {
 			return null;
 		} else if (options.excludePattern) {
-			return mixin(options.excludePattern, settingsExcludePattern, false /* no overwrite */);
+			return objects.mixin(options.excludePattern, settingsExcludePattern, false /* no overwrite */);
 		} else {
 			return settingsExcludePattern;
 		}
+	}
+
+	private getSearchPaths(options: IQueryOptions): { searchPaths: string[], additionalIncludePatterns: string[] } {
+		if (!this.workspaceContextService.hasWorkspace() || !options.searchPaths) {
+			// No workspace => ignore search paths
+			return {
+				searchPaths: [],
+				additionalIncludePatterns: []
+			};
+		}
+
+		const workspace = this.workspaceContextService.getWorkspace();
+		if (workspace.roots.length < 2) {
+			// 1 open folder => just resolve the search paths to absolute paths
+			const searchPaths = options.searchPaths.map(searchPath => {
+				const relativeSearchPathMatch = searchPath.match(/\.\/(.+)/);
+				if (relativeSearchPathMatch) {
+					return paths.join(workspace.roots[0].fsPath, relativeSearchPathMatch[1]);
+				} else {
+					return null;
+				}
+			});
+
+			return {
+				searchPaths,
+				additionalIncludePatterns: []
+			};
+		}
+
+		// Is a multiroot workspace
+		const searchPaths: string[] = [];
+		const additionalIncludePatterns: string[] = [];
+
+		// Resolve searchPaths, relative or absolute, against roots
+		for (const searchPath of options.searchPaths) {
+			if (paths.isAbsolute(searchPath)) {
+				searchPaths.push(searchPath); // later, pull out globs
+			} else {
+				const relativeSearchPathMatch = searchPath.match(/\.\/(.+)\/(.+)/);
+				if (relativeSearchPathMatch) {
+					const searchPathRoot = relativeSearchPathMatch[1];
+					const matchingRoots = workspace.roots.filter(root => paths.basename(root.fsPath) === searchPathRoot);
+					if (!matchingRoots.length) {
+						throw new Error(nls.localize('search.invalidRootFolder', 'No root folder named {}', searchPathRoot));
+					}
+
+					searchPaths.push(...matchingRoots.map(root => paths.join(root.fsPath, relativeSearchPathMatch[2])));
+				} else {
+					// Malformed ./ search path
+					throw new Error(nls.localize('search.invalidRelativeInclude', 'Invalid folder include pattern: {}', searchPath));
+				}
+			}
+		}
+
+		return { searchPaths, additionalIncludePatterns };
 	}
 }
