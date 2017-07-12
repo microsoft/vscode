@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IWorkspacesMainService, IWorkspace, IStoredWorkspace } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspacesMainService, IWorkspaceIdentifier, IStoredWorkspace } from "vs/platform/workspaces/common/workspaces";
 import { TPromise } from "vs/base/common/winjs.base";
 import { isParent } from "vs/platform/files/common/files";
 import { IEnvironmentService } from "vs/platform/environment/common/environment";
@@ -24,7 +24,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		this.workspacesHome = environmentService.workspacesHome;
 	}
 
-	public resolveWorkspaceSync(path: string): IWorkspace {
+	public resolveWorkspaceSync(path: string): IWorkspaceIdentifier {
 		const isWorkspace = isParent(path, this.environmentService.workspacesHome, !isLinux /* ignore case */) || extname(path) === '.code';
 		if (!isWorkspace) {
 			return null; // does not look like a valid workspace config file
@@ -38,7 +38,6 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 
 			return {
 				id: workspace.id,
-				folders: workspace.folders,
 				configPath: path
 			};
 		} catch (error) {
@@ -46,7 +45,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		}
 	}
 
-	public createWorkspace(folders: string[] = []): TPromise<IWorkspace> {
+	public createWorkspace(folders: string[] = []): TPromise<IWorkspaceIdentifier> {
 		const workspaceId = this.nextWorkspaceId();
 		const workspaceConfigFolder = join(this.workspacesHome, workspaceId);
 		const workspaceConfigPath = join(workspaceConfigFolder, 'workspace.json');

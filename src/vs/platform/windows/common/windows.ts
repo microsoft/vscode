@@ -11,7 +11,7 @@ import Event from 'vs/base/common/event';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import { IWorkspace } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
@@ -47,7 +47,7 @@ export interface IWindowsService {
 	quit(): TPromise<void>;
 	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): TPromise<void>;
 
-	openWorkspace(windowId: number, workspace: IWorkspace): TPromise<void>;
+	openWorkspace(windowId: number, workspace: IWorkspaceIdentifier): TPromise<void>;
 
 	// Shared process
 	whenSharedProcessReady(): TPromise<void>;
@@ -207,7 +207,7 @@ export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	perfAppReady?: number;
 	perfWindowLoadTime?: number;
 
-	workspace?: IWorkspace;
+	workspace?: IWorkspaceIdentifier;
 	folderPath?: string;
 	backupPath?: string;
 

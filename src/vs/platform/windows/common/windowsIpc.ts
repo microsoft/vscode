@@ -10,7 +10,7 @@ import Event, { buffer } from 'vs/base/common/event';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
 import { IWindowsService } from './windows';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspace } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 
 export interface IWindowsChannel extends IChannel {
 	call(command: 'event:onWindowOpen'): TPromise<number>;
@@ -43,7 +43,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'getWindows'): TPromise<{ id: number; path: string; title: string; }[]>;
 	call(command: 'getWindowCount'): TPromise<number>;
 	call(command: 'relaunch', arg: { addArgs?: string[], removeArgs?: string[] }): TPromise<number>;
-	call(command: 'openWorkspace', arg: [number, IWorkspace]): TPromise<void>;
+	call(command: 'openWorkspace', arg: [number, IWorkspaceIdentifier]): TPromise<void>;
 	call(command: 'whenSharedProcessReady'): TPromise<void>;
 	call(command: 'toggleSharedProcess'): TPromise<void>;
 	call(command: 'log', arg: [string, string[]]): TPromise<void>;
@@ -218,7 +218,7 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('relaunch', [options]);
 	}
 
-	openWorkspace(windowId: number, workspace: IWorkspace): TPromise<void> {
+	openWorkspace(windowId: number, workspace: IWorkspaceIdentifier): TPromise<void> {
 		return this.channel.call('openWorkspace', [windowId, workspace]);
 	}
 

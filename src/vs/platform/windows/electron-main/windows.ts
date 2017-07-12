@@ -12,7 +12,7 @@ import Event from 'vs/base/common/event';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { IWorkspace } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 
 export interface ICodeWindow {
 	id: number;
@@ -20,7 +20,7 @@ export interface ICodeWindow {
 	config: IWindowConfiguration;
 
 	openedFolderPath: string;
-	openedWorkspace: IWorkspace;
+	openedWorkspace: IWorkspaceIdentifier;
 
 	lastFocusTime: number;
 

@@ -14,7 +14,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
 import { ILogService } from "vs/platform/log/common/log";
-import { IWorkspace } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 
 export class BackupMainService implements IBackupMainService {
 
@@ -36,7 +36,7 @@ export class BackupMainService implements IBackupMainService {
 		this.loadSync();
 	}
 
-	public getWorkspaceBackups(): IWorkspace[] {
+	public getWorkspaceBackups(): IWorkspaceIdentifier[] {
 		if (this.isHotExitOnExitAndWindowClose()) {
 			// Only non-folder windows are restored on main process launch when
 			// hot exit is configured as onExitAndWindowClose.
@@ -64,7 +64,7 @@ export class BackupMainService implements IBackupMainService {
 		return this.backups.emptyWorkspaces.slice(0); // return a copy
 	}
 
-	public registerWorkspaceBackupSync(workspace: IWorkspace): string {
+	public registerWorkspaceBackupSync(workspace: IWorkspaceIdentifier): string {
 		this.pushBackupPathsSync(workspace, this.backups.rootWorkspaces);
 
 		return path.join(this.backupHome, workspace.id);
@@ -88,14 +88,14 @@ export class BackupMainService implements IBackupMainService {
 		return path.join(this.backupHome, backupFolder);
 	}
 
-	private pushBackupPathsSync(workspaceIdentifier: string | IWorkspace, target: (string | IWorkspace)[]): void {
+	private pushBackupPathsSync(workspaceIdentifier: string | IWorkspaceIdentifier, target: (string | IWorkspaceIdentifier)[]): void {
 		if (this.indexOf(workspaceIdentifier, target) === -1) {
 			target.push(workspaceIdentifier);
 			this.saveSync();
 		}
 	}
 
-	protected removeBackupPathSync(workspaceIdentifier: string | IWorkspace, target: (string | IWorkspace)[]): void {
+	protected removeBackupPathSync(workspaceIdentifier: string | IWorkspaceIdentifier, target: (string | IWorkspaceIdentifier)[]): void {
 		if (!target) {
 			return;
 		}
@@ -107,7 +107,7 @@ export class BackupMainService implements IBackupMainService {
 		this.saveSync();
 	}
 
-	private indexOf(workspaceIdentifier: string | IWorkspace, target: (string | IWorkspace)[]): number {
+	private indexOf(workspaceIdentifier: string | IWorkspaceIdentifier, target: (string | IWorkspaceIdentifier)[]): number {
 		if (!target) {
 			return -1;
 		}
@@ -117,7 +117,7 @@ export class BackupMainService implements IBackupMainService {
 		return arrays.firstIndex(target, id => this.sanitizeId(id) === sanitizedWorkspaceIdentifier);
 	}
 
-	private sanitizeId(workspaceIdentifier: string | IWorkspace): string {
+	private sanitizeId(workspaceIdentifier: string | IWorkspaceIdentifier): string {
 		if (typeof workspaceIdentifier === 'string') {
 			return this.sanitizePath(workspaceIdentifier);
 		}
@@ -180,9 +180,9 @@ export class BackupMainService implements IBackupMainService {
 	}
 
 	private validateBackupWorkspaces(backups: IBackupWorkspacesFormat): void {
-		const staleBackupWorkspaces: { workspaceIdentifier: string | IWorkspace; backupPath: string; target: (string | IWorkspace)[] }[] = [];
+		const staleBackupWorkspaces: { workspaceIdentifier: string | IWorkspaceIdentifier; backupPath: string; target: (string | IWorkspaceIdentifier)[] }[] = [];
 
-		const workspaceAndFolders: { workspaceIdentifier: string | IWorkspace, target: (string | IWorkspace)[] }[] = [];
+		const workspaceAndFolders: { workspaceIdentifier: string | IWorkspaceIdentifier, target: (string | IWorkspaceIdentifier)[] }[] = [];
 		workspaceAndFolders.push(...backups.rootWorkspaces.map(r => ({ workspaceIdentifier: r, target: backups.rootWorkspaces })));
 		workspaceAndFolders.push(...backups.folderWorkspaces.map(f => ({ workspaceIdentifier: f, target: backups.folderWorkspaces })));
 

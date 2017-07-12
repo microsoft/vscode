@@ -11,7 +11,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
 
-export interface IWorkspace extends IStoredWorkspace {
+export interface IWorkspaceIdentifier {
+	id: string;
 	configPath: string;
 }
 
@@ -23,11 +24,11 @@ export interface IStoredWorkspace {
 export interface IWorkspacesMainService extends IWorkspacesService {
 	_serviceBrand: any;
 
-	resolveWorkspaceSync(path: string): IWorkspace;
+	resolveWorkspaceSync(path: string): IWorkspaceIdentifier;
 }
 
 export interface IWorkspacesService {
 	_serviceBrand: any;
 
-	createWorkspace(folders?: string[]): TPromise<IWorkspace>;
+	createWorkspace(folders?: string[]): TPromise<IWorkspaceIdentifier>;
 }

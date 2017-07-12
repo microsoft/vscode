@@ -20,7 +20,7 @@ import { IBackupWorkspacesFormat } from 'vs/platform/backup/common/backup';
 import { HotExitConfiguration } from 'vs/platform/files/common/files';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { LogMainService } from "vs/platform/log/common/log";
-import { IWorkspace } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 import { createHash } from "crypto";
 
 class TestBackupMainService extends BackupMainService {
@@ -39,7 +39,7 @@ class TestBackupMainService extends BackupMainService {
 		return this.backups;
 	}
 
-	public removeBackupPathSync(workspaceIdentifier: string | IWorkspace, target: (string | IWorkspace)[]): void {
+	public removeBackupPathSync(workspaceIdentifier: string | IWorkspaceIdentifier, target: (string | IWorkspaceIdentifier)[]): void {
 		return super.removeBackupPathSync(workspaceIdentifier, target);
 	}
 
@@ -60,11 +60,10 @@ class TestBackupMainService extends BackupMainService {
 	}
 }
 
-function toWorkspace(path: string): IWorkspace {
+function toWorkspace(path: string): IWorkspaceIdentifier {
 	return {
 		id: createHash('md5').update(sanitizePath(path)).digest('hex'),
-		configPath: path,
-		folders: []
+		configPath: path
 	};
 }
 

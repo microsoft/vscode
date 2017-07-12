@@ -49,11 +49,10 @@ suite('WorkspacesMainService', () => {
 		return service.createWorkspace().then(workspace => {
 			assert.ok(workspace);
 			assert.ok(fs.existsSync(workspace.configPath));
-			assert.equal(workspace.folders.length, 0);
 
 			const ws = JSON.parse(fs.readFileSync(workspace.configPath).toString()) as IStoredWorkspace;
 			assert.equal(ws.id, workspace.id);
-			assert.deepEqual(ws.folders, workspace.folders);
+			assert.deepEqual(ws.folders.length, 0);
 
 			done();
 		});
@@ -63,13 +62,12 @@ suite('WorkspacesMainService', () => {
 		return service.createWorkspace([process.cwd(), os.tmpdir()]).then(workspace => {
 			assert.ok(workspace);
 			assert.ok(fs.existsSync(workspace.configPath));
-			assert.equal(workspace.folders.length, 2);
-			assert.equal(workspace.folders[0], process.cwd());
-			assert.equal(workspace.folders[1], os.tmpdir());
 
 			const ws = JSON.parse(fs.readFileSync(workspace.configPath).toString()) as IStoredWorkspace;
 			assert.equal(ws.id, workspace.id);
-			assert.deepEqual(ws.folders, workspace.folders);
+			assert.equal(ws.folders.length, 2);
+			assert.equal(ws.folders[0], process.cwd());
+			assert.equal(ws.folders[1], os.tmpdir());
 
 			done();
 		});
@@ -87,7 +85,7 @@ suite('WorkspacesMainService', () => {
 			workspace.configPath = newPath;
 
 			const resolved = service.resolveWorkspaceSync(workspace.configPath);
-			assert.deepEqual(resolved, workspace);
+			assert.deepEqual(resolved, { id: workspace.id, configPath: workspace.configPath });
 
 			done();
 		});

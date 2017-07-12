@@ -29,7 +29,7 @@ import { IWindowsMainService, IOpenConfiguration } from "vs/platform/windows/ele
 import { IHistoryMainService } from "vs/platform/history/electron-main/historyMainService";
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { TPromise } from "vs/base/common/winjs.base";
-import { IWorkspacesMainService, IWorkspace } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspacesMainService, IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -45,7 +45,7 @@ interface ILegacyWindowState extends IWindowState {
 }
 
 interface IWindowState {
-	workspace?: IWorkspace;
+	workspace?: IWorkspaceIdentifier;
 	folderPath?: string;
 	backupPath: string;
 	uiState: ISingleWindowState;
@@ -67,7 +67,7 @@ interface IOpenBrowserWindowOptions {
 	userEnv?: IProcessEnvironment;
 	cli?: ParsedArgs;
 
-	workspace?: IWorkspace;
+	workspace?: IWorkspaceIdentifier;
 	folderPath?: string;
 
 	initialStartup?: boolean;
@@ -85,7 +85,7 @@ interface IOpenBrowserWindowOptions {
 interface IWindowToOpen extends IPath {
 
 	// the workspace for a Code instance to open
-	workspace?: IWorkspace;
+	workspace?: IWorkspaceIdentifier;
 
 	// the folder path for a Code instance to open
 	folderPath?: string;
@@ -373,8 +373,8 @@ export class WindowsManager implements IWindowsMainService {
 
 	private doOpen(
 		openConfig: IOpenConfiguration,
-		workspacesToOpen: IWorkspace[],
-		workspacesToRestore: IWorkspace[],
+		workspacesToOpen: IWorkspaceIdentifier[],
+		workspacesToRestore: IWorkspaceIdentifier[],
 		foldersToOpen: string[],
 		foldersToRestore: string[],
 		emptyToRestore: string[],
