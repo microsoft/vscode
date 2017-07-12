@@ -10,7 +10,6 @@ import Event, { buffer } from 'vs/base/common/event';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
 import { IWindowsService } from './windows';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 
 export interface IWindowsChannel extends IChannel {
 	call(command: 'event:onWindowOpen'): TPromise<number>;
@@ -43,7 +42,6 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'getWindows'): TPromise<{ id: number; path: string; title: string; }[]>;
 	call(command: 'getWindowCount'): TPromise<number>;
 	call(command: 'relaunch', arg: { addArgs?: string[], removeArgs?: string[] }): TPromise<number>;
-	call(command: 'openWorkspace', arg: [number, IWorkspaceIdentifier]): TPromise<void>;
 	call(command: 'whenSharedProcessReady'): TPromise<void>;
 	call(command: 'toggleSharedProcess'): TPromise<void>;
 	call(command: 'log', arg: [string, string[]]): TPromise<void>;
@@ -96,7 +94,6 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'getWindows': return this.service.getWindows();
 			case 'getWindowCount': return this.service.getWindowCount();
 			case 'relaunch': return this.service.relaunch(arg[0]);
-			case 'openWorkspace': return this.service.openWorkspace(arg[0], arg[1]);
 			case 'whenSharedProcessReady': return this.service.whenSharedProcessReady();
 			case 'toggleSharedProcess': return this.service.toggleSharedProcess();
 			case 'quit': return this.service.quit();
@@ -216,10 +213,6 @@ export class WindowsChannelClient implements IWindowsService {
 
 	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): TPromise<void> {
 		return this.channel.call('relaunch', [options]);
-	}
-
-	openWorkspace(windowId: number, workspace: IWorkspaceIdentifier): TPromise<void> {
-		return this.channel.call('openWorkspace', [windowId, workspace]);
 	}
 
 	whenSharedProcessReady(): TPromise<void> {

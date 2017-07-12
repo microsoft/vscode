@@ -20,7 +20,6 @@ import { ILifecycleService } from "vs/platform/lifecycle/electron-main/lifecycle
 import { IWindowsMainService, ISharedProcess } from "vs/platform/windows/electron-main/windows";
 import { IHistoryMainService } from "vs/platform/history/electron-main/historyMainService";
 import { findExtensionDevelopmentWindow } from "vs/code/node/windowsFinder";
-import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 
 export class WindowsService implements IWindowsService, IDisposable {
 
@@ -319,16 +318,6 @@ export class WindowsService implements IWindowsService, IDisposable {
 
 	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): TPromise<void> {
 		this.lifecycleService.relaunch(options);
-
-		return TPromise.as(null);
-	}
-
-	openWorkspace(windowId: number, workspace: IWorkspaceIdentifier): TPromise<void> {
-		const codeWindow = this.windowsMainService.getWindowById(windowId);
-
-		if (codeWindow) {
-			this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentService.args, pathsToOpen: [workspace.configPath], windowToUse: codeWindow });
-		}
 
 		return TPromise.as(null);
 	}

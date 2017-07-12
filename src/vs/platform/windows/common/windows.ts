@@ -47,8 +47,6 @@ export interface IWindowsService {
 	quit(): TPromise<void>;
 	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): TPromise<void>;
 
-	openWorkspace(windowId: number, workspace: IWorkspaceIdentifier): TPromise<void>;
-
 	// Shared process
 	whenSharedProcessReady(): TPromise<void>;
 	toggleSharedProcess(): TPromise<void>;

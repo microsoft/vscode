@@ -249,7 +249,6 @@ export class CodeMenu {
 		const debugMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mDebug', comment: ['&& denotes a mnemonic'] }, "&&Debug")), submenu: debugMenu });
 		this.setDebugMenu(debugMenu);
 
-
 		// Mac: Window
 		let macWindowMenuItem: Electron.MenuItem;
 		if (isMacintosh) {
@@ -803,7 +802,6 @@ export class CodeMenu {
 			__separator__(),
 			installAdditionalDebuggers
 		].forEach(item => debugMenu.append(item));
-
 	}
 
 	private setMacWindowMenu(macWindowMenu: Electron.Menu): void {
