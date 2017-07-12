@@ -43,7 +43,11 @@ export class QueryBuilder {
 			return folderConfig.search.useRipgrep;
 		});
 
-		const searchPaths = this.getSearchPaths(options).searchPaths;
+		const { searchPaths, additionalIncludePatterns } = this.getSearchPaths(options);
+		const includePattern = objects.clone(options.includePattern);
+		for (const additionalInclude of additionalIncludePatterns) {
+			includePattern[additionalInclude] = true;
+		}
 
 		return {
 			type,
@@ -51,7 +55,7 @@ export class QueryBuilder {
 			extraFileResources: options.extraFileResources,
 			filePattern: options.filePattern,
 			excludePattern: options.excludePattern,
-			includePattern: options.includePattern,
+			includePattern,
 			maxResults: options.maxResults,
 			sortByScore: options.sortByScore,
 			cacheKey: options.cacheKey,
@@ -84,29 +88,31 @@ export class QueryBuilder {
 			};
 		}
 
+		const searchPaths: string[] = [];
+		const additionalIncludePatterns: string[] = [];
+
 		const workspace = this.workspaceContextService.getWorkspace();
 		if (workspace.roots.length < 2) {
-			// 1 open folder => just resolve the search paths to absolute paths
-			const searchPaths = options.searchPaths.map(searchPath => {
-				const relativeSearchPathMatch = searchPath.match(/\.\/(.+)/);
-				if (relativeSearchPathMatch) {
-					return paths.join(workspace.roots[0].fsPath, relativeSearchPathMatch[1]);
-				} else {
-					// throw new Error(nls.localize('search.invalidRelativeInclude', 'Invalid folder include pattern: {}', searchPath));
-					return null;
+			for (const searchPath of options.searchPaths) {
+				// 1 open folder => just resolve the search paths to absolute paths
+				const { pathPortion, globPortion } = splitGlobFromPath(searchPath);
+				const absolutePathPortion = paths.isAbsolute(pathPortion) ?
+					pathPortion :
+					paths.join(workspace.roots[0].fsPath, pathPortion);
+				searchPaths.push(absolutePathPortion);
+
+				if (globPortion) {
+					additionalIncludePatterns.push(paths.join(absolutePathPortion, globPortion));
 				}
-			});
+			}
 
 			return {
 				searchPaths,
-				additionalIncludePatterns: []
+				additionalIncludePatterns
 			};
 		}
 
 		// Is a multiroot workspace
-		const searchPaths: string[] = [];
-		const additionalIncludePatterns: string[] = [];
-
 		// Resolve searchPaths, relative or absolute, against roots
 		for (const searchPath of options.searchPaths) {
 			if (paths.isAbsolute(searchPath)) {
@@ -131,4 +137,23 @@ export class QueryBuilder {
 
 		return { searchPaths, additionalIncludePatterns };
 	}
+}
+
+function splitGlobFromPath(searchPath: string): { pathPortion: string, globPortion?: string } {
+	const globCharMatch = searchPath.match(/[\*\{\}\(\)\[\]\?]/);
+	if (globCharMatch) {
+		const globCharIdx = globCharMatch.index;
+		const lastSlashMatch = searchPath.substr(0, globCharIdx).match(/[/|\\][^/\\]*$/);
+		if (lastSlashMatch) {
+			return {
+				pathPortion: searchPath.substr(0, lastSlashMatch.index),
+				globPortion: searchPath.substr(lastSlashMatch.index + 1)
+			};
+		}
+	}
+
+	// No glob char, or malformed
+	return {
+		pathPortion: searchPath
+	};
 }

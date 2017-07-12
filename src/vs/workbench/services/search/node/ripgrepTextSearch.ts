@@ -436,7 +436,10 @@ function globExprsToRgGlobs(patterns: glob.IExpression, folder: string): IRgGlob
  * Exported for testing
  */
 export function getAbsoluteGlob(folder: string, key: string): string {
-	const absolutePathKey = path.join(folder, key);
+	const absolutePathKey = paths.isAbsolute(key) ?
+		key :
+		path.join(folder, key);
+
 	const root = paths.getRoot(folder);
 	return root.toLowerCase() === 'c:/' ?
 		absolutePathKey.replace(/^c:[/\\]/i, '/') :
