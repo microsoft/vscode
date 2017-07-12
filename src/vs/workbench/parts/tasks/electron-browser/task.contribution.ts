@@ -92,7 +92,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 let $ = Builder.$;
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
 
-export abstract class OpenTaskConfigurationAction extends Action {
+abstract class OpenTaskConfigurationAction extends Action {
 
 	constructor(id: string, label: string,
 		private taskService: ITaskService,
@@ -195,7 +195,7 @@ export abstract class OpenTaskConfigurationAction extends Action {
 	}
 }
 
-export class ConfigureTaskRunnerAction extends OpenTaskConfigurationAction {
+class ConfigureTaskRunnerAction extends OpenTaskConfigurationAction {
 	public static ID = 'workbench.action.tasks.configureTaskRunner';
 	public static TEXT = nls.localize('ConfigureTaskRunnerAction.label', "Configure Task Runner");
 
@@ -210,11 +210,10 @@ export class ConfigureTaskRunnerAction extends OpenTaskConfigurationAction {
 		super(id, label, taskService, configurationService, editorService, fileService, contextService,
 			outputService, messageService, quickOpenService, environmentService, configurationResolverService,
 			extensionService);
-		this.class = 'task-action configure';
 	}
 }
 
-export class ConfigureBuildTaskAction extends OpenTaskConfigurationAction {
+class ConfigureBuildTaskAction extends OpenTaskConfigurationAction {
 	public static ID = 'workbench.action.tasks.configureBuildTask';
 	public static TEXT = nls.localize('ConfigureBuildTaskAction.label', "Configure Build Task");
 

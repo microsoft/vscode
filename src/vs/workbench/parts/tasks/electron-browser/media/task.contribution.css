@@ -94,14 +94,14 @@
 
 .monaco-workbench .task-action { background: url('update.svg') center center no-repeat; }
 
-.no-telemetry {
+.task-panel-no-telemetry {
 	background-image: url('thumbs-down.svg');
 	width: 50px;
 	height: 50px;
 	vertical-align: middle;
 }
 
-.yes-telemetry {
+.task-panel-yes-telemetry {
 	background-image: url('thumbs-up.svg');
 	width: 50px;
 	height: 50px;
@@ -121,7 +121,7 @@
 	margin-top: 10px;
 }
 
-.task-item {
+.task-panel-example-item {
 	outline: grey solid thin;
 	padding-left: 5px;
 	padding-right: 5px;
@@ -129,34 +129,34 @@
 	margin-bottom: 10px;
 }
 
-.mockup-button {
+.task-panel-mockup-button {
 	display: inline-block;
 	padding: 2px;
 }
 
-.oneliner {
+.task-panel-oneliner {
 	text-align: left;
 	margin: 10px;
 }
 
-.right-aligned {
+.task-panel-right-aligned {
 	float: right;
 }
 
-.centered {
+.task-panel-centered {
 	text-align: center;
 	margin-top: 10px;
 }
 
-.header-item {
-	font-size: large;
+.task-panel-header-item {
+	font-size: 19px;
 	transition: display 2s linear 500ms;
 }
 
-.feedback {
+.task-panel-feedback {
 	font-size: smaller;
 }
 
-.hidden {
+.task-panel-hidden {
 	display: none;
 }
