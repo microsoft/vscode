@@ -40,6 +40,7 @@ import { webFrame } from 'electron';
 import { getPathLabel } from 'vs/base/common/labels';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
+import { IWorkspaceIdentifier, getWorkspaceLabel } from "vs/platform/workspaces/common/workspaces";
 
 // --- actions
 
@@ -664,17 +665,21 @@ export abstract class BaseOpenRecentAction extends Action {
 
 	public run(): TPromise<void> {
 		return this.windowService.getRecentlyOpened()
-			.then(({ files, folders }) => this.openRecent(files, folders));
+			.then(({ workspaces, files, folders }) => this.openRecent(workspaces, files, folders));
 	}
 
-	private openRecent(recentFiles: string[], recentFolders: string[]): void {
+	private openRecent(recentWorkspaces: IWorkspaceIdentifier[], recentFiles: string[], recentFolders: string[]): void {
 
-		function toPick(path: string, separator: ISeparator, isFolder: boolean, environmentService: IEnvironmentService): IFilePickOpenEntry {
+		function toPick(arg1: IWorkspaceIdentifier | string, separator: ISeparator, isFolder: boolean, environmentService: IEnvironmentService): IFilePickOpenEntry {
+			const path = (typeof arg1 === 'string') ? arg1 : arg1.configPath;
+			const label = (typeof arg1 === 'string') ? paths.basename(path) : getWorkspaceLabel(environmentService, arg1);
+			const description = (typeof arg1 === 'string') ? getPathLabel(paths.dirname(path), null, environmentService) : void 0;
+
 			return {
 				resource: URI.file(path),
 				isFolder,
-				label: paths.basename(path),
-				description: getPathLabel(paths.dirname(path), null, environmentService),
+				label,
+				description,
 				separator,
 				run: context => {
 					setTimeout(() => {
@@ -686,17 +691,18 @@ export abstract class BaseOpenRecentAction extends Action {
 			};
 		}
 
-		const runPick = (path: string, context: IEntryRunContext) => {
+		const runPick = (arg1: IWorkspaceIdentifier | string, context: IEntryRunContext) => {
 			const forceNewWindow = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
-			this.windowsService.openWindow([path], { forceNewWindow });
+			this.windowsService.openWindow([typeof arg1 === 'string' ? arg1 : arg1.configPath], { forceNewWindow });
 		};
 
+		const workspacePicks: IFilePickOpenEntry[] = recentWorkspaces.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('workspaces', "workspaces") } : void 0, false, this.environmentService));
 		const folderPicks: IFilePickOpenEntry[] = recentFolders.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('folders', "folders") } : void 0, true, this.environmentService));
 		const filePicks: IFilePickOpenEntry[] = recentFiles.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0, false, this.environmentService));
 
 		const hasWorkspace = this.contextService.hasWorkspace();
 
-		this.quickOpenService.pick(folderPicks.concat(...filePicks), {
+		this.quickOpenService.pick([...workspacePicks, ...folderPicks, ...filePicks], {
 			contextKey: inRecentFilesPickerContextKey,
 			autoFocus: { autoFocusFirstEntry: !hasWorkspace, autoFocusSecondEntry: hasWorkspace },
 			placeHolder: isMacintosh ? nls.localize('openRecentPlaceHolderMac', "Select a path (hold Cmd-key to open in new window)") : nls.localize('openRecentPlaceHolder', "Select a path to open (hold Ctrl-key to open in new window)"),

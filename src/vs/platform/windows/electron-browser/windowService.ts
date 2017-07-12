@@ -9,6 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { remote } from 'electron';
+import { IRecentlyOpened } from "vs/platform/history/common/history";
 
 export class WindowService implements IWindowService {
 
@@ -67,7 +68,7 @@ export class WindowService implements IWindowService {
 		return this.windowsService.setRepresentedFilename(this.windowId, fileName);
 	}
 
-	getRecentlyOpened(): TPromise<{ files: string[]; folders: string[]; }> {
+	getRecentlyOpened(): TPromise<IRecentlyOpened> {
 		return this.windowsService.getRecentlyOpened(this.windowId);
 	}
 

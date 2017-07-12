@@ -44,7 +44,7 @@ import { IDisposable, dispose } from "vs/base/common/lifecycle";
 import { ConfigurationService } from "vs/platform/configuration/node/configurationService";
 import { TPromise } from "vs/base/common/winjs.base";
 import { IWindowsMainService } from "vs/platform/windows/electron-main/windows";
-import { IHistoryMainService } from "vs/platform/history/electron-main/historyMainService";
+import { IHistoryMainService } from "vs/platform/history/common/history";
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { CodeWindow } from "vs/code/electron-main/window";
 import { isParent } from 'vs/platform/files/common/files';

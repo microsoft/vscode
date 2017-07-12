@@ -18,8 +18,9 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { ILifecycleService } from "vs/platform/lifecycle/electron-main/lifecycleMain";
 import { IWindowsMainService, ISharedProcess } from "vs/platform/windows/electron-main/windows";
-import { IHistoryMainService } from "vs/platform/history/electron-main/historyMainService";
+import { IHistoryMainService, IRecentlyOpenedFile, IRecentlyOpened } from "vs/platform/history/common/history";
 import { findExtensionDevelopmentWindow } from "vs/code/node/windowsFinder";
+import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 
 export class WindowsService implements IWindowsService, IDisposable {
 
@@ -139,32 +140,34 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return TPromise.as(null);
 	}
 
-	addToRecentlyOpened(paths: { path: string, isFile?: boolean }[]): TPromise<void> {
-		this.historyService.addToRecentlyOpened(paths);
+	addToRecentlyOpened(recent: (IWorkspaceIdentifier | IRecentlyOpenedFile)[]): TPromise<void> {
+		this.historyService.addToRecentlyOpened(recent);
 
 		return TPromise.as(null);
 	}
 
-	removeFromRecentlyOpened(paths: string[]): TPromise<void> {
-		this.historyService.removeFromRecentlyOpened(paths);
+	removeFromRecentlyOpened(toRemove: (IWorkspaceIdentifier | string)[]): TPromise<void> {
+		this.historyService.removeFromRecentlyOpened(toRemove);
 
 		return TPromise.as(null);
 	}
 
 	clearRecentlyOpened(): TPromise<void> {
 		this.historyService.clearRecentlyOpened();
+
 		return TPromise.as(null);
 	}
 
-	getRecentlyOpened(windowId: number): TPromise<{ files: string[]; folders: string[]; }> {
+	getRecentlyOpened(windowId: number): TPromise<IRecentlyOpened> {
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
 		if (codeWindow) {
-			const { files, folders } = this.historyService.getRecentlyOpened(codeWindow.config.folderPath, codeWindow.config.filesToOpen);
-			return TPromise.as({ files, folders });
+			const recentlyOpened = this.historyService.getRecentlyOpened(codeWindow.config.workspace, codeWindow.config.folderPath, codeWindow.config.filesToOpen);
+
+			return TPromise.as(recentlyOpened);
 		}
 
-		return TPromise.as({ files: [], folders: [] });
+		return TPromise.as(<IRecentlyOpened>{ workspaces: [], files: [], folders: [] });
 	}
 
 	focusWindow(windowId: number): TPromise<void> {

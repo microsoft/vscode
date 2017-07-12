@@ -54,6 +54,8 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { isLinux } from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { IRecentlyOpened, IRecentlyOpenedFile } from "vs/platform/history/common/history";
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -889,7 +891,7 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
-	getRecentlyOpened(): TPromise<{ files: string[]; folders: string[]; }> {
+	getRecentlyOpened(): TPromise<IRecentlyOpened> {
 		return TPromise.as(void 0);
 	}
 
@@ -1017,11 +1019,11 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
-	addToRecentlyOpened(paths: { path: string, isFile?: boolean }[]): TPromise<void> {
+	addToRecentlyOpened(recent: (IWorkspaceIdentifier | IRecentlyOpenedFile)[]): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	removeFromRecentlyOpened(paths: string[]): TPromise<void> {
+	removeFromRecentlyOpened(arg1: (IWorkspaceIdentifier | string)[]): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
@@ -1029,7 +1031,7 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
-	getRecentlyOpened(windowId: number): TPromise<{ files: string[]; folders: string[]; }> {
+	getRecentlyOpened(windowId: number): TPromise<IRecentlyOpened> {
 		return TPromise.as(void 0);
 	}
 

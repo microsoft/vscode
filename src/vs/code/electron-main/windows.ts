@@ -26,7 +26,7 @@ import product from 'vs/platform/node/product';
 import { ITelemetryService, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { isEqual } from 'vs/base/common/paths';
 import { IWindowsMainService, IOpenConfiguration } from "vs/platform/windows/electron-main/windows";
-import { IHistoryMainService } from "vs/platform/history/electron-main/historyMainService";
+import { IHistoryMainService, IRecentlyOpenedFile } from "vs/platform/history/common/history";
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { TPromise } from "vs/base/common/winjs.base";
 import { IWorkspacesMainService, IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
@@ -343,11 +343,13 @@ export class WindowsManager implements IWindowsMainService {
 		// Remember in recent document list (unless this opens for extension development)
 		// Also do not add paths when files are opened for diffing, only if opened individually
 		if (!usedWindows.some(w => w.isExtensionDevelopmentHost) && !openConfig.cli.diff) {
-			const recentlyOpened: { path: string; isFile?: boolean; }[] = [];
+			const recentlyOpened: (IWorkspaceIdentifier | IRecentlyOpenedFile)[] = [];
 
 			windowsToOpen.forEach(win => {
-				if (win.filePath || win.folderPath) {
-					recentlyOpened.push({ path: win.filePath || win.folderPath, isFile: !!win.filePath });
+				if (win.workspace) {
+					recentlyOpened.push(win.workspace);
+				} else if (win.folderPath || win.filePath) {
+					recentlyOpened.push({ path: win.folderPath || win.filePath, isFile: !!win.filePath });
 				}
 			});
 

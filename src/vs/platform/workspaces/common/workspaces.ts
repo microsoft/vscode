@@ -7,6 +7,11 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { isParent } from "vs/platform/files/common/files";
+import { localize } from "vs/nls";
+import { basename } from "vs/base/common/paths";
+import { isLinux } from "vs/base/common/platform";
+import { IEnvironmentService } from "vs/platform/environment/common/environment";
 
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
@@ -33,4 +38,12 @@ export interface IWorkspacesService {
 	_serviceBrand: any;
 
 	createWorkspace(folders?: string[]): TPromise<IWorkspaceIdentifier>;
+}
+
+export function getWorkspaceLabel(environmentService: IEnvironmentService, workspace: IWorkspaceIdentifier): string {
+	if (isParent(workspace.configPath, environmentService.workspacesHome, !isLinux /* ignore case */)) {
+		return localize('untitledWorkspace', "Untitled Workspace");
+	}
+
+	return basename(workspace.configPath);
 }

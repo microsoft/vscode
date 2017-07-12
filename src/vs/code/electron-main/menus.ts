@@ -21,7 +21,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { tildify } from 'vs/base/common/labels';
 import { KeybindingsResolver } from "vs/code/electron-main/keyboard";
 import { IWindowsMainService } from "vs/platform/windows/electron-main/windows";
-import { IHistoryMainService } from "vs/platform/history/electron-main/historyMainService";
+import { IHistoryMainService } from "vs/platform/history/common/history";
+import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel } from "vs/platform/workspaces/common/workspaces";
 
 interface IExtensionViewlet {
 	id: string;
@@ -77,7 +78,8 @@ export class CodeMenu {
 		@IWindowsMainService private windowsService: IWindowsMainService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IHistoryMainService private historyService: IHistoryMainService
+		@IHistoryMainService private historyService: IHistoryMainService,
+		@IWorkspacesMainService private workspacesService: IWorkspacesMainService
 	) {
 		this.extensionViewlets = [];
 
@@ -100,7 +102,7 @@ export class CodeMenu {
 
 		// Listen to some events from window service
 		this.windowsService.onPathsOpen(paths => this.updateMenu());
-		this.historyService.onRecentlyOpenedChange(paths => this.updateMenu());
+		this.historyService.onRecentlyOpenedChange(() => this.updateMenu());
 		this.windowsService.onWindowClose(_ => this.onClose(this.windowsService.getWindowCount()));
 
 		// Listen to extension viewlets
@@ -428,7 +430,16 @@ export class CodeMenu {
 	private setOpenRecentMenu(openRecentMenu: Electron.Menu): void {
 		openRecentMenu.append(this.createMenuItem(nls.localize({ key: 'miReopenClosedEditor', comment: ['&& denotes a mnemonic'] }, "&&Reopen Closed Editor"), 'workbench.action.reopenClosedEditor'));
 
-		const { folders, files } = this.historyService.getRecentlyOpened();
+		const { workspaces, folders, files } = this.historyService.getRecentlyOpened();
+
+		// Workspaces
+		if (workspaces.length > 0) {
+			openRecentMenu.append(__separator__());
+
+			for (let i = 0; i < CodeMenu.MAX_MENU_RECENT_ENTRIES && i < workspaces.length; i++) {
+				openRecentMenu.append(this.createOpenRecentMenuItem(workspaces[i], 'openRecentWorkspace'));
+			}
+		}
 
 		// Folders
 		if (folders.length > 0) {
@@ -456,13 +467,17 @@ export class CodeMenu {
 		}
 	}
 
-	private createOpenRecentMenuItem(path: string, commandId: string): Electron.MenuItem {
+	private createOpenRecentMenuItem(recent: IWorkspaceIdentifier | string, commandId: string): Electron.MenuItem {
+		const label = (typeof recent === 'string') ? this.unmnemonicLabel(tildify(recent, this.environmentService.userHome)) : getWorkspaceLabel(this.environmentService, recent);
+		const path = (typeof recent === 'string') ? recent : recent.configPath;
+
 		return new MenuItem(this.likeAction(commandId, {
-			label: this.unmnemonicLabel(tildify(path, this.environmentService.userHome)), click: (menuItem, win, event) => {
+			label,
+			click: (menuItem, win, event) => {
 				const openInNewWindow = this.isOptionClick(event);
 				const success = this.windowsService.open({ context: OpenContext.MENU, cli: this.environmentService.args, pathsToOpen: [path], forceNewWindow: openInNewWindow }).length > 0;
 				if (!success) {
-					this.historyService.removeFromRecentlyOpened(path);
+					this.historyService.removeFromRecentlyOpened(recent);
 				}
 			}
 		}, false));

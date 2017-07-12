@@ -12,6 +12,7 @@ import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { IRecentlyOpenedFile, IRecentlyOpened } from "vs/platform/history/common/history";
 
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
@@ -32,10 +33,10 @@ export interface IWindowsService {
 	closeFolder(windowId: number): TPromise<void>;
 	toggleFullScreen(windowId: number): TPromise<void>;
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void>;
-	addToRecentlyOpened(paths: { path: string, isFile?: boolean }[]): TPromise<void>;
-	removeFromRecentlyOpened(paths: string[]): TPromise<void>;
+	addToRecentlyOpened(recent: (IWorkspaceIdentifier | IRecentlyOpenedFile)[]): TPromise<void>;
+	removeFromRecentlyOpened(toRemove: (IWorkspaceIdentifier | string)[]): TPromise<void>;
 	clearRecentlyOpened(): TPromise<void>;
-	getRecentlyOpened(windowId: number): TPromise<{ files: string[]; folders: string[]; }>;
+	getRecentlyOpened(windowId: number): TPromise<IRecentlyOpened>;
 	focusWindow(windowId: number): TPromise<void>;
 	closeWindow(windowId: number): TPromise<void>;
 	isFocused(windowId: number): TPromise<boolean>;
@@ -87,7 +88,7 @@ export interface IWindowService {
 	closeFolder(): TPromise<void>;
 	toggleFullScreen(): TPromise<void>;
 	setRepresentedFilename(fileName: string): TPromise<void>;
-	getRecentlyOpened(): TPromise<{ files: string[]; folders: string[]; }>;
+	getRecentlyOpened(): TPromise<IRecentlyOpened>;
 	focusWindow(): TPromise<void>;
 	closeWindow(): TPromise<void>;
 	isFocused(): TPromise<boolean>;

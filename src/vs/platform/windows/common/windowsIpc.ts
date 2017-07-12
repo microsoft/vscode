@@ -10,6 +10,8 @@ import Event, { buffer } from 'vs/base/common/event';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
 import { IWindowsService } from './windows';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { IRecentlyOpenedFile, IRecentlyOpened } from "vs/platform/history/common/history";
 
 export interface IWindowsChannel extends IChannel {
 	call(command: 'event:onWindowOpen'): TPromise<number>;
@@ -23,10 +25,10 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'closeFolder', arg: number): TPromise<void>;
 	call(command: 'toggleFullScreen', arg: number): TPromise<void>;
 	call(command: 'setRepresentedFilename', arg: [number, string]): TPromise<void>;
-	call(command: 'addToRecentlyOpened', arg: { path: string, isFile?: boolean }[]): TPromise<void>;
-	call(command: 'removeFromRecentlyOpened', arg: string[]): TPromise<void>;
+	call(command: 'addToRecentlyOpened', arg: (IWorkspaceIdentifier | IRecentlyOpenedFile)[]): TPromise<void>;
+	call(command: 'removeFromRecentlyOpened', arg: (IWorkspaceIdentifier | string)[]): TPromise<void>;
 	call(command: 'clearRecentlyOpened'): TPromise<void>;
-	call(command: 'getRecentlyOpened', arg: number): TPromise<{ files: string[]; folders: string[]; }>;
+	call(command: 'getRecentlyOpened', arg: number): TPromise<IRecentlyOpened>;
 	call(command: 'focusWindow', arg: number): TPromise<void>;
 	call(command: 'closeWindow', arg: number): TPromise<void>;
 	call(command: 'isFocused', arg: number): TPromise<boolean>;
@@ -159,19 +161,19 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('setRepresentedFilename', [windowId, fileName]);
 	}
 
-	addToRecentlyOpened(paths: { path: string, isFile?: boolean }[]): TPromise<void> {
-		return this.channel.call('addToRecentlyOpened', paths);
+	addToRecentlyOpened(recent: (IWorkspaceIdentifier | IRecentlyOpenedFile)[]): TPromise<void> {
+		return this.channel.call('addToRecentlyOpened', recent);
 	}
 
-	removeFromRecentlyOpened(paths: string[]): TPromise<void> {
-		return this.channel.call('removeFromRecentlyOpened', paths);
+	removeFromRecentlyOpened(toRemove: (IWorkspaceIdentifier | string)[]): TPromise<void> {
+		return this.channel.call('removeFromRecentlyOpened', toRemove);
 	}
 
 	clearRecentlyOpened(): TPromise<void> {
 		return this.channel.call('clearRecentlyOpened');
 	}
 
-	getRecentlyOpened(windowId: number): TPromise<{ files: string[]; folders: string[]; }> {
+	getRecentlyOpened(windowId: number): TPromise<IRecentlyOpened> {
 		return this.channel.call('getRecentlyOpened', windowId);
 	}
 

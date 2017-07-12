@@ -15,30 +15,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { getPathLabel } from 'vs/base/common/labels';
 import { IPath } from 'vs/platform/windows/common/windows';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
-
-export const IHistoryMainService = createDecorator<IHistoryMainService>('historyMainService');
-
-export interface IRecentlyOpened {
-	folders: string[];
-	files: string[];
-}
-
-export interface IHistoryMainService {
-	_serviceBrand: any;
-
-	// events
-	onRecentlyOpenedChange: CommonEvent<void>;
-
-	// methods
-	addToRecentlyOpened(paths: { path: string; isFile?: boolean; }[]): void;
-	getRecentlyOpened(folderPath?: string, filesToOpen?: IPath[]): IRecentlyOpened;
-	removeFromRecentlyOpened(path: string): void;
-	removeFromRecentlyOpened(paths: string[]): void;
-	clearRecentlyOpened(): void;
-	updateWindowsJumpList(): void;
-}
+import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { IHistoryMainService, IRecentlyOpenedFile, IRecentlyOpened } from "vs/platform/history/common/history";
 
 export class HistoryMainService implements IHistoryMainService {
 
@@ -57,61 +36,93 @@ export class HistoryMainService implements IHistoryMainService {
 	) {
 	}
 
-	public addToRecentlyOpened(paths: { path: string; isFile?: boolean; }[]): void {
-		if (!paths || !paths.length) {
+	public addToRecentlyOpened(recent: (IWorkspaceIdentifier | IRecentlyOpenedFile)[]): void {
+		if (!recent || !recent.length) {
 			return;
 		}
 
 		const mru = this.getRecentlyOpened();
-		paths.forEach(p => {
-			const { path, isFile } = p;
+		recent.forEach((workspaceOrFile: IWorkspaceIdentifier | IRecentlyOpenedFile) => {
 
-			if (isFile) {
-				mru.files.unshift(path);
-				mru.files = arrays.distinct(mru.files, (f) => isLinux ? f : f.toLowerCase());
-			} else {
-				mru.folders.unshift(path);
-				mru.folders = arrays.distinct(mru.folders, (f) => isLinux ? f : f.toLowerCase());
+			// Add Workspace
+			if (this.isWorkspace(workspaceOrFile)) {
+				mru.workspaces.unshift(workspaceOrFile);
+				mru.workspaces = arrays.distinct(mru.workspaces, w => w.id);
+
+				// Add to recent documents (Windows/macOS only)
+				if (isMacintosh || isWindows) {
+					app.addRecentDocument(workspaceOrFile.configPath);
+				}
+			}
+
+			// Add File/Folder
+			else {
+				const { path, isFile } = workspaceOrFile as IRecentlyOpenedFile;
+				if (isFile) {
+					mru.files.unshift(path);
+					mru.files = arrays.distinct(mru.files, f => isLinux ? f : f.toLowerCase());
+				} else {
+					mru.folders.unshift(path);
+					mru.folders = arrays.distinct(mru.folders, f => isLinux ? f : f.toLowerCase());
+				}
+
+				// Add to recent documents (Windows/macOS only)
+				if (isMacintosh || isWindows) {
+					app.addRecentDocument(path);
+				}
 			}
 
 			// Make sure its bounded
+			mru.workspaces = mru.workspaces.slice(0, HistoryMainService.MAX_TOTAL_RECENT_ENTRIES);
 			mru.folders = mru.folders.slice(0, HistoryMainService.MAX_TOTAL_RECENT_ENTRIES);
 			mru.files = mru.files.slice(0, HistoryMainService.MAX_TOTAL_RECENT_ENTRIES);
-
-			// Add to recent documents (Windows/macOS only)
-			if (isMacintosh || isWindows) {
-				app.addRecentDocument(path);
-			}
 		});
 
 		this.storageService.setItem(HistoryMainService.recentlyOpenedStorageKey, mru);
 		this._onRecentlyOpenedChange.fire();
 	}
 
-	public removeFromRecentlyOpened(path: string): void;
-	public removeFromRecentlyOpened(paths: string[]): void;
+	private isWorkspace(obj: any): obj is IWorkspaceIdentifier {
+		return !!(obj as IWorkspaceIdentifier).id;
+	}
+
+	public removeFromRecentlyOpened(toRemove: IWorkspaceIdentifier | string): void;
+	public removeFromRecentlyOpened(toRemove: (IWorkspaceIdentifier | string)[]): void;
 	public removeFromRecentlyOpened(arg1: any): void {
-		let paths: string[];
+		let workspacesOrFiles: any[];
 		if (Array.isArray(arg1)) {
-			paths = arg1;
+			workspacesOrFiles = arg1;
 		} else {
-			paths = [arg1];
+			workspacesOrFiles = [arg1];
 		}
 
 		const mru = this.getRecentlyOpened();
 		let update = false;
 
-		paths.forEach(path => {
-			let index = mru.files.indexOf(path);
-			if (index >= 0) {
-				mru.files.splice(index, 1);
-				update = true;
+		workspacesOrFiles.forEach((workspaceOrFile: IWorkspaceIdentifier | string) => {
+
+			// Remove workspace
+			if (this.isWorkspace(workspaceOrFile)) {
+				let index = arrays.firstIndex(mru.workspaces, w => w.id === workspaceOrFile.id);
+				if (index >= 0) {
+					mru.workspaces.splice(index, 1);
+					update = true;
+				}
 			}
 
-			index = mru.folders.indexOf(path);
-			if (index >= 0) {
-				mru.folders.splice(index, 1);
-				update = true;
+			// Remove file/folder
+			else {
+				let index = mru.files.indexOf(workspaceOrFile);
+				if (index >= 0) {
+					mru.files.splice(index, 1);
+					update = true;
+				}
+
+				index = mru.folders.indexOf(workspaceOrFile);
+				if (index >= 0) {
+					mru.folders.splice(index, 1);
+					update = true;
+				}
 			}
 		});
 
@@ -122,42 +133,51 @@ export class HistoryMainService implements IHistoryMainService {
 	}
 
 	public clearRecentlyOpened(): void {
-		this.storageService.setItem(HistoryMainService.recentlyOpenedStorageKey, { folders: [], files: [] });
+		this.storageService.setItem(HistoryMainService.recentlyOpenedStorageKey, <IRecentlyOpened>{ workspaces: [], folders: [], files: [] });
 		app.clearRecentDocuments();
 
 		// Event
 		this._onRecentlyOpenedChange.fire();
 	}
 
-	public getRecentlyOpened(folderPath?: string, filesToOpen?: IPath[]): IRecentlyOpened {
+	public getRecentlyOpened(currentWorkspace?: IWorkspaceIdentifier, currentFolderPath?: string, currentFiles?: IPath[]): IRecentlyOpened {
+		let workspaces: IWorkspaceIdentifier[];
 		let files: string[];
 		let folders: string[];
 
 		// Get from storage
 		const storedRecents = this.storageService.getItem<IRecentlyOpened>(HistoryMainService.recentlyOpenedStorageKey);
 		if (storedRecents) {
+			workspaces = storedRecents.workspaces || [];
 			files = storedRecents.files || [];
 			folders = storedRecents.folders || [];
 		} else {
+			workspaces = [];
 			files = [];
 			folders = [];
 		}
 
+		// Add current workspace to beginning if set
+		if (currentWorkspace) {
+			workspaces.unshift(currentWorkspace);
+		}
+
 		// Add currently files to open to the beginning if any
-		if (filesToOpen) {
-			files.unshift(...filesToOpen.map(f => f.filePath));
+		if (currentFiles) {
+			files.unshift(...currentFiles.map(f => f.filePath));
 		}
 
 		// Add current folder path to beginning if set
-		if (folderPath) {
-			folders.unshift(folderPath);
+		if (currentFolderPath) {
+			folders.unshift(currentFolderPath);
 		}
 
 		// Clear those dupes
+		workspaces = arrays.distinct(workspaces, w => w.id);
 		files = arrays.distinct(files);
 		folders = arrays.distinct(folders);
 
-		return { files, folders };
+		return { workspaces, files, folders };
 	}
 
 	public updateWindowsJumpList(): void {

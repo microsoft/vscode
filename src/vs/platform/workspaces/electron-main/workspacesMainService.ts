@@ -25,7 +25,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 	}
 
 	public resolveWorkspaceSync(path: string): IWorkspaceIdentifier {
-		const isWorkspace = isParent(path, this.environmentService.workspacesHome, !isLinux /* ignore case */) || extname(path) === WORKSPACE_EXTNAME;
+		const isWorkspace = this.isInsideWorkspacesHome(path) || extname(path) === WORKSPACE_EXTNAME;
 		if (!isWorkspace) {
 			return null; // does not look like a valid workspace config file
 		}
@@ -43,6 +43,10 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		} catch (error) {
 			return null; // unable to read or parse as workspace file
 		}
+	}
+
+	private isInsideWorkspacesHome(path: string): boolean {
+		return isParent(path, this.environmentService.workspacesHome, !isLinux /* ignore case */);
 	}
 
 	public createWorkspace(folders: string[]): TPromise<IWorkspaceIdentifier> {
