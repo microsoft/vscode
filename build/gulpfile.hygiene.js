@@ -99,6 +99,7 @@ const copyrightFilter = [
 
 const eslintFilter = [
 	'src/**/*.js',
+	'build/gulpfile.*.js',
 	'!src/vs/loader.js',
 	'!src/vs/css.js',
 	'!src/vs/nls.js',

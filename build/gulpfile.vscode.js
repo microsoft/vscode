@@ -386,16 +386,16 @@ function snapshotTask(platform, arch) {
 
 	if (platform === 'darwin') {
 		loaderInputFilepath = path.join(destination, 'Code - OSS.app/Contents/Resources/app/out/vs/loader.js');
-		startupBlobFilepath = path.join(destination, 'Code - OSS.app/Contents/Frameworks/Electron Framework.framework/Resources/snapshot_blob.bin')
+		startupBlobFilepath = path.join(destination, 'Code - OSS.app/Contents/Frameworks/Electron Framework.framework/Resources/snapshot_blob.bin');
 
 	} else if (platform === 'win32') {
 		command = `${command}.cmd`;
 		loaderInputFilepath = path.join(destination, 'resources/app/out/vs/loader.js');
-		startupBlobFilepath = path.join(destination, 'snapshot_blob.bin')
+		startupBlobFilepath = path.join(destination, 'snapshot_blob.bin');
 
 	} else if (platform === 'linux') {
 		loaderInputFilepath = path.join(destination, 'resources/app/out/vs/loader.js');
-		startupBlobFilepath = path.join(destination, 'snapshot_blob.bin')
+		startupBlobFilepath = path.join(destination, 'snapshot_blob.bin');
 	}
 
 	return () => {
@@ -419,7 +419,7 @@ function snapshotTask(platform, arch) {
 		fs.writeFileSync(wrappedInputFilepath, wrappedInputFile);
 
 		cp.execFileSync(command, [wrappedInputFilepath, `--startup_blob`, startupBlobFilepath]);
-	}
+	};
 }
 
 gulp.task('vscode-win32-ia32-snapshots', ['vscode-win32-ia32-min'], snapshotTask('win32', 'ia32'));
