@@ -22,6 +22,16 @@ export interface IWorkspaceContextService {
 	hasWorkspace(): boolean;
 
 	/**
+	 * Returns iff the application was opened with a folder.
+	 */
+	hasFolderWorkspace(): boolean;
+
+	/**
+	 * Returns iff the application was opened with a workspace that can have one or more folders.
+	 */
+	hasMultiFolderWorkspace(): boolean;
+
+	/**
 	 * Provides access to the workspace object the platform is running with. This may be null if the workbench was opened
 	 * without workspace (empty);
 	 */
@@ -84,7 +94,7 @@ export interface IWorkspace {
 	readonly name: string;
 
 	/**
-	 * Mutliple roots in this workspace. First entry is master and never changes.
+	 * Roots in the workspace.
 	 */
 	readonly roots: URI[];
 

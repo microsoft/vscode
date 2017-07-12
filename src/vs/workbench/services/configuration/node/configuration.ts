@@ -192,6 +192,14 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return !!this.workspace;
 	}
 
+	public hasFolderWorkspace(): boolean {
+		return this.workspace && !this.workspace.configuration;
+	}
+
+	public hasMultiFolderWorkspace(): boolean {
+		return this.workspace && !!this.workspace.configuration;
+	}
+
 	public getRoot(resource: URI): URI {
 		return this.workspace ? this.workspace.getRoot(resource) : null;
 	}
