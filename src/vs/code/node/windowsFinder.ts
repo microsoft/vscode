@@ -11,6 +11,7 @@ import * as platform from 'vs/base/common/platform';
 import * as paths from 'vs/base/common/paths';
 import { OpenContext } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { isParent } from "vs/platform/files/common/files";
 
 export interface ISimpleWindow {
 	openedWorkspace?: IWorkspaceIdentifier;
@@ -165,4 +166,24 @@ export function findExtensionDevelopmentWindow<W extends ISimpleWindow>(windows:
 	}
 
 	return null;
+}
+
+export function findWindowOnWorkspaceOrFolder<W extends ISimpleWindow>(windows: W[], target: IWorkspaceIdentifier | string): W {
+	const directTargetMatch = windows.filter(w => {
+		if (typeof target === 'string') {
+			return paths.isEqual(target, w.openedFolderPath, !platform.isLinux /* ignorecase */);
+		}
+
+		return w.openedWorkspace && w.openedWorkspace.id === target.id;
+	});
+
+	const parentTargetMatch = windows.filter(w => {
+		if (typeof target === 'string') {
+			return isParent(target, w.openedFolderPath, !platform.isLinux /* ignorecase */);
+		}
+
+		return false; // not supported for workspace target
+	});
+
+	return directTargetMatch.length ? directTargetMatch[0] : parentTargetMatch[0]; // prefer direct match over parent match
 }

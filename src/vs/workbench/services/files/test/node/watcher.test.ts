@@ -33,7 +33,7 @@ class TestFileWatcher {
 		// Normalize
 		let normalizedEvents = normalize(events);
 
-		// Emit through broadcast service
+		// Emit through event emitter
 		if (normalizedEvents.length > 0) {
 			this._onFileChanges.fire(toFileChangesEvent(normalizedEvents));
 		}
