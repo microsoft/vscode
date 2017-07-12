@@ -260,8 +260,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			case ConfigurationTarget.USER:
 				return URI.file(this.environmentService.appSettingsPath);
 			case ConfigurationTarget.WORKSPACE:
-				if (this.contextService.hasWorkspace()) {
-					return this.contextService.toResource('.vscode/settings.json'); // TODO@Sandeep (https://github.com/Microsoft/vscode/issues/29456)
+				const workspace = this.contextService.getWorkspace();
+				if (workspace) {
+					return workspace.configuration || this.contextService.toResource('.vscode/settings.json');
 				}
 		}
 		return null;

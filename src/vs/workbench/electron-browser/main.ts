@@ -18,9 +18,9 @@ import paths = require('vs/base/common/paths');
 import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { Workspace } from 'vs/platform/workspace/common/workspace';
-import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configuration';
-import { realpath, stat, readFile } from 'vs/base/node/pfs';
+import { LegacyWorkspace, Workspace } from 'vs/platform/workspace/common/workspace';
+import { WorkspaceService, EmptyWorkspaceServiceImpl, WorkspaceServiceImpl } from 'vs/workbench/services/configuration/node/configuration';
+import { realpath } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import path = require('path');
 import gracefulFs = require('graceful-fs');
@@ -35,7 +35,6 @@ import { StorageService, inMemoryLocalStorageInstance } from 'vs/platform/storag
 import { webFrame } from 'electron';
 
 import fs = require('fs');
-import { createHash } from 'crypto';
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
 export function startup(configuration: IWindowConfiguration): TPromise<void> {
@@ -96,91 +95,57 @@ function toInputs(paths: IPath[], isUntitledFile?: boolean): IResourceInput[] {
 }
 
 function openWorkbench(configuration: IWindowConfiguration, options: IOptions): TPromise<void> {
-	return resolveWorkspaceData(configuration).then(workspaceData => {
-		const environmentService = new EnvironmentService(configuration, configuration.execPath);
-		const workspaceConfigurationService = new WorkspaceConfigurationService(environmentService, createMultiRootWorkspace(workspaceData));
-		const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, !!workspaceData);
-		const storageService = createStorageService(workspaceData, configuration, environmentService);
+	const environmentService = new EnvironmentService(configuration, configuration.execPath);
 
-		// Since the configuration service is one of the core services that is used in so many places, we initialize it
-		// right before startup of the workbench shell to have its data ready for consumers
-		return workspaceConfigurationService.initialize().then(() => {
-			timerService.beforeDOMContentLoaded = Date.now();
+	// Since the configuration service is one of the core services that is used in so many places, we initialize it
+	// right before startup of the workbench shell to have its data ready for consumers
+	return createAndInitializeWorkspaceService(configuration, environmentService).then(workspaceService => {
+		const workspace = <Workspace>workspaceService.getWorkspace();
+		const legacyWorkspace = <LegacyWorkspace>workspaceService.getLegacyWorkspace();
+		const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, !!workspace);
+		const storageService = createStorageService(legacyWorkspace, workspace, configuration, environmentService);
 
-			return domContentLoaded().then(() => {
-				timerService.afterDOMContentLoaded = Date.now();
+		timerService.beforeDOMContentLoaded = Date.now();
 
-				// Open Shell
-				timerService.beforeWorkbenchOpen = Date.now();
-				const shell = new WorkbenchShell(document.body, {
-					contextService: workspaceConfigurationService,
-					configurationService: workspaceConfigurationService,
-					environmentService,
-					timerService,
-					storageService
-				}, configuration, options);
-				shell.open();
+		return domContentLoaded().then(() => {
+			timerService.afterDOMContentLoaded = Date.now();
 
-				// Inform user about loading issues from the loader
-				(<any>self).require.config({
-					onError: (err: any) => {
-						if (err.errorCode === 'load') {
-							shell.onUnexpectedError(loaderError(err));
-						}
+			// Open Shell
+			timerService.beforeWorkbenchOpen = Date.now();
+			const shell = new WorkbenchShell(document.body, {
+				contextService: workspaceService,
+				configurationService: workspaceService,
+				environmentService,
+				timerService,
+				storageService
+			}, configuration, options);
+			shell.open();
+
+			// Inform user about loading issues from the loader
+			(<any>self).require.config({
+				onError: (err: any) => {
+					if (err.errorCode === 'load') {
+						shell.onUnexpectedError(loaderError(err));
 					}
-				});
+				}
 			});
 		});
 	});
 }
 
-function createMultiRootWorkspace(workspaceData: ISingleFolderWorkspaceData | IMultiRootWorkspaceData): Workspace {
-	if (!workspaceData) {
-		return null;
-	}
-
-	let id: string;
-	let name: string;
-	let folders: uri[];
-
-	const singleFolderWorkspaceData = workspaceData as ISingleFolderWorkspaceData;
-	if (singleFolderWorkspaceData.folderPath) {
-		folders = [uri.file(singleFolderWorkspaceData.folderPath)];
-		id = createHash('md5').update(folders[0].fsPath).update(singleFolderWorkspaceData.ctime ? String(singleFolderWorkspaceData.ctime) : '').digest('hex');
-		name = path.basename(folders[0].fsPath);
-	} else {
-		const multiRootWorkspaceData = workspaceData as IMultiRootWorkspaceData;
-		id = multiRootWorkspaceData.id;
-		name = nls.localize('untitledWorkspace', "Untitled Workspace");
-		folders = multiRootWorkspaceData.folders.map(f => uri.parse(f));
-	}
-
-	return new Workspace(id, name, folders);
+function createAndInitializeWorkspaceService(configuration: IWindowConfiguration, environmentService: EnvironmentService): TPromise<WorkspaceService> {
+	return validateWorkspacePath(configuration).then(() => {
+		const workspaceConfigPath = configuration.workspace ? configuration.workspace.configPath : null;
+		const workspaceService = (workspaceConfigPath || configuration.folderPath) ? new WorkspaceServiceImpl(workspaceConfigPath, configuration.folderPath, environmentService) : new EmptyWorkspaceServiceImpl(environmentService);
+		return workspaceService.initialize().then(() => workspaceService, error => new EmptyWorkspaceServiceImpl(environmentService));
+	});
 }
 
-interface ISingleFolderWorkspaceData {
-	folderPath: string;
-	ctime: number;
-}
-
-interface IMultiRootWorkspaceData {
-	id: string;
-	folders: string[];
-}
-
-function resolveWorkspaceData(configuration: IWindowConfiguration): TPromise<ISingleFolderWorkspaceData | IMultiRootWorkspaceData> {
-	if (configuration.workspace) {
-		return resolveMultiRootWorkspaceData(configuration);
+function validateWorkspacePath(configuration: IWindowConfiguration): TPromise<void> {
+	if (!configuration.folderPath) {
+		return TPromise.as(null);
 	}
 
-	if (configuration.folderPath) {
-		return resolveSingleFolderWorkspaceData(configuration);
-	}
-
-	return TPromise.as(null);
-}
-
-function resolveSingleFolderWorkspaceData(configuration: IWindowConfiguration): TPromise<ISingleFolderWorkspaceData> {
 	return realpath(configuration.folderPath).then(realFolderPath => {
 
 		// for some weird reason, node adds a trailing slash to UNC paths
@@ -193,50 +158,31 @@ function resolveSingleFolderWorkspaceData(configuration: IWindowConfiguration): 
 
 		// update config
 		configuration.folderPath = realFolderPath;
-
-		// resolve ctime of workspace
-		return stat(realFolderPath).then(folderStat => {
-			return {
-				folderPath: realFolderPath,
-				ctime: platform.isLinux ? folderStat.ino : folderStat.birthtime.getTime() // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
-			} as ISingleFolderWorkspaceData;
-		});
 	}, error => {
 		errors.onUnexpectedError(error);
 
-		return null; // treat invalid paths as empty window
+		return null; // treat invalid paths as empty workspace
 	});
 }
 
-function resolveMultiRootWorkspaceData(configuration: IWindowConfiguration): TPromise<IMultiRootWorkspaceData> {
-	return readFile(configuration.workspace.configPath).then(buffer => {
-		const contents = buffer.toString('utf8');
+function createStorageService(legacyWorkspace: LegacyWorkspace, workspace: Workspace, configuration: IWindowConfiguration, environmentService: IEnvironmentService): IStorageService {
 
-		return JSON.parse(contents) as IMultiRootWorkspaceData;
-	}, error => {
-		errors.onUnexpectedError(error);
-
-		return null; // treat invalid paths as empty window
-	});
-}
-
-function createStorageService(workspaceData: ISingleFolderWorkspaceData | IMultiRootWorkspaceData, configuration: IWindowConfiguration, environmentService: IEnvironmentService): IStorageService {
 	let workspaceId: string;
 	let secondaryWorkspaceId: number;
 
-	const singleFolderWorkspaceData = workspaceData as ISingleFolderWorkspaceData;
-	const multiRootWorkspaceData = workspaceData as IMultiRootWorkspaceData;
+	if (workspace) {
 
-	// in multi root workspace mode we use the provided ID as key for workspace storage
-	if (multiRootWorkspaceData && multiRootWorkspaceData.id) {
-		workspaceId = uri.from({ path: multiRootWorkspaceData.id, scheme: 'root' }).toString();
-	}
+		// in multi root workspace mode we use the provided ID as key for workspace storage
+		if (workspace.configuration) {
+			workspaceId = uri.from({ path: workspace.id, scheme: 'root' }).toString();
+		}
 
-	// in single folder mode we use the path of the opened folder as key for workspace storage
-	// the ctime is used as secondary workspace id to clean up stale UI state if necessary
-	else if (singleFolderWorkspaceData && singleFolderWorkspaceData.folderPath) {
-		workspaceId = uri.file(singleFolderWorkspaceData.folderPath).toString();
-		secondaryWorkspaceId = singleFolderWorkspaceData.ctime;
+		// in single folder mode we use the path of the opened folder as key for workspace storage
+		// the ctime is used as secondary workspace id to clean up stale UI state if necessary
+		else {
+			workspaceId = legacyWorkspace.resource.toString();
+			secondaryWorkspaceId = legacyWorkspace.ctime;
+		}
 	}
 
 	// finaly, if we do not have a workspace open, we need to find another identifier for the window to store

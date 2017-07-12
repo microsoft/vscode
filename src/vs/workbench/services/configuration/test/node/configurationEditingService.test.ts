@@ -15,14 +15,13 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { parseArgs } from 'vs/platform/environment/node/argv';
-import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import extfs = require('vs/base/node/extfs');
 import { TestTextFileService, TestEditorGroupService, TestLifecycleService, TestBackupFileService } from 'vs/workbench/test/workbenchTestServices';
 import uuid = require('vs/base/common/uuid');
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configuration';
-import URI from 'vs/base/common/uri';
+import { WorkspaceService, EmptyWorkspaceServiceImpl, WorkspaceServiceImpl } from 'vs/workbench/services/configuration/node/configuration';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { ConfigurationEditingService } from 'vs/workbench/services/configuration/node/configurationEditingService';
 import { ConfigurationTarget, ConfigurationEditingError, ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/common/configurationEditing';
@@ -116,8 +115,7 @@ suite('ConfigurationEditingService', () => {
 		instantiationService = new TestInstantiationService();
 		const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
 		instantiationService.stub(IEnvironmentService, environmentService);
-		const workspace = noWorkspace ? null : new Workspace(workspaceDir, workspaceDir, [URI.file(workspaceDir)]);
-		const workspaceService = new WorkspaceConfigurationService(environmentService, workspace);
+		const workspaceService = noWorkspace ? new EmptyWorkspaceServiceImpl(environmentService) : new WorkspaceServiceImpl(null, workspaceDir, environmentService);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 		instantiationService.stub(IConfigurationService, workspaceService);
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
@@ -150,7 +148,7 @@ suite('ConfigurationEditingService', () => {
 
 	function clearServices(): void {
 		if (instantiationService) {
-			const configuraitonService = <WorkspaceConfigurationService>instantiationService.get(IConfigurationService);
+			const configuraitonService = <WorkspaceService>instantiationService.get(IConfigurationService);
 			if (configuraitonService) {
 				configuraitonService.dispose();
 			}

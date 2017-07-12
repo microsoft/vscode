@@ -10,32 +10,28 @@ import URI from 'vs/base/common/uri';
 import { equals, distinct } from 'vs/base/common/arrays';
 import { TPromise } from "vs/base/common/winjs.base";
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-
-interface IWorkspaceConfiguration {
-	[master: string]: {
-		folders: string[];
-	};
-}
-
-const workspaceConfigKey = 'workspace';
+import { IChoiceService, Severity } from 'vs/platform/message/common/message';
+import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
+import { IWorkspacesService } from "vs/platform/workspaces/common/workspaces";
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 	public _serviceBrand: any;
 
 	constructor(
-		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IJSONEditingService private jsonEditingService: IJSONEditingService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IChoiceService private choiceService: IChoiceService,
+		@IWindowsService private windowsService: IWindowsService,
+		@IWorkspacesService private workspacesService: IWorkspacesService
 	) {
 	}
 
 	private supported(): boolean {
-		if (!this.contextService.hasWorkspace()) {
+		if (this.contextService.hasWorkspace()) {
 			return false; // we need a workspace to begin with
 		}
 
@@ -65,12 +61,9 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	private doSetRoots(newRoots: URI[]): TPromise<void> {
-		const workspaceUserConfig = this.configurationService.lookup(workspaceConfigKey).user as IWorkspaceConfiguration || Object.create(null);
-		const master = this.contextService.getWorkspace().roots[0];
-		const masterKey = master.toString(true /* skip encoding */);
-
-		const currentWorkspaceRoots = this.validateRoots(master, workspaceUserConfig[masterKey] && workspaceUserConfig[masterKey].folders);
-		const newWorkspaceRoots = this.validateRoots(master, newRoots);
+		const workspace = this.contextService.getWorkspace();
+		const currentWorkspaceRoots = this.contextService.getWorkspace().roots.map(root => root.fsPath);
+		const newWorkspaceRoots = this.validateRoots(newRoots);
 
 		// See if there are any changes
 		if (equals(currentWorkspaceRoots, newWorkspaceRoots)) {
@@ -79,30 +72,35 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 		// Apply to config
 		if (newWorkspaceRoots.length) {
-			workspaceUserConfig[masterKey] = {
-				folders: newWorkspaceRoots
-			};
+			if (!workspace.configuration) {
+				return this.createWorkspace(newWorkspaceRoots);
+			}
+			return this.jsonEditingService.write(workspace.configuration, { key: 'folders', value: newWorkspaceRoots }, true);
 		} else {
-			delete workspaceUserConfig[masterKey];
+			// TODO: Sandeep - Removing all roots?
 		}
 
-		return this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: workspaceConfigKey, value: workspaceUserConfig }).then(() => void 0);
+		return TPromise.as(null);
 	}
 
-	private validateRoots(master: URI, roots: URI[]): string[] {
+	private validateRoots(roots: URI[]): string[] {
 		if (!roots) {
 			return [];
 		}
 
 		// Prevent duplicates
 		const validatedRoots = distinct(roots.map(root => root.toString(true /* skip encoding */)));
-
-		// Make sure we do not set the master folder as root
-		const masterIndex = validatedRoots.indexOf(master.toString(true /* skip encoding */));
-		if (masterIndex >= 0) {
-			validatedRoots.splice(masterIndex, 1);
-		}
-
 		return validatedRoots;
+	}
+
+	private createWorkspace(newRoots: string[]): TPromise<void> {
+		return this.choiceService.choose(Severity.Info, 'This action will create a new workspace', ['Yes', 'No'], 1, true)
+			.then(option => this._doCreateWorkspace(newRoots))
+			.then(newConfiguration => this.windowsService.openWindow([newConfiguration]));
+	}
+
+	private _doCreateWorkspace(folders: string[]): TPromise<string> {
+		return this.workspacesService.createWorkspace(folders)
+			.then(workspace => workspace.configPath);
 	}
 }

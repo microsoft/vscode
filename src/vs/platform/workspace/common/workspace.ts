@@ -87,6 +87,11 @@ export interface IWorkspace {
 	 * Mutliple roots in this workspace. First entry is master and never changes.
 	 */
 	readonly roots: URI[];
+
+	/**
+	 * the location of the workspace configuration
+	 */
+	readonly configuration?: URI;
 }
 
 export class LegacyWorkspace implements ILegacyWorkspace {
@@ -140,7 +145,8 @@ export class Workspace implements IWorkspace {
 	constructor(
 		public readonly id: string,
 		private _name: string,
-		private _roots: URI[]
+		private _roots: URI[],
+		public readonly configuration: URI = null
 	) {
 		this.updateRootsMap();
 	}
