@@ -82,10 +82,10 @@ export class CloseWindowAction extends Action {
 	}
 }
 
-export class CloseFolderAction extends Action {
+export class CloseWorkspaceAction extends Action {
 
 	static ID = 'workbench.action.closeFolder';
-	static LABEL = nls.localize('closeFolder', "Close Folder");
+	static LABEL = nls.localize('closeFolder', "Close Workspace");
 
 	constructor(
 		id: string,
@@ -99,7 +99,8 @@ export class CloseFolderAction extends Action {
 
 	run(): TPromise<void> {
 		if (!this.contextService.hasWorkspace()) {
-			this.messageService.show(Severity.Info, nls.localize('noFolderOpened', "There is currently no folder opened in this instance to close."));
+			this.messageService.show(Severity.Info, nls.localize('noWorkspaceOpened', "There is currently no workspace opened in this instance to close."));
+
 			return TPromise.as(null);
 		}
 
