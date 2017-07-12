@@ -206,20 +206,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	}
 
 	public getSelectionSearchString(): string {
-		let selection = this._editor.getSelection();
-
-		if (selection.startLineNumber === selection.endLineNumber) {
-			if (selection.isEmpty()) {
-				let wordAtPosition = this._editor.getModel().getWordAtPosition(selection.getStartPosition());
-				if (wordAtPosition) {
-					return wordAtPosition.word;
-				}
-			} else {
-				return this._editor.getModel().getValueInRange(selection);
-			}
-		}
-
-		return null;
+		return editorCommon.getSelectionSearchString(this._editor);
 	}
 
 	protected _start(opts: IFindStartOptions): void {
