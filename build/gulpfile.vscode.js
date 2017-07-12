@@ -31,8 +31,6 @@ const shrinkwrap = require('../npm-shrinkwrap.json');
 const crypto = require('crypto');
 const i18n = require('./lib/i18n');
 const glob = require('glob');
-const os = require('os');
-const cp = require('child_process');
 
 const productDependencies = Object.keys(product.dependencies || {});
 const dependencies = Object.keys(shrinkwrap.dependencies)
