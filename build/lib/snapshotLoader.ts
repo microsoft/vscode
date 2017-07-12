@@ -50,7 +50,7 @@ namespace snaps {
 				CSSLoaderPlugin.init();
 				NLSLoaderPlugin.init();
 
-				return define;
+				return { define, require };
 			}
 		})();
 		`;

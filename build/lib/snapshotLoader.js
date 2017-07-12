@@ -30,7 +30,7 @@ var snaps;
     snapshotLoader(loaderFilepath, startupBlobFilepath);
     function snapshotLoader(loaderFilepath, startupBlobFilepath) {
         var inputFile = fs.readFileSync(loaderFilepath);
-        var wrappedInputFile = "\n\t\tvar Monaco_Loader_Init;\n\t\t(function() {\n\t\t\tvar doNotInitLoader = true;\n\t\t\t" + inputFile.toString() + ";\n\t\t\tMonaco_Loader_Init = function() {\n\t\t\t\tAMDLoader.init();\n\t\t\t\tCSSLoaderPlugin.init();\n\t\t\t\tNLSLoaderPlugin.init();\n\n\t\t\t\treturn define;\n\t\t\t}\n\t\t})();\n\t\t";
+        var wrappedInputFile = "\n\t\tvar Monaco_Loader_Init;\n\t\t(function() {\n\t\t\tvar doNotInitLoader = true;\n\t\t\t" + inputFile.toString() + ";\n\t\t\tMonaco_Loader_Init = function() {\n\t\t\t\tAMDLoader.init();\n\t\t\t\tCSSLoaderPlugin.init();\n\t\t\t\tNLSLoaderPlugin.init();\n\n\t\t\t\treturn { define, require };\n\t\t\t}\n\t\t})();\n\t\t";
         var wrappedInputFilepath = path.join(os.tmpdir(), 'wrapped-loader.js');
         console.log(wrappedInputFilepath);
         fs.writeFileSync(wrappedInputFilepath, wrappedInputFile);
