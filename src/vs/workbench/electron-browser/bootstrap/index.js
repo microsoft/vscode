@@ -214,8 +214,9 @@ function main() {
 	// loads as soon as the loader loads. To be able to have pseudo translation
 	const loaderTimer = startTimer('load:loader');
 	if (typeof Monaco_Loader_Init === 'function') {
+		const loader = Monaco_Loader_Init();
 		//eslint-disable-next-line no-global-assign
-		define = Monaco_Loader_Init();
+		define = loader.define; require = loader.require;
 		onLoader();
 
 	} else {
