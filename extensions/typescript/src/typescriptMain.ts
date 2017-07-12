@@ -477,7 +477,9 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		this.versionStatus = new VersionStatus();
 		this.disposables.push(this.versionStatus);
 
-		this.client = new TypeScriptServiceClient(this, workspaceState, this.versionStatus, plugins, this.disposables);
+		this.client = new TypeScriptServiceClient(this, workspaceState, this.versionStatus, plugins);
+		this.disposables.push(this.client);
+
 		this.languagePerId = new Map();
 		for (const description of descriptions) {
 			const manager = new LanguageProvider(this.client, description);

@@ -153,12 +153,13 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private _apiVersion: API;
 	private telemetryReporter: TelemetryReporter;
 
+	private readonly disposables: Disposable[] = [];
+
 	constructor(
 		private readonly host: ITypescriptServiceClientHost,
 		private readonly workspaceState: Memento,
 		private readonly versionStatus: VersionStatus,
-		private readonly plugins: TypeScriptServerPlugin[],
-		disposables: Disposable[]
+		private readonly plugins: TypeScriptServerPlugin[]
 	) {
 		this.pathSeparator = path.sep;
 		this.lastStart = Date.now();
@@ -182,7 +183,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this._apiVersion = new API('1.0.0');
 		this.tracer = new Tracer(this.logger);
 
-		disposables.push(workspace.onDidChangeConfiguration(() => {
+		this.disposables.push(workspace.onDidChangeConfiguration(() => {
 			const oldConfiguration = this.configuration;
 			this.configuration = TypeScriptServiceConfiguration.loadFromWorkspace();
 
@@ -200,8 +201,25 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			}
 		}));
 		this.telemetryReporter = new TelemetryReporter();
-		disposables.push(this.telemetryReporter);
+		this.disposables.push(this.telemetryReporter);
 		this.startService();
+	}
+
+	public dispose() {
+		if (this.servicePromise) {
+			this.servicePromise.then(cp => {
+				if (cp) {
+					cp.kill();
+				}
+			}).then(undefined, () => void 0);
+		}
+
+		while (this.disposables.length) {
+			const obj = this.disposables.pop();
+			if (obj) {
+				obj.dispose();
+			}
+		}
 	}
 
 	public restartTsServer(): void {
