@@ -34,7 +34,7 @@ export interface IHistoryMainService {
 	// methods
 
 	addToRecentPathsList(paths: { path: string; isFile?: boolean; }[]): void;
-	getRecentPathsList(workspacePath?: string, filesToOpen?: IPath[]): IRecentPathsList;
+	getRecentPathsList(folderPath?: string, filesToOpen?: IPath[]): IRecentPathsList;
 	removeFromRecentPathsList(path: string): void;
 	removeFromRecentPathsList(paths: string[]): void;
 	clearRecentPathsList(): void;
@@ -130,7 +130,7 @@ export class HistoryMainService implements IHistoryMainService {
 		this._onRecentPathsChange.fire();
 	}
 
-	public getRecentPathsList(workspacePath?: string, filesToOpen?: IPath[]): IRecentPathsList {
+	public getRecentPathsList(folderPath?: string, filesToOpen?: IPath[]): IRecentPathsList {
 		let files: string[];
 		let folders: string[];
 
@@ -149,9 +149,9 @@ export class HistoryMainService implements IHistoryMainService {
 			files.unshift(...filesToOpen.map(f => f.filePath));
 		}
 
-		// Add current workspace path to beginning if set
-		if (workspacePath) {
-			folders.unshift(workspacePath);
+		// Add current folder path to beginning if set
+		if (folderPath) {
+			folders.unshift(folderPath);
 		}
 
 		// Clear those dupes

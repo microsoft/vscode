@@ -111,8 +111,9 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 					// Tests from CLI require to be the only instance currently
 					if (environmentService.extensionTestsPath && !environmentService.debugExtensionHost.break) {
 						const msg = 'Running extension tests from the command line is currently only supported if no other instance of Code is running.';
-						console.error(msg);
+						logService.error(msg);
 						client.dispose();
+
 						return TPromise.wrapError<Server>(new Error(msg));
 					}
 

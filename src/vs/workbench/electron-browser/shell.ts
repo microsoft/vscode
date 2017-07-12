@@ -52,6 +52,8 @@ import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { MainProcessExtensionService } from 'vs/workbench/api/electron-browser/mainThreadExtensionService';
+import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { WorkspacesChannelClient } from 'vs/platform/workspaces/common/workspacesIpc';
 import { IOptions } from 'vs/workbench/common/options';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -383,6 +385,9 @@ export class WorkbenchShell {
 
 		const urlChannel = mainProcessClient.getChannel('url');
 		serviceCollection.set(IURLService, new SyncDescriptor(URLChannelClient, urlChannel, currentWindow.id));
+
+		const workspacesChannel = mainProcessClient.getChannel('workspaces');
+		serviceCollection.set(IWorkspacesService, new SyncDescriptor(WorkspacesChannelClient, workspacesChannel));
 
 		return [instantiationService, serviceCollection];
 	}

@@ -27,7 +27,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
-import { ILegacyWorkspace, IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { ILegacyWorkspace, IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -54,6 +54,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { isLinux } from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -64,7 +65,7 @@ export const TestEnvironmentService = new EnvironmentService(parseArgs(process.a
 export class TestContextService implements IWorkspaceContextService {
 	public _serviceBrand: any;
 
-	private workspace: IWorkspace;
+	private workspace: IWorkbenchWorkspace;
 	private id: string;
 	private options: any;
 
@@ -93,7 +94,7 @@ export class TestContextService implements IWorkspaceContextService {
 		return this.workspace ? { resource: this.workspace.roots[0] } : void 0;
 	}
 
-	public getWorkspace(): IWorkspace {
+	public getWorkspace(): IWorkbenchWorkspace {
 		return this.workspace;
 	}
 
@@ -397,7 +398,7 @@ export class TestStorageService extends EventEmitter implements IStorageService 
 		super();
 
 		let context = new TestContextService();
-		this.storage = new StorageService(new InMemoryLocalStorage(), null, context.getWorkspace());
+		this.storage = new StorageService(new InMemoryLocalStorage(), null, context.getWorkspace().id);
 	}
 
 	store(key: string, value: any, scope: StorageScope = StorageScope.GLOBAL): void {
@@ -1058,6 +1059,10 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	openWorkspace(windowId: number, workspace: IWorkspaceIdentifier): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 

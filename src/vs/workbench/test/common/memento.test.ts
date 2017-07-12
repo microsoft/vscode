@@ -17,7 +17,7 @@ suite('Workbench Memento', () => {
 	let storage;
 
 	setup(() => {
-		storage = new StorageService(new InMemoryLocalStorage(), null, TestWorkspace);
+		storage = new StorageService(new InMemoryLocalStorage(), null, TestWorkspace.id);
 	});
 
 	test('Loading and Saving Memento with Scopes', () => {
