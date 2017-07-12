@@ -353,6 +353,7 @@ export class CodeMenu {
 		const openRecent = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miOpenRecent', comment: ['&& denotes a mnemonic'] }, "Open &&Recent")), submenu: openRecentMenu, enabled: openRecentMenu.items.length > 0 });
 
 		const isMultiRootEnabled = (product.quality !== 'stable'); // TODO@Ben multi root
+		const createWorkspace = this.createMenuItem(nls.localize({ key: 'miCreateWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Create Workspace..."), 'workbench.action.createWorkspace', this.windowsService.getWindowCount() > 0);
 		const addFolder = this.createMenuItem(nls.localize({ key: 'miAddFolderToWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Add Folder to Workspace..."), 'workbench.action.addRootFolder', this.windowsService.getWindowCount() > 0);
 
 		const saveFile = this.createMenuItem(nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "&&Save"), 'workbench.action.files.save', this.windowsService.getWindowCount() > 0);
@@ -382,6 +383,7 @@ export class CodeMenu {
 			!isMacintosh ? openFolder : null,
 			openRecent,
 			isMultiRootEnabled ? __separator__() : null,
+			isMultiRootEnabled ? createWorkspace : null,
 			isMultiRootEnabled ? addFolder : null,
 			__separator__(),
 			saveFile,

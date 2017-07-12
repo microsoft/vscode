@@ -14,6 +14,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import URI from 'vs/base/common/uri';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { IChoiceService, Severity } from "vs/platform/message/common/message";
+import { IInstantiationService } from "vs/platform/instantiation/common/instantiation";
 
 export class OpenFolderAction extends Action {
 
@@ -60,6 +62,8 @@ export class AddRootFolderAction extends Action {
 		id: string,
 		label: string,
 		@IWindowService private windowService: IWindowService,
+		@IChoiceService private choiceService: IChoiceService,
+		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
 		@IViewletService private viewletService: IViewletService
@@ -68,8 +72,14 @@ export class AddRootFolderAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		if (!this.contextService.hasWorkspace()) {
-			return this.windowService.pickFolderAndOpen(false /* prefer same window */);
+		if (!this.contextService.hasMultiFolderWorkspace()) {
+			return this.choiceService.choose(Severity.Info, nls.localize('notSupported', "Adding folder to this workspace is not supported."), [CreateWorkspaceAction.LABEL, nls.localize('cancel', "Cancel")], 1)
+				.then(option => {
+					if (option === 0) {
+						return this.instantiationService.createInstance(CreateWorkspaceAction, CreateWorkspaceAction.ID, CreateWorkspaceAction.LABEL).run();
+					}
+					return null;
+				});
 		}
 
 		return this.windowService.pickFolder({ buttonLabel: nls.localize('add', "Add"), title: nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace") }).then(folders => {
@@ -80,6 +90,33 @@ export class AddRootFolderAction extends Action {
 			return this.workspaceEditingService.addRoots(folders.map(folder => URI.file(folder))).then(() => {
 				return this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true);
 			});
+		});
+	}
+}
+
+export class CreateWorkspaceAction extends Action {
+
+	static ID = 'workbench.action.createWorkspace';
+	static LABEL = nls.localize('createWorkspace', "Create Workspace...");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowService private windowService: IWindowService,
+		@IChoiceService private choiceService: IChoiceService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return this.windowService.pickFolder({ buttonLabel: nls.localize('select', "Select"), title: nls.localize('selectWorkspace', "Select Folders") }).then(folders => {
+			if (!folders.length) {
+				return TPromise.as(null);
+			}
+			return this.workspaceEditingService.createAndOpenWorkspace(folders.map(folder => URI.file(folder)));
 		});
 	}
 }

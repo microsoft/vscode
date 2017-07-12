@@ -12,7 +12,6 @@ import { TPromise } from "vs/base/common/winjs.base";
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IChoiceService, Severity } from 'vs/platform/message/common/message';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IWorkspacesService } from "vs/platform/workspaces/common/workspaces";
 
@@ -24,19 +23,18 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		@IJSONEditingService private jsonEditingService: IJSONEditingService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IChoiceService private choiceService: IChoiceService,
 		@IWindowsService private windowsService: IWindowsService,
 		@IWorkspacesService private workspacesService: IWorkspacesService
 	) {
 	}
 
-	private supported(): boolean {
-		if (this.contextService.hasWorkspace()) {
-			return false; // we need a workspace to begin with
+	public createAndOpenWorkspace(roots: URI[]): TPromise<void> {
+		const paths = this.validateRoots(roots);
+		if (paths.length) {
+			return this.workspacesService.createWorkspace(paths)
+				.then(newWorkspace => this.windowsService.openWindow([newWorkspace.configPath]));
 		}
-
-		// TODO@Ben multi root
-		return this.environmentService.appQuality !== 'stable'; // not yet enabled in stable
+		return TPromise.as(null);
 	}
 
 	public addRoots(rootsToAdd: URI[]): TPromise<void> {
@@ -60,6 +58,15 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		return this.doSetRoots(roots.filter(root => rootsToRemoveRaw.indexOf(root.toString()) === -1));
 	}
 
+	private supported(): boolean {
+		if (this.contextService.hasMultiFolderWorkspace()) {
+			return false; // we need a multi folder workspace to begin with
+		}
+
+		// TODO@Ben multi root
+		return this.environmentService.appQuality !== 'stable'; // not yet enabled in stable
+	}
+
 	private doSetRoots(newRoots: URI[]): TPromise<void> {
 		const workspace = this.contextService.getWorkspace();
 		const currentWorkspaceRoots = this.contextService.getWorkspace().roots.map(root => root.fsPath);
@@ -72,9 +79,6 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 		// Apply to config
 		if (newWorkspaceRoots.length) {
-			if (!workspace.configuration) {
-				return this.createWorkspace(newWorkspaceRoots);
-			}
 			return this.jsonEditingService.write(workspace.configuration, { key: 'folders', value: newWorkspaceRoots }, true);
 		} else {
 			// TODO: Sandeep - Removing all roots?
@@ -91,16 +95,5 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		// Prevent duplicates
 		const validatedRoots = distinct(roots.map(root => root.toString(true /* skip encoding */)));
 		return validatedRoots;
-	}
-
-	private createWorkspace(newRoots: string[]): TPromise<void> {
-		return this.choiceService.choose(Severity.Info, 'This action will create a new workspace', ['Yes', 'No'], 1, true)
-			.then(option => this._doCreateWorkspace(newRoots))
-			.then(newConfiguration => this.windowsService.openWindow([newConfiguration]));
-	}
-
-	private _doCreateWorkspace(folders: string[]): TPromise<string> {
-		return this.workspacesService.createWorkspace(folders)
-			.then(workspace => workspace.configPath);
 	}
 }
