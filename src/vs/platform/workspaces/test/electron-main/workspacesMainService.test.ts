@@ -46,13 +46,8 @@ suite('WorkspacesMainService', () => {
 	});
 
 	test('createWorkspace (no folders)', done => {
-		return service.createWorkspace().then(workspace => {
-			assert.ok(workspace);
-			assert.ok(fs.existsSync(workspace.configPath));
-
-			const ws = JSON.parse(fs.readFileSync(workspace.configPath).toString()) as IStoredWorkspace;
-			assert.equal(ws.id, workspace.id);
-			assert.deepEqual(ws.folders.length, 0);
+		return service.createWorkspace([]).then(null, error => {
+			assert.ok(error);
 
 			done();
 		});
@@ -74,7 +69,7 @@ suite('WorkspacesMainService', () => {
 	});
 
 	test('resolveWorkspace', done => {
-		return service.createWorkspace().then(workspace => {
+		return service.createWorkspace([process.cwd(), os.tmpdir()]).then(workspace => {
 
 			// is not resolved because config path is no in workspaces home
 			assert.ok(!service.resolveWorkspaceSync(workspace.configPath));

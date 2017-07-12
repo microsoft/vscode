@@ -11,6 +11,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
 
+export const WORKSPACE_EXTNAME = '.code';
+
 export interface IWorkspaceIdentifier {
 	id: string;
 	configPath: string;
