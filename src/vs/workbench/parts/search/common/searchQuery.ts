@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+// import nls = require('vs/nls');
 import { IExpression } from 'vs/base/common/glob';
 import * as objects from 'vs/base/common/objects';
 import * as paths from 'vs/base/common/paths';
@@ -92,6 +92,7 @@ export class QueryBuilder {
 				if (relativeSearchPathMatch) {
 					return paths.join(workspace.roots[0].fsPath, relativeSearchPathMatch[1]);
 				} else {
+					// throw new Error(nls.localize('search.invalidRelativeInclude', 'Invalid folder include pattern: {}', searchPath));
 					return null;
 				}
 			});
@@ -116,13 +117,14 @@ export class QueryBuilder {
 					const searchPathRoot = relativeSearchPathMatch[1];
 					const matchingRoots = workspace.roots.filter(root => paths.basename(root.fsPath) === searchPathRoot);
 					if (!matchingRoots.length) {
-						throw new Error(nls.localize('search.invalidRootFolder', 'No root folder named {}', searchPathRoot));
+						// throw new Error(nls.localize('search.invalidRootFolder', 'No root folder named {}', searchPathRoot));
+					} else {
+						searchPaths.push(...matchingRoots.map(root => paths.join(root.fsPath, relativeSearchPathMatch[2])));
 					}
 
-					searchPaths.push(...matchingRoots.map(root => paths.join(root.fsPath, relativeSearchPathMatch[2])));
 				} else {
 					// Malformed ./ search path
-					throw new Error(nls.localize('search.invalidRelativeInclude', 'Invalid folder include pattern: {}', searchPath));
+					// throw new Error(nls.localize('search.invalidRelativeInclude', 'Invalid folder include pattern: {}', searchPath));
 				}
 			}
 		}
