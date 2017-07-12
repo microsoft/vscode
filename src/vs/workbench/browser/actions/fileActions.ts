@@ -74,10 +74,10 @@ export class AddRootFolderAction extends Action {
 
 	public run(): TPromise<any> {
 		if (!this.contextService.hasMultiFolderWorkspace()) {
-			return this.choiceService.choose(Severity.Info, nls.localize('notSupported', "Adding folder to this workspace is not supported."), [CreateWorkspaceAction.LABEL, nls.localize('cancel', "Cancel")], 1)
+			return this.choiceService.choose(Severity.Info, nls.localize('notSupported', "Adding a folder to this workspace is not possible. Instead create a new workspace and add folder."), [NewWorkspaceAction.LABEL, nls.localize('cancel', "Cancel")], 1)
 				.then(option => {
 					if (option === 0) {
-						return this.instantiationService.createInstance(CreateWorkspaceAction, CreateWorkspaceAction.ID, CreateWorkspaceAction.LABEL).run();
+						return this.instantiationService.createInstance(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL).run();
 					}
 					return null;
 				});
@@ -95,10 +95,10 @@ export class AddRootFolderAction extends Action {
 	}
 }
 
-export class CreateWorkspaceAction extends Action {
+export class NewWorkspaceAction extends Action {
 
-	static ID = 'workbench.action.createWorkspace';
-	static LABEL = nls.localize('createWorkspace', "Create Workspace...");
+	static ID = 'workbench.action.newWorkspace';
+	static LABEL = nls.localize('newWorkspace', "New Workspace...");
 
 	constructor(
 		id: string,
@@ -160,10 +160,10 @@ export class SaveWorkspaceAction extends Action {
 
 	public run(): TPromise<any> {
 		if (!this.contextService.hasMultiFolderWorkspace()) {
-			return this.choiceService.choose(Severity.Info, nls.localize('notSupported2', "Saving a workspace is only possible when a workspace is opened."), [CreateWorkspaceAction.LABEL, nls.localize('cancel', "Cancel")], 1)
+			return this.choiceService.choose(Severity.Info, nls.localize('notSupported2', "Saving a workspace is only possible when a workspace is opened."), [NewWorkspaceAction.LABEL, nls.localize('cancel', "Cancel")], 1)
 				.then(option => {
 					if (option === 0) {
-						return this.instantiationService.createInstance(CreateWorkspaceAction, CreateWorkspaceAction.ID, CreateWorkspaceAction.LABEL).run();
+						return this.instantiationService.createInstance(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL).run();
 					}
 					return null;
 				});
