@@ -227,8 +227,7 @@ function packageTask(platform, arch, opts) {
 		]);
 
 		const src = gulp.src(out + '/**', { base: '.' })
-			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + out), 'out'); }))
-			.pipe(util.setExecutableBit(['**/*.sh']));
+			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + out), 'out'); }));
 
 		const root = path.resolve(path.join(__dirname, '..'));
 		const localExtensionDescriptions = glob.sync('extensions/*/package.json')
@@ -259,12 +258,9 @@ function packageTask(platform, arch, opts) {
 				.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
 		}));
 
-		const sources = es.merge(
-			src,
-			localExtensions,
-			localExtensionDependencies,
-			marketplaceExtensions
-		).pipe(filter(['**', '!**/*.js.map']));
+		const sources = es.merge(src, localExtensions, localExtensionDependencies, marketplaceExtensions)
+			.pipe(util.setExecutableBit(['**/*.sh']))
+			.pipe(filter(['**', '!**/*.js.map']));
 
 		let version = packageJson.version;
 		const quality = product.quality;
