@@ -678,8 +678,8 @@ suite('TelemetryService', () => {
 				_serviceBrand: undefined,
 				getConfiguration() {
 					return {
-						enableTelemetry
-					};
+						enableTelemetry: enableTelemetry
+					} as any;
 				},
 				getConfigurationData(): any {
 					return null;

@@ -48,7 +48,7 @@ export interface IViewOptions {
 
 export interface IViewConstructorSignature {
 
-	new (options: IViewOptions, ...services: { _serviceBrand: any; }[]): IView;
+	new(options: IViewOptions, ...services: { _serviceBrand: any; }[]): IView;
 
 }
 

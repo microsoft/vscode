@@ -708,7 +708,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 		return ExtHostLanguageFeatures._handlePool++;
 	}
 
-	private _withAdapter<A, R>(handle: number, ctor: { new (...args: any[]): A }, callback: (adapter: A) => TPromise<R>): TPromise<R> {
+	private _withAdapter<A, R>(handle: number, ctor: { new(...args: any[]): A }, callback: (adapter: A) => TPromise<R>): TPromise<R> {
 		let adapter = this._adapter.get(handle);
 		if (!(adapter instanceof ctor)) {
 			return TPromise.wrapError<R>(new Error('no adapter found'));

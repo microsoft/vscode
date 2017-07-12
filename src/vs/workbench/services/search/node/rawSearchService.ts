@@ -88,7 +88,7 @@ export class SearchService implements IRawSearchService {
 		return this.doTextSearch(engine, SearchService.BATCH_SIZE);
 	}
 
-	public doFileSearch(EngineClass: { new (config: IRawSearch): ISearchEngine<IRawFileMatch>; }, config: IRawSearch, batchSize?: number): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
+	public doFileSearch(EngineClass: { new(config: IRawSearch): ISearchEngine<IRawFileMatch>; }, config: IRawSearch, batchSize?: number): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
 
 		if (config.sortByScore) {
 			let sortedSearch = this.trySortedSearchFromCache(config);

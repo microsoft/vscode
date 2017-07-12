@@ -67,7 +67,7 @@ interface IETextRange {
 
 declare var IETextRange: {
 	prototype: IETextRange;
-	new (): IETextRange;
+	new(): IETextRange;
 };
 
 interface IHitTestResult {
