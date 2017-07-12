@@ -705,7 +705,7 @@ export abstract class BaseOpenRecentAction extends Action {
 		this.quickOpenService.pick([...workspacePicks, ...folderPicks, ...filePicks], {
 			contextKey: inRecentFilesPickerContextKey,
 			autoFocus: { autoFocusFirstEntry: !hasWorkspace, autoFocusSecondEntry: hasWorkspace },
-			placeHolder: isMacintosh ? nls.localize('openRecentPlaceHolderMac', "Select a path (hold Cmd-key to open in new window)") : nls.localize('openRecentPlaceHolder', "Select a path to open (hold Ctrl-key to open in new window)"),
+			placeHolder: isMacintosh ? nls.localize('openRecentPlaceHolderMac', "Select to open (hold Cmd-key to open in new window)") : nls.localize('openRecentPlaceHolder', "Select to open (hold Ctrl-key to open in new window)"),
 			matchOnDescription: true,
 			quickNavigateConfiguration: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : void 0
 		}).done(null, errors.onUnexpectedError);
