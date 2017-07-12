@@ -98,6 +98,9 @@ export default class Webview {
 		private _options: WebviewOptions = {},
 	) {
 		this._webview = <any>document.createElement('webview');
+		if (!this._options.allowSvgs) {
+			this._webview.setAttribute('partition', `webview${Webview.index++}`);
+		}
 
 		this._webview.style.width = '100%';
 		this._webview.style.height = '100%';
@@ -110,7 +113,6 @@ export default class Webview {
 
 		this._webview.setAttribute('disableguestresize', '');
 		this._webview.setAttribute('webpreferences', 'contextIsolation=yes');
-		this._webview.setAttribute('partition', `webview${Webview.index++}`);
 
 		this._webview.preload = require.toUrl('./webview-pre.js');
 		this._webview.src = require.toUrl('./webview.html');
