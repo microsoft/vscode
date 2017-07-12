@@ -175,6 +175,11 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 		'type': 'boolean',
 		'description': nls.localize('closeOnFileDelete', "Controls if editors showing a file should close automatically when the file is deleted or renamed by some other process. Disabling this will keep the editor open as dirty on such an event. Note that deleting from within the application will always close the editor and that dirty files will never close to preserve your data."),
 		'default': true
+	},
+	'workbench.fontAliasing': {
+		'type': 'boolean',
+		'description': nls.localize('fontAliasing', "Controls how fonts in workbench are being rendered on macOS. Enabling this will result with crisper font rendering."),
+		'default': false
 	}
 };
 
