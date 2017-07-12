@@ -6,7 +6,7 @@
 
 import { CancellationToken, Uri, Event } from 'vscode';
 import * as Proto from './protocol';
-import * as semver from 'semver';
+import API from './utils/api';
 
 export interface ITypescriptServiceClientHost {
 	syntaxDiagnosticsReceived(event: Proto.DiagnosticEvent): void;
@@ -15,63 +15,6 @@ export interface ITypescriptServiceClientHost {
 	populateService(): void;
 }
 
-export class API {
-
-	private _version: string;
-
-	constructor(private _versionString: string) {
-		this._version = semver.valid(_versionString);
-		if (!this._version) {
-			this._version = '1.0.0';
-		} else {
-			// Cut of any prerelease tag since we sometimes consume those
-			// on purpose.
-			let index = _versionString.indexOf('-');
-			if (index >= 0) {
-				this._version = this._version.substr(0, index);
-			}
-		}
-	}
-
-	public get versionString(): string {
-		return this._versionString;
-	}
-
-	public has203Features(): boolean {
-		return semver.gte(this._version, '2.0.3');
-	}
-
-	public has206Features(): boolean {
-		return semver.gte(this._version, '2.0.6');
-	}
-
-	public has208Features(): boolean {
-		return semver.gte(this._version, '2.0.8');
-	}
-
-	public has213Features(): boolean {
-		return semver.gte(this._version, '2.1.3');
-	}
-
-	public has220Features(): boolean {
-		return semver.gte(this._version, '2.2.0');
-	}
-
-	public has222Features(): boolean {
-		return semver.gte(this._version, '2.2.2');
-	}
-
-	public has230Features(): boolean {
-		return semver.gte(this._version, '2.3.0');
-	}
-
-	public has234Features(): boolean {
-		return semver.gte(this._version, '2.3.4');
-	}
-	public has240Features(): boolean {
-		return semver.gte(this._version, '2.4.0');
-	}
-}
 
 export interface ITypescriptServiceClient {
 	normalizePath(resource: Uri): string | null;
