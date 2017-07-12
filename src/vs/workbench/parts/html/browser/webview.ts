@@ -5,21 +5,18 @@
 
 'use strict';
 
-import { localize } from 'vs/nls';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { addDisposableListener, addClass } from 'vs/base/browser/dom';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme, LIGHT, DARK } from 'vs/platform/theme/common/themeService';
 import { WebviewFindWidget } from './webviewFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
-declare interface WebviewElement extends HTMLElement {
+export declare interface WebviewElement extends HTMLElement {
 	src: string;
 	preload: string;
 	send(channel: string, ...args: any[]);
@@ -49,22 +46,6 @@ export interface FoundInPageResults {
 	matches: number;
 	selectionArea: any;
 }
-
-CommandsRegistry.registerCommand('_webview.openDevTools', function () {
-	const elements = document.querySelectorAll('webview.ready');
-	for (let i = 0; i < elements.length; i++) {
-		try {
-			(<WebviewElement>elements.item(i)).openDevTools();
-		} catch (e) {
-			console.error(e);
-		}
-	}
-});
-
-MenuRegistry.addCommand({
-	id: '_webview.openDevTools',
-	title: localize('devtools.webview', "Developer: Webview Tools")
-});
 
 type ApiThemeClassName = 'vscode-light' | 'vscode-dark' | 'vscode-high-contrast';
 

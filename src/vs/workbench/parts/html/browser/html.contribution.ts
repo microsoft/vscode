@@ -18,6 +18,8 @@ import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { MenuRegistry } from "vs/platform/actions/common/actions";
+import { WebviewElement } from "vs/workbench/parts/html/browser/webview";
 
 // --- Register Editor
 (<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(HtmlPreviewPart.ID,
@@ -77,4 +79,21 @@ CommandsRegistry.registerCommand('_workbench.htmlPreview.postMessage', (accessor
 		preview.sendMessage(message);
 	}
 	return activePreviews.length > 0;
+});
+
+
+CommandsRegistry.registerCommand('_webview.openDevTools', function () {
+	const elements = document.querySelectorAll('webview.ready');
+	for (let i = 0; i < elements.length; i++) {
+		try {
+			(elements.item(i) as WebviewElement).openDevTools();
+		} catch (e) {
+			console.error(e);
+		}
+	}
+});
+
+MenuRegistry.addCommand({
+	id: '_webview.openDevTools',
+	title: localize('devtools.webview', "Developer: Webview Tools")
 });
