@@ -78,7 +78,7 @@ DEFAULT_TERMINAL_LINUX_READY.then(defaultTerminalLinux => {
 });
 
 
-export abstract class AbstarctOpenInTerminalAction extends Action {
+export abstract class AbstractOpenInTerminalAction extends Action {
 	private resource: uri;
 
 	constructor(
@@ -117,7 +117,7 @@ export abstract class AbstarctOpenInTerminalAction extends Action {
 	}
 }
 
-export class OpenConsoleAction extends AbstarctOpenInTerminalAction {
+export class OpenConsoleAction extends AbstractOpenInTerminalAction {
 
 	public static ID = 'workbench.action.terminal.openNativeConsole';
 	public static Label = env.isWindows ? nls.localize('globalConsoleActionWin', "Open New Command Prompt") :
@@ -144,10 +144,10 @@ export class OpenConsoleAction extends AbstarctOpenInTerminalAction {
 	}
 }
 
-export class OpenIntegratedTerminalAction extends AbstarctOpenInTerminalAction {
+export class OpenIntegratedTerminalAction extends AbstractOpenInTerminalAction {
 
 	public static ID = 'workbench.action.terminal.openFolderInIntegratedTerminal';
-	public static Label = nls.localize('openFolderInIntegratedTerminal', "Open in Integrated Terminal");
+	public static Label = nls.localize('openFolderInIntegratedTerminal', "Open in Terminal");
 
 	constructor(
 		id: string,
