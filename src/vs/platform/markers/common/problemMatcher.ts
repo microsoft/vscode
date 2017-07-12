@@ -116,6 +116,7 @@ export interface ProblemMatcher {
 export interface NamedProblemMatcher extends ProblemMatcher {
 	name: string;
 	label: string;
+	deprecated?: boolean;
 }
 
 export interface NamedMultiLineProblemPattern {
@@ -1586,6 +1587,7 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 		this.add({
 			name: 'lessCompile',
 			label: localize('lessCompile', 'Less problems'),
+			deprecated: true,
 			owner: 'lessCompile',
 			applyTo: ApplyToKind.allDocuments,
 			fileLocation: FileLocationKind.Absolute,

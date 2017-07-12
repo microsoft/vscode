@@ -947,6 +947,9 @@ class TaskService extends EventEmitter implements ITaskService {
 		let entries: ProblemMatcherPickEntry[] = [];
 		for (let key of ProblemMatcherRegistry.keys()) {
 			let matcher = ProblemMatcherRegistry.get(key);
+			if (matcher.deprecated) {
+				continue;
+			}
 			if (matcher.name === matcher.label) {
 				entries.push({ label: matcher.name, matcher: matcher });
 			} else {
