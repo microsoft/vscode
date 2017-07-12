@@ -576,11 +576,11 @@ export abstract class BaseSwitchWindow extends Action {
 	public run(): TPromise<void> {
 		const currentWindowId = this.windowService.getCurrentWindowId();
 
-		return this.windowsService.getWindows().then(workspaces => {
+		return this.windowsService.getWindows().then(windows => {
 			const placeHolder = nls.localize('switchWindowPlaceHolder', "Select a window to switch to");
-			const picks = workspaces.map(win => ({
-				resource: win.filename ? URI.file(win.filename) : win.path,
-				isFolder: !win.filename && !!win.path,
+			const picks = windows.map(win => ({
+				resource: win.filename ? URI.file(win.filename) : win.folderPath ? URI.file(win.folderPath) : win.workspace ? URI.file(win.workspace.configPath) : void 0,
+				isFolder: !win.workspace && !win.filename && !!win.folderPath,
 				label: win.title,
 				description: (currentWindowId === win.id) ? nls.localize('current', "Current Window") : void 0,
 				run: () => {
@@ -702,9 +702,19 @@ export abstract class BaseOpenRecentAction extends Action {
 
 		const hasWorkspace = this.contextService.hasWorkspace();
 
+		let autoFocusFirstEntry = !hasWorkspace;
+		let autoFocusSecondEntry = !autoFocusFirstEntry;
+		if (workspacePicks.length > 0 && folderPicks.length > 0) {
+			// if we show both workspace picks and folder picks, we can no longer make any smart
+			// auto focus choice because the list is no longer in pure MRU order. In this case
+			// we simply do not focus any entry.
+			autoFocusFirstEntry = false;
+			autoFocusSecondEntry = false;
+		}
+
 		this.quickOpenService.pick([...workspacePicks, ...folderPicks, ...filePicks], {
 			contextKey: inRecentFilesPickerContextKey,
-			autoFocus: { autoFocusFirstEntry: !hasWorkspace, autoFocusSecondEntry: hasWorkspace },
+			autoFocus: { autoFocusFirstEntry, autoFocusSecondEntry },
 			placeHolder: isMacintosh ? nls.localize('openRecentPlaceHolderMac', "Select to open (hold Cmd-key to open in new window)") : nls.localize('openRecentPlaceHolder', "Select to open (hold Ctrl-key to open in new window)"),
 			matchOnDescription: true,
 			quickNavigateConfiguration: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : void 0

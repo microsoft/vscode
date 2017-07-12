@@ -35,12 +35,15 @@ import * as fs from 'original-fs';
 import { CodeApplication } from "vs/code/electron-main/app";
 import { HistoryMainService } from "vs/platform/history/electron-main/historyMainService";
 import { IHistoryMainService } from "vs/platform/history/common/history";
+import { WorkspacesMainService } from "vs/platform/workspaces/electron-main/workspacesMainService";
+import { IWorkspacesMainService } from "vs/platform/workspaces/common/workspaces";
 
 function createServices(args: ParsedArgs): IInstantiationService {
 	const services = new ServiceCollection();
 
 	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, args, process.execPath));
 	services.set(ILogService, new SyncDescriptor(LogMainService));
+	services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
 	services.set(IHistoryMainService, new SyncDescriptor(HistoryMainService));
 	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
 	services.set(IStorageService, new SyncDescriptor(StorageService));

@@ -53,7 +53,6 @@ import { KeyboardLayoutMonitor } from "vs/code/electron-main/keyboard";
 import URI from 'vs/base/common/uri';
 import { WorkspacesChannel } from "vs/platform/workspaces/common/workspacesIpc";
 import { IWorkspacesMainService } from "vs/platform/workspaces/common/workspaces";
-import { WorkspacesMainService } from "vs/platform/workspaces/electron-main/workspacesMainService";
 
 export class CodeApplication {
 	private toDispose: IDisposable[];
@@ -290,7 +289,6 @@ export class CodeApplication {
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager));
 		services.set(IWindowsService, new SyncDescriptor(WindowsService, this.sharedProcess));
 		services.set(ILaunchService, new SyncDescriptor(LaunchService));
-		services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
 
 		// Telemtry
 		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !!product.enableTelemetry) {
