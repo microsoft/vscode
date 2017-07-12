@@ -284,7 +284,7 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 	'window.closeWhenEmpty': {
 		'type': 'boolean',
 		'default': false,
-		'description': nls.localize('closeWhenEmpty', "Controls if closing the last editor should also close the window. This setting only applies for windows that have no folder opened.")
+		'description': nls.localize('closeWhenEmpty', "Controls if closing the last editor should also close the window. This setting only applies for windows that have no folder or workspace opened.")
 	}
 };
 
@@ -376,35 +376,3 @@ configurationRegistry.registerConfiguration({
 		}
 	}
 });
-
-// Configuration: Workspace
-// TODO@Ben multi root
-if (product.quality !== 'stable') {
-	configurationRegistry.registerConfiguration({
-		'id': 'workspace',
-		'order': 10000,
-		'title': nls.localize('workspaceConfigurationTitle', "Workspace"),
-		'type': 'object',
-		'properties': {
-			'workspace': {
-				'type': 'object',
-				'description': nls.localize('workspaces.title', "Folder configuration of the workspace"),
-				'additionalProperties': {
-					'anyOf': [{
-						'type': 'object',
-						'description': nls.localize('files.exclude.boolean', "The glob pattern to match file paths against. Set to true or false to enable or disable the pattern."),
-						'properties': {
-							'folders': {
-								'description': nls.localize('workspaces.additionalFolders', "Folders of this workspace"),
-								'type': 'array',
-								'items': {
-									'type': 'string'
-								}
-							}
-						}
-					}]
-				}
-			}
-		}
-	});
-}
