@@ -1033,6 +1033,9 @@ class TaskService extends EventEmitter implements ITaskService {
 			let identifier: TaskConfig.TaskIdentifier = Objects.assign(Object.create(null), task.defines);
 			delete identifier['_key'];
 			Object.keys(identifier).forEach(key => toCustomize[key] = identifier[key]);
+			if (task.problemMatchers && task.problemMatchers.length > 0 && Types.isStringArray(task.problemMatchers)) {
+				toCustomize.problemMatcher = task.problemMatchers;
+			}
 		}
 		if (!toCustomize) {
 			return TPromise.as(undefined);
@@ -1045,7 +1048,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				}
 			}
 		} else {
-			if (task.problemMatchers === void 0 || task.problemMatchers.length === 0) {
+			if (toCustomize.problemMatcher === void 0 && task.problemMatchers === void 0 || task.problemMatchers.length === 0) {
 				toCustomize.problemMatcher = [];
 			}
 		}
