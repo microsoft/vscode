@@ -49,6 +49,13 @@
 	position: relative;
 }
 
+.colorpicker-body .saturation-wrap {
+	overflow: hidden;
+	width: 220px;
+	height: 150px;
+	position: relative;
+}
+
 .colorpicker-body .saturation-box {
 	width: 220px;
 	height: 150px;
@@ -60,8 +67,6 @@
 	border: 1px solid rgba(255, 255, 255, 1);
 	border-radius: 100%;
 	box-shadow: inset 0 0 1px rgba(0, 0, 0, 0.3);
-	margin-top: 5px;
-	margin-left: 5px;
 	position: absolute;
 }
 

@@ -32,7 +32,7 @@ export class ColorPickerWidget extends Widget implements IOverlayWidget {
 			return;
 		}
 
-		this.domNode = $('editor-widget colorpicker-widget');
+		this.domNode = $('.editor-widget.colorpicker-widget');
 		this.domNode.setAttribute('aria-hidden', 'false');
 		this.editor.addOverlayWidget(this);
 

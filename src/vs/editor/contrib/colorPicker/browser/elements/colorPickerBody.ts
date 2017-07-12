@@ -17,7 +17,7 @@ export class ColorPickerBody extends Disposable {
 	private domNode: HTMLElement;
 	private pixelRatio: number;
 
-	private saturationBox: HTMLCanvasElement;
+	private saturationWrapper: HTMLElement;
 	private saturationSelection: HTMLElement;
 	private hueStrip: HueStrip;
 	private hueSlider: Slider;
@@ -29,6 +29,8 @@ export class ColorPickerBody extends Disposable {
 	private whiteGradient: CanvasGradient;
 	private blackGradient: CanvasGradient;
 
+	// private saturationSelectionState: { x: number, y: number };
+
 	constructor(private widget: ColorPickerWidget, private model: ColorPickerModel, widgetWidth: number) {
 		super();
 
@@ -37,9 +39,11 @@ export class ColorPickerBody extends Disposable {
 		this.domNode = $('.colorpicker-body');
 		dom.append(widget.getDomNode(), this.domNode);
 
-		this.saturationBox = this.drawSaturationBox();
+		this.drawSaturationBox();
 		this.drawOpacityStrip();
 		this.drawHueStrip();
+
+		// this.saturationSelectionState = { x: 0, y: 0 };
 
 		this.registerListeners();
 	}
@@ -47,19 +51,9 @@ export class ColorPickerBody extends Disposable {
 	private registerListeners(): void {
 		const monitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
 
-		// Saturation box listeners
-		this._register(dom.addDisposableListener(this.saturationBox, dom.EventType.MOUSE_DOWN, e => {
-			e.preventDefault();
-			this.model.dragging = true;
-			this.saturationListener(e);
-		}));
-		this._register(dom.addDisposableListener(this.saturationSelection, dom.EventType.MOUSE_UP, e => {
-			this.model.dragging = false;
-		}));
-		this._register(dom.addDisposableListener(this.saturationBox, dom.EventType.MOUSE_MOVE, e => {
-			if (this.model.dragging) {
-				this.saturationListener(e);
-			}
+		// Saturation box listener
+		this._register(dom.addDisposableListener(this.saturationWrapper, dom.EventType.MOUSE_DOWN, e => {
+			this.saturationListener(e, monitor);
 		}));
 
 		// Color strip and slider listeners
@@ -77,10 +71,41 @@ export class ColorPickerBody extends Disposable {
 		}));
 	}
 
-	private saturationListener(e: MouseEvent): void {
-		this.widget.model.color = this.extractColor(this.saturationCtx, e.offsetX, e.offsetY);
-		this.widget.model.saturationSelection = { x: e.offsetX, y: e.offsetY };
-		this.focusSaturationSelection(this.widget.model.saturationSelection);
+	private saturationListener(e: MouseEvent, monitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>): void {
+		if (e.button !== 0) { // Only left click is allowed
+			return;
+		}
+		let newSaturationX, newSaturationY;
+		if (e.target !== this.saturationSelection) {
+			newSaturationX = e.offsetX;
+			newSaturationY = e.offsetY;
+
+			this.widget.model.color = this.extractColor(this.saturationCtx, newSaturationX, newSaturationY);
+			this.widget.model.saturationSelection = { x: newSaturationX, y: newSaturationY };
+			this.focusSaturationSelection(this.widget.model.saturationSelection);
+		} else { // If clicked on the selection circle
+			newSaturationX = this.widget.model.saturationSelection.x;
+			newSaturationY = this.widget.model.saturationSelection.y;
+		}
+
+		const initialMousePosition = e.clientY;
+		const initialMouseOrthogonalPosition = e.clientX;
+		monitor.startMonitoring(standardMouseMoveMerger, (mouseMoveData: IStandardMouseMoveEventData) => {
+			// Do not move slider on Windows if it's outside of movable bounds
+			const mouseOrthogonalDelta = Math.abs(mouseMoveData.posx - initialMouseOrthogonalPosition);
+			if (isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
+				return;
+			}
+
+			const deltaX = mouseMoveData.posx - initialMouseOrthogonalPosition;
+			const deltaY = mouseMoveData.posy - initialMousePosition;
+			const x = newSaturationX + deltaX;
+			const y = newSaturationY + deltaY;
+
+			this.widget.model.color = this.extractColor(this.saturationCtx, x, y);
+			this.widget.model.saturationSelection = { x: x, y: y };
+			this.focusSaturationSelection(this.widget.model.saturationSelection);
+		}, () => null);
 	}
 
 	private stripListener(strip: Strip, element: HTMLElement, e: MouseEvent, monitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>): void {
@@ -146,34 +171,18 @@ export class ColorPickerBody extends Disposable {
 	}
 
 	private focusSaturationSelection(state: ISaturationState): void {
-		let left = state.x;
-		let top = state.y;
-
-		const leftTopOffset = 3;
-		const rightBottomOffset = 7;
-
-		if (left <= leftTopOffset) {
-			left = leftTopOffset;
-		}
-		if (left >= this.saturationBox.offsetWidth - rightBottomOffset) {
-			left = left - rightBottomOffset; // take into account box-shadow
-		}
-		if (top <= leftTopOffset) {
-			top = leftTopOffset;
-		}
-		if (top >= this.saturationBox.offsetHeight - rightBottomOffset) {
-			top = top - rightBottomOffset; // take into account box-shadow
-		}
-
-		this.saturationSelection.style.left = left + 'px';
-		this.saturationSelection.style.top = top + 'px';
+		this.saturationSelection.style.left = state.x + 'px';
+		this.saturationSelection.style.top = state.y + 'px';
 	}
 
-	private drawSaturationBox(): HTMLCanvasElement {
+	private drawSaturationBox(): void {
+		this.saturationWrapper = $('.saturation-wrap');
+		dom.append(this.domNode, this.saturationWrapper);
+
 		// Create canvas, draw selected color
 		const canvas = document.createElement('canvas');
 		canvas.className = 'saturation-box';
-		dom.append(this.domNode, canvas);
+		dom.append(this.saturationWrapper, canvas);
 
 		const actualW = canvas.offsetWidth * this.pixelRatio,
 			actualH = canvas.offsetHeight * this.pixelRatio;
@@ -199,9 +208,7 @@ export class ColorPickerBody extends Disposable {
 
 		// Add selection circle
 		this.saturationSelection = $('.saturation-selection');
-		dom.append(this.domNode, this.saturationSelection);
-
-		return canvas;
+		dom.append(this.saturationWrapper, this.saturationSelection);
 	}
 
 	private drawOpacityStrip(): void {
