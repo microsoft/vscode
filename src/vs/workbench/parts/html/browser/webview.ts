@@ -67,9 +67,7 @@ export default class Webview {
 		private _options: WebviewOptions = {}
 	) {
 		this._webview = <any>document.createElement('webview');
-		if (!this._options.allowSvgs) {
-			this._webview.setAttribute('partition', `webview${Webview.index++}`);
-		}
+		this._webview.setAttribute('partition', this._options.allowSvgs ? 'webview' : `webview${Webview.index++}`);
 
 		this._webview.style.width = '100%';
 		this._webview.style.height = '100%';
