@@ -20,7 +20,7 @@ import errors = require('vs/base/common/errors');
 import * as DOM from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { CONTEXT as ToolBarContext, ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionItem, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { IActionBarRegistry, Extensions, prepareActions } from 'vs/workbench/browser/actions';
 import { Action, IAction } from 'vs/base/common/actions';
@@ -39,6 +39,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
+import { ToggleSidebarVisibilityAction } from 'vs/workbench/browser/actions/toggleSidebarVisibility';
 
 export interface ICompositeTitleLabel {
 
@@ -479,6 +480,10 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	private onContextMenu(event: StandardMouseEvent): void {
 		const contextMenuActions = this.activeComposite ? this.activeComposite.getContextMenuActions() : [];
 		if (contextMenuActions.length) {
+			contextMenuActions.push(new Separator());
+		}
+		contextMenuActions.push(this.createHideSideBarAction());
+		if (contextMenuActions.length) {
 			let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => anchor,
@@ -488,6 +493,15 @@ export abstract class CompositePart<T extends Composite> extends Part {
 				getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id)
 			});
 		}
+	}
+
+	private createHideSideBarAction(): IAction {
+		return <IAction>{
+			id: ToggleSidebarVisibilityAction.ID,
+			label: nls.localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
+			enabled: true,
+			run: () => this.partService.setSideBarHidden(true)
+		};
 	}
 
 	private actionItemProvider(action: Action): IActionItem {

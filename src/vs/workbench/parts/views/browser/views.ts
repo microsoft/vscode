@@ -638,7 +638,7 @@ export class ComposedViewsViewlet extends Viewlet {
 			getAnchor: () => anchor,
 			getActions: () => TPromise.as([<IAction>{
 				id: `${view.id}.removeView`,
-				label: nls.localize('removeView', "Remove from {0} View", this.getTitle()),
+				label: nls.localize('removeView', "Remove from Side Bar"),
 				enabled: true,
 				run: () => this.toggleViewVisibility(view.id)
 			}]),
