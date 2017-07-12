@@ -152,9 +152,12 @@ export abstract class Marker {
 	toString() {
 		return '';
 	}
+
 	len(): number {
 		return 0;
 	}
+
+	abstract clone(): Marker;
 }
 
 export class Text extends Marker {
@@ -166,6 +169,9 @@ export class Text extends Marker {
 	}
 	len(): number {
 		return this.string.length;
+	}
+	clone(): Text {
+		return new Text(this.string);
 	}
 }
 
@@ -197,6 +203,9 @@ export class Placeholder extends Marker {
 	toString() {
 		return Marker.toString(this.children);
 	}
+	clone(): Placeholder {
+		return new Placeholder(this.index, this.children.map(child => child.clone()));
+	}
 }
 
 export class Variable extends Marker {
@@ -219,6 +228,11 @@ export class Variable extends Marker {
 	}
 	toString() {
 		return this.isDefined ? this.resolvedValue : Marker.toString(this.children);
+	}
+	clone(): Variable {
+		const ret = new Variable(this.name, this.children.map(child => child.clone()));
+		ret.resolvedValue = this.resolvedValue;
+		return ret;
 	}
 }
 export function walk(marker: Marker[], visitor: (marker: Marker) => boolean): void {
@@ -321,6 +335,10 @@ export class TextmateSnippet extends Marker {
 		parent.children = newChildren;
 		this._placeholders = undefined;
 	}
+
+	clone(): TextmateSnippet {
+		return new TextmateSnippet(this.children.map(child => child.clone()));
+	}
 }
 
 export class SnippetParser {
@@ -369,7 +387,7 @@ export class SnippetParser {
 					} else if (thisMarker.children.length === 0) {
 						// copy children from first placeholder definition, no need to
 						// recurse on them because they have been visited already
-						thisMarker.children = placeholderDefaultValues.get(thisMarker.index).slice(0);
+						thisMarker.children = placeholderDefaultValues.get(thisMarker.index).map(child => child.clone());
 					}
 
 
