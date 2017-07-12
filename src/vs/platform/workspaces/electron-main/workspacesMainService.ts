@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IWorkspacesMainService, IWorkspaceIdentifier, IStoredWorkspace, WORKSPACE_EXTNAME } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspacesMainService, IWorkspaceIdentifier, IStoredWorkspace, WORKSPACE_EXTENSION } from "vs/platform/workspaces/common/workspaces";
 import { TPromise } from "vs/base/common/winjs.base";
 import { isParent } from "vs/platform/files/common/files";
 import { IEnvironmentService } from "vs/platform/environment/common/environment";
@@ -13,6 +13,8 @@ import { extname, join } from "path";
 import { mkdirp, writeFile } from "vs/base/node/pfs";
 import { readFileSync } from "fs";
 import { isLinux } from "vs/base/common/platform";
+import { copy } from "vs/base/node/extfs";
+import { nfcall } from "vs/base/common/async";
 
 export class WorkspacesMainService implements IWorkspacesMainService {
 
@@ -25,7 +27,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 	}
 
 	public resolveWorkspaceSync(path: string): IWorkspaceIdentifier {
-		const isWorkspace = this.isInsideWorkspacesHome(path) || extname(path) === WORKSPACE_EXTNAME;
+		const isWorkspace = this.isInsideWorkspacesHome(path) || extname(path) === `.${WORKSPACE_EXTENSION}`;
 		if (!isWorkspace) {
 			return null; // does not look like a valid workspace config file
 		}
@@ -77,5 +79,11 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 
 	public isUntitledWorkspace(workspace: IWorkspaceIdentifier): boolean {
 		return this.isInsideWorkspacesHome(workspace.configPath);
+	}
+
+	public saveWorkspace(workspace: IWorkspaceIdentifier, target: string): TPromise<IWorkspaceIdentifier> {
+		return nfcall(copy, workspace.configPath, target).then(() => {
+			return this.resolveWorkspaceSync(target);
+		});
 	}
 }

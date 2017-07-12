@@ -930,6 +930,10 @@ export class TestWindowService implements IWindowService {
 	showSaveDialog(options: Electron.SaveDialogOptions, callback?: (fileName: string) => void): string {
 		return void 0;
 	}
+
+	showOpenDialog(options: Electron.OpenDialogOptions, callback?: (fileNames: string[]) => void): string[] {
+		return void 0;
+	}
 }
 
 export class TestLifecycleService implements ILifecycleService {

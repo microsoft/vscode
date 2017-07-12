@@ -18,7 +18,7 @@ import { CloseEditorAction, KeybindingsReferenceAction, OpenDocumentationUrlActi
 import { MessagesVisibleContext } from 'vs/workbench/electron-browser/workbench';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { registerCommands } from 'vs/workbench/electron-browser/commands';
-import { AddRootFolderAction, CreateWorkspaceAction } from 'vs/workbench/browser/actions/fileActions';
+import { AddRootFolderAction, CreateWorkspaceAction, OpenWorkspaceAction, SaveWorkspaceAction } from 'vs/workbench/browser/actions/fileActions';
 
 // Contribute Commands
 registerCommands();
@@ -85,6 +85,8 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(Decrea
 if (product.quality !== 'stable') {
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CreateWorkspaceAction, CreateWorkspaceAction.ID, CreateWorkspaceAction.LABEL), 'Files: Create Workspace...', fileCategory);
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL), 'Files: Add Folder to Workspace...', fileCategory);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenWorkspaceAction, OpenWorkspaceAction.ID, OpenWorkspaceAction.LABEL), 'Files: Open Workspace...', fileCategory);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SaveWorkspaceAction, SaveWorkspaceAction.ID, SaveWorkspaceAction.LABEL), 'Files: Save Workspace...', fileCategory);
 }
 
 // Developer related actions

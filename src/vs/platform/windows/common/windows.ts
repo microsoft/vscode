@@ -99,6 +99,7 @@ export interface IWindowService {
 	onWindowTitleDoubleClick(): TPromise<void>;
 	showMessageBox(options: Electron.ShowMessageBoxOptions): number;
 	showSaveDialog(options: Electron.SaveDialogOptions, callback?: (fileName: string) => void): string;
+	showOpenDialog(options: Electron.OpenDialogOptions, callback?: (fileNames: string[]) => void): string[];
 }
 
 export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden';

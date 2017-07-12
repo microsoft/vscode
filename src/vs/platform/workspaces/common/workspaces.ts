@@ -16,7 +16,7 @@ import { IEnvironmentService } from "vs/platform/environment/common/environment"
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
 
-export const WORKSPACE_EXTNAME = '.code';
+export const WORKSPACE_EXTENSION = 'code';
 
 export interface IWorkspaceIdentifier {
 	id: string;
@@ -39,6 +39,7 @@ export interface IWorkspacesService {
 	_serviceBrand: any;
 
 	createWorkspace(folders?: string[]): TPromise<IWorkspaceIdentifier>;
+	saveWorkspace(workspace: IWorkspaceIdentifier, target: string): TPromise<IWorkspaceIdentifier>;
 }
 
 export function getWorkspaceLabel(environmentService: IEnvironmentService, workspace: IWorkspaceIdentifier): string {

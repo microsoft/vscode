@@ -111,4 +111,12 @@ export class WindowService implements IWindowService {
 
 		return remote.dialog.showSaveDialog(remote.getCurrentWindow(), options); // https://github.com/electron/electron/issues/4936
 	}
+
+	showOpenDialog(options: Electron.OpenDialogOptions, callback?: (fileNames: string[]) => void): string[] {
+		if (callback) {
+			return remote.dialog.showOpenDialog(remote.getCurrentWindow(), options, callback);
+		}
+
+		return remote.dialog.showOpenDialog(remote.getCurrentWindow(), options); // https://github.com/electron/electron/issues/4936
+	}
 }
