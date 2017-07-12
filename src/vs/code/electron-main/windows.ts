@@ -416,7 +416,7 @@ export class WindowsManager implements IWindowsMainService {
 
 			// Finally, if no window or folder is found, just open the files in an empty window
 			else {
-				const browserWindow = this.openInBrowserWindow({
+				usedWindows.push(this.openInBrowserWindow({
 					userEnv: openConfig.userEnv,
 					cli: openConfig.cli,
 					initialStartup: openConfig.initialStartup,
@@ -424,8 +424,7 @@ export class WindowsManager implements IWindowsMainService {
 					filesToCreate,
 					filesToDiff,
 					forceNewWindow: true
-				});
-				usedWindows.push(browserWindow);
+				}));
 
 				// Reset these because we handled them
 				filesToOpen = [];
@@ -444,7 +443,7 @@ export class WindowsManager implements IWindowsMainService {
 				const windowOnWorkspace = windowsOnWorkspace[0];
 
 				// Do open files
-				this.doOpenFilesInExistingWindow(windowOnWorkspace, filesToOpen, filesToCreate, filesToDiff);
+				usedWindows.push(this.doOpenFilesInExistingWindow(windowOnWorkspace, filesToOpen, filesToCreate, filesToDiff));
 
 				// Reset these because we handled them
 				filesToOpen = [];
@@ -482,7 +481,7 @@ export class WindowsManager implements IWindowsMainService {
 				const windowOnFolderPath = windowsOnFolderPath[0];
 
 				// Do open files
-				this.doOpenFilesInExistingWindow(windowOnFolderPath, filesToOpen, filesToCreate, filesToDiff);
+				usedWindows.push(this.doOpenFilesInExistingWindow(windowOnFolderPath, filesToOpen, filesToCreate, filesToDiff));
 
 				// Reset these because we handled them
 				filesToOpen = [];
@@ -513,7 +512,7 @@ export class WindowsManager implements IWindowsMainService {
 		// Handle empty to restore
 		if (emptyToRestore.length > 0) {
 			emptyToRestore.forEach(emptyWindowBackupFolder => {
-				const browserWindow = this.openInBrowserWindow({
+				usedWindows.push(this.openInBrowserWindow({
 					userEnv: openConfig.userEnv,
 					cli: openConfig.cli,
 					initialStartup: openConfig.initialStartup,
@@ -522,8 +521,7 @@ export class WindowsManager implements IWindowsMainService {
 					filesToDiff,
 					forceNewWindow: true,
 					emptyWindowBackupFolder
-				});
-				usedWindows.push(browserWindow);
+				}));
 
 				// Reset these because we handled them
 				filesToOpen = [];
@@ -537,14 +535,13 @@ export class WindowsManager implements IWindowsMainService {
 		// Only open empty if no empty windows were restored
 		else if (emptyToOpen > 0) {
 			for (let i = 0; i < emptyToOpen; i++) {
-				const browserWindow = this.openInBrowserWindow({
+				usedWindows.push(this.openInBrowserWindow({
 					userEnv: openConfig.userEnv,
 					cli: openConfig.cli,
 					initialStartup: openConfig.initialStartup,
 					forceNewWindow: openFolderInNewWindow,
 					windowToUse: openFolderInNewWindow ? void 0 : openConfig.windowToUse as CodeWindow
-				});
-				usedWindows.push(browserWindow);
+				}));
 
 				openFolderInNewWindow = true; // any other folders to open must open in new window then
 			}
@@ -553,12 +550,14 @@ export class WindowsManager implements IWindowsMainService {
 		return arrays.distinct(usedWindows);
 	}
 
-	private doOpenFilesInExistingWindow(window: CodeWindow, filesToOpen: IPath[], filesToCreate: IPath[], filesToDiff: IPath[]): void {
+	private doOpenFilesInExistingWindow(window: CodeWindow, filesToOpen: IPath[], filesToCreate: IPath[], filesToDiff: IPath[]): CodeWindow {
 		window.focus(); // make sure window has focus
 
 		window.ready().then(readyWindow => {
 			readyWindow.send('vscode:openFiles', { filesToOpen, filesToCreate, filesToDiff });
 		});
+
+		return window;
 	}
 
 	private doOpenFolderOrWorkspace(openConfig: IOpenConfiguration, folderOrWorkspace: IWindowToOpen, openInNewWindow: boolean, filesToOpen: IPath[], filesToCreate: IPath[], filesToDiff: IPath[]): CodeWindow {
