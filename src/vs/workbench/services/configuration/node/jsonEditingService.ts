@@ -104,20 +104,20 @@ export class JSONEditingService implements IJSONEditingService {
 				const model = reference.object.textEditorModel;
 
 				if (this.hasParseErrors(model)) {
-					return this.wrapError(JSONEditingErrorCode.ERROR_INVALID_FILE);
+					return this.wrapError<IReference<ITextEditorModel>>(JSONEditingErrorCode.ERROR_INVALID_FILE);
 				}
 
 				// Target cannot be dirty if not writing into buffer
 				if (checkDirty && this.textFileService.isDirty(resource)) {
-					return this.wrapError(JSONEditingErrorCode.ERROR_FILE_DIRTY);
+					return this.wrapError<IReference<ITextEditorModel>>(JSONEditingErrorCode.ERROR_FILE_DIRTY);
 				}
 				return reference;
 			});
 	}
 
-	private wrapError(code: JSONEditingErrorCode): TPromise<never> {
+	private wrapError<T>(code: JSONEditingErrorCode): TPromise<T> {
 		const message = this.toErrorMessage(code);
-		return TPromise.wrapError<never>(new JSONEditingError(message, code));
+		return TPromise.wrapError<T>(new JSONEditingError(message, code));
 	}
 
 	private toErrorMessage(error: JSONEditingErrorCode): string {
