@@ -159,7 +159,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				previewEditors: editorConfig.enablePreview,
 				showIcons: editorConfig.showIcons,
 				showTabs: editorConfig.showTabs,
-				tabCloseButton: editorConfig.tabCloseButton
+				tabCloseButton: editorConfig.tabCloseButton,
+				tabTitleUsesParentFor: editorConfig.tabTitleUsesParentFor
 			};
 
 			this.revealIfOpen = editorConfig.revealIfOpen;
@@ -170,7 +171,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				previewEditors: true,
 				showIcons: false,
 				showTabs: true,
-				tabCloseButton: 'right'
+				tabCloseButton: 'right',
+				tabTitleUsesParentFor: []
 			};
 
 			this.revealIfOpen = false;
@@ -221,7 +223,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				previewEditors: newPreviewEditors,
 				showIcons: editorConfig.showIcons,
 				tabCloseButton: editorConfig.tabCloseButton,
-				showTabs: this.forceHideTabs ? false : editorConfig.showTabs
+				showTabs: this.forceHideTabs ? false : editorConfig.showTabs,
+				tabTitleUsesParentFor: editorConfig.tabTitleUsesParentFor
 			};
 
 			if (!this.doNotFireTabOptionsChanged && !objects.equals(oldTabOptions, this.tabOptions)) {

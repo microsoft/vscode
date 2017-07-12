@@ -112,6 +112,14 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 		'description': nls.localize('showIcons', "Controls if opened editors should show with an icon or not. This requires an icon theme to be enabled as well."),
 		'default': true
 	},
+	'workbench.editor.tabTitleUsesParentFor': {
+		'type': 'array',
+		'items': {
+			'type': 'string'
+		},
+		'description': nls.localize('tabTitleUsesParentFor', "Controls if should emphasize parent directory name when there are opened editors with the specified file name."),
+		'default': []
+	},
 	'workbench.editor.enablePreview': {
 		'type': 'boolean',
 		'description': nls.localize('enablePreview', "Controls if opened editors show as preview. Preview editors are reused until they are kept (e.g. via double click or editing)."),

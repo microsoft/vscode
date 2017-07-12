@@ -18,7 +18,7 @@ import { Position, IEditorInput, Verbosity, IUntitledResourceInput } from 'vs/pl
 import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { EditorLabel } from 'vs/workbench/browser/labels';
+import { EditorLabel, IEditorLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -264,9 +264,13 @@ export class TabsTitleControl extends TitleControl {
 				const isTabActive = group.isActive(editor);
 				const isDirty = editor.isDirty();
 
+				const tabOptions = this.editorGroupService.getTabOptions();
+				const filesUsingParentAsTitle = tabOptions.tabTitleUsesParentFor;
+
 				const label = labels[index];
 				const name = label.name;
-				const description = label.hasAmbiguousName && label.description ? label.description : '';
+				const parentShouldBeTitle = Array.isArray(filesUsingParentAsTitle) && filesUsingParentAsTitle.indexOf(name) !== -1;
+				const description = label.description && (label.hasAmbiguousName || parentShouldBeTitle) ? label.description : '';
 				const title = label.title || '';
 
 				// Container
@@ -276,7 +280,6 @@ export class TabsTitleControl extends TitleControl {
 				tabContainer.style.borderRightColor = (index === editorsOfGroup.length - 1) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
 				tabContainer.style.outlineColor = this.getColor(activeContrastBorder);
 
-				const tabOptions = this.editorGroupService.getTabOptions();
 				['off', 'left'].forEach(option => {
 					const domAction = tabOptions.tabCloseButton === option ? DOM.addClass : DOM.removeClass;
 					domAction(tabContainer, `close-button-${option}`);
@@ -284,7 +287,21 @@ export class TabsTitleControl extends TitleControl {
 
 				// Label
 				const tabLabel = this.editorLabels[index];
-				tabLabel.setLabel({ name, description, resource: toResource(editor, { supportSideBySide: true }) }, { extraClasses: ['tab-label'], italic: !isPinned });
+				const editorLabel: IEditorLabel = {
+					name,
+					description,
+					resource: toResource(editor, { supportSideBySide: true })
+				};
+
+				if (parentShouldBeTitle && editorLabel.description) {
+					const descriptionSubstrings = editorLabel.description.split('/');
+					const parentAsTitle = descriptionSubstrings[descriptionSubstrings.length - 1];
+					const previousName = editorLabel.name;
+					editorLabel.name = parentAsTitle || './';
+					editorLabel.description = previousName;
+				}
+
+				tabLabel.setLabel(editorLabel, { extraClasses: ['tab-label'], italic: !isPinned });
 
 				// Active state
 				if (isTabActive) {
