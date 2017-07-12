@@ -32,6 +32,7 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 	_serviceBrand: any;
 
 	resolveWorkspaceSync(path: string): IWorkspaceIdentifier;
+	isUntitledWorkspace(workspace: IWorkspaceIdentifier): boolean;
 }
 
 export interface IWorkspacesService {

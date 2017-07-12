@@ -74,4 +74,8 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 	private nextWorkspaceId(): string {
 		return (Date.now() + Math.round(Math.random() * 1000)).toString();
 	}
+
+	public isUntitledWorkspace(workspace: IWorkspaceIdentifier): boolean {
+		return this.isInsideWorkspacesHome(workspace.configPath);
+	}
 }

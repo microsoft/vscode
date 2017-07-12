@@ -16,7 +16,7 @@ import { getPathLabel } from 'vs/base/common/labels';
 import { IPath } from 'vs/platform/windows/common/windows';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import { isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspaceIdentifier, IWorkspacesMainService } from "vs/platform/workspaces/common/workspaces";
 import { IHistoryMainService, IRecentlyOpenedFile, IRecentlyOpened } from "vs/platform/history/common/history";
 
 export class HistoryMainService implements IHistoryMainService {
@@ -32,7 +32,8 @@ export class HistoryMainService implements IHistoryMainService {
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
-		@ILogService private logService: ILogService
+		@ILogService private logService: ILogService,
+		@IWorkspacesMainService private workspacesService: IWorkspacesMainService
 	) {
 	}
 
@@ -49,8 +50,8 @@ export class HistoryMainService implements IHistoryMainService {
 				mru.workspaces.unshift(workspaceOrFile);
 				mru.workspaces = arrays.distinct(mru.workspaces, w => w.id);
 
-				// Add to recent documents (Windows/macOS only)
-				if (isMacintosh || isWindows) {
+				// Add to recent documents unless the workspace is untitled (Windows/macOS only)
+				if ((isMacintosh || isWindows) && !this.workspacesService.isUntitledWorkspace(workspaceOrFile)) {
 					app.addRecentDocument(workspaceOrFile.configPath);
 				}
 			}
