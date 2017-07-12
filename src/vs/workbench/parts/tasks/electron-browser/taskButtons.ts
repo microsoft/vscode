@@ -7,43 +7,29 @@
 export function domElement() {
 	return `
 <div class="composite panel task-panel" id="workbench.panel.task" aria-hidden="false">
-	<div class="task-text">
-		<p class="oneliner">This is a static mockup. Would you find the task panel seen below useful? <button class="mockup-button yes-telemetry">Yes</button> <button class="mockup-button no-telemetry">No</button>
-		<span class="right-aligned"> Link for feedback </span> </p>
-	</div>
+
 	<div class="task-panel-container">
-		<div class="block">
-			<p class="oneliner">
-				Task: tsc -watch
-				<span class="right-aligned">Running (0 Errors)</span>
-			</p>
-			<p class="oneliner">
-				<div class="mockup-button">Show Output </div>
-				<span class="right-aligned"><div class="mockup-button"> Configure </div> <div class="mockup-button"> Stop </div> <div class="mockup-button"> Restart </div></span>
-			</p>
-		</div>
-		<div class="block">
-			<p class="oneliner">
-				Task: tslint
-				<span class="right-aligned">Running (10 Errors)</span>
-			</p>
-			<p class="oneliner">
-				<div class="mockup-button">Hide Output </div>
-				<span class="right-aligned"><div class="mockup-button"> Configure </div> <div class="mockup-button"> Stop </div> <div class="mockup-button"> Restart </div></span>
-			</p>
-			Running tslint... </br> /users/express/index.js - invalid name expression </br>tslint finished with 1 Error(s)
-		</div>
-		<div class="block">
-			<p class="oneliner">
-				Task: tsc
-				<span class="right-aligned">Finished (0 Errors)</span>
-			</p>
-			<p class="oneliner">
-				<div class="mockup-button">Show Output </div>
-				<span class="right-aligned"><div class="mockup-button"> Configure </div> <div class="mockup-button"> Restart </div></span>
+		<p> Some things you might be able to do here: </br>
+		<ul>
+			<li> See a list of autodetected and manually configured tasks </li>
+			<li> Run/Restart/Stop tasks with a click of a button</li>
+			<li> Show a summary of each completed task (ie: execution time, exit code, foldable output)</li>
+			<li> Configure a task without touching the json file </li>
+		</ul></p>
+		<p> Here's a rough idea of what a task item might look like. By no means is this the final layout so please do not judge the look.</p>
+		<div class="task-item">
+			<p class="oneliner"> Task1: tsc -watch <span class="right-aligned"> Running (0 Errors)
+				<span class="mockup-button"> Show Output</span>
+				<span class="mockup-button">Stop</span>
+				<span class="mockup-button">Restart</span></span>
 			</p>
 		</div>
+		<p class="feedback"> If you are interested in further discussion or have feedback of your own, please go the github issue <a class="linkstyle" href="https://github.com/Microsoft/vscode/issues/28235"> here</a>. </p>
 	</div>
 </div>
+	<div class="task-text">
+		<div class="header-item centered">Do you think a task panel is useful? <span class="mockup-button yes-telemetry"></span> <span class="mockup-button no-telemetry"></span></div>
+		<div class="header-item centered thanks hidden"> Thanks for the feedback! <3 </div>
+	</div>
 `;
 };

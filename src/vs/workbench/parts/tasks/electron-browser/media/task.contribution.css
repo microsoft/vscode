@@ -94,33 +94,69 @@
 
 .monaco-workbench .task-action { background: url('update.svg') center center no-repeat; }
 
+.no-telemetry {
+	background-image: url('thumbs-down.svg');
+	width: 50px;
+	height: 50px;
+	vertical-align: middle;
+}
+
+.yes-telemetry {
+	background-image: url('thumbs-up.svg');
+	width: 50px;
+	height: 50px;
+	vertical-align: middle;
+}
+
 .task-panel {
 	padding-left: 10px;
 	padding-right: 10px;
+	margin-right: 10%;
+	margin-left: 10%;
 }
 
 .task-panel-container {
-	outline: grey dotted thick;
+	outline: grey dotted thin;
 	padding: 1px 17px;
+	margin-top: 10px;
 }
 
-.block {
+.task-item {
 	outline: grey solid thin;
 	padding-left: 5px;
 	padding-right: 5px;
+	padding: 1px;
+	margin-bottom: 10px;
 }
 
 .mockup-button {
 	display: inline-block;
 	padding: 2px;
-	padding-left: 5px;
-	padding-right: 5px;
 }
 
 .oneliner {
 	text-align: left;
+	margin: 10px;
 }
 
 .right-aligned {
 	float: right;
+}
+
+.centered {
+	text-align: center;
+	margin-top: 10px;
+}
+
+.header-item {
+	font-size: large;
+	transition: display 2s linear 500ms;
+}
+
+.feedback {
+	font-size: smaller;
+}
+
+.hidden {
+	display: none;
 }
