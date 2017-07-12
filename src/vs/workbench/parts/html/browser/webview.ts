@@ -21,9 +21,7 @@ import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 declare interface WebviewElement extends HTMLElement {
 	src: string;
-	autoSize: 'on';
 	preload: string;
-	contextIsolation: boolean;
 	send(channel: string, ...args: any[]);
 	openDevTools(): any;
 	getWebContents(): any;
@@ -102,17 +100,16 @@ export default class Webview {
 			this._webview.setAttribute('partition', `webview${Webview.index++}`);
 		}
 
-		this._webview.style.width = '100%';
-		this._webview.style.height = '100%';
-		this._webview.style.outline = '0';
-		this._webview.style.opacity = '0';
-		this._webview.contextIsolation = true;
-
 		// disable auxclick events (see https://developers.google.com/web/updates/2016/10/auxclick)
 		this._webview.setAttribute('disableblinkfeatures', 'Auxclick');
 
 		this._webview.setAttribute('disableguestresize', '');
 		this._webview.setAttribute('webpreferences', 'contextIsolation=yes');
+
+		this._webview.style.width = '100%';
+		this._webview.style.height = '100%';
+		this._webview.style.outline = '0';
+		this._webview.style.opacity = '0';
 
 		this._webview.preload = require.toUrl('./webview-pre.js');
 		this._webview.src = require.toUrl('./webview.html');
