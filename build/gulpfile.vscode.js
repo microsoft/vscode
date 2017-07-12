@@ -227,8 +227,7 @@ function packageTask(platform, arch, opts) {
 		]);
 
 		const src = gulp.src(out + '/**', { base: '.' })
-			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + out), 'out'); }))
-			.pipe(util.setExecutableBit(['**/*.sh']));
+			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + out), 'out'); }));
 
 		const root = path.resolve(path.join(__dirname, '..'));
 		const localExtensionDescriptions = glob.sync('extensions/*/package.json')
@@ -259,12 +258,9 @@ function packageTask(platform, arch, opts) {
 				.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
 		}));
 
-		const sources = es.merge(
-			src,
-			localExtensions,
-			localExtensionDependencies,
-			marketplaceExtensions
-		).pipe(filter(['**', '!**/*.js.map']));
+		const sources = es.merge(src, localExtensions, localExtensionDependencies, marketplaceExtensions)
+			.pipe(util.setExecutableBit(['**/*.sh']))
+			.pipe(filter(['**', '!**/*.js.map']));
 
 		let version = packageJson.version;
 		const quality = product.quality;
@@ -282,6 +278,8 @@ function packageTask(platform, arch, opts) {
 			.pipe(json({ commit, date, checksums }));
 
 		const license = gulp.src(['LICENSES.chromium.html', 'LICENSE.txt', 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.' });
+
+		const watermark = gulp.src(['resources/letterpress.svg', 'resources/letterpress-dark.svg', 'resources/letterpress-hc.svg'], { base: '.' });
 
 		// TODO the API should be copied to `out` during compile, not here
 		const api = gulp.src('src/vs/vscode.d.ts').pipe(rename('out/vs/vscode.d.ts'));
@@ -306,6 +304,7 @@ function packageTask(platform, arch, opts) {
 			packageJsonStream,
 			productJsonStream,
 			license,
+			watermark,
 			api,
 			sources,
 			deps

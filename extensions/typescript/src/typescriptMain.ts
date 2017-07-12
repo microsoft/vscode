@@ -191,7 +191,7 @@ class LanguageProvider {
 			delete: (file: string) => {
 				this.currentDiagnostics.delete(client.asUrl(file));
 			}
-		});
+		}, this._validate);
 		this.syntaxDiagnostics = Object.create(null);
 		this.currentDiagnostics = languages.createDiagnosticCollection(description.id);
 

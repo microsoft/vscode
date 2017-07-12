@@ -12,12 +12,16 @@ import Event from 'vs/base/common/event';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment } from 'vs/base/common/platform';
+import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 
 export interface ICodeWindow {
 	id: number;
 	win: Electron.BrowserWindow;
 	config: IWindowConfiguration;
-	openedWorkspacePath: string;
+
+	openedFolderPath: string;
+	openedWorkspace: IWorkspaceIdentifier;
+
 	lastFocusTime: number;
 
 	readyState: ReadyState;

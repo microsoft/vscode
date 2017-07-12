@@ -8,7 +8,6 @@ import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 
 // Browser localStorage interface
 export interface IStorage {
@@ -38,18 +37,18 @@ export class StorageService implements IStorageService {
 	constructor(
 		globalStorage: IStorage,
 		workspaceStorage: IStorage,
-		workspace?: IWorkspace,
+		workspaceId?: string,
 		legacyWorkspaceId?: number
 	) {
 		this.globalStorage = globalStorage;
 		this.workspaceStorage = workspaceStorage || globalStorage;
 
 		// Calculate workspace storage key
-		this.workspaceKey = this.getWorkspaceKey(workspace ? workspace.id : void 0);
+		this.workspaceKey = this.getWorkspaceKey(workspaceId);
 
 		// Make sure to delete all workspace storage if the workspace has been recreated meanwhile
 		// which is only possible if a id property is provided that we can check on
-		if (workspace && types.isNumber(legacyWorkspaceId)) {
+		if (types.isNumber(legacyWorkspaceId)) {
 			this.cleanupWorkspaceScope(legacyWorkspaceId);
 		}
 	}

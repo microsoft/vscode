@@ -51,6 +51,9 @@ import { isParent } from 'vs/platform/files/common/files';
 import { isEqual } from 'vs/base/common/paths';
 import { KeyboardLayoutMonitor } from "vs/code/electron-main/keyboard";
 import URI from 'vs/base/common/uri';
+import { WorkspacesChannel } from "vs/platform/workspaces/common/workspacesIpc";
+import { IWorkspacesMainService } from "vs/platform/workspaces/common/workspaces";
+import { WorkspacesMainService } from "vs/platform/workspaces/electron-main/workspacesMainService";
 
 export class CodeApplication {
 	private toDispose: IDisposable[];
@@ -95,9 +98,9 @@ export class CodeApplication {
 				}
 			}
 
-			console.error('[uncaught exception in main]: ' + err);
+			this.logService.error(`[uncaught exception in main]: ${err}`);
 			if (err.stack) {
-				console.error(err.stack);
+				this.logService.error(err.stack);
 			}
 		});
 
@@ -136,12 +139,12 @@ export class CodeApplication {
 				}
 
 				// Otherwise prevent loading
-				console.error('Prevented webview attach');
+				this.logService.error('webContents#web-contents-created: Prevented webview attach');
 				event.preventDefault();
 			});
 
 			contents.on('will-navigate', event => {
-				console.error('Prevented webcontent navigation');
+				this.logService.error('webContents#will-navigate: Prevented webcontent navigation');
 				event.preventDefault();
 			});
 		});
@@ -198,7 +201,8 @@ export class CodeApplication {
 				if (!webContents.isDestroyed()) {
 					webContents.send('vscode:acceptShellEnv', {});
 				}
-				console.error('Error fetching shell env', err);
+
+				this.logService.error('Error fetching shell env', err);
 			});
 		});
 
@@ -211,9 +215,9 @@ export class CodeApplication {
 
 				// Send to windows
 				if (target) {
-					const otherWindowsWithTarget = this.windowsMainService.getWindows().filter(w => w.id !== windowId && typeof w.openedWorkspacePath === 'string');
-					const directTargetMatch = otherWindowsWithTarget.filter(w => isEqual(target, w.openedWorkspacePath, !platform.isLinux /* ignorecase */));
-					const parentTargetMatch = otherWindowsWithTarget.filter(w => isParent(target, w.openedWorkspacePath, !platform.isLinux /* ignorecase */));
+					const otherWindowsWithTarget = this.windowsMainService.getWindows().filter(w => w.id !== windowId && typeof w.openedFolderPath === 'string');
+					const directTargetMatch = otherWindowsWithTarget.filter(w => isEqual(target, w.openedFolderPath, !platform.isLinux /* ignorecase */));
+					const parentTargetMatch = otherWindowsWithTarget.filter(w => isParent(target, w.openedFolderPath, !platform.isLinux /* ignorecase */));
 
 					const targetWindow = directTargetMatch.length ? directTargetMatch[0] : parentTargetMatch[0]; // prefer direct match over parent match
 					if (targetWindow) {
@@ -286,6 +290,7 @@ export class CodeApplication {
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager));
 		services.set(IWindowsService, new SyncDescriptor(WindowsService, this.sharedProcess));
 		services.set(ILaunchService, new SyncDescriptor(LaunchService));
+		services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
 
 		// Telemtry
 		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !!product.enableTelemetry) {
@@ -332,6 +337,10 @@ export class CodeApplication {
 		const urlService = accessor.get(IURLService);
 		const urlChannel = appInstantiationService.createInstance(URLChannel, urlService);
 		this.electronIpcServer.registerChannel('url', urlChannel);
+
+		const workspacesService = accessor.get(IWorkspacesMainService);
+		const workspacesChannel = appInstantiationService.createInstance(WorkspacesChannel, workspacesService);
+		this.electronIpcServer.registerChannel('workspaces', workspacesChannel);
 
 		const windowsService = accessor.get(IWindowsService);
 		const windowsChannel = new WindowsChannel(windowsService);

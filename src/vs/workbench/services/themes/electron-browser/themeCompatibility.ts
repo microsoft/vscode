@@ -66,7 +66,7 @@ addSettingMapping('findMatchHighlight', peekViewResultsMatchHighlight);
 addSettingMapping('referenceHighlight', peekViewEditorMatchHighlight);
 addSettingMapping('lineHighlight', editorColorRegistry.editorLineHighlight);
 addSettingMapping('rangeHighlight', editorColorRegistry.editorRangeHighlight);
-addSettingMapping('caret', editorColorRegistry.editorCursor);
+addSettingMapping('caret', editorColorRegistry.editorCursorForeground);
 addSettingMapping('invisibles', editorColorRegistry.editorWhitespaces);
 addSettingMapping('guide', editorColorRegistry.editorIndentGuides);
 

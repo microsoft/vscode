@@ -393,4 +393,23 @@ suite('SnippetParser', () => {
 	test('Maximum call stack size exceeded, #28983', function () {
 		new SnippetParser().parse('${1:${foo:${1}}}');
 	});
+
+	test('Snippet can freeze the editor, #30407', function () {
+
+		const seen = new Set<Marker>();
+
+		seen.clear();
+		walk(new SnippetParser().parse('class ${1:${TM_FILENAME/(?:\\A|_)([A-Za-z0-9]+)(?:\\.rb)?/(?2::\\u$1)/g}} < ${2:Application}Controller\n  $3\nend'), marker => {
+			assert.ok(!seen.has(marker));
+			seen.add(marker);
+			return true;
+		});
+
+		seen.clear();
+		walk(new SnippetParser().parse('${1:${FOO:abc$1def}}'), marker => {
+			assert.ok(!seen.has(marker));
+			seen.add(marker);
+			return true;
+		});
+	});
 });
