@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkspace } from "vs/platform/workspaces/common/workspaces";
 
 export interface IBackupWorkspacesFormat {
-	rootWorkspaces: string[];
+	rootWorkspaces: IWorkspace[];
 	folderWorkspaces: string[];
 	emptyWorkspaces: string[];
 }
@@ -16,11 +17,11 @@ export const IBackupMainService = createDecorator<IBackupMainService>('backupMai
 export interface IBackupMainService {
 	_serviceBrand: any;
 
-	getWorkspaceBackupPaths(): string[];
+	getWorkspaceBackups(): IWorkspace[];
 	getFolderBackupPaths(): string[];
 	getEmptyWindowBackupPaths(): string[];
 
-	registerWorkspaceBackupSync(workspaceConfigPath: string): string;
+	registerWorkspaceBackupSync(workspace: IWorkspace): string;
 	registerFolderBackupSync(folderPath: string): string;
 	registerEmptyWindowBackupSync(backupFolder?: string): string;
 }

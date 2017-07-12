@@ -11,6 +11,8 @@ import { isParent } from "vs/platform/files/common/files";
 import { IEnvironmentService } from "vs/platform/environment/common/environment";
 import { extname, join } from "path";
 import { mkdirp, writeFile } from "vs/base/node/pfs";
+import { readFileSync } from "fs";
+import { isLinux } from "vs/base/common/platform";
 
 export class WorkspacesMainService implements IWorkspacesMainService {
 
@@ -22,8 +24,26 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		this.workspacesHome = environmentService.workspacesHome;
 	}
 
-	public isWorkspace(path: string): boolean {
-		return isParent(path, this.environmentService.workspacesHome) || extname(path) === '.vscode';
+	public resolveWorkspaceSync(path: string): IWorkspace {
+		const isWorkspace = isParent(path, this.environmentService.workspacesHome, !isLinux /* ignore case */) || extname(path) === '.code';
+		if (!isWorkspace) {
+			return null; // does not look like a valid workspace config file
+		}
+
+		try {
+			const workspace = JSON.parse(readFileSync(path, 'utf8')) as IStoredWorkspace;
+			if (typeof workspace.id !== 'string' || !Array.isArray(workspace.folders)) {
+				return null; // looks like an invalid workspace file
+			}
+
+			return {
+				id: workspace.id,
+				folders: workspace.folders,
+				configPath: path
+			};
+		} catch (error) {
+			return null; // unable to read or parse as workspace file
+		}
 	}
 
 	public createWorkspace(folders: string[] = []): TPromise<IWorkspace> {
@@ -40,7 +60,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 			return writeFile(workspaceConfigPath, JSON.stringify(storedWorkspace, null, '\t')).then(() => ({
 				id: workspaceId,
 				folders,
-				workspaceConfigPath
+				configPath: workspaceConfigPath
 			}));
 		});
 	}

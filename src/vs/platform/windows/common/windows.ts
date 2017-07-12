@@ -207,7 +207,7 @@ export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	perfAppReady?: number;
 	perfWindowLoadTime?: number;
 
-	workspaceConfigPath?: string;
+	workspace?: IWorkspace;
 	folderPath?: string;
 	backupPath?: string;
 

@@ -169,7 +169,7 @@ interface IMultiRootWorkspaceData {
 }
 
 function resolveWorkspaceData(configuration: IWindowConfiguration): TPromise<ISingleFolderWorkspaceData | IMultiRootWorkspaceData> {
-	if (configuration.workspaceConfigPath) {
+	if (configuration.workspace) {
 		return resolveMultiRootWorkspaceData(configuration);
 	}
 
@@ -209,7 +209,7 @@ function resolveSingleFolderWorkspaceData(configuration: IWindowConfiguration): 
 }
 
 function resolveMultiRootWorkspaceData(configuration: IWindowConfiguration): TPromise<IMultiRootWorkspaceData> {
-	return readFile(configuration.workspaceConfigPath).then(buffer => {
+	return readFile(configuration.workspace.configPath).then(buffer => {
 		const contents = buffer.toString('utf8');
 
 		return JSON.parse(contents) as IMultiRootWorkspaceData;

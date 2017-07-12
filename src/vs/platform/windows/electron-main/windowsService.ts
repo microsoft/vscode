@@ -327,7 +327,7 @@ export class WindowsService implements IWindowsService, IDisposable {
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
 		if (codeWindow) {
-			this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentService.args, pathsToOpen: [workspace.workspaceConfigPath], windowToUse: codeWindow });
+			this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentService.args, pathsToOpen: [workspace.configPath], windowToUse: codeWindow });
 		}
 
 		return TPromise.as(null);

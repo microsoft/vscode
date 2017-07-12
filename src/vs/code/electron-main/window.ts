@@ -24,6 +24,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow } from "vs/platform/windows/electron-main/windows";
+import { IWorkspace } from "vs/platform/workspaces/common/workspaces";
 
 export interface IWindowState {
 	width?: number;
@@ -264,8 +265,8 @@ export class CodeWindow implements ICodeWindow {
 		return this.currentConfig ? this.currentConfig.backupPath : void 0;
 	}
 
-	public get openedWorkspaceConfigPath(): string {
-		return this.currentConfig ? this.currentConfig.workspaceConfigPath : void 0;
+	public get openedWorkspace(): IWorkspace {
+		return this.currentConfig ? this.currentConfig.workspace : void 0;
 	}
 
 	public get openedFolderPath(): string {

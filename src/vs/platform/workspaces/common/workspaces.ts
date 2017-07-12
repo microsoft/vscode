@@ -12,7 +12,7 @@ export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('w
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
 
 export interface IWorkspace extends IStoredWorkspace {
-	workspaceConfigPath: string;
+	configPath: string;
 }
 
 export interface IStoredWorkspace {
@@ -23,7 +23,7 @@ export interface IStoredWorkspace {
 export interface IWorkspacesMainService extends IWorkspacesService {
 	_serviceBrand: any;
 
-	isWorkspace(path: string): boolean;
+	resolveWorkspaceSync(path: string): IWorkspace;
 }
 
 export interface IWorkspacesService {

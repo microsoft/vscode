@@ -14,6 +14,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
 import { ILogService } from "vs/platform/log/common/log";
+import { IWorkspace } from "vs/platform/workspaces/common/workspaces";
 
 export class BackupMainService implements IBackupMainService {
 
@@ -35,7 +36,7 @@ export class BackupMainService implements IBackupMainService {
 		this.loadSync();
 	}
 
-	public getWorkspaceBackupPaths(): string[] {
+	public getWorkspaceBackups(): IWorkspace[] {
 		if (this.isHotExitOnExitAndWindowClose()) {
 			// Only non-folder windows are restored on main process launch when
 			// hot exit is configured as onExitAndWindowClose.
@@ -63,16 +64,16 @@ export class BackupMainService implements IBackupMainService {
 		return this.backups.emptyWorkspaces.slice(0); // return a copy
 	}
 
-	public registerWorkspaceBackupSync(workspaceConfigPath: string): string {
-		this.pushBackupPathsSync(workspaceConfigPath, this.backups.rootWorkspaces);
+	public registerWorkspaceBackupSync(workspace: IWorkspace): string {
+		this.pushBackupPathsSync(workspace, this.backups.rootWorkspaces);
 
-		return path.join(this.backupHome, this.getWorkspaceHash(workspaceConfigPath));
+		return path.join(this.backupHome, workspace.id);
 	}
 
 	public registerFolderBackupSync(folderPath: string): string {
 		this.pushBackupPathsSync(folderPath, this.backups.folderWorkspaces);
 
-		return path.join(this.backupHome, this.getWorkspaceHash(folderPath));
+		return path.join(this.backupHome, this.getFolderHash(folderPath));
 	}
 
 	public registerEmptyWindowBackupSync(backupFolder?: string): string {
@@ -87,16 +88,14 @@ export class BackupMainService implements IBackupMainService {
 		return path.join(this.backupHome, backupFolder);
 	}
 
-	private pushBackupPathsSync(workspaceIdentifier: string, target: string[]): string {
+	private pushBackupPathsSync(workspaceIdentifier: string | IWorkspace, target: (string | IWorkspace)[]): void {
 		if (this.indexOf(workspaceIdentifier, target) === -1) {
 			target.push(workspaceIdentifier);
 			this.saveSync();
 		}
-
-		return workspaceIdentifier;
 	}
 
-	protected removeBackupPathSync(workspaceIdentifier: string, target: string[]): void {
+	protected removeBackupPathSync(workspaceIdentifier: string | IWorkspace, target: (string | IWorkspace)[]): void {
 		if (!target) {
 			return;
 		}
@@ -108,14 +107,22 @@ export class BackupMainService implements IBackupMainService {
 		this.saveSync();
 	}
 
-	private indexOf(workspaceIdentifier: string, target: string[]): number {
+	private indexOf(workspaceIdentifier: string | IWorkspace, target: (string | IWorkspace)[]): number {
 		if (!target) {
 			return -1;
 		}
 
-		const sanitizedWorkspaceIdentifier = this.sanitizePath(workspaceIdentifier);
+		const sanitizedWorkspaceIdentifier = this.sanitizeId(workspaceIdentifier);
 
-		return arrays.firstIndex(target, id => this.sanitizePath(id) === sanitizedWorkspaceIdentifier);
+		return arrays.firstIndex(target, id => this.sanitizeId(id) === sanitizedWorkspaceIdentifier);
+	}
+
+	private sanitizeId(workspaceIdentifier: string | IWorkspace): string {
+		if (typeof workspaceIdentifier === 'string') {
+			return this.sanitizePath(workspaceIdentifier);
+		}
+
+		return workspaceIdentifier.id;
 	}
 
 	protected loadSync(): void {
@@ -126,10 +133,10 @@ export class BackupMainService implements IBackupMainService {
 			backups = Object.create(null);
 		}
 
-		// Ensure rootWorkspaces is a string[]
+		// Ensure rootWorkspaces is a object[]
 		if (backups.rootWorkspaces) {
 			const rws = backups.rootWorkspaces;
-			if (!Array.isArray(rws) || rws.some(r => typeof r !== 'string')) {
+			if (!Array.isArray(rws) || rws.some(r => typeof r !== 'object')) {
 				backups.rootWorkspaces = [];
 			}
 		} else {
@@ -167,31 +174,34 @@ export class BackupMainService implements IBackupMainService {
 		// De-duplicate folder/workspace backups. don't worry about cleaning them up any duplicates as
 		// they will be removed when there are no backups.
 		backups.folderWorkspaces = arrays.distinct(backups.folderWorkspaces, ws => this.sanitizePath(ws));
-		backups.rootWorkspaces = arrays.distinct(backups.rootWorkspaces, ws => this.sanitizePath(ws));
+		backups.rootWorkspaces = arrays.distinct(backups.rootWorkspaces, ws => this.sanitizePath(ws.id));
 
 		return backups;
 	}
 
 	private validateBackupWorkspaces(backups: IBackupWorkspacesFormat): void {
-		const staleBackupWorkspaces: { workspaceIdentifier: string; backupPath: string; target: string[] }[] = [];
+		const staleBackupWorkspaces: { workspaceIdentifier: string | IWorkspace; backupPath: string; target: (string | IWorkspace)[] }[] = [];
 
-		const workspaceAndFolders: { path: string, target: string[] }[] = [];
-		workspaceAndFolders.push(...backups.rootWorkspaces.map(r => ({ path: r, target: backups.rootWorkspaces })));
-		workspaceAndFolders.push(...backups.folderWorkspaces.map(f => ({ path: f, target: backups.folderWorkspaces })));
+		const workspaceAndFolders: { workspaceIdentifier: string | IWorkspace, target: (string | IWorkspace)[] }[] = [];
+		workspaceAndFolders.push(...backups.rootWorkspaces.map(r => ({ workspaceIdentifier: r, target: backups.rootWorkspaces })));
+		workspaceAndFolders.push(...backups.folderWorkspaces.map(f => ({ workspaceIdentifier: f, target: backups.folderWorkspaces })));
 
 		// Validate Workspace and Folder Backups
 		workspaceAndFolders.forEach(workspaceOrFolder => {
-			const backupPath = path.join(this.backupHome, this.getWorkspaceHash(workspaceOrFolder.path));
+			const workspaceId = workspaceOrFolder.workspaceIdentifier;
+			const workspacePath = typeof workspaceId === 'string' ? workspaceId : workspaceId.configPath;
+			const backupPath = path.join(this.backupHome, typeof workspaceId === 'string' ? this.getFolderHash(workspaceId) : workspaceId.id);
 			const hasBackups = this.hasBackupsSync(backupPath);
-			const missingWorkspace = hasBackups && !fs.existsSync(workspaceOrFolder.path);
+			const missingWorkspace = hasBackups && !fs.existsSync(workspacePath);
 
 			// If the workspace/folder has no backups, make sure to delete it
 			// If the workspace/folder has backups, but the target workspace is missing, convert backups to empty ones
 			if (!hasBackups || missingWorkspace) {
-				staleBackupWorkspaces.push({ workspaceIdentifier: workspaceOrFolder.path, backupPath, target: workspaceOrFolder.target });
+				staleBackupWorkspaces.push({ workspaceIdentifier: workspaceId, backupPath, target: workspaceOrFolder.target });
 
 				if (missingWorkspace) {
-					const identifier = this.pushBackupPathsSync(this.getRandomEmptyWindowId(), this.backups.emptyWorkspaces);
+					const identifier = this.getRandomEmptyWindowId();
+					this.pushBackupPathsSync(identifier, this.backups.emptyWorkspaces);
 					const newEmptyWindowBackupPath = path.join(path.dirname(backupPath), identifier);
 					try {
 						fs.renameSync(backupPath, newEmptyWindowBackupPath);
@@ -265,7 +275,7 @@ export class BackupMainService implements IBackupMainService {
 		return platform.isLinux ? p : p.toLowerCase();
 	}
 
-	protected getWorkspaceHash(workspacePath: string): string {
-		return crypto.createHash('md5').update(this.sanitizePath(workspacePath)).digest('hex');
+	protected getFolderHash(folderPath: string): string {
+		return crypto.createHash('md5').update(this.sanitizePath(folderPath)).digest('hex');
 	}
 }
