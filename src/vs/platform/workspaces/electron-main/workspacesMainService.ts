@@ -16,7 +16,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 
 	public _serviceBrand: any;
 
-	private workspacesHome: string;
+	protected workspacesHome: string;
 
 	constructor( @IEnvironmentService private environmentService: IEnvironmentService) {
 		this.workspacesHome = environmentService.workspacesHome;
