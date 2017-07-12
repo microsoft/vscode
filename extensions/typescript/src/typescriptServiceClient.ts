@@ -122,7 +122,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private static readonly WALK_THROUGH_SNIPPET_SCHEME_COLON = `${TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME}:`;
 
 	private pathSeparator: string;
-	private modulePath: string | undefined;
 
 	private _onReady: { promise: Promise<void>; resolve: () => void; reject: () => void; };
 	private configuration: TypeScriptServiceConfiguration;
@@ -282,20 +281,21 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private startService(resendModels: boolean = false): Thenable<cp.ChildProcess> {
-		const modulePath = this.versionPicker.currentVersion.path;
+		let currentVersion = this.versionPicker.currentVersion;
 
 		return this.servicePromise = new Promise<cp.ChildProcess>((resolve, reject) => {
-			this.info(`Using tsserver from: ${modulePath}`);
-			if (!fs.existsSync(modulePath)) {
-				window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', modulePath ? path.dirname(modulePath) : ''));
+			this.info(`Using tsserver from: ${currentVersion.path}`);
+			if (!fs.existsSync(currentVersion.path)) {
+				window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', currentVersion.path ? path.dirname(currentVersion.path) : ''));
 
 				this.versionPicker.useBundledVersion();
+				currentVersion = this.versionPicker.currentVersion;
 			}
 
 			this._apiVersion = this.versionPicker.currentVersion.version;
 
 			const label = this._apiVersion.versionString;
-			const tooltip = modulePath;
+			const tooltip = currentVersion.path;
 			this.versionStatus.showHideStatus();
 			this.versionStatus.setInfo(label, tooltip);
 
@@ -346,7 +346,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				if (this.apiVersion.has230Features()) {
 					if (this.plugins.length) {
 						args.push('--globalPlugins', this.plugins.map(x => x.name).join(','));
-						if (modulePath === this.versionProvider.defaultVersion.path) {
+						if (currentVersion.path === this.versionProvider.defaultVersion.path) {
 							args.push('--pluginProbeLocations', this.plugins.map(x => x.path).join(','));
 						}
 					}
@@ -358,7 +358,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					}
 				}
 
-				electron.fork(modulePath, args, options, this.logger, (err: any, childProcess: cp.ChildProcess) => {
+				electron.fork(currentVersion.path, args, options, this.logger, (err: any, childProcess: cp.ChildProcess) => {
 					if (err) {
 						this.lastError = err;
 						this.error('Starting TSServer failed with error.', err);
@@ -408,17 +408,16 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		});
 	}
 
-	public onVersionStatusClicked(): Thenable<string> {
+	public onVersionStatusClicked(): Thenable<void> {
 		return this.showVersionPicker(false);
 	}
 
-	private showVersionPicker(firstRun: boolean): Thenable<string> {
+	private showVersionPicker(firstRun: boolean): Thenable<void> {
 		return this.versionPicker.show(firstRun).then(change => {
 			if (firstRun || !change.newVersion || !change.oldVersion || change.oldVersion.path === change.newVersion.path) {
-				return this.modulePath || '';
+				return;
 			}
 			this.restartTsServer();
-			return this.modulePath || '';
 		});
 	}
 
