@@ -398,7 +398,30 @@ export class Model implements Disposable {
 		await this.run(Operation.Status);
 	}
 
+
+	private blockingConflicts(resources: Resource[]): Resource[] {
+		let checkResources = resources.length > 0 ? resources : this.mergeGroup.resources;
+		return checkResources.filter((r) => {
+			switch (r.type) {
+				case Status.BOTH_DELETED:
+				case Status.ADDED_BY_US:
+				case Status.ADDED_BY_THEM:
+				case Status.BOTH_ADDED:
+				case Status.BOTH_MODIFIED:
+					return true;
+				default:
+					return false;
+			}
+		});
+	}
+
 	async add(...resources: Resource[]): Promise<void> {
+		const conflicts = this.blockingConflicts(resources);
+		if (conflicts.length > 0) {
+			const ok = { title: localize('ok', "OK"), isCloseAffordance: true };
+			window.showWarningMessage(localize('addconflict', "Conflict in: '{0}'", conflicts[0].resourceUri.fsPath), ok);
+			return;
+		}
 		await this.run(Operation.Add, () => this.repository.add(resources.map(r => r.resourceUri.fsPath)));
 	}
 
