@@ -283,6 +283,8 @@ function packageTask(platform, arch, opts) {
 
 		const license = gulp.src(['LICENSES.chromium.html', 'LICENSE.txt', 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.' });
 
+		const watermark = gulp.src(['resources/letterpress.svg', 'resources/letterpress-dark.svg', 'resources/letterpress-hc.svg'], { base: '.' });
+
 		// TODO the API should be copied to `out` during compile, not here
 		const api = gulp.src('src/vs/vscode.d.ts').pipe(rename('out/vs/vscode.d.ts'));
 
@@ -306,6 +308,7 @@ function packageTask(platform, arch, opts) {
 			packageJsonStream,
 			productJsonStream,
 			license,
+			watermark,
 			api,
 			sources,
 			deps
