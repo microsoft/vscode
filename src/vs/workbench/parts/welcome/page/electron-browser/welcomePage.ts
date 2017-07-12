@@ -188,7 +188,7 @@ class WelcomePage {
 	}
 
 	private create() {
-		const recentlyOpened = this.windowService.getRecentlyOpen();
+		const recentlyOpened = this.windowService.getRecentlyOpened();
 		const installedExtensions = this.instantiationService.invokeFunction(getInstalledExtensions);
 		const uri = URI.parse(require.toUrl('./vs_code_welcome_page'))
 			.with({

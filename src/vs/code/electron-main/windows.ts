@@ -343,16 +343,16 @@ export class WindowsManager implements IWindowsMainService {
 		// Remember in recent document list (unless this opens for extension development)
 		// Also do not add paths when files are opened for diffing, only if opened individually
 		if (!usedWindows.some(w => w.isExtensionDevelopmentHost) && !openConfig.cli.diff) {
-			const recentPaths: { path: string; isFile?: boolean; }[] = [];
+			const recentlyOpened: { path: string; isFile?: boolean; }[] = [];
 
 			windowsToOpen.forEach(win => {
 				if (win.filePath || win.folderPath) {
-					recentPaths.push({ path: win.filePath || win.folderPath, isFile: !!win.filePath });
+					recentlyOpened.push({ path: win.filePath || win.folderPath, isFile: !!win.filePath });
 				}
 			});
 
-			if (recentPaths.length) {
-				this.historyService.addToRecentPathsList(recentPaths);
+			if (recentlyOpened.length) {
+				this.historyService.addToRecentlyOpened(recentlyOpened);
 			}
 		}
 
@@ -777,7 +777,7 @@ export class WindowsManager implements IWindowsMainService {
 				};
 			}
 		} catch (error) {
-			this.historyService.removeFromRecentPathsList(candidate); // since file does not seem to exist anymore, remove from recent
+			this.historyService.removeFromRecentlyOpened(candidate); // since file does not seem to exist anymore, remove from recent
 
 			if (ignoreFileNotFound) {
 				return { filePath: candidate, createFilePath: true }; // assume this is a file that does not yet exist

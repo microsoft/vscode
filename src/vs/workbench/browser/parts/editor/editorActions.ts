@@ -1150,7 +1150,7 @@ export class ClearRecentFilesAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		this.windowsService.clearRecentPathsList();
+		this.windowsService.clearRecentlyOpened();
 
 		return TPromise.as(false);
 	}

@@ -395,7 +395,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.removeFromHistory(arg1);
 		this.removeFromStack(arg1);
 		this.removeFromRecentlyClosedFiles(arg1);
-		this.removeFromRecentlyOpen(arg1);
+		this.removeFromRecentlyOpened(arg1);
 	}
 
 	private removeExcludedFromHistory(): void {
@@ -568,14 +568,14 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.recentlyClosedFiles = this.recentlyClosedFiles.filter(e => !this.matchesFile(e.resource, arg1));
 	}
 
-	private removeFromRecentlyOpen(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
+	private removeFromRecentlyOpened(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
 		if (arg1 instanceof EditorInput || arg1 instanceof FileChangesEvent) {
 			return; // for now do not delete from file events since recently open are likely out of workspace files for which there are no delete events
 		}
 
 		const input = arg1 as IResourceInput;
 
-		this.windowService.removeFromRecentlyOpen([input.resource.fsPath]);
+		this.windowService.removeFromRecentlyOpened([input.resource.fsPath]);
 	}
 
 	private isFileOpened(resource: URI, group: IEditorGroup): boolean {

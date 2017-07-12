@@ -32,10 +32,10 @@ export interface IWindowsService {
 	closeFolder(windowId: number): TPromise<void>;
 	toggleFullScreen(windowId: number): TPromise<void>;
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void>;
-	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void>;
-	removeFromRecentlyOpen(paths: string[]): TPromise<void>;
-	clearRecentPathsList(): TPromise<void>;
-	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }>;
+	addToRecentlyOpened(paths: { path: string, isFile?: boolean }[]): TPromise<void>;
+	removeFromRecentlyOpened(paths: string[]): TPromise<void>;
+	clearRecentlyOpened(): TPromise<void>;
+	getRecentlyOpened(windowId: number): TPromise<{ files: string[]; folders: string[]; }>;
 	focusWindow(windowId: number): TPromise<void>;
 	closeWindow(windowId: number): TPromise<void>;
 	isFocused(windowId: number): TPromise<boolean>;
@@ -87,7 +87,7 @@ export interface IWindowService {
 	closeFolder(): TPromise<void>;
 	toggleFullScreen(): TPromise<void>;
 	setRepresentedFilename(fileName: string): TPromise<void>;
-	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }>;
+	getRecentlyOpened(): TPromise<{ files: string[]; folders: string[]; }>;
 	focusWindow(): TPromise<void>;
 	closeWindow(): TPromise<void>;
 	isFocused(): TPromise<boolean>;

@@ -691,7 +691,7 @@ export class TabsTitleControl extends TitleControl {
 			// Add external ones to recently open list
 			const externalResources = resources.filter(d => d.isExternal).map(d => d.resource);
 			if (externalResources.length) {
-				this.windowsService.addToRecentlyOpen(externalResources.map(resource => {
+				this.windowsService.addToRecentlyOpened(externalResources.map(resource => {
 					return {
 						path: resource.fsPath,
 						isFile: true

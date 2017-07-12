@@ -139,28 +139,28 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return TPromise.as(null);
 	}
 
-	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void> {
-		this.historyService.addToRecentPathsList(paths);
+	addToRecentlyOpened(paths: { path: string, isFile?: boolean }[]): TPromise<void> {
+		this.historyService.addToRecentlyOpened(paths);
 
 		return TPromise.as(null);
 	}
 
-	removeFromRecentlyOpen(paths: string[]): TPromise<void> {
-		this.historyService.removeFromRecentPathsList(paths);
+	removeFromRecentlyOpened(paths: string[]): TPromise<void> {
+		this.historyService.removeFromRecentlyOpened(paths);
 
 		return TPromise.as(null);
 	}
 
-	clearRecentPathsList(): TPromise<void> {
-		this.historyService.clearRecentPathsList();
+	clearRecentlyOpened(): TPromise<void> {
+		this.historyService.clearRecentlyOpened();
 		return TPromise.as(null);
 	}
 
-	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }> {
+	getRecentlyOpened(windowId: number): TPromise<{ files: string[]; folders: string[]; }> {
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
 		if (codeWindow) {
-			const { files, folders } = this.historyService.getRecentPathsList(codeWindow.config.folderPath, codeWindow.config.filesToOpen);
+			const { files, folders } = this.historyService.getRecentlyOpened(codeWindow.config.folderPath, codeWindow.config.filesToOpen);
 			return TPromise.as({ files, folders });
 		}
 

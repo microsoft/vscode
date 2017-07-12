@@ -663,7 +663,7 @@ export abstract class BaseOpenRecentAction extends Action {
 	protected abstract isQuickNavigate(): boolean;
 
 	public run(): TPromise<void> {
-		return this.windowService.getRecentlyOpen()
+		return this.windowService.getRecentlyOpened()
 			.then(({ files, folders }) => this.openRecent(files, folders));
 	}
 

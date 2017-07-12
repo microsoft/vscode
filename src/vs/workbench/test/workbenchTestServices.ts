@@ -889,7 +889,7 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
-	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }> {
+	getRecentlyOpened(): TPromise<{ files: string[]; folders: string[]; }> {
 		return TPromise.as(void 0);
 	}
 
@@ -1017,19 +1017,19 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
-	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void> {
+	addToRecentlyOpened(paths: { path: string, isFile?: boolean }[]): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	removeFromRecentlyOpen(paths: string[]): TPromise<void> {
+	removeFromRecentlyOpened(paths: string[]): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	clearRecentPathsList(): TPromise<void> {
+	clearRecentlyOpened(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }> {
+	getRecentlyOpened(windowId: number): TPromise<{ files: string[]; folders: string[]; }> {
 		return TPromise.as(void 0);
 	}
 

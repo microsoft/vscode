@@ -385,7 +385,7 @@ export class CodeApplication {
 
 		// Jump List
 		this.historyService.updateWindowsJumpList();
-		this.historyService.onRecentPathsChange(() => this.historyService.updateWindowsJumpList());
+		this.historyService.onRecentlyOpenedChange(() => this.historyService.updateWindowsJumpList());
 
 		// Start shared process here
 		this.sharedProcess.spawn();

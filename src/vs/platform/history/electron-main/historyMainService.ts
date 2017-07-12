@@ -20,7 +20,7 @@ import { isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
 
 export const IHistoryMainService = createDecorator<IHistoryMainService>('historyMainService');
 
-export interface IRecentPathsList {
+export interface IRecentlyOpened {
 	folders: string[];
 	files: string[];
 }
@@ -29,15 +29,14 @@ export interface IHistoryMainService {
 	_serviceBrand: any;
 
 	// events
-	onRecentPathsChange: CommonEvent<void>;
+	onRecentlyOpenedChange: CommonEvent<void>;
 
 	// methods
-
-	addToRecentPathsList(paths: { path: string; isFile?: boolean; }[]): void;
-	getRecentPathsList(folderPath?: string, filesToOpen?: IPath[]): IRecentPathsList;
-	removeFromRecentPathsList(path: string): void;
-	removeFromRecentPathsList(paths: string[]): void;
-	clearRecentPathsList(): void;
+	addToRecentlyOpened(paths: { path: string; isFile?: boolean; }[]): void;
+	getRecentlyOpened(folderPath?: string, filesToOpen?: IPath[]): IRecentlyOpened;
+	removeFromRecentlyOpened(path: string): void;
+	removeFromRecentlyOpened(paths: string[]): void;
+	clearRecentlyOpened(): void;
 	updateWindowsJumpList(): void;
 }
 
@@ -45,12 +44,12 @@ export class HistoryMainService implements IHistoryMainService {
 
 	private static MAX_TOTAL_RECENT_ENTRIES = 100;
 
-	private static recentPathsListStorageKey = 'openedPathsList';
+	private static recentlyOpenedStorageKey = 'openedPathsList';
 
 	_serviceBrand: any;
 
-	private _onRecentPathsChange = new Emitter<void>();
-	onRecentPathsChange: CommonEvent<void> = this._onRecentPathsChange.event;
+	private _onRecentlyOpenedChange = new Emitter<void>();
+	onRecentlyOpenedChange: CommonEvent<void> = this._onRecentlyOpenedChange.event;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -58,12 +57,12 @@ export class HistoryMainService implements IHistoryMainService {
 	) {
 	}
 
-	public addToRecentPathsList(paths: { path: string; isFile?: boolean; }[]): void {
+	public addToRecentlyOpened(paths: { path: string; isFile?: boolean; }[]): void {
 		if (!paths || !paths.length) {
 			return;
 		}
 
-		const mru = this.getRecentPathsList();
+		const mru = this.getRecentlyOpened();
 		paths.forEach(p => {
 			const { path, isFile } = p;
 
@@ -85,13 +84,13 @@ export class HistoryMainService implements IHistoryMainService {
 			}
 		});
 
-		this.storageService.setItem(HistoryMainService.recentPathsListStorageKey, mru);
-		this._onRecentPathsChange.fire();
+		this.storageService.setItem(HistoryMainService.recentlyOpenedStorageKey, mru);
+		this._onRecentlyOpenedChange.fire();
 	}
 
-	public removeFromRecentPathsList(path: string): void;
-	public removeFromRecentPathsList(paths: string[]): void;
-	public removeFromRecentPathsList(arg1: any): void {
+	public removeFromRecentlyOpened(path: string): void;
+	public removeFromRecentlyOpened(paths: string[]): void;
+	public removeFromRecentlyOpened(arg1: any): void {
 		let paths: string[];
 		if (Array.isArray(arg1)) {
 			paths = arg1;
@@ -99,7 +98,7 @@ export class HistoryMainService implements IHistoryMainService {
 			paths = [arg1];
 		}
 
-		const mru = this.getRecentPathsList();
+		const mru = this.getRecentlyOpened();
 		let update = false;
 
 		paths.forEach(path => {
@@ -117,25 +116,25 @@ export class HistoryMainService implements IHistoryMainService {
 		});
 
 		if (update) {
-			this.storageService.setItem(HistoryMainService.recentPathsListStorageKey, mru);
-			this._onRecentPathsChange.fire();
+			this.storageService.setItem(HistoryMainService.recentlyOpenedStorageKey, mru);
+			this._onRecentlyOpenedChange.fire();
 		}
 	}
 
-	public clearRecentPathsList(): void {
-		this.storageService.setItem(HistoryMainService.recentPathsListStorageKey, { folders: [], files: [] });
+	public clearRecentlyOpened(): void {
+		this.storageService.setItem(HistoryMainService.recentlyOpenedStorageKey, { folders: [], files: [] });
 		app.clearRecentDocuments();
 
 		// Event
-		this._onRecentPathsChange.fire();
+		this._onRecentlyOpenedChange.fire();
 	}
 
-	public getRecentPathsList(folderPath?: string, filesToOpen?: IPath[]): IRecentPathsList {
+	public getRecentlyOpened(folderPath?: string, filesToOpen?: IPath[]): IRecentlyOpened {
 		let files: string[];
 		let folders: string[];
 
 		// Get from storage
-		const storedRecents = this.storageService.getItem<IRecentPathsList>(HistoryMainService.recentPathsListStorageKey);
+		const storedRecents = this.storageService.getItem<IRecentlyOpened>(HistoryMainService.recentlyOpenedStorageKey);
 		if (storedRecents) {
 			files = storedRecents.files || [];
 			folders = storedRecents.folders || [];
@@ -185,19 +184,19 @@ export class HistoryMainService implements IHistoryMainService {
 		});
 
 		// Recent Folders
-		if (this.getRecentPathsList().folders.length > 0) {
+		if (this.getRecentlyOpened().folders.length > 0) {
 
 			// The user might have meanwhile removed items from the jump list and we have to respect that
 			// so we need to update our list of recent paths with the choice of the user to not add them again
 			// Also: Windows will not show our custom category at all if there is any entry which was removed
 			// by the user! See https://github.com/Microsoft/vscode/issues/15052
-			this.removeFromRecentPathsList(app.getJumpListSettings().removedItems.map(r => trim(r.args, '"')));
+			this.removeFromRecentlyOpened(app.getJumpListSettings().removedItems.map(r => trim(r.args, '"')));
 
 			// Add entries
 			jumpList.push({
 				type: 'custom',
 				name: nls.localize('recentFolders', "Recent Folders"),
-				items: this.getRecentPathsList().folders.slice(0, 7 /* limit number of entries here */).map(folder => {
+				items: this.getRecentlyOpened().folders.slice(0, 7 /* limit number of entries here */).map(folder => {
 					return <Electron.JumpListItem>{
 						type: 'task',
 						title: path.basename(folder) || folder, // use the base name to show shorter entries in the list

@@ -100,7 +100,7 @@ export class CodeMenu {
 
 		// Listen to some events from window service
 		this.windowsService.onPathsOpen(paths => this.updateMenu());
-		this.historyService.onRecentPathsChange(paths => this.updateMenu());
+		this.historyService.onRecentlyOpenedChange(paths => this.updateMenu());
 		this.windowsService.onWindowClose(_ => this.onClose(this.windowsService.getWindowCount()));
 
 		// Listen to extension viewlets
@@ -428,7 +428,7 @@ export class CodeMenu {
 	private setOpenRecentMenu(openRecentMenu: Electron.Menu): void {
 		openRecentMenu.append(this.createMenuItem(nls.localize({ key: 'miReopenClosedEditor', comment: ['&& denotes a mnemonic'] }, "&&Reopen Closed Editor"), 'workbench.action.reopenClosedEditor'));
 
-		const { folders, files } = this.historyService.getRecentPathsList();
+		const { folders, files } = this.historyService.getRecentlyOpened();
 
 		// Folders
 		if (folders.length > 0) {
@@ -462,7 +462,7 @@ export class CodeMenu {
 				const openInNewWindow = this.isOptionClick(event);
 				const success = this.windowsService.open({ context: OpenContext.MENU, cli: this.environmentService.args, pathsToOpen: [path], forceNewWindow: openInNewWindow }).length > 0;
 				if (!success) {
-					this.historyService.removeFromRecentPathsList(path);
+					this.historyService.removeFromRecentlyOpened(path);
 				}
 			}
 		}, false));
