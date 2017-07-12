@@ -10,7 +10,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IDebugService, State } from 'vs/workbench/parts/debug/common/debug';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_BACKGROUND, Themable, STATUS_BAR_FOREGROUND } from 'vs/workbench/common/theme';
+import { STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_MULTI_FOLDER_BACKGROUND, STATUS_BAR_MULTI_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_BACKGROUND, Themable, STATUS_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { addClass, removeClass } from 'vs/base/browser/dom';
 
 // colors for theming
@@ -59,14 +59,18 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 			removeClass(container, 'debugging');
 		}
 
-		container.style.backgroundColor = this.getColor(this.getColorKey(STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_DEBUGGING_BACKGROUND, STATUS_BAR_BACKGROUND));
-		container.style.color = this.getColor(this.getColorKey(STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_DEBUGGING_FOREGROUND, STATUS_BAR_FOREGROUND));
+		container.style.backgroundColor = this.getColor(this.getColorKey(STATUS_BAR_MULTI_FOLDER_BACKGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_DEBUGGING_BACKGROUND, STATUS_BAR_BACKGROUND));
+		container.style.color = this.getColor(this.getColorKey(STATUS_BAR_MULTI_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_DEBUGGING_FOREGROUND, STATUS_BAR_FOREGROUND));
 	}
 
-	private getColorKey(noFolderColor: string, debuggingColor: string, normalColor: string): string {
+	private getColorKey(multiFolderColor, noFolderColor: string, debuggingColor: string, normalColor: string): string {
 
 		// Not debugging
 		if (!this.isDebugging()) {
+			if (this.contextService.hasMultiFolderWorkspace()) {
+				return multiFolderColor;
+			}
+
 			if (this.contextService.hasWorkspace()) {
 				return normalColor;
 			}
