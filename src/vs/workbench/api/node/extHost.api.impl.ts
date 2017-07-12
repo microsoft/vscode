@@ -464,7 +464,6 @@ export function createApiFactory(
 		// namespace: debug
 		const debug: typeof vscode.debug = {
 			get activeDebugSession() {
-				assertProposedApi(extension);
 				return extHostDebugService.activeDebugSession;
 			},
 			createDebugSession(config: vscode.DebugConfiguration) {
