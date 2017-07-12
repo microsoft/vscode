@@ -83,7 +83,6 @@ export default class Webview {
 	private _ready: TPromise<this>;
 	private _disposables: IDisposable[] = [];
 	private _onDidClickLink = new Emitter<URI>();
-	private _onDidLoadContent = new Emitter<{ stats: any }>();
 
 	private _onDidScroll = new Emitter<{ scrollYPercentage: number }>();
 	private _onFoundInPageResults = new Emitter<FoundInPageResults>();
@@ -185,8 +184,6 @@ export default class Webview {
 
 				if (event.channel === 'did-set-content') {
 					this._webview.style.opacity = '';
-					let [stats] = event.args;
-					this._onDidLoadContent.fire({ stats });
 					this.layout();
 					return;
 				}
@@ -229,7 +226,6 @@ export default class Webview {
 
 	dispose(): void {
 		this._onDidClickLink.dispose();
-		this._onDidLoadContent.dispose();
 		this._disposables = dispose(this._disposables);
 
 		if (this._webview.parentElement) {
@@ -241,10 +237,6 @@ export default class Webview {
 
 	get onDidClickLink(): Event<URI> {
 		return this._onDidClickLink.event;
-	}
-
-	get onDidLoadContent(): Event<{ stats: any }> {
-		return this._onDidLoadContent.event;
 	}
 
 	get onDidScroll(): Event<{ scrollYPercentage: number }> {
