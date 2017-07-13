@@ -115,7 +115,7 @@ export class FileWatcher {
 			return;
 		}
 
-		// Emit through broadcast service
+		// Emit through event emitter
 		if (events.length > 0) {
 			this.onFileChanges(toFileChangesEvent(events));
 		}

@@ -174,7 +174,7 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 					// In markdown, it is possible that we stumble upon language aliases (e.g. js instead of javascript)
 					const modeId = this.modeService.getModeIdForLanguageName(languageAlias);
 					return this.modeService.getOrCreateMode(modeId).then(_ => {
-						return `<div class="code">${tokenizeToString(value, modeId)}</div>`;
+						return tokenizeToString(value, modeId);
 					});
 				}
 			});

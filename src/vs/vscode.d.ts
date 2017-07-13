@@ -201,9 +201,13 @@ declare module 'vscode' {
 		 * Get a word-range at the given position. By default words are defined by
 		 * common separators, like space, -, _, etc. In addition, per languge custom
 		 * [word definitions](#LanguageConfiguration.wordPattern) can be defined. It
-		 * is also possible to provide a custom regular expression. *Note* that a
-		 * custom regular expression must not match the empty string and that it will
-		 * be ignored if it does.
+		 * is also possible to provide a custom regular expression.
+		 *
+		 * * *Note 1:* A custom regular expression must not match the empty string and
+		 * if it does, it will be ignored.
+		 * * *Note 2:* A custom regular expression will fail to match multiline strings
+		 * and in the name of speed regular expressions should not match words with
+		 * spaces. Use [`TextLine.text`](#TextLine.text) for more complex, non-wordy, scenarios.
 		 *
 		 * The position will be [adjusted](#TextDocument.validatePosition).
 		 *
@@ -5353,6 +5357,11 @@ declare module 'vscode' {
 	export interface DebugSession {
 
 		/**
+		 * The unique ID of this debug session.
+		 */
+		readonly id: string;
+
+		/**
 		 * The debug session's type from the debug configuration.
 		 */
 		readonly type: string;
@@ -5369,20 +5378,59 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A custom Debug Adapter Protocol event received from a [debug session](#DebugSession).
+	 */
+	export interface DebugSessionCustomEvent {
+		/**
+		 * The [debug session](#DebugSession) for which the custom event was received.
+		 */
+		session: DebugSession;
+
+		/**
+		 * Type of event.
+		 */
+		event: string;
+
+		/**
+		 * Event specific information.
+		 */
+		body?: any;
+	}
+
+	/**
 	 * Namespace for dealing with debug sessions.
 	 */
 	export namespace debug {
-
-		/**
-		 * An [event](#Event) which fires when a debug session has terminated.
-		 */
-		export const onDidTerminateDebugSession: Event<DebugSession>;
 
 		/**
 		 * Create a new debug session based on the given configuration.
 		 * @param configuration
 		 */
 		export function createDebugSession(configuration: DebugConfiguration): Thenable<DebugSession>;
+
+		/**
+		 * The currently active debug session or `undefined`. The active debug session is the one
+		 * represented by the debug action floating window or the one currently shown in the drop down menu of the debug action floating window.
+		 * If no debug session is active, the value is `undefined`.
+		 */
+		export let activeDebugSession: DebugSession | undefined;
+
+		/**
+		 * An [event](#Event) which fires when the [active debug session](#debug.activeDebugSession)
+		 * has changed. *Note* that the event also fires when the active debug session changes
+		 * to `undefined`.
+		 */
+		export const onDidChangeActiveDebugSession: Event<DebugSession | undefined>;
+
+		/**
+		 * An [event](#Event) which fires when a custom DAP event is received from the debug session.
+		 */
+		export const onDidReceiveDebugSessionCustomEvent: Event<DebugSessionCustomEvent>;
+
+		/**
+		 * An [event](#Event) which fires when a debug session has terminated.
+		 */
+		export const onDidTerminateDebugSession: Event<DebugSession>;
 	}
 
 	/**

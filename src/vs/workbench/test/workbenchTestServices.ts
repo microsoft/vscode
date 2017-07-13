@@ -27,7 +27,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
-import { ILegacyWorkspace, IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { ILegacyWorkspace, IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -54,6 +54,8 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { isLinux } from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { IRecentlyOpened } from "vs/platform/history/common/history";
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -64,7 +66,7 @@ export const TestEnvironmentService = new EnvironmentService(parseArgs(process.a
 export class TestContextService implements IWorkspaceContextService {
 	public _serviceBrand: any;
 
-	private workspace: IWorkspace;
+	private workspace: IWorkbenchWorkspace;
 	private id: string;
 	private options: any;
 
@@ -89,11 +91,19 @@ export class TestContextService implements IWorkspaceContextService {
 		return !!this.workspace;
 	}
 
+	public hasFolderWorkspace(): boolean {
+		return this.hasWorkspace();
+	}
+
+	public hasMultiFolderWorkspace(): boolean {
+		return false;
+	}
+
 	public getLegacyWorkspace(): ILegacyWorkspace {
 		return this.workspace ? { resource: this.workspace.roots[0] } : void 0;
 	}
 
-	public getWorkspace(): IWorkspace {
+	public getWorkspace(): IWorkbenchWorkspace {
 		return this.workspace;
 	}
 
@@ -397,7 +407,7 @@ export class TestStorageService extends EventEmitter implements IStorageService 
 		super();
 
 		let context = new TestContextService();
-		this.storage = new StorageService(new InMemoryLocalStorage(), null, context.getWorkspace());
+		this.storage = new StorageService(new InMemoryLocalStorage(), null, context.getWorkspace().id);
 	}
 
 	store(key: string, value: any, scope: StorageScope = StorageScope.GLOBAL): void {
@@ -869,7 +879,7 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
-	closeFolder(): TPromise<void> {
+	closeWorkspace(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
@@ -881,7 +891,7 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
-	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }> {
+	getRecentlyOpened(): TPromise<IRecentlyOpened> {
 		return TPromise.as(void 0);
 	}
 
@@ -918,6 +928,10 @@ export class TestWindowService implements IWindowService {
 	}
 
 	showSaveDialog(options: Electron.SaveDialogOptions, callback?: (fileName: string) => void): string {
+		return void 0;
+	}
+
+	showOpenDialog(options: Electron.OpenDialogOptions, callback?: (fileNames: string[]) => void): string[] {
 		return void 0;
 	}
 }
@@ -996,8 +1010,7 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
-	// TODO@joao: rename, shouldn't this be closeWindow?
-	closeFolder(windowId: number): TPromise<void> {
+	closeWorkspace(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
@@ -1009,19 +1022,19 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
-	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void> {
+	addRecentlyOpened(files: string[]): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	removeFromRecentlyOpen(paths: string[]): TPromise<void> {
+	removeFromRecentlyOpened(arg1: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[]): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	clearRecentPathsList(): TPromise<void> {
+	clearRecentlyOpened(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }> {
+	getRecentlyOpened(windowId: number): TPromise<IRecentlyOpened> {
 		return TPromise.as(void 0);
 	}
 
@@ -1082,7 +1095,7 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
-	getWindows(): TPromise<{ id: number; path: string; title: string; }[]> {
+	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderPath?: string; title: string; filename?: string; }[]> {
 		return TPromise.as(void 0);
 	}
 

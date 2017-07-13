@@ -97,7 +97,6 @@ export class HtmlPreviewPart extends WebviewEditor {
 			this._webviewDisposables = [
 				this._webview,
 				this._webview.onDidClickLink(uri => this.openerService.open(uri)),
-				this._webview.onDidLoadContent(data => this.telemetryService.publicLog('previewHtml', data.stats)),
 				this._webview.onDidScroll(data => {
 					this.scrollYPercentage = data.scrollYPercentage;
 				}),

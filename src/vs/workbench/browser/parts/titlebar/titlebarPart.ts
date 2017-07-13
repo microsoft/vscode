@@ -187,12 +187,12 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		// Compute root resource
 		// Single Root Workspace: always the single root workspace in this case
-		// Multi Root Workspace: not yet defined (TODO@Ben multi root)
+		// Multi Root Workspace: workspace configuration file
 		let root: URI;
-		if (workspace) {
-			if (workspace.roots.length === 1) {
-				root = workspace.roots[0];
-			}
+		if (this.contextService.hasMultiFolderWorkspace()) {
+			root = workspace.configuration;
+		} else if (this.contextService.hasFolderWorkspace()) {
+			root = workspace.roots[0];
 		}
 
 		// Compute folder resource

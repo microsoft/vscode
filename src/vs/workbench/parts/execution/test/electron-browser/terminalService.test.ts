@@ -17,6 +17,7 @@ suite('Execution - TerminalService', () => {
 	setup(() => {
 		mockConfig = {
 			terminal: {
+				explorerKind: 'external',
 				external: {
 					windowsExec: 'testWindowsShell',
 					osxExec: 'testOSXShell',

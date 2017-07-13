@@ -10,6 +10,8 @@ import Event, { buffer } from 'vs/base/common/event';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
 import { IWindowsService } from './windows';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { IRecentlyOpened } from "vs/platform/history/common/history";
 
 export interface IWindowsChannel extends IChannel {
 	call(command: 'event:onWindowOpen'): TPromise<number>;
@@ -20,13 +22,13 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'pickFolder', arg: [number, { buttonLabel: string; title: string; }]): TPromise<string[]>;
 	call(command: 'reloadWindow', arg: number): TPromise<void>;
 	call(command: 'toggleDevTools', arg: number): TPromise<void>;
-	call(command: 'closeFolder', arg: number): TPromise<void>;
+	call(command: 'closeWorkspace', arg: number): TPromise<void>;
 	call(command: 'toggleFullScreen', arg: number): TPromise<void>;
 	call(command: 'setRepresentedFilename', arg: [number, string]): TPromise<void>;
-	call(command: 'addToRecentlyOpen', arg: { path: string, isFile?: boolean }[]): TPromise<void>;
-	call(command: 'removeFromRecentlyOpen', arg: string[]): TPromise<void>;
-	call(command: 'clearRecentPathsList'): TPromise<void>;
-	call(command: 'getRecentlyOpen', arg: number): TPromise<{ files: string[]; folders: string[]; }>;
+	call(command: 'addRecentlyOpened', arg: string[]): TPromise<void>;
+	call(command: 'removeFromRecentlyOpened', arg: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[]): TPromise<void>;
+	call(command: 'clearRecentlyOpened'): TPromise<void>;
+	call(command: 'getRecentlyOpened', arg: number): TPromise<IRecentlyOpened>;
 	call(command: 'focusWindow', arg: number): TPromise<void>;
 	call(command: 'closeWindow', arg: number): TPromise<void>;
 	call(command: 'isFocused', arg: number): TPromise<boolean>;
@@ -39,7 +41,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'openWindow', arg: [string[], { forceNewWindow?: boolean, forceReuseWindow?: boolean }]): TPromise<void>;
 	call(command: 'openNewWindow'): TPromise<void>;
 	call(command: 'showWindow', arg: number): TPromise<void>;
-	call(command: 'getWindows'): TPromise<{ id: number; path: string; title: string; }[]>;
+	call(command: 'getWindows'): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderPath?: string; title: string; filename?: string; }[]>;
 	call(command: 'getWindowCount'): TPromise<number>;
 	call(command: 'relaunch', arg: { addArgs?: string[], removeArgs?: string[] }): TPromise<number>;
 	call(command: 'whenSharedProcessReady'): TPromise<void>;
@@ -73,13 +75,13 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'reloadWindow': return this.service.reloadWindow(arg);
 			case 'openDevTools': return this.service.openDevTools(arg);
 			case 'toggleDevTools': return this.service.toggleDevTools(arg);
-			case 'closeFolder': return this.service.closeFolder(arg);
+			case 'closeWorkspace': return this.service.closeWorkspace(arg);
 			case 'toggleFullScreen': return this.service.toggleFullScreen(arg);
 			case 'setRepresentedFilename': return this.service.setRepresentedFilename(arg[0], arg[1]);
-			case 'addToRecentlyOpen': return this.service.addToRecentlyOpen(arg);
-			case 'removeFromRecentlyOpen': return this.service.removeFromRecentlyOpen(arg);
-			case 'clearRecentPathsList': return this.service.clearRecentPathsList();
-			case 'getRecentlyOpen': return this.service.getRecentlyOpen(arg);
+			case 'addRecentlyOpened': return this.service.addRecentlyOpened(arg);
+			case 'removeFromRecentlyOpened': return this.service.removeFromRecentlyOpened(arg);
+			case 'clearRecentlyOpened': return this.service.clearRecentlyOpened();
+			case 'getRecentlyOpened': return this.service.getRecentlyOpened(arg);
 			case 'focusWindow': return this.service.focusWindow(arg);
 			case 'closeWindow': return this.service.closeWindow(arg);
 			case 'isFocused': return this.service.isFocused(arg);
@@ -147,8 +149,8 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('toggleDevTools', windowId);
 	}
 
-	closeFolder(windowId: number): TPromise<void> {
-		return this.channel.call('closeFolder', windowId);
+	closeWorkspace(windowId: number): TPromise<void> {
+		return this.channel.call('closeWorkspace', windowId);
 	}
 
 	toggleFullScreen(windowId: number): TPromise<void> {
@@ -159,20 +161,20 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('setRepresentedFilename', [windowId, fileName]);
 	}
 
-	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void> {
-		return this.channel.call('addToRecentlyOpen', paths);
+	addRecentlyOpened(files: string[]): TPromise<void> {
+		return this.channel.call('addRecentlyOpened', files);
 	}
 
-	removeFromRecentlyOpen(paths: string[]): TPromise<void> {
-		return this.channel.call('removeFromRecentlyOpen', paths);
+	removeFromRecentlyOpened(toRemove: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[]): TPromise<void> {
+		return this.channel.call('removeFromRecentlyOpened', toRemove);
 	}
 
-	clearRecentPathsList(): TPromise<void> {
-		return this.channel.call('clearRecentPathsList');
+	clearRecentlyOpened(): TPromise<void> {
+		return this.channel.call('clearRecentlyOpened');
 	}
 
-	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }> {
-		return this.channel.call('getRecentlyOpen', windowId);
+	getRecentlyOpened(windowId: number): TPromise<IRecentlyOpened> {
+		return this.channel.call('getRecentlyOpened', windowId);
 	}
 
 	focusWindow(windowId: number): TPromise<void> {
@@ -235,7 +237,7 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('showWindow', windowId);
 	}
 
-	getWindows(): TPromise<{ id: number; path: string; title: string; }[]> {
+	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderPath?: string; title: string; filename?: string; }[]> {
 		return this.channel.call('getWindows');
 	}
 

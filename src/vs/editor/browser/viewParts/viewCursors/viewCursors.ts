@@ -15,7 +15,7 @@ import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { TimeoutTimer, IntervalTimer } from 'vs/base/common/async';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorCursor } from 'vs/editor/common/view/editorColorRegistry';
+import { editorCursorForeground, editorCursorBackground } from 'vs/editor/common/view/editorColorRegistry';
 import { TextEditorCursorBlinkingStyle, TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 
 export class ViewCursors extends ViewPart {
@@ -346,12 +346,15 @@ export class ViewCursors extends ViewPart {
 }
 
 registerThemingParticipant((theme, collector) => {
-	let caret = theme.getColor(editorCursor);
+	let caret = theme.getColor(editorCursorForeground);
 	if (caret) {
-		let oppositeCaret = caret.opposite();
-		collector.addRule(`.monaco-editor .cursor { background-color: ${caret}; border-color: ${caret}; color: ${oppositeCaret}; }`);
+		let caretBackground = theme.getColor(editorCursorBackground);
+		if (!caretBackground) {
+			caretBackground = caret.opposite();
+		}
+		collector.addRule(`.monaco-editor .cursor { background-color: ${caret}; border-color: ${caret}; color: ${caretBackground}; }`);
 		if (theme.type === 'hc') {
-			collector.addRule(`.monaco-editor .cursors-layer.has-selection .cursor { border-left: 1px solid ${oppositeCaret}; border-right: 1px solid ${oppositeCaret}; }`);
+			collector.addRule(`.monaco-editor .cursors-layer.has-selection .cursor { border-left: 1px solid ${caretBackground}; border-right: 1px solid ${caretBackground}; }`);
 		}
 	}
 

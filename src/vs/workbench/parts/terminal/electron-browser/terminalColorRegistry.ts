@@ -19,6 +19,9 @@ export const TERMINAL_FOREGROUND_COLOR = registerColor('terminal.foreground', {
 	dark: '#CCCCCC',
 	hc: '#FFFFFF'
 }, nls.localize('terminal.foreground', 'The foreground color of the terminal.'));
+export const TERMINAL_CURSOR_FOREGROUND_COLOR = registerColor('terminalCursor.foreground', null, nls.localize('terminalCursor.foreground', 'The foreground color of the terminal cursor.'));
+export const TERMINAL_CURSOR_BACKGROUND_COLOR = registerColor('terminalCursor.background', null, nls.localize('terminalCursor.background', 'The background color of the terminal cursor. Allows customizing the color of a character overlapped by a block cursor.'));
+
 // TODO: Reinstate, see #28397
 // export const TERMINAL_SELECTION_BACKGROUND_COLOR = registerColor('terminal.selectionBackground', {
 // 	light: '#000',

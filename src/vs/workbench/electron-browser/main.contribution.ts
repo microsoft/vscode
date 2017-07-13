@@ -14,11 +14,11 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { CloseEditorAction, KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, OpenTipsAndTricksUrlAction, ReportIssueAction, ReportPerformanceIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseFolderAction, CloseWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction, NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction, IncreaseViewSizeAction, DecreaseViewSizeAction, ShowStartupPerformance, ToggleSharedProcessAction, QuickSwitchWindow, QuickOpenRecentAction } from 'vs/workbench/electron-browser/actions';
+import { CloseEditorAction, KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, OpenTipsAndTricksUrlAction, ReportIssueAction, ReportPerformanceIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseWorkspaceAction, CloseWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction, NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction, IncreaseViewSizeAction, DecreaseViewSizeAction, ShowStartupPerformance, ToggleSharedProcessAction, QuickSwitchWindow, QuickOpenRecentAction } from 'vs/workbench/electron-browser/actions';
 import { MessagesVisibleContext } from 'vs/workbench/electron-browser/workbench';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { registerCommands } from 'vs/workbench/electron-browser/commands';
-import { AddRootFolderAction } from 'vs/workbench/browser/actions/fileActions';
+import { AddRootFolderAction, NewWorkspaceAction, OpenWorkspaceAction, SaveWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
 
 // Contribute Commands
 registerCommands();
@@ -33,7 +33,7 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseW
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SwitchWindow, SwitchWindow.ID, SwitchWindow.LABEL, { primary: null, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_W } }), 'Switch Window...');
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(QuickSwitchWindow, QuickSwitchWindow.ID, QuickSwitchWindow.LABEL), 'Quick Switch Window...');
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenRecentAction, QuickOpenRecentAction.ID, QuickOpenRecentAction.LABEL), 'File: Quick Open Recent...', fileCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseFolderAction, CloseFolderAction.ID, CloseFolderAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_F) }), 'File: Close Folder', fileCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseWorkspaceAction, CloseWorkspaceAction.ID, CloseWorkspaceAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_F) }), 'File: Close Workspace', fileCategory);
 if (!!product.reportIssueUrl) {
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReportIssueAction, ReportIssueAction.ID, ReportIssueAction.LABEL), 'Help: Report Issues', helpCategory);
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL), 'Help: Report Performance Issue', helpCategory);
@@ -83,7 +83,11 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(Decrea
 
 // TODO@Ben multi root
 if (product.quality !== 'stable') {
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL), 'Files: Add Folder to Workspace...', fileCategory);
+	const workspacesCategory = nls.localize('workspaces', "Workspaces");
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL), 'Workspaces: New Workspace...', workspacesCategory);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL), 'Workspaces: Add Folder to Workspace...', workspacesCategory);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenWorkspaceAction, OpenWorkspaceAction.ID, OpenWorkspaceAction.LABEL), 'Workspaces: Open Workspace...', workspacesCategory);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SaveWorkspaceAction, SaveWorkspaceAction.ID, SaveWorkspaceAction.LABEL), 'Workspaces: Save Workspace...', workspacesCategory);
 }
 
 // Developer related actions
@@ -240,7 +244,7 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.reopenFolders.none' }, "Never reopen a window. Always start with an empty one.")
 		],
 		'default': 'one',
-		'description': nls.localize('restoreWindows', "Controls how windows are being reopened after a restart. Select 'none' to always start with an empty workspace, 'one' to reopen the last window you worked on, 'folders' to reopen all folders you had opened or 'all' to reopen all windows of your last session.")
+		'description': nls.localize('restoreWindows', "Controls how windows are being reopened after a restart. Select 'none' to always start with an empty workspace, 'one' to reopen the last window you worked on, 'folders' to reopen all windows that had folders opened or 'all' to reopen all windows of your last session.")
 	},
 	'window.restoreFullscreen': {
 		'type': 'boolean',
@@ -283,7 +287,7 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 	'window.closeWhenEmpty': {
 		'type': 'boolean',
 		'default': false,
-		'description': nls.localize('closeWhenEmpty', "Controls if closing the last editor should also close the window. This setting only applies for windows that have no folder opened.")
+		'description': nls.localize('closeWhenEmpty', "Controls if closing the last editor should also close the window. This setting only applies for windows that do not show folders.")
 	}
 };
 
@@ -375,35 +379,3 @@ configurationRegistry.registerConfiguration({
 		}
 	}
 });
-
-// Configuration: Workspace
-// TODO@Ben multi root
-if (product.quality !== 'stable') {
-	configurationRegistry.registerConfiguration({
-		'id': 'workspace',
-		'order': 10000,
-		'title': nls.localize('workspaceConfigurationTitle', "Workspace"),
-		'type': 'object',
-		'properties': {
-			'workspace': {
-				'type': 'object',
-				'description': nls.localize('workspaces.title', "Folder configuration of the workspace"),
-				'additionalProperties': {
-					'anyOf': [{
-						'type': 'object',
-						'description': nls.localize('files.exclude.boolean', "The glob pattern to match file paths against. Set to true or false to enable or disable the pattern."),
-						'properties': {
-							'folders': {
-								'description': nls.localize('workspaces.additionalFolders', "Folders of this workspace"),
-								'type': 'array',
-								'items': {
-									'type': 'string'
-								}
-							}
-						}
-					}]
-				}
-			}
-		}
-	});
-}

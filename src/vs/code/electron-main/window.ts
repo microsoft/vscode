@@ -9,6 +9,7 @@ import * as path from 'path';
 import * as objects from 'vs/base/common/objects';
 import { stopProfiling } from 'vs/base/node/profiler';
 import nls = require('vs/nls');
+import URI from "vs/base/common/uri";
 import { IStorageService } from 'vs/platform/storage/node/storage';
 import { shell, screen, BrowserWindow, systemPreferences, app } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
@@ -23,6 +24,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow } from "vs/platform/windows/electron-main/windows";
+import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 
 export interface IWindowState {
 	width?: number;
@@ -109,10 +111,6 @@ export class CodeWindow implements ICodeWindow {
 
 		// respect configured menu bar visibility
 		this.onConfigurationUpdated();
-
-		// TODO@joao: hook this up to some initialization routine this causes a race between setting the headers and doing
-		// a request that needs them. chances are low
-		this.setCommonHTTPHeaders();
 
 		// Eventing
 		this.registerListeners();
@@ -203,20 +201,6 @@ export class CodeWindow implements ICodeWindow {
 		this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
 	}
 
-	private setCommonHTTPHeaders(): void {
-		getCommonHTTPHeaders().done(headers => {
-			if (!this._win) {
-				return;
-			}
-
-			const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
-
-			this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details, cb) => {
-				cb({ cancel: false, requestHeaders: objects.assign(details.requestHeaders, headers) });
-			});
-		});
-	}
-
 	public hasHiddenTitleBarStyle(): boolean {
 		return this.hiddenTitleBarStyle;
 	}
@@ -277,12 +261,16 @@ export class CodeWindow implements ICodeWindow {
 		return this._lastFocusTime;
 	}
 
-	public get openedWorkspacePath(): string {
-		return this.currentConfig ? this.currentConfig.workspacePath : void 0;
-	}
-
 	public get backupPath(): string {
 		return this.currentConfig ? this.currentConfig.backupPath : void 0;
+	}
+
+	public get openedWorkspace(): IWorkspaceIdentifier {
+		return this.currentConfig ? this.currentConfig.workspace : void 0;
+	}
+
+	public get openedFolderPath(): string {
+		return this.currentConfig ? this.currentConfig.folderPath : void 0;
 	}
 
 	public get openedFilePath(): string {
@@ -314,6 +302,42 @@ export class CodeWindow implements ICodeWindow {
 	}
 
 	private registerListeners(): void {
+
+		// Set common HTTP headers
+		// TODO@joao: hook this up to some initialization routine this causes a race between setting the headers and doing
+		// a request that needs them. chances are low
+		getCommonHTTPHeaders().done(headers => {
+			if (!this._win) {
+				return;
+			}
+
+			const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
+
+			this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details, cb) => {
+				cb({ cancel: false, requestHeaders: objects.assign(details.requestHeaders, headers) });
+			});
+		});
+
+		// Prevent loading of svgs
+		this._win.webContents.session.webRequest.onBeforeRequest((details, callback) => {
+			if (details.url.indexOf('.svg') > 0) {
+				const uri = URI.parse(details.url);
+				if (uri && !uri.scheme.match(/file/i) && (uri.path as any).endsWith('.svg')) {
+					return callback({ cancel: true });
+				}
+			}
+
+			return callback({});
+		});
+
+		this._win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+			const contentType: string[] = (details.responseHeaders['content-type'] || details.responseHeaders['Content-Type']) as any;
+			if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
+				return callback({ cancel: true });
+			}
+
+			return callback({ cancel: false, responseHeaders: details.responseHeaders });
+		});
 
 		// Remember that we loaded
 		this._win.webContents.on('did-finish-load', () => {
@@ -364,7 +388,7 @@ export class CodeWindow implements ICodeWindow {
 
 		// Window Failed to load
 		this._win.webContents.on('did-fail-load', (event: Event, errorCode: string, errorDescription: string) => {
-			console.warn('[electron event]: fail to load, ', errorDescription);
+			this.logService.warn('[electron event]: fail to load, ', errorDescription);
 		});
 
 		// Prevent any kind of navigation triggered by the user!
@@ -453,7 +477,7 @@ export class CodeWindow implements ICodeWindow {
 		// (--prof-startup) save profile to disk
 		const { profileStartup } = this.environmentService;
 		if (profileStartup) {
-			stopProfiling(profileStartup.dir, profileStartup.prefix).done(undefined, err => console.error(err));
+			stopProfiling(profileStartup.dir, profileStartup.prefix).done(undefined, err => this.logService.error(err));
 		}
 	}
 

@@ -271,7 +271,7 @@ class QuickFixAdapter {
 		this._provider = provider;
 	}
 
-	provideCodeActions(resource: URI, range: IRange): TPromise<modes.CodeAction[]> {
+	provideCodeActions(resource: URI, range: IRange): TPromise<modes.Command[]> {
 
 		const doc = this._documents.getDocumentData(resource).document;
 		const ran = TypeConverters.toRange(range);
@@ -291,12 +291,7 @@ class QuickFixAdapter {
 			if (!Array.isArray(commands)) {
 				return undefined;
 			}
-			return commands.map((command, i) => {
-				return <modes.CodeAction>{
-					command: this._commands.toInternal(command),
-					score: i
-				};
-			});
+			return commands.map(command => this._commands.toInternal(command));
 		});
 	}
 }
@@ -713,7 +708,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 		return ExtHostLanguageFeatures._handlePool++;
 	}
 
-	private _withAdapter<A, R>(handle: number, ctor: { new (...args: any[]): A }, callback: (adapter: A) => TPromise<R>): TPromise<R> {
+	private _withAdapter<A, R>(handle: number, ctor: { new(...args: any[]): A }, callback: (adapter: A) => TPromise<R>): TPromise<R> {
 		let adapter = this._adapter.get(handle);
 		if (!(adapter instanceof ctor)) {
 			return TPromise.wrapError<R>(new Error('no adapter found'));
@@ -843,7 +838,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideCodeActions(handle: number, resource: URI, range: IRange): TPromise<modes.CodeAction[]> {
+	$provideCodeActions(handle: number, resource: URI, range: IRange): TPromise<modes.Command[]> {
 		return this._withAdapter(handle, QuickFixAdapter, adapter => adapter.provideCodeActions(resource, range));
 	}
 

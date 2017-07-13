@@ -18,8 +18,9 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { ILifecycleService } from "vs/platform/lifecycle/electron-main/lifecycleMain";
 import { IWindowsMainService, ISharedProcess } from "vs/platform/windows/electron-main/windows";
-import { IHistoryMainService } from "vs/platform/history/electron-main/historyMainService";
+import { IHistoryMainService, IRecentlyOpened } from "vs/platform/history/common/history";
 import { findExtensionDevelopmentWindow } from "vs/code/node/windowsFinder";
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 
 export class WindowsService implements IWindowsService, IDisposable {
 
@@ -109,11 +110,11 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return TPromise.as(null);
 	}
 
-	closeFolder(windowId: number): TPromise<void> {
+	closeWorkspace(windowId: number): TPromise<void> {
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
 		if (codeWindow) {
-			this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentService.args, forceEmpty: true, windowToUse: codeWindow, forceReuseWindow: true });
+			this.windowsMainService.closeWorkspace(codeWindow);
 		}
 
 		return TPromise.as(null);
@@ -139,32 +140,34 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return TPromise.as(null);
 	}
 
-	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void> {
-		this.historyService.addToRecentPathsList(paths);
+	addRecentlyOpened(files: string[]): TPromise<void> {
+		this.historyService.addRecentlyOpened(void 0, files);
 
 		return TPromise.as(null);
 	}
 
-	removeFromRecentlyOpen(paths: string[]): TPromise<void> {
-		this.historyService.removeFromRecentPathsList(paths);
+	removeFromRecentlyOpened(toRemove: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[]): TPromise<void> {
+		this.historyService.removeFromRecentlyOpened(toRemove);
 
 		return TPromise.as(null);
 	}
 
-	clearRecentPathsList(): TPromise<void> {
-		this.historyService.clearRecentPathsList();
+	clearRecentlyOpened(): TPromise<void> {
+		this.historyService.clearRecentlyOpened();
+
 		return TPromise.as(null);
 	}
 
-	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }> {
+	getRecentlyOpened(windowId: number): TPromise<IRecentlyOpened> {
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
 		if (codeWindow) {
-			const { files, folders } = this.historyService.getRecentPathsList(codeWindow.config.workspacePath, codeWindow.config.filesToOpen);
-			return TPromise.as({ files, folders });
+			const recentlyOpened = this.historyService.getRecentlyOpened(codeWindow.config.workspace || codeWindow.config.folderPath, codeWindow.config.filesToOpen);
+
+			return TPromise.as(recentlyOpened);
 		}
 
-		return TPromise.as({ files: [], folders: [] });
+		return TPromise.as(<IRecentlyOpened>{ workspaces: [], files: [] });
 	}
 
 	focusWindow(windowId: number): TPromise<void> {
@@ -271,9 +274,9 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return TPromise.as(null);
 	}
 
-	getWindows(): TPromise<{ id: number; path: string; title: string; }[]> {
+	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderPath?: string; title: string; filename?: string; }[]> {
 		const windows = this.windowsMainService.getWindows();
-		const result = windows.map(w => ({ path: w.openedWorkspacePath, title: w.win.getTitle(), id: w.id, filename: w.getRepresentedFilename() }));
+		const result = windows.map(w => ({ id: w.id, workspace: w.openedWorkspace, openedFolderPath: w.openedFolderPath, title: w.win.getTitle(), filename: w.getRepresentedFilename() }));
 
 		return TPromise.as(result);
 	}

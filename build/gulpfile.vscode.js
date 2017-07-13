@@ -31,8 +31,6 @@ const shrinkwrap = require('../npm-shrinkwrap.json');
 const crypto = require('crypto');
 const i18n = require('./lib/i18n');
 const glob = require('glob');
-const os = require('os');
-const cp = require('child_process');
 
 const productDependencies = Object.keys(product.dependencies || {});
 const dependencies = Object.keys(shrinkwrap.dependencies)
@@ -45,8 +43,8 @@ const nodeModules = ['electron', 'original-fs']
 // Build
 
 const builtInExtensions = [
-	{ name: 'ms-vscode.node-debug', version: '1.15.2' },
-	{ name: 'ms-vscode.node-debug2', version: '1.14.4' }
+	{ name: 'ms-vscode.node-debug', version: '1.15.4' },
+	{ name: 'ms-vscode.node-debug2', version: '1.14.5' }
 ];
 
 const excludedExtensions = [
@@ -137,7 +135,7 @@ const config = {
 		name: product.nameLong + ' document',
 		role: 'Editor',
 		ostypes: ["TEXT", "utxt", "TUTX", "****"],
-		extensions: ["ascx", "asp", "aspx", "bash", "bash_login", "bash_logout", "bash_profile", "bashrc", "bat", "bowerrc", "c", "cc", "clj", "cljs", "cljx", "clojure", "cmd", "coffee", "config", "cpp", "cs", "cshtml", "csproj", "css", "csx", "ctp", "cxx", "dockerfile", "dot", "dtd", "editorconfig", "edn", "eyaml", "eyml", "fs", "fsi", "fsscript", "fsx", "gemspec", "gitattributes", "gitconfig", "gitignore", "go", "h", "handlebars", "hbs", "hh", "hpp", "htm", "html", "hxx", "ini", "jade", "jav", "java", "js", "jscsrc", "jshintrc", "jshtm", "json", "jsp", "less", "lua", "m", "makefile", "markdown", "md", "mdoc", "mdown", "mdtext", "mdtxt", "mdwn", "mkd", "mkdn", "ml", "mli", "php", "phtml", "pl", "pl6", "pm", "pm6", "pod", "pp", "profile", "properties", "ps1", "psd1", "psgi", "psm1", "py", "r", "rb", "rhistory", "rprofile", "rs", "rt", "scss", "sh", "shtml", "sql", "svg", "svgz", "t", "ts", "txt", "vb", "wxi", "wxl", "wxs", "xaml", "xcodeproj", "xcworkspace", "xml", "yaml", "yml", "zlogin", "zlogout", "zprofile", "zsh", "zshenv", "zshrc"],
+		extensions: ["ascx", "asp", "aspx", "bash", "bash_login", "bash_logout", "bash_profile", "bashrc", "bat", "bowerrc", "c", "cc", "clj", "cljs", "cljx", "clojure", "cmd", "code-workspace", "coffee", "config", "cpp", "cs", "cshtml", "csproj", "css", "csx", "ctp", "cxx", "dockerfile", "dot", "dtd", "editorconfig", "edn", "eyaml", "eyml", "fs", "fsi", "fsscript", "fsx", "gemspec", "gitattributes", "gitconfig", "gitignore", "go", "h", "handlebars", "hbs", "hh", "hpp", "htm", "html", "hxx", "ini", "jade", "jav", "java", "js", "jscsrc", "jshintrc", "jshtm", "json", "jsp", "less", "lua", "m", "makefile", "markdown", "md", "mdoc", "mdown", "mdtext", "mdtxt", "mdwn", "mkd", "mkdn", "ml", "mli", "php", "phtml", "pl", "pl6", "pm", "pm6", "pod", "pp", "profile", "properties", "ps1", "psd1", "psgi", "psm1", "py", "r", "rb", "rhistory", "rprofile", "rs", "rt", "scss", "sh", "shtml", "sql", "svg", "svgz", "t", "ts", "txt", "vb", "wxi", "wxl", "wxs", "xaml", "xcodeproj", "xcworkspace", "xml", "yaml", "yml", "zlogin", "zlogout", "zprofile", "zsh", "zshenv", "zshrc"],
 		iconFile: 'resources/darwin/code_file.icns'
 	}],
 	darwinBundleURLTypes: [{
@@ -227,8 +225,7 @@ function packageTask(platform, arch, opts) {
 		]);
 
 		const src = gulp.src(out + '/**', { base: '.' })
-			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + out), 'out'); }))
-			.pipe(util.setExecutableBit(['**/*.sh']));
+			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + out), 'out'); }));
 
 		const root = path.resolve(path.join(__dirname, '..'));
 		const localExtensionDescriptions = glob.sync('extensions/*/package.json')
@@ -259,12 +256,9 @@ function packageTask(platform, arch, opts) {
 				.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
 		}));
 
-		const sources = es.merge(
-			src,
-			localExtensions,
-			localExtensionDependencies,
-			marketplaceExtensions
-		).pipe(filter(['**', '!**/*.js.map']));
+		const sources = es.merge(src, localExtensions, localExtensionDependencies, marketplaceExtensions)
+			.pipe(util.setExecutableBit(['**/*.sh']))
+			.pipe(filter(['**', '!**/*.js.map']));
 
 		let version = packageJson.version;
 		const quality = product.quality;
@@ -282,6 +276,8 @@ function packageTask(platform, arch, opts) {
 			.pipe(json({ commit, date, checksums }));
 
 		const license = gulp.src(['LICENSES.chromium.html', 'LICENSE.txt', 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.' });
+
+		const watermark = gulp.src(['resources/letterpress.svg', 'resources/letterpress-dark.svg', 'resources/letterpress-hc.svg'], { base: '.' });
 
 		// TODO the API should be copied to `out` during compile, not here
 		const api = gulp.src('src/vs/vscode.d.ts').pipe(rename('out/vs/vscode.d.ts'));
@@ -306,6 +302,7 @@ function packageTask(platform, arch, opts) {
 			packageJsonStream,
 			productJsonStream,
 			license,
+			watermark,
 			api,
 			sources,
 			deps
@@ -370,62 +367,6 @@ gulp.task('vscode-darwin-min', ['minify-vscode', 'clean-vscode-darwin'], package
 gulp.task('vscode-linux-ia32-min', ['minify-vscode', 'clean-vscode-linux-ia32'], packageTask('linux', 'ia32', { minified: true }));
 gulp.task('vscode-linux-x64-min', ['minify-vscode', 'clean-vscode-linux-x64'], packageTask('linux', 'x64', { minified: true }));
 gulp.task('vscode-linux-arm-min', ['minify-vscode', 'clean-vscode-linux-arm'], packageTask('linux', 'arm', { minified: true }));
-
-// --- v8 snapshots ---
-
-function snapshotTask(platform, arch) {
-
-	const destination = path.join(path.dirname(root), 'VSCode') + (platform ? '-' + platform : '') + (arch ? '-' + arch : '');
-
-	let command = path.join(process.cwd(), 'node_modules/.bin/mksnapshot');
-	let loaderInputFilepath;
-	let startupBlobFilepath;
-
-	if (platform === 'darwin') {
-		loaderInputFilepath = path.join(destination, 'Code - OSS.app/Contents/Resources/app/out/vs/loader.js');
-		startupBlobFilepath = path.join(destination, 'Code - OSS.app/Contents/Frameworks/Electron Framework.framework/Resources/snapshot_blob.bin')
-
-	} else if (platform === 'win32') {
-		command = `${command}.cmd`;
-		loaderInputFilepath = path.join(destination, 'resources/app/out/vs/loader.js');
-		startupBlobFilepath = path.join(destination, 'snapshot_blob.bin')
-
-	} else if (platform === 'linux') {
-		loaderInputFilepath = path.join(destination, 'resources/app/out/vs/loader.js');
-		startupBlobFilepath = path.join(destination, 'snapshot_blob.bin')
-	}
-
-	return () => {
-		const inputFile = fs.readFileSync(loaderInputFilepath);
-		const wrappedInputFile = `
-		var Monaco_Loader_Init;
-		(function() {
-			var doNotInitLoader = true;
-			${inputFile.toString()};
-			Monaco_Loader_Init = function() {
-				AMDLoader.init();
-				CSSLoaderPlugin.init();
-				NLSLoaderPlugin.init();
-
-				return define;
-			}
-		})();
-		`;
-		const wrappedInputFilepath = path.join(os.tmpdir(), 'wrapped-loader.js');
-		console.log(wrappedInputFilepath);
-		fs.writeFileSync(wrappedInputFilepath, wrappedInputFile);
-
-		cp.execFileSync(command, [wrappedInputFilepath, `--startup_blob`, startupBlobFilepath]);
-	}
-}
-
-gulp.task('vscode-win32-ia32-snapshots', ['vscode-win32-ia32-min'], snapshotTask('win32', 'ia32'));
-gulp.task('vscode-win32-x64-snapshots', ['vscode-win32-x64-min'], snapshotTask('win32', 'x64'));
-gulp.task('vscode-darwin-snapshots', ['vscode-darwin-min'], snapshotTask('darwin', undefined));
-gulp.task('vscode-linux-ia32-snapshots', ['vscode-linux-ia32-min'], snapshotTask('linux', 'ia32'));
-gulp.task('vscode-linux-x64-snapshots', ['vscode-linux-x64-min'], snapshotTask('linux', 'x64'));
-gulp.task('vscode-linux-arm-snapshots', ['vscode-linux-arm-min'], snapshotTask('linux', 'arm'));
-
 
 // Transifex Localizations
 const vscodeLanguages = [

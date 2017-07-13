@@ -87,8 +87,16 @@ function isTestTask(name: string): boolean {
 	return false;
 }
 
+function getNpmCommandLine(script:string): string {
+	if (vscode.workspace.getConfiguration('npm').get<boolean>('runSilent')) {
+		return `npm --silent run ${script}`;
+	}
+	return `npm run ${script}`
+}
+
 async function getNpmScriptsAsTasks(): Promise<vscode.Task[]> {
 	let workspaceRoot = vscode.workspace.rootPath;
+
 	let emptyTasks: vscode.Task[] = [];
 
 	if (!workspaceRoot) {
@@ -98,6 +106,11 @@ async function getNpmScriptsAsTasks(): Promise<vscode.Task[]> {
 	let packageJson = path.join(workspaceRoot, 'package.json');
 	if (!await exists(packageJson)) {
 		return emptyTasks;
+	}
+
+	let silent = '';
+	if (vscode.workspace.getConfiguration('npm').get<boolean>('runSilent')) {
+		silent = '--silent';
 	}
 
 	try {
@@ -113,7 +126,7 @@ async function getNpmScriptsAsTasks(): Promise<vscode.Task[]> {
 				type: 'npm',
 				script: each
 			};
-			const task = new vscode.Task(kind, `run ${each}`, 'npm', new vscode.ShellExecution(`npm run ${each}`));
+			const task = new vscode.Task(kind, `run ${each}`, 'npm', new vscode.ShellExecution(getNpmCommandLine(each)));
 			const lowerCaseTaskName = each.toLowerCase();
 			if (isBuildTask(lowerCaseTaskName)) {
 				task.group = vscode.TaskGroup.Build;

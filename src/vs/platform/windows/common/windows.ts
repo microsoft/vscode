@@ -11,6 +11,8 @@ import Event from 'vs/base/common/event';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { IRecentlyOpened } from "vs/platform/history/common/history";
 
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
@@ -28,13 +30,13 @@ export interface IWindowsService {
 	reloadWindow(windowId: number): TPromise<void>;
 	openDevTools(windowId: number): TPromise<void>;
 	toggleDevTools(windowId: number): TPromise<void>;
-	closeFolder(windowId: number): TPromise<void>;
+	closeWorkspace(windowId: number): TPromise<void>;
 	toggleFullScreen(windowId: number): TPromise<void>;
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void>;
-	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void>;
-	removeFromRecentlyOpen(paths: string[]): TPromise<void>;
-	clearRecentPathsList(): TPromise<void>;
-	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }>;
+	addRecentlyOpened(files: string[]): TPromise<void>;
+	removeFromRecentlyOpened(toRemove: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[]): TPromise<void>;
+	clearRecentlyOpened(): TPromise<void>;
+	getRecentlyOpened(windowId: number): TPromise<IRecentlyOpened>;
 	focusWindow(windowId: number): TPromise<void>;
 	closeWindow(windowId: number): TPromise<void>;
 	isFocused(windowId: number): TPromise<boolean>;
@@ -54,7 +56,7 @@ export interface IWindowsService {
 	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean }): TPromise<void>;
 	openNewWindow(): TPromise<void>;
 	showWindow(windowId: number): TPromise<void>;
-	getWindows(): TPromise<{ id: number; path: string; title: string; filename?: string; }[]>;
+	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderPath?: string; title: string; filename?: string; }[]>;
 	getWindowCount(): TPromise<number>;
 	log(severity: string, ...messages: string[]): TPromise<void>;
 	// TODO@joao: what?
@@ -83,10 +85,10 @@ export interface IWindowService {
 	reloadWindow(): TPromise<void>;
 	openDevTools(): TPromise<void>;
 	toggleDevTools(): TPromise<void>;
-	closeFolder(): TPromise<void>;
+	closeWorkspace(): TPromise<void>;
 	toggleFullScreen(): TPromise<void>;
 	setRepresentedFilename(fileName: string): TPromise<void>;
-	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }>;
+	getRecentlyOpened(): TPromise<IRecentlyOpened>;
 	focusWindow(): TPromise<void>;
 	closeWindow(): TPromise<void>;
 	isFocused(): TPromise<boolean>;
@@ -97,11 +99,12 @@ export interface IWindowService {
 	onWindowTitleDoubleClick(): TPromise<void>;
 	showMessageBox(options: Electron.ShowMessageBoxOptions): number;
 	showSaveDialog(options: Electron.SaveDialogOptions, callback?: (fileName: string) => void): string;
+	showOpenDialog(options: Electron.OpenDialogOptions, callback?: (fileNames: string[]) => void): string[];
 }
 
 export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden';
 
-export interface IWindowConfiguration {
+export interface IWindowsConfiguration {
 	window: IWindowSettings;
 }
 
@@ -186,11 +189,17 @@ export interface IOpenFileRequest {
 export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	appRoot: string;
 	execPath: string;
+	isInitialStartup?: boolean;
 
 	userEnv: IProcessEnvironment;
+	nodeCachedDataDir: string;
+
+	backupPath?: string;
+
+	workspace?: IWorkspaceIdentifier;
+	folderPath?: string;
 
 	isISOKeyboard?: boolean;
-
 	zoomLevel?: number;
 	fullscreen?: boolean;
 	highContrast?: boolean;
@@ -198,15 +207,7 @@ export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	backgroundColor?: string;
 	accessibilitySupport?: boolean;
 
-	isInitialStartup?: boolean;
-
 	perfStartTime?: number;
 	perfAppReady?: number;
 	perfWindowLoadTime?: number;
-
-	workspacePath?: string;
-
-	backupPath?: string;
-
-	nodeCachedDataDir: string;
 }

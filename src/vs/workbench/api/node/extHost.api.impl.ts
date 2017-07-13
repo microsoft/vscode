@@ -131,6 +131,20 @@ export function createApiFactory(
 			}
 		}
 
+		const apiUsage = new class {
+			private _seen = new Set<string>();
+			publicLog(apiName: string) {
+				if (this._seen.has(apiName)) {
+					return undefined;
+				}
+				this._seen.add(apiName);
+				return telemetryService.publicLog('apiUsage', {
+					name: apiName,
+					extension: extension.id
+				});
+			}
+		};
+
 		// namespace: commands
 		const commands: typeof vscode.commands = {
 			registerCommand<T>(id: string, command: <T>(...args: any[]) => T | Thenable<T>, thisArgs?: any): vscode.Disposable {
@@ -347,28 +361,24 @@ export function createApiFactory(
 		// namespace: workspace
 		const workspace: typeof vscode.workspace = {
 			get rootPath() {
-				telemetryService.publicLog('api-getter', {
-					name: 'workspace#rootPath',
-					extension: extension.id
-				});
+				apiUsage.publicLog('workspace#rootPath');
 				return extHostWorkspace.getPath();
 			},
 			set rootPath(value) {
 				throw errors.readonly();
 			},
+			getContainingWorkspaceFolder(resource) {
+				return extHostWorkspace.getEnclosingWorkspaceFolder(resource);
+			},
 			get workspaceFolders() {
+				// proposed api
 				assertProposedApi(extension);
-				telemetryService.publicLog('api-getter', {
-					name: 'workspace#workspaceFolders',
-					extension: extension.id
-				});
-				return extHostWorkspace.getRoots();
+				apiUsage.publicLog('workspace#workspaceFolders');
+				return extHostWorkspace.getWorkspaceFolders();
 			},
 			onDidChangeWorkspaceFolders: proposedApiFunction(extension, (listener, thisArgs?, disposables?) => {
-				telemetryService.publicLog('api-getter', {
-					name: 'workspace#onDidChangeWorkspaceFolders',
-					extension: extension.id
-				});
+				// proposed api
+				apiUsage.publicLog('workspace#onDidChangeWorkspaceFolders');
 				return extHostWorkspace.onDidChangeWorkspace(listener, thisArgs, disposables);
 			}),
 			asRelativePath: (pathOrUri) => {
@@ -467,7 +477,6 @@ export function createApiFactory(
 		// namespace: debug
 		const debug: typeof vscode.debug = {
 			get activeDebugSession() {
-				assertProposedApi(extension);
 				return extHostDebugService.activeDebugSession;
 			},
 			createDebugSession(config: vscode.DebugConfiguration) {
@@ -476,12 +485,12 @@ export function createApiFactory(
 			onDidTerminateDebugSession(listener, thisArg?, disposables?) {
 				return extHostDebugService.onDidTerminateDebugSession(listener, thisArg, disposables);
 			},
-			onDidChangeActiveDebugSession: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
+			onDidChangeActiveDebugSession(listener, thisArg?, disposables?) {
 				return extHostDebugService.onDidChangeActiveDebugSession(listener, thisArg, disposables);
-			}),
-			onDidReceiveDebugSessionCustomEvent: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
+			},
+			onDidReceiveDebugSessionCustomEvent(listener, thisArg?, disposables?) {
 				return extHostDebugService.onDidReceiveDebugSessionCustomEvent(listener, thisArg, disposables);
-			})
+			}
 		};
 
 

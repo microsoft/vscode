@@ -9,6 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { remote } from 'electron';
+import { IRecentlyOpened } from "vs/platform/history/common/history";
 
 export class WindowService implements IWindowService {
 
@@ -51,8 +52,8 @@ export class WindowService implements IWindowService {
 		return this.windowsService.toggleDevTools(this.windowId);
 	}
 
-	closeFolder(): TPromise<void> {
-		return this.windowsService.closeFolder(this.windowId);
+	closeWorkspace(): TPromise<void> {
+		return this.windowsService.closeWorkspace(this.windowId);
 	}
 
 	closeWindow(): TPromise<void> {
@@ -67,8 +68,8 @@ export class WindowService implements IWindowService {
 		return this.windowsService.setRepresentedFilename(this.windowId, fileName);
 	}
 
-	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }> {
-		return this.windowsService.getRecentlyOpen(this.windowId);
+	getRecentlyOpened(): TPromise<IRecentlyOpened> {
+		return this.windowsService.getRecentlyOpened(this.windowId);
 	}
 
 	focusWindow(): TPromise<void> {
@@ -109,5 +110,13 @@ export class WindowService implements IWindowService {
 		}
 
 		return remote.dialog.showSaveDialog(remote.getCurrentWindow(), options); // https://github.com/electron/electron/issues/4936
+	}
+
+	showOpenDialog(options: Electron.OpenDialogOptions, callback?: (fileNames: string[]) => void): string[] {
+		if (callback) {
+			return remote.dialog.showOpenDialog(remote.getCurrentWindow(), options, callback);
+		}
+
+		return remote.dialog.showOpenDialog(remote.getCurrentWindow(), options); // https://github.com/electron/electron/issues/4936
 	}
 }

@@ -12,12 +12,16 @@ import Event from 'vs/base/common/event';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment } from 'vs/base/common/platform';
+import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 
 export interface ICodeWindow {
 	id: number;
 	win: Electron.BrowserWindow;
 	config: IWindowConfiguration;
-	openedWorkspacePath: string;
+
+	openedFolderPath: string;
+	openedWorkspace: IWorkspaceIdentifier;
+
 	lastFocusTime: number;
 
 	readyState: ReadyState;
@@ -48,6 +52,7 @@ export interface IWindowsMainService {
 	// methods
 	ready(initialUserEnv: IProcessEnvironment): void;
 	reload(win: ICodeWindow, cli?: ParsedArgs): void;
+	closeWorkspace(win: ICodeWindow): void;
 	open(openConfig: IOpenConfiguration): ICodeWindow[];
 	openExtensionDevelopmentHostWindow(openConfig: IOpenConfiguration): void;
 	pickFileFolderAndOpen(forceNewWindow?: boolean, data?: ITelemetryData): void;
@@ -76,7 +81,6 @@ export interface IOpenConfiguration {
 	forceNewWindow?: boolean;
 	forceReuseWindow?: boolean;
 	forceEmpty?: boolean;
-	windowToUse?: ICodeWindow;
 	diffMode?: boolean;
 	initialStartup?: boolean;
 }

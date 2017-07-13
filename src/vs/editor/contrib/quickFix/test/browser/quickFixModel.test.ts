@@ -38,7 +38,7 @@ suite('QuickFix', () => {
 	setup(() => {
 		reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
 			provideCodeActions() {
-				return [{ command: { id: 'test-command', title: 'test', arguments: [] }, score: 1 }];
+				return [{ id: 'test-command', title: 'test', arguments: [] }];
 			}
 		});
 		markerService = new MarkerService();
@@ -182,11 +182,11 @@ suite('QuickFix', () => {
 
 		return TPromise.join<any>([TPromise.timeout(20)].concat(fixes)).then(_ => {
 
-			// assert selection
-			assert.deepEqual(range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 13 });
+			// 'auto' triggered, non-empty selection
+			assert.equal(range, undefined);
 
-			range = undefined;
-			editor.setSelection({ startLineNumber: 1, startColumn: 2, endLineNumber: 1, endColumn: 2 });
+			// 'auto' triggered, non-empty selection BUT within a marker
+			editor.setSelection({ startLineNumber: 1, startColumn: 2, endLineNumber: 1, endColumn: 4 });
 
 			return TPromise.join([TPromise.timeout(20)].concat(fixes)).then(_ => {
 				reg.dispose();
@@ -196,6 +196,57 @@ suite('QuickFix', () => {
 				assert.deepEqual(range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6 });
 			});
 		});
+	});
+
+	test('Lightbulb is in the wrong place, #29933', async function () {
+		let reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
+			provideCodeActions(doc, _range) {
+				return [];
+			}
+		});
+
+		editor.getModel().setValue('// @ts-check\n2\ncon\n');
+
+		markerService.changeOne('fake', uri, [{
+			startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 4,
+			message: 'error',
+			severity: 1,
+			code: '',
+			source: ''
+		}]);
+
+		// case 1 - drag selection over multiple lines -> no automatic lightbulb
+		await new TPromise(resolve => {
+
+			let oracle = new QuickFixOracle(editor, markerService, e => {
+				assert.equal(e.type, 'auto');
+				assert.equal(e.range, undefined);
+
+				oracle.dispose();
+				resolve(null);
+			}, 5);
+
+			editor.setSelection({ startLineNumber: 1, startColumn: 1, endLineNumber: 4, endColumn: 1 });
+		});
+
+		// case 2 - selection over multiple lines & manual trigger -> lightbulb
+		await new TPromise(resolve => {
+
+			editor.setSelection({ startLineNumber: 1, startColumn: 1, endLineNumber: 4, endColumn: 1 });
+
+			let oracle = new QuickFixOracle(editor, markerService, e => {
+				assert.equal(e.type, 'manual');
+				assert.ok(e.range.equalsRange({ startLineNumber: 1, startColumn: 1, endLineNumber: 4, endColumn: 1 }));
+
+				oracle.dispose();
+				resolve(null);
+			}, 5);
+
+			oracle.trigger('manual');
+		});
+
+
+		reg.dispose();
 	});
 
 });

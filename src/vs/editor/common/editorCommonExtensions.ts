@@ -94,7 +94,7 @@ export interface IContributionCommandOptions<T> extends ICommandOptions {
 	handler: (controller: T) => void;
 }
 export interface EditorControllerCommand<T extends editorCommon.IEditorContribution> {
-	new (opts: IContributionCommandOptions<T>): EditorCommand;
+	new(opts: IContributionCommandOptions<T>): EditorCommand;
 }
 export abstract class EditorCommand extends Command {
 
@@ -202,11 +202,11 @@ export abstract class EditorAction extends EditorCommand {
 
 // --- Registration of commands and actions
 
-export function editorAction(ctor: { new (): EditorAction; }): void {
+export function editorAction(ctor: { new(): EditorAction; }): void {
 	CommonEditorRegistry.registerEditorAction(new ctor());
 }
 
-export function editorCommand(ctor: { new (): EditorCommand }): void {
+export function editorCommand(ctor: { new(): EditorCommand }): void {
 	registerEditorCommand(new ctor());
 }
 

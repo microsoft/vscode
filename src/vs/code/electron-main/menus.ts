@@ -21,7 +21,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { tildify } from 'vs/base/common/labels';
 import { KeybindingsResolver } from "vs/code/electron-main/keyboard";
 import { IWindowsMainService } from "vs/platform/windows/electron-main/windows";
-import { IHistoryMainService } from "vs/platform/history/electron-main/historyMainService";
+import { IHistoryMainService } from "vs/platform/history/common/history";
+import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 
 interface IExtensionViewlet {
 	id: string;
@@ -77,7 +78,8 @@ export class CodeMenu {
 		@IWindowsMainService private windowsService: IWindowsMainService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IHistoryMainService private historyService: IHistoryMainService
+		@IHistoryMainService private historyService: IHistoryMainService,
+		@IWorkspacesMainService private workspacesService: IWorkspacesMainService
 	) {
 		this.extensionViewlets = [];
 
@@ -100,7 +102,7 @@ export class CodeMenu {
 
 		// Listen to some events from window service
 		this.windowsService.onPathsOpen(paths => this.updateMenu());
-		this.historyService.onRecentPathsChange(paths => this.updateMenu());
+		this.historyService.onRecentlyOpenedChange(() => this.updateMenu());
 		this.windowsService.onWindowClose(_ => this.onClose(this.windowsService.getWindowCount()));
 
 		// Listen to extension viewlets
@@ -249,7 +251,6 @@ export class CodeMenu {
 		const debugMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mDebug', comment: ['&& denotes a mnemonic'] }, "&&Debug")), submenu: debugMenu });
 		this.setDebugMenu(debugMenu);
 
-
 		// Mac: Window
 		let macWindowMenuItem: Electron.MenuItem;
 		if (isMacintosh) {
@@ -354,7 +355,22 @@ export class CodeMenu {
 		const openRecent = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miOpenRecent', comment: ['&& denotes a mnemonic'] }, "Open &&Recent")), submenu: openRecentMenu, enabled: openRecentMenu.items.length > 0 });
 
 		const isMultiRootEnabled = (product.quality !== 'stable'); // TODO@Ben multi root
+
+		const workspacesMenu = new Menu();
+		const workspaces = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miWorkspaces', comment: ['&& denotes a mnemonic'] }, "Workspaces")), submenu: workspacesMenu });
+
+		const newWorkspace = this.createMenuItem(nls.localize({ key: 'miNewWorkspace', comment: ['&& denotes a mnemonic'] }, "&&New Workspace..."), 'workbench.action.newWorkspace');
+		const openWorkspace = this.createMenuItem(nls.localize({ key: 'miOpenWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Open Workspace..."), 'workbench.action.openWorkspace');
+		const saveWorkspace = this.createMenuItem(nls.localize({ key: 'miSaveWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Save Workspace..."), 'workbench.action.saveWorkspace', this.windowsService.getWindowCount() > 0);
 		const addFolder = this.createMenuItem(nls.localize({ key: 'miAddFolderToWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Add Folder to Workspace..."), 'workbench.action.addRootFolder', this.windowsService.getWindowCount() > 0);
+		[
+			newWorkspace,
+			openWorkspace,
+			__separator__(),
+			saveWorkspace,
+			__separator__(),
+			addFolder
+		].forEach(item => workspacesMenu.append(item));
 
 		const saveFile = this.createMenuItem(nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "&&Save"), 'workbench.action.files.save', this.windowsService.getWindowCount() > 0);
 		const saveFileAs = this.createMenuItem(nls.localize({ key: 'miSaveAs', comment: ['&& denotes a mnemonic'] }, "Save &&As..."), 'workbench.action.files.saveAs', this.windowsService.getWindowCount() > 0);
@@ -369,7 +385,7 @@ export class CodeMenu {
 		const revertFile = this.createMenuItem(nls.localize({ key: 'miRevert', comment: ['&& denotes a mnemonic'] }, "Re&&vert File"), 'workbench.action.files.revert', this.windowsService.getWindowCount() > 0);
 		const closeWindow = new MenuItem(this.likeAction('workbench.action.closeWindow', { label: this.mnemonicLabel(nls.localize({ key: 'miCloseWindow', comment: ['&& denotes a mnemonic'] }, "Clos&&e Window")), click: () => this.windowsService.getLastActiveWindow().win.close(), enabled: this.windowsService.getWindowCount() > 0 }));
 
-		const closeFolder = this.createMenuItem(nls.localize({ key: 'miCloseFolder', comment: ['&& denotes a mnemonic'] }, "Close &&Folder"), 'workbench.action.closeFolder');
+		const closeWorkspace = this.createMenuItem(nls.localize({ key: 'miCloseWorkspace', comment: ['&& denotes a mnemonic'] }, "Close &&Workspace"), 'workbench.action.closeFolder');
 		const closeEditor = this.createMenuItem(nls.localize({ key: 'miCloseEditor', comment: ['&& denotes a mnemonic'] }, "&&Close Editor"), 'workbench.action.closeActiveEditor');
 
 		const exit = new MenuItem(this.likeAction('workbench.action.quit', { label: this.mnemonicLabel(nls.localize({ key: 'miExit', comment: ['&& denotes a mnemonic'] }, "E&&xit")), click: () => this.windowsService.quit() }));
@@ -383,7 +399,7 @@ export class CodeMenu {
 			!isMacintosh ? openFolder : null,
 			openRecent,
 			isMultiRootEnabled ? __separator__() : null,
-			isMultiRootEnabled ? addFolder : null,
+			isMultiRootEnabled ? workspaces : null,
 			__separator__(),
 			saveFile,
 			saveFileAs,
@@ -395,7 +411,7 @@ export class CodeMenu {
 			!isMacintosh ? __separator__() : null,
 			revertFile,
 			closeEditor,
-			closeFolder,
+			closeWorkspace,
 			closeWindow,
 			!isMacintosh ? __separator__() : null,
 			!isMacintosh ? exit : null
@@ -427,14 +443,14 @@ export class CodeMenu {
 	private setOpenRecentMenu(openRecentMenu: Electron.Menu): void {
 		openRecentMenu.append(this.createMenuItem(nls.localize({ key: 'miReopenClosedEditor', comment: ['&& denotes a mnemonic'] }, "&&Reopen Closed Editor"), 'workbench.action.reopenClosedEditor'));
 
-		const { folders, files } = this.historyService.getRecentPathsList();
+		const { workspaces, files } = this.historyService.getRecentlyOpened();
 
-		// Folders
-		if (folders.length > 0) {
+		// Workspaces
+		if (workspaces.length > 0) {
 			openRecentMenu.append(__separator__());
 
-			for (let i = 0; i < CodeMenu.MAX_MENU_RECENT_ENTRIES && i < folders.length; i++) {
-				openRecentMenu.append(this.createOpenRecentMenuItem(folders[i], 'openRecentFolder'));
+			for (let i = 0; i < CodeMenu.MAX_MENU_RECENT_ENTRIES && i < workspaces.length; i++) {
+				openRecentMenu.append(this.createOpenRecentMenuItem(workspaces[i], 'openRecentWorkspace'));
 			}
 		}
 
@@ -447,21 +463,25 @@ export class CodeMenu {
 			}
 		}
 
-		if (folders.length || files.length) {
+		if (workspaces.length || files.length) {
 			openRecentMenu.append(__separator__());
 			openRecentMenu.append(this.createMenuItem(nls.localize({ key: 'miMore', comment: ['&& denotes a mnemonic'] }, "&&More..."), 'workbench.action.openRecent'));
 			openRecentMenu.append(__separator__());
-			openRecentMenu.append(this.createMenuItem(nls.localize({ key: 'miClearRecentOpen', comment: ['&& denotes a mnemonic'] }, "&&Clear Recent Files"), 'workbench.action.clearRecentFiles'));
+			openRecentMenu.append(this.createMenuItem(nls.localize({ key: 'miClearRecentOpen', comment: ['&& denotes a mnemonic'] }, "&&Clear Recently Opened"), 'workbench.action.clearRecentFiles'));
 		}
 	}
 
-	private createOpenRecentMenuItem(path: string, commandId: string): Electron.MenuItem {
+	private createOpenRecentMenuItem(recent: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, commandId: string): Electron.MenuItem {
+		const label = (typeof recent === 'string') ? this.unmnemonicLabel(tildify(recent, this.environmentService.userHome)) : getWorkspaceLabel(this.environmentService, recent);
+		const path = (typeof recent === 'string') ? recent : recent.configPath;
+
 		return new MenuItem(this.likeAction(commandId, {
-			label: this.unmnemonicLabel(tildify(path, this.environmentService.userHome)), click: (menuItem, win, event) => {
+			label,
+			click: (menuItem, win, event) => {
 				const openInNewWindow = this.isOptionClick(event);
 				const success = this.windowsService.open({ context: OpenContext.MENU, cli: this.environmentService.args, pathsToOpen: [path], forceNewWindow: openInNewWindow }).length > 0;
 				if (!success) {
-					this.historyService.removeFromRecentPathsList(path);
+					this.historyService.removeFromRecentlyOpened(recent);
 				}
 			}
 		}, false));
@@ -803,7 +823,6 @@ export class CodeMenu {
 			__separator__(),
 			installAdditionalDebuggers
 		].forEach(item => debugMenu.append(item));
-
 	}
 
 	private setMacWindowMenu(macWindowMenu: Electron.Menu): void {

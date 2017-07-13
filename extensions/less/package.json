@@ -18,6 +18,21 @@
 			"language": "less",
 			"scopeName": "source.css.less",
 			"path": "./syntaxes/less.tmLanguage.json"
-		}]
+		}],
+		"problemMatchers": [
+			{
+				"name": "lessc",
+				"label": "Lessc compiler",
+				"owner": "lessc",
+				"fileLocation": "absolute",
+				"pattern": {
+					"regexp": "(.*)\\sin\\s(.*)\\son line\\s(\\d+),\\scolumn\\s(\\d+)",
+					"message": 1,
+					"file": 2,
+					"line": 3,
+					"column": 4
+				}
+			}
+		]
 	}
 }

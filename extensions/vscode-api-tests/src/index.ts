@@ -22,7 +22,7 @@ const testRunner = require('vscode/lib/testrunner');
 testRunner.configure({
 	ui: 'tdd', 		// the TDD UI is being used in extension.test.ts (suite, test, etc.)
 	useColors: process.platform !== 'win32', // colored output from test results (only windows cannot handle)
-	timeout: 10000
+	timeout: 60000
 });
 
 export = testRunner;

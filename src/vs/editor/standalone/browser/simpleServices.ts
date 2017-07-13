@@ -548,6 +548,14 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 		return true;
 	}
 
+	public hasFolderWorkspace(): boolean {
+		return true;
+	}
+
+	public hasMultiFolderWorkspace(): boolean {
+		return false;
+	}
+
 	public isInsideWorkspace(resource: URI): boolean {
 		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME;
 	}

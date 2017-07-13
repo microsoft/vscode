@@ -29,6 +29,7 @@ export interface IConfigOptions<T> {
 	defaultConfig?: T;
 	changeBufferDelay?: number;
 	parse?: (content: string, errors: any[]) => T;
+	initCallback?: (config: T) => void;
 }
 
 /**
@@ -74,6 +75,9 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		this.loadAsync(config => {
 			if (!this.loaded) {
 				this.updateCache(config); // prevent race condition if config was loaded sync already
+			}
+			if (this.options.initCallback) {
+				this.options.initCallback(this.getConfig());
 			}
 		});
 	}

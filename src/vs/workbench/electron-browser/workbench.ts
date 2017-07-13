@@ -47,9 +47,11 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { ContextMenuService } from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
 import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configuration';
+import { WorkspaceService } from 'vs/workbench/services/configuration/node/configuration';
 import { IConfigurationEditingService } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ConfigurationEditingService } from 'vs/workbench/services/configuration/node/configurationEditingService';
+import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
+import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IKeybindingEditingService, KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
@@ -219,7 +221,7 @@ export class Workbench implements IPartService {
 		@IStorageService private storageService: IStorageService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IMessageService private messageService: IMessageService,
-		@IConfigurationService private configurationService: WorkspaceConfigurationService,
+		@IConfigurationService private configurationService: WorkspaceService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWindowService private windowService: IWindowService
@@ -349,10 +351,12 @@ export class Workbench implements IPartService {
 					editorRestoreStopWatch.stop();
 
 					for (const editor of editors) {
-						if (editor && editor.input) {
-							restoredEditors.push(editor.input.getName());
-						} else {
-							restoredEditors.push(`other:${editor.getId()}`);
+						if (editor) {
+							if (editor.input) {
+								restoredEditors.push(editor.input.getName());
+							} else {
+								restoredEditors.push(`other:${editor.getId()}`);
+							}
 						}
 					}
 				});
@@ -581,6 +585,10 @@ export class Workbench implements IPartService {
 
 		// Text Model Resolver Service
 		serviceCollection.set(ITextModelService, new SyncDescriptor(TextModelResolverService));
+
+		// JSON Editing
+		const jsonEditingService = this.instantiationService.createInstance(JSONEditingService);
+		serviceCollection.set(IJSONEditingService, jsonEditingService);
 
 		// Configuration Editing
 		this.configurationEditingService = this.instantiationService.createInstance(ConfigurationEditingService);

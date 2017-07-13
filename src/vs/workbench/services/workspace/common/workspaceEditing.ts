@@ -14,6 +14,8 @@ export interface IWorkspaceEditingService {
 
 	_serviceBrand: ServiceIdentifier<any>;
 
+	createAndOpenWorkspace(roots: URI[]): TPromise<void>;
+
 	addRoots(roots: URI[]): TPromise<void>;
 
 	removeRoots(roots: URI[]): TPromise<void>;

@@ -8,8 +8,14 @@
 declare module 'vscode' {
 
 	export interface WorkspaceFoldersChangeEvent {
-		readonly addedFolders: Uri[];
-		readonly removedFolders: Uri[];
+		readonly added: WorkspaceFolder[];
+		readonly removed: WorkspaceFolder[];
+	}
+
+	export interface WorkspaceFolder {
+		readonly uri: Uri;
+		readonly name: string;
+		readonly index: number;
 	}
 
 	export namespace workspace {
@@ -18,12 +24,18 @@ declare module 'vscode' {
 		* List of workspace folders or `undefined` when no folder is open. The *first*
 		* element in the array is equal to the [`rootPath`](#workspace.rootPath)
 		*/
-		export let workspaceFolders: Uri[] | undefined;
+		export let workspaceFolders: WorkspaceFolder[] | undefined;
 
 		/**
 		 * An event that is emitted when a workspace folder is added or removed.
 		 */
 		export const onDidChangeWorkspaceFolders: Event<WorkspaceFoldersChangeEvent>;
+
+		/**
+		 *
+		 * @param pathOrUri
+		 */
+		export function getContainingWorkspaceFolder(uri: Uri): WorkspaceFolder | undefined;
 	}
 
 	export interface WorkspaceConfiguration2 extends WorkspaceConfiguration {
@@ -201,55 +213,4 @@ declare module 'vscode' {
 		 */
 		onData(callback: (data: string) => any): void;
 	}
-
-	/**
-	 * A custom Debug Adapter Protocol event received from a [debug session](#DebugSession).
-	 */
-	export interface DebugSessionCustomEvent {
-		/**
-		 * The [debug session](#DebugSession) for which the custom event was received.
-		 */
-		session: DebugSession;
-
-		/**
-		 * Type of event.
-		 */
-		event: string;
-
-		/**
-		 * Event specific information.
-		 */
-		body?: any;
-	}
-
-	export namespace debug {
-
-		/**
-		 * The currently active debug session or `undefined`. The active debug session is the one
-		 * represented by the debug action floating window or the one currently shown in the drop down menu of the debug action floating window.
-		 * If no debug session is active, the value is `undefined`.
-		 */
-		export let activeDebugSession: DebugSession | undefined;
-
-		/**
-		 * An [event](#Event) which fires when the [active debug session](#debug.activeDebugSession)
-		 * has changed. *Note* that the event also fires when the active debug session changes
-		 * to `undefined`.
-		 */
-		export const onDidChangeActiveDebugSession: Event<DebugSession | undefined>;
-
-		/**
-		 * An [event](#Event) which fires when a custom DAP event is received from the debug session.
-		 */
-		export const onDidReceiveDebugSessionCustomEvent: Event<DebugSessionCustomEvent>;
-	}
-
-	export interface DebugSession {
-
-		/**
-		 * The debug session's ID.
-		 */
-		readonly id: string;
-	}
-
 }

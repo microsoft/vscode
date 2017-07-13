@@ -399,11 +399,11 @@ export class ExtHostApiCommands {
 			resource,
 			range: typeConverters.fromRange(range)
 		};
-		return this._commands.executeCommand<modes.CodeAction[]>('_executeCodeActionProvider', args).then(value => {
+		return this._commands.executeCommand<modes.Command[]>('_executeCodeActionProvider', args).then(value => {
 			if (!Array.isArray(value)) {
 				return undefined;
 			}
-			return value.map(quickFix => this._commands.converter.fromInternal(quickFix.command));
+			return value.map(quickFix => this._commands.converter.fromInternal(quickFix));
 		});
 	}
 

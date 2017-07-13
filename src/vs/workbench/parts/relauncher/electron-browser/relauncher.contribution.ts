@@ -10,13 +10,13 @@ import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
-import { IWindowsService, IWindowService, IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, IWindowsConfiguration } from 'vs/platform/windows/common/windows';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
-interface IConfiguration extends IWindowConfiguration {
+interface IConfiguration extends IWindowsConfiguration {
 	update: { channel: string; };
 	telemetry: { enableCrashReporter: boolean };
 }
@@ -30,6 +30,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private updateChannel: string;
 	private enableCrashReporter: boolean;
 	private rootCount: number;
+	private firstRootPath: string;
 
 	constructor(
 		@IWindowsService private windowsService: IWindowsService,
@@ -41,6 +42,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		this.rootCount = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots.length : 0;
+		this.firstRootPath = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots[0].fsPath : void 0;
 		this.onConfigurationChange(configurationService.getConfiguration<IConfiguration>(), false);
 
 		this.registerListeners();
@@ -91,6 +93,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 
 	private onDidChangeWorkspaceRoots(): void {
 		const newRootCount = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots.length : 0;
+		const newFirstRootPath = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots[0].fsPath : void 0;
 
 		let reload = false;
 		if (this.rootCount === 0 && newRootCount > 0) {
@@ -99,7 +102,12 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 			reload = true; // transition: from 1+ folders to 0
 		}
 
+		if (this.firstRootPath !== newFirstRootPath) {
+			reload = true; // first root folder changed
+		}
+
 		this.rootCount = newRootCount;
+		this.firstRootPath = newFirstRootPath;
 
 		if (reload) {
 			this.doConfirm(

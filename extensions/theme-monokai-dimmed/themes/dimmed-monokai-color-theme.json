@@ -191,7 +191,7 @@
 		},
 		{
 			"name": "Class Variable",
-			"scope": "variable.js, punctuation.separator.variable",
+			"scope": "variable.other, variable.js, punctuation.separator.variable",
 			"settings": {
 				"fontStyle": "\n    \t\t\t",
 				"foreground": "#6089B4"
@@ -232,6 +232,14 @@
 		{
 			"name": "Function Object",
 			"scope": "meta.function-call.object",
+			"settings": {
+				"fontStyle": "\n    \t\t\t",
+				"foreground": "#9872A2"
+			}
+		},
+		{
+			"name": "Function Call Variable",
+			"scope": "variable.other.property",
 			"settings": {
 				"fontStyle": "\n    \t\t\t",
 				"foreground": "#9872A2"
