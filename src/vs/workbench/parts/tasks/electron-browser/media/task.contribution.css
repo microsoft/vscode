@@ -99,19 +99,19 @@
 	vertical-align: middle;
 }
 
-.task-panel-no-telemetry .light {
+.task-panel-no-telemetry.light {
 	background-image: url('thumbs-down.svg');
 }
 
-.task-panel-no-telemetry .dark {
+.task-panel-no-telemetry.dark {
 	background-image: url('thumbs-down-inverse.svg');
 }
 
-.task-panel-yes-telemetry .light {
+.task-panel-yes-telemetry.light {
 	background-image: url('thumbs-up.svg');
 }
 
-.task-panel-yes-telemetry .dark {
+.task-panel-yes-telemetry.dark {
 	background-image: url('thumbs-up-inverse.svg');
 }
 
