@@ -185,6 +185,12 @@ declare module 'xterm' {
 		 * @param end The row to end at (between start and this.rows - 1).
 		 */
 		refresh(start: number, end: number): void;
+
+		/**
+		 * Loads an addon, attaching it to the Terminal prototype.
+		 * @param addon The addon to load.
+		 */
+		static loadAddon(addon: string): void;
 	}
 
 	export = Terminal;

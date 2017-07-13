@@ -40,7 +40,7 @@ import pkg from 'vs/platform/node/package';
 const LAUNCHING_DURATION = 500;
 
 // Enable search functionality in xterm.js instance
-(<any>XTermTerminal).loadAddon('search');
+XTermTerminal.loadAddon('search');
 
 class StandardTerminalProcessFactory implements ITerminalProcessFactory {
 	public create(env: { [key: string]: string }): cp.ChildProcess {
