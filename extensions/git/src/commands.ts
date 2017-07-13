@@ -392,8 +392,21 @@ export class CommandCenter {
 			resourceStates = [resource];
 		}
 
+		const mergeConflicts = resourceStates.filter(s => s instanceof Resource && (s.resourceGroup instanceof MergeGroup)) as Resource[];
+		if (mergeConflicts.length > 0) {
+			const message = mergeConflicts.length > 1
+			? localize('confirm stage files with merge conflicts', "Are you sure you want to stage these files with merge conflicts?")
+			: localize('confirm stage file with merge conflicts', "Are you sure you want to stage this file with merge conflicts?");
+			const yes = localize('yes', "Yes");
+			const pick = await window.showWarningMessage(message, { modal: true }, yes);
+
+			if (pick !== yes) {
+				return;
+			}
+		}
+
 		const resources = resourceStates
-			.filter(s => s instanceof Resource && (s.resourceGroup instanceof WorkingTreeGroup || s.resourceGroup instanceof MergeGroup)) as Resource[];
+			.filter(s => s instanceof Resource && (s.resourceGroup instanceof WorkingTreeGroup)).concat(mergeConflicts) as Resource[];
 
 		if (!resources.length) {
 			return;
