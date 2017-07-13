@@ -10,7 +10,7 @@ import URI from 'vs/base/common/uri';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { Panel, PanelRegistry, PanelDescriptor, Extensions } from 'vs/workbench/browser/panel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService, ITheme, DARK, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ITheme, DARK, HIGH_CONTRAST, LIGHT } from 'vs/platform/theme/common/themeService';
 import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -109,7 +109,7 @@ export class TaskPanel extends Panel {
 		if ((theme.type === DARK || theme.type === HIGH_CONTRAST) && thumbButtons.hasClass('light')) {
 			thumbButtons.removeClass('light');
 			thumbButtons.addClass('dark');
-		} else if (thumbButtons.hasClass('dark')) {
+		} else if (theme.type === LIGHT && thumbButtons.hasClass('dark')) {
 			thumbButtons.removeClass('dark');
 			thumbButtons.addClass('light');
 		}
@@ -147,7 +147,7 @@ function getHtml() {
 	</p>
 </div>
 <div class="task-panel-text">
-	<div class="task-panel-header-item task-panel-centered">Do you think a task panel is useful?
+	<div class="task-panel-header-item task-panel-centered">Do you like the idea of a task panel?
 		<span class="task-panel-feedback-button task-panel-yes-telemetry light"></span>
 		<span class="task-panel-feedback-button task-panel-no-telemetry light"></span>
 	</div>
