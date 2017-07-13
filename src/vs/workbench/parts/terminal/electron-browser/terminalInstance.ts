@@ -39,6 +39,9 @@ import pkg from 'vs/platform/node/package';
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
 
+// Enable search functionality in xterm.js instance
+(<any>xterm).loadAddon('search');
+
 class StandardTerminalProcessFactory implements ITerminalProcessFactory {
 	public create(env: { [key: string]: string }): cp.ChildProcess {
 		return cp.fork('./terminalProcess', [], {
