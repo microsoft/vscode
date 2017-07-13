@@ -560,7 +560,6 @@ export class FileSorter implements ISorter {
 		// Sort Directories
 		switch (this.sortOrder) {
 			case 'default':
-			case 'type':
 			case 'modified':
 				if (statA.isDirectory && !statB.isDirectory) {
 					return -1;
@@ -568,6 +567,21 @@ export class FileSorter implements ISorter {
 
 				if (statB.isDirectory && !statA.isDirectory) {
 					return 1;
+				}
+
+				break;
+
+			case 'type':
+				if (statA.isDirectory && !statB.isDirectory) {
+					return -1;
+				}
+
+				if (statB.isDirectory && !statA.isDirectory) {
+					return 1;
+				}
+
+				if (statA.isDirectory && statB.isDirectory) {
+					return comparers.compareFileNames(statA.name, statB.name);
 				}
 
 				break;
