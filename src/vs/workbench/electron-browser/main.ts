@@ -137,6 +137,7 @@ function createAndInitializeWorkspaceService(configuration: IWindowConfiguration
 	return validateWorkspacePath(configuration).then(() => {
 		const workspaceConfigPath = configuration.workspace ? configuration.workspace.configPath : null;
 		const workspaceService = (workspaceConfigPath || configuration.folderPath) ? new WorkspaceServiceImpl(workspaceConfigPath, configuration.folderPath, environmentService) : new EmptyWorkspaceServiceImpl(environmentService);
+
 		return workspaceService.initialize().then(() => workspaceService, error => new EmptyWorkspaceServiceImpl(environmentService));
 	});
 }

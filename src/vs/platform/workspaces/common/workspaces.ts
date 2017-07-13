@@ -16,7 +16,7 @@ import { IEnvironmentService } from "vs/platform/environment/common/environment"
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
 
-export const WORKSPACE_EXTENSION = 'code';
+export const WORKSPACE_EXTENSION = 'code-workspace';
 
 export interface IWorkspaceIdentifier {
 	id: string;

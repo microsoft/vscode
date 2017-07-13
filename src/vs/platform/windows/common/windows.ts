@@ -189,11 +189,17 @@ export interface IOpenFileRequest {
 export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	appRoot: string;
 	execPath: string;
+	isInitialStartup?: boolean;
 
 	userEnv: IProcessEnvironment;
+	nodeCachedDataDir: string;
+
+	backupPath?: string;
+
+	workspace?: IWorkspaceIdentifier;
+	folderPath?: string;
 
 	isISOKeyboard?: boolean;
-
 	zoomLevel?: number;
 	fullscreen?: boolean;
 	highContrast?: boolean;
@@ -201,15 +207,7 @@ export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	backgroundColor?: string;
 	accessibilitySupport?: boolean;
 
-	isInitialStartup?: boolean;
-
 	perfStartTime?: number;
 	perfAppReady?: number;
 	perfWindowLoadTime?: number;
-
-	workspace?: IWorkspaceIdentifier;
-	folderPath?: string;
-	backupPath?: string;
-
-	nodeCachedDataDir: string;
 }
