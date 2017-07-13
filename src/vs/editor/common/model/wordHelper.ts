@@ -57,10 +57,6 @@ export function ensureValidWordDefinition(wordDefinition?: RegExp): RegExp {
 function getWordAtPosFast(column: number, wordDefinition: RegExp, text: string, textOffset: number): IWordAtPosition {
 	// find whitespace enclosed text around column and match from there
 
-	if (wordDefinition.test(' ')) {
-		return getWordAtPosSlow(column, wordDefinition, text, textOffset);
-	}
-
 	let pos = column - 1 - textOffset;
 	let start = text.lastIndexOf(' ', pos - 1) + 1;
 	let end = text.indexOf(' ', pos);
@@ -113,10 +109,25 @@ function getWordAtPosSlow(column: number, wordDefinition: RegExp, text: string, 
 }
 
 export function getWordAtText(column: number, wordDefinition: RegExp, text: string, textOffset: number): IWordAtPosition {
-	const result = getWordAtPosFast(column, wordDefinition, text, textOffset);
+
+	// if `words` can contain whitespace character we have to use the slow variant
+	// otherwise we use the fast variant of finding a word
+	wordDefinition.lastIndex = 0;
+	let match = wordDefinition.exec(text);
+	if (!match) {
+		return null;
+	}
+	// todo@joh the `match` could already be the (first) word
+	const ret = match[0].indexOf(' ') >= 0
+		// did match a word which contains a space character -> use slow word find
+		? getWordAtPosSlow(column, wordDefinition, text, textOffset)
+		// sane word definition -> use fast word find
+		: getWordAtPosFast(column, wordDefinition, text, textOffset);
+
 	// both (getWordAtPosFast and getWordAtPosSlow) leave the wordDefinition-RegExp
 	// in an undefined state and to not confuse other users of the wordDefinition
 	// we reset the lastIndex
 	wordDefinition.lastIndex = 0;
-	return result;
+
+	return ret;
 }
