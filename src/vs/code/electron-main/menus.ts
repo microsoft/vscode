@@ -22,7 +22,7 @@ import { tildify } from 'vs/base/common/labels';
 import { KeybindingsResolver } from "vs/code/electron-main/keyboard";
 import { IWindowsMainService } from "vs/platform/windows/electron-main/windows";
 import { IHistoryMainService } from "vs/platform/history/common/history";
-import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 
 interface IExtensionViewlet {
 	id: string;
@@ -471,7 +471,7 @@ export class CodeMenu {
 		}
 	}
 
-	private createOpenRecentMenuItem(recent: IWorkspaceIdentifier | string, commandId: string): Electron.MenuItem {
+	private createOpenRecentMenuItem(recent: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, commandId: string): Electron.MenuItem {
 		const label = (typeof recent === 'string') ? this.unmnemonicLabel(tildify(recent, this.environmentService.userHome)) : getWorkspaceLabel(this.environmentService, recent);
 		const path = (typeof recent === 'string') ? recent : recent.configPath;
 

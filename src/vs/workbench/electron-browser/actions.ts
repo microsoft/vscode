@@ -40,7 +40,7 @@ import { webFrame } from 'electron';
 import { getPathLabel } from 'vs/base/common/labels';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
-import { IWorkspaceIdentifier, getWorkspaceLabel } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 
 // --- actions
 
@@ -668,9 +668,9 @@ export abstract class BaseOpenRecentAction extends Action {
 			.then(({ workspaces, files }) => this.openRecent(workspaces, files));
 	}
 
-	private openRecent(recentWorkspaces: (IWorkspaceIdentifier | string)[], recentFiles: string[]): void {
+	private openRecent(recentWorkspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], recentFiles: string[]): void {
 
-		function toPick(arg1: IWorkspaceIdentifier | string, separator: ISeparator, isFolder: boolean, environmentService: IEnvironmentService): IFilePickOpenEntry {
+		function toPick(arg1: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, separator: ISeparator, isFolder: boolean, environmentService: IEnvironmentService): IFilePickOpenEntry {
 			const path = (typeof arg1 === 'string') ? arg1 : arg1.configPath;
 			const label = (typeof arg1 === 'string') ? paths.basename(path) : getWorkspaceLabel(environmentService, arg1);
 			const description = (typeof arg1 === 'string') ? getPathLabel(paths.dirname(path), null, environmentService) : void 0;
@@ -691,7 +691,7 @@ export abstract class BaseOpenRecentAction extends Action {
 			};
 		}
 
-		const runPick = (arg1: IWorkspaceIdentifier | string, context: IEntryRunContext) => {
+		const runPick = (arg1: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, context: IEntryRunContext) => {
 			const forceNewWindow = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
 			this.windowsService.openWindow([typeof arg1 === 'string' ? arg1 : arg1.configPath], { forceNewWindow });
 		};

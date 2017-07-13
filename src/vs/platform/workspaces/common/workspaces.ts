@@ -18,6 +18,11 @@ export const IWorkspacesService = createDecorator<IWorkspacesService>('workspace
 
 export const WORKSPACE_EXTENSION = 'code-workspace';
 
+/**
+ * A single folder workspace identifier is just the path to the folder.
+ */
+export type ISingleFolderWorkspaceIdentifier = string;
+
 export interface IWorkspaceIdentifier {
 	id: string;
 	configPath: string;

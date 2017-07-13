@@ -16,7 +16,7 @@ import { getPathLabel } from 'vs/base/common/labels';
 import { IPath } from 'vs/platform/windows/common/windows';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import { isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 import { IHistoryMainService, IRecentlyOpened } from "vs/platform/history/common/history";
 import { IEnvironmentService } from "vs/platform/environment/common/environment";
 
@@ -43,7 +43,7 @@ export class HistoryMainService implements IHistoryMainService {
 	) {
 	}
 
-	public addRecentlyOpened(workspaces: (IWorkspaceIdentifier | string)[], files: string[]): void {
+	public addRecentlyOpened(workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], files: string[]): void {
 		if ((workspaces && workspaces.length > 0) || (files && files.length > 0)) {
 			const mru = this.getRecentlyOpened();
 
@@ -87,8 +87,8 @@ export class HistoryMainService implements IHistoryMainService {
 		return typeof obj === 'string';
 	}
 
-	public removeFromRecentlyOpened(toRemove: IWorkspaceIdentifier | string): void;
-	public removeFromRecentlyOpened(toRemove: (IWorkspaceIdentifier | string)[]): void;
+	public removeFromRecentlyOpened(toRemove: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): void;
+	public removeFromRecentlyOpened(toRemove: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[]): void;
 	public removeFromRecentlyOpened(arg1: any): void {
 		let workspacesOrFilesToRemove: any[];
 		if (Array.isArray(arg1)) {
@@ -100,7 +100,7 @@ export class HistoryMainService implements IHistoryMainService {
 		const mru = this.getRecentlyOpened();
 		let update = false;
 
-		workspacesOrFilesToRemove.forEach((workspaceOrFileToRemove: IWorkspaceIdentifier | string) => {
+		workspacesOrFilesToRemove.forEach((workspaceOrFileToRemove: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier) => {
 
 			// Remove workspace
 			let index = arrays.firstIndex(mru.workspaces, workspace => this.equals(workspace, workspaceOrFileToRemove));
@@ -125,7 +125,7 @@ export class HistoryMainService implements IHistoryMainService {
 		}
 	}
 
-	private equals(w1: IWorkspaceIdentifier | string, w2: IWorkspaceIdentifier | string): boolean {
+	private equals(w1: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, w2: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): boolean {
 		if (w1 === w2) {
 			return true;
 		}
@@ -145,8 +145,8 @@ export class HistoryMainService implements IHistoryMainService {
 		this._onRecentlyOpenedChange.fire();
 	}
 
-	public getRecentlyOpened(currentWorkspace?: IWorkspaceIdentifier | string, currentFiles?: IPath[]): IRecentlyOpened {
-		let workspaces: (IWorkspaceIdentifier | string)[];
+	public getRecentlyOpened(currentWorkspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, currentFiles?: IPath[]): IRecentlyOpened {
+		let workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[];
 		let files: string[];
 
 		// Get from storage

@@ -10,7 +10,7 @@ import Event, { buffer } from 'vs/base/common/event';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
 import { IWindowsService } from './windows';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 import { IRecentlyOpened } from "vs/platform/history/common/history";
 
 export interface IWindowsChannel extends IChannel {
@@ -26,7 +26,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'toggleFullScreen', arg: number): TPromise<void>;
 	call(command: 'setRepresentedFilename', arg: [number, string]): TPromise<void>;
 	call(command: 'addRecentlyOpened', arg: string[]): TPromise<void>;
-	call(command: 'removeFromRecentlyOpened', arg: (IWorkspaceIdentifier | string)[]): TPromise<void>;
+	call(command: 'removeFromRecentlyOpened', arg: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[]): TPromise<void>;
 	call(command: 'clearRecentlyOpened'): TPromise<void>;
 	call(command: 'getRecentlyOpened', arg: number): TPromise<IRecentlyOpened>;
 	call(command: 'focusWindow', arg: number): TPromise<void>;
@@ -165,7 +165,7 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('addRecentlyOpened', files);
 	}
 
-	removeFromRecentlyOpened(toRemove: (IWorkspaceIdentifier | string)[]): TPromise<void> {
+	removeFromRecentlyOpened(toRemove: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[]): TPromise<void> {
 		return this.channel.call('removeFromRecentlyOpened', toRemove);
 	}
 

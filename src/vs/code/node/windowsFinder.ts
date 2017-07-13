@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as platform from 'vs/base/common/platform';
 import * as paths from 'vs/base/common/paths';
 import { OpenContext } from 'vs/platform/windows/common/windows';
-import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 import { isParent } from "vs/platform/files/common/files";
 
 export interface ISimpleWindow {
@@ -168,7 +168,7 @@ export function findExtensionDevelopmentWindow<W extends ISimpleWindow>(windows:
 	return null;
 }
 
-export function findWindowOnWorkspaceOrFolder<W extends ISimpleWindow>(windows: W[], target: IWorkspaceIdentifier | string): W {
+export function findWindowOnWorkspaceOrFolder<W extends ISimpleWindow>(windows: W[], target: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): W {
 	const directTargetMatch = windows.filter(w => {
 		if (typeof target === 'string') {
 			return paths.isEqual(target, w.openedFolderPath, !platform.isLinux /* ignorecase */);

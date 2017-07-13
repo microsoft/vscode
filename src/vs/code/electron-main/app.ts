@@ -50,7 +50,7 @@ import { CodeWindow } from "vs/code/electron-main/window";
 import { KeyboardLayoutMonitor } from "vs/code/electron-main/keyboard";
 import URI from 'vs/base/common/uri';
 import { WorkspacesChannel } from "vs/platform/workspaces/common/workspacesIpc";
-import { IWorkspacesMainService, IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspacesMainService, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 import { findWindowOnWorkspaceOrFolder } from "vs/code/node/windowsFinder";
 
 export class CodeApplication {
@@ -204,7 +204,7 @@ export class CodeApplication {
 			});
 		});
 
-		ipc.on('vscode:broadcast', (event, windowId: number, target: IWorkspaceIdentifier | string, broadcast: { channel: string; payload: any; }) => {
+		ipc.on('vscode:broadcast', (event, windowId: number, target: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, broadcast: { channel: string; payload: any; }) => {
 			if (this.windowsMainService && broadcast.channel && !isUndefinedOrNull(broadcast.payload)) {
 				this.logService.log('IPC#vscode:broadcast', target, broadcast.channel, broadcast.payload);
 
