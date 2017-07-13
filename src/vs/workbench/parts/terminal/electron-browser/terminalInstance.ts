@@ -12,7 +12,7 @@ import * as platform from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
 import Event, { Emitter } from 'vs/base/common/event';
 import Uri from 'vs/base/common/uri';
-import xterm = require('xterm');
+import Terminal = require('xterm');
 import { Dimension } from 'vs/base/browser/builder';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -73,7 +73,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _instanceDisposables: lifecycle.IDisposable[];
 	private _processDisposables: lifecycle.IDisposable[];
 	private _wrapperElement: HTMLDivElement;
-	private _xterm: any;
+	private _xterm: Terminal;
 	private _xtermElement: HTMLDivElement;
 	private _terminalHasTextContextKey: IContextKey<boolean>;
 	private _cols: number;
@@ -206,7 +206,7 @@ export class TerminalInstance implements ITerminalInstance {
 	 * Create xterm.js instance and attach data listeners.
 	 */
 	protected _createXterm(): void {
-		this._xterm = xterm({
+		this._xterm = new Terminal({
 			scrollback: this._configHelper.config.scrollback
 		});
 		if (this._shellLaunchConfig.initialText) {
@@ -276,7 +276,7 @@ export class TerminalInstance implements ITerminalInstance {
 			setTimeout(() => this._refreshSelectionContextKey(), 0);
 		}));
 
-		const xtermHelper: HTMLElement = this._xterm.element.querySelector('.xterm-helpers');
+		const xtermHelper: HTMLElement = <HTMLElement>this._xterm.element.querySelector('.xterm-helpers');
 		const focusTrap: HTMLElement = document.createElement('div');
 		focusTrap.setAttribute('tabindex', '0');
 		dom.addClass(focusTrap, 'focus-trap');
