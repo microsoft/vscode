@@ -76,7 +76,7 @@ export class DeploymentView extends CollapsibleView {
 		let section = $('div.section').appendTo(container);
 
 		this.deploymentLink = document.createElement('a');
-		this.deploymentLink.innerText = nls.localize('deployApplication', "Deploy your applciation using Git");
+		this.deploymentLink.innerText = nls.localize('deployApplication', "Deploy your application using Git");
 		this.deploymentLink.classList.add('pointer');
 		this.deploymentLink.classList.add('prominent');
 		this.deploymentLink.tabIndex = 0;
