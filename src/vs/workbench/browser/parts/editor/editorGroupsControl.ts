@@ -1118,12 +1118,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 					// Add external ones to recently open list
 					const externalResources = droppedResources.filter(d => d.isExternal).map(d => d.resource);
 					if (externalResources.length) {
-						$this.windowsService.addToRecentlyOpened(externalResources.map(resource => {
-							return {
-								path: resource.fsPath,
-								isFile: true
-							};
-						}));
+						$this.windowsService.addRecentlyOpened(externalResources.map(resource => resource.fsPath));
 					}
 
 					// Open in Editor

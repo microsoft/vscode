@@ -443,7 +443,7 @@ export class CodeMenu {
 	private setOpenRecentMenu(openRecentMenu: Electron.Menu): void {
 		openRecentMenu.append(this.createMenuItem(nls.localize({ key: 'miReopenClosedEditor', comment: ['&& denotes a mnemonic'] }, "&&Reopen Closed Editor"), 'workbench.action.reopenClosedEditor'));
 
-		const { workspaces, folders, files } = this.historyService.getRecentlyOpened();
+		const { workspaces, files } = this.historyService.getRecentlyOpened();
 
 		// Workspaces
 		if (workspaces.length > 0) {
@@ -451,15 +451,6 @@ export class CodeMenu {
 
 			for (let i = 0; i < CodeMenu.MAX_MENU_RECENT_ENTRIES && i < workspaces.length; i++) {
 				openRecentMenu.append(this.createOpenRecentMenuItem(workspaces[i], 'openRecentWorkspace'));
-			}
-		}
-
-		// Folders
-		if (folders.length > 0) {
-			openRecentMenu.append(__separator__());
-
-			for (let i = 0; i < CodeMenu.MAX_MENU_RECENT_ENTRIES && i < folders.length; i++) {
-				openRecentMenu.append(this.createOpenRecentMenuItem(folders[i], 'openRecentFolder'));
 			}
 		}
 
@@ -472,7 +463,7 @@ export class CodeMenu {
 			}
 		}
 
-		if (folders.length || files.length) {
+		if (workspaces.length || files.length) {
 			openRecentMenu.append(__separator__());
 			openRecentMenu.append(this.createMenuItem(nls.localize({ key: 'miMore', comment: ['&& denotes a mnemonic'] }, "&&More..."), 'workbench.action.openRecent'));
 			openRecentMenu.append(__separator__());

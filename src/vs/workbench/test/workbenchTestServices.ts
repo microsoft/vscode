@@ -55,7 +55,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
-import { IRecentlyOpened, IRecentlyOpenedFile } from "vs/platform/history/common/history";
+import { IRecentlyOpened } from "vs/platform/history/common/history";
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -1022,7 +1022,7 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
-	addToRecentlyOpened(recent: (IWorkspaceIdentifier | IRecentlyOpenedFile)[]): TPromise<void> {
+	addRecentlyOpened(files: string[]): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 

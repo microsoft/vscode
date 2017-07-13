@@ -665,10 +665,10 @@ export abstract class BaseOpenRecentAction extends Action {
 
 	public run(): TPromise<void> {
 		return this.windowService.getRecentlyOpened()
-			.then(({ workspaces, files, folders }) => this.openRecent(workspaces, files, folders));
+			.then(({ workspaces, files }) => this.openRecent(workspaces, files));
 	}
 
-	private openRecent(recentWorkspaces: IWorkspaceIdentifier[], recentFiles: string[], recentFolders: string[]): void {
+	private openRecent(recentWorkspaces: (IWorkspaceIdentifier | string)[], recentFiles: string[]): void {
 
 		function toPick(arg1: IWorkspaceIdentifier | string, separator: ISeparator, isFolder: boolean, environmentService: IEnvironmentService): IFilePickOpenEntry {
 			const path = (typeof arg1 === 'string') ? arg1 : arg1.configPath;
@@ -696,25 +696,14 @@ export abstract class BaseOpenRecentAction extends Action {
 			this.windowsService.openWindow([typeof arg1 === 'string' ? arg1 : arg1.configPath], { forceNewWindow });
 		};
 
-		const workspacePicks: IFilePickOpenEntry[] = recentWorkspaces.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('workspaces', "workspaces") } : void 0, false, this.environmentService));
-		const folderPicks: IFilePickOpenEntry[] = recentFolders.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('folders', "folders") } : void 0, true, this.environmentService));
+		const workspacePicks: IFilePickOpenEntry[] = recentWorkspaces.map((workspace, index) => toPick(workspace, index === 0 ? { label: nls.localize('workspaces', "workspaces") } : void 0, true, this.environmentService));
 		const filePicks: IFilePickOpenEntry[] = recentFiles.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0, false, this.environmentService));
 
 		const hasWorkspace = this.contextService.hasWorkspace();
 
-		let autoFocusFirstEntry = !hasWorkspace;
-		let autoFocusSecondEntry = !autoFocusFirstEntry;
-		if (workspacePicks.length > 0 && folderPicks.length > 0) {
-			// if we show both workspace picks and folder picks, we can no longer make any smart
-			// auto focus choice because the list is no longer in pure MRU order. In this case
-			// we simply do not focus any entry.
-			autoFocusFirstEntry = false;
-			autoFocusSecondEntry = false;
-		}
-
-		this.quickOpenService.pick([...workspacePicks, ...folderPicks, ...filePicks], {
+		this.quickOpenService.pick([...workspacePicks, ...filePicks], {
 			contextKey: inRecentFilesPickerContextKey,
-			autoFocus: { autoFocusFirstEntry, autoFocusSecondEntry },
+			autoFocus: { autoFocusFirstEntry: !hasWorkspace, autoFocusSecondEntry: hasWorkspace },
 			placeHolder: isMacintosh ? nls.localize('openRecentPlaceHolderMac', "Select to open (hold Cmd-key to open in new window)") : nls.localize('openRecentPlaceHolder', "Select to open (hold Ctrl-key to open in new window)"),
 			matchOnDescription: true,
 			quickNavigateConfiguration: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : void 0

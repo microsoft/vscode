@@ -13,14 +13,8 @@ import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 export const IHistoryMainService = createDecorator<IHistoryMainService>('historyMainService');
 
 export interface IRecentlyOpened {
-	workspaces: IWorkspaceIdentifier[];
-	folders: string[];
+	workspaces: (IWorkspaceIdentifier | string)[];
 	files: string[];
-}
-
-export interface IRecentlyOpenedFile {
-	path: string;
-	isFile?: boolean;
 }
 
 export interface IHistoryMainService {
@@ -28,9 +22,9 @@ export interface IHistoryMainService {
 
 	onRecentlyOpenedChange: CommonEvent<void>;
 
-	addToRecentlyOpened(recent: (IWorkspaceIdentifier | IRecentlyOpenedFile)[]): void;
+	addRecentlyOpened(workspaces: (IWorkspaceIdentifier | string)[], files: string[]): void;
 
-	getRecentlyOpened(currentWorkspace?: IWorkspaceIdentifier, currentFolderPath?: string, currentFiles?: IPath[]): IRecentlyOpened;
+	getRecentlyOpened(currentWorkspace?: IWorkspaceIdentifier | string, currentFiles?: IPath[]): IRecentlyOpened;
 
 	removeFromRecentlyOpened(toRemove: IWorkspaceIdentifier | string): void;
 	removeFromRecentlyOpened(toRemove: (IWorkspaceIdentifier | string)[]): void;

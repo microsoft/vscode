@@ -18,7 +18,7 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { ILifecycleService } from "vs/platform/lifecycle/electron-main/lifecycleMain";
 import { IWindowsMainService, ISharedProcess } from "vs/platform/windows/electron-main/windows";
-import { IHistoryMainService, IRecentlyOpenedFile, IRecentlyOpened } from "vs/platform/history/common/history";
+import { IHistoryMainService, IRecentlyOpened } from "vs/platform/history/common/history";
 import { findExtensionDevelopmentWindow } from "vs/code/node/windowsFinder";
 import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 
@@ -140,8 +140,8 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return TPromise.as(null);
 	}
 
-	addToRecentlyOpened(recent: (IWorkspaceIdentifier | IRecentlyOpenedFile)[]): TPromise<void> {
-		this.historyService.addToRecentlyOpened(recent);
+	addRecentlyOpened(files: string[]): TPromise<void> {
+		this.historyService.addRecentlyOpened(void 0, files);
 
 		return TPromise.as(null);
 	}
@@ -162,12 +162,12 @@ export class WindowsService implements IWindowsService, IDisposable {
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
 		if (codeWindow) {
-			const recentlyOpened = this.historyService.getRecentlyOpened(codeWindow.config.workspace, codeWindow.config.folderPath, codeWindow.config.filesToOpen);
+			const recentlyOpened = this.historyService.getRecentlyOpened(codeWindow.config.workspace || codeWindow.config.folderPath, codeWindow.config.filesToOpen);
 
 			return TPromise.as(recentlyOpened);
 		}
 
-		return TPromise.as(<IRecentlyOpened>{ workspaces: [], files: [], folders: [] });
+		return TPromise.as(<IRecentlyOpened>{ workspaces: [], files: [] });
 	}
 
 	focusWindow(windowId: number): TPromise<void> {
