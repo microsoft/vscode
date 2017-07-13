@@ -8,8 +8,14 @@
 declare module 'vscode' {
 
 	export interface WorkspaceFoldersChangeEvent {
-		readonly addedFolders: Uri[];
-		readonly removedFolders: Uri[];
+		readonly added: WorkspaceFolder[];
+		readonly removed: WorkspaceFolder[];
+	}
+
+	export interface WorkspaceFolder {
+		readonly uri: Uri;
+		readonly name: string;
+		readonly index: number;
 	}
 
 	export namespace workspace {
@@ -18,12 +24,18 @@ declare module 'vscode' {
 		* List of workspace folders or `undefined` when no folder is open. The *first*
 		* element in the array is equal to the [`rootPath`](#workspace.rootPath)
 		*/
-		export let workspaceFolders: Uri[] | undefined;
+		export let workspaceFolders: WorkspaceFolder[] | undefined;
 
 		/**
 		 * An event that is emitted when a workspace folder is added or removed.
 		 */
 		export const onDidChangeWorkspaceFolders: Event<WorkspaceFoldersChangeEvent>;
+
+		/**
+		 *
+		 * @param pathOrUri
+		 */
+		export function getContainingWorkspaceFolder(uri: Uri): WorkspaceFolder | undefined;
 	}
 
 	export interface WorkspaceConfiguration2 extends WorkspaceConfiguration {

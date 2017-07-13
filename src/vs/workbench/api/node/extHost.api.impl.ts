@@ -367,11 +367,14 @@ export function createApiFactory(
 			set rootPath(value) {
 				throw errors.readonly();
 			},
+			getContainingWorkspaceFolder(resource) {
+				return extHostWorkspace.getEnclosingWorkspaceFolder(resource);
+			},
 			get workspaceFolders() {
 				// proposed api
 				assertProposedApi(extension);
 				apiUsage.publicLog('workspace#workspaceFolders');
-				return extHostWorkspace.getRoots();
+				return extHostWorkspace.getWorkspaceFolders();
 			},
 			onDidChangeWorkspaceFolders: proposedApiFunction(extension, (listener, thisArgs?, disposables?) => {
 				// proposed api

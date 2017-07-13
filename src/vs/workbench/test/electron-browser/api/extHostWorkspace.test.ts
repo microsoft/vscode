@@ -70,35 +70,35 @@ suite('ExtHostWorkspace', function () {
 		let ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', name: 'Test', roots: [] });
 
 		let sub = ws.onDidChangeWorkspace(e => {
-			assert.deepEqual(e.addedFolders, []);
-			assert.deepEqual(e.removedFolders, []);
+			assert.deepEqual(e.added, []);
+			assert.deepEqual(e.removed, []);
 		});
 		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', roots: [] });
 		sub.dispose();
 
 		sub = ws.onDidChangeWorkspace(e => {
-			assert.deepEqual(e.removedFolders, []);
-			assert.equal(e.addedFolders.length, 1);
-			assert.equal(e.addedFolders[0].toString(), 'foo:bar');
+			assert.deepEqual(e.removed, []);
+			assert.equal(e.added.length, 1);
+			assert.equal(e.added[0].uri.toString(), 'foo:bar');
 		});
 		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', roots: [URI.parse('foo:bar')] });
 		sub.dispose();
 
 		sub = ws.onDidChangeWorkspace(e => {
-			assert.deepEqual(e.removedFolders, []);
-			assert.equal(e.addedFolders.length, 1);
-			assert.equal(e.addedFolders[0].toString(), 'foo:bar2');
+			assert.deepEqual(e.removed, []);
+			assert.equal(e.added.length, 1);
+			assert.equal(e.added[0].uri.toString(), 'foo:bar2');
 		});
 		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', roots: [URI.parse('foo:bar'), URI.parse('foo:bar2')] });
 		sub.dispose();
 
 		sub = ws.onDidChangeWorkspace(e => {
-			assert.equal(e.removedFolders.length, 2);
-			assert.equal(e.removedFolders[0].toString(), 'foo:bar');
-			assert.equal(e.removedFolders[1].toString(), 'foo:bar2');
+			assert.equal(e.removed.length, 2);
+			assert.equal(e.removed[0].uri.toString(), 'foo:bar');
+			assert.equal(e.removed[1].uri.toString(), 'foo:bar2');
 
-			assert.equal(e.addedFolders.length, 1);
-			assert.equal(e.addedFolders[0].toString(), 'foo:bar3');
+			assert.equal(e.added.length, 1);
+			assert.equal(e.added[0].uri.toString(), 'foo:bar3');
 		});
 		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', roots: [URI.parse('foo:bar3')] });
 		sub.dispose();
@@ -109,10 +109,10 @@ suite('ExtHostWorkspace', function () {
 		let ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', name: 'Test', roots: [] });
 		let sub = ws.onDidChangeWorkspace(e => {
 			assert.throws(() => {
-				(<any>e).addedFolders = [];
+				(<any>e).added = [];
 			});
 			assert.throws(() => {
-				(<any>e.addedFolders)[0] = null;
+				(<any>e.added)[0] = null;
 			});
 		});
 		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', roots: [] });

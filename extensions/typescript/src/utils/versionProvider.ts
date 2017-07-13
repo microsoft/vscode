@@ -92,7 +92,7 @@ export class TypeScriptVersionProvider {
 		}
 
 		return [workspace.workspaceFolders[0]]
-			.map(root => path.join(root.fsPath, typeScriptPath, 'tsserver.js'))
+			.map(root => path.join(root.uri.fsPath, typeScriptPath, 'tsserver.js'))
 			.map(path => this.loadFromPath(path))
 			.filter(x => !!x) as TypeScriptVersion[];
 	}

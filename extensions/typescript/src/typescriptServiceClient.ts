@@ -604,7 +604,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 
 		if (workspace.workspaceFolders && workspace.workspaceFolders.length) {
-			return workspace.workspaceFolders[0].fsPath;
+			return workspace.workspaceFolders[0].uri.fsPath;
 		}
 
 		return undefined;
@@ -617,13 +617,13 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 
 		if (resource.scheme === 'file' || resource.scheme === 'untitled') {
-			for (const root of roots.sort((a, b) => a.fsPath.length - b.fsPath.length)) {
-				if (resource.fsPath.startsWith(root.fsPath)) {
-					return root.fsPath;
+			for (const root of roots.sort((a, b) => a.uri.fsPath.length - b.uri.fsPath.length)) {
+				if (resource.fsPath.startsWith(root.uri.fsPath)) {
+					return root.uri.fsPath;
 				}
 			}
 		}
-		return roots[0].fsPath;
+		return roots[0].uri.fsPath;
 	}
 
 	public execute(command: string, args: any, expectsResultOrToken?: boolean | CancellationToken): Promise<any> {
