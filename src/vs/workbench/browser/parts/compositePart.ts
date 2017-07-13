@@ -525,7 +525,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return $(parent).div({
 			'class': 'content'
 		}, (div: Builder) => {
-			$(div).on(DOM.EventType.CONTEXT_MENU, (e: MouseEvent) => this.onContextMenu(new StandardMouseEvent(e)));
 			this.progressBar = new ProgressBar(div);
 			this.toUnbind.push(attachProgressBarStyler(this.progressBar, this.themeService));
 			this.progressBar.getContainer().hide();
