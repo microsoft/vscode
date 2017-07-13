@@ -139,6 +139,8 @@
 .task-panel-mockup-button {
 	display: inline-block;
 	padding: 2px;
+	margin-right: 2px;
+	margin-left: 2px;
 }
 
 .task-panel-oneliner {

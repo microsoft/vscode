@@ -128,6 +128,7 @@ export class TaskPanel extends Panel {
 function getHtml() {
 	return `
 <div class="task-panel-container">
+	<p> We're thinking of adding a task panel in this space. If you would like to learn more about how to use tasks, click <a class="task-panel-linkstyle" href="https://code.visualstudio.com/docs/editor/tasks">here</a>.</p>
 	<p> Some things you might be able to do here: </br>
 	<ul>
 		<li> See a list of autodetected and manually configured tasks </li>
@@ -137,12 +138,11 @@ function getHtml() {
 	</ul></p>
 	<p> Here's a rough idea of what a task item might look like. By no means is this the final layout so please do not judge the look.</p>
 	<div class="task-panel-example-item">
-		<p class="task-panel-oneliner"> Task1: tsc -watch <span class="task-panel-right-aligned"> Running (0 Errors) <span class="task-panel-mockup-button">Show Output</span>
-			<span class="task-panel-mockup-button">Stop</span>
-			<span class="task-panel-mockup-button">Restart</span></span>
+		<p class="task-panel-oneliner"> Task1: tsc -watch <span class="task-panel-right-aligned"> Running (0 Errors)&nbsp;
+			<span class="task-panel-mockup-button">Show Output</span><span class="task-panel-mockup-button">Stop</span><span class="task-panel-mockup-button">Restart</span></span>
 		</p>
 	</div>
-	<p class="task-panel-feedback"> If you are interested in further discussion or have feedback of your own, please go the github issue
+	<p class="task-panel-feedback"> If you are interested in further discussion or have feedback of your own, please see the github issue
 		<a class="task-panel-linkstyle" href="https://github.com/Microsoft/vscode/issues/28235"> here</a>.
 	</p>
 </div>
