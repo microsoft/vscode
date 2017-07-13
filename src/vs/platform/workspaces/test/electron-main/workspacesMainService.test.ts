@@ -14,7 +14,7 @@ import pfs = require('vs/base/node/pfs');
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { WorkspacesMainService } from "vs/platform/workspaces/electron-main/workspacesMainService";
-import { IStoredWorkspace } from "vs/platform/workspaces/common/workspaces";
+import { IStoredWorkspace, WORKSPACE_EXTENSION } from "vs/platform/workspaces/common/workspaces";
 
 class TestWorkspacesMainService extends WorkspacesMainService {
 	constructor(workspacesHome: string) {
@@ -75,7 +75,7 @@ suite('WorkspacesMainService', () => {
 			assert.ok(!service.resolveWorkspaceSync(workspace.configPath));
 
 			// make it a valid workspace path
-			const newPath = path.join(path.dirname(workspace.configPath), 'workspace.code');
+			const newPath = path.join(path.dirname(workspace.configPath), `workspace.${WORKSPACE_EXTENSION}`);
 			fs.renameSync(workspace.configPath, newPath);
 			workspace.configPath = newPath;
 
@@ -88,7 +88,7 @@ suite('WorkspacesMainService', () => {
 
 	test('saveWorkspace', done => {
 		return service.createWorkspace([process.cwd(), os.tmpdir()]).then(workspace => {
-			const workspaceConfigPath = path.join(os.tmpdir(), 'myworkspace.code');
+			const workspaceConfigPath = path.join(os.tmpdir(), `myworkspace.${WORKSPACE_EXTENSION}`);
 
 			return service.saveWorkspace(workspace, workspaceConfigPath).then(savedWorkspace => {
 				assert.equal(savedWorkspace.id, workspace.id);
