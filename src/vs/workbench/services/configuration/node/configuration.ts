@@ -32,8 +32,8 @@ import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, editorConfigurationSchemaId, IDefaultConfigurationExtension, validateProperty, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-
 import { createHash } from 'crypto';
+import { getWorkspaceLabel } from "vs/platform/workspaces/common/workspaces";
 
 interface IStat {
 	resource: URI;
@@ -327,7 +327,7 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 	private workspaceConfiguration: WorkspaceConfiguration;
 	private cachedFolderConfigs: StrictResourceMap<FolderConfiguration<any>>;
 
-	constructor(private workspaceConfigPath: string, private folderPath: string, environmentService: IEnvironmentService, private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME) {
+	constructor(private workspaceConfigPath: string, private folderPath: string, private environmentService: IEnvironmentService, private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME) {
 		super();
 		this.baseConfigurationService = this._register(new GlobalConfigurationService(environmentService));
 	}
@@ -394,7 +394,8 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 				if (!workspaceConfigurationModel.id || !workspaceConfigurationModel.folders.length) {
 					return TPromise.wrapError<void>(new Error('Invalid workspace configuraton file ' + this.workspaceConfigPath));
 				}
-				this.workspace = new Workspace(workspaceConfigurationModel.id, nls.localize('untitledWorkspace', "Untitled Workspace"), workspaceConfigurationModel.folders, this.workspaceConfiguration.workspaceConfigurationPath);
+				const workspaceName = getWorkspaceLabel(this.environmentService, { id: workspaceConfigurationModel.id, configPath: this.workspaceConfiguration.workspaceConfigurationPath.fsPath });
+				this.workspace = new Workspace(workspaceConfigurationModel.id, workspaceName, workspaceConfigurationModel.folders, this.workspaceConfiguration.workspaceConfigurationPath);
 				this.legacyWorkspace = new LegacyWorkspace(this.workspace.roots[0]);
 				this._register(this.workspaceConfiguration.onDidUpdateConfiguration(() => this.onWorkspaceConfigurationChanged()));
 				return null;

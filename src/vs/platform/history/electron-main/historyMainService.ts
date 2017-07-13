@@ -53,7 +53,7 @@ export class HistoryMainService implements IHistoryMainService {
 				mru.workspaces = arrays.distinct(mru.workspaces, workspace => this.isSingleFolderWorkspace(workspace) ? workspace : workspace.id);
 
 				// Add to recent documents unless the workspace is untitled (macOS only, Windows can show workspaces separately)
-				const isUntitledWorkspace = this.isWorkspace(workspace) && this.workspacesService.isUntitledWorkspace(workspace);
+				const isUntitledWorkspace = !this.isSingleFolderWorkspace(workspace) && this.workspacesService.isUntitledWorkspace(workspace);
 				if (isMacintosh && !isUntitledWorkspace) {
 					app.addRecentDocument(this.isSingleFolderWorkspace(workspace) ? workspace : workspace.configPath);
 				}
@@ -77,10 +77,6 @@ export class HistoryMainService implements IHistoryMainService {
 			this.storageService.setItem(HistoryMainService.recentlyOpenedStorageKey, mru);
 			this._onRecentlyOpenedChange.fire();
 		}
-	}
-
-	private isWorkspace(obj: any): obj is IWorkspaceIdentifier {
-		return !!(obj as IWorkspaceIdentifier).id;
 	}
 
 	private isSingleFolderWorkspace(obj: any): obj is string {
