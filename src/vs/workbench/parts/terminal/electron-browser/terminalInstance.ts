@@ -822,11 +822,6 @@ export class TerminalInstance implements ITerminalInstance {
 		});
 	}
 
-	public enableApiOnData(): void {
-		// Only send data through IPC if the API explicitly requests it.
-		this.onData(data => this._onDataForApi.fire({ instance: this, data }));
-	}
-
 	public static setTerminalProcessFactory(factory: ITerminalProcessFactory): void {
 		this._terminalProcessFactory = factory;
 	}
