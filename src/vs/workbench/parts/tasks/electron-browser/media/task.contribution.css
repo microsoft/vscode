@@ -92,33 +92,40 @@
  * Task Panel styles
  */
 
-.monaco-workbench .task-action { background: url('update.svg') center center no-repeat; }
-
-.task-panel-no-telemetry {
-	background-image: url('thumbs-down.svg');
+.task-panel-feedback-button {
 	width: 50px;
 	height: 50px;
+	display: inline-block;
 	vertical-align: middle;
 }
 
-.task-panel-yes-telemetry {
+.task-panel-no-telemetry .light {
+	background-image: url('thumbs-down.svg');
+}
+
+.task-panel-no-telemetry .dark {
+	background-image: url('thumbs-down-inverse.svg');
+}
+
+.task-panel-yes-telemetry .light {
 	background-image: url('thumbs-up.svg');
-	width: 50px;
-	height: 50px;
-	vertical-align: middle;
+}
+
+.task-panel-yes-telemetry .dark {
+	background-image: url('thumbs-up-inverse.svg');
 }
 
 .task-panel {
 	padding-left: 10px;
 	padding-right: 10px;
-	margin-right: 10%;
-	margin-left: 10%;
+	overflow-y: scroll;
 }
 
 .task-panel-container {
 	outline: grey dotted thin;
 	padding: 1px 17px;
-	margin-top: 10px;
+	margin: 10px auto 0px;
+	max-width: 800px;
 }
 
 .task-panel-example-item {
@@ -141,6 +148,8 @@
 
 .task-panel-right-aligned {
 	float: right;
+	/* cancel out 2px button padding */
+	margin-top: -2px;
 }
 
 .task-panel-centered {
@@ -150,7 +159,6 @@
 
 .task-panel-header-item {
 	font-size: 19px;
-	transition: display 2s linear 500ms;
 }
 
 .task-panel-feedback {
