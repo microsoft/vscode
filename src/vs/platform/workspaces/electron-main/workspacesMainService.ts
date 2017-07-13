@@ -10,11 +10,12 @@ import { TPromise } from "vs/base/common/winjs.base";
 import { isParent } from "vs/platform/files/common/files";
 import { IEnvironmentService } from "vs/platform/environment/common/environment";
 import { extname, join } from "path";
-import { mkdirp, writeFile } from "vs/base/node/pfs";
+import { mkdirp, writeFile, exists } from "vs/base/node/pfs";
 import { readFileSync } from "fs";
 import { isLinux } from "vs/base/common/platform";
 import { copy } from "vs/base/node/extfs";
 import { nfcall } from "vs/base/common/async";
+import { localize } from "vs/nls";
 
 export class WorkspacesMainService implements IWorkspacesMainService {
 
@@ -82,8 +83,14 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 	}
 
 	public saveWorkspace(workspace: IWorkspaceIdentifier, target: string): TPromise<IWorkspaceIdentifier> {
-		return nfcall(copy, workspace.configPath, target).then(() => {
-			return this.resolveWorkspaceSync(target);
+		return exists(target).then(exists => {
+			if (exists) {
+				return TPromise.wrapError(new Error(localize('targetExists', "A workspace with the same name already exists at the provided location.")));
+			}
+
+			return nfcall(copy, workspace.configPath, target).then(() => {
+				return this.resolveWorkspaceSync(target);
+			});
 		});
 	}
 }

@@ -85,4 +85,25 @@ suite('WorkspacesMainService', () => {
 			done();
 		});
 	});
+
+	test('saveWorkspace', done => {
+		return service.createWorkspace([process.cwd(), os.tmpdir()]).then(workspace => {
+			const workspaceConfigPath = path.join(os.tmpdir(), 'myworkspace.code');
+
+			return service.saveWorkspace(workspace, workspaceConfigPath).then(savedWorkspace => {
+				assert.equal(savedWorkspace.id, workspace.id);
+				assert.equal(savedWorkspace.configPath, workspaceConfigPath);
+
+				const ws = JSON.parse(fs.readFileSync(savedWorkspace.configPath).toString()) as IStoredWorkspace;
+				assert.equal(ws.id, workspace.id);
+				assert.equal(ws.folders.length, 2);
+				assert.equal(ws.folders[0], process.cwd());
+				assert.equal(ws.folders[1], os.tmpdir());
+
+				extfs.delSync(workspaceConfigPath);
+
+				done();
+			});
+		});
+	});
 });
