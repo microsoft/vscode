@@ -86,7 +86,7 @@ export class CloseWindowAction extends Action {
 export class CloseWorkspaceAction extends Action {
 
 	static ID = 'workbench.action.closeFolder';
-	static LABEL = nls.localize('closeFolder', "Close Workspace");
+	static LABEL = nls.localize('closeWorkspace', "Close Workspace");
 
 	constructor(
 		id: string,
@@ -105,7 +105,7 @@ export class CloseWorkspaceAction extends Action {
 			return TPromise.as(null);
 		}
 
-		return this.windowService.closeFolder();
+		return this.windowService.closeWorkspace();
 	}
 }
 

@@ -52,6 +52,7 @@ export interface IWindowsMainService {
 	// methods
 	ready(initialUserEnv: IProcessEnvironment): void;
 	reload(win: ICodeWindow, cli?: ParsedArgs): void;
+	closeWorkspace(win: ICodeWindow): void;
 	open(openConfig: IOpenConfiguration): ICodeWindow[];
 	openExtensionDevelopmentHostWindow(openConfig: IOpenConfiguration): void;
 	pickFileFolderAndOpen(forceNewWindow?: boolean, data?: ITelemetryData): void;
@@ -80,7 +81,6 @@ export interface IOpenConfiguration {
 	forceNewWindow?: boolean;
 	forceReuseWindow?: boolean;
 	forceEmpty?: boolean;
-	windowToUse?: ICodeWindow;
 	diffMode?: boolean;
 	initialStartup?: boolean;
 }

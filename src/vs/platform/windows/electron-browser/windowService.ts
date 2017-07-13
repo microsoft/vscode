@@ -52,8 +52,8 @@ export class WindowService implements IWindowService {
 		return this.windowsService.toggleDevTools(this.windowId);
 	}
 
-	closeFolder(): TPromise<void> {
-		return this.windowsService.closeFolder(this.windowId);
+	closeWorkspace(): TPromise<void> {
+		return this.windowsService.closeWorkspace(this.windowId);
 	}
 
 	closeWindow(): TPromise<void> {

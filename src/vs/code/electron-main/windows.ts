@@ -290,6 +290,13 @@ export class WindowsManager implements IWindowsMainService {
 		};
 	}
 
+	public closeWorkspace(win: CodeWindow): void {
+		this.openInBrowserWindow({
+			cli: this.environmentService.args,
+			windowToUse: win
+		});
+	}
+
 	public open(openConfig: IOpenConfiguration): CodeWindow[] {
 		const windowsToOpen = this.getWindowsToOpen(openConfig);
 
@@ -539,8 +546,7 @@ export class WindowsManager implements IWindowsMainService {
 					userEnv: openConfig.userEnv,
 					cli: openConfig.cli,
 					initialStartup: openConfig.initialStartup,
-					forceNewWindow: openFolderInNewWindow,
-					windowToUse: openFolderInNewWindow ? void 0 : openConfig.windowToUse as CodeWindow
+					forceNewWindow: openFolderInNewWindow
 				}));
 
 				openFolderInNewWindow = true; // any other folders to open must open in new window then
@@ -570,8 +576,7 @@ export class WindowsManager implements IWindowsMainService {
 			filesToOpen,
 			filesToCreate,
 			filesToDiff,
-			forceNewWindow: openInNewWindow,
-			windowToUse: openInNewWindow ? void 0 : openConfig.windowToUse as CodeWindow
+			forceNewWindow: openInNewWindow
 		});
 
 		return browserWindow;
@@ -876,7 +881,6 @@ export class WindowsManager implements IWindowsMainService {
 		let codeWindow: CodeWindow;
 		if (!options.forceNewWindow) {
 			codeWindow = options.windowToUse || this.getLastActiveWindow();
-
 			if (codeWindow) {
 				codeWindow.focus();
 			}

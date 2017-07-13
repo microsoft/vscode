@@ -879,7 +879,7 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
-	closeFolder(): TPromise<void> {
+	closeWorkspace(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
@@ -1010,8 +1010,7 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
-	// TODO@joao: rename, shouldn't this be closeWindow?
-	closeFolder(windowId: number): TPromise<void> {
+	closeWorkspace(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 

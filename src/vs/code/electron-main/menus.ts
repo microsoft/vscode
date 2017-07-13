@@ -385,7 +385,7 @@ export class CodeMenu {
 		const revertFile = this.createMenuItem(nls.localize({ key: 'miRevert', comment: ['&& denotes a mnemonic'] }, "Re&&vert File"), 'workbench.action.files.revert', this.windowsService.getWindowCount() > 0);
 		const closeWindow = new MenuItem(this.likeAction('workbench.action.closeWindow', { label: this.mnemonicLabel(nls.localize({ key: 'miCloseWindow', comment: ['&& denotes a mnemonic'] }, "Clos&&e Window")), click: () => this.windowsService.getLastActiveWindow().win.close(), enabled: this.windowsService.getWindowCount() > 0 }));
 
-		const closeFolder = this.createMenuItem(nls.localize({ key: 'miCloseWorkspace', comment: ['&& denotes a mnemonic'] }, "Close &&Workspace"), 'workbench.action.closeFolder');
+		const closeWorkspace = this.createMenuItem(nls.localize({ key: 'miCloseWorkspace', comment: ['&& denotes a mnemonic'] }, "Close &&Workspace"), 'workbench.action.closeFolder');
 		const closeEditor = this.createMenuItem(nls.localize({ key: 'miCloseEditor', comment: ['&& denotes a mnemonic'] }, "&&Close Editor"), 'workbench.action.closeActiveEditor');
 
 		const exit = new MenuItem(this.likeAction('workbench.action.quit', { label: this.mnemonicLabel(nls.localize({ key: 'miExit', comment: ['&& denotes a mnemonic'] }, "E&&xit")), click: () => this.windowsService.quit() }));
@@ -411,7 +411,7 @@ export class CodeMenu {
 			!isMacintosh ? __separator__() : null,
 			revertFile,
 			closeEditor,
-			closeFolder,
+			closeWorkspace,
 			closeWindow,
 			!isMacintosh ? __separator__() : null,
 			!isMacintosh ? exit : null

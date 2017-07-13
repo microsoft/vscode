@@ -110,11 +110,11 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return TPromise.as(null);
 	}
 
-	closeFolder(windowId: number): TPromise<void> {
+	closeWorkspace(windowId: number): TPromise<void> {
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
 		if (codeWindow) {
-			this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentService.args, forceEmpty: true, windowToUse: codeWindow, forceReuseWindow: true });
+			this.windowsMainService.closeWorkspace(codeWindow);
 		}
 
 		return TPromise.as(null);
