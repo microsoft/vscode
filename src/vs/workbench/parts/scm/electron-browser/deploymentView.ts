@@ -47,6 +47,7 @@ export class DeploymentView extends CollapsibleView {
 
 	public static ID: string = 'workbench.deploymentView';
 	public static NAME = nls.localize('deployment', "Deployment");
+	public static HEADER_HEIGHT = 22;
 	public static HEIGHT = 80;
 
 	private deploymentLink: HTMLAnchorElement;
