@@ -89,7 +89,7 @@ export abstract class BaseRootFolderAction extends Action {
 		};
 
 		if (isLinux) {
-			opts.defaultId = 2;
+			opts.defaultId = 1;
 		}
 
 		const res = this.windowService.showMessageBox(opts);
