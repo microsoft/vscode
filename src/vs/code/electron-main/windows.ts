@@ -444,6 +444,24 @@ export class WindowsManager implements IWindowsMainService {
 		const allWorkspacesToOpen = arrays.distinct([...workspacesToOpen, ...workspacesToRestore], workspace => workspace.id); // prevent duplicates
 		if (allWorkspacesToOpen.length > 0) {
 
+			// Check for existing instances that have same workspace ID but different configuration path
+			// For now we reload that window with the new configuration so that the configuration path change
+			// can travel properly.
+			// TODO@Ben multi root revisit this once we can better transition between workspaces of the same id
+			allWorkspacesToOpen.forEach(workspaceToOpen => {
+				const existingWindow = findWindowOnWorkspace(WindowsManager.WINDOWS, workspaceToOpen);
+				if (existingWindow && existingWindow.openedWorkspace.configPath !== workspaceToOpen.configPath) {
+					usedWindows.push(this.doOpenFolderOrWorkspace(openConfig, { workspace: workspaceToOpen }, false, filesToOpen, filesToCreate, filesToDiff, existingWindow));
+
+					// Reset these because we handled them
+					filesToOpen = [];
+					filesToCreate = [];
+					filesToDiff = [];
+
+					openFolderInNewWindow = true; // any other folders to open must open in new window then
+				}
+			});
+
 			// Check for existing instances
 			const windowsOnWorkspace = arrays.coalesce(allWorkspacesToOpen.map(workspaceToOpen => findWindowOnWorkspace(WindowsManager.WINDOWS, workspaceToOpen)));
 			if (windowsOnWorkspace.length > 0) {
@@ -566,7 +584,7 @@ export class WindowsManager implements IWindowsMainService {
 		return window;
 	}
 
-	private doOpenFolderOrWorkspace(openConfig: IOpenConfiguration, folderOrWorkspace: IWindowToOpen, openInNewWindow: boolean, filesToOpen: IPath[], filesToCreate: IPath[], filesToDiff: IPath[]): CodeWindow {
+	private doOpenFolderOrWorkspace(openConfig: IOpenConfiguration, folderOrWorkspace: IWindowToOpen, openInNewWindow: boolean, filesToOpen: IPath[], filesToCreate: IPath[], filesToDiff: IPath[], windowToUse?: CodeWindow): CodeWindow {
 		const browserWindow = this.openInBrowserWindow({
 			userEnv: openConfig.userEnv,
 			cli: openConfig.cli,
@@ -576,7 +594,8 @@ export class WindowsManager implements IWindowsMainService {
 			filesToOpen,
 			filesToCreate,
 			filesToDiff,
-			forceNewWindow: openInNewWindow
+			forceNewWindow: openInNewWindow,
+			windowToUse
 		});
 
 		return browserWindow;
