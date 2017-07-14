@@ -63,6 +63,14 @@ var LayeringRule = (function (_super) {
     LayeringRule.prototype.visitImportDeclaration = function (node) {
         this._validateImport(node.moduleSpecifier.getText(), node);
     };
+    LayeringRule.prototype.visitCallExpression = function (node) {
+        _super.prototype.visitCallExpression.call(this, node);
+        // import('foo') statements inside the code
+        if (node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+            var path = node.arguments[0];
+            this._validateImport(path.getText(), node);
+        }
+    };
     LayeringRule.prototype._validateImport = function (path, node) {
         // remove quotes
         path = path.slice(1, -1);

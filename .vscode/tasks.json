@@ -32,7 +32,9 @@
 			"type": "gulp",
 			"task": "tslint",
 			"label": "Run tslint",
-			"problemMatcher": ["$tslint4"]
+			"problemMatcher": [
+				"$tslint4"
+			]
 		},
 		{
 			"taskName": "Run tests",
@@ -59,6 +61,11 @@
 			"type": "gulp",
 			"task": "electron",
 			"label": "Download electron"
+		},
+		{
+			"type": "gulp",
+			"task": "hygiene",
+			"problemMatcher": []
 		}
 	]
 }

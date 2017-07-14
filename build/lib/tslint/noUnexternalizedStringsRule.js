@@ -172,6 +172,6 @@ var NoUnexternalizedStringsRuleWalker = (function (_super) {
             node = parent;
         }
     };
+    NoUnexternalizedStringsRuleWalker.DOUBLE_QUOTE = '"';
     return NoUnexternalizedStringsRuleWalker;
 }(Lint.RuleWalker));
-NoUnexternalizedStringsRuleWalker.DOUBLE_QUOTE = '"';

@@ -162,50 +162,50 @@ var XLF = (function () {
         line.append(content);
         this.buffer.push(line.toString());
     };
+    XLF.parse = function (xlfString) {
+        return new Promise(function (resolve, reject) {
+            var parser = new xml2js.Parser();
+            var files = [];
+            parser.parseString(xlfString, function (err, result) {
+                if (err) {
+                    reject("Failed to parse XLIFF string. " + err);
+                }
+                var fileNodes = result['xliff']['file'];
+                if (!fileNodes) {
+                    reject('XLIFF file does not contain "xliff" or "file" node(s) required for parsing.');
+                }
+                fileNodes.forEach(function (file) {
+                    var originalFilePath = file.$.original;
+                    if (!originalFilePath) {
+                        reject('XLIFF file node does not contain original attribute to determine the original location of the resource file.');
+                    }
+                    var language = file.$['target-language'].toLowerCase();
+                    if (!language) {
+                        reject('XLIFF file node does not contain target-language attribute to determine translated language.');
+                    }
+                    var messages = {};
+                    var transUnits = file.body[0]['trans-unit'];
+                    transUnits.forEach(function (unit) {
+                        var key = unit.$.id;
+                        if (!unit.target) {
+                            return; // No translation available
+                        }
+                        var val = unit.target.toString();
+                        if (key && val) {
+                            messages[key] = decodeEntities(val);
+                        }
+                        else {
+                            reject('XLIFF file does not contain full localization data. ID or target translation for one of the trans-unit nodes is not present.');
+                        }
+                    });
+                    files.push({ messages: messages, originalFilePath: originalFilePath, language: language });
+                });
+                resolve(files);
+            });
+        });
+    };
     return XLF;
 }());
-XLF.parse = function (xlfString) {
-    return new Promise(function (resolve, reject) {
-        var parser = new xml2js.Parser();
-        var files = [];
-        parser.parseString(xlfString, function (err, result) {
-            if (err) {
-                reject("Failed to parse XLIFF string. " + err);
-            }
-            var fileNodes = result['xliff']['file'];
-            if (!fileNodes) {
-                reject('XLIFF file does not contain "xliff" or "file" node(s) required for parsing.');
-            }
-            fileNodes.forEach(function (file) {
-                var originalFilePath = file.$.original;
-                if (!originalFilePath) {
-                    reject('XLIFF file node does not contain original attribute to determine the original location of the resource file.');
-                }
-                var language = file.$['target-language'].toLowerCase();
-                if (!language) {
-                    reject('XLIFF file node does not contain target-language attribute to determine translated language.');
-                }
-                var messages = {};
-                var transUnits = file.body[0]['trans-unit'];
-                transUnits.forEach(function (unit) {
-                    var key = unit.$.id;
-                    if (!unit.target) {
-                        return; // No translation available
-                    }
-                    var val = unit.target.toString();
-                    if (key && val) {
-                        messages[key] = decodeEntities(val);
-                    }
-                    else {
-                        reject('XLIFF file does not contain full localization data. ID or target translation for one of the trans-unit nodes is not present.');
-                    }
-                });
-                files.push({ messages: messages, originalFilePath: originalFilePath, language: language });
-            });
-            resolve(files);
-        });
-    });
-};
 exports.XLF = XLF;
 var iso639_3_to_2 = {
     'chs': 'zh-cn',
