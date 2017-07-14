@@ -6,7 +6,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { OpenContext, IWindowConfiguration, ReadyState, IPath } from 'vs/platform/windows/common/windows';
+import { OpenContext, IWindowConfiguration, ReadyState } from 'vs/platform/windows/common/windows';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import Event from 'vs/base/common/event';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
@@ -47,7 +47,6 @@ export interface IWindowsMainService {
 	onWindowReady: Event<ICodeWindow>;
 	onWindowClose: Event<number>;
 	onWindowReload: Event<number>;
-	onPathsOpen: Event<IPath[]>;
 
 	// methods
 	ready(initialUserEnv: IProcessEnvironment): void;

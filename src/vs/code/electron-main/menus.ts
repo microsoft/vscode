@@ -101,7 +101,6 @@ export class CodeMenu {
 		});
 
 		// Listen to some events from window service
-		this.windowsService.onPathsOpen(paths => this.updateMenu());
 		this.historyService.onRecentlyOpenedChange(() => this.updateMenu());
 		this.windowsService.onWindowClose(_ => this.onClose(this.windowsService.getWindowCount()));
 

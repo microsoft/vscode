@@ -121,9 +121,6 @@ export class WindowsManager implements IWindowsMainService {
 	private _onWindowReload = new Emitter<number>();
 	onWindowReload: CommonEvent<number> = this._onWindowReload.event;
 
-	private _onPathsOpen = new Emitter<IPath[]>();
-	onPathsOpen: CommonEvent<IPath[]> = this._onPathsOpen.event;
-
 	constructor(
 		@ILogService private logService: ILogService,
 		@IStorageService private storageService: IStorageService,
@@ -362,11 +359,6 @@ export class WindowsManager implements IWindowsMainService {
 			});
 
 			this.historyService.addRecentlyOpened(recentlyOpenedWorkspaces, recentlyOpenedFiles);
-		}
-
-		// Emit events
-		if (windowsToOpen.length) {
-			this._onPathsOpen.fire(windowsToOpen);
 		}
 
 		// If we got started with --wait from the CLI, we need to signal to the outside when the window
