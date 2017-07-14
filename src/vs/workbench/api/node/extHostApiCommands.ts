@@ -231,13 +231,32 @@ export class ExtHostApiCommands {
 				]
 			});
 
-		this._register('vscode.open', (resource: URI, column: vscode.ViewColumn) => {
-			return this._commands.executeCommand('_workbench.open', [resource, typeConverters.fromViewColumn(column)]);
+		this._register('vscode.open', (resource: URI, arg2: vscode.ViewColumn | vscode.TextDocumentShowOptions) => {
+			let editorOptions: ITextEditorOptions;
+			let column: vscode.ViewColumn;
+
+			if (arg2) {
+				if (typeof arg2 === 'number') {
+					column = arg2;
+				} else {
+					const options = arg2;
+
+					editorOptions = {
+						pinned: typeof options.preview === 'boolean' ? !options.preview : undefined,
+						preserveFocus: options.preserveFocus,
+						selection: typeof options.selection === 'object' ? typeConverters.fromRange(options.selection) : undefined
+					};
+
+					column = options.viewColumn;
+				}
+			}
+
+			return this._commands.executeCommand('_workbench.open', [resource, editorOptions, column]);
 		}, {
 				description: 'Opens the provided resource in the editor. Can be a text or binary file, or a http(s) url',
 				args: [
 					{ name: 'resource', description: 'Resource to open', constraint: URI },
-					{ name: 'column', description: '(optional) Column in which to open', constraint: v => v === void 0 || typeof v === 'number' }
+					{ name: 'columnOrOptions', description: '(optional) Either the column in which to open or editor options, see vscode.TextDocumentShowOptions', constraint: v => v === void 0 || typeof v === 'number' || typeof v === 'object' }
 				]
 			});
 	}

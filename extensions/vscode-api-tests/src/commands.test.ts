@@ -131,7 +131,8 @@ suite('commands namespace tests', () => {
 		let b = commands.executeCommand('vscode.open', uri, ViewColumn.Two).then(() => assert.ok(true), () => assert.ok(false));
 		let c = commands.executeCommand('vscode.open').then(() => assert.ok(false), () => assert.ok(true));
 		let d = commands.executeCommand('vscode.open', uri, true).then(() => assert.ok(false), () => assert.ok(true));
+		let e = commands.executeCommand('vscode.open', uri, { selection: new Range(new Position(1, 1), new Position(1, 2)) }).then(() => assert.ok(true), () => assert.ok(false));
 
-		return Promise.all([a, b, c, d]);
+		return Promise.all([a, b, c, d, e]);
 	});
 });
