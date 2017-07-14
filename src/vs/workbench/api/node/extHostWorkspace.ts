@@ -37,7 +37,7 @@ class Workspace2 {
 		const root = this.workspace.getRoot(uri);
 		if (root) {
 			for (const folder of this.folders) {
-				if (folder.uri.toString() === uri.toString()) {
+				if (folder.uri.toString() === root.toString()) {
 					return folder;
 				}
 			}

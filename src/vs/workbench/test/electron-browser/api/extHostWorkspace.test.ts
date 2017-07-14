@@ -66,6 +66,39 @@ suite('ExtHostWorkspace', function () {
 		assert.equal(ws.getPath().replace(/\\/g, '/'), '/Folder');
 	});
 
+	test('WorkspaceFolder has name and index', function () {
+		const ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', roots: [URI.file('/Coding/One'), URI.file('/Coding/Two')], name: 'Test' });
+
+		const [one, two] = ws.getWorkspaceFolders();
+
+		assert.equal(one.name, 'One');
+		assert.equal(one.index, 0);
+		assert.equal(two.name, 'Two');
+		assert.equal(two.index, 1);
+	});
+
+	test('getContainingWorkspaceFolder', function () {
+		const ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', name: 'Test', roots: [URI.file('/Coding/One'), URI.file('/Coding/Two'), URI.file('/Coding/Two/Nested')] });
+
+		let folder = ws.getEnclosingWorkspaceFolder(URI.file('/foo/bar'));
+		assert.equal(folder, undefined);
+
+		folder = ws.getEnclosingWorkspaceFolder(URI.file('/Coding/One/file/path.txt'));
+		assert.equal(folder.name, 'One');
+
+		folder = ws.getEnclosingWorkspaceFolder(URI.file('/Coding/Two/file/path.txt'));
+		assert.equal(folder.name, 'Two');
+
+		folder = ws.getEnclosingWorkspaceFolder(URI.file('/Coding/Two/Nest'));
+		assert.equal(folder.name, 'Two');
+
+		folder = ws.getEnclosingWorkspaceFolder(URI.file('/Coding/Two/Nested/file'));
+		assert.equal(folder.name, 'Nested');
+
+		// folder = ws.getEnclosingWorkspaceFolder(URI.file('/Coding/Two/Nested'));
+		// assert.equal(folder.name, 'Two');
+	});
+
 	test('Multiroot change event should have a delta, #29641', function () {
 		let ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', name: 'Test', roots: [] });
 
