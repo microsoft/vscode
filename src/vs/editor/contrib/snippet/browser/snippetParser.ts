@@ -375,7 +375,7 @@ export class SnippetParser {
 
 		this._scanner.text(value);
 		this._token = this._scanner.next();
-		while (this._parseAny(marker) || this._parseText(marker)) {
+		while (this._parse(marker)) {
 			// nothing
 		}
 
@@ -437,19 +437,22 @@ export class SnippetParser {
 		return false;
 	}
 
-	private _parseAny(marker: Marker[]): boolean {
-		if (this._parseEscaped(marker)) {
-			return true;
-		} else if (this._parsePlaceholderOrVariable(marker)) {
-			return true;
-		}
-		return false;
+	private _parse(marker: Marker[]): boolean {
+		return this._parseEscaped(marker)
+			|| this._parsePlaceholderOrVariable(marker)
+			|| this._parseAnything(marker);
 	}
 
-	private _parseText(marker: Marker[]): boolean {
-		if (this._token.type !== TokenType.EOF) {
-			marker.push(new Text(this._scanner.tokenText(this._token)));
-			this._accept(undefined);
+	private _parseEscaped(marker: Marker[]): boolean {
+		let value: string;
+		if (value = this._accept(TokenType.Backslash, true)) {
+			// saw a backslash, append escaped token or that backslash
+			value = this._accept(TokenType.Dollar, true)
+				|| this._accept(TokenType.CurlyClose, true)
+				|| this._accept(TokenType.Backslash, true)
+				|| value;
+
+			marker.push(new Text(value));
 			return true;
 		}
 		return false;
@@ -496,7 +499,7 @@ export class SnippetParser {
 					return true;
 				}
 
-				if (this._parseAny(children) || this._parseText(children)) {
+				if (this._parse(children)) {
 					continue;
 				}
 
@@ -512,16 +515,10 @@ export class SnippetParser {
 		}
 	}
 
-	private _parseEscaped(marker: Marker[]): boolean {
-		let value: string;
-		if (value = this._accept(TokenType.Backslash, true)) {
-			// saw a backslash, append escaped token or that backslash
-			value = this._accept(TokenType.Dollar, true)
-				|| this._accept(TokenType.CurlyClose, true)
-				|| this._accept(TokenType.Backslash, true)
-				|| value;
-
-			marker.push(new Text(value));
+	private _parseAnything(marker: Marker[]): boolean {
+		if (this._token.type !== TokenType.EOF) {
+			marker.push(new Text(this._scanner.tokenText(this._token)));
+			this._accept(undefined);
 			return true;
 		}
 		return false;
