@@ -204,7 +204,7 @@ export class Workbench implements IPartService {
 	private editorsVisibleContext: IContextKey<boolean>;
 	private inZenMode: IContextKey<boolean>;
 	private hasFilesToCreateOpenOrDiff: boolean;
-	private fontAliasingEnabled: boolean;
+	private fontAliasing: string;
 	private zenMode: {
 		active: boolean;
 		transitionedToFullScreen: boolean;
@@ -648,7 +648,7 @@ export class Workbench implements IPartService {
 		this.activityBarHidden = !activityBarVisible;
 
 		// Font aliasing
-		this.fontAliasingEnabled = this.configurationService.lookup<boolean>(Workbench.fontAliasingConfigurationKey).value;
+		this.fontAliasing = this.configurationService.lookup<string>(Workbench.fontAliasingConfigurationKey).value;
 
 		// Zen mode
 		this.zenMode = {
@@ -916,9 +916,9 @@ export class Workbench implements IPartService {
 		this.workbenchLayout.layout();
 	}
 
-	private setFontAliasing(enabled: boolean) {
-		this.fontAliasingEnabled = enabled;
-		this.workbench.style('-webkit-font-smoothing', enabled ? 'antialiased' : '');
+	private setFontAliasing(aliasing: string) {
+		this.fontAliasing = aliasing;
+		this.workbench.style('-webkit-font-smoothing', (aliasing === 'default' ? '' : aliasing));
 	}
 
 	public dispose(): void {
@@ -1048,8 +1048,8 @@ export class Workbench implements IPartService {
 			this.setSideBarPosition(newSidebarPosition);
 		}
 
-		const fontAliasing = this.configurationService.lookup<boolean>(Workbench.fontAliasingConfigurationKey).value;
-		if (fontAliasing !== this.fontAliasingEnabled) {
+		const fontAliasing = this.configurationService.lookup<string>(Workbench.fontAliasingConfigurationKey).value;
+		if (fontAliasing !== this.fontAliasing) {
 			this.setFontAliasing(fontAliasing);
 		}
 
@@ -1101,7 +1101,7 @@ export class Workbench implements IPartService {
 			this.workbench.addClass('nopanel');
 		}
 
-		this.setFontAliasing(this.fontAliasingEnabled);
+		this.setFontAliasing(this.fontAliasing);
 
 		// Apply title style if shown
 		const titleStyle = this.getCustomTitleBarStyle();
