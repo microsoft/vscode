@@ -87,11 +87,11 @@ function isTestTask(name: string): boolean {
 	return false;
 }
 
-function getNpmCommandLine(script:string): string {
+function getNpmCommandLine(script: string): string {
 	if (vscode.workspace.getConfiguration('npm').get<boolean>('runSilent')) {
 		return `npm --silent run ${script}`;
 	}
-	return `npm run ${script}`
+	return `npm run ${script}`;
 }
 
 async function getNpmScriptsAsTasks(): Promise<vscode.Task[]> {
