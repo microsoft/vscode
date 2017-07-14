@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { isBoolean, isNumber } from 'vs/base/common/types';
 import https = require('https');
 import http = require('http');
@@ -49,18 +49,21 @@ export interface IRequestFunction {
 	(options: IRequestOptions): TPromise<IRequestContext>;
 }
 
-function getNodeRequest(options: IRequestOptions): IRawRequestFunction {
+async function getNodeRequest(options: IRequestOptions): TPromise<IRawRequestFunction> {
 	const endpoint = parseUrl(options.url);
-	return endpoint.protocol === 'https:' ? https.request : http.request;
+	const module = endpoint.protocol === 'https:' ? await import('https') : await import('http');
+	return module.request;
 }
 
 export function request(options: IRequestOptions): TPromise<IRequestContext> {
 	let req: http.ClientRequest;
 
-	return new TPromise<IRequestContext>((c, e) => {
+	return new TPromise<IRequestContext>(async (c, e) => {
 		const endpoint = parseUrl(options.url);
-		const getRawRequest = options.getRawRequest || getNodeRequest;
-		const rawRequest = getRawRequest(options);
+		const rawRequest = options.getRawRequest
+			? options.getRawRequest(options)
+			: await getNodeRequest(options);
+
 		const opts: https.RequestOptions = {
 			hostname: endpoint.hostname,
 			port: endpoint.port ? parseInt(endpoint.port) : (endpoint.protocol === 'https:' ? 443 : 80),
@@ -129,7 +132,7 @@ export function download(filePath: string, context: IRequestContext): TPromise<v
 }
 
 export function asText(context: IRequestContext): TPromise<string> {
-	return new Promise((c, e) => {
+	return new TPromise((c, e) => {
 		if (!isSuccess(context)) {
 			return e('Server returned ' + context.res.statusCode);
 		}
@@ -146,7 +149,7 @@ export function asText(context: IRequestContext): TPromise<string> {
 }
 
 export function asJson<T>(context: IRequestContext): TPromise<T> {
-	return new Promise((c, e) => {
+	return new TPromise((c, e) => {
 		if (!isSuccess(context)) {
 			return e('Server returned ' + context.res.statusCode);
 		}
