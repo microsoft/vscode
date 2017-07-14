@@ -20,6 +20,8 @@ import strings = require('vs/base/common/strings');
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EmptyWorkspaceServiceImpl, WorkspaceServiceImpl, WorkspaceService } from 'vs/workbench/services/configuration/node/configuration';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { realpath } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import path = require('path');
@@ -27,12 +29,19 @@ import gracefulFs = require('graceful-fs');
 import { IInitData } from 'vs/workbench/services/timer/common/timerService';
 import { TimerService } from 'vs/workbench/services/timer/node/timerService';
 import { KeyboardMapperFactory } from "vs/workbench/services/keybinding/electron-browser/keybindingService";
-import { IWindowConfiguration, IPath } from 'vs/platform/windows/common/windows';
+import { IWindowConfiguration, IPath, IWindowsService } from 'vs/platform/windows/common/windows';
+import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { StorageService, inMemoryLocalStorageInstance } from 'vs/platform/storage/common/storageService';
-
-import { webFrame } from 'electron';
+import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
+import { webFrame, remote } from 'electron';
+import { UpdateChannelClient } from 'vs/platform/update/common/updateIpc';
+import { IUpdateService } from 'vs/platform/update/common/update';
+import { URLChannelClient } from 'vs/platform/url/common/urlIpc';
+import { IURLService } from 'vs/platform/url/common/url';
+import { WorkspacesChannelClient } from 'vs/platform/workspaces/common/workspacesIpc';
+import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 
 import fs = require('fs');
 gracefulFs.gracefulify(fs); // enable gracefulFs
@@ -95,6 +104,11 @@ function toInputs(paths: IPath[], isUntitledFile?: boolean): IResourceInput[] {
 }
 
 function openWorkbench(configuration: IWindowConfiguration, options: IOptions): TPromise<void> {
+
+	const currentWindow = remote.getCurrentWindow();
+	const mainProcessClient = new ElectronIPCClient(String(`window${currentWindow.id}`));
+	const mainServices = createMainProcessServices(mainProcessClient, currentWindow);
+
 	const environmentService = new EnvironmentService(configuration, configuration.execPath);
 
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
@@ -116,7 +130,7 @@ function openWorkbench(configuration: IWindowConfiguration, options: IOptions): 
 				environmentService,
 				timerService,
 				storageService
-			}, configuration, options);
+			}, mainServices, configuration, options);
 			shell.open();
 
 			// Inform user about loading issues from the loader
@@ -197,6 +211,24 @@ function createStorageService(configuration: IWindowConfiguration, workspaceServ
 	const storage = disableStorage ? inMemoryLocalStorageInstance : window.localStorage;
 
 	return new StorageService(storage, storage, workspaceId, secondaryWorkspaceId);
+}
+
+function createMainProcessServices(mainProcessClient: ElectronIPCClient, currentWindow: Electron.BrowserWindow): ServiceCollection {
+	const serviceCollection = new ServiceCollection();
+
+	const windowsChannel = mainProcessClient.getChannel('windows');
+	serviceCollection.set(IWindowsService, new WindowsChannelClient(windowsChannel));
+
+	const updateChannel = mainProcessClient.getChannel('update');
+	serviceCollection.set(IUpdateService, new SyncDescriptor(UpdateChannelClient, updateChannel));
+
+	const urlChannel = mainProcessClient.getChannel('url');
+	serviceCollection.set(IURLService, new SyncDescriptor(URLChannelClient, urlChannel, currentWindow.id));
+
+	const workspacesChannel = mainProcessClient.getChannel('workspaces');
+	serviceCollection.set(IWorkspacesService, new SyncDescriptor(WorkspacesChannelClient, workspacesChannel));
+
+	return serviceCollection;
 }
 
 function loaderError(err: Error): Error {
