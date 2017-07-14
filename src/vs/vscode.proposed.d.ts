@@ -53,13 +53,12 @@ declare module 'vscode' {
 		export const onDidChangeWorkspaceFolders: Event<WorkspaceFoldersChangeEvent>;
 
 		/**
-		 * Returns a [workspace folder](#WorkspaceFolder) that is containing the provided
-		 * resource.
+		 * Returns a [workspace folder](#WorkspaceFolder) for the provided resource.
 		 *
 		 * @param uri An uri.
 		 * @return A workspace folder or `undefined`
 		 */
-		export function getContainingWorkspaceFolder(uri: Uri): WorkspaceFolder | undefined;
+		export function getWorkspaceFolder(uri: Uri): WorkspaceFolder | undefined;
 	}
 
 	export interface WorkspaceConfiguration2 extends WorkspaceConfiguration {

@@ -367,8 +367,8 @@ export function createApiFactory(
 			set rootPath(value) {
 				throw errors.readonly();
 			},
-			getContainingWorkspaceFolder(resource) {
-				return extHostWorkspace.getEnclosingWorkspaceFolder(resource);
+			getWorkspaceFolder(resource) {
+				return extHostWorkspace.getWorkspaceFolder(resource);
 			},
 			get workspaceFolders() {
 				// proposed api

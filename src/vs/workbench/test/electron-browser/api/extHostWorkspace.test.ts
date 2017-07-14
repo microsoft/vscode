@@ -80,22 +80,28 @@ suite('ExtHostWorkspace', function () {
 	test('getContainingWorkspaceFolder', function () {
 		const ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', name: 'Test', roots: [URI.file('/Coding/One'), URI.file('/Coding/Two'), URI.file('/Coding/Two/Nested')] });
 
-		let folder = ws.getEnclosingWorkspaceFolder(URI.file('/foo/bar'));
+		let folder = ws.getWorkspaceFolder(URI.file('/foo/bar'));
 		assert.equal(folder, undefined);
 
-		folder = ws.getEnclosingWorkspaceFolder(URI.file('/Coding/One/file/path.txt'));
+		folder = ws.getWorkspaceFolder(URI.file('/Coding/One/file/path.txt'));
 		assert.equal(folder.name, 'One');
 
-		folder = ws.getEnclosingWorkspaceFolder(URI.file('/Coding/Two/file/path.txt'));
+		folder = ws.getWorkspaceFolder(URI.file('/Coding/Two/file/path.txt'));
 		assert.equal(folder.name, 'Two');
 
-		folder = ws.getEnclosingWorkspaceFolder(URI.file('/Coding/Two/Nest'));
+		folder = ws.getWorkspaceFolder(URI.file('/Coding/Two/Nest'));
 		assert.equal(folder.name, 'Two');
 
-		folder = ws.getEnclosingWorkspaceFolder(URI.file('/Coding/Two/Nested/file'));
+		folder = ws.getWorkspaceFolder(URI.file('/Coding/Two/Nested/file'));
 		assert.equal(folder.name, 'Nested');
 
-		// folder = ws.getEnclosingWorkspaceFolder(URI.file('/Coding/Two/Nested'));
+		folder = ws.getWorkspaceFolder(URI.file('/Coding/Two/Nested/f'));
+		assert.equal(folder.name, 'Nested');
+
+		// folder = ws.getWorkspaceFolder(URI.file('/Coding/Two/Nested'));
+		// assert.equal(folder.name, 'Two');
+
+		// folder = ws.getWorkspaceFolder(URI.file('/Coding/Two/Nested/'));
 		// assert.equal(folder.name, 'Two');
 	});
 
