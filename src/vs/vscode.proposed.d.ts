@@ -7,14 +7,35 @@
 
 declare module 'vscode' {
 
+	/**
+	 * An event describing a change to the set of [workspace folders](#workspace.workspaceFolders).
+	 */
 	export interface WorkspaceFoldersChangeEvent {
 		readonly added: WorkspaceFolder[];
 		readonly removed: WorkspaceFolder[];
 	}
 
+	/**
+	 * A workspace folder is a root element in file tree of the editor.
+	 * There can be multiple workspace folders and all are equal. That means there is no notion of
+	 * an active or master workspace folder.
+	 */
 	export interface WorkspaceFolder {
+
+		/**
+		 * The associated URI for this workspace folder.
+		 */
 		readonly uri: Uri;
+
+		/**
+		 * The name of this workspace folder. Defaults to
+		 * the basename its [uri-path](#Uri.path)
+		 */
 		readonly name: string;
+
+		/**
+		 * The ordinal number of this workspace folder.
+		 */
 		readonly index: number;
 	}
 
@@ -32,8 +53,11 @@ declare module 'vscode' {
 		export const onDidChangeWorkspaceFolders: Event<WorkspaceFoldersChangeEvent>;
 
 		/**
+		 * Returns a [workspace folder](#WorkspaceFolder) that is containing the provided
+		 * resource.
 		 *
-		 * @param pathOrUri
+		 * @param uri An uri.
+		 * @return A workspace folder or `undefined`
 		 */
 		export function getContainingWorkspaceFolder(uri: Uri): WorkspaceFolder | undefined;
 	}
