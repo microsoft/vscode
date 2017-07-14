@@ -14,6 +14,10 @@ import TypeScriptServiceClient from '../typescriptServiceClient';
 import TsConfigProvider from '../utils/tsconfigProvider';
 import { isImplicitProjectConfigFile } from '../utils/tsconfig';
 
+
+import * as nls from 'vscode-nls';
+const localize = nls.loadMessageBundle();
+
 const exists = (file: string): Promise<boolean> =>
 	new Promise<boolean>((resolve, _reject) => {
 		fs.exists(file, (value: boolean) => {
@@ -54,8 +58,16 @@ class TscTaskProvider implements vscode.TaskProvider {
 
 		return projects.map(configFile => {
 			const configFileName = path.relative(rootPath.fsPath, configFile);
-			const identifier: TypeScriptTaskDefinition = { type: 'typescript', tsconfig: configFileName };
-			const buildTask = new vscode.Task(identifier, `build ${configFileName}`, 'tsc', new vscode.ShellExecution(`${command} -p "${configFile}"`), '$tsc');
+			const watch = this.shouldUseWatchForBuild(configFile);
+			const identifier: TypeScriptTaskDefinition = { type: 'typescript', tsconfig: configFileName, watch: watch };
+			const buildTask = new vscode.Task(
+				identifier,
+				watch
+					? localize('buildAndWatchTscLabel', 'watch {0}', configFileName)
+					: localize('buildTscLabel', 'build {0}', configFileName),
+				'tsc',
+				new vscode.ShellExecution(`${command} ${watch ? '--watch' : ''} -p "${configFile}"`),
+				'$tsc');
 			buildTask.group = vscode.TaskGroup.Build;
 			return buildTask;
 		});
@@ -118,6 +130,18 @@ class TscTaskProvider implements vscode.TaskProvider {
 		} else {
 			return 'tsc';
 		}
+	}
+
+	private shouldUseWatchForBuild(configFile: string): boolean {
+		try {
+			const config = JSON.parse(fs.readFileSync(configFile, 'utf-8'));
+			if (config) {
+				return !!config.compileOnSave;
+			}
+		} catch (e) {
+			// noop
+		}
+		return false;
 	}
 
 	private getActiveTypeScriptFile(): string | null {
