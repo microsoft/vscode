@@ -87,6 +87,26 @@
 					],
 					"default": "onSave",
 					"description": "%configuration.validate.run%"
+				},
+				"php.validate.runInShell": {
+					"type": [
+						"boolean",
+						"object"
+					],
+					"default": false,
+					"description":  "%configuration.validate.runInShell%",
+					"properties": {
+						"shellArgs": {
+							"type": "array",
+							"default": [],
+							"description": "%configuration.validate.shellArgs%"
+						},
+						"shellExecutable": {
+							"type": "string",
+							"default": "",
+							"description": "%configuration.validate.shellExecutable%"
+						}
+					}
 				}
 			}
 		},

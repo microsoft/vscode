@@ -12,6 +12,7 @@ import * as vscode from 'vscode';
 import { ThrottledDelayer } from './utils/async';
 
 import * as nls from 'vscode-nls';
+
 let localize = nls.loadMessageBundle();
 
 export class LineDecoder {
@@ -97,11 +98,18 @@ export default class PHPValidationProvider {
 	private diagnosticCollection: vscode.DiagnosticCollection;
 	private delayers: { [key: string]: ThrottledDelayer<void> };
 
+	private platform: string;
+	private runInShell: boolean = false;
+	private shellExecutable: string;
+	private shellArgs: string[] = [];
+	private isMsys: boolean = false;
+
 	constructor(private workspaceStore: vscode.Memento) {
 		this.executable = null;
 		this.validationEnabled = true;
 		this.trigger = RunTrigger.onSave;
 		this.pauseValidation = false;
+		this.platform = process.platform;
 	}
 
 	public activate(subscriptions: vscode.Disposable[]) {
@@ -139,6 +147,57 @@ export default class PHPValidationProvider {
 				this.executable = undefined;
 				this.executableIsUserDefined = undefined;
 			}
+
+			let shellSettings = section.get<any>('validate.runInShell');
+			if (typeof(shellSettings) === 'boolean') {
+				this.runInShell = shellSettings;
+				if (this.platform.toLowerCase() === 'win32') {
+					this.shellExecutable = 'C:\\WINDOWS\\system32\\cmd.exe';
+					this.shellArgs = ['/C'];
+					if (process.env.ComSpec) {
+						this.shellExecutable = process.env.ComSpec;
+						if (process.env.ComSpec.toLowerCase().indexof('powershell.exe') !== -1) {
+							this.shellArgs = ['/Command'];
+						} else if (process.env.ComSpec.toLowerCase().indexof('bash.exe') !== -1) {
+							this.shellArgs = ['-c'];
+						}
+					}
+				} else {
+					this.shellExecutable = process.env.SHELL || '/bin/bash';
+					this.shellArgs = ['-c'];
+				}
+			} else if (typeof(shellSettings) === 'object') {
+				this.runInShell = true;
+				if (shellSettings.shellExecutable && typeof(shellSettings.shellExecutable) === 'string') {
+					this.shellExecutable = shellSettings.shellExecutable;
+				}
+				if (shellSettings.shellArgs) {
+					if (typeof(shellSettings.shellArgs) === 'string') {
+						this.shellArgs = [shellSettings.shellArgs];
+					}
+					if (shellSettings.shellArgs instanceof Array) {
+						this.shellArgs = shellSettings.shellArgs.splice(0);
+					}
+				}
+				console.log('Run in shell?', this.runInShell);
+				console.log('Shell exec', this.shellExecutable);
+				console.log('Shell args', this.shellArgs);
+			}
+
+			// Is this native bash.exe?
+			// We inspect output from `bash.exe` and look for "msys" string.
+			// This tells us how we need to transform our file paths.
+			if (this.shellExecutable.toLowerCase().indexOf('bash.exe') !== -1) {
+				let inspectString = this.shellExecutable + ' --version';
+				let that = this;
+				cp.exec(inspectString, function (error, stdout, stderr) {
+					console.log('Inspecting bash.exe shell executable version', inspectString, stdout);
+					if (stdout.toLowerCase().indexOf('msys') !== -1) {
+						that.isMsys = true;
+					}
+				});
+			}
+
 			this.trigger = RunTrigger.from(section.get<string>('validate.run', RunTrigger.strings.onSave));
 		}
 		if (this.executableIsUserDefined !== true && this.workspaceStore.get<string>(CheckedExecutablePath, undefined) !== void 0) {
@@ -236,7 +295,7 @@ export default class PHPValidationProvider {
 				}
 			};
 
-			let options = vscode.workspace.rootPath ? { cwd: vscode.workspace.rootPath } : undefined;
+			let options = vscode.workspace.rootPath ? { cwd: vscode.workspace.rootPath } : {};
 			let args: string[];
 			if (this.trigger === RunTrigger.onSave) {
 				args = PHPValidationProvider.FileArgs.slice(0);
@@ -244,6 +303,40 @@ export default class PHPValidationProvider {
 			} else {
 				args = PHPValidationProvider.BufferArgs;
 			}
+
+			// Are we validating with WSL?
+			if (this.runInShell) {
+				// Reset executable
+				let executableInShell = executable;
+				executable = this.shellExecutable;
+
+				console.log('Orig args', args);
+				// Shell args
+				let executableArgs = args.slice(0);
+
+				// If win32 and bash.exe, transform Windows file path to Linux file path
+				if (this.platform === 'win32' && executable.indexOf('bash.exe') !== -1) {
+					let windowsPath = executableArgs.pop();
+					let linuxPath = '';
+					if (this.isMsys) {
+						// Git Bash (msys) uses "/c/Users/..." filesystem mount
+						linuxPath = windowsPath.trim().replace(/^([a-zA-Z]):\\/, '/$1/').replace(/\\/g, '/');
+					} else {
+						// WSL Bash uses "/mnt/c/Users/..." filesystem mount
+						linuxPath = windowsPath.trim().replace(/^([a-zA-Z]):\\/, '/mnt/$1/').replace(/\\/g, '/');
+					}
+					executableArgs.push(linuxPath);
+				}
+
+				// Finalize executable args
+				args = this.shellArgs.concat(['"', executableInShell, executableArgs.join(' '), '"']);
+
+				console.log('Final args', args);
+
+				// Node spawn with shell
+				options['shell'] = true;
+			}
+
 			try {
 				let childProcess = cp.spawn(executable, args, options);
 				childProcess.on('error', (error: Error) => {
