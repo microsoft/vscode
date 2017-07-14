@@ -108,6 +108,13 @@ class TestViewlet implements IViewlet {
 	}
 
 	/**
+	 * Returns an array of actions to show in the context menu of the composite
+	 */
+	public getContextMenuActions(): IAction[] {
+		return [];
+	}
+
+	/**
 	 * Returns the action item for a specific action.
 	 */
 	getActionItem(action: IAction): IActionItem {
