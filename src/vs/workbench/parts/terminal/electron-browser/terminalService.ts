@@ -156,17 +156,16 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 	}
 
 	private _detectWindowsShells(): TPromise<IPickOpenEntry[]> {
-		const windir = process.env['windir'];
+		// Determine the correct System32 path. We want to point to Sysnative
+		// when the 32-bit version of VS Code is running on a 64-bit machine.
+		// The reason for this is because PowerShell's important PSReadline
+		// module doesn't work if this is not the case. See #27915.
+		const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
+		const system32Path = `${process.env['windir']}\\${is32ProcessOn64Windows ? 'Sysnative' : 'System32'}`;
 		const expectedLocations = {
-			'Command Prompt': [
-				`${windir}\\Sysnative\\cmd.exe`,
-				`${windir}\\System32\\cmd.exe`
-			],
-			PowerShell: [
-				`${windir}\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe`,
-				`${windir}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`
-			],
-			'WSL Bash': [`${windir}\\Sysnative\\bash.exe`],
+			'Command Prompt': [`${system32Path}\\cmd.exe`],
+			PowerShell: [`${system32Path}\\WindowsPowerShell\\v1.0\\powershell.exe`],
+			'WSL Bash': [`${system32Path}\\bash.exe`],
 			'Git Bash': [
 				`${process.env['ProgramW6432']}\\Git\\bin\\bash.exe`,
 				`${process.env['ProgramW6432']}\\Git\\usr\\bin\\bash.exe`,
