@@ -198,7 +198,7 @@ export class HistoryMainService implements IHistoryMainService {
 			// so we need to update our list of recent paths with the choice of the user to not add them again
 			// Also: Windows will not show our custom category at all if there is any entry which was removed
 			// by the user! See https://github.com/Microsoft/vscode/issues/15052
-			this.removeFromRecentlyOpened(app.getJumpListSettings().removedItems.map(r => trim(r.args, '"')));
+			this.removeFromRecentlyOpened(app.getJumpListSettings().removedItems.filter(r => !!r.args).map(r => trim(r.args, '"')));
 
 			// Add entries
 			jumpList.push({
