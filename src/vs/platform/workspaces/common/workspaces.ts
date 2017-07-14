@@ -52,7 +52,10 @@ export function getWorkspaceLabel(environmentService: IEnvironmentService, works
 		return localize('untitledWorkspace', "Untitled Workspace");
 	}
 
-	return basename(workspace.configPath);
+	const filename = basename(workspace.configPath);
+	const workspaceName = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
+
+	return localize('workspaceName', "{0} (Workspace)", workspaceName);
 }
 
 export function isSingleFolderWorkspaceIdentifier(obj: any): obj is ISingleFolderWorkspaceIdentifier {
