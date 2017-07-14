@@ -22,7 +22,7 @@ import { tildify } from 'vs/base/common/labels';
 import { KeybindingsResolver } from "vs/code/electron-main/keyboard";
 import { IWindowsMainService } from "vs/platform/windows/electron-main/windows";
 import { IHistoryMainService } from "vs/platform/history/common/history";
-import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 
 interface IExtensionViewlet {
 	id: string;
@@ -471,9 +471,16 @@ export class CodeMenu {
 		}
 	}
 
-	private createOpenRecentMenuItem(recent: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, commandId: string): Electron.MenuItem {
-		const label = (typeof recent === 'string') ? this.unmnemonicLabel(tildify(recent, this.environmentService.userHome)) : getWorkspaceLabel(this.environmentService, recent);
-		const path = (typeof recent === 'string') ? recent : recent.configPath;
+	private createOpenRecentMenuItem(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, commandId: string): Electron.MenuItem {
+		let label: string;
+		let path: string;
+		if (isSingleFolderWorkspaceIdentifier(workspace)) {
+			label = this.unmnemonicLabel(tildify(workspace, this.environmentService.userHome));
+			path = workspace;
+		} else {
+			label = getWorkspaceLabel(this.environmentService, workspace);
+			path = workspace.configPath;
+		}
 
 		return new MenuItem(this.likeAction(commandId, {
 			label,
@@ -481,7 +488,7 @@ export class CodeMenu {
 				const openInNewWindow = this.isOptionClick(event);
 				const success = this.windowsService.open({ context: OpenContext.MENU, cli: this.environmentService.args, pathsToOpen: [path], forceNewWindow: openInNewWindow }).length > 0;
 				if (!success) {
-					this.historyService.removeFromRecentlyOpened(recent);
+					this.historyService.removeFromRecentlyOpened(workspace);
 				}
 			}
 		}, false));

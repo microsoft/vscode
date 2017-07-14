@@ -16,7 +16,7 @@ import { getPathLabel } from 'vs/base/common/labels';
 import { IPath } from 'vs/platform/windows/common/windows';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import { isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 import { IHistoryMainService, IRecentlyOpened } from "vs/platform/history/common/history";
 import { IEnvironmentService } from "vs/platform/environment/common/environment";
 
@@ -50,12 +50,12 @@ export class HistoryMainService implements IHistoryMainService {
 			// Workspaces
 			workspaces.forEach(workspace => {
 				mru.workspaces.unshift(workspace);
-				mru.workspaces = arrays.distinct(mru.workspaces, workspace => this.isSingleFolderWorkspace(workspace) ? workspace : workspace.id);
+				mru.workspaces = arrays.distinct(mru.workspaces, workspace => isSingleFolderWorkspaceIdentifier(workspace) ? (isLinux ? workspace : workspace.toLowerCase()) : workspace.id);
 
 				// Add to recent documents unless the workspace is untitled (macOS only, Windows can show workspaces separately)
-				const isUntitledWorkspace = !this.isSingleFolderWorkspace(workspace) && this.workspacesService.isUntitledWorkspace(workspace);
+				const isUntitledWorkspace = !isSingleFolderWorkspaceIdentifier(workspace) && this.workspacesService.isUntitledWorkspace(workspace);
 				if (isMacintosh && !isUntitledWorkspace) {
-					app.addRecentDocument(this.isSingleFolderWorkspace(workspace) ? workspace : workspace.configPath);
+					app.addRecentDocument(isSingleFolderWorkspaceIdentifier(workspace) ? workspace : workspace.configPath);
 				}
 			});
 
@@ -77,10 +77,6 @@ export class HistoryMainService implements IHistoryMainService {
 			this.storageService.setItem(HistoryMainService.recentlyOpenedStorageKey, mru);
 			this._onRecentlyOpenedChange.fire();
 		}
-	}
-
-	private isSingleFolderWorkspace(obj: any): obj is string {
-		return typeof obj === 'string';
 	}
 
 	public removeFromRecentlyOpened(toRemove: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): void;
@@ -166,7 +162,7 @@ export class HistoryMainService implements IHistoryMainService {
 		}
 
 		// Clear those dupes
-		workspaces = arrays.distinct(workspaces, workspace => this.isSingleFolderWorkspace(workspace) ? workspace : workspace.id);
+		workspaces = arrays.distinct(workspaces, workspace => isSingleFolderWorkspaceIdentifier(workspace) ? workspace : workspace.id);
 		files = arrays.distinct(files);
 
 		return { workspaces, files };
@@ -209,15 +205,15 @@ export class HistoryMainService implements IHistoryMainService {
 				type: 'custom',
 				name: nls.localize('recentFolders', "Recent Workspaces"),
 				items: this.getRecentlyOpened().workspaces.slice(0, 7 /* limit number of entries here */).map(workspace => {
-					const title = this.isSingleFolderWorkspace(workspace) ? (path.basename(workspace) || workspace) : getWorkspaceLabel(this.environmentService, workspace);
-					const description = this.isSingleFolderWorkspace(workspace) ? nls.localize('folderDesc', "{0} {1}", path.basename(workspace), getPathLabel(path.dirname(workspace))) : nls.localize('codeWorkspace', "Code Workspace");
+					const title = isSingleFolderWorkspaceIdentifier(workspace) ? (path.basename(workspace) || workspace) : getWorkspaceLabel(this.environmentService, workspace);
+					const description = isSingleFolderWorkspaceIdentifier(workspace) ? nls.localize('folderDesc', "{0} {1}", path.basename(workspace), getPathLabel(path.dirname(workspace))) : nls.localize('codeWorkspace', "Code Workspace");
 
 					return <Electron.JumpListItem>{
 						type: 'task',
 						title,
 						description,
 						program: process.execPath,
-						args: `"${this.isSingleFolderWorkspace(workspace) ? workspace : workspace.configPath}"`, // open folder (use quotes to support paths with whitespaces)
+						args: `"${isSingleFolderWorkspaceIdentifier(workspace) ? workspace : workspace.configPath}"`, // open folder (use quotes to support paths with whitespaces)
 						iconPath: 'explorer.exe', // simulate folder icon
 						iconIndex: 0
 					};

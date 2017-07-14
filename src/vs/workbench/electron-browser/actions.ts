@@ -40,7 +40,7 @@ import { webFrame } from 'electron';
 import { getPathLabel } from 'vs/base/common/labels';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
-import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 
 // --- actions
 
@@ -670,10 +670,18 @@ export abstract class BaseOpenRecentAction extends Action {
 
 	private openRecent(recentWorkspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], recentFiles: string[]): void {
 
-		function toPick(arg1: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, separator: ISeparator, isFolder: boolean, environmentService: IEnvironmentService): IFilePickOpenEntry {
-			const path = (typeof arg1 === 'string') ? arg1 : arg1.configPath;
-			const label = (typeof arg1 === 'string') ? paths.basename(path) : getWorkspaceLabel(environmentService, arg1);
-			const description = (typeof arg1 === 'string') ? getPathLabel(paths.dirname(path), null, environmentService) : void 0;
+		function toPick(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, separator: ISeparator, isFolder: boolean, environmentService: IEnvironmentService): IFilePickOpenEntry {
+			let path: string;
+			let label: string;
+			let description: string;
+			if (isSingleFolderWorkspaceIdentifier(workspace)) {
+				path = workspace;
+				label = paths.basename(path);
+				description = getPathLabel(paths.dirname(path), null, environmentService);
+			} else {
+				path = workspace.configPath;
+				label = getWorkspaceLabel(environmentService, workspace);
+			}
 
 			return {
 				resource: URI.file(path),
@@ -691,9 +699,9 @@ export abstract class BaseOpenRecentAction extends Action {
 			};
 		}
 
-		const runPick = (arg1: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, context: IEntryRunContext) => {
+		const runPick = (path: string, context: IEntryRunContext) => {
 			const forceNewWindow = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
-			this.windowsService.openWindow([typeof arg1 === 'string' ? arg1 : arg1.configPath], { forceNewWindow });
+			this.windowsService.openWindow([path], { forceNewWindow });
 		};
 
 		const workspacePicks: IFilePickOpenEntry[] = recentWorkspaces.map((workspace, index) => toPick(workspace, index === 0 ? { label: nls.localize('workspaces', "workspaces") } : void 0, true, this.environmentService));

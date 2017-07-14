@@ -39,7 +39,7 @@ import { registerColor, focusBorder, textLinkForeground, textLinkActiveForegroun
 import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils';
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 
 used();
 
@@ -218,7 +218,7 @@ class WelcomePage {
 					return false; // do not show current workspace
 				}
 
-				if (this.contextService.hasFolderWorkspace() && typeof workspace === 'string' && this.pathEquals(context.roots[0].fsPath, workspace)) {
+				if (this.contextService.hasFolderWorkspace() && isSingleFolderWorkspaceIdentifier(workspace) && this.pathEquals(context.roots[0].fsPath, workspace)) {
 					return false; // do not show current workspace (single folder case)
 				}
 
@@ -232,9 +232,18 @@ class WelcomePage {
 			const ul = container.querySelector('.recent ul');
 			const before = ul.firstElementChild;
 			workspaces.slice(0, 5).forEach(workspace => {
-				const label = (typeof workspace === 'string') ? path.basename(workspace) : getWorkspaceLabel(this.environmentService, workspace);
-				const parent = (typeof workspace === 'string') ? path.dirname(workspace) : '';
-				const wsPath = (typeof workspace === 'string') ? workspace : workspace.configPath;
+				let label: string;
+				let parent: string;
+				let wsPath: string;
+				if (isSingleFolderWorkspaceIdentifier(workspace)) {
+					label = path.basename(workspace);
+					parent = path.dirname(workspace);
+					wsPath = workspace;
+				} else {
+					label = getWorkspaceLabel(this.environmentService, workspace);
+					parent = '';
+					wsPath = workspace.configPath;
+				}
 
 				const li = document.createElement('li');
 

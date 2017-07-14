@@ -54,3 +54,7 @@ export function getWorkspaceLabel(environmentService: IEnvironmentService, works
 
 	return basename(workspace.configPath);
 }
+
+export function isSingleFolderWorkspaceIdentifier(obj: any): obj is ISingleFolderWorkspaceIdentifier {
+	return typeof obj === 'string';
+}

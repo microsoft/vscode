@@ -162,12 +162,10 @@ export class WindowsService implements IWindowsService, IDisposable {
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
 		if (codeWindow) {
-			const recentlyOpened = this.historyService.getRecentlyOpened(codeWindow.config.workspace || codeWindow.config.folderPath, codeWindow.config.filesToOpen);
-
-			return TPromise.as(recentlyOpened);
+			return TPromise.as(this.historyService.getRecentlyOpened(codeWindow.config.workspace || codeWindow.config.folderPath, codeWindow.config.filesToOpen));
 		}
 
-		return TPromise.as(<IRecentlyOpened>{ workspaces: [], files: [] });
+		return TPromise.as(this.historyService.getRecentlyOpened());
 	}
 
 	focusWindow(windowId: number): TPromise<void> {
