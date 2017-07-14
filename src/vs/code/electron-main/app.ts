@@ -50,8 +50,7 @@ import { CodeWindow } from "vs/code/electron-main/window";
 import { KeyboardLayoutMonitor } from "vs/code/electron-main/keyboard";
 import URI from 'vs/base/common/uri';
 import { WorkspacesChannel } from "vs/platform/workspaces/common/workspacesIpc";
-import { IWorkspacesMainService, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
-import { findWindowOnWorkspaceOrFolder } from "vs/code/node/windowsFinder";
+import { IWorkspacesMainService } from "vs/platform/workspaces/common/workspaces";
 
 export class CodeApplication {
 	private toDispose: IDisposable[];
@@ -204,26 +203,15 @@ export class CodeApplication {
 			});
 		});
 
-		ipc.on('vscode:broadcast', (event, windowId: number, target: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, broadcast: { channel: string; payload: any; }) => {
+		ipc.on('vscode:broadcast', (event, windowId: number, broadcast: { channel: string; payload: any; }) => {
 			if (this.windowsMainService && broadcast.channel && !isUndefinedOrNull(broadcast.payload)) {
-				this.logService.log('IPC#vscode:broadcast', target, broadcast.channel, broadcast.payload);
+				this.logService.log('IPC#vscode:broadcast', broadcast.channel, broadcast.payload);
 
 				// Handle specific events on main side
 				this.onBroadcast(broadcast.channel, broadcast.payload);
 
-				// Send to specific window if target is provided
-				if (target) {
-					const otherWindowsWithTarget = this.windowsMainService.getWindows().filter(w => w.id !== windowId && (w.openedWorkspace || w.openedFolderPath));
-					const targetWindow = findWindowOnWorkspaceOrFolder(otherWindowsWithTarget, target);
-					if (targetWindow) {
-						targetWindow.send('vscode:broadcast', broadcast);
-					}
-				}
-
-				// Otherwise send to all windows
-				else {
-					this.windowsMainService.sendToAll('vscode:broadcast', broadcast, [windowId]);
-				}
+				// Send to all windows (except sender window)
+				this.windowsMainService.sendToAll('vscode:broadcast', broadcast, [windowId]);
 			}
 		});
 

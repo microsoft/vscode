@@ -163,6 +163,10 @@ export class DebugService implements debug.IDebugService {
 
 		// attach: PH is ready to be attached to
 		const process = this.model.getProcesses().filter(p => strings.equalsIgnoreCase(p.configuration.type, 'extensionhost')).pop();
+		if (!process) {
+			return; // TODO@Andre TODO@Isidor the broadcast should carry over the session ID so that we can do the correct thing here (see https://github.com/Microsoft/vscode/issues/30698)
+		}
+
 		const session = process ? <RawDebugSession>process.session : null;
 		if (broadcast.channel === EXTENSION_ATTACH_BROADCAST_CHANNEL) {
 			if (session) {
