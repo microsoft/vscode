@@ -7,60 +7,6 @@
 
 declare module 'vscode' {
 
-	/**
-	 * An event describing a change to the set of [workspace folders](#workspace.workspaceFolders).
-	 */
-	export interface WorkspaceFoldersChangeEvent {
-		readonly added: WorkspaceFolder[];
-		readonly removed: WorkspaceFolder[];
-	}
-
-	/**
-	 * A workspace folder is a root element in file tree of the editor.
-	 * There can be multiple workspace folders and all are equal. That means there is no notion of
-	 * an active or master workspace folder.
-	 */
-	export interface WorkspaceFolder {
-
-		/**
-		 * The associated URI for this workspace folder.
-		 */
-		readonly uri: Uri;
-
-		/**
-		 * The name of this workspace folder. Defaults to
-		 * the basename its [uri-path](#Uri.path)
-		 */
-		readonly name: string;
-
-		/**
-		 * The ordinal number of this workspace folder.
-		 */
-		readonly index: number;
-	}
-
-	export namespace workspace {
-
-		/**
-		* List of workspace folders or `undefined` when no folder is open. The *first*
-		* element in the array is equal to the [`rootPath`](#workspace.rootPath)
-		*/
-		export let workspaceFolders: WorkspaceFolder[] | undefined;
-
-		/**
-		 * An event that is emitted when a workspace folder is added or removed.
-		 */
-		export const onDidChangeWorkspaceFolders: Event<WorkspaceFoldersChangeEvent>;
-
-		/**
-		 * Returns a [workspace folder](#WorkspaceFolder) for the provided resource.
-		 *
-		 * @param uri An uri.
-		 * @return A workspace folder or `undefined`
-		 */
-		export function getWorkspaceFolder(uri: Uri): WorkspaceFolder | undefined;
-	}
-
 	export interface WorkspaceConfiguration2 extends WorkspaceConfiguration {
 
 		inspect<T>(section: string): { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T, folderValue?: T } | undefined;

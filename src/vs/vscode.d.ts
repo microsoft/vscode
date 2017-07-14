@@ -4286,14 +4286,14 @@ declare module 'vscode' {
 		export function setStatusBarMessage(text: string): Disposable;
 
 		/**
-		 * @deprecated This function **deprecated**. Use `withProgress` instead.
-		 *
 		 * ~~Show progress in the Source Control viewlet while running the given callback and while
 		 * its returned promise isn't resolve or rejected.~~
 		 *
 		 * @param task A callback returning a promise. Progress increments can be reported with
 		 * the provided [progress](#Progress)-object.
 		 * @return The thenable the task did rseturn.
+		 *
+		 * @deprecated Use `withProgress` instead.
 		 */
 		export function withScmProgress<R>(task: (progress: Progress<number>) => Thenable<R>): Thenable<R>;
 
@@ -4601,6 +4601,44 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * An event describing a change to the set of [workspace folders](#workspace.workspaceFolders).
+	 */
+	export interface WorkspaceFoldersChangeEvent {
+		/**
+		 * Added workspace folders.
+		 */
+		readonly added: WorkspaceFolder[];
+
+		/**
+		 * Removed workspace folders.
+		 */
+		readonly removed: WorkspaceFolder[];
+	}
+
+	/**
+	 * A workspace folder is one of potentially many roots opened by the editor. All workspace folders
+	 * are equal which means there is notion of an active or master workspace folder.
+	 */
+	export interface WorkspaceFolder {
+
+		/**
+		 * The associated URI for this workspace folder.
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * The name of this workspace folder. Defaults to
+		 * the basename its [uri-path](#Uri.path)
+		 */
+		readonly name: string;
+
+		/**
+		 * The ordinal number of this workspace folder.
+		 */
+		readonly index: number;
+	}
+
+	/**
 	 * Namespace for dealing with the current workspace. A workspace is the representation
 	 * of the folder that has been opened. There is no workspace when just a file but not a
 	 * folder has been opened.
@@ -4610,6 +4648,48 @@ declare module 'vscode' {
 	 * the editor-process so that they should be always used instead of nodejs-equivalents.
 	 */
 	export namespace workspace {
+
+		/**
+		 * ~~The folder that is open in the editor. `undefined` when no folder
+		 * has been opened.~~
+		 *
+		 * @readonly
+		 * @deprecated Use [`workspaceFolders`](#workspace.workspaceFolders) instead.
+		 */
+		export let rootPath: string | undefined;
+
+		/**
+		 * List of workspace folders or `undefined` when no folder is open, `undefined` when no
+		 * folder has been opened. *Note* that the first entry corresponds to the value of `rootPath`.
+		 *
+		 * @readonly
+		 */
+		export let workspaceFolders: WorkspaceFolder[] | undefined;
+
+		/**
+		 * An event that is emitted when a workspace folder is added or removed.
+		 */
+		export const onDidChangeWorkspaceFolders: Event<WorkspaceFoldersChangeEvent>;
+
+		/**
+		 * Returns a [workspace folder](#WorkspaceFolder) for the provided resource. When the resource
+		 * is a workspace folder itself, its parent workspace folder or `undefined` is returned.
+		 *
+		 * @param uri An uri.
+		 * @return A workspace folder or `undefined`
+		 */
+		export function getWorkspaceFolder(uri: Uri): WorkspaceFolder | undefined;
+
+		/**
+		 * Returns a path that is relative to the workspace root.
+		 *
+		 * When there are no [workspace folders](#workspace.workspaceFolders) or when the path
+		 * is not a child of them, the input is returned.
+		 *
+		 * @param pathOrUri A path or uri. When a uri is given its [fsPath](#Uri.fsPath) is used.
+		 * @return A path relative to the root or the input.
+		 */
+		export function asRelativePath(pathOrUri: string | Uri): string;
 
 		/**
 		 * Creates a file system watcher.
@@ -4626,25 +4706,6 @@ declare module 'vscode' {
 		 * @return A new file system watcher instance.
 		 */
 		export function createFileSystemWatcher(globPattern: string, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): FileSystemWatcher;
-
-		/**
-		 * The folder that is open in the editor. `undefined` when no folder
-		 * has been opened.
-		 *
-		 * @readonly
-		 */
-		export let rootPath: string | undefined;
-
-		/**
-		 * Returns a path that is relative to the workspace root.
-		 *
-		 * When there is no [workspace root](#workspace.rootPath) or when the path
-		 * is not a child of that folder, the input is returned.
-		 *
-		 * @param pathOrUri A path or uri. When a uri is given its [fsPath](#Uri.fsPath) is used.
-		 * @return A path relative to the root or the input.
-		 */
-		export function asRelativePath(pathOrUri: string | Uri): string;
 
 		/**
 		 * Find files in the workspace.

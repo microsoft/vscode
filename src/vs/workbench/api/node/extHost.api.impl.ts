@@ -55,12 +55,6 @@ export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;
 }
 
-function assertProposedApi(extension: IExtensionDescription): void {
-	if (!extension.enableProposedApi) {
-		throw new Error(`[${extension.id}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.id}`);
-	}
-}
-
 function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
 	if (extension.enableProposedApi) {
 		return fn;
@@ -371,16 +365,13 @@ export function createApiFactory(
 				return extHostWorkspace.getWorkspaceFolder(resource);
 			},
 			get workspaceFolders() {
-				// proposed api
-				assertProposedApi(extension);
 				apiUsage.publicLog('workspace#workspaceFolders');
 				return extHostWorkspace.getWorkspaceFolders();
 			},
-			onDidChangeWorkspaceFolders: proposedApiFunction(extension, (listener, thisArgs?, disposables?) => {
-				// proposed api
+			onDidChangeWorkspaceFolders: function (listener, thisArgs?, disposables?) {
 				apiUsage.publicLog('workspace#onDidChangeWorkspaceFolders');
 				return extHostWorkspace.onDidChangeWorkspace(listener, thisArgs, disposables);
-			}),
+			},
 			asRelativePath: (pathOrUri) => {
 				return extHostWorkspace.getRelativePath(pathOrUri);
 			},
