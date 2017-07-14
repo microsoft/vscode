@@ -54,48 +54,41 @@ export function activate(context: vscode.ExtensionContext) {
 	const contentProvider = new MDDocumentContentProvider(engine, context, cspArbiter, logger);
 	const contentProviderRegistration = vscode.workspace.registerTextDocumentContentProvider('markdown', contentProvider);
 	const previewSecuritySelector = new PreviewSecuritySelector(cspArbiter, contentProvider);
-	if (vscode.workspace.getConfiguration('markdown').get('enableExperimentalExtensionApi', false)) {
-		for (const extension of vscode.extensions.all) {
-			const contributes = extension.packageJSON && extension.packageJSON.contributes;
-			if (!contributes) {
-				continue;
-			}
 
-			let styles = contributes['markdown.previewStyles'];
-			if (styles) {
-				if (!Array.isArray(styles)) {
-					styles = [styles];
-				}
-				for (const style of styles) {
-					try {
-						contentProvider.addStyle(resolveExtensionResources(extension, style));
-					} catch (e) {
-						// noop
-					}
-				}
-			}
+	for (const extension of vscode.extensions.all) {
+		const contributes = extension.packageJSON && extension.packageJSON.contributes;
+		if (!contributes) {
+			continue;
+		}
 
-			let scripts = contributes['markdown.previewScripts'];
-			if (scripts) {
-				if (!Array.isArray(scripts)) {
-					scripts = [scripts];
-				}
-				for (const script of scripts) {
-					try {
-						contentProvider.addScript(resolveExtensionResources(extension, script));
-					} catch (e) {
-						// noop
-					}
+		const styles = contributes['markdown.previewStyles'];
+		if (styles && Array.isArray(styles)) {
+			for (const style of styles) {
+				try {
+					contentProvider.addStyle(resolveExtensionResources(extension, style));
+				} catch (e) {
+					// noop
 				}
 			}
+		}
 
-			if (contributes['markdownit.plugins']) {
-				extension.activate().then(() => {
-					if (extension.exports && extension.exports.extendMarkdownIt) {
-						engine.addPlugin((md: any) => extension.exports.extendMarkdownIt(md));
-					}
-				});
+		const scripts = contributes['markdown.previewScripts'];
+		if (scripts && Array.isArray(scripts)) {
+			for (const script of scripts) {
+				try {
+					contentProvider.addScript(resolveExtensionResources(extension, script));
+				} catch (e) {
+					// noop
+				}
 			}
+		}
+
+		if (contributes['markdown.markdownItPlugins']) {
+			extension.activate().then(() => {
+				if (extension.exports && extension.exports.extendMarkdownIt) {
+					engine.addPlugin((md: any) => extension.exports.extendMarkdownIt(md));
+				}
+			});
 		}
 	}
 
