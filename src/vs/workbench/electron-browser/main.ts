@@ -18,8 +18,8 @@ import paths = require('vs/base/common/paths');
 import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { LegacyWorkspace, Workspace } from 'vs/platform/workspace/common/workspace';
-import { WorkspaceService, EmptyWorkspaceServiceImpl, WorkspaceServiceImpl } from 'vs/workbench/services/configuration/node/configuration';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { EmptyWorkspaceServiceImpl, WorkspaceServiceImpl, WorkspaceService } from 'vs/workbench/services/configuration/node/configuration';
 import { realpath } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import path = require('path');
@@ -100,10 +100,8 @@ function openWorkbench(configuration: IWindowConfiguration, options: IOptions): 
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
 	// right before startup of the workbench shell to have its data ready for consumers
 	return createAndInitializeWorkspaceService(configuration, environmentService).then(workspaceService => {
-		const workspace = <Workspace>workspaceService.getWorkspace();
-		const legacyWorkspace = <LegacyWorkspace>workspaceService.getLegacyWorkspace();
-		const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, !!workspace);
-		const storageService = createStorageService(legacyWorkspace, workspace, configuration, environmentService);
+		const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, !workspaceService.hasWorkspace());
+		const storageService = createStorageService(configuration, workspaceService, environmentService);
 
 		timerService.beforeDOMContentLoaded = Date.now();
 
@@ -166,24 +164,23 @@ function validateWorkspacePath(configuration: IWindowConfiguration): TPromise<vo
 	});
 }
 
-function createStorageService(legacyWorkspace: LegacyWorkspace, workspace: Workspace, configuration: IWindowConfiguration, environmentService: IEnvironmentService): IStorageService {
+function createStorageService(configuration: IWindowConfiguration, workspaceService: IWorkspaceContextService, environmentService: IEnvironmentService): IStorageService {
+	const workspace = workspaceService.getWorkspace();
 
 	let workspaceId: string;
 	let secondaryWorkspaceId: number;
 
-	if (workspace) {
+	// in multi root workspace mode we use the provided ID as key for workspace storage
+	if (workspaceService.hasMultiFolderWorkspace()) {
+		workspaceId = uri.from({ path: workspace.id, scheme: 'root' }).toString();
+	}
 
-		// in multi root workspace mode we use the provided ID as key for workspace storage
-		if (workspace.configuration) {
-			workspaceId = uri.from({ path: workspace.id, scheme: 'root' }).toString();
-		}
-
-		// in single folder mode we use the path of the opened folder as key for workspace storage
-		// the ctime is used as secondary workspace id to clean up stale UI state if necessary
-		else {
-			workspaceId = legacyWorkspace.resource.toString();
-			secondaryWorkspaceId = legacyWorkspace.ctime;
-		}
+	// in single folder mode we use the path of the opened folder as key for workspace storage
+	// the ctime is used as secondary workspace id to clean up stale UI state if necessary
+	else if (workspaceService.hasFolderWorkspace()) {
+		const legacyWorkspace = workspaceService.getLegacyWorkspace();
+		workspaceId = legacyWorkspace.resource.toString();
+		secondaryWorkspaceId = legacyWorkspace.ctime;
 	}
 
 	// finaly, if we do not have a workspace open, we need to find another identifier for the window to store

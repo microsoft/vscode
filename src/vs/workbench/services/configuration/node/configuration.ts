@@ -212,10 +212,6 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return !!this.getRoot(resource);
 	}
 
-	public toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
-		return this.workspace ? this.legacyWorkspace.toWorkspaceRelativePath(resource, toOSPath) : null;
-	}
-
 	public toResource(workspaceRelativePath: string): URI {
 		return this.workspace ? this.legacyWorkspace.toResource(workspaceRelativePath) : null;
 	}
