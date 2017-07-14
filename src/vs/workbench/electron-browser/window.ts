@@ -60,11 +60,7 @@ export class ElectronWindow extends Themable {
 
 	private static AUTO_SAVE_SETTING = 'files.autoSave';
 
-	private win: Electron.BrowserWindow;
-	private windowId: number;
-
 	constructor(
-		win: Electron.BrowserWindow,
 		shellContainer: HTMLElement,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
@@ -85,9 +81,6 @@ export class ElectronWindow extends Themable {
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		super(themeService);
-
-		this.win = win;
-		this.windowId = win.id;
 
 		this.registerListeners();
 		this.setup();

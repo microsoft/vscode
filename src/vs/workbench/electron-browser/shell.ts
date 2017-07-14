@@ -193,7 +193,7 @@ export class WorkbenchShell {
 		});
 
 		// Window
-		this.workbench.getInstantiationService().createInstance(ElectronWindow, currentWindow, this.container);
+		this.workbench.getInstantiationService().createInstance(ElectronWindow, this.container);
 
 		// Handle case where workbench is not starting up properly
 		const timeoutHandle = setTimeout(() => {
