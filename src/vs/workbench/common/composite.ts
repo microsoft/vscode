@@ -29,6 +29,11 @@ export interface IComposite {
 	getSecondaryActions(): IAction[];
 
 	/**
+	 * Returns an array of actions to show in the context menu of the composite
+	 */
+	getContextMenuActions(): IAction[];
+
+	/**
 	 * Returns the action item for a specific action.
 	 */
 	getActionItem(action: IAction): IActionItem;
