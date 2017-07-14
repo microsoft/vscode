@@ -239,47 +239,21 @@ export class TerminalPanel extends Panel {
 					return;
 				}
 
-				const winFormatters: [RegExp, (uri: URI) => string][] = [
-					// WSL bash
-					[/^C:\\Windows\\(System32|sysnative)\\bash.exe$/i, uri => '/mnt/' + uri.path[1] + uri.path.substring(3)],
-					// Git bash
-					[/bash.exe$/i, uri => uri.path.substring(0, 2) + uri.path.substring(3)],
-
-					[/cmd.exe$/i, uri => uri.path[1].toUpperCase() + uri.path.substring(2).replace(/\//g, '\\')],
-					[/powershell.exe$/i, uri => uri.path[1].toUpperCase() + uri.path.substring(2).replace(/\//g, '\\')],
-				];
-
-				const terminal = this._terminalService.getActiveInstance();
-
-				const uriForm = async (uri: URI) => {
-					if (platform.isWindows) {
-						const shells = await terminal.getShellList();
-						const shell = shells[shells.length - 1];
-
-						for (const formatter of winFormatters) {
-							if (formatter[0].test(shell)) {
-								return formatter[1](uri);
-							}
-						}
-					}
-					return uri.path;
-				};
-
-				const uri = e.dataTransfer.getData('URL');
-				let urip = Promise.resolve(uri);
+				// Check if the file was dragged from the tree explorer
+				let uri = e.dataTransfer.getData('URL');
 				if (uri) {
-					urip = uriForm(URI.parse(uri));
+					uri = URI.parse(uri).path;
 				} else if (e.dataTransfer.files.length > 0) {
 					// Check if the file was dragged from the filesystem
-					urip = uriForm(URI.file(e.dataTransfer.files[0].path));
+					uri = URI.file(e.dataTransfer.files[0].path).path;
 				}
 
-				urip.then(uri => {
-					if (!uri) {
-						return;
-					}
-					terminal.sendText(this._preparePathForTerminal(uri), false);
-				});
+				if (!uri) {
+					return;
+				}
+
+				const terminal = this._terminalService.getActiveInstance();
+				terminal.sendText(TerminalPanel.preparePathForTerminal(uri), false);
 			}
 		}));
 	}

@@ -12,7 +12,7 @@ import * as lifecycle from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
-import Event, { Emitter } from 'vs/base/common/event';
+import Event, { Emitter, debounceEvent } from 'vs/base/common/event';
 import Uri from 'vs/base/common/uri';
 import xterm = require('xterm');
 import { Dimension } from 'vs/base/browser/builder';
@@ -83,6 +83,8 @@ export class TerminalInstance implements ITerminalInstance {
 	private _messageTitleListener: (message: { type: string, content: string }) => void;
 	private _preLaunchInputQueue: string;
 	private _initialCwd: string;
+	private _pidStack: number[];
+	private _checkWindowShell: Emitter<string>;
 
 	private _widgetManager: TerminalWidgetManager;
 	private _linkHandler: TerminalLinkHandler;
@@ -136,6 +138,18 @@ export class TerminalInstance implements ITerminalInstance {
 		this._initDimensions();
 		this._createProcess(this._shellLaunchConfig);
 		this._createXterm();
+
+		this._pidStack = [];
+		this._checkWindowShell = new Emitter<string>();
+		debounceEvent(this._checkWindowShell.event, (l, e) => e, 100, true)
+			(() => {
+				this.getShellName().then(result => {
+					if (result) {
+						const fullPathName = result.split('.exe')[0];
+						this.setTitle(path.basename(fullPathName));
+					}
+				}, e => { return e; });
+			});
 
 		// Only attach xterm.js to the DOM if the terminal panel has been opened before.
 		if (_container) {
@@ -263,6 +277,11 @@ export class TerminalInstance implements ITerminalInstance {
 			if (TabFocus.getTabFocusMode() && event.keyCode === 9) {
 				return false;
 			}
+
+			if (platform.isWindows && event.keyCode === 13 /* ENTER */) {
+				this._checkWindowShell.fire();
+			}
+
 			return undefined;
 		});
 		this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'mouseup', (event: KeyboardEvent) => {
@@ -849,15 +868,15 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 	}
 
-	private static getChildProcesses(pid: number): Promise<{ executable: string, pid: number }[]> {
-		return new Promise((resolve, reject) => {
+	private static executeWMIC(pid: number): TPromise<{ executable: string, pid: number }[]> {
+		return new TPromise((resolve, reject) => {
 			cp.execFile('wmic.exe', ['process', 'where', `parentProcessId=${pid}`, 'get', 'ExecutablePath,ProcessId'], (err, stdout, stderr) => {
 				if (err) {
 					reject(err);
 				} else if (stderr.length > 0) {
 					resolve([]); // No processes found
 				} else {
-					resolve(stdout.split('\n').slice(1).filter(str => str.length > 0).map(str => {
+					resolve(stdout.split('\n').slice(1).filter(str => !/^\s*$/.test(str)).map(str => {
 						const s = str.split('  ');
 						return { executable: s[0], pid: Number(s[1]) };
 					}));
@@ -866,28 +885,38 @@ export class TerminalInstance implements ITerminalInstance {
 		});
 	}
 
-	public async getShellList(): Promise<string[]> {
-		if (platform.platform !== platform.Platform.Windows) {
-			return [];
-		}
-
-		const shells = ['bash.exe', 'cmd.exe', 'powershell.exe'];
-		const pList = [this._shellLaunchConfig.executable];
-
-		let pid = this._processId;
-		while (pid !== null) {
-			const oldPid = pid;
-			pid = null;
-			for (const childproc of await TerminalInstance.getChildProcesses(oldPid)) {
-				if (shells.indexOf(path.basename(childproc.executable)) !== -1) {
-					pList.push(childproc.executable);
-					pid = childproc.pid;
-					break;
+	private getChildProcesses(pid: number): TPromise<string> {
+		return TerminalInstance.executeWMIC(pid).then(result => {
+			if (result.length === 0) {
+				if (this._pidStack.length > 1) {
+					this._pidStack.pop();
+					return this.getChildProcesses(this._pidStack[this._pidStack.length - 1]);
 				}
+				return TPromise.as([]);
 			}
-		}
+			this._pidStack.push(result[0].pid);
+			return TPromise.as(result[0].executable);
+		}, error => { return error; });
+	}
 
-		return pList;
+	public getShellName(): TPromise<string> {
+		if (platform.platform !== platform.Platform.Windows) {
+			return TPromise.as(null);
+		}
+		if (this._pidStack.length === 0) {
+			this._pidStack.push(this._processId);
+		}
+		return new TPromise<string>((resolve) => {
+			// wait 100ms before running getChildProcesses
+			setTimeout(() => {
+				this.getChildProcesses(this._pidStack[this._pidStack.length - 1]).then(result => {
+					if (result.length > 0) {
+						resolve(result);
+					}
+					resolve(this._shellLaunchConfig.executable);
+				}, error => { return error; });
+			}, 100);
+		});
 	}
 }
 

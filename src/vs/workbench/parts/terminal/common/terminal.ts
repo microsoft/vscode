@@ -366,5 +366,5 @@ export interface ITerminalInstance {
 	/**
 	 * Returns the list of nested shells running in the terminal. This is only implemented for Windows.
 	 */
-	getShellList(): Promise<string[]>;
+	getShellName(): TPromise<string>;
 }
