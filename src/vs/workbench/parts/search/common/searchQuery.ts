@@ -91,51 +91,48 @@ export class QueryBuilder {
 		const searchPaths: string[] = [];
 		const additionalIncludePatterns: string[] = [];
 
-		const workspace = this.workspaceContextService.getWorkspace();
-		if (workspace.roots.length < 2) {
-			for (const searchPath of options.searchPaths) {
-				// 1 open folder => just resolve the search paths to absolute paths
-				const { pathPortion, globPortion } = splitGlobFromPath(searchPath);
-				const absolutePathPortion = paths.isAbsolute(pathPortion) ?
-					pathPortion :
-					paths.join(workspace.roots[0].fsPath, pathPortion);
-				searchPaths.push(absolutePathPortion);
-
-				if (globPortion) {
-					additionalIncludePatterns.push(paths.join(absolutePathPortion, globPortion));
-				}
-			}
-
-			return {
-				searchPaths,
-				additionalIncludePatterns
-			};
-		}
-
-		// Is a multiroot workspace
-		// Resolve searchPaths, relative or absolute, against roots
 		for (const searchPath of options.searchPaths) {
-			if (paths.isAbsolute(searchPath)) {
-				searchPaths.push(searchPath); // later, pull out globs
-			} else {
-				const relativeSearchPathMatch = searchPath.match(/\.\/(.+)\/(.+)/);
-				if (relativeSearchPathMatch) {
-					const searchPathRoot = relativeSearchPathMatch[1];
-					const matchingRoots = workspace.roots.filter(root => paths.basename(root.fsPath) === searchPathRoot);
-					if (!matchingRoots.length) {
-						// throw new Error(nls.localize('search.invalidRootFolder', 'No root folder named {}', searchPathRoot));
-					} else {
-						searchPaths.push(...matchingRoots.map(root => paths.join(root.fsPath, relativeSearchPathMatch[2])));
-					}
+			// 1 open folder => just resolve the search paths to absolute paths
+			const { pathPortion, globPortion } = splitGlobFromPath(searchPath);
+			const absolutePathPortions = this.expandAbsoluteSearchPaths(pathPortion);
+			searchPaths.push(...absolutePathPortions);
 
-				} else {
-					// Malformed ./ search path
-					// throw new Error(nls.localize('search.invalidRelativeInclude', 'Invalid folder include pattern: {}', searchPath));
-				}
+			if (globPortion) {
+				additionalIncludePatterns.push(...absolutePathPortions.map(abs => paths.join(abs, globPortion)));
 			}
 		}
 
-		return { searchPaths, additionalIncludePatterns };
+		return {
+			searchPaths,
+			additionalIncludePatterns
+		};
+	}
+
+	private expandAbsoluteSearchPaths(searchPath: string): string[] {
+		if (paths.isAbsolute(searchPath)) {
+			return [searchPath];
+		}
+
+		const workspace = this.workspaceContextService.getWorkspace();
+		if (workspace.roots.length === 1) {
+			return [paths.join(workspace.roots[0].fsPath, searchPath)];
+		} else {
+			const relativeSearchPathMatch = searchPath.match(/\.\/([^\/]+)(\/.+)?/);
+			if (relativeSearchPathMatch) {
+				const searchPathRoot = relativeSearchPathMatch[1];
+				const matchingRoots = workspace.roots.filter(root => paths.basename(root.fsPath) === searchPathRoot);
+				if (matchingRoots.length) {
+					return matchingRoots.map(root => paths.join(root.fsPath, relativeSearchPathMatch[2] || ''));
+				} else {
+					// throw new Error(nls.localize('search.invalidRootFolder', 'No root folder named {}', searchPathRoot));
+				}
+			} else {
+				// Malformed ./ search path
+				// throw new Error(nls.localize('search.invalidRelativeInclude', 'Invalid folder include pattern: {}', searchPath));
+			}
+		}
+
+		return [];
 	}
 }
 

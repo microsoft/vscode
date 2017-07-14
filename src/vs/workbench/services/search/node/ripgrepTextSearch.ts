@@ -398,13 +398,13 @@ function foldersToRgExcludeGlobs(folderQueries: IFolderSearch[], globalExclude: 
 }
 
 function foldersToIncludeGlobs(folderQueries: IFolderSearch[], globalInclude: glob.IExpression): string[] {
-	const globArgs: string[] = [];
+	const globArgs = new Set<string>();
 	folderQueries.forEach(folderQuery => {
 		const result = globExprsToRgGlobs(globalInclude, folderQuery.folder);
-		globArgs.push(...result.globArgs);
+		result.globArgs.forEach(arg => globArgs.add(arg));
 	});
 
-	return globArgs;
+	return (<any>Array).from(globArgs);
 }
 
 function globExprsToRgGlobs(patterns: glob.IExpression, folder: string): IRgGlobResult {

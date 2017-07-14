@@ -115,6 +115,7 @@ export class PatternInputWidget extends Widget {
 		let searchPaths: string[];
 		if (isGlobPattern) {
 			const segments = splitGlobAware(pattern, ',')
+				.map(s => s.trim())
 				.filter(s => !!s.length);
 
 			const groups = this.groupByPathsAndExprSegments(segments);
@@ -122,6 +123,7 @@ export class PatternInputWidget extends Widget {
 			exprSegments = groups.exprSegments;
 		} else {
 			const segments = pattern.split(',')
+				.map(s => s.trim())
 				.filter(s => !!s.length);
 
 			const groups = this.groupByPathsAndExprSegments(segments);
