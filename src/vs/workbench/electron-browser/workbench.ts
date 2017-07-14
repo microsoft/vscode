@@ -918,7 +918,7 @@ export class Workbench implements IPartService {
 
 	private setFontAliasing(aliasing: string) {
 		this.fontAliasing = aliasing;
-		this.workbench.style('-webkit-font-smoothing', (aliasing === 'default' ? '' : aliasing));
+		document.body.style['-webkit-font-smoothing'] = (aliasing === 'default' ? '' : aliasing);
 	}
 
 	public dispose(): void {
