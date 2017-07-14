@@ -79,54 +79,31 @@ export class HistoryMainService implements IHistoryMainService {
 		}
 	}
 
-	public removeFromRecentlyOpened(toRemove: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): void;
-	public removeFromRecentlyOpened(toRemove: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[]): void;
-	public removeFromRecentlyOpened(arg1: any): void {
-		let workspacesOrFilesToRemove: any[];
-		if (Array.isArray(arg1)) {
-			workspacesOrFilesToRemove = arg1;
-		} else {
-			workspacesOrFilesToRemove = [arg1];
-		}
-
+	public removeFromRecentlyOpened(pathsToRemove: string[]): void {
 		const mru = this.getRecentlyOpened();
 		let update = false;
 
-		workspacesOrFilesToRemove.forEach((workspaceOrFileToRemove: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier) => {
+		pathsToRemove.forEach((pathToRemove => {
 
 			// Remove workspace
-			let index = arrays.firstIndex(mru.workspaces, workspace => this.equals(workspace, workspaceOrFileToRemove));
+			let index = arrays.firstIndex(mru.workspaces, workspace => isSingleFolderWorkspaceIdentifier(workspace) ? workspace === pathToRemove : workspace.configPath === pathToRemove);
 			if (index >= 0) {
 				mru.workspaces.splice(index, 1);
 				update = true;
 			}
 
 			// Remove file
-			if (typeof workspaceOrFileToRemove === 'string') {
-				let index = mru.files.indexOf(workspaceOrFileToRemove);
-				if (index >= 0) {
-					mru.files.splice(index, 1);
-					update = true;
-				}
+			index = mru.files.indexOf(pathToRemove);
+			if (index >= 0) {
+				mru.files.splice(index, 1);
+				update = true;
 			}
-		});
+		}));
 
 		if (update) {
 			this.storageService.setItem(HistoryMainService.recentlyOpenedStorageKey, mru);
 			this._onRecentlyOpenedChange.fire();
 		}
-	}
-
-	private equals(w1: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, w2: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): boolean {
-		if (w1 === w2) {
-			return true;
-		}
-
-		if (typeof w1 === 'string' || typeof w2 === 'string') {
-			return false;
-		}
-
-		return w1.id === w2.id;
 	}
 
 	public clearRecentlyOpened(): void {

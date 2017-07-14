@@ -165,8 +165,8 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('addRecentlyOpened', files);
 	}
 
-	removeFromRecentlyOpened(toRemove: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[]): TPromise<void> {
-		return this.channel.call('removeFromRecentlyOpened', toRemove);
+	removeFromRecentlyOpened(paths: string[]): TPromise<void> {
+		return this.channel.call('removeFromRecentlyOpened', paths);
 	}
 
 	clearRecentlyOpened(): TPromise<void> {

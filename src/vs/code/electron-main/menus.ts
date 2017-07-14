@@ -488,7 +488,7 @@ export class CodeMenu {
 				const openInNewWindow = this.isOptionClick(event);
 				const success = this.windowsService.open({ context: OpenContext.MENU, cli: this.environmentService.args, pathsToOpen: [path], forceNewWindow: openInNewWindow }).length > 0;
 				if (!success) {
-					this.historyService.removeFromRecentlyOpened(workspace);
+					this.historyService.removeFromRecentlyOpened([isSingleFolderWorkspaceIdentifier(workspace) ? workspace : workspace.configPath]);
 				}
 			}
 		}, false));

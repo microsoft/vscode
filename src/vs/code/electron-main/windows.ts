@@ -801,7 +801,7 @@ export class WindowsManager implements IWindowsMainService {
 				};
 			}
 		} catch (error) {
-			this.historyService.removeFromRecentlyOpened(candidate); // since file does not seem to exist anymore, remove from recent
+			this.historyService.removeFromRecentlyOpened([candidate]); // since file does not seem to exist anymore, remove from recent
 
 			if (ignoreFileNotFound) {
 				return { filePath: candidate, createFilePath: true }; // assume this is a file that does not yet exist

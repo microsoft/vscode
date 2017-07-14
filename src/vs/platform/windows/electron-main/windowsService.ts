@@ -20,7 +20,7 @@ import { ILifecycleService } from "vs/platform/lifecycle/electron-main/lifecycle
 import { IWindowsMainService, ISharedProcess } from "vs/platform/windows/electron-main/windows";
 import { IHistoryMainService, IRecentlyOpened } from "vs/platform/history/common/history";
 import { findExtensionDevelopmentWindow } from "vs/code/node/windowsFinder";
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 
 export class WindowsService implements IWindowsService, IDisposable {
 
@@ -146,8 +146,8 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return TPromise.as(null);
 	}
 
-	removeFromRecentlyOpened(toRemove: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[]): TPromise<void> {
-		this.historyService.removeFromRecentlyOpened(toRemove);
+	removeFromRecentlyOpened(paths: string[]): TPromise<void> {
+		this.historyService.removeFromRecentlyOpened(paths);
 
 		return TPromise.as(null);
 	}
