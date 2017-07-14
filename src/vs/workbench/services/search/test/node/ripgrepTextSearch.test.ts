@@ -180,22 +180,24 @@ suite('RipgrepParser - etc', () => {
 		assert.equal(getAbsoluteGlob(folder, glob), expectedResult, JSON.stringify(params));
 	}
 
-	// TODO@Rob this seems to fail
-	// test('getAbsoluteGlob_win', () => {
-	// 	if (!platform.isWindows) {
-	// 		return;
-	// 	}
+	test('getAbsoluteGlob_win', () => {
+		if (!platform.isWindows) {
+			return;
+		}
 
-	// 	[
-	// 		['C:/foo/bar', 'glob/**', '/foo\\bar\\glob\\**'],
-	// 		['c:/foo/bar', '/glob/**', '/foo\\bar\\glob\\**'],
-	// 		['c:/', 'glob/**', '/glob\\**'],
-	// 		['C:\\foo\\bar', 'glob\\**', '/foo\\bar\\glob\\**'],
-	// 		['c:\\foo\\bar', 'glob\\**', '/foo\\bar\\glob\\**'],
-	// 		['c:\\', 'glob\\**', '/glob\\**'],
-	// 		['\\\\localhost\\c$\\foo\\bar', 'glob/**', '\\\\localhost\\c$\\foo\\bar\\glob\\**']
-	// 	].forEach(testGetAbsGlob);
-	// });
+		[
+			['C:/foo/bar', 'glob/**', '/foo\\bar\\glob\\**'],
+			['c:/', 'glob/**', '/glob\\**'],
+			['C:\\foo\\bar', 'glob\\**', '/foo\\bar\\glob\\**'],
+			['c:\\foo\\bar', 'glob\\**', '/foo\\bar\\glob\\**'],
+			['c:\\', 'glob\\**', '/glob\\**'],
+			['\\\\localhost\\c$\\foo\\bar', 'glob/**', '\\\\localhost\\c$\\foo\\bar\\glob\\**'],
+
+			// absolute paths are not resolved further
+			['c:/foo/bar', '/path/something', '/path/something'],
+			['c:/foo/bar', 'c:\\project\\folder', '/project\\folder']
+		].forEach(testGetAbsGlob);
+	});
 
 	test('getAbsoluteGlob_posix', () => {
 		if (platform.isWindows) {
@@ -204,7 +206,10 @@ suite('RipgrepParser - etc', () => {
 
 		[
 			['/foo/bar', 'glob/**', '/foo/bar/glob/**'],
-			['/', 'glob/**', '/glob/**']
+			['/', 'glob/**', '/glob/**'],
+
+			// absolute paths are not resolved further
+			['/', '/project/folder', '/project/folder'],
 		].forEach(testGetAbsGlob);
 	});
 });
