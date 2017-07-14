@@ -102,6 +102,7 @@ export class ColorPickerBody extends Disposable {
 			const x = newSaturationX + deltaX;
 			const y = newSaturationY + deltaY;
 
+			console.log(`${x},${y}`);
 			this.widget.model.color = this.extractColor(this.saturationCtx, x, y);
 			this.widget.model.saturationSelection = { x: x, y: y };
 			this.focusSaturationSelection(this.widget.model.saturationSelection);
@@ -134,6 +135,12 @@ export class ColorPickerBody extends Disposable {
 			// Do not move slider on Windows if it's outside of movable bounds
 			const mouseOrthogonalDelta = Math.abs(mouseMoveData.posx - initialMouseOrthogonalPosition);
 			if (isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
+				slider.top = 0;
+				if (slider === this.hueSlider) {
+					this.widget.model.hue = 'rgb(255, 0, 0)';
+				} else if (slider === this.opacitySlider) {
+					this.widget.model.opacity = 1;
+				}
 				return;
 			}
 
