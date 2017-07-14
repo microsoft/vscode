@@ -88,7 +88,9 @@ function doDetectMimesFromFile(absolutePath: string, option?: DetectMimesOption)
 	});
 }
 
-export function detectMimeAndEncodingFromBuffer({ buffer, bytesRead }: stream.ReadResult, autoGuessEncoding?: boolean): IMimeAndEncoding {
+export function detectMimeAndEncodingFromBuffer(readResult: stream.ReadResult, autoGuessEncoding?: false): IMimeAndEncoding;
+export function detectMimeAndEncodingFromBuffer(readResult: stream.ReadResult, autoGuessEncoding?: boolean): TPromise<IMimeAndEncoding>;
+export function detectMimeAndEncodingFromBuffer({ buffer, bytesRead }: stream.ReadResult, autoGuessEncoding?: boolean): TPromise<IMimeAndEncoding> | IMimeAndEncoding {
 	let enc = encoding.detectEncodingByBOMFromBuffer(buffer, bytesRead);
 
 	// Detect 0 bytes to see if file is binary (ignore for UTF 16 though)
@@ -103,7 +105,12 @@ export function detectMimeAndEncodingFromBuffer({ buffer, bytesRead }: stream.Re
 	}
 
 	if (autoGuessEncoding && isText && !enc) {
-		enc = encoding.guessEncodingByBuffer(buffer.slice(0, bytesRead));
+		return encoding.guessEncodingByBuffer(buffer.slice(0, bytesRead)).then(enc => {
+			return {
+				mimes: isText ? [mime.MIME_TEXT] : [mime.MIME_BINARY],
+				encoding: enc
+			};
+		});
 	}
 
 	return {
