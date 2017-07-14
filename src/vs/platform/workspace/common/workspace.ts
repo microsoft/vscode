@@ -131,7 +131,7 @@ export class LegacyWorkspace implements ILegacyWorkspace {
 
 export class Workspace implements IWorkspace {
 
-	protected _rootsMap: TrieMap<URI> = new TrieMap<URI>(TrieMap.PathSplitter);
+	private _rootsMap: TrieMap<URI> = new TrieMap<URI>(TrieMap.PathSplitter);
 
 	constructor(
 		public readonly id: string,

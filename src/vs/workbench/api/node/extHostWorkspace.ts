@@ -17,6 +17,7 @@ import { fromRange, EndOfLine } from 'vs/workbench/api/node/extHostTypeConverter
 import { IWorkspaceData, ExtHostWorkspaceShape, MainContext, MainThreadWorkspaceShape } from './extHost.protocol';
 import * as vscode from 'vscode';
 import { compare } from 'vs/base/common/strings';
+import { TrieMap } from 'vs/base/common/map';
 
 class Workspace2 extends Workspace {
 
@@ -24,29 +25,42 @@ class Workspace2 extends Workspace {
 		return data ? new Workspace2(data) : null;
 	}
 
-	private readonly _folder = new Map<URI, vscode.WorkspaceFolder>();
+	private readonly _folder: vscode.WorkspaceFolder[] = [];
+	private readonly _structure = new TrieMap<vscode.WorkspaceFolder>(s => s.split('/'));
 
 	private constructor(data: IWorkspaceData) {
 		super(data.id, data.name, data.roots);
 
+		// setup the workspace folder data structure
 		this.roots.forEach((uri, index) => {
-			this._folder.set(uri, {
+			const folder = {
 				name: basename(uri.fsPath),
 				uri,
 				index
-			});
+			};
+			this._folder.push(folder);
+			this._structure.insert(folder.uri.toString(), folder);
 		});
 	}
 
 	get folders(): vscode.WorkspaceFolder[] {
-		const ret: vscode.WorkspaceFolder[] = [];
-		this._folder.forEach(value => ret.push(value));
-		return ret;
+		return this._folder.slice(0);
 	}
 
 	getWorkspaceFolder(uri: URI): vscode.WorkspaceFolder {
-		let root = this._rootsMap.findSubstr(uri.fsPath);
-		return root && this._folder.get(root);
+		let str = uri.toString();
+		let folder = this._structure.lookUp(str);
+		if (folder) {
+			// `uri` is a workspace folder so we
+			let parts = str.split('/');
+			while (parts.length) {
+				if (parts.pop()) {
+					break;
+				}
+			}
+			str = parts.join('/');
+		}
+		return this._structure.findSubstr(str);
 	}
 }
 

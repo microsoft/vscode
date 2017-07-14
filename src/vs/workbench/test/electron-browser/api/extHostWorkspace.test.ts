@@ -98,11 +98,14 @@ suite('ExtHostWorkspace', function () {
 		folder = ws.getWorkspaceFolder(URI.file('/Coding/Two/Nested/f'));
 		assert.equal(folder.name, 'Nested');
 
-		// folder = ws.getWorkspaceFolder(URI.file('/Coding/Two/Nested'));
-		// assert.equal(folder.name, 'Two');
+		folder = ws.getWorkspaceFolder(URI.file('/Coding/Two/Nested'));
+		assert.equal(folder.name, 'Two');
 
-		// folder = ws.getWorkspaceFolder(URI.file('/Coding/Two/Nested/'));
-		// assert.equal(folder.name, 'Two');
+		folder = ws.getWorkspaceFolder(URI.file('/Coding/Two/Nested/'));
+		assert.equal(folder.name, 'Two');
+
+		folder = ws.getWorkspaceFolder(URI.file('/Coding/Two'));
+		assert.equal(folder, undefined);
 	});
 
 	test('Multiroot change event should have a delta, #29641', function () {
