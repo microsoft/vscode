@@ -188,7 +188,7 @@ export class ExtensionHostProcessWorker {
 				this.broadcastService.broadcast({
 					channel: EXTENSION_ATTACH_BROADCAST_CHANNEL,
 					payload: { port }
-				}, this.environmentService.extensionDevelopmentPath /* target */);
+				});
 			}
 
 			// Help in case we fail to start it
@@ -330,7 +330,7 @@ export class ExtensionHostProcessWorker {
 			this.broadcastService.broadcast({
 				channel: EXTENSION_LOG_BROADCAST_CHANNEL,
 				payload: logEntry
-			}, this.environmentService.extensionDevelopmentPath /* target */);
+			});
 		}
 	}
 
@@ -397,7 +397,7 @@ export class ExtensionHostProcessWorker {
 			this.broadcastService.broadcast({
 				channel: EXTENSION_TERMINATE_BROADCAST_CHANNEL,
 				payload: true
-			}, this.environmentService.extensionDevelopmentPath /* target */);
+			});
 
 			event.veto(TPromise.timeout(100 /* wait a bit for IPC to get delivered */).then(() => false));
 		}
