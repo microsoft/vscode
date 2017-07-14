@@ -113,7 +113,7 @@ function openWorkbench(configuration: IWindowConfiguration, options: IOptions): 
 
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
 	// right before startup of the workbench shell to have its data ready for consumers
-	return createAndInitializeWorkspaceService(configuration, environmentService).then(workspaceService => {
+	return createAndInitializeWorkspaceService(configuration, environmentService, <IWorkspacesService>mainServices.get(IWorkspacesService)).then(workspaceService => {
 		const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, !workspaceService.hasWorkspace());
 		const storageService = createStorageService(configuration, workspaceService, environmentService);
 
@@ -145,10 +145,11 @@ function openWorkbench(configuration: IWindowConfiguration, options: IOptions): 
 	});
 }
 
-function createAndInitializeWorkspaceService(configuration: IWindowConfiguration, environmentService: EnvironmentService): TPromise<WorkspaceService> {
+function createAndInitializeWorkspaceService(configuration: IWindowConfiguration, environmentService: EnvironmentService, workspacesService: IWorkspacesService): TPromise<WorkspaceService> {
 	return validateWorkspacePath(configuration).then(() => {
-		const workspaceConfigPath = configuration.workspace ? configuration.workspace.configPath : null;
-		const workspaceService = (workspaceConfigPath || configuration.folderPath) ? new WorkspaceServiceImpl(workspaceConfigPath, configuration.folderPath, environmentService) : new EmptyWorkspaceServiceImpl(environmentService);
+		const workspaceConfigPath = configuration.workspace ? uri.file(configuration.workspace.configPath) : null;
+		const folderPath = configuration.folderPath ? uri.file(configuration.folderPath) : null;
+		const workspaceService = (workspaceConfigPath || configuration.folderPath) ? new WorkspaceServiceImpl(workspaceConfigPath, folderPath, environmentService, workspacesService) : new EmptyWorkspaceServiceImpl(environmentService);
 
 		return workspaceService.initialize().then(() => workspaceService, error => new EmptyWorkspaceServiceImpl(environmentService));
 	});
@@ -226,7 +227,7 @@ function createMainProcessServices(mainProcessClient: ElectronIPCClient, current
 	serviceCollection.set(IURLService, new SyncDescriptor(URLChannelClient, urlChannel, currentWindow.id));
 
 	const workspacesChannel = mainProcessClient.getChannel('workspaces');
-	serviceCollection.set(IWorkspacesService, new SyncDescriptor(WorkspacesChannelClient, workspacesChannel));
+	serviceCollection.set(IWorkspacesService, new WorkspacesChannelClient(workspacesChannel));
 
 	return serviceCollection;
 }

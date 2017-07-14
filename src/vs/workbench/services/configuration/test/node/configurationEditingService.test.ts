@@ -44,6 +44,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -115,7 +116,8 @@ suite('ConfigurationEditingService', () => {
 		instantiationService = new TestInstantiationService();
 		const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
 		instantiationService.stub(IEnvironmentService, environmentService);
-		const workspaceService = noWorkspace ? new EmptyWorkspaceServiceImpl(environmentService) : new WorkspaceServiceImpl(null, workspaceDir, environmentService);
+		const workspacesService = instantiationService.stub(IWorkspacesService, {});
+		const workspaceService = noWorkspace ? new EmptyWorkspaceServiceImpl(environmentService) : new WorkspaceServiceImpl(null, workspaceDir, environmentService, workspacesService);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 		instantiationService.stub(IConfigurationService, workspaceService);
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());

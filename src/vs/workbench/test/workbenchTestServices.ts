@@ -107,6 +107,10 @@ export class TestContextService implements IWorkspaceContextService {
 		return this.workspace;
 	}
 
+	public saveWorkspace(location: URI): TPromise<void> {
+		return TPromise.as(null);
+	}
+
 	public getRoot(resource: URI): URI {
 		return this.isInsideWorkspace(resource) ? this.workspace.roots[0] : null;
 	}

@@ -14,9 +14,18 @@ export interface IWorkspaceEditingService {
 
 	_serviceBrand: ServiceIdentifier<any>;
 
+	/**
+	 * Create and open a workspace with given roots
+	 */
 	createAndOpenWorkspace(roots: URI[]): TPromise<void>;
 
+	/**
+	 * add roots to the existing workspace
+	 */
 	addRoots(roots: URI[]): TPromise<void>;
 
+	/**
+	 * remove roots from the existing workspace
+	 */
 	removeRoots(roots: URI[]): TPromise<void>;
 }

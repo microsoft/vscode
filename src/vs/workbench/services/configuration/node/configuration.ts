@@ -13,7 +13,7 @@ import { equals } from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
 import * as errors from 'vs/base/common/errors';
 import * as collections from 'vs/base/common/collections';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { readFile, stat } from 'vs/base/node/pfs';
 import * as extfs from 'vs/base/node/extfs';
@@ -33,7 +33,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, editorConfigurationSchemaId, IDefaultConfigurationExtension, validateProperty, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { createHash } from 'crypto';
-import { getWorkspaceLabel } from "vs/platform/workspaces/common/workspaces";
+import { getWorkspaceLabel, IWorkspacesService } from "vs/platform/workspaces/common/workspaces";
 
 interface IStat {
 	resource: URI;
@@ -200,6 +200,10 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return this.workspace && !!this.workspace.configuration;
 	}
 
+	public saveWorkspace(location: URI): TPromise<void> {
+		return TPromise.wrapError(new Error('Not supported'));
+	}
+
 	public getRoot(resource: URI): URI {
 		return this.workspace ? this.workspace.getRoot(resource) : null;
 	}
@@ -323,13 +327,19 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 	private workspaceConfiguration: WorkspaceConfiguration;
 	private cachedFolderConfigs: StrictResourceMap<FolderConfiguration<any>>;
 
-	constructor(private workspaceConfigPath: string, private folderPath: string, private environmentService: IEnvironmentService, private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME) {
+	constructor(private workspaceConfigPath: URI, private folderPath: URI, private environmentService: IEnvironmentService, private workspacesService: IWorkspacesService, private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME) {
 		super();
+		this.workspaceConfiguration = this._register(new WorkspaceConfiguration());
 		this.baseConfigurationService = this._register(new GlobalConfigurationService(environmentService));
 	}
 
+	saveWorkspace(location: URI): TPromise<void> {
+		return this.workspacesService.saveWorkspace({ id: this.workspace.id, configPath: this.workspace.configuration.fsPath }, location.fsPath)
+			.then(workspaceIdentifier => this.onWorkspaceSaved(URI.file(workspaceIdentifier.configPath)));
+	}
+
 	public getUnsupportedWorkspaceKeys(): string[] {
-		return this.workspaceConfiguration ? [] : this._configuration.getFolderConfigurationModel(this.workspace.roots[0]).workspaceSettingsConfig.unsupportedKeys;
+		return this.hasFolderWorkspace() ? this._configuration.getFolderConfigurationModel(this.workspace.roots[0]).workspaceSettingsConfig.unsupportedKeys : [];
 	}
 
 	public initialize(trigger: boolean = true): TPromise<any> {
@@ -338,8 +348,8 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 				.then(() => super.initialize(trigger));
 		}
 
-		if (this.workspaceConfiguration) {
-			return this.workspaceConfiguration.load()
+		if (this.hasMultiFolderWorkspace()) {
+			return this.workspaceConfiguration.load(this.workspaceConfigPath)
 				.then(() => super.initialize(trigger));
 		}
 
@@ -382,16 +392,32 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 			});
 	}
 
+	private onWorkspaceSaved(configPath: URI): TPromise<void> {
+		this.workspaceConfigPath = configPath;
+
+		// Reset the workspace if current workspace is single folder
+		if (this.hasFolderWorkspace()) {
+			this.folderPath = null;
+			this.workspace = null;
+		}
+
+		// Update workspace configuration path with new path
+		else {
+			this.workspace.configuration = configPath;
+		}
+
+		return this.initialize();
+	}
+
 	private initializeMulitFolderWorkspace(): TPromise<void> {
-		this.workspaceConfiguration = this._register(new WorkspaceConfiguration(URI.file(this.workspaceConfigPath)));
-		return this.workspaceConfiguration.load()
+		return this.workspaceConfiguration.load(this.workspaceConfigPath)
 			.then(() => {
 				const workspaceConfigurationModel = this.workspaceConfiguration.workspaceConfigurationModel;
 				if (!workspaceConfigurationModel.id || !workspaceConfigurationModel.folders.length) {
 					return TPromise.wrapError<void>(new Error('Invalid workspace configuraton file ' + this.workspaceConfigPath));
 				}
-				const workspaceName = getWorkspaceLabel(this.environmentService, { id: workspaceConfigurationModel.id, configPath: this.workspaceConfiguration.workspaceConfigurationPath.fsPath });
-				this.workspace = new Workspace(workspaceConfigurationModel.id, workspaceName, workspaceConfigurationModel.folders, this.workspaceConfiguration.workspaceConfigurationPath);
+				const workspaceName = getWorkspaceLabel(this.environmentService, { id: workspaceConfigurationModel.id, configPath: this.workspaceConfigPath.fsPath });
+				this.workspace = new Workspace(workspaceConfigurationModel.id, workspaceName, workspaceConfigurationModel.folders, this.workspaceConfigPath);
 				this.legacyWorkspace = new LegacyWorkspace(this.workspace.roots[0]);
 				this._register(this.workspaceConfiguration.onDidUpdateConfiguration(() => this.onWorkspaceConfigurationChanged()));
 				return null;
@@ -399,12 +425,12 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 	}
 
 	private initializeSingleFolderWorkspace(): TPromise<void> {
-		return stat(this.folderPath)
+		return stat(this.folderPath.fsPath)
 			.then(workspaceStat => {
 				const ctime = isLinux ? workspaceStat.ino : workspaceStat.birthtime.getTime(); // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
-				const id = createHash('md5').update(this.folderPath).update(ctime ? String(ctime) : '').digest('hex');
-				const folder = URI.file(this.folderPath);
-				this.workspace = new Workspace(id, paths.basename(this.folderPath), [folder], null);
+				const id = createHash('md5').update(this.folderPath.fsPath).update(ctime ? String(ctime) : '').digest('hex');
+				const folder = URI.file(this.folderPath.fsPath);
+				this.workspace = new Workspace(id, paths.basename(this.folderPath.fsPath), [folder], null);
 				this.legacyWorkspace = new LegacyWorkspace(folder, ctime);
 				return TPromise.as(null);
 			});
@@ -412,7 +438,7 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 
 	private initCachesForFolders(folders: URI[]): void {
 		for (const folder of folders) {
-			this.cachedFolderConfigs.set(folder, this._register(new FolderConfiguration(folder, this.workspaceSettingsRootFolder, this.workspaceConfiguration ? ConfigurationScope.FOLDER : ConfigurationScope.WORKSPACE)));
+			this.cachedFolderConfigs.set(folder, this._register(new FolderConfiguration(folder, this.workspaceSettingsRootFolder, this.hasMultiFolderWorkspace() ? ConfigurationScope.FOLDER : ConfigurationScope.WORKSPACE)));
 			this.updateFolderConfiguration(folder, new FolderConfigurationModel<any>(new FolderSettingsModel<any>(null), [], ConfigurationScope.FOLDER), false);
 		}
 	}
@@ -475,7 +501,7 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 
 	private updateFolderConfiguration(folder: URI, folderConfiguration: FolderConfigurationModel<any>, compare: boolean): boolean {
 		let configurationChanged = this._configuration.updateFolderConfiguration(folder, folderConfiguration, compare);
-		if (!this.workspaceConfiguration) {
+		if (this.hasFolderWorkspace()) {
 			// Workspace configuration changed
 			configurationChanged = this.updateWorkspaceConfiguration(compare) || configurationChanged;
 		}
@@ -483,7 +509,7 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 	}
 
 	private updateWorkspaceConfiguration(compare: boolean): boolean {
-		const workspaceConfiguration = this.workspaceConfiguration ? this.workspaceConfiguration.workspaceConfigurationModel.workspaceConfiguration : this._configuration.getFolderConfigurationModel(this.workspace.roots[0]);
+		const workspaceConfiguration = this.hasMultiFolderWorkspace() ? this.workspaceConfiguration.workspaceConfigurationModel.workspaceConfiguration : this._configuration.getFolderConfigurationModel(this.workspace.roots[0]);
 		return this._configuration.updateWorkspaceConfiguration(workspaceConfiguration, compare);
 	}
 
@@ -494,34 +520,32 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 
 class WorkspaceConfiguration extends Disposable {
 
+	private _workspaceConfigPath: URI;
 	private _workspaceConfigurationWatcher: ConfigWatcher<WorkspaceConfigurationModel<any>>;
+	private _workspaceConfigurationWatcherDisposables: IDisposable[] = [];
 
 	private _onDidUpdateConfiguration: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidUpdateConfiguration: Event<void> = this._onDidUpdateConfiguration.event;
 
-	constructor(public readonly workspaceConfigurationPath: URI) {
-		super();
-	}
 
-	load(): TPromise<void> {
-		if (!this.workspaceConfigurationPath) {
-			return TPromise.as(null);
-		}
-
-		if (this._workspaceConfigurationWatcher) {
+	load(workspaceConfigPath: URI): TPromise<void> {
+		if (this._workspaceConfigPath && this._workspaceConfigPath.fsPath === workspaceConfigPath.fsPath) {
 			return this._reload();
 		}
 
+		this._workspaceConfigPath = workspaceConfigPath;
+
+		this._workspaceConfigurationWatcherDisposables = dispose(this._workspaceConfigurationWatcherDisposables);
 		return new TPromise<void>((c, e) => {
-			this._workspaceConfigurationWatcher = new ConfigWatcher(this.workspaceConfigurationPath.fsPath, {
-				changeBufferDelay: 300, defaultConfig: new WorkspaceConfigurationModel(null, this.workspaceConfigurationPath.fsPath), parse: (content: string, parseErrors: any[]) => {
-					const workspaceConfigurationModel = new WorkspaceConfigurationModel(content, this.workspaceConfigurationPath.fsPath);
+			this._workspaceConfigurationWatcher = new ConfigWatcher(this._workspaceConfigPath.fsPath, {
+				changeBufferDelay: 300, defaultConfig: new WorkspaceConfigurationModel(null, this._workspaceConfigPath.fsPath), parse: (content: string, parseErrors: any[]) => {
+					const workspaceConfigurationModel = new WorkspaceConfigurationModel(content, this._workspaceConfigPath.fsPath);
 					parseErrors = [...workspaceConfigurationModel.errors];
 					return workspaceConfigurationModel;
 				}, initCallback: () => c(null)
 			});
-			this._register(toDisposable(() => this._workspaceConfigurationWatcher.dispose()));
-			this._register(this._workspaceConfigurationWatcher.onDidUpdateConfiguration(() => this._onDidUpdateConfiguration.fire()));
+			this._workspaceConfigurationWatcherDisposables.push(toDisposable(() => this._workspaceConfigurationWatcher.dispose()));
+			this._workspaceConfigurationWatcher.onDidUpdateConfiguration(() => this._onDidUpdateConfiguration.fire(), this, this._workspaceConfigurationWatcherDisposables);
 		});
 	}
 
@@ -530,11 +554,12 @@ class WorkspaceConfiguration extends Disposable {
 	}
 
 	private _reload(): TPromise<void> {
-		return new TPromise<void>(c => {
-			this._workspaceConfigurationWatcher.reload(() => {
-				c(null);
-			});
-		});
+		return new TPromise<void>(c => this._workspaceConfigurationWatcher.reload(() => c(null)));
+	}
+
+	dispose(): void {
+		dispose(this._workspaceConfigurationWatcherDisposables);
+		super.dispose();
 	}
 }
 

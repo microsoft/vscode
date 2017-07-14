@@ -220,10 +220,7 @@ export class SaveWorkspaceAction extends BaseRootFolderAction {
 		});
 
 		if (target) {
-			const workspace = this.contextService.getWorkspace();
-			return this.workspacesService.saveWorkspace({ id: workspace.id, configPath: workspace.configuration.fsPath }, target).then(workspace => {
-				return this.windowsService.openWindow([workspace.configPath]);
-			});
+			return this.contextService.saveWorkspace(URI.file(target));
 		}
 
 		return TPromise.as(false);

@@ -10,6 +10,7 @@ import os = require('os');
 import path = require('path');
 import fs = require('fs');
 import * as sinon from 'sinon';
+import uri from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -19,7 +20,6 @@ import extfs = require('vs/base/node/extfs');
 import uuid = require('vs/base/common/uuid');
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceServiceImpl, WorkspaceService } from 'vs/workbench/services/configuration/node/configuration';
-import URI from 'vs/base/common/uri';
 import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
@@ -47,7 +47,7 @@ suite('WorkspaceConfigurationService - Node', () => {
 
 	function createService(workspaceDir: string, globalSettingsFile: string): TPromise<WorkspaceService> {
 		const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
-		const service = new WorkspaceServiceImpl(null, workspaceDir, environmentService);
+		const service = new WorkspaceServiceImpl(null, uri.file(workspaceDir), environmentService, null);
 
 		return service.initialize().then(() => service);
 	}

@@ -540,6 +540,10 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 		return this.workspace;
 	}
 
+	public saveWorkspace(): TPromise<void> {
+		return TPromise.as(null);
+	}
+
 	public getRoot(resource: URI): URI {
 		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME ? this.workspace.roots[0] : void 0;
 	}
