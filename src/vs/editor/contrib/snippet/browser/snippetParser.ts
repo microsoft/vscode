@@ -13,6 +13,7 @@ export enum TokenType {
 	CurlyOpen,
 	CurlyClose,
 	Backslash,
+	Forwardslash,
 	Int,
 	VariableName,
 	Format,
@@ -34,6 +35,7 @@ export class Scanner {
 		[CharCode.OpenCurlyBrace]: TokenType.CurlyOpen,
 		[CharCode.CloseCurlyBrace]: TokenType.CurlyClose,
 		[CharCode.Backslash]: TokenType.Backslash,
+		[CharCode.Slash]: TokenType.Forwardslash
 	};
 
 	static isDigitCharacter(ch: number): boolean {

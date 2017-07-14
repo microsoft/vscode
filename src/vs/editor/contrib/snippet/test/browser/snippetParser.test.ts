@@ -76,6 +76,19 @@ suite('SnippetParser', () => {
 		assert.equal(scanner.next().type, TokenType.Dollar);
 		assert.equal(scanner.next().type, TokenType.CurlyOpen);
 		assert.equal(scanner.next().type, TokenType.CurlyClose);
+
+		scanner.text('${foo/regex/format/option}');
+		assert.equal(scanner.next().type, TokenType.Dollar);
+		assert.equal(scanner.next().type, TokenType.CurlyOpen);
+		assert.equal(scanner.next().type, TokenType.VariableName);
+		assert.equal(scanner.next().type, TokenType.Forwardslash);
+		assert.equal(scanner.next().type, TokenType.VariableName);
+		assert.equal(scanner.next().type, TokenType.Forwardslash);
+		assert.equal(scanner.next().type, TokenType.VariableName);
+		assert.equal(scanner.next().type, TokenType.Forwardslash);
+		assert.equal(scanner.next().type, TokenType.VariableName);
+		assert.equal(scanner.next().type, TokenType.CurlyClose);
+		assert.equal(scanner.next().type, TokenType.EOF);
 	});
 
 	function assertText(value: string, expected: string) {
