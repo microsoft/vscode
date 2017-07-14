@@ -987,41 +987,45 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	private getNewWindowState(configuration: IWindowConfiguration): INewWindowState {
-
-		// extension development host Window - load from stored settings if any
-		if (!!configuration.extensionDevelopmentPath && this.windowsState.lastPluginDevelopmentHostWindow) {
-			return this.windowsState.lastPluginDevelopmentHostWindow.uiState;
-		}
-
-		// Known Workspace - load from stored settings
-		if (configuration.workspace) {
-			const stateForWorkspace = this.windowsState.openedWindows.filter(o => o.workspace && o.workspace.id === configuration.workspace.id).map(o => o.uiState);
-			if (stateForWorkspace.length) {
-				return stateForWorkspace[0];
-			}
-		}
-
-		// Known Folder - load from stored settings
-		if (configuration.folderPath) {
-			const stateForFolder = this.windowsState.openedWindows.filter(o => isEqual(o.folderPath, configuration.folderPath, !isLinux /* ignorecase */)).map(o => o.uiState);
-			if (stateForFolder.length) {
-				return stateForFolder[0];
-			}
-		}
-
-		// Empty windows with backups
-		else if (configuration.backupPath) {
-			const stateForEmptyWindow = this.windowsState.openedWindows.filter(o => o.backupPath === configuration.backupPath).map(o => o.uiState);
-			if (stateForEmptyWindow.length) {
-				return stateForEmptyWindow[0];
-			}
-		}
-
-		// First Window
 		const lastActive = this.getLastActiveWindow();
-		const lastActiveState = this.lastClosedWindowState || this.windowsState.lastActiveWindow;
-		if (!lastActive && lastActiveState) {
-			return lastActiveState.uiState;
+
+		// Restore state unless we are running extension tests
+		if (!configuration.extensionTestsPath) {
+
+			// extension development host Window - load from stored settings if any
+			if (!!configuration.extensionDevelopmentPath && this.windowsState.lastPluginDevelopmentHostWindow) {
+				return this.windowsState.lastPluginDevelopmentHostWindow.uiState;
+			}
+
+			// Known Workspace - load from stored settings
+			if (configuration.workspace) {
+				const stateForWorkspace = this.windowsState.openedWindows.filter(o => o.workspace && o.workspace.id === configuration.workspace.id).map(o => o.uiState);
+				if (stateForWorkspace.length) {
+					return stateForWorkspace[0];
+				}
+			}
+
+			// Known Folder - load from stored settings
+			if (configuration.folderPath) {
+				const stateForFolder = this.windowsState.openedWindows.filter(o => isEqual(o.folderPath, configuration.folderPath, !isLinux /* ignorecase */)).map(o => o.uiState);
+				if (stateForFolder.length) {
+					return stateForFolder[0];
+				}
+			}
+
+			// Empty windows with backups
+			else if (configuration.backupPath) {
+				const stateForEmptyWindow = this.windowsState.openedWindows.filter(o => o.backupPath === configuration.backupPath).map(o => o.uiState);
+				if (stateForEmptyWindow.length) {
+					return stateForEmptyWindow[0];
+				}
+			}
+
+			// First Window
+			const lastActiveState = this.lastClosedWindowState || this.windowsState.lastActiveWindow;
+			if (!lastActive && lastActiveState) {
+				return lastActiveState.uiState;
+			}
 		}
 
 		//
