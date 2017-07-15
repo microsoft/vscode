@@ -445,9 +445,9 @@
       "resolved": "git+https://github.com/Tyriar/xterm.js.git#90df2bcb7caa712e0a12591798c3e535a9d607cd"
     },
     "yauzl": {
-      "version": "2.3.1",
-      "from": "yauzl@2.3.1",
-      "resolved": "https://registry.npmjs.org/yauzl/-/yauzl-2.3.1.tgz"
+      "version": "2.8.0",
+      "from": "yauzl@2.8.0",
+      "resolved": "https://registry.npmjs.org/yauzl/-/yauzl-2.8.0.tgz"
     },
     "nsfw": {
       "version": "1.0.16",
