@@ -11,7 +11,7 @@ import * as paths from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
 import uri from 'vs/base/common/uri';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IPatternInfo, IQueryOptions, IFolderQueryOptions, ISearchQuery, QueryType, ISearchConfiguration, getExcludes } from 'vs/platform/search/common/search';
+import { IPatternInfo, IQueryOptions, IFolderQuery, ISearchQuery, QueryType, ISearchConfiguration, getExcludes } from 'vs/platform/search/common/search';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class QueryBuilder {
@@ -30,9 +30,13 @@ export class QueryBuilder {
 	}
 
 	private query(type: QueryType, contentPattern: IPatternInfo, folderResources?: uri[], options: IQueryOptions = {}): ISearchQuery {
-		const folderQueries = folderResources && folderResources.map(folder => {
+		const { searchPaths, includePattern } = this.getSearchPaths(options.includePattern);
+
+		// Build folderQueries from searchPaths, if given, otherwise folderResources
+		const folderQueryUris = searchPaths.length ? searchPaths.map(searchPath => uri.parse(searchPath)) : folderResources;
+		const folderQueries = folderQueryUris && folderQueryUris.map(folder => {
 			const folderConfig = this.configurationService.getConfiguration<ISearchConfiguration>(undefined, { resource: folder });
-			return <IFolderQueryOptions>{
+			return <IFolderQuery>{
 				folder,
 				excludePattern: this.getExcludesForFolder(folderConfig, options),
 				fileEncoding: folderConfig.files.encoding
@@ -43,8 +47,6 @@ export class QueryBuilder {
 			const folderConfig = this.configurationService.getConfiguration<ISearchConfiguration>(undefined, { resource: folder });
 			return folderConfig.search.useRipgrep;
 		});
-
-		const { searchPaths, includePattern } = this.getSearchPaths(options.includePattern);
 
 		const excludePattern = patternListToIExpression(splitGlobPattern(options.excludePattern));
 
@@ -61,8 +63,7 @@ export class QueryBuilder {
 			contentPattern: contentPattern,
 			useRipgrep,
 			disregardIgnoreFiles: options.disregardIgnoreFiles,
-			disregardExcludeSettings: options.disregardExcludeSettings,
-			searchPaths
+			disregardExcludeSettings: options.disregardExcludeSettings
 		};
 	}
 

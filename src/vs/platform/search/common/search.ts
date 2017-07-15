@@ -26,7 +26,7 @@ export interface ISearchService {
 	clearCache(cacheKey: string): TPromise<void>;
 }
 
-export interface IFolderQueryOptions {
+export interface IFolderQuery {
 	folder: uri;
 	excludePattern?: IExpression;
 	fileEncoding?: string;
@@ -54,9 +54,8 @@ export interface ISearchQuery extends ICommonQueryOptions {
 
 	excludePattern?: IExpression;
 	includePattern?: IExpression;
-	searchPaths?: string[];
 	contentPattern?: IPatternInfo;
-	folderQueries?: IFolderQueryOptions[];
+	folderQueries?: IFolderQuery[];
 }
 
 export enum QueryType {

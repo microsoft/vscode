@@ -139,18 +139,21 @@ export class RipgrepEngine {
 	 */
 	private rgErrorMsgForDisplay(msg: string): string | undefined {
 		const firstLine = msg.split('\n')[0];
-		if (firstLine.match(/^No files were searched, which means ripgrep/)) {
-			// Not really a useful message to show in the UI
-			return undefined;
-		}
 
 		// The error "No such file or directory" is returned for broken symlinks and also for bad search paths.
 		// Only show it if it's from a search path.
-		const reg = /^(\.\/.*): No such file or directory \(os error 2\)/;
+		const reg = /^\.\/(.*): No such file or directory \(os error 2\)/;
 		const noSuchFileMatch = firstLine.match(reg);
 		if (noSuchFileMatch) {
 			const errorPath = noSuchFileMatch[1];
-			return this.config.searchPaths && this.config.searchPaths.indexOf(errorPath) >= 0 ? firstLine : undefined;
+			const matchingPathSegmentReg = new RegExp('[\\/]' + errorPath);
+			const matchesFolderQuery = this.config.folderQueries
+				.map(q => q.folder)
+				.some(folder => !!folder.match(matchingPathSegmentReg));
+
+			return matchesFolderQuery ?
+				firstLine :
+				undefined;
 		}
 
 		if (strings.startsWith(firstLine, 'Error parsing regex')) {
@@ -507,12 +510,7 @@ function getRgArgs(config: IRawSearch): IRgGlobResult {
 		args.push(searchPatternAfterDoubleDashes);
 	}
 
-	if (config.searchPaths && config.searchPaths.length) {
-		args.push(...config.searchPaths);
-	} else {
-		args.push(...config.folderQueries.map(q => q.folder));
-	}
-
+	args.push(...config.folderQueries.map(q => q.folder));
 	args.push(...config.extraFiles);
 
 	return { globArgs: args, siblingClauses };
