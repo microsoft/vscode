@@ -32,11 +32,9 @@ export interface IFolderQueryOptions {
 	fileEncoding?: string;
 }
 
-export interface IQueryOptions {
+export interface ICommonQueryOptions {
 	extraFileResources?: uri[];
-	filePattern?: string;
-	excludePattern?: IExpression;
-	includePattern?: IExpression;
+	filePattern?: string; // file search only
 	fileEncoding?: string;
 	maxResults?: number;
 	sortByScore?: boolean;
@@ -44,11 +42,19 @@ export interface IQueryOptions {
 	useRipgrep?: boolean;
 	disregardIgnoreFiles?: boolean;
 	disregardExcludeSettings?: boolean;
-	searchPaths?: string[];
 }
 
-export interface ISearchQuery extends IQueryOptions {
+export interface IQueryOptions extends ICommonQueryOptions {
+	excludePattern?: string;
+	includePattern?: string;
+}
+
+export interface ISearchQuery extends ICommonQueryOptions {
 	type: QueryType;
+
+	excludePattern?: IExpression;
+	includePattern?: IExpression;
+	searchPaths?: string[];
 	contentPattern?: IPatternInfo;
 	folderQueries?: IFolderQueryOptions[];
 }
