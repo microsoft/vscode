@@ -241,6 +241,18 @@ export class LineCommentCommand implements editorCommon.ICommand {
 			}
 		}
 
+		// We have to adjust to possible inner white space.
+		// For Space after startToken, add Space to startToken - range math will work out.
+		if (startTokenIndex !== -1 && model.getLineContent(startLineNumber).charCodeAt(startTokenIndex + startToken.length) === CharCode.Space) {
+			startToken += ' ';
+		}
+
+		// For Space before endToken, add Space before endToken and shift index one left.
+		if (endTokenIndex !== -1 && model.getLineContent(endLineNumber).charCodeAt(endTokenIndex - 1) === CharCode.Space) {
+			endToken = ' ' + endToken;
+			endTokenIndex -= 1;
+		}
+
 		if (startTokenIndex !== -1 && endTokenIndex !== -1) {
 			return BlockCommentCommand._createRemoveBlockCommentOperations(
 				new Range(startLineNumber, startTokenIndex + startToken.length + 1, endLineNumber, endTokenIndex + 1), startToken, endToken
