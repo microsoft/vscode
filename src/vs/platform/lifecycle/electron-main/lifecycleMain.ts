@@ -14,6 +14,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeWindow } from "vs/platform/windows/electron-main/windows";
 import { ReadyState } from 'vs/platform/windows/common/windows';
+import { handleVetos } from "vs/platform/lifecycle/common/lifecycle";
 
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
 
@@ -22,6 +23,12 @@ export enum UnloadReason {
 	QUIT = 2,
 	RELOAD = 3,
 	LOAD = 4
+}
+
+export interface IWindowUnloadEvent {
+	window: ICodeWindow;
+	reason: UnloadReason;
+	veto(value: boolean | TPromise<boolean>): void;
 }
 
 export interface ILifecycleService {
@@ -45,6 +52,11 @@ export interface ILifecycleService {
 	 * before the window gets closed for real.
 	 */
 	onBeforeWindowClose: Event<ICodeWindow>;
+
+	/**
+	 * An even that can be vetoed to prevent a window from being unloaded.
+	 */
+	onBeforeWindowUnload: Event<IWindowUnloadEvent>;
 
 	ready(): void;
 	registerWindow(codeWindow: ICodeWindow): void;
@@ -77,6 +89,9 @@ export class LifecycleService implements ILifecycleService {
 
 	private _onBeforeWindowClose = new Emitter<ICodeWindow>();
 	onBeforeWindowClose: Event<ICodeWindow> = this._onBeforeWindowClose.event;
+
+	private _onBeforeWindowUnload = new Emitter<IWindowUnloadEvent>();
+	onBeforeWindowUnload: Event<IWindowUnloadEvent> = this._onBeforeWindowUnload.event;
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -173,6 +188,32 @@ export class LifecycleService implements ILifecycleService {
 
 		this.logService.log('Lifecycle#unload()', codeWindow.id);
 
+		const windowUnloadReason = this.quitRequested ? UnloadReason.QUIT : reason;
+
+		// first ask the window itself if it vetos the unload
+		return this.doUnloadWindowInRenderer(codeWindow, windowUnloadReason).then(veto => {
+			if (veto) {
+				return this.handleVeto(veto);
+			}
+
+			// then check for vetos in the main side
+			return this.doUnloadWindowInMain(codeWindow, windowUnloadReason).then(veto => this.handleVeto(veto));
+		});
+	}
+
+	private handleVeto(veto: boolean): boolean {
+
+		// Any cancellation also cancels a pending quit if present
+		if (veto && this.pendingQuitPromiseComplete) {
+			this.pendingQuitPromiseComplete(true /* veto */);
+			this.pendingQuitPromiseComplete = null;
+			this.pendingQuitPromise = null;
+		}
+
+		return veto;
+	}
+
+	private doUnloadWindowInRenderer(codeWindow: ICodeWindow, reason: UnloadReason): TPromise<boolean /* veto */> {
 		return new TPromise<boolean>((c) => {
 			const oneTimeEventToken = this.oneTimeListenerTokenGenerator++;
 			const okChannel = `vscode:ok${oneTimeEventToken}`;
@@ -183,19 +224,25 @@ export class LifecycleService implements ILifecycleService {
 			});
 
 			ipc.once(cancelChannel, () => {
-
-				// Any cancellation also cancels a pending quit if present
-				if (this.pendingQuitPromiseComplete) {
-					this.pendingQuitPromiseComplete(true /* veto */);
-					this.pendingQuitPromiseComplete = null;
-					this.pendingQuitPromise = null;
-				}
-
 				c(true); // veto
 			});
 
-			codeWindow.send('vscode:beforeUnload', { okChannel, cancelChannel, reason: this.quitRequested ? UnloadReason.QUIT : reason });
+			codeWindow.send('vscode:beforeUnload', { okChannel, cancelChannel, reason });
 		});
+	}
+
+	private doUnloadWindowInMain(window: ICodeWindow, reason: UnloadReason): TPromise<boolean /* veto */> {
+		const vetos: (boolean | TPromise<boolean>)[] = [];
+
+		this._onBeforeWindowUnload.fire({
+			reason,
+			window,
+			veto(value) {
+				vetos.push(value);
+			}
+		});
+
+		return handleVetos(vetos, err => this.logService.error(err));
 	}
 
 	/**
