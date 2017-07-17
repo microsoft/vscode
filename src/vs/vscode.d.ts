@@ -5423,8 +5423,8 @@ declare module 'vscode' {
 		readonly id: string;
 
 		/**
- * The debug session's type from the debug configuration.
- */
+		 * The debug session's type from the debug configuration.
+		 */
 		readonly type: string;
 
 		/**
