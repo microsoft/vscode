@@ -95,7 +95,7 @@ export class PreviewSecuritySelector {
 					level: MarkdownPreviewSecurityLevel.AllowInsecureContent,
 					label: localize(
 						'preview.showPreviewSecuritySelector.insecureContentTitle',
-						'Allow loading inscure content such as images over http.'),
+						'Allow loading content over http.'),
 					description: '',
 					detail: currentSecurityLevel === MarkdownPreviewSecurityLevel.AllowInsecureContent
 						? localize('preview.showPreviewSecuritySelector.currentSelection', 'Current setting')
