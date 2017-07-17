@@ -70,6 +70,7 @@ export class TestContextService implements IWorkspaceContextService {
 	private id: string;
 	private options: any;
 
+	private _onDidChangeWorkspaceName: Emitter<void>;
 	private _onDidChangeWorkspaceRoots: Emitter<void>;
 
 	constructor(workspace: any = TestWorkspace, options: any = null) {
@@ -77,6 +78,10 @@ export class TestContextService implements IWorkspaceContextService {
 		this.id = generateUuid();
 		this.options = options || Object.create(null);
 		this._onDidChangeWorkspaceRoots = new Emitter<void>();
+	}
+
+	public get onDidChangeWorkspaceName(): Event<void> {
+		return this._onDidChangeWorkspaceName.event;
 	}
 
 	public get onDidChangeWorkspaceRoots(): Event<void> {

@@ -174,6 +174,9 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	protected readonly _onDidChangeWorkspaceRoots: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidChangeWorkspaceRoots: Event<void> = this._onDidChangeWorkspaceRoots.event;
 
+	protected readonly _onDidChangeWorkspaceName: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidChangeWorkspaceName: Event<void> = this._onDidChangeWorkspaceName.event;
+
 	constructor() {
 		super();
 		this._configuration = new Configuration(new BaseConfiguration(new ConfigurationModel<any>(), new ConfigurationModel<any>()), new ConfigurationModel<any>(), new StrictResourceMap<FolderConfigurationModel<any>>(), this.workspace);
@@ -392,6 +395,7 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 	}
 
 	private onWorkspaceSaved(configPath: URI): TPromise<void> {
+		let workspaceName = this.workspace.name;
 		this.workspaceConfigPath = configPath;
 
 		// Reset the workspace if current workspace is single folder
@@ -403,9 +407,14 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 		// Update workspace configuration path with new path
 		else {
 			this.workspace.configuration = configPath;
+			this.workspace.name = getWorkspaceLabel(this.environmentService, { id: this.workspace.id, configPath: this.workspace.configuration.fsPath });
 		}
 
-		return this.initialize();
+		return this.initialize().then(() => {
+			if (workspaceName !== this.workspace.name) {
+				this._onDidChangeWorkspaceName.fire();
+			}
+		});
 	}
 
 	private initializeMulitFolderWorkspace(): TPromise<void> {

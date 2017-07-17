@@ -135,7 +135,7 @@ export class ExplorerView extends CollapsibleView {
 			const title = workspace.roots.map(root => labels.getPathLabel(root.fsPath, void 0, this.environmentService)).join();
 			titleSpan.text(this.name).title(title);
 		};
-		this.toDispose.push(this.contextService.onDidChangeWorkspaceRoots(() => setHeader()));
+		this.toDispose.push(this.contextService.onDidChangeWorkspaceName(() => setHeader()));
 		setHeader();
 
 		super.renderHeader(container);

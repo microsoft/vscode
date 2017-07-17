@@ -49,6 +49,11 @@ export interface IWorkspaceContextService {
 	saveWorkspace(location: URI): TPromise<void>;
 
 	/**
+	 * An event which fires on workspace name changes.
+	 */
+	onDidChangeWorkspaceName: Event<void>;
+
+	/**
 	 * An event which fires on workspace roots change.
 	 */
 	onDidChangeWorkspaceRoots: Event<void>;
