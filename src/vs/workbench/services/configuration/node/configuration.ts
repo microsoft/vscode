@@ -16,6 +16,7 @@ import * as collections from 'vs/base/common/collections';
 import { Disposable, toDisposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { readFile, stat } from 'vs/base/node/pfs';
+import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import * as extfs from 'vs/base/node/extfs';
 import { IWorkspaceContextService, IWorkspace, Workspace, ILegacyWorkspace, LegacyWorkspace } from 'vs/platform/workspace/common/workspace';
 import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
@@ -30,7 +31,7 @@ import { ConfigurationService as GlobalConfigurationService } from 'vs/platform/
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
-import { IConfigurationNode, IConfigurationRegistry, Extensions, editorConfigurationSchemaId, IDefaultConfigurationExtension, validateProperty, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationNode, IConfigurationRegistry, Extensions, editorConfigurationSchemaId, IDefaultConfigurationExtension, validateProperty, ConfigurationScope, schemaId } from 'vs/platform/configuration/common/configurationRegistry';
 import { createHash } from 'crypto';
 import { getWorkspaceLabel, IWorkspacesService } from "vs/platform/workspaces/common/workspaces";
 
@@ -418,6 +419,7 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 	}
 
 	private initializeMulitFolderWorkspace(): TPromise<void> {
+		this.registerWorkspaceConfigSchema();
 		return this.workspaceConfiguration.load(this.workspaceConfigPath)
 			.then(() => {
 				const workspaceConfigurationModel = this.workspaceConfiguration.workspaceConfigurationModel;
@@ -430,6 +432,43 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 				this._register(this.workspaceConfiguration.onDidUpdateConfiguration(() => this.onWorkspaceConfigurationChanged()));
 				return null;
 			});
+	}
+
+	private registerWorkspaceConfigSchema(): void {
+		const contributionRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+		if (!contributionRegistry.getSchemaContributions().schemas['vscode://schemas/workspaceConfig']) {
+			contributionRegistry.registerSchema('vscode://schemas/workspaceConfig', {
+				default: {
+					id: 'SOME_UNIQUE_ID',
+					folders: [
+						'file:///'
+					],
+					settings: {
+					}
+				},
+				required: ['id', 'folders'],
+				properties: {
+					'id': {
+						type: 'string',
+						description: nls.localize('workspaceConfig.id', "Unique workspace id"),
+						minLength: 1
+					},
+					'folders': {
+						minItems: 1,
+						uniqueItems: true,
+						items: {
+							type: 'string'
+						}
+					},
+					'settings': {
+						type: 'object',
+						default: {},
+						description: nls.localize('workspaceSettings.description', "Configure workspace settings"),
+						$ref: schemaId
+					}
+				}
+			});
+		}
 	}
 
 	private initializeSingleFolderWorkspace(): TPromise<void> {
