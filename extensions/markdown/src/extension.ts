@@ -157,8 +157,9 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreviewSecuritySelector', (resource: string | undefined) => {
-		previewSecuritySelector.showSecutitySelectorForWorkspace(resource ? vscode.Uri.parse(resource).query : undefined);
+	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreviewSecuritySelector', (resource: string) => {
+		const source = vscode.Uri.parse(resource).query;
+		previewSecuritySelector.showSecutitySelectorForWorkspace(vscode.Uri.parse(source));
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('_markdown.onPreviewStyleLoadError', (resources: string[]) => {

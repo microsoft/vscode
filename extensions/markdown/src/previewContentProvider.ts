@@ -11,20 +11,13 @@ import { MarkdownEngine } from './markdownEngine';
 
 import * as nls from 'vscode-nls';
 import { Logger } from "./logger";
+import { ContentSecurityPolicyArbiter, MarkdownPreviewSecurityLevel } from "./security";
 const localize = nls.loadMessageBundle();
 
-export interface ContentSecurityPolicyArbiter {
-	isEnhancedSecurityDisableForWorkspace(rootPath: string): boolean;
-
-	addTrustedWorkspace(rootPath: string): Thenable<void>;
-
-	removeTrustedWorkspace(rootPath: string): Thenable<void>;
-}
-
 const previewStrings = {
-	cspAlertMessageText: localize('preview.securityMessage.text', 'Scripts have been disabled in this document'),
-	cspAlertMessageTitle: localize('preview.securityMessage.title', 'Scripts are disabled in the markdown preview. Change the Markdown preview secuirty setting to enable scripts'),
-	cspAlertMessageLabel: localize('preview.securityMessage.label', 'Scripts Disabled Security Warning')
+	cspAlertMessageText: localize('preview.securityMessage.text', 'Some content has been been disabled in this document'),
+	cspAlertMessageTitle: localize('preview.securityMessage.title', 'Potentially unsafe or insecure content has been disabled in the markdown preview. Change the Markdown preview security setting to allow insecure content or enable scripts'),
+	cspAlertMessageLabel: localize('preview.securityMessage.label', 'Content Disabled Security Warning')
 };
 
 export function isMarkdownFile(document: vscode.TextDocument) {
@@ -232,10 +225,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 
 			// Content Security Policy
 			const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
-			let csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' http: https: data:; media-src 'self' http: https: data:; child-src 'none'; script-src 'nonce-${nonce}'; style-src 'self' 'unsafe-inline' http: https: data:; font-src 'self' http: https: data:;">`;
-			if (this.cspArbiter.isEnhancedSecurityDisableForWorkspace(vscode.workspace.rootPath || sourceUri.toString())) {
-				csp = '';
-			}
+			const csp = this.getCspForResource(sourceUri, nonce);
 
 			const body = this.engine.render(sourceUri, this.config.previewFrontMatter === 'hide', document.getText());
 			return `<!DOCTYPE html>
@@ -282,6 +272,20 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 				this._waiting = false;
 				this._onDidChange.fire(uri);
 			}, 300);
+		}
+	}
+
+	private getCspForResource(resource: vscode.Uri, nonce: string): string {
+		switch (this.cspArbiter.getSecurityLevelForResource(resource)) {
+			case MarkdownPreviewSecurityLevel.AllowInsecureContent:
+				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' http: https: data:; media-src 'self' http: https: data:; script-src 'nonce-${nonce}'; style-src 'self' 'unsafe-inline' http: https: data:; font-src 'self' http: https: data:;">`;
+
+			case MarkdownPreviewSecurityLevel.AllowScriptsAndAllContent:
+				return '';
+
+			case MarkdownPreviewSecurityLevel.Strict:
+			default:
+				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' https: data:; media-src 'self' https: data:; script-src 'nonce-${nonce}'; style-src 'self' 'unsafe-inline' https: data:; font-src 'self' https: data:;">`;
 		}
 	}
 }
