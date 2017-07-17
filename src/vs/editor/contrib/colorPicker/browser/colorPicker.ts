@@ -55,6 +55,7 @@ export class ColorPickerController extends Disposable implements IEditorContribu
 		this.model.originalColor = colorString;
 		this.model.colorModel = ColorModel.RGBA;
 		this.model.color = Color.fromRGBA(new RGBA(243, 34, 43));
+		this.model.hue = this.model.color;
 
 		this.widget.show();
 	}

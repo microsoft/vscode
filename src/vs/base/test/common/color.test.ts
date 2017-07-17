@@ -228,4 +228,11 @@ suite('Color', () => {
 		assert.deepEqual(0.0156, Color.fromRGBA(new RGBA(0, 0, 128, 255)).getLuminosity());
 	});
 
+	test('blending', function () {
+		assert.deepEqual(Color.fromRGBA(new RGBA(0, 0, 0, 0)).blend(Color.fromRGBA(new RGBA(243, 34, 43))), Color.fromRGBA(new RGBA(243, 34, 43)));
+		assert.deepEqual(Color.fromRGBA(new RGBA(255, 255, 255)).blend(Color.fromRGBA(new RGBA(243, 34, 43))), Color.fromRGBA(new RGBA(255, 255, 255)));
+		assert.deepEqual(Color.fromRGBA(new RGBA(122, 122, 122, 178.5)).blend(Color.fromRGBA(new RGBA(243, 34, 43))), Color.fromRGBA(new RGBA(158, 95, 98)));
+		assert.deepEqual(Color.fromRGBA(new RGBA(0, 0, 0, 147.9)).blend(Color.fromRGBA(new RGBA(255, 255, 255, 84.15))), Color.fromRGBA(new RGBA(49, 49, 49, 182)));
+	});
+
 });

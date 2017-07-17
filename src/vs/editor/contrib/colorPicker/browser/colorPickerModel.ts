@@ -14,10 +14,10 @@ export class ColorPickerModel {
 	private _widget: ColorPickerWidget;
 	private _originalColor: string;
 	private _selectedColor: string;
-	private _hue: string;
 	private _opacity: number;
 
 	public _color: Color;
+	public _hue: Color;
 
 	private _colorModel: ColorModel;
 	private _colorModelIndex: number;
@@ -72,13 +72,15 @@ export class ColorPickerModel {
 		return this._selectedColor;
 	}
 
-	public set hue(color: string) {
+	public set hue(color: Color) {
 		this._hue = color;
 
-		this.widget.body.fillSaturationBox();
+		if (this.widget.body) {
+			this.widget.body.fillSaturationBox();
+		}
 	}
 
-	public get hue(): string {
+	public get hue(): Color {
 		return this._hue;
 	}
 

@@ -415,6 +415,26 @@ export class Color {
 		));
 	}
 
+	public blend(c: Color): Color {
+		const color = c.toRGBA();
+
+		// Convert to 0..1 opacity
+		const thisA = this.rgba.a / 255;
+		const colorA = color.a / 255;
+
+		let a = thisA + colorA * (1 - thisA);
+		if (a < 1.0e-6) {
+			return Color.transparent;
+		}
+
+		const r = this.rgba.r * thisA / a + color.r * colorA * (1 - thisA) / a;
+		const g = this.rgba.g * thisA / a + color.g * colorA * (1 - thisA) / a;
+		const b = this.rgba.b * thisA / a + color.b * colorA * (1 - thisA) / a;
+		a *= 255;
+
+		return new Color(new RGBA(r, g, b, a));
+	}
+
 	public toString(): string {
 		const rgba = this.rgba;
 		if (rgba.a === 255) {
