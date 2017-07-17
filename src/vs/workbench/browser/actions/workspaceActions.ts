@@ -83,7 +83,6 @@ export abstract class BaseWorkspacesAction extends Action {
 		const opts: Electron.ShowMessageBoxOptions = {
 			title: this.environmentService.appNameLong,
 			message,
-			detail: nls.localize('workspaceDetail', "Workspaces allow to open multiple folders at once."),
 			noLink: true,
 			type: 'info',
 			buttons: buttons.map(button => button.label),
@@ -186,7 +185,7 @@ export class AddRootFolderAction extends BaseWorkspacesAction {
 
 	public run(): TPromise<any> {
 		if (!this.contextService.hasMultiFolderWorkspace()) {
-			if (this.handleNotInMultiFolderWorkspaceCase(nls.localize('addSupported', "You can only add folders to workspaces. Do you want to create a new workspace with the current folder and add?"), nls.localize({ key: 'createAndAdd', comment: ['&& denotes a mnemonic'] }, "&&Create Workspace & Add"))) {
+			if (this.handleNotInMultiFolderWorkspaceCase(nls.localize('addSupported', "Adding a folder to workspace is not supported when VS Code is opened with a folder. Do you want to create a new workspace with the current folder and add?"), nls.localize({ key: 'createAndAdd', comment: ['&& denotes a mnemonic'] }, "&&Create Workspace & Add"))) {
 				return this.instantiationService.createInstance(NewWorkspaceFromExistingAction, NewWorkspaceFromExistingAction.ID, NewWorkspaceFromExistingAction.LABEL).run();
 			}
 			return TPromise.as(null);
@@ -252,7 +251,7 @@ export class SaveWorkspaceAction extends BaseWorkspacesAction {
 	}
 
 	private saveFolderWorkspace(): TPromise<void> {
-		if (this.handleNotInMultiFolderWorkspaceCase(nls.localize('saveNotSupported', "You need to open a workspace first to save it. Do you want to create a new workspace with the existing folder and save?"), nls.localize({ key: 'createAndSave', comment: ['&& denotes a mnemonic'] }, "&&Create Workspace & Save"))) {
+		if (this.handleNotInMultiFolderWorkspaceCase(nls.localize('saveNotSupported', "Saving a workspace is not supported when VS Code is opened with a folder. Do you want to create a new workspace with the existing folder and save?"), nls.localize({ key: 'createAndSave', comment: ['&& denotes a mnemonic'] }, "&&Create Workspace & Save"))) {
 			const configPath = this.getNewWorkspaceConfiPath();
 			if (configPath) {
 				// Create workspace first
