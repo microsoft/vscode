@@ -3691,7 +3691,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The execution of a task happens as a external process
+	 * The execution of a task happens as an external process
 	 * without shell interaction.
 	 */
 	export class ProcessExecution {
@@ -5423,8 +5423,8 @@ declare module 'vscode' {
 		readonly id: string;
 
 		/**
-		 * The debug session's type from the debug configuration.
-		 */
+ * The debug session's type from the debug configuration.
+ */
 		readonly type: string;
 
 		/**
@@ -5464,10 +5464,10 @@ declare module 'vscode' {
 	export namespace debug {
 
 		/**
-		 * Create a new debug session based on the given configuration.
+		 * Start a debug session based on the given configuration.
 		 * @param configuration
 		 */
-		export function createDebugSession(configuration: DebugConfiguration): Thenable<DebugSession>;
+		export function startDebugSession(configuration: DebugConfiguration): Thenable<DebugSession>;
 
 		/**
 		 * The currently active debug session or `undefined`. The active debug session is the one

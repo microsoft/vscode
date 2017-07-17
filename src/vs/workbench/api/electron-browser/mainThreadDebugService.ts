@@ -43,7 +43,7 @@ export class MainThreadDebugService extends MainThreadDebugServiceShape {
 		this._toDispose = dispose(this._toDispose);
 	}
 
-	public $createDebugSession(configuration: IConfig): TPromise<DebugSessionUUID> {
+	public $startDebugSession(configuration: IConfig): TPromise<DebugSessionUUID> {
 		if (configuration.request !== 'launch' && configuration.request !== 'attach') {
 			return TPromise.wrapError(new Error(`only 'launch' or 'attach' allowed for 'request' attribute`));
 		}
@@ -53,7 +53,7 @@ export class MainThreadDebugService extends MainThreadDebugServiceShape {
 			}
 			return TPromise.wrapError(new Error('cannot create debug session'));
 		}, err => {
-			return TPromise.wrapError(err && err.message ? err.message : 'cannot create debug session');
+			return TPromise.wrapError(err && err.message ? err.message : 'cannot start debug session');
 		});
 	}
 

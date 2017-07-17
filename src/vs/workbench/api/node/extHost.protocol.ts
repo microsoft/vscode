@@ -345,7 +345,7 @@ export abstract class MainThreadSCMShape {
 export type DebugSessionUUID = string;
 
 export abstract class MainThreadDebugServiceShape {
-	$createDebugSession(config: vscode.DebugConfiguration): TPromise<DebugSessionUUID> { throw ni(); }
+	$startDebugSession(config: vscode.DebugConfiguration): TPromise<DebugSessionUUID> { throw ni(); }
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): TPromise<any> { throw ni(); }
 }
 
