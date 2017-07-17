@@ -571,8 +571,8 @@ export class WindowsManager implements IWindowsMainService {
 			});
 		}
 
-		// Only open empty if no empty windows were restored
-		else if (emptyToOpen > 0) {
+		// Handle empty to open (only if no other window opened)
+		if (usedWindows.length === 0) {
 			for (let i = 0; i < emptyToOpen; i++) {
 				usedWindows.push(this.openInBrowserWindow({
 					userEnv: openConfig.userEnv,
@@ -581,7 +581,7 @@ export class WindowsManager implements IWindowsMainService {
 					forceNewWindow: openFolderInNewWindow
 				}));
 
-				openFolderInNewWindow = true; // any other folders to open must open in new window then
+				openFolderInNewWindow = true; // any other window to open must open in new window then
 			}
 		}
 
