@@ -78,16 +78,7 @@ export class PreviewSecuritySelector {
 		private contentProvider: MDDocumentContentProvider
 	) { }
 
-	public async showSecutitySelectorForWorkspace(resource: vscode.Uri): Promise<void> {
-		let sourceUri: vscode.Uri | null = null;
-		if (resource) {
-			sourceUri = getMarkdownUri(resource);
-		}
-
-		if (!sourceUri && vscode.window.activeTextEditor) {
-			sourceUri = getMarkdownUri(vscode.window.activeTextEditor.document.uri);
-		}
-
+	public async showSecutitySelectorForResource(resource: vscode.Uri): Promise<void> {
 		const currentSecurityLevel = this.cspArbiter.getSecurityLevelForResource(resource);
 		const selection = await vscode.window.showQuickPick<PreviewSecurityPickItem>(
 			[
@@ -130,8 +121,8 @@ export class PreviewSecuritySelector {
 		}
 
 		await this.cspArbiter.setSecurityLevelForResource(resource, selection.level);
-		if (sourceUri) {
-			this.contentProvider.update(sourceUri);
-		}
+
+		const sourceUri = getMarkdownUri(resource);
+		this.contentProvider.update(sourceUri);
 	}
 }
