@@ -34,23 +34,23 @@ export class ExtensionContentSecurityPolicyArbiter implements ContentSecurityPol
 
 	public getSecurityLevelForResource(resource: vscode.Uri): MarkdownPreviewSecurityLevel {
 		// Use new security level setting first
-		const level = this.globalState.get<MarkdownPreviewSecurityLevel | undefined>(this.security_level_key + this.getRootPath(resource), undefined);
+		const level = this.globalState.get<MarkdownPreviewSecurityLevel | undefined>(this.security_level_key + this.getRoot(resource), undefined);
 		if (typeof level !== 'undefined') {
 			return level;
 		}
 
 		// Fallback to old trusted workspace setting
-		if (this.globalState.get<boolean>(this.old_trusted_workspace_key + this.getRootPath(resource), false)) {
+		if (this.globalState.get<boolean>(this.old_trusted_workspace_key + this.getRoot(resource), false)) {
 			return MarkdownPreviewSecurityLevel.AllowScriptsAndAllContent;
 		}
 		return MarkdownPreviewSecurityLevel.Strict;
 	}
 
 	public setSecurityLevelForResource(resource: vscode.Uri, level: MarkdownPreviewSecurityLevel): Thenable<void> {
-		return this.globalState.update(this.security_level_key + this.getRootPath(resource), level);
+		return this.globalState.update(this.security_level_key + this.getRoot(resource), level);
 	}
 
-	private getRootPath(resource: vscode.Uri): vscode.Uri {
+	private getRoot(resource: vscode.Uri): vscode.Uri {
 		if (vscode.workspace.workspaceFolders) {
 			const folderForResource = vscode.workspace.getWorkspaceFolder(resource);
 			if (folderForResource) {

@@ -154,9 +154,9 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 		}
 
 		// use a workspace relative path if there is a workspace
-		let rootPath = vscode.workspace.rootPath;
-		if (rootPath) {
-			return vscode.Uri.file(path.join(rootPath, href)).toString();
+		let root = vscode.workspace.getWorkspaceFolder(resource);
+		if (root) {
+			return vscode.Uri.file(path.join(root.uri.fsPath, href)).toString();
 		}
 
 		// otherwise look relative to the markdown file
