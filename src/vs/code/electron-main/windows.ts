@@ -277,7 +277,7 @@ export class WindowsManager implements IWindowsMainService {
 		// Any non extension host window with same workspace or folder
 		else if (!win.isExtensionDevelopmentHost && (!!win.openedWorkspace || !!win.openedFolderPath)) {
 			this.windowsState.openedWindows.forEach(o => {
-				const sameWorkspace = win.openedWorkspace && o.workspace.id === win.openedWorkspace.id;
+				const sameWorkspace = win.openedWorkspace && o.workspace && o.workspace.id === win.openedWorkspace.id;
 				const sameFolder = win.openedFolderPath && isEqual(o.folderPath, win.openedFolderPath, !isLinux /* ignorecase */);
 
 				if (sameWorkspace || sameFolder) {
