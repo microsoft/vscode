@@ -336,17 +336,21 @@ export class WindowsManager implements IWindowsMainService {
 		const foldersToOpen = arrays.distinct(windowsToOpen.filter(win => win.folderPath && !win.filePath).map(win => win.folderPath), folder => isLinux ? folder : folder.toLowerCase()); // prevent duplicates
 
 		//
-		// These are windows to restore because of hot-exit or from previous session
+		// These are windows to restore because of hot-exit or from previous session (only performed once on startup!)
 		//
-		const hotExitRestore = (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath);
-		const foldersToRestore = hotExitRestore ? this.backupService.getFolderBackupPaths() : [];
+		let foldersToRestore: string[] = [];
+		let workspacesToRestore: IWorkspaceIdentifier[] = [];
+		let emptyToRestore: string[] = [];
+		if (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath) {
+			foldersToRestore = this.backupService.getFolderBackupPaths();
 
-		const workspacesToRestore = hotExitRestore ? this.backupService.getWorkspaceBackups() : []; // collect from workspaces with hot-exit backups
-		workspacesToRestore.push(...this.doGetUntitledWorkspacesFromLastSession());					// collect from previous window session
+			workspacesToRestore = this.backupService.getWorkspaceBackups();				// collect from workspaces with hot-exit backups
+			workspacesToRestore.push(...this.doGetUntitledWorkspacesFromLastSession());	// collect from previous window session
 
-		let emptyToRestore = hotExitRestore ? this.backupService.getEmptyWindowBackupPaths() : [];
-		emptyToRestore.push(...windowsToOpen.filter(w => !w.workspace && !w.folderPath && w.backupPath).map(w => path.basename(w.backupPath))); // add empty windows with backupPath
-		emptyToRestore = arrays.distinct(emptyToRestore); // prevent duplicates
+			emptyToRestore = this.backupService.getEmptyWindowBackupPaths();
+			emptyToRestore.push(...windowsToOpen.filter(w => !w.workspace && !w.folderPath && w.backupPath).map(w => path.basename(w.backupPath))); // add empty windows with backupPath
+			emptyToRestore = arrays.distinct(emptyToRestore); // prevent duplicates
+		}
 
 		//
 		// These are empty windows to open
