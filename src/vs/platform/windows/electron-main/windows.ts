@@ -40,11 +40,17 @@ export interface ICodeWindow {
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
 
+export interface IWindowsCountChangedEvent {
+	oldCount: number;
+	newCount: number;
+}
+
 export interface IWindowsMainService {
 	_serviceBrand: any;
 
 	// events
 	onWindowReady: Event<ICodeWindow>;
+	onWindowsCountChanged: Event<IWindowsCountChangedEvent>;
 	onWindowClose: Event<number>;
 	onWindowReload: Event<number>;
 

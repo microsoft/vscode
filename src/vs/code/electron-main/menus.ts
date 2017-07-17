@@ -20,7 +20,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { tildify } from 'vs/base/common/labels';
 import { KeybindingsResolver } from "vs/code/electron-main/keyboard";
-import { IWindowsMainService } from "vs/platform/windows/electron-main/windows";
+import { IWindowsMainService, IWindowsCountChangedEvent } from "vs/platform/windows/electron-main/windows";
 import { IHistoryMainService } from "vs/platform/history/common/history";
 import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 
@@ -102,7 +102,7 @@ export class CodeMenu {
 
 		// Listen to some events from window service
 		this.historyService.onRecentlyOpenedChange(() => this.updateMenu());
-		this.windowsService.onWindowClose(_ => this.onClose(this.windowsService.getWindowCount()));
+		this.windowsService.onWindowsCountChanged(e => this.onWindowsCountChanged(e));
 
 		// Listen to extension viewlets
 		ipc.on('vscode:extensionViewlets', (event, rawExtensionViewlets) => {
@@ -201,8 +201,13 @@ export class CodeMenu {
 		}
 	}
 
-	private onClose(remainingWindowCount: number): void {
-		if (remainingWindowCount === 0 && isMacintosh) {
+	private onWindowsCountChanged(e: IWindowsCountChangedEvent): void {
+		if (!isMacintosh) {
+			return;
+		}
+
+		// Update menu if window count goes from N > 0 or 0 > N to update menu item enablement
+		if ((e.oldCount === 0 && e.newCount > 0) || (e.oldCount > 0 && e.newCount === 0)) {
 			this.updateMenu();
 		}
 	}

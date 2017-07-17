@@ -25,7 +25,7 @@ import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/node/product';
 import { ITelemetryService, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { isEqual } from 'vs/base/common/paths';
-import { IWindowsMainService, IOpenConfiguration } from "vs/platform/windows/electron-main/windows";
+import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent } from "vs/platform/windows/electron-main/windows";
 import { IHistoryMainService } from "vs/platform/history/common/history";
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { TPromise } from "vs/base/common/winjs.base";
@@ -121,6 +121,9 @@ export class WindowsManager implements IWindowsMainService {
 
 	private _onWindowReload = new Emitter<number>();
 	onWindowReload: CommonEvent<number> = this._onWindowReload.event;
+
+	private _onWindowsCountChanged = new Emitter<IWindowsCountChangedEvent>();
+	onWindowsCountChanged: CommonEvent<IWindowsCountChangedEvent> = this._onWindowsCountChanged.event;
 
 	constructor(
 		@ILogService private logService: ILogService,
@@ -970,7 +973,11 @@ export class WindowsManager implements IWindowsMainService {
 				isExtensionTestHost: !!configuration.extensionTestsPath
 			});
 
+			// Add to our list of windows
 			WindowsManager.WINDOWS.push(codeWindow);
+
+			// Indicate number change via event
+			this._onWindowsCountChanged.fire({ oldCount: WindowsManager.WINDOWS.length - 1, newCount: WindowsManager.WINDOWS.length });
 
 			// Window Events
 			codeWindow.win.webContents.removeAllListeners('devtools-reload-page'); // remove built in listener so we can handle this on our own
@@ -1293,6 +1300,7 @@ export class WindowsManager implements IWindowsMainService {
 		WindowsManager.WINDOWS.splice(index, 1);
 
 		// Emit
+		this._onWindowsCountChanged.fire({ oldCount: WindowsManager.WINDOWS.length + 1, newCount: WindowsManager.WINDOWS.length });
 		this._onWindowClose.fire(win.id);
 	}
 
