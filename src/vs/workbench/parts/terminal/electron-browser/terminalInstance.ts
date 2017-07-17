@@ -13,7 +13,7 @@ import * as dom from 'vs/base/browser/dom';
 import Event, { Emitter } from 'vs/base/common/event';
 import Uri from 'vs/base/common/uri';
 import xterm = require('xterm');
-import { WindowsShellHelper } from 'vs/workbench/parts/terminal/electron-browser/windowsShellService';
+import { WindowsShellHelper } from 'vs/workbench/parts/terminal/electron-browser/windowsShellHelper';
 import { Dimension } from 'vs/base/browser/builder';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
