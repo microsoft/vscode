@@ -183,7 +183,7 @@ export class AddRootFolderAction extends BaseWorkspacesAction {
 		}
 
 		if (this.contextService.hasFolderWorkspace()) {
-			if (this.handleNotInMultiFolderWorkspaceCase(nls.localize('addSupported', "Adding a folder to workspace is not supported when opened with a folder.\n\nDo you want to create a new workspace with the current folder and add folders to it?\n"), nls.localize({ key: 'createAndAdd', comment: ['&& denotes a mnemonic'] }, "&&Create Workspace & Add"))) {
+			if (this.handleNotInMultiFolderWorkspaceCase(nls.localize('addSupported', "Adding a folder to workspace is not supported when window is opened with a folder.\n\nDo you want to create a new workspace with the current folder and add folders to it?\n"), nls.localize({ key: 'createAndAdd', comment: ['&& denotes a mnemonic'] }, "&&Create Workspace & Add"))) {
 				return this.instantiationService.createInstance(NewWorkspaceFromExistingAction, NewWorkspaceFromExistingAction.ID, NewWorkspaceFromExistingAction.LABEL).run();
 			}
 			return TPromise.as(null);
@@ -251,7 +251,7 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 	}
 
 	private saveFolderWorkspace(): TPromise<void> {
-		if (this.handleNotInMultiFolderWorkspaceCase(nls.localize('saveNotSupported', "Saving a workspace is not supported when opened with a folder.\n\nDo you want to create a new workspace with the current folder and save it?\n"), nls.localize({ key: 'createAndSave', comment: ['&& denotes a mnemonic'] }, "&&Create Workspace & Save"))) {
+		if (this.handleNotInMultiFolderWorkspaceCase(nls.localize('saveNotSupported', "Saving a workspace is not supported when window is opened with a folder.\n\nDo you want to create a new workspace with the current folder and save it?\n"), nls.localize({ key: 'createAndSave', comment: ['&& denotes a mnemonic'] }, "&&Create Workspace & Save"))) {
 			const configPath = this.getNewWorkspaceConfiPath();
 			if (configPath) {
 				// Create workspace first
