@@ -10,12 +10,11 @@ import { TPromise } from "vs/base/common/winjs.base";
 import { isParent } from "vs/platform/files/common/files";
 import { IEnvironmentService } from "vs/platform/environment/common/environment";
 import { extname, join, dirname } from "path";
-import { mkdirp, writeFile, exists } from "vs/base/node/pfs";
+import { mkdirp, writeFile } from "vs/base/node/pfs";
 import { readFileSync } from "fs";
 import { isLinux } from "vs/base/common/platform";
 import { copy, delSync } from "vs/base/node/extfs";
 import { nfcall } from "vs/base/common/async";
-import { localize } from "vs/nls";
 import Event, { Emitter } from "vs/base/common/event";
 import { ILogService } from "vs/platform/log/common/log";
 
@@ -106,22 +105,16 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 	}
 
 	public saveWorkspace(workspace: IWorkspaceIdentifier, target: string): TPromise<IWorkspaceIdentifier> {
-		return exists(target).then(exists => {
-			if (exists) {
-				return TPromise.wrapError(new Error(localize('targetExists', "A workspace with the same name already exists at the provided location.")));
-			}
+		return nfcall(copy, workspace.configPath, target).then(() => {
+			const savedWorkspace = this.resolveWorkspaceSync(target);
 
-			return nfcall(copy, workspace.configPath, target).then(() => {
-				const savedWorkspace = this.resolveWorkspaceSync(target);
+			// Event
+			this._onWorkspaceSaved.fire({ workspace: savedWorkspace, oldConfigPath: workspace.configPath });
 
-				// Event
-				this._onWorkspaceSaved.fire({ workspace: savedWorkspace, oldConfigPath: workspace.configPath });
+			// Delete untitled workspace
+			this.deleteUntitledWorkspace(workspace);
 
-				// Delete untitled workspace
-				this.deleteUntitledWorkspace(workspace);
-
-				return savedWorkspace;
-			});
+			return savedWorkspace;
 		});
 	}
 
