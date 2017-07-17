@@ -18,8 +18,9 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IInstantiationService } from "vs/platform/instantiation/common/instantiation";
 import { IWorkspacesService, WORKSPACE_FILTER } from "vs/platform/workspaces/common/workspaces";
 import { IEnvironmentService } from "vs/platform/environment/common/environment";
-import { isWindows, isLinux } from "vs/base/common/platform";
+import { isLinux } from "vs/base/common/platform";
 import { dirname } from "vs/base/common/paths";
+import { mnemonicButtonLabel } from "vs/base/common/labels";
 
 export class OpenFolderAction extends Action {
 
@@ -70,7 +71,7 @@ export abstract class BaseWorkspacesAction extends Action {
 	}
 
 	protected handleNotInMultiFolderWorkspaceCase(message: string, actionLabel: string): boolean {
-		const newWorkspace = { label: this.mnemonicLabel(actionLabel), canceled: false };
+		const newWorkspace = { label: mnemonicButtonLabel(actionLabel), canceled: false };
 		const cancel = { label: nls.localize('cancel', "Cancel"), canceled: true };
 
 		const buttons: { label: string; canceled: boolean; }[] = [];
@@ -96,14 +97,6 @@ export abstract class BaseWorkspacesAction extends Action {
 
 		const res = this.windowService.showMessageBox(opts);
 		return !buttons[res].canceled;
-	}
-
-	private mnemonicLabel(label: string): string {
-		if (!isWindows) {
-			return label.replace(/\(&&\w\)|&&/g, ''); // no mnemonic support on mac/linux
-		}
-
-		return label.replace(/&&/g, '&');
 	}
 
 	protected pickFolders(buttonLabel: string, title: string): string[] {

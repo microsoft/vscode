@@ -296,16 +296,16 @@ export class LifecycleService implements ILifecycleService {
 			}
 		}
 
-		let vetod = false;
+		let vetoed = false;
 		app.once('quit', () => {
-			if (!vetod) {
+			if (!vetoed) {
 				this.storageService.setItem(LifecycleService.QUIT_FROM_RESTART_MARKER, true);
 				app.relaunch({ args });
 			}
 		});
 
 		this.quit().then(veto => {
-			vetod = veto;
+			vetoed = veto;
 		});
 	}
 

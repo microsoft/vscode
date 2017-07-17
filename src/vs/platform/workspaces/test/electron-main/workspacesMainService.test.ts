@@ -16,8 +16,6 @@ import { parseArgs } from 'vs/platform/environment/node/argv';
 import { WorkspacesMainService } from "vs/platform/workspaces/electron-main/workspacesMainService";
 import { IStoredWorkspace, WORKSPACE_EXTENSION, IWorkspaceSavedEvent, IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 import { LogMainService } from "vs/platform/log/common/log";
-import { LifecycleService } from "vs/platform/lifecycle/electron-main/lifecycleMain";
-import { StorageService } from "vs/platform/storage/node/storage";
 
 suite('WorkspacesMainService', () => {
 	const parentDir = path.join(os.tmpdir(), 'vsctests', 'service');
@@ -27,19 +25,15 @@ suite('WorkspacesMainService', () => {
 		get workspacesHome(): string {
 			return workspacesHome;
 		}
-
-		get userDataPath(): string {
-			return parentDir;
-		}
 	}
 
 	class TestWorkspacesMainService extends WorkspacesMainService {
 		public deleteWorkspaceCall: IWorkspaceIdentifier;
 
-		protected deleteWorkspace(workspace: IWorkspaceIdentifier): void {
+		public deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): void {
 			this.deleteWorkspaceCall = workspace;
 
-			super.deleteWorkspace(workspace);
+			super.deleteUntitledWorkspace(workspace);
 		}
 	}
 
@@ -49,7 +43,7 @@ suite('WorkspacesMainService', () => {
 	let service: TestWorkspacesMainService;
 
 	setup(done => {
-		service = new TestWorkspacesMainService(environmentService, logService, new LifecycleService(environmentService, logService, new StorageService(environmentService)));
+		service = new TestWorkspacesMainService(environmentService, logService);
 
 		// Delete any existing backups completely and then re-create it.
 		extfs.del(workspacesHome, os.tmpdir(), () => {

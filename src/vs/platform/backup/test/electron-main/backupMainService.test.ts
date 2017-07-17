@@ -23,28 +23,19 @@ import { LogMainService } from "vs/platform/log/common/log";
 import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 import { createHash } from "crypto";
 import { WorkspacesMainService } from "vs/platform/workspaces/electron-main/workspacesMainService";
-import { LifecycleService } from "vs/platform/lifecycle/electron-main/lifecycleMain";
-import { StorageService } from "vs/platform/storage/node/storage";
 
 suite('BackupMainService', () => {
 	const parentDir = path.join(os.tmpdir(), 'vsctests', 'service');
 	const backupHome = path.join(parentDir, 'Backups');
 	const backupWorkspacesPath = path.join(backupHome, 'workspaces.json');
 
-	class TestEnvironmentService extends EnvironmentService {
-
-		get userDataPath(): string {
-			return parentDir;
-		}
-	}
-
-	const environmentService = new TestEnvironmentService(parseArgs(process.argv), process.execPath);
+	const environmentService = new EnvironmentService(parseArgs(process.argv), process.execPath);
 	const logService = new LogMainService(environmentService);
 
 	class TestBackupMainService extends BackupMainService {
 
 		constructor(backupHome: string, backupWorkspacesPath: string, configService: TestConfigurationService) {
-			super(environmentService, configService, new LogMainService(environmentService), new WorkspacesMainService(environmentService, logService, new LifecycleService(environmentService, logService, new StorageService(environmentService))));
+			super(environmentService, configService, new LogMainService(environmentService), new WorkspacesMainService(environmentService, logService));
 
 			this.backupHome = backupHome;
 			this.workspacesJsonPath = backupWorkspacesPath;

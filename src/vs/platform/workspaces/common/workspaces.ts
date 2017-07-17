@@ -48,6 +48,8 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 
 	resolveWorkspaceSync(path: string): IWorkspaceIdentifier;
 	isUntitledWorkspace(workspace: IWorkspaceIdentifier): boolean;
+
+	deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): void;
 }
 
 export interface IWorkspacesService {

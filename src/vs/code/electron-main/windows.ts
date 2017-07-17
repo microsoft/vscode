@@ -7,7 +7,7 @@
 
 import * as path from 'path';
 import * as fs from 'original-fs';
-import * as nls from 'vs/nls';
+import { localize } from "vs/nls";
 import * as arrays from 'vs/base/common/arrays';
 import { assign, mixin } from 'vs/base/common/objects';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
@@ -16,7 +16,7 @@ import { IStorageService } from 'vs/platform/storage/node/storage';
 import { CodeWindow, IWindowState as ISingleWindowState, defaultWindowState, WindowMode } from 'vs/code/electron-main/window';
 import { ipcMain as ipc, screen, BrowserWindow, dialog, systemPreferences } from 'electron';
 import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/node/paths';
-import { ILifecycleService, UnloadReason } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
+import { ILifecycleService, UnloadReason, IWindowUnloadEvent } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowSettings, OpenContext, IPath, IWindowConfiguration } from 'vs/platform/windows/common/windows';
@@ -29,8 +29,9 @@ import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent } fr
 import { IHistoryMainService } from "vs/platform/history/common/history";
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { TPromise } from "vs/base/common/winjs.base";
-import { IWorkspacesMainService, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceSavedEvent } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspacesMainService, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceSavedEvent, WORKSPACE_FILTER } from "vs/platform/workspaces/common/workspaces";
 import { IInstantiationService } from "vs/platform/instantiation/common/instantiation";
+import { mnemonicButtonLabel } from "vs/base/common/labels";
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -199,12 +200,98 @@ export class WindowsManager implements IWindowsMainService {
 			});
 		}
 
-		// Update our windows state before quitting and before closing windows
+		// Handle various lifecycle events around windows
+		this.lifecycleService.onBeforeWindowUnload(e => this.onBeforeWindowUnload(e));
 		this.lifecycleService.onBeforeWindowClose(win => this.onBeforeWindowClose(win as CodeWindow));
 		this.lifecycleService.onBeforeQuit(() => this.onBeforeQuit());
 
 		// Handle workspace save event
 		this.workspacesService.onWorkspaceSaved(e => this.onWorkspaceSaved(e));
+	}
+
+	private onBeforeWindowUnload(e: IWindowUnloadEvent): void {
+		const windowClosing = e.reason === UnloadReason.CLOSE;
+		const windowLoading = e.reason === UnloadReason.LOAD;
+		if (!windowClosing && !windowLoading) {
+			return; // only interested when window is closing or loading
+		}
+
+		const workspace = e.window.openedWorkspace;
+		if (!workspace || !this.workspacesService.isUntitledWorkspace(workspace)) {
+			return; // only care about untitled workspaces to ask for saving
+		}
+
+		if (!isMacintosh && this.getWindowCount() === 1) {
+			return; // Windows/Linux: quit when last window is closed, so do not ask then
+		}
+
+		this.promptToSaveUntitledWorkspace(e, workspace);
+	}
+
+	private promptToSaveUntitledWorkspace(e: IWindowUnloadEvent, workspace: IWorkspaceIdentifier): void {
+		enum ConfirmResult {
+			SAVE,
+			DONT_SAVE,
+			CANCEL
+		}
+
+		const save = { label: mnemonicButtonLabel(localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")), result: ConfirmResult.SAVE };
+		const dontSave = { label: mnemonicButtonLabel(localize({ key: 'doNotSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save")), result: ConfirmResult.DONT_SAVE };
+		const cancel = { label: localize('cancel', "Cancel"), result: ConfirmResult.CANCEL };
+
+		const buttons: { label: string; result: ConfirmResult; }[] = [];
+		if (isWindows) {
+			buttons.push(save, dontSave, cancel);
+		} else if (isLinux) {
+			buttons.push(dontSave, cancel, save);
+		} else {
+			buttons.push(save, cancel, dontSave);
+		}
+
+		const options: Electron.ShowMessageBoxOptions = {
+			title: this.environmentService.appNameLong,
+			message: localize('saveWorkspaceMessage', "Do you want to save the workspace opened in this window?"),
+			detail: localize('saveWorkspaceDetail', "Your workspace will be deleted if you don't save it."),
+			noLink: true,
+			type: 'warning',
+			buttons: buttons.map(button => button.label),
+			cancelId: buttons.indexOf(cancel)
+		};
+
+		if (isLinux) {
+			options.defaultId = 2;
+		}
+
+		const res = dialog.showMessageBox(e.window.win, options);
+
+		switch (buttons[res].result) {
+
+			// Cancel: veto unload
+			case ConfirmResult.CANCEL:
+				e.veto(true);
+				break;
+
+			// Don't Save: delete workspace
+			case ConfirmResult.DONT_SAVE:
+				this.workspacesService.deleteUntitledWorkspace(workspace);
+				e.veto(false);
+				break;
+
+			// Save: save workspace, but do not veto unload
+			case ConfirmResult.SAVE: {
+				const target = dialog.showSaveDialog({
+					buttonLabel: localize('saveButton', "Save"),
+					title: localize('saveWorkspace', "Save Workspace"),
+					filters: WORKSPACE_FILTER
+				});
+
+				if (target) {
+					e.veto(this.workspacesService.saveWorkspace(workspace, target).then(() => false, () => false));
+				} else {
+					e.veto(true); // keep veto if no target was provided
+				}
+			}
+		}
 	}
 
 	private onWorkspaceSaved(e: IWorkspaceSavedEvent): void {
@@ -653,9 +740,9 @@ export class WindowsManager implements IWindowsMainService {
 				const options: Electron.ShowMessageBoxOptions = {
 					title: product.nameLong,
 					type: 'info',
-					buttons: [nls.localize('ok', "OK")],
-					message: nls.localize('pathNotExistTitle', "Path does not exist"),
-					detail: nls.localize('pathNotExistDetail', "The path '{0}' does not seem to exist anymore on disk.", pathToOpen),
+					buttons: [localize('ok', "OK")],
+					message: localize('pathNotExistTitle', "Path does not exist"),
+					detail: localize('pathNotExistDetail', "The path '{0}' does not seem to exist anymore on disk.", pathToOpen),
 					noLink: true
 				};
 
@@ -1248,9 +1335,9 @@ export class WindowsManager implements IWindowsMainService {
 			dialog.showMessageBox(codeWindow.win, {
 				title: product.nameLong,
 				type: 'warning',
-				buttons: [nls.localize('reopen', "Reopen"), nls.localize('wait', "Keep Waiting"), nls.localize('close', "Close")],
-				message: nls.localize('appStalled', "The window is no longer responding"),
-				detail: nls.localize('appStalledDetail', "You can reopen or close the window or keep waiting."),
+				buttons: [localize('reopen', "Reopen"), localize('wait', "Keep Waiting"), localize('close', "Close")],
+				message: localize('appStalled', "The window is no longer responding"),
+				detail: localize('appStalledDetail', "You can reopen or close the window or keep waiting."),
 				noLink: true
 			}, result => {
 				if (!codeWindow.win) {
@@ -1271,9 +1358,9 @@ export class WindowsManager implements IWindowsMainService {
 			dialog.showMessageBox(codeWindow.win, {
 				title: product.nameLong,
 				type: 'warning',
-				buttons: [nls.localize('reopen', "Reopen"), nls.localize('close', "Close")],
-				message: nls.localize('appCrashed', "The window has crashed"),
-				detail: nls.localize('appCrashedDetail', "We are sorry for the inconvenience! You can reopen the window to continue where you left off."),
+				buttons: [localize('reopen', "Reopen"), localize('close', "Close")],
+				message: localize('appCrashed', "The window has crashed"),
+				detail: localize('appCrashedDetail', "We are sorry for the inconvenience! You can reopen the window to continue where you left off."),
 				noLink: true
 			}, result => {
 				if (!codeWindow.win) {
@@ -1309,11 +1396,11 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	public pickFileAndOpen(forceNewWindow?: boolean, path?: string, window?: CodeWindow, data?: ITelemetryData): void {
-		this.fileDialog.pickAndOpen({ pickFiles: true, forceNewWindow, path, window, title: nls.localize('openFile', "Open File") }, 'openFile', data);
+		this.fileDialog.pickAndOpen({ pickFiles: true, forceNewWindow, path, window, title: localize('openFile', "Open File") }, 'openFile', data);
 	}
 
 	public pickFolderAndOpen(forceNewWindow?: boolean, window?: CodeWindow, data?: ITelemetryData): void {
-		this.fileDialog.pickAndOpen({ pickFolders: true, forceNewWindow, window, title: nls.localize('openFolder', "Open Folder") }, 'openFolder', data);
+		this.fileDialog.pickAndOpen({ pickFolders: true, forceNewWindow, window, title: localize('openFolder', "Open Folder") }, 'openFolder', data);
 	}
 
 	public quit(): void {
