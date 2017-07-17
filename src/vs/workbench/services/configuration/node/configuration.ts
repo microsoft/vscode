@@ -584,7 +584,7 @@ class WorkspaceConfiguration extends Disposable {
 		this._workspaceConfigurationWatcherDisposables = dispose(this._workspaceConfigurationWatcherDisposables);
 		return new TPromise<void>((c, e) => {
 			this._workspaceConfigurationWatcher = new ConfigWatcher(this._workspaceConfigPath.fsPath, {
-				changeBufferDelay: 300, defaultConfig: new WorkspaceConfigurationModel(null, this._workspaceConfigPath.fsPath), parse: (content: string, parseErrors: any[]) => {
+				changeBufferDelay: 300, onError: error => errors.onUnexpectedError(error), defaultConfig: new WorkspaceConfigurationModel(null, this._workspaceConfigPath.fsPath), parse: (content: string, parseErrors: any[]) => {
 					const workspaceConfigurationModel = new WorkspaceConfigurationModel(content, this._workspaceConfigPath.fsPath);
 					parseErrors = [...workspaceConfigurationModel.errors];
 					return workspaceConfigurationModel;

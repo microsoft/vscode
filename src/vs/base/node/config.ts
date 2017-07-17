@@ -26,6 +26,7 @@ export interface IConfigWatcher<T> {
 }
 
 export interface IConfigOptions<T> {
+	onError: (error: Error | string) => void;
 	defaultConfig?: T;
 	changeBufferDelay?: number;
 	parse?: (content: string, errors: any[]) => T;
@@ -49,7 +50,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 	private disposables: IDisposable[];
 	private _onDidUpdateConfiguration: Emitter<IConfigurationChangeEvent<T>>;
 
-	constructor(private _path: string, private options: IConfigOptions<T> = { changeBufferDelay: 0, defaultConfig: Object.create(null) }) {
+	constructor(private _path: string, private options: IConfigOptions<T> = { changeBufferDelay: 0, defaultConfig: Object.create(null), onError: error => console.error(error) }) {
 		this.disposables = [];
 
 		this._onDidUpdateConfiguration = new Emitter<IConfigurationChangeEvent<T>>();
@@ -150,6 +151,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		try {
 			const watcher = fs.watch(path);
 			watcher.on('change', () => this.onConfigFileChange());
+			watcher.on('error', (code, signal) => this.options.onError(`Error watching ${path} for configuration changes (${code}, ${signal})`));
 
 			this.disposables.push(toDisposable(() => {
 				watcher.removeAllListeners();
@@ -158,7 +160,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		} catch (error) {
 			fs.exists(path, exists => {
 				if (exists) {
-					console.warn(`Failed to watch ${path} for configuration changes (${error.toString()})`);
+					this.options.onError(`Failed to watch ${path} for configuration changes (${error.toString()})`);
 				}
 			});
 		}
