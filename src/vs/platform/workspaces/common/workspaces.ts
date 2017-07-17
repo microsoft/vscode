@@ -12,6 +12,7 @@ import { localize } from "vs/nls";
 import { basename } from "vs/base/common/paths";
 import { isLinux } from "vs/base/common/platform";
 import { IEnvironmentService } from "vs/platform/environment/common/environment";
+import Event from 'vs/base/common/event';
 
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
@@ -33,8 +34,15 @@ export interface IStoredWorkspace {
 	folders: string[];
 }
 
+export interface IWorkspaceSavedEvent {
+	workspace: IWorkspaceIdentifier;
+	oldConfigPath: string;
+}
+
 export interface IWorkspacesMainService extends IWorkspacesService {
 	_serviceBrand: any;
+
+	onWorkspaceSaved: Event<IWorkspaceSavedEvent>;
 
 	resolveWorkspaceSync(path: string): IWorkspaceIdentifier;
 	isUntitledWorkspace(workspace: IWorkspaceIdentifier): boolean;

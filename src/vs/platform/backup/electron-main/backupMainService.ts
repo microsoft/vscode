@@ -14,7 +14,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
 import { ILogService } from "vs/platform/log/common/log";
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspacesMainService, IWorkspaceSavedEvent } from "vs/platform/workspaces/common/workspaces";
 
 export class BackupMainService implements IBackupMainService {
 
@@ -28,12 +28,35 @@ export class BackupMainService implements IBackupMainService {
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@ILogService private logService: ILogService
+		@ILogService private logService: ILogService,
+		@IWorkspacesMainService private workspacesService: IWorkspacesMainService
 	) {
 		this.backupHome = environmentService.backupHome;
 		this.workspacesJsonPath = environmentService.backupWorkspacesPath;
 
 		this.loadSync();
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.workspacesService.onWorkspaceSaved(e => this.onWorkspaceSaved(e));
+	}
+
+	private onWorkspaceSaved(e: IWorkspaceSavedEvent): void {
+
+		// A workspace was saved to a new configuration location. Make sure to update
+		// our backup state with this new location.
+		let needsUpdate = false;
+		this.backups.rootWorkspaces.forEach(workspace => {
+			if (workspace.id === e.workspace.id && workspace.configPath !== e.workspace.configPath) {
+				workspace.configPath = e.workspace.configPath;
+				needsUpdate = true;
+			}
+		});
+
+		if (needsUpdate) {
+			this.saveSync();
+		}
 	}
 
 	public getWorkspaceBackups(): IWorkspaceIdentifier[] {
@@ -42,6 +65,7 @@ export class BackupMainService implements IBackupMainService {
 			// hot exit is configured as onExitAndWindowClose.
 			return [];
 		}
+
 		return this.backups.rootWorkspaces.slice(0); // return a copy
 	}
 
@@ -51,6 +75,7 @@ export class BackupMainService implements IBackupMainService {
 			// hot exit is configured as onExitAndWindowClose.
 			return [];
 		}
+
 		return this.backups.folderWorkspaces.slice(0); // return a copy
 	}
 
@@ -99,10 +124,12 @@ export class BackupMainService implements IBackupMainService {
 		if (!target) {
 			return;
 		}
+
 		const index = this.indexOf(workspaceIdentifier, target);
 		if (index === -1) {
 			return;
 		}
+
 		target.splice(index, 1);
 		this.saveSync();
 	}
@@ -261,6 +288,7 @@ export class BackupMainService implements IBackupMainService {
 			if (!fs.existsSync(this.backupHome)) {
 				fs.mkdirSync(this.backupHome);
 			}
+
 			fs.writeFileSync(this.workspacesJsonPath, JSON.stringify(this.backups));
 		} catch (ex) {
 			this.logService.error(`Backup: Could not save workspaces.json: ${ex.toString()}`);

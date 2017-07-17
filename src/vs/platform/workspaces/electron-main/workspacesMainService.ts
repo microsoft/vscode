@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IWorkspacesMainService, IWorkspaceIdentifier, IStoredWorkspace, WORKSPACE_EXTENSION } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspacesMainService, IWorkspaceIdentifier, IStoredWorkspace, WORKSPACE_EXTENSION, IWorkspaceSavedEvent } from "vs/platform/workspaces/common/workspaces";
 import { TPromise } from "vs/base/common/winjs.base";
 import { isParent } from "vs/platform/files/common/files";
 import { IEnvironmentService } from "vs/platform/environment/common/environment";
@@ -16,6 +16,7 @@ import { isLinux } from "vs/base/common/platform";
 import { copy } from "vs/base/node/extfs";
 import { nfcall } from "vs/base/common/async";
 import { localize } from "vs/nls";
+import Event, { Emitter } from "vs/base/common/event";
 
 export class WorkspacesMainService implements IWorkspacesMainService {
 
@@ -23,8 +24,15 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 
 	protected workspacesHome: string;
 
+	private _onWorkspaceSaved: Emitter<IWorkspaceSavedEvent>;
+
 	constructor( @IEnvironmentService private environmentService: IEnvironmentService) {
 		this.workspacesHome = environmentService.workspacesHome;
+		this._onWorkspaceSaved = new Emitter<IWorkspaceSavedEvent>();
+	}
+
+	public get onWorkspaceSaved(): Event<IWorkspaceSavedEvent> {
+		return this._onWorkspaceSaved.event;
 	}
 
 	public resolveWorkspaceSync(path: string): IWorkspaceIdentifier {
@@ -89,7 +97,11 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 			}
 
 			return nfcall(copy, workspace.configPath, target).then(() => {
-				return this.resolveWorkspaceSync(target);
+				const savedWorkspace = this.resolveWorkspaceSync(target);
+
+				this._onWorkspaceSaved.fire({ workspace: savedWorkspace, oldConfigPath: workspace.configPath });
+
+				return savedWorkspace;
 			});
 		});
 	}

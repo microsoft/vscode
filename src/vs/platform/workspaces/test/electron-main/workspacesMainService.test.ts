@@ -14,7 +14,7 @@ import pfs = require('vs/base/node/pfs');
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { WorkspacesMainService } from "vs/platform/workspaces/electron-main/workspacesMainService";
-import { IStoredWorkspace, WORKSPACE_EXTENSION } from "vs/platform/workspaces/common/workspaces";
+import { IStoredWorkspace, WORKSPACE_EXTENSION, IWorkspaceSavedEvent } from "vs/platform/workspaces/common/workspaces";
 
 class TestWorkspacesMainService extends WorkspacesMainService {
 	constructor(workspacesHome: string) {
@@ -87,6 +87,11 @@ suite('WorkspacesMainService', () => {
 	});
 
 	test('saveWorkspace', done => {
+		let event: IWorkspaceSavedEvent;
+		const dispose = service.onWorkspaceSaved(e => {
+			event = e;
+		});
+
 		return service.createWorkspace([process.cwd(), os.tmpdir()]).then(workspace => {
 			const workspaceConfigPath = path.join(os.tmpdir(), `myworkspace.${WORKSPACE_EXTENSION}`);
 
@@ -99,6 +104,11 @@ suite('WorkspacesMainService', () => {
 				assert.equal(ws.folders.length, 2);
 				assert.equal(ws.folders[0], process.cwd());
 				assert.equal(ws.folders[1], os.tmpdir());
+
+				dispose.dispose();
+
+				assert.equal(savedWorkspace, event.workspace);
+				assert.equal(workspace.configPath, event.oldConfigPath);
 
 				extfs.delSync(workspaceConfigPath);
 

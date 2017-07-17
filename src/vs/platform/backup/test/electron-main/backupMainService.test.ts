@@ -22,11 +22,14 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { LogMainService } from "vs/platform/log/common/log";
 import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 import { createHash } from "crypto";
+import { WorkspacesMainService } from "vs/platform/workspaces/electron-main/workspacesMainService";
+
+const environmentService = new EnvironmentService(parseArgs(process.argv), process.execPath);
 
 class TestBackupMainService extends BackupMainService {
 
 	constructor(backupHome: string, backupWorkspacesPath: string, configService: TestConfigurationService) {
-		super(new EnvironmentService(parseArgs(process.argv), process.execPath), configService, new LogMainService(new EnvironmentService(parseArgs(process.argv), process.execPath)));
+		super(environmentService, configService, new LogMainService(environmentService), new WorkspacesMainService(environmentService));
 
 		this.backupHome = backupHome;
 		this.workspacesJsonPath = backupWorkspacesPath;

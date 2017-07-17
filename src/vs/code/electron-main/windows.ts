@@ -29,7 +29,8 @@ import { IWindowsMainService, IOpenConfiguration } from "vs/platform/windows/ele
 import { IHistoryMainService } from "vs/platform/history/common/history";
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { TPromise } from "vs/base/common/winjs.base";
-import { IWorkspacesMainService, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspacesMainService, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceSavedEvent } from "vs/platform/workspaces/common/workspaces";
+import { IInstantiationService } from "vs/platform/instantiation/common/instantiation";
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -130,7 +131,8 @@ export class WindowsManager implements IWindowsMainService {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IHistoryMainService private historyService: IHistoryMainService,
-		@IWorkspacesMainService private workspacesService: IWorkspacesMainService
+		@IWorkspacesMainService private workspacesService: IWorkspacesMainService,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.windowsState = this.storageService.getItem<IWindowsState>(WindowsManager.windowsStateStorageKey) || { openedWindows: [] };
 		this.fileDialog = new FileDialog(environmentService, telemetryService, storageService, this);
@@ -197,6 +199,21 @@ export class WindowsManager implements IWindowsMainService {
 		// Update our windows state before quitting and before closing windows
 		this.lifecycleService.onBeforeWindowClose(win => this.onBeforeWindowClose(win as CodeWindow));
 		this.lifecycleService.onBeforeQuit(() => this.onBeforeQuit());
+
+		// Handle workspace save event
+		this.workspacesService.onWorkspaceSaved(e => this.onWorkspaceSaved(e));
+	}
+
+	private onWorkspaceSaved(e: IWorkspaceSavedEvent): void {
+
+		// A workspace was saved to a different config location. Make sure to update our
+		// window states with this new location.
+		const states = [this.windowsState.lastActiveWindow, this.windowsState.lastPluginDevelopmentHostWindow, ...this.windowsState.openedWindows];
+		states.forEach(state => {
+			if (state && state.workspace && state.workspace.id === e.workspace.id && state.workspace.configPath !== e.workspace.configPath) {
+				state.workspace.configPath = e.workspace.configPath;
+			}
+		});
 	}
 
 	// Note that onBeforeQuit() and onBeforeWindowClose() are fired in different order depending on the OS:
@@ -434,24 +451,6 @@ export class WindowsManager implements IWindowsMainService {
 		// Handle workspaces to open (instructed and to restore)
 		const allWorkspacesToOpen = arrays.distinct([...workspacesToOpen, ...workspacesToRestore], workspace => workspace.id); // prevent duplicates
 		if (allWorkspacesToOpen.length > 0) {
-
-			// Check for existing instances that have same workspace ID but different configuration path
-			// For now we reload that window with the new configuration so that the configuration path change
-			// can travel properly.
-			// TODO@Ben multi root revisit this once we can better transition between workspaces of the same id
-			allWorkspacesToOpen.forEach(workspaceToOpen => {
-				const existingWindow = findWindowOnWorkspace(WindowsManager.WINDOWS, workspaceToOpen);
-				if (existingWindow && existingWindow.openedWorkspace.configPath !== workspaceToOpen.configPath) {
-					usedWindows.push(this.doOpenFolderOrWorkspace(openConfig, { workspace: workspaceToOpen }, false, filesToOpen, filesToCreate, filesToDiff, existingWindow));
-
-					// Reset these because we handled them
-					filesToOpen = [];
-					filesToCreate = [];
-					filesToDiff = [];
-
-					openFolderInNewWindow = true; // any other folders to open must open in new window then
-				}
-			});
 
 			// Check for existing instances
 			const windowsOnWorkspace = arrays.coalesce(allWorkspacesToOpen.map(workspaceToOpen => findWindowOnWorkspace(WindowsManager.WINDOWS, workspaceToOpen)));
@@ -916,16 +915,11 @@ export class WindowsManager implements IWindowsMainService {
 				state.mode = WindowMode.Normal;
 			}
 
-			codeWindow = new CodeWindow({
+			codeWindow = this.instantiationService.createInstance(CodeWindow, {
 				state,
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
 				isExtensionTestHost: !!configuration.extensionTestsPath
-			},
-				this.logService,
-				this.environmentService,
-				this.configurationService,
-				this.storageService
-			);
+			});
 
 			WindowsManager.WINDOWS.push(codeWindow);
 

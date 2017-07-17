@@ -16,7 +16,7 @@ import { getPathLabel } from 'vs/base/common/labels';
 import { IPath } from 'vs/platform/windows/common/windows';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import { isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceSavedEvent } from "vs/platform/workspaces/common/workspaces";
 import { IHistoryMainService, IRecentlyOpened } from "vs/platform/history/common/history";
 import { IEnvironmentService } from "vs/platform/environment/common/environment";
 
@@ -39,8 +39,36 @@ export class HistoryMainService implements IHistoryMainService {
 		@IStorageService private storageService: IStorageService,
 		@ILogService private logService: ILogService,
 		@IWorkspacesMainService private workspacesService: IWorkspacesMainService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
 	) {
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.workspacesService.onWorkspaceSaved(e => this.onWorkspaceSaved(e));
+	}
+
+	private onWorkspaceSaved(e: IWorkspaceSavedEvent): void {
+
+		// A workspace was saved to a new config location. Make sure to
+		// update our recently opened workspaces with this new location.
+		let changed = false;
+		const mru = this.getRecentlyOpened();
+		mru.workspaces.forEach(workspace => {
+			if (isSingleFolderWorkspaceIdentifier(workspace)) {
+				return;
+			}
+
+			if (workspace.id === e.workspace.id && workspace.configPath !== e.workspace.configPath) {
+				workspace.configPath = e.workspace.configPath;
+				changed = true;
+			}
+		});
+
+		if (changed) {
+			this.saveRecentlyOpened(mru);
+			this._onRecentlyOpenedChange.fire();
+		}
 	}
 
 	public addRecentlyOpened(workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], files: string[]): void {
@@ -74,7 +102,7 @@ export class HistoryMainService implements IHistoryMainService {
 			mru.workspaces = mru.workspaces.slice(0, HistoryMainService.MAX_TOTAL_RECENT_ENTRIES);
 			mru.files = mru.files.slice(0, HistoryMainService.MAX_TOTAL_RECENT_ENTRIES);
 
-			this.storageService.setItem(HistoryMainService.recentlyOpenedStorageKey, mru);
+			this.saveRecentlyOpened(mru);
 			this._onRecentlyOpenedChange.fire();
 		}
 	}
@@ -101,13 +129,13 @@ export class HistoryMainService implements IHistoryMainService {
 		}));
 
 		if (update) {
-			this.storageService.setItem(HistoryMainService.recentlyOpenedStorageKey, mru);
+			this.saveRecentlyOpened(mru);
 			this._onRecentlyOpenedChange.fire();
 		}
 	}
 
 	public clearRecentlyOpened(): void {
-		this.storageService.setItem(HistoryMainService.recentlyOpenedStorageKey, <IRecentlyOpened>{ workspaces: [], folders: [], files: [] });
+		this.saveRecentlyOpened({ workspaces: [], files: [] });
 		app.clearRecentDocuments();
 
 		// Event
@@ -143,6 +171,10 @@ export class HistoryMainService implements IHistoryMainService {
 		files = arrays.distinct(files);
 
 		return { workspaces, files };
+	}
+
+	private saveRecentlyOpened(recent: IRecentlyOpened): void {
+		this.storageService.setItem(HistoryMainService.recentlyOpenedStorageKey, recent);
 	}
 
 	public updateWindowsJumpList(): void {

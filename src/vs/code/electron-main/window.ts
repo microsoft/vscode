@@ -24,7 +24,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow } from "vs/platform/windows/electron-main/windows";
-import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspaceIdentifier, IWorkspacesMainService, IWorkspaceSavedEvent } from "vs/platform/workspaces/common/workspaces";
 
 export interface IWindowState {
 	width?: number;
@@ -96,7 +96,8 @@ export class CodeWindow implements ICodeWindow {
 		@ILogService private logService: ILogService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@IWorkspacesMainService private workspaceService: IWorkspacesMainService
 	) {
 		this.options = config;
 		this._lastFocusTime = -1;
@@ -403,6 +404,18 @@ export class CodeWindow implements ICodeWindow {
 
 		// Handle configuration changes
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated()));
+
+		// Handle Workspace saves
+		this.toDispose.push(this.workspaceService.onWorkspaceSaved(e => this.onWorkspaceSaved(e)));
+	}
+
+	private onWorkspaceSaved(e: IWorkspaceSavedEvent): void {
+
+		// Make sure to update our workspace config if we detect that it
+		// was saved to a new config location
+		if (this.openedWorkspace && this.openedWorkspace.id === e.workspace.id && this.openedWorkspace.configPath !== e.workspace.configPath) {
+			this.config.workspace.configPath = e.workspace.configPath;
+		}
 	}
 
 	private onConfigurationUpdated(): void {
