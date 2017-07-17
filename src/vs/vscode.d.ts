@@ -1082,19 +1082,19 @@ declare module 'vscode' {
 		revealRange(range: Range, revealType?: TextEditorRevealType): void;
 
 		/**
-		 * Show the text editor.
+		 * ~~Show the text editor.~~
 		 *
-		 * @deprecated **This method is deprecated.** Use [window.showTextDocument](#window.showTextDocument)
-		 * instead. This method shows unexpected behavior and will be removed in the next major update.
+		 * @deprecated Use [window.showTextDocument](#window.showTextDocument)
 		 *
 		 * @param column The [column](#ViewColumn) in which to show this editor.
+		 * instead. This method shows unexpected behavior and will be removed in the next major update.
 		 */
 		show(column?: ViewColumn): void;
 
 		/**
-		 * Hide the text editor.
+		 * ~~Hide the text editor.~~
 		 *
-		 * @deprecated **This method is deprecated.** Use the command 'workbench.action.closeActiveEditor' instead.
+		 * @deprecated Use the command `workbench.action.closeActiveEditor` instead.
 		 * This method shows unexpected behavior and will be removed in the next major update.
 		 */
 		hide(): void;
@@ -2006,9 +2006,9 @@ declare module 'vscode' {
 		constructor(name: string, kind: SymbolKind, containerName: string, location: Location);
 
 		/**
-		 * @deprecated Please use the constructor taking a [location](#Location) object.
+		 * ~~Creates a new symbol information object.~~
 		 *
-		 * Creates a new symbol information object.
+		 * @deprecated Please use the constructor taking a [location](#Location) object.
 		 *
 		 * @param name The name of the symbol.
 		 * @param kind The kind of the symbol.
@@ -2616,7 +2616,7 @@ declare module 'vscode' {
 		commitCharacters?: string[];
 
 		/**
-		 * @deprecated **Deprecated** in favor of `CompletionItem.insertText` and `CompletionItem.range`.
+		 * @deprecated Use `CompletionItem.insertText` and `CompletionItem.range` instead.
 		 *
 		 * ~~An [edit](#TextEdit) which is applied to a document when selecting
 		 * this completion. When an edit is provided the value of
@@ -3268,10 +3268,9 @@ declare module 'vscode' {
 		show(preserveFocus?: boolean): void;
 
 		/**
-		 * Reveal this channel in the UI.
+		 * ~~Reveal this channel in the UI.~~
 		 *
-		 * @deprecated This method is **deprecated** and the overload with
-		 * just one parameter should be used (`show(preserveFocus?: boolean): void`).
+		 * @deprecated Use the overload with just one parameter (`show(preserveFocus?: boolean): void`).
 		 *
 		 * @param column This argument is **deprecated** and will be ignored.
 		 * @param preserveFocus When `true` the channel will not take focus.
@@ -4289,11 +4288,11 @@ declare module 'vscode' {
 		 * ~~Show progress in the Source Control viewlet while running the given callback and while
 		 * its returned promise isn't resolve or rejected.~~
 		 *
+		 * @deprecated Use `withProgress` instead.
+		 *
 		 * @param task A callback returning a promise. Progress increments can be reported with
 		 * the provided [progress](#Progress)-object.
 		 * @return The thenable the task did rseturn.
-		 *
-		 * @deprecated Use `withProgress` instead.
 		 */
 		export function withScmProgress<R>(task: (progress: Progress<number>) => Thenable<R>): Thenable<R>;
 
@@ -4653,8 +4652,9 @@ declare module 'vscode' {
 		 * ~~The folder that is open in the editor. `undefined` when no folder
 		 * has been opened.~~
 		 *
-		 * @readonly
 		 * @deprecated Use [`workspaceFolders`](#workspace.workspaceFolders) instead.
+		 *
+		 * @readonly
 		 */
 		export let rootPath: string | undefined;
 
