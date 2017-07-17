@@ -362,9 +362,4 @@ export interface ITerminalInstance {
 	 * Sets the title of the terminal instance.
 	 */
 	setTitle(title: string): void;
-
-	/**
-	 * Returns the list of nested shells running in the terminal. This is only implemented for Windows.
-	 */
-	getShellName(): TPromise<string>;
 }

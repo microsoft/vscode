@@ -1,9 +1,7 @@
 /*---------------------------------------------------------------------------------------------
-*  Copyright (c) Microsoft Corporation. All rights reserved.
-*  Licensed under the MIT License. See License.txt in the project root for license information.
-*--------------------------------------------------------------------------------------------*/
-
-'use strict';
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
 import * as os from 'os';
@@ -15,6 +13,7 @@ import * as dom from 'vs/base/browser/dom';
 import Event, { Emitter, debounceEvent } from 'vs/base/common/event';
 import Uri from 'vs/base/common/uri';
 import xterm = require('xterm');
+import { WindowsShellService } from 'vs/workbench/parts/terminal/electron-browser/windowsShellService';
 import { Dimension } from 'vs/base/browser/builder';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -83,7 +82,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _messageTitleListener: (message: { type: string, content: string }) => void;
 	private _preLaunchInputQueue: string;
 	private _initialCwd: string;
-	private _pidStack: number[];
+	private _windowsShellService: WindowsShellService;
 	private _checkWindowShell: Emitter<string>;
 
 	private _widgetManager: TerminalWidgetManager;
@@ -111,7 +110,7 @@ export class TerminalInstance implements ITerminalInstance {
 		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IClipboardService private _clipboardService: IClipboardService,
-		@IHistoryService private _historyService: IHistoryService
+		@IHistoryService private _historyService: IHistoryService,
 	) {
 		this._instanceDisposables = [];
 		this._processDisposables = [];
@@ -139,17 +138,13 @@ export class TerminalInstance implements ITerminalInstance {
 		this._createProcess(this._shellLaunchConfig);
 		this._createXterm();
 
-		this._pidStack = [];
-		this._checkWindowShell = new Emitter<string>();
-		debounceEvent(this._checkWindowShell.event, (l, e) => e, 100, true)
-			(() => {
-				this.getShellName().then(result => {
-					if (result) {
-						const fullPathName = result.split('.exe')[0];
-						this.setTitle(path.basename(fullPathName));
-					}
-				}, e => { return e; });
+		if (platform.isWindows) {
+			this._checkWindowShell = new Emitter<string>();
+			debounceEvent(this._checkWindowShell.event, (l, e) => e, 100, true)(() => {
+				this.eventuallyGetShellName();
 			});
+			this._windowsShellService = new WindowsShellService(this._processId, this._shellLaunchConfig);
+		}
 
 		// Only attach xterm.js to the DOM if the terminal panel has been opened before.
 		if (_container) {
@@ -868,54 +863,12 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 	}
 
-	private static executeWMIC(pid: number): TPromise<{ executable: string, pid: number }[]> {
-		return new TPromise((resolve, reject) => {
-			cp.execFile('wmic.exe', ['process', 'where', `parentProcessId=${pid}`, 'get', 'ExecutablePath,ProcessId'], (err, stdout, stderr) => {
-				if (err) {
-					reject(err);
-				} else if (stderr.length > 0) {
-					resolve([]); // No processes found
-				} else {
-					resolve(stdout.split('\n').slice(1).filter(str => !/^\s*$/.test(str)).map(str => {
-						const s = str.split('  ');
-						return { executable: s[0], pid: Number(s[1]) };
-					}));
-				}
-			});
-		});
-	}
-
-	private getChildProcesses(pid: number): TPromise<string> {
-		return TerminalInstance.executeWMIC(pid).then(result => {
-			if (result.length === 0) {
-				if (this._pidStack.length > 1) {
-					this._pidStack.pop();
-					return this.getChildProcesses(this._pidStack[this._pidStack.length - 1]);
-				}
-				return TPromise.as([]);
+	public eventuallyGetShellName(): void {
+		this._windowsShellService.getShellName().then(result => {
+			if (result) {
+				const fullPathName = result.split('.exe')[0];
+				this.setTitle(path.basename(fullPathName));
 			}
-			this._pidStack.push(result[0].pid);
-			return TPromise.as(result[0].executable);
-		}, error => { return error; });
-	}
-
-	public getShellName(): TPromise<string> {
-		if (platform.platform !== platform.Platform.Windows) {
-			return TPromise.as(null);
-		}
-		if (this._pidStack.length === 0) {
-			this._pidStack.push(this._processId);
-		}
-		return new TPromise<string>((resolve) => {
-			// wait 100ms before running getChildProcesses
-			setTimeout(() => {
-				this.getChildProcesses(this._pidStack[this._pidStack.length - 1]).then(result => {
-					if (result.length > 0) {
-						resolve(result);
-					}
-					resolve(this._shellLaunchConfig.executable);
-				}, error => { return error; });
-			}, 100);
 		});
 	}
 }
