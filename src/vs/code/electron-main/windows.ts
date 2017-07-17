@@ -208,7 +208,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		// A workspace was saved to a different config location. Make sure to update our
 		// window states with this new location.
-		const states = [this.windowsState.lastActiveWindow, this.windowsState.lastPluginDevelopmentHostWindow, ...this.windowsState.openedWindows];
+		const states = [this.lastClosedWindowState, this.windowsState.lastActiveWindow, this.windowsState.lastPluginDevelopmentHostWindow, ...this.windowsState.openedWindows];
 		states.forEach(state => {
 			if (state && state.workspace && state.workspace.id === e.workspace.id && state.workspace.configPath !== e.workspace.configPath) {
 				state.workspace.configPath = e.workspace.configPath;
