@@ -69,7 +69,7 @@ export abstract class BaseWorkspacesAction extends Action {
 		super(id, label);
 	}
 
-	protected handleNotInMultiFolderWorkspaceCase(message: string): TPromise<any> {
+	protected handleNotInMultiFolderWorkspaceCase(message: string, addExistingFolder: boolean): TPromise<any> {
 		const newWorkspace = { label: this.mnemonicLabel(nls.localize({ key: 'create', comment: ['&& denotes a mnemonic'] }, "&&New Workspace")), canceled: false };
 		const cancel = { label: nls.localize('cancel', "Cancel"), canceled: true };
 
@@ -96,7 +96,7 @@ export abstract class BaseWorkspacesAction extends Action {
 
 		const res = this.windowService.showMessageBox(opts);
 		if (!buttons[res].canceled) {
-			return this.instantiationService.createInstance(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL).run();
+			return this.instantiationService.createInstance(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL).run(addExistingFolder);
 		}
 
 		return TPromise.as(null);
@@ -140,7 +140,7 @@ export class AddRootFolderAction extends BaseWorkspacesAction {
 
 	public run(): TPromise<any> {
 		if (!this.contextService.hasMultiFolderWorkspace()) {
-			return super.handleNotInMultiFolderWorkspaceCase(nls.localize('addSupported', "You can only add folders to workspaces. Do you want to create a new workspace?"));
+			return super.handleNotInMultiFolderWorkspaceCase(nls.localize('addSupported', "You can only add folders to workspaces. Do you want to create a new workspace with the current folder and add?"), true);
 		}
 
 		const folders = super.pickFolders(nls.localize('add', "Add"), nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"));
@@ -171,13 +171,16 @@ export class NewWorkspaceAction extends BaseWorkspacesAction {
 		super(id, label, windowService, instantiationService, environmentService, contextService);
 	}
 
-	public run(): TPromise<any> {
-		const folders = super.pickFolders(nls.localize('select', "Select"), nls.localize('selectWorkspace', "Select Folders for Workspace"));
-		if (!folders || !folders.length) {
-			return TPromise.as(null);
+	public run(addExistingFolder: boolean = false): TPromise<any> {
+		let folders = this.pickFolders(nls.localize('select', "Select"), nls.localize('selectWorkspace', "Select Folders for Workspace"));
+		if (folders && folders.length) {
+			if (addExistingFolder && this.contextService.hasWorkspace()) {
+				folders = [this.contextService.getWorkspace().roots[0].fsPath, ...folders];
+			}
+			return this.workspaceEditingService.createAndOpenWorkspace(folders.map(folder => URI.file(folder)));
 		}
 
-		return this.workspaceEditingService.createAndOpenWorkspace(folders.map(folder => URI.file(folder)));
+		return TPromise.as(null);
 	}
 }
 
@@ -222,7 +225,7 @@ export class SaveWorkspaceAction extends BaseWorkspacesAction {
 
 	public run(): TPromise<any> {
 		if (!this.contextService.hasMultiFolderWorkspace()) {
-			return super.handleNotInMultiFolderWorkspaceCase(nls.localize('saveNotSupported', "You need to open a workspace first to save it. Do you want to create a new workspace?"));
+			return super.handleNotInMultiFolderWorkspaceCase(nls.localize('saveNotSupported', "You need to open a workspace first to save it. Do you want to create a new workspace with the existing folder and add?"), true);
 		}
 
 		const target = this.windowService.showSaveDialog({
