@@ -62,9 +62,8 @@ export class ColorPickerModel {
 	public set selectedColorString(color: string) {
 		this._selectedColor = color;
 
-		if (this.widget.header && this.widget.body) {
+		if (this.widget.header) {
 			this.widget.header.updatePickedColor(); // update picked colour from box view
-			this.widget.body.fillOpacityGradient();  // update opacity gradient based on the color
 		}
 	}
 
