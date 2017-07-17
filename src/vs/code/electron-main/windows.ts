@@ -670,7 +670,7 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	private doExtractPathsFromCLI(cli: ParsedArgs): IPath[] {
-		const pathsToOpen = cli._.map(candidate => this.parsePath(candidate, true /* ignoreFileNotFound */, cli.goto)).filter(path => !!path);
+		const pathsToOpen = arrays.coalesce(cli._.map(candidate => this.parsePath(candidate, true /* ignoreFileNotFound */, cli.goto)));
 		if (pathsToOpen.length > 0) {
 			return pathsToOpen;
 		}
@@ -694,8 +694,12 @@ export class WindowsManager implements IWindowsMainService {
 				if (lastActiveWindow) {
 
 					// workspace
-					if (lastActiveWindow.workspace) {
-						return [{ workspace: lastActiveWindow.workspace }];
+					const candidateWorkspace = lastActiveWindow.workspace;
+					if (candidateWorkspace) {
+						const validatedWorkspace = this.parsePath(candidateWorkspace.configPath);
+						if (validatedWorkspace && validatedWorkspace.workspace) {
+							return [validatedWorkspace];
+						}
 					}
 
 					// folder (if path is valid)
@@ -724,14 +728,14 @@ export class WindowsManager implements IWindowsMainService {
 				if (lastActiveWindow && lastActiveWindow.workspace) {
 					workspaces.push(lastActiveWindow.workspace);
 				}
-				windowsToOpen.push(...workspaces.map(workspace => ({ workspace })));
+				windowsToOpen.push(...arrays.coalesce(workspaces.map(candidate => this.parsePath(candidate.configPath))));
 
 				// Folders
 				const folders = this.windowsState.openedWindows.filter(w => !!w.folderPath).map(w => w.folderPath);
 				if (lastActiveWindow && lastActiveWindow.folderPath) {
 					folders.push(lastActiveWindow.folderPath);
 				}
-				windowsToOpen.push(...folders.map(candidate => this.parsePath(candidate)).filter(path => !!path));
+				windowsToOpen.push(...arrays.coalesce(folders.map(candidate => this.parsePath(candidate))));
 
 				// Windows that were Empty
 				if (restoreWindows === 'all') {
@@ -756,20 +760,20 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	private doGetUntitledWorkspacesFromLastSession(): IWorkspaceIdentifier[] {
-		const untitledWorkspaces: IWorkspaceIdentifier[] = [];
+		const candidates: IWorkspaceIdentifier[] = [];
 
 		if (this.isUntitledWorkspace(this.windowsState.lastActiveWindow)) {
-			untitledWorkspaces.push(this.windowsState.lastActiveWindow.workspace);
+			candidates.push(this.windowsState.lastActiveWindow.workspace);
 		}
 
 		for (let i = 0; i < this.windowsState.openedWindows.length; i++) {
 			const state = this.windowsState.openedWindows[i];
 			if (this.isUntitledWorkspace(state)) {
-				untitledWorkspaces.push(state.workspace);
+				candidates.push(state.workspace);
 			}
 		}
 
-		return untitledWorkspaces;
+		return arrays.coalesce(candidates.map(candidate => this.parsePath(candidate.configPath))).map(window => window.workspace);
 	}
 
 	private isUntitledWorkspace(state: IWindowState): boolean {
