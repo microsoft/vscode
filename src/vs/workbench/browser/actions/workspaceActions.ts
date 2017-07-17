@@ -220,10 +220,10 @@ export class RemoveRootFolderAction extends Action {
 	}
 }
 
-export class SaveWorkspaceAction extends BaseWorkspacesAction {
+export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 
-	static ID = 'workbench.action.saveWorkspace';
-	static LABEL = nls.localize('saveWorkspaceAction', "Save Workspace...");
+	static ID = 'workbench.action.saveWorkspaceAs';
+	static LABEL = nls.localize('saveWorkspaceAsAction', "Save Workspace As...");
 
 	constructor(
 		id: string,

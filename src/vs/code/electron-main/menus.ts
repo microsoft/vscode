@@ -365,7 +365,7 @@ export class CodeMenu {
 
 		const newWorkspace = this.createMenuItem(nls.localize({ key: 'miNewWorkspace', comment: ['&& denotes a mnemonic'] }, "&&New Workspace..."), 'workbench.action.newWorkspace', this.windowsService.getWindowCount() > 0);
 		const openWorkspace = this.createMenuItem(nls.localize({ key: 'miOpenWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Open Workspace..."), 'workbench.action.openWorkspace', this.windowsService.getWindowCount() > 0);
-		const saveWorkspace = this.createMenuItem(nls.localize({ key: 'miSaveWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Save Workspace..."), 'workbench.action.saveWorkspace', this.windowsService.getWindowCount() > 0);
+		const saveWorkspace = this.createMenuItem(nls.localize({ key: 'miSaveWorkspaceAs', comment: ['&& denotes a mnemonic'] }, "&&Save Workspace As..."), 'workbench.action.saveWorkspaceAs', this.windowsService.getWindowCount() > 0);
 		const addFolder = this.createMenuItem(nls.localize({ key: 'miAddFolderToWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Add Folder to Workspace..."), 'workbench.action.addRootFolder', this.windowsService.getWindowCount() > 0);
 		[
 			newWorkspace,
