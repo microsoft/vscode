@@ -441,6 +441,11 @@ export interface IDebugService {
 	onDidChangeState: Event<State>;
 
 	/**
+	 * Allows to register on new process events.
+	 */
+	onDidNewProcess: Event<IProcess>;
+
+	/**
 	 * Allows to register on end process events.
 	 */
 	onDidEndProcess: Event<IProcess>;

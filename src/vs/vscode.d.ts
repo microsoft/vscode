@@ -5484,6 +5484,11 @@ declare module 'vscode' {
 		export const onDidChangeActiveDebugSession: Event<DebugSession | undefined>;
 
 		/**
+		 * An [event](#Event) which fires when a new debug session has been started.
+		 */
+		export const onDidStartDebugSession: Event<DebugSession>;
+
+		/**
 		 * An [event](#Event) which fires when a custom DAP event is received from the debug session.
 		 */
 		export const onDidReceiveDebugSessionCustomEvent: Event<DebugSessionCustomEvent>;

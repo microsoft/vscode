@@ -68,6 +68,7 @@ export class DebugService implements debug.IDebugService {
 
 	private sessionStates: Map<string, debug.State>;
 	private _onDidChangeState: Emitter<debug.State>;
+	private _onDidNewProcess: Emitter<debug.IProcess>;
 	private _onDidEndProcess: Emitter<debug.IProcess>;
 	private _onDidCustomEvent: Emitter<DebugProtocol.Event>;
 	private model: Model;
@@ -110,6 +111,7 @@ export class DebugService implements debug.IDebugService {
 		this.toDisposeOnSessionEnd = new Map<string, lifecycle.IDisposable[]>();
 		this.breakpointsToSendOnResourceSaved = new Set<string>();
 		this._onDidChangeState = new Emitter<debug.State>();
+		this._onDidNewProcess = new Emitter<debug.IProcess>();
 		this._onDidEndProcess = new Emitter<debug.IProcess>();
 		this._onDidCustomEvent = new Emitter<DebugProtocol.Event>();
 		this.sessionStates = new Map<string, debug.State>();
@@ -291,7 +293,9 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	private registerSessionListeners(process: Process, session: RawDebugSession): void {
+
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session);
+
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidInitialize(event => {
 			aria.status(nls.localize('debuggingStarted', "Debugging started."));
 			const sendConfigurationDone = () => {
@@ -501,6 +505,10 @@ export class DebugService implements debug.IDebugService {
 
 	public get onDidChangeState(): Event<debug.State> {
 		return this._onDidChangeState.event;
+	}
+
+	public get onDidNewProcess(): Event<debug.IProcess> {
+		return this._onDidNewProcess.event;
 	}
 
 	public get onDidEndProcess(): Event<debug.IProcess> {
@@ -842,6 +850,7 @@ export class DebugService implements debug.IDebugService {
 					this.viewModel.setMultiProcessView(true);
 				}
 				this.updateStateAndEmit(session.getId(), debug.State.Running);
+				this._onDidNewProcess.fire(process);
 
 				return this.telemetryService.publicLog('debugSessionStart', {
 					type: configuration.type,
