@@ -258,7 +258,7 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 	},
 	'window.title': {
 		'type': 'string',
-		'default': isMacintosh ? '${activeEditorShort}${separator}${folderName}' : '${dirty}${activeEditorShort}${separator}${folderName}${separator}${appName}',
+		'default': isMacintosh ? '${activeEditorShort}${separator}${rootName}' : '${dirty}${activeEditorShort}${separator}${rootName}${separator}${appName}',
 		'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by parenthesis are not to be translated.'], key: 'title' },
 			`Controls the window title based on the active editor. Variables are substituted based on the context:
 \${activeEditorShort}: e.g. myFile.txt
