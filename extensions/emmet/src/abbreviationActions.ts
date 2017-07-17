@@ -204,7 +204,7 @@ function expandAbbr(input: ExpandAbbreviationInput, newLine: string): string {
 		return;
 	}
 
-	// If no text to wrap, then return the expanded text	
+	// If no text to wrap, then return the expanded text
 	if (!input.textToWrap) {
 		return expandedText;
 	}
@@ -235,14 +235,10 @@ function getSyntaxFromArgs(args: any): string {
 		vscode.window.showInformationMessage('No editor is active.');
 		return;
 	}
-	if (typeof args !== 'object' || !args['language']) {
-		vscode.window.showInformationMessage('Cannot resolve language at cursor.');
-		return;
-	}
 
 	const mappedModes = getMappingForIncludedLanguages();
-	let language: string = args['language'];
-	let parentMode: string = args['parentMode'];
+	let language: string = (typeof args !== 'object' || !args['language']) ? editor.document.languageId : args['language'];
+	let parentMode: string = typeof args === 'object' ? args['parentMode'] : undefined;
 
 	let syntax = getEmmetMode(mappedModes[language] ? mappedModes[language] : language);
 	if (syntax) {
