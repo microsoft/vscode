@@ -106,10 +106,10 @@ export abstract class BaseWorkspacesAction extends Action {
 		return label.replace(/&&/g, '&');
 	}
 
-	protected pickFolders(button: string, title: string): string[] {
+	protected pickFolders(buttonLabel: string, title: string): string[] {
 		return this.windowService.showOpenDialog({
-			buttonLabel: nls.localize('add', "Add"),
-			title: nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"),
+			buttonLabel,
+			title,
 			properties: ['multiSelections', 'openDirectory', 'createDirectory'],
 			defaultPath: this.contextService.hasWorkspace() ? dirname(this.contextService.getWorkspace().roots[0].fsPath) : void 0 // pick the parent of the first root by default
 		});
