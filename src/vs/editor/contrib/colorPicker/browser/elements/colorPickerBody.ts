@@ -69,6 +69,7 @@ export class ColorPickerBody extends Disposable {
 
 		const updateModel = (x: number, y: number) => {
 			this.widget.model.color = this.extractColor(x, y);
+			this.widget.model.opacity = this.widget.model.opacity; // ensure opacity is preserved
 			this.widget.model.saturationSelection = { x: x, y: y };
 			this.focusSaturationSelection(this.widget.model.saturationSelection);
 		};
@@ -77,7 +78,6 @@ export class ColorPickerBody extends Disposable {
 		if (e.target !== this.saturationSelection) {
 			newSaturationX = e.offsetX;
 			newSaturationY = e.offsetY;
-
 			updateModel(newSaturationX, newSaturationY);
 		} else { // If clicked on the selection circle
 			newSaturationX = this.widget.model.saturationSelection.x;
@@ -157,7 +157,8 @@ export class ColorPickerBody extends Disposable {
 
 		// Update selected color if saturation selection was beforehand
 		if (this.model.saturationSelection) {
-			this.model.color = this.extractColor(this.model.saturationSelection.x, this.model.saturationSelection.y);
+			const newColor = this.model.hue.toRGBA();
+			this.model.color = Color.fromRGBA(new RGBA(newColor.r, newColor.g, newColor.b, this.model.opacity * 255));
 		}
 	}
 

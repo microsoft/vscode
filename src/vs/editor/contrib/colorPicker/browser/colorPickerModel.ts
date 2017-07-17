@@ -11,12 +11,11 @@ export class ColorPickerModel {
 	public saturationSelection: ISaturationState;
 	public originalColor: string;
 
-	private _widget: ColorPickerWidget;
+	public widget: ColorPickerWidget;
+	private _color: Color;
 	private _selectedColor: string;
 	private _opacity: number;
-
-	public _color: Color;
-	public _hue: Color;
+	private _hue: Color;
 
 	private _colorModel: ColorModel;
 	private _colorModelIndex: number;
@@ -24,14 +23,6 @@ export class ColorPickerModel {
 	constructor() {
 		this._colorModelIndex = 0;
 		this._opacity = 1;
-	}
-
-	public set widget(widget: ColorPickerWidget) {
-		this._widget = widget;
-	}
-
-	public get widget() {
-		return this._widget;
 	}
 
 	public set color(color: Color) {
