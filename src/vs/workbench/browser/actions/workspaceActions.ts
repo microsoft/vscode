@@ -108,7 +108,6 @@ export abstract class BaseWorkspacesAction extends Action {
 			defaultPath: this.contextService.hasWorkspace() ? dirname(this.contextService.getWorkspace().roots[0].fsPath) : void 0 // pick the parent of the first root by default
 		});
 	}
-
 }
 
 export class NewWorkspaceAction extends BaseWorkspacesAction {
