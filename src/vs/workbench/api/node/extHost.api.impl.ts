@@ -282,8 +282,20 @@ export function createApiFactory(
 			get visibleTextEditors() {
 				return extHostEditors.getVisibleTextEditors();
 			},
-			showTextDocument(document: vscode.TextDocument, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): TPromise<vscode.TextEditor> {
-				return extHostEditors.showTextDocument(document, columnOrOptions, preserveFocus);
+			showTextDocument(documentOrUriOrFilename: vscode.TextDocument | vscode.Uri | string, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): TPromise<vscode.TextEditor> {
+				let documentPromise: TPromise<vscode.TextDocument>;
+
+				if (typeof documentOrUriOrFilename === 'string') {
+					documentPromise = workspace.openTextDocument(documentOrUriOrFilename) as TPromise<vscode.TextDocument>;
+				} else if (URI.isUri(documentOrUriOrFilename)) {
+					documentPromise = workspace.openTextDocument(documentOrUriOrFilename) as TPromise<vscode.TextDocument>;
+				} else {
+					documentPromise = TPromise.as(documentOrUriOrFilename as vscode.TextDocument);
+				}
+
+				return documentPromise.then(document => {
+					return extHostEditors.showTextDocument(document, columnOrOptions, preserveFocus);
+				});
 			},
 			createTextEditorDecorationType(options: vscode.DecorationRenderOptions): vscode.TextEditorDecorationType {
 				return extHostEditors.createTextEditorDecorationType(options);
