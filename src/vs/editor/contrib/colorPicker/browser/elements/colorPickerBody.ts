@@ -101,6 +101,7 @@ export class ColorPickerBody extends Disposable {
 		}
 		const slider = element === this.hueStrip ? this.hueSlider : this.opacitySlider;
 		const strip = element === this.hueStrip ? this.hueStrip : this.opacityStrip;
+		const initialColorModel = this.model.colorModel;
 
 		// Update slider position if clicked on a strip itself
 		if (e.target === this.hueStrip || e.target === this.opacityStrip) {
@@ -126,7 +127,7 @@ export class ColorPickerBody extends Disposable {
 			if (isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
 				slider.top = 0;
 				if (slider === this.hueSlider) {
-					this.widget.model.hue = Color.fromRGBA(new RGBA(255, 0, 0));
+					this.widget.model.hue = Color.red;
 				} else if (slider === this.opacitySlider) {
 					this.widget.model.opacity = 1;
 				}
@@ -136,6 +137,11 @@ export class ColorPickerBody extends Disposable {
 			const mouseDelta = mouseMoveData.posy - initialMousePosition;
 			slider.top = initialSliderTop + mouseDelta;
 			updateModel();
+
+			// Change back from RGBA to HEX if opacity touched
+			if (this.model.colorModel !== initialColorModel && this.model.opacity === 1) {
+				this.model.colorModel = initialColorModel;
+			}
 		}, () => {
 			strip.style.cursor = '-webkit-grab';
 		});

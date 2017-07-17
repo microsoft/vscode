@@ -25,6 +25,7 @@ export class ColorPickerModel {
 	constructor() {
 		this.dragging = false;
 		this._colorModelIndex = 0;
+		this._opacity = 1;
 	}
 
 	public set widget(widget: ColorPickerWidget) {
@@ -87,9 +88,13 @@ export class ColorPickerModel {
 	public set opacity(opacity: number) {
 		this._opacity = opacity;
 
-		const rgba = this._color.toRGBA();
+		if (this._colorModel === ColorModel.Hex) {
+			this.colorModel = ColorModel.RGBA;
+		}
 
+		const rgba = this._color.toRGBA();
 		this.color = Color.fromRGBA(new RGBA(rgba.r, rgba.g, rgba.b, opacity * 255));
+
 		this.widget.header.updatePickedColor();
 	}
 
@@ -99,6 +104,11 @@ export class ColorPickerModel {
 
 	public set colorModel(model: ColorModel) {
 		this._colorModel = model;
+		this._colorModelIndex = model;
+
+		if (this._selectedColor) {
+			this.color = this._color; // Refresh selected colour string state
+		}
 	}
 
 	public get colorModel(): ColorModel {
@@ -113,7 +123,7 @@ export class ColorPickerModel {
 		}
 
 		// Skip hex model if opacity is set
-		if (this._colorModelIndex === ColorModel.Hex && this.opacity !== 1) {
+		if (this._colorModelIndex === ColorModel.Hex && this._opacity !== 1) {
 			this.nextColorModel();
 			return;
 		}
