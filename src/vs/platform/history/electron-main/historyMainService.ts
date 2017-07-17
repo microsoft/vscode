@@ -50,27 +50,8 @@ export class HistoryMainService implements IHistoryMainService {
 
 	private onWorkspaceSaved(e: IWorkspaceSavedEvent): void {
 
-		// A workspace was saved to a new config location. Make sure to
-		// update our recently opened workspaces with this new location.
-		let changed = false;
-		const mru = this.getRecentlyOpened();
-		mru.workspaces.forEach(workspace => {
-			if (isSingleFolderWorkspaceIdentifier(workspace)) {
-				return;
-			}
-
-			if (workspace.id === e.workspace.id && workspace.configPath !== e.workspace.configPath) {
-				workspace.configPath = e.workspace.configPath;
-				changed = true;
-			}
-		});
-
-		if (changed) {
-			this.saveRecentlyOpened(mru);
-			this._onRecentlyOpenedChange.fire();
-		} else {
-			this.addRecentlyOpened([e.workspace], []); // add it if this is a new workspace
-		}
+		// Make sure to add newly saved workspaces to the list of recent workspaces
+		this.addRecentlyOpened([e.workspace], []);
 	}
 
 	public addRecentlyOpened(workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], files: string[]): void {
@@ -85,7 +66,7 @@ export class HistoryMainService implements IHistoryMainService {
 				}
 
 				mru.workspaces.unshift(workspace);
-				mru.workspaces = arrays.distinct(mru.workspaces, workspace => isSingleFolderWorkspaceIdentifier(workspace) ? (isLinux ? workspace : workspace.toLowerCase()) : workspace.id);
+				mru.workspaces = arrays.distinct(mru.workspaces, workspace => this.distinctFn(workspace));
 
 				// Add to recent documents (macOS only, Windows can show workspaces separately)
 				if (isMacintosh) {
@@ -173,13 +154,21 @@ export class HistoryMainService implements IHistoryMainService {
 		}
 
 		// Clear those dupes
-		workspaces = arrays.distinct(workspaces, workspace => isSingleFolderWorkspaceIdentifier(workspace) ? workspace : workspace.id);
+		workspaces = arrays.distinct(workspaces, workspace => this.distinctFn(workspace));
 		files = arrays.distinct(files);
 
 		// Hide untitled workspaces
 		workspaces = workspaces.filter(workspace => isSingleFolderWorkspaceIdentifier(workspace) || !this.workspacesService.isUntitledWorkspace(workspace));
 
 		return { workspaces, files };
+	}
+
+	private distinctFn(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): string {
+		if (isSingleFolderWorkspaceIdentifier(workspace)) {
+			return isLinux ? workspace : workspace.toLowerCase();
+		}
+
+		return workspace.id + workspace.configPath; // ID and configPath form a unique workspace
 	}
 
 	private saveRecentlyOpened(recent: IRecentlyOpened): void {
