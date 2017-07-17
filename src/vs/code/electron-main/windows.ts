@@ -279,7 +279,7 @@ export class WindowsManager implements IWindowsMainService {
 
 			// Save: save workspace, but do not veto unload
 			case ConfirmResult.SAVE: {
-				const target = dialog.showSaveDialog({
+				const target = dialog.showSaveDialog(e.window.win, {
 					buttonLabel: localize('saveButton', "Save"),
 					title: localize('saveWorkspace', "Save Workspace"),
 					filters: WORKSPACE_FILTER
