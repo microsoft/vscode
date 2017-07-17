@@ -98,3 +98,8 @@
 	background: rgba(100, 100, 100, 0.7);
 	height: 5px;
 }
+
+.colorpicker-body .opacity-strip .opacity-overlay {
+	height: 150px;
+	pointer-events: none;
+}

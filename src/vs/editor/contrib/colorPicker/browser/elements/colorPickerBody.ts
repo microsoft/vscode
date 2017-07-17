@@ -25,6 +25,7 @@ export class ColorPickerBody extends Disposable {
 	private opacitySlider: Slider;
 	private hueStrip: HTMLElement;
 	private opacityStrip: HTMLElement;
+	private opacityOverlay: HTMLElement;
 
 	private whiteGradient: CanvasGradient;
 	private blackGradient: CanvasGradient;
@@ -63,17 +64,6 @@ export class ColorPickerBody extends Disposable {
 		this._register(dom.addDisposableListener(this.opacityStrip, dom.EventType.MOUSE_DOWN, e => {
 			this.stripListener(this.opacityStrip, e, monitor);
 		}));
-
-		// Color strip and slider listeners
-		// this._register(dom.addDisposableListener(this.hueSlider.domNode, dom.EventType.MOUSE_DOWN, e => {
-		// 	this.stripListener(undefined, this.hueSlider.domNode, e, monitor);
-		// }));
-		// this._register(dom.addDisposableListener(this.opacitySlider.domNode, dom.EventType.MOUSE_DOWN, e => {
-		// 	this.stripListener(this.opacityStrip, this.opacitySlider.domNode, e, monitor);
-		// }));
-		// this._register(dom.addDisposableListener(this.opacityStrip.domNode, dom.EventType.MOUSE_DOWN, e => {
-		// 	this.stripListener(this.opacityStrip, this.opacityStrip.domNode, e, monitor);
-		// }));
 	}
 
 	private saturationListener(e: MouseEvent, monitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>): void {
@@ -107,7 +97,6 @@ export class ColorPickerBody extends Disposable {
 			const x = newSaturationX + deltaX;
 			const y = newSaturationY + deltaY;
 
-			console.log(`${x},${y}`);
 			this.widget.model.color = this.extractColor(this.saturationCtx, x, y);
 			this.widget.model.saturationSelection = { x: x, y: y };
 			this.focusSaturationSelection(this.widget.model.saturationSelection);
@@ -174,6 +163,14 @@ export class ColorPickerBody extends Disposable {
 		}
 	}
 
+	public fillOpacityOverlay(color: RGBA): void {
+		const r = color.r;
+		const g = color.g;
+		const b = color.b;
+
+		this.opacityOverlay.style.background = `linear-gradient(to bottom, rgba(${r}, ${g}, ${b}, 1) 0%, rgba(${r}, ${g}, ${b}, 0.83) 17%, rgba(${r}, ${g}, ${b}, 0.67) 33%, rgba(${r}, ${g}, ${b}, 0.5) 50%, rgba(${r}, ${g}, ${b}, 0.33) 67%, rgba(${r}, ${g}, ${b}, 0.17) 83%, rgba(${r}, ${g}, ${b}, 0) 100%)`;
+	}
+
 	private focusSaturationSelection(state: ISaturationState): void {
 		this.saturationSelection.style.left = state.x + 'px';
 		this.saturationSelection.style.top = state.y + 'px';
@@ -218,6 +215,9 @@ export class ColorPickerBody extends Disposable {
 	private drawOpacityStrip(): void {
 		this.opacityStrip = $('.strip.opacity-strip');
 		dom.append(this.domNode, this.opacityStrip);
+		this.opacityOverlay = $('.opacity-overlay');
+		this.fillOpacityOverlay(this.model.color.toRGBA());
+		dom.append(this.opacityStrip, this.opacityOverlay);
 
 		this.opacitySlider = new Slider(this.opacityStrip);
 		dom.append(this.opacityStrip, this.opacitySlider.domNode);

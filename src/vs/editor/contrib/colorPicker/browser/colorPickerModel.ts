@@ -62,8 +62,9 @@ export class ColorPickerModel {
 	public set selectedColorString(color: string) {
 		this._selectedColor = color;
 
-		if (this.widget.header) {
-			this.widget.header.updatePickedColor(); // update picked colour from box view
+		if (this.widget.header && this.widget.body) {
+			this.widget.header.updatePickedColor();
+			this.widget.body.fillOpacityOverlay(this._color.toRGBA());
 		}
 	}
 
