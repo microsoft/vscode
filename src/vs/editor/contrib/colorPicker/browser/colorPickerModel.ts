@@ -58,7 +58,7 @@ export class ColorPickerModel {
 		this._hue = color;
 
 		if (this.widget.body) {
-			this.widget.body.fillSaturationBox();
+			this.widget.body.saturationBox.fillSaturationBox();
 		}
 	}
 
@@ -76,7 +76,9 @@ export class ColorPickerModel {
 		const rgba = this._color.toRGBA();
 		this.color = Color.fromRGBA(new RGBA(rgba.r, rgba.g, rgba.b, opacity * 255));
 
-		this.widget.header.updatePickedColor();
+		if (this.widget.header) {
+			this.widget.header.updatePickedColor();
+		}
 	}
 
 	public get opacity(): number {
@@ -109,10 +111,7 @@ export class ColorPickerModel {
 			return;
 		}
 
-		this._colorModel = this._colorModelIndex;
-		if (this._selectedColor) {
-			this.color = this._color; // Refresh selected colour string state
-		}
+		this.colorModel = this._colorModelIndex;
 	}
 }
 
