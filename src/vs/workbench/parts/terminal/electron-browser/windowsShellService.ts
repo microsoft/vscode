@@ -5,24 +5,39 @@
 
 import * as cp from 'child_process';
 import * as platform from 'vs/base/common/platform';
-import { IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
+import * as path from 'path';
+import { ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { Emitter, debounceEvent } from 'vs/base/common/event';
 
 /** The amount of time to wait before getting the shell process name */
-const WAIT_FOR_SHELL_UPDATE = 100;
+const WAIT_AFTER_ENTER_TIME = 100;
 
-export class WindowsShellService {
-	private _pidStack: number[];
-	private _processId: number;
-	private _shellLaunchConfig: IShellLaunchConfig;
+export class WindowsShellHelper {
+	private _childProcessIdStack: number[];
+	private _onCheckWindowsShell: Emitter<string>;
+	private _terminalInstance: ITerminalInstance;
+	private _rootShellExecutable: string;
 
-	public constructor(pid: number, shell: IShellLaunchConfig) {
-		this._pidStack = [];
-		this._processId = pid;
-		this._shellLaunchConfig = shell;
+	public constructor(terminal: ITerminalInstance, rootShellName: string) {
+		this._childProcessIdStack = [];
+		this._terminalInstance = terminal;
+		this._rootShellExecutable = rootShellName;
+		if (!platform.isWindows) {
+			throw new Error(`WindowsShellHelper cannot be instantiated on ${platform.platform}`);
+		}
+
+		this._onCheckWindowsShell = new Emitter<string>();
+		debounceEvent(this._onCheckWindowsShell.event, (l, e) => e, 100, true)(() => {
+			this.updateShellName();
+		});
+
+		terminal.onData((string) => {
+			this.updateShellName();
+		});
 	}
 
-	private static getFirstWindowsChildProcess(pid: number): TPromise<{ executable: string, pid: number }[]> {
+	private getFirstChildProcess(pid: number): TPromise<{ executable: string, pid: number }[]> {
 		return new TPromise((resolve, reject) => {
 			cp.execFile('wmic.exe', ['process', 'where', `parentProcessId=${pid}`, 'get', 'ExecutablePath,ProcessId'], (err, stdout, stderr) => {
 				if (err) {
@@ -39,44 +54,51 @@ export class WindowsShellService {
 		});
 	}
 
-	private refreshWindowsShellProcessTree(pid: number, flag: boolean): TPromise<string> {
-		return WindowsShellService.getFirstWindowsChildProcess(pid).then(result => {
+	private refreshShellProcessTree(pid: number, parent: string): TPromise<string> {
+		return this.getFirstChildProcess(pid).then(result => {
 			if (result.length === 0) {
-				if (flag) {
-					TPromise.as(result[0].executable);
+				if (parent.length > 0) {
+					return TPromise.as(parent);
 				}
-				if (this._pidStack.length > 1) {
-					this._pidStack.pop();
-					return this.refreshWindowsShellProcessTree(this._pidStack[this._pidStack.length - 1], false);
+				if (this._childProcessIdStack.length > 1) {
+					this._childProcessIdStack.pop();
+					return this.refreshShellProcessTree(this._childProcessIdStack[this._childProcessIdStack.length - 1], '');
 				}
 				return TPromise.as([]);
 			}
-			this._pidStack.push(result[0].pid);
-			return this.refreshWindowsShellProcessTree(result[0].pid, true);
+			this._childProcessIdStack.push(result[0].pid);
+			return this.refreshShellProcessTree(result[0].pid, result[0].executable);
 		}, error => { return error; });
 	}
 
 	/**
-	 * Returns the innermost shell running in the terminal. This is only implemented for Windows.
+	 * Returns the innermost shell running in the terminal.
 	 */
-	public getShellName(): TPromise<string> {
-		if (platform.platform !== platform.Platform.Windows) {
-			throw null;
-		}
-		if (this._pidStack.length === 0) {
-			this._pidStack.push(this._processId);
+	public getShellName(pid: number, shell: string): TPromise<string> {
+		if (this._childProcessIdStack.length === 0) {
+			this._childProcessIdStack.push(pid);
 		}
 		return new TPromise<string>((resolve) => {
 			// We wait before checking the processes to give it time to update with the new child shell.
 			// Otherwise, it would return old data.
 			setTimeout(() => {
-				this.refreshWindowsShellProcessTree(this._pidStack[this._pidStack.length - 1], false).then(result => {
+				this.refreshShellProcessTree(this._childProcessIdStack[this._childProcessIdStack.length - 1], '').then(result => {
 					if (result.length > 0) {
 						resolve(result);
 					}
-					resolve(this._shellLaunchConfig.executable);
+					resolve(shell);
 				}, error => { return error; });
-			}, WAIT_FOR_SHELL_UPDATE);
+			}, WAIT_AFTER_ENTER_TIME);
+		});
+	}
+
+	public updateShellName(): void {
+		this.getShellName(this._terminalInstance.processId, this._rootShellExecutable).then(result => {
+			if (result) {
+				console.log(result);
+				const fullPathName = result.split('.exe')[0];
+				this._terminalInstance.setTitle(path.basename(fullPathName));
+			}
 		});
 	}
 }

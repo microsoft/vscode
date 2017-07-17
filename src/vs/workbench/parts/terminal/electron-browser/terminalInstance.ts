@@ -10,10 +10,10 @@ import * as lifecycle from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
-import Event, { Emitter, debounceEvent } from 'vs/base/common/event';
+import Event, { Emitter } from 'vs/base/common/event';
 import Uri from 'vs/base/common/uri';
 import xterm = require('xterm');
-import { WindowsShellService } from 'vs/workbench/parts/terminal/electron-browser/windowsShellService';
+import { WindowsShellHelper } from 'vs/workbench/parts/terminal/electron-browser/windowsShellService';
 import { Dimension } from 'vs/base/browser/builder';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -82,8 +82,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _messageTitleListener: (message: { type: string, content: string }) => void;
 	private _preLaunchInputQueue: string;
 	private _initialCwd: string;
-	private _windowsShellService: WindowsShellService;
-	private _checkWindowShell: Emitter<string>;
+	private _windowsShellHelper: WindowsShellHelper;
 
 	private _widgetManager: TerminalWidgetManager;
 	private _linkHandler: TerminalLinkHandler;
@@ -139,11 +138,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._createXterm();
 
 		if (platform.isWindows) {
-			this._checkWindowShell = new Emitter<string>();
-			debounceEvent(this._checkWindowShell.event, (l, e) => e, 100, true)(() => {
-				this.eventuallyGetShellName();
-			});
-			this._windowsShellService = new WindowsShellService(this._processId, this._shellLaunchConfig);
+			this._windowsShellHelper = new WindowsShellHelper(this, this._shellLaunchConfig.executable);
 		}
 
 		// Only attach xterm.js to the DOM if the terminal panel has been opened before.
@@ -271,10 +266,6 @@ export class TerminalInstance implements ITerminalInstance {
 			// If tab focus mode is on, tab is not passed to the terminal
 			if (TabFocus.getTabFocusMode() && event.keyCode === 9) {
 				return false;
-			}
-
-			if (platform.isWindows && event.keyCode === 13 /* ENTER */) {
-				this._checkWindowShell.fire();
 			}
 
 			return undefined;
@@ -861,15 +852,6 @@ export class TerminalInstance implements ITerminalInstance {
 			this._process.removeListener('message', this._messageTitleListener);
 			this._messageTitleListener = null;
 		}
-	}
-
-	public eventuallyGetShellName(): void {
-		this._windowsShellService.getShellName().then(result => {
-			if (result) {
-				const fullPathName = result.split('.exe')[0];
-				this.setTitle(path.basename(fullPathName));
-			}
-		});
 	}
 }
 
