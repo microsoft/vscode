@@ -17,6 +17,7 @@ import URI from 'vs/base/common/uri';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IInstantiationService } from "vs/platform/instantiation/common/instantiation";
 import { IWorkspacesService, WORKSPACE_FILTER } from "vs/platform/workspaces/common/workspaces";
+import { IMessageService, Severity } from "vs/platform/message/common/message";
 import { IEnvironmentService } from "vs/platform/environment/common/environment";
 import { isLinux } from "vs/base/common/platform";
 import { dirname } from "vs/base/common/paths";
@@ -178,8 +179,12 @@ export class AddRootFolderAction extends BaseWorkspacesAction {
 	}
 
 	public run(): TPromise<any> {
-		if (!this.contextService.hasMultiFolderWorkspace()) {
-			if (this.handleNotInMultiFolderWorkspaceCase(nls.localize('addSupported', "Adding a folder to workspace is not supported when VS Code is opened with a folder.\n\nDo you want to create a new workspace with the current folder and add folders to it?\n"), nls.localize({ key: 'createAndAdd', comment: ['&& denotes a mnemonic'] }, "&&Create Workspace & Add"))) {
+		if (!this.contextService.hasWorkspace()) {
+			return this.instantiationService.createInstance(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL).run();
+		}
+
+		if (this.contextService.hasFolderWorkspace()) {
+			if (this.handleNotInMultiFolderWorkspaceCase(nls.localize('addSupported', "Adding a folder to workspace is not supported when opened with a folder.\n\nDo you want to create a new workspace with the current folder and add folders to it?\n"), nls.localize({ key: 'createAndAdd', comment: ['&& denotes a mnemonic'] }, "&&Create Workspace & Add"))) {
 				return this.instantiationService.createInstance(NewWorkspaceFromExistingAction, NewWorkspaceFromExistingAction.ID, NewWorkspaceFromExistingAction.LABEL).run();
 			}
 			return TPromise.as(null);
@@ -227,7 +232,8 @@ export class SaveWorkspaceAction extends BaseWorkspacesAction {
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IWorkspacesService protected workspacesService: IWorkspacesService,
-		@IWindowsService private windowsService: IWindowsService
+		@IWindowsService private windowsService: IWindowsService,
+		@IMessageService private messageService: IMessageService
 	) {
 		super(id, label, windowService, environmentService, contextService);
 	}
@@ -238,14 +244,15 @@ export class SaveWorkspaceAction extends BaseWorkspacesAction {
 		}
 
 		if (this.contextService.hasMultiFolderWorkspace()) {
-			this.saveMultiFolderWorkspace();
+			return this.saveMultiFolderWorkspace();
 		}
 
-		return TPromise.as(false);
+		this.messageService.show(Severity.Info, nls.localize('saveEmptyWorkspaceNotSupported', "Cannot save an empty workspace"));
+		return TPromise.as(null);
 	}
 
 	private saveFolderWorkspace(): TPromise<void> {
-		if (this.handleNotInMultiFolderWorkspaceCase(nls.localize('saveNotSupported', "Saving a workspace is not supported when VS Code is opened with a folder.\n\nDo you want to create a new workspace with the current folder and save it?\n"), nls.localize({ key: 'createAndSave', comment: ['&& denotes a mnemonic'] }, "&&Create Workspace & Save"))) {
+		if (this.handleNotInMultiFolderWorkspaceCase(nls.localize('saveNotSupported', "Saving a workspace is not supported when opened with a folder.\n\nDo you want to create a new workspace with the current folder and save it?\n"), nls.localize({ key: 'createAndSave', comment: ['&& denotes a mnemonic'] }, "&&Create Workspace & Save"))) {
 			const configPath = this.getNewWorkspaceConfiPath();
 			if (configPath) {
 				// Create workspace first
