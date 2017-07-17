@@ -30,7 +30,7 @@ export class ColorPickerBody extends Disposable {
 	private whiteGradient: CanvasGradient;
 	private blackGradient: CanvasGradient;
 
-	constructor(private widget: ColorPickerWidget, private model: ColorPickerModel, widgetWidth: number) {
+	constructor(private widget: ColorPickerWidget, private model: ColorPickerModel) {
 		super();
 
 		this.pixelRatio = this.widget.editor.getConfiguration().pixelRatio;

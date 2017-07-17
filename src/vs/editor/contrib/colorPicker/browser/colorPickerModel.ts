@@ -9,10 +9,9 @@ import { Color, RGBA } from "vs/base/common/color";
 export class ColorPickerModel {
 
 	public saturationSelection: ISaturationState;
-	public dragging: boolean;
+	public originalColor: string;
 
 	private _widget: ColorPickerWidget;
-	private _originalColor: string;
 	private _selectedColor: string;
 	private _opacity: number;
 
@@ -23,7 +22,6 @@ export class ColorPickerModel {
 	private _colorModelIndex: number;
 
 	constructor() {
-		this.dragging = false;
 		this._colorModelIndex = 0;
 		this._opacity = 1;
 	}
@@ -34,14 +32,6 @@ export class ColorPickerModel {
 
 	public get widget() {
 		return this._widget;
-	}
-
-	public set originalColor(color: string) {
-		this._originalColor = color;
-	}
-
-	public get originalColor(): string {
-		return this._originalColor;
 	}
 
 	public set color(color: Color) {

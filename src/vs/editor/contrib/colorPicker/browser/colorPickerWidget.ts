@@ -37,7 +37,7 @@ export class ColorPickerWidget extends Widget implements IOverlayWidget {
 		this.editor.addOverlayWidget(this);
 
 		this.header = new ColorPickerHeader(this, this.model);
-		this.body = new ColorPickerBody(this, this.model, this.domNode.offsetWidth);
+		this.body = new ColorPickerBody(this, this.model);
 
 		this.layout();
 		this.visible = true;
