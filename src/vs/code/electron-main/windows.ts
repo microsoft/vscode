@@ -336,11 +336,14 @@ export class WindowsManager implements IWindowsMainService {
 		const foldersToOpen = arrays.distinct(windowsToOpen.filter(win => win.folderPath && !win.filePath).map(win => win.folderPath), folder => isLinux ? folder : folder.toLowerCase()); // prevent duplicates
 
 		//
-		// These are windows to restore because of hot-exit or empty windows from previous session
+		// These are windows to restore because of hot-exit or from previous session
 		//
 		const hotExitRestore = (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath);
 		const foldersToRestore = hotExitRestore ? this.backupService.getFolderBackupPaths() : [];
-		const workspacesToRestore = hotExitRestore ? this.backupService.getWorkspaceBackups() : [];
+
+		const workspacesToRestore = hotExitRestore ? this.backupService.getWorkspaceBackups() : []; // collect from workspaces with hot-exit backups
+		workspacesToRestore.push(...this.doGetUntitledWorkspacesFromLastSession());					// collect from previous window session
+
 		let emptyToRestore = hotExitRestore ? this.backupService.getEmptyWindowBackupPaths() : [];
 		emptyToRestore.push(...windowsToOpen.filter(w => !w.workspace && !w.folderPath && w.backupPath).map(w => path.basename(w.backupPath))); // add empty windows with backupPath
 		emptyToRestore = arrays.distinct(emptyToRestore); // prevent duplicates
@@ -750,6 +753,27 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Always fallback to empty window
 		return [Object.create(null)];
+	}
+
+	private doGetUntitledWorkspacesFromLastSession(): IWorkspaceIdentifier[] {
+		const untitledWorkspaces: IWorkspaceIdentifier[] = [];
+
+		if (this.isUntitledWorkspace(this.windowsState.lastActiveWindow)) {
+			untitledWorkspaces.push(this.windowsState.lastActiveWindow.workspace);
+		}
+
+		for (let i = 0; i < this.windowsState.openedWindows.length; i++) {
+			const state = this.windowsState.openedWindows[i];
+			if (this.isUntitledWorkspace(state)) {
+				untitledWorkspaces.push(state.workspace);
+			}
+		}
+
+		return untitledWorkspaces;
+	}
+
+	private isUntitledWorkspace(state: IWindowState): boolean {
+		return state && state.workspace && this.workspacesService.isUntitledWorkspace(state.workspace);
 	}
 
 	private getRestoreWindowsSetting(): RestoreWindowsSetting {

@@ -77,12 +77,16 @@ export class HistoryMainService implements IHistoryMainService {
 
 			// Workspaces
 			workspaces.forEach(workspace => {
+				const isUntitledWorkspace = !isSingleFolderWorkspaceIdentifier(workspace) && this.workspacesService.isUntitledWorkspace(workspace);
+				if (isUntitledWorkspace) {
+					return; // only store saved workspaces
+				}
+
 				mru.workspaces.unshift(workspace);
 				mru.workspaces = arrays.distinct(mru.workspaces, workspace => isSingleFolderWorkspaceIdentifier(workspace) ? (isLinux ? workspace : workspace.toLowerCase()) : workspace.id);
 
-				// Add to recent documents unless the workspace is untitled (macOS only, Windows can show workspaces separately)
-				const isUntitledWorkspace = !isSingleFolderWorkspaceIdentifier(workspace) && this.workspacesService.isUntitledWorkspace(workspace);
-				if (isMacintosh && !isUntitledWorkspace) {
+				// Add to recent documents (macOS only, Windows can show workspaces separately)
+				if (isMacintosh) {
 					app.addRecentDocument(isSingleFolderWorkspaceIdentifier(workspace) ? workspace : workspace.configPath);
 				}
 			});
@@ -169,6 +173,9 @@ export class HistoryMainService implements IHistoryMainService {
 		// Clear those dupes
 		workspaces = arrays.distinct(workspaces, workspace => isSingleFolderWorkspaceIdentifier(workspace) ? workspace : workspace.id);
 		files = arrays.distinct(files);
+
+		// Hide untitled workspaces
+		workspaces = workspaces.filter(workspace => isSingleFolderWorkspaceIdentifier(workspace) || !this.workspacesService.isUntitledWorkspace(workspace));
 
 		return { workspaces, files };
 	}

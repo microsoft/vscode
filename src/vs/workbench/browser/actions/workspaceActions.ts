@@ -15,7 +15,7 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common
 import URI from 'vs/base/common/uri';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IInstantiationService } from "vs/platform/instantiation/common/instantiation";
-import { WORKSPACE_EXTENSION, IWorkspacesService } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspacesService, WORKSPACE_FILTER } from "vs/platform/workspaces/common/workspaces";
 import { IEnvironmentService } from "vs/platform/environment/common/environment";
 import { isWindows, isLinux } from "vs/base/common/platform";
 import { dirname } from "vs/base/common/paths";
@@ -203,8 +203,6 @@ export class RemoveRootFolderAction extends Action {
 	}
 }
 
-const codeWorkspaceFilter = [{ name: nls.localize('codeWorkspace', "Code Workspace"), extensions: [WORKSPACE_EXTENSION] }];
-
 export class SaveWorkspaceAction extends BaseWorkspacesAction {
 
 	static ID = 'workbench.action.saveWorkspace';
@@ -231,7 +229,7 @@ export class SaveWorkspaceAction extends BaseWorkspacesAction {
 		const target = this.windowService.showSaveDialog({
 			buttonLabel: nls.localize('save', "Save"),
 			title: nls.localize('saveWorkspace', "Save Workspace"),
-			filters: codeWorkspaceFilter,
+			filters: WORKSPACE_FILTER,
 			defaultPath: dirname(this.contextService.getWorkspace().roots[0].fsPath) // pick the parent of the first root by default
 		});
 
@@ -262,7 +260,7 @@ export class OpenWorkspaceAction extends Action {
 		const files = this.windowService.showOpenDialog({
 			buttonLabel: nls.localize('open', "Open"),
 			title: nls.localize('openWorkspace', "Open Workspace"),
-			filters: codeWorkspaceFilter,
+			filters: WORKSPACE_FILTER,
 			properties: ['openFile'],
 			defaultPath: this.contextService.hasWorkspace() ? dirname(this.contextService.getWorkspace().roots[0].fsPath) : void 0 // pick the parent of the first root by default
 		});

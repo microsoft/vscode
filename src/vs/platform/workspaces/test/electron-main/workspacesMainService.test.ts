@@ -16,7 +16,8 @@ import { parseArgs } from 'vs/platform/environment/node/argv';
 import { WorkspacesMainService } from "vs/platform/workspaces/electron-main/workspacesMainService";
 import { IStoredWorkspace, WORKSPACE_EXTENSION, IWorkspaceSavedEvent, IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 import { LogMainService } from "vs/platform/log/common/log";
-import { TPromise } from "vs/base/common/winjs.base";
+import { LifecycleService } from "vs/platform/lifecycle/electron-main/lifecycleMain";
+import { StorageService } from "vs/platform/storage/node/storage";
 
 suite('WorkspacesMainService', () => {
 	const parentDir = path.join(os.tmpdir(), 'vsctests', 'service');
@@ -26,15 +27,19 @@ suite('WorkspacesMainService', () => {
 		get workspacesHome(): string {
 			return workspacesHome;
 		}
+
+		get userDataPath(): string {
+			return parentDir;
+		}
 	}
 
 	class TestWorkspacesMainService extends WorkspacesMainService {
 		public deleteWorkspaceCall: IWorkspaceIdentifier;
 
-		protected deleteWorkspace(workspace: IWorkspaceIdentifier): TPromise<boolean> {
+		protected deleteWorkspace(workspace: IWorkspaceIdentifier): void {
 			this.deleteWorkspaceCall = workspace;
 
-			return super.deleteWorkspace(workspace);
+			super.deleteWorkspace(workspace);
 		}
 	}
 
@@ -44,7 +49,7 @@ suite('WorkspacesMainService', () => {
 	let service: TestWorkspacesMainService;
 
 	setup(done => {
-		service = new TestWorkspacesMainService(environmentService, logService);
+		service = new TestWorkspacesMainService(environmentService, logService, new LifecycleService(environmentService, logService, new StorageService(environmentService)));
 
 		// Delete any existing backups completely and then re-create it.
 		extfs.del(workspacesHome, os.tmpdir(), () => {
@@ -100,9 +105,14 @@ suite('WorkspacesMainService', () => {
 	});
 
 	test('saveWorkspace (untitled)', done => {
-		let event: IWorkspaceSavedEvent;
+		let savedEvent: IWorkspaceSavedEvent;
 		const listener = service.onWorkspaceSaved(e => {
-			event = e;
+			savedEvent = e;
+		});
+
+		let deletedEvent: IWorkspaceIdentifier;
+		const listener2 = service.onWorkspaceDeleted(e => {
+			deletedEvent = e;
 		});
 
 		return service.createWorkspace([process.cwd(), os.tmpdir()]).then(workspace => {
@@ -120,10 +130,13 @@ suite('WorkspacesMainService', () => {
 				assert.equal(ws.folders[0], process.cwd());
 				assert.equal(ws.folders[1], os.tmpdir());
 
-				assert.equal(savedWorkspace, event.workspace);
-				assert.equal(workspace.configPath, event.oldConfigPath);
+				assert.equal(savedWorkspace, savedEvent.workspace);
+				assert.equal(workspace.configPath, savedEvent.oldConfigPath);
+
+				assert.deepEqual(deletedEvent, workspace);
 
 				listener.dispose();
+				listener2.dispose();
 
 				extfs.delSync(workspaceConfigPath);
 

@@ -405,8 +405,9 @@ export class CodeWindow implements ICodeWindow {
 		// Handle configuration changes
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated()));
 
-		// Handle Workspace saves
+		// Handle Workspace events
 		this.toDispose.push(this.workspaceService.onWorkspaceSaved(e => this.onWorkspaceSaved(e)));
+		this.toDispose.push(this.workspaceService.onWorkspaceDeleted(e => this.onWorkspaceDeleted(e)));
 	}
 
 	private onWorkspaceSaved(e: IWorkspaceSavedEvent): void {
@@ -414,7 +415,16 @@ export class CodeWindow implements ICodeWindow {
 		// Make sure to update our workspace config if we detect that it
 		// was saved to a new config location
 		if (this.openedWorkspace && this.openedWorkspace.id === e.workspace.id && this.openedWorkspace.configPath !== e.workspace.configPath) {
-			this.config.workspace.configPath = e.workspace.configPath;
+			this.currentConfig.workspace.configPath = e.workspace.configPath;
+		}
+	}
+
+	private onWorkspaceDeleted(workspace: IWorkspaceIdentifier): void {
+
+		// Make sure to update our workspace config if we detect that it
+		// was deleted
+		if (this.openedWorkspace && this.openedWorkspace.id === workspace.id && this.openedWorkspace.configPath === workspace.configPath) {
+			this.currentConfig.workspace = void 0;
 		}
 	}
 
