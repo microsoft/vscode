@@ -57,7 +57,6 @@ export interface IWindowsMainService {
 	pickFileFolderAndOpen(forceNewWindow?: boolean, data?: ITelemetryData): void;
 	pickFileAndOpen(forceNewWindow?: boolean, path?: string, window?: ICodeWindow, data?: ITelemetryData): void;
 	pickFolderAndOpen(forceNewWindow?: boolean, window?: ICodeWindow, data?: ITelemetryData): void;
-	pickFolder(window?: ICodeWindow, options?: { buttonLabel: string; title: string; }): TPromise<string[]>;
 	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow;
 	getLastActiveWindow(): ICodeWindow;
 	waitForWindowClose(windowId: number): TPromise<void>;

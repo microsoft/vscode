@@ -855,10 +855,6 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
-	pickFolder(options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
-		return TPromise.as([]);
-	}
-
 	reloadWindow(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
@@ -984,10 +980,6 @@ export class TestWindowsService implements IWindowsService {
 
 	pickFolderAndOpen(windowId: number, forceNewWindow?: boolean): TPromise<void> {
 		return TPromise.as(void 0);
-	}
-
-	pickFolder(windowId: number, options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
-		return TPromise.as([]);
 	}
 
 	reloadWindow(windowId: number): TPromise<void> {

@@ -127,7 +127,6 @@ export class WorkbenchShell {
 	private timerService: ITimerService;
 	private themeService: WorkbenchThemeService;
 	private lifecycleService: LifecycleService;
-
 	private mainProcessServices: ServiceCollection;
 
 	private container: HTMLElement;
