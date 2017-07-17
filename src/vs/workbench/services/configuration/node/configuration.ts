@@ -408,7 +408,7 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 		// Update workspace configuration path with new path
 		else {
 			this.workspace.configuration = configPath;
-			this.workspace.name = getWorkspaceLabel(this.environmentService, { id: this.workspace.id, configPath: this.workspace.configuration.fsPath });
+			this.workspace.name = getWorkspaceLabel({ id: this.workspace.id, configPath: this.workspace.configuration.fsPath }, this.environmentService);
 		}
 
 		return this.initialize().then(() => {
@@ -426,7 +426,7 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 				if (!workspaceConfigurationModel.id || !workspaceConfigurationModel.folders.length) {
 					return TPromise.wrapError<void>(new Error('Invalid workspace configuraton file ' + this.workspaceConfigPath));
 				}
-				const workspaceName = getWorkspaceLabel(this.environmentService, { id: workspaceConfigurationModel.id, configPath: this.workspaceConfigPath.fsPath });
+				const workspaceName = getWorkspaceLabel({ id: workspaceConfigurationModel.id, configPath: this.workspaceConfigPath.fsPath }, this.environmentService);
 				this.workspace = new Workspace(workspaceConfigurationModel.id, workspaceName, workspaceConfigurationModel.folders, this.workspaceConfigPath);
 				this.legacyWorkspace = new LegacyWorkspace(this.workspace.roots[0]);
 				this._register(this.workspaceConfiguration.onDidUpdateConfiguration(() => this.onWorkspaceConfigurationChanged()));

@@ -482,7 +482,7 @@ export class CodeMenu {
 			label = this.unmnemonicLabel(tildify(workspace, this.environmentService.userHome));
 			path = workspace;
 		} else {
-			label = getWorkspaceLabel(this.environmentService, workspace);
+			label = getWorkspaceLabel(workspace, this.environmentService, { verbose: true });
 			path = workspace.configPath;
 		}
 
