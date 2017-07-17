@@ -68,6 +68,8 @@ export class HistoryMainService implements IHistoryMainService {
 		if (changed) {
 			this.saveRecentlyOpened(mru);
 			this._onRecentlyOpenedChange.fire();
+		} else {
+			this.addRecentlyOpened([e.workspace], []); // add it if this is a new workspace
 		}
 	}
 
