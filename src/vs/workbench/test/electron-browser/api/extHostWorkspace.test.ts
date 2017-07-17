@@ -44,8 +44,8 @@ suite('ExtHostWorkspace', function () {
 
 	test('asRelativePath, multiple folders', function () {
 		const ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', roots: [URI.file('/Coding/One'), URI.file('/Coding/Two')], name: 'Test' });
-		assert.equal(ws.getRelativePath('/Coding/One/file.txt'), 'file.txt');
-		assert.equal(ws.getRelativePath('/Coding/Two/files/out.txt'), 'files/out.txt');
+		assert.equal(ws.getRelativePath('/Coding/One/file.txt'), 'One/file.txt');
+		assert.equal(ws.getRelativePath('/Coding/Two/files/out.txt'), 'Two/files/out.txt');
 		assert.equal(ws.getRelativePath('/Coding/Two2/files/out.txt'), '/Coding/Two2/files/out.txt');
 	});
 
@@ -59,8 +59,8 @@ suite('ExtHostWorkspace', function () {
 		ws = new ExtHostWorkspace(new TestThreadService(), undefined);
 		assert.equal(ws.getPath(), undefined);
 
-		// ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', name: 'Test', roots: [URI.file('Folder'), URI.file('Another/Folder')] });
-		// assert.equal(ws.getPath(), undefined);
+		ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', name: 'Test', roots: [URI.file('Folder'), URI.file('Another/Folder')] });
+		assert.equal(ws.getPath().replace(/\\/g, '/'), '/Folder');
 
 		ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', name: 'Test', roots: [URI.file('/Folder')] });
 		assert.equal(ws.getPath().replace(/\\/g, '/'), '/Folder');

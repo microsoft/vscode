@@ -4681,7 +4681,7 @@ declare module 'vscode' {
 		export function getWorkspaceFolder(uri: Uri): WorkspaceFolder | undefined;
 
 		/**
-		 * Returns a path that is relative to the workspace root.
+		 * Returns a path that is relative to the workspace folder or folders.
 		 *
 		 * When there are no [workspace folders](#workspace.workspaceFolders) or when the path
 		 * is not a child of them, the input is returned.
