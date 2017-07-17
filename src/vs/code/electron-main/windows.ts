@@ -221,8 +221,8 @@ export class WindowsManager implements IWindowsMainService {
 			return; // only care about untitled workspaces to ask for saving
 		}
 
-		if (!isMacintosh && this.getWindowCount() === 1) {
-			return; // Windows/Linux: quit when last window is closed, so do not ask then
+		if (windowClosing && !isMacintosh && this.getWindowCount() === 1) {
+			return; // Windows/Linux: quits when last window is closed, so do not ask then
 		}
 
 		this.promptToSaveUntitledWorkspace(e, workspace);
