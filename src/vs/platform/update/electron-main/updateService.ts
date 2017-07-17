@@ -5,8 +5,6 @@
 
 'use strict';
 
-import * as fs from 'original-fs';
-import * as path from 'path';
 import * as electron from 'electron';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter, once, filterEvent } from 'vs/base/common/event';
@@ -22,6 +20,8 @@ import product from 'vs/platform/node/product';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IUpdateService, State, IAutoUpdater, IUpdate, IRawUpdate } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { getUpdateFeedUrl } from './updateFeedUrl';
+import { IStorageService } from 'vs/platform/storage/node/storage';
 
 export class UpdateService implements IUpdateService {
 
@@ -87,10 +87,13 @@ export class UpdateService implements IUpdateService {
 		@IRequestService requestService: IRequestService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IStorageService private storageService: IStorageService
 	) {
+		const channel = this.getUpdateChannel();
+
 		if (process.platform === 'win32') {
-			this.raw = new Win32AutoUpdaterImpl(requestService);
+			this.raw = new Win32AutoUpdaterImpl(channel, requestService, storageService);
 		} else if (process.platform === 'linux') {
 			this.raw = new LinuxAutoUpdaterImpl(requestService);
 		} else if (process.platform === 'darwin') {
@@ -99,8 +102,7 @@ export class UpdateService implements IUpdateService {
 			return;
 		}
 
-		const channel = this.getUpdateChannel();
-		const feedUrl = this.getUpdateFeedUrl(channel);
+		const feedUrl = getUpdateFeedUrl(channel);
 
 		if (!feedUrl) {
 			return; // updates not available
@@ -206,36 +208,6 @@ export class UpdateService implements IUpdateService {
 		const channel = config && config.channel;
 
 		return channel === 'none' ? null : product.quality;
-	}
-
-	private getUpdateFeedUrl(channel: string): string {
-		if (!channel) {
-			return null;
-		}
-
-		if (process.platform === 'win32' && !fs.existsSync(path.join(path.dirname(process.execPath), 'unins000.exe'))) {
-			return null;
-		}
-
-		if (!product.updateUrl || !product.commit) {
-			return null;
-		}
-
-		const platform = this.getUpdatePlatform();
-
-		return `${product.updateUrl}/api/update/${platform}/${channel}/${product.commit}`;
-	}
-
-	private getUpdatePlatform(): string {
-		if (process.platform === 'linux') {
-			return `linux-${process.arch}`;
-		}
-
-		if (process.platform === 'win32' && process.arch === 'x64') {
-			return 'win32-x64';
-		}
-
-		return process.platform;
 	}
 
 	quitAndInstall(): TPromise<void> {

@@ -5,6 +5,7 @@
 
 'use strict';
 
+import { localize } from 'vs/nls';
 import * as path from 'path';
 import * as pfs from 'vs/base/node/pfs';
 import { checksum } from 'vs/base/node/crypto';
@@ -18,6 +19,9 @@ import { download, asJson } from 'vs/base/node/request';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { IAutoUpdater } from 'vs/platform/update/common/update';
 import product from 'vs/platform/node/product';
+import { IStorageService } from 'vs/platform/storage/node/storage';
+import { dialog } from 'electron';
+import { getUpdateFeedUrl } from './updateFeedUrl';
 
 interface IUpdate {
 	url: string;
@@ -30,17 +34,33 @@ interface IUpdate {
 
 export class Win32AutoUpdaterImpl extends EventEmitter implements IAutoUpdater {
 
+	private autoUpdater64: Win32AutoUpdaterImpl = null;
+
 	private url: string = null;
 	private currentRequest: Promise = null;
 	private updatePackagePath: string = null;
 
 	constructor(
-		@IRequestService private requestService: IRequestService
+		private channel: string,
+		@IRequestService private requestService: IRequestService,
+		@IStorageService private storageService: IStorageService
 	) {
 		super();
+
+		if (process.arch === 'ia32') {
+			if (this.storageService.getItem('autoUpdateWin32Prefer64Bits', false)) {
+				this.autoUpdater64 = this.create64BitAutoUpdater();
+			}
+		}
 	}
 
-	get cachePath(): TPromise<string> {
+	private create64BitAutoUpdater(): Win32AutoUpdaterImpl {
+		const result = new Win32AutoUpdaterImpl(this.channel, this.requestService, this.storageService);
+		result.setFeedURL(getUpdateFeedUrl(this.channel, 'x64'));
+		return result;
+	}
+
+	private get cachePath(): TPromise<string> {
 		const result = path.join(tmpdir(), `vscode-update-${process.arch}`);
 		return new TPromise<string>((c, e) => mkdirp(result, null, err => err ? e(err) : c(result)));
 	}
@@ -50,12 +70,36 @@ export class Win32AutoUpdaterImpl extends EventEmitter implements IAutoUpdater {
 	}
 
 	checkForUpdates(): void {
+		if (this.autoUpdater64) {
+			return this.autoUpdater64.checkForUpdates();
+		}
+
 		if (!this.url) {
 			throw new Error('No feed url set.');
 		}
 
 		if (this.currentRequest) {
 			return;
+		}
+
+		const shouldPromptToMoveTo64Bits = process.arch === 'ia32' && this.storageService.getItem('autoUpdateWin32Propose64bits', true);
+
+		if (shouldPromptToMoveTo64Bits) {
+			const result = dialog.showMessageBox({
+				title: product.nameLong,
+				type: 'question',
+				message: localize('propose64', "{0} 64 bits for Windows is now available! Would you like to upgrade to the 64 bit version?", product.nameShort),
+				buttons: [localize('yes', "Yes"), localize('no', "No"), localize('neverAgain', "Never Ask Again")]
+			});
+
+			if (result === 2) {
+				this.storageService.setItem('autoUpdateWin32Propose64bits', false);
+			} else if (result === 0) {
+				this.storageService.setItem('autoUpdateWin32Prefer64Bits', true);
+				this.autoUpdater64 = this.create64BitAutoUpdater();
+
+				return this.autoUpdater64.checkForUpdates();
+			}
 		}
 
 		this.emit('checking-for-update');
@@ -128,6 +172,10 @@ export class Win32AutoUpdaterImpl extends EventEmitter implements IAutoUpdater {
 	}
 
 	quitAndInstall(): void {
+		if (this.autoUpdater64) {
+			return this.autoUpdater64.quitAndInstall();
+		}
+
 		if (!this.updatePackagePath) {
 			return;
 		}
