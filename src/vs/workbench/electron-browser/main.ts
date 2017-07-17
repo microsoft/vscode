@@ -46,6 +46,8 @@ import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import fs = require('fs');
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
+const currentWindowId = remote.getCurrentWindow().id;
+
 export function startup(configuration: IWindowConfiguration): TPromise<void> {
 
 	// Ensure others can listen to zoom level changes
@@ -104,10 +106,8 @@ function toInputs(paths: IPath[], isUntitledFile?: boolean): IResourceInput[] {
 }
 
 function openWorkbench(configuration: IWindowConfiguration, options: IOptions): TPromise<void> {
-
-	const currentWindow = remote.getCurrentWindow();
-	const mainProcessClient = new ElectronIPCClient(String(`window${currentWindow.id}`));
-	const mainServices = createMainProcessServices(mainProcessClient, currentWindow);
+	const mainProcessClient = new ElectronIPCClient(String(`window${currentWindowId}`));
+	const mainServices = createMainProcessServices(mainProcessClient);
 
 	const environmentService = new EnvironmentService(configuration, configuration.execPath);
 
@@ -214,7 +214,7 @@ function createStorageService(configuration: IWindowConfiguration, workspaceServ
 	return new StorageService(storage, storage, workspaceId, secondaryWorkspaceId);
 }
 
-function createMainProcessServices(mainProcessClient: ElectronIPCClient, currentWindow: Electron.BrowserWindow): ServiceCollection {
+function createMainProcessServices(mainProcessClient: ElectronIPCClient): ServiceCollection {
 	const serviceCollection = new ServiceCollection();
 
 	const windowsChannel = mainProcessClient.getChannel('windows');
@@ -224,7 +224,7 @@ function createMainProcessServices(mainProcessClient: ElectronIPCClient, current
 	serviceCollection.set(IUpdateService, new SyncDescriptor(UpdateChannelClient, updateChannel));
 
 	const urlChannel = mainProcessClient.getChannel('url');
-	serviceCollection.set(IURLService, new SyncDescriptor(URLChannelClient, urlChannel, currentWindow.id));
+	serviceCollection.set(IURLService, new SyncDescriptor(URLChannelClient, urlChannel, currentWindowId));
 
 	const workspacesChannel = mainProcessClient.getChannel('workspaces');
 	serviceCollection.set(IWorkspacesService, new WorkspacesChannelClient(workspacesChannel));

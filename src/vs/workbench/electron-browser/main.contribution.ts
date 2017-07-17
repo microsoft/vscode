@@ -18,7 +18,7 @@ import { CloseEditorAction, KeybindingsReferenceAction, OpenDocumentationUrlActi
 import { MessagesVisibleContext } from 'vs/workbench/electron-browser/workbench';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { registerCommands } from 'vs/workbench/electron-browser/commands';
-import { AddRootFolderAction, NewWorkspaceAction, OpenWorkspaceAction, SaveWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { AddRootFolderAction, NewWorkspaceAction, OpenWorkspaceAction, SaveWorkspaceAsAction } from 'vs/workbench/browser/actions/workspaceActions';
 
 // Contribute Commands
 registerCommands();
@@ -87,7 +87,7 @@ if (product.quality !== 'stable') {
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL), 'Workspaces: New Workspace...', workspacesCategory);
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL), 'Workspaces: Add Folder to Workspace...', workspacesCategory);
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenWorkspaceAction, OpenWorkspaceAction.ID, OpenWorkspaceAction.LABEL), 'Workspaces: Open Workspace...', workspacesCategory);
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SaveWorkspaceAction, SaveWorkspaceAction.ID, SaveWorkspaceAction.LABEL), 'Workspaces: Save Workspace...', workspacesCategory);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SaveWorkspaceAsAction, SaveWorkspaceAsAction.ID, SaveWorkspaceAsAction.LABEL), 'Workspaces: Save Workspace...', workspacesCategory);
 }
 
 // Developer related actions
@@ -258,7 +258,7 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 	},
 	'window.title': {
 		'type': 'string',
-		'default': isMacintosh ? '${activeEditorShort}${separator}${folderName}' : '${dirty}${activeEditorShort}${separator}${folderName}${separator}${appName}',
+		'default': isMacintosh ? '${activeEditorShort}${separator}${rootName}' : '${dirty}${activeEditorShort}${separator}${rootName}${separator}${appName}',
 		'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by parenthesis are not to be translated.'], key: 'title' },
 			`Controls the window title based on the active editor. Variables are substituted based on the context:
 \${activeEditorShort}: e.g. myFile.txt

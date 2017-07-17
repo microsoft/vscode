@@ -28,15 +28,6 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	) {
 	}
 
-	public createAndOpenWorkspace(roots: URI[]): TPromise<void> {
-		const paths = this.validateRoots(roots);
-		if (paths.length) {
-			return this.workspacesService.createWorkspace(paths)
-				.then(newWorkspace => this.windowsService.openWindow([newWorkspace.configPath]));
-		}
-		return TPromise.as(null);
-	}
-
 	public addRoots(rootsToAdd: URI[]): TPromise<void> {
 		if (!this.supported) {
 			return TPromise.as(void 0); // we need a workspace to begin with

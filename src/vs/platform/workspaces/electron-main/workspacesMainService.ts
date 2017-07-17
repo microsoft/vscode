@@ -5,17 +5,18 @@
 
 'use strict';
 
-import { IWorkspacesMainService, IWorkspaceIdentifier, IStoredWorkspace, WORKSPACE_EXTENSION } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspacesMainService, IWorkspaceIdentifier, IStoredWorkspace, WORKSPACE_EXTENSION, IWorkspaceSavedEvent } from "vs/platform/workspaces/common/workspaces";
 import { TPromise } from "vs/base/common/winjs.base";
 import { isParent } from "vs/platform/files/common/files";
 import { IEnvironmentService } from "vs/platform/environment/common/environment";
-import { extname, join } from "path";
-import { mkdirp, writeFile, exists } from "vs/base/node/pfs";
+import { extname, join, dirname } from "path";
+import { mkdirp, writeFile } from "vs/base/node/pfs";
 import { readFileSync } from "fs";
 import { isLinux } from "vs/base/common/platform";
-import { copy } from "vs/base/node/extfs";
+import { copy, delSync } from "vs/base/node/extfs";
 import { nfcall } from "vs/base/common/async";
-import { localize } from "vs/nls";
+import Event, { Emitter } from "vs/base/common/event";
+import { ILogService } from "vs/platform/log/common/log";
 
 export class WorkspacesMainService implements IWorkspacesMainService {
 
@@ -23,8 +24,25 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 
 	protected workspacesHome: string;
 
-	constructor( @IEnvironmentService private environmentService: IEnvironmentService) {
+	private _onWorkspaceSaved: Emitter<IWorkspaceSavedEvent>;
+	private _onWorkspaceDeleted: Emitter<IWorkspaceIdentifier>;
+
+	constructor(
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@ILogService private logService: ILogService
+	) {
 		this.workspacesHome = environmentService.workspacesHome;
+
+		this._onWorkspaceSaved = new Emitter<IWorkspaceSavedEvent>();
+		this._onWorkspaceDeleted = new Emitter<IWorkspaceIdentifier>();
+	}
+
+	public get onWorkspaceSaved(): Event<IWorkspaceSavedEvent> {
+		return this._onWorkspaceSaved.event;
+	}
+
+	public get onWorkspaceDeleted(): Event<IWorkspaceIdentifier> {
+		return this._onWorkspaceDeleted.event;
 	}
 
 	public resolveWorkspaceSync(path: string): IWorkspaceIdentifier {
@@ -36,6 +54,8 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		try {
 			const workspace = JSON.parse(readFileSync(path, 'utf8')) as IStoredWorkspace;
 			if (typeof workspace.id !== 'string' || !Array.isArray(workspace.folders) || workspace.folders.length === 0) {
+				this.logService.log(`${path} looks like an invalid workspace file.`);
+
 				return null; // looks like an invalid workspace file
 			}
 
@@ -44,6 +64,8 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 				configPath: path
 			};
 		} catch (error) {
+			this.logService.log(`${path} cannot be parsed as JSON file (${error}).`);
+
 			return null; // unable to read or parse as workspace file
 		}
 	}
@@ -83,14 +105,28 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 	}
 
 	public saveWorkspace(workspace: IWorkspaceIdentifier, target: string): TPromise<IWorkspaceIdentifier> {
-		return exists(target).then(exists => {
-			if (exists) {
-				return TPromise.wrapError(new Error(localize('targetExists', "A workspace with the same name already exists at the provided location.")));
-			}
+		return nfcall(copy, workspace.configPath, target).then(() => {
+			const savedWorkspace = this.resolveWorkspaceSync(target);
 
-			return nfcall(copy, workspace.configPath, target).then(() => {
-				return this.resolveWorkspaceSync(target);
-			});
+			// Event
+			this._onWorkspaceSaved.fire({ workspace: savedWorkspace, oldConfigPath: workspace.configPath });
+
+			// Delete untitled workspace
+			this.deleteUntitledWorkspace(workspace);
+
+			return savedWorkspace;
 		});
+	}
+
+	public deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): void {
+		if (!this.isUntitledWorkspace(workspace)) {
+			return; // only supported for untitled workspaces
+		}
+
+		// Delete from disk
+		delSync(dirname(workspace.configPath));
+
+		// Event
+		this._onWorkspaceDeleted.fire(workspace);
 	}
 }

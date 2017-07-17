@@ -20,7 +20,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { tildify } from 'vs/base/common/labels';
 import { KeybindingsResolver } from "vs/code/electron-main/keyboard";
-import { IWindowsMainService } from "vs/platform/windows/electron-main/windows";
+import { IWindowsMainService, IWindowsCountChangedEvent } from "vs/platform/windows/electron-main/windows";
 import { IHistoryMainService } from "vs/platform/history/common/history";
 import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 
@@ -102,7 +102,7 @@ export class CodeMenu {
 
 		// Listen to some events from window service
 		this.historyService.onRecentlyOpenedChange(() => this.updateMenu());
-		this.windowsService.onWindowClose(_ => this.onClose(this.windowsService.getWindowCount()));
+		this.windowsService.onWindowsCountChanged(e => this.onWindowsCountChanged(e));
 
 		// Listen to extension viewlets
 		ipc.on('vscode:extensionViewlets', (event, rawExtensionViewlets) => {
@@ -201,8 +201,13 @@ export class CodeMenu {
 		}
 	}
 
-	private onClose(remainingWindowCount: number): void {
-		if (remainingWindowCount === 0 && isMacintosh) {
+	private onWindowsCountChanged(e: IWindowsCountChangedEvent): void {
+		if (!isMacintosh) {
+			return;
+		}
+
+		// Update menu if window count goes from N > 0 or 0 > N to update menu item enablement
+		if ((e.oldCount === 0 && e.newCount > 0) || (e.oldCount > 0 && e.newCount === 0)) {
 			this.updateMenu();
 		}
 	}
@@ -358,9 +363,9 @@ export class CodeMenu {
 		const workspacesMenu = new Menu();
 		const workspaces = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miWorkspaces', comment: ['&& denotes a mnemonic'] }, "Workspaces")), submenu: workspacesMenu });
 
-		const newWorkspace = this.createMenuItem(nls.localize({ key: 'miNewWorkspace', comment: ['&& denotes a mnemonic'] }, "&&New Workspace..."), 'workbench.action.newWorkspace');
-		const openWorkspace = this.createMenuItem(nls.localize({ key: 'miOpenWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Open Workspace..."), 'workbench.action.openWorkspace');
-		const saveWorkspace = this.createMenuItem(nls.localize({ key: 'miSaveWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Save Workspace..."), 'workbench.action.saveWorkspace', this.windowsService.getWindowCount() > 0);
+		const newWorkspace = this.createMenuItem(nls.localize({ key: 'miNewWorkspace', comment: ['&& denotes a mnemonic'] }, "&&New Workspace..."), 'workbench.action.newWorkspace', this.windowsService.getWindowCount() > 0);
+		const openWorkspace = this.createMenuItem(nls.localize({ key: 'miOpenWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Open Workspace..."), 'workbench.action.openWorkspace', this.windowsService.getWindowCount() > 0);
+		const saveWorkspace = this.createMenuItem(nls.localize({ key: 'miSaveWorkspaceAs', comment: ['&& denotes a mnemonic'] }, "&&Save Workspace As..."), 'workbench.action.saveWorkspaceAs', this.windowsService.getWindowCount() > 0);
 		const addFolder = this.createMenuItem(nls.localize({ key: 'miAddFolderToWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Add Folder to Workspace..."), 'workbench.action.addRootFolder', this.windowsService.getWindowCount() > 0);
 		[
 			newWorkspace,
@@ -477,7 +482,7 @@ export class CodeMenu {
 			label = this.unmnemonicLabel(tildify(workspace, this.environmentService.userHome));
 			path = workspace;
 		} else {
-			label = getWorkspaceLabel(this.environmentService, workspace);
+			label = getWorkspaceLabel(workspace, this.environmentService, { verbose: true });
 			path = workspace.configPath;
 		}
 

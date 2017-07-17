@@ -680,7 +680,8 @@ export abstract class BaseOpenRecentAction extends Action {
 				description = getPathLabel(paths.dirname(path), null, environmentService);
 			} else {
 				path = workspace.configPath;
-				label = getWorkspaceLabel(environmentService, workspace);
+				label = getWorkspaceLabel(workspace, environmentService);
+				description = getPathLabel(paths.dirname(workspace.configPath), null, environmentService);
 			}
 
 			return {

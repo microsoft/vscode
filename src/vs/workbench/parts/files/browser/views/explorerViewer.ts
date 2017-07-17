@@ -672,7 +672,7 @@ export class FileFilter implements IFilter {
 		// Hide those that match Hidden Patterns
 		const siblingsFn = () => siblings && siblings.map(c => c.name);
 		const expression = this.hiddenExpressionPerRoot.get(stat.root.resource.toString()) || Object.create(null);
-		if (glob.match(expression, paths.normalize(paths.relative(stat.root.resource.fsPath, stat.resource.fsPath)), siblingsFn)) {
+		if (glob.match(expression, paths.normalize(paths.relative(stat.root.resource.fsPath, stat.resource.fsPath), true), siblingsFn)) {
 			return false; // hidden through pattern
 		}
 

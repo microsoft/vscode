@@ -303,8 +303,8 @@ export class CodeApplication {
 		this.windowsMainService = accessor.get(IWindowsMainService);
 
 		// TODO@Joao: so ugly...
-		this.windowsMainService.onWindowClose(() => {
-			if (!platform.isMacintosh && this.windowsMainService.getWindowCount() === 0) {
+		this.windowsMainService.onWindowsCountChanged(e => {
+			if (!platform.isMacintosh && e.newCount === 0) {
 				this.sharedProcess.dispose();
 			}
 		});

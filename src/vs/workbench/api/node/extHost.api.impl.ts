@@ -467,8 +467,8 @@ export function createApiFactory(
 			get activeDebugSession() {
 				return extHostDebugService.activeDebugSession;
 			},
-			createDebugSession(config: vscode.DebugConfiguration) {
-				return extHostDebugService.createDebugSession(config);
+			startDebugSession(config: vscode.DebugConfiguration) {
+				return extHostDebugService.startDebugSession(config);
 			},
 			onDidTerminateDebugSession(listener, thisArg?, disposables?) {
 				return extHostDebugService.onDidTerminateDebugSession(listener, thisArg, disposables);

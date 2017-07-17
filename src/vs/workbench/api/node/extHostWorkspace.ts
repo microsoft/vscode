@@ -7,7 +7,7 @@
 import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import { normalize } from 'vs/base/common/paths';
-import { isFalsyOrEmpty, delta } from 'vs/base/common/arrays';
+import { delta } from 'vs/base/common/arrays';
 import { relative, basename } from 'path';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
@@ -112,12 +112,7 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 		if (roots.length === 0) {
 			return undefined;
 		}
-		// if (roots.length === 1) {
 		return roots[0].fsPath;
-		// }
-		// return `undefined` when there no or more than 1
-		// root folder.
-		// return undefined;
 	}
 
 	getRelativePath(pathOrUri: string | vscode.Uri): string {
@@ -133,19 +128,20 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 			return path;
 		}
 
-		if (!this._workspace || isFalsyOrEmpty(this._workspace.roots)) {
+		const folder = this.getWorkspaceFolder(typeof pathOrUri === 'string'
+			? URI.file(pathOrUri)
+			: pathOrUri
+		);
+
+		if (!folder) {
 			return normalize(path);
 		}
 
-		for (const { fsPath } of this._workspace.roots) {
-			let result = relative(fsPath, path);
-			if (!result || result.indexOf('..') === 0) {
-				continue;
-			}
-			return normalize(result);
+		let result = relative(folder.uri.fsPath, path);
+		if (this.workspace.roots.length > 1) {
+			result = `${folder.name}/${result}`;
 		}
-
-		return normalize(path);
+		return normalize(result);
 	}
 
 	$acceptWorkspaceData(data: IWorkspaceData): void {

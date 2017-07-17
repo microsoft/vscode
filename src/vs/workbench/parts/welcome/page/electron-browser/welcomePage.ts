@@ -240,8 +240,8 @@ class WelcomePage {
 					parent = path.dirname(workspace);
 					wsPath = workspace;
 				} else {
-					label = getWorkspaceLabel(this.environmentService, workspace);
-					parent = '';
+					label = getWorkspaceLabel(workspace, this.environmentService);
+					parent = path.dirname(workspace.configPath);
 					wsPath = workspace.configPath;
 				}
 

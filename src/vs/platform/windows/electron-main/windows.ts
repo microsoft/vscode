@@ -40,11 +40,17 @@ export interface ICodeWindow {
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
 
+export interface IWindowsCountChangedEvent {
+	oldCount: number;
+	newCount: number;
+}
+
 export interface IWindowsMainService {
 	_serviceBrand: any;
 
 	// events
 	onWindowReady: Event<ICodeWindow>;
+	onWindowsCountChanged: Event<IWindowsCountChangedEvent>;
 	onWindowClose: Event<number>;
 	onWindowReload: Event<number>;
 
@@ -57,7 +63,6 @@ export interface IWindowsMainService {
 	pickFileFolderAndOpen(forceNewWindow?: boolean, data?: ITelemetryData): void;
 	pickFileAndOpen(forceNewWindow?: boolean, path?: string, window?: ICodeWindow, data?: ITelemetryData): void;
 	pickFolderAndOpen(forceNewWindow?: boolean, window?: ICodeWindow, data?: ITelemetryData): void;
-	pickFolder(window?: ICodeWindow, options?: { buttonLabel: string; title: string; }): TPromise<string[]>;
 	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow;
 	getLastActiveWindow(): ICodeWindow;
 	waitForWindowClose(windowId: number): TPromise<void>;
