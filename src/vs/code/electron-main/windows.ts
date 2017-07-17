@@ -452,6 +452,23 @@ export class WindowsManager implements IWindowsMainService {
 		const allWorkspacesToOpen = arrays.distinct([...workspacesToOpen, ...workspacesToRestore], workspace => workspace.id); // prevent duplicates
 		if (allWorkspacesToOpen.length > 0) {
 
+			// Check for existing instances that have same workspace ID but different configuration path
+			// For now we reload that window with the new configuration so that the configuration path change
+			// can travel properly.
+			allWorkspacesToOpen.forEach(workspaceToOpen => {
+				const existingWindow = findWindowOnWorkspace(WindowsManager.WINDOWS, workspaceToOpen);
+				if (existingWindow && existingWindow.openedWorkspace.configPath !== workspaceToOpen.configPath) {
+					usedWindows.push(this.doOpenFolderOrWorkspace(openConfig, { workspace: workspaceToOpen }, false, filesToOpen, filesToCreate, filesToDiff, existingWindow));
+
+					// Reset these because we handled them
+					filesToOpen = [];
+					filesToCreate = [];
+					filesToDiff = [];
+
+					openFolderInNewWindow = true; // any other folders to open must open in new window then
+				}
+			});
+
 			// Check for existing instances
 			const windowsOnWorkspace = arrays.coalesce(allWorkspacesToOpen.map(workspaceToOpen => findWindowOnWorkspace(WindowsManager.WINDOWS, workspaceToOpen)));
 			if (windowsOnWorkspace.length > 0) {
