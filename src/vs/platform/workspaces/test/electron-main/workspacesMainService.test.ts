@@ -14,24 +14,37 @@ import pfs = require('vs/base/node/pfs');
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { WorkspacesMainService } from "vs/platform/workspaces/electron-main/workspacesMainService";
-import { IStoredWorkspace, WORKSPACE_EXTENSION, IWorkspaceSavedEvent } from "vs/platform/workspaces/common/workspaces";
-
-class TestWorkspacesMainService extends WorkspacesMainService {
-	constructor(workspacesHome: string) {
-		super(new EnvironmentService(parseArgs(process.argv), process.execPath));
-
-		this.workspacesHome = workspacesHome;
-	}
-}
+import { IStoredWorkspace, WORKSPACE_EXTENSION, IWorkspaceSavedEvent, IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { LogMainService } from "vs/platform/log/common/log";
+import { TPromise } from "vs/base/common/winjs.base";
 
 suite('WorkspacesMainService', () => {
 	const parentDir = path.join(os.tmpdir(), 'vsctests', 'service');
 	const workspacesHome = path.join(parentDir, 'Workspaces');
 
+	class TestEnvironmentService extends EnvironmentService {
+		get workspacesHome(): string {
+			return workspacesHome;
+		}
+	}
+
+	class TestWorkspacesMainService extends WorkspacesMainService {
+		public deleteWorkspaceCall: IWorkspaceIdentifier;
+
+		protected deleteWorkspace(workspace: IWorkspaceIdentifier): TPromise<boolean> {
+			this.deleteWorkspaceCall = workspace;
+
+			return super.deleteWorkspace(workspace);
+		}
+	}
+
+	const environmentService = new TestEnvironmentService(parseArgs(process.argv), process.execPath);
+	const logService = new LogMainService(environmentService);
+
 	let service: TestWorkspacesMainService;
 
 	setup(done => {
-		service = new TestWorkspacesMainService(workspacesHome);
+		service = new TestWorkspacesMainService(environmentService, logService);
 
 		// Delete any existing backups completely and then re-create it.
 		extfs.del(workspacesHome, os.tmpdir(), () => {
@@ -57,6 +70,7 @@ suite('WorkspacesMainService', () => {
 		return service.createWorkspace([process.cwd(), os.tmpdir()]).then(workspace => {
 			assert.ok(workspace);
 			assert.ok(fs.existsSync(workspace.configPath));
+			assert.ok(service.isUntitledWorkspace(workspace));
 
 			const ws = JSON.parse(fs.readFileSync(workspace.configPath).toString()) as IStoredWorkspace;
 			assert.equal(ws.id, workspace.id);
@@ -71,8 +85,7 @@ suite('WorkspacesMainService', () => {
 	test('resolveWorkspace', done => {
 		return service.createWorkspace([process.cwd(), os.tmpdir()]).then(workspace => {
 
-			// is not resolved because config path is no in workspaces home
-			assert.ok(!service.resolveWorkspaceSync(workspace.configPath));
+			assert.ok(service.resolveWorkspaceSync(workspace.configPath));
 
 			// make it a valid workspace path
 			const newPath = path.join(path.dirname(workspace.configPath), `workspace.${WORKSPACE_EXTENSION}`);
@@ -86,18 +99,20 @@ suite('WorkspacesMainService', () => {
 		});
 	});
 
-	test('saveWorkspace', done => {
+	test('saveWorkspace (untitled)', done => {
 		let event: IWorkspaceSavedEvent;
-		const dispose = service.onWorkspaceSaved(e => {
+		const listener = service.onWorkspaceSaved(e => {
 			event = e;
 		});
 
 		return service.createWorkspace([process.cwd(), os.tmpdir()]).then(workspace => {
-			const workspaceConfigPath = path.join(os.tmpdir(), `myworkspace.${WORKSPACE_EXTENSION}`);
+			const workspaceConfigPath = path.join(os.tmpdir(), `myworkspace.${Date.now()}.${WORKSPACE_EXTENSION}`);
 
 			return service.saveWorkspace(workspace, workspaceConfigPath).then(savedWorkspace => {
 				assert.equal(savedWorkspace.id, workspace.id);
 				assert.equal(savedWorkspace.configPath, workspaceConfigPath);
+
+				assert.equal(service.deleteWorkspaceCall, workspace);
 
 				const ws = JSON.parse(fs.readFileSync(savedWorkspace.configPath).toString()) as IStoredWorkspace;
 				assert.equal(ws.id, workspace.id);
@@ -105,14 +120,39 @@ suite('WorkspacesMainService', () => {
 				assert.equal(ws.folders[0], process.cwd());
 				assert.equal(ws.folders[1], os.tmpdir());
 
-				dispose.dispose();
-
 				assert.equal(savedWorkspace, event.workspace);
 				assert.equal(workspace.configPath, event.oldConfigPath);
+
+				listener.dispose();
 
 				extfs.delSync(workspaceConfigPath);
 
 				done();
+			});
+		});
+	});
+
+	test('saveWorkspace (saved workspace)', done => {
+		return service.createWorkspace([process.cwd(), os.tmpdir()]).then(workspace => {
+			const workspaceConfigPath = path.join(os.tmpdir(), `myworkspace.${Date.now()}.${WORKSPACE_EXTENSION}`);
+			const newWorkspaceConfigPath = path.join(os.tmpdir(), `mySavedWorkspace.${Date.now()}.${WORKSPACE_EXTENSION}`);
+
+			return service.saveWorkspace(workspace, workspaceConfigPath).then(savedWorkspace => {
+				return service.saveWorkspace(savedWorkspace, newWorkspaceConfigPath).then(newSavedWorkspace => {
+					assert.equal(newSavedWorkspace.id, workspace.id);
+					assert.equal(newSavedWorkspace.configPath, newWorkspaceConfigPath);
+
+					const ws = JSON.parse(fs.readFileSync(newSavedWorkspace.configPath).toString()) as IStoredWorkspace;
+					assert.equal(ws.id, workspace.id);
+					assert.equal(ws.folders.length, 2);
+					assert.equal(ws.folders[0], process.cwd());
+					assert.equal(ws.folders[1], os.tmpdir());
+
+					extfs.delSync(workspaceConfigPath);
+					extfs.delSync(newWorkspaceConfigPath);
+
+					done();
+				});
 			});
 		});
 	});

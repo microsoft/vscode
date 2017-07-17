@@ -25,11 +25,12 @@ import { createHash } from "crypto";
 import { WorkspacesMainService } from "vs/platform/workspaces/electron-main/workspacesMainService";
 
 const environmentService = new EnvironmentService(parseArgs(process.argv), process.execPath);
+const logService = new LogMainService(environmentService);
 
 class TestBackupMainService extends BackupMainService {
 
 	constructor(backupHome: string, backupWorkspacesPath: string, configService: TestConfigurationService) {
-		super(environmentService, configService, new LogMainService(environmentService), new WorkspacesMainService(environmentService));
+		super(environmentService, configService, new LogMainService(environmentService), new WorkspacesMainService(environmentService, logService));
 
 		this.backupHome = backupHome;
 		this.workspacesJsonPath = backupWorkspacesPath;

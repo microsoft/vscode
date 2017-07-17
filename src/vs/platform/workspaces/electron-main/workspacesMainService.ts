@@ -9,14 +9,15 @@ import { IWorkspacesMainService, IWorkspaceIdentifier, IStoredWorkspace, WORKSPA
 import { TPromise } from "vs/base/common/winjs.base";
 import { isParent } from "vs/platform/files/common/files";
 import { IEnvironmentService } from "vs/platform/environment/common/environment";
-import { extname, join } from "path";
-import { mkdirp, writeFile, exists } from "vs/base/node/pfs";
+import { extname, join, dirname } from "path";
+import { mkdirp, writeFile, exists, del } from "vs/base/node/pfs";
 import { readFileSync } from "fs";
 import { isLinux } from "vs/base/common/platform";
 import { copy } from "vs/base/node/extfs";
 import { nfcall } from "vs/base/common/async";
 import { localize } from "vs/nls";
 import Event, { Emitter } from "vs/base/common/event";
+import { ILogService } from "vs/platform/log/common/log";
 
 export class WorkspacesMainService implements IWorkspacesMainService {
 
@@ -26,7 +27,10 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 
 	private _onWorkspaceSaved: Emitter<IWorkspaceSavedEvent>;
 
-	constructor( @IEnvironmentService private environmentService: IEnvironmentService) {
+	constructor(
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@ILogService private logService: ILogService
+	) {
 		this.workspacesHome = environmentService.workspacesHome;
 		this._onWorkspaceSaved = new Emitter<IWorkspaceSavedEvent>();
 	}
@@ -44,6 +48,8 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		try {
 			const workspace = JSON.parse(readFileSync(path, 'utf8')) as IStoredWorkspace;
 			if (typeof workspace.id !== 'string' || !Array.isArray(workspace.folders) || workspace.folders.length === 0) {
+				this.logService.log(`${path} looks like an invalid workspace file.`);
+
 				return null; // looks like an invalid workspace file
 			}
 
@@ -52,6 +58,8 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 				configPath: path
 			};
 		} catch (error) {
+			this.logService.log(`${path} cannot be parsed as JSON file (${error}).`);
+
 			return null; // unable to read or parse as workspace file
 		}
 	}
@@ -99,10 +107,22 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 			return nfcall(copy, workspace.configPath, target).then(() => {
 				const savedWorkspace = this.resolveWorkspaceSync(target);
 
+				// Event
 				this._onWorkspaceSaved.fire({ workspace: savedWorkspace, oldConfigPath: workspace.configPath });
+
+				// Delete untitled workspace
+				this.deleteWorkspace(workspace).done(null, error => this.logService.log(`Unable to delete untitled workspace (${error})`));
 
 				return savedWorkspace;
 			});
 		});
+	}
+
+	protected deleteWorkspace(workspace: IWorkspaceIdentifier): TPromise<boolean> {
+		if (!this.isUntitledWorkspace(workspace)) {
+			return TPromise.as(false); // only supported for untitled workspaces
+		}
+
+		return del(dirname(workspace.configPath)).then(() => true);
 	}
 }
