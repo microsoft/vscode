@@ -75,7 +75,7 @@ export interface IPreferencesService {
 
 	createPreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
 
-	openSettings(): TPromise<IEditor>;
+	openSettings(target: ConfigurationTarget | URI): TPromise<IEditor>;
 	switchSettings(target: URI | ConfigurationTarget): TPromise<void>;
 	openGlobalSettings(): TPromise<IEditor>;
 	openWorkspaceSettings(): TPromise<IEditor>;

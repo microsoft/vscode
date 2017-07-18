@@ -144,8 +144,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return TPromise.wrap<IPreferencesEditorModel<any>>(null);
 	}
 
-	openSettings(): TPromise<IEditor> {
-		return this.doOpenSettings(ConfigurationTarget.USER, false);
+	openSettings(target: ConfigurationTarget | URI): TPromise<IEditor> {
+		return this.doOpenSettings(target);
 	}
 
 	openGlobalSettings(): TPromise<IEditor> {
@@ -175,7 +175,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 					});
 				});
 		} else {
-			this.openSettings();
+			this.openSettings(target);
 			return undefined;
 		}
 	}
@@ -212,8 +212,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			});
 	}
 
-	private doOpenSettings(configurationTarget: ConfigurationTarget, checkToOpenDefaultSettings: boolean = true): TPromise<IEditor> {
-		const openDefaultSettings = !checkToOpenDefaultSettings || !!this.configurationService.getConfiguration<IWorkbenchSettingsConfiguration>().workbench.settings.openDefaultSettings;
+	private doOpenSettings(configurationTarget: ConfigurationTarget | URI): TPromise<IEditor> {
+		const openDefaultSettings = !!this.configurationService.getConfiguration<IWorkbenchSettingsConfiguration>().workbench.settings.openDefaultSettings;
 		return this.getOrCreateEditableSettingsEditorInput(configurationTarget)
 			.then(editableSettingsEditorInput => {
 				if (openDefaultSettings) {
