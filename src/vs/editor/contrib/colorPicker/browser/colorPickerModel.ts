@@ -46,7 +46,7 @@ export class ColorPickerModel {
 
 		if (this.widget.header && this.widget.body) {
 			this.widget.header.updatePickedColor();
-			this.widget.body.fillOpacityOverlay(this._color.toRGBA());
+			this.widget.body.fillOpacityOverlay(this._color);
 		}
 	}
 

@@ -40,12 +40,11 @@ export class ColorPickerBody extends Disposable {
 		this.registerListeners();
 	}
 
-
-
-	public fillOpacityOverlay(color: RGBA): void {
-		const r = color.r;
-		const g = color.g;
-		const b = color.b;
+	public fillOpacityOverlay(color: Color): void {
+		const c = color.toRGBA();
+		const r = c.r;
+		const g = c.g;
+		const b = c.b;
 
 		this.opacityOverlay.style.background = `linear-gradient(to bottom, rgba(${r}, ${g}, ${b}, 1) 0%, rgba(${r}, ${g}, ${b}, 0.83) 17%, rgba(${r}, ${g}, ${b}, 0.67) 33%, rgba(${r}, ${g}, ${b}, 0.5) 50%, rgba(${r}, ${g}, ${b}, 0.33) 67%, rgba(${r}, ${g}, ${b}, 0.17) 83%, rgba(${r}, ${g}, ${b}, 0) 100%)`;
 	}
@@ -73,7 +72,7 @@ export class ColorPickerBody extends Disposable {
 		}
 
 		const updateModel = (x: number, y: number) => {
-			this.widget.model.color = this.extractColor(x, y);
+			this.widget.model.color = this.saturationBox.extractColor(x, y);
 			this.widget.model.opacity = this.widget.model.opacity; // ensure opacity is preserved
 			this.widget.model.saturationSelection = { x: x, y: y };
 			this.saturationBox.focusSaturationSelection(this.widget.model.saturationSelection);
@@ -115,7 +114,7 @@ export class ColorPickerBody extends Disposable {
 
 		const updateModel = () => {
 			if (slider === this.hueSlider) {
-				this.widget.model.hue = this.calculateHueRGB(slider.top / this.hueStrip.offsetHeight);
+				this.widget.model.hue = this.calculateHueRGB(slider);
 			} else if (slider === this.opacitySlider) {
 				this.widget.model.opacity = this.calculateOpacity(slider);
 			}
@@ -160,7 +159,7 @@ export class ColorPickerBody extends Disposable {
 		this.opacityStrip = $('.strip.opacity-strip');
 		dom.append(this.domNode, this.opacityStrip);
 		this.opacityOverlay = $('.opacity-overlay');
-		this.fillOpacityOverlay(this.model.color.toRGBA());
+		this.fillOpacityOverlay(this.model.color);
 		dom.append(this.opacityStrip, this.opacityOverlay);
 
 		this.opacitySlider = new Slider(this.opacityStrip);
@@ -175,7 +174,10 @@ export class ColorPickerBody extends Disposable {
 		dom.append(this.hueStrip, this.hueSlider.domNode);
 	}
 
-	private calculateHueRGB(proportion: number): Color {
+	private calculateHueRGB(slider: Slider): Color {
+		const hueNormalizedHeight = this.hueStrip.offsetHeight - slider.domNode.offsetHeight;
+		const proportion = (hueNormalizedHeight - slider.top) / hueNormalizedHeight;
+
 		const hue = proportion * 360;
 		const hh = hue / 60;
 		const X = 1 - Math.abs(hh % 2 - 1);
@@ -213,15 +215,6 @@ export class ColorPickerBody extends Disposable {
 		return (opacityNormalizedHeight - slider.top) / opacityNormalizedHeight;
 	}
 
-	private extractColor(offsetX: number, offsetY: number): Color {
-		const opacityX = 1 - (offsetX / this.saturationBox.domNode.offsetWidth);
-		const opacityY = offsetY / this.saturationBox.domNode.offsetHeight;
-		const whiteGradientColor = Color.fromRGBA(new RGBA(255, 255, 255, opacityX * 255));
-		const blackGradientColor = Color.fromRGBA(new RGBA(0, 0, 0, opacityY * 255));
-		const gradientsMix = blackGradientColor.blend(whiteGradientColor);
-
-		return gradientsMix.blend(this.model.hue);
-	}
 }
 
 export class SaturationBox {
@@ -299,6 +292,17 @@ export class SaturationBox {
 
 		this.saturationSelection.style.left = x + 'px';
 		this.saturationSelection.style.top = y + 'px';
+	}
+
+	public extractColor(offsetX: number, offsetY: number): Color {
+		const opacityX = 1 - (offsetX / this.domNode.offsetWidth);
+		const opacityY = offsetY / this.domNode.offsetHeight;
+
+		const whiteGradientColor = Color.fromRGBA(new RGBA(255, 255, 255, opacityX * 255));
+		const blackGradientColor = Color.fromRGBA(new RGBA(0, 0, 0, opacityY * 255));
+
+		const gradientsMix = blackGradientColor.blend(whiteGradientColor);
+		return gradientsMix.blend(this.model.hue);
 	}
 }
 
