@@ -121,13 +121,16 @@ export function activate(context: vscode.ExtensionContext) {
 
 
 	let extensionsPath = vscode.workspace.getConfiguration('emmet')['extensionsPath'];
-	if (!path.isAbsolute(extensionsPath)) {
-		extensionsPath = path.join(vscode.workspace.rootPath, extensionsPath);
+	if (extensionsPath) {
+		if (!path.isAbsolute(extensionsPath)) {
+			extensionsPath = path.join(vscode.workspace.rootPath, extensionsPath);
+		}
+		updateExtensionsPath(extensionsPath);
 	}
-	updateExtensionsPath(extensionsPath);
+
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
 		let newExtensionsPath = vscode.workspace.getConfiguration('emmet')['extensionsPath'];
-		if (!path.isAbsolute(newExtensionsPath)) {
+		if (newExtensionsPath && !path.isAbsolute(newExtensionsPath)) {
 			newExtensionsPath = path.join(vscode.workspace.rootPath, newExtensionsPath);
 		}
 		if (extensionsPath !== newExtensionsPath) {
