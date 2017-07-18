@@ -273,7 +273,7 @@ export class WindowsManager implements IWindowsMainService {
 
 			// Don't Save: delete workspace
 			case ConfirmResult.DONT_SAVE:
-				this.workspacesService.deleteUntitledWorkspace(workspace);
+				this.workspacesService.deleteUntitledWorkspaceSync(workspace);
 				e.veto(false);
 				break;
 
@@ -915,7 +915,7 @@ export class WindowsManager implements IWindowsMainService {
 					// Workspace
 					const workspace = this.workspacesService.resolveWorkspaceSync(candidate);
 					if (workspace) {
-						return { workspace };
+						return { workspace: { id: workspace.id, configPath: candidate } };
 					}
 
 					// File

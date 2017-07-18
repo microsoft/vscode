@@ -46,7 +46,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		return this._onWorkspaceDeleted.event;
 	}
 
-	public resolveWorkspaceSync(path: string): IWorkspaceIdentifier {
+	public resolveWorkspaceSync(path: string): IStoredWorkspace {
 		const isWorkspace = this.isInsideWorkspacesHome(path) || extname(path) === `.${WORKSPACE_EXTENSION}`;
 		if (!isWorkspace) {
 			return null; // does not look like a valid workspace config file
@@ -60,10 +60,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 				return null; // looks like an invalid workspace file
 			}
 
-			return {
-				id: workspace.id,
-				configPath: path
-			};
+			return workspace;
 		} catch (error) {
 			this.logService.log(`${path} cannot be parsed as JSON file (${error}).`);
 
@@ -115,18 +112,19 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		// Copy to new target
 		return nfcall(copy, workspace.configPath, target).then(() => {
 			const savedWorkspace = this.resolveWorkspaceSync(target);
+			const savedWorkspaceIdentifier = { id: savedWorkspace.id, configPath: target };
 
 			// Event
-			this._onWorkspaceSaved.fire({ workspace: savedWorkspace, oldConfigPath: workspace.configPath });
+			this._onWorkspaceSaved.fire({ workspace: savedWorkspaceIdentifier, oldConfigPath: workspace.configPath });
 
 			// Delete untitled workspace
-			this.deleteUntitledWorkspace(workspace);
+			this.deleteUntitledWorkspaceSync(workspace);
 
-			return savedWorkspace;
+			return savedWorkspaceIdentifier;
 		});
 	}
 
-	public deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): void {
+	public deleteUntitledWorkspaceSync(workspace: IWorkspaceIdentifier): void {
 		if (!this.isUntitledWorkspace(workspace)) {
 			return; // only supported for untitled workspaces
 		}

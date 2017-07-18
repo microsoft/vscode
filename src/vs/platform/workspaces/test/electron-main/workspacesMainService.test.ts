@@ -30,10 +30,10 @@ suite('WorkspacesMainService', () => {
 	class TestWorkspacesMainService extends WorkspacesMainService {
 		public deleteWorkspaceCall: IWorkspaceIdentifier;
 
-		public deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): void {
+		public deleteUntitledWorkspaceSync(workspace: IWorkspaceIdentifier): void {
 			this.deleteWorkspaceCall = workspace;
 
-			super.deleteUntitledWorkspace(workspace);
+			super.deleteUntitledWorkspaceSync(workspace);
 		}
 	}
 
@@ -83,7 +83,6 @@ suite('WorkspacesMainService', () => {
 
 	test('resolveWorkspace', done => {
 		return service.createWorkspace([process.cwd(), os.tmpdir()]).then(workspace => {
-
 			assert.ok(service.resolveWorkspaceSync(workspace.configPath));
 
 			// make it a valid workspace path
@@ -92,7 +91,7 @@ suite('WorkspacesMainService', () => {
 			workspace.configPath = newPath;
 
 			const resolved = service.resolveWorkspaceSync(workspace.configPath);
-			assert.deepEqual(resolved, { id: workspace.id, configPath: workspace.configPath });
+			assert.deepEqual(resolved, { id: workspace.id, folders: [process.cwd(), os.tmpdir()] });
 
 			done();
 		});
