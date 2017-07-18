@@ -296,7 +296,8 @@ export class LineCommentCommand implements editorCommon.ICommand {
 			}
 
 			if (ops.length === 1) {
-				this._deltaColumn = startToken.length;
+				// Leave cursor after token and Space
+				this._deltaColumn = startToken.length + 1;
 			}
 		}
 		this._selectionId = builder.trackSelection(s);
