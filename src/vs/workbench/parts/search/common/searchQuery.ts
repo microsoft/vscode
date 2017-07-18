@@ -41,9 +41,9 @@ export class QueryBuilder {
 		// Build folderQueries from searchPaths, if given, otherwise folderResources
 		searchPaths = (searchPaths && searchPaths.length) ?
 			searchPaths :
-			folderResources.map(fr => <ISearchPathPattern>{ searchPath: fr });
+			folderResources && folderResources.map(fr => <ISearchPathPattern>{ searchPath: fr });
 
-		const folderQueries = searchPaths.map(searchPath => {
+		const folderQueries = searchPaths && searchPaths.map(searchPath => {
 			const folderQuery = this.getFolderQuery(searchPath.searchPath, options);
 			if (searchPath.pattern) {
 				folderQuery.includePattern = patternListToIExpression([searchPath.pattern]);
