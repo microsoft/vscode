@@ -4,6 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
+	"version": "https://github.com/atom/language-less/commit/b0531d05ce01a1e04e0f086807b101a1fd31783f",
 	"name": "Less",
 	"scopeName": "source.css.less",
 	"fileTypes": [
@@ -444,7 +445,7 @@
 					"name": "string.quoted.double.css",
 					"patterns": [
 						{
-							"match": "\\\\(\\h{1,6}|.)",
+							"match": "\\\\([0-9A-Fa-f]{1,6}|.)",
 							"name": "constant.character.escape.css"
 						},
 						{
@@ -468,7 +469,7 @@
 					"name": "string.quoted.single.css",
 					"patterns": [
 						{
-							"match": "\\\\(\\h{1,6}|.)",
+							"match": "\\\\([0-9A-Fa-f]{1,6}|.)",
 							"name": "constant.character.escape.css"
 						},
 						{

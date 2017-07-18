@@ -4,6 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
+	"version": "https://github.com/zargony/atom-language-rust/commit/d4a0a7f2d6affc79806aef0be53b90fa690a7e27",
 	"name": "Rust",
 	"scopeName": "source.rust",
 	"fileTypes": [
@@ -52,7 +53,7 @@
 		},
 		"escaped_character": {
 			"name": "constant.character.escape.rust",
-			"match": "\\\\(x\\h{2}|[0-2][0-7]{,2}|3[0-6][0-7]?|37[0-7]?|[4-7][0-7]?|.)"
+			"match": "\\\\(x[0-9A-Fa-f]{2}|[0-2][0-7]{0,2}|3[0-6][0-7]?|37[0-7]?|[4-7][0-7]?|.)"
 		},
 		"string_literal": {
 			"comment": "Double-quote string literal",
@@ -304,7 +305,7 @@
 		{
 			"comment": "Single-quote string literal (character)",
 			"name": "string.quoted.single.rust",
-			"match": "b?'([^'\\\\]|\\\\(x\\h{2}|[0-2][0-7]{,2}|3[0-6][0-7]?|37[0-7]?|[4-7][0-7]?|.))'"
+			"match": "b?'([^'\\\\]|\\\\(x[0-9A-Fa-f]{2}|[0-2][0-7]{0,2}|3[0-6][0-7]?|37[0-7]?|[4-7][0-7]?|.))'"
 		},
 		{
 			"include": "#string_literal"
@@ -365,7 +366,12 @@
 		{
 			"comment": "Keyword",
 			"name": "keyword.other.rust",
-			"match": "\\b(crate|extern|mod|let|proc|ref|use|super|as|move)\\b"
+			"match": "\\b(crate|extern|mod|let|ref|use|super|move)\\b"
+		},
+		{
+			"comment": "Reserved keyword",
+			"name": "invalid.deprecated.rust",
+			"match": "\\b(abstract|alignof|become|do|final|macro|offsetof|override|priv|proc|pure|sizeof|typeof|virtual|yield)\\b"
 		},
 		{
 			"include": "#unsafe"

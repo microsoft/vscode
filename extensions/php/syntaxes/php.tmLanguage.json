@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-php/commit/16d8c3ea6f30c808e270a7be02a33e27ed19eed0",
+	"version": "https://github.com/atom/language-php/commit/9cb0db1e4fcb14532e93c873187406e6ba829af4",
 	"scopeName": "text.html.php",
 	"name": "PHP",
 	"fileTypes": [
@@ -1705,6 +1705,9 @@
 					]
 				},
 				{
+					"include": "#switch_statement"
+				},
+				{
 					"match": "(?x)\n\\b(\n  break|case|continue|declare|default|die|do|\n  else(if)?|end(declare|for(each)?|if|switch|while)|exit|\n  for(each)?|if|return|switch|use|while|yield\n)\\b",
 					"name": "keyword.control.php"
 				},
@@ -2312,6 +2315,27 @@
 					"match": "(@xlink)\\s+(.+)\\s*$"
 				},
 				{
+					"begin": "(@(?:global|param|property(-(read|write))?|return|throws|var))\\s+(?=[A-Za-z_\\x{7f}-\\x{ff}]|\\()",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.other.phpdoc.php"
+						}
+					},
+					"end": "(?=\\s|\\*/)",
+					"contentName": "meta.other.type.phpdoc.php",
+					"patterns": [
+						{
+							"include": "#php_doc_types_array_multiple"
+						},
+						{
+							"include": "#php_doc_types_array_single"
+						},
+						{
+							"include": "#php_doc_types"
+						}
+					]
+				},
+				{
 					"match": "(?x)\n@\n(\n  api|abstract|author|category|copyright|example|global|inherit[Dd]oc|internal|\n  license|link|method|property(-(read|write))?|package|param|return|see|since|source|\n  static|subpackage|throws|todo|var|version|uses|deprecated|final|ignore\n)\\b",
 					"name": "keyword.other.phpdoc.php"
 				},
@@ -2325,6 +2349,73 @@
 					"name": "meta.tag.inline.phpdoc.php"
 				}
 			]
+		},
+		"php_doc_types": {
+			"match": "(?i)[a-z_\\x{7f}-\\x{ff}][a-z0-9_\\x{7f}-\\x{ff}]*(\\|[a-z_\\x{7f}-\\x{ff}][a-z0-9_\\x{7f}-\\x{ff}]*)*",
+			"captures": {
+				"0": {
+					"patterns": [
+						{
+							"match": "(?x)\\b\n(string|integer|int|boolean|bool|float|double|object|mixed\n|array|resource|void|null|callback|false|true|self)\\b",
+							"name": "keyword.other.type.php"
+						},
+						{
+							"include": "#class-name"
+						},
+						{
+							"match": "\\|",
+							"name": "punctuation.separator.delimiter.php"
+						}
+					]
+				}
+			}
+		},
+		"php_doc_types_array_multiple": {
+			"begin": "\\(",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.type.begin.bracket.round.phpdoc.php"
+				}
+			},
+			"end": "(\\))(\\[\\])",
+			"endCaptures": {
+				"1": {
+					"name": "punctuation.definition.type.end.bracket.round.phpdoc.php"
+				},
+				"2": {
+					"name": "keyword.other.array.phpdoc.php"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#php_doc_types_array_multiple"
+				},
+				{
+					"include": "#php_doc_types_array_single"
+				},
+				{
+					"include": "#php_doc_types"
+				},
+				{
+					"match": "\\|",
+					"name": "punctuation.separator.delimiter.php"
+				}
+			]
+		},
+		"php_doc_types_array_single": {
+			"match": "(?i)([a-z_\\x{7f}-\\x{ff}][a-z0-9_\\x{7f}-\\x{ff}]*)(\\[\\])",
+			"captures": {
+				"1": {
+					"patterns": [
+						{
+							"include": "#php_doc_types"
+						}
+					]
+				},
+				"2": {
+					"name": "keyword.other.array.phpdoc.php"
+				}
+			}
 		},
 		"regex-double-quoted": {
 			"begin": "\"/(?=(\\\\.|[^\"/])++/[imsxeADSUXu]*\")",
@@ -3145,6 +3236,90 @@
 				{
 					"match": "(?i)\\bis_int(eger)?\\b",
 					"name": "support.function.alias.php"
+				}
+			]
+		},
+		"switch_statement": {
+			"patterns": [
+				{
+					"begin": "\\bswitch\\b(?!\\s*\\(.*\\)\\s*:)",
+					"beginCaptures": {
+						"0": {
+							"name": "keyword.control.switch.php"
+						}
+					},
+					"end": "}",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.section.switch-block.end.bracket.curly.php"
+						}
+					},
+					"name": "meta.switch-statement.php",
+					"patterns": [
+						{
+							"begin": "\\(",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.definition.switch-expression.begin.bracket.round.php"
+								}
+							},
+							"end": "\\)",
+							"endCaptures": {
+								"0": {
+									"name": "punctuation.definition.switch-expression.end.bracket.round.php"
+								}
+							},
+							"patterns": [
+								{
+									"include": "#language"
+								}
+							]
+						},
+						{
+							"begin": "{",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.definition.section.switch-block.begin.bracket.curly.php"
+								}
+							},
+							"end": "(?=})",
+							"patterns": [
+								{
+									"begin": "\\bcase\\b",
+									"beginCaptures": {
+										"0": {
+											"name": "keyword.control.case.php"
+										}
+									},
+									"end": ":",
+									"endCaptures": {
+										"0": {
+											"name": "punctuation.terminator.statement.php"
+										}
+									},
+									"patterns": [
+										{
+											"include": "#language"
+										}
+									]
+								},
+								{
+									"match": "(?:^\\s*)?\\b(default)\\s*(:)",
+									"captures": {
+										"1": {
+											"name": "keyword.control.default.php"
+										},
+										"2": {
+											"name": "punctuation.terminator.statement.php"
+										}
+									}
+								},
+								{
+									"include": "#language"
+								}
+							]
+						}
+					]
 				}
 			]
 		},
