@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as platform from 'vs/base/common/platform';
 import * as paths from 'vs/base/common/paths';
 import { OpenContext } from 'vs/platform/windows/common/windows';
-import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 
 export interface ISimpleWindow {
 	openedWorkspace?: IWorkspaceIdentifier;
@@ -107,34 +107,24 @@ export function getLastActiveWindow<W extends ISimpleWindow>(windows: W[]): W {
 	return null;
 }
 
-export function findWindowOnFolder<W extends ISimpleWindow>(windows: W[], folderPath: string): W {
+export function findWindowOnWorkspace<W extends ISimpleWindow>(windows: W[], workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)): W {
 	if (windows.length) {
 		const res = windows.filter(w => {
 
 			// match on folder
-			if (typeof w.openedFolderPath === 'string' && (paths.isEqual(w.openedFolderPath, folderPath, !platform.isLinux /* ignorecase */))) {
-				return true;
+			if (isSingleFolderWorkspaceIdentifier(workspace)) {
+				if (typeof w.openedFolderPath === 'string' && (paths.isEqual(w.openedFolderPath, workspace, !platform.isLinux /* ignorecase */))) {
+					return true;
+				}
 			}
-
-			return false;
-		});
-
-		if (res && res.length) {
-			return res[0];
-		}
-	}
-
-	return null;
-}
-
-export function findWindowOnWorkspace<W extends ISimpleWindow>(windows: W[], workspace: IWorkspaceIdentifier): W {
-	if (windows.length) {
-		const res = windows.filter(w => {
 
 			// match on workspace
-			if (w.openedWorkspace && w.openedWorkspace.id === workspace.id) {
-				return true;
+			else {
+				if (w.openedWorkspace && w.openedWorkspace.id === workspace.id) {
+					return true;
+				}
 			}
+
 
 			return false;
 		});
