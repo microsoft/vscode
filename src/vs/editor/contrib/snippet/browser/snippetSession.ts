@@ -27,7 +27,6 @@ export class OneSnippet {
 	private _placeholderDecorations: Map<Placeholder, string>;
 	private _placeholderGroups: Placeholder[][];
 	private _placeholderGroupsIdx: number;
-	private _syntheticFinalPlaceholderIndexPool: number = 1 << 30;
 
 	private static readonly _decor = {
 		active: ModelDecorationOptions.register({ stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges, className: 'snippet-placeholder' }),
@@ -174,7 +173,7 @@ export class OneSnippet {
 				// through the placeholders in the correct order
 				for (const nestedPlaceholder of nested._snippet.placeholders) {
 					if (nestedPlaceholder.isFinalTabstop) {
-						nestedPlaceholder.index = placeholder.index + (this._syntheticFinalPlaceholderIndexPool-- / 10);
+						nestedPlaceholder.index = placeholder.index + (nested._snippet.placeholders.length / 10);
 					} else {
 						nestedPlaceholder.index = placeholder.index + (nestedPlaceholder.index / 10);
 					}
