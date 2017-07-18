@@ -661,7 +661,7 @@ export class DebugService implements debug.IDebugService {
 							"Compound must have \"configurations\" attribute set in order to start multiple configurations.")));
 					}
 
-					return TPromise.join(compound.configurations.map(name => this.startDebugging(name)));
+					return TPromise.join(compound.configurations.map(name => name !== configName ? this.startDebugging(name) : TPromise.as(null)));
 				}
 				if (configName && !config) {
 					return TPromise.wrapError(new Error(nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json'.", configName)));
