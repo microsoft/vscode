@@ -9,6 +9,7 @@
 		"editor.selectionHighlightBackground": "#ADD6FF26",
 		"list.dropBackground": "#383B3D",
 		"activityBarBadge.background": "#007ACC",
-		"sideBarTitle.foreground": "#BBBBBB"
+		"sideBarTitle.foreground": "#BBBBBB",
+		"statusBar.multiFolderBackground": "#2c4681"
 	}
 }

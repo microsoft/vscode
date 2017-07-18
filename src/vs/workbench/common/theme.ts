@@ -155,9 +155,9 @@ export const STATUS_BAR_BACKGROUND = registerColor('statusBar.background', {
 }, nls.localize('statusBarBackground', "Standard status bar background color. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_MULTI_FOLDER_BACKGROUND = registerColor('statusBar.multiFolderBackground', {
-	dark: '#2c4681',
-	light: '#2c4681',
-	hc: null
+	dark: STATUS_BAR_BACKGROUND,
+	light: STATUS_BAR_BACKGROUND,
+	hc: STATUS_BAR_BACKGROUND
 }, nls.localize('statusBarMultiFolderBackground', "Status bar background color when a workspace with multiple folders is opened. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_NO_FOLDER_BACKGROUND = registerColor('statusBar.noFolderBackground', {
@@ -165,7 +165,6 @@ export const STATUS_BAR_NO_FOLDER_BACKGROUND = registerColor('statusBar.noFolder
 	light: '#68217A',
 	hc: null
 }, nls.localize('statusBarNoFolderBackground', "Status bar background color when no folder is opened. The status bar is shown in the bottom of the window."));
-
 
 export const STATUS_BAR_BORDER = registerColor('statusBar.border', {
 	dark: null,
