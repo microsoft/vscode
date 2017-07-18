@@ -180,25 +180,6 @@ suite('Editor Contrib - Block Comment Command', () => {
 
 		testBlockCommentCommand(
 			[
-				'<0 first 0>',
-				'\tsecond line',
-				'third line',
-				'fourth line',
-				'fifth'
-			],
-			new Selection(1, 10, 1, 1),
-			[
-				'first',
-				'\tsecond line',
-				'third line',
-				'fourth line',
-				'fifth'
-			],
-			new Selection(1, 1, 1, 6)
-		);
-
-		testBlockCommentCommand(
-			[
 				'<0 first0>',
 				'\tsecond line',
 				'third line',
