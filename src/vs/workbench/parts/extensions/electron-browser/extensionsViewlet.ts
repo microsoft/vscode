@@ -204,16 +204,14 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 
 		this.onSearchChange = mapEvent(onSearchInput, e => e.target.value);
 
-		this.extensionManagementService.getInstalled(LocalExtensionType.User)
+		return this.extensionManagementService.getInstalled(LocalExtensionType.User)
 			.then(installed => {
 				if (installed.length === 0) {
 					this.searchBox.value = '@sort:installs';
-					this.searchExtensionsContextKey.set(true);
 				}
-			}, e => {
-				console.log(e);
+				this.searchExtensionsContextKey.set(true);
+				return super.create(new Builder(this.extensionsBox));
 			});
-		return super.create(new Builder(this.extensionsBox));
 	}
 
 	public updateStyles(): void {
