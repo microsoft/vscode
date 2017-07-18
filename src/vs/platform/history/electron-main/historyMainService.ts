@@ -168,7 +168,7 @@ export class HistoryMainService implements IHistoryMainService {
 			return isLinux ? workspace : workspace.toLowerCase();
 		}
 
-		return workspace.id + workspace.configPath; // ID and configPath form a unique workspace
+		return workspace.id + (isLinux ? workspace.configPath : workspace.configPath.toLowerCase()); // ID and configPath form a unique workspace
 	}
 
 	private saveRecentlyOpened(recent: IRecentlyOpened): void {

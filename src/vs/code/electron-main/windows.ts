@@ -799,7 +799,7 @@ export class WindowsManager implements IWindowsMainService {
 					// folder (if path is valid)
 					else if (lastActiveWindow.folderPath) {
 						const validatedFolder = this.parsePath(lastActiveWindow.folderPath);
-						if (validatedFolder) {
+						if (validatedFolder && validatedFolder.folderPath) {
 							return [validatedFolder];
 						}
 					}
@@ -818,18 +818,18 @@ export class WindowsManager implements IWindowsMainService {
 				const windowsToOpen: IWindowToOpen[] = [];
 
 				// Workspaces
-				const workspaces = this.windowsState.openedWindows.filter(w => !!w.workspace).map(w => w.workspace);
+				const workspaceCandidates = this.windowsState.openedWindows.filter(w => !!w.workspace).map(w => w.workspace);
 				if (lastActiveWindow && lastActiveWindow.workspace) {
-					workspaces.push(lastActiveWindow.workspace);
+					workspaceCandidates.push(lastActiveWindow.workspace);
 				}
-				windowsToOpen.push(...arrays.coalesce(workspaces.map(candidate => this.parsePath(candidate.configPath))));
+				windowsToOpen.push(...workspaceCandidates.map(candidate => this.parsePath(candidate.configPath)).filter(window => window && window.workspace));
 
 				// Folders
-				const folders = this.windowsState.openedWindows.filter(w => !!w.folderPath).map(w => w.folderPath);
+				const folderCandidates = this.windowsState.openedWindows.filter(w => !!w.folderPath).map(w => w.folderPath);
 				if (lastActiveWindow && lastActiveWindow.folderPath) {
-					folders.push(lastActiveWindow.folderPath);
+					folderCandidates.push(lastActiveWindow.folderPath);
 				}
-				windowsToOpen.push(...arrays.coalesce(folders.map(candidate => this.parsePath(candidate))));
+				windowsToOpen.push(...folderCandidates.map(candidate => this.parsePath(candidate)).filter(window => window && window.folderPath));
 
 				// Windows that were Empty
 				if (restoreWindows === 'all') {
@@ -867,7 +867,8 @@ export class WindowsManager implements IWindowsMainService {
 			}
 		}
 
-		return arrays.coalesce(candidates.map(candidate => this.parsePath(candidate.configPath))).map(window => window.workspace);
+		// Validate all workspace paths and only return the workspaces that are valid
+		return arrays.coalesce(candidates.map(candidate => this.parsePath(candidate.configPath)).map(window => window && window.workspace));
 	}
 
 	private isUntitledWorkspace(state: IWindowState): boolean {
