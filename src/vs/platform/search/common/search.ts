@@ -29,6 +29,7 @@ export interface ISearchService {
 export interface IFolderQuery {
 	folder: uri;
 	excludePattern?: IExpression;
+	includePattern?: IExpression;
 	fileEncoding?: string;
 }
 

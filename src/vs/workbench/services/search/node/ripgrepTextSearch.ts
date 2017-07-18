@@ -401,13 +401,14 @@ function foldersToRgExcludeGlobs(folderQueries: IFolderSearch[], globalExclude: 
 }
 
 function foldersToIncludeGlobs(folderQueries: IFolderSearch[], globalInclude: glob.IExpression): string[] {
-	const globArgs = new Set<string>();
+	const globArgs = [];
 	folderQueries.forEach(folderQuery => {
-		const result = globExprsToRgGlobs(globalInclude, folderQuery.folder);
-		result.globArgs.forEach(arg => globArgs.add(arg));
+		const totalIncludePattern = objects.assign({}, globalInclude || {}, folderQuery.includePattern || {});
+		const result = globExprsToRgGlobs(totalIncludePattern, folderQuery.folder);
+		globArgs.push(...result.globArgs);
 	});
 
-	return (<any>Array).from(globArgs);
+	return globArgs;
 }
 
 function globExprsToRgGlobs(patterns: glob.IExpression, folder: string): IRgGlobResult {

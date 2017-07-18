@@ -17,7 +17,7 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IRawSearch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedFileMatch, IRawSearchService } from './search';
+import { IRawSearch, IFolderSearch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedFileMatch, IRawSearchService } from './search';
 import { ISearchChannel, SearchChannelClient } from './searchIpc';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ResourceMap } from 'vs/base/common/map';
@@ -232,8 +232,9 @@ export class DiskSearch {
 
 		let rawSearch: IRawSearch = {
 			folderQueries: query.folderQueries ? query.folderQueries.map(q => {
-				return {
+				return <IFolderSearch>{
 					excludePattern: q.excludePattern,
+					includePattern: q.includePattern,
 					fileEncoding: q.fileEncoding,
 					folder: q.folder.fsPath
 				};
