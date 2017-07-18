@@ -8,6 +8,7 @@ import 'vs/workbench/parts/snippets/electron-browser/snippetsService';
 import 'vs/workbench/parts/snippets/electron-browser/insertSnippet';
 import 'vs/workbench/parts/snippets/electron-browser/tabCompletion';
 
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { fileExists, writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -16,11 +17,10 @@ import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { join } from 'path';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { Registry } from 'vs/platform/registry/common/platform';
 import * as errors from 'vs/base/common/errors';
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import * as nls from 'vs/nls';
-import * as platform from 'vs/platform/registry/common/platform';
 import * as snippetsTracker from './snippetsTracker';
 import * as tmSnippets from './TMSnippets';
 import * as winjs from 'vs/base/common/winjs.base';
@@ -99,15 +99,9 @@ namespace OpenSnippetsAction {
 	});
 }
 
-(<workbenchContributions.IWorkbenchContributionsRegistry>platform.Registry.as(workbenchContributions.Extensions.Workbench)).registerWorkbenchContribution(
-	snippetsTracker.SnippetsTracker
-);
-(<workbenchContributions.IWorkbenchContributionsRegistry>platform.Registry.as(workbenchContributions.Extensions.Workbench)).registerWorkbenchContribution(
-	tmSnippets.MainProcessTextMateSnippet
-);
 
-let schemaId = 'vscode://schemas/snippets';
-let schema: IJSONSchema = {
+const schemaId = 'vscode://schemas/snippets';
+const schema: IJSONSchema = {
 	'id': schemaId,
 	'defaultSnippets': [{
 		'label': nls.localize('snippetSchema.json.default', "Empty snippet"),
@@ -139,5 +133,14 @@ let schema: IJSONSchema = {
 	}
 };
 
-let schemaRegistry = <JSONContributionRegistry.IJSONContributionRegistry>platform.Registry.as(JSONContributionRegistry.Extensions.JSONContribution);
-schemaRegistry.registerSchema(schemaId, schema);
+Registry
+	.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution)
+	.registerSchema(schemaId, schema);
+
+Registry
+	.as<workbenchContributions.IWorkbenchContributionsRegistry>(workbenchContributions.Extensions.Workbench)
+	.registerWorkbenchContribution(snippetsTracker.SnippetsTracker);
+
+Registry
+	.as<workbenchContributions.IWorkbenchContributionsRegistry>(workbenchContributions.Extensions.Workbench)
+	.registerWorkbenchContribution(tmSnippets.MainProcessTextMateSnippet);
