@@ -40,7 +40,7 @@
     "semver": "4.3.6",
     "v8-profiler": "jrieken/v8-profiler#vscode",
     "vscode-debugprotocol": "1.21.0",
-    "vscode-ripgrep": "0.0.15",
+    "vscode-ripgrep": "joaomoreno/vscode-ripgrep#64a2f0530fd9099de2cb1026a61e0a31b05e983d",
     "vscode-textmate": "^3.1.5",
     "winreg": "1.2.0",
     "xterm": "Tyriar/xterm.js#vscode-release/1.15",
