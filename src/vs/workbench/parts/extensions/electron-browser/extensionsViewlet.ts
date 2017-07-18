@@ -211,6 +211,9 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 				}
 				this.searchExtensionsContextKey.set(!!this.searchBox.value);
 				return super.create(new Builder(this.extensionsBox));
+			}, e => {
+				console.log(e);
+				return super.create(new Builder(this.extensionsBox));
 			});
 	}
 
